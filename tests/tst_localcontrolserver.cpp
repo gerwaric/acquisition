@@ -1,4 +1,6 @@
 #include <QElapsedTimer>
+#include <QFileDevice>
+#include <QFileInfo>
 #include <QJsonDocument>
 #include <QLocalSocket>
 #include <QTemporaryDir>
@@ -20,6 +22,7 @@ private slots:
     void ignoresTrailingPartialFrame();
     void idleConnectionTimesOut();
     void connectionLimitIsEnforced();
+    void socketIsOwnerOnly();
 };
 
 namespace {
@@ -237,6 +240,24 @@ void LocalControlServerTest::connectionLimitIsEnforced()
 
     first.write(control::EncodeFrame(request()));
     QVERIFY(readResponse(first).value("ok").toBool());
+}
+
+void LocalControlServerTest::socketIsOwnerOnly()
+{
+#ifndef Q_OS_WIN
+    QTemporaryDir dir;
+    control::LocalControlServer server;
+    QVERIFY(server.Listen(QDir(dir.path())));
+    const QFileDevice::Permissions permissions = QFileInfo(server.Endpoint()).permissions();
+    QVERIFY(!(permissions & QFileDevice::ReadGroup));
+    QVERIFY(!(permissions & QFileDevice::WriteGroup));
+    QVERIFY(!(permissions & QFileDevice::ExeGroup));
+    QVERIFY(!(permissions & QFileDevice::ReadOther));
+    QVERIFY(!(permissions & QFileDevice::WriteOther));
+    QVERIFY(!(permissions & QFileDevice::ExeOther));
+#else
+    QSKIP("Windows named-pipe ACLs require a native integration check");
+#endif
 }
 
 QTEST_GUILESS_MAIN(LocalControlServerTest)

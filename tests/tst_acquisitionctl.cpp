@@ -1,5 +1,10 @@
+#include <QJsonDocument>
 #include <QProcess>
+#include <QTemporaryDir>
 #include <QtTest>
+
+#include "control/controlprotocol.h"
+#include "control/localcontrolserver.h"
 
 class AcquisitionCtlTest : public QObject
 {
@@ -9,6 +14,7 @@ private slots:
     void rejectsOptionsForOtherCommands();
     void validatesRefreshArguments();
     void identifiesItselfInParserErrors();
+    void statusRoundTrip();
 };
 
 namespace {
@@ -72,6 +78,39 @@ void AcquisitionCtlTest::identifiesItselfInParserErrors()
     QCOMPARE(result.status, QProcess::NormalExit);
     QCOMPARE(result.code, 1);
     QVERIFY(result.standard_error.startsWith("acquisitionctl:"));
+}
+
+void AcquisitionCtlTest::statusRoundTrip()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    control::LocalControlServer server;
+    QString received_command;
+    server.SetHandler([&received_command](const control::Request &request) {
+        received_command = request.command;
+        if (request.command != "status") {
+            return control::Error(request.request_id, "wrong_command", "expected status");
+        }
+        return control::Success(request.request_id, QJsonObject{{"service_state", "ready"}});
+    });
+    QVERIFY2(server.Listen(QDir(dir.path())), qPrintable(server.ErrorString()));
+
+    QProcess process;
+    process.start(ACQUISITIONCTL_PATH, {"--data-dir", dir.path(), "status"});
+    QTRY_COMPARE_WITH_TIMEOUT(process.state(), QProcess::NotRunning, 5000);
+    QCOMPARE(process.exitStatus(), QProcess::NormalExit);
+    QCOMPARE(process.exitCode(), 0);
+    QCOMPARE(received_command, "status");
+    QJsonParseError error;
+    const QJsonDocument document = QJsonDocument::fromJson(process.readAllStandardOutput(), &error);
+    QCOMPARE(error.error, QJsonParseError::NoError);
+    QVERIFY(document.object().value("ok").toBool());
+    QCOMPARE(document.object()
+                 .value("result")
+                 .toObject()
+                 .value("service_state")
+                 .toString(),
+             "ready");
 }
 
 QTEST_GUILESS_MAIN(AcquisitionCtlTest)
