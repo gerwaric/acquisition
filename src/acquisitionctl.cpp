@@ -141,22 +141,35 @@ int main(int argc, char *argv[])
                     << Qt::endl;
                 return 2;
             }
+            if (parser.value(cursor_option).isEmpty()) {
+                QTextStream(stderr) << "acquisitionctl: --cursor must not be empty" << Qt::endl;
+                return 2;
+            }
             params.insert("cursor", parser.value(cursor_option));
-        }
-        if (parser.isSet(tab_option)) {
-            params.insert("tab_id", parser.value(tab_option));
-        }
-        if (parser.isSet(kind_option)) {
-            params.insert("kind", parser.value(kind_option));
         }
         if (parser.isSet(tab_option) != parser.isSet(kind_option)) {
             QTextStream(stderr) << "acquisitionctl: --tab and --kind must be provided together"
                                 << Qt::endl;
             return 2;
         }
+        if (parser.isSet(tab_option)) {
+            const QString tab_id = parser.value(tab_option);
+            const QString kind = parser.value(kind_option);
+            if (tab_id.isEmpty()) {
+                QTextStream(stderr) << "acquisitionctl: --tab must not be empty" << Qt::endl;
+                return 2;
+            }
+            if (kind != "stash" && kind != "character") {
+                QTextStream(stderr) << "acquisitionctl: --kind must be stash or character"
+                                    << Qt::endl;
+                return 2;
+            }
+            params.insert("tab_id", tab_id);
+            params.insert("kind", kind);
+        }
     } else if (command == "item") {
-        if (positional.size() != 2) {
-            QTextStream(stderr) << "acquisitionctl: item requires an id" << Qt::endl;
+        if (positional.size() != 2 || positional.at(1).isEmpty()) {
+            QTextStream(stderr) << "acquisitionctl: item requires a non-empty id" << Qt::endl;
             return 2;
         }
         if (has_item_options || parser.isSet(timeout_option)) {
@@ -180,9 +193,9 @@ int main(int argc, char *argv[])
             }
             command = "refresh.start";
         } else if (action == "status" || action == "wait") {
-            if (positional.size() != 3) {
+            if (positional.size() != 3 || positional.at(2).isEmpty()) {
                 QTextStream(stderr) << "acquisitionctl: refresh " << action
-                                    << " requires an operation id" << Qt::endl;
+                                    << " requires a non-empty operation id" << Qt::endl;
                 return 2;
             }
             command = "refresh.status";

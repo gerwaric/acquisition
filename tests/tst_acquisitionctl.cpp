@@ -13,6 +13,7 @@ class AcquisitionCtlTest : public QObject
 private slots:
     void rejectsOutOfRangeLimit();
     void rejectsOptionsForOtherCommands();
+    void validatesItemArguments();
     void validatesRefreshArguments();
     void invalidUsageDoesNotWriteStdout();
     void identifiesItselfInParserErrors();
@@ -62,11 +63,34 @@ void AcquisitionCtlTest::rejectsOptionsForOtherCommands()
     QVERIFY(result.standard_error.contains("do not apply"));
 }
 
+void AcquisitionCtlTest::validatesItemArguments()
+{
+    const Result empty_cursor = run({"items", "--cursor", ""});
+    QCOMPARE(empty_cursor.code, 2);
+    QVERIFY(empty_cursor.standard_output.isEmpty());
+
+    const Result empty_tab = run({"items", "--tab", "", "--kind", "stash"});
+    QCOMPARE(empty_tab.code, 2);
+    QVERIFY(empty_tab.standard_error.contains("--tab must not be empty"));
+
+    const Result invalid_kind = run({"items", "--tab", "tab", "--kind", "invalid"});
+    QCOMPARE(invalid_kind.code, 2);
+    QVERIFY(invalid_kind.standard_error.contains("stash or character"));
+
+    const Result empty_id = run({"item", ""});
+    QCOMPARE(empty_id.code, 2);
+    QVERIFY(empty_id.standard_error.contains("non-empty id"));
+}
+
 void AcquisitionCtlTest::validatesRefreshArguments()
 {
     const Result missing_id = run({"refresh", "status"});
     QCOMPARE(missing_id.status, QProcess::NormalExit);
     QCOMPARE(missing_id.code, 2);
+
+    const Result empty_id = run({"refresh", "status", ""});
+    QCOMPARE(empty_id.code, 2);
+    QVERIFY(empty_id.standard_error.contains("non-empty operation id"));
 
     const Result negative_timeout = run({"refresh", "wait", "operation", "--timeout", "-1"});
     QCOMPARE(negative_timeout.status, QProcess::NormalExit);
@@ -89,7 +113,7 @@ void AcquisitionCtlTest::invalidUsageDoesNotWriteStdout()
     const Result missing_id = run({"refresh", "status"});
     QCOMPARE(missing_id.code, 2);
     QVERIFY(missing_id.standard_output.isEmpty());
-    QVERIFY(missing_id.standard_error.contains("requires an operation id"));
+    QVERIFY(missing_id.standard_error.contains("requires a non-empty operation id"));
 }
 
 void AcquisitionCtlTest::identifiesItselfInParserErrors()
