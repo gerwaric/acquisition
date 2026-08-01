@@ -9,6 +9,26 @@ Use `acquisitionctl`; do not read Acquisition databases, settings, OAuth tokens,
 or POESESSID values directly. The open GUI owns network access, rate limiting,
 persistence, and refresh jobs.
 
+Before issuing commands, resolve the executable once and substitute its path for
+`acquisitionctl` below:
+
+1. Use an explicit path supplied by the user or the shell's `ACQUISITIONCTL`
+   variable, then try `acquisitionctl` on `PATH`.
+2. For a local build, try `build/acquisitionctl`.
+3. On macOS, derive `acquisitionctl` beside the running `acquisition` process
+   inside its relocatable app bundle. If the process path is unavailable, try
+   `/Applications/acquisition.app/Contents/MacOS/acquisitionctl` and the same
+   path under `~/Applications`.
+4. On Windows, use `acquisitionctl.exe` beside the running `acquisition.exe`.
+   If the GUI is not running, resolve the target of its `acquisition` Start Menu
+   shortcut and use that installation directory.
+5. On Linux, locate the separately downloaded `acquisitionctl-*.AppImage`
+   release artifact (commonly beside the GUI AppImage or in `~/Applications`)
+   and ensure it is executable.
+
+If none exists, tell the user which CLI artifact is missing rather than reading
+private application files as a fallback.
+
 Pass `--data-dir <path>` when Acquisition uses a non-default data directory.
 Every successful command writes one JSON envelope to stdout. Treat stderr as a
 human diagnostic only.
@@ -66,7 +86,8 @@ independently while displaying under a parent.
 To consume every page:
 
 1. Save the first response's `instance_id` and `inventory_revision`.
-2. Process `result.items`.
+2. Process `result.items`; a sparse filter may produce an empty page with a
+   non-null cursor because each request has a source-scan bound.
 3. Repeat with only `--cursor` while `next_cursor` is non-null.
 4. On `revision_changed`, discard the partial traversal and restart at page one.
 

@@ -77,7 +77,10 @@ another agent-specific protocol.
 : A `QCoreApplication` executable linked only to the protocol/client support it
   needs. It discovers the endpoint from the same canonical `--data-dir`, sends
   one command, prints JSON, and exits. `refresh wait` polls with bounded
-  single-command connections; its lifetime never controls the refresh.
+  single-command connections; its lifetime never controls the refresh. Release
+  packages keep it beside the GUI executable on Windows, inside the app bundle
+  on macOS, and in a separate CLI AppImage on Linux; documentation and the skill
+  resolve those paths rather than assuming a system-wide installation.
 
 `acquisition-cli` skill
 : A separately reviewable skill that teaches agents command ordering,
@@ -91,10 +94,11 @@ namespaced by application and protocol identity. Different test or user data
 roots do not collide. The server requests `QLocalServer::UserAccessOption` and
 holds an endpoint-specific `QLockFile` while listening.
 
-A listen failure must not delete an endpoint blindly. The application first
-probes it. A successful protocol response means another process owns the
-endpoint. Only a failed probe while holding the endpoint lock permits stale
-endpoint removal and one listen retry. A second GUI retries ownership every two
+A listen failure must not delete an endpoint blindly. After taking the lock,
+the application probes before calling `listen` because Qt may otherwise unlink
+a live Unix socket. A successful connection means another process owns the
+endpoint. Only a refused or missing-endpoint probe while holding the lock
+permits stale endpoint removal and one listen retry. A second GUI retries ownership every two
 seconds so it can take over if the owner exits.
 
 The current multi-GUI policy remains out of scope. If two application processes
@@ -109,9 +113,11 @@ Each message is:
 
 Version 1 rejects zero-length frames, frames above a fixed small request limit,
 invalid JSON, non-object roots, missing protocol/command fields, and unsupported
-protocol versions. A connection carries exactly one request and one response;
-trailing frames are rejected. The server bounds unread buffered data, concurrent
-connections, request time, and response size, and closes on framing violations.
+protocol versions. A connection dispatches at most its first complete request
+and returns one response; already-buffered or later trailing data is never
+dispatched as another command before the server closes the connection. The
+server bounds unread buffered data, concurrent connections, request time, and
+response size, and closes on framing violations.
 
 Every response has this envelope:
 
@@ -214,8 +220,11 @@ The implementation uses an opaque source-index cursor over
 `instance_id`, and revision; cursor requests cannot override them. Revision is
 checked before reading each page and serialization runs in the application
 thread. Unfiltered first pages report `total`; filtered pages omit it rather
-than scanning the full result set. Limits bound UI-thread work and response
-memory. The measured page cost did not justify an immutable snapshot.
+than scanning the full result set. A page examines at most 10,000 source items,
+so a sparse filter can return an empty item array with a continuation cursor.
+Clients continue until the cursor is null. Page and scan limits bound UI-thread
+work and response memory. The measured page cost did not justify an immutable
+snapshot.
 
 ## Refresh operations
 
@@ -275,7 +284,11 @@ an agent to:
 
 ## Security and robustness
 
-- Same-user local socket access is requested on every platform.
+- Same-user local socket access is requested on every platform. On Windows the
+  client additionally compares the named-pipe server process token SID with its
+  own before sending a request. This prevents cross-user impersonation and
+  request disclosure; another user who guesses the pipe name can still deny
+  service by occupying it first.
 - No credential-bearing object is reachable through command serialization.
 - Request and response frames, page limits, retained jobs, connection counts,
   idle request time, and connection buffers are bounded.
@@ -290,8 +303,9 @@ an agent to:
 ### Unit and component tests
 
 - endpoint naming is stable per canonical data root and distinct across roots;
-- frame fragmentation, rejected trailing frames, oversize lengths, invalid
-  JSON, unsupported versions, unknown commands, and request-id echo;
+- frame fragmentation, single-dispatch behavior for pipelined/trailing data,
+  oversize lengths, invalid JSON, unsupported versions, unknown commands, and
+  request-id echo;
 - service status before and after session attachment;
 - item, tab, enum, location, and effective-price serialization;
 - revision increments for snapshots, deltas, reconciliations, and buyout changes;
@@ -318,8 +332,10 @@ The checked-in `control_benchmark` is excluded from normal builds and measures a
 complete cursor traversal of deterministic published collections. A local
 Release run on an Apple M4 Max measured:
 
-- 101,048 items in 1,011 pages: 1,001.504 ms total, 1.234 ms maximum page;
-- 975,711 items in 9,758 pages: 9,751.458 ms total, 4.565 ms maximum page.
+- 101,048 items in 1,011 pages: 1,009.797 ms total, 7.351 ms maximum page,
+  0.434 ms sparse-filter page;
+- 975,711 items in 9,758 pages: 9,417.832 ms total, 6.733 ms maximum page,
+  1.282 ms sparse-filter page.
 
 The local checkpoint completed a clean RelWithDebInfo build and all 39 tests.
 The four control-focused tests also passed an AddressSanitizer build
@@ -335,8 +351,8 @@ and re-reviewed; declined findings are recorded with the invariant they
 misread.
 
 Passing tests establish exercised behavior only. Windows named-pipe ACLs and
-native Windows/Linux release packaging remain validation gaps until CI or a
-native host verifies them. A live authenticated refresh and forum update are
+server-token authentication, plus native Windows/Linux release packaging,
+remain validation gaps until CI or a native host verifies them. A live authenticated refresh and forum update are
 not run against user data during local validation.
 
 ## Local implementation sequence

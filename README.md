@@ -39,6 +39,20 @@ See [BUILD.md](BUILD.md) for more detailed build and release packaging guidance.
 running for the same data directory. It never opens the application's databases
 or starts a second synchronizer. Output is versioned JSON.
 
+Release packages do not install a system-wide command:
+
+- Windows places `acquisitionctl.exe` beside `acquisition.exe` in the chosen
+  installation directory.
+- macOS places it at
+  `/Applications/acquisition.app/Contents/MacOS/acquisitionctl` when the app is
+  installed in `/Applications`.
+- Linux publishes `acquisitionctl-*.AppImage` as a second release artifact;
+  download it alongside the GUI AppImage and make it executable.
+- Local builds produce `build/acquisitionctl`.
+
+The examples below assume that executable is on `PATH`; otherwise replace
+`acquisitionctl` with its path.
+
 ```sh
 acquisitionctl status --json
 acquisitionctl tabs --json
