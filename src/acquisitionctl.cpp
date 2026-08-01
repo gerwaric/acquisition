@@ -57,9 +57,11 @@ namespace {
 int main(int argc, char *argv[])
 {
     QCoreApplication app(argc, argv);
-    QCoreApplication::setApplicationName(APP_NAME);
+    QCoreApplication::setApplicationName("acquisitionctl");
     QCoreApplication::setApplicationVersion(APP_VERSION_STRING);
 
+    // Shared helper uses GenericDataLocation + "acquisition" explicitly, so
+    // the parser's application name cannot redirect the GUI data directory.
     const QString default_data_dir = control::DefaultDataDirectory().absolutePath();
 
     QCommandLineParser parser;

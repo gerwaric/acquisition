@@ -8,6 +8,7 @@ private slots:
     void rejectsOutOfRangeLimit();
     void rejectsOptionsForOtherCommands();
     void validatesRefreshArguments();
+    void identifiesItselfInParserErrors();
 };
 
 namespace {
@@ -63,6 +64,14 @@ void AcquisitionCtlTest::validatesRefreshArguments()
     QCOMPARE(ignored_timeout.status, QProcess::NormalExit);
     QCOMPARE(ignored_timeout.code, 2);
     QVERIFY(ignored_timeout.standard_error.contains("applies only"));
+}
+
+void AcquisitionCtlTest::identifiesItselfInParserErrors()
+{
+    const Result result = run({"--definitely-invalid"});
+    QCOMPARE(result.status, QProcess::NormalExit);
+    QCOMPARE(result.code, 1);
+    QVERIFY(result.standard_error.startsWith("acquisitionctl:"));
 }
 
 QTEST_GUILESS_MAIN(AcquisitionCtlTest)
