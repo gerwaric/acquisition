@@ -69,6 +69,10 @@ add_test(NAME filters_boundary
 
 acq_add_test(tst_buyout)
 acq_add_test(tst_buyoutmanager)
+acq_add_test(tst_acquisitionctl)
+add_dependencies(tst_acquisitionctl acquisitionctl)
+target_compile_definitions(tst_acquisitionctl PRIVATE
+    ACQUISITIONCTL_PATH="$<TARGET_FILE:acquisitionctl>")
 acq_add_test(tst_controlprotocol)
 acq_add_test(tst_controlservice)
 acq_add_test(tst_localcontrolserver)

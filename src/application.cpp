@@ -209,7 +209,7 @@ void Application::InitUserSession()
     disconnect(updater, &UpdateChecker::UpdateAvailable, nullptr, nullptr);
 
     m_control_service->AttachSession(*item_mgr,
-                                     *worker,
+                                     worker,
                                      *buyout_mgr,
                                      settings().value("account").toString(),
                                      settings().value("league").toString());

@@ -23,7 +23,7 @@ public:
 
     void SetNeedsLogin();
     void AttachSession(ItemsManager &items_manager,
-                       ItemsManagerWorker &worker,
+                       ItemsManagerWorker *worker,
                        BuyoutManager &buyout_manager,
                        const QString &account,
                        const QString &league);
@@ -35,6 +35,10 @@ private:
     enum class ServiceState { Starting, NeedsLogin, LoadingCache, Ready };
 
     QJsonObject Status() const;
+    QJsonObject Tabs(const QString &request_id) const;
+    QJsonObject Items(const QString &request_id, const QJsonObject &params) const;
+    QJsonObject Item(const QString &request_id, const QJsonObject &params) const;
+    QJsonObject NotReady(const QString &request_id) const;
     static QString StateName(ServiceState state);
 
     QString m_application_version;

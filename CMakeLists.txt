@@ -263,6 +263,8 @@ set(ACQ_CORE
     src/column.h
     src/control/controlservice.cpp
     src/control/controlservice.h
+    src/control/viewprojection.cpp
+    src/control/viewprojection.h
     src/sortkey.h
     src/currency.cpp
     src/currency.h
