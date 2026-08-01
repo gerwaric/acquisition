@@ -23,6 +23,7 @@ private slots:
     void validationErrorsPreserveRequestId();
     void servesOnlyFirstPipelinedRequest();
     void ignoresMalformedTrailingFrame();
+    void acceptsMaximumRequestWithTrailingData();
     void ignoresTrailingPartialFrame();
     void idleConnectionTimesOut();
     void connectionLimitIsEnforced();
@@ -228,6 +229,34 @@ void LocalControlServerTest::ignoresMalformedTrailingFrame()
     QLocalSocket socket;
     connectClient(socket, server.Endpoint());
     socket.write(control::EncodeFrame(request()) + QByteArray("\x7f\xff\xff\xff", 4));
+    const QJsonObject response = readResponse(socket);
+    QVERIFY(response.value("ok").toBool());
+    QCOMPARE(response.value("request_id").toString(), "request");
+    QCOMPARE(calls, 1);
+}
+
+void LocalControlServerTest::acceptsMaximumRequestWithTrailingData()
+{
+    QTemporaryDir dir;
+    control::LocalControlServer server;
+    int calls = 0;
+    server.SetHandler([&](const control::Request &request) {
+        ++calls;
+        return control::Success(request.request_id);
+    });
+    QVERIFY(server.Listen(QDir(dir.path())));
+
+    QJsonObject object = request();
+    object.insert("padding", QString(control::MAX_REQUEST_BYTES, 'x'));
+    const qsizetype overhead = control::EncodeFrame(object).size() - 4
+                               - object.value("padding").toString().size();
+    object.insert("padding", QString(control::MAX_REQUEST_BYTES - overhead, 'x'));
+    const QByteArray frame = control::EncodeFrame(object);
+    QCOMPARE(frame.size() - 4, control::MAX_REQUEST_BYTES);
+
+    QLocalSocket socket;
+    connectClient(socket, server.Endpoint());
+    socket.write(frame + QByteArray(1, '\0'));
     const QJsonObject response = readResponse(socket);
     QVERIFY(response.value("ok").toBool());
     QCOMPARE(response.value("request_id").toString(), "request");

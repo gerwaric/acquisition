@@ -164,8 +164,6 @@ namespace {
             std::pair{Item::REDEEMER, "redeemer"},
             std::pair{Item::HUNTER, "hunter"},
             std::pair{Item::WARLORD, "warlord"},
-            std::pair{Item::SYNTHESISED, "synthesized"},
-            std::pair{Item::FRACTURED, "fractured"},
             std::pair{Item::SEARING_EXARCH, "searing_exarch"},
             std::pair{Item::EATER_OF_WORLDS, "eater_of_worlds"},
         };

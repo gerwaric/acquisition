@@ -43,7 +43,6 @@ private:
     struct Connection
     {
         FrameDecoder decoder{MAX_REQUEST_BYTES};
-        qsizetype received_bytes{0};
         bool handled{false};
     };
 

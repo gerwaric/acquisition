@@ -45,7 +45,8 @@ namespace {
             // Create the fixture items under this fixture's tab.
             const QByteArray first_json = R"({
                 "w":1,"h":1,"id":"item-one","name":"Doom Grip",
-                "typeLine":"Amethyst Ring","identified":true,"ilvl":84,"x":3,"y":7,"frameType":2
+                "typeLine":"Amethyst Ring","identified":true,"ilvl":84,"x":3,"y":7,"frameType":2,
+                "synthesised":true,"fractured":true
             })";
             const QByteArray second_json = R"({
                 "w":1,"h":1,"id":"item-two","name":"",
@@ -143,6 +144,10 @@ void ControlServiceTest::viewsPublishedItemsAndEffectivePrices()
     QCOMPARE(item.value("name").toString(), "Doom Grip");
     QCOMPARE(item.value("item_level").toInt(), 84);
     QCOMPARE(item.value("frame_type").toString(), "rare");
+    QVERIFY(item.value("flags").toObject().value("synthesized").toBool());
+    QVERIFY(item.value("flags").toObject().value("fractured").toBool());
+    QVERIFY(!item.value("influences").toArray().contains("synthesized"));
+    QVERIFY(!item.value("influences").toArray().contains("fractured"));
     QCOMPARE(item.value("location").toObject().value("tab_label").toString(), "Viewing Tab");
     const QJsonObject price = item.value("effective_price").toObject();
     QCOMPARE(price.value("value").toDouble(), 10.0);

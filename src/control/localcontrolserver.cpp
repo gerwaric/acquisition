@@ -136,15 +136,12 @@ void LocalControlServer::ReadFrom(QLocalSocket *socket)
         return;
     }
 
-    const QByteArray bytes = socket->readAll();
-    connection->second.received_bytes += bytes.size();
-    if (connection->second.received_bytes > MAX_REQUEST_BYTES + 4 || connection->second.handled) {
-        Send(socket, Error("", "invalid_frame", "one request is allowed per connection"));
+    if (connection->second.handled) {
+        socket->readAll();
         socket->disconnectFromServer();
         return;
     }
-
-    auto frames = connection->second.decoder.FeedFirst(bytes);
+    auto frames = connection->second.decoder.FeedFirst(socket->readAll());
     if (!frames) {
         Send(socket, Error("", frames.error().code, frames.error().message));
         socket->disconnectFromServer();
