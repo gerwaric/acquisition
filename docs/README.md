@@ -6,6 +6,15 @@ when this map and a header disagree, the header wins.
 
 ## Active
 
+- `design/account-store.md` - **proposed** design for replacing the legacy
+  `DataStore`/`SqliteDataStore` pair with one typed, realm/league-scoped
+  database per stable account identity, separate credential storage, and an
+  immutable forensic-source import contract.
+- `design/account-store-plan.md` - draft phased implementation and
+  verification plan for the account-store redesign. It sequences identity
+  research, scoped repositories, read-only import, credential extraction,
+  consistent backup, and final retirement of the generic datastore.
+
 - `design/items-pipeline.md` — plan for the delta-native redesign of the
   items refresh pipeline. Milestone 1 shipped July 2026; M2 merged and
   M3 implemented July 30–31, 2026, each against its own frozen spec.
