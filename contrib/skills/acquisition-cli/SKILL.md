@@ -114,7 +114,10 @@ acquisitionctl refresh start --json
 ```
 
 The application owns accepted work. Closing the terminal, ending the agent
-session, or losing the client connection does not cancel it.
+session, or losing the client connection does not cancel it. The CLI retries an
+ambiguous start once with the same idempotency key. If it returns
+`start_unconfirmed`, retain `error.operation_id` and query that id before ever
+issuing another start.
 
 Prefer recoverable polling for long refreshes:
 
@@ -147,7 +150,8 @@ forum posting.
 - `1`: the Qt command-line parser rejected an unknown or malformed option.
 - `2`: invalid command combination or structured service error.
 - `3`: Acquisition is not running for that data directory.
-- `4`: transport or protocol failure.
+- `4`: transport or protocol failure; `start_unconfirmed` includes the
+  operation id that must be queried before another start.
 - `5`: refresh busy/not accepted, or `refresh wait` observed failure.
 - `6`: `refresh wait` completed with skipped sources.
 - `7`: observation timeout; the refresh continues.

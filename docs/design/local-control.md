@@ -242,12 +242,16 @@ memory. The measured cost did not justify an immutable snapshot.
 ### Commands
 
 `refresh.start`
-: Starts the application's `UpdateScope::All` path. Returns immediately with
-  `accepted` and an application-generated operation id, or `busy`. A busy
+: Starts the application's `UpdateScope::All` path. The client generates a
+  request id that also becomes the operation id. The command returns
+  immediately with `accepted` and that id, or `busy`. A busy
   response includes `active_refresh_id` only when the active refresh was started
   through control; GUI-originated worker activity has no control operation id.
-  It queues the actual update after sending the response so no terminal signal
-  can nest inside request handling.
+  The request id is also the operation id and idempotency key. The service
+  retains bounded start responses, including rejections, so retrying an
+  ambiguous transport outcome cannot change the decision or start duplicate
+  work. It queues the actual update after sending the response so no terminal
+  signal can nest inside request handling.
 
 `refresh.status`
 : Returns the operation's state (`queued`, `running`, `completed`, `failed`),
@@ -260,8 +264,8 @@ memory. The measured cost did not justify an immutable snapshot.
 
 ### Identity and retention
 
-The control service assigns operation ids; worker internals do not need to
-expose update identity. At most one operation is active because the worker is
+The control service assigns operation ids from refresh-start request ids; worker
+internals do not need to expose update identity. At most one operation is active because the worker is
 single-update. An in-memory history retains the 32 most recent records for
 reconnection. Process restart invalidates ids and is reported as
 `operation_not_found` under the new `instance_id`.
@@ -304,7 +308,9 @@ an agent to:
   service by occupying it first.
 - No credential-bearing object is reachable through command serialization.
 - Request and response frames, page limits, retained jobs, connection counts,
-  idle request time, and connection buffers are bounded.
+  idle request time, and connection buffers are bounded. A conservative JSON
+  size walk rejects oversized responses before serialization allocates the
+  payload.
 - Malformed input cannot terminate the GUI process.
 - Disconnect cleanup removes sockets, never accepted refresh jobs.
 - Application shutdown closes listeners and clients before their referenced
