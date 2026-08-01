@@ -95,9 +95,12 @@ roots do not collide. Unix places the socket and lock in a short, owner-only
 OS-managed user runtime root (Darwin's user temp directory or
 `/run/user/<uid>`), with a validated passwd-home fallback when that root is
 unavailable. Discovery does not depend on the caller's `HOME` or
-`XDG_RUNTIME_DIR`. Windows uses the digest as the named-pipe identity
-and keeps the lock under the data directory. The server requests
-`QLocalServer::UserAccessOption` and holds the endpoint lock while listening.
+`XDG_RUNTIME_DIR`. Windows uses the digest as the named-pipe identity. A
+short-lived native lock serializes bind: an advisory lock file in the private
+Unix runtime root, or a global named mutex on Windows. The operating system
+releases either lock after a crash. The server requests
+`QLocalServer::UserAccessOption`; after bind, the live socket itself establishes
+ownership.
 
 A listen failure must not delete an endpoint blindly. After taking the lock,
 the application probes before calling `listen` because Qt may otherwise unlink
@@ -308,9 +311,10 @@ an agent to:
   service by occupying it first.
 - No credential-bearing object is reachable through command serialization.
 - Request and response frames, page limits, retained jobs, connection counts,
-  idle request time, and connection buffers are bounded. A conservative JSON
-  size walk rejects oversized responses before serialization allocates the
-  payload.
+  idle request time, and connection buffers are bounded. Item and tab pages
+  stop before a conservative response-content byte budget while preserving the
+  continuation point. A JSON size walk rejects any other oversized response
+  before serialization allocates the payload.
 - Malformed input cannot terminate the GUI process.
 - Disconnect cleanup removes sockets, never accepted refresh jobs.
 - Application shutdown closes listeners and clients before their referenced
@@ -351,11 +355,11 @@ The checked-in `control_benchmark` is excluded from normal builds and measures a
 complete cursor traversal of deterministic published collections. A local
 Release run on an Apple M4 Max measured:
 
-- 101,048 items in 1,011 pages: 1,064.366 ms total, 4.562 ms maximum page,
-  0.756 ms sparse-filter page; 20 tab pages took 8.198 ms total and 0.477 ms
+- 101,048 items in 1,011 pages: 1,315.807 ms total, 1.755 ms maximum page,
+  0.412 ms sparse-filter page; 20 tab pages took 9.819 ms total and 0.512 ms
   maximum per page;
-- 975,711 items in 9,758 pages: 9,593.230 ms total, 5.442 ms maximum page,
-  0.453 ms sparse-filter page; 26 tab pages took 9.989 ms total and 0.400 ms
+- 975,711 items in 9,758 pages: 12,568.670 ms total, 7.912 ms maximum page,
+  1.029 ms sparse-filter page; 26 tab pages took 13.085 ms total and 0.527 ms
   maximum per page.
 
 The local checkpoint completed a clean RelWithDebInfo build and all 39 tests.
@@ -371,10 +375,11 @@ review of every final commit and the complete branch. Valid findings are fixed
 and re-reviewed; declined findings are recorded with the invariant they
 misread.
 
-Passing tests establish exercised behavior only. Windows named-pipe ACLs and
-server-token authentication, plus native Windows/Linux release packaging,
-remain validation gaps until CI or a native host verifies them. A live authenticated refresh and forum update are
-not run against user data during local validation.
+Passing tests establish exercised behavior only. Windows named-pipe ACLs,
+server-token authentication, and the global bind mutex, plus native
+Windows/Linux release packaging, remain validation gaps until CI or a native
+host verifies them. A live authenticated refresh and forum update are not run
+against user data during local validation.
 
 ## Local implementation sequence
 
