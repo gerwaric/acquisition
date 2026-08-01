@@ -1,9 +1,9 @@
 # Local Control CLI
 
-Status: **DRAFT for local implementation and validation** (August 2026).
-This design is intentionally being implemented and reviewed as one coherent
-local branch before its eventual pull-request boundaries are chosen. No part of
-this draft is an upstream commitment.
+Status: **IMPLEMENTED AND LOCALLY VERIFIED** (August 2026).
+This document is frozen to the coherent local branch before its eventual
+pull-request boundaries are chosen. It records the implemented contract, not an
+upstream commitment.
 
 ## Purpose
 
@@ -76,8 +76,8 @@ another agent-specific protocol.
 `acquisitionctl`
 : A `QCoreApplication` executable linked only to the protocol/client support it
   needs. It discovers the endpoint from the same canonical `--data-dir`, sends
-  one command, prints JSON, and exits. `refresh wait` may keep a connection open
-  or poll, but its lifetime never controls the refresh.
+  one command, prints JSON, and exits. `refresh wait` polls with bounded
+  single-command connections; its lifetime never controls the refresh.
 
 `acquisition-cli` skill
 : A separately reviewable skill that teaches agents command ordering,
@@ -88,15 +88,14 @@ another agent-specific protocol.
 
 The endpoint identity is a digest of the canonical data-directory path,
 namespaced by application and protocol identity. Different test or user data
-roots do not collide. The server requests `QLocalServer::UserAccessOption`.
+roots do not collide. The server requests `QLocalServer::UserAccessOption` and
+holds an endpoint-specific `QLockFile` while listening.
 
 A listen failure must not delete an endpoint blindly. The application first
-probes it:
-
-- a successful protocol response means another process owns the endpoint;
-- a refused connection permits stale endpoint removal and one listen retry;
-- another failure is reported without changing the existing application's
-  ordinary GUI startup behavior.
+probes it. A successful protocol response means another process owns the
+endpoint. Only a failed probe while holding the endpoint lock permits stale
+endpoint removal and one listen retry. A second GUI retries ownership every two
+seconds so it can take over if the owner exits.
 
 The current multi-GUI policy remains out of scope. If two application processes
 use one data directory, exactly the listener owner is controlled.
@@ -110,9 +109,9 @@ Each message is:
 
 Version 1 rejects zero-length frames, frames above a fixed small request limit,
 invalid JSON, non-object roots, missing protocol/command fields, and unsupported
-protocol versions. Connections may carry more than one request, but every
-request receives exactly one response. The server bounds unread buffered data
-and closes on framing violations.
+protocol versions. A connection carries exactly one request and one response;
+trailing frames are rejected. The server bounds unread buffered data, concurrent
+connections, request time, and response size, and closes on framing violations.
 
 Every response has this envelope:
 
@@ -171,11 +170,12 @@ numeric revision with a process-unique `instance_id`; clients compare both.
 
 ### Tabs
 
-`tabs` returns the current display locations known to `BuyoutManager`, including:
+`tabs` returns the current display locations in `ItemsManager`'s published
+`LocationInventory`, including:
 
 - kind (`stash` or `character`), stable display id, label/name, index, and tab
   type;
-- parent/display metadata and colour where represented by `ItemLocation`;
+- colour where represented by `ItemLocation`;
 - remove-only status;
 - refresh checked and locked state;
 - current published item count.
@@ -191,7 +191,7 @@ inventory inspection:
 - id, name, type line, category, item level, stack count, frame type;
 - identified/corrupted/crafted/enchanted/fractured/split/synthesized/mutated
   flags and influence names;
-- dimensions, sockets, links, properties, requirements, and parsed modifiers;
+- dimensions, socket groups, properties, requirements, and parsed modifiers;
 - note and normalized location (kind, display id, fetch-source id, label,
   position, dimensions, inventory/character metadata);
 - effective buyout value, type, currency, source, inherited flag, and update
@@ -209,35 +209,38 @@ Every subsequent page supplies that pair. If published state changed, the
 server returns `revision_changed`; it never silently combines pages from two
 states.
 
-The first implementation may use an index cursor over `ItemsManager::items()`
-provided the revision check occurs before reading each page and serialization
-runs in the application thread. Limits bound UI-thread work and response
-memory. Performance evidence decides whether a more elaborate immutable
-snapshot is necessary; it is not introduced speculatively.
+The implementation uses an opaque source-index cursor over
+`ItemsManager::items()`. The cursor embeds the original limit, filters,
+`instance_id`, and revision; cursor requests cannot override them. Revision is
+checked before reading each page and serialization runs in the application
+thread. Unfiltered first pages report `total`; filtered pages omit it rather
+than scanning the full result set. Limits bound UI-thread work and response
+memory. The measured page cost did not justify an immutable snapshot.
 
 ## Refresh operations
 
 ### Commands
 
 `refresh.start`
-: Accepts version-1 mode `all`. Returns immediately with `accepted` and an
-  application-generated operation id, or `busy` with the active id. It queues
-  the actual update after sending the response so no terminal signal can nest
-  inside request handling.
+: Starts the application's `UpdateScope::All` path. Returns immediately with
+  `accepted` and an application-generated operation id, or `busy` with the
+  active id. It queues the actual update after sending the response so no
+  terminal signal can nest inside request handling.
 
 `refresh.status`
 : Returns the operation's state (`queued`, `running`, `completed`, `failed`),
   latest cosmetic progress, and terminal outcome when available.
 
-`refresh.wait`
-: Waits for a retained operation's terminal outcome. Client timeout or
-  disconnect ends only that wait. The operation continues.
+`refresh wait` (CLI workflow)
+: Polls `refresh.status` until a retained operation reaches a terminal outcome.
+  It is deliberately not a server command. Client timeout or disconnect ends
+  only observation; the operation continues.
 
 ### Identity and retention
 
 The control service assigns operation ids; worker internals do not need to
 expose update identity. At most one operation is active because the worker is
-single-update. A bounded in-memory history retains recent terminal records for
+single-update. An in-memory history retains the 32 most recent records for
 reconnection. Process restart invalidates ids and is reported as
 `operation_not_found` under the new `instance_id`.
 
@@ -248,14 +251,15 @@ reconnection. Process restart invalidates ids and is reported as
   skips and a non-clean flag; it is not mislabeled as a full success.
 - `FailedRefresh` maps to `failed` with the typed error kind and message.
 
-`refresh.wait` uses distinct CLI exit statuses for clean completion,
+CLI `refresh wait` uses distinct exit statuses for clean completion,
 completed-with-skips, failed refresh, busy/not accepted, not running, invalid
 request, and client-side wait timeout. The JSON body, not the number, remains
 the primary contract.
 
 ## Skill behavior
 
-The skill instructs an agent to:
+The distributable skill lives at `contrib/skills/acquisition-cli/`. It instructs
+an agent to:
 
 1. call `status` before inventory commands;
 2. distinguish initialization, live incremental refresh state, and idle state;
@@ -273,10 +277,10 @@ The skill instructs an agent to:
 
 - Same-user local socket access is requested on every platform.
 - No credential-bearing object is reachable through command serialization.
-- Request frames, page limits, waiters, retained jobs, and connection buffers
-  are bounded.
+- Request and response frames, page limits, retained jobs, connection counts,
+  idle request time, and connection buffers are bounded.
 - Malformed input cannot terminate the GUI process.
-- Disconnect cleanup removes waiters and sockets, never jobs.
+- Disconnect cleanup removes sockets, never accepted refresh jobs.
 - Application shutdown closes listeners and clients before their referenced
   domain services are destroyed.
 - Logs avoid full requests and item payloads by default.
@@ -286,8 +290,8 @@ The skill instructs an agent to:
 ### Unit and component tests
 
 - endpoint naming is stable per canonical data root and distinct across roots;
-- frame fragmentation, multiple frames, oversize lengths, invalid JSON,
-  unsupported versions, unknown commands, and request-id echo;
+- frame fragmentation, rejected trailing frames, oversize lengths, invalid
+  JSON, unsupported versions, unknown commands, and request-id echo;
 - service status before and after session attachment;
 - item, tab, enum, location, and effective-price serialization;
 - revision increments for snapshots, deltas, reconciliations, and buyout changes;
@@ -300,24 +304,40 @@ The skill instructs an agent to:
 
 - real `QLocalServer`/`QLocalSocket` round trips with fragmented writes;
 - stale endpoint recovery without removing a live listener;
-- multiple clients and client destruction during a refresh wait;
-- application/service shutdown ordering;
-- CLI stdout contains one JSON result and diagnostics stay on stderr;
-- existing shop gating remains unchanged when refresh starts through control.
+- multiple clients, connection caps, idle timeout, and owner-only Unix socket
+  permissions;
+- application/service shutdown ordering and session destruction;
+- process-level CLI/server status round trip, parser validation, stdout JSON,
+  and stderr diagnostics;
+- refresh dispatch uses the same application path as the GUI, preserving its
+  existing shop gating.
 
 ### Scale and review
 
-- benchmark representative large item pages and bound event-loop latency;
-- run a clean configure/build and complete `ctest`;
-- run applicable sanitizer checks;
-- dogfood every skill workflow against a live GUI using safe data;
-- review every final commit with Diffwarden, verify findings against code, fix
-  valid findings, and repeat until a clean review with no valid findings;
-- record declined findings beside the invariant or tradeoff they misread.
+The checked-in `control_benchmark` is excluded from normal builds and measures a
+complete cursor traversal of deterministic published collections. A local
+Release run on an Apple M4 Max measured:
 
-Passing tests establish exercised behavior only. Platform-specific same-user
-socket permissions and packaging on hosts unavailable locally remain explicit
-validation gaps until CI or a native host verifies them.
+- 101,048 items in 1,011 pages: 1,001.504 ms total, 1.234 ms maximum page;
+- 975,711 items in 9,758 pages: 9,751.458 ms total, 4.565 ms maximum page.
+
+The local checkpoint completed a clean RelWithDebInfo build and all 39 tests.
+The four control-focused tests also passed an AddressSanitizer build
+(`detect_leaks=0`, as required on macOS). Fresh-agent skill dogfood against an
+offscreen GUI with temporary data verified status, not-ready viewing and refresh
+errors, stopped-application handling, help, parser errors, JSON envelopes, and
+exit statuses.
+
+The final checkpoint requires a clean configure/build and complete `ctest`,
+applicable sanitizer checks, safe-data GUI/CLI dogfood, and a clean Diffwarden
+review of every final commit and the complete branch. Valid findings are fixed
+and re-reviewed; declined findings are recorded with the invariant they
+misread.
+
+Passing tests establish exercised behavior only. Windows named-pipe ACLs and
+native Windows/Linux release packaging remain validation gaps until CI or a
+native host verifies them. A live authenticated refresh and forum update are
+not run against user data during local validation.
 
 ## Local implementation sequence
 
@@ -328,7 +348,7 @@ validation gaps until CI or a native host verifies them.
 3. Application-owned refresh operation registry and start/status/wait.
 4. CLI skill and dogfood scenarios.
 5. Full build, tests, scale checks, security review, and independent review.
-6. Freeze this document to the verified implementation.
+6. Freeze this document to the verified implementation (**complete**).
 
 Only after step 6 is the completed diff inspected for reviewer-aligned PR
 boundaries. A recoverable backup is created before any history surgery. Each

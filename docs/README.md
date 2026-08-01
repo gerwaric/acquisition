@@ -6,11 +6,10 @@ when this map and a header disagree, the header wins.
 
 ## Active
 
-- `design/local-control.md` — draft local implementation and verification
-  plan for the same-user `acquisitionctl` control surface: published inventory
-  viewing, application-owned refresh operations, and the separate agent skill.
-  The complete feature is being validated locally before PR boundaries are
-  chosen.
+- `design/local-control.md` — implemented and locally verified same-user
+  `acquisitionctl` control surface: published inventory viewing,
+  application-owned refresh operations, and the separate agent skill. PR
+  boundaries have not yet been chosen.
 - `design/items-pipeline.md` — plan for the delta-native redesign of the
   items refresh pipeline. Milestone 1 shipped July 2026; M2 merged and
   M3 implemented July 30–31, 2026, each against its own frozen spec.
