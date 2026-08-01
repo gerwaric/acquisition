@@ -24,6 +24,8 @@ private slots:
     void servesOnlyFirstPipelinedRequest();
     void ignoresMalformedTrailingFrame();
     void acceptsMaximumRequestWithTrailingData();
+    void acceptsLargeUnescapedResponse();
+    void rejectsOversizedResponseBeforeEncoding();
     void ignoresTrailingPartialFrame();
     void idleConnectionTimesOut();
     void connectionLimitIsEnforced();
@@ -265,6 +267,47 @@ void LocalControlServerTest::acceptsMaximumRequestWithTrailingData()
     QVERIFY(response.value("ok").toBool());
     QCOMPARE(response.value("request_id").toString(), "request");
     QCOMPARE(calls, 1);
+}
+
+void LocalControlServerTest::acceptsLargeUnescapedResponse()
+{
+    QTemporaryDir dir;
+    control::LocalControlServer server;
+    constexpr qsizetype LARGE_TEXT_SIZE = 1024 * 1024;
+    server.SetHandler([](const control::Request &request) {
+        return control::Success(
+            request.request_id,
+            QJsonObject{{"large", QString(LARGE_TEXT_SIZE, 'x')}});
+    });
+    QVERIFY(server.Listen(QDir(dir.path())));
+
+    QLocalSocket socket;
+    connectClient(socket, server.Endpoint());
+    socket.write(control::EncodeFrame(request()));
+    const QJsonObject response = readResponse(socket);
+    QVERIFY(response.value("ok").toBool());
+    QCOMPARE(response.value("result").toObject().value("large").toString().size(),
+             LARGE_TEXT_SIZE);
+}
+
+void LocalControlServerTest::rejectsOversizedResponseBeforeEncoding()
+{
+    QTemporaryDir dir;
+    control::LocalControlServer server;
+    server.SetHandler([](const control::Request &request) {
+        return control::Success(
+            request.request_id,
+            QJsonObject{{"large", QString(control::MAX_RESPONSE_BYTES, 'x')}});
+    });
+    QVERIFY(server.Listen(QDir(dir.path())));
+
+    QLocalSocket socket;
+    connectClient(socket, server.Endpoint());
+    socket.write(control::EncodeFrame(request()));
+    const QJsonObject response = readResponse(socket);
+    QVERIFY(!response.value("ok").toBool(true));
+    QCOMPARE(response.value("error").toObject().value("code").toString(),
+             "response_too_large");
 }
 
 void LocalControlServerTest::ignoresTrailingPartialFrame()

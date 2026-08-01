@@ -7,7 +7,10 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QJsonArray>
 #include <QLocalSocket>
+#include <QLocale>
+#include <QtNumeric>
 #include <QLockFile>
 #include <QTimer>
 
@@ -24,6 +27,109 @@
 namespace control {
 
 namespace {
+
+    bool AddEstimatedBytes(qsizetype &used, qsizetype amount, qsizetype maximum)
+    {
+        if (amount < 0 || used > maximum - amount) {
+            return false;
+        }
+        used += amount;
+        return true;
+    }
+
+    bool EstimateJsonString(const QString &text, qsizetype &used, qsizetype maximum)
+    {
+        if (!AddEstimatedBytes(used, 2, maximum)) {
+            return false;
+        }
+        for (qsizetype index = 0; index < text.size(); ++index) {
+            const ushort code = text.at(index).unicode();
+            qsizetype bytes = 0;
+            if (code == '"' || code == '\\' || code == '\b' || code == '\f'
+                || code == '\n' || code == '\r' || code == '\t') {
+                bytes = 2;
+            } else if (code < 0x20 || code == 0x2028 || code == 0x2029) {
+                bytes = 6;
+            } else if (QChar::isHighSurrogate(code) && index + 1 < text.size()
+                       && QChar::isLowSurrogate(text.at(index + 1).unicode())) {
+                bytes = 4;
+                ++index;
+            } else if (QChar::isSurrogate(code)) {
+                // Qt replaces an unpaired surrogate; six bytes remains a safe
+                // upper bound regardless of replacement escaping.
+                bytes = 6;
+            } else if (code < 0x80) {
+                bytes = 1;
+            } else if (code < 0x800) {
+                bytes = 2;
+            } else {
+                bytes = 3;
+            }
+            if (!AddEstimatedBytes(used, bytes, maximum)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    bool EstimateJson(const QJsonValue &value, qsizetype &used, qsizetype maximum)
+    {
+        switch (value.type()) {
+        case QJsonValue::Null:
+        case QJsonValue::Undefined:
+            return AddEstimatedBytes(used, 4, maximum);
+        case QJsonValue::Bool:
+            return AddEstimatedBytes(used, value.toBool() ? 4 : 5, maximum);
+        case QJsonValue::Double: {
+            const double number = value.toDouble();
+            const qsizetype bytes = qIsFinite(number)
+                                        ? QByteArray::number(number,
+                                                             'g',
+                                                             QLocale::FloatingPointShortest)
+                                              .size()
+                                        : 4; // QJsonDocument writes non-finite values as null.
+            return AddEstimatedBytes(used, bytes, maximum);
+        }
+        case QJsonValue::String:
+            return EstimateJsonString(value.toString(), used, maximum);
+        case QJsonValue::Array: {
+            if (!AddEstimatedBytes(used, 2, maximum)) {
+                return false;
+            }
+            const QJsonArray array = value.toArray();
+            for (qsizetype index = 0; index < array.size(); ++index) {
+                if ((index > 0 && !AddEstimatedBytes(used, 1, maximum))
+                    || !EstimateJson(array.at(index), used, maximum)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        case QJsonValue::Object: {
+            if (!AddEstimatedBytes(used, 2, maximum)) {
+                return false;
+            }
+            const QJsonObject object = value.toObject();
+            qsizetype index = 0;
+            for (auto entry = object.begin(); entry != object.end(); ++entry, ++index) {
+                if ((index > 0 && !AddEstimatedBytes(used, 1, maximum))
+                    || !EstimateJsonString(entry.key(), used, maximum)
+                    || !AddEstimatedBytes(used, 1, maximum)
+                    || !EstimateJson(entry.value(), used, maximum)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        }
+        return false;
+    }
+
+    bool JsonFits(const QJsonObject &object, qsizetype maximum)
+    {
+        qsizetype estimated = 0;
+        return EstimateJson(object, estimated, maximum);
+    }
 
 #ifndef Q_OS_WIN
     bool SecureControlDirectory(const QString &path)
@@ -232,7 +338,10 @@ void LocalControlServer::Drop(QLocalSocket *socket)
 
 bool LocalControlServer::Send(QLocalSocket *socket, const QJsonObject &response)
 {
-    QByteArray frame = EncodeFrame(response);
+    QByteArray frame;
+    if (JsonFits(response, MAX_RESPONSE_BYTES)) {
+        frame = EncodeFrame(response);
+    }
     if (frame.isEmpty() || frame.size() - 4 > MAX_RESPONSE_BYTES) {
         frame = EncodeFrame(Error(response.value("request_id").toString(),
                                   "response_too_large",
