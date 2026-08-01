@@ -11,6 +11,7 @@
 
 #include <algorithm>
 #include <exception>
+#include <limits>
 #include <map>
 #include <optional>
 
@@ -142,7 +143,9 @@ namespace {
         bool offset_ok = false;
         const qlonglong offset = object.value("offset").toString().toLongLong(&offset_ok);
         const int limit = object.value("limit").toInt(0);
-        if (!offset_ok || offset < 0 || limit < 1 || limit > MAXIMUM_PAGE_SIZE) {
+        if (!offset_ok || offset < 0
+            || qulonglong(offset) > qulonglong(std::numeric_limits<qsizetype>::max())
+            || limit < 1 || limit > MAXIMUM_PAGE_SIZE) {
             return std::unexpected(ProtocolError{"invalid_cursor", "the cursor is malformed"});
         }
 
@@ -392,14 +395,14 @@ QJsonObject ControlService::Tabs(const QString &request_id) const
         return NotReady(request_id);
     }
 
-    std::map<LocationInventory::Key, qsizetype> counts;
-    for (const auto &item : m_items_manager->items()) {
-        ++counts[LocationInventory::KeyFor(item->location())];
-    }
+    const auto counts = m_items_manager->itemCountsByLocation();
 
     QJsonArray tabs;
     for (const auto &[key, location] : m_items_manager->locationInventory().entries()) {
-        tabs.append(ProjectTab(location, *m_buyout_manager, counts[key]));
+        const auto count = counts.find(key);
+        tabs.append(ProjectTab(location,
+                               *m_buyout_manager,
+                               count == counts.end() ? 0 : count->second));
     }
     return Success(request_id,
                    QJsonObject{{"instance_id", m_instance_id},

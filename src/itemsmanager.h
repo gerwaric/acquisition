@@ -6,6 +6,7 @@
 #include <QString>
 #include <QTimer>
 
+#include <map>
 #include <vector>
 
 #include "fetchsourcekey.h"
@@ -45,6 +46,7 @@ public:
     // source-keyed store after a delta (M2 D3, post-M2-M2): snapshot and
     // tick consumers only — nothing on the per-reply path calls this.
     const Items &items() const { return m_items.Flat(); }
+    std::map<LocationInventory::Key, qsizetype> itemCountsByLocation() const;
     // The freshest tab metadata seen per stable display key (M2 D6): fed by
     // every delta's location anchor and reset by every snapshot. Search
     // buckets render through it.

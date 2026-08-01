@@ -98,13 +98,23 @@ int main(int argc, char **argv)
         return 1;
     }
 
+    QElapsedTimer tabs_timer;
+    tabs_timer.start();
+    const QJsonObject tabs_response = service.Handle(control::Request{"tabs", "tabs", {}});
+    const qint64 tabs_ns = tabs_timer.nsecsElapsed();
+    if (!tabs_response.value("ok").toBool()) {
+        std::fprintf(stderr, "tabs request failed\n");
+        return 1;
+    }
+
     std::printf("preset=%s items=%lld pages=%lld total_ms=%.3f max_page_ms=%.3f "
-                "sparse_filter_ms=%.3f\n",
+                "sparse_filter_ms=%.3f tabs_ms=%.3f\n",
                 qPrintable(parser.value(preset_option)),
                 static_cast<long long>(received),
                 static_cast<long long>(pages),
                 double(total.nsecsElapsed()) / 1'000'000.0,
                 double(maximum_page_ns) / 1'000'000.0,
-                double(sparse_filter_ns) / 1'000'000.0);
+                double(sparse_filter_ns) / 1'000'000.0,
+                double(tabs_ns) / 1'000'000.0);
     return 0;
 }

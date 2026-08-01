@@ -9,6 +9,7 @@
 #include "buyout.h"
 #include "buyoutmanager.h"
 #include "item.h"
+#include "itemconstants.h"
 #include "itemlocation.h"
 
 namespace control {
@@ -32,6 +33,42 @@ namespace {
             return "inherit";
         }
         return "inherit";
+    }
+
+    QJsonValue ProjectFrameType(int type)
+    {
+        switch (type) {
+        case FrameType::FRAME_TYPE_NORMAL:
+            return "normal";
+        case FrameType::FRAME_TYPE_MAGIC:
+            return "magic";
+        case FrameType::FRAME_TYPE_RARE:
+            return "rare";
+        case FrameType::FRAME_TYPE_UNIQUE:
+            return "unique";
+        case FrameType::FRAME_TYPE_GEM:
+            return "gem";
+        case FrameType::FRAME_TYPE_CURRENCY:
+            return "currency";
+        case FrameType::FRAME_TYPE_DIVINATION_CARD:
+            return "divination_card";
+        case FrameType::FRAME_TYPE_QUEST_ITEM:
+            return "quest_item";
+        case FrameType::FRAME_TYPE_PROPHECY:
+            return "prophecy";
+        case FrameType::FRAME_TYPE_FOIL:
+            return "foil";
+        case FrameType::FRAME_TYPE_SUPPORTER_FOIL:
+            return "supporter_foil";
+        case FrameType::FRAME_TYPE_NECROPOLIS:
+            return "necropolis";
+        case FrameType::FRAME_TYPE_GOLD:
+            return "gold";
+        case FrameType::FRAME_TYPE_BREACH_SKILL:
+            return "breach_skill";
+        default:
+            return QJsonValue::Null;
+        }
     }
 
     QString BuyoutSourceName(Buyout::BuyoutSource source)
@@ -206,11 +243,7 @@ QJsonObject ProjectItem(const Item &item,
     } else {
         result.insert("note", item.note());
     }
-    if (item.frameType() < 0) {
-        result.insert("frame_type", QJsonValue::Null);
-    } else {
-        result.insert("frame_type", item.frameType());
-    }
+    result.insert("frame_type", ProjectFrameType(item.frameType()));
     return result;
 }
 

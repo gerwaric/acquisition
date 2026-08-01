@@ -3,6 +3,8 @@
 #include <QSettings>
 #include <QtTest>
 
+#include <limits>
+
 #include "control/controlservice.h"
 #include "itemcategories.h"
 #include "itemsmanager.h"
@@ -43,7 +45,7 @@ namespace {
             // Create the fixture items under this fixture's tab.
             const QByteArray first_json = R"({
                 "w":1,"h":1,"id":"item-one","name":"Doom Grip",
-                "typeLine":"Amethyst Ring","identified":true,"ilvl":84,"x":3,"y":7
+                "typeLine":"Amethyst Ring","identified":true,"ilvl":84,"x":3,"y":7,"frameType":2
             })";
             const QByteArray second_json = R"({
                 "w":1,"h":1,"id":"item-two","name":"",
@@ -140,6 +142,7 @@ void ControlServiceTest::viewsPublishedItemsAndEffectivePrices()
     const QJsonObject item = resultOf(item_response).value("item").toObject();
     QCOMPARE(item.value("name").toString(), "Doom Grip");
     QCOMPARE(item.value("item_level").toInt(), 84);
+    QCOMPARE(item.value("frame_type").toString(), "rare");
     QCOMPARE(item.value("location").toObject().value("tab_label").toString(), "Viewing Tab");
     const QJsonObject price = item.value("effective_price").toObject();
     QCOMPARE(price.value("value").toDouble(), 10.0);
@@ -234,6 +237,24 @@ void ControlServiceTest::rejectsMalformedCursor()
         control::Request{"bad-cursor", "items", QJsonObject{{"cursor", cursor}}});
     QVERIFY(!response.value("ok").toBool(true));
     QCOMPARE(response.value("error").toObject().value("code").toString(), "invalid_cursor");
+
+    if constexpr (sizeof(qsizetype) < sizeof(qlonglong)) {
+        QJsonObject huge_offset_object = cursor_object;
+        huge_offset_object.insert("tab_id", "");
+        huge_offset_object.insert("kind", "");
+        huge_offset_object.insert("offset",
+                                  QString::number(std::numeric_limits<qlonglong>::max()));
+        const QString huge_offset_cursor = QString::fromLatin1(
+            QJsonDocument(huge_offset_object)
+                .toJson(QJsonDocument::Compact)
+                .toBase64(QByteArray::Base64UrlEncoding | QByteArray::OmitTrailingEquals));
+        const QJsonObject huge_offset_response = fixture.service.Handle(
+            control::Request{"huge-offset",
+                             "items",
+                             QJsonObject{{"cursor", huge_offset_cursor}}});
+        QCOMPARE(huge_offset_response.value("error").toObject().value("code").toString(),
+                 "invalid_cursor");
+    }
 }
 
 void ControlServiceTest::rejectsMalformedQueryParameters()

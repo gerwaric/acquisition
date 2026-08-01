@@ -38,6 +38,19 @@ ItemsManager::ItemsManager(QSettings &settings, BuyoutManager &buyout_manager, D
 
 ItemsManager::~ItemsManager() {}
 
+std::map<LocationInventory::Key, qsizetype> ItemsManager::itemCountsByLocation() const
+{
+    std::map<LocationInventory::Key, qsizetype> counts;
+    for (const auto &[source, bucket] : m_items.buckets()) {
+        Q_UNUSED(source);
+        // SourceKeyedItems erases empty buckets and guarantees that every
+        // item in a bucket shares the representative's type and display id.
+        Q_ASSERT(!bucket.empty());
+        counts[LocationInventory::KeyFor(bucket.front()->location())] += qsizetype(bucket.size());
+    }
+    return counts;
+}
+
 void ItemsManager::OnStatusUpdate(ProgramState state, const QString &status)
 {
     emit StatusUpdate(state, status);
