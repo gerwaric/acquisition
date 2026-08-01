@@ -672,7 +672,12 @@ honest full rebuild affordable.
   of derived strings buys nothing and adds an invalidation surface to
   the datastore. Rejected, not deferred.
 - **`QueueUpdated` coalescing (M1-M2)** stays a post-M2 follow-up
-  where M2 left it; nothing here changes its standing.
+  where M2 left it; nothing here changes its standing. **Discharged
+  July 31, 2026, after M3's implementation:** the measurement ran,
+  the gate fired (~23 ms of synchronous status-widget handler time
+  per 2,000-entry burst), and the prescribed D10 coalesce was built
+  and validated (`m1-m2-result.md`; resolution recorded at M2's
+  D10 and open-items entry).
 
 ## Acceptance criteria
 

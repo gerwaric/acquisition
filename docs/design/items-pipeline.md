@@ -339,10 +339,18 @@ operations (By-Tab) and a flat sorted merge (By-Item), the final
 snapshot is a row-level reconciliation, and M2's D9 throttle is
 retired with its pins superseded by the recorded map. Measurements
 (all budgets passed at 100k and ~1m; the S5 miss and its A′ remedy):
-`m1-m3-result.md`. The last pipeline follow-up, the M1-M2
-status-widget burst measurement, ran July 31, 2026: the D10 gate
-fired and the prescribed UI-side coalesce was built and validated
-(`m1-m2-result.md`).
+`m1-m3-result.md`. The M1-M2 status-widget burst measurement ran
+July 31, 2026: the D10 gate fired and the prescribed UI-side coalesce
+was built and validated (`m1-m2-result.md`).
+
+Follow-up input routed here by M3's D7 (blocks nothing; the one
+open pipeline follow-up): **filter-loop optimization.** With the
+sort retired from the refilter path, the `FilterItems` loop is the
+dominant remaining term of a user-initiated full refilter (~0.4 s at
+the ~1m scale). It is orthogonal to the delta-native model and the
+sort levers, and it needs its own profile-first pass (per-filter
+attribution) before a lever is chosen — M3 deliberately chose none
+(`items-pipeline-m3.md`, D7).
 
 The "profile before choosing levers" obligation below was discharged
 July 30, 2026 by the S1-M3 sort-profiling spike
