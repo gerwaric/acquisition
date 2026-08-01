@@ -147,5 +147,6 @@ forum posting.
 - `6`: `refresh wait` completed with skipped sources.
 - `7`: observation timeout; the refresh continues.
 
-Always inspect the JSON body. Exit status is a control-flow aid, not the primary
-result schema.
+For service and client responses, inspect the JSON body; exit status is only a
+control-flow aid. Parser failures (exit `1`) and locally rejected command usage
+(exit `2`) may have empty stdout, so read their stderr diagnostic instead.

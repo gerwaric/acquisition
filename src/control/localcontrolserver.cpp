@@ -56,8 +56,8 @@ bool LocalControlServer::Listen(const QDir &data_directory)
         return false;
     }
     m_endpoint_lock = std::make_unique<QLockFile>(lock_path);
-    // A live process may own control for days; stale ownership is PID-based,
-    // never age-based.
+    // Zero disables age-only staleness for this long-lived lock. QLockFile
+    // still removes a lock when its recorded PID/process is no longer alive.
     m_endpoint_lock->setStaleLockTime(0);
     if (!m_endpoint_lock->tryLock(0)) {
         m_owner_conflict = true;
