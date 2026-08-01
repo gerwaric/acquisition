@@ -3,9 +3,11 @@
 
 #include "control/controlservice.h"
 
+#include <QCryptographicHash>
 #include <QDateTime>
 #include <QJsonArray>
 #include <QJsonDocument>
+#include <QMessageAuthenticationCode>
 #include <QMetaObject>
 #include <QUuid>
 
@@ -110,34 +112,76 @@ namespace {
         return std::nullopt;
     }
 
-    QString EncodeCursor(const QString &instance_id, quint64 revision, const ItemQuery &query)
+    QString SignCursor(const QJsonObject &object, const QByteArray &key)
     {
-        Q_ASSERT(query.source);
-        const QJsonObject object{{"instance_id", instance_id},
-                                 {"revision", QString::number(revision)},
-                                 {"source_kind", KindName(query.source->type)},
-                                 {"source_id", query.source->fetch_id},
-                                 {"offset", QString::number(query.offset)},
-                                 {"limit", query.limit},
-                                 {"tab_id", query.tab_id},
-                                 {"kind", KindName(query.kind)}};
-        return QString::fromLatin1(
-            QJsonDocument(object)
-                .toJson(QJsonDocument::Compact)
-                .toBase64(QByteArray::Base64UrlEncoding | QByteArray::OmitTrailingEquals));
+        const QByteArray payload = QJsonDocument(object).toJson(QJsonDocument::Compact);
+        const QByteArray encoded = payload.toBase64(QByteArray::Base64UrlEncoding
+                                                    | QByteArray::OmitTrailingEquals);
+        const QByteArray signature = QMessageAuthenticationCode::hash(
+                                         payload,
+                                         key,
+                                         QCryptographicHash::Sha256)
+                                         .toHex();
+        return QString::fromLatin1(encoded + '.' + signature);
     }
 
-    std::expected<ItemQuery, ProtocolError> DecodeCursor(const QString &encoded,
-                                                         const QString &instance_id,
-                                                         quint64 revision)
+    std::expected<QJsonObject, ProtocolError> VerifyCursor(const QString &encoded,
+                                                           const QByteArray &key)
     {
-        const QByteArray payload = QByteArray::fromBase64(encoded.toLatin1(),
+        const QByteArray token = encoded.toLatin1();
+        const qsizetype separator = token.indexOf('.');
+        if (separator <= 0 || separator != token.lastIndexOf('.')) {
+            return std::unexpected(ProtocolError{"invalid_cursor", "the cursor is malformed"});
+        }
+        const QByteArray payload = QByteArray::fromBase64(token.first(separator),
                                                           QByteArray::Base64UrlEncoding);
+        const QByteArray actual = token.sliced(separator + 1);
+        const QByteArray expected = QMessageAuthenticationCode::hash(
+                                        payload,
+                                        key,
+                                        QCryptographicHash::Sha256)
+                                        .toHex();
+        if (actual != expected) {
+            return std::unexpected(ProtocolError{"invalid_cursor", "the cursor is malformed"});
+        }
         auto decoded = DecodeObject(payload);
         if (!decoded) {
             return std::unexpected(ProtocolError{"invalid_cursor", "the cursor is malformed"});
         }
+        return *decoded;
+    }
+
+    QString EncodeCursor(const QString &instance_id,
+                         quint64 revision,
+                         const ItemQuery &query,
+                         const QByteArray &key)
+    {
+        Q_ASSERT(query.source);
+        return SignCursor(QJsonObject{{"type", "items"},
+                                      {"instance_id", instance_id},
+                                      {"revision", QString::number(revision)},
+                                      {"source_kind", KindName(query.source->type)},
+                                      {"source_id", query.source->fetch_id},
+                                      {"offset", QString::number(query.offset)},
+                                      {"limit", query.limit},
+                                      {"tab_id", query.tab_id},
+                                      {"kind", KindName(query.kind)}},
+                          key);
+    }
+
+    std::expected<ItemQuery, ProtocolError> DecodeCursor(const QString &encoded,
+                                                         const QString &instance_id,
+                                                         quint64 revision,
+                                                         const QByteArray &key)
+    {
+        auto decoded = VerifyCursor(encoded, key);
+        if (!decoded) {
+            return std::unexpected(decoded.error());
+        }
         const QJsonObject &object = *decoded;
+        if (object.value("type").toString() != "items") {
+            return std::unexpected(ProtocolError{"invalid_cursor", "the cursor is malformed"});
+        }
         if (object.value("instance_id").toString() != instance_id
             || object.value("revision").toString() != QString::number(revision)) {
             return std::unexpected(
@@ -178,7 +222,8 @@ namespace {
 
     std::expected<ItemQuery, ProtocolError> ParseItemQuery(const QJsonObject &params,
                                                            const QString &instance_id,
-                                                           quint64 revision)
+                                                           quint64 revision,
+                                                           const QByteArray &key)
     {
         if (params.contains("cursor")) {
             if (!params.value("cursor").isString()
@@ -191,7 +236,7 @@ namespace {
                     "invalid_request",
                     "cursor cannot be combined with limit or location filters"});
             }
-            return DecodeCursor(params.value("cursor").toString(), instance_id, revision);
+            return DecodeCursor(params.value("cursor").toString(), instance_id, revision, key);
         }
 
         ItemQuery query;
@@ -255,6 +300,7 @@ ControlService::ControlService(QString application_version, QObject *parent)
     : QObject(parent)
     , m_application_version(std::move(application_version))
     , m_instance_id(QUuid::createUuid().toString(QUuid::WithoutBraces))
+    , m_cursor_key(QUuid::createUuid().toRfc4122())
 {}
 
 void ControlService::SetNeedsLogin()
@@ -328,7 +374,7 @@ QJsonObject ControlService::Handle(const Request &request)
         return Success(request.request_id, Status());
     }
     if (request.command == "tabs") {
-        return Tabs(request.request_id);
+        return Tabs(request.request_id, request.params);
     }
     if (request.command == "items") {
         return Items(request.request_id, request.params);
@@ -397,25 +443,89 @@ QJsonObject ControlService::Status() const
     return result;
 }
 
-QJsonObject ControlService::Tabs(const QString &request_id) const
+QJsonObject ControlService::Tabs(const QString &request_id, const QJsonObject &params) const
 {
     if (m_state != ServiceState::Ready) {
         return NotReady(request_id);
     }
 
-    const auto counts = m_items_manager->itemCountsByLocation();
+    int limit = DEFAULT_PAGE_SIZE;
+    std::optional<LocationInventory::Key> start;
+    if (params.contains("cursor")) {
+        if (!params.value("cursor").isString() || params.value("cursor").toString().isEmpty()
+            || params.contains("limit")) {
+            return Error(request_id,
+                         "invalid_request",
+                         "tab cursor must be a non-empty string and cannot be combined with limit");
+        }
+        auto cursor = VerifyCursor(params.value("cursor").toString(), m_cursor_key);
+        if (!cursor) {
+            return Error(request_id, cursor.error().code, cursor.error().message);
+        }
+        const auto kind = ParseKind(cursor->value("source_kind").toString());
+        const QString id = cursor->value("source_id").toString();
+        limit = cursor->value("limit").toInt(0);
+        if (cursor->value("type").toString() != "tabs") {
+            return Error(request_id, "invalid_cursor", "the cursor is malformed");
+        }
+        if (cursor->value("instance_id").toString() != m_instance_id
+            || cursor->value("revision").toString() != QString::number(m_inventory_revision)) {
+            return Error(request_id, "revision_changed", "inventory changed; restart pagination");
+        }
+        if (!kind || id.isEmpty() || limit < 1 || limit > MAXIMUM_PAGE_SIZE) {
+            return Error(request_id, "invalid_cursor", "the cursor is malformed");
+        }
+        start = LocationInventory::Key{*kind, id};
+    } else if (params.contains("limit")) {
+        if (!params.value("limit").isDouble()) {
+            return Error(request_id, "invalid_request", "limit must be an integer");
+        }
+        limit = params.value("limit").toInt(0);
+        if (double(limit) != params.value("limit").toDouble() || limit < 1
+            || limit > MAXIMUM_PAGE_SIZE) {
+            return Error(request_id,
+                         "invalid_request",
+                         QString("limit must be between 1 and %1").arg(MAXIMUM_PAGE_SIZE));
+        }
+    }
+
+    const auto &counts = m_items_manager->itemCountsByLocation();
+    const auto &entries = m_items_manager->locationInventory().entries();
+    auto entry = start ? entries.find(*start) : entries.begin();
+    if (entry == entries.end() && start) {
+        return Error(request_id, "invalid_cursor", "the cursor location is not published");
+    }
 
     QJsonArray tabs;
-    for (const auto &[key, location] : m_items_manager->locationInventory().entries()) {
-        const auto count = counts.find(key);
-        tabs.append(ProjectTab(location,
+    std::optional<LocationInventory::Key> next;
+    for (; entry != entries.end(); ++entry) {
+        if (tabs.size() == limit) {
+            next = entry->first;
+            break;
+        }
+        const auto count = counts.find(entry->first);
+        tabs.append(ProjectTab(entry->second,
                                *m_buyout_manager,
                                count == counts.end() ? 0 : count->second));
     }
-    return Success(request_id,
-                   QJsonObject{{"instance_id", m_instance_id},
-                               {"inventory_revision", QString::number(m_inventory_revision)},
-                               {"tabs", tabs}});
+
+    QJsonObject result{{"instance_id", m_instance_id},
+                       {"inventory_revision", QString::number(m_inventory_revision)},
+                       {"total", QString::number(entries.size())},
+                       {"tabs", tabs}};
+    if (next) {
+        result.insert("next_cursor",
+                      SignCursor(QJsonObject{{"type", "tabs"},
+                                             {"instance_id", m_instance_id},
+                                             {"revision", QString::number(m_inventory_revision)},
+                                             {"source_kind", KindName(next->first)},
+                                             {"source_id", next->second},
+                                             {"limit", limit}},
+                                 m_cursor_key));
+    } else {
+        result.insert("next_cursor", QJsonValue::Null);
+    }
+    return Success(request_id, result);
 }
 
 QJsonObject ControlService::Items(const QString &request_id, const QJsonObject &params) const
@@ -423,7 +533,7 @@ QJsonObject ControlService::Items(const QString &request_id, const QJsonObject &
     if (m_state != ServiceState::Ready) {
         return NotReady(request_id);
     }
-    auto query = ParseItemQuery(params, m_instance_id, m_inventory_revision);
+    auto query = ParseItemQuery(params, m_instance_id, m_inventory_revision, m_cursor_key);
     if (!query) {
         return Error(request_id, query.error().code, query.error().message);
     }
@@ -479,7 +589,8 @@ QJsonObject ControlService::Items(const QString &request_id, const QJsonObject &
         ItemQuery next = *query;
         next.source = *next_source;
         next.offset = next_offset;
-        result.insert("next_cursor", EncodeCursor(m_instance_id, m_inventory_revision, next));
+        result.insert("next_cursor",
+                      EncodeCursor(m_instance_id, m_inventory_revision, next, m_cursor_key));
     } else {
         result.insert("next_cursor", QJsonValue::Null);
     }

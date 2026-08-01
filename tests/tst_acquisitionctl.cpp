@@ -60,11 +60,15 @@ void AcquisitionCtlTest::rejectsOptionsForOtherCommands()
     const Result result = run({"tabs", "--tab", "stash", "--kind", "stash"});
     QCOMPARE(result.status, QProcess::NormalExit);
     QCOMPARE(result.code, 2);
-    QVERIFY(result.standard_error.contains("do not apply"));
+    QVERIFY(result.standard_error.contains("invalid tabs arguments"));
 }
 
 void AcquisitionCtlTest::validatesItemArguments()
 {
+    const Result invalid_tab_limit = run({"tabs", "--limit", "0"});
+    QCOMPARE(invalid_tab_limit.code, 2);
+    QVERIFY(invalid_tab_limit.standard_output.isEmpty());
+
     const Result empty_cursor = run({"items", "--cursor", ""});
     QCOMPARE(empty_cursor.code, 2);
     QVERIFY(empty_cursor.standard_output.isEmpty());

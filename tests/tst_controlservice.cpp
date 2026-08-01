@@ -3,8 +3,6 @@
 #include <QSettings>
 #include <QtTest>
 
-#include <limits>
-
 #include "control/controlservice.h"
 #include "itemcategories.h"
 #include "itemsmanager.h"
@@ -19,6 +17,7 @@ private slots:
     void rejectsUnknownCommand();
     void viewingRequiresReadySession();
     void viewsPublishedItemsAndEffectivePrices();
+    void tabsArePaginated();
     void itemLookupTracksPublishedDeltas();
     void itemLookupSurvivesDestinationFirstMove();
     void paginationRejectsOldRevision();
@@ -163,6 +162,37 @@ void ControlServiceTest::viewsPublishedItemsAndEffectivePrices()
     QVERIFY(empty_note.toString().isEmpty());
 }
 
+void ControlServiceTest::tabsArePaginated()
+{
+    ViewingFixture fixture;
+    const ItemLocation second_location = makeTestStashLocation("second", "Second", 5);
+    const ItemLocation third_location = makeTestStashLocation("third", "Third", 6);
+    fixture.items.OnItemsRefreshed(Items{fixture.first, fixture.second},
+                                   {fixture.location, second_location, third_location},
+                                   false);
+
+    const QJsonObject first = fixture.service.Handle(
+        control::Request{"first", "tabs", QJsonObject{{"limit", 1}}});
+    QVERIFY(first.value("ok").toBool());
+    QCOMPARE(resultOf(first).value("tabs").toArray().size(), 1);
+    const QString cursor = resultOf(first).value("next_cursor").toString();
+    QVERIFY(!cursor.isEmpty());
+
+    const QJsonObject second = fixture.service.Handle(
+        control::Request{"second", "tabs", QJsonObject{{"cursor", cursor}}});
+    QVERIFY(second.value("ok").toBool());
+    QCOMPARE(resultOf(second).value("tabs").toArray().size(), 1);
+    QVERIFY(!resultOf(second).value("next_cursor").toString().isEmpty());
+
+    QString tampered = cursor;
+    tampered[tampered.size() - 1]
+        = tampered.back() == QChar('0') ? QChar('1') : QChar('0');
+    const QJsonObject rejected = fixture.service.Handle(
+        control::Request{"tampered", "tabs", QJsonObject{{"cursor", tampered}}});
+    QCOMPARE(rejected.value("error").toObject().value("code").toString(),
+             "invalid_cursor");
+}
+
 void ControlServiceTest::itemLookupTracksPublishedDeltas()
 {
     ViewingFixture fixture;
@@ -249,6 +279,14 @@ void ControlServiceTest::paginationRejectsOldRevision()
     QVERIFY(!cursor.isEmpty());
     QCOMPARE(resultOf(first_page).value("items").toArray().size(), 1);
 
+    QString tampered = cursor;
+    tampered[tampered.size() - 1]
+        = tampered.back() == QChar('0') ? QChar('1') : QChar('0');
+    const QJsonObject rejected = fixture.service.Handle(
+        control::Request{"tampered", "items", QJsonObject{{"cursor", tampered}}});
+    QCOMPARE(rejected.value("error").toObject().value("code").toString(),
+             "invalid_cursor");
+
     fixture.buyouts.manager->Set(*fixture.first, makeChaosBuyout(11));
     const QJsonObject stale = fixture.service.Handle(
         control::Request{"stale", "items", QJsonObject{{"cursor", cursor}}});
@@ -323,23 +361,6 @@ void ControlServiceTest::rejectsMalformedCursor()
     QVERIFY(!response.value("ok").toBool(true));
     QCOMPARE(response.value("error").toObject().value("code").toString(), "invalid_cursor");
 
-    if constexpr (sizeof(qsizetype) < sizeof(qlonglong)) {
-        QJsonObject huge_offset_object = cursor_object;
-        huge_offset_object.insert("tab_id", "");
-        huge_offset_object.insert("kind", "");
-        huge_offset_object.insert("offset",
-                                  QString::number(std::numeric_limits<qlonglong>::max()));
-        const QString huge_offset_cursor = QString::fromLatin1(
-            QJsonDocument(huge_offset_object)
-                .toJson(QJsonDocument::Compact)
-                .toBase64(QByteArray::Base64UrlEncoding | QByteArray::OmitTrailingEquals));
-        const QJsonObject huge_offset_response = fixture.service.Handle(
-            control::Request{"huge-offset",
-                             "items",
-                             QJsonObject{{"cursor", huge_offset_cursor}}});
-        QCOMPARE(huge_offset_response.value("error").toObject().value("code").toString(),
-                 "invalid_cursor");
-    }
 }
 
 void ControlServiceTest::rejectsMalformedQueryParameters()

@@ -102,23 +102,57 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    QElapsedTimer tabs_timer;
-    tabs_timer.start();
-    const QJsonObject tabs_response = service.Handle(control::Request{"tabs", "tabs", {}});
-    const qint64 tabs_ns = tabs_timer.nsecsElapsed();
-    if (!tabs_response.value("ok").toBool()) {
-        std::fprintf(stderr, "tabs request failed\n");
+    QString tabs_cursor;
+    qsizetype tab_pages = 0;
+    qsizetype tabs_received = 0;
+    qsizetype tabs_reported = -1;
+    qint64 maximum_tabs_page_ns = 0;
+    QElapsedTimer tabs_total;
+    tabs_total.start();
+    while (true) {
+        QJsonObject params{{"limit", 100}};
+        if (!tabs_cursor.isEmpty()) {
+            params = QJsonObject{{"cursor", tabs_cursor}};
+        }
+        QElapsedTimer tabs_page;
+        tabs_page.start();
+        const QJsonObject tabs_response = service.Handle(
+            control::Request{"tabs", "tabs", params});
+        maximum_tabs_page_ns = std::max(maximum_tabs_page_ns, tabs_page.nsecsElapsed());
+        if (!tabs_response.value("ok").toBool()) {
+            std::fprintf(stderr, "tabs request failed\n");
+            return 1;
+        }
+        ++tab_pages;
+        const QJsonObject tabs_result = tabs_response.value("result").toObject();
+        tabs_received += tabs_result.value("tabs").toArray().size();
+        tabs_reported = tabs_result.value("total").toString().toLongLong();
+        tabs_cursor = tabs_result.value("next_cursor").toString();
+        if (tabs_cursor.isEmpty()) {
+            break;
+        }
+    }
+    const qint64 tabs_total_ns = tabs_total.nsecsElapsed();
+    if (tabs_received != dataset.tabCount() || tabs_reported != dataset.tabCount()) {
+        std::fprintf(stderr,
+                     "tab count mismatch: expected %d, received %lld, reported %lld\n",
+                     dataset.tabCount(),
+                     static_cast<long long>(tabs_received),
+                     static_cast<long long>(tabs_reported));
         return 1;
     }
 
     std::printf("preset=%s items=%lld pages=%lld total_ms=%.3f max_page_ms=%.3f "
-                "sparse_filter_ms=%.3f tabs_ms=%.3f\n",
+                "sparse_filter_ms=%.3f tab_pages=%lld tabs_total_ms=%.3f "
+                "tabs_max_page_ms=%.3f\n",
                 qPrintable(parser.value(preset_option)),
                 static_cast<long long>(received),
                 static_cast<long long>(pages),
                 double(traversal_ns) / 1'000'000.0,
                 double(maximum_page_ns) / 1'000'000.0,
                 double(sparse_filter_ns) / 1'000'000.0,
-                double(tabs_ns) / 1'000'000.0);
+                static_cast<long long>(tab_pages),
+                double(tabs_total_ns) / 1'000'000.0,
+                double(maximum_tabs_page_ns) / 1'000'000.0);
     return 0;
 }

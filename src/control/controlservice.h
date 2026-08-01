@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <QByteArray>
 #include <QJsonObject>
 #include <QObject>
 #include <QPointer>
@@ -45,7 +46,7 @@ private:
     enum class ServiceState { Starting, NeedsLogin, LoadingCache, Ready };
 
     QJsonObject Status() const;
-    QJsonObject Tabs(const QString &request_id) const;
+    QJsonObject Tabs(const QString &request_id, const QJsonObject &params) const;
     QJsonObject Items(const QString &request_id, const QJsonObject &params) const;
     QJsonObject Item(const QString &request_id, const QJsonObject &params) const;
     QJsonObject StartRefresh(const QString &request_id);
@@ -70,6 +71,7 @@ private:
 
     QString m_application_version;
     QString m_instance_id;
+    QByteArray m_cursor_key;
     QString m_account;
     QString m_league;
     ServiceState m_state{ServiceState::Starting};

@@ -77,23 +77,28 @@ void ItemsManager::UnindexItem(const std::shared_ptr<Item> &item)
     }
 }
 
+void ItemsManager::AdjustItemCount(const ItemLocation &location, qsizetype delta)
+{
+    const LocationInventory::Key key = LocationInventory::KeyFor(location);
+    const auto count = m_item_counts.find(key);
+    if (count == m_item_counts.end()) {
+        Q_ASSERT(delta >= 0);
+        if (delta > 0) {
+            m_item_counts.emplace(key, delta);
+        }
+        return;
+    }
+    count->second += delta;
+    Q_ASSERT(count->second >= 0);
+    if (count->second == 0) {
+        m_item_counts.erase(count);
+    }
+}
+
 std::shared_ptr<Item> ItemsManager::findItemById(const QString &id) const
 {
     const auto item = m_items_by_id.constFind(id);
     return item == m_items_by_id.cend() ? nullptr : item.value();
-}
-
-std::map<LocationInventory::Key, qsizetype> ItemsManager::itemCountsByLocation() const
-{
-    std::map<LocationInventory::Key, qsizetype> counts;
-    for (const auto &[source, bucket] : m_items.buckets()) {
-        Q_UNUSED(source);
-        // SourceKeyedItems erases empty buckets and guarantees that every
-        // item in a bucket shares the representative's type and display id.
-        Q_ASSERT(!bucket.empty());
-        counts[LocationInventory::KeyFor(bucket.front()->location())] += qsizetype(bucket.size());
-    }
-    return counts;
 }
 
 void ItemsManager::OnStatusUpdate(ProgramState state, const QString &status)
@@ -196,9 +201,11 @@ void ItemsManager::OnItemsRefreshed(const Items &items,
     m_items.ResetTo(items);
     m_items_by_id.clear();
     m_duplicate_items_by_id.clear();
+    m_item_counts.clear();
     m_items_by_id.reserve(items.size());
     for (const auto &item : items) {
         IndexItem(item);
+        AdjustItemCount(item->location(), 1);
     }
 
     spdlog::debug("There are {} items and {} tabs after the refresh.", m_items.size(), tabs.size());
@@ -250,11 +257,16 @@ void ItemsManager::OnTabRefreshed(const ItemLocation &location, const Items &ite
     const FetchSourceKey key = FetchSourceKey::ForLocation(location);
     const auto old = m_items.buckets().find(key);
     if (old != m_items.buckets().end()) {
+        Q_ASSERT(!old->second.empty());
+        AdjustItemCount(old->second.front()->location(), -qsizetype(old->second.size()));
         for (const auto &item : old->second) {
             UnindexItem(item);
         }
     }
     m_items.ReplaceSource(key, items);
+    if (!items.empty()) {
+        AdjustItemCount(items.front()->location(), qsizetype(items.size()));
+    }
     for (const auto &item : items) {
         IndexItem(item);
     }
@@ -287,6 +299,7 @@ void ItemsManager::OnChildrenReconciled(const ItemLocation &parent,
         // SourceKeyedItems removes a source instead of retaining an empty bucket.
         Q_ASSERT(!bucket.empty());
         if (should_erase(key, bucket.front()->location())) {
+            AdjustItemCount(bucket.front()->location(), -qsizetype(bucket.size()));
             for (const auto &item : bucket) {
                 UnindexItem(item);
             }

@@ -50,7 +50,10 @@ public:
     size_t itemCount() const { return m_items.size(); }
     const std::map<FetchSourceKey, Items> &itemBuckets() const { return m_items.buckets(); }
     std::shared_ptr<Item> findItemById(const QString &id) const;
-    std::map<LocationInventory::Key, qsizetype> itemCountsByLocation() const;
+    const std::map<LocationInventory::Key, qsizetype> &itemCountsByLocation() const
+    {
+        return m_item_counts;
+    }
     // The freshest tab metadata seen per stable display key (M2 D6): fed by
     // every delta's location anchor and reset by every snapshot. Search
     // buckets render through it.
@@ -89,6 +92,7 @@ signals:
 private:
     void IndexItem(const std::shared_ptr<Item> &item);
     void UnindexItem(const std::shared_ptr<Item> &item);
+    void AdjustItemCount(const ItemLocation &location, qsizetype delta);
     void MigrateBuyouts();
     // Scoped per-delta pricing (M2 D7): item-local, fail-safe on both
     // outcomes, O(delta items). The final whole-collection pass at
@@ -106,5 +110,6 @@ private:
     SourceKeyedItems m_items;
     QHash<QString, std::shared_ptr<Item>> m_items_by_id;
     QHash<QString, std::vector<std::shared_ptr<Item>>> m_duplicate_items_by_id;
+    std::map<LocationInventory::Key, qsizetype> m_item_counts;
     LocationInventory m_location_inventory;
 };

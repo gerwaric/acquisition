@@ -74,8 +74,8 @@ int main(int argc, char *argv[])
 
     QCommandLineOption data_dir_option("data-dir", "Acquisition data directory.", "data-dir");
     data_dir_option.setDefaultValue(default_data_dir);
-    QCommandLineOption limit_option("limit", "Maximum items in one page (1-100).", "count");
-    QCommandLineOption cursor_option("cursor", "Continue an items page.", "cursor");
+    QCommandLineOption limit_option("limit", "Maximum entries in a tabs/items page (1-100).", "count");
+    QCommandLineOption cursor_option("cursor", "Continue a tabs/items page.", "cursor");
     QCommandLineOption tab_option("tab", "Filter items by stable display-tab id.", "id");
     QCommandLineOption kind_option("kind", "Location kind for --tab: stash or character.", "kind");
     QCommandLineOption timeout_option(
@@ -106,16 +106,42 @@ int main(int argc, char *argv[])
     bool wait_for_refresh = false;
     int wait_timeout_seconds = 0;
 
-    if (command == "status" || command == "tabs") {
+    if (command == "status") {
         if (positional.size() != 1) {
-            QTextStream(stderr) << "acquisitionctl: " << command << " does not accept arguments"
+            QTextStream(stderr) << "acquisitionctl: status does not accept arguments"
                                 << Qt::endl;
             return 2;
         }
         if (has_item_options || parser.isSet(timeout_option)) {
-            QTextStream(stderr) << "acquisitionctl: those options do not apply to " << command
+            QTextStream(stderr) << "acquisitionctl: those options do not apply to status"
                                 << Qt::endl;
             return 2;
+        }
+    } else if (command == "tabs") {
+        if (positional.size() != 1 || parser.isSet(timeout_option)
+            || parser.isSet(tab_option) || parser.isSet(kind_option)) {
+            QTextStream(stderr) << "acquisitionctl: invalid tabs arguments; use --help for usage"
+                                << Qt::endl;
+            return 2;
+        }
+        if (parser.isSet(limit_option)) {
+            bool ok = false;
+            const int limit = parser.value(limit_option).toInt(&ok);
+            if (!ok || limit < 1 || limit > 100) {
+                QTextStream(stderr) << "acquisitionctl: --limit must be between 1 and 100"
+                                    << Qt::endl;
+                return 2;
+            }
+            params.insert("limit", limit);
+        }
+        if (parser.isSet(cursor_option)) {
+            if (parser.isSet(limit_option) || parser.value(cursor_option).isEmpty()) {
+                QTextStream(stderr)
+                    << "acquisitionctl: tab cursor must be non-empty and used without --limit"
+                    << Qt::endl;
+                return 2;
+            }
+            params.insert("cursor", parser.value(cursor_option));
         }
     } else if (command == "items") {
         if (positional.size() != 1 || parser.isSet(timeout_option)) {
