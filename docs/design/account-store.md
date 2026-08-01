@@ -1,9 +1,16 @@
 # Account Store Redesign
 
-**Status: PROPOSED for review, August 1, 2026.** This document records the
-decisions approved during the investigation of `SqliteDataStore`. It is not
-yet frozen and authorizes no implementation by itself. The companion
-execution plan is `account-store-plan.md`.
+**Status: PROPOSED for review, revision 4, August 1, 2026.** Revision 4
+draws a precise boundary between continuable ambiguity and source-level
+failures that stop cutover (D11), evidences item-buyout scope through stored
+location joins before falling back to attribution (D12), narrows the
+re-import claim to forensic repair, defers Sentry diagnostics in favor of the
+local report, and scopes the bundled league list to historical ID strings
+known to Acquisition. Revision 3 adopted the detect-default-record-report
+policy (D11), scope attribution (D12), forward-hashed discovery, a
+stop-safely-only cutover, and the remembered-name copy-forward lookup rule.
+This document is not yet frozen and authorizes no implementation by itself.
+The companion execution plan is `account-store-plan.md`.
 
 ## Purpose
 
@@ -13,7 +20,8 @@ every durable value a typed owner and an explicit lifetime and scope. It must
 also preserve old files as forensic evidence rather than converting them in
 place.
 
-This redesign covers account database identity and layout; realm/league
+This redesign covers account database identity and layout; copy-forward of the
+current `UserStore`; realm/league
 scoping; stash, character, buyout, shop, currency, and location-UI
 persistence; the remaining global `SqliteDataStore` values; import of the old
 account-name and account/league stores; and backup and recovery expectations.
@@ -44,6 +52,19 @@ repositories. It uses one file per account display name, SQLite
 Stash and character rows carry realm and league information, but buyout rows
 and the database identity do not yet carry the full approved scope.
 
+The current `userstore-<display-name>.db` has one classification in this
+design: it is the direct ancestor of the target account database. At cutover,
+Acquisition copies it once to the stable-ID filename through SQLite's backup
+API, leaves the original untouched, and continues the existing
+`user_version` migration ladder only in the copy. The source is located by
+the remembered `account` setting — the name that created today's file — never
+the freshly authenticated display name, because a rename between sessions
+would otherwise silently miss the file and forever forgo copy-forward. The
+target's account metadata records whether the store was created fresh or
+copied, and from which source. It is not also parsed by the legacy key/value
+importer. The hashed `SqliteDataStore` files are separate legacy sources and
+require that importer.
+
 Relevant existing findings are:
 
 - F22: refresh-checked state is split from repository-backed buyouts.
@@ -66,6 +87,11 @@ display-name and discriminator changes. The OAuth `sub` and account-profile
 `uuid` are candidates, but implementation must verify which is canonical and
 whether they are interchangeable. A display name is never a database
 identity.
+
+OAuth is the login path and the serialized token already carries `sub`, so no
+general deferred-open state is planned. Once Phase 0 verifies the identity
+contract, a stored token from before `sub` was persisted must complete one
+online token refresh before Acquisition chooses or opens an account database.
 
 The filename component must use a canonical, validated representation. The
 database also records the stable ID and current display name as metadata so
@@ -93,10 +119,11 @@ No repository infers this scope from the active UI selection or a filename.
 The account ID need not be repeated in every table because the database file
 itself is the account boundary.
 
-Character records with no league in an API response still need a deliberate
-storage representation. The schema/API design must not silently substitute
-the currently selected league. This case is an implementation-design hold
-point.
+Character league is nullable, matching the API model and the existing
+realm-wide character-list reconciliation. League-scoped queries do not treat
+`NULL` as the currently selected league. Realm-wide reconciliation may see
+and retain those rows; they enter a league-specific item/shop surface only
+after the API supplies that league.
 
 ### D3. Shop state is realm-and-league local
 
@@ -148,7 +175,8 @@ ownership is:
 - `ShopRepo`: shop configuration and successful-submission state.
 - `CurrencyRepo`: authored ratios/configuration and historical snapshots.
 - `LocationUiStateRepo`: refresh selection and similar durable location UI
-  state.
+  state. Its initial API stays limited to the load/set/clear operations the
+  current refresh-checked feature needs; it is not a general preferences repo.
 - `AccountMetadataRepo` or equivalent store-owned methods: stable identity,
   current display name, and migration provenance.
 
@@ -163,11 +191,11 @@ User-authored conversion ratios/configuration are distinct from counts
 derived from the published item snapshot. Derived counts are reconstructed
 where practical rather than treated as authored durable state.
 
-Historical currency snapshots remain in SQLite. Their identity is not a
-seconds-resolution timestamp primary key; the schema permits multiple samples
-at the same recorded second and orders them deterministically. The repository
-also needs an explicit retention decision before implementation is complete:
-unbounded retention may be retained deliberately, but not accidentally.
+Historical currency snapshots remain in SQLite with deliberately unbounded
+retention. Their identity is not a seconds-resolution timestamp primary key;
+the schema permits multiple samples at the same recorded second and orders
+them deterministically. One small row per refresh does not justify retention
+policy machinery now; a future limit would be a separate product decision.
 
 The legacy `currency_base` value is importer input only and is not reproduced
 in the target schema.
@@ -177,11 +205,14 @@ in the target schema.
 OAuth refresh tokens and POESESSID values are needed before an account
 session database is opened. They do not belong in an account repository.
 
-The preferred target is the operating system's credential facility, with a
-small account-selection record mapping stable ID to display name and a
-credential reference. Cross-platform availability, packaging impact, and a
-fallback must be established before choosing an implementation. Any fallback
-must be explicitly named credential storage, not another generic data bag.
+The first target is a small typed credential store with a non-secret
+account-selection record mapping stable ID to display name. This removes
+credentials from the generic SQLite bag without making account-store
+retirement depend on a new cross-platform keychain integration. Its security
+posture must be no worse than today's plaintext `QSettings` POESESSID and
+SQLite OAuth token, and its file permissions and serialization contract must
+be explicit. An operating-system credential facility is a desirable, separate
+future security project rather than a requirement of this redesign.
 
 The application-version value belongs in application settings. The global
 database's `version` is only a legacy import/fallback concern.
@@ -193,22 +224,51 @@ legacy data file. This remains true after a successful import. Old files may
 contain unknown tables, malformed records, or evidence useful to future
 forensic tools.
 
-The importer therefore:
+The hashed-`SqliteDataStore` importer therefore:
 
 - opens sources read-only through a dedicated reader, never
   `SqliteDataStore`;
 - writes only to the target account database;
 - imports each source in an atomic target-side transaction;
-- records source path/name, detected format/schema, a content fingerprint,
+- records source path/name, detected format/schema, a logical-content fingerprint,
   importer version, import time, outcome, and useful diagnostics;
 - is idempotent for the same source fingerprint and importer version;
 - does not mark partial or failed work complete;
 - leaves unsupported and unknown source data untouched;
 - does not embed a redundant copy of the source file in the target database.
 
-Source fingerprinting and SQLite sidecar handling must be specified before
-implementation. A fingerprint cannot be declared reliable if an associated
-journal or WAL could change the logical source view.
+The fingerprint is a canonical serialization of the typed rows the importer
+actually extracts, not source-file bytes. This remains stable across the old
+runtime's startup `VACUUM` and ignores unknown evidence without claiming to
+have imported it. The old `SqliteDataStore` uses rollback-journal mode; if a
+journal or WAL sidecar is present, the importer classifies that source as
+unsupported for this run, records a diagnostic, and never guesses at a
+potentially interrupted logical state. What happens next follows D11's
+boundary: an unattributed sidecar-bearing file is reported and skipped, but
+an attributed, recognized store that cannot be read consistently may contain
+the user's only shop configuration, currency history, refresh state, or
+legacy buyouts, so it stops cutover safely rather than activating without
+that data. Recovering such a source by copying the database and sidecar into
+temporary space and letting SQLite recover the copy is possible but is extra
+machinery, deferred until the edge appears in practice.
+
+Discovery of hashed sources works forward from candidates: Acquisition
+bundles a reviewed list of historical league ID strings known to
+Acquisition, unions it with the current league IDs from the API and the
+remembered league setting, crosses the result with remembered account names,
+and hashes each candidate pair. Historical login code populated its league
+selection from the API's league `id` and persisted the selected text, so ID
+strings are the correct candidate form; no display-name variants are needed
+unless concrete historical evidence surfaces. The bundled list does not
+claim completeness over every public league. A file matching no candidate is
+reported as present-but-unattributed per D11 — never silently skipped and
+never guessed at. Private leagues and any missed public league degrade to
+that report path, not to breakage.
+
+The current `UserStore` copy-forward obeys the same immutability outcome but
+is not an importer operation: a read-only connection to the closed source is
+copied with SQLite's backup API, the original is retained, and all schema
+migrations run against the new copy.
 
 ### D9. Target migrations distinguish caches from authored data
 
@@ -222,19 +282,93 @@ are known to have stamped an incorrect version, following the lesson in F64.
 Every DDL change increments the schema version in the same change.
 
 The old `db_version` key is a buyout-key migration checkpoint, not a target
-schema version. F54 must be resolved or explicitly rendered unreachable by a
-tested importer before that marker is retired.
+schema version. Legacy hash-keyed buyouts can be translated only when the
+source contains enough item/location payload data to recompute the relevant
+hash and the mapping is unambiguous. The importer never guesses silently
+(D11): translatable rows become scoped target buyouts; untranslatable or
+F51-ambiguous rows are
+recorded as unimported diagnostics or retained in an explicitly legacy-keyed
+holding table selected in the final DDL review. Either outcome preserves the
+source. Once this import behavior is tested, the defective runtime migration
+from F54 is deleted rather than repaired.
 
 ### D10. Backups must be SQLite-consistent
 
-Copying database files and possible WAL sidecars as ordinary files is not an
-accepted backup protocol. The redesign must use the SQLite backup mechanism,
-a known-closed connection boundary, or another documented consistent-snapshot
-procedure.
+Version-change backup runs at a known-closed boundary before any database
+connection opens. When the old application version cannot be determined from
+settings, the preferred rule is to treat backup as required unconditionally
+rather than open the global legacy database before the boundary. At that
+boundary ordinary copying, including any associated
+sidecars, is acceptable and must report failures. The one-time current
+`UserStore` copy-forward uses SQLite's backup API. This redesign does not add
+an automatic restore feature, manifest format, or backup-rotation subsystem.
+Legacy forensic sources remain outside cleanup.
 
-Backups identify their account database and schema version and report failed
-copies. Legacy forensic sources remain outside cleanup even if they are also
-included in a broader user-requested archive.
+### D11. Edge cases use the simplest safe default; source-level failures stop cutover
+
+Acquisition's user base is small, and most import/migration edge cases may
+never occur in the field. Rather than specifying resolution machinery for
+each one, the standing policy is: detect the edge, apply the simplest safe
+default, record what was done in provenance, and surface it to the user.
+This is sound only because legacy sources are immutable (D8) and every
+applied default is recorded. Immutable sources and recorded defaults
+preserve enough evidence for a later importer or forensic repair tool to
+reconsider the decision; automatic corrective re-import is not promised,
+because after the target has accumulated new edits a re-import may conflict
+with changed buyouts, shop configuration, or currency history and would need
+its own precedence rules.
+
+Not every edge is continuable. The boundary between defaults that proceed
+and failures that stop is:
+
+- **Row-level ambiguity** (untranslatable buyout, ambiguous join, conflicting
+  value): default, record, report, continue.
+- **Unattributed file** (matches no known account/league candidate):
+  record, report, continue. Acquisition cannot establish that it belongs to
+  the authenticated account.
+- **Attributed source containing only replaceable caches:** record, report,
+  continue.
+- **Attributed source that may contain user-authored or user-valuable data
+  but cannot be read consistently** (sidecar present, read failure): stop
+  cutover safely and report. Activating without it would recreate the
+  invisible-data problem this design exists to prevent.
+- **Target creation, copy-forward, migration, or commit failure:** stop
+  safely.
+
+Reporting is a user-facing diagnostic export ("account migration diagnostic
+report") built from the provenance records. It may include filenames and
+league names because the user reviews it before pasting it into a GitHub
+issue. Cutover additionally requires provenance recording and a visible
+notice when defaults or attributions were applied. Sanitized aggregate
+telemetry per edge class may be added later as a separate change with its
+own consent and privacy review; it is not a requirement of this redesign,
+and GitHub reports from the small user population decide whether that
+investment is worthwhile.
+
+### D12. Imported rows receive explicit, recorded scope attribution
+
+Every buyout, shop, currency, and location-UI row entering the target needs
+a realm and league, but the legacy sources do not carry them internally.
+Scope is assigned per row from the best available evidence, and the origin
+is recorded:
+
+- **Evidenced:** a league recovered from a hashed filename whose MD5
+  preimage matched a known `(account, league)` candidate; a realm/league
+  joined from stash or character rows via a stored location. Both item and
+  location buyout rows already carry `location_id` and `location_type`, so
+  both join the same way: a `stash` location joins to `stashes.id`, a
+  `character` location joins to `characters.id`. A row is evidenced when
+  that join produces exactly one realm/league.
+- **Attributed:** the remembered realm (hashed sources never encoded a
+  realm) and, for rows with no unique join, the remembered league.
+  Ambiguous joins are recorded rather than resolved by silently choosing
+  one. Attributed rows are flagged attributed-not-evidenced in provenance
+  per D11.
+
+This is a deliberate, recorded exception to D2's no-inference rule, confined
+to one-time import/migration attribution. The D2–D4 scope guarantees apply
+fully to evidenced rows; attributed rows are best-effort, and their flag
+makes a misplacement diagnosable if a user ever reports one.
 
 ## Preliminary schema shape
 
@@ -306,16 +440,17 @@ The following must be resolved before this spec is frozen:
 
 1. Verify the stable identity contract and choose OAuth `sub`, profile `uuid`,
    or a documented canonical mapping.
-2. Define the representation and query behavior for characters without a
-   league.
-3. Decide currency-history retention.
-4. Choose the credential backend and cross-platform fallback.
-5. Specify source fingerprinting for SQLite files with journals/WALs.
-6. Write final DDL and repository error/result contracts.
-7. Define conflicts when both an existing `UserStore` and one or more old
-   league stores contain related authored data.
-8. Decide when import is attempted relative to authentication, database open,
-   and initial cached publication.
+2. Write final DDL and repository error/result contracts, including whether
+   untranslatable legacy buyouts use a holding table or provenance-only
+   diagnostics.
+3. Define per-type precedence for conflicts between copy-forward `UserStore`
+   data and old hashed account/league sources, without treating the former
+   as another importer input; where evidence is absent, D11's
+   default-and-report applies rather than bespoke resolution rules.
+4. Pin the exact cutover ordering relative to authentication and initial
+   cached publication; activation is forbidden until all user-valuable data
+   paths are available in one release, and a cutover failure stops safely
+   with a report rather than falling back to the legacy write path.
 
 ## Acceptance criteria
 
@@ -329,8 +464,11 @@ The redesign is complete when:
 - every former live key has a typed owner or an explicit retirement path;
 - imports are atomic, idempotent, observable, and leave every source byte
   untouched;
+- every applied edge default and scope attribution is recorded in provenance
+  and reportable by the user, and no source is silently skipped;
+- an attributed source that may contain user-valuable data but cannot be
+  read consistently stops cutover rather than activating without it;
 - authored data survives every supported migration and induced failure;
-- consistent backup and restore are exercised by tests;
+- known-closed version backup and SQLite copy-forward are exercised by tests;
 - production code no longer constructs `SqliteDataStore` or depends on
   `DataStore`.
-
