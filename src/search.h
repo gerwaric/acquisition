@@ -6,6 +6,7 @@
 #include <QObject>
 #include <QString>
 
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <set>
@@ -26,6 +27,7 @@ class BuyoutManager;
 class FilterCatalog;
 class ItemsModel;
 class QModelIndex;
+struct BuyoutChangeSet;
 
 class Search
 {
@@ -44,7 +46,11 @@ public:
     ~Search();
     void FilterItems(const Items &items);
     const QString &caption() const { return m_caption; }
-    const Items &items() const { return m_items; }
+    // The visible filtered collection. The delta path maintains the
+    // active mode's buckets and the indexes incrementally (S4/S5) and
+    // this flat vector is rebuilt lazily from the maintained side on
+    // first read — no delta pays an O(collection) pass to keep it fresh.
+    const Items &items() const;
     const std::vector<std::unique_ptr<Column>> &columns() const { return m_columns; }
     ItemsModel &model() { return m_model; }
     // Expansion is keyed by the stable (type, id) display key (M2 R6-3):
@@ -76,6 +82,16 @@ public:
         const auto it = m_visible_by_id.find(id);
         return (it != m_visible_by_id.end()) ? it->second : nullptr;
     }
+
+    // True when the id index cannot represent every visible occurrence of
+    // this id (M3 S2): a duplicated id (the index keeps the first
+    // occurrence only — R6-3 reselection wants exactly one item) or the
+    // empty id shared by id-less items. The buyout repaint falls back to
+    // scanning every bucket for such ids; rebuilt by every refilter.
+    bool visibleIdUnindexed(const QString &id) const
+    {
+        return m_unindexed_visible_ids.count(id) > 0;
+    }
     const std::shared_ptr<Item> &currentItem() const { return m_current_item; }
     void setCurrentItem(std::shared_ptr<Item> item) { m_current_item = std::move(item); }
     const std::optional<ItemLocation> &currentBucket() const { return m_current_bucket; }
@@ -94,7 +110,50 @@ public:
     const Bucket &bucket(int row) const;
     const QModelIndex index(const std::shared_ptr<Item> &item) const;
     void SetRefreshReason(RefreshReason reason) { m_refresh_reason = reason; }
+
+    // Sorts the materialized buckets whose flags are invalid (D2): the
+    // By-Item flat bucket always, expanded By-Tab buckets by their marks.
+    // Collapsed buckets are untouched — the invalidation events cleared
+    // their flags, and their sort defers to expansion.
     void Sort(int column, Qt::SortOrder order);
+
+    // Sort-on-expand's per-bucket entry (D2 rule 2), called under the
+    // model's layout-change protocol by ItemsModel.
+    void SortBucket(int row, int column, Qt::SortOrder order);
+
+    // The view's materialization marks (D1/D2), driven by the tree's
+    // expand/collapse signals through ItemsModel. Collapse evicts the
+    // bucket's keys; its order and flag persist (D2 rule 3).
+    void MarkBucketExpanded(int row);
+    void MarkBucketCollapsed(int row);
+
+    // R2-4 / D1 rule 2: evicts every resident key vector, both view modes.
+    // Orders and flags persist. Runs on deactivation and on a sort-column
+    // switch.
+    void EvictResidentKeys();
+
+    // The R3-1 eager carve-out at the activation boundary (D4 rule 1, M3
+    // S5): a clean By-Item search's flat bucket holds resident keys
+    // whenever the search is active, so no delta ever meets a keyless
+    // flat bucket and the merge budget holds unconditionally. Called
+    // after activation has decided dirtiness — a dirty search refiltered
+    // instead, its sort supplying the keys. No-op in By-Tab mode and
+    // when keys are already resident.
+    void HydrateFlatBucketKeys();
+
+    // D1 rules 2-3: clears every bucket's sorted flag, both view modes —
+    // any (column, order) change invalidates every order at once.
+    void InvalidateAllOrder();
+
+    // The buyout key effect (D1 rule 4, R3-2): rebuilds the affected
+    // items' entries in whichever key vectors are resident and clears the
+    // affected buckets' sorted flags, both view modes — so the batch's
+    // re-sort never runs on stale resident keys. Returns the active-mode
+    // rows of the affected MATERIALIZED buckets — exactly the set the
+    // batch must reorder now; an empty return means the batch needs no
+    // layout operation at all (collapsed buckets defer to expansion).
+    // `column` is the active sort column.
+    std::vector<int> InvalidateBuyoutOrder(const BuyoutChangeSet &changes, int column);
 
     const FilterCatalog &catalog() const { return m_filter_catalog; }
     qsizetype filterStateCount() const { return static_cast<qsizetype>(m_filter_states.size()); }
@@ -112,26 +171,144 @@ public:
     bool itemsDirty() const { return m_items_dirty; }
     void setItemsDirty(bool dirty) { m_items_dirty = dirty; }
 
-    // D9 intersection, match half: does this item pass the current active
-    // filter set?
+    // The active-filter membership test the delta path applies to every
+    // arrival (D3; formerly the M2 D9 intersection's match half — the
+    // intersection sets themselves were deleted by the spec's July 31,
+    // 2026 post-freeze amendment when S5's throttle retirement removed
+    // their final consumer).
     bool MatchesActiveFilters(const Item &item) const;
 
-    // D9 intersection, removal half: was anything in the visible filtered
-    // result fetched from this source? Rebuilt by every refilter.
-    bool HasVisibleSource(const FetchSourceKey &key) const
+    // The result of one delta application (M3 S4, D3). `processed` is the
+    // R1-7 adjudication: true when the delta was applied or correctly
+    // adjudicated "no visible change" — the search stays clean; false when
+    // application was skipped for any reason — the caller marks the search
+    // dirty (fail-safe direction). The two change flags separate grains
+    // that S4/S6 originally conflated (S6 review round 1):
+    // `content_changed` means item rows were removed or inserted — it
+    // drives the staleness marks and lazy rebuilds; `model_changed` means
+    // ANY model operation ran (row ops, bucket insert/remove/move,
+    // metadata repaint) — it drives view-side presentation work such as
+    // the column resize. Metadata-only deltas and empty-bucket
+    // structural changes set only the latter.
+    struct DeltaApplication
     {
-        return m_visible_sources.count(key) > 0;
-    }
+        bool processed{false};
+        bool content_changed{false};
+        bool model_changed{false};
+        // A bucket inserted by this delta (new tab, or first filter-passing
+        // items for a hidden one); the caller default-expands it in the
+        // view when the search is default-expanded.
+        int inserted_bucket_row{-1};
+    };
 
-    // D9 intersection, aggregate-reconciliation form (R5-2/R6-2): does any
-    // visible item under the parent's stable display key carry a fetch
-    // source outside the expected set?
-    bool HasVisibleGhostUnder(const ItemLocation &parent,
-                              const std::vector<FetchSourceKey> &expected) const;
+    // Applies a TabRefreshed delta. By-Tab: bucket-scoped operations
+    // (D3) — metadata first (R1-4 — rename/move/color render now, item
+    // intersection notwithstanding), then a source-scoped row replacement
+    // within the display bucket — arrivals merged into the retained sorted
+    // order when the bucket is visible (R2-2), appended arrival-ordered
+    // when collapsed. By-Item (D4, S5): the flat bucket's per-delta
+    // contract — erase the source's rows as contiguous removeRows runs,
+    // then merge the filter-accepted arrivals into the resident sorted
+    // order; the By-Tab side is marked stale and rebuilds at the next
+    // mode switch. Visible indexes are maintained incrementally in both.
+    DeltaApplication ApplyTabDelta(const ItemLocation &location, const Items &items);
+
+    // The result of the final snapshot's reconciliation (M3 S6, R1-2).
+    // The change flags carry the same grains as DeltaApplication's:
+    // `content_changed` = item rows removed/inserted (staleness marks),
+    // `model_changed` = any model operation (presentation work). A new
+    // empty tab or a deleted empty bucket is model-only — it must not
+    // mark the flat bucket stale (S6 review round 1).
+    struct SnapshotReconciliation
+    {
+        bool content_changed{false};
+        bool model_changed{false};
+        // Buckets the reconciliation inserted (final display rows,
+        // ascending); the caller default-expands them in the view when the
+        // search is default-expanded, like a delta's inserted bucket.
+        std::vector<int> inserted_bucket_rows;
+    };
+
+    // The R1-2 authoritative row reconciliation on `ItemsRefreshed` (S6):
+    // one pass diffing this search's model against the post-snapshot
+    // published state per stable key — buckets and rows for deleted tabs
+    // removed, newly listed tabs inserted at their display positions
+    // (unfiltered searches; filtered ones still hide empty buckets),
+    // metadata refreshed against the rebased locations, bucket order
+    // corrected via move ops. Row operations only — never a reset;
+    // O(collection) once per refresh is accepted. The pass is
+    // authoritative at the row grain (the diff is by item identity, and
+    // the worker publishes the same Item objects the deltas delivered),
+    // so it also discharges R1-7's fail-safe dirtiness: any content a
+    // skipped delta left stale is replaced here and the items-dirty flag
+    // clears. In By-Item mode the diff runs against the flat bucket and
+    // the By-Tab side is marked stale for the next mode switch.
+    SnapshotReconciliation ReconcileFinalSnapshot(const Items &published);
+
+    // Applies a ChildrenReconciled aggregate as row removals (D3):
+    // visible items under the parent's stable key whose fetch source is
+    // outside the expected set leave via contiguous removeRows batches —
+    // scoped to the parent's bucket in By-Tab, to the parent's rows
+    // within the flat bucket in By-Item (S5).
+    DeltaApplication ApplyChildReconciliation(const ItemLocation &parent,
+                                              const std::vector<FetchSourceKey> &expected);
+
+    // The model's child-index identity (M3 S4): child indexes carry the
+    // bucket's stable serial, so top-level insert/remove/move operations
+    // never invalidate a child's parent mapping. -1 for unknown serials.
+    int rowForSerial(std::uint64_t serial) const;
+
+    // The active-mode bucket row for a stable display key, -1 when
+    // absent (S4 review round 2): O(log tabs) through the delta path's
+    // key map in By-Tab; the By-Item flat bucket answers only for its
+    // own null-location key. Keeps per-delta consumers (the selected-
+    // bucket reconcile) off O(tabs) scans.
+    int rowForKey(const LocationInventory::Key &key) const;
 
 private:
     std::vector<Bucket> &active_buckets();
     const ItemLocation &canonicalLocation(const ItemLocation &embedded) const;
+
+    // S4 delta internals. The index helpers keep m_visible_by_id, the
+    // duplicate-occurrence side table, the unindexed set, and the filtered
+    // item count answering as if freshly refiltered, in O(1) per item.
+    void IndexInsertVisible(const std::shared_ptr<Item> &item);
+    void IndexRemoveVisible(const std::shared_ptr<Item> &item);
+    void AssignSerials();
+    void RebuildRowLookups();
+    int FindBucketRow(const LocationInventory::Key &key) const;
+    // Removes an emptied bucket's top-level row (S4 review round 1): a
+    // filtered search hides empty buckets, so the delta path converges to
+    // the freshly-refiltered state. A row removal, not a tab deletion —
+    // the tab itself still dies only at the snapshot boundary.
+    void RemoveBucketRow(int bucket_row);
+    // Renders a delta's fresh location anchor on an existing bucket:
+    // dataChanged for header text/color, beginMoveRows when the display
+    // position changes. Returns the bucket's (possibly moved) row; when
+    // `model_changed` is given, ORs in whether any model operation ran.
+    int ApplyBucketMetadata(int bucket_row,
+                            const ItemLocation &canonical,
+                            bool *model_changed = nullptr);
+    // Inserts a new display bucket at its display position; returns its row.
+    int InsertBucketRow(const ItemLocation &canonical, const Items &accepted);
+    // Removes the bucket rows matching `predicate` as contiguous
+    // removeRows runs, unwinding the visible indexes per removed item.
+    // Returns true when anything was removed.
+    template<typename Predicate>
+    bool RemoveBucketRows(int bucket_row, Predicate &&predicate);
+    // Inserts filter-accepted arrivals: sorted merge into a materialized
+    // sorted bucket (R2-2 in By-Tab; the D4 merge in By-Item, where the
+    // flat bucket is materialized by definition), arrival-ordered append
+    // otherwise.
+    void InsertArrivals(int bucket_row, const Items &accepted);
+    // The D4 flat-bucket content application (S5): source-scoped erase,
+    // then the sorted merge of the accepted arrivals; visible indexes and
+    // staleness marks maintained. The arrivals were already filtered.
+    DeltaApplication ApplyFlatDelta(const FetchSourceKey &source, const Items &accepted);
+    // Rebuilds the By-Tab display buckets from the maintained flat
+    // collection when leaving By-Item mode (S5): By-Item deltas mark the
+    // By-Tab side stale instead of maintaining two structures per delta.
+    void RebuildTabBucketsFromFlat();
 
     BuyoutManager &m_bo_manager;
     const LocationInventory *m_location_inventory{nullptr};
@@ -150,22 +327,61 @@ private:
     // search last filtered (D9 rule 1).
     bool m_items_dirty{false};
 
-    // Fetch sources of the visible filtered result, flat and grouped by
-    // stable display key, rebuilt by every refilter (D9 intersection).
-    std::set<FetchSourceKey> m_visible_sources;
-    std::map<LocationInventory::Key, std::set<FetchSourceKey>> m_visible_sources_by_tab;
-
     // The visible result by stable item id (R6-3 reselection), rebuilt by
-    // every refilter alongside the source sets above.
+    // every refilter and maintained per delta (S4). For a duplicated id
+    // the entry is the first occurrence — the invariant is
+    // m_visible_by_id[id] == m_duplicate_visible_ids[id].front().
     std::unordered_map<QString, std::shared_ptr<Item>> m_visible_by_id;
+
+    // Ids the index above cannot fully represent: duplicated ids and the
+    // empty id (see visibleIdUnindexed).
+    std::set<QString> m_unindexed_visible_ids;
+
+    // Every visible occurrence of a currently-duplicated non-empty id
+    // (mid-refresh divergence can show one id in two tabs). Kept so a
+    // delta removing one occurrence restores the survivor to the id index
+    // exactly — the indexes answer as if freshly refiltered
+    // (deltaUpdatesVisibleIndexesIncrementally). Empty except mid-refresh.
+    std::unordered_map<QString, Items> m_duplicate_visible_ids;
+    // Visible items sharing the empty id; the unindexed set carries the
+    // empty id while this is nonzero.
+    size_t m_empty_id_visible_count{0};
+
     std::vector<std::unique_ptr<Column>> m_columns;
 
     ItemsModel m_model;
     std::vector<Bucket> m_bucket_by_tab;
     std::vector<Bucket> m_bucket_by_item;
 
+    // Child-index identity (S4): the active mode's bucket row per stable
+    // bucket serial, rebuilt on refilter/mode switch and maintained by
+    // the structural delta operations. The stable-key map is its By-Tab
+    // sibling, giving the delta path O(log tabs) bucket lookup instead of
+    // a linear scan (S4 review round 1); both are remapped together.
+    // Structural ops (bucket insert/remove/move) inherently pay O(tabs)
+    // to remap row positions — accepted: they are rare (metadata
+    // reposition, tab discovery, filtered-empty drop), and any
+    // row-position scheme pays the same.
+    std::unordered_map<std::uint64_t, int> m_row_by_serial;
+    std::map<LocationInventory::Key, int> m_row_by_key;
+    std::uint64_t m_next_bucket_serial{1};
+
+    // Staleness marks: the delta path maintains the ACTIVE mode's buckets
+    // and the indexes (S4 By-Tab, S5 By-Item); the other side rebuilds
+    // lazily — m_items on first read, the inactive mode's buckets at the
+    // next mode switch. At most one of the two mode marks is set: each
+    // mode's application stales the other side, and a refilter clears
+    // both.
+    mutable bool m_items_stale{false};
+    bool m_flat_bucket_stale{false};
+    bool m_tab_buckets_stale{false};
+
     QString m_caption;
-    Items m_items;
+    mutable Items m_items;
+    // True when any filter is active (the spec's post-freeze amendment
+    // at D2 rule 5 — see the FilterItems comment): stable across
+    // deltas, flips only at filter edits. Drives hidden empty buckets
+    // and default expansion.
     bool m_filtered;
     size_t m_filtered_item_count;
     std::set<LocationInventory::Key> m_expanded_keys;

@@ -183,7 +183,7 @@ int main(int argc, char *argv[])
 
     QCommandLineParser parser;
     const QCommandLineOption preset_option("preset",
-                                           "Dataset preset: 100k or 1m.",
+                                           "Dataset preset: smoke, 100k, or 1m.",
                                            "preset",
                                            "100k");
     const QCommandLineOption reps_option("reps", "Measured replacement replies.", "reps", "");
@@ -192,15 +192,17 @@ int main(int argc, char *argv[])
     parser.process(app);
 
     // Fixed recorded shapes (R7-3): the same (config, seed) always produces
-    // the same collection and churn sequence. The 1m preset matches the
-    // S1-M2 spike's retuned preset.
-    SpikeDataset::Config config;
+    // the same collection and churn sequence. The named presets are the
+    // recorded M2-M2/spike shapes (SpikeDataset::Config::Preset).
+    const auto preset = SpikeDataset::Config::Preset(parser.value(preset_option));
+    if (!preset) {
+        std::fprintf(stderr, "unknown preset: %s\n", qPrintable(parser.value(preset_option)));
+        return 1;
+    }
+    const SpikeDataset::Config config = *preset;
     int reps = 40;
     int removal_reps = 10;
     if (parser.value(preset_option) == "1m") {
-        config.tab_count = 2600;
-        config.mean_items_per_tab = 400;
-        config.quad_share = 0.8;
         reps = 12;
         removal_reps = 6;
     }
@@ -254,9 +256,11 @@ int main(int argc, char *argv[])
                       currency,
                       shop,
                       image_cache);
-    // Keep the throttled reset out of the measured windows: the tick is the
-    // separate coalesced-refilter path, not part of the synchronous unit.
-    window.SetDeltaThrottleInterval(3600 * 1000);
+    // M3 (S4/S5) retired the D9 throttle: a delta now applies to the
+    // current search's model synchronously inside this measured unit, so
+    // the rows below include the model's bucket-scoped application — the
+    // production path. (M2's runs excluded the then-asynchronous tick via
+    // SetDeltaThrottleInterval, deleted with the timer.)
 
     UserStore store(QDir(bm.tempDir.filePath("data")), kAccount);
     ItemsManagerWorker worker(settings, *bm.manager, api);
@@ -461,8 +465,8 @@ int main(int argc, char *argv[])
                 const ItemLocation base_location = dataset.location(t);
                 micro_delta.reserve(reply.items->size());
                 for (const auto &poe_item : *reply.items) {
-                    micro_delta.push_back(std::make_shared<Item>(
-                        poe_item, base_location.getItemLocation(poe_item)));
+                    micro_delta.push_back(
+                        std::make_shared<Item>(poe_item, base_location.getItemLocation(poe_item)));
                 }
             }
             Items manager_delta = micro_delta;

@@ -411,7 +411,8 @@ what remains is F62, the S1-M2 spike, and revision 9's freeze.
   60 s**. Reset latency recorded (~455 ms at 101k items, ~5.4 s at
   ~976k, the post-reset whole-model re-sort dominant in both; the
   fidelity machinery ~0 ms) — evidence archived in
-  `s1-m2-spike-result.md`. The outcome-(b) affordance contract
+  `s1-m2-spike-result.md` (retired to git history August 1, 2026;
+  the spec's D9 records the result). The outcome-(b) affordance contract
   (R7-1) is retained as record, not selected; the outcome-(a)
   acceptance criteria bind. The ~1m sort cost is carried into the
   parent plan as an input for the M3 spec. Production implementation

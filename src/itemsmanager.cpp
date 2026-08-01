@@ -46,6 +46,9 @@ void ItemsManager::OnStatusUpdate(ProgramState state, const QString &status)
 void ItemsManager::ApplyAutoTabBuyouts()
 {
     spdlog::trace("ItemsManager::ApplyAutoTabBuyouts() entered");
+    // Pricing passes batch (M3 R1-6): one model update at pass end when
+    // this pass is outermost, never one per SetTab.
+    const BuyoutBatch batch(m_buyout_manager);
     // Can handle everything related to auto-tab pricing here.
     // 1. First format we need to honor is ascendency pricing formats which is top priority and overrides other types
     // 2. Second priority is to honor manual user pricing
@@ -68,6 +71,9 @@ void ItemsManager::ApplyAutoTabBuyouts()
 void ItemsManager::ApplyAutoItemBuyouts()
 {
     spdlog::trace("ItemsManager::ApplyAutoItemBuyouts() entered");
+    // Pricing passes batch (M3 R1-6): one model update at pass end when
+    // this pass is outermost, never one per Set.
+    const BuyoutBatch batch(m_buyout_manager);
     // Loop over all items, check for note field with pricing and apply
     for (auto const &item : m_items.Flat()) {
         auto const &note = item->note();
@@ -92,6 +98,10 @@ void ItemsManager::ApplyAutoItemBuyouts()
 void ItemsManager::PropagateTabBuyouts()
 {
     spdlog::trace("ItemsManager::PropagateTabBuyouts() entered");
+    // Pricing passes batch (M3 R1-6). When a user command triggers this
+    // pass, the command's own batch encloses it and this boundary emits
+    // nothing (R3-3).
+    const BuyoutBatch batch(m_buyout_manager);
     m_buyout_manager.ClearRefreshLocks();
     for (auto &item_ptr : m_items.Flat()) {
         Item &item = *item_ptr;
@@ -149,10 +159,16 @@ void ItemsManager::OnItemsRefreshed(const Items &items,
     m_location_inventory.ResetTo(tabs);
 
     m_buyout_manager.SetStashTabLocations(tabs);
-    MigrateBuyouts();
-    ApplyAutoTabBuyouts();
-    ApplyAutoItemBuyouts();
-    PropagateTabBuyouts();
+    {
+        // The snapshot's pricing sequence is one batch (M3 R3-4): nothing
+        // observes UI state between these passes, so they must produce a
+        // single model update, never up to four.
+        const BuyoutBatch snapshot_batch(m_buyout_manager);
+        MigrateBuyouts();
+        ApplyAutoTabBuyouts();
+        ApplyAutoItemBuyouts();
+        PropagateTabBuyouts();
+    }
 
     emit ItemsRefreshed(initial_refresh);
 }
@@ -201,6 +217,9 @@ void ItemsManager::OnChildrenReconciled(const ItemLocation &parent,
 
 void ItemsManager::ApplyScopedPricing(const Items &delta_items)
 {
+    // The scoped per-delta pass batches like the final passes (M3 R1-6):
+    // one model update per pass, never one per Set.
+    const BuyoutBatch batch(m_buyout_manager);
     // Scoped per-delta pricing (D7), restricted to steps that are safe on
     // BOTH update outcomes (R1-4) — an update can end without a final pass:
     for (const auto &item : delta_items) {
@@ -279,6 +298,10 @@ void ItemsManager::OnAutoRefreshTimer()
 void ItemsManager::MigrateBuyouts()
 {
     spdlog::trace("ItemsManager::MigrateBuyouts() entered");
+    // Migration is a pricing pass for batching purposes (M3 D1 rule 4,
+    // R1-6): in production the snapshot batch encloses it, and the
+    // v4-to-v5 recursion nests harmlessly.
+    const BuyoutBatch batch(m_buyout_manager);
     const int db_version = m_datastore.GetInt("db_version");
 
     // Do nothing if the database has already been migrated.

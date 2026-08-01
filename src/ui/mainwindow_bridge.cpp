@@ -59,8 +59,9 @@ void ConnectMainWindow(Application &application,
                      &ItemsManager::ItemsRefreshed,
                      &main_window,
                      &MainWindow::OnItemsRefreshed);
-    // Streamed deltas (items-pipeline M2, D9): the manager's light re-emits
-    // drive the throttled, intersection-gated refilter machinery.
+    // Streamed deltas (items-pipeline M2 D3, M3 D3/D4): the manager's light
+    // re-emits apply synchronously as bucket-scoped model operations on the
+    // current search; background searches are marked items-dirty.
     QObject::connect(&items_manager,
                      &ItemsManager::TabRefreshed,
                      &main_window,
@@ -69,6 +70,12 @@ void ConnectMainWindow(Application &application,
                      &ItemsManager::ChildrenReconciled,
                      &main_window,
                      &MainWindow::OnChildrenReconciled);
+    // The typed terminal event (M3 S4): closes the selection-intent
+    // window on every outcome, terminal failure included (R1-3/R2-1).
+    QObject::connect(&items_manager,
+                     &ItemsManager::RefreshFinished,
+                     &main_window,
+                     &MainWindow::OnRefreshFinished);
     QObject::connect(&items_manager,
                      &ItemsManager::StatusUpdate,
                      &main_window,

@@ -20,6 +20,7 @@
 #include "filters/filterspec.h"
 #include "item.h"
 #include "itemlocation.h"
+#include "refreshoutcome.h"
 #include "util/programstate.h"
 
 class QNetworkReply;
@@ -44,6 +45,7 @@ class Shop;
 class UpdateChecker;
 
 struct Buyout;
+struct BuyoutChangeSet;
 
 namespace Ui {
     class MainWindow;
@@ -65,38 +67,52 @@ public:
     ~MainWindow();
     void LoadSettings();
 
-    // Injectable throttle period S for the D9 streamed-delta refilter
-    // (items-pipeline M2; production value 60 s). The suite drives it at
-    // milliseconds so throttle pins never wait wall-clock S.
-    void SetDeltaThrottleInterval(int ms);
-
 signals:
     void UpdateCheckRequested();
     void SetSessionId(const QString &poesessid);
     void SetTheme(const QString &theme);
     void GetImage(const QString &url);
 public slots:
-    // Streamed-delta consumers (items-pipeline M2, D9): rule 1 marks every
-    // search items-dirty; rule 2 schedules the current search's throttled
-    // refilter iff the delta intersects it. Aggregate reconciliations are
-    // first-class inputs — their intersection form is a visible item under
-    // the parent carrying a key outside the expected set (R5-2/R6-2).
+    // Streamed-delta consumers (items-pipeline M3, D3/D4): the active
+    // search applies each delta immediately and stays clean (R1-7) —
+    // bucket-scoped row operations in By-Tab, the flat sorted merge in
+    // By-Item (S5); background searches keep M2 D9 rule 1 verbatim.
+    // Aggregate reconciliations apply as row removals scoped to the
+    // parent's rows.
     void OnTabRefreshed(const ItemLocation &location, const Items &items);
     void OnChildrenReconciled(const ItemLocation &parent,
                               const std::vector<FetchSourceKey> &expected);
+    // The typed terminal event (M2 D4): closes the selection-intent
+    // window on every outcome, terminal failure included (R1-3/R2-1).
+    void OnRefreshFinished(const RefreshOutcome &outcome);
 
     void OnCurrentItemChanged(const QModelIndex &current, const QModelIndex &previous);
     void OnSearchFormChange();
     void OnDelayedSearchFormChange();
     void OnTabChange(int index);
     void OnImageFetched(const QString &url);
-    void OnItemsRefreshed();
+    // The final snapshot (M2 D8 signal, M3 S6 semantics): background
+    // searches are flagged items-dirty and refilter on their own next
+    // activation (rule 1); the active search performs the R1-2
+    // authoritative row reconciliation — row operations only, never a
+    // reset. Initial population keeps its reset (D6: nothing to
+    // preserve).
+    void OnItemsRefreshed(bool initial_refresh = false);
     void OnStatusUpdate(ProgramState state, const QString &status);
     void OnNotifyUser(const QString &message);
     void OnShopWarning(const QString &message);
     void OnBuyoutChange();
+    // The M3 S2 buyout batch response: one per outer batch boundary
+    // (BuyoutManager::BuyoutsChanged).
+    void OnBuyoutsChanged(const BuyoutChangeSet &changes);
     void ResizeTreeColumns();
     void ScheduleResizeTreeColumns();
+    // The delta-path arming (S7 review round 1): a non-resetting
+    // single-shot debounce, so a refresh burst pays one column resize
+    // per interval instead of one per applied delta. Any immediate
+    // resize supersedes a pending debounced one (ResizeTreeColumns
+    // stops the timer).
+    void ScheduleDeltaResizeTreeColumns();
     void OnExpandAll();
     void OnCollapseAll();
     void OnCheckAll();
@@ -142,11 +158,17 @@ private slots:
     void OnUploadToImgur();
 
 private:
-    // D9 throttle internals: a non-resetting trailing throttle with period
-    // S owned by the current search.
-    bool DeltaIntersectsCurrentSearch(const ItemLocation &location, const Items &items) const;
-    void ScheduleThrottledRefilter();
-    void OnDeltaThrottleTimeout();
+    // S4 delta-application tail: dirty-flag adjudication (R1-7), view-side
+    // default-expansion of an inserted bucket, caption refresh, and the
+    // selection-intent pass. `model_changed` (any model operation, not
+    // just item rows — S6 review round 1) gates the column resize, so a
+    // metadata-only delta or a new empty bucket resizes too.
+    void FinishDeltaApplication(bool processed, bool model_changed, int inserted_bucket_row);
+    // R1-3: reconciles the view's selection with the stable-id intent
+    // after row operations — a removed selected row lapses visually but
+    // keeps the intent; a visible item with the intent's id re-adopts the
+    // selection through the global identity index.
+    void ReconcileSelectionIntent();
 
     void ModelViewRefresh();
     void ReselectCurrentItem();
@@ -195,6 +217,17 @@ private:
 
     std::shared_ptr<Item> m_current_item;
     std::optional<ItemLocation> m_current_bucket_location;
+    // The selection intent (M3 R1-3): the selected item's stable id, held
+    // independently of row existence. During an active refresh (first
+    // delta to the terminal outcome) a removal keeps it alive and a later
+    // insertion re-adopts it; every RefreshFinished outcome closes the
+    // window (R2-1). A user selection overwrites it at any time.
+    QString m_selection_intent_id;
+    bool m_refresh_active{false};
+    // Row operations make the view shuffle its current index (Qt moves
+    // current off a removed row); while set, OnCurrentItemChanged ignores
+    // those shifts so they cannot overwrite the intent.
+    bool m_applying_delta{false};
     std::vector<std::unique_ptr<Search>> m_searches;
     Search *m_current_search;
     QTabBar *m_tab_bar;
@@ -210,11 +243,7 @@ private:
     QTimer m_delayed_update_current_item;
     QTimer m_delayed_search_form_change;
     QTimer m_delayed_resize_columns;
-    // The current search's pending D9 tick (single-shot, period S). Started
-    // by the first intersecting delta, never re-armed by later arrivals;
-    // canceled by a successful refilter of the current search, a tab switch
-    // or deletion of the current search, and the final snapshot.
-    QTimer m_delta_throttle;
+    QTimer m_delta_resize_debounce;
     QMetaObject::Connection m_current_item_conn;
     RateLimitDialog *m_rate_limit_dialog;
     bool m_quitting;

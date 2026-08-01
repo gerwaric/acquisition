@@ -89,6 +89,10 @@ public:
                          &ItemsManager::ChildrenReconciled,
                          window.get(),
                          &MainWindow::OnChildrenReconciled);
+        QObject::connect(itemsManager.get(),
+                         &ItemsManager::RefreshFinished,
+                         window.get(),
+                         &MainWindow::OnRefreshFinished);
     }
 
     QTemporaryDir tempDir;

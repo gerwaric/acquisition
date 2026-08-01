@@ -261,6 +261,7 @@ set(ACQ_CORE
     src/buyoutmanager.h
     src/column.cpp
     src/column.h
+    src/sortkey.h
     src/currency.cpp
     src/currency.h
     src/currencymanager.cpp
@@ -279,6 +280,7 @@ set(ACQ_CORE
     src/itemlocation.h
     src/items_model.cpp
     src/items_model.h
+    src/modelprobes.h
     src/itemsmanager.cpp
     src/itemsmanager.h
     src/itemsmanagerworker.cpp

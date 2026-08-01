@@ -668,7 +668,7 @@ bool Item::operator<(const Item &rhs) const
 {
     const QString name = PrettyName();
     const QString rhs_name = rhs.PrettyName();
-    return std::tie(name, m_uid, m_hash) < std::tie(rhs_name, rhs.m_uid, m_hash);
+    return std::tie(name, m_uid, m_hash) < std::tie(rhs_name, rhs.m_uid, rhs.m_hash);
 }
 
 bool Item::Wearable() const

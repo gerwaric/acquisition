@@ -11,20 +11,28 @@ outcome (a) is selected and S is confirmed at 60 seconds**, with the
 R6-3 restore-fidelity contract validated for the exercised intra-tab
 cases (global cross-tab reselection remains a production obligation
 — see the amendment) and reset latency recorded
-(evidence archived in `s1-m2-spike-result.md`). **Amended July 29,
+(evidence archived in `s1-m2-spike-result.md`, retired to git
+history August 1, 2026 — the numbers survive in D9 and the
+open-items entry). **Amended July 29,
 2026** after a post-freeze external review of the spike evidence
 (six findings, none changing a decision): the supported envelope and
 the exact freshness bound are now stated in D9's result, the spike's
 evidence claims are corrected in the archived result document, and
 R6-3 gains the cross-tab reselection pin — see the reviews file's
-amendment entry. Production
-implementation may begin, with the M2-M2 frame/storage measurement
-as its first checkpoint (R7-3; D3 freezes a determinate
-conditional). This spec consumes the M2 inbox in
-`items-pipeline.md` ("Inputs accumulated since this sketch") and its
-four hard constraints; the traceability table at the end maps every
-input to the decision, deferral, or acceptance criterion that consumed
-it.
+amendment entry. **IMPLEMENTED July 29–30, 2026** (stages 0–8 on a
+single branch; **PR #185 merged July 30**): M2-M2 ran at its stage-4
+checkpoint as required (R7-3), missed every budget, and was remedied
+by the source-keyed stores with a passing rerun (`m2-m2-result.md`).
+**Superseded in part by M3** (implemented July 31, 2026): D9's
+consumer-side machinery — the throttled reset, its pins, and the
+restore path — is retired by the delta-native items model, with
+exactly three stated renegotiations recorded there
+(`items-pipeline-m3.md`, D3); D1–D8 and D10 remain the live
+authority for the worker, manager, and shop sides. This spec
+consumed the M2 inbox in `items-pipeline.md` (trimmed to a
+consumed-pointer August 1, 2026) and its four hard constraints; the
+traceability table at the end maps every input to the decision,
+deferral, or acceptance criterion that consumed it.
 
 Citation convention: bare D-numbers (D1, D2, …) in this document are
 this document's decisions. Decisions of the network redesign are always
@@ -834,6 +842,13 @@ M3 renegotiates the rest of the final-emit cascade; M2 does not.
 
 ### D9. UI application: intersection-gated, throttled, with a stated freshness bound
 
+**Retired by M3 (July 31, 2026).** This decision and its machinery —
+the throttle, its pins, and the restore path — are superseded by the
+delta-native items model (`items-pipeline-m3.md`, D3, and the
+supersession record in `m1-m3-result.md` §S8); the text below is the
+record of what M2 shipped and why. The stable `(type, id)` keying
+introduced here carries forward as M3's bucket keying.
+
 `MainWindow` consumes `ItemsManager::TabRefreshed` under an explicit
 five-rule state machine (R1-5 — this replaces revision 1's two-tier
 description, which under-marked dirtiness and left a pending tick
@@ -1004,7 +1019,8 @@ precomputed sort keys, lazy sorting of visible buckets, born-sorted
 buckets — are model-layer choices M3 owns; the sort was timed as a
 whole, so comparator cost is the suspected, unprofiled driver). The outcome-(b) affordance contract (R7-1) below
 is retained as record but **not selected**; the outcome-(a)
-acceptance criteria bind. Full evidence: `s1-m2-spike-result.md`.
+acceptance criteria bind. Full evidence: `s1-m2-spike-result.md`
+(retired to git history August 1, 2026).
 
 Stated honestly (R5-3): outcome (b) is a **renegotiation of the
 parent plan's freshness-bound input**, not a fulfillment of it —
@@ -1077,6 +1093,13 @@ UI-side coalesce of the existing signal (same throttle pattern as D9,
 much smaller S); the limiter is not touched either way
 (network-redesign is frozen). If it does not stutter, nothing is
 built. Recorded as measurement M1-M2 in the open-items list.
+**Discharged:** the measurement ran July 31, 2026 (post-M3, as the
+recorded follow-up) and the gate fired — ~23 ms of synchronous
+status-widget handler time per 2,000-entry burst, over one 60 Hz
+frame, dialog visible or not. The prescribed coalesce was built in
+`RateLimitDialog` (latest-value-per-policy map, non-resetting
+single-shot flush timer, S = 100 ms) and the rerun passed with the
+burst at ~0.9 ms. Evidence and rerun: `m1-m2-result.md`.
 
 ### D11. Deferrals, each with its reason
 
@@ -1339,11 +1362,18 @@ Design-review criteria (checked in review, not runnable):
   60 s**; fidelity held hands-on and under automated scenarios;
   reset latency recorded (~455 ms at 101k, ~5.4 s at ~976k, the
   post-reset whole-model re-sort dominant in both). Evidence:
-  `s1-m2-spike-result.md`; full result in D9.
-- **M1-M2 (measurement, blocks nothing):** 2,000-entry `QueueUpdated`
-  burst vs. status-widget frame time; builds the D10 coalesce only if
-  it stutters. Not run during M2 implementation (it blocks nothing);
-  recorded as a post-M2 follow-up.
+  `s1-m2-spike-result.md` (retired to git history August 1, 2026);
+  full result in D9.
+- **M1-M2 (measurement, blocks nothing) — RESOLVED July 31, 2026:**
+  2,000-entry `QueueUpdated` burst vs. status-widget frame time;
+  builds the D10 coalesce only if it stutters. Not run during M2
+  implementation (it blocks nothing); recorded as a post-M2
+  follow-up and run after M3. **It stuttered** — ~23 ms of
+  synchronous handler time per 2,000-entry burst (~95% the status
+  dialog's per-emission `setText`, paid even with the dialog
+  hidden) — so the prescribed coalesce was built and validated by
+  rerun (burst now ~0.9 ms). Evidence: `m1-m2-result.md`; pins in
+  `tst_ratelimitdialog`.
 - **M2-M2 (measurement, first implementation checkpoint — blocks M2
   completion, R2-3/R3-3/R4-1/R5-4/R7-3) — RESOLVED July 29, 2026:**
   the complete synchronous reply application on representative 100k

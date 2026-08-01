@@ -140,6 +140,11 @@ void ItemsModelTest::selectionSurvivesSort()
     const QModelIndex bucket0 = model->index(0, 0);
     QCOMPARE(model->rowCount(bucket0), 5);
 
+    // Since S3, only materialized buckets sort (D2): mark the bucket
+    // expanded the way the view's expand signal would, so the view-wide
+    // sorts below reach it.
+    model->OnBucketExpanded(0);
+
     // Sort one way first so the opposite re-sort below is guaranteed to
     // reorder rows regardless of fixture insertion order; a no-op sort would
     // make the remap assertion vacuous. (This test asserts only that the
@@ -192,6 +197,10 @@ void ItemsModelTest::sortDirectionMatchesOrder()
     auto *model = &search.model();
     const QModelIndex bucket0 = model->index(0, 0);
     QCOMPARE(model->rowCount(bucket0), 3);
+
+    // Since S3, only materialized buckets sort (D2): materialize the
+    // bucket as the view's expand signal would.
+    model->OnBucketExpanded(0);
 
     const auto rowNames = [&]() {
         QStringList names;
