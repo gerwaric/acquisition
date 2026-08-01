@@ -3,6 +3,8 @@
 
 #include "control/viewprojection.h"
 
+#include "control/controlprotocol.h"
+
 #include <QJsonArray>
 #include <QJsonValue>
 
@@ -153,6 +155,89 @@ namespace {
         }
     }
 
+    class ProjectionLowerBound
+    {
+    public:
+        explicit ProjectionLowerBound(qsizetype maximum)
+            : m_maximum(maximum)
+        {
+        }
+
+        bool Add(qsizetype bytes)
+        {
+            if (bytes < 0 || m_used > m_maximum - bytes) {
+                return false;
+            }
+            m_used += bytes;
+            return true;
+        }
+
+        bool AddString(const QString &value)
+        {
+            // Compact JSON needs at least one byte per UTF-16 code unit plus
+            // two quotes. Escaping and UTF-8 encoding can only make it larger.
+            return Add(value.size()) && Add(2);
+        }
+
+    private:
+        qsizetype m_maximum;
+        qsizetype m_used{2};
+    };
+
+    bool ItemProjectionMayFit(const Item &item,
+                              const ItemLocation &canonical,
+                              const Buyout &buyout,
+                              qsizetype maximum)
+    {
+        ProjectionLowerBound size(maximum);
+        if (!size.AddString(item.id()) || !size.AddString(item.name())
+            || !size.AddString(item.typeLine()) || !size.AddString(item.category())
+            || !size.AddString(item.icon()) || !size.AddString(item.note())
+            || !size.AddString(canonical.id())
+            || !size.AddString(item.location().fetch_id())
+            || !size.AddString(canonical.tab_label())
+            || !size.AddString(canonical.tab_type())
+            || !size.AddString(canonical.character())
+            || !size.AddString(item.location().inventory_id())
+            || !size.AddString(buyout.currency.AsTag())) {
+            return false;
+        }
+        for (const auto &property : item.text_properties()) {
+            // Minimum compact shape with empty strings and null enum values.
+            if (!size.Add(43) || !size.Add(property.name.size())) {
+                return false;
+            }
+            for (const auto &value : property.values) {
+                if (!size.Add(23) || !size.Add(value.str.size())) {
+                    return false;
+                }
+            }
+        }
+        for (const auto &requirement : item.text_requirements()) {
+            if (!size.Add(43) || !size.Add(requirement.name.size())
+                || !size.Add(requirement.value.str.size())) {
+                return false;
+            }
+        }
+        for (const auto &[group, entries] : item.text_mods()) {
+            if (!size.Add(5) || !size.Add(group.size())) {
+                return false;
+            }
+            for (const QString &entry : entries) {
+                if (!size.AddString(entry)) {
+                    return false;
+                }
+            }
+        }
+        for (const auto &socket : item.text_sockets()) {
+            Q_UNUSED(socket);
+            if (!size.Add(25)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     QJsonArray ProjectProperties(const std::vector<ItemProperty> &properties)
     {
         QJsonArray result;
@@ -258,10 +343,21 @@ QString LocationKind(const ItemLocation &location)
     return location.type() == ItemLocationType::STASH ? "stash" : "character";
 }
 
-QJsonObject ProjectItem(const Item &item,
-                        const ItemLocation &canonical_location,
-                        const Buyout &effective_buyout)
+std::optional<ProjectedItem> ProjectItem(const Item &item,
+                                          const ItemLocation &canonical_location,
+                                          const Buyout &effective_buyout,
+                                          qsizetype maximum_bytes)
 {
+    // Reject pathological strings or collection counts before allocating JSON
+    // arrays. QJson string values are implicitly shared; the exact walk below
+    // handles escaping without creating a serialized payload.
+    if (!ItemProjectionMayFit(item,
+                              canonical_location,
+                              effective_buyout,
+                              maximum_bytes)) {
+        return std::nullopt;
+    }
+
     QJsonObject result{{"id", item.id()},
                        {"name", item.name()},
                        {"type_line", item.typeLine()},
@@ -287,13 +383,13 @@ QJsonObject ProjectItem(const Item &item,
                        {"sockets", ProjectSockets(item.text_sockets())},
                        {"location", ProjectLocation(item.location(), canonical_location)},
                        {"effective_price", ProjectBuyout(effective_buyout)}};
-    if (item.note().isNull()) {
-        result.insert("note", QJsonValue::Null);
-    } else {
-        result.insert("note", item.note());
-    }
+    result.insert("note", item.note().isNull() ? QJsonValue::Null : QJsonValue(item.note()));
     result.insert("frame_type", ProjectFrameType(item.frameType()));
-    return result;
+    const auto bytes = JsonSizeWithinLimit(result, maximum_bytes);
+    if (!bytes) {
+        return std::nullopt;
+    }
+    return ProjectedItem{result, *bytes};
 }
 
 QJsonObject ProjectTab(const ItemLocation &location,

@@ -274,7 +274,9 @@ bool LocalControlServer::Listen(const QDir &data_directory)
     }
     if (probe.error() != QLocalSocket::ServerNotFoundError
         && probe.error() != QLocalSocket::ConnectionRefusedError) {
-        m_error_string = probe.errorString();
+        m_owner_conflict = true;
+        m_error_string = "control endpoint ownership could not be confirmed: "
+                         + probe.errorString();
         return false;
     }
 
@@ -294,9 +296,14 @@ bool LocalControlServer::Listen(const QDir &data_directory)
         m_error_string = "another Acquisition process owns the control endpoint";
         return false;
     }
-    if ((contender.error() != QLocalSocket::ServerNotFoundError
-         && contender.error() != QLocalSocket::ConnectionRefusedError)
-        || !QLocalServer::removeServer(m_endpoint) || !m_server.listen(m_endpoint)) {
+    if (contender.error() != QLocalSocket::ServerNotFoundError
+        && contender.error() != QLocalSocket::ConnectionRefusedError) {
+        m_owner_conflict = true;
+        m_error_string = "control endpoint ownership could not be confirmed: "
+                         + contender.errorString();
+        return false;
+    }
+    if (!QLocalServer::removeServer(m_endpoint) || !m_server.listen(m_endpoint)) {
         m_error_string = m_server.errorString();
         return false;
     }

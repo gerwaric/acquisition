@@ -23,6 +23,7 @@ private slots:
     void paginationRejectsOldRevision();
     void filteredPagesBoundSourceScan();
     void pagesBeforeResponseBudget();
+    void rejectsOversizedItemProjection();
     void rejectsMalformedCursor();
     void rejectsMalformedQueryParameters();
     void refreshJobOutlivesStartRequest();
@@ -382,6 +383,32 @@ void ControlServiceTest::pagesBeforeResponseBudget()
     QVERIFY(second.value("ok").toBool());
     QCOMPARE(resultOf(second).value("items").toArray().size(), 1);
     QVERIFY(resultOf(second).value("next_cursor").isNull());
+}
+
+void ControlServiceTest::rejectsOversizedItemProjection()
+{
+    BuyoutManagerFixture buyouts;
+    QSettings settings(buyouts.tempDir.filePath("settings.ini"), QSettings::IniFormat);
+    ItemsManager items_manager(settings, *buyouts.manager, *buyouts.data);
+    control::ControlService service("test-version");
+    const ItemLocation location = makeTestStashLocation("oversized", "Oversized", 0);
+    const QByteArray json = QJsonDocument(
+                                QJsonObject{{"w", 1},
+                                            {"h", 1},
+                                            {"id", "oversized-item"},
+                                            {"typeLine", "Orb"},
+                                            {"identified", true},
+                                            {"note", QString(5'000'000, 'x')}})
+                                .toJson(QJsonDocument::Compact);
+    auto item = std::make_shared<Item>(makeTestItem(json.constData(), location));
+    service.AttachSession(items_manager, nullptr, *buyouts.manager, "Account#1", "League");
+    items_manager.OnItemsRefreshed(Items{item}, {location}, true);
+
+    const QJsonObject response = service.Handle(
+        control::Request{"item", "item", QJsonObject{{"id", "oversized-item"}}});
+    QVERIFY(!response.value("ok").toBool(true));
+    QCOMPARE(response.value("error").toObject().value("code").toString(),
+             "item_too_large");
 }
 
 void ControlServiceTest::rejectsMalformedCursor()

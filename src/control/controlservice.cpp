@@ -588,14 +588,14 @@ QJsonObject ControlService::Items(const QString &request_id, const QJsonObject &
             const auto &item = bucket->second[size_t(index)];
             if (Matches(*item, *query, inventory)) {
                 const ItemLocation &canonical = inventory.Canonical(item->location());
-                const QJsonObject projected = ProjectItem(*item,
-                                                          canonical,
-                                                          m_buyout_manager->Get(*item));
-                const auto projected_bytes = JsonSizeWithinLimit(projected,
-                                                                 RESPONSE_CONTENT_BUDGET);
-                if (!projected_bytes
-                    || page_bytes + *projected_bytes + (page.isEmpty() ? 0 : 1)
-                           > RESPONSE_CONTENT_BUDGET) {
+                const qsizetype separator_bytes = page.isEmpty() ? 0 : 1;
+                const qsizetype remaining_bytes
+                    = RESPONSE_CONTENT_BUDGET - page_bytes - separator_bytes;
+                const auto projected = ProjectItem(*item,
+                                                   canonical,
+                                                   m_buyout_manager->Get(*item),
+                                                   remaining_bytes);
+                if (!projected) {
                     if (page.isEmpty()) {
                         return Error(request_id,
                                      "item_too_large",
@@ -607,8 +607,8 @@ QJsonObject ControlService::Items(const QString &request_id, const QJsonObject &
                     stopped = true;
                     break;
                 }
-                page_bytes += *projected_bytes + (page.isEmpty() ? 0 : 1);
-                page.append(projected);
+                page_bytes += projected->bytes + separator_bytes;
+                page.append(projected->value);
             }
             ++examined;
         }
@@ -652,13 +652,21 @@ QJsonObject ControlService::Item(const QString &request_id, const QJsonObject &p
     }
     const ItemLocation &canonical = m_items_manager->locationInventory().Canonical(
         item->location());
+    // RESPONSE_CONTENT_BUDGET already excludes 64 KiB for the Success
+    // envelope, instance/revision fields, and the bounded request id.
+    const auto projected = ProjectItem(*item,
+                                       canonical,
+                                       m_buyout_manager->Get(*item),
+                                       RESPONSE_CONTENT_BUDGET);
+    if (!projected) {
+        return Error(request_id,
+                     "item_too_large",
+                     QString("item %1 exceeds the control response limit").arg(item->id()));
+    }
     return Success(request_id,
                    QJsonObject{{"instance_id", m_instance_id},
                                {"inventory_revision", QString::number(m_inventory_revision)},
-                               {"item",
-                                ProjectItem(*item,
-                                            canonical,
-                                            m_buyout_manager->Get(*item))}});
+                               {"item", projected->value}});
 }
 
 QJsonObject ControlService::StartRefresh(const QString &request_id)

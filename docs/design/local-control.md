@@ -358,11 +358,11 @@ The checked-in `control_benchmark` is excluded from normal builds and measures a
 complete cursor traversal of deterministic published collections. A local
 Release run on an Apple M4 Max measured:
 
-- 101,048 items in 1,011 pages: 1,315.807 ms total, 1.755 ms maximum page,
-  0.412 ms sparse-filter page; 20 tab pages took 9.819 ms total and 0.512 ms
+- 101,048 items in 1,011 pages: 1,282.041 ms total, 1.664 ms maximum page,
+  0.458 ms sparse-filter page; 20 tab pages took 9.744 ms total and 0.539 ms
   maximum per page;
-- 975,711 items in 9,758 pages: 12,568.670 ms total, 7.912 ms maximum page,
-  1.029 ms sparse-filter page; 26 tab pages took 13.085 ms total and 0.527 ms
+- 975,711 items in 9,758 pages: 12,561.916 ms total, 5.705 ms maximum page,
+  0.603 ms sparse-filter page; 26 tab pages took 12.402 ms total and 0.494 ms
   maximum per page.
 
 The local checkpoint completed a clean RelWithDebInfo build and all 39 tests.
