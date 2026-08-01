@@ -275,15 +275,18 @@ int main(int argc, char *argv[])
     if (!wait_for_refresh) {
         const QString request_id = QUuid::createUuid().toString(QUuid::WithoutBraces);
         auto response = send(command, params, 2000, request_id);
-        if (!response && command == "refresh.start"
-            && (response.error().code == "timeout"
-                || response.error().code == "transport_error")) {
+        const bool start_may_be_accepted
+            = !response && command == "refresh.start"
+              && (response.error().code == "timeout"
+                  || response.error().code == "transport_error");
+        if (start_may_be_accepted) {
             response = send(command, params, 2000, request_id);
         }
         if (!response) {
-            if (command == "refresh.start"
-                && (response.error().code == "timeout"
-                    || response.error().code == "transport_error")) {
+            // Any service error is a valid JSON response and bypasses this
+            // branch. A client-side retry failure cannot resolve whether the
+            // first request was accepted, even if the retry never connected.
+            if (start_may_be_accepted) {
                 QJsonObject unconfirmed = control::Error(
                     request_id,
                     "start_unconfirmed",

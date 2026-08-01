@@ -215,7 +215,10 @@ inventory inspection:
 
 Absent or null values remain distinct from empty strings where the model can
 represent that distinction. Enum values use stable lowercase strings, never
-Qt/C++ ordinal values.
+Qt/C++ ordinal values. Property display modes are `name_before_values`,
+`values_before_name`, `progress_bar`, `indexed`, or `separator`; property and
+requirement value types are `default`, `augmented`, `unmet`, damage-type names,
+or item-rarity names. Unknown upstream enum values are null.
 
 ### Pagination consistency
 

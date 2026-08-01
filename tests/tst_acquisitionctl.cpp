@@ -1,10 +1,15 @@
+#include <QDir>
+#include <QFileInfo>
 #include <QJsonDocument>
+#include <QLocalServer>
+#include <QLocalSocket>
 #include <QProcess>
 #include <QStringList>
 #include <QTemporaryDir>
 #include <QThread>
 #include <QtTest>
 
+#include "control/controlendpoint.h"
 #include "control/controlprotocol.h"
 #include "control/localcontrolserver.h"
 
@@ -20,6 +25,7 @@ private slots:
     void identifiesItselfInParserErrors();
     void statusRoundTrip();
     void refreshStartRetriesWithSameRequestId();
+    void refreshStartPreservesIdWhenRetryCannotConnect();
     void waitTimeoutSendsOnlyStatusRequests();
 };
 
@@ -197,6 +203,38 @@ void AcquisitionCtlTest::refreshStartRetriesWithSameRequestId()
     QCOMPARE(process.exitCode(), 0);
     QCOMPARE(request_ids.size(), 2);
     QCOMPARE(request_ids.at(0), request_ids.at(1));
+}
+
+void AcquisitionCtlTest::refreshStartPreservesIdWhenRetryCannotConnect()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString endpoint = control::EndpointName(QDir(dir.path()));
+    QVERIFY(QDir().mkpath(QFileInfo(endpoint).absolutePath()));
+
+    QLocalServer server;
+    server.setSocketOptions(QLocalServer::UserAccessOption);
+    QLocalSocket *connection = nullptr;
+    connect(&server, &QLocalServer::newConnection, this, [&] {
+        connection = server.nextPendingConnection();
+        QVERIFY(connection);
+        connection->setParent(this);
+        server.close();
+    });
+    QVERIFY2(server.listen(endpoint), qPrintable(server.errorString()));
+
+    QProcess process;
+    process.start(ACQUISITIONCTL_PATH,
+                  {"--data-dir", dir.path(), "refresh", "start"});
+    QTRY_COMPARE_WITH_TIMEOUT(process.state(), QProcess::NotRunning, 7000);
+    QCOMPARE(process.exitStatus(), QProcess::NormalExit);
+    QCOMPARE(process.exitCode(), 4);
+    QVERIFY(connection);
+
+    const QJsonObject output = QJsonDocument::fromJson(process.readAllStandardOutput()).object();
+    const QJsonObject error = output.value("error").toObject();
+    QCOMPARE(error.value("code").toString(), "start_unconfirmed");
+    QVERIFY(!error.value("operation_id").toString().isEmpty());
 }
 
 void AcquisitionCtlTest::waitTimeoutSendsOnlyStatusRequests()

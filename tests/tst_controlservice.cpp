@@ -48,7 +48,9 @@ namespace {
             const QByteArray first_json = R"({
                 "w":1,"h":1,"id":"item-one","name":"Doom Grip",
                 "typeLine":"Amethyst Ring","identified":true,"ilvl":84,"x":3,"y":7,"frameType":2,
-                "synthesised":true,"fractured":true
+                "synthesised":true,"fractured":true,
+                "properties":[{"name":"Quality: {0}","displayMode":3,"values":[["+20%",1]]}],
+                "requirements":[{"name":"Level","displayMode":0,"values":[["84",2]]}]
             })";
             const QByteArray second_json = R"({
                 "w":1,"h":1,"id":"item-two","name":"",
@@ -155,6 +157,12 @@ void ControlServiceTest::viewsPublishedItemsAndEffectivePrices()
     QCOMPARE(price.value("value").toDouble(), 10.0);
     QCOMPARE(price.value("currency").toString(), "chaos");
     QVERIFY(item.value("note").isNull());
+    const QJsonObject property = item.value("properties").toArray().at(0).toObject();
+    QCOMPARE(property.value("display_mode").toString(), "indexed");
+    QCOMPARE(property.value("values").toArray().at(0).toObject().value("type").toString(),
+             "augmented");
+    const QJsonObject requirement = item.value("requirements").toArray().at(0).toObject();
+    QCOMPARE(requirement.value("value").toObject().value("type").toString(), "unmet");
 
     const QJsonObject second_response = fixture.service.Handle(
         control::Request{"second", "item", QJsonObject{{"id", "item-two"}}});

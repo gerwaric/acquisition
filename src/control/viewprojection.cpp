@@ -105,16 +105,66 @@ namespace {
         return result;
     }
 
+    QJsonValue PropertyDisplayModeName(int display_mode)
+    {
+        switch (display_mode) {
+        case 0:
+            return "name_before_values";
+        case 1:
+            return "values_before_name";
+        case 2:
+            return "progress_bar";
+        case 3:
+            return "indexed";
+        case 4:
+            return "separator";
+        default:
+            return QJsonValue::Null;
+        }
+    }
+
+    QJsonValue PropertyValueTypeName(int type)
+    {
+        switch (type) {
+        case 0:
+            return "default";
+        case 1:
+            return "augmented";
+        case 2:
+            return "unmet";
+        case 3:
+            return "physical_damage";
+        case 4:
+            return "fire_damage";
+        case 5:
+            return "cold_damage";
+        case 6:
+            return "lightning_damage";
+        case 7:
+            return "chaos_damage";
+        case 8:
+            return "magic_item";
+        case 9:
+            return "rare_item";
+        case 10:
+            return "unique_item";
+        default:
+            return QJsonValue::Null;
+        }
+    }
+
     QJsonArray ProjectProperties(const std::vector<ItemProperty> &properties)
     {
         QJsonArray result;
         for (const auto &property : properties) {
             QJsonArray values;
             for (const auto &value : property.values) {
-                values.append(QJsonObject{{"text", value.str}, {"type", value.type}});
+                values.append(QJsonObject{{"text", value.str},
+                                          {"type", PropertyValueTypeName(value.type)}});
             }
             result.append(QJsonObject{{"name", property.name},
-                                      {"display_mode", property.display_mode},
+                                      {"display_mode",
+                                       PropertyDisplayModeName(property.display_mode)},
                                       {"values", values}});
         }
         return result;
@@ -124,10 +174,11 @@ namespace {
     {
         QJsonArray result;
         for (const auto &requirement : requirements) {
-            result.append(QJsonObject{{"name", requirement.name},
-                                      {"value",
-                                       QJsonObject{{"text", requirement.value.str},
-                                                   {"type", requirement.value.type}}}});
+            result.append(QJsonObject{
+                {"name", requirement.name},
+                {"value",
+                 QJsonObject{{"text", requirement.value.str},
+                             {"type", PropertyValueTypeName(requirement.value.type)}}}});
         }
         return result;
     }
