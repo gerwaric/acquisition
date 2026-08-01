@@ -1,14 +1,14 @@
 # Account Store Redesign
 
-**Status: PROPOSED for review, revision 4, August 1, 2026.** Revision 4
-draws a precise boundary between continuable ambiguity and source-level
-failures that stop cutover (D11), evidences item-buyout scope through stored
-location joins before falling back to attribution (D12), narrows the
-re-import claim to forensic repair, defers Sentry diagnostics in favor of the
-local report, and scopes the bundled league list to historical ID strings
-known to Acquisition. Revision 3 adopted the detect-default-record-report
-policy (D11), scope attribution (D12), forward-hashed discovery, a
-stop-safely-only cutover, and the remembered-name copy-forward lookup rule.
+**Status: PROPOSED for review, revision 5, August 1, 2026.** Revision 5
+makes failure diagnostics independent of the target database through an
+in-memory migration-run collector (D11) and records reviewer preferences
+against open items 2 and 3. Revision 4 drew the boundary between continuable
+ambiguity and source-level failures that stop cutover (D11), evidenced
+item-buyout scope through stored location joins (D12), narrowed the
+re-import claim to forensic repair, deferred Sentry diagnostics in favor of
+the local report, and scoped the bundled league list to historical ID
+strings known to Acquisition.
 This document is not yet frozen and authorizes no implementation by itself.
 The companion execution plan is `account-store-plan.md`.
 
@@ -335,15 +335,28 @@ and failures that stop is:
 - **Target creation, copy-forward, migration, or commit failure:** stop
   safely.
 
-Reporting is a user-facing diagnostic export ("account migration diagnostic
-report") built from the provenance records. It may include filenames and
-league names because the user reviews it before pasting it into a GitHub
-issue. Cutover additionally requires provenance recording and a visible
-notice when defaults or attributions were applied. Sanitized aggregate
-telemetry per edge class may be added later as a separate change with its
-own consent and privacy review; it is not a requirement of this redesign,
-and GitHub reports from the small user population decide whether that
-investment is worthwhile.
+Reporting must not depend on the component that failed. Several stop-safely
+cases leave no usable target database: the target cannot be created or
+opened, copy-forward fails before metadata exists, a migration transaction
+rolls back its provenance, or the target commit fails. Diagnostics are
+therefore accumulated by a migration-run collector that is independent of
+the target database: it gathers records in memory throughout discovery,
+copy-forward, migration, and import; applicable records are persisted to
+target provenance when the target transaction commits; and the user-facing
+report renders from the in-memory run diagnostics plus any previously
+committed provenance. When the target is unavailable, the current run's
+report can still be saved. This is not a second persistent logging system —
+nothing is durable outside target provenance except the report the user
+explicitly exports.
+
+The user-facing export ("account migration diagnostic report") may include
+filenames and league names because the user reviews it before pasting it
+into a GitHub issue. Cutover additionally requires provenance recording and
+a visible notice when defaults or attributions were applied. Sanitized
+aggregate telemetry per edge class may be added later as a separate change
+with its own consent and privacy review; it is not a requirement of this
+redesign, and GitHub reports from the small user population decide whether
+that investment is worthwhile.
 
 ### D12. Imported rows receive explicit, recorded scope attribution
 
@@ -401,6 +414,10 @@ key is selected.
 - Failure to open or migrate the target database prevents writes and is
   surfaced distinctly from an empty account.
 - A failed import rolls back its target transaction and preserves diagnostics.
+- Diagnostic reporting survives target-side failure: the migration-run
+  collector holds the run's diagnostics in memory, so a report can be saved
+  even when the target database cannot be created, opened, or committed
+  (D11).
 - Re-running an incomplete import is safe.
 - A successfully imported source remains available for manual comparison.
 - Cache corruption may be healed by refetching only after user-authored rows
@@ -442,11 +459,21 @@ The following must be resolved before this spec is frozen:
    or a documented canonical mapping.
 2. Write final DDL and repository error/result contracts, including whether
    untranslatable legacy buyouts use a holding table or provenance-only
-   diagnostics.
+   diagnostics. Review preference: provenance-only diagnostics, unless a
+   concrete recovery workflow requires the table — the immutable source
+   already preserves the complete row, and duplicating unresolved legacy
+   records into the target creates another schema and lifecycle to
+   maintain.
 3. Define per-type precedence for conflicts between copy-forward `UserStore`
    data and old hashed account/league sources, without treating the former
    as another importer input; where evidence is absent, D11's
-   default-and-report applies rather than bespoke resolution rules.
+   default-and-report applies rather than bespoke resolution rules. Review
+   baseline: copied-forward `UserStore` buyouts win when the same scoped
+   target key already exists; translatable legacy buyouts fill missing
+   target keys; hashed stores remain authoritative for shop, currency, and
+   refresh state because the current `UserStore` never owned those values;
+   any genuine same-owner conflict is recorded rather than resolved through
+   elaborate merging.
 4. Pin the exact cutover ordering relative to authentication and initial
    cached publication; activation is forbidden until all user-valuable data
    paths are available in one release, and a cutover failure stops safely
@@ -468,6 +495,8 @@ The redesign is complete when:
   and reportable by the user, and no source is silently skipped;
 - an attributed source that may contain user-valuable data but cannot be
   read consistently stops cutover rather than activating without it;
+- a stopped cutover still produces a saveable diagnostic report even when
+  the target database cannot be created, opened, or committed;
 - authored data survives every supported migration and induced failure;
 - known-closed version backup and SQLite copy-forward are exercised by tests;
 - production code no longer constructs `SqliteDataStore` or depends on

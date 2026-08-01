@@ -1,12 +1,13 @@
 # Account Store Redesign: Implementation Plan
 
-**Status: DRAFT, revision 4, August 1, 2026.** Revision 4 tracks the
+**Status: DRAFT, revision 5, August 1, 2026.** Revision 5 makes failure
+diagnostics independent of the target database through the design's
+migration-run collector (D11). Revision 4 tracked the
 design's revised D11 boundary (continuable ambiguity versus source-level
-failures that stop cutover), evidences item-buyout scope through stored
-location joins (D12), defers Sentry diagnostics in favor of the local
-report, and scopes the bundled league asset to historical ID strings known
-to Acquisition. Revision 3 adopted the detect-default-record-report edge
-policy and scope attribution. This plan
+failures that stop cutover), evidenced item-buyout scope through stored
+location joins (D12), deferred Sentry diagnostics in favor of the local
+report, and scoped the bundled league asset to historical ID strings known
+to Acquisition. This plan
 sequences implementation of `account-store.md` and must not outrun unresolved
 hold points. Unlike the design, it may be retired after execution; durable
 decisions remain in the design and findings register.
@@ -95,7 +96,11 @@ classified unsupported while preserving its source.
   source's status stops cutover.
 - Specify per-type import precedence without using "last writer wins" as an
   implicit default; where evidence is absent, D11's default-and-report
-  applies instead of bespoke resolution rules.
+  applies instead of bespoke resolution rules. Start from the design's
+  open-item-3 baseline: copied-forward `UserStore` buyouts win existing
+  scoped keys, translatable legacy buyouts fill missing keys, hashed stores
+  stay authoritative for shop/currency/refresh state, and same-owner
+  conflicts are recorded rather than merged.
 - Review the target against F22, F54, F64, and F66.
 
 **Gate:** freeze the reviewed design before schema implementation.
@@ -238,9 +243,14 @@ This remains preparatory-only until their old values can be imported.
   the approved holding area or provenance diagnostics.
 - Preserve unknown keys/tables only in the source; report them in diagnostics
   without pretending they were imported.
-- Build the user-facing diagnostic surface (D11): a notice when defaults or
-  attributions were applied and an "account migration diagnostic report"
-  export rendered from provenance records. Sanitized aggregate telemetry is
+- Build the user-facing diagnostic surface (D11): a migration-run collector
+  that accumulates diagnostics in memory across discovery, copy-forward,
+  migration, and import; persistence of applicable records to target
+  provenance on commit; a notice when defaults or attributions were
+  applied; and an "account migration diagnostic report" export rendered
+  from the in-memory run diagnostics plus previously committed provenance,
+  saveable even when the target database is unavailable. Sanitized
+  aggregate telemetry is
   deliberately out of scope for v1; it may be added later as a separate
   change with its own consent and privacy review.
 - Compare source bytes and relevant filesystem metadata before and after every
@@ -248,8 +258,9 @@ This remains preparatory-only until their old values can be imported.
 
 **Failure matrix:** exercise open failure, malformed schema, malformed value,
 constraint conflict, target write failure, commit failure where injectable,
-process interruption/restart, repeated import, changed source content, and a
-new importer version.
+process interruption/restart, repeated import, changed source content, a
+new importer version, and diagnostic-report export while the target cannot
+be created, opened, or committed.
 
 **Phase gate:** supported real-world fixtures import exactly once, failures
 are recoverable, the D11 boundary is enforced — unattributed and cache-only
@@ -282,7 +293,8 @@ attributed hashed-store import complete before the target becomes active;
 unattributed and cache-only sources are reported and skipped without
 blocking, while an attributed source that may contain user-valuable data but
 cannot be read consistently stops cutover safely (D11); and any cutover
-failure stops safely with a report rather than
+failure stops safely with a report — rendered from the migration-run
+collector when the target database is unavailable — rather than
 presenting an empty store or falling back to the legacy write path — the
 untouched legacy files are the recovery guarantee, and the atomic idempotent
 import makes a retry safe. Phases 1-5 ship together for existing installs
