@@ -91,8 +91,13 @@ another agent-specific protocol.
 
 The endpoint identity is a digest of the canonical data-directory path,
 namespaced by application and protocol identity. Different test or user data
-roots do not collide. The server requests `QLocalServer::UserAccessOption` and
-holds an endpoint-specific `QLockFile` while listening.
+roots do not collide. Unix places the socket and lock in a short, owner-only
+OS-managed user runtime root (Darwin's user temp directory or
+`/run/user/<uid>`), with a validated passwd-home fallback when that root is
+unavailable. Discovery does not depend on the caller's `HOME` or
+`XDG_RUNTIME_DIR`. Windows uses the digest as the named-pipe identity
+and keeps the lock under the data directory. The server requests
+`QLocalServer::UserAccessOption` and holds the endpoint lock while listening.
 
 A listen failure must not delete an endpoint blindly. After taking the lock,
 the application probes before calling `listen` because Qt may otherwise unlink
@@ -215,17 +220,19 @@ Every subsequent page supplies that pair. If published state changed, the
 server returns `revision_changed`; it never silently combines pages from two
 states.
 
-The implementation uses an opaque source-index cursor over
-`ItemsManager::items()`. The cursor embeds the original limit, filters,
-`instance_id`, and revision; cursor requests cannot override them. Revision is
+The implementation uses an opaque source-index cursor over `ItemsManager`'s
+source-keyed published buckets. It does not materialize the dirty flat view.
+The cursor embeds the original limit, filters, `instance_id`, and revision;
+cursor requests cannot override them. Revision is
 checked before reading each page and serialization runs in the application
 thread. Unfiltered first pages report `total`; filtered pages omit it rather
 than scanning the full result set. A page examines at most 10,000 source items,
 so a sparse filter can return an empty item array with a continuation cursor.
 Clients continue until the cursor is null. Tab item counts aggregate the
 source-keyed published buckets rather than flattening or scanning every item.
-Page and scan limits bound UI-thread work and response memory. The measured
-cost did not justify an immutable snapshot.
+Single-item lookup uses an index maintained with snapshots, source replacements,
+and child reconciliation. Page and scan limits bound UI-thread work and response
+memory. The measured cost did not justify an immutable snapshot.
 
 ## Refresh operations
 
@@ -233,9 +240,11 @@ cost did not justify an immutable snapshot.
 
 `refresh.start`
 : Starts the application's `UpdateScope::All` path. Returns immediately with
-  `accepted` and an application-generated operation id, or `busy` with the
-  active id. It queues the actual update after sending the response so no
-  terminal signal can nest inside request handling.
+  `accepted` and an application-generated operation id, or `busy`. A busy
+  response includes `active_refresh_id` only when the active refresh was started
+  through control; GUI-originated worker activity has no control operation id.
+  It queues the actual update after sending the response so no terminal signal
+  can nest inside request handling.
 
 `refresh.status`
 : Returns the operation's state (`queued`, `running`, `completed`, `failed`),
@@ -333,10 +342,10 @@ The checked-in `control_benchmark` is excluded from normal builds and measures a
 complete cursor traversal of deterministic published collections. A local
 Release run on an Apple M4 Max measured:
 
-- 101,048 items in 1,011 pages: 963.014 ms total, 1.252 ms maximum page,
-  0.451 ms sparse-filter page, 7.992 ms tabs response;
-- 975,711 items in 9,758 pages: 9,442.817 ms total, 5.136 ms maximum page,
-  1.303 ms sparse-filter page, 11.115 ms tabs response.
+- 101,048 items in 1,011 pages: 994.933 ms total, 1.615 ms maximum page,
+  0.426 ms sparse-filter page, 7.753 ms tabs response;
+- 975,711 items in 9,758 pages: 10,755.507 ms total, 2.680 ms maximum page,
+  0.597 ms sparse-filter page, 11.044 ms tabs response.
 
 The local checkpoint completed a clean RelWithDebInfo build and all 39 tests.
 The four control-focused tests also passed an AddressSanitizer build
