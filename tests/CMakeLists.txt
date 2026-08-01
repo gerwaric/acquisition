@@ -52,6 +52,13 @@ qt_add_executable(m3_holdpoint_benchmark EXCLUDE_FROM_ALL m3_holdpoint_benchmark
 target_include_directories(m3_holdpoint_benchmark PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
 target_link_libraries(m3_holdpoint_benchmark PRIVATE acquisition_core)
 
+# The M1-M2 harness (items-pipeline M2, D10; post-M2 follow-up): the
+# batch-submit QueueUpdated burst vs status-widget frame time, run by
+# hand in a Release build.
+qt_add_executable(m1m2_benchmark EXCLUDE_FROM_ALL m1m2_benchmark.cpp)
+target_include_directories(m1m2_benchmark PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
+target_link_libraries(m1m2_benchmark PRIVATE acquisition_core)
+
 # The filter core must stay free of the UI (Phase 5, D5). A STATIC archive has
 # no link step, so this cannot be left to target_link_libraries.
 add_test(NAME filters_boundary
