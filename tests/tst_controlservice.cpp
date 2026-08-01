@@ -446,6 +446,13 @@ void ControlServiceTest::rejectsMalformedQueryParameters()
         control::Request{"tab", "items", QJsonObject{{"tab_id", 123}}});
     QCOMPARE(numeric_tab.value("error").toObject().value("code").toString(),
              "invalid_request");
+
+    const QJsonObject long_tab = fixture.service.Handle(control::Request{
+        "long-tab",
+        "items",
+        QJsonObject{{"tab_id", QString(1025, 'x')}, {"kind", "stash"}}});
+    QCOMPARE(long_tab.value("error").toObject().value("code").toString(),
+             "invalid_request");
 }
 
 void ControlServiceTest::refreshJobOutlivesStartRequest()

@@ -303,7 +303,11 @@ bool LocalControlServer::Listen(const QDir &data_directory)
                          + contender.errorString();
         return false;
     }
-    if (!QLocalServer::removeServer(m_endpoint) || !m_server.listen(m_endpoint)) {
+    // The previous owner may remove the stale path between the probe and this
+    // cleanup. A false remove result is harmless when listen can now succeed.
+    QLocalServer::removeServer(m_endpoint);
+    if (!m_server.listen(m_endpoint)) {
+        m_owner_conflict = m_server.serverError() == QAbstractSocket::AddressInUseError;
         m_error_string = m_server.errorString();
         return false;
     }

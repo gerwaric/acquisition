@@ -222,8 +222,10 @@ or item-rarity names. Unknown upstream enum values are null.
 
 ### Pagination consistency
 
-`items` accepts a bounded `limit`, an optional tab id, and an opaque cursor. The
-first page captures `(instance_id, revision)` and the deterministic item order.
+`items` accepts a bounded `limit`, an optional tab id, and an opaque cursor. Tab
+filters are capped at 1,024 characters so every emitted cursor remains small
+enough for a follow-up request. The first page captures `(instance_id, revision)`
+and the deterministic item order.
 Every subsequent page supplies that pair. If published state changed, the
 server returns `revision_changed`; it never silently combines pages from two
 states.

@@ -28,6 +28,7 @@ namespace {
 
     constexpr int DEFAULT_PAGE_SIZE = 50;
     constexpr int MAXIMUM_PAGE_SIZE = 100;
+    constexpr qsizetype MAXIMUM_FILTER_LENGTH = 1024;
     constexpr qsizetype MAXIMUM_PAGE_SCAN = 10'000;
     // Request ids are capped at 128 characters by DecodeRequest; 64 KiB also
     // covers the fixed response envelope and authenticated continuation cursor.
@@ -216,6 +217,10 @@ namespace {
                     ProtocolError{"invalid_cursor", "the cursor location kind is invalid"});
             }
         }
+        if (query.tab_id.size() > MAXIMUM_FILTER_LENGTH) {
+            return std::unexpected(
+                ProtocolError{"invalid_cursor", "the cursor tab filter is too long"});
+        }
         if (query.tab_id.isEmpty() != !query.kind.has_value()) {
             return std::unexpected(
                 ProtocolError{"invalid_cursor", "the cursor tab and kind must be paired"});
@@ -264,6 +269,12 @@ namespace {
                     ProtocolError{"invalid_request", "tab_id must be a non-empty string"});
             }
             query.tab_id = params.value("tab_id").toString();
+            if (query.tab_id.size() > MAXIMUM_FILTER_LENGTH) {
+                return std::unexpected(ProtocolError{
+                    "invalid_request",
+                    QString("tab_id must not exceed %1 characters")
+                        .arg(MAXIMUM_FILTER_LENGTH)});
+            }
         }
         QString kind;
         if (params.contains("kind")) {
