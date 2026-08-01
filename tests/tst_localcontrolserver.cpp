@@ -158,16 +158,19 @@ void LocalControlServerTest::malformedClientDoesNotAffectAnother()
 {
     QTemporaryDir dir;
     control::LocalControlServer server;
-    server.SetHandler([](const control::Request &request) {
+    int calls = 0;
+    server.SetHandler([&calls](const control::Request &request) {
+        ++calls;
         return control::Success(request.request_id);
     });
     QVERIFY(server.Listen(QDir(dir.path())));
 
     QLocalSocket malformed;
     connectClient(malformed, server.Endpoint());
-    malformed.write(QByteArray(4, '\0'));
+    malformed.write(QByteArray(4, '\0') + control::EncodeFrame(request("must-not-run")));
     const QJsonObject error = readResponse(malformed);
     QVERIFY(!error.value("ok").toBool(true));
+    QCOMPARE(calls, 0);
 
     QLocalSocket valid;
     connectClient(valid, server.Endpoint());
@@ -175,6 +178,7 @@ void LocalControlServerTest::malformedClientDoesNotAffectAnother()
     const QJsonObject response = readResponse(valid);
     QVERIFY(response.value("ok").toBool());
     QCOMPARE(response.value("request_id").toString(), "valid");
+    QCOMPARE(calls, 1);
 }
 
 void LocalControlServerTest::validationErrorsPreserveRequestId()
