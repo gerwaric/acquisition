@@ -55,7 +55,7 @@ The examples below assume that executable is on `PATH`; otherwise replace
 
 ```sh
 acquisitionctl status --json
-acquisitionctl tabs --json
+acquisitionctl tabs --limit 50 --json
 acquisitionctl items --limit 50 --json
 acquisitionctl item <item-id> --json
 acquisitionctl refresh start --json
@@ -66,7 +66,7 @@ acquisitionctl refresh wait <operation-id> --timeout 300 --json
 Use `--data-dir <path>` for both executables when Acquisition uses a non-default
 location. An accepted refresh belongs to the GUI and continues if
 `acquisitionctl` disconnects. Existing automatic-shop settings remain in effect.
-Run `acquisitionctl --help` for pagination and tab-filter options.
+Run `acquisitionctl --help` for tab/item pagination and item-filter options.
 
 ## Reporting issues
 

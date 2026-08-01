@@ -55,11 +55,15 @@ started through the CLI. Inventory responses pair `instance_id` with
 
 ## View inventory
 
-List locations:
+List bounded location pages:
 
 ```sh
-acquisitionctl tabs --json
+acquisitionctl tabs --limit 100 --json
+acquisitionctl tabs --cursor '<next_cursor>' --json
 ```
+
+Follow `next_cursor` until null. As with item pages, discard a partial tab
+traversal and restart if the instance or revision changes.
 
 Fetch bounded item pages:
 
@@ -87,7 +91,8 @@ independently while displaying under a parent.
 
 To consume every page:
 
-1. Save the first response's `instance_id` and `inventory_revision`.
+1. Save the first response's `instance_id` and `inventory_revision`. Cursors
+   are application-authenticated and must never be decoded or modified.
 2. Process `result.items`; a sparse filter may produce an empty page with a
    non-null cursor because each request has a source-scan bound.
 3. Repeat with only `--cursor` while `next_cursor` is non-null.

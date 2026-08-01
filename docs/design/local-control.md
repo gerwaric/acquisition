@@ -192,7 +192,9 @@ numeric revision with a process-unique `instance_id`; clients compare both.
 - current published item count.
 
 The schema must not use display-location equality as a fetch-source identity.
-Special-tab items expose both display id and fetch-source id.
+Special-tab items expose both display id and fetch-source id. Tab responses are
+bounded to 100 entries and use the same revision-safe continuation model as item
+responses.
 
 ### Items
 
@@ -222,8 +224,9 @@ states.
 
 The implementation uses an opaque source-index cursor over `ItemsManager`'s
 source-keyed published buckets. It does not materialize the dirty flat view.
-The cursor embeds the original limit, filters, `instance_id`, and revision;
-cursor requests cannot override them. Revision is
+The cursor embeds the original limit, filters, source position, `instance_id`,
+and revision and is authenticated with a process-private HMAC; cursor requests
+cannot alter or override that state. Revision is
 checked before reading each page and serialization runs in the application
 thread. Unfiltered first pages report `total`; filtered pages omit it rather
 than scanning the full result set. A page examines at most 10,000 source items,
@@ -342,10 +345,12 @@ The checked-in `control_benchmark` is excluded from normal builds and measures a
 complete cursor traversal of deterministic published collections. A local
 Release run on an Apple M4 Max measured:
 
-- 101,048 items in 1,011 pages: 994.933 ms total, 1.615 ms maximum page,
-  0.426 ms sparse-filter page, 7.753 ms tabs response;
-- 975,711 items in 9,758 pages: 10,755.507 ms total, 2.680 ms maximum page,
-  0.597 ms sparse-filter page, 11.044 ms tabs response.
+- 101,048 items in 1,011 pages: 1,064.366 ms total, 4.562 ms maximum page,
+  0.756 ms sparse-filter page; 20 tab pages took 8.198 ms total and 0.477 ms
+  maximum per page;
+- 975,711 items in 9,758 pages: 9,593.230 ms total, 5.442 ms maximum page,
+  0.453 ms sparse-filter page; 26 tab pages took 9.989 ms total and 0.400 ms
+  maximum per page.
 
 The local checkpoint completed a clean RelWithDebInfo build and all 39 tests.
 The four control-focused tests also passed an AddressSanitizer build
