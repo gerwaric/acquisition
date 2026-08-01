@@ -9,8 +9,11 @@
 #include <QFileDialog>
 #include <QMessageBox>
 #include <QNetworkCookieJar>
+#include <QPointer>
 #include <QSettings>
 #include <QTimer>
+
+#include <stdexcept>
 
 #include "buyoutmanager.h"
 #include "control/controlservice.h"
@@ -213,6 +216,29 @@ void Application::InitUserSession()
                                      *buyout_mgr,
                                      settings().value("account").toString(),
                                      settings().value("league").toString());
+    const QPointer<ItemsManagerWorker> controlled_worker(worker);
+    const QPointer<ItemsManager> controlled_manager(item_mgr);
+    m_control_service->ConfigureRefresh(
+        [controlled_worker] {
+            if (!controlled_worker) {
+                return control::ControlService::RefreshReadiness::Initializing;
+            }
+            switch (controlled_worker->updateReadiness()) {
+            case ItemsManagerWorker::UpdateReadiness::Initializing:
+                return control::ControlService::RefreshReadiness::Initializing;
+            case ItemsManagerWorker::UpdateReadiness::Ready:
+                return control::ControlService::RefreshReadiness::Ready;
+            case ItemsManagerWorker::UpdateReadiness::Busy:
+                return control::ControlService::RefreshReadiness::Busy;
+            }
+            return control::ControlService::RefreshReadiness::Busy;
+        },
+        [controlled_manager] {
+            if (!controlled_manager) {
+                throw std::runtime_error("the application session ended before refresh dispatch");
+            }
+            controlled_manager->Update(TabSelection::All);
+        });
 
     // Connect UI signals.
     ConnectMainWindow(*this, main_window(), *item_mgr, *worker, shop(), *updater, *cache);

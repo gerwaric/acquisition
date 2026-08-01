@@ -3,10 +3,14 @@
 
 #include "control/controlservice.h"
 
+#include <QDateTime>
 #include <QJsonArray>
 #include <QJsonDocument>
+#include <QMetaObject>
 #include <QUuid>
 
+#include <algorithm>
+#include <exception>
 #include <map>
 #include <optional>
 
@@ -21,6 +25,60 @@ namespace {
 
     constexpr int DEFAULT_PAGE_SIZE = 50;
     constexpr int MAXIMUM_PAGE_SIZE = 100;
+
+    QString ErrorKindName(RateLimit::FetchError::Kind kind)
+    {
+        switch (kind) {
+        case RateLimit::FetchError::Kind::Network:
+            return "network";
+        case RateLimit::FetchError::Kind::Http:
+            return "http";
+        case RateLimit::FetchError::Kind::Parse:
+            return "parse";
+        case RateLimit::FetchError::Kind::Protocol:
+            return "protocol";
+        case RateLimit::FetchError::Kind::RateLimited:
+            return "rate_limited";
+        case RateLimit::FetchError::Kind::Internal:
+            return "internal";
+        case RateLimit::FetchError::Kind::Canceled:
+            return "canceled";
+        }
+        return "internal";
+    }
+
+    QJsonObject ProjectError(const RateLimit::FetchError &error)
+    {
+        return QJsonObject{{"kind", ErrorKindName(error.kind)},
+                           {"message", error.message},
+                           {"http_status", error.http_status},
+                           {"attempts", error.attempts}};
+    }
+
+    QJsonObject ProjectOutcome(const RefreshOutcome &outcome)
+    {
+        if (const auto *completed = std::get_if<CompletedRefresh>(&outcome)) {
+            std::vector<SkippedSource> skipped_sources = completed->skipped;
+            std::sort(skipped_sources.begin(), skipped_sources.end(), [](const auto &left, const auto &right) {
+                return left.source < right.source;
+            });
+            QJsonArray skipped;
+            for (const auto &source : skipped_sources) {
+                skipped.append(QJsonObject{
+                    {"source",
+                     QJsonObject{{"kind",
+                                  source.source.type == ItemLocationType::STASH ? "stash"
+                                                                               : "character"},
+                                 {"fetch_source_id", source.source.fetch_id}}},
+                    {"error", ProjectError(source.error)}});
+            }
+            return QJsonObject{{"kind", "completed"},
+                               {"clean", skipped_sources.empty()},
+                               {"skipped", skipped}};
+        }
+        const auto &failed = std::get<FailedRefresh>(outcome);
+        return QJsonObject{{"kind", "failed"}, {"error", ProjectError(failed.error)}};
+    }
 
     struct ItemQuery
     {
@@ -222,6 +280,34 @@ void ControlService::AttachSession(ItemsManager &items_manager,
             &BuyoutManager::BuyoutsChanged,
             this,
             [this] { ++m_inventory_revision; });
+    connect(&items_manager,
+            &ItemsManager::StatusUpdate,
+            this,
+            [this](ProgramState, const QString &status) {
+                if (m_active_refresh_id.isEmpty()) {
+                    return;
+                }
+                const auto job = std::find_if(m_refresh_jobs.begin(),
+                                              m_refresh_jobs.end(),
+                                              [this](const RefreshJob &candidate) {
+                                                  return candidate.id == m_active_refresh_id;
+                                              });
+                if (job != m_refresh_jobs.end() && job->state == "running") {
+                    job->progress = status;
+                }
+            });
+    connect(&items_manager,
+            &ItemsManager::RefreshFinished,
+            this,
+            &ControlService::OnRefreshFinished);
+    connect(&items_manager, &QObject::destroyed, this, &ControlService::OnSessionDestroyed);
+}
+
+void ControlService::ConfigureRefresh(std::function<RefreshReadiness()> readiness,
+                                      std::function<void()> start)
+{
+    m_refresh_readiness = std::move(readiness);
+    m_start_refresh = std::move(start);
 }
 
 QJsonObject ControlService::Handle(const Request &request)
@@ -237,6 +323,12 @@ QJsonObject ControlService::Handle(const Request &request)
     }
     if (request.command == "item") {
         return Item(request.request_id, request.params);
+    }
+    if (request.command == "refresh.start") {
+        return StartRefresh(request.request_id);
+    }
+    if (request.command == "refresh.status") {
+        return RefreshStatus(request.request_id, request.params);
     }
     return Error(request.request_id,
                  "unknown_command",
@@ -271,6 +363,17 @@ QJsonObject ControlService::Status() const
         }
     } else {
         result.insert("refresh_state", "unavailable");
+    }
+
+    if (m_active_refresh_id.isEmpty()) {
+        result.insert("active_refresh_id", QJsonValue::Null);
+    } else {
+        result.insert("active_refresh_id", m_active_refresh_id);
+    }
+    if (!m_refresh_jobs.empty()) {
+        result.insert("latest_refresh", RefreshJobJson(m_refresh_jobs.back()));
+    } else {
+        result.insert("latest_refresh", QJsonValue::Null);
     }
 
     return result;
@@ -368,6 +471,213 @@ QJsonObject ControlService::Item(const QString &request_id, const QJsonObject &p
         }
     }
     return Error(request_id, "item_not_found", "no published item has that id");
+}
+
+QJsonObject ControlService::StartRefresh(const QString &request_id)
+{
+    if (m_state != ServiceState::Ready) {
+        return Error(request_id,
+                     "not_ready",
+                     QString("refresh control is unavailable while the service is %1")
+                         .arg(StateName(m_state)));
+    }
+    if (!m_refresh_readiness || !m_start_refresh) {
+        return Error(request_id, "refresh_unavailable", "refresh control is not configured");
+    }
+    if (!m_active_refresh_id.isEmpty()) {
+        return Success(request_id,
+                       QJsonObject{{"accepted", false},
+                                   {"state", "busy"},
+                                   {"active_refresh_id", m_active_refresh_id}});
+    }
+
+    switch (m_refresh_readiness()) {
+    case RefreshReadiness::Initializing:
+        return Error(request_id, "not_ready", "inventory initialization is still running");
+    case RefreshReadiness::Busy:
+        return Success(request_id, QJsonObject{{"accepted", false}, {"state", "busy"}});
+    case RefreshReadiness::Ready:
+        break;
+    }
+
+    RefreshJob job;
+    job.id = QUuid::createUuid().toString(QUuid::WithoutBraces);
+    job.state = "queued";
+    job.started_at = QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs);
+    m_active_refresh_id = job.id;
+    m_refresh_jobs.push_back(job);
+    const QString operation_id = job.id;
+
+    QMetaObject::invokeMethod(
+        this,
+        [this, operation_id] {
+            if (m_active_refresh_id != operation_id) {
+                return;
+            }
+            const auto job = std::find_if(m_refresh_jobs.begin(),
+                                          m_refresh_jobs.end(),
+                                          [&operation_id](const RefreshJob &candidate) {
+                                              return candidate.id == operation_id;
+                                          });
+            if (job == m_refresh_jobs.end()) {
+                return;
+            }
+            if (m_state != ServiceState::Ready || !m_refresh_readiness || !m_start_refresh) {
+                job->state = "failed";
+                job->finished_at = QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs);
+                job->outcome = QJsonObject{
+                    {"kind", "not_started"},
+                    {"error",
+                     QJsonObject{{"kind", "interrupted"},
+                                 {"message", "the application session ended before dispatch"}}}};
+                m_active_refresh_id.clear();
+                TrimRefreshHistory();
+                return;
+            }
+            if (m_refresh_readiness() != RefreshReadiness::Ready) {
+                job->state = "failed";
+                job->finished_at = QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs);
+                job->outcome = QJsonObject{
+                    {"kind", "not_started"},
+                    {"error",
+                     QJsonObject{{"kind", "busy"},
+                                 {"message", "another refresh started before dispatch"}}}};
+                m_active_refresh_id.clear();
+                TrimRefreshHistory();
+                return;
+            }
+            job->state = "running";
+            try {
+                m_start_refresh();
+            } catch (const std::exception &error) {
+                job->state = "failed";
+                job->finished_at = QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs);
+                job->outcome = QJsonObject{
+                    {"kind", "failed"},
+                    {"error", QJsonObject{{"kind", "internal"}, {"message", error.what()}}}};
+                m_active_refresh_id.clear();
+                TrimRefreshHistory();
+            } catch (...) {
+                job->state = "failed";
+                job->finished_at = QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs);
+                job->outcome = QJsonObject{
+                    {"kind", "failed"},
+                    {"error",
+                     QJsonObject{{"kind", "internal"},
+                                 {"message", "refresh dispatch failed unexpectedly"}}}};
+                m_active_refresh_id.clear();
+                TrimRefreshHistory();
+            }
+        },
+        Qt::QueuedConnection);
+
+    return Success(request_id,
+                   QJsonObject{{"accepted", true},
+                               {"state", "queued"},
+                               {"operation_id", operation_id}});
+}
+
+QJsonObject ControlService::RefreshStatus(const QString &request_id,
+                                          const QJsonObject &params) const
+{
+    const QJsonValue id = params.value("operation_id");
+    if (!id.isString() || id.toString().isEmpty()) {
+        return Error(request_id,
+                     "invalid_request",
+                     "operation_id must be a non-empty string");
+    }
+    const auto job = std::find_if(m_refresh_jobs.begin(),
+                                  m_refresh_jobs.end(),
+                                  [&id](const RefreshJob &candidate) {
+                                      return candidate.id == id.toString();
+                                  });
+    if (job == m_refresh_jobs.end()) {
+        return Error(request_id, "operation_not_found", "the refresh operation is not retained");
+    }
+    return Success(request_id, QJsonObject{{"operation", RefreshJobJson(*job)}});
+}
+
+void ControlService::OnRefreshFinished(const RefreshOutcome &outcome)
+{
+    if (m_active_refresh_id.isEmpty()) {
+        return;
+    }
+    const auto job = std::find_if(m_refresh_jobs.begin(),
+                                  m_refresh_jobs.end(),
+                                  [this](const RefreshJob &candidate) {
+                                      return candidate.id == m_active_refresh_id;
+                                  });
+    if (job == m_refresh_jobs.end()) {
+        m_active_refresh_id.clear();
+        return;
+    }
+    // Readiness stays Busy throughout the worker's terminal fan-out, so a new
+    // operation cannot normally be admitted under an older terminal signal.
+    // Requiring running state also makes that correlation structural if signal
+    // delivery or admission changes later.
+    if (job->state != "running") {
+        return;
+    }
+
+    job->outcome = ProjectOutcome(outcome);
+    job->state = std::holds_alternative<CompletedRefresh>(outcome) ? "completed" : "failed";
+    job->finished_at = QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs);
+    m_active_refresh_id.clear();
+    TrimRefreshHistory();
+}
+
+void ControlService::OnSessionDestroyed()
+{
+    if (!m_active_refresh_id.isEmpty()) {
+        const auto job = std::find_if(m_refresh_jobs.begin(),
+                                      m_refresh_jobs.end(),
+                                      [this](const RefreshJob &candidate) {
+                                          return candidate.id == m_active_refresh_id;
+                                      });
+        if (job != m_refresh_jobs.end()) {
+            job->state = "failed";
+            job->finished_at = QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs);
+            job->outcome = QJsonObject{
+                {"kind", "failed"},
+                {"error",
+                 QJsonObject{{"kind", "interrupted"},
+                             {"message", "the application session ended"}}}};
+        }
+    }
+    m_active_refresh_id.clear();
+    m_items_manager.clear();
+    m_worker.clear();
+    m_buyout_manager.clear();
+    m_refresh_readiness = {};
+    m_start_refresh = {};
+    m_state = ServiceState::NeedsLogin;
+    TrimRefreshHistory();
+}
+
+void ControlService::TrimRefreshHistory()
+{
+    while (qsizetype(m_refresh_jobs.size()) > MAXIMUM_REFRESH_HISTORY) {
+        m_refresh_jobs.pop_front();
+    }
+}
+
+QJsonObject ControlService::RefreshJobJson(const RefreshJob &job)
+{
+    QJsonObject result{{"operation_id", job.id},
+                       {"state", job.state},
+                       {"progress", job.progress},
+                       {"started_at", job.started_at}};
+    if (job.finished_at.isEmpty()) {
+        result.insert("finished_at", QJsonValue::Null);
+    } else {
+        result.insert("finished_at", job.finished_at);
+    }
+    if (job.outcome) {
+        result.insert("outcome", *job.outcome);
+    } else {
+        result.insert("outcome", QJsonValue::Null);
+    }
+    return result;
 }
 
 QJsonObject ControlService::NotReady(const QString &request_id) const

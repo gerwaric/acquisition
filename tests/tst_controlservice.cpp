@@ -18,6 +18,10 @@ private slots:
     void paginationRejectsOldRevision();
     void rejectsMalformedCursor();
     void rejectsMalformedQueryParameters();
+    void refreshJobOutlivesStartRequest();
+    void queuedJobIgnoresUnrelatedSignals();
+    void busyRefreshIsNotAccepted();
+    void refreshOutcomesRemainTyped();
 };
 
 namespace {
@@ -44,6 +48,7 @@ namespace {
             second = std::make_shared<Item>(makeTestItem(second_json.constData(), location));
 
             service.AttachSession(items, nullptr, *buyouts.manager, "Account#1", "League");
+            service.ConfigureRefresh([this] { return readiness; }, [this] { ++starts; });
             items.OnItemsRefreshed(Items{first, second}, {location}, true);
             buyouts.manager->Set(*first, makeChaosBuyout(10));
         }
@@ -51,6 +56,9 @@ namespace {
         BuyoutManagerFixture buyouts;
         QSettings settings;
         ItemsManager items;
+        control::ControlService::RefreshReadiness readiness{
+            control::ControlService::RefreshReadiness::Ready};
+        int starts{0};
         control::ControlService service;
         ItemLocation location;
         std::shared_ptr<Item> first;
@@ -175,6 +183,103 @@ void ControlServiceTest::rejectsMalformedQueryParameters()
         control::Request{"tab", "items", QJsonObject{{"tab_id", 123}}});
     QCOMPARE(numeric_tab.value("error").toObject().value("code").toString(),
              "invalid_request");
+}
+
+void ControlServiceTest::refreshJobOutlivesStartRequest()
+{
+    ViewingFixture fixture;
+    const QJsonObject started = fixture.service.Handle(
+        control::Request{"start", "refresh.start", {}});
+    QVERIFY(started.value("ok").toBool());
+    const QJsonObject start_result = resultOf(started);
+    QVERIFY(start_result.value("accepted").toBool());
+    const QString operation_id = start_result.value("operation_id").toString();
+    QVERIFY(!operation_id.isEmpty());
+    QCOMPARE(fixture.starts, 0);
+
+    QCoreApplication::processEvents();
+    QCOMPARE(fixture.starts, 1);
+    fixture.items.OnStatusUpdate(ProgramState::Busy, "Received 1/2 stash tabs");
+
+    const auto status_request = control::Request{
+        "job", "refresh.status", QJsonObject{{"operation_id", operation_id}}};
+    QJsonObject operation = resultOf(fixture.service.Handle(status_request))
+                                .value("operation")
+                                .toObject();
+    QCOMPARE(operation.value("state").toString(), "running");
+    QCOMPARE(operation.value("progress").toString(), "Received 1/2 stash tabs");
+
+    fixture.items.RefreshFinished(RefreshOutcome{CompletedRefresh{}});
+    operation = resultOf(fixture.service.Handle(status_request)).value("operation").toObject();
+    QCOMPARE(operation.value("state").toString(), "completed");
+    QVERIFY(operation.value("outcome").toObject().value("clean").toBool());
+}
+
+void ControlServiceTest::queuedJobIgnoresUnrelatedSignals()
+{
+    ViewingFixture fixture;
+    const QJsonObject started = fixture.service.Handle(
+        control::Request{"start", "refresh.start", {}});
+    const QString id = resultOf(started).value("operation_id").toString();
+
+    fixture.items.OnStatusUpdate(ProgramState::Busy, "unrelated progress");
+    fixture.items.RefreshFinished(RefreshOutcome{CompletedRefresh{}});
+    QCoreApplication::processEvents();
+    QCOMPARE(fixture.starts, 1);
+
+    const QJsonObject operation = resultOf(fixture.service.Handle(control::Request{
+        "job", "refresh.status", QJsonObject{{"operation_id", id}}}))
+                                      .value("operation")
+                                      .toObject();
+    QCOMPARE(operation.value("state").toString(), "running");
+    QVERIFY(operation.value("progress").toString().isEmpty());
+}
+
+void ControlServiceTest::busyRefreshIsNotAccepted()
+{
+    ViewingFixture fixture;
+    fixture.readiness = control::ControlService::RefreshReadiness::Busy;
+    const QJsonObject response = fixture.service.Handle(
+        control::Request{"start", "refresh.start", {}});
+    QVERIFY(response.value("ok").toBool());
+    QVERIFY(!resultOf(response).value("accepted").toBool(true));
+    QCOMPARE(resultOf(response).value("state").toString(), "busy");
+    QCOMPARE(fixture.starts, 0);
+}
+
+void ControlServiceTest::refreshOutcomesRemainTyped()
+{
+    ViewingFixture fixture;
+    const QJsonObject start = fixture.service.Handle(
+        control::Request{"start", "refresh.start", {}});
+    const QString id = resultOf(start).value("operation_id").toString();
+    QCoreApplication::processEvents();
+
+    RateLimit::FetchError parse_error;
+    parse_error.kind = RateLimit::FetchError::Kind::Parse;
+    parse_error.message = "bad payload";
+    CompletedRefresh completed;
+    completed.skipped.push_back(
+        SkippedSource{FetchSourceKey{ItemLocationType::STASH, "stash-view"}, parse_error});
+    fixture.items.RefreshFinished(RefreshOutcome{completed});
+
+    const QJsonObject operation = resultOf(fixture.service.Handle(control::Request{
+        "job", "refresh.status", QJsonObject{{"operation_id", id}}}))
+                                      .value("operation")
+                                      .toObject();
+    QCOMPARE(operation.value("state").toString(), "completed");
+    const QJsonObject outcome = operation.value("outcome").toObject();
+    QVERIFY(!outcome.value("clean").toBool(true));
+    QCOMPARE(outcome.value("skipped").toArray().size(), 1);
+    QCOMPARE(outcome.value("skipped")
+                 .toArray()
+                 .at(0)
+                 .toObject()
+                 .value("error")
+                 .toObject()
+                 .value("kind")
+                 .toString(),
+             "parse");
 }
 
 QTEST_GUILESS_MAIN(ControlServiceTest)
