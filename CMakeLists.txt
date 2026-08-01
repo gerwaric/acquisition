@@ -719,6 +719,8 @@ target_link_libraries(acquisitionctl PRIVATE acquisition_control)
 
 if(WIN32)
 
+    target_link_libraries(acquisition_control PRIVATE advapi32)
+
     # Enable more warnings by default (MSVC only).
     target_compile_options(acquisition_core PRIVATE
         $<$<CXX_COMPILER_ID:MSVC>:/W4>

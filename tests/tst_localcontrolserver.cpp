@@ -1,4 +1,5 @@
 #include <QElapsedTimer>
+#include <QFile>
 #include <QFileDevice>
 #include <QFileInfo>
 #include <QJsonDocument>
@@ -6,6 +7,7 @@
 #include <QTemporaryDir>
 #include <QtTest>
 
+#include "control/controlendpoint.h"
 #include "control/controlprotocol.h"
 #include "control/localcontrolserver.h"
 
@@ -16,6 +18,7 @@ private slots:
     void roundTrip();
     void fragmentedRequest();
     void liveEndpointIsNotReplaced();
+    void liveEndpointSurvivesMissingLock();
     void malformedClientDoesNotAffectAnother();
     void validationErrorsPreserveRequestId();
     void servesOnlyFirstPipelinedRequest();
@@ -126,6 +129,27 @@ void LocalControlServerTest::liveEndpointIsNotReplaced()
 
     first.Close();
     QVERIFY2(second.Listen(QDir(dir.path())), qPrintable(second.ErrorString()));
+}
+
+void LocalControlServerTest::liveEndpointSurvivesMissingLock()
+{
+    QTemporaryDir dir;
+    control::LocalControlServer first;
+    first.SetHandler([](const control::Request &request) {
+        return control::Success(request.request_id);
+    });
+    QVERIFY(first.Listen(QDir(dir.path())));
+    QVERIFY(QFile::remove(control::EndpointLockPath(QDir(dir.path()))));
+
+    control::LocalControlServer second;
+    QVERIFY(!second.Listen(QDir(dir.path())));
+    QVERIFY(second.OwnerConflict());
+    QVERIFY(first.IsListening());
+
+    QLocalSocket socket;
+    connectClient(socket, first.Endpoint());
+    socket.write(control::EncodeFrame(request()));
+    QVERIFY(readResponse(socket).value("ok").toBool());
 }
 
 void LocalControlServerTest::malformedClientDoesNotAffectAnother()

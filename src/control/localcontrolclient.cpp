@@ -9,9 +9,71 @@
 #include <algorithm>
 #include <limits>
 
+#ifdef Q_OS_WIN
+#include <qt_windows.h>
+#endif
+
 #include "control/controlprotocol.h"
 
 namespace control {
+
+namespace {
+
+#ifdef Q_OS_WIN
+    bool ReadTokenUser(HANDLE token, QByteArray &buffer)
+    {
+        DWORD size = 0;
+        GetTokenInformation(token, TokenUser, nullptr, 0, &size);
+        if (GetLastError() != ERROR_INSUFFICIENT_BUFFER || size == 0) {
+            return false;
+        }
+        buffer.resize(int(size));
+        return GetTokenInformation(token, TokenUser, buffer.data(), size, &size);
+    }
+
+    bool ServerBelongsToCurrentUser(const QLocalSocket &socket)
+    {
+        ULONG server_pid = 0;
+        const HANDLE pipe = reinterpret_cast<HANDLE>(socket.socketDescriptor());
+        if (!GetNamedPipeServerProcessId(pipe, &server_pid)) {
+            return false;
+        }
+
+        HANDLE server_process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, server_pid);
+        if (!server_process) {
+            return false;
+        }
+        HANDLE server_token = nullptr;
+        HANDLE current_token = nullptr;
+        const bool opened = OpenProcessToken(server_process, TOKEN_QUERY, &server_token)
+                            && OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &current_token);
+        CloseHandle(server_process);
+        if (!opened) {
+            if (server_token) {
+                CloseHandle(server_token);
+            }
+            if (current_token) {
+                CloseHandle(current_token);
+            }
+            return false;
+        }
+
+        QByteArray server_user;
+        QByteArray current_user;
+        const bool read = ReadTokenUser(server_token, server_user)
+                          && ReadTokenUser(current_token, current_user);
+        CloseHandle(server_token);
+        CloseHandle(current_token);
+        if (!read) {
+            return false;
+        }
+        const auto *server = reinterpret_cast<const TOKEN_USER *>(server_user.constData());
+        const auto *current = reinterpret_cast<const TOKEN_USER *>(current_user.constData());
+        return EqualSid(server->User.Sid, current->User.Sid);
+    }
+#endif
+
+} // namespace
 
 std::expected<QJsonObject, ClientError> SendRequest(const QString &endpoint,
                                                     const QJsonObject &request,
@@ -34,6 +96,13 @@ std::expected<QJsonObject, ClientError> SendRequest(const QString &endpoint,
     if (!socket.waitForConnected(remaining())) {
         return std::unexpected(ClientError{"not_running", socket.errorString()});
     }
+#ifdef Q_OS_WIN
+    if (!ServerBelongsToCurrentUser(socket)) {
+        socket.abort();
+        return std::unexpected(
+            ClientError{"server_identity", "the control server belongs to another user"});
+    }
+#endif
 
     const QByteArray frame = EncodeFrame(request);
     if (socket.write(frame) != frame.size()

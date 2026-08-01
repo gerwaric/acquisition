@@ -66,10 +66,27 @@ bool LocalControlServer::Listen(const QDir &data_directory)
         return false;
     }
 
+    // QLocalServer may remove an existing Unix socket before bind, so probe
+    // before listen as well as before any explicit stale-endpoint removal.
+    QLocalSocket probe;
+    probe.connectToServer(m_endpoint);
+    if (probe.waitForConnected(250)) {
+        probe.abort();
+        m_owner_conflict = true;
+        m_error_string = "another Acquisition process owns the control endpoint";
+        m_endpoint_lock.reset();
+        return false;
+    }
+    if (probe.error() != QLocalSocket::ServerNotFoundError
+        && probe.error() != QLocalSocket::ConnectionRefusedError) {
+        m_error_string = probe.errorString();
+        m_endpoint_lock.reset();
+        return false;
+    }
+
     if (m_server.listen(m_endpoint)) {
         return true;
     }
-
     if (m_server.serverError() != QAbstractSocket::AddressInUseError
         || !QLocalServer::removeServer(m_endpoint) || !m_server.listen(m_endpoint)) {
         m_error_string = m_server.errorString();
@@ -100,6 +117,7 @@ void LocalControlServer::AcceptConnections()
             socket->deleteLater();
             continue;
         }
+        socket->setReadBufferSize(MAX_REQUEST_BYTES + 5);
         m_connections.try_emplace(socket);
         connect(socket, &QLocalSocket::readyRead, this, [this, socket] { ReadFrom(socket); });
         connect(socket, &QLocalSocket::disconnected, this, [this, socket] { Drop(socket); });
