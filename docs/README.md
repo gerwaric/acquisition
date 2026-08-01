@@ -7,8 +7,42 @@ when this map and a header disagree, the header wins.
 ## Active
 
 - `design/items-pipeline.md` — plan for the delta-native redesign of the
-  items refresh pipeline. Milestone 1 shipped July 2026; M2/M3 get their
-  own specs before their code begins.
+  items refresh pipeline. Milestone 1 shipped July 2026; M2 merged and
+  M3 implemented July 30–31, 2026, each against its own frozen spec.
+  The M1-M2 status-widget burst measurement ran July 31, 2026 (gate
+  fired; coalesce built — `design/m1-m2-result.md`).
+- `design/items-pipeline-m2.md` — **frozen** spec (revision 9,
+  July 29, 2026, amended post-freeze the same day) for Milestone 2,
+  the streaming refresh signal: D-numbered decisions consuming the
+  plan's M2 inbox, with an input-traceability table. Implemented and
+  shipped (PR #185, July 30); D9's consumer-side machinery is since
+  retired by M3 — D1–D8 and D10 remain the live authority for the
+  worker/manager/shop side. Review rounds
+  1–7 are incorporated (round 4 was an in-repo audit); the S1-M2
+  spike selected D9's outcome (a) with S = 60 s (result recorded in
+  D9; the spike evidence doc is retired). M2-M2 ran at its stage-4
+  checkpoint (missed, remedied by the source-keyed stores, rerun
+  passed — `design/m2-m2-result.md`); M1-M2 ran July 31, 2026
+  (stuttered, remedied by the D10 dialog-side coalesce, rerun
+  passed — `design/m1-m2-result.md`).
+- `design/items-pipeline-m2-reviews.md` — that spec's review history:
+  round-scoped finding tables (`R1-*`, …) with verdicts and
+  resolutions, round narratives, and the revision log.
+- `design/items-pipeline-m3.md` — **frozen** spec (revision 4,
+  July 30, 2026; rounds 1–3's eighteen findings incorporated, review
+  series closed) for Milestone 3, the delta-native items model:
+  bucket-scoped model operations replacing the refresh-path
+  reset, precomputed cached sort keys plus deferred bucket sorting
+  (the July 30 lever hold point), the By-Item per-delta merge, and
+  the F67 tie-break fix. Pre-spec evidence:
+  `design/m3-sort-profile-result.md` (S1-M3 spike, run on the
+  never-merged branch `spike/m3-sort-profile`, including the
+  hold-point key-memory extension). The M1-M3 budget gate PASSED at
+  S7 (July 31, 2026) — stage rows, the S5 miss and its A′ remedy,
+  and the complete table: `design/m1-m3-result.md`.
+- `design/items-pipeline-m3-reviews.md` — that spec's review history
+  and revision log; rounds 1–3 recorded (R1-1…R1-8, R2-1…R2-6,
+  R3-1…R3-4, all accepted) and the freeze.
 - `design/network-redesign.md` — accepted, frozen spec for the
   rate-limited networking redesign (typed facade, coroutine pumps, gate),
   revision 11. Records current decisions only; cites review finding IDs inline.
@@ -25,10 +59,6 @@ when this map and a header disagree, the header wins.
 - `design/network-ground-truth.md` — living ledger of numbered claims
   (N1, N2, …) about how the Path of Exile API actually limits requests,
   each with cited evidence. Designs are derived from these claims.
-- `design/network-ggg-email-draft.md` — transient: the consolidated
-  ask-GGG email (Q4 positional hypothesis, legacy bucket resolutions,
-  retry-pad ceiling). Deleted once sent and the answers are transcribed
-  into the ground-truth ledger.
 - `cleanup/findings.md` — project-wide register of design/correctness
   findings (F1, F2, …): open findings, standing constraints, and a
   resolved ledger. The `cleanup/` path is historical — the register
@@ -61,4 +91,10 @@ when this map and a header disagree, the header wins.
   per-session handoff notes, the phase-0 QCoro spike `spikes/qcoro/` — retired
   July 2026 once the network redesign was no longer in flight; its S1/S2
   findings live in the review history — and superseded spec text) live in git
-  history, not in the tree.
+  history, not in the tree. Retired August 1, 2026 in the pre-merge sweep of
+  the M3 branch: the M2 and M3 implementation-sequencing docs (both executed
+  and verified — the M3 supersession-map verification is recorded in
+  `design/m1-m3-result.md` §S8), the S1-M2 spike result doc (its result and
+  numbers are recorded in the M2 spec's D9 and open-items entry), the parent
+  plan's consumed M2/M3 input inboxes (each spec's traceability table records
+  them), and the GGG email draft (the ask was dropped).

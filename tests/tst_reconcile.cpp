@@ -1,5 +1,6 @@
 #include <QSqlDatabase>
 #include <QSqlError>
+#include <QSqlQuery>
 #include <QUuid>
 #include <QtTest/QtTest>
 
@@ -10,6 +11,7 @@
 #include "datastore/stashrepo.h"
 #include "poe/types/character.h"
 #include "poe/types/stashtab.h"
+#include "testfixtures.h"
 
 // Repo-level pins for the F53 list reconciliation: rows the server no
 // longer lists are deleted so deleted tabs and characters cannot resurrect
@@ -18,6 +20,9 @@
 // against their parent's replies instead; folder children ride the
 // flattened top-level list. Scoping: league for stashes, realm-wide for
 // characters (the character list endpoint spans leagues).
+//
+// Also home to the F62 storage pin: json_data holds the bytes the save was
+// handed, verbatim — never a re-serialization of the typed payload.
 
 class ReconcileTest : public QObject
 {
@@ -33,6 +38,8 @@ private slots:
     void emptyChildListDeletesAllChildren();
     void characterRowsAbsentFromFreshListAreDeleted();
     void emptyCharacterListDeletesRealmRows();
+    void savedStashBytesAreStoredVerbatim();
+    void savedCharacterBytesAreStoredVerbatim();
 };
 
 namespace {
@@ -157,9 +164,10 @@ void ReconcileTest::specialChildrenSurviveListReconcile()
 {
     RepoFixture f;
     QVERIFY(f.stashes->saveStashList({makeTab("mapstash-1", "MapStash")}, kRealm, kLeague));
-    QVERIFY(f.stashes->saveStash(makeTab("mapchild-1", "MapStash", QString("mapstash-1")),
-                                 kRealm,
-                                 kLeague));
+    QVERIFY(saveStashFixture(*f.stashes,
+                             makeTab("mapchild-1", "MapStash", QString("mapstash-1")),
+                             kRealm,
+                             kLeague));
 
     QVERIFY(f.stashes->reconcileStashList({makeTab("mapstash-1", "MapStash")}, kRealm, kLeague));
 
@@ -174,9 +182,10 @@ void ReconcileTest::deletedSpecialParentCascades()
     QVERIFY(f.stashes->saveStashList({makeTab("mapstash-1", "MapStash"), makeTab("tab-a")},
                                      kRealm,
                                      kLeague));
-    QVERIFY(f.stashes->saveStash(makeTab("mapchild-1", "MapStash", QString("mapstash-1")),
-                                 kRealm,
-                                 kLeague));
+    QVERIFY(saveStashFixture(*f.stashes,
+                             makeTab("mapchild-1", "MapStash", QString("mapstash-1")),
+                             kRealm,
+                             kLeague));
 
     QVERIFY(f.stashes->reconcileStashList({makeTab("tab-a")}, kRealm, kLeague));
 
@@ -204,15 +213,18 @@ void ReconcileTest::parentReplyReconcilesChildRows()
                                       makeTab("mapstash-2", "MapStash")},
                                      kRealm,
                                      kLeague));
-    QVERIFY(f.stashes->saveStash(makeTab("child-a1", "MapStash", QString("mapstash-1")),
-                                 kRealm,
-                                 kLeague));
-    QVERIFY(f.stashes->saveStash(makeTab("child-a2", "MapStash", QString("mapstash-1")),
-                                 kRealm,
-                                 kLeague));
-    QVERIFY(f.stashes->saveStash(makeTab("child-b1", "MapStash", QString("mapstash-2")),
-                                 kRealm,
-                                 kLeague));
+    QVERIFY(saveStashFixture(*f.stashes,
+                             makeTab("child-a1", "MapStash", QString("mapstash-1")),
+                             kRealm,
+                             kLeague));
+    QVERIFY(saveStashFixture(*f.stashes,
+                             makeTab("child-a2", "MapStash", QString("mapstash-1")),
+                             kRealm,
+                             kLeague));
+    QVERIFY(saveStashFixture(*f.stashes,
+                             makeTab("child-b1", "MapStash", QString("mapstash-2")),
+                             kRealm,
+                             kLeague));
 
     QVERIFY(f.stashes->reconcileStashChildren("mapstash-1", {"child-a1"}, kRealm, kLeague));
 
@@ -227,9 +239,10 @@ void ReconcileTest::emptyChildListDeletesAllChildren()
 {
     RepoFixture f;
     QVERIFY(f.stashes->saveStashList({makeTab("mapstash-1", "MapStash")}, kRealm, kLeague));
-    QVERIFY(f.stashes->saveStash(makeTab("child-a1", "MapStash", QString("mapstash-1")),
-                                 kRealm,
-                                 kLeague));
+    QVERIFY(saveStashFixture(*f.stashes,
+                             makeTab("child-a1", "MapStash", QString("mapstash-1")),
+                             kRealm,
+                             kLeague));
 
     QVERIFY(f.stashes->reconcileStashChildren("mapstash-1", {}, kRealm, kLeague));
 
@@ -257,6 +270,38 @@ void ReconcileTest::emptyCharacterListDeletesRealmRows()
     QVERIFY(f.characters->reconcileCharacterList({}, kRealm));
 
     QCOMPARE(characterIds(*f.characters), QStringList());
+}
+
+// The F62 pins: what the save was handed is what the row holds, byte for
+// byte — unmodeled fields and all. The repos never re-serialize.
+void ReconcileTest::savedStashBytesAreStoredVerbatim()
+{
+    RepoFixture f;
+    const poe::StashTab tab = makeTab("tab-a");
+    const QByteArray bytes
+        = R"({"id":"tab-a","name":"Tab tab-a","type":"PremiumStash","unmodeledField":42})";
+    QVERIFY(f.stashes->saveStash(tab, bytes, kRealm, kLeague));
+
+    QSqlQuery q(*f.db);
+    QVERIFY(q.exec("SELECT json_data FROM stashes WHERE id = 'tab-a'"));
+    QVERIFY(q.next());
+    QCOMPARE(q.value(0).toByteArray(), bytes);
+}
+
+void ReconcileTest::savedCharacterBytesAreStoredVerbatim()
+{
+    RepoFixture f;
+    const poe::Character character = makeCharacter("charid0001", "CharOne");
+    QVERIFY(f.characters->saveCharacterList({character}));
+
+    const QByteArray bytes
+        = R"({"id":"charid0001","name":"CharOne","realm":"pc","unmodeledField":true})";
+    QVERIFY(f.characters->saveCharacter(character, bytes));
+
+    QSqlQuery q(*f.db);
+    QVERIFY(q.exec("SELECT json_data FROM characters WHERE id = 'charid0001'"));
+    QVERIFY(q.next());
+    QCOMPARE(q.value(0).toByteArray(), bytes);
 }
 
 QTEST_GUILESS_MAIN(ReconcileTest)

@@ -19,6 +19,13 @@ private slots:
     void clearingAbsentBuyoutSkipsRepo();
     void clearingAbsentTabBuyoutSkipsRepo();
     void failedDeleteKeepsEntryForRetry();
+
+    // Items-pipeline M3 S2, review round 1: choke-point self-consistency
+    // for mutations outside any caller batch — one boundary per operation,
+    // emitted only after the mutation completes.
+    void unbatchedMigrationEmitsOneBatch();
+    void unbatchedTabCompressionEmitsOnceAfterErase();
+    void unbatchedItemCompressionEmitsOnceAfterErase();
 };
 
 void BuyoutManagerTest::stringToBuyout()
@@ -227,6 +234,84 @@ void BuyoutManagerTest::failedDeleteKeepsEntryForRetry()
     fixture.manager->Set(item, Buyout());
     QVERIFY(fixture.manager->Get(item).IsNull());
     QVERIFY(!fixture.repo->getItemBuyouts().contains(item.id()));
+}
+
+// MigrateItem changes the lookup result for two keys but is ONE mutation:
+// outside any caller batch it must emit a single boundary carrying both.
+void BuyoutManagerTest::unbatchedMigrationEmitsOneBatch()
+{
+    BuyoutManagerFixture fixture;
+    const Item item = makeTestItem("s2-migrated-item");
+    fixture.manager->Set(item, makeChaosBuyout(7.0));
+
+    std::vector<BuyoutChangeSet> emissions;
+    QObject::connect(fixture.manager.get(),
+                     &BuyoutManager::BuyoutsChanged,
+                     [&emissions](const BuyoutChangeSet &changes) { emissions.push_back(changes); });
+    fixture.manager->MigrateItem(item.id(), "s2-new-hash");
+
+    QCOMPARE(static_cast<int>(emissions.size()), 1);
+    const std::set<QString> expected{"s2-migrated-item", "s2-new-hash"};
+    QCOMPARE(emissions.front().item_ids, expected);
+    QVERIFY(emissions.front().tab_ids.empty());
+}
+
+// An unbatched compression coalesces its erasures into one boundary, and a
+// consumer reached by that boundary must observe post-erase lookup state —
+// never the entries the compression is about to remove.
+void BuyoutManagerTest::unbatchedTabCompressionEmitsOnceAfterErase()
+{
+    BuyoutManagerFixture fixture;
+    const ItemLocation keep = makeTestStashLocation("s2-keep-tab", "Keep", 0);
+    const ItemLocation goneOne = makeTestStashLocation("s2-gone-one", "GoneOne", 1);
+    const ItemLocation goneTwo = makeTestStashLocation("s2-gone-two", "GoneTwo", 2);
+    fixture.manager->SetTab(keep, makeChaosBuyout(1.0));
+    fixture.manager->SetTab(goneOne, makeChaosBuyout(2.0));
+    fixture.manager->SetTab(goneTwo, makeChaosBuyout(3.0));
+    fixture.manager->SetStashTabLocations({keep});
+
+    int emissions = 0;
+    bool observedPostEraseState = false;
+    std::set<QString> reportedTabs;
+    QObject::connect(fixture.manager.get(),
+                     &BuyoutManager::BuyoutsChanged,
+                     [&](const BuyoutChangeSet &changes) {
+                         ++emissions;
+                         reportedTabs = changes.tab_ids;
+                         observedPostEraseState = fixture.manager->GetTab(goneOne).IsNull()
+                                                  && fixture.manager->GetTab(goneTwo).IsNull();
+                     });
+    fixture.manager->CompressTabBuyouts();
+
+    QCOMPARE(emissions, 1);
+    QVERIFY(observedPostEraseState);
+    const std::set<QString> expected{"s2-gone-one", "s2-gone-two"};
+    QCOMPARE(reportedTabs, expected);
+    QVERIFY(fixture.manager->GetTab(keep).IsActive());
+}
+
+void BuyoutManagerTest::unbatchedItemCompressionEmitsOnceAfterErase()
+{
+    BuyoutManagerFixture fixture;
+    const Item goneOne = makeTestItem("s2-compress-one");
+    const Item goneTwo = makeTestItem("s2-compress-two");
+    fixture.manager->Set(goneOne, makeChaosBuyout(1.0));
+    fixture.manager->Set(goneTwo, makeChaosBuyout(2.0));
+
+    int emissions = 0;
+    bool observedPostEraseState = false;
+    QObject::connect(fixture.manager.get(),
+                     &BuyoutManager::BuyoutsChanged,
+                     [&](const BuyoutChangeSet &changes) {
+                         ++emissions;
+                         observedPostEraseState = fixture.manager->Get(goneOne).IsNull()
+                                                  && fixture.manager->Get(goneTwo).IsNull()
+                                                  && (changes.item_ids.size() == 2);
+                     });
+    fixture.manager->CompressItemBuyouts(Items());
+
+    QCOMPARE(emissions, 1);
+    QVERIFY(observedPostEraseState);
 }
 
 QTEST_GUILESS_MAIN(BuyoutManagerTest)

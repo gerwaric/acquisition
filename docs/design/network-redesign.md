@@ -800,8 +800,18 @@ boundary between domain and network:
   failure) — otherwise a throwing continuation produces an
   exceptional `QFuture`, which crosses the value-only boundary and
   rethrows out of `co_await`.
-- The worker never sees `QNetworkRequest`, `QNetworkReply`, or bytes;
-  networking never sees items. The compiler enforces the boundary.
+- The worker never sees `QNetworkRequest` or `QNetworkReply`, and
+  nothing above the boundary *interprets* bytes; networking never sees
+  items. The compiler enforces the boundary. (Amended July 28, 2026,
+  with the F62 fix — the original statement was "the worker never sees
+  bytes": the facade captures each stash/character reply's sub-object
+  losslessly (`glz::raw_json`), parses the typed payload from that
+  same substring, and returns both; the worker couriers the bytes as
+  one opaque `QByteArray` per reply to the datastore, which persists
+  them verbatim so the cache is a faithful record of the API. The
+  worker never inspects the blob; parsing bytes above the facade is
+  still forbidden. Full decision in the F62 ledger entry,
+  `docs/cleanup/findings.md`.)
 - The facade is intentionally boring: no coroutines inside, no state
   beyond a reference to the limiter — account/realm/league are call
   parameters, so there is no `QSettings` reference and the facade is

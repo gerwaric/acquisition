@@ -6,6 +6,8 @@
 #include <QNetworkCookie>
 #include <QSettings>
 
+#include <set>
+
 #include "buyoutmanager.h"
 #include "datastore/datastore.h"
 #include "item.h"
@@ -44,6 +46,9 @@ void ItemsManager::OnStatusUpdate(ProgramState state, const QString &status)
 void ItemsManager::ApplyAutoTabBuyouts()
 {
     spdlog::trace("ItemsManager::ApplyAutoTabBuyouts() entered");
+    // Pricing passes batch (M3 R1-6): one model update at pass end when
+    // this pass is outermost, never one per SetTab.
+    const BuyoutBatch batch(m_buyout_manager);
     // Can handle everything related to auto-tab pricing here.
     // 1. First format we need to honor is ascendency pricing formats which is top priority and overrides other types
     // 2. Second priority is to honor manual user pricing
@@ -66,8 +71,11 @@ void ItemsManager::ApplyAutoTabBuyouts()
 void ItemsManager::ApplyAutoItemBuyouts()
 {
     spdlog::trace("ItemsManager::ApplyAutoItemBuyouts() entered");
+    // Pricing passes batch (M3 R1-6): one model update at pass end when
+    // this pass is outermost, never one per Set.
+    const BuyoutBatch batch(m_buyout_manager);
     // Loop over all items, check for note field with pricing and apply
-    for (auto const &item : m_items) {
+    for (auto const &item : m_items.Flat()) {
         auto const &note = item->note();
         if (!note.isEmpty()) {
             Buyout buyout = m_buyout_manager.StringToBuyout(note);
@@ -90,8 +98,12 @@ void ItemsManager::ApplyAutoItemBuyouts()
 void ItemsManager::PropagateTabBuyouts()
 {
     spdlog::trace("ItemsManager::PropagateTabBuyouts() entered");
+    // Pricing passes batch (M3 R1-6). When a user command triggers this
+    // pass, the command's own batch encloses it and this boundary emits
+    // nothing (R3-3).
+    const BuyoutBatch batch(m_buyout_manager);
     m_buyout_manager.ClearRefreshLocks();
-    for (auto &item_ptr : m_items) {
+    for (auto &item_ptr : m_items.Flat()) {
         Item &item = *item_ptr;
         auto item_bo = m_buyout_manager.Get(item);
         auto tab_bo = m_buyout_manager.GetTab(item.location());
@@ -123,27 +135,131 @@ void ItemsManager::OnItemsRefreshed(const Items &items,
                                     bool initial_refresh)
 {
     spdlog::trace("ItemsManager::OnItemsRefreshed() entered");
-    m_items = items;
+    m_items.ResetTo(items);
 
     spdlog::debug("There are {} items and {} tabs after the refresh.", m_items.size(), tabs.size());
-    int n = 0;
-    for (const auto &item : items) {
-        if (item->category().isEmpty()) {
-            spdlog::trace("Unable to categorize {}", item->PrettyName());
-            ++n;
+    // Debug-only diagnostic, gated so release users never pay a
+    // whole-collection scan for a log they cannot see (F46, absorbed by M2
+    // per R1-9). The scan never runs on the delta path either way.
+    if (spdlog::should_log(spdlog::level::debug)) {
+        int n = 0;
+        for (const auto &item : items) {
+            if (item->category().isEmpty()) {
+                spdlog::trace("Unable to categorize {}", item->PrettyName());
+                ++n;
+            }
+        }
+        if (n > 0) {
+            spdlog::debug("There are {} uncategorized items.", n);
         }
     }
-    if (n > 0) {
-        spdlog::debug("There are {} uncategorized items.", n);
-    }
+
+    // Snapshot boundary: the published tab list is authoritative for the
+    // canonical inventory — deletions and ordering take effect here (D6).
+    m_location_inventory.ResetTo(tabs);
 
     m_buyout_manager.SetStashTabLocations(tabs);
-    MigrateBuyouts();
-    ApplyAutoTabBuyouts();
-    ApplyAutoItemBuyouts();
-    PropagateTabBuyouts();
+    {
+        // The snapshot's pricing sequence is one batch (M3 R3-4): nothing
+        // observes UI state between these passes, so they must produce a
+        // single model update, never up to four.
+        const BuyoutBatch snapshot_batch(m_buyout_manager);
+        MigrateBuyouts();
+        ApplyAutoTabBuyouts();
+        ApplyAutoItemBuyouts();
+        PropagateTabBuyouts();
+    }
 
     emit ItemsRefreshed(initial_refresh);
+}
+
+void ItemsManager::OnTabRefreshed(const ItemLocation &location, const Items &items)
+{
+    spdlog::trace("ItemsManager::OnTabRefreshed() entered");
+
+    // The published copy stays the pre-update snapshot plus applied
+    // replacements (D6): everything previously published for this fetch
+    // source is dropped and the delta takes its place — one bucket swap in
+    // the source-keyed store, O(replaced + delta) (D3, post-M2-M2). An
+    // empty delta empties the fetch source and nothing else; tab deletion
+    // stays snapshot-boundary.
+    m_items.ReplaceSource(FetchSourceKey::ForLocation(location), items);
+
+    // Every delta's location anchor feeds the canonical inventory, empty
+    // deltas included (D6/R6-1).
+    m_location_inventory.Ingest(location);
+
+    ApplyScopedPricing(items);
+
+    emit TabRefreshed(location, items);
+}
+
+void ItemsManager::OnChildrenReconciled(const ItemLocation &parent,
+                                        const std::vector<FetchSourceKey> &expected)
+{
+    spdlog::trace("ItemsManager::OnChildrenReconciled() entered");
+
+    // Run the worker's own reconcile predicate against OUR baseline
+    // (R5-2/R6-2): the expected set is authoritative, so ghosts that only
+    // the published copy still holds (divergence across a failed update)
+    // are erased too. A walk of the bucket index with set lookup — the
+    // erased items are the only ones touched (D3, post-M2-M2).
+    const std::set<FetchSourceKey> expected_keys(expected.begin(), expected.end());
+    m_items.EraseSourcesIf([&](const FetchSourceKey &key, const ItemLocation &loc) {
+        return (key.type == ItemLocationType::STASH) && (loc.id() == parent.id())
+               && (expected_keys.count(key) == 0);
+    });
+
+    m_location_inventory.Ingest(parent);
+
+    emit ChildrenReconciled(parent, expected);
+}
+
+void ItemsManager::ApplyScopedPricing(const Items &delta_items)
+{
+    // The scoped per-delta pass batches like the final passes (M3 R1-6):
+    // one model update per pass, never one per Set.
+    const BuyoutBatch batch(m_buyout_manager);
+    // Scoped per-delta pricing (D7), restricted to steps that are safe on
+    // BOTH update outcomes (R1-4) — an update can end without a final pass:
+    for (const auto &item : delta_items) {
+        // 1. Note-based item buyouts, mirroring ApplyAutoItemBuyouts's
+        //    per-item rule (re-derivable from the item's own note).
+        const auto &note = item->note();
+        if (!note.isEmpty()) {
+            const Buyout buyout = m_buyout_manager.StringToBuyout(note);
+            if (buyout.IsActive() || m_buyout_manager.Get(*item).IsGameSet()) {
+                m_buyout_manager.Set(*item, buyout);
+            }
+        }
+
+        // 2. Tab-inheritance propagation, mirroring PropagateTabBuyouts's
+        //    per-item rule against the currently published tab-buyout state.
+        //    GetTab keys on the stable location id, so a renamed tab's
+        //    streamed items still find their existing tab buyout. Tab-name
+        //    auto-pricing (SetTab) is deliberately absent: it is
+        //    final-pass-only (D7).
+        Buyout tab_bo = m_buyout_manager.GetTab(item->location());
+        if (m_buyout_manager.Get(*item).IsInherited()) {
+            if (tab_bo.IsActive()) {
+                tab_bo.inherited = true;
+                tab_bo.last_update = QDateTime::currentDateTime();
+                m_buyout_manager.Set(*item, tab_bo);
+            } else {
+                m_buyout_manager.Set(*item, Buyout());
+            }
+        }
+
+        // 3. Monotone refresh-lock additions only — ClearRefreshLocks stays
+        //    exclusive to the final pass. Fail-safe in the right direction:
+        //    after a failed update the worst case is one redundant tab in
+        //    the next checked refresh, never a priced tab dropped from it.
+        if (item->location().removeonly() == false) {
+            if (m_buyout_manager.Get(*item).RequiresRefresh() || tab_bo.RequiresRefresh()) {
+                m_buyout_manager.SetRefreshLocked(item->location());
+            }
+        }
+    }
 }
 
 void ItemsManager::Update(TabSelection type, const std::vector<ItemLocation> &locations)
@@ -182,6 +298,10 @@ void ItemsManager::OnAutoRefreshTimer()
 void ItemsManager::MigrateBuyouts()
 {
     spdlog::trace("ItemsManager::MigrateBuyouts() entered");
+    // Migration is a pricing pass for batching purposes (M3 D1 rule 4,
+    // R1-6): in production the snapshot batch encloses it, and the
+    // v4-to-v5 recursion nests harmlessly.
+    const BuyoutBatch batch(m_buyout_manager);
     const int db_version = m_datastore.GetInt("db_version");
 
     // Do nothing if the database has already been migrated.
@@ -193,7 +313,7 @@ void ItemsManager::MigrateBuyouts()
     // Migrate from v4 to v5.
     if (db_version == 4) {
         spdlog::debug("ItemsManager migrating from db_version {} to 5", db_version);
-        for (const auto &item : m_items) {
+        for (const auto &item : m_items.Flat()) {
             m_buyout_manager.MigrateItem(item->hash_v4(), item->id());
         }
         m_buyout_manager.Save();
@@ -209,7 +329,7 @@ void ItemsManager::MigrateBuyouts()
 
     // Migrate from older versions to v4.
     spdlog::debug("ItemsManager migrating from db_version {} to 4", db_version);
-    for (const auto &item : m_items) {
+    for (const auto &item : m_items.Flat()) {
         m_buyout_manager.MigrateItem(item->old_hash(), item->hash_v4());
     }
     m_buyout_manager.Save();

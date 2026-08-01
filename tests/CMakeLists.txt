@@ -36,6 +36,29 @@ function(acq_add_scenario_test name)
     endforeach()
 endfunction()
 
+# M2-M2 measurement harness (items-pipeline M2, stage 4): not a test — an
+# offscreen benchmark run by hand in a Release build. It reuses the test
+# fakes and the deterministic dataset generator, so it lives here.
+# Hand-run measurement harness (M2-M2), not a test: excluded from the
+# default build; build explicitly with --target m2m2_benchmark.
+qt_add_executable(m2m2_benchmark EXCLUDE_FROM_ALL m2m2_benchmark.cpp)
+target_include_directories(m2m2_benchmark PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
+target_link_libraries(m2m2_benchmark PRIVATE acquisition_core)
+
+# The M3 hold-point harness (items-pipeline M3, working rule 3): the
+# conditional budget rows at S3-S5 and the S7 gate's model-side rows, run
+# by hand in a Release build with the spike presets.
+qt_add_executable(m3_holdpoint_benchmark EXCLUDE_FROM_ALL m3_holdpoint_benchmark.cpp)
+target_include_directories(m3_holdpoint_benchmark PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
+target_link_libraries(m3_holdpoint_benchmark PRIVATE acquisition_core)
+
+# The M1-M2 harness (items-pipeline M2, D10; post-M2 follow-up): the
+# batch-submit QueueUpdated burst vs status-widget frame time, run by
+# hand in a Release build.
+qt_add_executable(m1m2_benchmark EXCLUDE_FROM_ALL m1m2_benchmark.cpp)
+target_include_directories(m1m2_benchmark PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
+target_link_libraries(m1m2_benchmark PRIVATE acquisition_core)
+
 # The filter core must stay free of the UI (Phase 5, D5). A STATIC archive has
 # no link step, so this cannot be left to target_link_libraries.
 add_test(NAME filters_boundary
@@ -52,12 +75,14 @@ acq_add_test(tst_itemsmodel)
 acq_add_test(tst_mainwindow)
 acq_add_test(tst_networkcapture)
 acq_add_test(tst_poeapiclient)
+acq_add_test(tst_ratelimitdialog)
 acq_add_test(tst_ratelimitmanager)
 acq_add_test(tst_ratelimitpolicy)
 acq_add_test(tst_ratelimiter)
 acq_add_test(tst_search)
 acq_add_test(tst_searchform)
 acq_add_test(tst_shop)
+acq_add_test(tst_spikedataset)
 acq_add_test(tst_stopsleep)
 acq_add_test(tst_timerscheduler)
 acq_add_test(tst_gate)

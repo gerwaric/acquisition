@@ -20,7 +20,10 @@
 #include <variant>
 #include <vector>
 
+#include "fetchsourcekey.h"
 #include "item.h"
+#include "refreshoutcome.h"
+#include "sourcekeyeditems.h"
 #include "poe/types/character.h"
 #include "poe/types/stashtab.h"
 #include "ratelimit/fetcherror.h"
@@ -114,17 +117,57 @@ signals:
                         bool initial_refresh);
     void StatusUpdate(ProgramState state, const QString &status);
     void NotifyUser(const QString &message);
-    // Emitted by AbortUpdate(), the terminal transition of a failed update.
-    // Success has no equivalent signal because ItemsRefreshed(initial=false)
-    // already marks it; headless sync needs the failure terminal too.
-    void UpdateFailed();
+
+    // Presentation-lane delta signals (items-pipeline M2, D3). Both carry
+    // pipeline-native payloads only — never wire bytes or poe::* objects,
+    // which belong to the persistence lane below (D1); the lanes never share
+    // payload types.
+    //
+    // TabRefreshed: the complete replacement for one fetch source — the exact
+    // Item objects just parsed and appended, sharing their shared_ptrs.
+    // Consumers apply it strictly by FetchSourceKey
+    // {location.type(), location.fetch_id()}, never by location equality
+    // (which deliberately ignores fetch_id). An empty items means an emptied
+    // fetch source, never a deletion — tab deletion stays snapshot-boundary
+    // (D6). Emitted immediately after the atomic replace and before the
+    // counter increment, so every delta precedes its update's terminal event.
+    void TabRefreshed(const ItemLocation &location, const Items &items);
+    // ChildrenReconciled: one aggregate child reconciliation per top-level
+    // parent reply (fetch_id == id — the same condition as the worker's own
+    // ghost erase, NOT the Map/Unique-only condition that gates the
+    // persistence-lane stashChildrenReplaced). `expected` is authoritative:
+    // the parent's own fetch source plus its currently listed children.
+    // Consumers erase items under the parent's stable id whose key is not in
+    // the set, against their OWN baseline — correct even where published
+    // state diverged from worker memory across a failed update (R5-2/R6-2).
+    void ChildrenReconciled(const ItemLocation &parent, const std::vector<FetchSourceKey> &expected);
+
+    // The typed terminal event (M2 D4): exactly once per accepted Update(),
+    // after the worker is observably Idle — FinishUpdate emits
+    // CompletedRefresh after the final ItemsRefreshed and the Idle
+    // transition; the first AbortUpdate emits FailedRefresh with the
+    // update's first terminal error. Update() during this fan-out is
+    // refused (R4-4): an observer that chains a restart queues it.
+    void RefreshFinished(const RefreshOutcome &outcome);
 
     void characterListReceived(const std::vector<poe::Character> &characters, const QString &realm);
-    void characterReceived(const poe::Character &character, const QString &realm);
+    // The per-fetch persistence signals carry the reply's exact wire bytes
+    // alongside the parsed payload (F62). The worker never interprets the
+    // bytes — it couriers one opaque blob per reply from the facade to the
+    // datastore, which persists the bytes rather than a lossy
+    // re-serialization of the parsed struct. Emission stays post-acceptance:
+    // nothing the worker discards (stopped stragglers, failed parses) is
+    // ever persisted.
+    void characterReceived(const poe::Character &character,
+                           const QByteArray &bytes,
+                           const QString &realm);
     void stashListReceived(const std::vector<poe::StashTab> &stashes,
                            const QString &realm,
                            const QString &league);
-    void stashReceived(const poe::StashTab &stash, const QString &realm, const QString &league);
+    void stashReceived(const poe::StashTab &stash,
+                       const QByteArray &bytes,
+                       const QString &realm,
+                       const QString &league);
 
     // Authoritative-list signals (F53): emitted only for a fresh top-level
     // list (never for ProcessTab's folder-children re-emits of
@@ -156,9 +199,9 @@ private:
     using Result = std::expected<T, RateLimit::FetchError>;
 
     void OnStashListReceived(const Result<poe::StashListWrapper> &result);
-    void OnStashReceived(const Result<poe::StashWrapper> &result, const ItemLocation &location);
+    void OnStashReceived(const Result<poe::StashPayload> &result, const ItemLocation &location);
     void OnCharacterListReceived(const Result<poe::CharacterListWrapper> &result);
-    void OnCharacterReceived(const Result<poe::CharacterWrapper> &result,
+    void OnCharacterReceived(const Result<poe::CharacterPayload> &result,
                              const ItemLocation &location);
 
     enum class WorkerState { Initializing, Idle, Updating };
@@ -171,7 +214,6 @@ private:
                    ItemLocation location,
                    ParseResult &result) const;
     void LoadItems(const poe::StashTab &stash, ItemLocation location, ParseResult &result) const;
-    void RemoveItemsFetchedBy(const QString &fetch_id);
     void RebaseItemLocations(ItemLocationType type);
     void SubmitStashListRequest();
     void SubmitCharacterListRequest();
@@ -232,13 +274,20 @@ private:
     // (which drove reported progress backward, P-STATUS).
     void AbortUpdate();
 
-    // First-failure stop for the value-level failure branches: stop the update
-    // token, then fire the test fault hook (a no-op in production) at the point
-    // after stopping the token but before the handler finishes its failure
-    // bookkeeping and its direct AbortUpdate() — the window in which the update
-    // is stopped but still active, which the catch-alls must still recognize as
-    // theirs to abort.
-    void StopUpdateForFailure();
+    // First-failure stop for the value-level failure branches: record the
+    // update's first terminal error (D4 — BEFORE the throwable test fault
+    // hook, so the stopped-but-still-active window already carries it),
+    // stop the update token, then fire the hook (a no-op in production) at
+    // the point after stopping the token but before the handler finishes
+    // its failure bookkeeping and its direct AbortUpdate() — the window in
+    // which the update is stopped but still active, which the catch-alls
+    // must still recognize as theirs to abort.
+    void StopUpdateForFailure(const RateLimit::FetchError &error);
+
+    // Store the update's first terminal error; later failures and settling
+    // stragglers never overwrite it (D4). The catch-alls use this directly
+    // with an Internal-kind error.
+    void RecordFirstError(const RateLimit::FetchError &error);
 
     // Invoke the test fault hook once if armed (test-only; may throw — that is
     // the point). See SetFaultHook.
@@ -253,7 +302,9 @@ private:
     void SweepTasks();
 
     void SendStatusUpdate();
-    void ParseItems(const std::vector<poe::Item> &items, const ItemLocation &base_location);
+    void ParseItems(const std::vector<poe::Item> &items,
+                    const ItemLocation &base_location,
+                    Items &out) const;
     void CheckUpdateFinished();
     void FinishUpdate();
 
@@ -269,7 +320,12 @@ private:
 
     std::vector<ItemLocation> m_tabs;
 
-    Items m_items;
+    // Source-keyed item storage (M2 D3): the M2-M2 measurement fired the
+    // spec's storage conditional, so the per-reply replace and the
+    // reconcile/list erases are bucket operations, never O(all-items)
+    // passes. Whole-collection reads (ItemsRefreshed emits, rebasing, the
+    // finish sort) go through Flat()/buckets() at snapshot boundaries only.
+    SourceKeyedItems m_items;
 
     size_t m_stashes_needed{0};
     size_t m_stashes_received{0};
@@ -287,6 +343,23 @@ private:
     TabSelection m_type;
     std::vector<ItemLocation> m_locations;
     size_t m_request_failures{0};
+
+    // The update's first terminal error (D4), reset at the next accepted
+    // update; AbortUpdate emits it in FailedRefresh. The flag distinguishes
+    // "no error recorded" without an optional's overhead in the hot path.
+    RateLimit::FetchError m_first_error;
+    bool m_first_error_set{false};
+
+    // Deterministic per-source skips (D5, filled in when the skip policy
+    // lands); FinishUpdate emits them in CompletedRefresh. Reset at the
+    // next accepted update.
+    std::vector<SkippedSource> m_skipped_sources;
+
+    // Held across the RefreshFinished emit (D4/R4-4): the worker is
+    // observably Idle during the terminal fan-out, but an Update() arriving
+    // inside it is refused exactly as if an update were active — a chained
+    // restart must queue to the next event-loop turn.
+    bool m_delivering_terminal{false};
 
     // The current update's content selection: refresh everything
     // (All/TabsOnly), or only the tabs/characters whose ids are listed. A

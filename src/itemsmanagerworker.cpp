@@ -266,12 +266,12 @@ ParseResult ItemsManagerWorker::ParseCachedItems(const QString &dataDir) const
 void ItemsManagerWorker::OnParseCompleted(ParseResult result)
 {
     m_tabs = std::move(result.tabs);
-    m_items = std::move(result.items);
+    m_items.ResetTo(std::move(result.items));
     m_tab_id_index = std::move(result.tab_id_index);
     m_state = WorkerState::Idle;
     // let ItemManager know that the retrieval of cached items/tabs has been completed (calls ItemsManager::OnItemsRefreshed method)
     spdlog::trace("ItemsManagerWorker::ParseItemMods() emitting ItemsRefreshed signal");
-    emit ItemsRefreshed(m_items, m_tabs, true);
+    emit ItemsRefreshed(m_items.Flat(), m_tabs, true);
 
     if (m_updateRequest) {
         spdlog::trace("ItemsManagerWorker::ParseItemMods() triggering requested update");
@@ -337,7 +337,12 @@ void ItemsManagerWorker::Update(TabSelection type, const std::vector<ItemLocatio
         return;
     }
 
-    if (isUpdating()) {
+    if (isUpdating() || m_delivering_terminal) {
+        // The delivering-terminal case (D4/R4-4): the worker is observably
+        // Idle during the RefreshFinished fan-out, but accepting an update
+        // there could nest update N+1's signals — including its own
+        // terminal — inside N's fan-out. Refused exactly as if an update
+        // were active; a chained restart queues to the next loop turn.
         spdlog::warn("ItemsManagerWorker: update called while updating");
         emit NotifyUser("An update is already in progress.");
         return;
@@ -369,6 +374,13 @@ void ItemsManagerWorker::Update(TabSelection type, const std::vector<ItemLocatio
     m_stop_source = std::stop_source{};
     m_request_failures = 0;
     m_update_tab_contents = (type != TabSelection::TabsOnly);
+
+    // The terminal vocabulary resets at each accepted update (D4): the
+    // first-error slot and the deterministic skip list belong to this
+    // update alone.
+    m_first_error = RateLimit::FetchError{};
+    m_first_error_set = false;
+    m_skipped_sources.clear();
 
     // Reset the completion counters here, once per update: this is their only
     // reset. Each lane's LaunchContent() accumulates into them (never resets),
@@ -445,38 +457,30 @@ void ItemsManagerWorker::Update(TabSelection type, const std::vector<ItemLocatio
     RunUpdate();
 }
 
-void ItemsManagerWorker::RemoveItemsFetchedBy(const QString &fetch_id)
-{
-    const size_t before = m_items.size();
-    std::erase_if(m_items, [&fetch_id](const std::shared_ptr<Item> &item) {
-        return item->location().fetch_id() == fetch_id;
-    });
-    spdlog::debug("ItemsManagerWorker: replacing {} items fetched by '{}'",
-                  (before - m_items.size()),
-                  fetch_id);
-}
-
 void ItemsManagerWorker::RebaseItemLocations(ItemLocationType type)
 {
     // After a list reconciliation m_tabs carries fresh metadata, but
     // surviving items still embed the ItemLocation they were parsed with.
     // Rebase them so a renamed or moved tab is fresh everywhere the UI
     // reads a location (search buckets, headers, forum codes), not just in
-    // the tab list.
+    // the tab list. Runs at the snapshot boundary only (FinishUpdate), so
+    // walking every bucket's items is permitted; rebasing never touches the
+    // key fields (type, id, fetch_id), so the bucket structure stays valid.
     std::unordered_map<QString, const ItemLocation *> fresh_tabs;
     for (const auto &tab : m_tabs) {
         if (tab.type() == type) {
             fresh_tabs.emplace(tab.id(), &tab);
         }
     }
-    for (auto &item : m_items) {
-        const ItemLocation &location = item->location();
-        if (location.type() != type) {
+    for (const auto &[key, bucket] : m_items.buckets()) {
+        if (key.type != type) {
             continue;
         }
-        const auto it = fresh_tabs.find(location.id());
+        const auto it = fresh_tabs.find(bucket.front()->location().id());
         if (it != fresh_tabs.end()) {
-            item->RebaseLocation(*it->second);
+            for (const auto &item : bucket) {
+                item->RebaseLocation(*it->second);
+            }
         }
     }
 }
@@ -515,9 +519,12 @@ void ItemsManagerWorker::RunUpdate()
         CheckUpdateFinished();
     } catch (const std::exception &e) {
         spdlog::error("ItemsManagerWorker: the update orchestration threw: {}", e.what());
+        RecordFirstError(MakeInternalError(
+            QString("the update orchestration threw: %1").arg(e.what())));
         AbortUpdate();
     } catch (...) {
         spdlog::error("ItemsManagerWorker: the update orchestration threw an unknown exception");
+        RecordFirstError(MakeInternalError("the update orchestration threw an unknown exception"));
         AbortUpdate();
     }
 }
@@ -550,13 +557,37 @@ void ItemsManagerWorker::AbortUpdate()
                           .arg(QString::number(m_request_failures)));
     m_state = WorkerState::Idle;
     spdlog::debug("Update failed.");
-    emit UpdateFailed();
+
+    // The typed terminal event (D4): after the Idle transition, exactly
+    // once — the already-terminal guard above keeps later stragglers and
+    // second failures out. Every failure path routes an error through
+    // RecordFirstError before reaching here; the fallback keeps the emit
+    // total even if a new path ever forgets (a bug, surfaced as Internal).
+    const RateLimit::FetchError error = m_first_error_set
+                                            ? m_first_error
+                                            : MakeInternalError(
+                                                  "the update failed without a recorded error");
+    m_delivering_terminal = true;
+    emit RefreshFinished(RefreshOutcome{FailedRefresh{error}});
+    m_delivering_terminal = false;
 }
 
-void ItemsManagerWorker::StopUpdateForFailure()
+void ItemsManagerWorker::StopUpdateForFailure(const RateLimit::FetchError &error)
 {
+    // The error is recorded BEFORE the throwable test fault hook (D4): the
+    // stopped-but-still-active window the catch-alls must recognize already
+    // carries the update's first terminal error.
+    RecordFirstError(error);
     m_stop_source.request_stop();
     FireFaultHook();
+}
+
+void ItemsManagerWorker::RecordFirstError(const RateLimit::FetchError &error)
+{
+    if (!m_first_error_set) {
+        m_first_error = error;
+        m_first_error_set = true;
+    }
 }
 
 void ItemsManagerWorker::FireFaultHook()
@@ -618,7 +649,10 @@ QCoro::Task<> ItemsManagerWorker::FetchStashList(std::stop_token token)
         // failure branch stopped the token before throwing. Abort it. A resumed
         // straggler is gated out above and never enters the handler, so it never
         // reaches here; and AbortUpdate() guards on WorkerState and is idempotent,
-        // so an already-terminal update is left untouched.
+        // so an already-terminal update is left untouched. RecordFirstError is
+        // first-wins, so a handler that already recorded its own error (the
+        // fault-hook window) keeps it (D4).
+        RecordFirstError(MakeInternalError("a stash list continuation threw"));
         AbortUpdate();
     }
     ScheduleSweep();
@@ -638,6 +672,7 @@ QCoro::Task<> ItemsManagerWorker::FetchCharacterList(std::stop_token token)
     } catch (...) {
         spdlog::error(
             "ItemsManagerWorker: a character list continuation threw; aborting the update");
+        RecordFirstError(MakeInternalError("a character list continuation threw"));
         AbortUpdate();
     }
     ScheduleSweep();
@@ -649,7 +684,7 @@ QCoro::Task<> ItemsManagerWorker::FetchStash(ItemLocation location,
                                              std::stop_token token)
 {
     try {
-        Result<poe::StashWrapper> result;
+        Result<poe::StashPayload> result;
         try {
             auto future = m_api.getStash(m_realm, m_league, stash_id, substash_id, token);
             result = co_await qCoro(future).takeResult();
@@ -659,6 +694,7 @@ QCoro::Task<> ItemsManagerWorker::FetchStash(ItemLocation location,
         ProcessIfLive(token, [&] { OnStashReceived(result, location); });
     } catch (...) {
         spdlog::error("ItemsManagerWorker: a stash continuation threw; aborting the update");
+        RecordFirstError(MakeInternalError("a stash continuation threw"));
         AbortUpdate();
     }
     ScheduleSweep();
@@ -669,7 +705,7 @@ QCoro::Task<> ItemsManagerWorker::FetchCharacter(ItemLocation location,
                                                  std::stop_token token)
 {
     try {
-        Result<poe::CharacterWrapper> result;
+        Result<poe::CharacterPayload> result;
         try {
             auto future = m_api.getCharacter(m_realm, name, token);
             result = co_await qCoro(future).takeResult();
@@ -679,6 +715,7 @@ QCoro::Task<> ItemsManagerWorker::FetchCharacter(ItemLocation location,
         ProcessIfLive(token, [&] { OnCharacterReceived(result, location); });
     } catch (...) {
         spdlog::error("ItemsManagerWorker: a character continuation threw; aborting the update");
+        RecordFirstError(MakeInternalError("a character continuation threw"));
         AbortUpdate();
     }
     ScheduleSweep();
@@ -737,7 +774,7 @@ void ItemsManagerWorker::OnStashListReceived(const Result<poe::StashListWrapper>
         // then take the direct terminal path. AbortUpdate() returns the worker to
         // idle immediately without touching the progress counters, so a six-tab
         // batch reporting 0/6 does not lurch to 1/1 (P-STATUS).
-        StopUpdateForFailure();
+        StopUpdateForFailure(result.error());
         AbortUpdate();
         return;
     }
@@ -778,16 +815,18 @@ void ItemsManagerWorker::OnStashListReceived(const Result<poe::StashListWrapper>
     }
     spdlog::debug("Requesting {} out of {} stash tabs", batch.size(), stashes.size());
 
-    // Drop items belonging to stash tabs the server no longer lists.
-    const size_t before = m_items.size();
-    std::erase_if(m_items, [this](const std::shared_ptr<Item> &item) {
-        const ItemLocation &location = item->location();
-        return (location.type() == ItemLocationType::STASH)
-               && (m_tab_id_index.count(location.id()) == 0);
-    });
-    if (before > m_items.size()) {
-        spdlog::debug("ItemsManagerWorker: dropped {} items from deleted stash tabs",
-                      (before - m_items.size()));
+    // Drop items belonging to stash tabs the server no longer lists. A
+    // bucket's representative location stands for all its items (a child
+    // bucket's stable id is its display parent's), so a deleted parent
+    // takes its children's buckets with it — the same predicate the old
+    // per-item pass applied.
+    const size_t dropped = m_items.EraseSourcesIf(
+        [this](const FetchSourceKey &key, const ItemLocation &location) {
+            return (key.type == ItemLocationType::STASH)
+                   && (m_tab_id_index.count(location.id()) == 0);
+        });
+    if (dropped > 0) {
+        spdlog::debug("ItemsManagerWorker: dropped {} items from deleted stash tabs", dropped);
     }
 
     m_has_stash_list = true;
@@ -813,7 +852,7 @@ void ItemsManagerWorker::OnCharacterListReceived(const Result<poe::CharacterList
         // First-failure terminal (D2/D6): stop the token so the concurrently
         // launched stash list or its content resolves Canceled, then take the
         // direct terminal path — see the stash-list branch above.
-        StopUpdateForFailure();
+        StopUpdateForFailure(result.error());
         AbortUpdate();
         return;
     }
@@ -875,15 +914,13 @@ void ItemsManagerWorker::OnCharacterListReceived(const Result<poe::CharacterList
     spdlog::debug("There are {} characters to update in '{}'", batch.size(), m_league);
 
     // Drop items belonging to characters the server no longer lists.
-    const size_t before = m_items.size();
-    std::erase_if(m_items, [this](const std::shared_ptr<Item> &item) {
-        const ItemLocation &location = item->location();
-        return (location.type() == ItemLocationType::CHARACTER)
-               && (m_tab_id_index.count(location.id()) == 0);
-    });
-    if (before > m_items.size()) {
-        spdlog::debug("ItemsManagerWorker: dropped {} items from deleted characters",
-                      (before - m_items.size()));
+    const size_t dropped = m_items.EraseSourcesIf(
+        [this](const FetchSourceKey &key, const ItemLocation &location) {
+            return (key.type == ItemLocationType::CHARACTER)
+                   && (m_tab_id_index.count(location.id()) == 0);
+        });
+    if (dropped > 0) {
+        spdlog::debug("ItemsManagerWorker: dropped {} items from deleted characters", dropped);
     }
 
     m_has_character_list = true;
@@ -894,47 +931,76 @@ void ItemsManagerWorker::OnCharacterListReceived(const Result<poe::CharacterList
     CheckUpdateFinished();
 }
 
-void ItemsManagerWorker::OnStashReceived(const Result<poe::StashWrapper> &result,
+void ItemsManagerWorker::OnStashReceived(const Result<poe::StashPayload> &result,
                                          const ItemLocation &location)
 {
     spdlog::trace("ItemsManagerWorker::OnStashReceived() entered");
 
-    if (!result || !result->stash) {
-        if (!result) {
-            spdlog::warn("Aborting update because there was an error fetching the stash ({}): {}",
-                         RateLimit::ToString(result.error().kind),
+    // Every failure arrives as one typed FetchError — including a 200 whose
+    // reply lacked its stash sub-object, which the facade classifies as
+    // Parse (F62, M2 D5): a successful payload always holds a stash.
+    if (!result) {
+        // D5: a Parse failure on a content fetch is deterministic — retrying
+        // is futile, and one bad tab must not abort an hours-long update
+        // (the 3.29 flags:[] incident class). Skip and continue: record the
+        // skipped source, count the fetch as received so the counter join
+        // still reconciles (P-STATUS), emit NO delta — the atomic replace
+        // never ran, so this source's previous items survive, in memory and
+        // datastore. Everything else stays first-failure terminal.
+        if (result.error().kind == RateLimit::FetchError::Kind::Parse) {
+            spdlog::warn("Skipping stash '{}' because its payload failed to parse: {}",
+                         location.GetHeader(),
                          result.error().message);
-        } else {
-            spdlog::error("ItemsManagerWorker: stash is empty");
+            m_skipped_sources.push_back(
+                SkippedSource{FetchSourceKey::ForLocation(location), result.error()});
+            ++m_stashes_received;
+            SendStatusUpdate();
+            CheckUpdateFinished();
+            return;
         }
+        spdlog::warn("Aborting update because there was an error fetching the stash ({}): {}",
+                     RateLimit::ToString(result.error().kind),
+                     result.error().message);
         // First-failure terminal (D2/D6): stop the token and take the direct
         // terminal path. The progress counters are left untouched — this failed
         // fetch is not counted as received, and the batch's `needed` total is not
         // snapped down, so reported progress stays monotonic (P-STATUS).
-        StopUpdateForFailure();
+        StopUpdateForFailure(result.error());
         AbortUpdate();
         return;
     }
 
-    const auto &stash = *result->stash;
+    const auto &stash = result->stash;
 
-    emit stashReceived(*result->stash, m_realm, m_league);
+    // The bytes ride along untouched (F62): the facade parsed this stash
+    // from exactly this substring of the reply, and the datastore stores it.
+    emit stashReceived(stash, result->bytes, m_realm, m_league);
 
     // Atomically replace whatever this request fetched last time: for a
     // normal tab that is the tab's items, for a child of a special tab it
-    // is just that child's share of the parent location's items.
-    RemoveItemsFetchedBy(location.fetch_id());
-
+    // is just that child's share of the parent location's items. One bucket
+    // swap in the source-keyed store — O(replaced + delta), never a pass
+    // over the collection (D3, post-M2-M2).
+    Items delta;
     if (stash.items) {
         const auto &items = *stash.items;
         if (items.size() > 0) {
-            ParseItems(items, location);
+            ParseItems(items, location, delta);
         } else {
             spdlog::debug("Stash 'items' does not contain any items: {}", location.GetHeader());
         }
     } else {
         spdlog::debug("Stash does not have an 'items' array: {}", location.GetHeader());
     }
+    const size_t replaced = m_items.ReplaceSource(FetchSourceKey::ForLocation(location), delta);
+    spdlog::debug("ItemsManagerWorker: replacing {} items fetched by '{}'",
+                  replaced,
+                  location.fetch_id());
+
+    // Presentation delta (M2 D3): the exact replacement just applied for this
+    // fetch source, sharing its shared_ptrs, emitted after the atomic replace
+    // and before the counter increment.
+    emit TabRefreshed(location, delta);
 
     ++m_stashes_received;
     SendStatusUpdate();
@@ -989,11 +1055,11 @@ void ItemsManagerWorker::OnStashReceived(const Result<poe::StashWrapper> &result
     // Their fetch ids are never re-fetched, so nothing else would ever
     // replace or remove them, not even a full refresh.
     if (location.fetch_id() == location.id()) {
-        std::set<QString> expected_fetch_ids{location.id()};
+        std::vector<FetchSourceKey> expected{{location.type(), location.id()}};
         QStringList child_ids;
         if (get_children && stash.children) {
             for (const auto &child : *stash.children) {
-                expected_fetch_ids.insert(child.id);
+                expected.push_back({ItemLocationType::STASH, child.id});
                 child_ids.append(child.id);
             }
         }
@@ -1005,18 +1071,25 @@ void ItemsManagerWorker::OnStashReceived(const Result<poe::StashWrapper> &result
         if ((stash.type == "MapStash") || (stash.type == "UniqueStash")) {
             emit stashChildrenReplaced(location.id(), child_ids, m_realm, m_league);
         }
-        const size_t before = m_items.size();
-        std::erase_if(m_items, [&](const std::shared_ptr<Item> &item) {
-            const ItemLocation &item_location = item->location();
-            return (item_location.type() == ItemLocationType::STASH)
-                   && (item_location.id() == location.id())
-                   && (expected_fetch_ids.count(item_location.fetch_id()) == 0);
-        });
-        if (before > m_items.size()) {
+        const std::set<FetchSourceKey> expected_keys(expected.begin(), expected.end());
+        const size_t dropped = m_items.EraseSourcesIf(
+            [&](const FetchSourceKey &key, const ItemLocation &item_location) {
+                return (key.type == ItemLocationType::STASH)
+                       && (item_location.id() == location.id())
+                       && (expected_keys.count(key) == 0);
+            });
+        if (dropped > 0) {
             spdlog::debug("ItemsManagerWorker: dropped {} ghost child items from {}",
-                          (before - m_items.size()),
+                          dropped,
                           location.GetHeader());
         }
+        // Presentation-lane aggregate reconciliation (M2 D3, R5-2/R6-2):
+        // emitted for every top-level parent reply — the same condition as
+        // the ghost erase above, deliberately wider than the Map/Unique-only
+        // condition gating the persistence-lane stashChildrenReplaced emit.
+        // The expected set is authoritative, so consumers reconcile their own
+        // baseline even where it diverged from worker memory.
+        emit ChildrenReconciled(location, expected);
     }
 
     // Launch the child batch (D6): reply-discovered Map/Unique children go out
@@ -1026,34 +1099,46 @@ void ItemsManagerWorker::OnStashReceived(const Result<poe::StashWrapper> &result
     CheckUpdateFinished();
 }
 
-void ItemsManagerWorker::OnCharacterReceived(const Result<poe::CharacterWrapper> &result,
+void ItemsManagerWorker::OnCharacterReceived(const Result<poe::CharacterPayload> &result,
                                              const ItemLocation &location)
 {
     spdlog::trace("ItemsManagerWorker::OnCharacterReceived() entered");
 
-    if (!result || !result->character) {
-        if (!result) {
-            spdlog::warn("Aborting update because there was an error fetching the character "
-                         "({}): {}",
-                         RateLimit::ToString(result.error().kind),
+    // As with stashes, a reply without its character sub-object is a facade
+    // Parse error (F62, M2 D5), so one typed check covers every failure.
+    if (!result) {
+        // D5 skip-and-continue for deterministic Parse failures, exactly as
+        // in OnStashReceived: no delta, previous items survive, the counter
+        // join still reconciles.
+        if (result.error().kind == RateLimit::FetchError::Kind::Parse) {
+            spdlog::warn("Skipping character '{}' because its payload failed to parse: {}",
+                         location.GetHeader(),
                          result.error().message);
-        } else {
-            spdlog::error("ItemsManagerWorker: character is empty");
+            m_skipped_sources.push_back(
+                SkippedSource{FetchSourceKey::ForLocation(location), result.error()});
+            ++m_characters_received;
+            SendStatusUpdate();
+            CheckUpdateFinished();
+            return;
         }
+        spdlog::warn("Aborting update because there was an error fetching the character "
+                     "({}): {}",
+                     RateLimit::ToString(result.error().kind),
+                     result.error().message);
         // First-failure terminal (D2/D6): stop the token and take the direct
         // terminal path, leaving the progress counters untouched (P-STATUS).
-        StopUpdateForFailure();
+        StopUpdateForFailure(result.error());
         AbortUpdate();
         return;
     }
 
-    const auto &character = *result->character;
+    const auto &character = result->character;
 
-    emit characterReceived(character, m_realm);
+    emit characterReceived(character, result->bytes, m_realm);
 
-    // Atomically replace this character's items.
-    RemoveItemsFetchedBy(location.fetch_id());
-
+    // Atomically replace this character's items: one bucket swap, as in
+    // OnStashReceived.
+    Items delta;
     const auto collections = {character.equipment,
                               character.inventory,
                               character.rucksack,
@@ -1061,9 +1146,18 @@ void ItemsManagerWorker::OnCharacterReceived(const Result<poe::CharacterWrapper>
 
     for (const auto &items : collections) {
         if (items) {
-            ParseItems(*items, location);
+            ParseItems(*items, location, delta);
         }
     }
+    const size_t replaced = m_items.ReplaceSource(FetchSourceKey::ForLocation(location), delta);
+    spdlog::debug("ItemsManagerWorker: replacing {} items fetched by '{}'",
+                  replaced,
+                  location.fetch_id());
+
+    // Presentation delta (M2 D3), as in OnStashReceived: after the atomic
+    // replace, before the counter increment. A character reply discovers no
+    // children, so there is no ChildrenReconciled here.
+    emit TabRefreshed(location, delta);
 
     ++m_characters_received;
     SendStatusUpdate();
@@ -1190,13 +1284,14 @@ void ItemsManagerWorker::SendStatusUpdate()
 }
 
 void ItemsManagerWorker::ParseItems(const std::vector<poe::Item> &items,
-                                    const ItemLocation &base_location)
+                                    const ItemLocation &base_location,
+                                    Items &out) const
 {
     for (auto &item : items) {
         const ItemLocation location = base_location.getItemLocation(item);
-        m_items.push_back(std::make_shared<Item>(item, location));
+        out.push_back(std::make_shared<Item>(item, location));
         if (item.socketedItems) {
-            ParseItems(*item.socketedItems, location);
+            ParseItems(*item.socketedItems, location, out);
         }
     }
 }
@@ -1251,6 +1346,12 @@ void ItemsManagerWorker::FinishUpdate()
     } else {
         message = "Received nothing";
     }
+    // Skips are user-visible (D5/R1-1): a completed-with-skips refresh must
+    // never be indistinguishable from a clean one. Each skipped source was
+    // already named in the log at warn level when it was skipped.
+    if (!m_skipped_sources.empty()) {
+        message += QString(", %1 skipped").arg(QString::number(m_skipped_sources.size()));
+    }
 
     emit StatusUpdate(ProgramState::Ready, message);
 
@@ -1266,17 +1367,23 @@ void ItemsManagerWorker::FinishUpdate()
     // Sort tabs.
     std::sort(begin(m_tabs), end(m_tabs));
 
-    // Sort items.
-    std::sort(begin(m_items),
-              end(m_items),
-              [](const std::shared_ptr<Item> &a, const std::shared_ptr<Item> &b) {
-                  return *a < *b;
-              });
+    // Sort items (the snapshot's deterministic presentation order; the flat
+    // view is rebuilt here if any delta dirtied it).
+    m_items.SortFlat([](const std::shared_ptr<Item> &a, const std::shared_ptr<Item> &b) {
+        return *a < *b;
+    });
 
     // Let everyone know the update is done.
     spdlog::trace("ItemsManagerWorker::FinishUpdate() emitting ItemsRefreshed");
-    emit ItemsRefreshed(m_items, m_tabs, false);
+    emit ItemsRefreshed(m_items.Flat(), m_tabs, false);
 
     m_state = WorkerState::Idle;
     spdlog::debug("Update finished.");
+
+    // The typed terminal event (D4), pinned ordering: final ItemsRefreshed,
+    // then Idle, then RefreshFinished — the fan-out observes an idle worker
+    // but a reentrant Update() is refused via the delivering flag (R4-4).
+    m_delivering_terminal = true;
+    emit RefreshFinished(RefreshOutcome{CompletedRefresh{m_skipped_sources}});
+    m_delivering_terminal = false;
 }

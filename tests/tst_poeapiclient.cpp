@@ -31,6 +31,10 @@ private slots:
     void requestShapesAndEndpointLabels();
     void legacyStashIndexCarriesQueryAndStableEndpoint();
     void successParsesPayload();
+    void stashPayloadCarriesTheWireBytes();
+    void characterPayloadCarriesTheWireBytes();
+    void missingStashSubObjectIsAParseError();
+    void missingCharacterSubObjectIsAParseError();
     void fetchErrorsPassThroughUnchanged();
     void garbageBodyBecomesParseError();
 };
@@ -171,6 +175,85 @@ void PoeApiClientTest::successParsesPayload()
     QVERIFY(consumer.payload->tabs.has_value());
     QCOMPARE(consumer.payload->tabs->size(), size_t(1));
     QCOMPARE(consumer.payload->tabs->at(0).i, unsigned(0));
+}
+
+void PoeApiClientTest::stashPayloadCarriesTheWireBytes()
+{
+    // The F62 pin: a stash fetch returns, alongside the parse, the EXACT wire
+    // bytes of the reply's "stash" sub-object — including fields the poe::
+    // types do not model — and the typed payload is parsed from that same
+    // substring. The datastore persists these bytes; a re-serialization of
+    // the parsed struct would silently drop every unmodeled field.
+    Rig rig;
+
+    Consumer<poe::StashPayload> consumer;
+    consumer.attach(rig.api.getStash("pc", "Standard", "abc"));
+
+    const QByteArray sub = R"({"id":"0123456789","name":"Tab A","type":"PremiumStash",)"
+                           R"("unmodeledField":{"sometimes":["an","array"]},"items":[]})";
+    rig.limiter.resolve(0, "{\"stash\":" + sub + "}");
+    drainEvents();
+
+    QCOMPARE(consumer.completions, 1);
+    QVERIFY(consumer.payload.has_value());
+    QCOMPARE(consumer.payload->stash.id, QString("0123456789"));
+    QCOMPARE(consumer.payload->bytes, sub);
+}
+
+void PoeApiClientTest::characterPayloadCarriesTheWireBytes()
+{
+    Rig rig;
+
+    Consumer<poe::CharacterPayload> consumer;
+    consumer.attach(rig.api.getCharacter("pc", "Someone"));
+
+    const QByteArray sub = R"({"id":"charid0001","name":"Someone","realm":"pc",)"
+                           R"("class":"Witch","level":1,"experience":0,"unmodeledField":true})";
+    rig.limiter.resolve(0, "{\"character\":" + sub + "}");
+    drainEvents();
+
+    QCOMPARE(consumer.completions, 1);
+    QVERIFY(consumer.payload.has_value());
+    QCOMPARE(consumer.payload->character.name, QString("Someone"));
+    QCOMPARE(consumer.payload->bytes, sub);
+}
+
+void PoeApiClientTest::missingStashSubObjectIsAParseError()
+{
+    // A 200 whose reply lacks its "stash" sub-object is classified at the
+    // facade as a Parse error (M2 D5/R2-4): it is deterministic per tab, and
+    // it must arrive as a typed FetchError — never as a success the worker
+    // has to second-guess. The old worker-side "stash is empty" branch held
+    // no FetchError and is deleted.
+    Rig rig;
+
+    Consumer<poe::StashPayload> consumer;
+    consumer.attach(rig.api.getStash("pc", "Standard", "abc"));
+
+    rig.limiter.resolve(0, "{}");
+    drainEvents();
+
+    QCOMPARE(consumer.completions, 1);
+    QCOMPARE(consumer.kind(), RateLimit::FetchError::Kind::Parse);
+    QCOMPARE(consumer.error->endpoint, QString("Get Stash"));
+    QVERIFY(!consumer.payload.has_value());
+}
+
+void PoeApiClientTest::missingCharacterSubObjectIsAParseError()
+{
+    // A null sub-object fails the same way as a missing one.
+    Rig rig;
+
+    Consumer<poe::CharacterPayload> consumer;
+    consumer.attach(rig.api.getCharacter("pc", "Someone"));
+
+    rig.limiter.resolve(0, R"({"character":null})");
+    drainEvents();
+
+    QCOMPARE(consumer.completions, 1);
+    QCOMPARE(consumer.kind(), RateLimit::FetchError::Kind::Parse);
+    QCOMPARE(consumer.error->endpoint, QString("Get Character"));
+    QVERIFY(!consumer.payload.has_value());
 }
 
 void PoeApiClientTest::fetchErrorsPassThroughUnchanged()

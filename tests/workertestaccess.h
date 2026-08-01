@@ -64,6 +64,12 @@ public:
                 m_worker.m_characters_needed};
     }
 
+    // Read-only views of the worker's item collection, for the M2-M2
+    // harness's component attribution (it mirrors the store outside its
+    // timed regions and measures the production bucket ops on the mirror).
+    const Items &items() const { return m_worker.m_items.Flat(); }
+    const SourceKeyedItems &store() const { return m_worker.m_items; }
+
 private:
     ItemsManagerWorker &m_worker;
 };

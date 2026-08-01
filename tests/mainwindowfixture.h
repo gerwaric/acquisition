@@ -15,8 +15,8 @@
 #include "imagecache.h"
 #include "itemcategories.h"
 #include "itemsmanager.h"
-#include "ratelimit/ratelimiter.h"
 #include "poe/poeapiclient.h"
+#include "ratelimit/ratelimiter.h"
 #include "shop.h"
 #include "testfixtures.h"
 #include "ui/mainwindow.h"
@@ -80,6 +80,19 @@ public:
                          &ItemsManager::ItemsRefreshed,
                          window.get(),
                          &MainWindow::OnItemsRefreshed);
+        // Streamed deltas (M2 D9), wired the way ConnectMainWindow does.
+        QObject::connect(itemsManager.get(),
+                         &ItemsManager::TabRefreshed,
+                         window.get(),
+                         &MainWindow::OnTabRefreshed);
+        QObject::connect(itemsManager.get(),
+                         &ItemsManager::ChildrenReconciled,
+                         window.get(),
+                         &MainWindow::OnChildrenReconciled);
+        QObject::connect(itemsManager.get(),
+                         &ItemsManager::RefreshFinished,
+                         window.get(),
+                         &MainWindow::OnRefreshFinished);
     }
 
     QTemporaryDir tempDir;

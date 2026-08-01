@@ -8,11 +8,15 @@ findings register remains live at `docs/cleanup/findings.md` and this plan
 uses its F-numbers.
 
 The subject here is how item data flows from the Path of Exile API to the
-UI. The current design dates to 2014 and is **snapshot-oriented**: every
-layer speaks "here is the new world" (the full item vector) rather than
-"this tab changed". That one contract decision forces every cost and most
-of the correctness problems below; this plan replaces it, one shippable
-milestone at a time, with a **delta-native** pipeline.
+UI. The design this plan replaced dated to 2014 and was
+**snapshot-oriented**: every layer spoke "here is the new world" (the
+full item vector) rather than "this tab changed". That one contract
+decision forced every cost and most of the correctness problems below;
+this plan replaced it, one shippable milestone at a time, with a
+**delta-native** pipeline. **All three milestones have landed** (M1
+July 17, M2 July 30, M3 July 31, 2026 — see the milestone headings);
+the "Why now" and cascade sections below are kept as the dated record
+of the architecture they retired.
 
 ### Why now
 
@@ -38,12 +42,13 @@ milestone at a time, with a **delta-native** pipeline.
   labors to restore. The cleanup fixed the worst symptoms (F23, F31, F32)
   but the design cost is structural.
 
-### The snapshot cascade today
+### The snapshot cascade this plan replaced
 
-One `ItemsManagerWorker::ItemsRefreshed` emit currently triggers:
+One `ItemsManagerWorker::ItemsRefreshed` emit triggered (as of July
+2026, before the milestones below):
 
 1. `ItemsManager::OnItemsRefreshed` (`itemsmanager.cpp`): full item-vector
-   copy; an O(items) uncategorized-items scan that exists only for debug
+   copy; an O(items) uncategorized-items scan that existed only for debug
    logging (F46); three whole-collection buyout passes
    (`ApplyAutoTabBuyouts`, `ApplyAutoItemBuyouts`, `PropagateTabBuyouts`).
 2. `Application::OnItemsRefreshed` (`application.cpp`): currency snapshot,
@@ -52,12 +57,12 @@ One `ItemsManagerWorker::ItemsRefreshed` emit currently triggers:
    `Search::FilterItems()` for **every** search tab — each a full
    O(items × active filters) scan rebuilding all buckets — then
    `ModelViewRefresh()` for the current search, whose
-   `ItemsModel::beginUpdate()` is literally `beginResetModel()`. The reset
-   invalidates expansion, selection, and scroll state, which
+   `ItemsModel::beginUpdate()` was literally `beginResetModel()`. The reset
+   invalidated expansion, selection, and scroll state, which
    `RestoreViewExpansion` / `ReselectCurrentItem` / the resize coalescing
-   then reconstruct.
+   then reconstructed.
 
-No layer knows *what changed*, so no layer can do less.
+No layer knew *what changed*, so no layer could do less.
 
 ## Direction
 
@@ -197,7 +202,7 @@ above): keying "new" on cached contents made a partial refresh balloon
 into a full one on a cold contents cache, so the auto-fetch was dropped in
 favor of fetching strictly the selection.
 
-### Milestone 2 — Streaming refresh signal (next; spec pending)
+### Milestone 2 — Streaming refresh signal (SHIPPED July 30, 2026: spec `items-pipeline-m2.md` frozen at revision 9, implemented same-day, PR #185 merged)
 
 Surface per-tab progress without triggering the snapshot cascade:
 
@@ -241,97 +246,43 @@ that would expose the mismatch), or the rebase moves earlier and the
 failed-update-mutates-published-state problem M1 solved returns and needs
 a new answer.
 
-**Inputs accumulated since this sketch was written (July 2026), for
-the M2 spec:**
+**Inputs accumulated for the M2 spec (July 2026): consumed.** The
+full inbox — the existing per-tab signal surface, network-redesign
+D6's explicit deferrals, the phase-5 straggler-overlap fact, F62's
+consequences for the persistence lane, the items-not-locations delta
+shape, the typed terminal event and no-rollback policy, per-delta
+buyout scoping, the persistence/presentation split, and the
+freshness bound — was consumed by the frozen M2 spec, whose
+input-traceability table (`items-pipeline-m2.md`) records each input
+beside its consuming decision. The prose inbox was trimmed from this
+plan August 1, 2026 (git history retains it).
 
-- **The per-tab signal surface partly exists.** The worker already
-  emits typed per-tab signals wired to the datastore repos:
-  `stashReceived`, `characterReceived`, `stashListReplaced`,
-  `characterListReplaced`, `stashChildrenReplaced`
-  (`itemsmanagerworker.h`). These are persistence signals, not
-  presentation deltas — see the delta-shape input below for why the
-  M2 signal is expected to be separate; the spec should confirm that
-  split and keep the two lanes from drifting.
-- **Explicit M2 deferrals from the network redesign (D6):**
-  whole-update replacement/coalescing (an `Update()` during an active
-  update is refused today); reprioritization (flagged as *not* cheap
-  later — the stop token is per-update, so per-entry cancellation
-  does not exist); per-tab retry and durable progress; UI-side
-  coalescing of the batch-submit `QueueUpdated` burst. These are
-  decisions the M2 spec must make, not scope it must implement:
-  whole-update replacement and reprioritization are not required to
-  ship streaming and could expand M2 considerably. Per-tab failure
-  policy is the most load-bearing of the set, and it must distinguish
-  deterministic failures (parse/protocol — retrying is futile; the
-  3.29 `flags: []` incident showed one deterministic parse failure
-  aborting whole updates) from transient ones.
-- **New behavioral fact from phase 5:** the first terminal failure
-  returns the worker to idle immediately, so a new update may be
-  active while the stopped update's canceled stragglers are still
-  settling. Stragglers apply nothing (post-await invariant), but the
-  delta-signal design must tolerate the overlap.
-- **F62 (fix shape decided July 26, 2026 — not yet implemented):**
-  raw reply bytes will enter the datastore through the persistence
-  lane only — the facade returns the parsed payload plus the raw
-  sub-object bytes, and `stashReceived`/`characterReceived` carry the
-  bytes opaquely to the repos (full decision in the F62 entry,
-  `docs/cleanup/findings.md`). Until it lands, D7's
-  no-bytes-above-the-boundary contract is still the code's reality —
-  the M2 spec treats F62 as a decided dependency, not current state.
-  Consequence for M2: deltas never carry wire bytes or `poe::*` API
-  objects — the persistence lane owns those — but they **must** carry
-  pipeline-native items, per the next input.
-- **The delta must carry items, not just a location (second-opinion
-  review, July 2026).** `ItemsManager` copies the worker's vector
-  only at the final snapshot (`OnItemsRefreshed`); newly parsed items
-  exist nowhere downstream until then. A location-only signal tells
-  `ItemsManager` what to erase and gives it nothing to append. A
-  streaming delta therefore carries the complete pipeline-native
-  `Items` replacement for one fetch source (possibly empty — an
-  emptied fetch source, never a deletion), keyed explicitly by (location type,
-  fetch-source id): `fetch_id()` is deliberately excluded from
-  `ItemLocation` comparison, so anything keyed on location equality
-  would collapse Map/Unique child replacements into one. The signal
-  is separate from `stashReceived`/`characterReceived`, which carry
-  API-domain payloads and fire before the worker's atomic
-  replacement. The spec must also pick the user-visible atomic unit
-  for special tabs: per fetch source (finer progress, but a parent
-  bucket can transiently mix old and new child data) or per display
-  tab (coarser, publishes the parent once its enabled children
-  settle).
-- **A typed terminal event and an explicit no-rollback policy.**
-  Deltas applied before a later terminal failure stay applied in
-  memory and datastore by design (pinned:
-  `appliedReplySurvivesLaterFailureInMemoryAndDatastore`). Once
-  deltas stream, `StatusUpdate` strings are not a semantic boundary:
-  downstream consumers need an explicit completed/failed outcome
-  event, and the spec must state the no-rollback policy it implies.
-  (This is the concrete form of the emit-on-failure non-goal's
-  "revisit at M2".)
-- **Buyout scoping per delta.** The constraint is "no
-  whole-collection buyout pass per delta", not "no pricing until the
-  final emit": streamed items that sit visibly unpriced for hours
-  (auto-item and inherited tab pricing) are a real cost at the
-  hours-long-refresh scale, so item-local scoped pricing per delta is
-  a design option the spec should weigh. Mind `PropagateTabBuyouts`'s
-  global `ClearRefreshLocks` either way.
-- **State the persistence/presentation split.** Content replacements
-  stream; other worker mutations (list reconciliation's deletions and
-  renames, the location rebase) may stay final-only. "ItemsManager
-  applies the same delta" is under-specified — the spec must say
-  exactly which worker mutations are mirrored per delta and which
-  remain snapshot-boundary effects. In particular: whether a deleted
-  tab is expressed as a separate list/removal delta or stays a
-  snapshot-boundary effect — an empty content replacement means an
-  emptied fetch source, never a deletion.
-- **A freshness bound, not just coalescing.** A resetting trailing
-  debounce can starve under steady one-reply-per-20-seconds
-  arrivals. The coalescing contract needs both halves stated: no
-  uncoalesced per-delta reset (already a constraint above) and a
-  maximum staleness — a throttle that guarantees the visible view is
-  never more than a stated interval behind the applied state.
+### Milestone 3 — Delta-native items model (IMPLEMENTED July 31, 2026 on branch `items-pipeline-m3`: spec `items-pipeline-m3.md` frozen at revision 4 July 30, stages S0–S8 landed, S7 M1-M3 gate PASSED with Tom's formal go)
 
-### Milestone 3 — Delta-native items model (later)
+The refresh path no longer resets: deltas apply as bucket-scoped row
+operations (By-Tab) and a flat sorted merge (By-Item), the final
+snapshot is a row-level reconciliation, and M2's D9 throttle is
+retired with its pins superseded by the recorded map. Measurements
+(all budgets passed at 100k and ~1m; the S5 miss and its A′ remedy):
+`m1-m3-result.md`. The M1-M2 status-widget burst measurement ran
+July 31, 2026: the D10 gate fired and the prescribed UI-side coalesce
+was built and validated (`m1-m2-result.md`).
+
+Follow-up input routed here by M3's D7 (blocks nothing; the one
+open pipeline follow-up): **filter-loop optimization.** With the
+sort retired from the refilter path, the `FilterItems` loop is the
+dominant remaining term of a user-initiated full refilter (~0.4 s at
+the ~1m scale). It is orthogonal to the delta-native model and the
+sort levers, and it needs its own profile-first pass (per-filter
+attribution) before a lever is chosen — M3 deliberately chose none
+(`items-pipeline-m3.md`, D7).
+
+The "profile before choosing levers" obligation below was discharged
+July 30, 2026 by the S1-M3 sort-profiling spike
+(`m3-sort-profile-result.md`; throwaway branch `spike/m3-sort-profile`,
+never merged) and the same-day lever hold point, whose decisions the
+spec records. The inputs below are kept as written; the spec's
+traceability table maps each to its consuming decision.
 
 Make Layer 3 consume deltas natively, eliminating the full reset:
 
@@ -348,6 +299,15 @@ Make Layer 3 consume deltas natively, eliminating the full reset:
   and scroll state of everything else untouched, with no restore
   machinery involved. A "full refresh" is then just N deltas — no special
   destructive path left in the pipeline.
+
+Inputs accumulated for the M3 spec (July 29, 2026): **consumed.**
+The frozen M3 spec's input-traceability table
+(`items-pipeline-m3.md`) records each input beside its consuming
+decision — the re-sort-dominant reset cost and the model-layer lever
+list (sharpened by the S1-M3 profiling spike into D1/D2), and M2's
+R6-3 stable `(type, id)` keys carried forward as M3's bucket keying.
+The prose inbox was trimmed from this plan August 1, 2026 (git
+history retains it).
 
 ## Non-goals
 
@@ -367,9 +327,9 @@ Make Layer 3 consume deltas natively, eliminating the full reset:
 - **Datastore redesign / delta persistence.** Per-tab persistence
   already works and this plan does not restructure it. (The original
   "no schema changes" wording is retired: 0.18 added the
-  `json_version` payload-versioning column, and F62 will change what
-  the persistence lane carries — both independent correctness work,
-  neither driven by this plan.)
+  `json_version` payload-versioning column, and F62 changed what the
+  persistence lane carries (raw wire bytes since July 28, 2026) — both
+  independent correctness work, neither driven by this plan.)
 - **UI/UX redesign** beyond refresh behavior; no theming, packaging, or
   `Item` class rework.
 
@@ -378,8 +338,17 @@ Make Layer 3 consume deltas natively, eliminating the full reset:
 Carried over from the cleanup, which they served well:
 
 1. **Doc-first.** Each milestone has an implementation-grade spec reviewed
-   before its code begins — M1's is this document; M2 and M3 get their own
-   before they start.
+   and frozen before its production code begins — M1's is this document;
+   M2 and M3 get their own before they start. A spec may name a bounded
+   pre-freeze evidence spike whose prototype lives on a dedicated
+   non-production branch or in an isolated harness and is discarded or left
+   unmerged; the spec records the result and freezes before any production
+   implementation begins. M2 names one such exception: the S1-M2 UX spike
+   (`items-pipeline-m2.md`, D9/R3-4; ran July 29, 2026 — outcome (a),
+   S = 60 s, recorded in the M2 spec's revision 9, which froze it). The
+   M2-M2 storage/frame measurement
+   runs instead as the first checkpoint of M2's production implementation
+   (R7-3; the spec freezes a determinate conditional for D3's storage).
 2. **Every commit compiles and passes `ctest`.**
 3. **New problems go to the register** (`docs/cleanup/findings.md`), not
    inline fixes, unless required for the milestone to proceed.
