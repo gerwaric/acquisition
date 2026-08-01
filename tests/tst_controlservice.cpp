@@ -22,6 +22,7 @@ private slots:
     void queuedJobIgnoresUnrelatedSignals();
     void busyRefreshIsNotAccepted();
     void refreshOutcomesRemainTyped();
+    void refreshHistoryIsBounded();
 };
 
 namespace {
@@ -280,6 +281,39 @@ void ControlServiceTest::refreshOutcomesRemainTyped()
                  .value("kind")
                  .toString(),
              "parse");
+}
+
+void ControlServiceTest::refreshHistoryIsBounded()
+{
+    ViewingFixture fixture;
+    QString first_id;
+    QString second_id;
+    QString last_id;
+    for (int index = 0; index < 33; ++index) {
+        const QJsonObject start = fixture.service.Handle(
+            control::Request{"start", "refresh.start", {}});
+        const QString id = resultOf(start).value("operation_id").toString();
+        QVERIFY(!id.isEmpty());
+        if (index == 0) {
+            first_id = id;
+        } else if (index == 1) {
+            second_id = id;
+        }
+        last_id = id;
+        QCoreApplication::processEvents();
+        fixture.items.RefreshFinished(RefreshOutcome{CompletedRefresh{}});
+    }
+
+    const QJsonObject expired = fixture.service.Handle(control::Request{
+        "old", "refresh.status", QJsonObject{{"operation_id", first_id}}});
+    QCOMPARE(expired.value("error").toObject().value("code").toString(),
+             "operation_not_found");
+    const QJsonObject oldest_retained = fixture.service.Handle(control::Request{
+        "oldest-retained", "refresh.status", QJsonObject{{"operation_id", second_id}}});
+    QVERIFY(oldest_retained.value("ok").toBool());
+    const QJsonObject newest_retained = fixture.service.Handle(control::Request{
+        "newest-retained", "refresh.status", QJsonObject{{"operation_id", last_id}}});
+    QVERIFY(newest_retained.value("ok").toBool());
 }
 
 QTEST_GUILESS_MAIN(ControlServiceTest)

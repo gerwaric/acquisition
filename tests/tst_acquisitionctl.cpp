@@ -1,5 +1,6 @@
 #include <QJsonDocument>
 #include <QProcess>
+#include <QStringList>
 #include <QTemporaryDir>
 #include <QtTest>
 
@@ -15,6 +16,7 @@ private slots:
     void validatesRefreshArguments();
     void identifiesItselfInParserErrors();
     void statusRoundTrip();
+    void waitTimeoutSendsOnlyStatusRequests();
 };
 
 namespace {
@@ -111,6 +113,40 @@ void AcquisitionCtlTest::statusRoundTrip()
                  .value("service_state")
                  .toString(),
              "ready");
+}
+
+void AcquisitionCtlTest::waitTimeoutSendsOnlyStatusRequests()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    control::LocalControlServer server;
+    QStringList received_commands;
+    server.SetHandler([&received_commands](const control::Request &request) {
+        received_commands.push_back(request.command);
+        if (request.command != "refresh.status"
+            || request.params.value("operation_id").toString() != "operation") {
+            return control::Error(request.request_id,
+                                  "wrong_command",
+                                  "expected refresh status");
+        }
+        return control::Success(
+            request.request_id,
+            QJsonObject{{"operation", QJsonObject{{"id", "operation"}, {"state", "running"}}}});
+    });
+    QVERIFY2(server.Listen(QDir(dir.path())), qPrintable(server.ErrorString()));
+
+    QProcess process;
+    process.start(ACQUISITIONCTL_PATH,
+                  {"--data-dir", dir.path(), "refresh", "wait", "operation", "--timeout", "1"});
+    QTRY_COMPARE_WITH_TIMEOUT(process.state(), QProcess::NotRunning, 3000);
+    QCOMPARE(process.exitStatus(), QProcess::NormalExit);
+    QCOMPARE(process.exitCode(), 7);
+    QVERIFY(!received_commands.isEmpty());
+    for (const QString &command : received_commands) {
+        QCOMPARE(command, "refresh.status");
+    }
+    const QJsonObject output = QJsonDocument::fromJson(process.readAllStandardOutput()).object();
+    QCOMPARE(output.value("error").toObject().value("code").toString(), "wait_timeout");
 }
 
 QTEST_GUILESS_MAIN(AcquisitionCtlTest)
