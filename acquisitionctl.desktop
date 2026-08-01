@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Version=1.5
+Name=acquisitionctl
+Exec=acquisitionctl
+Icon=default
+NoDisplay=true
+Comment=Control a running Acquisition application
+Categories=Utility
+Terminal=true

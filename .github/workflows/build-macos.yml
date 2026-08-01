@@ -42,8 +42,10 @@ jobs:
 
     - name: Package DMG
       run: |
+        cp build/acquisitionctl build/acquisition.app/Contents/MacOS/acquisitionctl
         $QT_ROOT_DIR/bin/macdeployqt \
           build/acquisition.app \
+          -executable=build/acquisition.app/Contents/MacOS/acquisitionctl \
           -verbose=2 \
           -always-overwrite \
           -appstore-compliant \

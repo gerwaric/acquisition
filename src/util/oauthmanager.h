@@ -36,9 +36,6 @@ private slots:
 signals:
     void grantAccess(const OAuthToken &token);
     void isAuthenticatedChanged();
-    // Emitted when an OAuth request fails or the server reports an error;
-    // during a token refresh this is the failure terminal headless sync needs.
-    void refreshFailed();
 
 private:
     void setToken(const OAuthToken &token);

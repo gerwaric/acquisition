@@ -31,6 +31,11 @@ class Shop;
 class UserStore;
 class UpdateChecker;
 
+namespace control {
+    class ControlService;
+    class LocalControlServer;
+} // namespace control
+
 struct MainWindowDeleter
 {
     void operator()(MainWindow *window) const;
@@ -40,7 +45,7 @@ class Application : public QObject
 {
     Q_OBJECT
 public:
-    explicit Application(const QDir &appDataDir, bool headless_sync = false);
+    explicit Application(const QDir &appDataDir);
     ~Application();
     Application(const Application &) = delete;
     Application &operator=(const Application &) = delete;
@@ -112,22 +117,18 @@ private:
     inline MainWindow &main_window() const { return *session().main_window; }
 
     void InitCoreServices();
+    void InitControlServer();
     void InitUserSession();
 
     void InitCrashReporting();
     void SaveDataOnNewVersion();
 
-    // One-shot non-interactive sync (--headless-sync): reuse the stored OAuth
-    // token, refresh it, sync the configured league, print a summary and exit.
-    void RunHeadlessSync();
-    void StartHeadlessUpdate();
-    void FinishHeadlessSync(int exit_code, const QString &status);
-
     std::unique_ptr<CoreServices> m_core;
     std::unique_ptr<UserSession> m_session;
+    // Declared after the session so IPC closes before the services it exposes.
+    std::unique_ptr<control::ControlService> m_control_service;
+    std::unique_ptr<control::LocalControlServer> m_control_server;
 
     QDir m_data_dir;
     QString m_active_theme;
-    bool m_headless{false};
-    QString m_headless_summary;
 };

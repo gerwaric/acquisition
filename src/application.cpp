@@ -12,9 +12,9 @@
 #include <QSettings>
 #include <QTimer>
 
-#include <cstdio>
-
 #include "buyoutmanager.h"
+#include "control/controlservice.h"
+#include "control/localcontrolserver.h"
 #include "currencymanager.h"
 #include "datastore/buyoutrepo.h"
 #include "datastore/characterrepo.h"
@@ -37,8 +37,7 @@
 #include "util/updatechecker.h"
 #include "version_defines.h"
 
-Application::Application(const QDir &appDataDir, bool headless_sync)
-    : m_headless(headless_sync)
+Application::Application(const QDir &appDataDir)
 {
     spdlog::debug("Application: created");
 
@@ -46,10 +45,7 @@ Application::Application(const QDir &appDataDir, bool headless_sync)
     m_data_dir = appDataDir;
 
     InitCoreServices();
-
-    if (m_headless) {
-        RunHeadlessSync();
-    }
+    InitControlServer();
 }
 
 Application::~Application() = default;
@@ -59,13 +55,10 @@ void Application::InitCoreServices()
     m_core = std::make_unique<Application::CoreServices>(m_data_dir);
 
     // Connect to the update signal in case an update is detected before the main window is open.
-    // Skipped headless: AskUserToUpdate opens a modal dialog.
-    if (!m_headless) {
-        connect(&update_checker(),
-                &UpdateChecker::UpdateAvailable,
-                &update_checker(),
-                &UpdateChecker::AskUserToUpdate);
-    }
+    connect(&update_checker(),
+            &UpdateChecker::UpdateAvailable,
+            &update_checker(),
+            &UpdateChecker::AskUserToUpdate);
 
     // Connect signals from the login dialog.
     connect(&login(), &LoginDialog::ChangeTheme, this, &Application::SetTheme);
@@ -86,12 +79,6 @@ void Application::InitCoreServices()
     spdlog::debug("Application: initializing RePoE");
     repoe().Init(m_data_dir.absolutePath());
 
-    if (m_headless) {
-        // Headless: no update check, no login dialog. The sync is driven by
-        // RunHeadlessSync() from the constructor.
-        return;
-    }
-
     // Start the initial check for updates.
     spdlog::debug("Application: checking for application updates");
     update_checker().CheckForUpdates();
@@ -99,6 +86,46 @@ void Application::InitCoreServices()
     // Show the login dialog now.
     spdlog::debug("Application: showing the login dialog");
     login().show();
+}
+
+void Application::InitControlServer()
+{
+    m_control_service = std::make_unique<control::ControlService>(APP_VERSION_STRING, this);
+    m_control_service->SetNeedsLogin();
+
+    m_control_server = std::make_unique<control::LocalControlServer>(this);
+    m_control_server->SetHandler(
+        [this](const control::Request &request) { return m_control_service->Handle(request); });
+    if (m_control_server->Listen(m_data_dir)) {
+        spdlog::debug("Application: local control listening on {}",
+                      m_control_server->Endpoint());
+        return;
+    }
+
+    spdlog::warn("Application: local control is unavailable: {}",
+                 m_control_server->ErrorString());
+    if (!m_control_server->OwnerConflict()) {
+        return;
+    }
+
+    // Preserve the existing multi-GUI policy while ensuring a surviving
+    // secondary instance takes over control after the original owner exits.
+    auto *retry = new QTimer(this);
+    retry->setInterval(std::chrono::seconds(2));
+    connect(retry, &QTimer::timeout, this, [this, retry] {
+        if (m_control_server->Listen(m_data_dir)) {
+            spdlog::info("Application: local control ownership acquired on {}",
+                         m_control_server->Endpoint());
+            retry->stop();
+            retry->deleteLater();
+        } else if (!m_control_server->OwnerConflict()) {
+            spdlog::warn("Application: stopped retrying local control: {}",
+                         m_control_server->ErrorString());
+            retry->stop();
+            retry->deleteLater();
+        }
+    });
+    retry->start();
 }
 
 void Application::InitUserSession()
@@ -181,11 +208,11 @@ void Application::InitUserSession()
     // Disconnect from the update signal so that only the main window gets it from now on.
     disconnect(updater, &UpdateChecker::UpdateAvailable, nullptr, nullptr);
 
-    if (m_headless) {
-        // The main window is constructed (it is part of UserSession) but never
-        // shown or connected: its NotifyUser route opens modal message boxes.
-        return;
-    }
+    m_control_service->AttachSession(*item_mgr,
+                                     *worker,
+                                     *buyout_mgr,
+                                     settings().value("account").toString(),
+                                     settings().value("league").toString());
 
     // Connect UI signals.
     ConnectMainWindow(*this, main_window(), *item_mgr, *worker, shop(), *updater, *cache);
@@ -337,130 +364,11 @@ void Application::OnLogin()
         connect(&repoe(), &RePoE::finished, &items_worker(), &ItemsManagerWorker::OnRePoEReady);
     }
 
-    if (m_headless) {
-        StartHeadlessUpdate();
-        return;
-    }
-
     spdlog::trace("Application::OnLogin() closing the login dialog");
     login().close();
 
     spdlog::trace("Application::OnLogin() showing the main window");
     ShowMainWindow(main_window());
-}
-
-void Application::RunHeadlessSync()
-{
-    spdlog::info("Headless sync: starting");
-
-    // The LoginDialog destructor clears the settings and the stored OAuth
-    // token unless "remember me" is checked; force the setting so a headless
-    // run can never log the user out on exit.
-    settings().setValue("remember_user", true);
-
-    const QString token = global_data().Get("oauth_token", "");
-    const QString league = settings().value("league").toString();
-    const QString account = settings().value("account").toString();
-    if (token.isEmpty() || league.isEmpty() || account.isEmpty()) {
-        spdlog::error("Headless sync: missing {}; run the GUI and log in (with 'remember me' "
-                      "checked) first",
-                      token.isEmpty() ? "stored OAuth token"
-                                      : (league.isEmpty() ? "league setting" : "account setting"));
-        FinishHeadlessSync(2, "needs_login");
-        return;
-    }
-
-    // Overall watchdog so a hung sync cannot wedge a calling script. This
-    // covers the whole run, including rate-limit waits.
-    QTimer::singleShot(std::chrono::minutes(10), this, [this] {
-        spdlog::error("Headless sync: watchdog timeout");
-        FinishHeadlessSync(6, "timeout");
-    });
-
-    // The OAuthManager constructor has already started refreshing the stored
-    // token; a successful refresh emits grantAccess, a failed one refreshFailed.
-    connect(&oauth_manager(), &OAuthManager::refreshFailed, this, [this] {
-        FinishHeadlessSync(3, "refresh_failed");
-    });
-    connect(
-        &oauth_manager(),
-        &OAuthManager::grantAccess,
-        this,
-        [this](const OAuthToken &) { OnLogin(); },
-        static_cast<Qt::ConnectionType>(Qt::SingleShotConnection));
-}
-
-void Application::StartHeadlessUpdate()
-{
-    // Trigger the network update only after the initial cached-item parse has
-    // finished (ItemsRefreshed with initial_refresh=true): calling Update()
-    // while the worker is still initializing takes the queued-request path,
-    // which emits NotifyUser — a signal with no headless route.
-    connect(&items_manager(), &ItemsManager::ItemsRefreshed, this, [this](bool initial_refresh) {
-        if (initial_refresh) {
-            spdlog::info("Headless sync: cache parse complete; starting update");
-            items_manager().Update(TabSelection::All);
-        }
-    });
-
-    // The final snapshot arrives before RefreshFinished and provides the
-    // summary counts for a completed refresh.
-    connect(&items_worker(),
-            &ItemsManagerWorker::ItemsRefreshed,
-            this,
-            [this](const Items &, const std::vector<ItemLocation> &tabs, bool initial_refresh) {
-                if (initial_refresh) {
-                    return;
-                }
-                int stashes = 0;
-                int characters = 0;
-                for (const auto &tab : tabs) {
-                    if (tab.type() == ItemLocationType::STASH) {
-                        ++stashes;
-                    } else {
-                        ++characters;
-                    }
-                }
-                m_headless_summary = QString("stashes=%1 characters=%2")
-                                         .arg(stashes)
-                                         .arg(characters);
-            });
-
-    // The worker's typed terminal event covers both completed and failed
-    // updates and is emitted after the final snapshot on success.
-    connect(&items_worker(),
-            &ItemsManagerWorker::RefreshFinished,
-            this,
-            [this](const RefreshOutcome &outcome) {
-                const auto *completed = std::get_if<CompletedRefresh>(&outcome);
-                if (completed && completed->skipped.empty()) {
-                    FinishHeadlessSync(0, "ok");
-                    return;
-                }
-                if (completed) {
-                    spdlog::error("Headless sync: {} sources were skipped",
-                                  completed->skipped.size());
-                }
-                FinishHeadlessSync(5, "sync_error");
-            });
-}
-
-void Application::FinishHeadlessSync(int exit_code, const QString &status)
-{
-    QString line = QString("HEADLESS_SYNC_RESULT status=%1").arg(status);
-    if (!m_headless_summary.isEmpty()) {
-        line += " " + m_headless_summary;
-    }
-    spdlog::info("{}", line);
-    // The summary line must reach stdout regardless of log level or sinks.
-    std::fputs(qUtf8Printable(line + "\n"), stdout);
-    std::fflush(stdout);
-    // Queued so that an exit requested before the event loop starts (e.g. the
-    // needs_login preflight, which runs from the constructor) still works.
-    QMetaObject::invokeMethod(
-        qApp,
-        [exit_code] { QCoreApplication::exit(exit_code); },
-        Qt::QueuedConnection);
 }
 
 void Application::InitCrashReporting()

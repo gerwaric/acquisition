@@ -102,6 +102,17 @@ ItemsManagerWorker::~ItemsManagerWorker()
     }
 }
 
+ItemsManagerWorker::UpdateReadiness ItemsManagerWorker::updateReadiness() const
+{
+    if (m_state == WorkerState::Initializing) {
+        return UpdateReadiness::Initializing;
+    }
+    if (m_state == WorkerState::Updating || m_delivering_terminal) {
+        return UpdateReadiness::Busy;
+    }
+    return UpdateReadiness::Ready;
+}
+
 void ItemsManagerWorker::UpdateRequest(TabSelection type, const std::vector<ItemLocation> &locations)
 {
     spdlog::trace("ItemsManagerWorker::UpdateRequest() entered");
