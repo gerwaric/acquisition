@@ -19,14 +19,20 @@ open-items entry). **Amended July 29,
 the exact freshness bound are now stated in D9's result, the spike's
 evidence claims are corrected in the archived result document, and
 R6-3 gains the cross-tab reselection pin — see the reviews file's
-amendment entry. Production
-implementation may begin, with the M2-M2 frame/storage measurement
-as its first checkpoint (R7-3; D3 freezes a determinate
-conditional). This spec consumes the M2 inbox in
-`items-pipeline.md` ("Inputs accumulated since this sketch") and its
-four hard constraints; the traceability table at the end maps every
-input to the decision, deferral, or acceptance criterion that consumed
-it.
+amendment entry. **IMPLEMENTED July 29–30, 2026** (stages 0–8 on a
+single branch; **PR #185 merged July 30**): M2-M2 ran at its stage-4
+checkpoint as required (R7-3), missed every budget, and was remedied
+by the source-keyed stores with a passing rerun (`m2-m2-result.md`).
+**Superseded in part by M3** (implemented July 31, 2026): D9's
+consumer-side machinery — the throttled reset, its pins, and the
+restore path — is retired by the delta-native items model, with
+exactly three stated renegotiations recorded there
+(`items-pipeline-m3.md`, D3); D1–D8 and D10 remain the live
+authority for the worker, manager, and shop sides. This spec
+consumed the M2 inbox in `items-pipeline.md` (trimmed to a
+consumed-pointer August 1, 2026) and its four hard constraints; the
+traceability table at the end maps every input to the decision,
+deferral, or acceptance criterion that consumed it.
 
 Citation convention: bare D-numbers (D1, D2, …) in this document are
 this document's decisions. Decisions of the network redesign are always
@@ -835,6 +841,13 @@ never runs on the delta path either way.
 M3 renegotiates the rest of the final-emit cascade; M2 does not.
 
 ### D9. UI application: intersection-gated, throttled, with a stated freshness bound
+
+**Retired by M3 (July 31, 2026).** This decision and its machinery —
+the throttle, its pins, and the restore path — are superseded by the
+delta-native items model (`items-pipeline-m3.md`, D3, and the
+supersession record in `m1-m3-result.md` §S8); the text below is the
+record of what M2 shipped and why. The stable `(type, id)` keying
+introduced here carries forward as M3's bucket keying.
 
 `MainWindow` consumes `ItemsManager::TabRefreshed` under an explicit
 five-rule state machine (R1-5 — this replaces revision 1's two-tier

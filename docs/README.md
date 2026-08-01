@@ -14,7 +14,10 @@ when this map and a header disagree, the header wins.
 - `design/items-pipeline-m2.md` — **frozen** spec (revision 9,
   July 29, 2026, amended post-freeze the same day) for Milestone 2,
   the streaming refresh signal: D-numbered decisions consuming the
-  plan's M2 inbox, with an input-traceability table. Review rounds
+  plan's M2 inbox, with an input-traceability table. Implemented and
+  shipped (PR #185, July 30); D9's consumer-side machinery is since
+  retired by M3 — D1–D8 and D10 remain the live authority for the
+  worker/manager/shop side. Review rounds
   1–7 are incorporated (round 4 was an in-repo audit); the S1-M2
   spike selected D9's outcome (a) with S = 60 s (result recorded in
   D9; the spike evidence doc is retired). M2-M2 ran at its stage-4

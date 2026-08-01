@@ -1,9 +1,12 @@
 # Items Pipeline Milestone 3: Delta-Native Items Model
 
-Status: **FROZEN at revision 4** (July 30, 2026). Production
-implementation may begin against this document; M1-M3 (the
-performance/memory checkpoint in the acceptance criteria) gates M3
-completion. Frozen on Tom's decision after the round-3 reviewers
+Status: **FROZEN at revision 4** (July 30, 2026); **IMPLEMENTED
+July 30–31, 2026** (stages S0–S8 on branch `items-pipeline-m3`).
+M1-M3 — the performance/memory checkpoint in the acceptance
+criteria, gating M3 completion — **PASSED at the S7 formal gate**
+with Tom's go, after S5's By-Item merge miss was remedied (the A′
+translate-and-notify rebuild); full tables and the miss/remedy
+record: `m1-m3-result.md`. Frozen on Tom's decision after the round-3 reviewers
 judged the spec at diminishing returns and the prescribed focused
 consistency check (key residency, activation ordering, nested
 batching) passed with only wording-level findings, folded into

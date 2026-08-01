@@ -8,11 +8,15 @@ findings register remains live at `docs/cleanup/findings.md` and this plan
 uses its F-numbers.
 
 The subject here is how item data flows from the Path of Exile API to the
-UI. The current design dates to 2014 and is **snapshot-oriented**: every
-layer speaks "here is the new world" (the full item vector) rather than
-"this tab changed". That one contract decision forces every cost and most
-of the correctness problems below; this plan replaces it, one shippable
-milestone at a time, with a **delta-native** pipeline.
+UI. The design this plan replaced dated to 2014 and was
+**snapshot-oriented**: every layer spoke "here is the new world" (the
+full item vector) rather than "this tab changed". That one contract
+decision forced every cost and most of the correctness problems below;
+this plan replaced it, one shippable milestone at a time, with a
+**delta-native** pipeline. **All three milestones have landed** (M1
+July 17, M2 July 30, M3 July 31, 2026 — see the milestone headings);
+the "Why now" and cascade sections below are kept as the dated record
+of the architecture they retired.
 
 ### Why now
 
@@ -38,12 +42,13 @@ milestone at a time, with a **delta-native** pipeline.
   labors to restore. The cleanup fixed the worst symptoms (F23, F31, F32)
   but the design cost is structural.
 
-### The snapshot cascade today
+### The snapshot cascade this plan replaced
 
-One `ItemsManagerWorker::ItemsRefreshed` emit currently triggers:
+One `ItemsManagerWorker::ItemsRefreshed` emit triggered (as of July
+2026, before the milestones below):
 
 1. `ItemsManager::OnItemsRefreshed` (`itemsmanager.cpp`): full item-vector
-   copy; an O(items) uncategorized-items scan that exists only for debug
+   copy; an O(items) uncategorized-items scan that existed only for debug
    logging (F46); three whole-collection buyout passes
    (`ApplyAutoTabBuyouts`, `ApplyAutoItemBuyouts`, `PropagateTabBuyouts`).
 2. `Application::OnItemsRefreshed` (`application.cpp`): currency snapshot,
@@ -52,12 +57,12 @@ One `ItemsManagerWorker::ItemsRefreshed` emit currently triggers:
    `Search::FilterItems()` for **every** search tab — each a full
    O(items × active filters) scan rebuilding all buckets — then
    `ModelViewRefresh()` for the current search, whose
-   `ItemsModel::beginUpdate()` is literally `beginResetModel()`. The reset
-   invalidates expansion, selection, and scroll state, which
+   `ItemsModel::beginUpdate()` was literally `beginResetModel()`. The reset
+   invalidated expansion, selection, and scroll state, which
    `RestoreViewExpansion` / `ReselectCurrentItem` / the resize coalescing
-   then reconstruct.
+   then reconstructed.
 
-No layer knows *what changed*, so no layer can do less.
+No layer knew *what changed*, so no layer could do less.
 
 ## Direction
 
