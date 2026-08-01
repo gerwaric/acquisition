@@ -18,7 +18,7 @@ project(acquisition
 include(CTest)
 
 # Use this to define pre-releases
-set(app_version_suffix "-alpha.3")
+set(app_version_suffix "-alpha.5")
 
 # Variables used in version_defines.h and platforn-specific files and properties.
 set(app_name            "${CMAKE_PROJECT_NAME}")
@@ -171,7 +171,7 @@ if(NOT TARGET sentry-native)
     FetchContent_Declare(
         sentry-native
         GIT_REPOSITORY https://github.com/getsentry/sentry-native
-        GIT_TAG        0.15.4
+        GIT_TAG        0.16.1
         GIT_SHALLOW    TRUE
     )
     FetchContent_MakeAvailable(sentry-native)
