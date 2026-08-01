@@ -41,32 +41,46 @@ namespace {
         return QString::fromLocal8Bit(entry.pw_dir);
     }
 
-    QString UserControlRoot()
+    QString SystemRuntimeRoot()
     {
 #ifdef Q_OS_MACOS
         const size_t size = confstr(_CS_DARWIN_USER_TEMP_DIR, nullptr, 0);
         if (size > 0) {
             QByteArray buffer(qsizetype(size), '\0');
             if (confstr(_CS_DARWIN_USER_TEMP_DIR, buffer.data(), size) > 0) {
-                const QString runtime = QString::fromLocal8Bit(buffer.constData());
-                if (IsPrivateUserDirectory(runtime)) {
-                    return QDir(runtime).filePath("acquisition-control");
-                }
+                return QString::fromLocal8Bit(buffer.constData());
             }
         }
+        return {};
 #elif defined(Q_OS_LINUX)
-        const QString runtime = QString("/run/user/%1").arg(qulonglong(getuid()));
-        if (IsPrivateUserDirectory(runtime)) {
-            return QDir(runtime).filePath("acquisition-control");
-        }
+        return QString("/run/user/%1").arg(qulonglong(getuid()));
+#else
+        return {};
 #endif
-        const QString home = PasswdHome();
-        return IsPrivateUserDirectory(home) ? QDir(home).filePath(".acquisition-control")
-                                            : QString{};
+    }
+
+    QString UserControlRoot()
+    {
+        return detail::SelectUnixControlRoot(SystemRuntimeRoot(), PasswdHome());
     }
 #endif
 
 } // namespace
+
+#ifndef Q_OS_WIN
+namespace detail {
+
+QString SelectUnixControlRoot(const QString &runtime, const QString &home)
+{
+    if (IsPrivateUserDirectory(runtime)) {
+        return QDir(runtime).filePath("acquisition-control");
+    }
+    return IsPrivateUserDirectory(home) ? QDir(home).filePath(".acquisition-control")
+                                        : QString{};
+}
+
+} // namespace detail
+#endif
 
 QDir DefaultDataDirectory()
 {

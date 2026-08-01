@@ -13,4 +13,10 @@ QString CanonicalDataDirectory(const QDir &directory);
 QString EndpointName(const QDir &directory);
 QString EndpointLockPath(const QDir &directory);
 
+#ifndef Q_OS_WIN
+namespace detail {
+    QString SelectUnixControlRoot(const QString &runtime, const QString &home);
+}
+#endif
+
 } // namespace control

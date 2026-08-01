@@ -1,7 +1,14 @@
+#include <QFile>
 #include <QFileInfo>
 #include <QJsonDocument>
 #include <QTemporaryDir>
 #include <QtTest>
+
+#ifndef Q_OS_WIN
+#include <pwd.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#endif
 
 #include "control/controlendpoint.h"
 #include "control/controlprotocol.h"
@@ -16,6 +23,7 @@ private slots:
     void validatesRequests();
     void responseEnvelope();
     void endpointIsUserScoped();
+    void unixRootSelection();
 };
 
 void ControlProtocolTest::fragmentedFrame()
@@ -152,7 +160,56 @@ void ControlProtocolTest::endpointIsUserScoped()
     }
 
     QCOMPARE(QFileInfo(first_endpoint).absolutePath(), QFileInfo(lock_path).absolutePath());
-    QCOMPARE(QFileInfo(first_endpoint).absoluteDir().dirName(), "acquisition-control");
+#ifdef Q_OS_MACOS
+    const size_t runtime_size = confstr(_CS_DARWIN_USER_TEMP_DIR, nullptr, 0);
+    QVERIFY(runtime_size > 0);
+    QByteArray runtime_buffer(qsizetype(runtime_size), '\0');
+    QVERIFY(confstr(_CS_DARWIN_USER_TEMP_DIR,
+                    runtime_buffer.data(),
+                    runtime_size)
+            > 0);
+    const QString expected_root = QDir(QString::fromLocal8Bit(runtime_buffer.constData()))
+                                      .filePath("acquisition-control");
+    QCOMPARE(QFileInfo(first_endpoint).absolutePath(), QDir(expected_root).absolutePath());
+#elif defined(Q_OS_LINUX)
+    const QString runtime_root = QString("/run/user/%1").arg(qulonglong(getuid()));
+    const QByteArray runtime_path = QFile::encodeName(runtime_root);
+    struct stat status {};
+    const bool runtime_is_private
+        = ::lstat(runtime_path.constData(), &status) == 0 && S_ISDIR(status.st_mode)
+          && status.st_uid == getuid() && (status.st_mode & S_IWUSR)
+          && (status.st_mode & S_IXUSR) && !(status.st_mode & (S_IWGRP | S_IWOTH));
+    const passwd *user = getpwuid(getuid());
+    QVERIFY(runtime_is_private || (user && user->pw_dir));
+    const QString expected_root
+        = runtime_is_private
+              ? QDir(runtime_root).filePath("acquisition-control")
+              : QDir(QString::fromLocal8Bit(user->pw_dir)).filePath(".acquisition-control");
+    QCOMPARE(QFileInfo(first_endpoint).absolutePath(), QDir(expected_root).absolutePath());
+#endif
+#endif
+}
+
+void ControlProtocolTest::unixRootSelection()
+{
+#ifndef Q_OS_WIN
+    QTemporaryDir runtime;
+    QTemporaryDir home;
+    QVERIFY(runtime.isValid());
+    QVERIFY(home.isValid());
+    QVERIFY(QFile::setPermissions(runtime.path(),
+                                  QFileDevice::ReadOwner | QFileDevice::WriteOwner
+                                      | QFileDevice::ExeOwner));
+    QVERIFY(QFile::setPermissions(home.path(),
+                                  QFileDevice::ReadOwner | QFileDevice::WriteOwner
+                                      | QFileDevice::ExeOwner));
+
+    QCOMPARE(control::detail::SelectUnixControlRoot(runtime.path(), home.path()),
+             QDir(runtime.path()).filePath("acquisition-control"));
+    QCOMPARE(control::detail::SelectUnixControlRoot(runtime.filePath("missing"), home.path()),
+             QDir(home.path()).filePath(".acquisition-control"));
+#else
+    QSKIP("Unix endpoint roots are not used on Windows");
 #endif
 }
 
