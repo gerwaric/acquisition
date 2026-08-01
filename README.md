@@ -33,6 +33,27 @@ See [BUILD.md](BUILD.md) for more detailed build and release packaging guidance.
 	The default level for release builds is `INFO`.
 	The default level for debug builds is `DEBUG`.
 
+### Local control CLI
+
+`acquisitionctl` inspects and controls an Acquisition GUI that is already
+running for the same data directory. It never opens the application's databases
+or starts a second synchronizer. Output is versioned JSON.
+
+```sh
+acquisitionctl status --json
+acquisitionctl tabs --json
+acquisitionctl items --limit 50 --json
+acquisitionctl item <item-id> --json
+acquisitionctl refresh start --json
+acquisitionctl refresh status <operation-id> --json
+acquisitionctl refresh wait <operation-id> --timeout 300 --json
+```
+
+Use `--data-dir <path>` for both executables when Acquisition uses a non-default
+location. An accepted refresh belongs to the GUI and continues if
+`acquisitionctl` disconnects. Existing automatic-shop settings remain in effect.
+Run `acquisitionctl --help` for pagination and tab-filter options.
+
 ## Reporting issues
 
 If you're having problems with Acquisition, please check the issues page: https://github.com/gerwaric/acquisition/issues
