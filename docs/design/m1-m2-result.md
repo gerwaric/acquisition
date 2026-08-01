@@ -57,8 +57,9 @@ handling (the gate never grants during the burst).
   platform plugin
 - spdlog level `info` (hot-path traces level-gated out, as in
   production)
-- Branch `m1-m2-measurement` off `items-pipeline-m3` head `63980eb8`
-  (the harness commit is the measured tree)
+- Measured tree: the harness commit `0819ecd3` (parent: the
+  `items-pipeline-m3` S8 head `63980eb8`); both measurement commits
+  were folded into `items-pipeline-m3`
 - Command: `./m1m2_benchmark -platform offscreen [--entries N]`;
   medians over 7 timed reps (3 at 8,000)
 
