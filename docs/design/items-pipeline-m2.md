@@ -11,7 +11,9 @@ outcome (a) is selected and S is confirmed at 60 seconds**, with the
 R6-3 restore-fidelity contract validated for the exercised intra-tab
 cases (global cross-tab reselection remains a production obligation
 — see the amendment) and reset latency recorded
-(evidence archived in `s1-m2-spike-result.md`). **Amended July 29,
+(evidence archived in `s1-m2-spike-result.md`, retired to git
+history August 1, 2026 — the numbers survive in D9 and the
+open-items entry). **Amended July 29,
 2026** after a post-freeze external review of the spike evidence
 (six findings, none changing a decision): the supported envelope and
 the exact freshness bound are now stated in D9's result, the spike's
@@ -1004,7 +1006,8 @@ precomputed sort keys, lazy sorting of visible buckets, born-sorted
 buckets — are model-layer choices M3 owns; the sort was timed as a
 whole, so comparator cost is the suspected, unprofiled driver). The outcome-(b) affordance contract (R7-1) below
 is retained as record but **not selected**; the outcome-(a)
-acceptance criteria bind. Full evidence: `s1-m2-spike-result.md`.
+acceptance criteria bind. Full evidence: `s1-m2-spike-result.md`
+(retired to git history August 1, 2026).
 
 Stated honestly (R5-3): outcome (b) is a **renegotiation of the
 parent plan's freshness-bound input**, not a fulfillment of it —
@@ -1346,7 +1349,8 @@ Design-review criteria (checked in review, not runnable):
   60 s**; fidelity held hands-on and under automated scenarios;
   reset latency recorded (~455 ms at 101k, ~5.4 s at ~976k, the
   post-reset whole-model re-sort dominant in both). Evidence:
-  `s1-m2-spike-result.md`; full result in D9.
+  `s1-m2-spike-result.md` (retired to git history August 1, 2026);
+  full result in D9.
 - **M1-M2 (measurement, blocks nothing) — RESOLVED July 31, 2026:**
   2,000-entry `QueueUpdated` burst vs. status-widget frame time;
   builds the D10 coalesce only if it stutters. Not run during M2

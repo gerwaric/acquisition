@@ -43,7 +43,7 @@ public:
         // (the M2-M2 100k preset, ~101k published items); "1m" is the
         // S1-M2 retuned preset M2-M2 and the sort spike reused (~976k);
         // "smoke" is the S1-M2 harness's recorded suite-speed shape
-        // (50 tabs / ~1k items, s1-m2-spike-result.md).
+        // (50 tabs / ~1k items; the M2 spec's D9 spike result).
         static std::optional<Config> Preset(const QString &name)
         {
             if (name == "smoke") {

@@ -50,7 +50,8 @@ Excluded from the measured windows, deliberately:
 - The D9 throttled reset (the tick): it is the separate coalesced
   refilter path, not part of the per-reply synchronous unit; the
   harness sets S to one hour so no tick lands inside a window. Reset
-  cost at these scales is recorded in `s1-m2-spike-result.md`.
+  cost at these scales is recorded in the M2 spec's D9 result
+  (`s1-m2-spike-result.md` is retired to git history).
 - Reply construction and serialization: the fake's payload (typed
   stash + wire bytes) is built before each window opens, standing in
   for work the network facade does below the boundary in production.
