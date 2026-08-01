@@ -222,9 +222,10 @@ checked before reading each page and serialization runs in the application
 thread. Unfiltered first pages report `total`; filtered pages omit it rather
 than scanning the full result set. A page examines at most 10,000 source items,
 so a sparse filter can return an empty item array with a continuation cursor.
-Clients continue until the cursor is null. Page and scan limits bound UI-thread
-work and response memory. The measured page cost did not justify an immutable
-snapshot.
+Clients continue until the cursor is null. Tab item counts aggregate the
+source-keyed published buckets rather than flattening or scanning every item.
+Page and scan limits bound UI-thread work and response memory. The measured
+cost did not justify an immutable snapshot.
 
 ## Refresh operations
 
@@ -332,10 +333,10 @@ The checked-in `control_benchmark` is excluded from normal builds and measures a
 complete cursor traversal of deterministic published collections. A local
 Release run on an Apple M4 Max measured:
 
-- 101,048 items in 1,011 pages: 1,009.797 ms total, 7.351 ms maximum page,
-  0.434 ms sparse-filter page;
-- 975,711 items in 9,758 pages: 9,417.832 ms total, 6.733 ms maximum page,
-  1.282 ms sparse-filter page.
+- 101,048 items in 1,011 pages: 963.014 ms total, 1.252 ms maximum page,
+  0.451 ms sparse-filter page, 7.992 ms tabs response;
+- 975,711 items in 9,758 pages: 9,442.817 ms total, 5.136 ms maximum page,
+  1.303 ms sparse-filter page, 11.115 ms tabs response.
 
 The local checkpoint completed a clean RelWithDebInfo build and all 39 tests.
 The four control-focused tests also passed an AddressSanitizer build

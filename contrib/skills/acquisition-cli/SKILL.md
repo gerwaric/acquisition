@@ -13,18 +13,20 @@ Before issuing commands, resolve the executable once and substitute its path for
 `acquisitionctl` below:
 
 1. Use an explicit path supplied by the user or the shell's `ACQUISITIONCTL`
-   variable, then try `acquisitionctl` on `PATH`.
-2. For a local build, try `build/acquisitionctl`.
-3. On macOS, derive `acquisitionctl` beside the running `acquisition` process
-   inside its relocatable app bundle. If the process path is unavailable, try
+   variable.
+2. If the GUI is running, prefer its release-matched CLI: on macOS and Windows,
+   derive the sibling `acquisitionctl` or `acquisitionctl.exe` from the running
+   GUI executable; on Linux, look beside the running GUI AppImage for the
+   separately downloaded `acquisitionctl-*.AppImage`.
+3. Next try `acquisitionctl` on `PATH`, then `build/acquisitionctl` for a local
+   build.
+4. For an inactive macOS installation, try
    `/Applications/acquisition.app/Contents/MacOS/acquisitionctl` and the same
    path under `~/Applications`.
-4. On Windows, use `acquisitionctl.exe` beside the running `acquisition.exe`.
-   If the GUI is not running, resolve the target of its `acquisition` Start Menu
-   shortcut and use that installation directory.
-5. On Linux, locate the separately downloaded `acquisitionctl-*.AppImage`
-   release artifact (commonly beside the GUI AppImage or in `~/Applications`)
-   and ensure it is executable.
+5. For an inactive Windows installation, resolve the target of its
+   `acquisition` Start Menu shortcut and use that directory.
+6. On Linux, also check `~/Applications` for the CLI AppImage and ensure it is
+   executable.
 
 If none exists, tell the user which CLI artifact is missing rather than reading
 private application files as a fallback.
