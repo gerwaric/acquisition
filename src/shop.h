@@ -77,6 +77,7 @@ signals:
     void StashesIndexed();
     void StatusUpdate(ProgramState state, const QString &status);
     void UserWarning(const QString &message);
+    void PoeSessionRejected();
 
 private:
     // One forum submission job (items-pipeline M2, D8/R2-1): its input is
@@ -138,6 +139,7 @@ private:
     void OnStashIndexReceived(
         const std::expected<poe::WebStashListWrapper, RateLimit::FetchError> &result);
     void OnStashIndexUpdated();
+    void RejectPoeSession(const QString &reason);
 
     void SubmitSingleShop();
     void SubmitNextShop(const QString &title, const QString &hash);

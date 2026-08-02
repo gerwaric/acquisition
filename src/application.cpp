@@ -172,6 +172,7 @@ void Application::InitUserSession()
     // the gate evaluates (the worker emits ItemsRefreshed before
     // RefreshFinished, so this holds by emission order regardless).
     connect(item_mgr, &ItemsManager::RefreshFinished, &shop(), &Shop::OnRefreshFinished);
+    connect(&shop(), &Shop::PoeSessionRejected, this, &Application::ClearSessionId);
 
     auto characters = &userstore().characters();
     auto stashes = &userstore().stashes();
@@ -415,14 +416,20 @@ void Application::InitCrashReporting()
     }
 }
 
+void Application::ClearSessionId()
+{
+    network_manager().clearPoeSessionId();
+    settings().remove("session_id");
+}
+
 void Application::SetSessionId(const QString &poesessid)
 {
     if (poesessid.isEmpty()) {
-        spdlog::error("Application: cannot update POESESSID: value is empty");
-        return;
+        ClearSessionId();
+    } else {
+        network_manager().setPoeSessionId(poesessid);
+        settings().setValue("session_id", poesessid);
     }
-    network_manager().setPoeSessionId(poesessid);
-    settings().setValue("session_id", poesessid);
 }
 
 void Application::SetTheme(const QString &theme)

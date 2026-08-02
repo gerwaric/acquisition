@@ -34,6 +34,18 @@ namespace {
     constexpr int kMaxCharactersInPost = 50000;
     constexpr int kSpoilerOverhead = 19; // "[spoiler][/spoiler]" length
 
+    bool IsPoeSessionRejected(const QNetworkReply *reply)
+    {
+        const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+        return status == 401 || status == 403;
+    }
+
+    bool IsPoeSessionRejected(const QByteArray &body)
+    {
+        return body.contains("Login Required") || body.contains("Permission Denied")
+               || body.contains("Content Denied");
+    }
+
     // Buyout grouping order for shop generation: items sharing one buyout
     // render under one spoiler.
     bool buyoutLess(const Buyout &a, const Buyout &b)
@@ -285,12 +297,16 @@ void Shop::OnStashIndexReceived(
     // classified — the transport check, the status check, and the parse
     // check this function used to do all live below the facade now.
     if (!result) {
-        if (result.error().kind == RateLimit::FetchError::Kind::Canceled) {
+        const auto &error = result.error();
+        if (error.kind == RateLimit::FetchError::Kind::Canceled) {
             spdlog::debug("Shop: the stash index request was canceled");
+        } else if (error.kind == RateLimit::FetchError::Kind::Http
+                   && (error.http_status == 401 || error.http_status == 403)) {
+            RejectPoeSession("legacy stash index returned HTTP 401/403");
         } else {
             spdlog::error("Shop: could not index stashes ({}): {}",
-                          RateLimit::ToString(result.error().kind),
-                          result.error().message);
+                          RateLimit::ToString(error.kind),
+                          error.message);
         }
         FailActiveJob();
         return;
@@ -312,6 +328,19 @@ void Shop::OnStashIndexReceived(
     }
 
     OnStashIndexUpdated();
+}
+
+void Shop::RejectPoeSession(const QString &reason)
+{
+    spdlog::warn("Shop: rejecting POESESSID: {}", reason);
+
+    m_waiting_capture.reset();
+    SetAutoUpdate(false);
+
+    emit PoeSessionRejected();
+    emit UserWarning("Path of Exile rejected the saved POESESSID. Acquisition has "
+                     "cleared it and disabled automatic forum updates as a precaution.\n\n"
+                     "Normal stash and character updates are unaffected.");
 }
 
 void Shop::ExpireShopData()
@@ -537,42 +566,31 @@ void Shop::OnEditPageFinished()
         return;
     }
     QNetworkReply *reply = qobject_cast<QNetworkReply *>(QObject::sender());
+
+    if (IsPoeSessionRejected(reply)) {
+        RejectPoeSession("forum edit page returned HTTP 401/403");
+        reply->deleteLater();
+        FailActiveJob();
+        return;
+    }
+
     const QByteArray bytes = reply->readAll();
+    if (IsPoeSessionRejected(bytes)) {
+        // The website may redirect an unauthenticated request to an error
+        // page whose final response is 200, so status alone is insufficient.
+        RejectPoeSession("forum edit page returned an authentication error page");
+        reply->deleteLater();
+        FailActiveJob();
+        return;
+    }
+
     const QString hash = Util::GetCsrfToken(bytes, "hash");
     if (hash.isEmpty()) {
-        if (bytes.contains("Login Required")) {
-            spdlog::error("Cannot update shop: the POESESSID is missing or invalid.");
-            emit UserWarning(
-                "Cannot update forum shop threads because POESESSID is missing or invalid."
-                "\n\n"
-                "Use the Shop --> 'Update Shop POESESSID' menu item."
-                "\n\n"
-                "This is required even if you have logged in with OAuth, because the forums do not "
-                "support OAuth.");
-
-            emit StatusUpdate(ProgramState::Ready,
-                              "Shop threads not updated to to missing or invalid POESESSID");
-
-        } else if (bytes.contains("Permission Denied")) {
-            spdlog::error("Cannot update shop: the POESESSID may be invalid or associated with "
-                          "another account.");
-            emit UserWarning(
-                "Cannot update forum shop threads because POESESSID is invalid or associated with "
-                "the wrong account."
-                "\n\n"
-                "Use the Shop --> 'Update Shop POESESSID' menu item."
-                "\n\n"
-                "This is required even if you have logged in with OAuth, because the forums do not "
-                "support OAuth.");
-            emit StatusUpdate(ProgramState::Ready,
-                              "Shop threads not updated to to missing or invalid POESESSID");
-
-        } else {
-            spdlog::error("Cannot update shop: unable to extract CSRF token from the page. The "
-                          "thread ID may be invalid.");
-            emit StatusUpdate(ProgramState::Ready, "Shop threads not updated due to an error.");
-        }
+        spdlog::error("Cannot update shop: unable to extract CSRF token from the page. The "
+                      "thread ID may be invalid.");
+        emit StatusUpdate(ProgramState::Ready, "Shop threads not updated due to an error.");
         FailActiveJob();
+        reply->deleteLater();
         return;
     }
     spdlog::trace("CSRF token found.");
@@ -638,19 +656,30 @@ void Shop::OnShopSubmitted(QUrlQuery query, QNetworkReply *reply)
         return;
     }
 
-    // Check for network errors.
+    const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+    if (IsPoeSessionRejected(reply)) {
+        RejectPoeSession("forum submission returned HTTP 401/403");
+        FailActiveJob();
+        return;
+    }
+
+    // Check for transport errors. reply->error() is a Qt NetworkError enum,
+    // not an HTTP status; the response status lives in the request attribute.
     if (reply->error() != QNetworkReply::NoError) {
-        const int status = reply->error();
-        if ((status < 200) || (status > 299)) {
-            const QString msg = reply->errorString();
-            spdlog::error("Shop: network error submitting shop: {} {}", status, msg);
-            FailActiveJob();
-            return;
-        }
-        spdlog::debug("Shop: http reply status {} submitting shop", status);
+        spdlog::error("Shop: network error submitting shop: HTTP {}, Qt error {}: {}",
+                      status,
+                      reply->error(),
+                      reply->errorString());
+        FailActiveJob();
+        return;
     }
 
     const QByteArray bytes = reply->readAll();
+    if (IsPoeSessionRejected(bytes)) {
+        RejectPoeSession("forum submission returned an authentication error page");
+        FailActiveJob();
+        return;
+    }
 
     // Errors can show up in a couple different places. So far, the easiest way to identify
     // them seems to be to look for an html tag with the "class" attribute set to
