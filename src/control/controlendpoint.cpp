@@ -9,6 +9,7 @@
 #include <QStandardPaths>
 
 #ifndef Q_OS_WIN
+#include <cerrno>
 #include <pwd.h>
 #include <sys/stat.h>
 #include <sys/un.h>
@@ -27,6 +28,18 @@ namespace {
         return ::lstat(encoded.constData(), &status) == 0 && S_ISDIR(status.st_mode)
                && status.st_uid == getuid() && (status.st_mode & S_IWUSR)
                && (status.st_mode & S_IXUSR) && !(status.st_mode & (S_IWGRP | S_IWOTH));
+    }
+
+    bool IsMissingOrPrivateDirectory(const QString &path)
+    {
+        const QByteArray encoded = QFile::encodeName(path);
+        struct stat status {};
+        if (::lstat(encoded.constData(), &status) == 0) {
+            return S_ISDIR(status.st_mode) && status.st_uid == getuid()
+                   && (status.st_mode & S_IWUSR) && (status.st_mode & S_IXUSR)
+                   && !(status.st_mode & (S_IWGRP | S_IWOTH));
+        }
+        return errno == ENOENT;
     }
 
     QString PasswdHome()
@@ -67,10 +80,21 @@ namespace {
 #endif
     }
 
-    QString UserControlRoot()
+    QString HomeControlRoot(const QString &home)
     {
-        return detail::SelectUnixControlRoot(SystemRuntimeRoot(), PasswdHome());
+        if (!IsPrivateUserDirectory(home)) {
+            return {};
+        }
+        const QString legacy_root = QDir(home).filePath(".acquisition-control");
+        if (EndpointPathFits(legacy_root) && IsMissingOrPrivateDirectory(legacy_root)) {
+            return legacy_root;
+        }
+        const QString short_root = QDir(home).filePath(".acq-control");
+        return EndpointPathFits(short_root) && IsMissingOrPrivateDirectory(short_root)
+                   ? short_root
+                   : QString{};
     }
+
 #endif
 
 } // namespace
@@ -81,18 +105,11 @@ namespace detail {
 QString SelectUnixControlRoot(const QString &runtime, const QString &home)
 {
     const QString runtime_root = QDir(runtime).filePath("acquisition-control");
-    if (IsPrivateUserDirectory(runtime) && EndpointPathFits(runtime_root)) {
+    if (IsPrivateUserDirectory(runtime) && EndpointPathFits(runtime_root)
+        && IsMissingOrPrivateDirectory(runtime_root)) {
         return runtime_root;
     }
-    if (!IsPrivateUserDirectory(home)) {
-        return {};
-    }
-    const QString legacy_home_root = QDir(home).filePath(".acquisition-control");
-    if (EndpointPathFits(legacy_home_root)) {
-        return legacy_home_root;
-    }
-    const QString short_home_root = QDir(home).filePath(".acq-control");
-    return EndpointPathFits(short_home_root) ? short_home_root : QString{};
+    return HomeControlRoot(home);
 }
 
 } // namespace detail
@@ -108,23 +125,60 @@ QDir DefaultDataDirectory()
 
 QString CanonicalDataDirectory(const QDir &directory)
 {
-    const QFileInfo info(directory.absolutePath());
-    const QString canonical = info.canonicalFilePath();
-    return canonical.isEmpty() ? QDir::cleanPath(info.absoluteFilePath()) : canonical;
+    QString candidate = QDir::cleanPath(QFileInfo(directory.absolutePath()).absoluteFilePath());
+    QStringList missing_components;
+    while (true) {
+        const QFileInfo info(candidate);
+        const QString canonical = info.canonicalFilePath();
+        if (!canonical.isEmpty()) {
+            QString resolved = canonical;
+            for (const QString &component : missing_components) {
+                resolved = QDir(resolved).filePath(component);
+            }
+            return QDir::cleanPath(resolved);
+        }
+
+        const QString parent = info.dir().absolutePath();
+        if (parent == candidate) {
+            return QDir::cleanPath(directory.absolutePath());
+        }
+        missing_components.prepend(info.fileName());
+        candidate = parent;
+    }
 }
 
-QString EndpointName(const QDir &directory)
+QStringList EndpointNames(const QDir &directory)
 {
     const QByteArray identity = CanonicalDataDirectory(directory).toUtf8();
     const QByteArray digest = QCryptographicHash::hash(identity, QCryptographicHash::Sha256).toHex();
 #ifdef Q_OS_WIN
-    return "acquisition-control-" + QString::fromLatin1(digest.first(24));
+    return {"acquisition-control-" + QString::fromLatin1(digest.first(24))};
 #else
-    const QString root = UserControlRoot();
-    return root.isEmpty()
-               ? QString{}
-               : QDir(root).filePath("socket-" + QString::fromLatin1(digest.first(16)));
+    QStringList roots;
+    const QString runtime = SystemRuntimeRoot();
+    const QString runtime_root = QDir(runtime).filePath("acquisition-control");
+    if (IsPrivateUserDirectory(runtime) && EndpointPathFits(runtime_root)
+        && IsMissingOrPrivateDirectory(runtime_root)) {
+        roots.push_back(runtime_root);
+    }
+    const QString home_root = HomeControlRoot(PasswdHome());
+    if (!home_root.isEmpty() && !roots.contains(home_root)) {
+        roots.push_back(home_root);
+    }
+
+    QStringList endpoints;
+    for (const QString &root : roots) {
+        endpoints.push_back(
+            QDir(root).filePath("socket-" + QString::fromLatin1(digest.first(16))));
+    }
+    return endpoints;
 #endif
+}
+
+QString EndpointName(const QDir &directory)
+{
+    const QStringList endpoints = EndpointNames(directory);
+    return endpoints.isEmpty() ? QString{} : endpoints.front();
 }
 
 QString EndpointLockPath(const QDir &directory)
@@ -132,12 +186,8 @@ QString EndpointLockPath(const QDir &directory)
 #ifdef Q_OS_WIN
     return QDir(CanonicalDataDirectory(directory)).filePath(".acquisition-control/owner.lock");
 #else
-    const QString endpoint_name = EndpointName(directory);
-    if (endpoint_name.isEmpty()) {
-        return {};
-    }
-    const QFileInfo endpoint(endpoint_name);
-    return QDir(endpoint.absolutePath()).filePath(endpoint.fileName() + ".lock");
+    const QStringList endpoints = EndpointNames(directory);
+    return endpoints.isEmpty() ? QString{} : endpoints.back() + ".lock";
 #endif
 }
 

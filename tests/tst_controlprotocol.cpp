@@ -6,7 +6,6 @@
 
 #ifndef Q_OS_WIN
 #include <pwd.h>
-#include <sys/stat.h>
 #include <sys/un.h>
 #include <unistd.h>
 #endif
@@ -24,6 +23,7 @@ private slots:
     void validatesRequests();
     void responseEnvelope();
     void endpointIsUserScoped();
+    void canonicalizesMissingDirectoryThroughSymlink();
     void unixRootSelection();
 };
 
@@ -139,7 +139,13 @@ void ControlProtocolTest::endpointIsUserScoped()
     QVERIFY(first.isValid());
     QVERIFY(second.isValid());
     const QString first_endpoint = control::EndpointName(QDir(first.path()));
+    const QStringList endpoint_candidates = control::EndpointNames(QDir(first.path()));
     QVERIFY(!first_endpoint.isEmpty());
+    QVERIFY(!endpoint_candidates.isEmpty());
+    QCOMPARE(endpoint_candidates.front(), first_endpoint);
+    QStringList unique_candidates = endpoint_candidates;
+    unique_candidates.removeDuplicates();
+    QCOMPARE(endpoint_candidates.size(), unique_candidates.size());
     QVERIFY(first_endpoint != control::EndpointName(QDir(second.path())));
     const QString lock_path = control::EndpointLockPath(QDir(first.path()));
     QVERIFY(QFileInfo(lock_path).isAbsolute());
@@ -160,9 +166,11 @@ void ControlProtocolTest::endpointIsUserScoped()
         qputenv("HOME", old_home);
     }
 
-    QCOMPARE(QFileInfo(first_endpoint).absolutePath(), QFileInfo(lock_path).absolutePath());
-    QVERIFY(QFile::encodeName(first_endpoint).size()
-            < qsizetype(sizeof(sockaddr_un::sun_path)));
+    QCOMPARE(lock_path, endpoint_candidates.back() + ".lock");
+    for (const QString &endpoint : endpoint_candidates) {
+        QVERIFY(QFile::encodeName(endpoint).size()
+                < qsizetype(sizeof(sockaddr_un::sun_path)));
+    }
 #ifdef Q_OS_MACOS
     const size_t runtime_size = confstr(_CS_DARWIN_USER_TEMP_DIR, nullptr, 0);
     QVERIFY(runtime_size > 0);
@@ -171,25 +179,42 @@ void ControlProtocolTest::endpointIsUserScoped()
                     runtime_buffer.data(),
                     runtime_size)
             > 0);
-    const QString expected_root = QDir(QString::fromLocal8Bit(runtime_buffer.constData()))
-                                      .filePath("acquisition-control");
+    const passwd *user = getpwuid(getuid());
+    QVERIFY(user && user->pw_dir);
+    const QString expected_root = control::detail::SelectUnixControlRoot(
+        QString::fromLocal8Bit(runtime_buffer.constData()),
+        QString::fromLocal8Bit(user->pw_dir));
     QCOMPARE(QFileInfo(first_endpoint).absolutePath(), QDir(expected_root).absolutePath());
 #elif defined(Q_OS_LINUX)
     const QString runtime_root = QString("/run/user/%1").arg(qulonglong(getuid()));
-    const QByteArray runtime_path = QFile::encodeName(runtime_root);
-    struct stat status {};
-    const bool runtime_is_private
-        = ::lstat(runtime_path.constData(), &status) == 0 && S_ISDIR(status.st_mode)
-          && status.st_uid == getuid() && (status.st_mode & S_IWUSR)
-          && (status.st_mode & S_IXUSR) && !(status.st_mode & (S_IWGRP | S_IWOTH));
     const passwd *user = getpwuid(getuid());
-    QVERIFY(runtime_is_private || (user && user->pw_dir));
-    const QString expected_root
-        = runtime_is_private
-              ? QDir(runtime_root).filePath("acquisition-control")
-              : QDir(QString::fromLocal8Bit(user->pw_dir)).filePath(".acquisition-control");
+    QVERIFY(user && user->pw_dir);
+    const QString expected_root = control::detail::SelectUnixControlRoot(
+        runtime_root,
+        QString::fromLocal8Bit(user->pw_dir));
     QCOMPARE(QFileInfo(first_endpoint).absolutePath(), QDir(expected_root).absolutePath());
 #endif
+#endif
+}
+
+void ControlProtocolTest::canonicalizesMissingDirectoryThroughSymlink()
+{
+#ifndef Q_OS_WIN
+    QTemporaryDir parent;
+    QTemporaryDir target;
+    QVERIFY(parent.isValid());
+    QVERIFY(target.isValid());
+    const QString link = parent.filePath("linked-parent");
+    QVERIFY(QFile::link(target.path(), link));
+    const QDir missing(QDir(link).filePath("missing/data"));
+
+    const QString before = control::CanonicalDataDirectory(missing);
+    QVERIFY(QDir().mkpath(missing.absolutePath()));
+    QCOMPARE(control::CanonicalDataDirectory(missing), before);
+    QCOMPARE(before,
+             QDir(QFileInfo(target.path()).canonicalFilePath()).filePath("missing/data"));
+#else
+    QSKIP("Symlink creation is not generally available to Windows tests");
 #endif
 }
 
@@ -215,6 +240,9 @@ void ControlProtocolTest::unixRootSelection()
     QVERIFY(QFile::setPermissions(insecure_home.path(),
                                   private_permissions | QFileDevice::WriteGroup
                                       | QFileDevice::ExeGroup));
+    QCOMPARE(control::detail::SelectUnixControlRoot(runtime.path(),
+                                                    insecure_home.path()),
+             QDir(runtime.path()).filePath("acquisition-control"));
     QVERIFY(control::detail::SelectUnixControlRoot(runtime.filePath("missing"),
                                                    insecure_home.path())
                 .isEmpty());

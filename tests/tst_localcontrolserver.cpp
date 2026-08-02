@@ -6,8 +6,11 @@
 #include <QTemporaryDir>
 #include <QtTest>
 
+#include <future>
+
 #include "control/controlendpoint.h"
 #include "control/controlprotocol.h"
+#include "control/localcontrolclient.h"
 #include "control/localcontrolserver.h"
 
 class LocalControlServerTest : public QObject
@@ -15,6 +18,7 @@ class LocalControlServerTest : public QObject
     Q_OBJECT
 private slots:
     void roundTrip();
+    void clientTriesFallbackEndpoint();
     void fragmentedRequest();
     void liveEndpointIsNotReplaced();
     void malformedClientDoesNotAffectAnother();
@@ -85,6 +89,30 @@ void LocalControlServerTest::roundTrip()
     QVERIFY(response.value("ok").toBool());
     QCOMPARE(response.value("request_id").toString(), "request");
     QCOMPARE(response.value("result").toObject().value("state").toString(), "ready");
+}
+
+void LocalControlServerTest::clientTriesFallbackEndpoint()
+{
+    QTemporaryDir dir;
+    control::LocalControlServer server;
+    server.SetHandler([](const control::Request &request) {
+        return control::Success(request.request_id, QJsonObject{{"fallback", true}});
+    });
+    QVERIFY2(server.Listen(QDir(dir.path())), qPrintable(server.ErrorString()));
+
+    const QString endpoint = server.Endpoint();
+    auto future = std::async(std::launch::async, [endpoint] {
+        return control::SendRequest(
+            QStringList{endpoint + "-missing", endpoint},
+            request(),
+            1000);
+    });
+    QTRY_VERIFY_WITH_TIMEOUT(future.wait_for(std::chrono::milliseconds(0))
+                                 == std::future_status::ready,
+                             3000);
+    const auto response = future.get();
+    QVERIFY(response);
+    QVERIFY(response->value("result").toObject().value("fallback").toBool());
 }
 
 void LocalControlServerTest::fragmentedRequest()

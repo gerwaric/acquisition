@@ -91,16 +91,18 @@ another agent-specific protocol.
 
 The endpoint identity is a digest of the canonical data-directory path,
 namespaced by application and protocol identity. Different test or user data
-roots do not collide. Unix places the socket and lock in a short, owner-only
-OS-managed user runtime root (Darwin's user temp directory or
-`/run/user/<uid>`), with `.acquisition-control` under the validated passwd home
-when that root is unavailable. Existing fallback paths remain stable; a shorter
-`.acq-control` name is used only when needed to fit `sockaddr_un::sun_path`.
-Roots that still cannot fit the complete socket name are rejected rather than truncated.
-Discovery does not depend on the caller's `HOME` or
-`XDG_RUNTIME_DIR`. Windows uses the digest as the named-pipe identity. A
-short-lived native lock serializes bind: an advisory lock file in the private
-Unix runtime root, or a global named mutex on Windows. The operating system
+roots do not collide. Unix prefers an owner-only OS-managed runtime root
+(Darwin's user temp directory or `/run/user/<uid>`) and falls back to
+`.acquisition-control` under the validated passwd home. Existing fallback paths
+remain stable; a shorter `.acq-control` name is used only when needed to fit
+`sockaddr_un::sun_path`. Roots that still cannot fit the complete socket name
+are rejected rather than truncated. The server locks and probes every viable
+candidate before binding, and clients try candidates in the same order, so a
+runtime directory appearing later cannot hide a live fallback endpoint.
+Discovery does not depend on the caller's `HOME` or `XDG_RUNTIME_DIR`. Windows uses the digest as
+the named-pipe identity. Short-lived native locks serialize bind: advisory locks beside every viable
+Unix endpoint, acquired in deterministic order, or a global named mutex on
+Windows. The operating system
 releases either lock after a crash. The server requests
 `QLocalServer::UserAccessOption`; after bind, the live socket itself establishes
 ownership.

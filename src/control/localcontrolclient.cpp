@@ -142,4 +142,23 @@ std::expected<QJsonObject, ClientError> SendRequest(const QString &endpoint,
         "transport_error", "the server disconnected without a response", true});
 }
 
+std::expected<QJsonObject, ClientError> SendRequest(const QStringList &endpoints,
+                                                    const QJsonObject &request,
+                                                    int timeout_ms)
+{
+    ClientError last_error{"not_running", "no usable control endpoint is available"};
+    QDeadlineTimer deadline(timeout_ms);
+    for (const QString &endpoint : endpoints) {
+        const int remaining = int(std::clamp<qint64>(deadline.remainingTime(),
+                                                    0,
+                                                    std::numeric_limits<int>::max()));
+        auto response = SendRequest(endpoint, request, remaining);
+        if (response || response.error().code != "not_running") {
+            return response;
+        }
+        last_error = response.error();
+    }
+    return std::unexpected(last_error);
+}
+
 } // namespace control

@@ -5,11 +5,13 @@
 
 #include <QDir>
 #include <QString>
+#include <QStringList>
 
 namespace control {
 
 QDir DefaultDataDirectory();
 QString CanonicalDataDirectory(const QDir &directory);
+QStringList EndpointNames(const QDir &directory);
 QString EndpointName(const QDir &directory);
 QString EndpointLockPath(const QDir &directory);
 

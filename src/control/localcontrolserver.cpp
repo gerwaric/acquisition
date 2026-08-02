@@ -13,7 +13,10 @@
 #include <QtNumeric>
 #include <QTimer>
 
+#include <algorithm>
 #include <exception>
+#include <memory>
+#include <vector>
 
 #ifdef Q_OS_WIN
 #include <qt_windows.h>
@@ -232,52 +235,76 @@ LocalControlServer::~LocalControlServer()
 bool LocalControlServer::Listen(const QDir &data_directory)
 {
     Close();
-    m_endpoint = EndpointName(data_directory);
+    QStringList endpoints = EndpointNames(data_directory);
     m_error_string.clear();
     m_owner_conflict = false;
-    if (m_endpoint.isEmpty()) {
-        m_error_string = "a private per-user runtime directory is unavailable";
+    if (endpoints.isEmpty()) {
+        m_error_string = "a private per-user control directory is unavailable";
         return false;
     }
+    m_endpoint = endpoints.front();
+
 #ifndef Q_OS_WIN
-    const QString endpoint_directory = QFileInfo(m_endpoint).absolutePath();
-    if (!SecureControlDirectory(endpoint_directory)) {
-        m_error_string = "the private control directory could not be secured";
-        return false;
+    for (qsizetype index = endpoints.size(); index-- > 0;) {
+        const QString endpoint_directory = QFileInfo(endpoints.at(index)).absolutePath();
+        if (!SecureControlDirectory(endpoint_directory)) {
+            if (index == 0) {
+                m_error_string = "the preferred private control directory could not be secured";
+                return false;
+            }
+            endpoints.removeAt(index);
+        }
     }
 #endif
 
+    std::vector<std::unique_ptr<BindLock>> bind_locks;
+#ifdef Q_OS_WIN
     const QString lock_path = EndpointLockPath(data_directory);
-    // The lock parent is created on every platform, including Windows where
-    // it lives under the data directory rather than beside the named pipe.
     if (lock_path.isEmpty()
         || !QDir().mkpath(QFileInfo(lock_path).absolutePath())) {
         m_error_string = "a writable control-lock directory is unavailable";
         return false;
     }
-    BindLock bind_lock;
-    if (!bind_lock.TryLock(lock_path + ".native", m_endpoint)) {
+    auto bind_lock = std::make_unique<BindLock>();
+    if (!bind_lock->TryLock(lock_path + ".native", m_endpoint)) {
         m_owner_conflict = true;
-        m_error_string = "another Acquisition process is binding the control endpoint";
+        m_error_string = "another Acquisition process is binding a control endpoint";
         return false;
     }
+    bind_locks.push_back(std::move(bind_lock));
+#else
+    QStringList lock_endpoints = endpoints;
+    std::sort(lock_endpoints.begin(), lock_endpoints.end());
+    for (const QString &endpoint : lock_endpoints) {
+        auto bind_lock = std::make_unique<BindLock>();
+        if (!bind_lock->TryLock(endpoint + ".lock.native", endpoint)) {
+            m_owner_conflict = true;
+            m_error_string = "another Acquisition process is binding a control endpoint";
+            return false;
+        }
+        bind_locks.push_back(std::move(bind_lock));
+    }
+#endif
 
-    // QLocalServer may remove an existing Unix socket before bind, so probe
-    // before listen as well as before any explicit stale-endpoint removal.
-    QLocalSocket probe;
-    probe.connectToServer(m_endpoint);
-    if (probe.waitForConnected(250)) {
-        probe.abort();
-        m_owner_conflict = true;
-        m_error_string = "another Acquisition process owns the control endpoint";
-        return false;
-    }
-    if (probe.error() != QLocalSocket::ServerNotFoundError
-        && probe.error() != QLocalSocket::ConnectionRefusedError) {
-        m_owner_conflict = true;
-        m_error_string = "control endpoint ownership could not be confirmed: "
-                         + probe.errorString();
-        return false;
+    // Every viable endpoint is checked while all candidate locks are held.
+    // Their deterministic order preserves both existing per-endpoint locking
+    // and coordination if a runtime directory appears after startup.
+    for (const QString &endpoint : endpoints) {
+        QLocalSocket probe;
+        probe.connectToServer(endpoint);
+        if (probe.waitForConnected(250)) {
+            probe.abort();
+            m_owner_conflict = true;
+            m_error_string = "another Acquisition process owns a control endpoint";
+            return false;
+        }
+        if (probe.error() != QLocalSocket::ServerNotFoundError
+            && probe.error() != QLocalSocket::ConnectionRefusedError) {
+            m_owner_conflict = true;
+            m_error_string = "control endpoint ownership could not be confirmed: "
+                             + probe.errorString();
+            return false;
+        }
     }
 
     if (m_server.listen(m_endpoint)) {

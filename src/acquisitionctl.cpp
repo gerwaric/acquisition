@@ -255,8 +255,8 @@ int main(int argc, char *argv[])
         return 2;
     }
 
-    const QString endpoint = control::EndpointName(QDir(parser.value(data_dir_option)));
-    const auto send = [&endpoint](const QString &request_command,
+    const QStringList endpoints = control::EndpointNames(QDir(parser.value(data_dir_option)));
+    const auto send = [&endpoints](const QString &request_command,
                                   const QJsonObject &request_params,
                                   int timeout_ms,
                                   QString request_id = {}) {
@@ -267,7 +267,7 @@ int main(int argc, char *argv[])
                                   {"request_id", request_id},
                                   {"command", request_command},
                                   {"params", request_params}};
-        return control::SendRequest(endpoint, request, timeout_ms);
+        return control::SendRequest(endpoints, request, timeout_ms);
     };
 
     // refresh start is always in this branch; wait_for_refresh is set only by

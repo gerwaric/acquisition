@@ -5,6 +5,7 @@
 
 #include <QJsonObject>
 #include <QString>
+#include <QStringList>
 
 #include <expected>
 
@@ -18,6 +19,9 @@ struct ClientError
 };
 
 std::expected<QJsonObject, ClientError> SendRequest(const QString &endpoint,
+                                                    const QJsonObject &request,
+                                                    int timeout_ms);
+std::expected<QJsonObject, ClientError> SendRequest(const QStringList &endpoints,
                                                     const QJsonObject &request,
                                                     int timeout_ms);
 
