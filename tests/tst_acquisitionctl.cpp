@@ -25,6 +25,7 @@ private slots:
     void identifiesItselfInParserErrors();
     void statusRoundTrip();
     void refreshStartRetriesWithSameRequestId();
+    void refreshStartRetriesInvalidResponseWithSameRequestId();
     void refreshStartPreservesIdWhenRetryCannotConnect();
     void waitTimeoutSendsOnlyStatusRequests();
 };
@@ -199,6 +200,37 @@ void AcquisitionCtlTest::refreshStartRetriesWithSameRequestId()
     process.start(ACQUISITIONCTL_PATH,
                   {"--data-dir", dir.path(), "refresh", "start"});
     QTRY_COMPARE_WITH_TIMEOUT(process.state(), QProcess::NotRunning, 7000);
+    QCOMPARE(process.exitStatus(), QProcess::NormalExit);
+    QCOMPARE(process.exitCode(), 0);
+    QCOMPARE(request_ids.size(), 2);
+    QCOMPARE(request_ids.at(0), request_ids.at(1));
+}
+
+void AcquisitionCtlTest::refreshStartRetriesInvalidResponseWithSameRequestId()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    control::LocalControlServer server;
+    QStringList request_ids;
+    server.SetHandler([&request_ids](const control::Request &request) {
+        request_ids.push_back(request.request_id);
+        if (request_ids.size() == 1) {
+            return QJsonObject{{"protocol", control::PROTOCOL_VERSION},
+                               {"request_id", "wrong-request"},
+                               {"ok", true},
+                               {"result", QJsonObject{}}};
+        }
+        return control::Success(request.request_id,
+                                QJsonObject{{"accepted", true},
+                                            {"state", "queued"},
+                                            {"operation_id", request.request_id}});
+    });
+    QVERIFY2(server.Listen(QDir(dir.path())), qPrintable(server.ErrorString()));
+
+    QProcess process;
+    process.start(ACQUISITIONCTL_PATH,
+                  {"--data-dir", dir.path(), "refresh", "start"});
+    QTRY_COMPARE_WITH_TIMEOUT(process.state(), QProcess::NotRunning, 5000);
     QCOMPARE(process.exitStatus(), QProcess::NormalExit);
     QCOMPARE(process.exitCode(), 0);
     QCOMPARE(request_ids.size(), 2);

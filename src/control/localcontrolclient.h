@@ -14,6 +14,7 @@ struct ClientError
 {
     QString code;
     QString message;
+    bool request_may_have_been_sent{false};
 };
 
 std::expected<QJsonObject, ClientError> SendRequest(const QString &endpoint,

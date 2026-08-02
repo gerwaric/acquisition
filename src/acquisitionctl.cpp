@@ -277,8 +277,7 @@ int main(int argc, char *argv[])
         auto response = send(command, params, 2000, request_id);
         const bool start_may_be_accepted
             = !response && command == "refresh.start"
-              && (response.error().code == "timeout"
-                  || response.error().code == "transport_error");
+              && response.error().request_may_have_been_sent;
         if (start_may_be_accepted) {
             response = send(command, params, 2000, request_id);
         }
