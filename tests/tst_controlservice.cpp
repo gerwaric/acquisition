@@ -18,6 +18,7 @@ private slots:
     void viewingRequiresReadySession();
     void viewsPublishedItemsAndEffectivePrices();
     void tabsArePaginated();
+    void rejectsOversizedCursorSource();
     void itemLookupTracksPublishedDeltas();
     void itemLookupSurvivesDestinationFirstMove();
     void paginationRejectsOldRevision();
@@ -201,6 +202,22 @@ void ControlServiceTest::tabsArePaginated()
         control::Request{"tampered", "tabs", QJsonObject{{"cursor", tampered}}});
     QCOMPARE(rejected.value("error").toObject().value("code").toString(),
              "invalid_cursor");
+}
+
+void ControlServiceTest::rejectsOversizedCursorSource()
+{
+    ViewingFixture fixture;
+    const ItemLocation oversized
+        = makeTestStashLocation(QString(40'000, 'z'), "Oversized", 5);
+    fixture.items.OnItemsRefreshed(Items{fixture.first, fixture.second},
+                                   {fixture.location, oversized},
+                                   false);
+
+    const QJsonObject response = fixture.service.Handle(
+        control::Request{"tabs", "tabs", QJsonObject{{"limit", 1}}});
+    QVERIFY(!response.value("ok").toBool(true));
+    QCOMPARE(response.value("error").toObject().value("code").toString(),
+             "cursor_too_large");
 }
 
 void ControlServiceTest::itemLookupTracksPublishedDeltas()

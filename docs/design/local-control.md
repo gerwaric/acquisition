@@ -239,7 +239,8 @@ The implementation uses an opaque source-index cursor over `ItemsManager`'s
 source-keyed published buckets. It does not materialize the dirty flat view.
 The cursor embeds the original limit, filters, source position, `instance_id`,
 and revision and is authenticated with a process-private HMAC; cursor requests
-cannot alter or override that state. Revision is
+cannot alter or override that state. Cursor payloads are capped at 32 KiB before
+serialization so published identifiers cannot bypass response-memory bounds. Revision is
 checked before reading each page and serialization runs in the application
 thread. Unfiltered first pages report `total`; filtered pages omit it rather
 than scanning the full result set. A page examines at most 10,000 source items,

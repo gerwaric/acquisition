@@ -29,6 +29,7 @@ namespace {
     constexpr int DEFAULT_PAGE_SIZE = 50;
     constexpr int MAXIMUM_PAGE_SIZE = 100;
     constexpr qsizetype MAXIMUM_FILTER_LENGTH = 1024;
+    constexpr qsizetype MAXIMUM_CURSOR_PAYLOAD = 32 * 1024;
     constexpr qsizetype MAXIMUM_PAGE_SCAN = 10'000;
     // Request ids are capped at 128 characters by DecodeRequest; 64 KiB also
     // covers the fixed response envelope and authenticated continuation cursor.
@@ -116,8 +117,11 @@ namespace {
         return std::nullopt;
     }
 
-    QString SignCursor(const QJsonObject &object, const QByteArray &key)
+    std::optional<QString> SignCursor(const QJsonObject &object, const QByteArray &key)
     {
+        if (!JsonSizeWithinLimit(object, MAXIMUM_CURSOR_PAYLOAD)) {
+            return std::nullopt;
+        }
         const QByteArray payload = QJsonDocument(object).toJson(QJsonDocument::Compact);
         const QByteArray encoded = payload.toBase64(QByteArray::Base64UrlEncoding
                                                     | QByteArray::OmitTrailingEquals);
@@ -155,7 +159,7 @@ namespace {
         return *decoded;
     }
 
-    QString EncodeCursor(const QString &instance_id,
+    std::optional<QString> EncodeCursor(const QString &instance_id,
                          quint64 revision,
                          const ItemQuery &query,
                          const QByteArray &key)
@@ -543,14 +547,20 @@ QJsonObject ControlService::Tabs(const QString &request_id, const QJsonObject &p
                        {"total", QString::number(entries.size())},
                        {"tabs", tabs}};
     if (next) {
-        result.insert("next_cursor",
-                      SignCursor(QJsonObject{{"type", "tabs"},
-                                             {"instance_id", m_instance_id},
-                                             {"revision", QString::number(m_inventory_revision)},
-                                             {"source_kind", KindName(next->first)},
-                                             {"source_id", next->second},
-                                             {"limit", limit}},
-                                 m_cursor_key));
+        const auto cursor = SignCursor(
+            QJsonObject{{"type", "tabs"},
+                        {"instance_id", m_instance_id},
+                        {"revision", QString::number(m_inventory_revision)},
+                        {"source_kind", KindName(next->first)},
+                        {"source_id", next->second},
+                        {"limit", limit}},
+            m_cursor_key);
+        if (!cursor) {
+            return Error(request_id,
+                         "cursor_too_large",
+                         "the next location identity exceeds the cursor limit");
+        }
+        result.insert("next_cursor", *cursor);
     } else {
         result.insert("next_cursor", QJsonValue::Null);
     }
@@ -639,8 +649,16 @@ QJsonObject ControlService::Items(const QString &request_id, const QJsonObject &
         ItemQuery next = *query;
         next.source = *next_source;
         next.offset = next_offset;
-        result.insert("next_cursor",
-                      EncodeCursor(m_instance_id, m_inventory_revision, next, m_cursor_key));
+        const auto cursor = EncodeCursor(m_instance_id,
+                                         m_inventory_revision,
+                                         next,
+                                         m_cursor_key);
+        if (!cursor) {
+            return Error(request_id,
+                         "cursor_too_large",
+                         "the next source identity exceeds the cursor limit");
+        }
+        result.insert("next_cursor", *cursor);
     } else {
         result.insert("next_cursor", QJsonValue::Null);
     }
