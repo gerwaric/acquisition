@@ -248,13 +248,14 @@ bool LocalControlServer::Listen(const QDir &data_directory)
     for (qsizetype index = endpoints.size(); index-- > 0;) {
         const QString endpoint_directory = QFileInfo(endpoints.at(index)).absolutePath();
         if (!SecureControlDirectory(endpoint_directory)) {
-            if (index == 0) {
-                m_error_string = "the preferred private control directory could not be secured";
+            if (endpoints.size() == 1) {
+                m_error_string = "no private control directory could be secured";
                 return false;
             }
             endpoints.removeAt(index);
         }
     }
+    m_endpoint = endpoints.front();
 #endif
 
     std::vector<std::unique_ptr<BindLock>> bind_locks;
