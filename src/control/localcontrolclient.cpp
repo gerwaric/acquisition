@@ -92,6 +92,7 @@ std::expected<QJsonObject, ClientError> SendRequest(const QString &endpoint,
     };
 
     QLocalSocket socket;
+    socket.setReadBufferSize(MAX_RESPONSE_BYTES + 5);
     socket.connectToServer(endpoint, QIODevice::ReadWrite);
     if (!socket.waitForConnected(remaining())) {
         const bool absent = socket.error() == QLocalSocket::ServerNotFoundError

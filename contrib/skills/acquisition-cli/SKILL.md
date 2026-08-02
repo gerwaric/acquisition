@@ -96,7 +96,9 @@ To consume every page:
    are application-authenticated and must never be decoded or modified.
 2. Process `result.items`; a sparse filter may produce an empty page with a
    non-null cursor because each request has a source-scan bound.
-3. Repeat with only `--cursor` while `next_cursor` is non-null.
+3. While `next_cursor` is non-null, repeat the same global options (especially
+   `--data-dir`) but use only `--cursor` as the pagination argument; omit the
+   original filters and `--limit`.
 4. On `revision_changed`, discard the partial traversal and restart at page one.
 
 A refresh updates published state incrementally. If the task requires a stable
