@@ -67,7 +67,10 @@ private slots:
     void settingAndClearingThreads();
     void threadsRoundTripThroughDatastore();
     void stashIndexFailureReleasesTheSubmitLock();
+    void stashIndex403RejectsPoeSession();
     void stashIndexSuccessProceedsToShopSubmission();
+    void editPage403RejectsPoeSession();
+    void shopPost403RejectsPoeSession();
     void continuationDoesNotRunAfterShopDestruction();
 
     // Items-pipeline M2, D8: the single-active-job foundation (stage 2
@@ -216,6 +219,24 @@ void ShopTest::stashIndexFailureReleasesTheSubmitLock()
     QCOMPARE(fixture.rateLimiter->futureCount(), size_t(2));
 }
 
+void ShopTest::stashIndex403RejectsPoeSession()
+{
+    ShopFixture fixture;
+    armForSubmission(fixture);
+    fixture.shop->SetAutoUpdate(true);
+    QSignalSpy rejected(fixture.shop.get(), &Shop::PoeSessionRejected);
+    QSignalSpy warnings(fixture.shop.get(), &Shop::UserWarning);
+
+    fixture.shop->SubmitShopToForum();
+    fixture.rateLimiter->reject(0, RateLimit::FetchError::Kind::Http, "HTTP status 403", 403);
+    drainEvents();
+
+    QCOMPARE(rejected.count(), 1);
+    QCOMPARE(warnings.count(), 1);
+    QVERIFY(!fixture.shop->auto_update());
+    QCOMPARE(fixture.networkManager->count(), 0);
+}
+
 void ShopTest::stashIndexSuccessProceedsToShopSubmission()
 {
     // The success path parses below the facade and carries on into the forum
@@ -243,6 +264,52 @@ void ShopTest::stashIndexSuccessProceedsToShopSubmission()
     // And the lock is still held while that submission is in flight.
     fixture.shop->SubmitShopToForum(true);
     QCOMPARE(fixture.rateLimiter->futureCount(), size_t(1));
+}
+
+void ShopTest::editPage403RejectsPoeSession()
+{
+    ShopFixture fixture;
+    armForSubmission(fixture);
+    fixture.shop->SetAutoUpdate(true);
+    QSignalSpy rejected(fixture.shop.get(), &Shop::PoeSessionRejected);
+
+    fixture.shop->SubmitShopToForum(true);
+    fixture.rateLimiter->resolve(0, kStashIndexJson);
+    drainEvents();
+    QCOMPARE(fixture.networkManager->count(), 1);
+
+    fixture.networkManager->sent(0).reply->finish({},
+                                                  403,
+                                                  QNetworkReply::ContentAccessDenied,
+                                                  QByteArray("Content Denied"));
+    drainEvents();
+
+    QCOMPARE(rejected.count(), 1);
+    QVERIFY(!fixture.shop->auto_update());
+    QCOMPARE(fixture.networkManager->count(), 1);
+}
+
+void ShopTest::shopPost403RejectsPoeSession()
+{
+    ShopFixture fixture;
+    armForSubmission(fixture);
+    fixture.shop->SetAutoUpdate(true);
+    QSignalSpy rejected(fixture.shop.get(), &Shop::PoeSessionRejected);
+
+    fixture.shop->SubmitShopToForum(true);
+    fixture.rateLimiter->resolve(0, kStashIndexJson);
+    drainEvents();
+    fixture.networkManager->sent(0).reply->finish({}, 200, QNetworkReply::NoError, kEditThreadPage);
+    QTRY_COMPARE_WITH_TIMEOUT(fixture.networkManager->count(), 2, 5000);
+
+    fixture.networkManager->sent(1).reply->finish({},
+                                                  403,
+                                                  QNetworkReply::ContentAccessDenied,
+                                                  QByteArray("Content Denied"));
+    drainEvents();
+
+    QCOMPARE(rejected.count(), 1);
+    QVERIFY(!fixture.shop->auto_update());
 }
 
 void ShopTest::continuationDoesNotRunAfterShopDestruction()
