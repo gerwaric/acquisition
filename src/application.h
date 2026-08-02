@@ -48,6 +48,7 @@ public:
     void InitLogin();
 
 public slots:
+    void ClearSessionId();
     void SetSessionId(const QString &poesessid);
     void SetTheme(const QString &theme);
     void SetUserDir(const QString &dir);

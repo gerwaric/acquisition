@@ -15,6 +15,7 @@ class NetworkManager : public QNetworkAccessManager
 public:
     explicit NetworkManager(QObject *parent = nullptr);
 
+    void clearPoeSessionId();
     void setPoeSessionId(const QString &poesessid);
     void setBearerToken(const QString &token);
 

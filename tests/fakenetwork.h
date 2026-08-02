@@ -104,13 +104,17 @@ public:
 
     void resolve(size_t i, const QByteArray &body) { complete(i, RateLimit::FetchOutcome(body)); }
 
-    void reject(size_t i, RateLimit::FetchError::Kind kind, const QString &message = {})
+    void reject(size_t i,
+                RateLimit::FetchError::Kind kind,
+                const QString &message = {},
+                int http_status = 0)
     {
         const PendingFuture &pending = m_futures.at(i);
         RateLimit::FetchError error;
         error.kind = kind;
         error.endpoint = pending.endpoint;
         error.url = pending.request.url();
+        error.http_status = http_status;
         error.message = message;
         complete(i, RateLimit::FetchOutcome(std::unexpected(std::move(error))));
     }

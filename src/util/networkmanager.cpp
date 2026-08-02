@@ -73,6 +73,17 @@ NetworkManager::NetworkManager(QObject *parent)
     setCache(m_diskCache);
 }
 
+void NetworkManager::clearPoeSessionId()
+{
+    spdlog::debug("NetworkManager: clearing POESESSID");
+    QNetworkCookie cookie{POE_COOKIE_NAME, QByteArray{}};
+    cookie.setPath(POE_COOKIE_PATH);
+    cookie.setDomain(POE_COOKIE_DOMAIN);
+    if (!cookieJar()->deleteCookie(cookie)) {
+        spdlog::debug("NetworkManager: no POESESSID cookie was present");
+    }
+}
+
 void NetworkManager::setPoeSessionId(const QString &poesessid)
 {
     QString masked = poesessid;
