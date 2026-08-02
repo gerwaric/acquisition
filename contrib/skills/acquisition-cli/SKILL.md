@@ -32,8 +32,9 @@ If none exists, tell the user which CLI artifact is missing rather than reading
 private application files as a fallback.
 
 Pass `--data-dir <path>` when Acquisition uses a non-default data directory.
-Every successful command writes one JSON envelope to stdout. Treat stderr as a
-human diagnostic only.
+Every successful command except `--help` and `--version` writes one JSON
+envelope to stdout. Those two informational options print plain text. Treat
+stderr as a human diagnostic only.
 
 ## Inspect state
 
