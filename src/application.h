@@ -12,6 +12,7 @@
 
 class QNetworkReply;
 class QSettings;
+class QTimer;
 
 class BuyoutManager;
 class CurrencyManager;
@@ -119,6 +120,7 @@ private:
 
     void InitCoreServices();
     void InitControlServer();
+    void RebindControlServer();
     void InitUserSession();
 
     void InitCrashReporting();
@@ -129,6 +131,7 @@ private:
     // Declared after the session so IPC closes before the services it exposes.
     std::unique_ptr<control::ControlService> m_control_service;
     std::unique_ptr<control::LocalControlServer> m_control_server;
+    QTimer *m_control_retry{nullptr};
 
     QDir m_data_dir;
     QString m_active_theme;

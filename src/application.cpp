@@ -99,6 +99,29 @@ void Application::InitControlServer()
     m_control_server = std::make_unique<control::LocalControlServer>(this);
     m_control_server->SetHandler(
         [this](const control::Request &request) { return m_control_service->Handle(request); });
+
+    // Preserve the existing multi-GUI policy while ensuring a surviving
+    // secondary instance takes over control after the original owner exits.
+    m_control_retry = new QTimer(this);
+    m_control_retry->setInterval(std::chrono::seconds(2));
+    connect(m_control_retry, &QTimer::timeout, this, [this] {
+        if (m_control_server->Listen(m_data_dir)) {
+            spdlog::info("Application: local control ownership acquired on {}",
+                         m_control_server->Endpoint());
+            m_control_retry->stop();
+        } else if (!m_control_server->OwnerConflict()) {
+            spdlog::warn("Application: stopped retrying local control: {}",
+                         m_control_server->ErrorString());
+            m_control_retry->stop();
+        }
+    });
+    RebindControlServer();
+}
+
+void Application::RebindControlServer()
+{
+    m_control_retry->stop();
+    // Listen() closes any existing listener before selecting the new endpoint.
     if (m_control_server->Listen(m_data_dir)) {
         spdlog::debug("Application: local control listening on {}",
                       m_control_server->Endpoint());
@@ -107,28 +130,9 @@ void Application::InitControlServer()
 
     spdlog::warn("Application: local control is unavailable: {}",
                  m_control_server->ErrorString());
-    if (!m_control_server->OwnerConflict()) {
-        return;
+    if (m_control_server->OwnerConflict()) {
+        m_control_retry->start();
     }
-
-    // Preserve the existing multi-GUI policy while ensuring a surviving
-    // secondary instance takes over control after the original owner exits.
-    auto *retry = new QTimer(this);
-    retry->setInterval(std::chrono::seconds(2));
-    connect(retry, &QTimer::timeout, this, [this, retry] {
-        if (m_control_server->Listen(m_data_dir)) {
-            spdlog::info("Application: local control ownership acquired on {}",
-                         m_control_server->Endpoint());
-            retry->stop();
-            retry->deleteLater();
-        } else if (!m_control_server->OwnerConflict()) {
-            spdlog::warn("Application: stopped retrying local control: {}",
-                         m_control_server->ErrorString());
-            retry->stop();
-            retry->deleteLater();
-        }
-    });
-    retry->start();
 }
 
 void Application::InitUserSession()
@@ -498,6 +502,8 @@ void Application::SetUserDir(const QString &dir)
     m_data_dir = QDir(dir);
 
     InitCoreServices();
+    m_control_service->SetNeedsLogin();
+    RebindControlServer();
 }
 
 void Application::OnItemsRefreshed(bool initial_refresh)
