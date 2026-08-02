@@ -147,7 +147,11 @@ std::expected<QJsonObject, ClientError> SendRequest(const QStringList &endpoints
                                                     const QJsonObject &request,
                                                     int timeout_ms)
 {
-    ClientError last_error{"not_running", "no usable control endpoint is available"};
+    if (endpoints.isEmpty()) {
+        return std::unexpected(ClientError{
+            "endpoint_unavailable", "no private per-user control endpoint is available"});
+    }
+    ClientError last_error{"not_running", "Acquisition is not listening"};
     QDeadlineTimer deadline(timeout_ms);
     for (const QString &endpoint : endpoints) {
         const int remaining = int(std::clamp<qint64>(deadline.remainingTime(),

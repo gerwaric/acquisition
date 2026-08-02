@@ -32,6 +32,7 @@ public:
     explicit ControlService(QString application_version, QObject *parent = nullptr);
 
     void SetNeedsLogin();
+    void ResetForDataDirectory();
     void AttachSession(ItemsManager &items_manager,
                        ItemsManagerWorker *worker,
                        BuyoutManager &buyout_manager,

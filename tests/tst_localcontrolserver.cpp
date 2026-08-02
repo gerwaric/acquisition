@@ -100,6 +100,10 @@ void LocalControlServerTest::clientTriesFallbackEndpoint()
     });
     QVERIFY2(server.Listen(QDir(dir.path())), qPrintable(server.ErrorString()));
 
+    const auto unavailable = control::SendRequest(QStringList{}, request(), 1000);
+    QVERIFY(!unavailable);
+    QCOMPARE(unavailable.error().code, "endpoint_unavailable");
+
     const QString endpoint = server.Endpoint();
     auto future = std::async(std::launch::async, [endpoint] {
         return control::SendRequest(

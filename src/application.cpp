@@ -498,11 +498,14 @@ void Application::SetUserDir(const QString &dir)
                    "session is live (network-redesign.md shutdown invariant)");
     }
 
+    // A control refresh can only be accepted after a UserSession exists, and
+    // the guard above forbids changing directories in that state. Resetting
+    // first also drops all non-owning control bindings before their owners.
+    m_control_service->ResetForDataDirectory();
     m_core.reset();
     m_data_dir = QDir(dir);
 
     InitCoreServices();
-    m_control_service->SetNeedsLogin();
     RebindControlServer();
 }
 

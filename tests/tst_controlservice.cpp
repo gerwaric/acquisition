@@ -29,6 +29,7 @@ private slots:
     void rejectsMalformedQueryParameters();
     void refreshJobOutlivesStartRequest();
     void statusPreservesLatestTerminalRefresh();
+    void resetClearsDirectoryScopedState();
     void queuedJobIgnoresUnrelatedSignals();
     void busyRefreshIsNotAccepted();
     void refreshOutcomesRemainTyped();
@@ -529,6 +530,35 @@ void ControlServiceTest::statusPreservesLatestTerminalRefresh()
     QCOMPARE(status.value("latest_refresh").toObject().value("operation_id").toString(),
              completed_id);
     QCOMPARE(status.value("latest_refresh").toObject().value("state").toString(), "completed");
+}
+
+void ControlServiceTest::resetClearsDirectoryScopedState()
+{
+    ViewingFixture fixture;
+    const QString old_instance = fixture.service.InstanceId();
+    const QString operation_id
+        = resultOf(fixture.service.Handle(control::Request{"old-refresh", "refresh.start", {}}))
+              .value("operation_id")
+              .toString();
+    QCoreApplication::processEvents();
+    fixture.items.RefreshFinished(RefreshOutcome{CompletedRefresh{}});
+    QVERIFY(!resultOf(fixture.service.Handle(control::Request{"before", "status", {}}))
+                 .value("latest_refresh")
+                 .isNull());
+
+    fixture.service.ResetForDataDirectory();
+
+    const QJsonObject status
+        = resultOf(fixture.service.Handle(control::Request{"after", "status", {}}));
+    QCOMPARE(status.value("service_state").toString(), "needs_login");
+    QVERIFY(status.value("latest_refresh").isNull());
+    QVERIFY(fixture.service.InstanceId() != old_instance);
+    const QJsonObject old_operation = fixture.service.Handle(control::Request{
+        "old-operation",
+        "refresh.status",
+        QJsonObject{{"operation_id", operation_id}}});
+    QCOMPARE(old_operation.value("error").toObject().value("code").toString(),
+             "operation_not_found");
 }
 
 void ControlServiceTest::queuedJobIgnoresUnrelatedSignals()

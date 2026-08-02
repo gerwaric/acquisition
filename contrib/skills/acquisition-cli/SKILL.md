@@ -18,8 +18,10 @@ Before issuing commands, resolve the executable once and substitute its path for
    derive the sibling `acquisitionctl` or `acquisitionctl.exe` from the running
    GUI executable; on Linux, look beside the running GUI AppImage for the
    separately downloaded `acquisitionctl-*.AppImage`.
-3. Next try `acquisitionctl` on `PATH`, then `build/acquisitionctl` for a local
-   build.
+3. Next try `acquisitionctl` on `PATH`. Use `build/acquisitionctl` only when the
+   current workspace is a user-trusted Acquisition checkout; first verify its
+   `CMakeLists.txt` defines the Acquisition project and `src/acquisitionctl.cpp`
+   exists.
 4. For an inactive macOS installation, try
    `/Applications/acquisition.app/Contents/MacOS/acquisitionctl` and the same
    path under `~/Applications`.

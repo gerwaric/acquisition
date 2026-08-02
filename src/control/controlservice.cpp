@@ -328,6 +328,33 @@ void ControlService::SetNeedsLogin()
     }
 }
 
+void ControlService::ResetForDataDirectory()
+{
+    if (m_items_manager) {
+        disconnect(m_items_manager, nullptr, this, nullptr);
+    }
+    if (m_worker) {
+        disconnect(m_worker, nullptr, this, nullptr);
+    }
+    if (m_buyout_manager) {
+        disconnect(m_buyout_manager, nullptr, this, nullptr);
+    }
+    m_items_manager = nullptr;
+    m_worker = nullptr;
+    m_buyout_manager = nullptr;
+    m_account.clear();
+    m_league.clear();
+    m_inventory_revision = 0;
+    m_refresh_readiness = {};
+    m_start_refresh = {};
+    m_refresh_jobs.clear();
+    m_refresh_start_responses.clear();
+    m_active_refresh_id.clear();
+    m_instance_id = QUuid::createUuid().toString(QUuid::WithoutBraces);
+    m_cursor_key = QUuid::createUuid().toRfc4122();
+    m_state = ServiceState::NeedsLogin;
+}
+
 void ControlService::AttachSession(ItemsManager &items_manager,
                                    ItemsManagerWorker *worker,
                                    BuyoutManager &buyout_manager,
