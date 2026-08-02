@@ -93,8 +93,11 @@ The endpoint identity is a digest of the canonical data-directory path,
 namespaced by application and protocol identity. Different test or user data
 roots do not collide. Unix places the socket and lock in a short, owner-only
 OS-managed user runtime root (Darwin's user temp directory or
-`/run/user/<uid>`), with a validated passwd-home fallback when that root is
-unavailable. Discovery does not depend on the caller's `HOME` or
+`/run/user/<uid>`), with `.acquisition-control` under the validated passwd home
+when that root is unavailable. Existing fallback paths remain stable; a shorter
+`.acq-control` name is used only when needed to fit `sockaddr_un::sun_path`.
+Roots that still cannot fit the complete socket name are rejected rather than truncated.
+Discovery does not depend on the caller's `HOME` or
 `XDG_RUNTIME_DIR`. Windows uses the digest as the named-pipe identity. A
 short-lived native lock serializes bind: an advisory lock file in the private
 Unix runtime root, or a global named mutex on Windows. The operating system

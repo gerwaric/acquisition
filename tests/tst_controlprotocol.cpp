@@ -7,6 +7,7 @@
 #ifndef Q_OS_WIN
 #include <pwd.h>
 #include <sys/stat.h>
+#include <sys/un.h>
 #include <unistd.h>
 #endif
 
@@ -160,6 +161,8 @@ void ControlProtocolTest::endpointIsUserScoped()
     }
 
     QCOMPARE(QFileInfo(first_endpoint).absolutePath(), QFileInfo(lock_path).absolutePath());
+    QVERIFY(QFile::encodeName(first_endpoint).size()
+            < qsizetype(sizeof(sockaddr_un::sun_path)));
 #ifdef Q_OS_MACOS
     const size_t runtime_size = confstr(_CS_DARWIN_USER_TEMP_DIR, nullptr, 0);
     QVERIFY(runtime_size > 0);
@@ -193,21 +196,51 @@ void ControlProtocolTest::endpointIsUserScoped()
 void ControlProtocolTest::unixRootSelection()
 {
 #ifndef Q_OS_WIN
-    QTemporaryDir runtime;
-    QTemporaryDir home;
+    QTemporaryDir runtime("/tmp/acq-runtime-XXXXXX");
+    QTemporaryDir home("/tmp/acq-home-XXXXXX");
+    QTemporaryDir insecure_home("/tmp/acq-insecure-XXXXXX");
     QVERIFY(runtime.isValid());
     QVERIFY(home.isValid());
-    QVERIFY(QFile::setPermissions(runtime.path(),
-                                  QFileDevice::ReadOwner | QFileDevice::WriteOwner
-                                      | QFileDevice::ExeOwner));
-    QVERIFY(QFile::setPermissions(home.path(),
-                                  QFileDevice::ReadOwner | QFileDevice::WriteOwner
-                                      | QFileDevice::ExeOwner));
+    QVERIFY(insecure_home.isValid());
+    const auto private_permissions = QFileDevice::ReadOwner | QFileDevice::WriteOwner
+                                     | QFileDevice::ExeOwner;
+    QVERIFY(QFile::setPermissions(runtime.path(), private_permissions));
+    QVERIFY(QFile::setPermissions(home.path(), private_permissions));
 
     QCOMPARE(control::detail::SelectUnixControlRoot(runtime.path(), home.path()),
              QDir(runtime.path()).filePath("acquisition-control"));
     QCOMPARE(control::detail::SelectUnixControlRoot(runtime.filePath("missing"), home.path()),
              QDir(home.path()).filePath(".acquisition-control"));
+
+    QVERIFY(QFile::setPermissions(insecure_home.path(),
+                                  private_permissions | QFileDevice::WriteGroup
+                                      | QFileDevice::ExeGroup));
+    QVERIFY(control::detail::SelectUnixControlRoot(runtime.filePath("missing"),
+                                                   insecure_home.path())
+                .isEmpty());
+
+    QString short_name_home = home.path();
+    while (QFile::encodeName(QDir(short_name_home).filePath(
+                                 ".acquisition-control/socket-0000000000000000"))
+               .size()
+           < qsizetype(sizeof(sockaddr_un::sun_path))) {
+        short_name_home = QDir(short_name_home).filePath("abc");
+    }
+    QVERIFY(QDir().mkpath(short_name_home));
+    QCOMPARE(control::detail::SelectUnixControlRoot(runtime.filePath("missing"),
+                                                    short_name_home),
+             QDir(short_name_home).filePath(".acq-control"));
+
+    QString long_home = short_name_home;
+    while (QFile::encodeName(QDir(long_home).filePath(
+                                 ".acq-control/socket-0000000000000000"))
+               .size()
+           < qsizetype(sizeof(sockaddr_un::sun_path))) {
+        long_home = QDir(long_home).filePath("abc");
+    }
+    QVERIFY(QDir().mkpath(long_home));
+    QVERIFY(control::detail::SelectUnixControlRoot(runtime.filePath("missing"), long_home)
+                .isEmpty());
 #else
     QSKIP("Unix endpoint roots are not used on Windows");
 #endif

@@ -11,6 +11,7 @@
 #ifndef Q_OS_WIN
 #include <pwd.h>
 #include <sys/stat.h>
+#include <sys/un.h>
 #include <unistd.h>
 #endif
 
@@ -39,6 +40,13 @@ namespace {
             return {};
         }
         return QString::fromLocal8Bit(entry.pw_dir);
+    }
+
+    bool EndpointPathFits(const QString &root)
+    {
+        const QString longest_endpoint = QDir(root).filePath("socket-0000000000000000");
+        return QFile::encodeName(longest_endpoint).size()
+               < qsizetype(sizeof(sockaddr_un::sun_path));
     }
 
     QString SystemRuntimeRoot()
@@ -72,11 +80,19 @@ namespace detail {
 
 QString SelectUnixControlRoot(const QString &runtime, const QString &home)
 {
-    if (IsPrivateUserDirectory(runtime)) {
-        return QDir(runtime).filePath("acquisition-control");
+    const QString runtime_root = QDir(runtime).filePath("acquisition-control");
+    if (IsPrivateUserDirectory(runtime) && EndpointPathFits(runtime_root)) {
+        return runtime_root;
     }
-    return IsPrivateUserDirectory(home) ? QDir(home).filePath(".acquisition-control")
-                                        : QString{};
+    if (!IsPrivateUserDirectory(home)) {
+        return {};
+    }
+    const QString legacy_home_root = QDir(home).filePath(".acquisition-control");
+    if (EndpointPathFits(legacy_home_root)) {
+        return legacy_home_root;
+    }
+    const QString short_home_root = QDir(home).filePath(".acq-control");
+    return EndpointPathFits(short_home_root) ? short_home_root : QString{};
 }
 
 } // namespace detail
