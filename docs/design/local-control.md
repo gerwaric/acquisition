@@ -298,8 +298,9 @@ the primary contract.
 
 ## Skill behavior
 
-The distributable skill lives at `contrib/skills/acquisition-cli/`. It instructs
-an agent to:
+The consumer-facing distributable skill lives at `skills/acquisition-cli/` and
+is installed with the Skills CLI independently of the application release. It
+instructs an agent operating an installed Acquisition application to:
 
 1. call `status` before inventory commands;
 2. distinguish initialization, live incremental refresh state, and idle state;

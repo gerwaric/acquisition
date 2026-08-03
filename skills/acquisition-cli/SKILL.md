@@ -5,6 +5,19 @@ description: Inspect the inventory published by a running Acquisition applicatio
 
 # Acquisition CLI
 
+This skill is for agents operating an installed Acquisition application, not for
+agents developing Acquisition itself.
+
+If the user needs to install this skill, use the Skills CLI so agent-specific
+skill directories and lockfiles stay consistent:
+
+```bash
+npx skills add gerwaric/acquisition --global --skill acquisition-cli --agent codex claude-code --full-depth
+```
+
+Installing the skill does not install Acquisition or `acquisitionctl`. The user
+must install an Acquisition release separately.
+
 Use `acquisitionctl`; do not read Acquisition databases, settings, OAuth tokens,
 or POESESSID values directly. The open GUI owns network access, rate limiting,
 persistence, and refresh jobs.

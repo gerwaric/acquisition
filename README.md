@@ -68,6 +68,23 @@ location. An accepted refresh belongs to the GUI and continues if
 `acquisitionctl` disconnects. Existing automatic-shop settings remain in effect.
 Run `acquisitionctl --help` for tab/item pagination and item-filter options.
 
+### Agent skill
+
+Acquisition includes a reusable skill for agents operating an installed
+Acquisition application. It teaches agents to use `acquisitionctl` safely; it is
+for consumers using Acquisition, not contributors developing this repository.
+
+Install it with the Skills CLI so each supported agent receives the skill in its
+normal skill directory:
+
+```bash
+npx skills add gerwaric/acquisition --global --skill acquisition-cli --agent codex claude-code --full-depth
+```
+
+Installing the skill does not install Acquisition or `acquisitionctl`. Install a
+release first, then use the release-matched CLI location described above. The
+skill source is available at `skills/acquisition-cli/`.
+
 ## Reporting issues
 
 If you're having problems with Acquisition, please check the issues page: https://github.com/gerwaric/acquisition/issues
