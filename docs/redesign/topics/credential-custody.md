@@ -105,7 +105,44 @@ APIs — true of any native app, and (per §4) unchanged by Tauri.
   removes an *empty* `client_secret` parameter during refresh because
   GGG's server rejects it ("as of 3.26", `oauthmanager.cpp:84-92`) —
   useful evidence that GGG expects the parameter absent, not empty,
-  for public clients.
+  for public clients. See the history note below for why this hack
+  exists and what it depends on.
+- **History: the Qt flow is young; the strip hack is load-bearing.**
+  Acquisition used a fully hand-rolled OAuth implementation
+  (QtHttpServer loopback, manual PKCE, own refresh timer) until
+  October 21, 2025, when commit 4c8f0784 switched to
+  `QOAuth2AuthorizationCodeFlow` — and introduced the strip hack in
+  the same commit. The hand-rolled refresh POST sent only
+  `client_id`, `grant_type`, and `refresh_token` (measured: the
+  removed code in that commit's diff) — no `client_secret` at all,
+  which is why it never tripped GGG's rejection. Qt, by contrast,
+  inserts `client_secret` into refresh bodies **unconditionally**,
+  empty or not — verified in both the v6.7.0 and current dev sources
+  of `qtnetworkauth` (external:
+  https://github.com/qt/qtnetworkauth/blob/v6.7.0/src/oauth/qoauth2authorizationcodeflow.cpp
+  and
+  https://github.com/qt/qtnetworkauth/blob/dev/src/oauth/qabstractoauth2.cpp,
+  retrieved 2026-08-08). The stock class only became *usable* for
+  this app recently: QtNetworkAuth "remained largely unchanged since
+  Qt 5.8" until its modernization — built-in PKCE arrived in Qt 6.8,
+  and auto-refresh (`autoRefresh`, `refreshLeadTime`,
+  `accessTokenAboutToExpire`) plus the requested/granted scope split
+  arrived in Qt 6.9 (external:
+  https://www.qt.io/blog/revitalizing-qtnetworkauth-for-modern-oauth2-needs,
+  retrieved 2026-08-08); the build now requires Qt 6.11+. Two
+  consequences: (a) the working configuration depends on a
+  three-party equilibrium — Qt keeps applying
+  `modifyParametersFunction` at the `RefreshingAccessToken` stage
+  (true in 6.7 and dev, but nothing here tests it), GGG keeps
+  rejecting empty `client_secret` (observed at 3.26; whether 3.29
+  still rejects it is untested — the strip makes the question moot
+  but also invisible), and the hack keeps stripping; (b) the years
+  of production logins that §2/§5 lean on as evidence were made by
+  the *hand-rolled* client, so "GGG accepts this flow from a non-Qt
+  implementation" is not even a new question — the app already
+  proved it for most of its life. The Rust `oauth2` crate omits
+  `client_secret` for public clients by default, matching the proven
+  hand-rolled shape rather than Qt's send-empty-then-strip shape.
 - **The bearer attaches at one chokepoint**: `createRequest` adds
   `Authorization` only when the host is exactly
   `api.pathofexile.com` (`networkmanager.cpp:115-123`). Request
@@ -357,7 +394,10 @@ External lane throughout; retrieved 2026-08-08.
   2025-01 release) supports public clients — `ClientId` alone,
   `set_client_secret()` optional — with PKCE S256 and refresh
   (https://docs.rs/oauth2/latest/oauth2/). That "secret optional"
-  design matches the empty-`client_secret` rejection evidence in §1.
+  design matches the empty-`client_secret` rejection evidence in §1 —
+  and the request shape it produces (no `client_secret` at all) is
+  the shape Acquisition's hand-rolled client sent successfully for
+  years before the October 2025 Qt switch (§1 history note).
   The loopback listener is a plain `TcpListener` or the community
   `tauri-plugin-oauth` (FabianLars;
   https://github.com/FabianLars/tauri-plugin-oauth) — a convenience,
@@ -464,7 +504,11 @@ refresh grant succeeds. Fail: any server-side rejection traceable to
 redirect URI/port matching, `client_secret` handling, or User-Agent.
 Roughly a hundred lines and a single deliberate live login —
 deliberately outside this investigation's scope guards, in scope for
-a spike branch. It doubles as the registration-risk check: passing
+a spike branch. The expected outcome is pass: the pre-October-2025
+hand-rolled client (§1 history note) already was a non-Qt-flow
+implementation — omitted `client_secret`, own loopback listener —
+and GGG accepted it for years, so the spike is confirming a
+precedent, not testing novelty. It doubles as the registration-risk check: passing
 means the Qt→Rust move needs **no GGG-side change at all**, which
 matters while the registration-change channel is frozen/undocumented
 (§5). What would invalidate a pass later: GGG tightening redirect
@@ -602,3 +646,8 @@ Found while tracing; described, not fixed, per the register's rules.
 - Should the C++ app's cookie scoping fix (adopt-now item 2) land
   before or with the host-scoping pin (item 1)? Same test surface;
   probably one change.
+- Does GGG's token endpoint still reject an empty `client_secret` in
+  3.29, or was that a 3.26-era behavior? The strip hack makes the
+  answer invisible in normal operation (§1 history note); the spike
+  settles it as a side effect, since the Rust client never sends the
+  parameter.
