@@ -148,8 +148,9 @@ The F-numbers refer to the ledger below.
   `qScopeGuard` declared before `Application` in `main.cpp` so it runs
   after all threads are joined; keep it that way.
 - **F30 — BORDERLINE is not an error.** The frequent "policy is
-  BORDERLINE" rate-limit warnings during refreshes are normal saturation
-  pacing, not a failure signal (arguably worth downgrading from `warn`).
+  BORDERLINE" rate-limit messages during refreshes are normal saturation
+  pacing, not a failure signal (downgraded from `warn` to `info`,
+  August 2026).
 - **F31 — check acceptance criteria against non-goals.** A grep-shaped
   acceptance criterion once forced out a load-bearing guard the same
   spec's non-goals said to keep. Mechanical criteria are subordinate to

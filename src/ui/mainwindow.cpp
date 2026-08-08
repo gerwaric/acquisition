@@ -1508,7 +1508,7 @@ void MainWindow::UpdateBuyoutWidgets(const Buyout &bo)
 
     if (bo.IsPriced()) {
         ui->buyoutCurrencyComboBox->setCurrentIndex(bo.currency.type);
-        ui->buyoutValueLineEdit->setText(QString::number(bo.value));
+        ui->buyoutValueLineEdit->setText(QString::number(bo.value, 'g', 15));
         if (!bo.IsGameSet()) {
             ui->buyoutCurrencyComboBox->setEnabled(true);
             ui->buyoutValueLineEdit->setEnabled(true);

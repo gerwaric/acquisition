@@ -213,7 +213,7 @@ QString Shop::SpoilerBuyout(const Buyout &bo)
     QString out = "";
     out += "[spoiler=\"" + bo.BuyoutTypeAsPrefix();
     if (bo.IsPriced()) {
-        out += " " + QString::number(bo.value) + " " + bo.CurrencyAsTag();
+        out += " " + QString::number(bo.value, 'g', 15) + " " + bo.CurrencyAsTag();
     }
     out += "\"]";
     return out;

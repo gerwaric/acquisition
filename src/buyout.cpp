@@ -103,7 +103,9 @@ BuyoutType Buyout::IndexAsBuyoutType(int index)
 QString Buyout::AsText() const
 {
     if (IsPriced()) {
-        return BuyoutTypeAsTag() + " " + QString::number(value) + " " + CurrencyAsTag();
+        // 'g' with wide precision: QString::number(double) defaults to six
+        // significant digits, turning large prices into scientific notation.
+        return BuyoutTypeAsTag() + " " + QString::number(value, 'g', 15) + " " + CurrencyAsTag();
     } else {
         return BuyoutTypeAsTag();
     }
