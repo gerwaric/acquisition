@@ -9,7 +9,7 @@ cmake_minimum_required(VERSION 3.24)
 # tags on github are prefixed with a 'v'.
 
 project(acquisition
-    VERSION 0.18.0
+    VERSION 0.19.0
     DESCRIPTION "Stash and forum shop management for Path of Exile (TM)"
     HOMEPAGE_URL "https://github.com/gerwaric/acquisition"
     LANGUAGES CXX
@@ -18,7 +18,7 @@ project(acquisition
 include(CTest)
 
 # Use this to define pre-releases
-set(app_version_suffix "")
+set(app_version_suffix "-alpha.1")
 
 # Variables used in version_defines.h and platforn-specific files and properties.
 set(app_name            "${CMAKE_PROJECT_NAME}")
@@ -261,6 +261,10 @@ set(ACQ_CORE
     src/buyoutmanager.h
     src/column.cpp
     src/column.h
+    src/control/controlservice.cpp
+    src/control/controlservice.h
+    src/control/viewprojection.cpp
+    src/control/viewprojection.h
     src/sortkey.h
     src/currency.cpp
     src/currency.h
@@ -602,6 +606,24 @@ target_link_libraries(acquisition_filters
         spdlog::spdlog_header_only
 )
 
+qt_add_library(acquisition_control STATIC
+    src/control/controlendpoint.cpp
+    src/control/controlendpoint.h
+    src/control/controlprotocol.cpp
+    src/control/controlprotocol.h
+    src/control/localcontrolclient.cpp
+    src/control/localcontrolclient.h
+    src/control/localcontrolserver.cpp
+    src/control/localcontrolserver.h
+)
+set_target_properties(acquisition_control PROPERTIES
+    CXX_STANDARD 23
+    CXX_STANDARD_REQUIRED YES
+    CXX_EXTENSIONS NO
+)
+target_include_directories(acquisition_control PUBLIC "${acquisition_SOURCE_DIR}/src")
+target_link_libraries(acquisition_control PUBLIC Qt6::Core Qt6::Network)
+
 qt_add_library(acquisition_core STATIC
     ${ACQ_CORE}
     ${ACQ_DATASTORE}
@@ -639,6 +661,7 @@ add_subdirectory(deps/qdarkstyle)
 # Link required libraries.
 target_link_libraries(acquisition_core PUBLIC
     acquisition_filters
+    acquisition_control
     # Qt libraries
     Qt6::Core
     Qt6::Gui
@@ -676,11 +699,27 @@ set_target_properties(acquisition PROPERTIES
 
 target_link_libraries(acquisition PRIVATE acquisition_core)
 
+qt_add_executable(acquisitionctl
+    src/acquisitionctl.cpp
+    "${CMAKE_BINARY_DIR}/version_defines.h"
+)
+set_target_properties(acquisitionctl PROPERTIES
+    CXX_STANDARD 23
+    CXX_STANDARD_REQUIRED YES
+    CXX_EXTENSIONS NO
+    WIN32_EXECUTABLE FALSE
+    MACOSX_BUNDLE FALSE
+)
+target_include_directories(acquisitionctl PRIVATE "${acquisition_BINARY_DIR}")
+target_link_libraries(acquisitionctl PRIVATE acquisition_control)
+
 #----------------------------------
 # Platform-specific section
 #----------------------------------
 
 if(WIN32)
+
+    target_link_libraries(acquisition_control PRIVATE advapi32)
 
     # Enable more warnings by default (MSVC only).
     target_compile_options(acquisition_core PRIVATE

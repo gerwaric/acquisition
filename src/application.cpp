@@ -9,9 +9,15 @@
 #include <QFileDialog>
 #include <QMessageBox>
 #include <QNetworkCookieJar>
+#include <QPointer>
 #include <QSettings>
+#include <QTimer>
+
+#include <stdexcept>
 
 #include "buyoutmanager.h"
+#include "control/controlservice.h"
+#include "control/localcontrolserver.h"
 #include "currencymanager.h"
 #include "datastore/buyoutrepo.h"
 #include "datastore/characterrepo.h"
@@ -42,6 +48,7 @@ Application::Application(const QDir &appDataDir)
     m_data_dir = appDataDir;
 
     InitCoreServices();
+    InitControlServer();
 }
 
 Application::~Application() = default;
@@ -82,6 +89,50 @@ void Application::InitCoreServices()
     // Show the login dialog now.
     spdlog::debug("Application: showing the login dialog");
     login().show();
+}
+
+void Application::InitControlServer()
+{
+    m_control_service = std::make_unique<control::ControlService>(APP_VERSION_STRING, this);
+    m_control_service->SetNeedsLogin();
+
+    m_control_server = std::make_unique<control::LocalControlServer>(this);
+    m_control_server->SetHandler(
+        [this](const control::Request &request) { return m_control_service->Handle(request); });
+
+    // Preserve the existing multi-GUI policy while ensuring a surviving
+    // secondary instance takes over control after the original owner exits.
+    m_control_retry = new QTimer(this);
+    m_control_retry->setInterval(std::chrono::seconds(2));
+    connect(m_control_retry, &QTimer::timeout, this, [this] {
+        if (m_control_server->Listen(m_data_dir)) {
+            spdlog::info("Application: local control ownership acquired on {}",
+                         m_control_server->Endpoint());
+            m_control_retry->stop();
+        } else if (!m_control_server->OwnerConflict()) {
+            spdlog::warn("Application: stopped retrying local control: {}",
+                         m_control_server->ErrorString());
+            m_control_retry->stop();
+        }
+    });
+    RebindControlServer();
+}
+
+void Application::RebindControlServer()
+{
+    m_control_retry->stop();
+    // Listen() closes any existing listener before selecting the new endpoint.
+    if (m_control_server->Listen(m_data_dir)) {
+        spdlog::debug("Application: local control listening on {}",
+                      m_control_server->Endpoint());
+        return;
+    }
+
+    spdlog::warn("Application: local control is unavailable: {}",
+                 m_control_server->ErrorString());
+    if (m_control_server->OwnerConflict()) {
+        m_control_retry->start();
+    }
 }
 
 void Application::InitUserSession()
@@ -164,6 +215,35 @@ void Application::InitUserSession()
 
     // Disconnect from the update signal so that only the main window gets it from now on.
     disconnect(updater, &UpdateChecker::UpdateAvailable, nullptr, nullptr);
+
+    m_control_service->AttachSession(*item_mgr,
+                                     worker,
+                                     *buyout_mgr,
+                                     settings().value("account").toString(),
+                                     settings().value("league").toString());
+    const QPointer<ItemsManagerWorker> controlled_worker(worker);
+    const QPointer<ItemsManager> controlled_manager(item_mgr);
+    m_control_service->ConfigureRefresh(
+        [controlled_worker] {
+            if (!controlled_worker) {
+                return control::ControlService::RefreshReadiness::Initializing;
+            }
+            switch (controlled_worker->updateReadiness()) {
+            case ItemsManagerWorker::UpdateReadiness::Initializing:
+                return control::ControlService::RefreshReadiness::Initializing;
+            case ItemsManagerWorker::UpdateReadiness::Ready:
+                return control::ControlService::RefreshReadiness::Ready;
+            case ItemsManagerWorker::UpdateReadiness::Busy:
+                return control::ControlService::RefreshReadiness::Busy;
+            }
+            return control::ControlService::RefreshReadiness::Busy;
+        },
+        [controlled_manager] {
+            if (!controlled_manager) {
+                throw std::runtime_error("the application session ended before refresh dispatch");
+            }
+            controlled_manager->Update(TabSelection::All);
+        });
 
     // Connect UI signals.
     ConnectMainWindow(*this, main_window(), *item_mgr, *worker, shop(), *updater, *cache);
@@ -418,10 +498,15 @@ void Application::SetUserDir(const QString &dir)
                    "session is live (network-redesign.md shutdown invariant)");
     }
 
+    // A control refresh can only be accepted after a UserSession exists, and
+    // the guard above forbids changing directories in that state. Resetting
+    // first also drops all non-owning control bindings before their owners.
+    m_control_service->ResetForDataDirectory();
     m_core.reset();
     m_data_dir = QDir(dir);
 
     InitCoreServices();
+    RebindControlServer();
 }
 
 void Application::OnItemsRefreshed(bool initial_refresh)

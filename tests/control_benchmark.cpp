@@ -1,0 +1,158 @@
+// Manual Release-only scale harness for the local-control viewing path.
+
+#include <QCommandLineParser>
+#include <QCoreApplication>
+#include <QElapsedTimer>
+#include <QJsonArray>
+#include <QSettings>
+
+#include <algorithm>
+#include <cstdio>
+
+#include "control/controlservice.h"
+#include "itemcategories.h"
+#include "itemsmanager.h"
+#include "spikedataset.h"
+#include "testfixtures.h"
+
+int main(int argc, char **argv)
+{
+    QCoreApplication app(argc, argv);
+    QCommandLineParser parser;
+    parser.addHelpOption();
+    QCommandLineOption preset_option("preset", "Dataset preset: smoke, 100k, or 1m.", "name", "100k");
+    parser.addOption(preset_option);
+    parser.process(app);
+
+    const auto config = SpikeDataset::Config::Preset(parser.value(preset_option));
+    if (!config) {
+        std::fprintf(stderr, "unknown preset\n");
+        return 2;
+    }
+
+    InitItemClasses(R"json({"TestClass":{"name":"Weapons"}})json");
+    InitItemBaseTypes(
+        R"json({"Metadata/Items/TestSword":{"item_class":"TestClass","name":"Test Sword","release_state":"released"}})json");
+
+    SpikeDataset dataset(*config);
+    BuyoutManagerFixture buyouts;
+    QSettings settings(buyouts.tempDir.filePath("settings.ini"), QSettings::IniFormat);
+    ItemsManager items_manager(settings, *buyouts.manager, *buyouts.data);
+    control::ControlService service("benchmark");
+    service.AttachSession(items_manager, nullptr, *buyouts.manager, "benchmark", "benchmark");
+
+    Items items = dataset.allItems();
+    const qsizetype expected = items.size();
+    items_manager.OnItemsRefreshed(std::move(items), dataset.locations(), true);
+    // Mark the manager's whole-collection flat cache dirty. Control paging
+    // must stay on source buckets rather than rebuilding that cache.
+    items_manager.OnTabRefreshed(dataset.location(0), dataset.tabItems(0));
+
+    QString cursor;
+    qsizetype received = 0;
+    qsizetype pages = 0;
+    qint64 maximum_page_ns = 0;
+    QElapsedTimer total;
+    total.start();
+    while (true) {
+        QJsonObject params{{"limit", 100}};
+        if (!cursor.isEmpty()) {
+            // The opaque cursor carries the original limit and filters; the
+            // protocol rejects combining a cursor with those parameters.
+            params = QJsonObject{{"cursor", cursor}};
+        }
+        QElapsedTimer page_timer;
+        page_timer.start();
+        const QJsonObject response = service.Handle(
+            control::Request{"benchmark", "items", params});
+        maximum_page_ns = std::max(maximum_page_ns, page_timer.nsecsElapsed());
+        if (!response.value("ok").toBool()) {
+            std::fprintf(stderr, "view request failed\n");
+            return 1;
+        }
+        const QJsonObject result = response.value("result").toObject();
+        received += result.value("items").toArray().size();
+        ++pages;
+        cursor = result.value("next_cursor").toString();
+        if (cursor.isEmpty()) {
+            break;
+        }
+    }
+    const qint64 traversal_ns = total.nsecsElapsed();
+
+    if (received != expected) {
+        std::fprintf(stderr,
+                     "item count mismatch: expected %lld, received %lld\n",
+                     static_cast<long long>(expected),
+                     static_cast<long long>(received));
+        return 1;
+    }
+
+    QElapsedTimer sparse_filter;
+    sparse_filter.start();
+    const QJsonObject sparse_response = service.Handle(control::Request{
+        "sparse-filter",
+        "items",
+        QJsonObject{{"limit", 1},
+                    {"tab_id", dataset.location(dataset.tabCount() - 1).id()},
+                    {"kind", "stash"}}});
+    const qint64 sparse_filter_ns = sparse_filter.nsecsElapsed();
+    if (!sparse_response.value("ok").toBool()) {
+        std::fprintf(stderr, "sparse filter request failed\n");
+        return 1;
+    }
+
+    QString tabs_cursor;
+    qsizetype tab_pages = 0;
+    qsizetype tabs_received = 0;
+    qsizetype tabs_reported = -1;
+    qint64 maximum_tabs_page_ns = 0;
+    QElapsedTimer tabs_total;
+    tabs_total.start();
+    while (true) {
+        QJsonObject params{{"limit", 100}};
+        if (!tabs_cursor.isEmpty()) {
+            params = QJsonObject{{"cursor", tabs_cursor}};
+        }
+        QElapsedTimer tabs_page;
+        tabs_page.start();
+        const QJsonObject tabs_response = service.Handle(
+            control::Request{"tabs", "tabs", params});
+        maximum_tabs_page_ns = std::max(maximum_tabs_page_ns, tabs_page.nsecsElapsed());
+        if (!tabs_response.value("ok").toBool()) {
+            std::fprintf(stderr, "tabs request failed\n");
+            return 1;
+        }
+        ++tab_pages;
+        const QJsonObject tabs_result = tabs_response.value("result").toObject();
+        tabs_received += tabs_result.value("tabs").toArray().size();
+        tabs_reported = tabs_result.value("total").toString().toLongLong();
+        tabs_cursor = tabs_result.value("next_cursor").toString();
+        if (tabs_cursor.isEmpty()) {
+            break;
+        }
+    }
+    const qint64 tabs_total_ns = tabs_total.nsecsElapsed();
+    if (tabs_received != dataset.tabCount() || tabs_reported != dataset.tabCount()) {
+        std::fprintf(stderr,
+                     "tab count mismatch: expected %d, received %lld, reported %lld\n",
+                     dataset.tabCount(),
+                     static_cast<long long>(tabs_received),
+                     static_cast<long long>(tabs_reported));
+        return 1;
+    }
+
+    std::printf("preset=%s items=%lld pages=%lld total_ms=%.3f max_page_ms=%.3f "
+                "sparse_filter_ms=%.3f tab_pages=%lld tabs_total_ms=%.3f "
+                "tabs_max_page_ms=%.3f\n",
+                qPrintable(parser.value(preset_option)),
+                static_cast<long long>(received),
+                static_cast<long long>(pages),
+                double(traversal_ns) / 1'000'000.0,
+                double(maximum_page_ns) / 1'000'000.0,
+                double(sparse_filter_ns) / 1'000'000.0,
+                static_cast<long long>(tab_pages),
+                double(tabs_total_ns) / 1'000'000.0,
+                double(maximum_tabs_page_ns) / 1'000'000.0);
+    return 0;
+}

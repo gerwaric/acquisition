@@ -99,6 +99,12 @@ public:
 
     void UpdateRequest(TabSelection type, const std::vector<ItemLocation> &locations);
 
+    enum class UpdateReadiness { Initializing, Ready, Busy };
+    // The worker QObject remains on the application thread; only cached-item
+    // parsing runs on m_parser_thread and queues its result back to this object.
+    // ControlService therefore reads this snapshot on the owning thread.
+    UpdateReadiness updateReadiness() const;
+
     // The single test-only seam into the worker (network-redesign phase 5,
     // verification §2). Only forward-declared here and DEFINED in a test-only
     // header (tests/workertestaccess.h), so it grants the worker suite private

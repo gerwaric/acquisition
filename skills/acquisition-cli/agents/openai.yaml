@@ -1,0 +1,4 @@
+interface:
+  display_name: "Acquisition CLI"
+  short_description: "Inspect and refresh Acquisition inventory"
+  default_prompt: "Use $acquisition-cli to inspect the running Acquisition inventory and manage a refresh safely."

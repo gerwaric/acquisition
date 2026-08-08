@@ -12,6 +12,7 @@
 
 class QNetworkReply;
 class QSettings;
+class QTimer;
 
 class BuyoutManager;
 class CurrencyManager;
@@ -30,6 +31,11 @@ class RePoE;
 class Shop;
 class UserStore;
 class UpdateChecker;
+
+namespace control {
+    class ControlService;
+    class LocalControlServer;
+} // namespace control
 
 struct MainWindowDeleter
 {
@@ -113,6 +119,8 @@ private:
     inline MainWindow &main_window() const { return *session().main_window; }
 
     void InitCoreServices();
+    void InitControlServer();
+    void RebindControlServer();
     void InitUserSession();
 
     void InitCrashReporting();
@@ -120,6 +128,10 @@ private:
 
     std::unique_ptr<CoreServices> m_core;
     std::unique_ptr<UserSession> m_session;
+    // Declared after the session so IPC closes before the services it exposes.
+    std::unique_ptr<control::ControlService> m_control_service;
+    std::unique_ptr<control::LocalControlServer> m_control_server;
+    QTimer *m_control_retry{nullptr};
 
     QDir m_data_dir;
     QString m_active_theme;

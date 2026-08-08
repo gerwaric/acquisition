@@ -44,7 +44,11 @@ public:
     QString character() const { return m_character; }
     bool socketed() const { return m_socketed; }
     bool removeonly() const { return m_removeonly; }
+    int x() const { return m_x; }
+    int y() const { return m_y; }
     int tab_index() const { return m_tab_id; }
+    QString tab_type() const { return m_tab_type; }
+    QString inventory_id() const { return m_inventory_id; }
     int getR() const { return m_red; }
     int getG() const { return m_green; }
     int getB() const { return m_blue; }

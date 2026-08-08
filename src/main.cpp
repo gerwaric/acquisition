@@ -7,7 +7,6 @@
 #include <QFontDatabase>
 #include <QLocale>
 #include <QSettings>
-#include <QStandardPaths>
 #include <QTimer>
 
 #include <clocale>
@@ -15,6 +14,7 @@
 #include <sentry.h>
 
 #include "application.h"
+#include "control/controlendpoint.h"
 #include "shop.h"
 #include "ui/logindialog.h"
 #include "util/fatalerror.h"
@@ -62,8 +62,7 @@ int main(int argc, char *argv[])
     // behavior, e.g. QStandardPaths::AppLocalDataLocation not being as expected.
     const QString build_timestamp = QString(BUILD_TIMESTAMP).simplified();
     const QDateTime build_date = QLocale("en_US").toDateTime(build_timestamp, "MMM d yyyy hh:mm:ss");
-    const QString default_data_dir = QStandardPaths::writableLocation(
-        QStandardPaths::AppLocalDataLocation);
+    const QString default_data_dir = control::DefaultDataDirectory().absolutePath();
 
     QFontDatabase::addApplicationFont(":/fonts/Fontin-SmallCaps.ttf");
 

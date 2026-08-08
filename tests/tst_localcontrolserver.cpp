@@ -1,0 +1,394 @@
+#include <QElapsedTimer>
+#include <QFileDevice>
+#include <QFileInfo>
+#include <QJsonDocument>
+#include <QLocalSocket>
+#include <QTemporaryDir>
+#include <QtTest>
+
+#include <future>
+
+#include "control/controlendpoint.h"
+#include "control/controlprotocol.h"
+#include "control/localcontrolclient.h"
+#include "control/localcontrolserver.h"
+
+class LocalControlServerTest : public QObject
+{
+    Q_OBJECT
+private slots:
+    void roundTrip();
+    void clientTriesFallbackEndpoint();
+    void fragmentedRequest();
+    void liveEndpointIsNotReplaced();
+    void malformedClientDoesNotAffectAnother();
+    void validationErrorsPreserveRequestId();
+    void servesOnlyFirstPipelinedRequest();
+    void ignoresMalformedTrailingFrame();
+    void acceptsMaximumRequestWithTrailingData();
+    void acceptsLargeUnescapedResponse();
+    void rejectsOversizedResponseBeforeEncoding();
+    void ignoresTrailingPartialFrame();
+    void idleConnectionTimesOut();
+    void connectionLimitIsEnforced();
+    void socketIsOwnerOnly();
+};
+
+namespace {
+
+    QJsonObject request(const QString &id = "request")
+    {
+        return QJsonObject{{"protocol", 1}, {"request_id", id}, {"command", "status"}};
+    }
+
+    QJsonObject readResponse(QLocalSocket &socket)
+    {
+        control::FrameDecoder decoder(control::MAX_RESPONSE_BYTES);
+        QElapsedTimer timer;
+        timer.start();
+        while (timer.elapsed() < 1000) {
+            QCoreApplication::processEvents();
+            if (socket.bytesAvailable() > 0) {
+                auto frames = decoder.Feed(socket.readAll());
+                if (!frames) {
+                    return {};
+                }
+                if (!frames->isEmpty()) {
+                    const auto object = control::DecodeObject(frames->front());
+                    return object ? *object : QJsonObject{};
+                }
+            }
+            QTest::qWait(1);
+        }
+        return {};
+    }
+
+    void connectClient(QLocalSocket &socket, const QString &endpoint)
+    {
+        socket.connectToServer(endpoint);
+        QTRY_COMPARE_WITH_TIMEOUT(socket.state(), QLocalSocket::ConnectedState, 1000);
+    }
+
+} // namespace
+
+void LocalControlServerTest::roundTrip()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    control::LocalControlServer server;
+    server.SetHandler([](const control::Request &request) {
+        return control::Success(request.request_id, QJsonObject{{"state", "ready"}});
+    });
+    QVERIFY2(server.Listen(QDir(dir.path())), qPrintable(server.ErrorString()));
+
+    QLocalSocket socket;
+    connectClient(socket, server.Endpoint());
+    socket.write(control::EncodeFrame(request()));
+
+    const QJsonObject response = readResponse(socket);
+    QVERIFY(response.value("ok").toBool());
+    QCOMPARE(response.value("request_id").toString(), "request");
+    QCOMPARE(response.value("result").toObject().value("state").toString(), "ready");
+}
+
+void LocalControlServerTest::clientTriesFallbackEndpoint()
+{
+    QTemporaryDir dir;
+    control::LocalControlServer server;
+    server.SetHandler([](const control::Request &request) {
+        return control::Success(request.request_id, QJsonObject{{"fallback", true}});
+    });
+    QVERIFY2(server.Listen(QDir(dir.path())), qPrintable(server.ErrorString()));
+
+    const auto unavailable = control::SendRequest(QStringList{}, request(), 1000);
+    QVERIFY(!unavailable);
+    QCOMPARE(unavailable.error().code, "endpoint_unavailable");
+
+    const QString endpoint = server.Endpoint();
+    auto future = std::async(std::launch::async, [endpoint] {
+        return control::SendRequest(
+            QStringList{endpoint + "-missing", endpoint},
+            request(),
+            1000);
+    });
+    QTRY_VERIFY_WITH_TIMEOUT(future.wait_for(std::chrono::milliseconds(0))
+                                 == std::future_status::ready,
+                             3000);
+    const auto response = future.get();
+    QVERIFY(response);
+    QVERIFY(response->value("result").toObject().value("fallback").toBool());
+}
+
+void LocalControlServerTest::fragmentedRequest()
+{
+    QTemporaryDir dir;
+    control::LocalControlServer server;
+    int calls = 0;
+    server.SetHandler([&](const control::Request &request) {
+        ++calls;
+        return control::Success(request.request_id);
+    });
+    QVERIFY(server.Listen(QDir(dir.path())));
+
+    QLocalSocket socket;
+    connectClient(socket, server.Endpoint());
+    const QByteArray frame = control::EncodeFrame(request());
+    for (char byte : frame) {
+        socket.write(QByteArray(1, byte));
+        QCoreApplication::processEvents();
+    }
+
+    const QJsonObject response = readResponse(socket);
+    QVERIFY(response.value("ok").toBool());
+    QCOMPARE(calls, 1);
+}
+
+void LocalControlServerTest::liveEndpointIsNotReplaced()
+{
+    QTemporaryDir dir;
+    control::LocalControlServer first;
+    first.SetHandler([](const control::Request &request) {
+        return control::Success(request.request_id);
+    });
+    QVERIFY(first.Listen(QDir(dir.path())));
+
+    control::LocalControlServer second;
+    QVERIFY(!second.Listen(QDir(dir.path())));
+    QVERIFY(first.IsListening());
+
+    QLocalSocket socket;
+    connectClient(socket, first.Endpoint());
+    socket.write(control::EncodeFrame(request()));
+    QVERIFY(readResponse(socket).value("ok").toBool());
+
+    first.Close();
+    QVERIFY2(second.Listen(QDir(dir.path())), qPrintable(second.ErrorString()));
+}
+
+void LocalControlServerTest::malformedClientDoesNotAffectAnother()
+{
+    QTemporaryDir dir;
+    control::LocalControlServer server;
+    int calls = 0;
+    server.SetHandler([&calls](const control::Request &request) {
+        ++calls;
+        return control::Success(request.request_id);
+    });
+    QVERIFY(server.Listen(QDir(dir.path())));
+
+    QLocalSocket malformed;
+    connectClient(malformed, server.Endpoint());
+    malformed.write(QByteArray(4, '\0') + control::EncodeFrame(request("must-not-run")));
+    const QJsonObject error = readResponse(malformed);
+    QVERIFY(!error.value("ok").toBool(true));
+    QCOMPARE(calls, 0);
+
+    QLocalSocket valid;
+    connectClient(valid, server.Endpoint());
+    valid.write(control::EncodeFrame(request("valid")));
+    const QJsonObject response = readResponse(valid);
+    QVERIFY(response.value("ok").toBool());
+    QCOMPARE(response.value("request_id").toString(), "valid");
+    QCOMPARE(calls, 1);
+}
+
+void LocalControlServerTest::validationErrorsPreserveRequestId()
+{
+    QTemporaryDir dir;
+    control::LocalControlServer server;
+    QVERIFY(server.Listen(QDir(dir.path())));
+
+    QLocalSocket socket;
+    connectClient(socket, server.Endpoint());
+    const QJsonObject invalid{{"protocol", 2},
+                              {"request_id", "version-request"},
+                              {"command", "status"}};
+    socket.write(control::EncodeFrame(invalid));
+    const QJsonObject response = readResponse(socket);
+    QCOMPARE(response.value("request_id").toString(), "version-request");
+    QCOMPARE(response.value("error").toObject().value("code").toString(),
+             "unsupported_version");
+}
+
+void LocalControlServerTest::servesOnlyFirstPipelinedRequest()
+{
+    QTemporaryDir dir;
+    control::LocalControlServer server;
+    int calls = 0;
+    server.SetHandler([&](const control::Request &request) {
+        ++calls;
+        return control::Success(request.request_id);
+    });
+    QVERIFY(server.Listen(QDir(dir.path())));
+
+    QLocalSocket socket;
+    connectClient(socket, server.Endpoint());
+    socket.write(control::EncodeFrame(request("one")) + control::EncodeFrame(request("two")));
+    const QJsonObject response = readResponse(socket);
+    QVERIFY(response.value("ok").toBool());
+    QCOMPARE(response.value("request_id").toString(), "one");
+    QCOMPARE(calls, 1);
+}
+
+void LocalControlServerTest::ignoresMalformedTrailingFrame()
+{
+    QTemporaryDir dir;
+    control::LocalControlServer server;
+    int calls = 0;
+    server.SetHandler([&](const control::Request &request) {
+        ++calls;
+        return control::Success(request.request_id);
+    });
+    QVERIFY(server.Listen(QDir(dir.path())));
+
+    QLocalSocket socket;
+    connectClient(socket, server.Endpoint());
+    socket.write(control::EncodeFrame(request()) + QByteArray("\x7f\xff\xff\xff", 4));
+    const QJsonObject response = readResponse(socket);
+    QVERIFY(response.value("ok").toBool());
+    QCOMPARE(response.value("request_id").toString(), "request");
+    QCOMPARE(calls, 1);
+}
+
+void LocalControlServerTest::acceptsMaximumRequestWithTrailingData()
+{
+    QTemporaryDir dir;
+    control::LocalControlServer server;
+    int calls = 0;
+    server.SetHandler([&](const control::Request &request) {
+        ++calls;
+        return control::Success(request.request_id);
+    });
+    QVERIFY(server.Listen(QDir(dir.path())));
+
+    QJsonObject object = request();
+    object.insert("padding", QString(control::MAX_REQUEST_BYTES, 'x'));
+    const qsizetype overhead = control::EncodeFrame(object).size() - 4
+                               - object.value("padding").toString().size();
+    object.insert("padding", QString(control::MAX_REQUEST_BYTES - overhead, 'x'));
+    const QByteArray frame = control::EncodeFrame(object);
+    QCOMPARE(frame.size() - 4, control::MAX_REQUEST_BYTES);
+
+    QLocalSocket socket;
+    connectClient(socket, server.Endpoint());
+    socket.write(frame + QByteArray(1, '\0'));
+    const QJsonObject response = readResponse(socket);
+    QVERIFY(response.value("ok").toBool());
+    QCOMPARE(response.value("request_id").toString(), "request");
+    QCOMPARE(calls, 1);
+}
+
+void LocalControlServerTest::acceptsLargeUnescapedResponse()
+{
+    QTemporaryDir dir;
+    control::LocalControlServer server;
+    constexpr qsizetype LARGE_TEXT_SIZE = 1024 * 1024;
+    server.SetHandler([](const control::Request &request) {
+        return control::Success(
+            request.request_id,
+            QJsonObject{{"large", QString(LARGE_TEXT_SIZE, 'x')}});
+    });
+    QVERIFY(server.Listen(QDir(dir.path())));
+
+    QLocalSocket socket;
+    connectClient(socket, server.Endpoint());
+    socket.write(control::EncodeFrame(request()));
+    const QJsonObject response = readResponse(socket);
+    QVERIFY(response.value("ok").toBool());
+    QCOMPARE(response.value("result").toObject().value("large").toString().size(),
+             LARGE_TEXT_SIZE);
+}
+
+void LocalControlServerTest::rejectsOversizedResponseBeforeEncoding()
+{
+    QTemporaryDir dir;
+    control::LocalControlServer server;
+    server.SetHandler([](const control::Request &request) {
+        return control::Success(
+            request.request_id,
+            QJsonObject{{"large", QString(control::MAX_RESPONSE_BYTES, 'x')}});
+    });
+    QVERIFY(server.Listen(QDir(dir.path())));
+
+    QLocalSocket socket;
+    connectClient(socket, server.Endpoint());
+    socket.write(control::EncodeFrame(request()));
+    const QJsonObject response = readResponse(socket);
+    QVERIFY(!response.value("ok").toBool(true));
+    QCOMPARE(response.value("error").toObject().value("code").toString(),
+             "response_too_large");
+}
+
+void LocalControlServerTest::ignoresTrailingPartialFrame()
+{
+    QTemporaryDir dir;
+    control::LocalControlServer server;
+    int calls = 0;
+    server.SetHandler([&](const control::Request &request) {
+        ++calls;
+        return control::Success(request.request_id);
+    });
+    QVERIFY(server.Listen(QDir(dir.path())));
+
+    QLocalSocket socket;
+    connectClient(socket, server.Endpoint());
+    socket.write(control::EncodeFrame(request()) + QByteArray(1, '\0'));
+    const QJsonObject response = readResponse(socket);
+    QVERIFY(response.value("ok").toBool());
+    QCOMPARE(response.value("request_id").toString(), "request");
+    QCOMPARE(calls, 1);
+}
+
+void LocalControlServerTest::idleConnectionTimesOut()
+{
+    QTemporaryDir dir;
+    control::LocalControlServer server(nullptr, 20);
+    QVERIFY(server.Listen(QDir(dir.path())));
+
+    QLocalSocket socket;
+    connectClient(socket, server.Endpoint());
+    socket.write("\0", 1);
+    QTRY_COMPARE_WITH_TIMEOUT(socket.state(), QLocalSocket::UnconnectedState, 1000);
+}
+
+void LocalControlServerTest::connectionLimitIsEnforced()
+{
+    QTemporaryDir dir;
+    control::LocalControlServer server(nullptr, 5000, 1);
+    server.SetHandler([](const control::Request &request) {
+        return control::Success(request.request_id);
+    });
+    QVERIFY(server.Listen(QDir(dir.path())));
+
+    QLocalSocket first;
+    connectClient(first, server.Endpoint());
+    QTRY_VERIFY_WITH_TIMEOUT(server.IsListening(), 1000);
+
+    QLocalSocket second;
+    second.connectToServer(server.Endpoint());
+    QTRY_COMPARE_WITH_TIMEOUT(second.state(), QLocalSocket::UnconnectedState, 500);
+
+    first.write(control::EncodeFrame(request()));
+    QVERIFY(readResponse(first).value("ok").toBool());
+}
+
+void LocalControlServerTest::socketIsOwnerOnly()
+{
+#ifndef Q_OS_WIN
+    QTemporaryDir dir;
+    control::LocalControlServer server;
+    QVERIFY(server.Listen(QDir(dir.path())));
+    const QFileDevice::Permissions permissions = QFileInfo(server.Endpoint()).permissions();
+    QVERIFY(!(permissions & QFileDevice::ReadGroup));
+    QVERIFY(!(permissions & QFileDevice::WriteGroup));
+    QVERIFY(!(permissions & QFileDevice::ExeGroup));
+    QVERIFY(!(permissions & QFileDevice::ReadOther));
+    QVERIFY(!(permissions & QFileDevice::WriteOther));
+    QVERIFY(!(permissions & QFileDevice::ExeOther));
+#else
+    QSKIP("Windows named-pipe ACLs require a native integration check");
+#endif
+}
+
+QTEST_GUILESS_MAIN(LocalControlServerTest)
+#include "tst_localcontrolserver.moc"

@@ -53,6 +53,7 @@ jobs:
 
         # Copy executables (crashpad_handler is copied next to acquisition by CMake post-build)
         Copy-Item "build\acquisition.exe" $deploy
+        Copy-Item "build\acquisitionctl.exe" $deploy
         Copy-Item "build\crashpad_handler.exe" $deploy
 
         # Deploy Qt runtime dependencies

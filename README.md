@@ -33,6 +33,58 @@ See [BUILD.md](BUILD.md) for more detailed build and release packaging guidance.
 	The default level for release builds is `INFO`.
 	The default level for debug builds is `DEBUG`.
 
+### Local control CLI
+
+`acquisitionctl` inspects and controls an Acquisition GUI that is already
+running for the same data directory. It never opens the application's databases
+or starts a second synchronizer. Output is versioned JSON.
+
+Release packages do not install a system-wide command:
+
+- Windows places `acquisitionctl.exe` beside `acquisition.exe` in the chosen
+  installation directory.
+- macOS places it at
+  `/Applications/acquisition.app/Contents/MacOS/acquisitionctl` when the app is
+  installed in `/Applications`.
+- Linux publishes `acquisitionctl-*.AppImage` as a second release artifact;
+  download it alongside the GUI AppImage and make it executable.
+- Local builds produce `build/acquisitionctl`.
+
+The examples below assume that executable is on `PATH`; otherwise replace
+`acquisitionctl` with its path.
+
+```sh
+acquisitionctl status --json
+acquisitionctl tabs --limit 50 --json
+acquisitionctl items --limit 50 --json
+acquisitionctl item <item-id> --json
+acquisitionctl refresh start --json
+acquisitionctl refresh status <operation-id> --json
+acquisitionctl refresh wait <operation-id> --timeout 300 --json
+```
+
+Use `--data-dir <path>` for both executables when Acquisition uses a non-default
+location. An accepted refresh belongs to the GUI and continues if
+`acquisitionctl` disconnects. Existing automatic-shop settings remain in effect.
+Run `acquisitionctl --help` for tab/item pagination and item-filter options.
+
+### Agent skill
+
+Acquisition includes a reusable skill for agents operating an installed
+Acquisition application. It teaches agents to use `acquisitionctl` safely; it is
+for consumers using Acquisition, not contributors developing this repository.
+
+Install it with the Skills CLI so each supported agent receives the skill in its
+normal skill directory:
+
+```bash
+npx skills add gerwaric/acquisition --global --skill acquisition-cli --agent codex claude-code --full-depth
+```
+
+Installing the skill does not install Acquisition or `acquisitionctl`. Install a
+release first, then use the release-matched CLI location described above. The
+skill source is available at `skills/acquisition-cli/`.
+
 ## Reporting issues
 
 If you're having problems with Acquisition, please check the issues page: https://github.com/gerwaric/acquisition/issues
