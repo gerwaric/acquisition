@@ -641,7 +641,7 @@ RateLimitManager::Observation RateLimitManager::RecordLandedReply(RateLimitedReq
     const Observation observation = Update(reply);
 
     if (m_policy->status() == RateLimit::Status::BORDERLINE) {
-        spdlog::warn("Rate limit policy '{}' is BORDERLINE and the next safe send is at {}",
+        spdlog::info("Rate limit policy '{}' is BORDERLINE and the next safe send is at {}",
                      m_policy->name(),
                      m_policy->GetNextSafeSend(m_history).toString());
     }
