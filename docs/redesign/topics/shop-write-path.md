@@ -273,8 +273,10 @@ on that branch).
 ## Candidate findings (for `docs/cleanup/findings.md`, on master)
 
 Found while tracing; not fixed here per the register's rules.
+Registered on master as **F68–F70** (August 8, 2026), in the order
+listed below.
 
-1. **`src/poe/endpoints/website/` is dead code with wrong contents.**
+1. **F68. `src/poe/endpoints/website/` is dead code with wrong contents.**
    None of its four headers has an includer anywhere in `src/` or
    `tests/` (grep-verified), and two are copy-paste casualties:
    `webleagues.h` defines `AccountCharacters` and `webstashitems.h`
@@ -282,9 +284,9 @@ Found while tracing; not fixed here per the register's rules.
    `src/poe/types/website/webstashtab.h`. Risk is misdirection — a
    repo survey (including the brief for this investigation) naturally
    lands there looking for the shop's endpoint surface.
-2. **`Shop::StashesIndexed` is a dead signal** — declared
+2. **F69. `Shop::StashesIndexed` is a dead signal** — declared
    (`shop.h:77`), never emitted, never connected (grep-verified).
-3. **Stale user-facing recovery advice** at `shop.cpp:704`: the
+3. **F70. Stale user-facing recovery advice** at `shop.cpp:704`: the
    "Failed to find item" handler tells the user to try
    Shop → "Update stash index", a menu item that no longer exists
    (no such action in `mainwindow.ui`/`mainwindow.cpp`). The advice
@@ -294,8 +296,7 @@ Found while tracing; not fixed here per the register's rules.
 ## Dead ends and rejected interpretations
 
 - **`src/poe/endpoints/website/` as the write-path endpoint layer.**
-  The brief's entry-point hints pointed there; it is unused (candidate
-  finding 1). The legacy index request is hand-built in
+  The brief's entry-point hints pointed there; it is unused (F68). The legacy index request is hand-built in
   `poeapiclient.cpp:129-158`.
 - **"Do shop posts go through the rate limiter like API reads?" is a
   false binary.** The answer splits per request kind: the index GET
