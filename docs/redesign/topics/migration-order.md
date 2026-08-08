@@ -102,9 +102,11 @@ well under 50 ms (estimate). Conditions:
 
 ## Open questions
 
-- Shop/forum write path: its coupling to `Search` was not traced by
+- ~~Shop/forum write path: its coupling to `Search` was not traced by
   the original analysis; the plan is read-path-heavy and the write
-  side is unexplored.
+  side is unexplored.~~ Answered 2026-08-08: no `Search` coupling at
+  all; the write side is a small A0 addendum, not a second protocol.
+  See `topics/shop-write-path.md`.
 - Credential custody (OAuth + POESESSID) under a Tauri-style security
   model: unexamined here; covered by the `credential-custody` spike
   candidate.
