@@ -129,6 +129,41 @@ named the natural opportunity but completed July 31, 2026 without
 reworking the stores — its spec's D7 records the deliberate
 non-exercise; the hook stands.)
 
+### F68. `src/poe/endpoints/website/` is dead code, and two headers have copy-pasted wrong contents — Confirmed
+
+Found August 8, 2026, during the shop write-path investigation
+(`docs/redesign/topics/shop-write-path.md`, `redesign` branch). None of
+the directory's four headers has an includer anywhere in `src/` or
+`tests/` (grep-verified), and two are copy-paste casualties:
+`webleagues.h` defines `poe::AccountCharacters` and `webstashitems.h`
+defines `poe::AccountLeagues` — duplicating types that already live
+under `src/poe/types/`, under filenames that promise something else.
+Nothing routes through this directory: the live website type is
+`src/poe/types/website/webstashtab.h`, and the legacy stash-index
+request is hand-built in `PoeApiClient::getLegacyStashIndex`. The cost
+is misdirection — a repo survey looking for the shop's endpoint
+surface (including the brief for the investigation that found this)
+naturally lands there. Fix shape: delete the directory.
+
+### F69. `Shop::StashesIndexed` is a dead signal — Confirmed
+
+Found August 8, 2026, during the same investigation. Declared in
+`Shop`'s signals block (`shop.h`), never emitted and never connected
+(grep-verified). Fix shape: delete the declaration.
+
+### F70. `Shop::OnShopSubmitted` recovery advice names a menu item that no longer exists — Confirmed
+
+Found August 8, 2026, during the same investigation. When a forum
+submission fails with "Failed to find item", the handler in
+`Shop::OnShopSubmitted` logs an error telling the user to try
+Shop → "Update stash index" — no such action exists anywhere in the UI
+(no match in `mainwindow.ui`/`mainwindow.cpp`, grep-verified). The
+advice is also obsolete on the merits: `Shop::SubmitShop` calls
+`UpdateStashIndex()` unconditionally, so every job fetches a fresh
+index and the actual recovery is simply resubmitting. Fix shape:
+reword the message (and any recovery guidance should say "try again",
+not point at chrome that was removed).
+
 ## Standing constraints and lessons
 
 Rules distilled from resolved findings that remain binding on future work.
