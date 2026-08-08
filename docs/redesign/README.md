@@ -37,6 +37,12 @@ and squash-merged; the churn stays in branch history.
   findings in `docs/cleanup/findings.md` (F-numbers). Redesign docs
   cite them by number. New evidence produced here that outlives the
   exploration should graduate into those ledgers, not live here.
+- **Label the lane.** Quantitative and factual claims in topic docs
+  are tagged **measured** (cite the benchmark or ledger entry),
+  **estimated** (name the spike or measurement that would confirm
+  it), or **inferred**. Unknowns are stated explicitly, not omitted —
+  a doc that's silent on a question reads as if the question doesn't
+  exist.
 - **Cross-review gets IDs.** When a proposal is formally reviewed
   (by either collaborator or their tooling), findings get round-scoped
   IDs (`R1-*`, …) in the topic doc, matching the spec-review
