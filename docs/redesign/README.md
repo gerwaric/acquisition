@@ -63,7 +63,7 @@ they become real rows (with branch names) when cut.
 | Spike | Question | Status | Result |
 |---|---|---|---|
 | rate-limit-core | Can a Rust client demonstrably honor the N-claims in `network-ground-truth.md` under burst load, as a single serialized gate? | candidate | — |
-| webview-scale | Does a webview UI (virtualized list, real item tooltips) stay responsive at 100k+ items on mid-range hardware? | candidate | — |
+| webview-scale | Does Tauri + TanStack Virtual over the windowed query protocol (`topics/migration-order.md`) stay responsive at 1M synthetic items, on both WebView2 (Windows) and WKWebView (macOS)? | candidate | — |
 | credential-custody | Can OAuth + POESESSID custody meet current guarantees inside a Tauri-style security model? | candidate | — |
 | data-migration | Can existing users' datastores (`src/legacy/`) migrate losslessly to a new core's persistence? | candidate | — |
 
