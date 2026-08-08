@@ -774,13 +774,14 @@ endif()
 # Crashpad for Sentry
 #------------------------------------------------------
 
-set(CRASHPAD_HANDLER_EXE "crashpad_handler${CMAKE_EXECUTABLE_SUFFIX}")
-set(CRASHPAD_HANDLER_SRC "${sentry-native_BINARY_DIR}/crashpad_build/handler/${CRASHPAD_HANDLER_EXE}")
-set(CRASHPAD_HANDLER_DST "$<TARGET_FILE_DIR:acquisition>/${CRASHPAD_HANDLER_EXE}")
-
 # Make sure the crashpad handler is copied next to the output executable.
+# Ask CMake for the handler's location rather than assuming a single-config
+# output layout: multi-config generators (e.g. Visual Studio) put it under a
+# per-config subdirectory of crashpad_build/handler/.
+set(CRASHPAD_HANDLER_DST "$<TARGET_FILE_DIR:acquisition>/$<TARGET_FILE_NAME:crashpad_handler>")
+add_dependencies(acquisition crashpad_handler)
 add_custom_command(TARGET acquisition POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CRASHPAD_HANDLER_SRC}" "${CRASHPAD_HANDLER_DST}"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:crashpad_handler>" "${CRASHPAD_HANDLER_DST}"
     COMMAND_EXPAND_LISTS
     VERBATIM
 )

@@ -7,6 +7,17 @@ function(_acq_test_environment out_var)
     set(${out_var} "${test_environment}" PARENT_SCOPE)
 endfunction()
 
+# On Windows the test executables need the Qt DLLs on PATH. CI gets this from
+# install-qt-action; a plain local shell does not, and every test would fail
+# with 0xc0000135 (DLL not found). Prepending is a no-op when Qt is already
+# on PATH.
+function(_acq_test_dll_path test_name)
+    if(WIN32)
+        set_property(TEST ${test_name} APPEND PROPERTY ENVIRONMENT_MODIFICATION
+            "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>")
+    endif()
+endfunction()
+
 function(acq_add_test name)
     qt_add_executable(${name} ${name}.cpp)
     target_include_directories(${name} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
@@ -15,6 +26,7 @@ function(acq_add_test name)
     _acq_test_environment(test_environment)
     set_tests_properties(${name} PROPERTIES
         ENVIRONMENT "${test_environment}")
+    _acq_test_dll_path(${name})
 endfunction()
 
 # Build one runner executable and register each named scenario as its OWN CTest
@@ -33,6 +45,7 @@ function(acq_add_scenario_test name)
         add_test(NAME ${name}.${scenario} COMMAND ${name} ${scenario})
         set_tests_properties(${name}.${scenario} PROPERTIES
             ENVIRONMENT "${test_environment}")
+        _acq_test_dll_path(${name}.${scenario})
     endforeach()
 endfunction()
 
