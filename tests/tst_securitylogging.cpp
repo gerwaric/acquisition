@@ -4,6 +4,9 @@
 #include <QtTest>
 
 #include <QNetworkRequest>
+#include <QNetworkReply>
+#include <QScopedPointer>
+#include <QStandardPaths>
 
 #include <sstream>
 
@@ -15,6 +18,19 @@
 #include "util/networkmanager.h"
 #include "util/oauthtoken.h"
 
+namespace {
+
+    class TestNetworkManager : public NetworkManager
+    {
+    public:
+        QNetworkReply *get(const QNetworkRequest &request)
+        {
+            return createRequest(QNetworkAccessManager::GetOperation, request);
+        }
+    };
+
+} // namespace
+
 class SecurityLoggingTest : public QObject
 {
     Q_OBJECT
@@ -25,6 +41,7 @@ private slots:
 
     void authorizationHeaderIsMaskedCaseInsensitively();
     void unrelatedHeaderIsLoggedUnchanged();
+    void attachedBearerTokenIsMasked();
     void malformedOAuthTokenDoesNotEchoInput();
 
 private:
@@ -82,6 +99,22 @@ void SecurityLoggingTest::unrelatedHeaderIsLoggedUnchanged()
     const QString output = logged();
     QVERIFY(output.contains(value));
     QVERIFY(!output.contains("masked for security"));
+}
+
+void SecurityLoggingTest::attachedBearerTokenIsMasked()
+{
+    constexpr auto secret = "attached-bearer-secret-never-log";
+    QStandardPaths::setTestModeEnabled(true);
+    TestNetworkManager manager;
+    manager.setBearerToken(secret);
+
+    QScopedPointer<QNetworkReply> reply{
+        manager.get(QNetworkRequest{QUrl{"https://api.pathofexile.com/stash/Standard"}})};
+    reply->abort();
+
+    const QString output = logged();
+    QVERIFY(!output.contains(secret));
+    QVERIFY(output.contains("masked for security"));
 }
 
 void SecurityLoggingTest::malformedOAuthTokenDoesNotEchoInput()

@@ -32,8 +32,14 @@ namespace json::raw {
 
 namespace {
 
+    enum class BufferSensitivity
+    {
+        ordinary,
+        credentials,
+    };
+
     template<typename T>
-    std::optional<T> read_json(const QByteArray &json, bool buffer_may_hold_credentials = false)
+    std::optional<T> read_json_impl(const QByteArray &json, BufferSensitivity sensitivity)
     {
         // Tolerate unknown keys so new fields in GGG's API responses do
         // not break parsing.
@@ -43,7 +49,7 @@ namespace {
         const auto err = glz::read<opts>(result, str);
         if (err) {
             const auto type = typeid(T).name();
-            if (buffer_may_hold_credentials) {
+            if (sensitivity == BufferSensitivity::credentials) {
                 // Log the error code and position only: format_error's
                 // buffer context would echo the credential (F73).
                 spdlog::error("Error reading {} from json: {} at byte {}",
@@ -57,6 +63,18 @@ namespace {
             return std::nullopt;
         }
         return result;
+    }
+
+    template<typename T>
+    std::optional<T> read_json(const QByteArray &json)
+    {
+        return read_json_impl<T>(json, BufferSensitivity::ordinary);
+    }
+
+    template<typename T>
+    std::optional<T> read_sensitive_json(const QByteArray &json)
+    {
+        return read_json_impl<T>(json, BufferSensitivity::credentials);
     }
 
     // Capture the reply's sub-object losslessly, then parse the typed
@@ -96,7 +114,7 @@ namespace {
 
 std::optional<OAuthToken> json::readOAuthToken(const QByteArray &json)
 {
-    return read_json<OAuthToken>(json, true);
+    return read_sensitive_json<OAuthToken>(json);
 }
 
 std::optional<poe::Character> json::readCharacter(const QByteArray &json)
