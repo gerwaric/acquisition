@@ -516,7 +516,8 @@ matching or registration policy, a Tauri IPC advisory, or `keyring`
 platform regressions.
 
 **Adopt in the current C++ app regardless of the rewrite decision**
-(F-numbers to be assigned on master, per the F68–F70 precedent):
+(registered on master as F71–F77, per the F68–F70 precedent — items
+1/2 → F74, item 3 → F71–F73, item 4 → F77):
 
 1. Pin host-scoped auth with tests — bearer never to `www.`, and
    decide/enforce cookie scoping (closes CW5, answers N21's "pinned
@@ -533,35 +534,38 @@ platform regressions.
 ## Candidate findings (for `docs/cleanup/findings.md`, on master)
 
 Found while tracing; described, not fixed, per the register's rules.
+Registered on master as **F71–F76** (August 8, 2026), in the order
+listed below; the CW4 de-arming asymmetry (adopt-now item 4, not a
+candidate here) was registered alongside them as **F77**.
 
-1. **Raw bearer token logged at trace level.**
+1. **F71. Raw bearer token logged at trace level.**
    `networkmanager.cpp:121` writes the full `Bearer …` value via
    `spdlog::trace`; the log level is user-selectable in the login
    dialog, trace included (`logindialog.cpp:468-473`), so a user
    asked to "turn on trace logging and send the log" ships their
    token.
-2. **The Authorization log mask can never fire.**
+2. **F72. The Authorization log mask can never fire.**
    `networkmanager.cpp:172` compares `name` — the "request"/"reply"
    label — against "Authorization" instead of comparing `header`.
    Latent today (call sites log pre-send requests and reply headers,
    neither carrying the bearer), but any future post-send request
    log would leak unmasked.
-3. **Token bytes can reach the error log via `glz::format_error`.**
+3. **F73. Token bytes can reach the error log via `glz::format_error`.**
    On token serialization failure (`oauthmanager.cpp:148-151`) and
    token parse failure (`json_readers.cpp:44-48` via
    `readOAuthToken`), the formatted error embeds context from the
    token-bearing buffer.
-4. **The POESESSID cookie is not host-scoped.** Installed domain-wide
+4. **F74. The POESESSID cookie is not host-scoped.** Installed domain-wide
    on `.pathofexile.com` (`networkmanager.cpp:93-96`), it is sent to
    `api.pathofexile.com` and the OAuth token endpoint, not just its
    `www.` consumers. The secret reaches hosts that never need it.
-5. **User-Agent does not follow GGG's documented format.** The docs
+5. **F75. User-Agent does not follow GGG's documented format.** The docs
    require the prefix `OAuth {clientId}/{version}`; the app sends
    `acquisition/<version> (contact: …)` without the `OAuth ` prefix
    (`networkmanager.cpp:15-16`). Tolerated in practice, but it is
    the one documented API-citizenship rule the client visibly
    breaks — worth weighing given the project's history.
-6. **Dead OAuth/session code.** `OAuthManager::m_authenticated` is
+6. **F76. Dead OAuth/session code.** `OAuthManager::m_authenticated` is
    never written and `isAuthenticatedChanged` is connected nowhere
    (`oauthmanager.h:38`, `oauthmanager.h:50`);
    `LoginDialog::OnSessionIDChanged` is declared and defined but
