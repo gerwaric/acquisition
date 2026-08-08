@@ -19,6 +19,7 @@
 - The July 2026 interior design cleanup is complete. Current work is a delta-native redesign of the items refresh pipeline; read `docs/design/items-pipeline.md` before making structural changes to the worker, `ItemsManager`, or the search/model refresh paths.
 - The rate-limited networking layer is being redesigned under an accepted, frozen spec; read `docs/design/network-redesign.md` before touching `src/ratelimit/` or the network boundary. Claims about how the Path of Exile API actually limits requests live in `docs/design/network-ground-truth.md` and are cited by number.
 - Known design/correctness problems are recorded in `docs/cleanup/findings.md` (open findings, standing constraints, and a ledger of resolved ones). Check it before fixing something that looks broken — it may already be recorded or assigned.
+- A rewrite-or-evolve decision for the core and UI is under exploration: see `docs/adr/0003-rewrite-vs-evolve.md` (proposed) and the `redesign` branch (`docs/redesign/`). Until that ADR is accepted, nothing changes — the specs above remain full authority for all work on `master`.
 
 ## Development Guidance
 - Use `.clang-format` for C++ formatting when touching formatted source, respect existing `// clang-format off/on` blocks, and preserve nearby style for naming and code organization.

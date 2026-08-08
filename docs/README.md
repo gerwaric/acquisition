@@ -59,6 +59,11 @@ when this map and a header disagree, the header wins.
 - `design/network-ground-truth.md` — living ledger of numbered claims
   (N1, N2, …) about how the Path of Exile API actually limits requests,
   each with cited evidence. Designs are derived from these claims.
+- `adr/0003-rewrite-vs-evolve.md` — **proposed** (August 2026): should
+  the core and UI be evolved in place or rewritten on a new stack?
+  Exploration lives on the `redesign` branch in `docs/redesign/`;
+  until the ADR is accepted, the frozen specs above remain full
+  authority and `master` work continues normally.
 - `cleanup/findings.md` — project-wide register of design/correctness
   findings (F1, F2, …): open findings, standing constraints, and a
   resolved ledger. The `cleanup/` path is historical — the register
