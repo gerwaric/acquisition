@@ -164,6 +164,96 @@ index and the actual recovery is simply resubmitting. Fix shape:
 reword the message (and any recovery guidance should say "try again",
 not point at chrome that was removed).
 
+### F71. The raw bearer token is logged at trace level — Confirmed
+
+Found August 8, 2026, during the credential-custody investigation
+(`docs/redesign/topics/credential-custody.md`, `redesign` branch).
+When `NetworkManager::createRequest` attaches the Authorization header
+for `api.pathofexile.com`, it writes the full `Bearer …` value via
+`spdlog::trace`. The log level is user-selectable in the login dialog,
+trace included (`LoginDialog::OnLoggingLevelChanged`), so a user asked
+to "turn on trace logging and send the log" ships their token. Fix
+shape: drop the log line or mask the value the way
+`NetworkManager::setPoeSessionId` masks POESESSID.
+
+### F72. The Authorization mask in `NetworkManager::logHeaders` can never fire — Confirmed
+
+Found August 8, 2026, during the same investigation. The masking check
+compares `name` — the "request"/"reply" label passed by the caller —
+against "Authorization" instead of comparing `header`, the header name
+actually being iterated, so masking never fires. Latent today: the
+call sites (the `logRequest`/`logReply` helpers used by `RateLimiter`
+and `RateLimitManager`) log pre-send requests — the bearer is added to
+a *copy* inside `NetworkManager::createRequest` — and reply headers,
+so no Authorization header currently flows through. Any future
+post-send request log would leak the bearer unmasked. Fix shape:
+compare `header`.
+
+### F73. Token bytes can reach the error log via `glz::format_error` — Likely
+
+Found August 8, 2026, during the same investigation. On token
+serialization failure (`OAuthManager::receiveToken`) and on token
+parse failure (the shared `read_json` helper in `json_readers.cpp`,
+reached via `readOAuthToken`), the logged message embeds
+`glz::format_error` output, which includes context from the
+token-bearing source buffer. Inferred from glaze's documented
+context-printing behavior; not reproduced — hence Likely. Fix shape:
+keep `format_error` out of log lines whose source buffer can carry a
+credential (log the error code/position only on those paths).
+
+### F74. The POESESSID cookie is not host-scoped — Likely
+
+Found August 8, 2026, during the same investigation.
+`NetworkManager::setPoeSessionId` installs the cookie domain-wide on
+`.pathofexile.com` (`POE_COOKIE_DOMAIN`), and standard cookie
+domain-matching sends it to every `*.pathofexile.com` host — the
+intended consumers on `www.` (legacy stash index, forum), but also
+`api.pathofexile.com` and the OAuth token endpoint. The assumed
+guarantee "cookie never sent to `api.`" does not exist today — the
+secret reaches hosts that never need it, and the API evidently
+tolerates it. Inferred from the cookie domain plus
+`QNetworkCookieJar`'s suffix matching; not verified with a packet
+capture — hence Likely. Fix shape: scope the cookie to
+`www.pathofexile.com` — both real consumers are on `www.`, so nothing
+should break, but verify the legacy index still authenticates.
+
+### F75. User-Agent does not follow GGG's documented format — Confirmed
+
+Found August 8, 2026, during the same investigation. GGG's developer
+docs require the prefix format
+`User-Agent: OAuth {clientId}/{version} (contact: {contact})`; the app
+sends `acquisition/<version> (contact: …)` without the `OAuth ` prefix
+(the `USER_AGENT` constant in `networkmanager.cpp`, built from
+`APP_NAME`/`APP_VERSION_STRING`/`APP_PUBLISHER_EMAIL`). Tolerated in
+practice, but it is the one documented API-citizenship rule the client
+visibly breaks — worth weighing given the project's history. Fix
+shape: add the `OAuth ` prefix.
+
+### F76. Dead OAuth/session code — Confirmed
+
+Found August 8, 2026, during the same investigation.
+`OAuthManager::m_authenticated` is initialized false and never
+written, and `isAuthenticatedChanged` is emitted but connected nowhere
+(grep-verified). `LoginDialog::OnSessionIDChanged` is declared and
+defined but never connected. F69 precedent. Fix shape: delete the
+dead members and slot.
+
+### F77. No OAuth de-arming: refresh failure and bearer rejection are log-only — Confirmed
+
+Found August 8, 2026, during the same investigation.
+`OAuthManager`'s failure signals land in slots that only write log
+lines (`onRequestFailure`, `onServerError`): no de-arming, no
+credential clearing, no UI event. Mid-session, an expired or revoked
+bearer surfaces as per-request 401 `FetchError`s — no OAuth-side
+401 classification exists anywhere (grep-verified; the only 401/403
+handling is the shop's POESESSID path). This is asymmetric with the
+POESESSID guard, which de-arms automation, clears the credential, and
+notifies the user (shop-write-path §2, commit 8b761e2c). After login
+nothing listens to OAuth state at all — `grantAccess` is consumed
+only by `LoginDialog`. Fix shape: surface refresh failure to the UI
+and add an `oauth_rejected` de-arming path symmetric with the
+POESESSID one.
+
 ## Standing constraints and lessons
 
 Rules distilled from resolved findings that remain binding on future work.
