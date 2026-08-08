@@ -129,81 +129,10 @@ named the natural opportunity but completed July 31, 2026 without
 reworking the stores — its spec's D7 records the deliberate
 non-exercise; the hook stands.)
 
-### F68. `src/poe/endpoints/website/` is dead code, and two headers have copy-pasted wrong contents — Confirmed
-
-Found August 8, 2026, during the shop write-path investigation
-(`docs/redesign/topics/shop-write-path.md`, `redesign` branch). None of
-the directory's four headers has an includer anywhere in `src/` or
-`tests/` (grep-verified), and two are copy-paste casualties:
-`webleagues.h` defines `poe::AccountCharacters` and `webstashitems.h`
-defines `poe::AccountLeagues` — duplicating types that already live
-under `src/poe/types/`, under filenames that promise something else.
-Nothing routes through this directory: the live website type is
-`src/poe/types/website/webstashtab.h`, and the legacy stash-index
-request is hand-built in `PoeApiClient::getLegacyStashIndex`. The cost
-is misdirection — a repo survey looking for the shop's endpoint
-surface (including the brief for the investigation that found this)
-naturally lands there. Fix shape: delete the directory.
-
-### F69. `Shop::StashesIndexed` is a dead signal — Confirmed
-
-Found August 8, 2026, during the same investigation. Declared in
-`Shop`'s signals block (`shop.h`), never emitted and never connected
-(grep-verified). Fix shape: delete the declaration.
-
-### F70. `Shop::OnShopSubmitted` recovery advice names a menu item that no longer exists — Confirmed
-
-Found August 8, 2026, during the same investigation. When a forum
-submission fails with "Failed to find item", the handler in
-`Shop::OnShopSubmitted` logs an error telling the user to try
-Shop → "Update stash index" — no such action exists anywhere in the UI
-(no match in `mainwindow.ui`/`mainwindow.cpp`, grep-verified). The
-advice is also obsolete on the merits: `Shop::SubmitShop` calls
-`UpdateStashIndex()` unconditionally, so every job fetches a fresh
-index and the actual recovery is simply resubmitting. Fix shape:
-reword the message (and any recovery guidance should say "try again",
-not point at chrome that was removed).
-
-### F71. The raw bearer token is logged at trace level — Confirmed
+### F74. The POESESSID cookie is not host-scoped — Likely
 
 Found August 8, 2026, during the credential-custody investigation
 (`docs/redesign/topics/credential-custody.md`, `redesign` branch).
-When `NetworkManager::createRequest` attaches the Authorization header
-for `api.pathofexile.com`, it writes the full `Bearer …` value via
-`spdlog::trace`. The log level is user-selectable in the login dialog,
-trace included (`LoginDialog::OnLoggingLevelChanged`), so a user asked
-to "turn on trace logging and send the log" ships their token. Fix
-shape: drop the log line or mask the value the way
-`NetworkManager::setPoeSessionId` masks POESESSID.
-
-### F72. The Authorization mask in `NetworkManager::logHeaders` can never fire — Confirmed
-
-Found August 8, 2026, during the same investigation. The masking check
-compares `name` — the "request"/"reply" label passed by the caller —
-against "Authorization" instead of comparing `header`, the header name
-actually being iterated, so masking never fires. Latent today: the
-call sites (the `logRequest`/`logReply` helpers used by `RateLimiter`
-and `RateLimitManager`) log pre-send requests — the bearer is added to
-a *copy* inside `NetworkManager::createRequest` — and reply headers,
-so no Authorization header currently flows through. Any future
-post-send request log would leak the bearer unmasked. Fix shape:
-compare `header`.
-
-### F73. Token bytes can reach the error log via `glz::format_error` — Likely
-
-Found August 8, 2026, during the same investigation. On token
-serialization failure (`OAuthManager::receiveToken`) and on token
-parse failure (the shared `read_json` helper in `json_readers.cpp`,
-reached via `readOAuthToken`), the logged message embeds
-`glz::format_error` output, which includes context from the
-token-bearing source buffer. Inferred from glaze's documented
-context-printing behavior; not reproduced — hence Likely. Fix shape:
-keep `format_error` out of log lines whose source buffer can carry a
-credential (log the error code/position only on those paths).
-
-### F74. The POESESSID cookie is not host-scoped — Likely
-
-Found August 8, 2026, during the same investigation.
 `NetworkManager::setPoeSessionId` installs the cookie domain-wide on
 `.pathofexile.com` (`POE_COOKIE_DOMAIN`), and standard cookie
 domain-matching sends it to every `*.pathofexile.com` host — the
@@ -228,15 +157,6 @@ sends `acquisition/<version> (contact: …)` without the `OAuth ` prefix
 practice, but it is the one documented API-citizenship rule the client
 visibly breaks — worth weighing given the project's history. Fix
 shape: add the `OAuth ` prefix.
-
-### F76. Dead OAuth/session code — Confirmed
-
-Found August 8, 2026, during the same investigation.
-`OAuthManager::m_authenticated` is initialized false and never
-written, and `isAuthenticatedChanged` is emitted but connected nowhere
-(grep-verified). `LoginDialog::OnSessionIDChanged` is declared and
-defined but never connected. F69 precedent. Fix shape: delete the
-dead members and slot.
 
 ### F77. No OAuth de-arming: refresh failure and bearer rejection are log-only — Confirmed
 
@@ -358,3 +278,10 @@ above). "PR #161" refers to the post-Phase-6 follow-ups branch
 | F65 | The legacy stash endpoint returned the same `backend-item-request-limit` policy name with an `Ip`-only shape for an invalid/unauthenticated POESESSID and an `Account,Ip` shape after a valid POESESSID was installed. The pump adopted the new definition but logged the expected authentication transition as a warning and error, which surfaced to the user, and retained request history recorded against a different counter set | Fixed July 28, 2026: same-name shape changes are explicitly supported. `RateLimitPolicy::HasSameShape()` compares rule names, item counts, and bucket periods; `RateLimitManager::Update()` clears history before adopting a different shape, logs one concise `info` message, and leaves the full transition at `debug`. Same-shape limit-value changes retain history. Pinned by `tst_ratelimitmanager::policyShapeChangeClearsHistory`, which transitions `Ip` to `Account,Ip` after recording a saturating event and proves the next request is delayed only by the gate floor rather than the obsolete history |
 | F62 | The stash/character cache stored a lossy re-serialization (`json::writeStash`/`writeCharacter` of the parsed structs), not the JSON GGG sent: reads tolerate unknown keys but glaze writes only declared members, so every unmodeled API field was silently dropped before it reached `json_data`. The cache could not backfill a newly modeled field, could not reproduce a parse bug, and could answer a wire-format change only by invalidation — 3.28→3.29 would otherwise have been a mechanical blob transform instead of emptying the cache (found July 24, 2026, while designing that invalidation) | Fixed July 28, 2026, per the July 26 decision (full prose in git history): raw wire bytes flow through the persistence lane at per-reply granularity. The facade captures the reply's stash/character sub-object losslessly (`glz::raw_json`), parses the typed payload from that same substring, and returns both (`poe::StashPayload`/`poe::CharacterPayload`); `stashReceived`/`characterReceived` carry the bytes as an opaque `QByteArray` the worker never interprets; `saveStash`/`saveCharacter` persist the bytes verbatim. `json_data` keeps its shape — the tolerant reader parses old re-serialized rows and new wire rows alike — and `json_version` labels GGG's wire format from then on, which is what makes a future blob upgrader possible. The save trigger stays the worker's post-acceptance emit, so nothing the worker discards (stopped stragglers, failed parses) is ever persisted. A 200 whose reply lacks its stash/character sub-object (missing or null) is classified at the facade as `FetchError{Parse}` per M2 D5/R2-4 — the payload members are non-optional, so a success cannot represent that state, and the worker's untyped "is empty" abort branches are deleted (independent review of the first implementation caught that it initially preserved them as successful empty payloads, contradicting D5). Network-redesign D7 amended in place: nothing above the boundary *interprets* bytes. Rejected alternatives: a facade/pump-level persistence tap (persists replies the worker discards — reintroduces the cache/memory divergence class M1 eliminated) and glaze unknown-field capture on every poe type (known-field parse bugs still bake in; every nested type carries an `extra` map forever). Tests serialize typed fixtures where real replies' bytes would flow (`FakePoeApiClient`, `saveStashFixture`/`saveCharacterFixture`) — re-serialization is harmless in tests; it is the production cache that must be faithful. Pinned by `tst_poeapiclient`'s byte-fidelity pins (`stashPayloadCarriesTheWireBytes`, `characterPayloadCarriesTheWireBytes`, `missingStashSubObjectIsAParseError`, `missingCharacterSubObjectIsAParseError`) and `tst_reconcile`'s verbatim-storage pins (`savedStashBytesAreStoredVerbatim`, `savedCharacterBytesAreStoredVerbatim`). Backfill fidelity begins with the first refresh after the fix ships — nothing recovers fields already dropped from existing caches |
 | F67 | `Item::operator<` compared `m_hash` against itself: the tie-break tuple's third element was the left-hand hash on both sides, so the intended hash-level determinism for id-less items was dead code (found July 30, 2026, during the M3 sort-profiling spike) | Fixed, items-pipeline M3 S1 (spec D5): the one-token change to `rhs.m_hash` restores the intended `(name, uid, hash)` order, and the keyed-sort suffix carries the same order so keyed and comparator sorts agree. Pinned by `intendedTieBreakRestored` (determinism) and `keyedOrderMatchesComparatorOrder` (equivalence), both in `tst_search` |
+| F68 | `src/poe/endpoints/website/` was dead code — no includers anywhere, and two headers (`webleagues.h`, `webstashitems.h`) were copy-paste casualties defining types under filenames that promised something else | Deleted, August 2026 mechanical-findings sweep: the directory and its `CMakeLists.txt` entries removed |
+| F69 | `Shop::StashesIndexed` was declared, never emitted, never connected | Deleted, August 2026 mechanical-findings sweep |
+| F70 | The "Failed to find item" recovery advice in `Shop::OnShopSubmitted` pointed at a Shop → "Update stash index" menu action that no longer exists (and every job fetches a fresh index anyway) | Reworded, August 2026 mechanical-findings sweep: the message now says to try submitting again |
+| F71 | `NetworkManager::createRequest` logged the full `Bearer …` value at trace level, a user-selectable log level — "turn on trace logging and send the log" shipped the token | Fixed, August 2026 mechanical-findings sweep: the value is masked the way `setPoeSessionId` masks POESESSID |
+| F72 | The Authorization mask in `NetworkManager::logHeaders` compared `name` (the "request"/"reply" label) instead of `header`, so masking could never fire; latent today, but any future post-send request log would have leaked the bearer unmasked | Fixed, August 2026 mechanical-findings sweep: the check compares `header` |
+| F73 | Token bytes could reach the error log via `glz::format_error`'s buffer context on token serialization failure (`OAuthManager::receiveToken`) and token parse failure (`read_json` via `readOAuthToken`) | Fixed, August 2026 mechanical-findings sweep: `receiveToken` formats the error without the buffer, and `read_json` takes a `buffer_may_hold_credentials` flag (set by `readOAuthToken`) that logs the error code and position only |
+| F76 | Dead OAuth/session code: `OAuthManager::m_authenticated` never written, `isAuthenticatedChanged` connected nowhere, `LoginDialog::OnSessionIDChanged` never connected | Deleted, August 2026 mechanical-findings sweep (F69 precedent) |

@@ -372,10 +372,6 @@ set(ACQ_POE
     src/poe/endpoints/accountprofile.h
     src/poe/endpoints/accountstash.h
     src/poe/endpoints/accountstashes.h
-    src/poe/endpoints/website/webcharacteritems.h
-    src/poe/endpoints/website/webcharacters.h
-    src/poe/endpoints/website/webleagues.h
-    src/poe/endpoints/website/webstashitems.h
     src/poe/poe_utils.cpp
     src/poe/poe_utils.h
     src/poe/poeapiclient.cpp

@@ -33,7 +33,7 @@ namespace json::raw {
 namespace {
 
     template<typename T>
-    std::optional<T> read_json(const QByteArray &json)
+    std::optional<T> read_json(const QByteArray &json, bool buffer_may_hold_credentials = false)
     {
         // Tolerate unknown keys so new fields in GGG's API responses do
         // not break parsing.
@@ -43,8 +43,17 @@ namespace {
         const auto err = glz::read<opts>(result, str);
         if (err) {
             const auto type = typeid(T).name();
-            const auto msg = glz::format_error(err, str);
-            spdlog::error("Error reading {} from json: {}", type, msg);
+            if (buffer_may_hold_credentials) {
+                // Log the error code and position only: format_error's
+                // buffer context would echo the credential (F73).
+                spdlog::error("Error reading {} from json: {} at byte {}",
+                              type,
+                              glz::format_error(err),
+                              err.count);
+            } else {
+                const auto msg = glz::format_error(err, str);
+                spdlog::error("Error reading {} from json: {}", type, msg);
+            }
             return std::nullopt;
         }
         return result;
@@ -87,7 +96,7 @@ namespace {
 
 std::optional<OAuthToken> json::readOAuthToken(const QByteArray &json)
 {
-    return read_json<OAuthToken>(json);
+    return read_json<OAuthToken>(json, true);
 }
 
 std::optional<poe::Character> json::readCharacter(const QByteArray &json)

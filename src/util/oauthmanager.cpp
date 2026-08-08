@@ -147,7 +147,8 @@ void OAuthManager::receiveToken(const QVariantMap &tokens)
     std::string serialized_token;
     auto ec = glz::write_json(m_token, serialized_token);
     if (ec) {
-        const std::string msg = glz::format_error(ec, serialized_token);
+        // The buffer holds the token, so log the error without it (F73).
+        const std::string msg = glz::format_error(ec);
         spdlog::error("OAuthManager: error serializing received token: {}", msg);
     } else {
         spdlog::info("OAuth: storing token");
@@ -168,7 +169,6 @@ void OAuthManager::receiveGrant()
     }
     spdlog::info("OAuth: access was granted.");
     emit grantAccess(m_token);
-    emit isAuthenticatedChanged();
 }
 
 void OAuthManager::setToken(const OAuthToken &token)

@@ -39,7 +39,6 @@ private slots:
     void OnAuthenticateButtonClicked();
     void OnLoginTabChanged(int index);
     void OnLoginButtonClicked();
-    void OnSessionIDChanged(const QString &session_id);
     void OnLeagueChanged(const QString &league);
     void OnAdvancedCheckBoxChanged(Qt::CheckState state);
     void OnProxyCheckBoxChanged(Qt::CheckState state);
