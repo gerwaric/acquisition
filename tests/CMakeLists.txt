@@ -68,6 +68,7 @@ add_test(NAME filters_boundary
         -P "${acquisition_SOURCE_DIR}/cmake/filters_boundary_check.cmake")
 
 acq_add_test(tst_buyout)
+acq_add_test(tst_synthdata)
 acq_add_test(tst_buyoutmanager)
 acq_add_test(tst_itemlocation)
 acq_add_test(tst_itemtooltiptext)
