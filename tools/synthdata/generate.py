@@ -21,6 +21,7 @@ the logged-in account; use a fictional one like SYNTH#0000).
 
 import argparse
 import json
+import os
 import random
 import re
 import sqlite3
@@ -80,6 +81,7 @@ def icon_url(base):
 class RepoeIndex:
     def __init__(self, data):
         self.version = data["version"]
+        self.dir = data["dir"]
         released = {
             k: v for k, v in data["base_items"].items()
             if v.get("release_state") == "released" and v.get("name")
@@ -734,7 +736,7 @@ def load_quirk_registry():
     return json.loads(path.read_text())["quirks"]
 
 
-def emit_quirks_tab(factory, asm, index):
+def emit_quirks_tab(factory, asm, index, probes=None):
     """Emit the Quirks item tab plus one empty tab per tab-level quirk.
 
     Returns (items_emitted, tabs_emitted). Item quirks merge into a
@@ -763,6 +765,11 @@ def emit_quirks_tab(factory, asm, index):
         items.append(it)
     assert len(items) <= 24 * 24, "quirk registry exceeds one quad tab"
     sid = asm._stash_id()
+    if probes is not None:
+        for q, it in zip([q for q in quirks if "item" in q], items):
+            probes.append({"id": q["id"], "kind": "quirk-item",
+                           "item_id": it["id"], "stash_id": sid,
+                           "item_json": json.dumps(it, separators=(",", ":"))})
     payload = {"id": sid, "name": "Quirks", "type": "QuadStash",
                "index": index, "metadata": {"colour": "00cc00"},
                "items": items}
@@ -780,6 +787,9 @@ def emit_quirks_tab(factory, asm, index):
         asm.stash_rows.append(asm._row(sid, "Standard", name, "NormalStash",
                                        index, payload,
                                        colour=meta.get("colour")))
+        if probes is not None:
+            probes.append({"id": qid, "kind": "quirk-tab", "stash_id": sid,
+                           "name": name, "colour": meta.get("colour")})
     return len(items), tabs
 
 
@@ -880,13 +890,20 @@ def emit_jsonl(path, asm):
 def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--profile", required=True)
-    ap.add_argument("--items", type=int, default=100_000)
+    ap.add_argument("--items", type=int, default=100_000,
+                    help="approximate minimum stash-item count: generation"
+                    " stops after the tab that reaches the target, then"
+                    " characters (and with --coverage, probe items) are"
+                    " added on top; not an exact output cardinality")
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--sqlite")
     ap.add_argument("--json")
     ap.add_argument("--coverage", action="store_true")
     ap.add_argument("--now", default="2026-08-01T12:00:00")
     ap.add_argument("--leagues", default="Standard,Hardcore,Allflame,Mirage")
+    ap.add_argument("--repoe-dir", help="load RePoE files from this directory"
+                    " (offline; e.g. the checked-in fixtures/) instead of the"
+                    " live cache")
     args = ap.parse_args(argv)
 
     profile = json.load(open(args.profile))
@@ -894,7 +911,7 @@ def main(argv=None):
     rng = random.Random(args.seed)
     now = datetime.fromisoformat(args.now)
 
-    ix = RepoeIndex(repoe_data.load())
+    ix = RepoeIndex(repoe_data.load(args.repoe_dir))
     factory = ItemFactory(ix, rng)
     asm = Assembler(factory, profile, leagues, rng, now)
 
@@ -947,11 +964,14 @@ def main(argv=None):
                 " items-per-tab quantiles are all zero; nothing to generate"
                 f" at --items {args.items}")
 
+    stash_items = emitted
     for i in range(profile.get("character_count", 5)):
         emitted += asm.character(
             rng.choice(leagues[:max(1, len(league_shares))]),
             f"Synth{rng.choice(RARE_NAME_A)}{rng.choice(RARE_NAME_B)}{i}")
+    char_items = emitted - stash_items
 
+    probes = []
     if args.coverage:
         # Tab 1: the systematic item.h sweep. Coverage items are axis
         # probes, not layout tests: force 1x1 and place directly so no axis
@@ -964,6 +984,10 @@ def main(argv=None):
             it["w"] = it["h"] = 1
             it["x"], it["y"] = slot % 24, slot // 24
             items.append(it)
+            probes.append({"id": f"axis-{slot:03d}-" + "+".join(axes),
+                           "kind": "coverage-axis",
+                           "item_id": it["id"], "stash_id": sid,
+                           "item_json": json.dumps(it, separators=(",", ":"))})
         assert len(items) <= 24 * 24, "coverage axes exceed one quad tab"
         payload = {"id": sid, "name": "Coverage", "type": "QuadStash",
                    "index": index, "metadata": {"colour": "cc0000"},
@@ -978,15 +1002,49 @@ def main(argv=None):
         # including keys item.h deliberately does not model, plus one
         # extra tab per tab-level quirk.
         index += 1
-        n_items, n_tabs = emit_quirks_tab(factory, asm, index)
+        n_items, n_tabs = emit_quirks_tab(factory, asm, index, probes)
         emitted += n_items
         index += n_tabs - 1
 
     if args.sqlite:
         emit_sqlite(args.sqlite, asm)
+        # Sidecar validation manifest: one probe per coverage axis and per
+        # registry quirk. item_json is the item's exact serialized bytes as
+        # embedded in the payload (same dict, same dump options), so a
+        # validator can assert raw-byte presence — covering emitted nulls
+        # and deleted keys — without re-deriving generation logic. The repro
+        # block hashes every input, so a dataset stays identifiable after
+        # the repository and upstream RePoE have moved on.
+        def sha256(path):
+            import hashlib
+            return hashlib.sha256(open(path, "rb").read()).hexdigest()
+        here = os.path.dirname(os.path.abspath(__file__))
+        manifest = {
+            "repro": {"seed": args.seed, "items": args.items,
+                      "profile": os.path.basename(args.profile),
+                      "profile_sha256": sha256(args.profile),
+                      "leagues": args.leagues, "coverage": args.coverage,
+                      "now": args.now,
+                      "repoe_version": ix.version,
+                      "repoe_sha256": {name: sha256(os.path.join(ix.dir, name))
+                                       for name in repoe_data.FILES},
+                      "quirks_registry_sha256": sha256(
+                          os.path.join(here, "quirks-registry.json"))},
+            "totals": {"items": emitted, "stash_rows": len(asm.stash_rows),
+                       "characters": len(asm.char_rows)},
+            "probes": probes,
+        }
+        with open(args.sqlite + ".manifest.json", "w") as f:
+            json.dump(manifest, f, indent=1)
+            f.write("\n")
     if args.json:
         emit_jsonl(args.json, asm)
-    print(f"generated {emitted} items, {len(asm.stash_rows)} stash rows,"
+    # Counts are top-level items only (socketed sub-items excluded):
+    # stash-tab items, character equipment+inventory, coverage/quirk probes.
+    print(f"generated {emitted} items ({stash_items} stash,"
+          f" {char_items} character,"
+          f" {emitted - stash_items - char_items} probe),"
+          f" {len(asm.stash_rows)} stash rows,"
           f" {len(asm.char_rows)} characters, {len(asm.item_buyouts)} buyouts"
           f" (seed={args.seed}, repoe={ix.version})")
 

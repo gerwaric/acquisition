@@ -1,0 +1,148 @@
+name: Synthdata Fixture Freshness
+
+# Low-cost freshness check for tools/synthdata/fixtures/ (the checked-in
+# RePoE subset the offline test lane generates from). Fetches only
+# version.txt; the full data is downloaded only when the version moved.
+# Never fails the build — it warns, and on scheduled runs keeps exactly one
+# open issue while the fixtures are stale. The cron only fires on the
+# default branch; the pull_request trigger gives the same signal as a
+# non-blocking check while the tooling lives on a feature branch.
+#
+# Permissions are deliberately split: the freshness job executes
+# branch-controlled code (make_fixtures.py) and gets a read-only token; the
+# issue-writing job runs only on schedule — always default-branch code —
+# and executes nothing from the repository at all.
+
+on:
+  schedule:
+    - cron: '17 6 * * 1' # weekly, Monday 06:17 UTC
+  pull_request:
+    paths: ['tools/synthdata/**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  freshness:
+    runs-on: ubuntu-latest
+    outputs:
+      state: ${{ steps.check.outputs.state }}
+      upstream: ${{ steps.check.outputs.upstream }}
+      drift_ok: ${{ steps.drift.outcome }}
+      kind: ${{ steps.drift.outputs.kind }}
+      msg: ${{ steps.drift.outputs.msg }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Compare upstream RePoE version to fixture source
+        id: check
+        run: |
+          # A transient upstream outage must stay non-blocking: report and
+          # stop, never fail the job. The fetched value is untrusted input;
+          # anything that is not a plain version token is discarded before
+          # any later step can interpolate it.
+          upstream=$(curl -fsSL --connect-timeout 10 --max-time 30 https://repoe-fork.github.io/version.txt | tr -d '[:space:]' || true)
+          case "$upstream" in
+            (*[!0-9A-Za-z._-]*|'') upstream="" ;;
+          esac
+          recorded=$(python3 -c "import json; print(json.load(open('tools/synthdata/fixtures/source.json'))['source_version'])")
+          echo "upstream=$upstream" >> "$GITHUB_OUTPUT"
+          echo "recorded=$recorded" >> "$GITHUB_OUTPUT"
+          if [ -z "$upstream" ]; then
+            echo "state=unknown" >> "$GITHUB_OUTPUT"
+            echo "::notice::RePoE upstream unreachable or returned a malformed version; freshness not checked this run."
+            echo "RePoE upstream unreachable or malformed; freshness not checked." >> "$GITHUB_STEP_SUMMARY"
+          elif [ "$upstream" = "$recorded" ]; then
+            echo "state=fresh" >> "$GITHUB_OUTPUT"
+            echo "Fixtures are current (RePoE $upstream)." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "state=stale" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Re-extract fixtures and classify the drift
+        id: drift
+        if: steps.check.outputs.state == 'stale'
+        continue-on-error: true # signal-only; never a failed check
+        env:
+          UPSTREAM: ${{ steps.check.outputs.upstream }}
+          RECORDED: ${{ steps.check.outputs.recorded }}
+        run: |
+          cd tools/synthdata
+          python3 make_fixtures.py
+          # source.json always changes on a version bump; the question is
+          # whether the extracted shapes themselves moved.
+          if git diff --quiet -- fixtures ':(exclude)fixtures/source.json'; then
+            kind="version-only"
+            msg="RePoE moved $RECORDED -> $UPSTREAM, but the extracted fixture subset is unchanged. Re-run tools/synthdata/make_fixtures.py to refresh source.json at leisure."
+          else
+            kind="shapes-moved"
+            msg="RePoE moved $RECORDED -> $UPSTREAM and the extracted fixture subset CHANGED — the shapes the generator relies on drifted. Re-run tools/synthdata/make_fixtures.py and review the diff."
+          fi
+          echo "kind=$kind" >> "$GITHUB_OUTPUT"
+          echo "msg=$msg" >> "$GITHUB_OUTPUT"
+          echo "::warning title=synthdata fixtures out of date ($kind)::$msg"
+          {
+            echo "## Synthdata fixtures out of date ($kind)"
+            echo "$msg"
+            echo '```'
+            git diff --stat -- fixtures
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # Scheduled runs only: a workflow_dispatch or pull_request run on a
+  # feature branch could otherwise open or close the default branch's
+  # tracking issue based on that branch's fixtures. A stale verdict acts
+  # only when the drift step actually classified the drift; a failed
+  # extraction is an unknown state, not an issue with a blank explanation.
+  reconcile-issue:
+    needs: freshness
+    if: >-
+      github.event_name == 'schedule' &&
+      (needs.freshness.outputs.state == 'fresh' ||
+       (needs.freshness.outputs.state == 'stale' && needs.freshness.outputs.drift_ok == 'success'))
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Keep exactly one open issue while stale
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          STATE: ${{ needs.freshness.outputs.state }}
+          UPSTREAM: ${{ needs.freshness.outputs.upstream }}
+          DRIFT_KIND: ${{ needs.freshness.outputs.kind }}
+          DRIFT_MSG: ${{ needs.freshness.outputs.msg }}
+        run: |
+          title="Synthetic-data RePoE fixtures are out of date"
+          # All exact-title matches, one per line; duplicates (however they
+          # arose) are reconciled too, keeping the exactly-one invariant.
+          matches=$(gh issue list --state open --limit 500 --json number,title \
+            --jq "map(select(.title == \"$title\")) | .[].number")
+          if [ "$STATE" = "stale" ]; then
+            if [ -z "$matches" ]; then
+              gh issue create --title "$title" --body "$(printf '%s\n\n%s' \
+                "$DRIFT_MSG" \
+                "Automated weekly check: .github/workflows/synthdata-freshness.yml ($DRIFT_KIND).")"
+            else
+              keep=$(echo "$matches" | head -n1)
+              # Refresh the body: staleness can escalate across runs (a
+              # version-only bump followed by a shapes-moved release must
+              # not keep reporting the milder state).
+              gh issue edit "$keep" --body "$(printf '%s\n\n%s' \
+                "$DRIFT_MSG" \
+                "Automated weekly check: .github/workflows/synthdata-freshness.yml ($DRIFT_KIND).")"
+              echo "Issue #$keep already open; refreshed, not duplicated."
+              for n in $(echo "$matches" | tail -n +2); do
+                gh issue close "$n" --comment "Duplicate of #$keep; closing."
+              done
+            fi
+          else
+            for n in $matches; do
+              gh issue close "$n" \
+                --comment "Fixtures are current again (RePoE $UPSTREAM); closing automatically."
+            done
+          fi

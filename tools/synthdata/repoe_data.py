@@ -27,19 +27,34 @@ def _fetch(path):
         return r.read()
 
 
-def load():
-    """Return {filename-stem: parsed json} for all FILES, from cache or web."""
-    version = _fetch("version.txt").decode().strip()
-    cache = CACHE_ROOT / version
-    cache.mkdir(parents=True, exist_ok=True)
+def load(repoe_dir=None):
+    """Return {filename-stem: parsed json} for all FILES, from cache or web.
+
+    With repoe_dir, read the same file set from that directory instead —
+    fully offline, no cache. This is how the checked-in fixture subset
+    (tools/synthdata/fixtures/, extracted by make_fixtures.py) is loaded.
+    """
+    if repoe_dir is not None:
+        cache = pathlib.Path(repoe_dir)
+        # Fixture dirs carry a version.txt; .cache/<version>/ dirs encode
+        # the version in their name instead.
+        vfile = cache / "version.txt"
+        version = vfile.read_text().strip() if vfile.exists() else cache.name
+    else:
+        version = _fetch("version.txt").decode().strip()
+        cache = CACHE_ROOT / version
+        cache.mkdir(parents=True, exist_ok=True)
     data = {}
     for name in FILES:
         f = cache / name
         if not f.exists():
+            if repoe_dir is not None:
+                raise SystemExit(f"repoe dir is missing {f}")
             f.write_bytes(_fetch(name))
         stem = name.split(".")[0]
         data[stem] = json.loads(f.read_text())
     data["version"] = version
+    data["dir"] = str(cache)
     return data
 
 
