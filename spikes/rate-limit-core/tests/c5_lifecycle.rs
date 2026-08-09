@@ -119,9 +119,9 @@ fn unknown_outcome_stays_counted_until_every_window_passes() {
     );
     assert!(matches!(
         engine.try_reserve(&policy, SimInstant::from_millis(999)),
-        ReserveOutcome::NotBefore(at) if at == SimInstant::from_millis(1_000)
+        ReserveOutcome::NotBefore(at) if at == SimInstant::from_millis(61_000)
     ));
-    let next = reserve(&mut engine, &policy, SimInstant::from_millis(1_000));
+    let next = reserve(&mut engine, &policy, SimInstant::from_millis(61_000));
     engine.rollback(next);
 }
 

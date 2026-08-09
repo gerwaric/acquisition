@@ -332,9 +332,6 @@ impl PolicyEngine {
     }
 
     /// Makes one scheduling decision and records the send on a grant.
-    ///
-    /// This slice deliberately uses exact rolling-window expiry. C1 will add
-    /// the N13 bucket padding without changing the reservation lifecycle.
     pub fn try_reserve(&mut self, policy_name: &PolicyName, now: SimInstant) -> ReserveOutcome {
         let Some(policy) = self.policies.get(policy_name) else {
             return ReserveOutcome::Refused(RefusalReason::UnknownPolicy(policy_name.clone()));
@@ -441,12 +438,30 @@ fn policy_not_before(policy: &Policy, now: SimInstant) -> Option<SimInstant> {
     policy
         .rules
         .iter()
-        .flat_map(|rule| [rule.pair.burst(), rule.pair.sustained()])
-        .filter_map(|window| window_not_before(&policy.history, window, now))
+        .flat_map(|rule| {
+            [
+                (rule.pair.burst(), rule.buckets.burst()),
+                (rule.pair.sustained(), rule.buckets.sustained()),
+            ]
+        })
+        .filter_map(|(window, resolution)| {
+            window_not_before(&policy.history, window, resolution, now)
+        })
         .max()
 }
 
-fn window_not_before(history: &History, window: &Window, now: SimInstant) -> Option<SimInstant> {
+/// Returns the earliest instant that reopens one zero-headroom slot.
+///
+/// The server's bucket phase is unknowable, so N13 keeps each hit active for
+/// its rolling period plus one full, explicitly configured bucket resolution.
+/// If history is already over the limit, the order statistic expires only as
+/// many oldest hits as are needed to get strictly below `max_hits`.
+fn window_not_before(
+    history: &History,
+    window: &Window,
+    resolution: Resolution,
+    now: SimInstant,
+) -> Option<SimInstant> {
     let max_hits = usize::try_from(window.max_hits()).expect("u32 always fits usize");
     if max_hits == 0 {
         return Some(SimInstant::MAX);
@@ -455,7 +470,7 @@ fn window_not_before(history: &History, window: &Window, now: SimInstant) -> Opt
     let mut active = history
         .entries
         .iter()
-        .filter(|entry| is_within(entry.at, now, window.period()))
+        .filter(|entry| is_within_padded(entry.at, now, window.period(), resolution.duration()))
         .map(|entry| entry.at)
         .collect::<Vec<_>>();
     if active.len() < max_hits {
@@ -463,9 +478,22 @@ fn window_not_before(history: &History, window: &Window, now: SimInstant) -> Opt
     }
     active.sort_unstable();
     let entries_that_must_expire = active.len() - max_hits + 1;
-    Some(active[entries_that_must_expire - 1].saturating_add(window.period()))
+    Some(
+        active[entries_that_must_expire - 1]
+            .saturating_add(window.period())
+            .saturating_add(resolution.duration()),
+    )
 }
 
 fn is_within(at: SimInstant, now: SimInstant, period: Duration) -> bool {
     at > now || now < at.saturating_add(period)
+}
+
+fn is_within_padded(
+    at: SimInstant,
+    now: SimInstant,
+    period: Duration,
+    resolution: Duration,
+) -> bool {
+    at > now || now < at.saturating_add(period).saturating_add(resolution)
 }

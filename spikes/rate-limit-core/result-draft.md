@@ -104,7 +104,7 @@ for.
 
 | ID | Property | Result | Evidence |
 |---|---|---|---|
-| C1 | Padding arithmetic safe over all φ | ⟨…⟩ | ⟨…; if skew-sensitivity appears here, O5 re-enters the mock budget⟩ |
+| C1 | Padding arithmetic safe over all φ | green — full N13 per-window padding uses each explicit Known/Assumed resolution; shared policy history is judged across every rule/window and the maximum required `NotBefore` wins; headroom remains zero | 2026-08-09: `cargo test --locked` in `spikes/rate-limit-core/` — 19 passed, including a generated C1 property over arbitrary histories, multi-rule definitions, and independently generated server phases plus explicit just-before/on/after rollover and zero-headroom/order-statistic cases; focused `PROPTEST_CASES=4096 cargo test --locked --test c1_scheduling every_reserved_outcome_is_safe_for_every_server_phase` green (4,096 cases); independent oracle bucketizes hits on the server phase rather than calling production scheduling arithmetic; `cargo clippy --locked --all-targets -- -D warnings` and `cargo fmt --check` green. No skew sensitivity observed because this slice has no server-clock input; O5 remains out |
 | C2 | Header parsing / shape validation | partial — raw-header parsing and RulePair shape slice green; response-precedence cases remain | 2026-08-09: `cargo test` in `spikes/rate-limit-core/` — 7 passed, including valid-pair round-trip and malformed-input properties; `cargo clippy --all-targets -- -D warnings` green |
 | C3 | Fuse trip logic | ⟨…⟩ | ⟨…⟩ |
 | C4 | 4xx tripwire logic | ⟨…⟩ | ⟨…⟩ |
@@ -220,3 +220,10 @@ outlives the spike branch; record what exists and where.⟩
   outcomes, and the guarded debug drop bomb. Fifteen offline tests
   pass overall; C1 padding and response reconciliation remain later
   slices.
+- 2026-08-09 — C1 scheduling arithmetic landed: each saturated
+  window adds its explicit Known/Assumed bucket resolution to the
+  rolling expiry, and the shared-history policy answer is the
+  maximum across every window and rule with zero headroom. Nineteen
+  offline tests pass overall, including the independent-phase C1
+  property (plus a focused 4,096-case run) and explicit
+  rollover-boundary cases; all eight C5 tests remain green.
