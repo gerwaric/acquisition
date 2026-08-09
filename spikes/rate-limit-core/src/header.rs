@@ -35,6 +35,14 @@ pub struct Window {
 }
 
 impl Window {
+    pub fn new(max_hits: u32, period: Duration, restriction: Duration) -> Self {
+        Self {
+            max_hits,
+            period,
+            restriction,
+        }
+    }
+
     pub fn max_hits(&self) -> u32 {
         self.max_hits
     }
@@ -53,12 +61,30 @@ pub struct RulePair {
 }
 
 impl RulePair {
+    pub fn new(burst: Window, sustained: Window) -> Result<Self, RulePairShapeError> {
+        if burst.period >= sustained.period {
+            return Err(RulePairShapeError::NonIncreasingPeriods {
+                burst_period: burst.period,
+                sustained_period: sustained.period,
+            });
+        }
+        Ok(Self { burst, sustained })
+    }
+
     pub fn burst(&self) -> &Window {
         &self.burst
     }
     pub fn sustained(&self) -> &Window {
         &self.sustained
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RulePairShapeError {
+    NonIncreasingPeriods {
+        burst_period: Duration,
+        sustained_period: Duration,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -181,9 +207,6 @@ pub fn parse_policy(headers: &HeaderMap) -> Result<PolicySnapshot, PolicyParseEr
             },
         });
     }
-    if rules.is_empty() {
-        return Err(PolicyParseError::InvalidRuleName { raw: String::new() });
-    }
     Ok(PolicySnapshot { name, rules })
 }
 
@@ -237,11 +260,11 @@ fn parse_triplets<T>(
 }
 
 fn parse_window([max_hits, period, restriction]: [u32; 3]) -> Window {
-    Window {
+    Window::new(
         max_hits,
-        period: Duration::from_secs(period.into()),
-        restriction: Duration::from_secs(restriction.into()),
-    }
+        Duration::from_secs(period.into()),
+        Duration::from_secs(restriction.into()),
+    )
 }
 
 fn parse_window_state([current_hits, period, restriction_active]: [u32; 3]) -> WindowState {

@@ -108,7 +108,7 @@ for.
 | C2 | Header parsing / shape validation | partial — raw-header parsing and RulePair shape slice green; response-precedence cases remain | 2026-08-09: `cargo test` in `spikes/rate-limit-core/` — 7 passed, including valid-pair round-trip and malformed-input properties; `cargo clippy --all-targets -- -D warnings` green |
 | C3 | Fuse trip logic | ⟨…⟩ | ⟨…⟩ |
 | C4 | 4xx tripwire logic | ⟨…⟩ | ⟨…⟩ |
-| C5 | Lifecycle invariants | ⟨…⟩ | ⟨…⟩ |
+| C5 | Lifecycle invariants | green — reservation/rollback/unknown-outcome identity and abandonment semantics implemented; response reconciliation remains its separately scheduled slice | 2026-08-09: `cargo test --locked` in `spikes/rate-limit-core/` — 15 passed, including 8 C5 tests and generated rollback, interleaving, and accidental-drop properties; `cargo clippy --locked --all-targets -- -D warnings` and `cargo fmt --check` green |
 
 ### Fault-injection and structural
 
@@ -215,3 +215,8 @@ outlives the spike branch; record what exists and where.⟩
   RulePair-shape slice. Seven offline tests pass (two property
   tests); response-precedence coverage remains before C2 is
   complete.
+- 2026-08-09 — C5 reservation lifecycle landed: identity-bearing
+  local and synthetic history, exact rollback, pessimistic unknown
+  outcomes, and the guarded debug drop bomb. Fifteen offline tests
+  pass overall; C1 padding and response reconciliation remain later
+  slices.
