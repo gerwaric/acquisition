@@ -122,7 +122,9 @@ fn parse_policy(headers: &Headers) -> Result<PolicySnapshot, PolicyParseError>
 
 The shell owns the response to `UnexpectedPolicyShape` (charter:
 D4-style scoped clean failure): refuse that policy's sends under
-cooldown, error pending requests, publish on the watch channel. At
+cooldown — or the *endpoint's*, when no policy mapping was ever
+established, e.g. a malformed boot HEAD (`RefusalTarget`) — error
+pending requests, publish on the watch channel. At
 most one request is ever sent under an unknown shape (M4). Process
 abort is reserved for the test harness. All `PolicyParseError`
 variants get this **identical** behavior — `MissingHeader`,
@@ -241,8 +243,16 @@ impl PolicyEngine {
                          now: SimInstant, response: &ObservedResponse)
         -> Transition;
 
-    fn on_unknown_outcome(&mut self, token: ReservationToken, now: SimInstant);
-    fn rollback(&mut self, token: ReservationToken);   // removes by EntryId (F3)
+    /// Returns a Transition like the response entry points: a final
+    /// confirmation attempt ending unknown escalates (confirmation
+    /// matrix below), which the shell must be told about.
+    fn on_unknown_outcome(&mut self, token: ReservationToken,
+                          now: SimInstant) -> Transition;
+
+    /// Returns nothing by design: rollback's only effect is internal
+    /// state restoration (remove by EntryId, F3); the actor
+    /// publishes a watch snapshot after every mutating call anyway.
+    fn rollback(&mut self, token: ReservationToken);
 }
 
 enum ReserveOutcome {
@@ -274,14 +284,28 @@ struct Transition {
 }
 
 enum Disposition {
-    Complete,                        // outcome delivered to the caller
+    CompleteRequest,                 // ordinary response: deliver the
+                                     // outcome to the request's caller
+    ProbeReady,                      // successful probe: mapping seeded,
+                                     // release the endpoint's parked
+                                     // requests (a HEAD has no caller —
+                                     // one name per meaning, so actor
+                                     // confusion is hard to express)
     Requeue,                         // first 429 on a policy (M8)
-    RefusePolicy {                   // M3 degraded probe, M4 shape,
-        policy: PolicyName,          // M8 escalation suspend — the typed
-        cause: RefusalCause,         // PolicyParseError travels inside the
-    },                               // cause, so success-plus-parse-error
-                                     // is unrepresentable
+    Refuse {                         // M3 degraded probe, M4 shape,
+        target: RefusalTarget,       // M8 escalation suspend — the typed
+        cause: RefusalCause,         // PolicyParseError travels inside
+    },                               // the cause: success-plus-parse-
+                                     // error is unrepresentable
     Halt,                            // M11b Cloudflare-shaped terminal
+}
+
+// A refusal needs a target even when no policy mapping was ever
+// established — a malformed boot HEAD dies before yielding a policy
+// name, and the D4 blast radius is then the endpoint.
+enum RefusalTarget {
+    Policy(PolicyName),
+    Endpoint(EndpointLabel),
 }
 
 enum Notification {
@@ -289,6 +313,11 @@ enum Notification {
     StateChanged,                                    // watch-snapshot cue
 }
 ```
+
+Entry-point invariant (documented at sketch level; implementation
+may split the return types per entry point if the invariant earns
+compile-time teeth): `on_response` never yields `ProbeReady`;
+`on_probe_response` never yields `CompleteRequest` or `Requeue`.
 
 A 429 carries no retry *time* in its transition — that would hand
 the shell a second scheduling path. Instead the core records the
@@ -327,18 +356,29 @@ outcome decides:
 - any other non-429 outcome (5xx, 401, malformed, Cloudflare-
   shaped) **preserves the episode** while its independent path
   applies on top (D4 cooldown, 4xx tripwire, halt) — a 500 storm
-  proves nothing about the limiter and must not reset the ladder;
-- 429 → escalation (`RefusePolicy`, suspend-and-surface) — a
-  genuine failed retry;
+  proves nothing about the limiter and must not reset the ladder —
+  and **consumes a confirmation attempt** (otherwise a 500 storm
+  recreates the unbounded-probe loop F6 closed);
+- 429 → escalation (`Refuse`, suspend-and-surface) — a genuine
+  failed retry;
 - unknown outcome → the send stays counted (lifecycle rule) and
-  exactly **one** further confirmation attempt is permitted at the
-  recomputed `NotBefore`. The confirmation-attempt cap is **two
-  per episode** (external review F6): a second consecutive
-  unconfirmed probe of either kind — unknown or 429 — escalates.
-  Mirrors once-then-escalate; repeated unknown outcomes suggest
-  connectivity trouble, and suspend-and-surface is the right
-  posture, with every unknown send still counted so wire exposure
+  consumes a confirmation attempt. The cap is **two attempts per
+  episode** (external review F6); repeated unknown outcomes
+  suggest connectivity trouble, suspend-and-surface is the right
+  posture, and every unknown send stays counted so wire exposure
   stays bounded throughout.
+
+The full confirmation matrix (external review clarification; M8
+exercises it case by case — 429 on the *first* attempt escalates
+immediately and never earns a second attempt):
+
+| Attempt | Outcome | Result |
+|---|---|---|
+| first | 2xx + valid policy observation | reset |
+| first | 429 | escalate immediately |
+| first | unknown, or other non-429 | one final attempt permitted (episode preserved; independent paths apply) |
+| final | 2xx + valid policy observation | reset |
+| final | anything else (429, unknown, other non-429) | escalate |
 
 `CloudflareShapedReply` carries one wrinkle (first-eyes review,
 2026-08-09): the signature includes the *body* (HTML), and the

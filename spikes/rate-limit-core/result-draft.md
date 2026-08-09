@@ -38,15 +38,21 @@ gate; §6 holds any optional supplemental runs.
 
 ### Verdict
 
-Two lanes, per the bucket-knowledge split (`scenarios.md` §1):
+Two lanes, per the bucket-knowledge split (`scenarios.md` §1).
+Prerequisites for **either** verdict slot (external review round 3
+— explicit, so a green G-table alone can never justify a verdict):
+M1–M13 with G1–G6 green over the lane's policies, **and** C1–C5
+green, **and** X1–X2 green, with U1–U4 carried into the scoped
+conclusion. X2 is load-bearing, not auxiliary: "single serialized
+gate" is part of the register question itself.
 
 - **Unconditional** — the four OAuth policies, bucket resolution
-  `Known(5s/60s)` (N12): ⟨verdict; requires G1–G6 green across all
-  mock-judged scenarios and phase sweeps over these policies⟩
+  `Known(5s/60s)` (N12): ⟨verdict; requires the prerequisites
+  above over these policies⟩
 - **Conditional** — `backend-item-request-limit`, bucket resolution
   `Assumed(60s/60s)` (not provably pessimistic; N14/N21 give no
-  upper bound): ⟨verdict, stated *with* its assumption; same gates,
-  conditional lane⟩
+  upper bound): ⟨verdict, stated *with* its assumption; same
+  prerequisites, conditional lane⟩
 
 G3 (ε = 500 ms) and G4 (1.05×) are draft numbers; they must be
 finalized (`scenarios.md` §6 revisit rule) before either verdict

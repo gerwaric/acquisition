@@ -257,7 +257,8 @@ expensive); during recovery at most **one** post-restriction
 reservation is in flight for the restricted policy (single retry
 in flight — concurrent originals bounced by the same saturation
 join one episode; core-design episode semantics, generation-
-tagged tokens); no follow-on violation (§2). Cites: N19, N15, P-A,
+tagged tokens); the full confirmation matrix (core-design) is
+exercised case by case; no follow-on violation (§2). Cites: N19, N15, P-A,
 the 4xx-budget candidate claim.
 
 **M9. Phantom race at saturation (characterization).** [phase-swept]
@@ -424,6 +425,17 @@ no headroom term anywhere.
   exclusivity are excluded from the oracle and enumerated per
   scenario (external review F7 — the harness excludes what it
   cannot independently model rather than duplicating the core).
+  **Exclusions must be authorized** by the scenario script or by
+  independently observable evidence — never by client-reported
+  state alone (external review round 3, closing a self-exemption
+  loophole: a broken client must not remove its own delay from
+  measurement by entering cooldown unnecessarily). Authorization
+  sources: probe exclusion begins when the script routes traffic
+  to an unknown endpoint; episode exclusion begins with an
+  observed or injected 429; cooldown exclusion begins with a
+  scripted malformed response; halt exclusion begins with the
+  scripted Cloudflare reply. A refusal state the client enters
+  without such authorization does not suppress G3 — it fails G5.
   Catches trivially-safe-by-being-slow. Armed in every mock-judged
   scenario, like G2; M2 and M10 are the binding stress
   measurements. *Draft number: tighten after the first
@@ -438,9 +450,12 @@ no headroom term anywhere.
   M8 escalation, M11b halt, M12 obligations, M3/M4 clean-failure
   semantics) and equally the structural ones (M1 per-endpoint
   HEAD discipline, M5 stale-mapping cap, M10
-  drain-to-completion, M13 gate shape). No scenario passes on
-  G1/G2 alone if its own assertions fail; a stimulus scenario in
-  particular cannot pass on G1 alone. (Generalized from
+  drain-to-completion, M13 gate shape). An unauthorized
+  client-entered refusal state — cooldown, suspension, or halt
+  with no scripted trigger — is a G5 failure in any scenario
+  (G3's authorization rule). No scenario passes on G1/G2 alone if
+  its own assertions fail; a stimulus scenario in particular
+  cannot pass on G1 alone. (Generalized from
   stimulus-only in the 2026-08-09 first-eyes review — the
   non-stimulus assertions previously had no covering gate.)
 - **G6 — reproducibility.** Any failure anywhere reports a
