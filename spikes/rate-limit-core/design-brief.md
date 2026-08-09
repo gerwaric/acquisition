@@ -65,8 +65,15 @@ live API. Proposed, in order:
    emulates observed GGG behavior, not just the documented protocol.
    (Lanes: mock results are measured-against-model; replay grounds
    the model in observed reality.)
-3. **Gentle live confirmation, last** — short, low-volume, with
-   Tom's explicit go-ahead; a sanity epilogue, never the evidence.
+3. **Live contact, last, in two sanctioned forms** (amended in
+   reconciliation — see the bucketing entry's instrument and run
+   protocol): (a) gentle confirmation — short, low-volume, a sanity
+   epilogue, never the evidence; (b) long-running assumed-bucket
+   validation runs under the logged run protocol —
+   production-indistinguishable traffic at layer 1,
+   halt-on-first-violation, fixed safety rails — the one live
+   instrument that produces measured-lane evidence (positional
+   tier support). Both require Tom's explicit go-ahead.
 
 **Architecture: sans-IO core + thin async shell.** The policy engine
 is a pure state machine — (policy state, clock, response headers) →
@@ -120,14 +127,25 @@ tower at productization, not now.
    N-numbers) so evidence collection is designed in, not bolted on.
    (The scope entry's test-lane taxonomy — mock-judged wire
    behavior / core-level property tests / declared-untested —
-   feeds this.)
+   feeds this. Include a dedicated candidate-N-claims section: the
+   reconciliation accumulated four — the 4xx budget (DOC lane),
+   the Cloudflare challenge-block signature, the recourse
+   asymmetry, and the trade-API three-window shape (external
+   lane) — and they must survive transcription to
+   `network-ground-truth.md` on `redesign`.)
 
 ## Reconciliation log (agenda item 0 outcomes)
 
 Each entry records a divergence between this charter and
 `inputs/rate-limiter-design-brief.md`, the decision, and the why.
 Entries land here as they are settled; the item-0 gate stays open
-until Tom declares the reconciliation done.
+until Tom declares the reconciliation done. **Gate closed
+2026-08-09: Tom declared the reconciliation complete.** Every
+divergence from the item-0 walkthrough is resolved in the entries
+below. Two threads deliberately outlive the gate without blocking
+it: the deliberate discriminator run stays parked on GGG's explicit
+blessing, and GGG's tier-assignment reply, when it arrives,
+annotates the bucketing entry. Agenda items 1+ are unblocked.
 
 ### 2026-08-09 — Shell shape: actor confirmed (charter position)
 
@@ -461,8 +479,11 @@ undocumented — a sibling of Q8) to be transcribed into
   commits to `master` or `redesign` except the eventual result doc
   and register update on `redesign`.
 - **No burst or load testing against pathofexile.com. Ever.** Live
-  contact only as step 3 above, low-volume, with Tom's explicit
-  go-ahead in-session.
+  contact only in step 3's two sanctioned forms — gentle
+  confirmation, and validation runs under the reconciliation log's
+  run protocol (production-indistinguishable pace,
+  halt-on-first-violation, fixed safety rails) — each with Tom's
+  explicit go-ahead in-session.
 - The forum regime stays ungated by design (spec D5); the spike
   covers the header-driven API regime.
 - Claim lanes apply to the result doc: measured / estimated /
