@@ -43,7 +43,11 @@ Two:
   `version.txt` fetch) whether upstream moved, re-extracts on
   mismatch, and warns — distinguishing "version bumped, subset
   unchanged" from "the shapes the generator relies on drifted" —
-  without ever failing a build.
+  without ever failing a build. Scheduled workflows run only from the
+  repository's default branch, so the weekly check remains dormant
+  while this workflow exists only on `redesign`; pull-request and
+  manual-dispatch checks remain available there. The weekly schedule
+  becomes active if this workflow reaches `master`.
 - **A profile** (`profile.py`) — statistics extracted from a real
   userstore DB: tab-type mix, items-per-tab quantiles, league shares
   (recorded by rank, never by name), character levels, buyout and

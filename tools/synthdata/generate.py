@@ -733,7 +733,7 @@ def coverage_axes():
 def load_quirk_registry():
     import pathlib
     path = pathlib.Path(__file__).resolve().parent / "quirks-registry.json"
-    return json.loads(path.read_text())["quirks"]
+    return json.loads(path.read_text(encoding="utf-8"))["quirks"]
 
 
 def emit_quirks_tab(factory, asm, index, probes=None):
