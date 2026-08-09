@@ -353,6 +353,22 @@ not prose.
 | transport unknown outcome | `Refuse` (endpoint target, D4 cooldown); no ordinary GET released |
 | Cloudflare-shaped | `Halt` |
 
+The 429-with-valid-observation row, pinned (review close-out —
+this list removes the ambiguity over whether the first GET is
+ordinary traffic or recovery confirmation): that probe 429
+
+- feeds the 4xx tripwire (a 4xx observed at the boundary);
+- seeds the restriction into the newly mapped policy state and
+  increments its restriction generation;
+- opens an unconfirmed recovery episode **without requeuing the
+  HEAD** — a probe is never retried; the mapping is established;
+- makes the first subsequent GET on that policy the episode's
+  **single confirmation attempt**;
+- escalates immediately if that GET draws a 429
+  (confirmation-matrix first-attempt row);
+- falls back to endpoint refusal when the observation is invalid
+  (precedence rule 2).
+
 A 429 carries no retry *time* in its transition — that would hand
 the shell a second scheduling path. Instead the core records the
 restriction in policy state (active until `Retry-After` + the
@@ -456,7 +472,12 @@ each transition, not pulled by callers.
   immediately before hand-off to the HTTP client; the tripwire
   increments on observed 4xx response statuses at the same
   boundary. Their *trip logic* is pure and core-adjacent (C3/C4),
-  but neither counter is ever fed by reservations.
+  but neither counter is ever fed by reservations. The fuse
+  carries **two clauses** (burst clause approved at review
+  close-out, 2026-08-09): sustained ~500/min, and burst — at most
+  10 dispatches in any trailing half-open 1 s window, the 11th
+  trips — HEAD and ordinary dispatches counted identically; C3
+  pins both, X1 fault-injects each shape separately.
 - **The spacing floor and in-flight cap** are gate properties the
   actor enforces around dispatch (M13); the core's reservations are
   per-policy and know nothing about the wire.

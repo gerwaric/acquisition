@@ -176,7 +176,13 @@ current bucket. Asserts: one HEAD per touched endpoint, never
 repeated, never overlapping; HEAD does not increment
 counters (N24); first-request violation does not occur — the
 HEAD's state header is the only thing preventing it; G1 across the
-sweep. Cites: N24, N16, N13, N12, N5.
+sweep. Variant (probe-429, review close-out): the boot HEAD
+itself returns 429 carrying a valid observation — asserts
+`ProbeReady` seeding (mapping, restriction, generation
+increment), 4xx tripwire fed, the HEAD not requeued, and the
+first subsequent GET treated as the episode's single confirmation
+attempt (escalate on 429 per the confirmation matrix).
+Cites: N24, N16, N13, N12, N5.
 
 **M2. Clean cold-start saturation burst.** [phase-swept]
 Empty counters, deep queue (one policy). Client drains the burst
@@ -336,10 +342,28 @@ refusal-shaped parse outcome, never usable restriction context;
 a generic 4xx with valid headers parses normally.
 
 **C3. Fuse trip logic.** Pure function `(dispatch history, now) →
-Tripped | Ok`. Properties: never trips on any trace at or below
-the spacing-implied wire maximum (240/min); always trips at or
-above the ceiling (~500/min, derived: strictly between 240/min and
-the ~1000/min known-bad, N2); trip is latched.
+Tripped | Ok`, two clauses detecting different failure shapes
+(burst clause approved at review close-out, 2026-08-09; the
+sustained clause is the charter's original):
+
+- **Sustained**: trips at or above ~500 dispatches in the
+  trailing minute (derived: strictly between the spacing-implied
+  240/min and the ~1000/min known-bad, N2).
+- **Burst**: at most **10** dispatches in any trailing half-open
+  window `(now − 1 s, now]` — the **11th trips**. Boundary
+  convention explicit: a dispatch exactly 1 s old has left the
+  window. HEAD and ordinary dispatches count identically.
+  Headroom: a compliant 250 ms floor permits at most 5 dispatch
+  instants per closed one-second interval, so the clause sits at
+  2× the legitimate maximum. Ordering: floor max (≤5) < burst
+  clause (10) < B10's mock ceiling (20) — the client fuse is the
+  defense and trips first; B10 remains an inferred sensitivity
+  oracle, conceptually separate.
+
+Properties: never trips on any floor-compliant trace; the burst
+clause is pinned with exact-boundary traces (10 in-window passes,
+the 11th trips, an entry exactly on the 1 s edge is excluded);
+the sustained clause never fires below 500/min; trip is latched.
 
 **C4. 4xx tripwire logic.** Same shape as C3 over a windowed 4xx
 counter; shares the fuse's halt semantics.
@@ -358,11 +382,17 @@ abandonment semantics).
 
 ### Fault-injection and structural (X-series)
 
-**X1. Fuse fault-injection.** Pacing deliberately disabled;
-transport boundary intact. Asserts: the fuse — counting actual
-dispatch attempts at the transport boundary, incremented
-immediately before hand-off, immutable to scheduling logic —
-halts dispatch; pending deque errored back; `Halted` published.
+**X1. Fuse fault-injection.** Transport boundary intact; two
+fault shapes, one per fuse clause (review close-out): (a) **burst
+fault** — pacing disabled entirely; the burst clause halts
+dispatch at the 11th attempt inside one second, well below B10's
+20/1s mock ceiling. (b) **sustained fault** — a pacing bug emits
+a steady ~9 req/s; the burst clause correctly stays silent while
+the sustained clause trips as the trailing minute crosses ~500.
+Both assert: the fuse — counting actual dispatch attempts at the
+transport boundary, incremented immediately before hand-off,
+immutable to scheduling logic, HEAD and ordinary alike — halts
+dispatch; pending deque errored back; `Halted` published.
 This is the lane upgrade: the wire-level true positive is tested,
 not declared-untested. Cites: fuse addendum (finding 6).
 
@@ -602,9 +632,10 @@ Notes on the load-bearing rows:
   visible to G2 in every scenario, not only where the explicit
   spacing-floor assertion runs. Caveat, recorded so the ceiling is
   never mistaken for the floor's enforcement: a floor-broken
-  client pacing at a sustained ~8/s evades the fuse (~500/min)
-  and both ceiling rules — B13's wire-shape assertion is the
-  binding detector; the ceilings are the mock-judged backstop.
+  client pacing at a sustained ~8/s evades both fuse clauses
+  (480/min < 500; 8 ≤ 10 per rolling second) and both ceiling
+  rules — B13's wire-shape assertion is the binding detector; the
+  ceilings are the mock-judged backstop.
   Both numbers are inferred-lane and neither models Cloudflare
   (U4). A mock ceiling defends nothing at runtime — the
   client-side floor and fuse are the defense (charter); what the

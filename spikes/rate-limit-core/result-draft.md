@@ -114,7 +114,7 @@ for.
 
 | ID | Check | Result | Evidence |
 |---|---|---|---|
-| X1 | Fuse true-positive (pacing disabled) — the lane upgrade from declared-untested | ⟨…⟩ | ⟨…⟩ |
+| X1 | Fuse true-positive, burst and sustained fault shapes — the lane upgrade from declared-untested | ⟨…⟩ | ⟨…⟩ |
 | X2 | Transport boundary: one HTTP client, private, no second send path | ⟨…⟩ | ⟨…⟩ |
 
 ### Gate summary
@@ -205,3 +205,9 @@ outlives the spike branch; record what exists and where.⟩
 - 2026-08-09 — skeleton created (agenda item 5); all five design
   items closed; no code yet. Candidate register seeded with
   CN1–CN5.
+- 2026-08-09 — first-eyes pass (nine fixes) and external design
+  review (Q&A round plus three findings rounds) completed; review
+  closed with the design declared implementation-ready. Fuse
+  gained its burst clause; probe-429 lifecycle, response
+  precedence, and the probe outcome table pinned. The committed
+  sibling docs are now the frozen implementation authority.
