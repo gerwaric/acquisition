@@ -245,13 +245,14 @@ which lane the verdict lives in* — mock-judged wire behavior,
 core-level property tests, or declared-untested. This taxonomy
 feeds agenda item 5's claim-lane structure.
 
-Still open: **bucket quantization** — the brief models one bucket
-per policy (pessimistic 60s default, "only learned by getting
-429'd") vs. the N12 initial/sustained tiers, the N14 ask-GGG
-channel, and the Q4 positional-classification hypothesis. Direction
-settled 2026-08-09 (full entry lands when GGG replies to Tom's
-email — tier assignment question plus blessing for a bounded
-validation experiment):
+**Bucket quantization: resolved 2026-08-09** (the last divergence;
+Tom will annotate this entry if/when GGG replies to his email —
+tier assignment confirmation plus blessing for the deliberate
+discriminator run, which is the only piece still gated). The brief
+modeled one bucket per policy (pessimistic 60s default, "only
+learned by getting 429'd") vs. the N12 initial/sustained tiers,
+the N14 ask-GGG channel, and the Q4 positional-classification
+hypothesis. Decisions:
 
 - **Shape invariant instead of a classifier**: each rule carries
   exactly two windows, first period strictly shorter — parse-time
@@ -261,10 +262,21 @@ validation experiment):
   (`https://www.pathofexile.com/forum/view-thread/3056323`,
   community-observed Feb 2021, retrieved 2026-08-09; N17
   calibration lane) — so a non-pair policy is out-of-model, not
-  impossible. Failure-mode decision still open: D4-style scoped
-  per-policy clean failure (recommended) vs. app-level breaking
-  error. A three-window rule also has no N-claim tier mapping,
-  reinforcing refuse-to-schedule over guessing.
+  impossible. **Failure mode decided (Tom, 2026-08-09): D4-style
+  scoped per-policy clean failure**, not an app-level abort. Both
+  options send zero requests under an unknown shape (equally safe
+  for GGG standing); they differ only in blast radius, and the
+  likeliest trigger is a transient server-side header bug (N20:
+  the mechanism regressed twice, months each time), which an
+  abort turns into a fleet-wide crash-loop until a patch ships.
+  Split in the types: the core returns
+  `Result<RulePair, UnexpectedPolicyShape>`; the shell owns the
+  response — the gate refuses that policy's sends under cooldown,
+  errors pending requests to callers, publishes on the watch
+  channel. At most one request is ever sent under an unknown
+  shape (same exposure bound as remaps). Mock pins it with one-
+  and three-triplet scenarios (mock-judged lane). Process abort
+  is reserved for the test harness, where fail-fast is a virtue.
 - **HEAD-decay bucket measurement rejected** (2026-08-09):
   `https://community.cloudflare.com/t/blocked-from-path-of-exile-api-but-not-allowed-to-contact-support/549055`
   (retrieved 2026-08-09) shows a layer-1 block striking a
@@ -315,27 +327,34 @@ validation experiment):
   the validation runs give it measured-lane support for the first
   time. GGG's answer, when it arrives, confirms or corrects.
 
-Also open, deliberately deferred: the brief's **headroom**
-(effective limit = `max_hits − headroom`). Deferred twice over: it
-trades directly against agenda item 2's bounded-over-delay
-criterion (decide with the thresholds, not in isolation), and it
-shares a margin-against-counter-mismatch role with bucket padding,
-so the bucketing discussion may reshape it. Framing settled
-2026-08-09 so the eventual decision is small: bucket padding covers
-quantization (N11–N13) and pessimistic reconciliation covers
-*observed* phantoms, so headroom's unique threat is only the
-send-time race with a concurrent same-account tool (model says
-14/15, a sibling lands first, yours is the 16th → exogenous 429 —
-which P-A's recovery machinery must survive anyway). Recommendation
-on the table: default headroom to 0 (three years of production and
-the first capture's zero violations price the threat as negligible)
-but keep `effective_limit = max_hits − headroom` in the core's
-types so the decision reverses with data, not redesign; follow the
-spacing-floor precedent on configurability (not an external knob in
-the spike). The item-1 phantom-client-at-saturation scenario doubles
-as the executable version of this trade-off: with headroom 0 it
-judges recovery from the exogenous 429, and its data goes in the
-result doc either way.
+**Headroom: resolved 2026-08-09 — zero, with the slot kept.** The
+brief's effective limit = `max_hits − headroom`, deferred twice
+(thresholds coupling; bucketing coupling), now decided. Framing:
+bucket padding covers quantization (N11–N13) and pessimistic
+reconciliation covers *observed* phantoms, so headroom's unique
+threat is only the send-time race with a concurrent same-account
+tool (model says 14/15, a sibling lands first, yours is the 16th →
+exogenous 429 — which P-A's recovery machinery must survive
+anyway). Deciding argument: **headroom is a fixed-size defense
+against a variable-size threat** — under light contention races
+are rare and each is one recoverable 429; under heavy contention
+any fixed reservation is overrun; it helps only in the knife-edge
+middle, at a permanent throughput tax on every user. The defense
+that covers the whole spectrum is adaptive: the escalation ladder
+(second consecutive 429 on a policy → back off / suspend and
+surface). Decision: ship `effective_limit = max_hits − headroom`
+with headroom 0 (three years of production and the first capture's
+zero violations price the threat as negligible); the slot makes
+reversal a config change, not a redesign; not an external knob
+(spacing-floor precedent). Conditions the decision rests on:
+recovery correctness is load-bearing (the 429-recovery and
+escalation mock scenarios carry this decision, not just N-claim
+conformance), and Q5 instrumentation is the reopen trigger. The
+phantom-race-at-saturation scenario characterizes what nonzero
+headroom would have bought, so any future debate happens over
+data. Deferral couplings dissolved: zero is the fastest setting,
+so agenda item 2's bounded-over-delay thresholds are now free of
+headroom entirely.
 
 ### 2026-08-09 — Pool killed, remaps split, 4xx budget documented
 
