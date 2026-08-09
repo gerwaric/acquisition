@@ -60,7 +60,10 @@ Rules for the `Assumed` variant:
   result of traffic the client under test scheduled. The global
   invariant is `client_caused_violations == 0` (§6, G1). Any 429
   the mock's counters generate organically is client-caused and
-  fails the run.
+  fails the run, with exactly one exception: the
+  unavoidable-exposure category below, which is explicit, bounded,
+  and harness-attributed (external review F10 — the exception must
+  be stated here, not implied).
 - **Injected stimulus**: a 429 (or phantom counter increment, or
   Cloudflare-shaped reply) the scenario script injects regardless
   of the client's arithmetic. Stimuli are expected and do not count
@@ -71,14 +74,17 @@ Rules for the `Assumed` variant:
   *after* a stimulus (e.g. a retry re-scheduled too early lands
   inside the still-saturated window). Counts against G1 — recovery
   correctness is load-bearing (headroom-zero decision).
-- **Unavoidable transition exposure** (external review refinement,
-  2026-08-09): an *organic* mock 429 whose request was reserved
-  before the client could have observed a scripted mid-flight
-  policy mutation (M5 remap, M6 shrink). Bounded by construction:
-  at most in-flight-cap − 1 such arrivals after the announcing
-  response. Does not count against G1 — but it must enter the M8
+- **Unavoidable exposure (transition or race)** (external review
+  refinements, 2026-08-09): an *organic* mock 429 whose request
+  was reserved before the client could have observed the mock-side
+  state change that made it violate — a scripted policy mutation
+  (M5 remap, M6 shrink: *transition*) or an injected phantom
+  (M7/M9: *race*). Bounded by the in-flight cap: at most
+  in-flight-cap − 1 arrivals after the response that first
+  announces a mutation, or the in-flight set at phantom-injection
+  time. Does not count against G1 — but it must enter the M8
   recovery path and clear its assertions; any reservation granted
-  after the mutation was observable is fully subject to G1. The
+  after the change was observable is fully subject to G1. The
   harness attributes this category independently of the client,
   using B13's correlation identity.
 
@@ -203,9 +209,11 @@ Mid-scenario, responses start carrying a new `X-Rate-Limit-Policy`
 name (N5, N9). Asserts: client remaps the endpoint and
 pessimistically merges history; at most in-flight-cap (2) requests
 were scheduled under the stale mapping (any organic 429 among them
-is unavoidable transition exposure, §2, and must clear M8's
-recovery assertions); no client-caused violation after the merge;
-remap *triggers* beyond the reactive path are U1.
+is unavoidable exposure, §2, and must clear M8's recovery
+assertions); no client-caused violation after the merge; remap
+*triggers* beyond the reactive path are U1. Timing script per B12:
+the stale-mapping window is forced by scripted service delay, not
+left to the default.
 Cites: N5, N9, N6.
 
 **M6. Policy shrink mid-flight.** [phase-swept]
@@ -217,8 +225,8 @@ facts, rules are judgments** — every arrival is judged against
 the rule set active at that instant, existing window contents
 included, no grace period (a real server gives none; no violation
 is ever declared without an arrival). Pre-announcement in-flight
-arrivals that draw an organic 429 are unavoidable transition
-exposure (§2, bounded ≤ in-flight-cap − 1) and must clear M8's
+arrivals that draw an organic 429 are unavoidable exposure
+(§2, bounded ≤ in-flight-cap − 1) and must clear M8's
 recovery assertions; G1 applies fully from the first
 post-announcement reservation; queue keeps draining at the new
 pace (no wedge). Cites: N9, N13.
@@ -233,7 +241,12 @@ no client-caused violation. Thresholds must not be tuned against a
 constant-drizzle world that doesn't exist. Cites: N23, N24, N25.
 
 **M8. 429 recovery and escalation ladder.** [phase-swept]
-Injected exogenous 429 with `Retry-After` (stimulus, §2). Asserts
+Injected 429 with `Retry-After` (stimulus, §2). Runs over both an
+OAuth policy and the legacy Account+Ip policy; the applicable
+bucket for retry timing is the maximum resolution across the
+policy's windows (core-design rule, external review F4). Timing
+script per B12: concurrent in-flight originals are forced by
+scripted delays, not incidental. Asserts
 (the stimulus's own assertions): the retried send waits
 `Retry-After` + applicable bucket + buffer (N19), not `Retry-After`
 alone; the caller eventually observes the outcome (the F57 lesson);
@@ -250,8 +263,10 @@ the 4xx-budget candidate claim.
 **M9. Phantom race at saturation (characterization).** [phase-swept]
 At 14/15 a phantom consumes the last slot between the client's
 reservation and the mock's receipt — the client's send lands as
-the 16th and draws an exogenous 429. Asserts: recovery machinery
-survives it (per M8's assertions). Additionally *records* what
+the 16th and draws an *organic* 429: unavoidable race exposure
+(§2), not an injected stimulus. Timing script per B12: the
+reservation-to-receipt interval is forced by scripted delay.
+Asserts: recovery machinery survives it (per M8's assertions). Additionally *records* what
 nonzero headroom would have bought at each contention level — the
 headroom-zero decision's evidence base, so any future debate
 happens over data. Cites: headroom entry, N23, P-A.
@@ -295,7 +310,8 @@ new ordinary permits are issued (writer preference); ordinary
 permits granted in arrival order (FIFO — no lane starvation);
 HEADs are ordinary citizens of the wire discipline — subject to
 the spacing floor and counted by the fuse at the transport
-boundary (N2's incident was a HEAD flood).
+boundary (N2's incident was a HEAD flood). Timing script per B12:
+overlap windows are forced by scripted service delays.
 Cites: N18, P-B, D5, the gate-definition addendum.
 
 ### Core-property scenarios (pure functions, proptest)
@@ -390,8 +406,8 @@ no headroom term anywhere.
   scenario, every swept phase, every seed: the mock's independent
   counters record no violation attributable to client-scheduled
   traffic (§2 vocabulary: follow-on violations included;
-  unavoidable transition exposure excluded — bounded and
-  harness-attributed per §2). One counterexample fails the spike
+  unavoidable exposure excluded — bounded and harness-attributed
+  per §2). One counterexample fails the spike
   question; the failing (seed, φ) is recorded.
 - **G2 — layer-1 ceiling never tripped.** The mock's rolling-window
   ceiling rules (M11a; both B10 rules) are armed in *every*
@@ -399,11 +415,16 @@ no headroom term anywhere.
   trips either.
 - **G3 — bounded per-dispatch over-delay (work conservation).**
   Whenever a request is queued and eligible — the padded-safe time
-  (computed independently by the harness from the policy
-  definition and the spec formula, not by asking the client), the
-  spacing floor, and permit availability have all passed — the
-  client dispatches within **ε = 500 ms simulated**. Catches
-  trivially-safe-by-being-slow. Armed in every mock-judged
+  (computed by the harness from the scenario script plus the
+  mock's observation log, both client-independent: residue and
+  phantom debt are mock-side facts B13 records), the spacing
+  floor, and permit availability have all passed — the client
+  dispatches within **ε = 500 ms simulated**. Intervals under
+  episode confirmation, cooldown, suspension, halt, or probe
+  exclusivity are excluded from the oracle and enumerated per
+  scenario (external review F7 — the harness excludes what it
+  cannot independently model rather than duplicating the core).
+  Catches trivially-safe-by-being-slow. Armed in every mock-judged
   scenario, like G2; M2 and M10 are the binding stress
   measurements. *Draft number: tighten after the first
   implementation lands if the actor's scheduling makes a smaller
@@ -422,8 +443,11 @@ no headroom term anywhere.
   particular cannot pass on G1 alone. (Generalized from
   stimulus-only in the 2026-08-09 first-eyes review — the
   non-stimulus assertions previously had no covering gate.)
-- **G6 — reproducibility.** Any failure anywhere reports the
-  (seed, φ) pair sufficient to re-run it deterministically.
+- **G6 — reproducibility.** Any failure anywhere reports a
+  reproduction record sufficient to re-run it deterministically:
+  (seed, φ) mandatory for swept and property-generated tests;
+  optional for phase-independent and structural checks, which may
+  have neither (external review F8).
 
 Verdict scoping (§1): G1–G6 over the four OAuth policies support
 the unconditional verdict; the same gates over
@@ -509,7 +533,7 @@ implements it with the mock. Consequences:
 | B9 | Phantom counter increments, scripted, bursty shape (corrected threat model — no drizzle) | N23, N24 | M7, M9 |
 | B10 | Layer-1 ceiling, **two rules**, both armed in every scenario (G2), both tripping into the Cloudflare-shaped failure: burst **20 req / rolling 1 s** (sensitivity tripwire, derived from the declared defense — see note) and **1000 req / rolling 60 s** (N2 made executable); Cloudflare-shaped reply generation (403, `cf-mitigated: challenge`, `Server: cloudflare`, HTML body, no rate-limit headers, no `Retry-After`) | N1–N3 | M11, G2 |
 | B11 | Stimulus injection channel: scripted 429 / 401 / generic-4xx / Cloudflare replies regardless of counter arithmetic | §2 | M8, M11b, M12 |
-| B12 | Deterministic scriptable per-response service delay; the default is a **placeholder** (~50 ms simulated) until the §7.4 fixture lands, then re-anchored to the capture's median `sent→received` (rounded); scenarios override | §7.1 | M13, M5, M9 |
+| B12 | Deterministic scriptable per-response service delay; the default is a **placeholder** (~50 ms simulated) until the §7.4 fixture lands, then re-anchored to the capture's median `sent→received` (rounded). The default only prevents vacuous zero-overlap tests — M5, M8, M9, and M13 must each specify an explicit deterministic delay/barrier schedule (timing script), because their verdicts depend on forced reordering the default cannot guarantee (external review F9) | §7.1 | M5, M8, M9, M13 |
 | B13 | Observation log: per-request arrival instant, method, endpoint label, bucket assignment, counter values, verdicts, plus (seed, φ) and a per-request correlation identity (test-only header) linking mock arrivals to client dispatch records — the attribution evidence for §2's transition-exposure category | §3, G6 | M13/M10 wire-shape assertions (spacing floor, FIFO, in-flight); G6; §2 attribution |
 | B14 | `Date` header emitted, consistent with the mock's clock, zero skew | N5 context | C1 cross-check (skew itself is O5) |
 

@@ -66,7 +66,9 @@ Two orthogonal lane taxonomies apply:
 Tests cite scenario IDs; scenarios cite N-numbers; this doc cites
 both. Mock verdicts are **measured-against-model**; the §5 replay
 calibration is what grounds the model in the observed lane. Every
-failure anywhere must report its (seed, φ) pair (G6).
+failure anywhere must report its G6 reproduction record —
+(seed, φ) mandatory for swept and property-generated tests,
+optional for phase-independent and structural checks.
 
 ## §3. Conformance results
 
@@ -118,7 +120,7 @@ for.
 | G3 | Per-dispatch over-delay ≤ ε (final ε: ⟨…⟩) | ⟨…⟩ | ⟨…⟩ |
 | G4 | M2 duration ≤ multiplier × padded minimum (final: ⟨…⟩) | ⟨…⟩ | ⟨…⟩ |
 | G5 | Every scenario's own assertions (stimulus and structural alike) | ⟨…⟩ | ⟨…⟩ |
-| G6 | (seed, φ) reproducibility of every failure | ⟨…⟩ | ⟨…⟩ |
+| G6 | Reproduction record for every failure ((seed, φ) mandatory where swept/generated) | ⟨…⟩ | ⟨…⟩ |
 
 ## §4. Candidate N-claims
 

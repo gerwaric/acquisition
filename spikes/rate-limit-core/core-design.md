@@ -180,10 +180,27 @@ the bomb detects it, and engine state stays conservatively safe.
 
 ### Reconciliation and phantom synthesis (external Q&A, 2026-08-09)
 
-`History` is a timestamped deque of send instants, one per policy,
-shared across the policy's rules; each rule evaluates it against
-its own `max_hits`/`period`. Reconciliation in `on_response` is a
-per-rule **pessimistic count-max with phantom synthesis**: for
+`History` is one deque per policy, shared across the policy's
+rules; each rule evaluates it against its own `max_hits`/`period`.
+Entries carry identity and provenance (external review F3):
+
+```rust
+struct HistoryEntry {
+    id: EntryId,          // the token holds this; rollback removes by id
+    at: SimInstant,
+    kind: EntryKind,      // LocalReservation | Synthetic
+}
+```
+
+Identity is not optional polish: under paused time, same-instant
+entries are the *common* case (two reservations in one tick; a
+synthetic entry colliding with a real send at `now`), so "remove
+the reservation exactly" is only well-defined by id. Tokens never
+reference `Synthetic` entries, and provenance also feeds M9's
+characterization (synthetic vs. real hits per contention level).
+Reconciliation in `on_response` and `on_probe_response` (both
+delegate to one internal function) is a per-rule **pessimistic
+count-max with phantom synthesis**: for
 each rule, compare the server's reported `current-hits` (N25:
 post-increment) with the local in-window count; where the server
 reports more, synthesize the deficit as entries timestamped `now`
@@ -211,12 +228,21 @@ impl PolicyEngine {
     fn try_reserve(&mut self, policy: &PolicyName, now: SimInstant)
         -> ReserveOutcome;
 
-    /// Response observed: reconcile, and tell the shell what changed.
+    /// Reserved-response entry point: reconcile, decide disposition.
     fn on_response(&mut self, token: ReservationToken, now: SimInstant,
-                   headers: &Headers) -> Vec<Effect>;
+                   response: &ObservedResponse) -> Transition;
+
+    /// Probe entry point (external review F1): HEADs have no
+    /// reservation by design (N24 — nothing to reserve), so the
+    /// token-consuming path cannot serve them, and an optional token
+    /// would weaken the lifecycle contract. Both entry points
+    /// delegate to one internal reconciliation function.
+    fn on_probe_response(&mut self, endpoint: &EndpointLabel,
+                         now: SimInstant, response: &ObservedResponse)
+        -> Transition;
 
     fn on_unknown_outcome(&mut self, token: ReservationToken, now: SimInstant);
-    fn rollback(&mut self, token: ReservationToken);
+    fn rollback(&mut self, token: ReservationToken);   // removes by EntryId (F3)
 }
 
 enum ReserveOutcome {
@@ -227,22 +253,57 @@ enum ReserveOutcome {
     Refused(RefusalReason),      // shape-cooldown, escalation-suspended, halted
 }
 
-enum Effect {
-    Remapped { from: PolicyName, to: PolicyName },       // M5
-    ShapeCooldown { policy: PolicyName },                // M4 → shell errors pending
-    EscalationSuspend { policy: PolicyName },            // M8 second consecutive 429
-    CloudflareShapedReply,                               // M11b → shell halts
-    RequeueForRetry,                                     // first 429 on a policy:
-                                                         // re-enqueue this request
+// Normalized input (external review F2): everything the core needs
+// about a reply, in one place. Headers stay RAW — parsing is the
+// core's job (C2; §7.1's verbatim-strings decision depends on it);
+// `classification` carries only what the core cannot see (the body
+// shape, judged at the transport).
+struct ObservedResponse {
+    status: StatusCode,
+    headers: HeaderMap,
+    classification: ReplyClassification,   // Normal | CloudflareShaped
+}
+
+// Structured output (F2 + the Vec<Effect> finding): exactly one
+// disposition — invalid combinations (requeue + suspend, remap +
+// cooldown) are unrepresentable, and interpretation order is a
+// non-question — plus supplementary notifications.
+struct Transition {
+    disposition: Disposition,
+    notifications: Vec<Notification>,
+}
+
+enum Disposition {
+    Complete,                        // outcome delivered to the caller
+    Requeue,                         // first 429 on a policy (M8)
+    RefusePolicy {                   // M3 degraded probe, M4 shape,
+        policy: PolicyName,          // M8 escalation suspend — the typed
+        cause: RefusalCause,         // PolicyParseError travels inside the
+    },                               // cause, so success-plus-parse-error
+                                     // is unrepresentable
+    Halt,                            // M11b Cloudflare-shaped terminal
+}
+
+enum Notification {
+    Remapped { from: PolicyName, to: PolicyName },   // M5
+    StateChanged,                                    // watch-snapshot cue
 }
 ```
 
-A 429 carries no retry *time* in its effect — that would hand the
-shell a second scheduling path. Instead the core records the
-restriction in policy state (active until `Retry-After` +
+A 429 carries no retry *time* in its transition — that would hand
+the shell a second scheduling path. Instead the core records the
+restriction in policy state (active until `Retry-After` + the
 applicable bucket + buffer, N19), the shell re-enqueues the
-request, and the next `try_reserve` answers `NotBefore` from that
-state. Retry timing flows through the same single authority as
+request (`Disposition::Requeue`), and the next `try_reserve`
+answers `NotBefore` from that state. **The applicable bucket is
+the maximum configured resolution across all windows of all rules
+reported for that policy** (external review F4) — pessimistic and
+citable in one sentence; in both lanes today that maximum is 60 s.
+The refinement of identifying the violated rule from the state
+header's restriction-active flag (N5) is declined: it would buy
+back at most 55 s on a rare path while adding a parsing dependency
+to the safety path. M8 exercises this rule over the legacy
+Account+Ip policy as well as an OAuth policy. Retry timing flows through the same single authority as
 every other send; the once-then-escalate ladder stays in the core
 (consecutive-429 count per policy → `EscalationSuspend`).
 
@@ -260,13 +321,24 @@ post-restriction reservation for that policy (single retry in
 flight; other callers queue behind `NotBefore`). That probe's
 outcome decides:
 
-- any non-429 response breaks the consecutive-429 chain — episode
-  reset, normal concurrency resumes (its headers reconcile as
-  usual; a degraded reply takes the D4 path independently);
-- 429 → `EscalationSuspend` (a genuine failed retry);
-- unknown outcome → the episode stays unconfirmed, the send stays
-  counted (lifecycle rule), and the single probe slot reopens at
-  the recomputed `NotBefore`.
+- only a **2xx carrying a valid policy observation** (parseable
+  rate-limit headers) confirms recovery — episode reset, normal
+  concurrency resumes (external review F5);
+- any other non-429 outcome (5xx, 401, malformed, Cloudflare-
+  shaped) **preserves the episode** while its independent path
+  applies on top (D4 cooldown, 4xx tripwire, halt) — a 500 storm
+  proves nothing about the limiter and must not reset the ladder;
+- 429 → escalation (`RefusePolicy`, suspend-and-surface) — a
+  genuine failed retry;
+- unknown outcome → the send stays counted (lifecycle rule) and
+  exactly **one** further confirmation attempt is permitted at the
+  recomputed `NotBefore`. The confirmation-attempt cap is **two
+  per episode** (external review F6): a second consecutive
+  unconfirmed probe of either kind — unknown or 429 — escalates.
+  Mirrors once-then-escalate; repeated unknown outcomes suggest
+  connectivity trouble, and suspend-and-surface is the right
+  posture, with every unknown send still counted so wire exposure
+  stays bounded throughout.
 
 `CloudflareShapedReply` carries one wrinkle (first-eyes review,
 2026-08-09): the signature includes the *body* (HTML), and the
@@ -276,11 +348,16 @@ classification rather than raw evidence — while the *decision*
 (halt-shaped terminal condition, never a retry) stays in the core
 with every other policy decision.
 
-> **Idiom: effects as data.** The core never performs IO; it
-> *returns* what should happen (`Vec<Effect>`) and the actor
+> **Idiom: transitions as data.** The core never performs IO; it
+> *returns* what should happen (a `Transition`) and the actor
 > interprets — errors callers, publishes on the watch channel,
-> suspends a queue. This keeps every branch of shell behavior
-> reachable from a unit test that just constructs the effect.
+> suspends a queue. `Disposition` is one enum, so mutually
+> exclusive outcomes are exclusive *by construction*: requeue plus
+> suspend cannot be expressed, and parse errors travel inside
+> `RefusePolicy`, so success-plus-error is equally
+> unrepresentable. "Make invalid states unrepresentable," applied
+> to the output side. Every branch of shell behavior stays
+> reachable from a unit test that just constructs the transition.
 
 What updates state: reservations (grant time), responses
 (reconcile/remap/shrink per N9), unknown outcomes (pessimistic
