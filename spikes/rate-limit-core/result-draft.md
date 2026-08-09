@@ -105,7 +105,7 @@ for.
 | ID | Property | Result | Evidence |
 |---|---|---|---|
 | C1 | Padding arithmetic safe over all φ | ⟨…⟩ | ⟨…; if skew-sensitivity appears here, O5 re-enters the mock budget⟩ |
-| C2 | Header parsing / shape validation | ⟨…⟩ | ⟨…⟩ |
+| C2 | Header parsing / shape validation | partial — raw-header parsing and RulePair shape slice green; response-precedence cases remain | 2026-08-09: `cargo test` in `spikes/rate-limit-core/` — 7 passed, including valid-pair round-trip and malformed-input properties; `cargo clippy --all-targets -- -D warnings` green |
 | C3 | Fuse trip logic | ⟨…⟩ | ⟨…⟩ |
 | C4 | 4xx tripwire logic | ⟨…⟩ | ⟨…⟩ |
 | C5 | Lifecycle invariants | ⟨…⟩ | ⟨…⟩ |
@@ -211,3 +211,7 @@ outlives the spike branch; record what exists and where.⟩
   gained its burst clause; probe-429 lifecycle, response
   precedence, and the probe outcome table pinned. The committed
   sibling docs are now the frozen implementation authority.
+- 2026-08-09 — implementation began with the C2 header-parser and
+  RulePair-shape slice. Seven offline tests pass (two property
+  tests); response-precedence coverage remains before C2 is
+  complete.
