@@ -73,7 +73,9 @@ is a pure state machine — (policy state, clock, response headers) →
 next permitted send time — no sockets, no tokio. A thin tokio actor
 wraps it: one task owns the gate state, requests arrive by channel,
 so "single serialized gate" is enforced by ownership rather than
-discipline. Consequences to verify in design: the core is unit- and
+discipline. (Shell shape settled in reconciliation — see the log
+below for the decision, the sharpened shape, and its consequence
+for the core's contract.) Consequences to verify in design: the core is unit- and
 property-testable (proptest) under simulated time
 (`tokio::time::pause` makes burst scenarios deterministic and fast);
 Tom learns ownership on pure data before touching async lifetimes —
@@ -96,8 +98,8 @@ tower at productization, not now.
    including the starting position and the agenda itself. If it
    does, amend this charter and commit the revision to the spike
    branch before proceeding, so the branch records what changed and
-   why. Do not begin item 1 until Tom says the reconciliation is
-   done.
+   why. Settled divergences land in the reconciliation log below.
+   Do not begin item 1 until Tom says the reconciliation is done.
 1. Enumerate the scenario list from the N-claims: cold-start burst,
    policy shrink mid-flight, multi-rule policies, 429 recovery,
    `Retry-After` honoring, whatever else the claims imply. Each
@@ -112,6 +114,67 @@ tower at productization, not now.
 5. Define the result doc's skeleton (goes to
    `docs/redesign/topics/`, claim lanes, pass/fail cited to
    N-numbers) so evidence collection is designed in, not bolted on.
+
+## Reconciliation log (agenda item 0 outcomes)
+
+Each entry records a divergence between this charter and
+`inputs/rate-limiter-design-brief.md`, the decision, and the why.
+Entries land here as they are settled; the item-0 gate stays open
+until Tom declares the reconciliation done.
+
+### 2026-08-09 — Shell shape: actor confirmed (charter position)
+
+The brief starts with `Arc<Mutex<PolicyStore>>` and treats the
+actor as "the growth path if the mutex version gets awkward."
+Declined — the actor is the starting position, for reasons the
+brief's session (no codebase access) could not weigh:
+
+- **Queue-as-data is a latent product requirement, and it picks
+  the shape.** Agents and users will want to see and edit the
+  pending queue: hundreds of stash tabs refreshing over hours,
+  reprioritized mid-run when the user changes their mind, or tab
+  groups refreshing at different cadences. In the mutex design the
+  queue is control flow — a queued request is a local variable in
+  a sleeping caller's suspended future, unreachable in principle;
+  inspection/reorder/cancel forces reifying the queue plus
+  distributed re-check wakeups, which converges on an actor by
+  erosion. In the actor, the queue is an owned deque mutated in
+  exactly one loop. The spike builds **none** of
+  display/reorder/edit — the desire only picks the shape, which
+  leaves those doors open at near-zero carrying cost.
+- The brief's own 429 escalation ("suspend that policy's queue and
+  surface it to the user") already presumes a queue something owns
+  and can suspend.
+- The C++ reference implementation is already actor-shaped: the
+  event-loop pump drains an explicit deque
+  (`src/ratelimit/ratelimitmanager.h`), with per-entry stop-token
+  cancellation (`stopsleep.h`) and a QueueUpdated signal.
+  Production-proven since 2023; the mutex shape has no precedent
+  in this codebase.
+- Enforced-by-ownership is the brief's own first idiom ("make
+  invalid states unrepresentable") applied to the shell — which
+  the brief relaxes to a discipline rule ("appears in at most one
+  place") exactly where the stakes are highest.
+
+Shape, sharpened from the naive actor sketch: the mpsc channel is
+**command ingress** (an enum: Enqueue, Cancel, later Reorder), not
+the queue — a channel mailbox is opaque and unreorderable. The
+actor owns the explicit deque, `select!`s over pacing-sleep vs.
+inbox so it stays responsive mid-pace (the `StopSleep` contract,
+generalized), and publishes a status snapshot via
+`tokio::sync::watch` after each state change. Caller cancellation
+is dropped-oneshot.
+
+Consequence for the core contract (feeds agenda item 3): core
+transitions are **reservations, not predictions** — deciding to
+send records the send in policy state at decision time. A
+query-shaped core ("when would it be safe?") invites check-then-act
+races in any shell.
+
+Still open: the brief's API-behavior claims (bucket quantization,
+HEAD-probe exemption, spacing floor, fuse, shared public-client
+pool, auth-transition remaps) remain unchecked against the
+N-claims — those are the remaining item-0 agenda.
 
 ## Conventions and scope guards
 
