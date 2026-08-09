@@ -71,6 +71,16 @@ Rules for the `Assumed` variant:
   *after* a stimulus (e.g. a retry re-scheduled too early lands
   inside the still-saturated window). Counts against G1 — recovery
   correctness is load-bearing (headroom-zero decision).
+- **Unavoidable transition exposure** (external review refinement,
+  2026-08-09): an *organic* mock 429 whose request was reserved
+  before the client could have observed a scripted mid-flight
+  policy mutation (M5 remap, M6 shrink). Bounded by construction:
+  at most in-flight-cap − 1 such arrivals after the announcing
+  response. Does not count against G1 — but it must enter the M8
+  recovery path and clear its assertions; any reservation granted
+  after the mutation was observable is fully subject to G1. The
+  harness attributes this category independently of the client,
+  using B13's correlation identity.
 
 ## §3. Mock-oracle independence (finding 3 + follow-up 2)
 
@@ -192,16 +202,26 @@ Cites: N5, N9, N20 (transient-server-bug premise).
 Mid-scenario, responses start carrying a new `X-Rate-Limit-Policy`
 name (N5, N9). Asserts: client remaps the endpoint and
 pessimistically merges history; at most in-flight-cap (2) requests
-were scheduled under the stale mapping; no client-caused violation
-after the merge; remap *triggers* beyond the reactive path are U1.
+were scheduled under the stale mapping (any organic 429 among them
+is unavoidable transition exposure, §2, and must clear M8's
+recovery assertions); no client-caused violation after the merge;
+remap *triggers* beyond the reactive path are U1.
 Cites: N5, N9, N6.
 
 **M6. Policy shrink mid-flight.** [phase-swept]
 Limits tighten mid-session (N9), e.g. `15:10:60` → `10:10:60`,
 while history already holds more than the new limit allows.
 Asserts: the shrink is honored from the response that announces
-it; no client-caused violation against the new limits; queue keeps
-draining at the new pace (no wedge). Cites: N9, N13.
+it. Mock judging rule (external Q&A, 2026-08-09): **hits are
+facts, rules are judgments** — every arrival is judged against
+the rule set active at that instant, existing window contents
+included, no grace period (a real server gives none; no violation
+is ever declared without an arrival). Pre-announcement in-flight
+arrivals that draw an organic 429 are unavoidable transition
+exposure (§2, bounded ≤ in-flight-cap − 1) and must clear M8's
+recovery assertions; G1 applies fully from the first
+post-announcement reservation; queue keeps draining at the new
+pace (no wedge). Cites: N9, N13.
 
 **M7. Phantom same-account hits.** [phase-swept]
 Mock injects counter increments the client under test didn't cause
@@ -220,7 +240,11 @@ alone; the caller eventually observes the outcome (the F57 lesson);
 a second consecutive 429 on the same policy escalates — back
 off / suspend the policy's queue and surface, never politely
 re-knock (the 4xx double-dip makes a third knock doubly
-expensive); no follow-on violation (§2). Cites: N19, N15, P-A,
+expensive); during recovery at most **one** post-restriction
+reservation is in flight for the restricted policy (single retry
+in flight — concurrent originals bounced by the same saturation
+join one episode; core-design episode semantics, generation-
+tagged tokens); no follow-on violation (§2). Cites: N19, N15, P-A,
 the 4xx-budget candidate claim.
 
 **M9. Phantom race at saturation (characterization).** [phase-swept]
@@ -268,7 +292,10 @@ Makes the addendum's gate definition executable from the mock's
 viewpoint: never more than 2 ordinary requests in flight; a HEAD
 never overlaps any other request (N18); once a HEAD is waiting, no
 new ordinary permits are issued (writer preference); ordinary
-permits granted in arrival order (FIFO — no lane starvation).
+permits granted in arrival order (FIFO — no lane starvation);
+HEADs are ordinary citizens of the wire discipline — subject to
+the spacing floor and counted by the fuse at the transport
+boundary (N2's incident was a HEAD flood).
 Cites: N18, P-B, D5, the gate-definition addendum.
 
 ### Core-property scenarios (pure functions, proptest)
@@ -301,7 +328,11 @@ lifecycle (`core-design.md`): rolling back an undispatched
 reservation restores policy state exactly; an `UnknownOutcome`
 stays counted and ages out only by window passage; no
 interleaving of reserve/rollback/observe double-counts or
-loses a send.
+loses a send; a deliberately generated accidental token
+abandonment (dropped unconsumed) is detected by the debug drop
+bomb *and* leaves engine state conservatively safe — the entry
+stays counted, ages out, never double-counts (core-design
+abandonment semantics).
 
 ### Fault-injection and structural (X-series)
 
@@ -358,9 +389,10 @@ no headroom term anywhere.
 - **G1 — zero client-caused violations.** Across every mock-judged
   scenario, every swept phase, every seed: the mock's independent
   counters record no violation attributable to client-scheduled
-  traffic (§2 vocabulary, follow-on violations included). One
-  counterexample fails the spike question; the failing (seed, φ)
-  is recorded.
+  traffic (§2 vocabulary: follow-on violations included;
+  unavoidable transition exposure excluded — bounded and
+  harness-attributed per §2). One counterexample fails the spike
+  question; the failing (seed, φ) is recorded.
 - **G2 — layer-1 ceiling never tripped.** The mock's rolling-window
   ceiling rules (M11a; both B10 rules) are armed in *every*
   mock-judged scenario, not just M11; no client-scheduled traffic
@@ -478,7 +510,7 @@ implements it with the mock. Consequences:
 | B10 | Layer-1 ceiling, **two rules**, both armed in every scenario (G2), both tripping into the Cloudflare-shaped failure: burst **20 req / rolling 1 s** (sensitivity tripwire, derived from the declared defense — see note) and **1000 req / rolling 60 s** (N2 made executable); Cloudflare-shaped reply generation (403, `cf-mitigated: challenge`, `Server: cloudflare`, HTML body, no rate-limit headers, no `Retry-After`) | N1–N3 | M11, G2 |
 | B11 | Stimulus injection channel: scripted 429 / 401 / generic-4xx / Cloudflare replies regardless of counter arithmetic | §2 | M8, M11b, M12 |
 | B12 | Deterministic scriptable per-response service delay; the default is a **placeholder** (~50 ms simulated) until the §7.4 fixture lands, then re-anchored to the capture's median `sent→received` (rounded); scenarios override | §7.1 | M13, M5, M9 |
-| B13 | Observation log: per-request arrival instant, method, endpoint label, bucket assignment, counter values, verdicts, plus (seed, φ) | §3, G6 | M13/M10 wire-shape assertions (spacing floor, FIFO, in-flight); G6 |
+| B13 | Observation log: per-request arrival instant, method, endpoint label, bucket assignment, counter values, verdicts, plus (seed, φ) and a per-request correlation identity (test-only header) linking mock arrivals to client dispatch records — the attribution evidence for §2's transition-exposure category | §3, G6 | M13/M10 wire-shape assertions (spacing floor, FIFO, in-flight); G6; §2 attribution |
 | B14 | `Date` header emitted, consistent with the mock's clock, zero skew | N5 context | C1 cross-check (skew itself is O5) |
 
 Notes on the load-bearing rows:
@@ -566,6 +598,12 @@ enters under the §4 contract. The replay test drives the capture's
 *relative dispatch timestamps* through the mock's counters, swept
 over φ:
 
+- **Initialization** (external Q&A, 2026-08-09): replay seeds the
+  mock's counters from the capture's boot-HEAD state headers via
+  the core-design reconciliation mechanism (phantoms at t₀,
+  pessimistic). Boot-HEAD records are *initialization evidence*,
+  not replayed counter-producing requests — residue must never be
+  applied twice (once as seed, once as arrival).
 - **Gate: zero violations at every φ.** Real, observed-compliant
   traffic must be judged compliant — this catches a mock stricter
   than reality. The C++ client's full-bucket padding should survive

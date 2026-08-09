@@ -124,7 +124,12 @@ The shell owns the response to `UnexpectedPolicyShape` (charter:
 D4-style scoped clean failure): refuse that policy's sends under
 cooldown, error pending requests, publish on the watch channel. At
 most one request is ever sent under an unknown shape (M4). Process
-abort is reserved for the test harness.
+abort is reserved for the test harness. All `PolicyParseError`
+variants get this **identical** behavior — `MissingHeader`,
+`MalformedTriplet`, and `UnexpectedPolicyShape` differ in
+diagnostics, never in response (external Q&A, 2026-08-09): one
+cooldown path, one exposure bound. The variant is for telemetry
+and the result doc, not for branching.
 
 ## 3. The request lifecycle (finding 5)
 
@@ -148,6 +153,22 @@ unknown outcomes never do.** Rollback is safe only while we are
 certain no bytes reached the wire; past dispatch, uncertainty is
 resolved pessimistically.
 
+Token abandonment (external Q&A, 2026-08-09): explicit consumption
+is the *rule* — every ordinary actor path resolves a token through
+`rollback`, `on_response`, or `on_unknown_outcome`, and for a
+known-undispatched token rollback is the correct, normal action. A
+token dropped unconsumed is a *bug path* with defined emergency
+semantics: the reservation stays counted and ages out by window
+passage — pessimistic retention, safe at the cost of throughput,
+never the design intent. Enforcement: `#[must_use]` on the token
+warns at construction sites; in debug/test builds the token
+carries a drop bomb — its `Drop` impl panics on unconsumed drop
+*unless the thread is already panicking*
+(`std::thread::panicking()` guard, so a bomb firing during an
+unwind cannot escalate into a double-panic abort). C5 deliberately
+generates an accidental-drop interleaving and asserts both halves:
+the bomb detects it, and engine state stays conservatively safe.
+
 > **Idiom: move-only tokens.** `try_reserve` returns a
 > `ReservationToken` that is not `Copy` and not `Clone`. Every
 > consuming method takes it *by value* — `rollback(token)`,
@@ -156,6 +177,31 @@ resolved pessimistically.
 > rejects any second use. Double-rollback or
 > rollback-after-response is a compile error, not a runtime check.
 > (This is the cheap end of the "typestate" idiom.)
+
+### Reconciliation and phantom synthesis (external Q&A, 2026-08-09)
+
+`History` is a timestamped deque of send instants, one per policy,
+shared across the policy's rules; each rule evaluates it against
+its own `max_hits`/`period`. Reconciliation in `on_response` is a
+per-rule **pessimistic count-max with phantom synthesis**: for
+each rule, compare the server's reported `current-hits` (N25:
+post-increment) with the local in-window count; where the server
+reports more, synthesize the deficit as entries timestamped `now`
+— the newest possible placement, so phantoms age out latest.
+Because the deque is shared, insert the **max** deficit across the
+policy's rules, not the sum: one entry at `now` is in-window for
+every rule simultaneously. Two properties stated deliberately:
+
+- Synthesis may overstate rules other than the one driving the
+  deficit — by design; pessimism is scope-blind (charter).
+- Reconciliation is monotone: a later, lower server count never
+  removes local or synthetic history. Entries leave the deque
+  only by window passage or rollback of an undispatched
+  reservation.
+
+Boot residue is not a special case: M1's HEAD-reported state is
+this same mechanism applied to an empty history. One mechanism
+covers M1 (residue), M7 (phantoms), and post-429 reality.
 
 ## 4. Core API sketch
 
@@ -200,6 +246,28 @@ state. Retry timing flows through the same single authority as
 every other send; the once-then-escalate ladder stays in the core
 (consecutive-429 count per policy → `EscalationSuspend`).
 
+Episode semantics for that ladder (external Q&A + refinement,
+2026-08-09): each recorded restriction increments a per-policy
+**restriction generation**, and every `ReservationToken` carries
+the generation it was granted under — generations, not
+timestamps, do the attribution, because exact boundaries and
+successive restrictions make timestamp ordering fragile. A 429
+whose token predates the current generation joins the existing
+episode: concurrent in-flight originals bounced by the same
+saturation never double-count. While an episode awaits
+confirmation, `try_reserve` grants at most **one**
+post-restriction reservation for that policy (single retry in
+flight; other callers queue behind `NotBefore`). That probe's
+outcome decides:
+
+- any non-429 response breaks the consecutive-429 chain — episode
+  reset, normal concurrency resumes (its headers reconcile as
+  usual; a degraded reply takes the D4 path independently);
+- 429 → `EscalationSuspend` (a genuine failed retry);
+- unknown outcome → the episode stays unconfirmed, the send stays
+  counted (lifecycle rule), and the single probe slot reopens at
+  the recomputed `NotBefore`.
+
 `CloudflareShapedReply` carries one wrinkle (first-eyes review,
 2026-08-09): the signature includes the *body* (HTML), and the
 core never sees bodies. Classification is therefore the
@@ -236,6 +304,20 @@ each transition, not pulled by callers.
 - **The spacing floor and in-flight cap** are gate properties the
   actor enforces around dispatch (M13); the core's reservations are
   per-policy and know nothing about the wire.
+- **Probe eligibility is actor-owned; the core never schedules a
+  HEAD** (external Q&A, 2026-08-09). There is deliberately nothing
+  to reserve: HEADs do not count against policy counters (N24),
+  and pre-probe the endpoint has no policy mapping to reserve
+  against. Bootstrap sequence (charter component-scope entry +
+  D5): unknown endpoint label → park the request in the actor's
+  deque, mark the endpoint probing (exactly-once, N16, and strict
+  serialization, N18, are structural in the one loop), drain the
+  gate under writer preference, take exclusive occupancy, respect
+  the spacing floor, dispatch. A HEAD is an ordinary citizen at
+  the transport boundary: counted by the fuse, subject to the
+  spacing floor and X2's single-send-path rule — N2's incident
+  *was* a HEAD flood. Core involvement is limited to parsing the
+  reply and seeding state via reconciliation.
 - **The clock.** `SimInstant` arrives as a parameter, always.
   Nothing in the core calls `Instant::now()` — that single rule is
   what makes `tokio::time::pause` testing deterministic.

@@ -146,6 +146,10 @@ observed lane:
 
 - Fixture: ⟨sanitized July 18, 2026 capture (132 records), §4
   contract; sanitizer version, capture schema `v`⟩
+- Initialization: seeded from the capture's boot-HEAD state
+  headers (reconciliation mechanism, phantoms at t₀); boot-HEAD
+  records are initialization evidence, never replayed as
+  counter-producing arrivals — ⟨confirm no double-application⟩
 - Gate — zero violations at every φ: ⟨result; any failing φ is a
   finding to adjudicate (mock bug vs. model exceeding N13's
   margin), recorded here, never tuned away⟩
