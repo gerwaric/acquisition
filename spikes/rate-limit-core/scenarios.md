@@ -258,7 +258,9 @@ reservation is in flight for the restricted policy (single retry
 in flight — concurrent originals bounced by the same saturation
 join one episode; core-design episode semantics, generation-
 tagged tokens); the full confirmation matrix (core-design) is
-exercised case by case; no follow-on violation (§2). Cites: N19, N15, P-A,
+exercised case by case; one case serves a **malformed 429**
+(headers unparseable) and asserts precedence rule 2 — D4-style
+refusal, not a retry episode; no follow-on violation (§2). Cites: N19, N15, P-A,
 the 4xx-budget candidate claim.
 
 **M9. Phantom race at saturation (characterization).** [phase-swept]
@@ -328,7 +330,10 @@ adversarial properties over header strings: two-triplet shapes
 with strictly increasing periods parse to `RulePair`; one-, three-, and
 malformed-triplet inputs return typed errors (never panic, never
 index out of bounds — the N20 lesson); missing headers are typed
-errors, not empty lists.
+errors, not empty lists. Combined cases pin the core-design
+precedence rule: a 429 with malformed policy headers yields a
+refusal-shaped parse outcome, never usable restriction context;
+a generic 4xx with valid headers parses normally.
 
 **C3. Fuse trip logic.** Pure function `(dispatch history, now) →
 Tripped | Ok`. Properties: never trips on any trace at or below

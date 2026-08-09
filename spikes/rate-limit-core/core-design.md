@@ -319,6 +319,40 @@ may split the return types per entry point if the invariant earns
 compile-time teeth): `on_response` never yields `ProbeReady`;
 `on_probe_response` never yields `CompleteRequest` or `Requeue`.
 
+**Response precedence** (external review round 4): a reply can
+satisfy several conditions at once — a 429 with malformed policy
+headers, a 429 classified Cloudflare-shaped, a 2xx carrying both a
+remap and an unexpected shape — and `Disposition` is mutually
+exclusive, so evaluation order is part of the contract:
+
+1. Cloudflare classification → `Halt` (supersedes everything);
+2. malformed / out-of-model policy observation → `Refuse` — this
+   is the safety-sensitive case: a 429 whose headers do not yield
+   a valid policy observation becomes a D4 refusal, **not** a
+   retry episode, because scheduling a retry safely requires
+   restriction context we provably do not have;
+3. 429 with usable restriction context → episode handling;
+4. other status handling (a generic 4xx with valid headers
+   reconciles normally, reaches the caller as `CompleteRequest`,
+   and feeds the tripwire at the boundary);
+5. reconciliation and remap notifications, where valid.
+
+C2 and M8 carry combined cases so this ordering is executable,
+not prose.
+
+**Probe outcome table** (external review round 4 — completes
+`on_probe_response`, which cannot return `Requeue`):
+
+| Probe outcome | Disposition |
+|---|---|
+| valid 2xx + policy observation | `ProbeReady` |
+| malformed or out-of-model policy | `Refuse` (endpoint target, D4) |
+| 429 **with** valid policy observation | `ProbeReady` — a 429 reply still carries the full header set (N5), which is exactly the mid-window state the boot HEAD exists to discover; the restriction is recorded in the seeded policy state and the first GET waits out `Retry-After` + bucket + buffer through `try_reserve` as usual. No endpoint-owned retry timing is needed |
+| 429 **without** valid policy observation | `Refuse` (endpoint target, D4) — precedence rule 2 |
+| 5xx | `Refuse` (endpoint target, D4 cooldown); no ordinary GET released |
+| transport unknown outcome | `Refuse` (endpoint target, D4 cooldown); no ordinary GET released |
+| Cloudflare-shaped | `Halt` |
+
 A 429 carries no retry *time* in its transition — that would hand
 the shell a second scheduling path. Instead the core records the
 restriction in policy state (active until `Retry-After` + the
@@ -380,6 +414,11 @@ immediately and never earns a second attempt):
 | final | 2xx + valid policy observation | reset |
 | final | anything else (429, unknown, other non-429) | escalate |
 
+`Halt` is terminal and outside the matrix (external review round
+4): a Cloudflare-shaped reply at *any* point halts immediately
+under precedence rule 1 — Cloudflare never receives the otherwise
+"permitted" final attempt.
+
 `CloudflareShapedReply` carries one wrinkle (first-eyes review,
 2026-08-09): the signature includes the *body* (HTML), and the
 core never sees bodies. Classification is therefore the
@@ -394,7 +433,7 @@ with every other policy decision.
 > suspends a queue. `Disposition` is one enum, so mutually
 > exclusive outcomes are exclusive *by construction*: requeue plus
 > suspend cannot be expressed, and parse errors travel inside
-> `RefusePolicy`, so success-plus-error is equally
+> `Refuse`, so success-plus-error is equally
 > unrepresentable. "Make invalid states unrepresentable," applied
 > to the output side. Every branch of shell behavior stays
 > reachable from a unit test that just constructs the transition.
