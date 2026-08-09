@@ -248,8 +248,50 @@ feeds agenda item 5's claim-lane structure.
 Still open: **bucket quantization** — the brief models one bucket
 per policy (pessimistic 60s default, "only learned by getting
 429'd") vs. the N12 initial/sustained tiers, the N14 ask-GGG
-channel, and the Q4 positional-classification hypothesis. Tom has
-further thoughts on server-side bucketing; discussion in progress.
+channel, and the Q4 positional-classification hypothesis. Direction
+settled 2026-08-09 (full entry lands when GGG replies to Tom's
+email — tier assignment question plus blessing for a bounded
+validation experiment):
+
+- **Shape invariant instead of a classifier**: each rule carries
+  exactly two windows, first period strictly shorter — parse-time
+  validation (`RulePair { burst, sustained }`), no runtime
+  classification. Evidence the shape is not universal: trade-API
+  rules carry *three* windows per rule
+  (`https://www.pathofexile.com/forum/view-thread/3056323`,
+  community-observed Feb 2021, retrieved 2026-08-09; N17
+  calibration lane) — so a non-pair policy is out-of-model, not
+  impossible. Failure-mode decision still open: D4-style scoped
+  per-policy clean failure (recommended) vs. app-level breaking
+  error. A three-window rule also has no N-claim tier mapping,
+  reinforcing refuse-to-schedule over guessing.
+- **HEAD-decay bucket measurement rejected** (2026-08-09):
+  `https://community.cloudflare.com/t/blocked-from-path-of-exile-api-but-not-allowed-to-contact-support/549055`
+  (retrieved 2026-08-09) shows a layer-1 block striking a
+  self-reportedly compliant API client as **403 +
+  `cf-mitigated: challenge`** (not 1015), with effectively no
+  recourse (GGG support saw no block on their side; Cloudflare
+  support is business-only). HEAD-heavy polling is an anomalous
+  traffic shape, PoE's layer 1 is historically HEAD-sensitive
+  (N2), and the downside is now priced as unbounded. Candidate
+  ground-truth claims (external lane): the challenge-shaped block
+  signature (extends N3) and the recourse asymmetry (informs Q7).
+  Client design consequence: recognize Cloudflare-shaped replies
+  generally (`Server: cloudflare`, `cf-mitigated`, HTML body, no
+  rate-limit headers) as a halt-shaped terminal condition, not a
+  retry.
+- **Instrument: long-running assumed-bucket validation.**
+  Sufficiency trials (saturate legally, wait
+  `period + assumed_bucket + buffer`, send, repeat across
+  randomized phases — never round-boundary starts), not bucket
+  measurement. Design criterion made explicit by the thread:
+  **experiment traffic must be indistinguishable from production
+  traffic at layer 1** — compliant GETs at compliant pace, wall
+  clock as the only cost. One-sided by design: it only fails in
+  the dangerous direction (bucket growth / shape change), never
+  blocks a bucket shrink. Fixed safety rails independent of the
+  hypothesis (spacing floor, fuse, hard per-run request and 429
+  caps); dated machine-readable validation ledger as output.
 
 Also open, deliberately deferred: the brief's **headroom**
 (effective limit = `max_hits − headroom`). Deferred twice over: it
