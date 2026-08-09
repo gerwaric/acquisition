@@ -38,6 +38,13 @@ makes the N-claims *executable*."
   `networkcapture` (credential-clean captures; a fixture source).
 - `tools/synthdata/` (merged via PR #195) — RePoE-driven synthetic
   userstore generation, if realistic payloads are needed.
+- `inputs/rate-limiter-design-brief.md` — an independently produced
+  design (written without access to this codebase; see its
+  provenance header). Reconcile it with this charter's starting
+  position: divergences between the two are agenda items for the
+  design session, not one document overriding the other, and its
+  API-behavior claims must be checked against the N-claims before
+  they influence the design.
 
 ## Starting position (from the session discussion — challenge it)
 
@@ -81,6 +88,16 @@ tower at productization, not now.
 
 ## Design-session agenda (suggested)
 
+0. **Interactive reconciliation first — a gate, not a formality.**
+   Before any design work, discuss with Tom: walk the divergences
+   between this charter and `inputs/rate-limiter-design-brief.md`,
+   surface his questions, and settle what the spike is actually
+   testing. This discussion is allowed to change anything below —
+   including the starting position and the agenda itself. If it
+   does, amend this charter and commit the revision to the spike
+   branch before proceeding, so the branch records what changed and
+   why. Do not begin item 1 until Tom says the reconciliation is
+   done.
 1. Enumerate the scenario list from the N-claims: cold-start burst,
    policy shrink mid-flight, multi-rule policies, 429 recovery,
    `Retry-After` honoring, whatever else the claims imply. Each
