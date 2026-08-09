@@ -100,20 +100,27 @@ tower at productization, not now.
    branch before proceeding, so the branch records what changed and
    why. Settled divergences land in the reconciliation log below.
    Do not begin item 1 until Tom says the reconciliation is done.
-1. Enumerate the scenario list from the N-claims: cold-start burst,
-   policy shrink mid-flight, multi-rule policies, 429 recovery,
-   `Retry-After` honoring, whatever else the claims imply. Each
-   scenario cites its N-numbers.
+1. Enumerate the scenario list from the N-claims: cold-start burst
+   (upgraded in reconciliation to cold-start-with-residue, per N24
+   — see the log), policy shrink mid-flight, multi-rule policies,
+   429 recovery, `Retry-After` honoring, whatever else the claims
+   imply. Each scenario cites its N-numbers.
 2. Define pass/fail criteria precisely (zero mock-judged violations
    across all scenarios? bounded over-delay too, so the client isn't
    trivially safe by being absurdly slow?).
 3. Sketch the state machine's types and transitions on paper before
    any Rust — what is policy state, what updates it, what queries it.
 4. Decide the mock's fidelity budget: which observed behaviors from
-   captures must it reproduce; which are out of scope.
+   captures must it reproduce; which are out of scope. (Constraint
+   from reconciliation: the mock is an in-process service sharing
+   the client's paused runtime, not a standalone binary — see the
+   log.)
 5. Define the result doc's skeleton (goes to
    `docs/redesign/topics/`, claim lanes, pass/fail cited to
    N-numbers) so evidence collection is designed in, not bolted on.
+   (The scope entry's test-lane taxonomy — mock-judged wire
+   behavior / core-level property tests / declared-untested —
+   feeds this.)
 
 ## Reconciliation log (agenda item 0 outcomes)
 
@@ -238,13 +245,30 @@ which lane the verdict lives in* — mock-judged wire behavior,
 core-level property tests, or declared-untested. This taxonomy
 feeds agenda item 5's claim-lane structure.
 
-Still open: the brief's remaining API-behavior claims (bucket
-quantization, shared public-client pool, auth-transition remaps)
-remain unchecked against the N-claims — those are the remaining
-item-0 agenda. (Note for the pool claim: the brief asserts a
-public-client communal pool, but N23 observed Account-scoped rules
-under OAuth and acquisition is a registered confidential client —
-N10.)
+Still open: the brief's remaining API-behavior claims remain
+unchecked against the N-claims — those are the remaining item-0
+agenda:
+
+- **Bucket quantization** — the brief models one bucket per policy
+  (pessimistic 60s default, "only learned by getting 429'd") vs.
+  the N12 initial/sustained tiers, the N14 ask-GGG channel, and
+  the Q4 positional-classification hypothesis.
+- **Shared public-client pool** — the brief asserts a communal
+  pool, but N23 observed Account-scoped rules under OAuth and
+  acquisition is a registered confidential client (N10); likely a
+  quick correction with a surviving pessimistic-reconciliation
+  design.
+- **Auth-transition remaps** — the brief's login-state remap
+  precedent appears in no N-claim; verify or drop.
+- **Invalid-request / 4xx budget** — the brief's claim that 4xx
+  responses spend a second budget appears in no N-claim; check
+  against the GGG docs (either outcome is a finding — restored to
+  this list 2026-08-09 after being dropped in the scope entry).
+
+One non-claim design divergence also remains open: the brief's
+**headroom** (effective limit = `max_hits − headroom`), which the
+C++ client does not implement and which interacts directly with
+agenda item 2's bounded-over-delay criterion.
 
 ## Conventions and scope guards
 
