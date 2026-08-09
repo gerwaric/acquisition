@@ -245,30 +245,131 @@ which lane the verdict lives in* — mock-judged wire behavior,
 core-level property tests, or declared-untested. This taxonomy
 feeds agenda item 5's claim-lane structure.
 
-Still open: the brief's remaining API-behavior claims remain
-unchecked against the N-claims — those are the remaining item-0
-agenda:
+Still open: **bucket quantization** — the brief models one bucket
+per policy (pessimistic 60s default, "only learned by getting
+429'd") vs. the N12 initial/sustained tiers, the N14 ask-GGG
+channel, and the Q4 positional-classification hypothesis. Tom has
+further thoughts on server-side bucketing; discussion in progress.
 
-- **Bucket quantization** — the brief models one bucket per policy
-  (pessimistic 60s default, "only learned by getting 429'd") vs.
-  the N12 initial/sustained tiers, the N14 ask-GGG channel, and
-  the Q4 positional-classification hypothesis.
-- **Shared public-client pool** — the brief asserts a communal
-  pool, but N23 observed Account-scoped rules under OAuth and
-  acquisition is a registered confidential client (N10); likely a
-  quick correction with a surviving pessimistic-reconciliation
-  design.
-- **Auth-transition remaps** — the brief's login-state remap
-  precedent appears in no N-claim; verify or drop.
-- **Invalid-request / 4xx budget** — the brief's claim that 4xx
-  responses spend a second budget appears in no N-claim; check
-  against the GGG docs (either outcome is a finding — restored to
-  this list 2026-08-09 after being dropped in the scope entry).
+Also open, deliberately deferred: the brief's **headroom**
+(effective limit = `max_hits − headroom`). Deferred twice over: it
+trades directly against agenda item 2's bounded-over-delay
+criterion (decide with the thresholds, not in isolation), and it
+shares a margin-against-counter-mismatch role with bucket padding,
+so the bucketing discussion may reshape it. Framing settled
+2026-08-09 so the eventual decision is small: bucket padding covers
+quantization (N11–N13) and pessimistic reconciliation covers
+*observed* phantoms, so headroom's unique threat is only the
+send-time race with a concurrent same-account tool (model says
+14/15, a sibling lands first, yours is the 16th → exogenous 429 —
+which P-A's recovery machinery must survive anyway). Recommendation
+on the table: default headroom to 0 (three years of production and
+the first capture's zero violations price the threat as negligible)
+but keep `effective_limit = max_hits − headroom` in the core's
+types so the decision reverses with data, not redesign; follow the
+spacing-floor precedent on configurability (not an external knob in
+the spike). The item-1 phantom-client-at-saturation scenario doubles
+as the executable version of this trade-off: with headroom 0 it
+judges recovery from the exogenous 429, and its data goes in the
+result doc either way.
 
-One non-claim design divergence also remains open: the brief's
-**headroom** (effective limit = `max_hits − headroom`), which the
-C++ client does not implement and which interacts directly with
-agenda item 2's bounded-over-delay criterion.
+### 2026-08-09 — Pool killed, remaps split, 4xx budget documented
+
+Three of the brief's four unchecked API-behavior claims, resolved
+in one batch (bucket quantization stays open above):
+
+**Shared public-client pool: killed; the design it motivated
+survives under a corrected threat model.** N10 (acquisition is a
+registered confidential client) plus N23 (under OAuth all API rules
+are Account-scoped; no Client rule observed) leaves nothing of the
+communal-pool premise standing. What survives, deliberately:
+
+- Pessimistic reconciliation is unchanged — phantom hits are real,
+  sourced from same-account tools and cross-session residue
+  (N23/N24), not strangers.
+- The exogenous-429 branch survives the kill: a same-account
+  sibling can consume the last slot between model check and send.
+  Do not let the pool correction take that branch down with it.
+- Mock consequence: one phantom mechanism ("counter increments the
+  client under test didn't cause") — the mechanics are identical
+  under either fiction, so only scenario labels and magnitudes
+  change. Same-account phantoms are occasional and bursty (user
+  launches a second tool), not constant background drizzle;
+  pass/fail thresholds must not be tuned against a world that
+  doesn't exist. Rule scope varies per rule (the legacy policy has
+  an Ip rule, N23) but reconciliation is scope-blind — no per-scope
+  phantom machinery.
+- Flag beyond spike scope: the brief's OAuth section (public
+  client, PKCE-only, communal pool) was written from the same wrong
+  premise; do not let it leak unexamined into the later OAuth
+  phase.
+
+**Auth-transition remaps: split into reaction and prediction;
+reaction kept, prediction dropped.** The brief bundled two
+separable mechanisms with different evidentiary standing:
+
+- *Reactive remap handling* — every response carries
+  `X-Rate-Limit-Policy` (N5); on mismatch with the endpoint map,
+  remap and pessimistically merge history. Needs no precedent
+  claim: derives from N5 + N9. Cheap in the actor (the loop sees
+  every response). In scope, mock-judged: one scenario renames a
+  policy mid-session. Exposure bound: with the serialized gate /
+  small in-flight cap, at most in-flight-cap requests are ever
+  scheduled under a stale mapping before the first response
+  corrects it — residual exposure P-A's recovery covers by design.
+- *Proactive provisionality at auth transitions* — the brief's
+  login-state remap precedent appears in no N-claim, and the
+  machinery buys only the shaving of that one-request exposure
+  recovery already covers. Dropped from spike scope; remap
+  *triggers* are declared-untested in the result doc while remap
+  *handling* is mock-judged. Evidence hunt declined: captures are
+  single-auth-mode sessions, and even a confirmed precedent would
+  change the scenario list, not the design.
+- The brief's "first request after idleness is provisional" is
+  subsumed by reactive handling: an idle endpoint's local window
+  has aged out, so its one request is safe under the old
+  definition, and the response corrects the model before request
+  two.
+
+**Invalid-request / 4xx budget: verified — documented, so the
+ground-truth doc has a gap (finding), not the brief.** Checked
+`https://www.pathofexile.com/developer/docs/index` (retrieved
+2026-08-09), verbatim:
+
+> "Applications (and users) that make too many invalid requests in
+> a short period of time will be restricted from further access to
+> our service."
+
+> "Invalid requests include any response codes in the HTTP 4xx
+> range. This includes common codes such as 401 (Unauthorized),
+> 403 (Forbidden), and 429 (Too Many Requests)."
+
+> "Reasonable attempts **must** be made in order to avoid passing
+> the threshold."
+
+Candidate N-claim (DOC lane, Confirmed; threshold parameters
+undocumented — a sibling of Q8) to be transcribed into
+`network-ground-truth.md` when the result doc lands on `redesign`
+(scope guard: this branch cannot touch that doc). Consequences:
+
+- **429s double-dip**: a violation spends policy budget *and*
+  invalid-request budget. Retroactively strengthens the brief's
+  never-politely-re-knock ladder, P-A's careful recovery, and the
+  stakes of the Q4 danger case.
+- **New scoped-in component: a 4xx tripwire.** The spacing floor
+  and fuse are request-count defenses; a bug that retry-loops
+  politely (respecting the 250 ms floor, under 240 req/min) trips
+  neither yet blows the documented threshold. Cheap in the actor:
+  a windowed 4xx counter sharing the fuse's halt semantics. Same
+  lane split as the fuse: trip logic is a pure function
+  (core-level unit/property tests); the wire-level true positive
+  is declared untested.
+- **Mock models the client's obligation, not the server's
+  threshold.** The threshold is opaque with no incident data to
+  anchor even an inferred-lane number. Wire scenarios assert the
+  documented obligations instead: 401 → zero retries; 429 →
+  at-most-one-retry-then-escalate (already scoped). Server-side
+  restriction behavior: declared untested.
 
 ## Conventions and scope guards
 
