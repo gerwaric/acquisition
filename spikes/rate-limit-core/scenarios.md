@@ -10,8 +10,9 @@ the way designs cite N-numbers. This doc is hoisted with the
 conformance suite if the suite outlives the spike.
 
 N-numbers cite `docs/design/network-ground-truth.md`. D-numbers cite
-`docs/design/network-redesign.md`. Item 4 (mock fidelity budget) is
-scaffolded in §7 but not started — it is the next side-bar.
+`docs/design/network-redesign.md`. All three of this doc's items are
+landed: §7 (item 4, the mock fidelity budget) was decided in the
+2026-08-09 side-bar.
 
 ---
 
@@ -387,25 +388,151 @@ verdict, stated with its assumption.
 
 ---
 
-## §7. Mock fidelity budget (agenda item 4 — scaffold only, not started)
+## §7. Mock fidelity budget (agenda item 4 — decided 2026-08-09)
 
-The next side-bar. Fixed inputs it must respect:
+Fixed inputs, respected throughout: the mock is an in-process
+service sharing the client's paused tokio runtime (reconciliation
+constraint), and §3's independence rules are the floor under every
+line below — nothing here relaxes them. The budget criterion is the
+charter's scoping rule applied to the mock: a behavior is in scope
+iff some scenario's verdict needs the mock to reproduce it;
+everything else stays out until a scenario pulls it in. Every B/O
+item names its consumers, so a future scenario change re-runs this
+budget mechanically instead of by taste.
 
-- The mock is an in-process service sharing the client's paused
-  tokio runtime (reconciliation constraint; §3).
-- §3's independence rules are non-negotiable floor, not budget
-  items.
-- Candidate must-reproduce behaviors (from captures/N-claims, to
-  be decided): post-increment 1:1 state tracking (N25); HEAD 204 +
-  full headers, non-counting (N24); cross-session residue (N24);
-  the five-policy topology and the legacy Account+Ip rule pair
-  (N23); 429 + `Retry-After` emission on violation (N5).
-- Candidate out-of-scope: network jitter/latency modeling, TLS,
-  connection reuse, HTTP/2 framing, multi-account topology,
-  server `Date`-header skew (unless C1 shows the arithmetic is
-  sensitive to it — then it moves into scope).
-- Capture-replay fixtures enter under the §4 sanitization
-  contract; replay grounds the model in observed reality
-  (measured-against-model vs observed lanes, charter step 2).
+### §7.1 The judging interface
 
-Budget decisions land here when the side-bar runs.
+The mock sits at the **transport-trait boundary**, not on a socket.
+The client's transport is a trait (`async fn send(Request) ->
+Response` over `http`-crate types); production implements it with
+the real HTTP client (the private field X2 pins), the harness
+implements it with the mock. Consequences:
+
+- No sockets anywhere in the test path. This retires the charter's
+  pre-reconciliation "small HTTP server, e.g. axum" sketch: real
+  socket IO under `tokio::time::pause` defeats auto-advance — the
+  runtime cannot distinguish idle-waiting-for-time from
+  waiting-for-a-peer, so paused-time determinism (the reason the
+  in-process constraint exists) would be forfeit. The X1/X2
+  boundary is unaffected: the fuse counts hand-offs to the
+  transport trait, whichever implementation is behind it.
+- **Verbatim header strings cross the boundary.** The mock emits
+  real header name/value strings
+  (`x-rate-limit-stash-request-limit: 15:10:60, 30:300:300`),
+  never pre-parsed structs — the client's production parser runs
+  in every mock scenario, so M3/M4's parse assertions exercise the
+  same code path reality does. §3's "header serialization types"
+  allowance is hereby pinned to the `http` crate's vocabulary
+  types (`HeaderMap`, `StatusCode`, `Method`); the mock's window
+  arithmetic lives in its own module sharing nothing else.
+- **All mock timing reads the paused clock.** Windows, restriction
+  expiry, and service delays are driven by the same
+  `tokio::time` instants the client sees; nothing in the test
+  path touches wall time.
+
+> **Idiom: a trait is the seam.** Where C++ injects behavior via
+> virtual base classes or template parameters, Rust uses traits,
+> consumed one of two ways: generically (`Client<T: Transport>` —
+> static dispatch, the concrete type compiled in) or as a trait
+> object (`Box<dyn Transport>` — dynamic dispatch through a
+> vtable). The spike takes the generic form: which transport is in
+> play is known at compile time per build (mock in tests, real in
+> production), nothing swaps at runtime, and `async fn` in traits
+> composes more cleanly with generics than with `dyn`.
+
+### §7.2 Must-reproduce (B-series)
+
+| # | Behavior | Source | Consumers |
+|---|---|---|---|
+| B1 | Full header protocol emission, verbatim strings: policy, rules, per-rule limit and state triplets, `Retry-After` on 429 | N5 | every M; M3/M4 parse paths |
+| B2 | Black-box windowed counters (per §3) with *organic* 429 on violation and restriction enforcement for the rule's restriction period | N5, §2 | G1 in every scenario; M8 follow-on detection |
+| B3 | Bucket quantization: server-owned φ, most-adversarial model (see below); resolutions Known(5s/60s) for the four OAuth policies, legacy instantiated at Assumed(60s/60s) per §1 — no legacy-resolution sweep (U3's instrument is the evidence path, not the mock) | N11–N13, N12, §1 | all phase-swept scenarios |
+| B4 | Post-increment 1:1 state tracking | N25 | M2 |
+| B5 | HEAD semantics: 204 (API) / 200 (legacy) + full headers, non-counting; scriptable partial-header degradation | N24, N20 | M1, M13; M3 |
+| B6 | Pre-loadable counters (cross-session residue) | N24 | M1 |
+| B7 | Five-policy topology with the N23 definitions as the default fixture; endpoint-label → policy routing; per-rule independent windows including the legacy Account+Ip pair; scriptable synthetic policies | N23, N6 | M4, M6; every "other policies unaffected" assertion |
+| B8 | Mid-session policy mutation, scripted: redefinition/shrink and rename | N9 | M6, M5 |
+| B9 | Phantom counter increments, scripted, bursty shape (corrected threat model — no drizzle) | N23, N24 | M7, M9 |
+| B10 | Layer-1 ceiling: rolling 60 s window, **1000 requests** — the only evidence-anchored number, inferred lane — armed in every scenario (G2); Cloudflare-shaped reply generation (403, `cf-mitigated: challenge`, `Server: cloudflare`, HTML body, no rate-limit headers, no `Retry-After`) | N1–N3 | M11, G2 |
+| B11 | Stimulus injection channel: scripted 429 / 401 / generic-4xx / Cloudflare replies regardless of counter arithmetic | §2 | M8, M11b, M12 |
+| B12 | Deterministic scriptable per-response service delay (default ~50 ms simulated; scenarios override) | §7.1 | M13, M5, M9 |
+| B13 | Observation log: per-request arrival instant, method, endpoint label, bucket assignment, counter values, verdicts, plus (seed, φ) | §3, G6 | M13/M10 wire-shape assertions (spacing floor, FIFO, in-flight); G6 |
+| B14 | `Date` header emitted, consistent with the mock's clock, zero skew | N5 context | C1 cross-check (skew itself is O5) |
+
+Notes on the load-bearing rows:
+
+- **B3, the quantization model — a decision, and a candidate
+  N-claim finding.** N11–N13 confirm buckets exist, give their
+  resolutions, and give the safe margin, but do **not** specify the
+  quantization semantics (when a hit's age is measured, when it
+  leaves the window). The mock implements the *most adversarial
+  reading consistent with the claims*: a hit's age is rounded down
+  to its bucket start (latest possible expiry), and restriction
+  expiry is quantized the same way. Rationale: if full-bucket
+  padding (N13) survives the harshest consistent model at every φ,
+  it survives reality under any milder one — the mock asserts an
+  upper bound on the threat, matching the layer-1 ceiling's
+  philosophy. The under-specification itself is a **candidate
+  N-claim clarification** for the result doc's register (charter
+  step 1: mock-writing exposing an N-claim ambiguity is a finding).
+  Adversarial restriction expiry is also what makes M8's N19
+  assertion load-bearing: a retry at `Retry-After` alone *can*
+  violate in the mock, so waiting `Retry-After + bucket + buffer`
+  is tested, not decorative.
+- **B10, the ceiling number.** 1000/min cites the one known block
+  (N2: "over a thousand requests in a minute"); any lower number
+  would be invented. It sits deliberately *above* the fuse
+  (~500/min) and the spacing-implied maximum (240/min): the ceiling
+  trips only if both client-side defenses have already failed. The
+  mock asserts the threat; the floor and fuse are the defense
+  (charter, component-scope entry). The number is inferred-lane and
+  is not a model of Cloudflare (U4).
+- **B12 refines the scaffold's out-of-scope candidate** rather than
+  contradicting it: *stochastic* jitter stays out (O2), but with
+  zero service time every exchange is instantaneous — no two
+  requests ever overlap, and M13's in-flight-cap and
+  HEAD-exclusivity assertions pass vacuously. A deterministic
+  scripted delay is the minimum fidelity that makes concurrency
+  observable at all.
+- **B7 scope note:** both legacy rules are enforced as independent
+  windows over the single client-under-test request stream.
+  Distinct scope *semantics* (traffic from other accounts/IPs) are
+  out (O4) — B9's phantom channel reproduces every effect the
+  counters can observe.
+
+### §7.3 Out of scope (O-series)
+
+| # | Excluded | Rationale | Re-entry trigger |
+|---|---|---|---|
+| O1 | Sockets, TLS, connection reuse, HTTP/1.1-vs-2 framing | interface decision (§7.1) | productization, not the spike |
+| O2 | Stochastic latency/jitter | B12's deterministic delay covers every scenario need; no verdict depends on transit randomness | a scenario whose verdict does |
+| O3 | Request/response payloads, incl. synthdata userstores | the client under test never parses bodies; sole exception is B10's Cloudflare HTML signature | a scenario judging body handling |
+| O4 | Multi-account / multi-IP scope semantics | B9 reproduces all counter-observable effects; client reconciliation is scope-blind (charter) | never for the spike |
+| O5 | Server `Date`-header skew | mock emits zero-skew `Date` (B14) | **conditional, already armed:** C1 shows the arithmetic is sensitive to skew |
+| O6 | Header case/order adversarial variants | C2's property domain (adversarial generation at the parser); mock emits canonical lowercase | none — covered elsewhere |
+| O7 | Auth of any kind (tokens, POESESSID, OAuth flows) | no credential ever appears in mock traffic or fixtures — §4 hygiene by construction | out for the spike (charter flags OAuth as a later phase) |
+| O8 | Server-side 4xx restriction (U2), real Cloudflare rules (U4), forum regime (D5, ungated), unlimited endpoints | declared elsewhere; listed to close the loop | per their registers |
+
+### §7.4 Calibration: capture replay
+
+One sanitized fixture (the July 18, 2026 capture, 132 records)
+enters under the §4 contract. The replay test drives the capture's
+*relative dispatch timestamps* through the mock's counters, swept
+over φ:
+
+- **Gate: zero violations at every φ.** Real, observed-compliant
+  traffic must be judged compliant — this catches a mock stricter
+  than reality. The C++ client's full-bucket padding should survive
+  even B3's adversarial model at every phase; if some φ fails, that
+  is a **finding to adjudicate** (mock arithmetic bug vs. the
+  adversarial model exceeding what N13's padding covers) — never
+  something to tune away silently.
+- **Diagnostic, not a gate:** at the capture's saturation points
+  the mock's counters should agree with the recorded `15/15` and
+  `30/30` states (N25/N26 grounding). Exact per-response state
+  matching across the real server's unknown φ is not generally
+  achievable; mismatches inform, they don't fail.
+
+Lane bookkeeping: mock verdicts remain measured-against-model; the
+replay test is the piece that grounds the model in the observed
+lane (charter step 2).
