@@ -342,9 +342,14 @@ listed below.
 
 ## Open questions
 
-- Does the PR #192 control contract expose a refresh terminal
+- ~~Does the PR #192 control contract expose a refresh terminal
   outcome equivalent to `RefreshOutcome`? Needed by the auto-post
-  gate; only checkable on the PR #192 branch (step-zero review).
+  gate; only checkable on the PR #192 branch (step-zero review).~~
+  Answered 2026-08-08 by the step-zero review: yes — clean /
+  completed-with-skips (structured, typed per-source errors) /
+  failed, faithful to `RefreshOutcome`, and the control refresh path
+  preserves the existing shop gating untouched. See
+  `topics/control-contract.md` R1-3.
 - Is the 10-char legacy-to-modern tab-id prefix match guaranteed for
   all realms/leagues, or an observed regularity? (Inferred lane, §1.)
 - Is 50,000 characters still the forum's actual post limit, and is

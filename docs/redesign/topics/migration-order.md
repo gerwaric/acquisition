@@ -112,8 +112,16 @@ well under 50 ms (estimate). Conditions:
   candidate.
 - Effect (v3/v4): not load-bearing in this plan; keep on trial until
   a spike shows what it buys a two-person project.
-- Whether the A0 protocol needs a formal versioning/compatibility
-  story before the Qt UI and a spike UI consume it concurrently.
+- ~~Whether the A0 protocol needs a formal versioning/compatibility
+  story before the Qt UI and a spike UI consume it concurrently.~~
+  Answered 2026-08-08 by the step-zero review
+  (`topics/control-contract.md`): the versioning story exists —
+  exact-match envelope version, additive-evolution rule, verified
+  rejection of unsupported versions (R1-8). The sharper remaining
+  question is the notification path: v1 is strictly poll-based
+  request/response, which a live UI consumer cannot use as-is
+  (R1-7). That design item, plus a windowed-read command (R1-1),
+  is what A0 still owes before two consumers exist.
 
 ## Verification notes
 
