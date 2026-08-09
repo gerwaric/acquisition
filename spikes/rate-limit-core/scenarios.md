@@ -327,7 +327,19 @@ incident data; obligations tested (M12), server response untested.
 **U3. Legacy bucket resolution.** Conditional on `Assumed(60s/60s)`
 (§1). The sanctioned live-validation instrument is the designed
 path to measured-lane evidence; executing it is not a spike gate
-(terminal-condition addendum).
+(terminal-condition addendum). **Named hypothesis (Tom,
+2026-08-09): legacy burst resolution = 5s** — a designated
+validation-run target under the logged run protocol (sufficiency
+trials on the Account `30:60:60` window with 5s padding,
+phase-randomized, halt-on-first-violation). CODE-lane prior: the
+C++ 75s cutoff has effectively run 5s padding on this window for
+years without observed violations. Asymmetry: one 429 falsifies
+the hypothesis decisively; passing runs only accumulate
+phase-swept confidence (N15 — quantization bites
+intermittently). The shipped assumption stays 60s/60s until
+evidence lands; the parked N14 ask to GGG (which now covers the
+legacy resolutions) may retire this hypothesis for free and gets
+a head start before runs are spent on it.
 
 **U4. Real layer-1 rules.** Deliberately uncharacterized (N4
 strategy); M11's ceiling number sits in the inferred lane.
