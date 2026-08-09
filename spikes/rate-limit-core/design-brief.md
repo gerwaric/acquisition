@@ -292,6 +292,28 @@ validation experiment):
   blocks a bucket shrink. Fixed safety rails independent of the
   hypothesis (spacing floor, fuse, hard per-run request and 429
   caps); dated machine-readable validation ledger as output.
+- **Run protocol (Tom, 2026-08-09): validation runs may proceed
+  without waiting on GGG's reply.** Justified by the criterion
+  above plus halt-on-first-violation: worst case per run is one
+  429, inside the envelope production has already produced (N15).
+  Protocol: (1) one run tests one bucket assumption — a violation
+  unambiguously falsifies it; (2) each run opens with the
+  sanctioned boot HEAD (N16) to confirm all windows are drained —
+  cross-session residue (N24) would otherwise contaminate
+  attribution; (3) on any violation the run halts and waits
+  `Retry-After + 60s bucket + buffer` (N19: Retry-After alone is
+  probably insufficient), human-gated restart for early runs;
+  (4) the deliberate discriminator (under-padding the
+  `30:60:300` danger rule to demonstrate the 75s cutoff fails) is
+  the one run whose *expected* outcome is a violation — it stays
+  gated on GGG's explicit blessing, and may prove unnecessary if
+  positional validation passes and the mock demonstrates the
+  mechanism.
+- **Working tier assumption: positional** — first triplet is the
+  burst limit (5s bucket), second is sustained (60s bucket). This
+  is Q4's hypothesis, what the C++ 75s cutoff was approximating;
+  the validation runs give it measured-lane support for the first
+  time. GGG's answer, when it arrives, confirms or corrects.
 
 Also open, deliberately deferred: the brief's **headroom**
 (effective limit = `max_hits − headroom`). Deferred twice over: it
