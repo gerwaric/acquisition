@@ -15,7 +15,9 @@ Rust work; explain idioms as they arise, don't just emit them).
 
 Can a Rust client demonstrably honor the N-claims in
 `docs/design/network-ground-truth.md` under burst load, as a single
-serialized gate?
+serialized gate? ("Single serialized gate" defined in the
+plan-review addendum below: one serialized scheduling authority,
+wire concurrency per D5 — not literal one-request serialization.)
 
 Context: Acquisition was once blacklisted by GGG for rate-limit
 violations; Tom wrote the current C++ limiter that ended that. This
@@ -45,6 +47,11 @@ makes the N-claims *executable*."
   design session, not one document overriding the other, and its
   API-behavior claims must be checked against the N-claims before
   they influence the design.
+- `inputs/plan-review-2026-08-09.md` — independent plan review of
+  this charter post-reconciliation (nine findings plus a follow-up
+  round; dispositions in its provenance header). Contract-level
+  outcomes are in the plan-review addendum below; findings 1–4 and
+  9 shape `scenarios.md`, finding 5 shapes `core-design.md`.
 
 ## Starting position (from the session discussion — challenge it)
 
@@ -73,7 +80,9 @@ live API. Proposed, in order:
    production-indistinguishable traffic at layer 1,
    halt-on-first-violation, fixed safety rails — the one live
    instrument that produces measured-lane evidence (positional
-   tier support). Both require Tom's explicit go-ahead.
+   tier support). Both require Tom's explicit go-ahead. The spike's
+   verdict does not gate on (b) — see the plan-review addendum's
+   terminal condition.
 
 **Architecture: sans-IO core + thin async shell.** The policy engine
 is a pure state machine — (policy state, clock, response headers) →
@@ -471,6 +480,57 @@ undocumented — a sibling of Q8) to be transcribed into
   documented obligations instead: 401 → zero retries; 429 →
   at-most-one-retry-then-escalate (already scoped). Server-side
   restriction behavior: declared untested.
+
+### 2026-08-09 — Plan-review addendum
+(`inputs/plan-review-2026-08-09.md`)
+
+Source: independent plan review of the post-reconciliation charter
+(gpt-5.6-sol via the Codex CLI; committed documents only, at
+`0435f512`) — nine findings plus one follow-up round, dispositions
+in the review file's provenance header. Only contract-level
+amendments are recorded here; scenario- and design-level
+resolutions (findings 1–4, 9 → `scenarios.md`; 5 →
+`core-design.md`) land in the sibling docs per convention.
+
+- **"Single serialized gate" defined (finding 4).** One serialized
+  scheduling authority — the actor — with wire concurrency
+  inherited from D5's gate contract in full: in-flight cap 2,
+  HEAD-exclusive with writer preference, FIFO among ordinary
+  waiters. Not literal one-request serialization, which would
+  recreate F56. The register's question text on `redesign` is
+  untouchable from this branch (scope guard); this definition
+  governs the charter and the result doc, and the result doc
+  carries it to the register when it lands.
+- **Fuse relocated to the transport boundary (finding 6, amending
+  the component-scope entry).** The counter counts actual dispatch
+  attempts, incremented immediately before the request is handed
+  to the transport; scheduling and spacing logic cannot mutate or
+  reset it. Independence from scheduling is enforced by ownership:
+  the HTTP client is a private field of one transport module — no
+  second construction or send path, pinned by a structural test.
+  Lane upgrade: a fault-injection test (pacing disabled, transport
+  boundary intact → fuse halts dispatch) converts the wire-level
+  true positive from declared-untested to tested. A send that
+  bypasses the transport boundary entirely is an architectural
+  failure out of the spike's threat model.
+- **Bucket knowledge is provenance-typed; the verdict is
+  conditional (findings 1 and 3 follow-up, amending the bucketing
+  entry).** Window shape (`RulePair`) and bucket-resolution
+  knowledge are separate facts. The four OAuth policies carry
+  `Known(5s/60s)` citing N12; the legacy policy carries
+  `Assumed(60s/60s)` — *not* provably pessimistic (N14/N21 give no
+  upper bound on legacy resolution), replaceable via internal
+  configuration or GGG evidence, never an implicit default. The
+  unconditional "honors the N-claims" verdict is scoped to the
+  four OAuth policies; the legacy lane is conditional on its
+  stated assumption. Legacy bucket resolution joins the parked GGG
+  thread (the N14 ask-us channel).
+- **Terminal condition (finding 7).** The spike completes when
+  offline conformance and the result document are complete. The
+  sanctioned live-validation protocol is a designed follow-up
+  instrument; executing it is not required for the spike verdict.
+  Any live run during the spike is optional supplemental evidence
+  under the agreed protocol — not a hidden completion gate.
 
 ## Conventions and scope guards
 
