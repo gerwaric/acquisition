@@ -6,6 +6,9 @@ finding 5 (the request lifecycle). **Expected to be superseded by
 code** — when the Rust types land, they are the authority and this
 doc becomes history. Idiom notes are deliberate: this spike doubles
 as Tom's first substantial Rust work (charter provenance note).
+Amended later the same day (simplification review, Tom-approved):
+`Effect::RetryAt` removed — 429 retry timing folded into policy
+state so `try_reserve` remains the single scheduling authority.
 
 Scenario IDs cite `scenarios.md`; N-numbers cite
 `docs/design/network-ground-truth.md`.
@@ -183,10 +186,19 @@ enum Effect {
     ShapeCooldown { policy: PolicyName },                // M4 → shell errors pending
     EscalationSuspend { policy: PolicyName },            // M8 second consecutive 429
     CloudflareShapedReply,                               // M11b → shell halts
-    RetryAt(SimInstant),                                 // 429: Retry-After + bucket
-                                                         // + buffer (N19)
+    RequeueForRetry,                                     // first 429 on a policy:
+                                                         // re-enqueue this request
 }
 ```
+
+A 429 carries no retry *time* in its effect — that would hand the
+shell a second scheduling path. Instead the core records the
+restriction in policy state (active until `Retry-After` +
+applicable bucket + buffer, N19), the shell re-enqueues the
+request, and the next `try_reserve` answers `NotBefore` from that
+state. Retry timing flows through the same single authority as
+every other send; the once-then-escalate ladder stays in the core
+(consecutive-429 count per policy → `EscalationSuspend`).
 
 > **Idiom: effects as data.** The core never performs IO; it
 > *returns* what should happen (`Vec<Effect>`) and the actor
