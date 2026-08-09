@@ -478,6 +478,18 @@ undocumented — a sibling of Q8) to be transcribed into
   only (hoistable later without surgery). No changes to `src/`, no
   commits to `master` or `redesign` except the eventual result doc
   and register update on `redesign`.
+- **Agenda outputs live in sibling docs, one per lifecycle** (decided
+  2026-08-09; this charter stays a frozen decision record, annotated
+  only by the two parked threads). `scenarios.md` — items 1, 2, and
+  4: the scenario list (N-numbers, test lanes), per-scenario and
+  global pass/fail criteria, and the mock fidelity budget; tests
+  cite scenario IDs the way designs cite N-numbers, and the doc is
+  hoisted with the conformance suite. `core-design.md` — item 3:
+  types and transitions, expected to be superseded by code.
+  `result-draft.md` — item 5: the result doc's skeleton, accreting
+  evidence and the candidate-N-claims section from day one; the
+  end-of-spike step is a hoist to `docs/redesign/topics/`, not a
+  writing project.
 - **No burst or load testing against pathofexile.com. Ever.** Live
   contact only in step 3's two sanctioned forms — gentle
   confirmation, and validation runs under the reconciliation log's
