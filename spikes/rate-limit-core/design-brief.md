@@ -171,10 +171,80 @@ send records the send in policy state at decision time. A
 query-shaped core ("when would it be safe?") invites check-then-act
 races in any shell.
 
-Still open: the brief's API-behavior claims (bucket quantization,
-HEAD-probe exemption, spacing floor, fuse, shared public-client
-pool, auth-transition remaps) remain unchecked against the
-N-claims — those are the remaining item-0 agenda.
+### 2026-08-09 — Component scope: spacing floor, fuse, and HEAD
+probing all in
+
+The brief carries three components beyond the charter's sketch: a
+global spacing floor, a global fuse, and the HEAD probe state
+machine. All three are in spike scope, with rationales that amend
+the seed position:
+
+- **Spacing floor: in, with the mock asserting the threat, not the
+  defense.** Correction to the discussion's premise: F58 is no
+  longer dead code — the C++ redesign fixed it in phase 3 (July 20,
+  2026) as the gate's `MIN_SEND_SPACING`, a 250 ms floor across all
+  gated traffic, pinned on the injected clock (spec D5). The spike
+  inherits that precedent number and test shape rather than
+  inventing one. The mock's layer-1 emulation asserts a
+  rolling-window burst ceiling that trips into a Cloudflare-shaped
+  failure (no `Retry-After`, outside the polite protocol — N2 made
+  executable); the gap floor is the client's declared defense
+  (P-B's explicit global bound), and the two connect
+  arithmetically: 250 ms ⇒ ≤240 requests/min on the wire. The
+  ceiling number sits in the inferred lane — Cloudflare's real
+  rules are opaque (N1). Mock-architecture consequence: mock and
+  client must share one paused tokio runtime so timing assertions
+  are deterministic — the mock is an in-process service, not a
+  standalone binary (feeds agenda item 4).
+- **Fuse: in unconditionally — the seed position's "in iff the
+  stress scenario is in" was a false coupling.** A correct client's
+  fuse cannot trip in the agent-loop stress scenario: the queue
+  absorbs the storm and the wire stays paced, so the scenario only
+  certifies absence of false positives under saturation. The fuse's
+  true-positive path (limiter bug floods the wire → halt) is
+  testable only by fault injection, which the mock suite does not
+  carry: trip logic is a pure function (`history, now → Tripped |
+  Ok`) covered by core-level unit/property tests, and the
+  wire-level true positive is declared untested in the result doc.
+  The fuse ceiling is derived, not picked: it must sit strictly
+  between the spacing-implied wire maximum (240/min) and the
+  known-bad threshold (~1000/min, N2) — ~500/min is defensible and
+  citable. Actor payoff: halt semantics are clean — the loop stops
+  draining, errors the pending deque back to callers, publishes
+  `Halted` on the watch channel.
+- **HEAD probing: in, at the actor's natural fidelity.** The
+  brief's expensive machinery (`Probing` variant holding an
+  awaitable handle, concurrent callers awaiting the in-flight
+  probe, guarded exactly-once transitions) is the mutex-shape
+  solution to a concurrency problem the actor doesn't have: one
+  loop owns the endpoint map, issues one probe, and parks
+  dependents in the deque it already owns — exactly-once (N16) and
+  strict serialization (N18) are structural. Mock cost is modest:
+  HEAD answers 204 + full headers without incrementing counters
+  (N24, now observed-lane), plus one degraded-HEAD scenario that
+  pins D4 (clean failure under cooldown) and exercises the
+  `Result`-returning header parser in one stroke. Scenario upgrade
+  for agenda item 1: the flagship cold-start scenario is
+  **cold-start with residue** — N24 observed server counters
+  persisting across restarts, so boot lands mid-window with budget
+  already consumed; the HEAD's state header is the only thing
+  preventing an immediate first-request violation. That also
+  settles skip-the-probe-and-seed-from-first-GET: not just
+  unsanctioned, actually dangerous.
+
+Cross-cutting refinement to the scoping criterion: "scoped in"
+means *some test can fail you on it, and the result doc states
+which lane the verdict lives in* — mock-judged wire behavior,
+core-level property tests, or declared-untested. This taxonomy
+feeds agenda item 5's claim-lane structure.
+
+Still open: the brief's remaining API-behavior claims (bucket
+quantization, shared public-client pool, auth-transition remaps)
+remain unchecked against the N-claims — those are the remaining
+item-0 agenda. (Note for the pool claim: the brief asserts a
+public-client communal pool, but N23 observed Account-scoped rules
+under OAuth and acquisition is a registered confidential client —
+N10.)
 
 ## Conventions and scope guards
 
