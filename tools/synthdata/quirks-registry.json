@@ -1,0 +1,615 @@
+{
+  "comment": [
+    "Curated wire idiosyncrasies, injected by generate.py --coverage as a",
+    "dedicated Quirks tab (separate from the systematic item.h sweep).",
+    "Each entry: id; status (verified-in-data = seen in real wire data we",
+    "inspected ourselves - a userstore survey or archived public-stash",
+    "captures; documented = developer docs / changelog / confirmed by GGG;",
+    "reported = firsthand account or issue tracker; community = third-party",
+    "tool workaround or relayed capture we did not re-inspect); source;",
+    "description; and either an 'item' object (merged into a generated",
+    "rare's JSON - unknown keys are deliberate, they exercise tolerant",
+    "parsing; null deletes a key, the string \"__null__\" emits a literal",
+    "JSON null), or 'tab'/'tabs' objects (each emitted as",
+    "its own empty stash tab, so metadata quirks do not overwrite each",
+    "other).",
+    "",
+    "Provenance rules: 'source' holds durable references only - URLs with",
+    "dates, issue numbers, forum thread ids, files in this repository.",
+    "Evidence that cannot be linked or committed gets an 'inspected'",
+    "record instead: who looked, when, the exact observation, and whether",
+    "it can be rechecked. Entries that probe tolerance with a plausible",
+    "shape we hold no captured bytes for carry 'stress_case': true - they",
+    "assert 'the application should tolerate this', not 'GGG is known to",
+    "have emitted this'.",
+    "",
+    "Named corpora: '2016 corpus' = the real 4,658-item public-stash feed",
+    "embedded in https://web.archive.org/web/20161015001652/http://www.pathofexile.com/developer/docs/api-resource-public-stash-tabs",
+    "(mined and re-verified locally, Aug 8 2026; requires a non-strict",
+    "JSON parser - the bytes carry raw control characters, which is itself",
+    "a quirk). 'userstore survey' = a contributor's real 3.10-era Standard",
+    "account (43k items) scanned with tools/synthdata/quirks.py; the",
+    "database is private and never committed, so survey observations carry",
+    "inspected records."
+  ],
+  "quirks": [
+    {
+      "id": "tab-colour-leading-zeros-stripped",
+      "status": "documented",
+      "source": "src/util/util.cpp GetTabColor (padding logic, GGG-confirmed leading-zero stripping); https://github.com/shonya3/divicards test fixtures; maintainer report (gerwaric, Discord, Aug 8 2026)",
+      "description": "Stash tab colour hex strings arrive with leading zeros stripped: 'ff' means 0000ff, 'bf00' means 00bf00.",
+      "tabs": [
+        {
+          "colour": "ff"
+        },
+        {
+          "colour": "bf00"
+        }
+      ]
+    },
+    {
+      "id": "tab-name-empty",
+      "status": "reported",
+      "source": "gerwaric/acquisition#43; docs/cleanup/findings.md F51 (~30 unnamed tabs on a real account)",
+      "description": "Tab names can be the empty string; name is unusable as a key, only id is.",
+      "tabs": [
+        {
+          "name": ""
+        }
+      ]
+    },
+    {
+      "id": "tab-name-remove-only-and-homoglyphs",
+      "status": "community",
+      "source": "https://www.poewiki.net/wiki/Remove-only (server-side rename at league merge)",
+      "inspected": {
+        "by": "aurokin (via research agent)",
+        "on": "2026-08-08",
+        "observation": "third-party 1135-tab account dump: ~900 names end ' (Remove-only)'; duplicate names present, including Latin '1c' vs Cyrillic '1с'",
+        "recheckable": false
+      },
+      "description": "GGG mutates tab names server-side; duplicates and homoglyph collisions are normal.",
+      "tabs": [
+        {
+          "name": "Quirk (Remove-only)"
+        },
+        {
+          "name": "1c"
+        },
+        {
+          "name": "1с"
+        }
+      ]
+    },
+    {
+      "id": "missing-frameTypeId",
+      "status": "verified-in-data",
+      "source": "userstore survey (see comment)",
+      "inspected": {
+        "by": "aurokin",
+        "on": "2026-08-08",
+        "observation": "50 of 43k items carry frameType but no frameTypeId key",
+        "recheckable": "yes - rerun tools/synthdata/quirks.py against any pre-3.29 store"
+      },
+      "description": "Items cached before the field existed carry frameType but no frameTypeId.",
+      "item": {
+        "frameTypeId": null
+      }
+    },
+    {
+      "id": "mod-flags-empty-array",
+      "status": "documented",
+      "source": "src/poe/types/itemmod.h custom-reader comment (maintainer-confirmed with a GGG web developer, pre-3.29: PHP json_encode of an empty associative array)",
+      "description": "GGG's serializer encodes a mod with no flags as \"flags\": [] instead of an object.",
+      "item": {
+        "explicitMods": [
+          {
+            "description": "+1 quirk mod",
+            "flags": []
+          }
+        ]
+      }
+    },
+    {
+      "id": "socketed-gem-legacy-fields",
+      "status": "verified-in-data",
+      "source": "2016 corpus (see comment): socketed gems carry socket/colour, no x/y/inventoryId",
+      "inspected": {
+        "by": "aurokin",
+        "on": "2026-08-08",
+        "observation": "userstore survey: 1,650 socketed gems with legacy socket (index) and colour (S/D/I/G) fields",
+        "recheckable": "yes - rerun tools/synthdata/quirks.py against a store with socketed gems"
+      },
+      "description": "Socketed gems carry legacy socket (index) and colour (S/D/I/G attribute, not R/G/B/W) fields, and no x/y/inventoryId.",
+      "item": {
+        "sockets": [
+          {
+            "group": 0,
+            "attr": "S",
+            "sColour": "R"
+          }
+        ],
+        "socketedItems": [
+          {
+            "verified": false,
+            "w": 1,
+            "h": 1,
+            "support": true,
+            "league": "Standard",
+            "id": "00000000000000000000000000000000000000000000000000000000000000aa",
+            "name": "",
+            "typeLine": "Quirk Support",
+            "baseType": "Quirk Support",
+            "identified": true,
+            "ilvl": 0,
+            "frameType": 4,
+            "frameTypeId": "Gem",
+            "socket": 0,
+            "colour": "S"
+          }
+        ]
+      }
+    },
+    {
+      "id": "support-false-on-gems",
+      "status": "verified-in-data",
+      "source": "2016 corpus (see comment): 337 gems with \"support\": false; developer docs annotate support 'always true if present'",
+      "description": "support is documented always-true-if-present but the wire sends explicit false on active gems.",
+      "item": {
+        "sockets": [
+          {
+            "group": 0,
+            "attr": "I",
+            "sColour": "B"
+          }
+        ],
+        "socketedItems": [
+          {
+            "verified": false,
+            "w": 1,
+            "h": 1,
+            "support": false,
+            "league": "Standard",
+            "id": "00000000000000000000000000000000000000000000000000000000000000ab",
+            "name": "",
+            "typeLine": "Quirk Spell",
+            "baseType": "Quirk Spell",
+            "identified": true,
+            "ilvl": 0,
+            "frameType": 4,
+            "frameTypeId": "Gem",
+            "socket": 0,
+            "colour": "I"
+          }
+        ]
+      }
+    },
+    {
+      "id": "explicit-false-booleans",
+      "status": "verified-in-data",
+      "source": "2016 corpus (see comment): corrupted:false on 4,136 and lockedToCharacter:false on all 4,658 items; modern wire omits false flags",
+      "description": "Era-old captures emit optional booleans explicitly false where modern payloads omit them.",
+      "item": {
+        "corrupted": false,
+        "lockedToCharacter": false
+      }
+    },
+    {
+      "id": "sockets-without-scolour",
+      "status": "verified-in-data",
+      "source": "2016 corpus (see comment): 4,468 socket objects, zero sColour (field added ~3.1, Dec 2017)",
+      "description": "Pre-3.1 sockets are {group, attr} only; sColour does not exist.",
+      "item": {
+        "sockets": [
+          {
+            "group": 0,
+            "attr": "D"
+          },
+          {
+            "group": 0,
+            "attr": "S"
+          },
+          {
+            "group": 1,
+            "attr": "G"
+          }
+        ]
+      }
+    },
+    {
+      "id": "socket-attr-two-char-and-letter-collision",
+      "status": "community",
+      "stress_case": true,
+      "source": "src/poe/types/itemsocket.h vocabulary (DV, A, W); https://github.com/briansd9/exile-diary (replaces 'DV' with 'D' before counting)",
+      "description": "attr can be two characters (DV = resonator) or A (abyssal); the letter G means white in attr but green in sColour. The exact combination emitted here is a constructed probe, not captured bytes.",
+      "item": {
+        "sockets": [
+          {
+            "group": 0,
+            "attr": "DV",
+            "sColour": "DV"
+          },
+          {
+            "group": 1,
+            "attr": "A",
+            "sColour": "A"
+          },
+          {
+            "group": 2,
+            "attr": "G",
+            "sColour": "W"
+          }
+        ]
+      }
+    },
+    {
+      "id": "localisation-set-prefix",
+      "status": "verified-in-data",
+      "source": "2016 corpus (see comment): 2,857 names / 355 typeLines prefixed; removed by GGG in 3.4.3e but persisted data keeps it (src/item.cpp fixup_name)",
+      "description": "name and typeLine carry the <<set:MS>><<set:M>><<set:S>> localisation prefix on pre-3.5 captures.",
+      "item": {
+        "name": "<<set:MS>><<set:M>><<set:S>>Quirk Crest",
+        "typeLine": "<<set:MS>><<set:M>><<set:S>>Titan Greaves",
+        "baseType": "Titan Greaves"
+      }
+    },
+    {
+      "id": "crlf-in-mod-text",
+      "status": "verified-in-data",
+      "source": "2016 corpus (see comment): 2,440 of 3,668 flavour lines end in bare \\r",
+      "inspected": {
+        "by": "aurokin",
+        "on": "2026-08-08",
+        "observation": "userstore survey: multi-line mod descriptions embed \\r\\n inside one description string",
+        "recheckable": "yes - rerun tools/synthdata/quirks.py / jq over any real store"
+      },
+      "description": "Multi-line mod descriptions embed \\r\\n inside one description string; flavour text lines end in bare \\r and split mid-sentence.",
+      "item": {
+        "explicitMods": [
+          {
+            "description": "Line one\r\nline two"
+          }
+        ],
+        "flavourText": [
+          "\"Exiled to the sea; what a joke. \r",
+          "I'm more free than I've ever been.\"\r",
+          "- Quirk attribution"
+        ]
+      }
+    },
+    {
+      "id": "property-value-string-tuples",
+      "status": "verified-in-data",
+      "source": "2016 corpus (see comment): 14,304/14,304 value pairs are (string, int); 1,181 properties with values []; units and ranges baked into the string",
+      "description": "Property values are [[string, int]] tuples - always strings even for pure numbers, with +/%/(Max)/n-m/n/m baked in; values can be empty; the int is an undocumented colour code.",
+      "item": {
+        "properties": [
+          {
+            "name": "Quirk, Attack, AoE",
+            "values": [],
+            "displayMode": 0
+          },
+          {
+            "name": "Quality",
+            "values": [
+              [
+                "+20%",
+                1
+              ]
+            ],
+            "displayMode": 0,
+            "type": 6
+          },
+          {
+            "name": "Level",
+            "values": [
+              [
+                "21 (Max)",
+                0
+              ]
+            ],
+            "displayMode": 0,
+            "type": 5
+          },
+          {
+            "name": "Elemental Damage",
+            "values": [
+              [
+                "12-34",
+                4
+              ],
+              [
+                "5-9",
+                5
+              ]
+            ],
+            "displayMode": 0
+          }
+        ]
+      }
+    },
+    {
+      "id": "displaymode3-format-strings",
+      "status": "community",
+      "source": "https://github.com/poe-vela/poe-custom-elements (parseDisplayMode3 handles both %0 and {0} syntaxes)",
+      "inspected": {
+        "by": "aurokin (via research agent)",
+        "on": "2026-08-08",
+        "observation": "out-of-order substitution indices ({1} before {0}) present in a third-party raw dump",
+        "recheckable": false
+      },
+      "description": "displayMode 3 makes name a format string; %0 and {0} syntaxes both occur and indices can be out of order.",
+      "item": {
+        "additionalProperties": [
+          {
+            "name": "Can Store %0 Use",
+            "values": [
+              [
+                "1",
+                0
+              ]
+            ],
+            "displayMode": 3
+          },
+          {
+            "name": "Requires {1} (Level {0})",
+            "values": [
+              [
+                "70",
+                0
+              ],
+              [
+                "Quirk Force",
+                0
+              ]
+            ],
+            "displayMode": 3
+          }
+        ]
+      }
+    },
+    {
+      "id": "requirement-name-variants",
+      "status": "community",
+      "inspected": {
+        "by": "aurokin (via research agent)",
+        "on": "2026-08-08",
+        "observation": "one third-party dataset: Int x162 vs Intelligence x9, Dex x152 vs Dexterity x3, Str x129 vs Strength x1, plus 'Class:' with trailing colon, within one payload",
+        "recheckable": false
+      },
+      "description": "Requirement names are inconsistent for the same stat within one payload.",
+      "item": {
+        "requirements": [
+          {
+            "name": "Int",
+            "values": [
+              [
+                "73",
+                0
+              ]
+            ],
+            "displayMode": 1
+          },
+          {
+            "name": "Intelligence",
+            "values": [
+              [
+                "73",
+                0
+              ]
+            ],
+            "displayMode": 1
+          },
+          {
+            "name": "Class:",
+            "values": [
+              [
+                "Duelist",
+                0
+              ]
+            ],
+            "displayMode": 0
+          }
+        ]
+      }
+    },
+    {
+      "id": "progress-full-precision",
+      "status": "verified-in-data",
+      "source": "2016 corpus (see comment): progress values like 3.49876677319e-06 despite docs claiming 2 decimal places",
+      "description": "additionalProperties progress arrives at 12 significant figures, scientific notation included, and int 1 vs float for the same field.",
+      "item": {
+        "additionalProperties": [
+          {
+            "name": "Experience",
+            "values": [
+              [
+                "1/99999",
+                0
+              ]
+            ],
+            "displayMode": 2,
+            "progress": 3.49876677319e-06,
+            "type": 20
+          }
+        ]
+      }
+    },
+    {
+      "id": "talisman-tier-unmodeled-key",
+      "status": "verified-in-data",
+      "source": "2016 corpus (see comment): talismanTier 1-4 on 328 items; documented in the developer docs until removed in 3.29.0; never modeled in src/poe/types/item.h",
+      "description": "Old items carry keys the app has never modeled; the tolerant reader must skip them and the raw cache must preserve them.",
+      "item": {
+        "talismanTier": 3
+      }
+    },
+    {
+      "id": "prophecy-frame-8",
+      "status": "documented",
+      "stress_case": true,
+      "source": "developer docs list frameType 8 as the legacy Prophecy tombstone; docs say prophecyText is ?string while src/poe/types/item.h models array-of-string - no real prophecy payload exists in any corpus we hold (userstore survey: 0; 2016 corpus: 0), so the true wire shape is UNRESOLVED and this entry follows the app model. prophecyDiffText pairs with it (PoE wiki 2017; Procurement fixtures) but is absent from current docs and item.h",
+      "description": "Prophecy items (2.3-3.17) survive on Standard with prophecyText and frameType 8, predating frameTypeId.",
+      "item": {
+        "prophecyText": [
+          "You will find a quirk."
+        ],
+        "prophecyDiffText": "Quirk difficulty",
+        "frameType": 8,
+        "frameTypeId": null
+      }
+    },
+    {
+      "id": "influence-legacy-top-level",
+      "status": "verified-in-data",
+      "source": "standalone elder/shaper booleans shipped 3.0-3.8 before the influences object (3.9); both still ship; src/item.cpp LoadInfluences merges five sources",
+      "inspected": {
+        "by": "aurokin",
+        "on": "2026-08-08",
+        "observation": "userstore survey: top-level elder/shaper booleans present alongside (and without) the influences object",
+        "recheckable": "yes - jq over any store holding 3.0-3.8-era items"
+      },
+      "description": "Pre-3.9 items carry top-level elder/shaper true with no influences object; searing/tangled never joined influences.",
+      "item": {
+        "influences": null,
+        "elder": true
+      }
+    },
+    {
+      "id": "hybrid-vaal-gem",
+      "status": "community",
+      "source": "xyzz/acquisition#11 (Vaal gems invisible until the hybrid.baseTypeName rule); https://github.com/briansd9/exile-diary tests the typeLine 'Vaal' prefix instead",
+      "description": "Vaal gems nest the real base name and a second property list under hybrid; typeLine alone misleads.",
+      "item": {
+        "hybrid": {
+          "isVaalGem": true,
+          "baseTypeName": "Quirk Haste",
+          "secDescrText": "Quirk hybrid description."
+        }
+      }
+    },
+    {
+      "id": "stacksize-text-abbreviation",
+      "status": "documented",
+      "source": "https://www.pathofexile.com/forum/view-thread/2936225 (present on 5-digit stacks, rounded textual form)",
+      "description": "stackSizeText appears only above 9999 and is a lossy abbreviation of stackSize.",
+      "item": {
+        "stackSize": 13513,
+        "maxStackSize": 50000,
+        "stackSizeText": "13.5K"
+      }
+    },
+    {
+      "id": "stack-size-property-disagrees",
+      "status": "community",
+      "inspected": {
+        "by": "aurokin (via research agent)",
+        "on": "2026-08-08",
+        "observation": "third-party dumps: stackSize 209 / maxStackSize 5000 / Stack Size property '209/20' (20 = per-slot display cap); a div card at 36/3. Behaviour independently confirmed in this repo: Item::m_count reads the property string, not stackSize (src/item.cpp)",
+        "recheckable": false
+      },
+      "description": "stackSize, maxStackSize, and the Stack Size property text are three mutually inconsistent numbers.",
+      "item": {
+        "stackSize": 209,
+        "maxStackSize": 5000,
+        "properties": [
+          {
+            "name": "Stack Size",
+            "values": [
+              [
+                "209/20",
+                0
+              ]
+            ],
+            "displayMode": 0,
+            "type": 32
+          }
+        ]
+      }
+    },
+    {
+      "id": "legacy-icon-http",
+      "status": "verified-in-data",
+      "source": "2016 corpus (see comment): 100% http:// icons with ?scale/w/h/v params; modern forms are https gen/image base64 or relative paths",
+      "description": "Old captures use http:// icon URLs; URL form drifted twice since and query params carry semantics (mb=1 = blighted, relic=1).",
+      "item": {
+        "icon": "http://web.poecdn.com/image/Art/2DItems/Armours/BodyArmours/Quirk.png?scale=1&w=2&h=3&v=0123456789abcdef0123456789abcdef"
+      }
+    },
+    {
+      "id": "divcard-artfilename",
+      "status": "verified-in-data",
+      "source": "2016 corpus (see comment): 195 items with bare artFilename (no path, no extension)",
+      "description": "Divination cards carry artFilename as a bare filename.",
+      "item": {
+        "artFilename": "TheGambler"
+      }
+    },
+    {
+      "id": "category-object-of-arrays",
+      "status": "verified-in-data",
+      "source": "web.archive.org captures of pathofexile.com/developer/docs/api-resource-public-stash-tabs, 2017-2019 (embedded feeds): category polymorphic - bare string then object of arrays, arrays may be empty; removed in 3.26.0; unmodeled in src/poe/types/item.h",
+      "description": "The removed top-level category key survives in old captures as an object of arrays (and once shipped as a bare string).",
+      "item": {
+        "category": {
+          "weapons": [
+            "bow"
+          ]
+        }
+      }
+    },
+    {
+      "id": "null-for-absent-arrays",
+      "status": "community",
+      "stress_case": true,
+      "source": "https://github.com/viktorgullmark/exilence-next (guards properties/sockets against null despite non-optional types); /trade/fetch is known to return null array elements",
+      "inspected": {
+        "by": "aurokin (via research agent)",
+        "on": "2026-08-08",
+        "observation": "one relayed abyss-jewel capture with colour: null; the raw bytes were not retained",
+        "recheckable": false
+      },
+      "description": "Fields documented as optional arrays can arrive as JSON null rather than absent.",
+      "item": {
+        "sockets": "__null__",
+        "properties": "__null__"
+      }
+    },
+    {
+      "id": "doc-type-drift-monsterLevel",
+      "status": "verified-in-data",
+      "source": "src/poe/types/item.h comment documents monsterLevel as string",
+      "inspected": {
+        "by": "aurokin",
+        "on": "2026-08-08",
+        "observation": "userstore survey: 17k items carry monsterLevel as a JSON int",
+        "recheckable": "yes - tools/synthdata/quirks.py reports mixed-type keys on any store"
+      },
+      "description": "Field types drift between docs and wire; monsterLevel is documented as string but arrives as an int.",
+      "item": {
+        "monsterLevel": 84
+      }
+    },
+    {
+      "id": "crucible-survives-on-standard",
+      "status": "verified-in-data",
+      "source": "developer docs: crucible.nodes is an object keyed by stringified ints, not an array",
+      "inspected": {
+        "by": "aurokin",
+        "on": "2026-08-08",
+        "observation": "userstore survey: 67 items with crucible trees, all parked in Standard",
+        "recheckable": "yes - jq over any Standard store that played 3.21"
+      },
+      "description": "Crucible (3.21) mod trees exist only on items parked in Standard; every retired league mechanic migrates there permanently.",
+      "item": {
+        "crucibleMods": [
+          "Quirk crucible mod"
+        ],
+        "crucible": {
+          "layout": "https://web.poecdn.com/crucible/quirk.png",
+          "nodes": {}
+        }
+      }
+    }
+  ]
+}

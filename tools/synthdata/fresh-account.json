@@ -1,0 +1,82 @@
+{
+  "source_schema_version": 3,
+  "league_tab_shares": [
+    1.0
+  ],
+  "tab_type_shares": {
+    "NormalStash": 0.6667,
+    "PremiumStash": 0.1333,
+    "CurrencyStash": 0.0667,
+    "DeliriumStash": 0.0667,
+    "GemStash": 0.0667
+  },
+  "items_per_tab_quantiles": {
+    "NormalStash": [
+      0,
+      0,
+      0,
+      0,
+      34,
+      44
+    ],
+    "PremiumStash": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      1
+    ],
+    "CurrencyStash": [
+      30,
+      30,
+      30,
+      30,
+      30,
+      30
+    ],
+    "DeliriumStash": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "GemStash": [
+      62,
+      62,
+      62,
+      62,
+      62,
+      62
+    ]
+  },
+  "children_per_parent_quantiles": {
+    "MapStash": [],
+    "UniqueStash": []
+  },
+  "stack_fill_quantiles": [
+    0.0,
+    0.001,
+    0.017,
+    0.1,
+    0.3,
+    0.8
+  ],
+  "foldered_member_share": 0,
+  "public_share": 0,
+  "character_count": 3,
+  "character_level_quantiles": [
+    67,
+    67,
+    67,
+    67,
+    67,
+    67
+  ],
+  "item_buyout_share": 0.00585,
+  "location_buyout_share": 0.05263,
+  "total_tabs": 15,
+  "total_items": 171
+}

@@ -68,6 +68,7 @@ add_test(NAME filters_boundary
         -P "${acquisition_SOURCE_DIR}/cmake/filters_boundary_check.cmake")
 
 acq_add_test(tst_buyout)
+acq_add_test(tst_synthdata)
 acq_add_test(tst_buyoutmanager)
 acq_add_test(tst_itemlocation)
 acq_add_test(tst_itemtooltiptext)
@@ -91,6 +92,29 @@ acq_add_test(tst_reconcile)
 acq_add_test(tst_userstoremigration)
 acq_add_test(tst_workerparse)
 acq_add_test(tst_workerupdate)
+
+# Synthetic-data fixture (docs/redesign/topics/synthetic-data.md): generate a
+# small store offline from the checked-in RePoE fixture subset, prove the
+# generator deterministic, and hand the result to tst_synthdata. Needs only a
+# Python interpreter — no network; without one the fixture is not registered
+# and tst_synthdata skips with an explanatory message.
+find_package(Python3 COMPONENTS Interpreter)
+if(Python3_Interpreter_FOUND)
+    add_test(NAME synthdata_generate
+        COMMAND Python3::Interpreter
+            "${acquisition_SOURCE_DIR}/tools/synthdata/selftest.py"
+            --out-dir "${CMAKE_CURRENT_BINARY_DIR}/synthdata")
+    set_tests_properties(synthdata_generate PROPERTIES
+        FIXTURES_SETUP synthdata)
+    set_tests_properties(tst_synthdata PROPERTIES
+        FIXTURES_REQUIRED synthdata)
+    set_property(TEST tst_synthdata APPEND PROPERTY ENVIRONMENT
+        "ACQ_SYNTH_DEFAULT_DIR=${CMAKE_CURRENT_BINARY_DIR}/synthdata"
+        "ACQ_SYNTH_DEFAULT_ACCOUNT=SYNTH#0000")
+else()
+    message(WARNING "Python3 interpreter not found: the synthdata generation"
+        " fixture is disabled and tst_synthdata will skip")
+endif()
 
 acq_add_scenario_test(tst_workerintegration
     fullChainStashListSucceeds
