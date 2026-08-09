@@ -39,6 +39,7 @@ The following is a list of all known contributors, in order of appearance:
 - indiavenster
 - testpushpleaseignore
 - Tom Holz (GERWARIC)
+- Auro
 
 This list is curated from git history across this repository; see the git log for authoritative attribution.
 
