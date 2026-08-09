@@ -369,14 +369,6 @@ void LoginDialog::OnLoginTabChanged(int index)
     m_settings.setValue("login_tab", tab->objectName());
 };
 
-void LoginDialog::OnSessionIDChanged(const QString &session_id)
-{
-    // Save the new session and make sure the login button is enabled.
-    spdlog::trace("LoginDialog::OnSessionIDChanged() entered");
-    m_settings.setValue("session_id", session_id);
-    ui->loginButton->setEnabled(!session_id.isEmpty());
-}
-
 void LoginDialog::OnLeagueChanged(const QString &league)
 {
     spdlog::trace("LoginDialog::OnLeagueChanged() entered");
