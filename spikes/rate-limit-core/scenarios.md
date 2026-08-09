@@ -466,9 +466,17 @@ Notes on the load-bearing rows:
   resolutions, and give the safe margin, but do **not** specify the
   quantization semantics (when a hit's age is measured, when it
   leaves the window). The mock implements the *most adversarial
-  reading consistent with the claims*: a hit's age is rounded down
-  to its bucket start (latest possible expiry), and restriction
-  expiry is quantized the same way. Rationale: if full-bucket
+  reading consistent with the claims*: a hit's effective timestamp
+  is rounded **up** to its bucket's end, understating its age by up
+  to one bucket, so it leaves the window at the latest instant
+  N13's full-bucket margin still covers (a hit at time `h` with
+  bucket `r` and period `P` expires no later than `h + r + P` —
+  exactly what waiting `period + bucket + buffer` protects
+  against). Restriction expiry is quantized the same way: the
+  violation's timestamp rounds up, so a retry at `Retry-After`
+  alone can land inside the still-active restriction. **Entry is
+  never quantized**: state increments immediately and 1:1 — N25
+  pins this — so only expiry carries the adversarial rounding. Rationale: if full-bucket
   padding (N13) survives the harshest consistent model at every φ,
   it survives reality under any milder one — the mock asserts an
   upper bound on the threat, matching the layer-1 ceiling's
