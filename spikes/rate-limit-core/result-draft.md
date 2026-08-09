@@ -88,6 +88,10 @@ failure anywhere must report its (seed, φ) pair (G6).
 | M12 | 4xx-tripwire obligations | independent | G5 | ⟨…⟩ | ⟨…⟩ |
 | M13 | Gate structure on the wire | independent | G2 + gate-definition assertions | ⟨…⟩ | ⟨…⟩ |
 
+G1, G2, G3, and G5 are armed in every mock-judged scenario; the
+column lists the gates each scenario is the *binding evidence*
+for.
+
 ### Core-property tests
 
 | ID | Property | Result | Evidence |
@@ -113,14 +117,15 @@ failure anywhere must report its (seed, φ) pair (G6).
 | G2 | Neither B10 ceiling rule tripped, armed everywhere | ⟨…⟩ | ⟨…⟩ |
 | G3 | Per-dispatch over-delay ≤ ε (final ε: ⟨…⟩) | ⟨…⟩ | ⟨…⟩ |
 | G4 | M2 duration ≤ multiplier × padded minimum (final: ⟨…⟩) | ⟨…⟩ | ⟨…⟩ |
-| G5 | All stimulus-scenario assertions | ⟨…⟩ | ⟨…⟩ |
+| G5 | Every scenario's own assertions (stimulus and structural alike) | ⟨…⟩ | ⟨…⟩ |
 | G6 | (seed, φ) reproducibility of every failure | ⟨…⟩ | ⟨…⟩ |
 
-## §4. Candidate N-claims (transcribed to
-`network-ground-truth.md` at hoist, cited by number there)
+## §4. Candidate N-claims
 
-Accumulated during reconciliation and design; each survives or
-falls on its cited source, independent of the spike verdict.
+Transcribed to `network-ground-truth.md` at hoist, cited by
+number there. Accumulated during reconciliation and design; each
+survives or falls on its cited source, independent of the spike
+verdict.
 
 | # | Candidate claim | Claim lane | Source | Status |
 |---|---|---|---|---|

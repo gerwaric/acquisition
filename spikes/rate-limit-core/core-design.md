@@ -200,6 +200,14 @@ state. Retry timing flows through the same single authority as
 every other send; the once-then-escalate ladder stays in the core
 (consecutive-429 count per policy → `EscalationSuspend`).
 
+`CloudflareShapedReply` carries one wrinkle (first-eyes review,
+2026-08-09): the signature includes the *body* (HTML), and the
+core never sees bodies. Classification is therefore the
+transport/shell's job — it hands `on_response` a typed reply
+classification rather than raw evidence — while the *decision*
+(halt-shaped terminal condition, never a retry) stays in the core
+with every other policy decision.
+
 > **Idiom: effects as data.** The core never performs IO; it
 > *returns* what should happen (`Vec<Effect>`) and the actor
 > interprets — errors callers, publishes on the watch channel,
@@ -216,11 +224,15 @@ each transition, not pulled by callers.
 ## 5. What is deliberately outside the core
 
 - **The fuse and 4xx tripwire counters** live at the transport
-  boundary (plan-review addendum, finding 6): incremented
-  immediately before hand-off to the HTTP client, immutable to
-  scheduling logic, pinned by X2's structural test. Their *trip
-  logic* is pure and core-adjacent (C3/C4) but their counters are
-  fed by dispatch attempts, not reservations.
+  boundary (plan-review addendum, finding 6), immutable to
+  scheduling logic, pinned by X2's structural test. Their feeds
+  differ (split stated explicitly in the 2026-08-09 first-eyes
+  review; the earlier wording lumped both under "dispatch
+  attempts", which is wrong for the tripwire): the fuse increments
+  immediately before hand-off to the HTTP client; the tripwire
+  increments on observed 4xx response statuses at the same
+  boundary. Their *trip logic* is pure and core-adjacent (C3/C4),
+  but neither counter is ever fed by reservations.
 - **The spacing floor and in-flight cap** are gate properties the
   actor enforces around dispatch (M13); the core's reservations are
   per-policy and know nothing about the wire.

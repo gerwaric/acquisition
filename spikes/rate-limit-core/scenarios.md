@@ -150,11 +150,14 @@ these lanes explicitly).
 **M1. Cold start with residue (flagship).** [phase-swept]
 Mock pre-loads counters mid-window before the client boots (N24:
 server counters are per-account and persist across restarts).
-Client boots, issues exactly one HEAD (N16), reads the state
-header showing residue, and schedules its opening traffic against
-the *remaining* budget. Sweep residue magnitude and φ; include the
-boundary case where residue leaves zero budget in the current
-bucket. Asserts: single boot HEAD; HEAD does not increment
+Client boots, issues exactly one HEAD per endpoint it touches,
+before that endpoint's first GET, strictly serialized (N16, N18 —
+the boot pattern N24 observed on all five endpoints), reads the
+state header showing residue, and schedules its opening traffic
+against the *remaining* budget. Sweep residue magnitude and φ;
+include the boundary case where residue leaves zero budget in the
+current bucket. Asserts: one HEAD per touched endpoint, never
+repeated, never overlapping; HEAD does not increment
 counters (N24); first-request violation does not occur — the
 HEAD's state header is the only thing preventing it; G1 across the
 sweep. Cites: N24, N16, N13, N12, N5.
@@ -277,8 +280,8 @@ full-bucket padding (N13). The property quantifies over φ — this
 is the core-side mirror of §3's sweep, without the mock.
 
 **C2. Header parsing and shape validation.** Round-trip and
-adversarial properties over header strings: two-triplet
-strictly-increasing shapes parse to `RulePair`; one-, three-, and
+adversarial properties over header strings: two-triplet shapes
+with strictly increasing periods parse to `RulePair`; one-, three-, and
 malformed-triplet inputs return typed errors (never panic, never
 index out of bounds — the N20 lesson); missing headers are typed
 errors, not empty lists.
@@ -368,17 +371,25 @@ no headroom term anywhere.
   definition and the spec formula, not by asking the client), the
   spacing floor, and permit availability have all passed — the
   client dispatches within **ε = 500 ms simulated**. Catches
-  trivially-safe-by-being-slow. *Draft number: tighten after the
-  first implementation lands if the actor's scheduling makes a
-  smaller ε reliable under paused time.*
+  trivially-safe-by-being-slow. Armed in every mock-judged
+  scenario, like G2; M2 and M10 are the binding stress
+  measurements. *Draft number: tighten after the first
+  implementation lands if the actor's scheduling makes a smaller
+  ε reliable under paused time.*
 - **G4 — scenario-level duration bound.** M2's total duration is
   ≤ **1.05×** the theoretical padded minimum for its queue depth
   and policy (harness-computed, full N13 padding, spacing floor
   included). *Draft multiplier, same revisit rule as G3.*
-- **G5 — stimulus assertions.** Every injected-stimulus scenario's
-  own assertions (M8 retry timing, M8 escalation, M11b halt, M12
-  obligations, M3/M4 clean-failure semantics) pass. A stimulus
-  scenario cannot pass on G1 alone.
+- **G5 — scenario-level assertions.** Every scenario's own
+  assertions pass — the injected-stimulus ones (M8 retry timing,
+  M8 escalation, M11b halt, M12 obligations, M3/M4 clean-failure
+  semantics) and equally the structural ones (M1 per-endpoint
+  HEAD discipline, M5 stale-mapping cap, M10
+  drain-to-completion, M13 gate shape). No scenario passes on
+  G1/G2 alone if its own assertions fail; a stimulus scenario in
+  particular cannot pass on G1 alone. (Generalized from
+  stimulus-only in the 2026-08-09 first-eyes review — the
+  non-stimulus assertions previously had no covering gate.)
 - **G6 — reproducibility.** Any failure anywhere reports the
   (seed, φ) pair sufficient to re-run it deterministically.
 
@@ -405,7 +416,9 @@ budget mechanically instead of by taste.
 
 The mock sits at the **transport-trait boundary**, not on a socket.
 The client's transport is a trait (`async fn send(Request) ->
-Response` over `http`-crate types); production implements it with
+Result<Response, TransportError>` over `http`-crate types; the
+error arm is what feeds `Dispatched → UnknownOutcome` in the
+lifecycle); production implements it with
 the real HTTP client (the private field X2 pins), the harness
 implements it with the mock. Consequences:
 
@@ -419,8 +432,9 @@ implements it with the mock. Consequences:
   transport trait, whichever implementation is behind it.
 - **Verbatim header strings cross the boundary.** The mock emits
   real header name/value strings
-  (`x-rate-limit-stash-request-limit: 15:10:60, 30:300:300`),
-  never pre-parsed structs — the client's production parser runs
+  (`x-rate-limit-account: 15:10:60, 30:300:300` alongside
+  `x-rate-limit-policy: stash-request-limit` — headers are named
+  by *rule*, not by policy, N5), never pre-parsed structs — the client's production parser runs
   in every mock scenario, so M3/M4's parse assertions exercise the
   same code path reality does. §3's "header serialization types"
   allowance is hereby pinned to the `http` crate's vocabulary
