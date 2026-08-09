@@ -240,9 +240,9 @@ N2, N4.
 
 **M11. Layer-1 ceiling and Cloudflare-shaped terminal.**
 [phase-independent]
-Two parts. (a) The mock's layer-1 emulation enforces a
-rolling-window burst ceiling (inferred lane — Cloudflare's real
-rules are opaque, N1) that trips into a Cloudflare-shaped failure:
+Two parts. (a) The mock's layer-1 emulation enforces the B10
+ceiling rules (§7; inferred lane — Cloudflare's real rules are
+opaque, N1), which trip into a Cloudflare-shaped failure:
 403 + `cf-mitigated: challenge`, `Server: cloudflare`, HTML body,
 no rate-limit headers, no `Retry-After` (N2 made executable; the
 challenge signature is the external-lane candidate claim). The
@@ -359,8 +359,9 @@ no headroom term anywhere.
   counterexample fails the spike question; the failing (seed, φ)
   is recorded.
 - **G2 — layer-1 ceiling never tripped.** The mock's rolling-window
-  ceiling (M11a) is armed in *every* mock-judged scenario, not just
-  M11; no client-scheduled traffic trips it.
+  ceiling rules (M11a; both B10 rules) are armed in *every*
+  mock-judged scenario, not just M11; no client-scheduled traffic
+  trips either.
 - **G3 — bounded per-dispatch over-delay (work conservation).**
   Whenever a request is queued and eligible — the padded-safe time
   (computed independently by the harness from the policy
@@ -429,6 +430,13 @@ implements it with the mock. Consequences:
   expiry, and service delays are driven by the same
   `tokio::time` instants the client sees; nothing in the test
   path touches wall time.
+- **Layering for the reusable-artifact outcome.** The mock's
+  counter engine (the §3-independent arithmetic module) stays
+  cleanly separated from the thin trait-impl delivery shim. If the
+  conformance suite outlives the spike (charter's reusable-artifact
+  bullet), wrapping the same engine in a standalone HTTP server to
+  acceptance-test other clients — including the C++ one — is a
+  delivery-shim job, not a rewrite.
 
 > **Idiom: a trait is the seam.** Where C++ injects behavior via
 > virtual base classes or template parameters, Rust uses traits,
@@ -453,9 +461,9 @@ implements it with the mock. Consequences:
 | B7 | Five-policy topology with the N23 definitions as the default fixture; endpoint-label → policy routing; per-rule independent windows including the legacy Account+Ip pair; scriptable synthetic policies | N23, N6 | M4, M6; every "other policies unaffected" assertion |
 | B8 | Mid-session policy mutation, scripted: redefinition/shrink and rename | N9 | M6, M5 |
 | B9 | Phantom counter increments, scripted, bursty shape (corrected threat model — no drizzle) | N23, N24 | M7, M9 |
-| B10 | Layer-1 ceiling: rolling 60 s window, **1000 requests** — the only evidence-anchored number, inferred lane — armed in every scenario (G2); Cloudflare-shaped reply generation (403, `cf-mitigated: challenge`, `Server: cloudflare`, HTML body, no rate-limit headers, no `Retry-After`) | N1–N3 | M11, G2 |
+| B10 | Layer-1 ceiling, **two rules**, both armed in every scenario (G2), both tripping into the Cloudflare-shaped failure: burst **20 req / rolling 1 s** (sensitivity tripwire, derived from the declared defense — see note) and **1000 req / rolling 60 s** (N2 made executable); Cloudflare-shaped reply generation (403, `cf-mitigated: challenge`, `Server: cloudflare`, HTML body, no rate-limit headers, no `Retry-After`) | N1–N3 | M11, G2 |
 | B11 | Stimulus injection channel: scripted 429 / 401 / generic-4xx / Cloudflare replies regardless of counter arithmetic | §2 | M8, M11b, M12 |
-| B12 | Deterministic scriptable per-response service delay (default ~50 ms simulated; scenarios override) | §7.1 | M13, M5, M9 |
+| B12 | Deterministic scriptable per-response service delay; the default is a **placeholder** (~50 ms simulated) until the §7.4 fixture lands, then re-anchored to the capture's median `sent→received` (rounded); scenarios override | §7.1 | M13, M5, M9 |
 | B13 | Observation log: per-request arrival instant, method, endpoint label, bucket assignment, counter values, verdicts, plus (seed, φ) | §3, G6 | M13/M10 wire-shape assertions (spacing floor, FIFO, in-flight); G6 |
 | B14 | `Date` header emitted, consistent with the mock's clock, zero skew | N5 context | C1 cross-check (skew itself is O5) |
 
@@ -487,14 +495,30 @@ Notes on the load-bearing rows:
   assertion load-bearing: a retry at `Retry-After` alone *can*
   violate in the mock, so waiting `Retry-After + bucket + buffer`
   is tested, not decorative.
-- **B10, the ceiling number.** 1000/min cites the one known block
-  (N2: "over a thousand requests in a minute"); any lower number
-  would be invented. It sits deliberately *above* the fuse
-  (~500/min) and the spacing-implied maximum (240/min): the ceiling
-  trips only if both client-side defenses have already failed. The
-  mock asserts the threat; the floor and fuse are the defense
-  (charter, component-scope entry). The number is inferred-lane and
-  is not a model of Cloudflare (U4).
+- **B10, the ceiling rules (amended 2026-08-09, veto-point
+  review — the burst rule is Tom's).** Two rules with two jobs.
+  The per-minute rule, 1000 / rolling 60 s, is the executable
+  citation: N2's "over a thousand requests in a minute" is the
+  only evidence-anchored number, and it is nearly untrippable by
+  construction (4× the spacing-implied 240/min, sustained for a
+  minute) — documentary, not a tuned threshold. The burst rule,
+  20 / rolling 1 s, is B3's adversarial philosophy applied to
+  layer 1: the threat is burst-shaped (N2) and Cloudflare's real
+  rules are opaque (N1), so the mock asserts the tightest ceiling
+  the client's *declared* defenses still clear with margin —
+  floor-compliant traffic fits at most 4–5 sends in any rolling
+  second (250 ms floor), giving ≥4× headroom at 20. This
+  globalizes burst detection: a floor-violating bug becomes
+  visible to G2 in every scenario, not only where the explicit
+  spacing-floor assertion runs. Caveat, recorded so the ceiling is
+  never mistaken for the floor's enforcement: a floor-broken
+  client pacing at a sustained ~8/s evades the fuse (~500/min)
+  and both ceiling rules — B13's wire-shape assertion is the
+  binding detector; the ceilings are the mock-judged backstop.
+  Both numbers are inferred-lane and neither models Cloudflare
+  (U4). A mock ceiling defends nothing at runtime — the
+  client-side floor and fuse are the defense (charter); what the
+  tight rule buys is test sensitivity.
 - **B12 refines the scaffold's out-of-scope candidate** rather than
   contradicting it: *stochastic* jitter stays out (O2), but with
   zero service time every exchange is instantaneous — no two
