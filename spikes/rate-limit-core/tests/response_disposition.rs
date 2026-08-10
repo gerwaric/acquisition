@@ -192,7 +192,7 @@ proptest! {
         );
         prop_assert!(matches!(
             engine.try_reserve(&PolicyName::from(POLICY), SimInstant::from_millis(1_000)),
-            ReserveOutcome::NotBefore(SimInstant::MAX)
+            ReserveOutcome::Blocked
         ));
         engine.rollback(confirmation);
     }
@@ -349,7 +349,7 @@ fn only_one_confirmation_can_be_reserved_and_rollback_reopens_the_attempt() {
 
     assert!(matches!(
         engine.try_reserve(&PolicyName::from(POLICY), SimInstant::from_millis(1_000)),
-        ReserveOutcome::NotBefore(SimInstant::MAX)
+        ReserveOutcome::Blocked
     ));
     engine.rollback(first);
 

@@ -315,7 +315,15 @@ impl Drop for ReservationToken {
 #[derive(Debug)]
 pub enum ReserveOutcome {
     Reserved(ReservationToken),
+    /// The earliest re-ask time. Always a real, future instant — an actor
+    /// may sleep on it.
     NotBefore(SimInstant),
+    /// No clock time can be named: a confirmation attempt is in flight, or
+    /// no window can ever grant (a wire-legal zero-hit rule). Re-ask when
+    /// engine state changes, never on a timer. (Tom-approved resolution of
+    /// the audit's NotBefore(MAX) sentinel flag, 2026-08-09: an outcome an
+    /// actor must not sleep on deserves its own variant, not a magic value.)
+    Blocked,
     Refused(RefusalReason),
 }
 
@@ -486,12 +494,18 @@ impl PolicyEngine {
         }
 
         if let Some(not_before) = policy_not_before(policy, now) {
-            return ReserveOutcome::NotBefore(not_before);
+            // A zero-hit window's "expiry" is the MAX sentinel internally;
+            // at the API boundary that is Blocked, never a sleepable time.
+            return if not_before == SimInstant::MAX {
+                ReserveOutcome::Blocked
+            } else {
+                ReserveOutcome::NotBefore(not_before)
+            };
         }
 
         let confirmation_attempt = match policy.recovery_episode.as_ref() {
             Some(episode) if episode.confirmation_entry.is_some() => {
-                return ReserveOutcome::NotBefore(SimInstant::MAX);
+                return ReserveOutcome::Blocked;
             }
             Some(episode) if episode.completed_attempts == 0 => Some(ConfirmationAttempt::First),
             Some(episode) if episode.completed_attempts == 1 => Some(ConfirmationAttempt::Final),

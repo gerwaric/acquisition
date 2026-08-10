@@ -60,9 +60,9 @@ fn rule_cases() -> impl Strategy<Value = Vec<RuleCase>> {
     prop::collection::vec(
         (
             (
-                // 1..: a zero-hit window answers NotBefore(MAX) and would
-                // make the property vacuous; that boundary has its own
-                // pinned test below.
+                // 1..: a zero-hit window answers Blocked and would make
+                // the property vacuous; that boundary has its own pinned
+                // test below.
                 1_u32..8,
                 1_u32..8,
                 1_u64..250,
@@ -251,16 +251,18 @@ proptest! {
                     ),
                 }
             }
-            ReserveOutcome::Refused(reason) => {
-                prop_assert!(false, "unexpected refusal: {reason:?}");
+            other => {
+                // Blocked (zero-hit rules are not generated) and Refused
+                // (nothing suspends or halts here) are both unreachable.
+                prop_assert!(false, "unexpected outcome: {other:?}");
             }
         }
     }
 }
 
 // C1 boundary: a wire-legal 0:period:restriction window can never grant. The
-// core answers the NotBefore(MAX) sentinel — "wait for an event, not a
-// clock" — a contract the actor design still has to name (audit flag).
+// core answers Blocked — "wait for an event, not a clock" — never a
+// sleepable NotBefore time (Tom-approved sentinel resolution, 2026-08-09).
 #[test]
 fn zero_max_hits_blocks_forever() {
     let cases = vec![RuleCase {
@@ -280,7 +282,7 @@ fn zero_max_hits_blocks_forever() {
 
     assert!(matches!(
         engine.try_reserve(&policy_name(), SimInstant::from_millis(0)),
-        ReserveOutcome::NotBefore(SimInstant::MAX)
+        ReserveOutcome::Blocked
     ));
 }
 

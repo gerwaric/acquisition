@@ -332,7 +332,7 @@ fn open_episode(engine: &mut PolicyEngine, policy: &PolicyName) {
 // C5 abandonment, confirmation half: a dropped confirmation token must not
 // wedge the policy. The slot ages out with its history entry, resolving as a
 // failed attempt — the episode advances to its final attempt instead of
-// answering NotBefore(MAX) forever.
+// answering Blocked forever.
 #[test]
 fn abandoned_first_confirmation_ages_out_and_permits_the_final_attempt() {
     let policy = policy_name();
@@ -349,7 +349,7 @@ fn abandoned_first_confirmation_ages_out_and_permits_the_final_attempt() {
     // Well before the entry ages out, the slot is still held.
     assert!(matches!(
         engine.try_reserve(&policy, SimInstant::from_millis(61_500)),
-        ReserveOutcome::NotBefore(_)
+        ReserveOutcome::Blocked
     ));
 
     // Once the entry has left every padded window (sustained 1s period plus
