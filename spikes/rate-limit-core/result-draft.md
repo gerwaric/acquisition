@@ -82,19 +82,19 @@ optional for phase-independent and structural checks.
 
 | ID | Scenario | Sweep | Gates exercised | Result | Evidence |
 |---|---|---|---|---|---|
-| M1 | Cold start with residue (flagship) | phase-swept | G1, G2, G6 | partial — core bootstrap discovery, residue reconciliation, probe table, and valid probe-429 lifecycle green; mock/actor lane pending | 2026-08-10: `cargo test --locked` from baseline `a3245e86` — an unknown valid probe dynamically registers its parsed rule pairs under the engine's explicit positional default, `ProbeReady { policy }` carries the discovered identity, fresh-policy residue reconciles through the existing maximum-deficit mechanism, zero-residue registration emits `StateChanged` exactly once, repeat probes are idempotent, malformed probes do not seed, a valid 5xx seeds but refuses readiness, and a valid probe 429 seeds restriction/episode state before the first GET confirmation. Full gate evidence is in the bootstrap-seeding subsection below. |
-| M2 | Clean cold-start saturation burst | phase-swept | G1–G4, G6 | ⟨…⟩ | ⟨…⟩ |
-| M3 | Degraded HEAD | independent | G1, G2, G5 | ⟨…⟩ | ⟨…⟩ |
-| M4 | Unexpected policy shape | independent | G1, G2, G5 | ⟨…⟩ | ⟨…⟩ |
-| M5 | Policy rename mid-session | phase-swept | G1, G2, G6 | ⟨…⟩ | ⟨…⟩ |
-| M6 | Policy shrink mid-flight | phase-swept | G1, G2, G6 | ⟨…⟩ | ⟨…⟩ |
-| M7 | Phantom same-account hits | phase-swept | G1, G2, G6 | partial — core phantom-synthesis lane green (audit fill, 2026-08-09: this row should have been marked with the reconciliation slice); mock/actor lane pending | 2026-08-09: `cargo test --locked --test response_reconciliation` — phantom-deficit synthesis, max-not-sum shared-history insertion, boot-residue seeding, monotone repeated/lower observations, and same-instant identity all pinned; the pessimistic/exact property runs 4,096 focused cases against an oracle independent of production windowing |
-| M8 | 429 recovery and escalation | phase-swept | G1, G2, G5, G6 | partial — complete core restriction/episode/disposition slice green; mock-judged wire lane pending | 2026-08-09: `cargo test --locked --test response_disposition` — 15 tests cover exact retry boundaries, maximum configured bucket across multiple rules/windows, one confirmation in flight, every confirmation-matrix cell, malformed-429 precedence, Cloudflare halt, and unknown retention; focused `PROPTEST_CASES=4096` generation-tagged in-flight-set property green |
-| M9 | Phantom race at saturation | phase-swept | G1, G2, G5, G6 + characterization | ⟨…⟩ | ⟨headroom-zero evidence base: what nonzero headroom would have bought, per contention level⟩ |
-| M10 | Agent-loop stress | phase-swept | G1, G2, G3, G6 | ⟨…⟩ | ⟨…⟩ |
-| M11 | Layer-1 ceiling + Cloudflare terminal | independent | G2, G5 | partial — core Cloudflare terminal precedence green; mock ceiling lane pending | 2026-08-09: `cargo test --locked --test response_disposition cloudflare_shape_halts_before_status_or_header_handling` — Cloudflare-classified 429 with absent policy headers halts before parse/status handling and latches `try_reserve` refusal |
-| M12 | 4xx-tripwire obligations | independent | G5 | ⟨…⟩ | ⟨…⟩ |
-| M13 | Gate structure on the wire | independent | G2 + gate-definition assertions | ⟨…⟩ | ⟨…⟩ |
+| M1 | Cold start with residue (flagship) | phase-swept | G1, G2, G6 | partial — core bootstrap/recovery and independent residue/HEAD mock capability green; actor wire run pending | 2026-08-10: bootstrap evidence below plus mock commits `4353fb03`/`05ee15d1`; `mock_fidelity::b1_b4_b5_b7_b13_b14_full_protocol_and_n23_topology` and `b6_b9_residue_and_phantoms_are_mock_owned_counter_facts` green. |
+| M2 | Clean cold-start saturation burst | phase-swept | G1–G4, G6 | partial — independent quantized counters and G1–G4 judge executable; actor saturation run pending | 2026-08-10: generated phase oracle plus exact expiry, post-increment, G3, and exact 1.05× G4 boundary tests green; mock-slice evidence below. |
+| M3 | Degraded HEAD | independent | G1, G2, G5 | partial — policy-only HEAD stimulus and typed production-parser failure executable; actor cooldown/caller behavior pending | 2026-08-10: `mock_fidelity::b11_m3_m4_script_channel_covers_every_response_shape` green. |
+| M4 | Unexpected policy shape | independent | G1, G2, G5 | partial — verbatim one-/three-window synthetic policies executable; actor scoped failure/watch behavior pending | 2026-08-10: `mock_fidelity::b1_b7_m4_synthetic_one_and_three_window_policies_cross_as_raw_headers` green. |
+| M5 | Policy rename mid-session | phase-swept | G1, G2, G6 | partial — route mutation, deterministic delay, unique correlation, and exposure attribution executable; client remap pending actor | 2026-08-10: `mock_fidelity::b8_policy_rename_and_shrink_keep_existing_hits`, B12/B13 tests, and `conformance_harness::correlation_and_reproduction_seams_are_structural` green. |
+| M6 | Policy shrink mid-flight | phase-swept | G1, G2, G6 | partial — hits-facts/rules-judgments replacement preserves history and restrictions pessimistically; client adoption pending actor | 2026-08-10: `mock_fidelity::b8_policy_rename_and_shrink_keep_existing_hits` green. |
+| M7 | Phantom same-account hits | phase-swept | G1, G2, G6 | partial — core synthesis plus mock-owned bursty phantom injection/provenance green; actor observation loop pending | 2026-08-09 core evidence above; 2026-08-10 `mock_fidelity::b6_b9_residue_and_phantoms_are_mock_owned_counter_facts` green. |
+| M8 | 429 recovery and escalation | phase-swept | G1, G2, G5, G6 | partial — core ladder plus independent organic/injected 429, restriction, malformed, and transport-error shapes green; actor wire matrix pending | 2026-08-09 core evidence above; 2026-08-10 B2/B3 and B11 mock-fidelity tests green. |
+| M9 | Phantom race at saturation | phase-swept | G1, G2, G5, G6 + characterization | partial — arrival delay, phantom injection, source counts, correlation, and capped pre-observation exposure executable; actor race/headroom record pending | 2026-08-10: B6/B9, B12/B13, and capped G1 unavoidable-exposure tests green. |
+| M10 | Agent-loop stress | phase-swept | G1, G2, G3, G6 | partial — bounded 10,000-dispatch mock/log and global G1/G2/G3 judge executable; actor pressure/cancel/reprioritize run pending | 2026-08-10: exact budget/latch, ceiling, and non-vacuous judge tests green. |
+| M11 | Layer-1 ceiling + Cloudflare terminal | independent | G2, G5 | partial — core halt plus both independent B10 ceilings and injected/organic Cloudflare shapes green; compliant-client run pending actor | 2026-08-09 core evidence above; 2026-08-10 `mock_fidelity::b10_b11_layer1_and_injected_stimuli_are_distinct` green. |
+| M12 | 4xx-tripwire obligations | independent | G5 | partial — full/raw 401/generic-4xx/429 stimulus channel executable; tripwire feed/retry obligations pending actor | 2026-08-10: B11 script-channel tests green. |
+| M13 | Gate structure on the wire | independent | G2 + gate-definition assertions | partial — deterministic overlap, arrival order, HEAD overlap, in-flight, spacing timestamps, and run-wide identities observable; compliant gate run pending actor | 2026-08-10: `mock_fidelity::b12_b13_explicit_delay_makes_overlap_and_correlation_observable` green. |
 
 G1, G2, G3, and G5 are armed in every mock-judged scenario; the
 column lists the gates each scenario is the *binding evidence*
@@ -127,6 +127,107 @@ for.
 | G4 | M2 duration ≤ multiplier × padded minimum (final: ⟨…⟩) | ⟨…⟩ | ⟨…⟩ |
 | G5 | Every scenario's own assertions (stimulus and structural alike) | ⟨…⟩ | ⟨…⟩ |
 | G6 | Reproduction record for every failure ((seed, φ) mandatory where swept/generated) | ⟨…⟩ | ⟨…⟩ |
+
+### Mock + M-series harness slice (2026-08-10 — awaiting Tom review)
+
+Baseline: reviewed bootstrap head `b3a0e7d5` (the user's named
+`17363429` baseline plus its review-status reconciliation commit).
+Implementation commits: `4353fb03`, `05ee15d1`, `12a799f8`,
+`4c69f05e`.
+
+This slice implements the §7 reusable test side of the transport
+trait, not the Tokio actor: independent server-phase counter
+arithmetic, all five N23 policies and endpoint routes, full raw header
+emission, non-counting HEAD behavior, residue and phantom injection,
+policy rename/shrink scripts, organic restrictions, both B10 ceilings,
+the B11 stimulus family, deterministic arrival/response delay, and the
+B13 observation log. `Date` is emitted on every response shape from the
+zero-skew paused clock. The M1–M13 metadata and G1–G6 judge are
+executable; the sweep-plan constructor refuses any plan that omits the
+shipped provenance-typed `Assumed(60s/60s)` client configuration.
+The §4 sanitizer is a bounded allowlist over the real NetworkCapture
+JSONL schema and emits only canonical D5 labels, rebased timing, allowed
+headers/status/error fields, and the required provenance block.
+
+No M row is marked green from infrastructure evidence alone. The
+frozen build order puts the actor last, so there is not yet a client
+that can drive the transport seam; client scheduling, caller outcomes,
+watch publication, cancellation/reprioritization, and final G1–G6
+verdicts remain the actor slice's work. This is a coverage boundary,
+not an inferred pass.
+
+Doc findings and conservative dispositions exposed by implementation:
+
+1. **B13/run growth has no stated finite cap.** The mock accepts at
+   most 10,000 received requests and 10,000 retained events per policy;
+   header/rule/window/script quantities are constructor-bounded too.
+   At request 10,001 the harness latches exhausted and returns a typed
+   transport error without growing history or the observation log; the
+   next call returns the same refusal.
+2. **The docs do not say whether merely knocking during an already
+   active restriction renews it.** The mock refuses the arrival but
+   renews only when that arrival is independently over a current
+   policy window. The next early call remains refused through the
+   original deadline; at that deadline it is judged solely by the
+   then-current counters.
+3. **Restriction identity across an arbitrary rule reorder/reshape is
+   unspecified.** Hits are retained as facts, and the latest old active
+   restriction deadline is copied to every new rule/window slot. The
+   next call therefore cannot escape a live restriction because its
+   old positional slot disappeared.
+4. **B10-vs-B2 evaluation order is unstated.** Layer 1 is modeled as
+   outside layer 2: once a B10 ceiling trips, the Cloudflare reply wins
+   and that arrival does not increment policy counters. The next call
+   remains subject to the rolling B10 history; policy state remains at
+   its pre-challenge count.
+5. **CN5 already records the exact-boundary quantization gap.** The
+   implemented most-adversarial reading assigns an arrival exactly on a
+   boundary to the new `[start, end)` bucket, giving it a full bucket of
+   expiry extension. Just-before/on/after cases and an independent
+   generated oracle pin the consequence.
+6. **B14 specifies zero skew, not a calendar epoch.** The mock maps
+   simulated t₀ to Unix epoch and advances at second-precision HTTP-date
+   granularity. The next reply's Date is therefore deterministic and
+   consistent with its B13 arrival timestamp without importing wall
+   time.
+7. **The actor contract forbids aborting in-flight work, but mock-future
+   drop behavior is unstated.** A received arrival is logged before its
+   scripted response delay and occupancy carries an age-out deadline.
+   If its future is dropped, the next arrival after that deadline prunes
+   occupancy instead of inheriting a permanent false overlap.
+8. **§7.4's required sanitized July 18 fixture is absent from the
+   branch/workspace.** The §4 sanitizer exists and is tested, but no
+   132-record replay or observed-lane calibration is claimed and no
+   record is reconstructed from prose. The next replay remains
+   unavailable until raw input is passed through the sanitizer or an
+   already-compliant fixture is supplied.
+9. **“t0 = first record” does not choose among scheduled/sent/received
+   on a reply.** Sanitization uses the first available client-side field
+   in scheduled→sent→received order and never the rounded server Date.
+   The next record therefore preserves signed relative timing; a first
+   HEAD, which has only received, begins at `received_ms = 0`.
+
+All evidence below was produced 2026-08-10, offline, with no socket and
+no live service contact:
+
+- `cargo test --locked` — green, 99 tests.
+- `cargo test --locked --release` — green, 97 tests (the two core drop-
+  bomb tests remain debug-only).
+- `PROPTEST_CASES=4096 cargo test --locked` — green; all ten properties
+  ran 4,096 cases, including the new independent mock-phase oracle.
+- `cargo clippy --locked --all-targets -- -D warnings` — green.
+- `cargo fmt --all --check` and `git diff --check` — green.
+- `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests -p
+  'test_sanitize_capture.py' -v` — green, 4 sanitizer tests.
+
+Property reachability: the new B3 property asserts bucket assignment,
+one millisecond before expiry, and exact expiry on every generated case;
+its expected value is independent integer arithmetic in the test and
+never calls mock or production scheduling helpers. The conformance
+judge rejects empty observations, dispatch samples, or scenario
+assertions; requires a run-wide unique dispatch/observation identity;
+and cross-checks `(seed, φ)` against every swept observation, so its
+gate checks cannot pass on empty or detached evidence.
 
 Earlier implementation finding (2026-08-09, response-reconciliation slice):
 the frozen `core-design.md` sketches full response entry points over
@@ -626,3 +727,15 @@ outlives the spike branch; record what exists and where.⟩
   changes. Accepted-risk confirmations: cumulative discovery bound
   stays actor-owned; the halt-and-suspend × vacant-seeding cells
   stay confessed-untested. The slice is closed; mock is unblocked.
+- 2026-08-10 — mock + M-series harness implementation presented for
+  review from baseline `b3a0e7d5` (`4353fb03`, `05ee15d1`,
+  `12a799f8`, `4c69f05e`). The
+  independent in-process server model now covers B1–B14, typed and
+  exact wire/log bounds, N23 topology, deterministic scripts, organic
+  and injected failures, source-aware observations, and M1–M13/G1–G6
+  judging. Sweep construction structurally includes the shipped
+  `Assumed(60s/60s)` configuration. Offline gates: 99 debug, 97
+  release, all ten properties at 4,096 cases, clippy with warnings
+  denied, fmt, diff check, and four sanitizer tests green. Actor-driven
+  M verdicts and the absent §7.4 capture replay remain explicitly
+  pending; review artifact: `mock-handoff.md`.
