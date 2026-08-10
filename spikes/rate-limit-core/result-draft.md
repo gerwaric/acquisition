@@ -235,14 +235,33 @@ marker; resolved items cite the commit series landed the same day.
     Halt superseding the final-attempt matrix row, and the
     entry-point invariant swept across nine response shapes.
 
-**Open — flagged for Tom (design decisions, not mechanical):**
+**Decided by Tom, 2026-08-09 (same-day review of the register):**
 
-- **`NotBefore(SimInstant::MAX)` has no design vocabulary.** It
-  means "blocked until an event (confirmation resolution), not a
-  clock" — an actor that literally sleeps on it wedges. Either a
-  distinct `ReserveOutcome` variant or a written sentinel contract
-  is needed before the actor slice. Tests currently pin the
-  sentinel (zero-max_hits case and confirmation-in-flight paths).
+- **`NotBefore(SimInstant::MAX)` sentinel → `ReserveOutcome::Blocked`.**
+  NotBefore is now always a real, sleepable future instant; the two
+  wait-for-an-event cases (confirmation in flight, wire-legal
+  zero-hit rule) return the distinct `Blocked` variant. Implemented
+  and test-pinned.
+- **Probe-429 episode follows the full confirmation matrix.**
+  "Single confirmation attempt" in the M1 probe-429 prose meant one
+  in flight at a time, not a one-attempt cap; the matrix's
+  two-attempt design (external review F6) governs. Clarified in
+  `scenarios.md` and `core-design.md`; pinned by a test (500 on the
+  first GET preserves the episode and earns the final attempt).
+- **Precedence-list ordering:** editorial note added to
+  `core-design.md` — the numbered list orders dispositions, not
+  execution; reconciliation of a valid observation precedes status
+  handling, gated only by the Cloudflare and parse rules.
+- **Stale-confirmation late 429 joins, not escalates** (register
+  item 2's embedded judgment call): Tom confirmed the
+  no-double-count reading — a trial already written off by
+  abandonment aging charges its attempt once; its zombie 429 folds
+  into the existing episode (restriction still recorded) rather
+  than also tripping the shutdown. Behavior unchanged from the
+  hardening pass; now decision-backed rather than implementer-read.
+
+**Open — flagged for Tom (design decision, not mechanical):**
+
 - **The probe/bootstrap seam cannot discover a policy.** There is
   no `PolicySnapshot` → `Policy` construction path (nothing assigns
   `RuleScope` or `BucketModel`), `ProbeReady` carries no policy
@@ -251,16 +270,6 @@ marker; resolved items cite the commit series landed the same day.
   documented as parsed — is never produced by the parser. "Mapping
   seeded" is unreachable as written; a seeding design is needed
   before the actor slice.
-- **Probe-429 episode: "single confirmation attempt" vs the
-  matrix.** `scenarios.md` M1's probe-429 variant says the first
-  GET is the episode's *single* attempt; the implementation follows
-  the general two-attempt matrix (a non-429 non-2xx first GET earns
-  a Final attempt). One reading must be pinned.
-- **Precedence-list ordering nuance:** reconciliation executes
-  before status handling (the probe-429 row requires state seeding
-  on a 429), but `core-design.md`'s numbered list places it last.
-  The code is taken as correct; the list needs an editorial note
-  when the doc is next touched.
 
 ## §4. Candidate N-claims
 
@@ -392,3 +401,13 @@ outlives the spike branch; record what exists and where.⟩
   register, flagged for Tom: the NotBefore(MAX) sentinel, the
   probe/bootstrap seeding seam, probe-episode attempt-count prose vs
   matrix, and the precedence-list ordering note.
+- 2026-08-09 — Tom reviewed the audit register same-day (process
+  change from the post-mortem: slices now end at review, codified in
+  AGENTS.md). Three of the four open questions decided and landed:
+  `ReserveOutcome::Blocked` replaces the NotBefore(MAX) sentinel;
+  probe-opened episodes follow the full confirmation matrix
+  (scenarios/core-design clarified, test-pinned); the precedence
+  editorial note added. The stale-confirmation-429-joins judgment
+  call is confirmed as decided. Sixty offline tests pass; the sole
+  remaining open item is the probe/bootstrap seeding seam, which
+  blocks the actor slice.
