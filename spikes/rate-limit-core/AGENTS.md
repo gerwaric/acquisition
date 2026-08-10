@@ -46,6 +46,66 @@ Authority for cited claims: `docs/design/network-ground-truth.md`
 - Raw `networkcapture` output is never committed; fixtures enter only
   through the §4 sanitization contract in `scenarios.md`.
 
+## Slice hardening rules (2026-08-09 audit post-mortem)
+
+An implementation audit found that defects clustered exactly where
+the docs were silent and at seams between slices built by separate
+sessions (register in `result-draft.md` §3). These rules exist so
+that shape of failure cannot recur. They bind every session.
+
+- **A slice is not complete at green.** Green tests, clippy, and fmt
+  end the *coding*; the slice ends when Tom has reviewed it. Present
+  the slice for review with: what the docs did not specify and the
+  reading you took, any new cross-slice interaction, and what your
+  tests deliberately do not cover.
+- **Bound every wire-derived quantity** before it sizes an
+  allocation, a loop, or a deadline. "The docs state no bound" is
+  not permission for unboundedness — it is a doc finding plus a
+  conservative cap, recorded together.
+- **Property tests carry a reachability guard.** A property that can
+  skip its assertion must demonstrate it cannot pass vacuously —
+  assert on every generated branch, or count and assert assertion
+  reachability. "Green at 4,096 cases" is meaningless without this.
+- **Oracles never call production code.** If the expected value is
+  computed via the functions under test, it is a mirror, not an
+  oracle. Independent arithmetic only.
+- **The doc-finding trigger is "the docs don't mention this case"** —
+  not "and the answer seems non-obvious." Record it even when the
+  conservative reading feels self-evident, and trace the
+  *consequence* one step past the disposition (what does the engine
+  do on the very next call?). The unusable-`Retry-After` bug lived
+  in that untraced second step.
+- **Guards are structural, not per-call-site.** If you find yourself
+  re-checking a shape an existing entry point already guards, the
+  invariant belongs in a constructor (make the state
+  unrepresentable), not copied to the new path.
+
+### Cross-slice invariants — re-verify against every new slice
+
+Each of these spans slices, so no single session's tests defend it
+automatically. When your slice touches state another slice owns,
+state in your review hand-off how each of these still holds:
+
+1. **No permanent wedge.** Any state a token or entry can hold
+   (history entries, episode confirmation slots, anything added
+   later) must resolve by explicit consumption *or* age out by
+   window passage. A dropped token may degrade throughput, never
+   schedulability.
+2. **One send, one entry.** Reservation identity is exact:
+   remove-by-id, no double-count, no loss, under any interleaving —
+   including operations added by later slices.
+3. **Pessimism direction.** Local state never understates
+   server-visible state (up to the synthesis cap); entries leave
+   history only by window passage or rollback of an undispatched
+   reservation.
+4. **`try_reserve` is the single scheduling authority.** No new
+   path may hand the shell a second source of send timing.
+5. **Entry-point invariant.** `on_response` never yields
+   `ProbeReady`; `on_probe_response` never yields `CompleteRequest`
+   or `Requeue`.
+6. **Notifications tell the truth.** `StateChanged` is emitted iff
+   the call mutated engine state.
+
 ## Working style
 
 - Tom is hands-on, and this spike doubles as his first substantial
