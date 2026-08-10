@@ -22,7 +22,8 @@ Window shape and bucket-resolution knowledge are **separate facts**.
 The shape invariant (`RulePair`: exactly two windows, first period
 strictly shorter — parse-time validated) says nothing about bucket
 resolution; a two-window policy must never silently imply known
-buckets. Resolution knowledge is provenance-typed:
+buckets. The table is the evidence record for verdict scoping and
+the eventual U3 flip, not a runtime policy-name configuration:
 
 | Policy | Shape | Bucket resolution (burst/sustained) | Provenance | Verdict lane |
 |---|---|---|---|---|
@@ -37,11 +38,16 @@ Rules for the `Assumed` variant:
 - `Assumed(60s/60s)` is an explicit assumption, **not** provably
   pessimistic — N14/N21 give no upper bound on legacy bucket
   resolution. The server could use a larger bucket.
-- It is replaceable via internal configuration or GGG evidence
-  (the parked N14 ask-us thread), never an implicit default. There
-  is no code path that manufactures a resolution for a policy the
-  table doesn't cover — an unknown policy without configured
-  resolution is a refusal, not a guess.
+- An unknown policy seeds under the engine's global default bucket
+  resolution, which is explicit, provenance-typed (`Assumed` until
+  U3 evidence upgrades it), and configured in exactly one place.
+  The prohibition stands against *implicit* or *manufactured*
+  resolutions: there is still no code path that invents a
+  resolution not traceable to that single configured value.
+- The shipped pre-U3 default is `Assumed(60s/60s)`, matching the
+  C++ client's field-proven posture. U3 or GGG evidence flips that
+  single construction value to `Known(5s/60s)`; policy and rule
+  names never select bucket configuration.
 - The unconditional "honors the N-claims" verdict is scoped to the
   four OAuth policies. The legacy lane's verdict is stated as
   conditional on its assumption, and legacy conformance does not

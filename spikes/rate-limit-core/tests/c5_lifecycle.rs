@@ -7,7 +7,7 @@ use proptest::prelude::*;
 use rate_limit_core::core::{
     BucketModel, ConfirmationAttempt, Disposition, EmptyPolicy, EntryKind, ObservedResponse,
     Policy, PolicyEngine, PolicyName, RefusalReason, ReplyClassification, ReservationToken,
-    ReserveOutcome, Resolution, Rule, RulePair, RuleScope, SimInstant, Window,
+    ReserveOutcome, Resolution, Rule, RulePair, SimInstant, Window,
 };
 
 fn policy_name() -> PolicyName {
@@ -27,7 +27,6 @@ fn rule(max_hits: u32, burst_ms: u64, sustained_ms: u64) -> Rule {
     );
     let pair = RulePair::new(burst, sustained).expect("test periods are increasing");
     Rule::new(
-        RuleScope::Account,
         pair,
         BucketModel::new(
             Resolution::Known(Duration::from_secs(5)),
@@ -36,8 +35,15 @@ fn rule(max_hits: u32, burst_ms: u64, sustained_ms: u64) -> Rule {
     )
 }
 
+fn default_buckets() -> BucketModel {
+    BucketModel::new(
+        Resolution::Assumed(Duration::from_secs(60)),
+        Resolution::Assumed(Duration::from_secs(60)),
+    )
+}
+
 fn engine(max_hits: u32, burst_ms: u64, sustained_ms: u64) -> PolicyEngine {
-    let mut engine = PolicyEngine::new();
+    let mut engine = PolicyEngine::new(default_buckets());
     engine
         .insert_policy(
             Policy::new(policy_name(), vec![rule(max_hits, burst_ms, sustained_ms)])
@@ -85,7 +91,7 @@ fn rollback_removes_exact_local_entry() {
 #[test]
 fn reservation_is_not_duplicated_across_policy_rules() {
     let policy = policy_name();
-    let mut engine = PolicyEngine::new();
+    let mut engine = PolicyEngine::new(default_buckets());
     engine
         .insert_policy(
             Policy::new(
@@ -142,7 +148,7 @@ fn empty_rule_policies_are_unrepresentable() {
 
 #[test]
 fn unknown_policy_is_refused_without_recording() {
-    let mut engine = PolicyEngine::new();
+    let mut engine = PolicyEngine::new(default_buckets());
     let policy = policy_name();
 
     assert!(matches!(

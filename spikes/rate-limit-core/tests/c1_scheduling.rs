@@ -3,7 +3,7 @@ use std::time::Duration;
 use proptest::prelude::*;
 use rate_limit_core::core::{
     BucketModel, Policy, PolicyEngine, PolicyName, ReserveOutcome, Resolution, Rule, RulePair,
-    RuleScope, SimInstant, Window,
+    SimInstant, Window,
 };
 
 #[derive(Clone, Debug)]
@@ -18,7 +18,6 @@ struct RuleCase {
     sustained_resolution_ms: u64,
     burst_assumed: bool,
     sustained_assumed: bool,
-    scope: RuleScope,
 }
 
 impl RuleCase {
@@ -37,7 +36,6 @@ impl RuleCase {
         )
         .expect("generated sustained periods are strictly greater");
         Rule::new(
-            self.scope,
             pair,
             BucketModel::new(
                 resolution(self.burst_assumed, self.burst_resolution_ms),
@@ -72,7 +70,7 @@ fn rule_cases() -> impl Strategy<Value = Vec<RuleCase>> {
                 1_u64..80,
                 1_u64..80,
             ),
-            (any::<bool>(), any::<bool>(), any::<bool>()),
+            (any::<bool>(), any::<bool>()),
         )
             .prop_map(
                 |(
@@ -86,7 +84,7 @@ fn rule_cases() -> impl Strategy<Value = Vec<RuleCase>> {
                         burst_resolution_ms,
                         sustained_resolution_ms,
                     ),
-                    (burst_assumed, sustained_assumed, ip_scope),
+                    (burst_assumed, sustained_assumed),
                 )| RuleCase {
                     burst_hits,
                     sustained_hits,
@@ -98,11 +96,6 @@ fn rule_cases() -> impl Strategy<Value = Vec<RuleCase>> {
                     sustained_resolution_ms,
                     burst_assumed,
                     sustained_assumed,
-                    scope: if ip_scope {
-                        RuleScope::Ip
-                    } else {
-                        RuleScope::Account
-                    },
                 },
             ),
         1..5,
@@ -113,9 +106,16 @@ fn policy_name() -> PolicyName {
     PolicyName::from("generated-policy")
 }
 
+fn default_buckets() -> BucketModel {
+    BucketModel::new(
+        Resolution::Assumed(Duration::from_secs(60)),
+        Resolution::Assumed(Duration::from_secs(60)),
+    )
+}
+
 fn build_engine(cases: &[RuleCase], history_ms: &[u64]) -> PolicyEngine {
     let policy = policy_name();
-    let mut engine = PolicyEngine::new();
+    let mut engine = PolicyEngine::new(default_buckets());
     engine
         .insert_policy(
             Policy::new(policy.clone(), cases.iter().map(RuleCase::rule).collect())
@@ -277,7 +277,6 @@ fn zero_max_hits_blocks_forever() {
         sustained_resolution_ms: 20,
         burst_assumed: false,
         sustained_assumed: true,
-        scope: RuleScope::Account,
     }];
     let mut engine = build_engine(&cases, &[]);
 
@@ -303,7 +302,6 @@ fn not_before_takes_maximum_across_all_saturated_windows_and_rules() {
             sustained_resolution_ms: 20,
             burst_assumed: false,
             sustained_assumed: true,
-            scope: RuleScope::Account,
         },
         RuleCase {
             burst_hits: 10,
@@ -316,7 +314,6 @@ fn not_before_takes_maximum_across_all_saturated_windows_and_rules() {
             sustained_resolution_ms: 200,
             burst_assumed: true,
             sustained_assumed: false,
-            scope: RuleScope::Ip,
         },
     ];
     let policy = policy_name();
@@ -353,7 +350,6 @@ fn zero_headroom_uses_the_max_hits_th_newest_entry() {
         sustained_resolution_ms: 10,
         burst_assumed: false,
         sustained_assumed: true,
-        scope: RuleScope::Account,
     }];
     let policy = policy_name();
     let mut engine = build_engine(&cases, &[0, 10, 20, 30]);
@@ -390,7 +386,6 @@ fn rollover_cases_are_safe_just_before_exactly_on_and_just_after() {
             sustained_resolution_ms: 100,
             burst_assumed: false,
             sustained_assumed: true,
-            scope: RuleScope::Account,
         }];
         let policy = policy_name();
         let mut engine = build_engine(&cases, &[hit_ms]);

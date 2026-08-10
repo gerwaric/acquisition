@@ -5,7 +5,7 @@ use proptest::prelude::*;
 use rate_limit_core::core::{
     BucketModel, Disposition, EndpointLabel, EntryKind, HistoryEntry, ObservationError,
     ObservedResponse, Policy, PolicyEngine, PolicyName, RefusalCause, RefusalTarget,
-    ReplyClassification, ReserveOutcome, Resolution, Rule, RulePair, RuleScope, SimInstant, Window,
+    ReplyClassification, ReserveOutcome, Resolution, Rule, RulePair, SimInstant, Window,
 };
 use rate_limit_core::header::{PolicySnapshot, parse_policy};
 
@@ -42,7 +42,6 @@ fn configured_rule() -> Rule {
     )
     .expect("configured periods increase");
     Rule::new(
-        RuleScope::Account,
         pair,
         BucketModel::new(
             Resolution::Known(Duration::ZERO),
@@ -51,8 +50,21 @@ fn configured_rule() -> Rule {
     )
 }
 
+fn default_buckets() -> BucketModel {
+    BucketModel::new(
+        Resolution::Assumed(Duration::from_secs(60)),
+        Resolution::Assumed(Duration::from_secs(60)),
+    )
+}
+
+fn probe_ready(policy: &str) -> Disposition {
+    Disposition::ProbeReady {
+        policy: PolicyName::from(policy),
+    }
+}
+
 fn engine() -> PolicyEngine {
-    let mut engine = PolicyEngine::new();
+    let mut engine = PolicyEngine::new(default_buckets());
     engine
         .insert_policy(
             Policy::new(policy_name(), vec![configured_rule()])
@@ -325,13 +337,13 @@ proptest! {
 
         let first = probe(&mut engine, now, &observation);
         let after_first = entries(&engine);
-        prop_assert_eq!(first.disposition, Disposition::ProbeReady);
+        prop_assert_eq!(first.disposition, probe_ready("stash-request-limit"));
         prop_assert_eq!(after_first.len() - before.len(), expected);
         prop_assert_eq!(&after_first[..before.len()], before.as_slice());
         assert_pessimistic(&engine, now, &observation)?;
 
         let repeated = probe(&mut engine, now, &observation);
-        prop_assert_eq!(repeated.disposition, Disposition::ProbeReady);
+        prop_assert_eq!(repeated.disposition, probe_ready("stash-request-limit"));
         prop_assert_eq!(entries(&engine), after_first.clone());
 
         let lower_rules = rules
@@ -345,7 +357,7 @@ proptest! {
             .collect::<Vec<_>>();
         let lower = build_observation(&lower_rules);
         let lower_result = probe(&mut engine, now, &lower);
-        prop_assert_eq!(lower_result.disposition, Disposition::ProbeReady);
+        prop_assert_eq!(lower_result.disposition, probe_ready("stash-request-limit"));
         prop_assert_eq!(entries(&engine), after_first);
     }
 }
@@ -374,7 +386,7 @@ fn boot_probe_residue_uses_the_largest_reported_window_count() {
     let before = entries(&engine).len();
     let result = probe(&mut engine, now, &observation);
 
-    assert_eq!(result.disposition, Disposition::ProbeReady);
+    assert_eq!(result.disposition, probe_ready("stash-request-limit"));
     assert_eq!(entries(&engine).len() - before, 7);
     assert_eq!(entries(&engine).len(), 7);
     assert!(
@@ -382,6 +394,36 @@ fn boot_probe_residue_uses_the_largest_reported_window_count() {
             .iter()
             .all(|entry| entry.kind == EntryKind::Synthetic && entry.at == now)
     );
+}
+
+// Bootstrap-seeding §5 / truthful notifications: registration itself is the
+// mutation. Zero reported residue cannot accidentally make this assertion
+// pass through the older phantom-synthesis path, and the repeat pins
+// idempotence after discovery.
+#[test]
+fn zero_residue_probe_reports_only_the_initial_registration_mutation() {
+    let now = SimInstant::from_millis(NOW_MS);
+    let mut engine = PolicyEngine::new(default_buckets());
+    let observation = build_observation_for(
+        "new-policy",
+        &[ObservedRule {
+            burst_hits: 0,
+            burst_period_secs: 10,
+            sustained_hits: 0,
+            sustained_period_secs: 60,
+        }],
+    );
+
+    let first = probe(&mut engine, now, &observation);
+    assert_eq!(first.disposition, probe_ready("new-policy"));
+    assert_eq!(
+        first.notifications,
+        [rate_limit_core::core::Notification::StateChanged]
+    );
+
+    let repeated = probe(&mut engine, now, &observation);
+    assert_eq!(repeated.disposition, probe_ready("new-policy"));
+    assert!(repeated.notifications.is_empty());
 }
 
 // N25 post-increment semantics: the reservation representing this send is
@@ -454,13 +496,13 @@ fn reported_hits_beyond_the_largest_configured_limit_are_capped() {
 
     let result = probe(&mut engine, now, &observation);
 
-    assert_eq!(result.disposition, Disposition::ProbeReady);
+    assert_eq!(result.disposition, probe_ready("stash-request-limit"));
     assert_eq!(entries(&engine).len(), 512);
 
     // A repeat of the same over-limit report finds every window saturated
     // up to the cap and synthesizes nothing further.
     let repeated = probe(&mut engine, now, &observation);
-    assert_eq!(repeated.disposition, Disposition::ProbeReady);
+    assert_eq!(repeated.disposition, probe_ready("stash-request-limit"));
     assert_eq!(entries(&engine).len(), 512);
 }
 
@@ -480,7 +522,7 @@ fn synthesis_cap_boundary_is_exact() {
 
         let result = probe(&mut engine, now, &observation);
 
-        assert_eq!(result.disposition, Disposition::ProbeReady);
+        assert_eq!(result.disposition, probe_ready("stash-request-limit"));
         assert_eq!(
             entries(&engine).len(),
             expected,
@@ -516,7 +558,7 @@ fn shared_history_inserts_maximum_deficit_not_sum() {
     let before = entries(&engine).len();
     let result = probe(&mut engine, now, &observation);
 
-    assert_eq!(result.disposition, Disposition::ProbeReady);
+    assert_eq!(result.disposition, probe_ready("stash-request-limit"));
     assert_eq!(entries(&engine).len() - before, 4);
     assert_eq!(entries(&engine).len(), 7);
 }
@@ -538,7 +580,7 @@ fn same_instant_synthesis_does_not_weaken_exact_rollback_identity() {
 
     let before = entries(&engine).len();
     let result = probe(&mut engine, now, &observation);
-    assert_eq!(result.disposition, Disposition::ProbeReady);
+    assert_eq!(result.disposition, probe_ready("stash-request-limit"));
     assert_eq!(entries(&engine).len() - before, 3);
     engine.rollback(rollback_token);
 
@@ -576,7 +618,7 @@ fn ordinary_and_probe_paths_apply_the_same_reconciliation_mechanism() {
     let probe_result = self::probe(&mut probe, now, &observation);
 
     assert_eq!(ordinary_result.disposition, Disposition::CompleteRequest);
-    assert_eq!(probe_result.disposition, Disposition::ProbeReady);
+    assert_eq!(probe_result.disposition, probe_ready("stash-request-limit"));
     assert_eq!(entries(&ordinary).len() - ordinary_before, 5);
     assert_eq!(entries(&probe).len() - probe_before, 5);
     let shape = |engine: &PolicyEngine| {
@@ -623,30 +665,66 @@ fn mismatched_ordinary_observation_consumes_without_rolling_back_the_send() {
 }
 
 #[test]
-fn unknown_probe_policy_is_typed_and_does_not_mutate_existing_history() {
+fn unknown_probe_policy_seeds_under_the_explicit_default_and_preserves_existing_history() {
     let now = SimInstant::from_millis(NOW_MS);
     let mut engine = engine();
     add_history(&mut engine, &[(true, 99_000), (false, 99_500)]);
     let before = entries(&engine);
     let observation = build_observation_for(
         "unknown-policy",
-        &[ObservedRule {
-            burst_hits: 20,
-            burst_period_secs: 10,
-            sustained_hits: 20,
-            sustained_period_secs: 60,
-        }],
+        &[
+            ObservedRule {
+                burst_hits: 20,
+                burst_period_secs: 10,
+                sustained_hits: 20,
+                sustained_period_secs: 60,
+            },
+            ObservedRule {
+                burst_hits: 3,
+                burst_period_secs: 20,
+                sustained_hits: 7,
+                sustained_period_secs: 120,
+            },
+        ],
     );
 
     let transition = probe(&mut engine, now, &observation);
 
-    assert!(matches!(
-        &transition.disposition,
-        Disposition::Refuse {
-            target: RefusalTarget::Endpoint(endpoint),
-            cause: RefusalCause::ObservationTarget(ObservationError::UnknownPolicy(policy)),
-        } if endpoint == &EndpointLabel::from("stash")
-            && policy == &PolicyName::from("unknown-policy")
-    ));
+    assert_eq!(transition.disposition, probe_ready("unknown-policy"));
+    assert_eq!(
+        transition.notifications,
+        vec![rate_limit_core::core::Notification::StateChanged]
+    );
     assert_eq!(entries(&engine), before);
+
+    let seeded = engine
+        .policy(&PolicyName::from("unknown-policy"))
+        .expect("the probe registers its discovered policy");
+    assert_eq!(seeded.rules().len(), 2);
+    assert!(
+        seeded
+            .rules()
+            .iter()
+            .all(|rule| rule.buckets == default_buckets())
+    );
+    assert!(
+        seeded
+            .rules()
+            .iter()
+            .zip(&observation.rules)
+            .all(|(seeded, observed)| seeded.pair == observed.pair)
+    );
+    assert_eq!(seeded.history().len(), 20);
+
+    let repeated = probe(&mut engine, now, &observation);
+    assert_eq!(repeated.disposition, probe_ready("unknown-policy"));
+    assert!(repeated.notifications.is_empty());
+    assert_eq!(
+        engine
+            .policy(&PolicyName::from("unknown-policy"))
+            .unwrap()
+            .history()
+            .len(),
+        20
+    );
 }

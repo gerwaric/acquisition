@@ -5,21 +5,16 @@ use proptest::prelude::*;
 use rate_limit_core::core::{
     BucketModel, ConfirmationAttempt, Disposition, EndpointLabel, Notification, ObservedResponse,
     Policy, PolicyEngine, PolicyName, RefusalCause, RefusalReason, RefusalTarget,
-    ReplyClassification, ReservationToken, ReserveOutcome, Resolution, Rule, RulePair, RuleScope,
-    SimInstant, Window,
+    ReplyClassification, ReservationToken, ReserveOutcome, Resolution, Rule, RulePair, SimInstant,
+    Window,
 };
 use rate_limit_core::header::PolicyParseError;
 
 const POLICY: &str = "stash-request-limit";
 const ENDPOINT: &str = "stash";
 
-fn configured_rule(
-    burst_resolution: Duration,
-    sustained_resolution: Duration,
-    scope: RuleScope,
-) -> Rule {
+fn configured_rule(burst_resolution: Duration, sustained_resolution: Duration) -> Rule {
     Rule::new(
-        scope,
         RulePair::new(
             Window::new(1_000, Duration::from_secs(10), Duration::from_secs(60)),
             Window::new(1_000, Duration::from_secs(300), Duration::from_secs(300)),
@@ -32,8 +27,21 @@ fn configured_rule(
     )
 }
 
+fn default_buckets() -> BucketModel {
+    BucketModel::new(
+        Resolution::Assumed(Duration::from_secs(60)),
+        Resolution::Assumed(Duration::from_secs(60)),
+    )
+}
+
+fn probe_ready() -> Disposition {
+    Disposition::ProbeReady {
+        policy: PolicyName::from(POLICY),
+    }
+}
+
 fn engine_with_rules(rules: Vec<Rule>) -> PolicyEngine {
-    let mut engine = PolicyEngine::new();
+    let mut engine = PolicyEngine::new(default_buckets());
     engine
         .insert_policy(Policy::new(PolicyName::from(POLICY), rules).unwrap())
         .unwrap();
@@ -41,11 +49,7 @@ fn engine_with_rules(rules: Vec<Rule>) -> PolicyEngine {
 }
 
 fn engine() -> PolicyEngine {
-    engine_with_rules(vec![configured_rule(
-        Duration::ZERO,
-        Duration::ZERO,
-        RuleScope::Account,
-    )])
+    engine_with_rules(vec![configured_rule(Duration::ZERO, Duration::ZERO)])
 }
 
 fn headers(retry_after: Option<&str>) -> HeaderMap {
@@ -203,16 +207,8 @@ proptest! {
 #[test]
 fn restriction_uses_maximum_bucket_and_opens_at_the_exact_boundary() {
     let mut engine = engine_with_rules(vec![
-        configured_rule(
-            Duration::from_secs(5),
-            Duration::from_secs(20),
-            RuleScope::Account,
-        ),
-        configured_rule(
-            Duration::from_secs(7),
-            Duration::from_secs(90),
-            RuleScope::Ip,
-        ),
+        configured_rule(Duration::from_secs(5), Duration::from_secs(20)),
+        configured_rule(Duration::from_secs(7), Duration::from_secs(90)),
     ]);
     let original = reserve(&mut engine, 1_000);
     let transition = engine.on_response(
@@ -690,7 +686,7 @@ fn state_changed_notification_tracks_actual_mutation() {
         SimInstant::from_millis(0),
         &response(StatusCode::NO_CONTENT),
     );
-    assert_eq!(transition.disposition, Disposition::ProbeReady);
+    assert_eq!(transition.disposition, probe_ready());
     assert!(transition.notifications.is_empty());
 }
 
@@ -720,9 +716,8 @@ fn entry_point_invariant_holds_across_response_shapes() {
         let mut ordinary = engine();
         let token = reserve(&mut ordinary, 0);
         let transition = ordinary.on_response(token, SimInstant::from_millis(0), reply);
-        assert_ne!(
-            transition.disposition,
-            Disposition::ProbeReady,
+        assert!(
+            !matches!(transition.disposition, Disposition::ProbeReady { .. }),
             "on_response yielded ProbeReady for {reply:?}"
         );
 
@@ -1032,7 +1027,7 @@ fn probe_outcome_table_is_total_for_non_429_rows() {
                 &response(StatusCode::NO_CONTENT),
             )
             .disposition,
-        Disposition::ProbeReady
+        probe_ready()
     );
 
     let mut malformed_engine = engine();
@@ -1087,14 +1082,44 @@ fn probe_outcome_table_is_total_for_non_429_rows() {
     assert!(halted.is_halted());
 }
 
+// Bootstrap-seeding §2.2 says a valid observation registers before the
+// unchanged probe disposition table runs. A 5xx therefore retains bounded,
+// parsed policy knowledge but still refuses the endpoint; only a later
+// successful probe may release parked traffic.
 #[test]
-fn valid_probe_429_seeds_restriction_and_first_get_is_confirmation() {
+fn valid_non_success_probe_seeds_without_promising_endpoint_readiness() {
     let endpoint = EndpointLabel::from(ENDPOINT);
-    let mut engine = engine_with_rules(vec![configured_rule(
-        Duration::from_secs(5),
-        Duration::from_secs(60),
-        RuleScope::Account,
-    )]);
+    let mut engine = PolicyEngine::new(default_buckets());
+
+    let refused = engine.on_probe_response(
+        &endpoint,
+        SimInstant::from_millis(0),
+        &response(StatusCode::INTERNAL_SERVER_ERROR),
+    );
+
+    assert!(matches!(
+        refused.disposition,
+        Disposition::Refuse {
+            target: RefusalTarget::Endpoint(_),
+            cause: RefusalCause::ProbeStatus(StatusCode::INTERNAL_SERVER_ERROR),
+        }
+    ));
+    assert_eq!(refused.notifications, [Notification::StateChanged]);
+    assert!(engine.policy(&PolicyName::from(POLICY)).is_some());
+
+    let ready = engine.on_probe_response(
+        &endpoint,
+        SimInstant::from_millis(0),
+        &response(StatusCode::NO_CONTENT),
+    );
+    assert_eq!(ready.disposition, probe_ready());
+    assert!(ready.notifications.is_empty());
+}
+
+#[test]
+fn valid_probe_429_discovers_policy_then_seeds_restriction_and_confirmation() {
+    let endpoint = EndpointLabel::from(ENDPOINT);
+    let mut engine = PolicyEngine::new(default_buckets());
 
     let transition = engine.on_probe_response(
         &endpoint,
@@ -1102,8 +1127,10 @@ fn valid_probe_429_seeds_restriction_and_first_get_is_confirmation() {
         &rate_limited_with_state("3", "4:10:60, 6:300:300"),
     );
 
-    assert_eq!(transition.disposition, Disposition::ProbeReady);
+    assert_eq!(transition.disposition, probe_ready());
     let policy = engine.policy(&PolicyName::from(POLICY)).unwrap();
+    assert_eq!(policy.rules().len(), 1);
+    assert_eq!(policy.rules()[0].buckets, default_buckets());
     assert_eq!(policy.restriction_generation(), 1);
     assert_eq!(policy.history().len(), 6);
     assert_eq!(
@@ -1145,7 +1172,7 @@ fn probe_opened_episode_permits_the_matrix_final_attempt() {
     let mut engine = engine();
     let transition =
         engine.on_probe_response(&endpoint, SimInstant::from_millis(0), &rate_limited("0"));
-    assert_eq!(transition.disposition, Disposition::ProbeReady);
+    assert_eq!(transition.disposition, probe_ready());
 
     // The seeded restriction (0s Retry-After + zero bucket + 1s buffer)
     // passes at 1s; the first GET is the episode's first confirmation.
@@ -1174,7 +1201,7 @@ fn probe_opened_episode_permits_the_matrix_final_attempt() {
 #[test]
 fn probe_429_without_valid_observation_refuses_without_restriction() {
     let endpoint = EndpointLabel::from(ENDPOINT);
-    let mut engine = engine();
+    let mut engine = PolicyEngine::new(default_buckets());
 
     let transition = engine.on_probe_response(
         &endpoint,
@@ -1189,11 +1216,6 @@ fn probe_429_without_valid_observation_refuses_without_restriction() {
             cause: RefusalCause::PolicyObservation(_),
         }
     ));
-    assert_eq!(
-        engine
-            .policy(&PolicyName::from(POLICY))
-            .unwrap()
-            .restriction_generation(),
-        0
-    );
+    assert!(engine.policy(&PolicyName::from(POLICY)).is_none());
+    assert!(transition.notifications.is_empty());
 }

@@ -1,4 +1,4 @@
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, VecDeque, hash_map::Entry};
 use std::fmt;
 use std::time::Duration;
 
@@ -72,12 +72,6 @@ string_newtype!(PolicyName);
 string_newtype!(EndpointLabel);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum RuleScope {
-    Account,
-    Ip,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Resolution {
     Known(Duration),
     Assumed(Duration),
@@ -106,18 +100,13 @@ impl BucketModel {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Rule {
-    pub scope: RuleScope,
     pub pair: RulePair,
     pub buckets: BucketModel,
 }
 
 impl Rule {
-    pub const fn new(scope: RuleScope, pair: RulePair, buckets: BucketModel) -> Self {
-        Self {
-            scope,
-            pair,
-            buckets,
-        }
+    pub const fn new(pair: RulePair, buckets: BucketModel) -> Self {
+        Self { pair, buckets }
     }
 }
 
@@ -413,7 +402,9 @@ pub enum RefusalTarget {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Disposition {
     CompleteRequest,
-    ProbeReady,
+    ProbeReady {
+        policy: PolicyName,
+    },
     Requeue,
     Refuse {
         target: RefusalTarget,
@@ -449,16 +440,24 @@ impl Transition {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct PolicyEngine {
     policies: HashMap<PolicyName, Policy>,
+    default_buckets: BucketModel,
     next_entry_id: u64,
     halted: bool,
 }
 
 impl PolicyEngine {
-    pub fn new() -> Self {
-        Self::default()
+    /// Creates an engine whose explicit positional bucket model is applied
+    /// to every policy discovered through a valid probe observation.
+    pub fn new(default_buckets: BucketModel) -> Self {
+        Self {
+            policies: HashMap::new(),
+            default_buckets,
+            next_entry_id: 0,
+            halted: false,
+        }
     }
 
     pub fn insert_policy(&mut self, policy: Policy) -> Result<(), DuplicatePolicy> {
@@ -741,6 +740,21 @@ impl PolicyEngine {
             }
         };
         let policy_name = PolicyName::from(observation.name.as_str());
+        let default_buckets = self.default_buckets;
+        let seeded = match self.policies.entry(policy_name.clone()) {
+            Entry::Occupied(_) => false,
+            Entry::Vacant(slot) => {
+                let rules = observation
+                    .rules
+                    .iter()
+                    .map(|rule| Rule::new(rule.pair.clone(), default_buckets))
+                    .collect();
+                let policy = Policy::new(policy_name.clone(), rules)
+                    .expect("a valid policy observation contains at least one rule");
+                slot.insert(policy);
+                true
+            }
+        };
         if let Err(error) = self.validate_observation_target(&policy_name, &observation) {
             return Transition::new(
                 Disposition::Refuse {
@@ -754,7 +768,7 @@ impl PolicyEngine {
         let reconciliation = self
             .reconcile_observation(&policy_name, now, &observation)
             .expect("the observation target was validated above");
-        let mut state_changed = reconciliation.synthesized_entries > 0;
+        let mut state_changed = seeded || reconciliation.synthesized_entries > 0;
 
         // Valid-429 bookkeeping precedes the disposition choice, as in the
         // ordinary lane (follow-up review 2026-08-10): the server declared a
@@ -783,12 +797,16 @@ impl PolicyEngine {
                 cause: RefusalCause::EscalationSuspended,
             }
         } else if response.status.is_success() {
-            Disposition::ProbeReady
+            Disposition::ProbeReady {
+                policy: policy_name.clone(),
+            }
         } else if let Some(retry_after) = retry_after {
             match retry_after {
                 Ok(_) => {
                     self.open_probe_episode(&policy_name);
-                    Disposition::ProbeReady
+                    Disposition::ProbeReady {
+                        policy: policy_name.clone(),
+                    }
                 }
                 Err(error) => Disposition::Refuse {
                     target: RefusalTarget::Endpoint(endpoint.clone()),
