@@ -120,6 +120,91 @@ fn undecodable_header_value_is_typed() {
     ));
 }
 
+// D8 Full grammar (external review finding 3): an empty or whitespace policy
+// name, a zero-hit limit, or a zero period is not a Full policy — post-
+// seeding these would be wire inputs that permanently block a policy.
+#[test]
+fn d8_non_full_policies_are_rejected() {
+    for name in ["", "   "] {
+        let mut headers = headers("15:10:60, 30:300:300", "1:10:0, 1:300:0");
+        headers.insert(
+            "x-rate-limit-policy",
+            HeaderValue::from_str(name).expect("test name is valid HTTP"),
+        );
+        assert!(
+            matches!(
+                parse_policy(&headers),
+                Err(PolicyParseError::EmptyPolicyName)
+            ),
+            "expected EmptyPolicyName for {name:?}"
+        );
+    }
+
+    // Zero limit hits, zero limit period, zero state period.
+    for (limit, state) in [
+        ("0:10:60, 30:300:300", "1:10:0, 1:300:0"),
+        ("15:0:60, 30:300:300", "1:0:0, 1:300:0"),
+        ("15:10:60, 30:300:300", "1:0:0, 1:300:0"),
+    ] {
+        assert!(
+            matches!(
+                parse_policy(&headers(limit, state)),
+                Err(PolicyParseError::OutOfRangeTriplet { .. })
+            ),
+            "expected OutOfRangeTriplet for limit={limit:?} state={state:?}"
+        );
+    }
+}
+
+// Absolute wire ceilings (external review finding 4): once seeding makes
+// configuration wire-derived, these parse bounds are the only non-circular
+// limit on downstream allocation. Boundaries pinned at n and n+1.
+#[test]
+fn wire_ceilings_are_enforced_at_the_boundary() {
+    // max_hits: 10_000 parses, 10_001 refuses.
+    assert!(parse_policy(&headers("10000:10:60, 10000:300:300", "1:10:0, 1:300:0")).is_ok());
+    assert!(matches!(
+        parse_policy(&headers("10001:10:60, 10000:300:300", "1:10:0, 1:300:0")),
+        Err(PolicyParseError::OutOfRangeTriplet { .. })
+    ));
+
+    // period: 3600 parses (as sustained), 3601 refuses.
+    assert!(parse_policy(&headers("15:10:60, 30:3600:300", "1:10:0, 1:3600:0")).is_ok());
+    assert!(matches!(
+        parse_policy(&headers("15:10:60, 30:3601:300", "1:10:0, 1:3601:0")),
+        Err(PolicyParseError::OutOfRangeTriplet { .. })
+    ));
+
+    // Rule count: 8 named rules stop at the missing-header error (the names
+    // resolve no headers), the 9th refuses before any lookup.
+    let mut eight = headers("15:10:60, 30:300:300", "1:10:0, 1:300:0");
+    eight.insert(
+        "x-rate-limit-rules",
+        HeaderValue::from_static("r1,r2,r3,r4,r5,r6,r7,r8"),
+    );
+    assert!(matches!(
+        parse_policy(&eight),
+        Err(PolicyParseError::MissingHeader { .. })
+    ));
+    let mut nine = headers("15:10:60, 30:300:300", "1:10:0, 1:300:0");
+    nine.insert(
+        "x-rate-limit-rules",
+        HeaderValue::from_static("Account,r2,r3,r4,r5,r6,r7,r8,r9"),
+    );
+    assert!(matches!(
+        parse_policy(&nine),
+        Err(PolicyParseError::TooManyRules { limit: 8 })
+    ));
+
+    // Triplet count: nine triplets in one header refuse without parsing
+    // past the bound.
+    let many = "1:1:0, 2:2:0, 3:3:0, 4:4:0, 5:5:0, 6:6:0, 7:7:0, 8:8:0, 9:9:0";
+    assert!(matches!(
+        parse_policy(&headers(many, "1:10:0, 1:300:0")),
+        Err(PolicyParseError::TooManyTriplets { .. })
+    ));
+}
+
 // C2: limit and state headers must describe the same windows.
 #[test]
 fn state_periods_mismatch_is_typed() {
@@ -185,18 +270,19 @@ fn malformed_triplet_is_typed() {
 }
 
 proptest! {
-    // C2: arbitrary representable two-window policies round-trip into RulePair.
+    // C2: arbitrary representable two-window policies round-trip into
+    // RulePair. Domain matches the D8 grammar and wire ceilings — the
+    // rejected complements have their own pinned tests above.
     #[test]
     fn valid_pairs_round_trip(
-        burst_hits in any::<u32>(),
-        sustained_hits in any::<u32>(),
-        burst_period in 0_u32..u32::MAX,
-        period_delta in 1_u32..=u32::MAX,
+        burst_hits in 1_u32..=10_000,
+        sustained_hits in 1_u32..=10_000,
+        burst_period in 1_u32..1_800,
+        period_delta in 1_u32..1_800,
         burst_restriction in any::<u32>(),
         sustained_restriction in any::<u32>(),
     ) {
-        let sustained_period = burst_period.saturating_add(period_delta);
-        prop_assume!(sustained_period > burst_period);
+        let sustained_period = burst_period + period_delta;
         let limit = format!(
             "{burst_hits}:{burst_period}:{burst_restriction}, \
              {sustained_hits}:{sustained_period}:{sustained_restriction}"

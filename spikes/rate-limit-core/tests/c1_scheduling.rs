@@ -260,9 +260,10 @@ proptest! {
     }
 }
 
-// C1 boundary: a wire-legal 0:period:restriction window can never grant. The
-// core answers Blocked — "wait for an event, not a clock" — never a
-// sleepable NotBefore time (Tom-approved sentinel resolution, 2026-08-09).
+// C1 boundary: a zero-hit window can never grant. The parser refuses the
+// shape at the wire (D8: limit hits > 0), so this is engine-level defense in
+// depth for test-constructed policies: the core answers Blocked — "wait for
+// an event, not a clock" — never a sleepable NotBefore time.
 #[test]
 fn zero_max_hits_blocks_forever() {
     let cases = vec![RuleCase {

@@ -5,6 +5,16 @@ use http::{HeaderMap, HeaderName};
 const POLICY_HEADER: HeaderName = HeaderName::from_static("x-rate-limit-policy");
 const RULES_HEADER: HeaderName = HeaderName::from_static("x-rate-limit-rules");
 
+// Absolute wire bounds (external review finding 4): once bootstrap seeding
+// makes configuration wire-derived, parse-time ceilings are the only
+// non-circular bound on downstream allocation. Values sit far above anything
+// the API has ever sent (observed: 2 rules, 2 triplets, max_hits <= 45,
+// periods <= 300 s) while keeping worst-case synthesis small.
+pub const MAX_RULES_PER_POLICY: usize = 8;
+pub const MAX_TRIPLETS_PER_RULE: usize = 8;
+pub const MAX_HITS_CEILING: u32 = 10_000;
+pub const MAX_PERIOD_SECS: u32 = 3_600;
+
 // Plain-data types carry public fields: there is no invariant for a getter
 // to defend, so accessors would only be noise. `RulePair` is the deliberate
 // exception — its constructor enforces the shape invariant, so its fields
@@ -93,10 +103,24 @@ pub enum PolicyParseError {
     InvalidHeaderValue {
         name: HeaderName,
     },
+    // D8 Full grammar: an empty or whitespace policy name is not a policy.
+    EmptyPolicyName,
     InvalidRuleName {
         raw: String,
     },
+    TooManyRules {
+        limit: usize,
+    },
+    TooManyTriplets {
+        header: HeaderName,
+    },
     MalformedTriplet {
+        header: HeaderName,
+        raw: String,
+    },
+    // D8 Full grammar plus absolute ceilings: limit hits must be positive,
+    // every period positive, and both below the wire bounds.
+    OutOfRangeTriplet {
         header: HeaderName,
         raw: String,
     },
@@ -116,7 +140,16 @@ pub enum PolicyParseError {
 
 pub fn parse_policy(headers: &HeaderMap) -> Result<PolicySnapshot, PolicyParseError> {
     let name = required_header(headers, &POLICY_HEADER)?.to_owned();
+    if name.trim().is_empty() {
+        return Err(PolicyParseError::EmptyPolicyName);
+    }
     let rule_names = required_header(headers, &RULES_HEADER)?;
+    // Bounded before any per-rule work; take() short-circuits the count.
+    if rule_names.split(',').take(MAX_RULES_PER_POLICY + 1).count() > MAX_RULES_PER_POLICY {
+        return Err(PolicyParseError::TooManyRules {
+            limit: MAX_RULES_PER_POLICY,
+        });
+    }
     let mut rules = Vec::new();
 
     for raw_rule in rule_names.split(',') {
@@ -217,39 +250,66 @@ fn parse_strict_u32(raw: &str) -> Option<u32> {
 fn parse_triplets<T>(
     headers: &HeaderMap,
     name: &HeaderName,
-    parse: fn([u32; 3]) -> T,
+    parse: fn([u32; 3]) -> Option<T>,
 ) -> Result<Vec<T>, PolicyParseError> {
-    required_header(headers, name)?
-        .split(',')
+    let raw_list = required_header(headers, name)?;
+    let mut triplets = raw_list.split(',');
+    let parsed = triplets
+        .by_ref()
+        .take(MAX_TRIPLETS_PER_RULE)
         .map(|raw| {
             let malformed = || PolicyParseError::MalformedTriplet {
                 header: name.clone(),
                 raw: raw.to_owned(),
             };
+            // take(4): a fourth field is already malformed, so nothing sized
+            // by the wire is ever collected beyond it.
             let fields = raw
                 .trim()
                 .split(':')
+                .take(4)
                 .map(parse_strict_u32)
                 .collect::<Option<Vec<_>>>()
                 .ok_or_else(malformed)?;
             let fields: [u32; 3] = fields.try_into().map_err(|_| malformed())?;
-            Ok(parse(fields))
+            parse(fields).ok_or_else(|| PolicyParseError::OutOfRangeTriplet {
+                header: name.clone(),
+                raw: raw.to_owned(),
+            })
         })
-        .collect()
+        .collect::<Result<Vec<T>, _>>()?;
+    if triplets.next().is_some() {
+        return Err(PolicyParseError::TooManyTriplets {
+            header: name.clone(),
+        });
+    }
+    Ok(parsed)
 }
 
-fn parse_window([max_hits, period, restriction]: [u32; 3]) -> Window {
-    Window::new(
+// D8 Full grammar for a limit triplet: hits > 0 (a zero-hit lookback is
+// meaningless and was a live divide-by-zero in the C++ client), period > 0,
+// restriction >= 0 — plus the absolute wire ceilings.
+fn parse_window([max_hits, period, restriction]: [u32; 3]) -> Option<Window> {
+    if max_hits == 0 || max_hits > MAX_HITS_CEILING || period == 0 || period > MAX_PERIOD_SECS {
+        return None;
+    }
+    Some(Window::new(
         max_hits,
         Duration::from_secs(period.into()),
         Duration::from_secs(restriction.into()),
-    )
+    ))
 }
 
-fn parse_window_state([current_hits, period, restriction_active]: [u32; 3]) -> WindowState {
-    WindowState {
+// D8 Full grammar for a state triplet: hits >= 0 (counters legitimately
+// start at zero, N24; synthesis is separately capped), period > 0 and
+// bounded, restriction >= 0.
+fn parse_window_state([current_hits, period, restriction_active]: [u32; 3]) -> Option<WindowState> {
+    if period == 0 || period > MAX_PERIOD_SECS {
+        return None;
+    }
+    Some(WindowState {
         current_hits,
         period: Duration::from_secs(period.into()),
         restriction_active: Duration::from_secs(restriction_active.into()),
-    }
+    })
 }

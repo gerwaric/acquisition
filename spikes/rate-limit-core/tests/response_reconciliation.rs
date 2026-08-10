@@ -114,11 +114,13 @@ fn build_observation_for(policy: &str, rules: &[ObservedRule]) -> PolicySnapshot
             .expect("generated header name is valid");
         let state_name = HeaderName::try_from(format!("x-rate-limit-{rule_name}-state"))
             .expect("generated state-header name is valid");
+        // Limit hits clamp into the D8 wire ceiling; state hits are the
+        // unbounded field under test.
         let limit = format!(
             "{}:{}:0, {}:{}:0",
-            rule.burst_hits.max(100),
+            rule.burst_hits.clamp(100, 10_000),
             rule.burst_period_secs,
-            rule.sustained_hits.max(100),
+            rule.sustained_hits.clamp(100, 10_000),
             rule.sustained_period_secs,
         );
         let state = format!(
