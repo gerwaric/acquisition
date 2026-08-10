@@ -910,6 +910,43 @@ fn valid_probe_429_seeds_restriction_and_first_get_is_confirmation() {
     ));
 }
 
+// Probe-opened episodes obey the full confirmation matrix — "single
+// confirmation attempt" in the scenario prose means one in flight at a time,
+// not a one-attempt cap (clarified 2026-08-09, Tom-approved): a non-429
+// non-2xx first GET preserves the episode and earns the matrix's final
+// attempt, exactly as an ordinary-429-opened episode would.
+#[test]
+fn probe_opened_episode_permits_the_matrix_final_attempt() {
+    let endpoint = EndpointLabel::from(ENDPOINT);
+    let mut engine = engine();
+    let transition =
+        engine.on_probe_response(&endpoint, SimInstant::from_millis(0), &rate_limited("0"));
+    assert_eq!(transition.disposition, Disposition::ProbeReady);
+
+    // The seeded restriction (0s Retry-After + zero bucket + 1s buffer)
+    // passes at 1s; the first GET is the episode's first confirmation.
+    let first_get = reserve(&mut engine, 1_000);
+    assert_eq!(
+        first_get.confirmation_attempt(),
+        Some(ConfirmationAttempt::First)
+    );
+    let transition = engine.on_response(
+        first_get,
+        SimInstant::from_millis(1_000),
+        &response(StatusCode::INTERNAL_SERVER_ERROR),
+    );
+    assert_eq!(transition.disposition, Disposition::CompleteRequest);
+
+    let episode = engine
+        .policy(&PolicyName::from(POLICY))
+        .unwrap()
+        .recovery_episode()
+        .expect("a server error must not reset the episode");
+    assert_eq!(episode.completed_attempts, 1);
+    let final_attempt = final_confirmation(&mut engine);
+    engine.rollback(final_attempt);
+}
+
 #[test]
 fn probe_429_without_valid_observation_refuses_without_restriction() {
     let endpoint = EndpointLabel::from(ENDPOINT);

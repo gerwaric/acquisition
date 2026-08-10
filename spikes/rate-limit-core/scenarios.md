@@ -180,8 +180,13 @@ sweep. Variant (probe-429, review close-out): the boot HEAD
 itself returns 429 carrying a valid observation — asserts
 `ProbeReady` seeding (mapping, restriction, generation
 increment), 4xx tripwire fed, the HEAD not requeued, and the
-first subsequent GET treated as the episode's single confirmation
-attempt (escalate on 429 per the confirmation matrix).
+first subsequent GET treated as the episode's confirmation attempt
+— "single" meaning one in flight at a time, not a one-attempt cap:
+the general confirmation matrix governs in full, so a 429 escalates
+immediately while a non-429 non-2xx first outcome earns the
+matrix's one final attempt (clarified 2026-08-09, Tom-approved: the
+matrix's two-attempt cap was the reviewed decision, F6, and a probe-
+opened episode is not stricter than an ordinary one).
 Cites: N24, N16, N13, N12, N5.
 
 **M2. Clean cold-start saturation burst.** [phase-swept]

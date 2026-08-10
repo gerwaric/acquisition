@@ -340,6 +340,14 @@ exclusive, so evaluation order is part of the contract:
 C2 and M8 carry combined cases so this ordering is executable,
 not prose.
 
+> Editorial note (2026-08-09 audit, code taken as correct): this
+> list orders *dispositions*, not execution. In the implementation,
+> reconciliation of a valid observation runs before status handling
+> — necessarily, since the probe-429 row requires state seeding
+> from a 429's own headers. Rules 1–2 do gate reconciliation:
+> nothing is reconciled from a Cloudflare-shaped or unparseable
+> reply.
+
 **Probe outcome table** (external review round 4 — completes
 `on_probe_response`, which cannot return `Requeue`):
 
@@ -363,7 +371,11 @@ ordinary traffic or recovery confirmation): that probe 429
 - opens an unconfirmed recovery episode **without requeuing the
   HEAD** — a probe is never retried; the mapping is established;
 - makes the first subsequent GET on that policy the episode's
-  **single confirmation attempt**;
+  confirmation attempt — "single" in the sense of one in flight at
+  a time, not a one-attempt cap; the full confirmation matrix
+  governs, including its final-attempt row (clarified 2026-08-09,
+  Tom-approved; a probe-opened episode is not stricter than an
+  ordinary one);
 - escalates immediately if that GET draws a 429
   (confirmation-matrix first-attempt row);
 - falls back to endpoint refusal when the observation is invalid
