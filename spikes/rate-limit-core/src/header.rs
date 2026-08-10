@@ -7,13 +7,18 @@ const RULES_HEADER: HeaderName = HeaderName::from_static("x-rate-limit-rules");
 
 // Absolute wire bounds (external review finding 4): once bootstrap seeding
 // makes configuration wire-derived, parse-time ceilings are the only
-// non-circular bound on downstream allocation. Values sit far above anything
-// the API has ever sent (observed: 2 rules, 2 triplets, max_hits <= 45,
-// periods <= 300 s) while keeping worst-case synthesis small.
+// non-circular bound on downstream allocation. Observed wire maxima
+// (ground-truth N23, including the legacy policy's Ip rule): 2 rules,
+// 2 triplets, max_hits <= 180, periods <= 1800 s. Counts and hits sit far
+// above that while keeping worst-case synthesis small. The period ceiling
+// is 6 h — 12x the observed 1800 s window; a period does not size any
+// allocation, and an over-ceiling policy refuses the endpoint, so the
+// ceiling favors availability under N9's dynamic-policy premise (Tom,
+// 2026-08-10, correcting the earlier 45/300 evidence claim).
 pub const MAX_RULES_PER_POLICY: usize = 8;
 pub const MAX_TRIPLETS_PER_RULE: usize = 8;
 pub const MAX_HITS_CEILING: u32 = 10_000;
-pub const MAX_PERIOD_SECS: u32 = 3_600;
+pub const MAX_PERIOD_SECS: u32 = 21_600;
 
 // Byte ceilings (follow-up review 2026-08-10): names are copied into
 // snapshots and formatted into header names, and diagnostics quote raw wire

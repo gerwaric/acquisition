@@ -171,10 +171,10 @@ fn wire_ceilings_are_enforced_at_the_boundary() {
         Err(PolicyParseError::OutOfRangeTriplet { .. })
     ));
 
-    // period: 3600 parses (as sustained), 3601 refuses.
-    assert!(parse_policy(&headers("15:10:60, 30:3600:300", "1:10:0, 1:3600:0")).is_ok());
+    // period: 21600 parses (as sustained), 21601 refuses.
+    assert!(parse_policy(&headers("15:10:60, 30:21600:300", "1:10:0, 1:21600:0")).is_ok());
     assert!(matches!(
-        parse_policy(&headers("15:10:60, 30:3601:300", "1:10:0, 1:3601:0")),
+        parse_policy(&headers("15:10:60, 30:21601:300", "1:10:0, 1:21601:0")),
         Err(PolicyParseError::OutOfRangeTriplet { .. })
     ));
 
