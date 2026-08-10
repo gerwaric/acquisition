@@ -88,7 +88,7 @@ optional for phase-independent and structural checks.
 | M4 | Unexpected policy shape | independent | G1, G2, G5 | ⟨…⟩ | ⟨…⟩ |
 | M5 | Policy rename mid-session | phase-swept | G1, G2, G6 | ⟨…⟩ | ⟨…⟩ |
 | M6 | Policy shrink mid-flight | phase-swept | G1, G2, G6 | ⟨…⟩ | ⟨…⟩ |
-| M7 | Phantom same-account hits | phase-swept | G1, G2, G6 | ⟨…⟩ | ⟨…⟩ |
+| M7 | Phantom same-account hits | phase-swept | G1, G2, G6 | partial — core phantom-synthesis lane green (audit fill, 2026-08-09: this row should have been marked with the reconciliation slice); mock/actor lane pending | 2026-08-09: `cargo test --locked --test response_reconciliation` — phantom-deficit synthesis, max-not-sum shared-history insertion, boot-residue seeding, monotone repeated/lower observations, and same-instant identity all pinned; the pessimistic/exact property runs 4,096 focused cases against an oracle independent of production windowing |
 | M8 | 429 recovery and escalation | phase-swept | G1, G2, G5, G6 | partial — complete core restriction/episode/disposition slice green; mock-judged wire lane pending | 2026-08-09: `cargo test --locked --test response_disposition` — 15 tests cover exact retry boundaries, maximum configured bucket across multiple rules/windows, one confirmation in flight, every confirmation-matrix cell, malformed-429 precedence, Cloudflare halt, and unknown retention; focused `PROPTEST_CASES=4096` generation-tagged in-flight-set property green |
 | M9 | Phantom race at saturation | phase-swept | G1, G2, G5, G6 + characterization | ⟨…⟩ | ⟨headroom-zero evidence base: what nonzero headroom would have bought, per contention level⟩ |
 | M10 | Agent-loop stress | phase-swept | G1, G2, G3, G6 | ⟨…⟩ | ⟨…⟩ |
@@ -104,11 +104,11 @@ for.
 
 | ID | Property | Result | Evidence |
 |---|---|---|---|
-| C1 | Padding arithmetic safe over all φ | green — full N13 per-window padding uses each explicit Known/Assumed resolution; shared policy history is judged across every rule/window and the maximum required `NotBefore` wins; headroom remains zero | 2026-08-09: `cargo test --locked` in `spikes/rate-limit-core/` — 19 passed, including a generated C1 property over arbitrary histories, multi-rule definitions, and independently generated server phases plus explicit just-before/on/after rollover and zero-headroom/order-statistic cases; focused `PROPTEST_CASES=4096 cargo test --locked --test c1_scheduling every_reserved_outcome_is_safe_for_every_server_phase` green (4,096 cases); independent oracle bucketizes hits on the server phase rather than calling production scheduling arithmetic; `cargo clippy --locked --all-targets -- -D warnings` and `cargo fmt --check` green. No skew sensitivity observed because this slice has no server-clock input; O5 remains out |
+| C1 | Padding arithmetic safe over all φ | green — full N13 per-window padding uses each explicit Known/Assumed resolution; shared policy history is judged across every rule/window and the maximum required `NotBefore` wins; headroom remains zero | 2026-08-09: `cargo test --locked` in `spikes/rate-limit-core/` — 19 passed, including a generated C1 property over arbitrary histories, multi-rule definitions, and independently generated server phases plus explicit just-before/on/after rollover and zero-headroom/order-statistic cases; focused `PROPTEST_CASES=4096 cargo test --locked --test c1_scheduling every_reserved_outcome_is_safe_for_every_server_phase` green (4,096 cases); independent oracle bucketizes hits on the server phase rather than calling production scheduling arithmetic; `cargo clippy --locked --all-targets -- -D warnings` and `cargo fmt --check` green. No skew sensitivity observed because this slice has no server-clock input; O5 remains out. Audit hardening (2026-08-09, same day): the property now asserts on every generated case — the earlier body was ~97% vacuous (§3 register, item 7) — and the `NotBefore` branch is re-asked and oracle-checked, pinning exactness; re-verified at 4,096 cases |
 | C2 | Header parsing / shape validation | green for the implemented core slice — raw-header parsing, RulePair shape, and frozen response precedence are executable; remapping/shrink remain explicitly out of this slice | 2026-08-09: `cargo test --locked` in `spikes/rate-limit-core/` — 44 passed overall: the 7 parser tests remain green and 15 disposition tests pin Cloudflare-before-parse, malformed/out-of-model-before-429, valid-429 handling, and ordinary/probe outcomes; `cargo clippy --locked --all-targets -- -D warnings` and `cargo fmt --check` green |
 | C3 | Fuse trip logic | ⟨…⟩ | ⟨…⟩ |
 | C4 | 4xx tripwire logic | ⟨…⟩ | ⟨…⟩ |
-| C5 | Lifecycle invariants | green — reservation/rollback/unknown-outcome identity and abandonment semantics remain green; raw ordinary responses and tokenless probes still share one count-max/synthetic-history reconciler; unknown confirmation outcomes stay counted | 2026-08-09: `cargo test --locked` in `spikes/rate-limit-core/` — 44 passed: all prior C1/C5/reconciliation tests remain green, and the disposition suite pins confirmation rollback plus pessimistic unknown retention; focused `PROPTEST_CASES=4096 cargo test --locked --test response_reconciliation` remains green (4,096 cases for each of two generated properties); `cargo clippy --locked --all-targets -- -D warnings` and `cargo fmt --check` green |
+| C5 | Lifecycle invariants | green — reservation/rollback/unknown-outcome identity and abandonment semantics remain green; raw ordinary responses and tokenless probes still share one count-max/synthetic-history reconciler; unknown confirmation outcomes stay counted; abandonment now covers the confirmation half (a dropped confirmation ages out as a failed attempt instead of wedging the policy — §3 register, item 2) | 2026-08-09: `cargo test --locked` in `spikes/rate-limit-core/` — 44 passed: all prior C1/C5/reconciliation tests remain green, and the disposition suite pins confirmation rollback plus pessimistic unknown retention; focused `PROPTEST_CASES=4096 cargo test --locked --test response_reconciliation` remains green (4,096 cases for each of two generated properties); `cargo clippy --locked --all-targets -- -D warnings` and `cargo fmt --check` green. Audit hardening (2026-08-09, same day): abandoned-confirmation expiry pinned in debug and release; interleaving property extended with observed responses and non-FIFO token resolution (2,048-case focused run); 59 tests total |
 
 ### Fault-injection and structural
 
@@ -160,6 +160,107 @@ deadline can be derived. Policy remapping/shrink adoption remains
 deferred: a parsed ordinary observation whose policy name differs from
 the reservation is a policy-targeted refusal, while a probe may seed only
 an already-configured policy.
+
+### Audit findings register (2026-08-09)
+
+An independent audit of the implemented slices (bugs, doc
+consistency, test vacuity, idiom) produced the findings below. Each
+carries its resolution or an explicit **open — flagged for Tom**
+marker; resolved items cite the commit series landed the same day.
+
+**Resolved in code (with tests):**
+
+1. **Empty-rules policy was a reachable panic.** A probe 429 on a
+   policy inserted with no rules aborted in bucket sizing.
+   `Policy::new` is now fallible (`EmptyPolicy`); the state is
+   unrepresentable and `RefusalReason::PolicyHasNoRules` is gone.
+2. **Abandoned confirmation tokens wedged the policy.** In release
+   builds (no drop bomb) a dropped confirmation left the episode's
+   slot held forever — `NotBefore(MAX)` at every future instant,
+   violating the C5 abandonment clause. The slot now ages out with
+   its history entry (resolving as a failed attempt: First consumes
+   the attempt, Final escalates), and the confirmation helpers
+   tolerate a late response for an already-expired slot by routing
+   it through the ordinary paths. Attribution choice taken
+   conservatively: a stale-confirmation 429 **joins** the episode
+   its attempt was already accounted against (the `open_or_join`
+   generation guard widened to `<=`) rather than escalating —
+   flagged here because the docs are silent on the case.
+3. **Unusable `Retry-After` left the core unprotected.** A 429 with
+   a valid policy observation but missing/invalid/above-cap
+   `Retry-After` refused with *no restriction recorded*; the next
+   `try_reserve` granted straight back into an active restriction.
+   Both entry points now record a conservative `RETRY_AFTER_CAP`-
+   length restriction (generation bump included) before refusing.
+   Neither the precedence list nor the probe table names this case
+   — a doc gap to close when `core-design.md` is amended or
+   superseded by code authority.
+4. **Phantom synthesis was unbounded.** `current-hits` is a raw u32;
+   a legal `4294967295:10:0` state header would have materialized
+   ~103 GB of history. Synthesis now targets
+   `min(reported, largest configured max_hits)` — beyond that bound
+   every configured window is saturated at `now` and further entries
+   move no deadline. The pessimism property is restated as
+   `local >= min(reported, cap)`.
+5. **`RETRY_AFTER_CAP = 900 s` adoption recorded.** The constant is
+   D3's product-policy cap (`RETRY_AFTER_CAP_SECS`, longest observed
+   restriction 600 s per N23 plus headroom); it was implemented
+   without an adoption record. The 900/901 boundary is test-pinned.
+6. **`Retry-After` grammar pinned:** delay-seconds only, strict
+   ASCII digits (no `+`, matching the triplet parser, which is now
+   equally strict), surrounding whitespace trimmed in both parsers.
+   The RFC 9110 HTTP-date form is deliberately out of model and
+   lands in the conservative-restriction refusal above.
+7. **The C1 property was ~97% vacuous** (measured): zero-max_hits
+   rules and oversaturated generated histories meant a default run
+   asserted ~7 times in 256 cases. The generator now draws
+   `max_hits >= 1` (the zero boundary has its own pinned test) and
+   the property asserts on *both* branches — a `NotBefore` answer
+   must grant when re-asked at exactly that instant, oracle-checked,
+   which also pins the arithmetic as exact rather than sufficient.
+8. **The reconciliation "exact" oracle mirrored production** (it
+   called `count_within`); it now computes from the test's own
+   shadow timestamp list with plain integer arithmetic.
+9. **C5 interleavings** now include observed responses and resolve
+   tokens in generated (non-FIFO) order, per the scenario text.
+10. **`StateChanged` emission rule defined:** emitted iff the call
+    mutated engine state (synthesis, restriction, episode
+    transition, newly halted); previously hard-coded `true` on the
+    main paths and unasserted by any test.
+11. **Coverage fills:** all `PolicyParseError` variants, all four
+    required headers' absence, the O6 case/duplicate domain (pinned
+    as current behavior: case-insensitive lookup, duplicate rule
+    names yield duplicate rules, first header value wins), generic
+    4xx completes and reconciles, `Retry-After: 0` exact deadline,
+    Halt superseding the final-attempt matrix row, and the
+    entry-point invariant swept across nine response shapes.
+
+**Open — flagged for Tom (design decisions, not mechanical):**
+
+- **`NotBefore(SimInstant::MAX)` has no design vocabulary.** It
+  means "blocked until an event (confirmation resolution), not a
+  clock" — an actor that literally sleeps on it wedges. Either a
+  distinct `ReserveOutcome` variant or a written sentinel contract
+  is needed before the actor slice. Tests currently pin the
+  sentinel (zero-max_hits case and confirmation-in-flight paths).
+- **The probe/bootstrap seam cannot discover a policy.** There is
+  no `PolicySnapshot` → `Policy` construction path (nothing assigns
+  `RuleScope` or `BucketModel`), `ProbeReady` carries no policy
+  name for the actor's endpoint→policy map, the `scenarios.md` §1
+  bucket-resolution table has no code home, and `RuleScope` —
+  documented as parsed — is never produced by the parser. "Mapping
+  seeded" is unreachable as written; a seeding design is needed
+  before the actor slice.
+- **Probe-429 episode: "single confirmation attempt" vs the
+  matrix.** `scenarios.md` M1's probe-429 variant says the first
+  GET is the episode's *single* attempt; the implementation follows
+  the general two-attempt matrix (a non-429 non-2xx first GET earns
+  a Final attempt). One reading must be pinned.
+- **Precedence-list ordering nuance:** reconciliation executes
+  before status handling (the probe-429 row requires state seeding
+  on a 429), but `core-design.md`'s numbered list places it last.
+  The code is taken as correct; the list needs an editorial note
+  when the doc is next touched.
 
 ## §4. Candidate N-claims
 
@@ -276,3 +377,18 @@ outlives the spike branch; record what exists and where.⟩
   property plus the two reconciliation properties passed focused
   4,096-case runs; all C1/C5 tests remain green. Required fmt, locked
   test, and locked all-target clippy gates are green.
+- 2026-08-09 — audit and mechanical hardening pass (see the §3 audit
+  findings register). Four defects fixed with tests (empty-rules
+  panic, abandoned-confirmation wedge, unbounded phantom synthesis,
+  unusable-`Retry-After` unprotected refusal); C1 de-vacuized and
+  strengthened to exactness on the `NotBefore` branch; reconciliation
+  oracle made production-independent; C5 interleavings extended with
+  observe and non-FIFO token order; strict digit parsing; StateChanged
+  emission defined and asserted; coverage fills across C2 and the
+  disposition suite; idiom pass (pub fields on plain-data types, one
+  shape check, one confirmation-failure path) removed ~100 net lines.
+  Fifty-nine offline tests pass in debug and release; fmt and
+  all-target clippy green. Four design questions remain open in the
+  register, flagged for Tom: the NotBefore(MAX) sentinel, the
+  probe/bootstrap seeding seam, probe-episode attempt-count prose vs
+  matrix, and the precedence-list ordering note.
