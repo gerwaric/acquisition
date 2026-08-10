@@ -82,7 +82,7 @@ optional for phase-independent and structural checks.
 
 | ID | Scenario | Sweep | Gates exercised | Result | Evidence |
 |---|---|---|---|---|---|
-| M1 | Cold start with residue (flagship) | phase-swept | G1, G2, G6 | partial — core probe table and valid probe-429 lifecycle green; mock/actor lane pending | 2026-08-09: `cargo test --locked --test response_disposition` — valid probe 429 returns `ProbeReady`, seeds the already-configured policy, records generation/deadline, never returns `Requeue`, and makes the first GET the first confirmation; valid 2xx, malformed, 5xx, transport-unknown, and Cloudflare rows also pinned |
+| M1 | Cold start with residue (flagship) | phase-swept | G1, G2, G6 | partial — core bootstrap discovery, residue reconciliation, probe table, and valid probe-429 lifecycle green; mock/actor lane pending | 2026-08-10: `cargo test --locked` from baseline `a3245e86` — an unknown valid probe dynamically registers its parsed rule pairs under the engine's explicit positional default, `ProbeReady { policy }` carries the discovered identity, fresh-policy residue reconciles through the existing maximum-deficit mechanism, zero-residue registration emits `StateChanged` exactly once, repeat probes are idempotent, malformed probes do not seed, a valid 5xx seeds but refuses readiness, and a valid probe 429 seeds restriction/episode state before the first GET confirmation. Full gate evidence is in the bootstrap-seeding subsection below. |
 | M2 | Clean cold-start saturation burst | phase-swept | G1–G4, G6 | ⟨…⟩ | ⟨…⟩ |
 | M3 | Degraded HEAD | independent | G1, G2, G5 | ⟨…⟩ | ⟨…⟩ |
 | M4 | Unexpected policy shape | independent | G1, G2, G5 | ⟨…⟩ | ⟨…⟩ |
@@ -392,6 +392,54 @@ Open obligation carried to the actor slice: replace "any sane
 transport timeout" with the exact enforced timeout (or its stated
 relationship to the aging horizon) plus a test.
 
+### Bootstrap-seeding slice (2026-08-10 — awaiting Tom review)
+
+Baseline: `a3245e8667f15524fc837618131d5f692cd2e860`.
+Implementation commit: `708b32d8`.
+The accepted `bootstrap-seeding.md` §5 contract is implemented, but
+the slice is deliberately not marked complete before review:
+
+- `PolicyEngine::new` now requires one explicit positional
+  `BucketModel`; there is no implicit `Default` construction.
+- Valid probe observations dynamically build non-empty `Policy`
+  values from their bounded parsed `RulePair`s, applying that one
+  bucket model uniformly. Ordinary unknown/mismatched observations
+  remain refusal-shaped for the deferred M5/M6 slice.
+- `ProbeReady { policy }` exports the discovered identity without
+  moving header parsing into the shell. `RuleScope` and its dead
+  property-test dimension are removed.
+- `scenarios.md` §1 now records the accepted evidence/runtime split:
+  its name-keyed table scopes verdict evidence; runtime seeding uses
+  the single provenance-typed global default.
+
+Focused evidence: `response_reconciliation` pins fresh-policy
+residue, observed-shape copying, uniform default buckets over two
+rules, existing-policy isolation, zero-residue notification truth,
+and repeat idempotence; `response_disposition` pins discovery on
+valid 429, non-seeding on malformed 429, and valid-5xx
+seed-without-readiness behavior. The pre-existing C1/C2/C5 and
+response suites remain green after the constructor/API migration.
+
+Gate evidence, all run 2026-08-10 in
+`spikes/rate-limit-core/`, entirely offline:
+
+- `cargo test --locked` — green, 75 tests.
+- `cargo test --locked --release` — green, 73 tests (the two debug
+  drop-bomb tests are intentionally absent in release).
+- `PROPTEST_CASES=4096 cargo test --locked` — green; all nine
+  property tests ran 4,096 generated cases, with the reachability
+  accounting in `bootstrap-handoff.md` §3.
+- `cargo clippy --locked --all-targets -- -D warnings` — green.
+- `cargo fmt --all --check` — green.
+
+No new wire quantity bypasses the existing parser ceilings: seeded
+names, rule counts, triplet counts, hit limits, periods, and whole
+header work are bounded before policy construction. The cumulative
+number of boot-discovered policies remains an actor-owned structural
+bound (D5's five endpoint labels plus N16 exactly-once probing), not
+a second name-based refusal in the core; the actor is still unbuilt
+and this obligation is confessed in the slice hand-off.
+
 ## §4. Candidate N-claims
 
 Transcribed to `network-ground-truth.md` at hoist, cited by
@@ -549,3 +597,13 @@ outlives the spike branch; record what exists and where.⟩
   clippy green; focused 4,096-case property runs green. Third data
   point for the post-mortem's thesis: independent review keeps
   catching what green cannot, in whoever's code is newest.
+- 2026-08-10 — accepted bootstrap-seeding slice implemented from
+  `a3245e86` and presented for Tom's review: explicit engine-level
+  positional bucket configuration, dynamic valid-probe policy
+  registration, policy-bearing `ProbeReady`, dead `RuleScope`
+  removal, the sanctioned `scenarios.md` §1 amendment, and focused
+  core tests across success/residue/429/5xx/malformed/repeat seams.
+  Gate matrix: 75 debug, 73 release, all nine properties at 4,096
+  cases, all-target clippy with warnings denied, and fmt check green.
+  Review artifact: `bootstrap-handoff.md`. Slice status remains
+  awaiting Tom review; mock and actor work has not started.
