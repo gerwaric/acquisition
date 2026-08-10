@@ -94,7 +94,7 @@ fn reservation_is_not_duplicated_across_policy_rules() {
     let token = reserve(&mut engine, &policy, SimInstant::from_millis(5));
 
     assert_eq!(engine.policy(&policy).unwrap().history().len(), 1);
-    engine.on_unknown_outcome(token, SimInstant::from_millis(6));
+    let _ = engine.on_unknown_outcome(token, SimInstant::from_millis(6));
 }
 
 // C5: an unknown transport result commits the reservation pessimistically.
@@ -105,7 +105,7 @@ fn unknown_outcome_stays_counted_until_every_window_passes() {
     let token = reserve(&mut engine, &policy, SimInstant::from_millis(0));
     let entry_id = token.entry_id();
 
-    engine.on_unknown_outcome(token, SimInstant::from_millis(1));
+    let _ = engine.on_unknown_outcome(token, SimInstant::from_millis(1));
 
     let history = engine.policy(&policy).unwrap().history();
     assert!(history.entries().any(|entry| entry.id() == entry_id));
@@ -189,7 +189,7 @@ proptest! {
                 }
                 2 if !live_tokens.is_empty() => {
                     let token = live_tokens.remove(0);
-                    engine.on_unknown_outcome(token, SimInstant::from_millis(now));
+                    let _ = engine.on_unknown_outcome(token, SimInstant::from_millis(now));
                 }
                 _ => {
                     engine.record_synthetic(&policy, SimInstant::from_millis(now), 1).unwrap();
@@ -215,7 +215,7 @@ proptest! {
         }
 
         for token in live_tokens {
-            engine.on_unknown_outcome(token, SimInstant::from_millis(now));
+            let _ = engine.on_unknown_outcome(token, SimInstant::from_millis(now));
         }
     }
 }

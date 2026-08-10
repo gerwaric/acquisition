@@ -2,8 +2,15 @@ use std::collections::{HashMap, VecDeque};
 use std::fmt;
 use std::time::Duration;
 
-use crate::header::PolicySnapshot;
+use http::{HeaderMap, HeaderName, StatusCode};
+
+use crate::header::{PolicyParseError, PolicySnapshot, parse_policy};
 pub use crate::header::{RulePair, Window};
+
+pub const RESTRICTION_BUFFER: Duration = Duration::from_secs(1);
+pub const RETRY_AFTER_CAP: Duration = Duration::from_secs(900);
+
+const RETRY_AFTER_HEADER: HeaderName = HeaderName::from_static("retry-after");
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SimInstant(u64);
@@ -214,6 +221,9 @@ pub struct Policy {
     rules: Vec<Rule>,
     history: History,
     restriction_generation: u64,
+    restricted_until: Option<SimInstant>,
+    recovery_episode: Option<RecoveryEpisode>,
+    escalation_suspended: bool,
 }
 
 impl Policy {
@@ -223,6 +233,9 @@ impl Policy {
             rules,
             history: History::default(),
             restriction_generation: 0,
+            restricted_until: None,
+            recovery_episode: None,
+            escalation_suspended: false,
         }
     }
 
@@ -241,6 +254,45 @@ impl Policy {
     pub const fn restriction_generation(&self) -> u64 {
         self.restriction_generation
     }
+
+    pub const fn restricted_until(&self) -> Option<SimInstant> {
+        self.restricted_until
+    }
+
+    pub const fn recovery_episode(&self) -> Option<&RecoveryEpisode> {
+        self.recovery_episode.as_ref()
+    }
+
+    pub const fn is_escalation_suspended(&self) -> bool {
+        self.escalation_suspended
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConfirmationAttempt {
+    First,
+    Final,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RecoveryEpisode {
+    opened_generation: u64,
+    completed_attempts: u8,
+    confirmation_entry: Option<(EntryId, ConfirmationAttempt)>,
+}
+
+impl RecoveryEpisode {
+    pub const fn opened_generation(&self) -> u64 {
+        self.opened_generation
+    }
+
+    pub const fn completed_attempts(&self) -> u8 {
+        self.completed_attempts
+    }
+
+    pub const fn confirmation_in_flight(&self) -> bool {
+        self.confirmation_entry.is_some()
+    }
 }
 
 #[must_use = "a reservation must be consumed by rollback, on_response, or on_unknown_outcome"]
@@ -248,6 +300,7 @@ pub struct ReservationToken {
     policy: PolicyName,
     entry_id: EntryId,
     restriction_generation: u64,
+    confirmation_attempt: Option<ConfirmationAttempt>,
     consumed: bool,
 }
 
@@ -264,6 +317,10 @@ impl ReservationToken {
         self.restriction_generation
     }
 
+    pub const fn confirmation_attempt(&self) -> Option<ConfirmationAttempt> {
+        self.confirmation_attempt
+    }
+
     fn consume(&mut self) {
         self.consumed = true;
     }
@@ -276,6 +333,7 @@ impl fmt::Debug for ReservationToken {
             .field("policy", &self.policy)
             .field("entry_id", &self.entry_id)
             .field("restriction_generation", &self.restriction_generation)
+            .field("confirmation_attempt", &self.confirmation_attempt)
             .finish_non_exhaustive()
     }
 }
@@ -303,6 +361,8 @@ pub enum ReserveOutcome {
 pub enum RefusalReason {
     UnknownPolicy(PolicyName),
     PolicyHasNoRules(PolicyName),
+    EscalationSuspended(PolicyName),
+    Halted,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -328,10 +388,118 @@ pub enum ObservationError {
     },
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReplyClassification {
+    Normal,
+    CloudflareShaped,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ObservedResponse {
+    status: StatusCode,
+    headers: HeaderMap,
+    classification: ReplyClassification,
+}
+
+impl ObservedResponse {
+    pub fn new(
+        status: StatusCode,
+        headers: HeaderMap,
+        classification: ReplyClassification,
+    ) -> Self {
+        Self {
+            status,
+            headers,
+            classification,
+        }
+    }
+
+    pub const fn status(&self) -> StatusCode {
+        self.status
+    }
+
+    pub const fn headers(&self) -> &HeaderMap {
+        &self.headers
+    }
+
+    pub const fn classification(&self) -> ReplyClassification {
+        self.classification
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RetryAfterError {
+    Missing,
+    Invalid,
+    AboveCap { seconds: u64 },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RefusalCause {
+    PolicyObservation(PolicyParseError),
+    ObservationTarget(ObservationError),
+    RetryAfter(RetryAfterError),
+    RecoveryEscalated,
+    ProbeStatus(StatusCode),
+    ProbeUnknownOutcome,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RefusalTarget {
+    Policy(PolicyName),
+    Endpoint(EndpointLabel),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Disposition {
+    CompleteRequest,
+    ProbeReady,
+    Requeue,
+    Refuse {
+        target: RefusalTarget,
+        cause: RefusalCause,
+    },
+    Halt,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Notification {
+    StateChanged,
+}
+
+#[must_use = "a response transition must be interpreted"]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Transition {
+    disposition: Disposition,
+    notifications: Vec<Notification>,
+}
+
+impl Transition {
+    pub const fn disposition(&self) -> &Disposition {
+        &self.disposition
+    }
+
+    pub fn notifications(&self) -> &[Notification] {
+        &self.notifications
+    }
+
+    fn new(disposition: Disposition, state_changed: bool) -> Self {
+        Self {
+            disposition,
+            notifications: if state_changed {
+                vec![Notification::StateChanged]
+            } else {
+                Vec::new()
+            },
+        }
+    }
+}
+
 #[derive(Debug, Default)]
 pub struct PolicyEngine {
     policies: HashMap<PolicyName, Policy>,
     next_entry_id: u64,
+    halted: bool,
 }
 
 impl PolicyEngine {
@@ -352,18 +520,40 @@ impl PolicyEngine {
         self.policies.get(name)
     }
 
+    pub const fn is_halted(&self) -> bool {
+        self.halted
+    }
+
     /// Makes one scheduling decision and records the send on a grant.
     pub fn try_reserve(&mut self, policy_name: &PolicyName, now: SimInstant) -> ReserveOutcome {
+        if self.halted {
+            return ReserveOutcome::Refused(RefusalReason::Halted);
+        }
         let Some(policy) = self.policies.get(policy_name) else {
             return ReserveOutcome::Refused(RefusalReason::UnknownPolicy(policy_name.clone()));
         };
         if policy.rules.is_empty() {
             return ReserveOutcome::Refused(RefusalReason::PolicyHasNoRules(policy_name.clone()));
         }
+        if policy.escalation_suspended {
+            return ReserveOutcome::Refused(RefusalReason::EscalationSuspended(
+                policy_name.clone(),
+            ));
+        }
 
         if let Some(not_before) = policy_not_before(policy, now) {
             return ReserveOutcome::NotBefore(not_before);
         }
+
+        let confirmation_attempt = match policy.recovery_episode.as_ref() {
+            Some(episode) if episode.confirmation_entry.is_some() => {
+                return ReserveOutcome::NotBefore(SimInstant::MAX);
+            }
+            Some(episode) if episode.completed_attempts == 0 => Some(ConfirmationAttempt::First),
+            Some(episode) if episode.completed_attempts == 1 => Some(ConfirmationAttempt::Final),
+            Some(_) => unreachable!("an exhausted episode is escalation-suspended"),
+            None => None,
+        };
 
         let entry_id = self.allocate_entry_id();
         let policy = self
@@ -375,10 +565,18 @@ impl PolicyEngine {
             at: now,
             kind: EntryKind::LocalReservation,
         });
+        if let Some(attempt) = confirmation_attempt {
+            policy
+                .recovery_episode
+                .as_mut()
+                .expect("confirmation grants require an active episode")
+                .confirmation_entry = Some((entry_id, attempt));
+        }
         ReserveOutcome::Reserved(ReservationToken {
             policy: policy_name.clone(),
             entry_id,
             restriction_generation: policy.restriction_generation,
+            confirmation_attempt,
             consumed: false,
         })
     }
@@ -394,6 +592,17 @@ impl PolicyEngine {
             .remove(token.entry_id)
             .expect("a live reservation token always names a history entry");
         assert_eq!(removed.kind, EntryKind::LocalReservation);
+        if token.confirmation_attempt.is_some() {
+            let episode = policy
+                .recovery_episode
+                .as_mut()
+                .expect("a confirmation token requires an active episode");
+            assert_eq!(
+                episode.confirmation_entry.map(|(id, _)| id),
+                Some(token.entry_id)
+            );
+            episode.confirmation_entry = None;
+        }
         token.consume();
     }
 
@@ -401,7 +610,11 @@ impl PolicyEngine {
     ///
     /// The history entry is intentionally untouched. It remains visible to
     /// every applicable window until simulated time passes that window.
-    pub fn on_unknown_outcome(&mut self, mut token: ReservationToken, _now: SimInstant) {
+    pub fn on_unknown_outcome(
+        &mut self,
+        mut token: ReservationToken,
+        _now: SimInstant,
+    ) -> Transition {
         let entry = self
             .policies
             .get(&token.policy)
@@ -414,40 +627,314 @@ impl PolicyEngine {
             })
             .expect("a live reservation token always names a history entry");
         assert_eq!(entry.kind, EntryKind::LocalReservation);
+        let escalated = self.complete_failed_confirmation(&token);
         token.consume();
+        Transition::new(
+            if escalated {
+                Disposition::Refuse {
+                    target: RefusalTarget::Policy(token.policy.clone()),
+                    cause: RefusalCause::RecoveryEscalated,
+                }
+            } else {
+                Disposition::CompleteRequest
+            },
+            token.confirmation_attempt.is_some(),
+        )
     }
 
-    /// Reconciles one already-validated ordinary response.
-    ///
-    /// The local reservation remains in shared policy history and participates
-    /// in the post-increment comparison. Even an observation-target error
-    /// consumes the dispatched token without removing its maybe-counted send.
+    /// Parses and resolves one ordinary response under the frozen precedence.
     pub fn on_response(
         &mut self,
         mut token: ReservationToken,
         now: SimInstant,
-        observation: &PolicySnapshot,
-    ) -> Result<Reconciliation, ObservationError> {
-        let result = if token.policy.as_str() == observation.name() {
-            self.reconcile_observation(&token.policy, now, observation)
+        response: &ObservedResponse,
+    ) -> Transition {
+        if response.classification == ReplyClassification::CloudflareShaped {
+            self.halted = true;
+            token.consume();
+            return Transition::new(Disposition::Halt, true);
+        }
+
+        let observation = match parse_policy(&response.headers) {
+            Ok(observation) => observation,
+            Err(error) => {
+                let state_changed = token.confirmation_attempt.is_some();
+                self.complete_failed_confirmation(&token);
+                let disposition = Disposition::Refuse {
+                    target: RefusalTarget::Policy(token.policy.clone()),
+                    cause: RefusalCause::PolicyObservation(error),
+                };
+                token.consume();
+                return Transition::new(disposition, state_changed);
+            }
+        };
+        if let Err(error) = self.validate_observation_target(&token.policy, &observation) {
+            let state_changed = token.confirmation_attempt.is_some();
+            self.complete_failed_confirmation(&token);
+            let disposition = Disposition::Refuse {
+                target: RefusalTarget::Policy(token.policy.clone()),
+                cause: RefusalCause::ObservationTarget(error),
+            };
+            token.consume();
+            return Transition::new(disposition, state_changed);
+        }
+
+        self.reconcile_observation(&token.policy, now, &observation)
+            .expect("the observation target was validated above");
+
+        let disposition = if response.status == StatusCode::TOO_MANY_REQUESTS {
+            match parse_retry_after(&response.headers) {
+                Ok(retry_after) => {
+                    self.record_restriction(&token.policy, now, retry_after);
+                    if token.confirmation_attempt.is_some() {
+                        self.escalate_confirmation(&token);
+                        Disposition::Refuse {
+                            target: RefusalTarget::Policy(token.policy.clone()),
+                            cause: RefusalCause::RecoveryEscalated,
+                        }
+                    } else {
+                        self.open_or_join_episode(&token);
+                        Disposition::Requeue
+                    }
+                }
+                Err(_) if token.confirmation_attempt.is_some() => {
+                    self.escalate_confirmation(&token);
+                    Disposition::Refuse {
+                        target: RefusalTarget::Policy(token.policy.clone()),
+                        cause: RefusalCause::RecoveryEscalated,
+                    }
+                }
+                Err(error) => Disposition::Refuse {
+                    target: RefusalTarget::Policy(token.policy.clone()),
+                    cause: RefusalCause::RetryAfter(error),
+                },
+            }
+        } else if response.status.is_success() && token.confirmation_attempt.is_some() {
+            self.confirm_recovery(&token);
+            Disposition::CompleteRequest
+        } else if token.confirmation_attempt.is_some() && self.complete_failed_confirmation(&token)
+        {
+            Disposition::Refuse {
+                target: RefusalTarget::Policy(token.policy.clone()),
+                cause: RefusalCause::RecoveryEscalated,
+            }
         } else {
-            Err(ObservationError::PolicyMismatch {
-                reserved: token.policy.clone(),
-                observed: PolicyName::from(observation.name()),
-            })
+            Disposition::CompleteRequest
         };
         token.consume();
-        result
+        Transition::new(disposition, true)
     }
 
-    /// Reconciles one already-validated, non-counting probe response.
+    /// Parses and resolves one non-counting probe response.
     pub fn on_probe_response(
         &mut self,
+        endpoint: &EndpointLabel,
         now: SimInstant,
-        observation: &PolicySnapshot,
-    ) -> Result<Reconciliation, ObservationError> {
+        response: &ObservedResponse,
+    ) -> Transition {
+        if response.classification == ReplyClassification::CloudflareShaped {
+            self.halted = true;
+            return Transition::new(Disposition::Halt, true);
+        }
+
+        let observation = match parse_policy(&response.headers) {
+            Ok(observation) => observation,
+            Err(error) => {
+                return Transition::new(
+                    Disposition::Refuse {
+                        target: RefusalTarget::Endpoint(endpoint.clone()),
+                        cause: RefusalCause::PolicyObservation(error),
+                    },
+                    false,
+                );
+            }
+        };
         let policy_name = PolicyName::from(observation.name());
-        self.reconcile_observation(&policy_name, now, observation)
+        if let Err(error) = self.validate_observation_target(&policy_name, &observation) {
+            return Transition::new(
+                Disposition::Refuse {
+                    target: RefusalTarget::Endpoint(endpoint.clone()),
+                    cause: RefusalCause::ObservationTarget(error),
+                },
+                false,
+            );
+        }
+
+        self.reconcile_observation(&policy_name, now, &observation)
+            .expect("the observation target was validated above");
+
+        let disposition = if response.status.is_success() {
+            Disposition::ProbeReady
+        } else if response.status == StatusCode::TOO_MANY_REQUESTS {
+            match parse_retry_after(&response.headers) {
+                Ok(retry_after) => {
+                    self.record_restriction(&policy_name, now, retry_after);
+                    self.open_probe_episode(&policy_name);
+                    Disposition::ProbeReady
+                }
+                Err(error) => Disposition::Refuse {
+                    target: RefusalTarget::Endpoint(endpoint.clone()),
+                    cause: RefusalCause::RetryAfter(error),
+                },
+            }
+        } else {
+            Disposition::Refuse {
+                target: RefusalTarget::Endpoint(endpoint.clone()),
+                cause: RefusalCause::ProbeStatus(response.status),
+            }
+        };
+        Transition::new(disposition, true)
+    }
+
+    pub fn on_probe_unknown_outcome(&self, endpoint: &EndpointLabel) -> Transition {
+        Transition::new(
+            Disposition::Refuse {
+                target: RefusalTarget::Endpoint(endpoint.clone()),
+                cause: RefusalCause::ProbeUnknownOutcome,
+            },
+            false,
+        )
+    }
+
+    fn validate_observation_target(
+        &self,
+        policy_name: &PolicyName,
+        observation: &PolicySnapshot,
+    ) -> Result<(), ObservationError> {
+        let observed = PolicyName::from(observation.name());
+        if policy_name != &observed {
+            return Err(ObservationError::PolicyMismatch {
+                reserved: policy_name.clone(),
+                observed,
+            });
+        }
+        if !self.policies.contains_key(policy_name) {
+            return Err(ObservationError::UnknownPolicy(policy_name.clone()));
+        }
+        Ok(())
+    }
+
+    fn record_restriction(
+        &mut self,
+        policy_name: &PolicyName,
+        now: SimInstant,
+        retry_after: Duration,
+    ) {
+        let maximum_bucket = maximum_bucket_resolution(
+            self.policies
+                .get(policy_name)
+                .expect("a valid observation targets a configured policy"),
+        );
+        let restricted_until = now
+            .saturating_add(retry_after)
+            .saturating_add(maximum_bucket)
+            .saturating_add(RESTRICTION_BUFFER);
+        let policy = self
+            .policies
+            .get_mut(policy_name)
+            .expect("a valid observation targets a configured policy");
+        policy.restriction_generation = policy
+            .restriction_generation
+            .checked_add(1)
+            .expect("restriction generation space exhausted");
+        policy.restricted_until = Some(
+            policy
+                .restricted_until
+                .map_or(restricted_until, |current| current.max(restricted_until)),
+        );
+    }
+
+    fn open_or_join_episode(&mut self, token: &ReservationToken) {
+        let policy = self
+            .policies
+            .get_mut(&token.policy)
+            .expect("a reservation token names a configured policy");
+        match policy.recovery_episode.as_ref() {
+            Some(episode) => assert!(
+                token.restriction_generation < episode.opened_generation,
+                "only a pre-restriction concurrent token may join an episode"
+            ),
+            None => {
+                policy.recovery_episode = Some(RecoveryEpisode {
+                    opened_generation: policy.restriction_generation,
+                    completed_attempts: 0,
+                    confirmation_entry: None,
+                });
+            }
+        }
+    }
+
+    fn open_probe_episode(&mut self, policy_name: &PolicyName) {
+        let policy = self
+            .policies
+            .get_mut(policy_name)
+            .expect("a valid probe observation targets a configured policy");
+        if policy.recovery_episode.is_none() {
+            policy.recovery_episode = Some(RecoveryEpisode {
+                opened_generation: policy.restriction_generation,
+                completed_attempts: 0,
+                confirmation_entry: None,
+            });
+        }
+    }
+
+    fn confirm_recovery(&mut self, token: &ReservationToken) {
+        let policy = self
+            .policies
+            .get_mut(&token.policy)
+            .expect("a reservation token names a configured policy");
+        let episode = policy
+            .recovery_episode
+            .as_ref()
+            .expect("a confirmation token requires an active episode");
+        assert_eq!(
+            episode.confirmation_entry.map(|(id, _)| id),
+            Some(token.entry_id)
+        );
+        policy.recovery_episode = None;
+    }
+
+    fn complete_failed_confirmation(&mut self, token: &ReservationToken) -> bool {
+        let Some(attempt) = token.confirmation_attempt else {
+            return false;
+        };
+        let policy = self
+            .policies
+            .get_mut(&token.policy)
+            .expect("a reservation token names a configured policy");
+        let episode = policy
+            .recovery_episode
+            .as_mut()
+            .expect("a confirmation token requires an active episode");
+        assert_eq!(episode.confirmation_entry, Some((token.entry_id, attempt)));
+        episode.confirmation_entry = None;
+        match attempt {
+            ConfirmationAttempt::First => {
+                episode.completed_attempts = 1;
+                false
+            }
+            ConfirmationAttempt::Final => {
+                policy.escalation_suspended = true;
+                true
+            }
+        }
+    }
+
+    fn escalate_confirmation(&mut self, token: &ReservationToken) {
+        let policy = self
+            .policies
+            .get_mut(&token.policy)
+            .expect("a reservation token names a configured policy");
+        let episode = policy
+            .recovery_episode
+            .as_mut()
+            .expect("a confirmation token requires an active episode");
+        assert_eq!(
+            episode.confirmation_entry.map(|(id, _)| id),
+            Some(token.entry_id)
+        );
+        episode.confirmation_entry = None;
+        policy.escalation_suspended = true;
     }
 
     /// Adds pessimistic history with distinct identity and synthetic provenance.
@@ -531,7 +1018,7 @@ impl PolicyEngine {
 }
 
 fn policy_not_before(policy: &Policy, now: SimInstant) -> Option<SimInstant> {
-    policy
+    let history_not_before = policy
         .rules
         .iter()
         .flat_map(|rule| {
@@ -543,7 +1030,36 @@ fn policy_not_before(policy: &Policy, now: SimInstant) -> Option<SimInstant> {
         .filter_map(|(window, resolution)| {
             window_not_before(&policy.history, window, resolution, now)
         })
+        .max();
+    let restriction_not_before = policy.restricted_until.filter(|until| now < *until);
+    history_not_before.max(restriction_not_before)
+}
+
+fn maximum_bucket_resolution(policy: &Policy) -> Duration {
+    policy
+        .rules
+        .iter()
+        .flat_map(|rule| {
+            [
+                rule.buckets.burst().duration(),
+                rule.buckets.sustained().duration(),
+            ]
+        })
         .max()
+        .expect("configured policies have at least one rule")
+}
+
+fn parse_retry_after(headers: &HeaderMap) -> Result<Duration, RetryAfterError> {
+    let raw = headers
+        .get(&RETRY_AFTER_HEADER)
+        .ok_or(RetryAfterError::Missing)?
+        .to_str()
+        .map_err(|_| RetryAfterError::Invalid)?;
+    let seconds = raw.parse::<u64>().map_err(|_| RetryAfterError::Invalid)?;
+    if seconds > RETRY_AFTER_CAP.as_secs() {
+        return Err(RetryAfterError::AboveCap { seconds });
+    }
+    Ok(Duration::from_secs(seconds))
 }
 
 /// Returns the earliest instant that reopens one zero-headroom slot.

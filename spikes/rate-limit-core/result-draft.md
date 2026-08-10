@@ -82,17 +82,17 @@ optional for phase-independent and structural checks.
 
 | ID | Scenario | Sweep | Gates exercised | Result | Evidence |
 |---|---|---|---|---|---|
-| M1 | Cold start with residue (flagship) | phase-swept | G1, G2, G6 | ⟨…⟩ | ⟨…⟩ |
+| M1 | Cold start with residue (flagship) | phase-swept | G1, G2, G6 | partial — core probe table and valid probe-429 lifecycle green; mock/actor lane pending | 2026-08-09: `cargo test --locked --test response_disposition` — valid probe 429 returns `ProbeReady`, seeds the already-configured policy, records generation/deadline, never returns `Requeue`, and makes the first GET the first confirmation; valid 2xx, malformed, 5xx, transport-unknown, and Cloudflare rows also pinned |
 | M2 | Clean cold-start saturation burst | phase-swept | G1–G4, G6 | ⟨…⟩ | ⟨…⟩ |
 | M3 | Degraded HEAD | independent | G1, G2, G5 | ⟨…⟩ | ⟨…⟩ |
 | M4 | Unexpected policy shape | independent | G1, G2, G5 | ⟨…⟩ | ⟨…⟩ |
 | M5 | Policy rename mid-session | phase-swept | G1, G2, G6 | ⟨…⟩ | ⟨…⟩ |
 | M6 | Policy shrink mid-flight | phase-swept | G1, G2, G6 | ⟨…⟩ | ⟨…⟩ |
 | M7 | Phantom same-account hits | phase-swept | G1, G2, G6 | ⟨…⟩ | ⟨…⟩ |
-| M8 | 429 recovery and escalation | phase-swept | G1, G2, G5, G6 | ⟨…⟩ | ⟨…⟩ |
+| M8 | 429 recovery and escalation | phase-swept | G1, G2, G5, G6 | partial — complete core restriction/episode/disposition slice green; mock-judged wire lane pending | 2026-08-09: `cargo test --locked --test response_disposition` — 15 tests cover exact retry boundaries, maximum configured bucket across multiple rules/windows, one confirmation in flight, every confirmation-matrix cell, malformed-429 precedence, Cloudflare halt, and unknown retention; focused `PROPTEST_CASES=4096` generation-tagged in-flight-set property green |
 | M9 | Phantom race at saturation | phase-swept | G1, G2, G5, G6 + characterization | ⟨…⟩ | ⟨headroom-zero evidence base: what nonzero headroom would have bought, per contention level⟩ |
 | M10 | Agent-loop stress | phase-swept | G1, G2, G3, G6 | ⟨…⟩ | ⟨…⟩ |
-| M11 | Layer-1 ceiling + Cloudflare terminal | independent | G2, G5 | ⟨…⟩ | ⟨…⟩ |
+| M11 | Layer-1 ceiling + Cloudflare terminal | independent | G2, G5 | partial — core Cloudflare terminal precedence green; mock ceiling lane pending | 2026-08-09: `cargo test --locked --test response_disposition cloudflare_shape_halts_before_status_or_header_handling` — Cloudflare-classified 429 with absent policy headers halts before parse/status handling and latches `try_reserve` refusal |
 | M12 | 4xx-tripwire obligations | independent | G5 | ⟨…⟩ | ⟨…⟩ |
 | M13 | Gate structure on the wire | independent | G2 + gate-definition assertions | ⟨…⟩ | ⟨…⟩ |
 
@@ -105,10 +105,10 @@ for.
 | ID | Property | Result | Evidence |
 |---|---|---|---|
 | C1 | Padding arithmetic safe over all φ | green — full N13 per-window padding uses each explicit Known/Assumed resolution; shared policy history is judged across every rule/window and the maximum required `NotBefore` wins; headroom remains zero | 2026-08-09: `cargo test --locked` in `spikes/rate-limit-core/` — 19 passed, including a generated C1 property over arbitrary histories, multi-rule definitions, and independently generated server phases plus explicit just-before/on/after rollover and zero-headroom/order-statistic cases; focused `PROPTEST_CASES=4096 cargo test --locked --test c1_scheduling every_reserved_outcome_is_safe_for_every_server_phase` green (4,096 cases); independent oracle bucketizes hits on the server phase rather than calling production scheduling arithmetic; `cargo clippy --locked --all-targets -- -D warnings` and `cargo fmt --check` green. No skew sensitivity observed because this slice has no server-clock input; O5 remains out |
-| C2 | Header parsing / shape validation | partial — raw-header parsing and RulePair shape slice green; response-precedence cases remain | 2026-08-09: `cargo test` in `spikes/rate-limit-core/` — 7 passed, including valid-pair round-trip and malformed-input properties; `cargo clippy --all-targets -- -D warnings` green |
+| C2 | Header parsing / shape validation | green for the implemented core slice — raw-header parsing, RulePair shape, and frozen response precedence are executable; remapping/shrink remain explicitly out of this slice | 2026-08-09: `cargo test --locked` in `spikes/rate-limit-core/` — 44 passed overall: the 7 parser tests remain green and 15 disposition tests pin Cloudflare-before-parse, malformed/out-of-model-before-429, valid-429 handling, and ordinary/probe outcomes; `cargo clippy --locked --all-targets -- -D warnings` and `cargo fmt --check` green |
 | C3 | Fuse trip logic | ⟨…⟩ | ⟨…⟩ |
 | C4 | 4xx tripwire logic | ⟨…⟩ | ⟨…⟩ |
-| C5 | Lifecycle invariants | green — reservation/rollback/unknown-outcome identity and abandonment semantics remain green; token-consuming ordinary-response and non-counting probe reconciliation now share one count-max/synthetic-history mechanism | 2026-08-09: `cargo test --locked` in `spikes/rate-limit-core/` — 29 passed: the prior 4 C1 and 8 C5 tests remain green, plus 10 reconciliation tests covering arbitrary mixed local/synthetic histories, multiple rules/windows, exact same-instant rollback identity, post-increment reserved-send accounting, lower/repeated observations, and focused M1 boot residue/M7 phantom deficits; `PROPTEST_CASES=4096 cargo test --locked --test response_reconciliation` green (4,096 cases for each of two generated properties); `cargo clippy --locked --all-targets -- -D warnings` and `cargo fmt --check` green |
+| C5 | Lifecycle invariants | green — reservation/rollback/unknown-outcome identity and abandonment semantics remain green; raw ordinary responses and tokenless probes still share one count-max/synthetic-history reconciler; unknown confirmation outcomes stay counted | 2026-08-09: `cargo test --locked` in `spikes/rate-limit-core/` — 44 passed: all prior C1/C5/reconciliation tests remain green, and the disposition suite pins confirmation rollback plus pessimistic unknown retention; focused `PROPTEST_CASES=4096 cargo test --locked --test response_reconciliation` remains green (4,096 cases for each of two generated properties); `cargo clippy --locked --all-targets -- -D warnings` and `cargo fmt --check` green |
 
 ### Fault-injection and structural
 
@@ -128,20 +128,38 @@ for.
 | G5 | Every scenario's own assertions (stimulus and structural alike) | ⟨…⟩ | ⟨…⟩ |
 | G6 | Reproduction record for every failure ((seed, φ) mandatory where swept/generated) | ⟨…⟩ | ⟨…⟩ |
 
-Implementation finding (2026-08-09, response-reconciliation slice):
+Earlier implementation finding (2026-08-09, response-reconciliation slice):
 the frozen `core-design.md` sketches full response entry points over
 `ObservedResponse` and an endpoint label, but reaching a valid policy
 observation from those inputs necessarily crosses response precedence,
 endpoint mapping/remapping, policy-shape adoption, and bucket-model
 selection — behaviors explicitly deferred from this slice. The
-conservative seam accepts an already parsed, valid `PolicySnapshot`.
+initial conservative seam accepted an already parsed, valid
+`PolicySnapshot`.
 An ordinary response targets the token's existing policy; a probe
 targets the snapshot's already configured policy. Policy-name mismatch
 and unknown-policy cases are typed errors: they neither remap nor create
 a policy, and a dispatched ordinary token remains counted and is still
 consumed. The two public paths delegate only the count-max/synthetic-
 history mechanism to one internal reconciler. This keeps the seam narrow
-and leaves the full precedence/remap contract for its scheduled slice.
+and left the full precedence/remap contract for its scheduled slice.
+The response-disposition slice has now replaced that temporary public
+seam with raw `ObservedResponse` entry points and kept the same internal
+reconciler; only remap/shrink adoption remains deferred as requested.
+
+Implementation finding (2026-08-09, 429 recovery/disposition slice):
+the frozen spike documents require restriction through `Retry-After +
+max configured bucket + buffer`, but do not place or name that buffer
+in the Rust API. N13 and accepted design D3 identify the existing
+buffer as 1 second (D3's maximum retry sleep is 900 + 60 + 1 seconds).
+The conservative implementation therefore owns a non-caller-selectable
+1-second constant in the core; it does not let a shell weaken recovery
+padding. Raw response headers enter the core as sketched, and an
+unacceptable `Retry-After` is refusal-shaped because no safe restriction
+deadline can be derived. Policy remapping/shrink adoption remains
+deferred: a parsed ordinary observation whose policy name differs from
+the reservation is a policy-targeted refusal, while a probe may seed only
+an already-configured policy.
 
 ## §4. Candidate N-claims
 
@@ -249,3 +267,12 @@ outlives the spike branch; record what exists and where.⟩
   focused M1/M7 core cases and two 4,096-case reconciliation property
   runs cover boot residue, phantom hits, monotonicity, identity, and
   exact synthesis without starting the mock harness.
+- 2026-08-09 — 429 recovery episodes and raw response disposition
+  landed as one lifecycle slice. Forty-four offline tests pass overall;
+  the 15 focused tests cover restriction generation/deadlines, arbitrary
+  concurrent pre-restriction sets, single-confirmation concurrency, the
+  complete two-attempt matrix, malformed-429 and Cloudflare precedence,
+  the full probe table, and probe-429 seeding. The generation-set
+  property plus the two reconciliation properties passed focused
+  4,096-case runs; all C1/C5 tests remain green. Required fmt, locked
+  test, and locked all-target clippy gates are green.
