@@ -1,9 +1,9 @@
 # Bootstrap-seeding slice hand-off
 
-Status: review artifact per `slice-review.md` §2, written 2026-08-10
-for the accepted `bootstrap-seeding.md` §5 slice implemented from
-baseline `a3245e86`. Coding gates are green; the slice remains open
-until Tom reviews it. No mock or actor work is included.
+Status: reviewed and closed by Tom on 2026-08-10; review-close commit
+`17363429`. This artifact was written per `slice-review.md` §2 for
+the accepted `bootstrap-seeding.md` §5 slice implemented from baseline
+`a3245e86`. Coding gates are green. No mock or actor work is included.
 
 ## 1. Silences taken, with next-call consequences
 

@@ -392,12 +392,13 @@ Open obligation carried to the actor slice: replace "any sane
 transport timeout" with the exact enforced timeout (or its stated
 relationship to the aging horizon) plus a test.
 
-### Bootstrap-seeding slice (2026-08-10 — awaiting Tom review)
+### Bootstrap-seeding slice (2026-08-10 — reviewed and closed)
 
 Baseline: `a3245e8667f15524fc837618131d5f692cd2e860`.
 Implementation commit: `708b32d8`.
-The accepted `bootstrap-seeding.md` §5 contract is implemented, but
-the slice is deliberately not marked complete before review:
+Review-close commit: `17363429`.
+The accepted `bootstrap-seeding.md` §5 contract is implemented and
+Tom's review is complete; the mock slice is unblocked:
 
 - `PolicyEngine::new` now requires one explicit positional
   `BucketModel`; there is no implicit `Default` construction.
