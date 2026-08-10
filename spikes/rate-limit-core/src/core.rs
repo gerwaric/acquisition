@@ -538,9 +538,16 @@ impl PolicyEngine {
         if self.halted {
             return ReserveOutcome::Refused(RefusalReason::Halted);
         }
-        let Some(policy) = self.policies.get(policy_name) else {
-            return ReserveOutcome::Refused(RefusalReason::UnknownPolicy(policy_name.clone()));
-        };
+        {
+            let Some(policy) = self.policies.get_mut(policy_name) else {
+                return ReserveOutcome::Refused(RefusalReason::UnknownPolicy(policy_name.clone()));
+            };
+            expire_abandoned_confirmation(policy, now);
+        }
+        let policy = self
+            .policies
+            .get(policy_name)
+            .expect("policy existence checked above");
         if policy.escalation_suspended {
             return ReserveOutcome::Refused(RefusalReason::EscalationSuspended(
                 policy_name.clone(),
@@ -598,16 +605,12 @@ impl PolicyEngine {
             .remove(token.entry_id)
             .expect("a live reservation token always names a history entry");
         assert_eq!(removed.kind, EntryKind::LocalReservation);
-        if token.confirmation_attempt.is_some() {
-            let episode = policy
+        if episode_owns_confirmation(policy, &token) {
+            policy
                 .recovery_episode
                 .as_mut()
-                .expect("a confirmation token requires an active episode");
-            assert_eq!(
-                episode.confirmation_entry.map(|(id, _)| id),
-                Some(token.entry_id)
-            );
-            episode.confirmation_entry = None;
+                .expect("ownership implies an active episode")
+                .confirmation_entry = None;
         }
         token.consume();
     }
@@ -633,6 +636,7 @@ impl PolicyEngine {
             })
             .expect("a live reservation token always names a history entry");
         assert_eq!(entry.kind, EntryKind::LocalReservation);
+        let confirmation = self.confirmation_is_current(&token);
         let escalated = self.complete_failed_confirmation(&token);
         token.consume();
         Transition::new(
@@ -644,7 +648,7 @@ impl PolicyEngine {
             } else {
                 Disposition::CompleteRequest
             },
-            token.confirmation_attempt.is_some(),
+            confirmation,
         )
     }
 
@@ -661,28 +665,30 @@ impl PolicyEngine {
             return Transition::new(Disposition::Halt, true);
         }
 
+        // A token granted as a confirmation may have been expired by
+        // abandonment aging; a stale one flows the ordinary paths below.
+        let confirmation = self.confirmation_is_current(&token);
+
         let observation = match parse_policy(&response.headers) {
             Ok(observation) => observation,
             Err(error) => {
-                let state_changed = token.confirmation_attempt.is_some();
                 self.complete_failed_confirmation(&token);
                 let disposition = Disposition::Refuse {
                     target: RefusalTarget::Policy(token.policy.clone()),
                     cause: RefusalCause::PolicyObservation(error),
                 };
                 token.consume();
-                return Transition::new(disposition, state_changed);
+                return Transition::new(disposition, confirmation);
             }
         };
         if let Err(error) = self.validate_observation_target(&token.policy, &observation) {
-            let state_changed = token.confirmation_attempt.is_some();
             self.complete_failed_confirmation(&token);
             let disposition = Disposition::Refuse {
                 target: RefusalTarget::Policy(token.policy.clone()),
                 cause: RefusalCause::ObservationTarget(error),
             };
             token.consume();
-            return Transition::new(disposition, state_changed);
+            return Transition::new(disposition, confirmation);
         }
 
         self.reconcile_observation(&token.policy, now, &observation)
@@ -692,7 +698,7 @@ impl PolicyEngine {
             match parse_retry_after(&response.headers) {
                 Ok(retry_after) => {
                     self.record_restriction(&token.policy, now, retry_after);
-                    if token.confirmation_attempt.is_some() {
+                    if confirmation {
                         self.escalate_confirmation(&token);
                         Disposition::Refuse {
                             target: RefusalTarget::Policy(token.policy.clone()),
@@ -703,7 +709,7 @@ impl PolicyEngine {
                         Disposition::Requeue
                     }
                 }
-                Err(_) if token.confirmation_attempt.is_some() => {
+                Err(_) if confirmation => {
                     self.escalate_confirmation(&token);
                     Disposition::Refuse {
                         target: RefusalTarget::Policy(token.policy.clone()),
@@ -715,11 +721,10 @@ impl PolicyEngine {
                     cause: RefusalCause::RetryAfter(error),
                 },
             }
-        } else if response.status.is_success() && token.confirmation_attempt.is_some() {
+        } else if response.status.is_success() && confirmation {
             self.confirm_recovery(&token);
             Disposition::CompleteRequest
-        } else if token.confirmation_attempt.is_some() && self.complete_failed_confirmation(&token)
-        {
+        } else if confirmation && self.complete_failed_confirmation(&token) {
             Disposition::Refuse {
                 target: RefusalTarget::Policy(token.policy.clone()),
                 cause: RefusalCause::RecoveryEscalated,
@@ -802,6 +807,17 @@ impl PolicyEngine {
         )
     }
 
+    /// Whether `token` is still the episode's live confirmation attempt.
+    ///
+    /// False for ordinary tokens, and for confirmation tokens whose slot was
+    /// already resolved by abandonment expiry — those are handled as ordinary
+    /// traffic, never as a second confirmation outcome.
+    fn confirmation_is_current(&self, token: &ReservationToken) -> bool {
+        self.policies
+            .get(&token.policy)
+            .is_some_and(|policy| episode_owns_confirmation(policy, token))
+    }
+
     fn validate_observation_target(
         &self,
         policy_name: &PolicyName,
@@ -856,9 +872,13 @@ impl PolicyEngine {
             .get_mut(&token.policy)
             .expect("a reservation token names a configured policy");
         match policy.recovery_episode.as_ref() {
+            // `<`: a pre-restriction concurrent token bounced by the same
+            // saturation. `==`: an expired-by-abandonment confirmation whose
+            // late 429 arrives after the slot was resolved; it joins rather
+            // than escalates because its attempt was already accounted.
             Some(episode) => assert!(
-                token.restriction_generation < episode.opened_generation,
-                "only a pre-restriction concurrent token may join an episode"
+                token.restriction_generation <= episode.opened_generation,
+                "a token granted after an episode opened cannot join it as ordinary traffic"
             ),
             None => {
                 policy.recovery_episode = Some(RecoveryEpisode {
@@ -889,14 +909,9 @@ impl PolicyEngine {
             .policies
             .get_mut(&token.policy)
             .expect("a reservation token names a configured policy");
-        let episode = policy
-            .recovery_episode
-            .as_ref()
-            .expect("a confirmation token requires an active episode");
-        assert_eq!(
-            episode.confirmation_entry.map(|(id, _)| id),
-            Some(token.entry_id)
-        );
+        if !episode_owns_confirmation(policy, token) {
+            return;
+        }
         policy.recovery_episode = None;
     }
 
@@ -908,11 +923,13 @@ impl PolicyEngine {
             .policies
             .get_mut(&token.policy)
             .expect("a reservation token names a configured policy");
+        if !episode_owns_confirmation(policy, token) {
+            return false;
+        }
         let episode = policy
             .recovery_episode
             .as_mut()
-            .expect("a confirmation token requires an active episode");
-        assert_eq!(episode.confirmation_entry, Some((token.entry_id, attempt)));
+            .expect("ownership implies an active episode");
         episode.confirmation_entry = None;
         match attempt {
             ConfirmationAttempt::First => {
@@ -931,14 +948,13 @@ impl PolicyEngine {
             .policies
             .get_mut(&token.policy)
             .expect("a reservation token names a configured policy");
+        if !episode_owns_confirmation(policy, token) {
+            return;
+        }
         let episode = policy
             .recovery_episode
             .as_mut()
-            .expect("a confirmation token requires an active episode");
-        assert_eq!(
-            episode.confirmation_entry.map(|(id, _)| id),
-            Some(token.entry_id)
-        );
+            .expect("ownership implies an active episode");
         episode.confirmation_entry = None;
         policy.escalation_suspended = true;
     }
@@ -1020,6 +1036,63 @@ impl PolicyEngine {
             .checked_add(1)
             .expect("reservation entry id space exhausted");
         id
+    }
+}
+
+/// Whether the policy's episode still holds `token` as its live confirmation.
+fn episode_owns_confirmation(policy: &Policy, token: &ReservationToken) -> bool {
+    token.confirmation_attempt.is_some()
+        && policy
+            .recovery_episode
+            .as_ref()
+            .and_then(|episode| episode.confirmation_entry)
+            .is_some_and(|(id, _)| id == token.entry_id)
+}
+
+/// Resolves a confirmation reservation that was abandoned instead of consumed.
+///
+/// A dropped token is a bug path with emergency semantics: its entry stays
+/// counted and ages out by window passage. The confirmation slot must age out
+/// on the same clock, or the episode blocks every future grant. Once the
+/// entry has left every padded window, the attempt resolves as failed —
+/// exactly what an unknown outcome would have recorded.
+fn expire_abandoned_confirmation(policy: &mut Policy, now: SimInstant) {
+    let Some(episode) = policy.recovery_episode.as_ref() else {
+        return;
+    };
+    let Some((entry_id, attempt)) = episode.confirmation_entry else {
+        return;
+    };
+    let still_active = policy
+        .history
+        .entries
+        .iter()
+        .find(|entry| entry.id == entry_id)
+        .is_some_and(|entry| {
+            policy
+                .rules
+                .iter()
+                .flat_map(|rule| {
+                    [
+                        (rule.pair.burst(), rule.buckets.burst()),
+                        (rule.pair.sustained(), rule.buckets.sustained()),
+                    ]
+                })
+                .any(|(window, resolution)| {
+                    is_within_padded(entry.at, now, window.period(), resolution.duration())
+                })
+        });
+    if still_active {
+        return;
+    }
+    let episode = policy
+        .recovery_episode
+        .as_mut()
+        .expect("episode presence checked above");
+    episode.confirmation_entry = None;
+    match attempt {
+        ConfirmationAttempt::First => episode.completed_attempts = 1,
+        ConfirmationAttempt::Final => policy.escalation_suspended = true,
     }
 }
 

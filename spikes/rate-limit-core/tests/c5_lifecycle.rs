@@ -2,10 +2,12 @@ use std::collections::BTreeMap;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::time::Duration;
 
+use http::{HeaderMap, HeaderValue, StatusCode};
 use proptest::prelude::*;
 use rate_limit_core::core::{
-    BucketModel, EmptyPolicy, EntryKind, Policy, PolicyEngine, PolicyName, RefusalReason,
-    ReservationToken, ReserveOutcome, Resolution, Rule, RulePair, RuleScope, SimInstant, Window,
+    BucketModel, ConfirmationAttempt, Disposition, EmptyPolicy, EntryKind, ObservedResponse,
+    Policy, PolicyEngine, PolicyName, RefusalReason, ReplyClassification, ReservationToken,
+    ReserveOutcome, Resolution, Rule, RulePair, RuleScope, SimInstant, Window,
 };
 
 fn policy_name() -> PolicyName {
@@ -258,6 +260,94 @@ proptest! {
         prop_assert_eq!(matching_entries.len(), 1);
         prop_assert_eq!(matching_entries[0].kind(), EntryKind::LocalReservation);
     }
+}
+
+// A valid 429 for the test policy: 0s Retry-After, so the restriction is the
+// 60s max bucket plus the 1s buffer.
+fn rate_limited_response() -> ObservedResponse {
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        "x-rate-limit-policy",
+        HeaderValue::from_static("stash-request-limit"),
+    );
+    headers.insert("x-rate-limit-rules", HeaderValue::from_static("Account"));
+    headers.insert(
+        "x-rate-limit-account",
+        HeaderValue::from_static("4:1:60, 4:2:300"),
+    );
+    headers.insert(
+        "x-rate-limit-account-state",
+        HeaderValue::from_static("0:1:0, 0:2:0"),
+    );
+    headers.insert("retry-after", HeaderValue::from_static("0"));
+    ObservedResponse::new(
+        StatusCode::TOO_MANY_REQUESTS,
+        headers,
+        ReplyClassification::Normal,
+    )
+}
+
+fn open_episode(engine: &mut PolicyEngine, policy: &PolicyName) {
+    let original = reserve(engine, policy, SimInstant::from_millis(0));
+    let transition = engine.on_response(original, SimInstant::from_millis(0), &rate_limited_response());
+    assert_eq!(transition.disposition(), &Disposition::Requeue);
+}
+
+// C5 abandonment, confirmation half: a dropped confirmation token must not
+// wedge the policy. The slot ages out with its history entry, resolving as a
+// failed attempt — the episode advances to its final attempt instead of
+// answering NotBefore(MAX) forever.
+#[test]
+fn abandoned_first_confirmation_ages_out_and_permits_the_final_attempt() {
+    let policy = policy_name();
+    let mut engine = engine(4, 100, 1_000);
+    open_episode(&mut engine, &policy);
+
+    let confirmation = reserve(&mut engine, &policy, SimInstant::from_millis(61_000));
+    assert!(confirmation.confirmation_attempt().is_some());
+    let abandoned = catch_unwind(AssertUnwindSafe(|| drop(confirmation)));
+    if cfg!(debug_assertions) {
+        assert!(abandoned.is_err(), "debug builds detect the abandonment");
+    }
+
+    // Well before the entry ages out, the slot is still held.
+    assert!(matches!(
+        engine.try_reserve(&policy, SimInstant::from_millis(61_500)),
+        ReserveOutcome::NotBefore(_)
+    ));
+
+    // Once the entry has left every padded window (sustained 1s period plus
+    // the 60s sustained bucket), the abandoned attempt resolves as failed and
+    // the final attempt becomes reservable.
+    let revived = reserve(&mut engine, &policy, SimInstant::from_millis(200_000));
+    assert_eq!(
+        revived.confirmation_attempt(),
+        Some(ConfirmationAttempt::Final)
+    );
+    engine.rollback(revived);
+}
+
+// C5 abandonment: losing the final attempt is accounted as a failed final —
+// suspend-and-surface, not an eternal block and not a silent reset.
+#[test]
+fn abandoned_final_confirmation_escalates_instead_of_wedging() {
+    let policy = policy_name();
+    let mut engine = engine(4, 100, 1_000);
+    open_episode(&mut engine, &policy);
+
+    let first = reserve(&mut engine, &policy, SimInstant::from_millis(61_000));
+    let _ = engine.on_unknown_outcome(first, SimInstant::from_millis(61_000));
+    let final_attempt = reserve(&mut engine, &policy, SimInstant::from_millis(61_000));
+    assert_eq!(
+        final_attempt.confirmation_attempt(),
+        Some(ConfirmationAttempt::Final)
+    );
+    let _ = catch_unwind(AssertUnwindSafe(|| drop(final_attempt)));
+
+    assert!(matches!(
+        engine.try_reserve(&policy, SimInstant::from_millis(200_000)),
+        ReserveOutcome::Refused(RefusalReason::EscalationSuspended(_))
+    ));
 }
 
 // The bomb must not turn an unrelated panic into a double-panic abort.
