@@ -65,7 +65,9 @@ fn reserve(
     }
 }
 
-fn add_history(engine: &mut PolicyEngine, entries: &[(bool, u64)]) {
+/// Seeds history and returns the test's own record of every timestamp it
+/// injected — the shadow list the independent oracle computes from.
+fn add_history(engine: &mut PolicyEngine, entries: &[(bool, u64)]) -> Vec<u64> {
     let policy = policy_name();
     for &(local, at_ms) in entries {
         let at = SimInstant::from_millis(at_ms);
@@ -78,6 +80,7 @@ fn add_history(engine: &mut PolicyEngine, entries: &[(bool, u64)]) {
                 .expect("policy exists");
         }
     }
+    entries.iter().map(|&(_, at_ms)| at_ms).collect()
 }
 
 fn build_observation(rules: &[ObservedRule]) -> PolicySnapshot {
@@ -183,24 +186,29 @@ fn probe(
     engine.on_probe_response(&EndpointLabel::from("stash"), now, &response(observation))
 }
 
+/// Independent oracle (audit, 2026-08-09: the previous version re-derived
+/// the deficit through production's own `count_within`, mirror-testing the
+/// "exactly" half): plain u64 arithmetic over the test's shadow timestamp
+/// list. An entry occupies the half-open window `(now - period, now]`, and
+/// future-dated entries are retained — `at + period > now` states both.
 fn expected_maximum_deficit(
-    engine: &PolicyEngine,
-    now: SimInstant,
+    shadow_ms: &[u64],
+    now_ms: u64,
     observation: &PolicySnapshot,
 ) -> usize {
-    let history = engine
-        .policy(&policy_name())
-        .expect("policy exists")
-        .history();
     observation
         .rules()
         .iter()
         .flat_map(|rule| [rule.state.burst(), rule.state.sustained()])
         .map(|state| {
-            state.current_hits() as usize
-                - history
-                    .count_within(now, state.period())
-                    .min(state.current_hits() as usize)
+            let period_ms =
+                u64::try_from(state.period().as_millis()).expect("test periods fit u64");
+            let local = shadow_ms
+                .iter()
+                .filter(|&&at_ms| at_ms + period_ms > now_ms)
+                .count();
+            let reported = state.current_hits().min(CONFIGURED_MAX_HITS) as usize;
+            reported.saturating_sub(local)
         })
         .max()
         .unwrap_or(0)
@@ -264,11 +272,12 @@ proptest! {
         let now = SimInstant::from_millis(NOW_MS);
         let policy = policy_name();
         let mut engine = engine();
-        add_history(&mut engine, &initial);
+        let mut shadow_ms = add_history(&mut engine, &initial);
         let token = reserve(&mut engine, &policy, now);
+        shadow_ms.push(NOW_MS);
         let observation = build_observation(&rules);
         let before = entries(&engine);
-        let expected = expected_maximum_deficit(&engine, now, &observation);
+        let expected = expected_maximum_deficit(&shadow_ms, NOW_MS, &observation);
 
         let result = engine.on_response(token, now, &response(&observation));
 
@@ -293,10 +302,10 @@ proptest! {
     ) {
         let now = SimInstant::from_millis(NOW_MS);
         let mut engine = engine();
-        add_history(&mut engine, &initial);
+        let shadow_ms = add_history(&mut engine, &initial);
         let observation = build_observation(&rules);
         let before = entries(&engine);
-        let expected = expected_maximum_deficit(&engine, now, &observation);
+        let expected = expected_maximum_deficit(&shadow_ms, NOW_MS, &observation);
 
         let first = probe(&mut engine, now, &observation);
         let after_first = entries(&engine);
