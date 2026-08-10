@@ -108,7 +108,7 @@ for.
 | C2 | Header parsing / shape validation | partial — raw-header parsing and RulePair shape slice green; response-precedence cases remain | 2026-08-09: `cargo test` in `spikes/rate-limit-core/` — 7 passed, including valid-pair round-trip and malformed-input properties; `cargo clippy --all-targets -- -D warnings` green |
 | C3 | Fuse trip logic | ⟨…⟩ | ⟨…⟩ |
 | C4 | 4xx tripwire logic | ⟨…⟩ | ⟨…⟩ |
-| C5 | Lifecycle invariants | green — reservation/rollback/unknown-outcome identity and abandonment semantics implemented; response reconciliation remains its separately scheduled slice | 2026-08-09: `cargo test --locked` in `spikes/rate-limit-core/` — 15 passed, including 8 C5 tests and generated rollback, interleaving, and accidental-drop properties; `cargo clippy --locked --all-targets -- -D warnings` and `cargo fmt --check` green |
+| C5 | Lifecycle invariants | green — reservation/rollback/unknown-outcome identity and abandonment semantics remain green; token-consuming ordinary-response and non-counting probe reconciliation now share one count-max/synthetic-history mechanism | 2026-08-09: `cargo test --locked` in `spikes/rate-limit-core/` — 29 passed: the prior 4 C1 and 8 C5 tests remain green, plus 10 reconciliation tests covering arbitrary mixed local/synthetic histories, multiple rules/windows, exact same-instant rollback identity, post-increment reserved-send accounting, lower/repeated observations, and focused M1 boot residue/M7 phantom deficits; `PROPTEST_CASES=4096 cargo test --locked --test response_reconciliation` green (4,096 cases for each of two generated properties); `cargo clippy --locked --all-targets -- -D warnings` and `cargo fmt --check` green |
 
 ### Fault-injection and structural
 
@@ -127,6 +127,21 @@ for.
 | G4 | M2 duration ≤ multiplier × padded minimum (final: ⟨…⟩) | ⟨…⟩ | ⟨…⟩ |
 | G5 | Every scenario's own assertions (stimulus and structural alike) | ⟨…⟩ | ⟨…⟩ |
 | G6 | Reproduction record for every failure ((seed, φ) mandatory where swept/generated) | ⟨…⟩ | ⟨…⟩ |
+
+Implementation finding (2026-08-09, response-reconciliation slice):
+the frozen `core-design.md` sketches full response entry points over
+`ObservedResponse` and an endpoint label, but reaching a valid policy
+observation from those inputs necessarily crosses response precedence,
+endpoint mapping/remapping, policy-shape adoption, and bucket-model
+selection — behaviors explicitly deferred from this slice. The
+conservative seam accepts an already parsed, valid `PolicySnapshot`.
+An ordinary response targets the token's existing policy; a probe
+targets the snapshot's already configured policy. Policy-name mismatch
+and unknown-policy cases are typed errors: they neither remap nor create
+a policy, and a dispatched ordinary token remains counted and is still
+consumed. The two public paths delegate only the count-max/synthetic-
+history mechanism to one internal reconciler. This keeps the seam narrow
+and leaves the full precedence/remap contract for its scheduled slice.
 
 ## §4. Candidate N-claims
 
@@ -227,3 +242,10 @@ outlives the spike branch; record what exists and where.⟩
   offline tests pass overall, including the independent-phase C1
   property (plus a focused 4,096-case run) and explicit
   rollover-boundary cases; all eight C5 tests remain green.
+- 2026-08-09 — valid-observation response reconciliation landed:
+  ordinary responses consume their reservation token, probes remain
+  tokenless, and both use one pessimistic maximum-deficit merge into
+  shared policy history. Twenty-nine offline tests pass overall;
+  focused M1/M7 core cases and two 4,096-case reconciliation property
+  runs cover boot residue, phantom hits, monotonicity, identity, and
+  exact synthesis without starting the mock harness.

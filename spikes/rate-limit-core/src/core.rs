@@ -2,6 +2,7 @@ use std::collections::{HashMap, VecDeque};
 use std::fmt;
 use std::time::Duration;
 
+use crate::header::PolicySnapshot;
 pub use crate::header::{RulePair, Window};
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -307,6 +308,26 @@ pub enum RefusalReason {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DuplicatePolicy(pub PolicyName);
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Reconciliation {
+    synthesized_entries: usize,
+}
+
+impl Reconciliation {
+    pub const fn synthesized_entries(self) -> usize {
+        self.synthesized_entries
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ObservationError {
+    UnknownPolicy(PolicyName),
+    PolicyMismatch {
+        reserved: PolicyName,
+        observed: PolicyName,
+    },
+}
+
 #[derive(Debug, Default)]
 pub struct PolicyEngine {
     policies: HashMap<PolicyName, Policy>,
@@ -396,10 +417,43 @@ impl PolicyEngine {
         token.consume();
     }
 
+    /// Reconciles one already-validated ordinary response.
+    ///
+    /// The local reservation remains in shared policy history and participates
+    /// in the post-increment comparison. Even an observation-target error
+    /// consumes the dispatched token without removing its maybe-counted send.
+    pub fn on_response(
+        &mut self,
+        mut token: ReservationToken,
+        now: SimInstant,
+        observation: &PolicySnapshot,
+    ) -> Result<Reconciliation, ObservationError> {
+        let result = if token.policy.as_str() == observation.name() {
+            self.reconcile_observation(&token.policy, now, observation)
+        } else {
+            Err(ObservationError::PolicyMismatch {
+                reserved: token.policy.clone(),
+                observed: PolicyName::from(observation.name()),
+            })
+        };
+        token.consume();
+        result
+    }
+
+    /// Reconciles one already-validated, non-counting probe response.
+    pub fn on_probe_response(
+        &mut self,
+        now: SimInstant,
+        observation: &PolicySnapshot,
+    ) -> Result<Reconciliation, ObservationError> {
+        let policy_name = PolicyName::from(observation.name());
+        self.reconcile_observation(&policy_name, now, observation)
+    }
+
     /// Adds pessimistic history with distinct identity and synthetic provenance.
     ///
-    /// Response reconciliation will decide the deficit count in a later slice;
-    /// this primitive keeps C5's identity and rollback behavior testable now.
+    /// This seeding primitive keeps arbitrary-history C1/C5 properties
+    /// independent of response parsing and reconciliation.
     pub fn record_synthetic(
         &mut self,
         policy_name: &PolicyName,
@@ -422,6 +476,48 @@ impl PolicyEngine {
             .expect("policy existence checked above");
         policy.history.entries.extend(entries);
         Ok(())
+    }
+
+    fn reconcile_observation(
+        &mut self,
+        policy_name: &PolicyName,
+        now: SimInstant,
+        observation: &PolicySnapshot,
+    ) -> Result<Reconciliation, ObservationError> {
+        let policy = self
+            .policies
+            .get(policy_name)
+            .ok_or_else(|| ObservationError::UnknownPolicy(policy_name.clone()))?;
+
+        let maximum_deficit = observation
+            .rules()
+            .iter()
+            .flat_map(|rule| [rule.state.burst(), rule.state.sustained()])
+            .map(|state| {
+                let reported = usize::try_from(state.current_hits())
+                    .expect("u32 always fits usize on supported Rust targets");
+                reported.saturating_sub(policy.history.count_within(now, state.period()))
+            })
+            .max()
+            .unwrap_or(0);
+
+        let entries = (0..maximum_deficit)
+            .map(|_| HistoryEntry {
+                id: self.allocate_entry_id(),
+                at: now,
+                kind: EntryKind::Synthetic,
+            })
+            .collect::<Vec<_>>();
+        self.policies
+            .get_mut(policy_name)
+            .expect("policy existence checked above")
+            .history
+            .entries
+            .extend(entries);
+
+        Ok(Reconciliation {
+            synthesized_entries: maximum_deficit,
+        })
     }
 
     fn allocate_entry_id(&mut self) -> EntryId {
