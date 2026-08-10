@@ -499,14 +499,12 @@ impl PolicyEngine {
             ));
         }
 
-        if let Some(not_before) = policy_not_before(policy, now) {
-            // A zero-hit window's "expiry" is the MAX sentinel internally;
-            // at the API boundary that is Blocked, never a sleepable time.
-            return if not_before == SimInstant::MAX {
-                ReserveOutcome::Blocked
-            } else {
-                ReserveOutcome::NotBefore(not_before)
-            };
+        match policy_deadline(policy, now) {
+            WindowDeadline::Open => {}
+            WindowDeadline::At(not_before) => {
+                return ReserveOutcome::NotBefore(not_before);
+            }
+            WindowDeadline::Never => return ReserveOutcome::Blocked,
         }
 
         let confirmation_attempt = match policy.recovery_episode.as_ref() {
@@ -1149,8 +1147,20 @@ fn expire_abandoned_confirmation(policy: &mut Policy, now: SimInstant) {
     }
 }
 
-fn policy_not_before(policy: &Policy, now: SimInstant) -> Option<SimInstant> {
-    let history_not_before = policy
+/// A window's answer to "when does one slot reopen?", typed so saturated
+/// deadline arithmetic can never be mistaken for "never" (external review
+/// finding 6 — the former Option<SimInstant> used MAX for both). The derive
+/// order is load-bearing: `Open < At(_) < Never`, and `At` compares by
+/// instant, so folding with `max` picks the binding answer.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum WindowDeadline {
+    Open,
+    At(SimInstant),
+    Never,
+}
+
+fn policy_deadline(policy: &Policy, now: SimInstant) -> WindowDeadline {
+    let history_deadline = policy
         .rules
         .iter()
         .flat_map(|rule| {
@@ -1159,12 +1169,14 @@ fn policy_not_before(policy: &Policy, now: SimInstant) -> Option<SimInstant> {
                 (rule.pair.sustained(), rule.buckets.sustained),
             ]
         })
-        .filter_map(|(window, resolution)| {
-            window_not_before(&policy.history, window, resolution, now)
-        })
-        .max();
-    let restriction_not_before = policy.restricted_until.filter(|until| now < *until);
-    history_not_before.max(restriction_not_before)
+        .map(|(window, resolution)| window_deadline(&policy.history, window, resolution, now))
+        .max()
+        .unwrap_or(WindowDeadline::Open);
+    let restriction_deadline = policy
+        .restricted_until
+        .filter(|until| now < *until)
+        .map_or(WindowDeadline::Open, WindowDeadline::At);
+    history_deadline.max(restriction_deadline)
 }
 
 fn maximum_bucket_resolution(policy: &Policy) -> Duration {
@@ -1208,15 +1220,17 @@ fn parse_retry_after(headers: &HeaderMap) -> Result<Duration, RetryAfterError> {
 /// its rolling period plus one full, explicitly configured bucket resolution.
 /// If history is already over the limit, the order statistic expires only as
 /// many oldest hits as are needed to get strictly below `max_hits`.
-fn window_not_before(
+fn window_deadline(
     history: &History,
     window: &Window,
     resolution: Resolution,
     now: SimInstant,
-) -> Option<SimInstant> {
+) -> WindowDeadline {
     let max_hits = usize::try_from(window.max_hits).expect("u32 always fits usize");
     if max_hits == 0 {
-        return Some(SimInstant::MAX);
+        // Wire-unreachable (D8 refuses zero-hit limits at parse); defense in
+        // depth for constructed policies.
+        return WindowDeadline::Never;
     }
 
     let mut active = history
@@ -1226,11 +1240,11 @@ fn window_not_before(
         .map(|entry| entry.at)
         .collect::<Vec<_>>();
     if active.len() < max_hits {
-        return None;
+        return WindowDeadline::Open;
     }
     active.sort_unstable();
     let entries_that_must_expire = active.len() - max_hits + 1;
-    Some(
+    WindowDeadline::At(
         active[entries_that_must_expire - 1]
             .saturating_add(window.period)
             .saturating_add(resolution.duration()),
