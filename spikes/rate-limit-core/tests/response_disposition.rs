@@ -258,6 +258,9 @@ fn retry_after_delay_second_boundaries_are_validated_without_a_retry_side_channe
         Some(SimInstant::from_millis(901_000))
     );
 
+    // An unusable Retry-After refuses the request AND records a cap-length
+    // conservative restriction: the server declared a restriction we cannot
+    // size, so the core must not stay immediately grantable.
     for reply in [
         rate_limited("901"),
         rate_limited("not-a-number"),
@@ -278,9 +281,51 @@ fn retry_after_delay_second_boundaries_are_validated_without_a_retry_side_channe
             }
         ));
         let policy = refused.policy(&PolicyName::from(POLICY)).unwrap();
-        assert_eq!(policy.restriction_generation(), 0);
+        assert_eq!(policy.restriction_generation(), 1);
+        // 900s cap + zero-length bucket + 1s buffer.
+        assert_eq!(
+            policy.restricted_until(),
+            Some(SimInstant::from_millis(901_000))
+        );
         assert!(policy.recovery_episode().is_none());
+        assert!(matches!(
+            refused.try_reserve(&PolicyName::from(POLICY), SimInstant::from_millis(900_999)),
+            ReserveOutcome::NotBefore(at) if at == SimInstant::from_millis(901_000)
+        ));
     }
+}
+
+// Probe lane of the same rule: a 429 whose policy observation is valid but
+// whose Retry-After is unusable refuses the endpoint AND still blocks the
+// observed policy for the conservative cap.
+#[test]
+fn probe_429_with_unusable_retry_after_records_the_cap_restriction() {
+    let endpoint = EndpointLabel::from(ENDPOINT);
+    let mut engine = engine();
+
+    let transition = engine.on_probe_response(
+        &endpoint,
+        SimInstant::from_millis(0),
+        &ObservedResponse::new(
+            StatusCode::TOO_MANY_REQUESTS,
+            headers(None),
+            ReplyClassification::Normal,
+        ),
+    );
+
+    assert!(matches!(
+        transition.disposition(),
+        Disposition::Refuse {
+            target: RefusalTarget::Endpoint(_),
+            cause: RefusalCause::RetryAfter(_),
+        }
+    ));
+    let policy = engine.policy(&PolicyName::from(POLICY)).unwrap();
+    assert_eq!(policy.restriction_generation(), 1);
+    assert_eq!(
+        policy.restricted_until(),
+        Some(SimInstant::from_millis(901_000))
+    );
 }
 
 #[test]

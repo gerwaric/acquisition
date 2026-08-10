@@ -709,17 +709,26 @@ impl PolicyEngine {
                         Disposition::Requeue
                     }
                 }
-                Err(_) if confirmation => {
-                    self.escalate_confirmation(&token);
-                    Disposition::Refuse {
-                        target: RefusalTarget::Policy(token.policy.clone()),
-                        cause: RefusalCause::RecoveryEscalated,
+                Err(error) => {
+                    // The server declared a restriction whose length we cannot
+                    // read; assuming the cap keeps try_reserve from sending
+                    // straight back into it. The refusal (not an episode) is
+                    // still the disposition: with no usable Retry-After there
+                    // is no schedulable retry.
+                    self.record_restriction(&token.policy, now, RETRY_AFTER_CAP);
+                    if confirmation {
+                        self.escalate_confirmation(&token);
+                        Disposition::Refuse {
+                            target: RefusalTarget::Policy(token.policy.clone()),
+                            cause: RefusalCause::RecoveryEscalated,
+                        }
+                    } else {
+                        Disposition::Refuse {
+                            target: RefusalTarget::Policy(token.policy.clone()),
+                            cause: RefusalCause::RetryAfter(error),
+                        }
                     }
                 }
-                Err(error) => Disposition::Refuse {
-                    target: RefusalTarget::Policy(token.policy.clone()),
-                    cause: RefusalCause::RetryAfter(error),
-                },
             }
         } else if response.status.is_success() && confirmation {
             self.confirm_recovery(&token);
@@ -783,10 +792,16 @@ impl PolicyEngine {
                     self.open_probe_episode(&policy_name);
                     Disposition::ProbeReady
                 }
-                Err(error) => Disposition::Refuse {
-                    target: RefusalTarget::Endpoint(endpoint.clone()),
-                    cause: RefusalCause::RetryAfter(error),
-                },
+                Err(error) => {
+                    // Same conservative stance as the ordinary path: an
+                    // unsizeable declared restriction blocks the policy for
+                    // the cap rather than leaving it immediately grantable.
+                    self.record_restriction(&policy_name, now, RETRY_AFTER_CAP);
+                    Disposition::Refuse {
+                        target: RefusalTarget::Endpoint(endpoint.clone()),
+                        cause: RefusalCause::RetryAfter(error),
+                    }
+                }
             }
         } else {
             Disposition::Refuse {
