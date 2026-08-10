@@ -59,17 +59,109 @@ fn rejects_non_increasing_periods() {
     }
 }
 
-// C2 / N20: absence is an error variant, never an empty list.
+// C2 / N20: absence is an error variant, never an empty list — for every
+// required header, not just the rules list.
 #[test]
-fn missing_rules_header_is_typed() {
+fn missing_headers_are_typed() {
+    for missing in [
+        "x-rate-limit-policy",
+        "x-rate-limit-rules",
+        "x-rate-limit-account",
+        "x-rate-limit-account-state",
+    ] {
+        let mut headers = headers("15:10:60, 30:300:300", "1:10:0, 1:300:0");
+        headers.remove(missing);
+
+        assert!(
+            matches!(
+                parse_policy(&headers),
+                Err(PolicyParseError::MissingHeader { name }) if name == missing
+            ),
+            "expected MissingHeader for {missing}"
+        );
+    }
+}
+
+// C2: a rule name that cannot form a header name — or an empty slot in the
+// rules list — is its own typed variant.
+#[test]
+fn invalid_rule_names_are_typed() {
+    for rules in ["Account, ", "bad name", ""] {
+        let mut headers = headers("15:10:60, 30:300:300", "1:10:0, 1:300:0");
+        headers.insert(
+            "x-rate-limit-rules",
+            HeaderValue::from_str(rules).expect("test rules value is valid HTTP"),
+        );
+
+        assert!(
+            matches!(
+                parse_policy(&headers),
+                Err(PolicyParseError::InvalidRuleName { .. })
+            ),
+            "expected InvalidRuleName for {rules:?}"
+        );
+    }
+}
+
+// C2: a header present but not decodable as visible ASCII is typed absence
+// of a *usable* value, distinct from a missing header.
+#[test]
+fn undecodable_header_value_is_typed() {
     let mut headers = headers("15:10:60, 30:300:300", "1:10:0, 1:300:0");
-    headers.remove("x-rate-limit-rules");
+    headers.insert(
+        "x-rate-limit-policy",
+        HeaderValue::from_bytes(&[0x80]).expect("obs-text bytes are legal header values"),
+    );
 
     assert!(matches!(
         parse_policy(&headers),
-        Err(PolicyParseError::MissingHeader { name })
-            if name == "x-rate-limit-rules"
+        Err(PolicyParseError::InvalidHeaderValue { name })
+            if name == "x-rate-limit-policy"
     ));
+}
+
+// C2: limit and state headers must describe the same windows.
+#[test]
+fn state_periods_mismatch_is_typed() {
+    assert!(matches!(
+        parse_policy(&headers("15:10:60, 30:300:300", "1:20:0, 1:300:0")),
+        Err(PolicyParseError::StatePeriodsMismatch { .. })
+    ));
+}
+
+// O6 case/order domain, pinned as current behavior:
+// - header-name lookup is case-insensitive (the http crate normalizes), so a
+//   rule spelled ACCOUNT finds x-rate-limit-account, and the snapshot keeps
+//   the wire spelling;
+// - a duplicated rule name parses into two identical rules — harmless today
+//   because reconciliation takes the max deficit, never the sum;
+// - a duplicated header (appended, not replaced) resolves to its first value.
+#[test]
+fn header_case_and_duplicates_resolve_first_value_and_preserve_spelling() {
+    let mut mixed_case = headers("15:10:60, 30:300:300", "1:10:0, 1:300:0");
+    mixed_case.insert("x-rate-limit-rules", HeaderValue::from_static("ACCOUNT"));
+    let snapshot = parse_policy(&mixed_case).expect("case-insensitive lookup succeeds");
+    assert_eq!(snapshot.rules()[0].name, "ACCOUNT");
+
+    let mut duplicated_rule = headers("15:10:60, 30:300:300", "1:10:0, 1:300:0");
+    duplicated_rule.insert(
+        "x-rate-limit-rules",
+        HeaderValue::from_static("Account, Account"),
+    );
+    let snapshot = parse_policy(&duplicated_rule).expect("duplicate rule names parse");
+    assert_eq!(snapshot.rules().len(), 2);
+    assert_eq!(snapshot.rules()[0], snapshot.rules()[1]);
+
+    let mut duplicated_header = headers("15:10:60, 30:300:300", "1:10:0, 1:300:0");
+    duplicated_header.append(
+        "x-rate-limit-account",
+        HeaderValue::from_static("99:5:60, 99:600:300"),
+    );
+    let snapshot = parse_policy(&duplicated_header).expect("first header value wins");
+    assert_eq!(
+        snapshot.rules()[0].pair.burst().period(),
+        Duration::from_secs(10)
+    );
 }
 
 // C2: malformed triplets fail without indexing or panicking. Numeric fields

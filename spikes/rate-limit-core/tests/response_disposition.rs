@@ -559,6 +559,116 @@ fn every_non_success_final_outcome_escalates() {
     }
 }
 
+// Precedence rule 4: a generic 4xx with valid headers is an ordinary
+// response for a non-confirmation token — it reconciles and completes; the
+// 4xx tripwire lives at the transport boundary, not here.
+#[test]
+fn generic_4xx_with_valid_headers_completes_and_reconciles() {
+    let mut engine = engine();
+    let token = reserve(&mut engine, 0);
+
+    let transition = engine.on_response(
+        token,
+        SimInstant::from_millis(0),
+        &response(StatusCode::NOT_FOUND),
+    );
+
+    assert_eq!(transition.disposition(), &Disposition::CompleteRequest);
+    let policy = engine.policy(&PolicyName::from(POLICY)).unwrap();
+    assert_eq!(policy.restriction_generation(), 0);
+    assert!(policy.recovery_episode().is_none());
+    assert_eq!(policy.history().len(), 1);
+}
+
+// N19 boundary: Retry-After of zero still buys the bucket-plus-buffer pad.
+#[test]
+fn retry_after_zero_restricts_for_exactly_bucket_plus_buffer() {
+    let mut engine = engine(); // zero-length buckets
+    let token = reserve(&mut engine, 5_000);
+
+    let transition = engine.on_response(token, SimInstant::from_millis(5_000), &rate_limited("0"));
+
+    assert_eq!(transition.disposition(), &Disposition::Requeue);
+    assert_eq!(
+        engine
+            .policy(&PolicyName::from(POLICY))
+            .unwrap()
+            .restricted_until(),
+        Some(SimInstant::from_millis(6_000))
+    );
+}
+
+// Halt is terminal and outside the confirmation matrix on the FINAL attempt
+// too: Cloudflare never receives the otherwise "permitted" escalation row.
+#[test]
+fn cloudflare_on_the_final_attempt_halts_instead_of_escalating() {
+    let mut engine = engine();
+    open_episode(&mut engine);
+    let first = first_confirmation(&mut engine);
+    let _ = engine.on_unknown_outcome(first, SimInstant::from_millis(1_000));
+    let final_attempt = final_confirmation(&mut engine);
+
+    let transition = engine.on_response(
+        final_attempt,
+        SimInstant::from_millis(1_000),
+        &cloudflare(StatusCode::TOO_MANY_REQUESTS),
+    );
+
+    assert_eq!(transition.disposition(), &Disposition::Halt);
+    assert!(engine.is_halted());
+    assert!(
+        !engine
+            .policy(&PolicyName::from(POLICY))
+            .unwrap()
+            .is_escalation_suspended(),
+        "halt supersedes escalation; it does not masquerade as one"
+    );
+}
+
+// core-design entry-point invariant: on_response never yields ProbeReady;
+// on_probe_response never yields CompleteRequest or Requeue. The type system
+// does not enforce this (one shared Disposition enum), so the sweep does.
+#[test]
+fn entry_point_invariant_holds_across_response_shapes() {
+    let replies = [
+        response(StatusCode::OK),
+        response(StatusCode::NO_CONTENT),
+        response(StatusCode::NOT_FOUND),
+        response(StatusCode::INTERNAL_SERVER_ERROR),
+        rate_limited("0"),
+        ObservedResponse::new(
+            StatusCode::TOO_MANY_REQUESTS,
+            headers(None),
+            ReplyClassification::Normal,
+        ),
+        malformed(StatusCode::OK),
+        malformed(StatusCode::TOO_MANY_REQUESTS),
+        cloudflare(StatusCode::FORBIDDEN),
+    ];
+    let endpoint = EndpointLabel::from(ENDPOINT);
+
+    for reply in &replies {
+        let mut ordinary = engine();
+        let token = reserve(&mut ordinary, 0);
+        let transition = ordinary.on_response(token, SimInstant::from_millis(0), reply);
+        assert_ne!(
+            transition.disposition(),
+            &Disposition::ProbeReady,
+            "on_response yielded ProbeReady for {reply:?}"
+        );
+
+        let mut probe = engine();
+        let transition = probe.on_probe_response(&endpoint, SimInstant::from_millis(0), reply);
+        assert!(
+            !matches!(
+                transition.disposition(),
+                Disposition::CompleteRequest | Disposition::Requeue
+            ),
+            "on_probe_response yielded a request disposition for {reply:?}"
+        );
+    }
+}
+
 #[test]
 fn malformed_429_takes_precedence_and_never_opens_a_retry_episode() {
     let mut engine = engine();
