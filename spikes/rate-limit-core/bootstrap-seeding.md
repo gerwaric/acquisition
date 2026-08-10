@@ -1,12 +1,14 @@
 # Bootstrap seeding: how a probe's policy becomes a registered Policy
 
-Status: **proposed amendment, revision 2 — awaiting Tom's review.**
-Revision 1 (2026-08-09, same day) proposed a policy-name-keyed
-resolution allow-list; Tom's review challenged the hard-coded names
-and the discussion collapsed the design to a global constant (the
-decision record is §4). Amends the frozen design under the
-post-audit process; nothing here is authority until Tom accepts it.
-On acceptance, §5 becomes the next slice's contract.
+Status: **accepted by Tom, 2026-08-09** — §5 is the next slice's
+contract, and the §3 amendment to `scenarios.md` §1 is sanctioned.
+Acceptance review confirmed the shape/identity split explicitly:
+shape validation (triplet count, period ordering, state mismatch)
+stays strict and refusal-shaped; only *identity* (policy and rule
+names) seeds dynamically. Revision 1 (same day) proposed a
+policy-name-keyed resolution allow-list; Tom's review challenged
+the hard-coded names and the discussion collapsed the design to a
+global constant (the decision record is §4).
 
 N-numbers cite `docs/design/network-ground-truth.md`; D-numbers cite
 `docs/design/network-redesign.md`; §-references without a filename

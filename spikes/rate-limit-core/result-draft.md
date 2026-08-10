@@ -260,15 +260,17 @@ marker; resolved items cite the commit series landed the same day.
   than also tripping the shutdown. Behavior unchanged from the
   hardening pass; now decision-backed rather than implementer-read.
 
-**Open — flagged for Tom (design decision, not mechanical):**
-*(proposal drafted: `bootstrap-seeding.md` — revision 2 after Tom's
-review of revision 1 collapsed the name-keyed table to one global
-positional bucket constant, Assumed(60s/60s) shipped, flipped to
-Known(5s/60s) on U3 evidence; dynamic seeding of any valid observed
-policy; `ProbeReady { policy }`; `RuleScope` deleted; requires the
-§1 "refusal, not a guess" amendment spelled out in the note's §3.
-Bridge decision (a) chosen by Tom 2026-08-09; awaiting final review
-of the written note)*
+**Decided by Tom, 2026-08-09 — `bootstrap-seeding.md` accepted
+(revision 2):** one global positional bucket constant at engine
+construction (Assumed(60s/60s) shipped — C++ parity; flip to
+Known(5s/60s) on U3 evidence); dynamic seeding of any valid observed
+policy, no name-keyed refusal; `ProbeReady { policy }`; `RuleScope`
+deleted; shape validation stays strict (acceptance review confirmed
+the shape/identity split). The note's §3 amendment to `scenarios.md`
+§1 is sanctioned and lands with the seeding slice; its §5 is the
+slice contract. **The register has no open items** — the seeding
+slice is the next work, and the first to run under the slice-review
+process end to end.
 
 - **The probe/bootstrap seam cannot discover a policy.** There is
   no `PolicySnapshot` → `Policy` construction path (nothing assigns
