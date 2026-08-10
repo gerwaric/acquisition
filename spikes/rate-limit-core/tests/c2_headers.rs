@@ -86,7 +86,9 @@ fn missing_headers_are_typed() {
 }
 
 // C2: a rule name that cannot form a header name — or an empty slot in the
-// rules list — is its own typed variant.
+// rules list — is its own typed variant. The "" row carries a load-bearing
+// guarantee: an empty rules header cannot parse, so every Ok observation has
+// at least one rule — bootstrap seeding's Policy::new expect relies on it.
 #[test]
 fn invalid_rule_names_are_typed() {
     for rules in ["Account, ", "bad name", ""] {

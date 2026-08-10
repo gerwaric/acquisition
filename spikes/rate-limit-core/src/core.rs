@@ -749,19 +749,27 @@ impl PolicyEngine {
                     .iter()
                     .map(|rule| Rule::new(rule.pair.clone(), default_buckets))
                     .collect();
+                // `parse_policy` never returns an empty rules list: an empty
+                // rules header is `InvalidRuleName` (pinned by c2_headers::
+                // invalid_rule_names_are_typed), and the observation is parsed
+                // in this function, so no other construction path exists.
                 let policy = Policy::new(policy_name.clone(), rules)
                     .expect("a valid policy observation contains at least one rule");
                 slot.insert(policy);
                 true
             }
         };
+        // Unreachable in this lane today — `policy_name` comes from the
+        // observation itself and seeding guarantees registration — but if a
+        // later slice makes it reachable, the refusal must still report the
+        // seeded mutation (review finding, bootstrap slice 2026-08-10).
         if let Err(error) = self.validate_observation_target(&policy_name, &observation) {
             return Transition::new(
                 Disposition::Refuse {
                     target: RefusalTarget::Endpoint(endpoint.clone()),
                     cause: RefusalCause::ObservationTarget(error),
                 },
-                false,
+                seeded,
             );
         }
 

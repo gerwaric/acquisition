@@ -9,6 +9,10 @@ as Tom's first substantial Rust work (charter provenance note).
 Amended later the same day (simplification review, Tom-approved):
 `Effect::RetryAt` removed — 429 retry timing folded into policy
 state so `try_reserve` remains the single scheduling authority.
+The supersession is now in effect: the accepted `bootstrap-seeding.md`
+slice (2026-08-10) deleted `RuleScope` and gave `ProbeReady` a
+`{ policy: PolicyName }` payload — where this sketch and the code
+disagree, the code and that note are the authority.
 
 Scenario IDs cite `scenarios.md`; N-numbers cite
 `docs/design/network-ground-truth.md`.

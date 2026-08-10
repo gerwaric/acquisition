@@ -607,3 +607,21 @@ outlives the spike branch; record what exists and where.⟩
   cases, all-target clippy with warnings denied, and fmt check green.
   Review artifact: `bootstrap-handoff.md`. Slice status remains
   awaiting Tom review; mock and actor work has not started.
+- 2026-08-10 — bootstrap-seeding slice review completed per
+  `slice-review.md`; no blocking findings. Three minor findings,
+  dispositions per Tom (same day): (1) fixed — the probe lane's
+  post-seeding `validate_observation_target` refusal, unreachable
+  by construction today, now carries the `seeded` mutation bit so
+  notification truth survives if a later slice makes it reachable;
+  (2) fixed — the seeding `Policy::new` expect and the c2
+  empty-rules test now cite each other, pinning the parser's
+  ≥1-rule-per-Ok guarantee as a named contract; (3) `core-design.md`
+  marked superseded-in-effect for `RuleScope` and the `ProbeReady`
+  payload rather than edited, preserving the 2026-08-09 design
+  record (reviewer recommendation; reversible if Tom prefers an
+  in-place edit). Reviewer independently reproduced the debug (75
+  tests), clippy, and fmt gates before and after the fixes; the
+  release and 4,096-case gates were not re-run for the comment-level
+  changes. Accepted-risk confirmations: cumulative discovery bound
+  stays actor-owned; the halt-and-suspend × vacant-seeding cells
+  stay confessed-untested. The slice is closed; mock is unblocked.
