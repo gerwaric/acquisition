@@ -72,13 +72,24 @@ fn missing_rules_header_is_typed() {
     ));
 }
 
-// C2: malformed triplets fail without indexing or panicking.
+// C2: malformed triplets fail without indexing or panicking. Numeric fields
+// are strict ASCII digits — the `+`/whitespace leniency of str::parse is out.
 #[test]
 fn malformed_triplet_is_typed() {
-    assert!(matches!(
-        parse_policy(&headers("15:ten:60, 30:300:300", "1:10:0, 1:300:0")),
-        Err(PolicyParseError::MalformedTriplet { .. })
-    ));
+    for limit in [
+        "15:ten:60, 30:300:300",
+        "+15:10:60, 30:300:300",
+        "15 :10:60, 30:300:300",
+        "15:10:60:70, 30:300:300",
+    ] {
+        assert!(
+            matches!(
+                parse_policy(&headers(limit, "1:10:0, 1:300:0")),
+                Err(PolicyParseError::MalformedTriplet { .. })
+            ),
+            "expected MalformedTriplet for {limit:?}"
+        );
+    }
 }
 
 proptest! {

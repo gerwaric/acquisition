@@ -230,6 +230,19 @@ fn rule_header(rule: &str, state: bool) -> Result<HeaderName, PolicyParseError> 
     })
 }
 
+/// Numeric wire fields are bare ASCII digits. `str::parse` alone would also
+/// accept a leading `+`, which no observed header carries — reject it.
+pub(crate) fn ascii_digits_only(raw: &str) -> bool {
+    !raw.is_empty() && raw.bytes().all(|byte| byte.is_ascii_digit())
+}
+
+fn parse_strict_u32(raw: &str) -> Option<u32> {
+    if !ascii_digits_only(raw) {
+        return None;
+    }
+    raw.parse().ok()
+}
+
 fn parse_triplets<T>(
     headers: &HeaderMap,
     name: &HeaderName,
@@ -238,22 +251,17 @@ fn parse_triplets<T>(
     required_header(headers, name)?
         .split(',')
         .map(|raw| {
+            let malformed = || PolicyParseError::MalformedTriplet {
+                header: name.clone(),
+                raw: raw.to_owned(),
+            };
             let fields = raw
                 .trim()
                 .split(':')
-                .map(str::parse::<u32>)
-                .collect::<Result<Vec<_>, _>>()
-                .map_err(|_| PolicyParseError::MalformedTriplet {
-                    header: name.clone(),
-                    raw: raw.to_owned(),
-                })?;
-            let fields: [u32; 3] =
-                fields
-                    .try_into()
-                    .map_err(|_| PolicyParseError::MalformedTriplet {
-                        header: name.clone(),
-                        raw: raw.to_owned(),
-                    })?;
+                .map(parse_strict_u32)
+                .collect::<Option<Vec<_>>>()
+                .ok_or_else(malformed)?;
+            let fields: [u32; 3] = fields.try_into().map_err(|_| malformed())?;
             Ok(parse(fields))
         })
         .collect()

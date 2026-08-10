@@ -1158,12 +1158,20 @@ fn maximum_bucket_resolution(policy: &Policy) -> Duration {
         .expect("configured policies have at least one rule")
 }
 
+/// Delay-seconds only: the RFC 9110 HTTP-date form is deliberately out of
+/// model (the API sends bare seconds) and lands in `Invalid`, which now
+/// carries the same conservative cap-length restriction as any other
+/// unusable value.
 fn parse_retry_after(headers: &HeaderMap) -> Result<Duration, RetryAfterError> {
     let raw = headers
         .get(&RETRY_AFTER_HEADER)
         .ok_or(RetryAfterError::Missing)?
         .to_str()
-        .map_err(|_| RetryAfterError::Invalid)?;
+        .map_err(|_| RetryAfterError::Invalid)?
+        .trim();
+    if !crate::header::ascii_digits_only(raw) {
+        return Err(RetryAfterError::Invalid);
+    }
     let seconds = raw.parse::<u64>().map_err(|_| RetryAfterError::Invalid)?;
     if seconds > RETRY_AFTER_CAP.as_secs() {
         return Err(RetryAfterError::AboveCap { seconds });

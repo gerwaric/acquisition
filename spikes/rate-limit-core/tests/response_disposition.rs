@@ -261,9 +261,21 @@ fn retry_after_delay_second_boundaries_are_validated_without_a_retry_side_channe
     // An unusable Retry-After refuses the request AND records a cap-length
     // conservative restriction: the server declared a restriction we cannot
     // size, so the core must not stay immediately grantable.
+    // Surrounding whitespace is tolerated, matching the triplet parser.
+    let mut trimmed = engine();
+    let token = reserve(&mut trimmed, 0);
+    assert_eq!(
+        trimmed
+            .on_response(token, SimInstant::from_millis(0), &rate_limited(" 5 "))
+            .disposition(),
+        &Disposition::Requeue
+    );
+
     for reply in [
         rate_limited("901"),
         rate_limited("not-a-number"),
+        rate_limited("+5"),
+        rate_limited("Wed, 21 Oct 2026 07:28:00 GMT"),
         ObservedResponse::new(
             StatusCode::TOO_MANY_REQUESTS,
             headers(None),
