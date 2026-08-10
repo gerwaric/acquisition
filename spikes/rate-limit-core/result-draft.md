@@ -261,6 +261,9 @@ marker; resolved items cite the commit series landed the same day.
   hardening pass; now decision-backed rather than implementer-read.
 
 **Open — flagged for Tom (design decision, not mechanical):**
+*(proposal drafted: `bootstrap-seeding.md`, 2026-08-09 — engine-owned
+resolution table, probe-path seeding, `ProbeReady { policy }`,
+parsed `RuleScope` with out-of-model refusal; awaiting review)*
 
 - **The probe/bootstrap seam cannot discover a policy.** There is
   no `PolicySnapshot` → `Policy` construction path (nothing assigns
