@@ -424,19 +424,16 @@ impl MockService {
             )
         };
 
-        let mut response = build_default_response(
-            endpoint,
-            &method,
-            arrival,
-            &definition,
-            &judgment,
-            layer1.tripped,
-        )?;
+        let mut response =
+            build_default_response(endpoint, &method, &definition, &judgment, layer1.tripped)?;
         let stimulus = if layer1.tripped {
             None
         } else {
             apply_override(&mut response, script.response)?
         };
+        if let Ok(wire_response) = &mut response {
+            emit_date(wire_response.headers_mut(), arrival)?;
+        }
         tokio::time::sleep(script.response_delay).await;
         let completion = self.now();
 
@@ -591,7 +588,6 @@ fn model_transport_error(error: ModelError) -> TransportError {
 fn build_default_response(
     endpoint: Endpoint,
     method: &Method,
-    now: ServerTime,
     definition: &PolicyDefinition,
     judgment: &PolicyJudgment,
     layer1_tripped: bool,
@@ -612,7 +608,7 @@ fn build_default_response(
         .map_err(|error| {
             TransportError::MockHarness(format!("failed to construct mock response: {error}"))
         })?;
-    emit_full_headers(response.headers_mut(), now, definition, judgment)?;
+    emit_full_headers(response.headers_mut(), definition, judgment)?;
     if let Some(retry_after) = judgment.retry_after_seconds {
         insert_header(
             response.headers_mut(),
@@ -625,7 +621,6 @@ fn build_default_response(
 
 fn emit_full_headers(
     headers: &mut HeaderMap,
-    now: ServerTime,
     definition: &PolicyDefinition,
     judgment: &PolicyJudgment,
 ) -> Result<(), TransportError> {
@@ -681,6 +676,10 @@ fn emit_full_headers(
         insert_header(headers, limit_name, limits)?;
         insert_header(headers, state_name, states)?;
     }
+    Ok(())
+}
+
+fn emit_date(headers: &mut HeaderMap, now: ServerTime) -> Result<(), TransportError> {
     let date = httpdate::fmt_http_date(
         UNIX_EPOCH
             .checked_add(Duration::from_millis(now.as_millis()))

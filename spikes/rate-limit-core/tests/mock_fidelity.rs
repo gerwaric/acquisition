@@ -428,6 +428,7 @@ async fn b11_m3_m4_script_channel_covers_every_response_shape() {
         .unwrap();
     assert!(degraded.headers().contains_key("x-rate-limit-policy"));
     assert!(!degraded.headers().contains_key("x-rate-limit-rules"));
+    assert!(degraded.headers().contains_key(DATE));
 
     controller
         .script(
@@ -445,6 +446,7 @@ async fn b11_m3_m4_script_channel_covers_every_response_shape() {
         .unwrap();
     assert_eq!(cloudflare.status(), StatusCode::FORBIDDEN);
     assert_eq!(cloudflare.headers()["cf-mitigated"], "challenge");
+    assert!(cloudflare.headers().contains_key(DATE));
 
     let mut malformed_headers = http::HeaderMap::new();
     malformed_headers.insert("x-rate-limit-policy", "bad".parse().unwrap());
@@ -468,6 +470,7 @@ async fn b11_m3_m4_script_channel_covers_every_response_shape() {
         .unwrap();
     assert_eq!(malformed.status(), StatusCode::TOO_MANY_REQUESTS);
     assert!(parse_policy(malformed.headers()).is_err());
+    assert!(malformed.headers().contains_key(DATE));
 
     controller
         .script(
