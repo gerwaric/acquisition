@@ -241,7 +241,10 @@ marker; resolved items cite the commit series landed the same day.
   NotBefore is now always a real, sleepable future instant; the two
   wait-for-an-event cases (confirmation in flight, wire-legal
   zero-hit rule) return the distinct `Blocked` variant. Implemented
-  and test-pinned.
+  and test-pinned. ⟨"Wire-legal zero-hit rule" superseded by D8
+  rejection (external review finding 3): zero-hit rules no longer
+  parse; the `Blocked` answer survives only for constructed
+  policies, as defense in depth.⟩
 - **Probe-429 episode follows the full confirmation matrix.**
   "Single confirmation attempt" in the M1 probe-429 prose meant one
   in flight at a time, not a one-attempt cap; the matrix's
@@ -306,8 +309,10 @@ missing now exists (`core-handoff.md`).
    for every generation. **Doc finding (shell obligation)**: aging
    alone cannot distinguish a dropped token from a slow live one;
    the shell must resolve every token (response/unknown/rollback)
-   well inside the smallest aging horizon — any sane transport
-   timeout satisfies this — and a shell that violates it gets the
+   well inside the aging horizon (per policy, the largest padded
+   window — the horizon the implementation and hand-off use; a
+   single shell-wide timeout must beat the smallest such horizon
+   across policies) — and a shell that violates it gets the
    defined degraded behavior (attempt written off; brief
    double-confirmation exposure), never a wedge or an abort.
 3. **D8 grammar enforced**: empty/whitespace policy names, zero
@@ -318,9 +323,11 @@ missing now exists (`core-handoff.md`).
 4. **Absolute wire ceilings** — the synthesis cap was circular once
    seeding makes configuration wire-derived. **Doc finding (chosen
    values)**: 8 rules/policy, 8 triplets/rule, `max_hits` ≤ 10 000,
-   periods ≤ 3600 s — each far above anything observed on the wire
-   (2 rules, 2 triplets, hits ≤ ~45, periods ≤ 300 s); boundaries
-   pinned at n/n+1.
+   periods ≤ 3600 s; boundaries pinned at n/n+1. ⟨Superseded
+   2026-08-10: the evidence claim here (hits ≤ ~45, periods
+   ≤ 300 s) was wrong — N23's legacy Ip rule reaches 180 / 1800 s.
+   Tom raised the period ceiling to 21 600 s on the corrected
+   evidence; the follow-up register below has the decision.⟩
 5. **Physical history retirement**: entries now retire at both
    mutation surfaces once aged past the largest padded window;
    token-consuming paths tolerate a retired entry. An observation
@@ -334,6 +341,38 @@ Test-evidence fixes from the same review: the interleaving property
 generates ≥ 1 operation; `assert_pessimistic` does its own windowing
 arithmetic over raw entry timestamps; the synthesis cap is pinned at
 511/512/513.
+
+### Follow-up verifier register (2026-08-10, review of the fix series)
+
+The same external reviewer verified the six-fix series: five fixes
+held; two residual defects and four doc corrections came back, all
+resolved same-day (Tom approved the batch):
+
+1. **Probe-lane 429s skipped `record_restriction` when
+   halted/suspended** — the finding-1 gates ran before the 429
+   branch, so a suspended policy's valid probe 429 refused without
+   recording the declared restriction, contradicting the hand-off's
+   uniform-pessimism judgment. Bookkeeping now precedes the
+   disposition choice in both lanes; both branches reproduced by
+   failing tests first.
+2. **Byte-length ceilings** completed the wire-bound rule: policy
+   names ≤ 256 bytes, rule names ≤ 64, diagnostics truncate raw
+   wire text to 64 — no wire field sizes an allocation. Pinned at
+   n/n+1.
+3. **Corrected evidence, Tom's ceiling decision**: observed wire
+   maxima are 180 hits / 1800 s (N23 legacy Ip rule), not 45/300 —
+   the 3600 s ceiling was only 2x observed. Tom chose 21 600 s
+   (6 h): a period sizes no allocation, and an over-ceiling policy
+   refuses the endpoint, so the ceiling favors availability under
+   N9's dynamic-policy premise.
+4. **Doc reconciliation**: aging-horizon wording aligned with the
+   implementation (largest padded window per policy); the zero-hit
+   "wire-legal" register wording marked superseded by D8; test
+   counts corrected (now 72 debug / 70 release).
+
+Open obligation carried to the actor slice: replace "any sane
+transport timeout" with the exact enforced timeout (or its stated
+relationship to the aging horizon) plus a test.
 
 ## §4. Candidate N-claims
 

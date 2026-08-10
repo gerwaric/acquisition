@@ -3,8 +3,10 @@
 Status: review artifact per `slice-review.md` §2, written 2026-08-09
 after the external review noted its absence for the composite core
 (the hand-off process postdates the first slices). Covers everything
-implemented through the external-review fix series. Supersedes
-nothing; future slices attach their own hand-offs.
+implemented through the external-review fix series and the follow-up
+verifier fixes of 2026-08-10 (probe-lane 429 recording, byte
+ceilings, 6 h period ceiling). Supersedes nothing; future slices
+attach their own hand-offs.
 
 ## 1. Silences taken (doc gaps, the reading chosen, consequence traced)
 
@@ -14,7 +16,7 @@ nothing; future slices attach their own hand-offs.
 | Late 429 after halt / suspension | send-promising dispositions (Requeue, ProbeReady) refuse; outcome-delivering ones still deliver | requeue queues can no longer receive unkeepable promises |
 | Zombie 429 from an expired confirmation | joins the episode regardless of generation | episode state unchanged; no double-escalation, no abort |
 | Abandonment vs slow live token | age past the largest padded window = written off (shell obligation: resolve tokens well inside that horizon) | attempt consumed; a contract-violating shell risks a bounded double-confirmation window, never a wedge |
-| Unbounded wire values | absolute ceilings 8 / 8 / 10 000 / 3600 s at parse | out-of-range headers are typed refusals before any allocation |
+| Unbounded wire values | absolute ceilings at parse: 8 rules, 8 triplets, 10 000 hits, 21 600 s periods, 256/64-byte names, 64-byte diagnostics | out-of-range headers are typed refusals before any allocation |
 | Physical retention | retire entries past the largest padded window at both mutation surfaces | an observation window longer than every configured padded window may re-synthesize — pessimistic |
 | Duplicate rule names / duplicated headers | parse as-is; first header value wins | harmless under max-not-sum reconciliation; pinned as current behavior |
 | Zero-hit windows | wire-refused (D8); engine answers `Blocked` for constructed policies | defense in depth only |
@@ -59,8 +61,8 @@ Not covered, honestly: no property sweeps the halted/suspended
 dimension (example tests only); the retirement × long-observation
 re-synthesis interaction is reasoned, not property-tested; the
 double-confirmation window under a contract-violating shell is
-untested; drop-bomb tests are debug-profile only (release runs 65 of
-67).
+untested; drop-bomb tests are debug-profile only (release runs 70 of
+72).
 
 Reachability accounting: C1 asserts on every generated branch
 (grant → oracle; NotBefore → re-ask must grant → oracle); the
@@ -74,14 +76,24 @@ grammar, with every rejected complement pinned by name.
 - Zombie-429-joins (Tom-confirmed) extended to *any* generation by
   deleting the open_or_join assert rather than tracking expired-
   token generations — less machinery, same conservatism.
-- Restrictions are recorded on every 429 even when the disposition
-  refuses (halted/suspended/unusable-Retry-After) — uniform
-  pessimism over minimal mutation.
+- Restrictions are recorded on every valid 429 even when the
+  disposition refuses (halted/suspended/unusable-Retry-After) —
+  uniform pessimism over minimal mutation. The probe lane initially
+  violated this (gates ran before the 429 branch); caught by the
+  follow-up verifier review and fixed 2026-08-10.
 - The probe lane's suspension gate goes beyond the reviewer's
   finding (they named halt only) — same unkeepable-promise
   reasoning.
 - Retirement horizon = abandonment horizon (one aging concept, not
   two).
-- Ceiling values (8/8/10 000/3600) are mine; generous by ~2 orders
-  of magnitude over observed wire values, small enough to bound
-  worst-case synthesis at ~240 KB per policy.
+- Ceiling values: counts and hits (8/8/10 000) are mine, far above
+  the observed 2 rules / 2 triplets / 180 hits, small enough to
+  bound worst-case synthesis at ~240 KB per policy. The original
+  3600 s period ceiling rested on a wrong evidence claim (45 hits /
+  300 s; ground-truth N23's legacy Ip rule reaches 180 / 1800 s) —
+  caught by the follow-up verifier review. Tom set 21 600 s (6 h,
+  12x observed, 2026-08-10): a period sizes no allocation, and an
+  over-ceiling policy refuses the endpoint, so availability wins.
+- Byte ceilings (256-byte policy names, 64-byte rule names,
+  64-byte truncated diagnostics) close the follow-up review's
+  finding that names and error payloads were still wire-sized.
