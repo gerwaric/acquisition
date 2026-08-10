@@ -329,6 +329,36 @@ fn open_episode(engine: &mut PolicyEngine, policy: &PolicyName) {
     assert_eq!(transition.disposition, Disposition::Requeue);
 }
 
+// External review finding 5: history retires physically once aged out of
+// every padded window — storage is bounded by the window horizon, not by
+// process lifetime — and consuming a token whose entry was already retired
+// resolves safely instead of panicking.
+#[test]
+fn history_retires_physically_and_retired_tokens_resolve_safely() {
+    let policy = policy_name();
+    // Horizon: max(100ms + 5s, 1s + 60s) = 61s.
+    let mut engine = engine(4, 100, 1_000);
+    let resolved = reserve(&mut engine, &policy, SimInstant::from_millis(0));
+    let slow = reserve(&mut engine, &policy, SimInstant::from_millis(0));
+    let _ = engine.on_unknown_outcome(resolved, SimInstant::from_millis(1));
+    assert_eq!(engine.policy(&policy).unwrap().history().len(), 2);
+
+    // Just inside the horizon both entries persist.
+    let inside = reserve(&mut engine, &policy, SimInstant::from_millis(60_000));
+    engine.rollback(inside);
+    assert_eq!(engine.policy(&policy).unwrap().history().len(), 2);
+
+    // Past the horizon the next scheduling call retires them.
+    let later = reserve(&mut engine, &policy, SimInstant::from_millis(200_000));
+    engine.rollback(later);
+    assert!(engine.policy(&policy).unwrap().history().is_empty());
+
+    // The still-unresolved token whose entry was retired resolves safely.
+    let transition = engine.on_unknown_outcome(slow, SimInstant::from_millis(200_000));
+    assert_eq!(transition.disposition, Disposition::CompleteRequest);
+    assert!(engine.policy(&policy).unwrap().history().is_empty());
+}
+
 // C5 abandonment, confirmation half: a dropped confirmation token must not
 // wedge the policy. The slot ages out with its history entry, resolving as a
 // failed attempt — the episode advances to its final attempt instead of

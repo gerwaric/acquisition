@@ -486,6 +486,7 @@ impl PolicyEngine {
             let Some(policy) = self.policies.get_mut(policy_name) else {
                 return ReserveOutcome::Refused(RefusalReason::UnknownPolicy(policy_name.clone()));
             };
+            retire_aged_entries(policy, now);
             expire_abandoned_confirmation(policy, now);
         }
         let policy = self
@@ -550,11 +551,11 @@ impl PolicyEngine {
             .policies
             .get_mut(&token.policy)
             .expect("a reservation token always names its originating policy");
-        let removed = policy
-            .history
-            .remove(token.entry_id)
-            .expect("a live reservation token always names a history entry");
-        assert_eq!(removed.kind, EntryKind::LocalReservation);
+        // An absent entry was physically retired by aging — there is
+        // nothing left to undo (external review finding 5).
+        if let Some(removed) = policy.history.remove(token.entry_id) {
+            assert_eq!(removed.kind, EntryKind::LocalReservation);
+        }
         if episode_owns_confirmation(policy, &token) {
             policy
                 .recovery_episode
@@ -574,18 +575,19 @@ impl PolicyEngine {
         mut token: ReservationToken,
         _now: SimInstant,
     ) -> Transition {
-        let entry = self
-            .policies
-            .get(&token.policy)
-            .and_then(|policy| {
-                policy
-                    .history
-                    .entries
-                    .iter()
-                    .find(|entry| entry.id == token.entry_id)
-            })
-            .expect("a live reservation token always names a history entry");
-        assert_eq!(entry.kind, EntryKind::LocalReservation);
+        // The entry may have been physically retired by aging while the
+        // request was in flight (external review finding 5) — an aged
+        // unknown outcome keeps nothing, so its absence is already the
+        // pessimistic end state.
+        if let Some(entry) = self.policies.get(&token.policy).and_then(|policy| {
+            policy
+                .history
+                .entries
+                .iter()
+                .find(|entry| entry.id == token.entry_id)
+        }) {
+            assert_eq!(entry.kind, EntryKind::LocalReservation);
+        }
         let confirmation = self.confirmation_is_current(&token);
         let escalated = self.fail_confirmation(&token, false);
         token.consume();
@@ -989,10 +991,17 @@ impl PolicyEngine {
         now: SimInstant,
         observation: &PolicySnapshot,
     ) -> Result<Reconciliation, ObservationError> {
+        {
+            let policy = self
+                .policies
+                .get_mut(policy_name)
+                .ok_or_else(|| ObservationError::UnknownPolicy(policy_name.clone()))?;
+            retire_aged_entries(policy, now);
+        }
         let policy = self
             .policies
             .get(policy_name)
-            .ok_or_else(|| ObservationError::UnknownPolicy(policy_name.clone()))?;
+            .expect("policy existence checked above");
 
         // Synthesis targets min(reported, largest configured max_hits).
         // Synthesized entries all share the timestamp `now`, so once every
@@ -1048,6 +1057,39 @@ impl PolicyEngine {
             .expect("reservation entry id space exhausted");
         id
     }
+}
+
+/// Physically retires entries aged out of every padded window.
+///
+/// External review finding 5: logical expiry was always by window passage,
+/// but entries were never removed, so memory and per-call scan cost grew
+/// with process lifetime instead of being bounded by the window horizon. A
+/// retired entry is unobservable to configured-window scheduling; an
+/// *observation* window longer than every configured padded window may
+/// count fewer local hits afterward and re-synthesize — the pessimistic
+/// direction. Token-consuming paths tolerate a retired entry.
+fn retire_aged_entries(policy: &mut Policy, now: SimInstant) {
+    let horizon = maximum_padded_window(policy);
+    policy
+        .history
+        .entries
+        .retain(|entry| entry.at > now || now < entry.at.saturating_add(horizon));
+}
+
+/// The longest period-plus-bucket span across the policy's windows.
+fn maximum_padded_window(policy: &Policy) -> Duration {
+    policy
+        .rules
+        .iter()
+        .flat_map(|rule| {
+            [
+                (rule.pair.burst(), rule.buckets.burst),
+                (rule.pair.sustained(), rule.buckets.sustained),
+            ]
+        })
+        .map(|(window, resolution)| window.period.saturating_add(resolution.duration()))
+        .max()
+        .expect("policies are constructed with at least one rule")
 }
 
 /// Whether the policy's episode still holds `token` as its live confirmation.
