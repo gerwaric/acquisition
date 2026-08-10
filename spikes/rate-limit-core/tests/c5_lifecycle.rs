@@ -171,11 +171,16 @@ proptest! {
         prop_assert_eq!(engine.policy(&policy).unwrap().history(), &before);
     }
 
-    // C5: arbitrary serialized interleavings retain each send exactly once
-    // unless its still-undispatched token is explicitly rolled back.
+    // C5: arbitrary serialized interleavings of reserve, rollback, observe,
+    // and unknown-outcome — over tokens resolved in any order, not just
+    // FIFO — retain each send exactly once unless its still-undispatched
+    // token is explicitly rolled back.
     #[test]
     fn interleavings_neither_double_count_nor_lose_sends(
-        operations in prop::collection::vec((0_u8..4, 0_u16..20), 0..128),
+        operations in prop::collection::vec(
+            (0_u8..6, 0_u16..20, any::<prop::sample::Index>()),
+            0..128,
+        ),
     ) {
         let policy = policy_name();
         let mut engine = engine(256, 10_000, 20_000);
@@ -183,10 +188,10 @@ proptest! {
         let mut live_tokens = Vec::<ReservationToken>::new();
         let mut expected = BTreeMap::new();
 
-        for (operation, delta) in operations {
+        for (operation, delta, pick) in operations {
             now += u64::from(delta);
             match operation {
-                0 | 3 => {
+                0 | 5 => {
                     let token = reserve(&mut engine, &policy, SimInstant::from_millis(now));
                     prop_assert_eq!(token.policy(), &policy);
                     let id = token.entry_id();
@@ -194,13 +199,21 @@ proptest! {
                     live_tokens.push(token);
                 }
                 1 if !live_tokens.is_empty() => {
-                    let token = live_tokens.remove(0);
+                    let token = live_tokens.remove(pick.index(live_tokens.len()));
                     expected.remove(&token.entry_id());
                     engine.rollback(token);
                 }
                 2 if !live_tokens.is_empty() => {
-                    let token = live_tokens.remove(0);
+                    let token = live_tokens.remove(pick.index(live_tokens.len()));
                     let _ = engine.on_unknown_outcome(token, SimInstant::from_millis(now));
+                }
+                3 if !live_tokens.is_empty() => {
+                    // Observed: a valid zero-hit response resolves the token;
+                    // its send stays exactly once, still locally attributed.
+                    let token = live_tokens.remove(pick.index(live_tokens.len()));
+                    let transition =
+                        engine.on_response(token, SimInstant::from_millis(now), &ok_response());
+                    prop_assert_eq!(transition.disposition(), &Disposition::CompleteRequest);
                 }
                 _ => {
                     engine.record_synthetic(&policy, SimInstant::from_millis(now), 1).unwrap();
@@ -262,9 +275,9 @@ proptest! {
     }
 }
 
-// A valid 429 for the test policy: 0s Retry-After, so the restriction is the
-// 60s max bucket plus the 1s buffer.
-fn rate_limited_response() -> ObservedResponse {
+// Valid headers for the test policy reporting zero hits, so reconciliation
+// synthesizes nothing on top of the locally recorded sends.
+fn policy_headers() -> HeaderMap {
     let mut headers = HeaderMap::new();
     headers.insert(
         "x-rate-limit-policy",
@@ -279,6 +292,17 @@ fn rate_limited_response() -> ObservedResponse {
         "x-rate-limit-account-state",
         HeaderValue::from_static("0:1:0, 0:2:0"),
     );
+    headers
+}
+
+fn ok_response() -> ObservedResponse {
+    ObservedResponse::new(StatusCode::OK, policy_headers(), ReplyClassification::Normal)
+}
+
+// A valid 429 for the test policy: 0s Retry-After, so the restriction is the
+// 60s max bucket plus the 1s buffer.
+fn rate_limited_response() -> ObservedResponse {
+    let mut headers = policy_headers();
     headers.insert("retry-after", HeaderValue::from_static("0"));
     ObservedResponse::new(
         StatusCode::TOO_MANY_REQUESTS,
