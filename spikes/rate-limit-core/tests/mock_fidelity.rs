@@ -409,6 +409,40 @@ async fn b12_b13_explicit_delay_makes_overlap_and_correlation_observable() {
 }
 
 #[tokio::test(start_paused = true)]
+async fn dropped_mock_transport_future_is_logged_and_ages_out_of_in_flight_state() {
+    let (service, controller) =
+        rate_limit_core::mock::MockService::new(MockConfig::n23(17, 0)).unwrap();
+    controller
+        .script(
+            1,
+            ExchangeScript {
+                response_delay: Duration::from_secs(1),
+                ..ExchangeScript::default()
+            },
+        )
+        .await
+        .unwrap();
+    let first_service = service.clone();
+    let task = tokio::spawn(async move {
+        first_service
+            .send(request(Method::GET, Endpoint::Stash, 1).unwrap())
+            .await
+    });
+    tokio::task::yield_now().await;
+    task.abort();
+    tokio::time::advance(Duration::from_secs(1)).await;
+
+    service
+        .send(request(Method::HEAD, Endpoint::Character, 2).unwrap())
+        .await
+        .unwrap();
+    let observations = controller.observations().await;
+    assert_eq!(observations.len(), 2, "B13 retains the received arrival");
+    assert_eq!(observations[1].in_flight_at_arrival, 1);
+    assert!(!observations[1].head_overlap);
+}
+
+#[tokio::test(start_paused = true)]
 async fn b11_m3_m4_script_channel_covers_every_response_shape() {
     let (service, controller) =
         rate_limit_core::mock::MockService::new(MockConfig::n23(14, 0)).unwrap();

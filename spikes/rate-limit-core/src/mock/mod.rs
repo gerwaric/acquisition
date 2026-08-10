@@ -289,8 +289,14 @@ struct MockState {
     routes: HashMap<Endpoint, String>,
     scripts: HashMap<u64, ExchangeScript>,
     seen_correlations: HashSet<u64>,
-    in_flight: HashMap<u64, Method>,
+    in_flight: HashMap<u64, ActiveExchange>,
     observations: Vec<Observation>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ActiveExchange {
+    method: Method,
+    completes_at: ServerTime,
 }
 
 #[derive(Debug, Clone)]
@@ -364,6 +370,9 @@ impl MockService {
         let arrival = self.now();
         let (ordinal, policy, layer1, judgment, definition, in_flight_at_arrival, head_overlap) = {
             let mut state = self.state.lock().await;
+            state
+                .in_flight
+                .retain(|_, exchange| arrival < exchange.completes_at);
             if state.exhausted || state.dispatches == state.dispatch_budget {
                 state.exhausted = true;
                 return Err(TransportError::MockHarness(format!(
@@ -385,7 +394,7 @@ impl MockService {
                 state
                     .in_flight
                     .values()
-                    .any(|active| *active == Method::HEAD)
+                    .any(|active| active.method == Method::HEAD)
             };
             let policy = state.routes.get(&endpoint).cloned().ok_or_else(|| {
                 TransportError::MockHarness("endpoint has no policy route".to_owned())
@@ -412,7 +421,17 @@ impl MockService {
                 .definition(&policy)
                 .map_err(model_transport_error)?
                 .clone();
-            state.in_flight.insert(correlation_id, method.clone());
+            let response_delay_ms = u64::try_from(script.response_delay.as_millis())
+                .expect("script delays are structurally capped below u64 milliseconds");
+            state.in_flight.insert(
+                correlation_id,
+                ActiveExchange {
+                    method: method.clone(),
+                    completes_at: ServerTime::from_millis(
+                        arrival.as_millis().saturating_add(response_delay_ms),
+                    ),
+                },
+            );
             (
                 ordinal,
                 policy,
@@ -434,22 +453,24 @@ impl MockService {
         if let Ok(wire_response) = &mut response {
             emit_date(wire_response.headers_mut(), arrival)?;
         }
-        tokio::time::sleep(script.response_delay).await;
-        let completion = self.now();
-
         let response_status = response.as_ref().ok().map(Response::status);
         {
             let mut state = self.state.lock().await;
-            state.in_flight.remove(&correlation_id);
             let seed = state.seed;
             let phase_ms = state.model.phase_ms();
+            let completion_ms = state
+                .in_flight
+                .get(&correlation_id)
+                .expect("this exchange was inserted before response construction")
+                .completes_at
+                .as_millis();
             state.observations.push(Observation {
                 ordinal,
                 seed,
                 phase_ms,
                 correlation_id,
                 arrival_ms: arrival.as_millis(),
-                completion_ms: completion.as_millis(),
+                completion_ms,
                 method,
                 endpoint,
                 policy,
@@ -461,6 +482,8 @@ impl MockService {
                 response_status,
             });
         }
+        tokio::time::sleep(script.response_delay).await;
+        self.state.lock().await.in_flight.remove(&correlation_id);
         response
     }
 }
@@ -782,15 +805,34 @@ fn validate_script(script: &ExchangeScript) -> Result<(), MockConfigError> {
             "script delay exceeds the six-hour harness bound".to_owned(),
         ));
     }
+    if !script
+        .arrival_delay
+        .subsec_nanos()
+        .is_multiple_of(1_000_000)
+        || !script
+            .response_delay
+            .subsec_nanos()
+            .is_multiple_of(1_000_000)
+    {
+        return Err(MockConfigError::InvalidScript(
+            "script delays must be whole simulated milliseconds".to_owned(),
+        ));
+    }
     if let Some(ResponseOverride::Full {
         retry_after: Some(value),
         ..
     }) = &script.response
-        && value.len() > MAX_MOCK_HEADER_VALUE_BYTES
     {
-        return Err(MockConfigError::InvalidScript(
-            "scripted Retry-After exceeds the mock header bound".to_owned(),
-        ));
+        if value.len() > MAX_MOCK_HEADER_VALUE_BYTES {
+            return Err(MockConfigError::InvalidScript(
+                "scripted Retry-After exceeds the mock header bound".to_owned(),
+            ));
+        }
+        if HeaderValue::from_str(value).is_err() {
+            return Err(MockConfigError::InvalidScript(
+                "scripted Retry-After is not a valid header value".to_owned(),
+            ));
+        }
     }
     if let Some(ResponseOverride::TransportError(message)) = &script.response
         && message.len() > 256
