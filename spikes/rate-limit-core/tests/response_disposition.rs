@@ -118,7 +118,7 @@ fn reserve(engine: &mut PolicyEngine, now_ms: u64) -> ReservationToken {
 fn open_episode(engine: &mut PolicyEngine) {
     let original = reserve(engine, 0);
     let transition = engine.on_response(original, SimInstant::from_millis(0), &rate_limited("0"));
-    assert_eq!(transition.disposition(), &Disposition::Requeue);
+    assert_eq!(transition.disposition, Disposition::Requeue);
 }
 
 fn first_confirmation(engine: &mut PolicyEngine) -> ReservationToken {
@@ -160,7 +160,7 @@ proptest! {
             SimInstant::from_millis(0),
             &rate_limited("0"),
         );
-        prop_assert_eq!(transition.disposition(), &Disposition::Requeue);
+        prop_assert_eq!(transition.disposition, Disposition::Requeue);
 
         let mut observed_429s = 1_u64;
         for (token, is_429) in tokens.into_iter().zip(later_are_429) {
@@ -176,14 +176,14 @@ proptest! {
             } else {
                 Disposition::CompleteRequest
             };
-            prop_assert_eq!(transition.disposition(), &expected);
+            prop_assert_eq!(transition.disposition, expected);
         }
 
         let policy = engine.policy(&PolicyName::from(POLICY)).unwrap();
         prop_assert_eq!(policy.restriction_generation(), observed_429s);
         let episode = policy.recovery_episode().expect("one episode remains open");
-        prop_assert_eq!(episode.opened_generation(), 1);
-        prop_assert_eq!(episode.completed_attempts(), 0);
+        prop_assert_eq!(episode.opened_generation, 1);
+        prop_assert_eq!(episode.completed_attempts, 0);
 
         let confirmation = reserve(&mut engine, 1_000);
         prop_assert_eq!(
@@ -220,7 +220,7 @@ fn restriction_uses_maximum_bucket_and_opens_at_the_exact_boundary() {
         SimInstant::from_millis(1_000),
         &rate_limited_with_state("2", "4:10:60, 6:300:300"),
     );
-    assert_eq!(transition.disposition(), &Disposition::Requeue);
+    assert_eq!(transition.disposition, Disposition::Requeue);
 
     let policy = engine.policy(&PolicyName::from(POLICY)).unwrap();
     assert_eq!(policy.restriction_generation(), 1);
@@ -248,8 +248,8 @@ fn retry_after_delay_second_boundaries_are_validated_without_a_retry_side_channe
     assert_eq!(
         at_cap
             .on_response(token, SimInstant::from_millis(0), &rate_limited("900"))
-            .disposition(),
-        &Disposition::Requeue
+            .disposition,
+        Disposition::Requeue
     );
     assert_eq!(
         at_cap
@@ -268,8 +268,8 @@ fn retry_after_delay_second_boundaries_are_validated_without_a_retry_side_channe
     assert_eq!(
         trimmed
             .on_response(token, SimInstant::from_millis(0), &rate_limited(" 5 "))
-            .disposition(),
-        &Disposition::Requeue
+            .disposition,
+        Disposition::Requeue
     );
 
     for reply in [
@@ -287,7 +287,7 @@ fn retry_after_delay_second_boundaries_are_validated_without_a_retry_side_channe
         let token = reserve(&mut refused, 0);
         let transition = refused.on_response(token, SimInstant::from_millis(0), &reply);
         assert!(matches!(
-            transition.disposition(),
+            transition.disposition,
             Disposition::Refuse {
                 cause: RefusalCause::RetryAfter(_),
                 ..
@@ -327,7 +327,7 @@ fn probe_429_with_unusable_retry_after_records_the_cap_restriction() {
     );
 
     assert!(matches!(
-        transition.disposition(),
+        transition.disposition,
         Disposition::Refuse {
             target: RefusalTarget::Endpoint(_),
             cause: RefusalCause::RetryAfter(_),
@@ -369,7 +369,7 @@ fn valid_2xx_on_first_confirmation_resets_the_episode() {
         &response(StatusCode::OK),
     );
 
-    assert_eq!(transition.disposition(), &Disposition::CompleteRequest);
+    assert_eq!(transition.disposition, Disposition::CompleteRequest);
     assert!(
         engine
             .policy(&PolicyName::from(POLICY))
@@ -390,8 +390,8 @@ fn a_429_on_the_first_confirmation_escalates_even_after_a_late_original_429() {
     assert_eq!(
         engine
             .on_response(original_one, SimInstant::from_millis(0), &rate_limited("0"))
-            .disposition(),
-        &Disposition::Requeue
+            .disposition,
+        Disposition::Requeue
     );
     let confirmation = first_confirmation(&mut engine);
 
@@ -402,8 +402,8 @@ fn a_429_on_the_first_confirmation_escalates_even_after_a_late_original_429() {
                 SimInstant::from_millis(1_000),
                 &rate_limited("0")
             )
-            .disposition(),
-        &Disposition::Requeue
+            .disposition,
+        Disposition::Requeue
     );
     assert_eq!(confirmation.restriction_generation(), 1);
     assert_eq!(
@@ -420,7 +420,7 @@ fn a_429_on_the_first_confirmation_escalates_even_after_a_late_original_429() {
         &rate_limited("0"),
     );
     assert!(matches!(
-        transition.disposition(),
+        transition.disposition,
         Disposition::Refuse {
             cause: RefusalCause::RecoveryEscalated,
             ..
@@ -442,8 +442,8 @@ fn unknown_first_outcome_stays_counted_and_permits_a_successful_final_attempt() 
     assert_eq!(
         engine
             .on_unknown_outcome(first, SimInstant::from_millis(1_000))
-            .disposition(),
-        &Disposition::CompleteRequest
+            .disposition,
+        Disposition::CompleteRequest
     );
     assert!(
         engine
@@ -451,7 +451,7 @@ fn unknown_first_outcome_stays_counted_and_permits_a_successful_final_attempt() 
             .unwrap()
             .history()
             .entries()
-            .any(|entry| entry.id() == first_id)
+            .any(|entry| entry.id == first_id)
     );
 
     let final_attempt = final_confirmation(&mut engine);
@@ -462,8 +462,8 @@ fn unknown_first_outcome_stays_counted_and_permits_a_successful_final_attempt() 
                 SimInstant::from_millis(1_000),
                 &response(StatusCode::NO_CONTENT),
             )
-            .disposition(),
-        &Disposition::CompleteRequest
+            .disposition,
+        Disposition::CompleteRequest
     );
     assert!(
         engine
@@ -487,16 +487,16 @@ fn other_non_429_first_outcomes_preserve_the_episode_for_one_final_attempt() {
                     SimInstant::from_millis(1_000),
                     &response(first_status)
                 )
-                .disposition(),
-            &Disposition::CompleteRequest
+                .disposition,
+            Disposition::CompleteRequest
         );
         let episode = engine
             .policy(&PolicyName::from(POLICY))
             .unwrap()
             .recovery_episode()
             .unwrap();
-        assert_eq!(episode.completed_attempts(), 1);
-        assert!(!episode.confirmation_in_flight());
+        assert_eq!(episode.completed_attempts, 1);
+        assert!(episode.confirmation_entry.is_none());
         let final_attempt = final_confirmation(&mut engine);
         engine.rollback(final_attempt);
     }
@@ -523,8 +523,8 @@ fn every_non_success_final_outcome_escalates() {
         assert_eq!(
             engine
                 .on_unknown_outcome(first, SimInstant::from_millis(1_000))
-                .disposition(),
-            &Disposition::CompleteRequest
+                .disposition,
+            Disposition::CompleteRequest
         );
         let final_attempt = final_confirmation(&mut engine);
         let transition = match outcome {
@@ -547,10 +547,7 @@ fn every_non_success_final_outcome_escalates() {
                 &malformed(StatusCode::OK),
             ),
         };
-        assert!(matches!(
-            transition.disposition(),
-            Disposition::Refuse { .. }
-        ));
+        assert!(matches!(transition.disposition, Disposition::Refuse { .. }));
         assert!(
             engine
                 .policy(&PolicyName::from(POLICY))
@@ -574,7 +571,7 @@ fn generic_4xx_with_valid_headers_completes_and_reconciles() {
         &response(StatusCode::NOT_FOUND),
     );
 
-    assert_eq!(transition.disposition(), &Disposition::CompleteRequest);
+    assert_eq!(transition.disposition, Disposition::CompleteRequest);
     let policy = engine.policy(&PolicyName::from(POLICY)).unwrap();
     assert_eq!(policy.restriction_generation(), 0);
     assert!(policy.recovery_episode().is_none());
@@ -589,7 +586,7 @@ fn retry_after_zero_restricts_for_exactly_bucket_plus_buffer() {
 
     let transition = engine.on_response(token, SimInstant::from_millis(5_000), &rate_limited("0"));
 
-    assert_eq!(transition.disposition(), &Disposition::Requeue);
+    assert_eq!(transition.disposition, Disposition::Requeue);
     assert_eq!(
         engine
             .policy(&PolicyName::from(POLICY))
@@ -615,7 +612,7 @@ fn cloudflare_on_the_final_attempt_halts_instead_of_escalating() {
         &cloudflare(StatusCode::TOO_MANY_REQUESTS),
     );
 
-    assert_eq!(transition.disposition(), &Disposition::Halt);
+    assert_eq!(transition.disposition, Disposition::Halt);
     assert!(engine.is_halted());
     assert!(
         !engine
@@ -633,23 +630,26 @@ fn state_changed_notification_tracks_actual_mutation() {
     // Zero-deficit 2xx on an ordinary token: no mutation, no notification.
     let mut quiet = engine();
     let token = reserve(&mut quiet, 0);
-    let transition = quiet.on_response(token, SimInstant::from_millis(0), &response(StatusCode::OK));
-    assert_eq!(transition.disposition(), &Disposition::CompleteRequest);
-    assert!(transition.notifications().is_empty());
+    let transition =
+        quiet.on_response(token, SimInstant::from_millis(0), &response(StatusCode::OK));
+    assert_eq!(transition.disposition, Disposition::CompleteRequest);
+    assert!(transition.notifications.is_empty());
 
     // A malformed refusal on an ordinary token mutates nothing either.
     let mut refused = engine();
     let token = reserve(&mut refused, 0);
-    let transition =
-        refused.on_response(token, SimInstant::from_millis(0), &malformed(StatusCode::OK));
-    assert!(transition.notifications().is_empty());
+    let transition = refused.on_response(
+        token,
+        SimInstant::from_millis(0),
+        &malformed(StatusCode::OK),
+    );
+    assert!(transition.notifications.is_empty());
 
     // A 429 records a restriction and opens an episode.
     let mut restricted = engine();
     let token = reserve(&mut restricted, 0);
-    let transition =
-        restricted.on_response(token, SimInstant::from_millis(0), &rate_limited("0"));
-    assert_eq!(transition.notifications(), &[Notification::StateChanged]);
+    let transition = restricted.on_response(token, SimInstant::from_millis(0), &rate_limited("0"));
+    assert_eq!(transition.notifications, [Notification::StateChanged]);
 
     // A 2xx whose state header reports unmodeled hits synthesizes history.
     let mut synthesized = engine();
@@ -664,7 +664,7 @@ fn state_changed_notification_tracks_actual_mutation() {
         SimInstant::from_millis(0),
         &ObservedResponse::new(StatusCode::OK, observed, ReplyClassification::Normal),
     );
-    assert_eq!(transition.notifications(), &[Notification::StateChanged]);
+    assert_eq!(transition.notifications, [Notification::StateChanged]);
 
     // A zero-deficit probe success mutates nothing; the mapping is actor state.
     let mut probed = engine();
@@ -673,8 +673,8 @@ fn state_changed_notification_tracks_actual_mutation() {
         SimInstant::from_millis(0),
         &response(StatusCode::NO_CONTENT),
     );
-    assert_eq!(transition.disposition(), &Disposition::ProbeReady);
-    assert!(transition.notifications().is_empty());
+    assert_eq!(transition.disposition, Disposition::ProbeReady);
+    assert!(transition.notifications.is_empty());
 }
 
 // core-design entry-point invariant: on_response never yields ProbeReady;
@@ -704,8 +704,8 @@ fn entry_point_invariant_holds_across_response_shapes() {
         let token = reserve(&mut ordinary, 0);
         let transition = ordinary.on_response(token, SimInstant::from_millis(0), reply);
         assert_ne!(
-            transition.disposition(),
-            &Disposition::ProbeReady,
+            transition.disposition,
+            Disposition::ProbeReady,
             "on_response yielded ProbeReady for {reply:?}"
         );
 
@@ -713,7 +713,7 @@ fn entry_point_invariant_holds_across_response_shapes() {
         let transition = probe.on_probe_response(&endpoint, SimInstant::from_millis(0), reply);
         assert!(
             !matches!(
-                transition.disposition(),
+                transition.disposition,
                 Disposition::CompleteRequest | Disposition::Requeue
             ),
             "on_probe_response yielded a request disposition for {reply:?}"
@@ -733,7 +733,7 @@ fn malformed_429_takes_precedence_and_never_opens_a_retry_episode() {
     );
 
     assert!(matches!(
-        transition.disposition(),
+        transition.disposition,
         Disposition::Refuse {
             target: RefusalTarget::Policy(_),
             cause: RefusalCause::PolicyObservation(PolicyParseError::MissingHeader { .. }),
@@ -762,7 +762,7 @@ fn malformed_429_on_first_confirmation_uses_refusal_path_and_permits_final_attem
     );
 
     assert!(matches!(
-        transition.disposition(),
+        transition.disposition,
         Disposition::Refuse {
             cause: RefusalCause::PolicyObservation(_),
             ..
@@ -770,7 +770,7 @@ fn malformed_429_on_first_confirmation_uses_refusal_path_and_permits_final_attem
     ));
     let policy = engine.policy(&PolicyName::from(POLICY)).unwrap();
     assert_eq!(policy.restriction_generation(), generation_before);
-    assert_eq!(policy.recovery_episode().unwrap().completed_attempts(), 1);
+    assert_eq!(policy.recovery_episode().unwrap().completed_attempts, 1);
     let final_attempt = final_confirmation(&mut engine);
     engine.rollback(final_attempt);
 }
@@ -787,7 +787,7 @@ fn cloudflare_shape_halts_before_status_or_header_handling() {
         &cloudflare(StatusCode::TOO_MANY_REQUESTS),
     );
 
-    assert_eq!(transition.disposition(), &Disposition::Halt);
+    assert_eq!(transition.disposition, Disposition::Halt);
     assert!(engine.is_halted());
     assert!(matches!(
         engine.try_reserve(&PolicyName::from(POLICY), SimInstant::from_millis(1_000)),
@@ -807,8 +807,8 @@ fn probe_outcome_table_is_total_for_non_429_rows() {
                 SimInstant::from_millis(0),
                 &response(StatusCode::NO_CONTENT),
             )
-            .disposition(),
-        &Disposition::ProbeReady
+            .disposition,
+        Disposition::ProbeReady
     );
 
     let mut malformed_engine = engine();
@@ -819,7 +819,7 @@ fn probe_outcome_table_is_total_for_non_429_rows() {
                 SimInstant::from_millis(0),
                 &malformed(StatusCode::NO_CONTENT),
             )
-            .disposition(),
+            .disposition,
         Disposition::Refuse {
             target: RefusalTarget::Endpoint(_),
             cause: RefusalCause::PolicyObservation(_),
@@ -834,7 +834,7 @@ fn probe_outcome_table_is_total_for_non_429_rows() {
                 SimInstant::from_millis(0),
                 &response(StatusCode::INTERNAL_SERVER_ERROR),
             )
-            .disposition(),
+            .disposition,
         Disposition::Refuse {
             cause: RefusalCause::ProbeStatus(StatusCode::INTERNAL_SERVER_ERROR),
             ..
@@ -842,7 +842,7 @@ fn probe_outcome_table_is_total_for_non_429_rows() {
     ));
 
     assert!(matches!(
-        engine().on_probe_unknown_outcome(&endpoint).disposition(),
+        engine().on_probe_unknown_outcome(&endpoint).disposition,
         Disposition::Refuse {
             cause: RefusalCause::ProbeUnknownOutcome,
             ..
@@ -857,8 +857,8 @@ fn probe_outcome_table_is_total_for_non_429_rows() {
                 SimInstant::from_millis(0),
                 &cloudflare(StatusCode::FORBIDDEN),
             )
-            .disposition(),
-        &Disposition::Halt
+            .disposition,
+        Disposition::Halt
     );
     assert!(halted.is_halted());
 }
@@ -878,7 +878,7 @@ fn valid_probe_429_seeds_restriction_and_first_get_is_confirmation() {
         &rate_limited_with_state("3", "4:10:60, 6:300:300"),
     );
 
-    assert_eq!(transition.disposition(), &Disposition::ProbeReady);
+    assert_eq!(transition.disposition, Disposition::ProbeReady);
     let policy = engine.policy(&PolicyName::from(POLICY)).unwrap();
     assert_eq!(policy.restriction_generation(), 1);
     assert_eq!(policy.history().len(), 6);
@@ -902,7 +902,7 @@ fn valid_probe_429_seeds_restriction_and_first_get_is_confirmation() {
         &rate_limited("0"),
     );
     assert!(matches!(
-        transition.disposition(),
+        transition.disposition,
         Disposition::Refuse {
             cause: RefusalCause::RecoveryEscalated,
             ..
@@ -922,7 +922,7 @@ fn probe_429_without_valid_observation_refuses_without_restriction() {
     );
 
     assert!(matches!(
-        transition.disposition(),
+        transition.disposition,
         Disposition::Refuse {
             target: RefusalTarget::Endpoint(_),
             cause: RefusalCause::PolicyObservation(_),

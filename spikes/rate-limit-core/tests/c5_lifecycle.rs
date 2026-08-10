@@ -77,7 +77,7 @@ fn rollback_removes_exact_local_entry() {
             .unwrap()
             .history()
             .entries()
-            .all(|entry| entry.id() != reserved_id)
+            .all(|entry| entry.id != reserved_id)
     );
 }
 
@@ -88,7 +88,11 @@ fn reservation_is_not_duplicated_across_policy_rules() {
     let mut engine = PolicyEngine::new();
     engine
         .insert_policy(
-            Policy::new(policy.clone(), vec![rule(10, 100, 1_000), rule(10, 200, 2_000)]).unwrap(),
+            Policy::new(
+                policy.clone(),
+                vec![rule(10, 100, 1_000), rule(10, 200, 2_000)],
+            )
+            .unwrap(),
         )
         .unwrap();
 
@@ -109,7 +113,7 @@ fn unknown_outcome_stays_counted_until_every_window_passes() {
     let _ = engine.on_unknown_outcome(token, SimInstant::from_millis(1));
 
     let history = engine.policy(&policy).unwrap().history();
-    assert!(history.entries().any(|entry| entry.id() == entry_id));
+    assert!(history.entries().any(|entry| entry.id == entry_id));
     assert_eq!(
         history.count_within(SimInstant::from_millis(99), Duration::from_millis(100)),
         1
@@ -213,7 +217,7 @@ proptest! {
                     let token = live_tokens.remove(pick.index(live_tokens.len()));
                     let transition =
                         engine.on_response(token, SimInstant::from_millis(now), &ok_response());
-                    prop_assert_eq!(transition.disposition(), &Disposition::CompleteRequest);
+                    prop_assert_eq!(transition.disposition, Disposition::CompleteRequest);
                 }
                 _ => {
                     engine.record_synthetic(&policy, SimInstant::from_millis(now), 1).unwrap();
@@ -224,7 +228,7 @@ proptest! {
                         .entries()
                         .last()
                         .unwrap();
-                    prop_assert!(expected.insert(entry.id(), EntryKind::Synthetic).is_none());
+                    prop_assert!(expected.insert(entry.id, EntryKind::Synthetic).is_none());
                 }
             }
 
@@ -233,7 +237,7 @@ proptest! {
                 .unwrap()
                 .history()
                 .entries()
-                .map(|entry| (entry.id(), entry.kind()))
+                .map(|entry| (entry.id, entry.kind))
                 .collect::<BTreeMap<_, _>>();
             prop_assert_eq!(actual, expected.clone());
         }
@@ -268,10 +272,10 @@ proptest! {
             .unwrap()
             .history()
             .entries()
-            .filter(|entry| entry.id() == abandoned_id)
+            .filter(|entry| entry.id == abandoned_id)
             .collect::<Vec<_>>();
         prop_assert_eq!(matching_entries.len(), 1);
-        prop_assert_eq!(matching_entries[0].kind(), EntryKind::LocalReservation);
+        prop_assert_eq!(matching_entries[0].kind, EntryKind::LocalReservation);
     }
 }
 
@@ -296,7 +300,11 @@ fn policy_headers() -> HeaderMap {
 }
 
 fn ok_response() -> ObservedResponse {
-    ObservedResponse::new(StatusCode::OK, policy_headers(), ReplyClassification::Normal)
+    ObservedResponse::new(
+        StatusCode::OK,
+        policy_headers(),
+        ReplyClassification::Normal,
+    )
 }
 
 // A valid 429 for the test policy: 0s Retry-After, so the restriction is the
@@ -313,8 +321,12 @@ fn rate_limited_response() -> ObservedResponse {
 
 fn open_episode(engine: &mut PolicyEngine, policy: &PolicyName) {
     let original = reserve(engine, policy, SimInstant::from_millis(0));
-    let transition = engine.on_response(original, SimInstant::from_millis(0), &rate_limited_response());
-    assert_eq!(transition.disposition(), &Disposition::Requeue);
+    let transition = engine.on_response(
+        original,
+        SimInstant::from_millis(0),
+        &rate_limited_response(),
+    );
+    assert_eq!(transition.disposition, Disposition::Requeue);
 }
 
 // C5 abandonment, confirmation half: a dropped confirmation token must not

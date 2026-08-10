@@ -27,10 +27,10 @@ fn headers(limit: &str, state: &str) -> HeaderMap {
 fn parses_two_triplets_as_burst_and_sustained() {
     let headers = headers("15:10:60, 30:300:300", "1:10:0, 1:300:0");
     let snapshot = parse_policy(&headers).expect("the documented pair shape should parse");
-    let pair = &snapshot.rules()[0].pair;
+    let pair = &snapshot.rules[0].pair;
 
-    assert_eq!(pair.burst().period(), Duration::from_secs(10));
-    assert_eq!(pair.sustained().period(), Duration::from_secs(300));
+    assert_eq!(pair.burst().period, Duration::from_secs(10));
+    assert_eq!(pair.sustained().period, Duration::from_secs(300));
 }
 
 // C2: one- and three-triplet rules are out of the RulePair model.
@@ -141,7 +141,7 @@ fn header_case_and_duplicates_resolve_first_value_and_preserve_spelling() {
     let mut mixed_case = headers("15:10:60, 30:300:300", "1:10:0, 1:300:0");
     mixed_case.insert("x-rate-limit-rules", HeaderValue::from_static("ACCOUNT"));
     let snapshot = parse_policy(&mixed_case).expect("case-insensitive lookup succeeds");
-    assert_eq!(snapshot.rules()[0].name, "ACCOUNT");
+    assert_eq!(snapshot.rules[0].name, "ACCOUNT");
 
     let mut duplicated_rule = headers("15:10:60, 30:300:300", "1:10:0, 1:300:0");
     duplicated_rule.insert(
@@ -149,8 +149,8 @@ fn header_case_and_duplicates_resolve_first_value_and_preserve_spelling() {
         HeaderValue::from_static("Account, Account"),
     );
     let snapshot = parse_policy(&duplicated_rule).expect("duplicate rule names parse");
-    assert_eq!(snapshot.rules().len(), 2);
-    assert_eq!(snapshot.rules()[0], snapshot.rules()[1]);
+    assert_eq!(snapshot.rules.len(), 2);
+    assert_eq!(snapshot.rules[0], snapshot.rules[1]);
 
     let mut duplicated_header = headers("15:10:60, 30:300:300", "1:10:0, 1:300:0");
     duplicated_header.append(
@@ -159,7 +159,7 @@ fn header_case_and_duplicates_resolve_first_value_and_preserve_spelling() {
     );
     let snapshot = parse_policy(&duplicated_header).expect("first header value wins");
     assert_eq!(
-        snapshot.rules()[0].pair.burst().period(),
+        snapshot.rules[0].pair.burst().period,
         Duration::from_secs(10)
     );
 }
@@ -204,13 +204,13 @@ proptest! {
         let state = format!("0:{burst_period}:0, 0:{sustained_period}:0");
 
         let snapshot = parse_policy(&headers(&limit, &state)).unwrap();
-        let pair = &snapshot.rules()[0].pair;
+        let pair = &snapshot.rules[0].pair;
 
-        prop_assert_eq!(pair.burst().max_hits(), burst_hits);
-        prop_assert_eq!(pair.burst().period(), Duration::from_secs(burst_period.into()));
-        prop_assert_eq!(pair.sustained().max_hits(), sustained_hits);
+        prop_assert_eq!(pair.burst().max_hits, burst_hits);
+        prop_assert_eq!(pair.burst().period, Duration::from_secs(burst_period.into()));
+        prop_assert_eq!(pair.sustained().max_hits, sustained_hits);
         prop_assert_eq!(
-            pair.sustained().period(),
+            pair.sustained().period,
             Duration::from_secs(sustained_period.into())
         );
     }

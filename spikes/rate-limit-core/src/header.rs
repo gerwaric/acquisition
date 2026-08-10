@@ -5,19 +5,14 @@ use http::{HeaderMap, HeaderName};
 const POLICY_HEADER: HeaderName = HeaderName::from_static("x-rate-limit-policy");
 const RULES_HEADER: HeaderName = HeaderName::from_static("x-rate-limit-rules");
 
+// Plain-data types carry public fields: there is no invariant for a getter
+// to defend, so accessors would only be noise. `RulePair` is the deliberate
+// exception — its constructor enforces the shape invariant, so its fields
+// stay private.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PolicySnapshot {
-    name: String,
-    rules: Vec<RuleSnapshot>,
-}
-
-impl PolicySnapshot {
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-    pub fn rules(&self) -> &[RuleSnapshot] {
-        &self.rules
-    }
+    pub name: String,
+    pub rules: Vec<RuleSnapshot>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -29,9 +24,9 @@ pub struct RuleSnapshot {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Window {
-    max_hits: u32,
-    period: Duration,
-    restriction: Duration,
+    pub max_hits: u32,
+    pub period: Duration,
+    pub restriction: Duration,
 }
 
 impl Window {
@@ -41,16 +36,6 @@ impl Window {
             period,
             restriction,
         }
-    }
-
-    pub fn max_hits(&self) -> u32 {
-        self.max_hits
-    }
-    pub fn period(&self) -> Duration {
-        self.period
-    }
-    pub fn restriction(&self) -> Duration {
-        self.restriction
     }
 }
 
@@ -89,36 +74,15 @@ pub enum RulePairShapeError {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WindowState {
-    current_hits: u32,
-    period: Duration,
-    restriction_active: Duration,
-}
-
-impl WindowState {
-    pub fn current_hits(&self) -> u32 {
-        self.current_hits
-    }
-    pub fn period(&self) -> Duration {
-        self.period
-    }
-    pub fn restriction_active(&self) -> Duration {
-        self.restriction_active
-    }
+    pub current_hits: u32,
+    pub period: Duration,
+    pub restriction_active: Duration,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RuleStatePair {
-    burst: WindowState,
-    sustained: WindowState,
-}
-
-impl RuleStatePair {
-    pub fn burst(&self) -> &WindowState {
-        &self.burst
-    }
-    pub fn sustained(&self) -> &WindowState {
-        &self.sustained
-    }
+    pub burst: WindowState,
+    pub sustained: WindowState,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -174,13 +138,18 @@ pub fn parse_policy(headers: &HeaderMap) -> Result<PolicySnapshot, PolicyParseEr
         let mut windows = windows.into_iter();
         let burst = windows.next().expect("length checked above");
         let sustained = windows.next().expect("length checked above");
-        if burst.period >= sustained.period {
-            return Err(PolicyParseError::NonIncreasingPeriods {
+        // The shape invariant lives in RulePair::new; this only retags the
+        // error with the rule it came from.
+        let pair = RulePair::new(burst, sustained).map_err(
+            |RulePairShapeError::NonIncreasingPeriods {
+                 burst_period,
+                 sustained_period,
+             }| PolicyParseError::NonIncreasingPeriods {
                 rule: rule.to_owned(),
-                burst_period: burst.period,
-                sustained_period: sustained.period,
-            });
-        }
+                burst_period,
+                sustained_period,
+            },
+        )?;
 
         let states = parse_triplets(headers, &state_header, parse_window_state)?;
         if states.len() != 2 {
@@ -192,7 +161,9 @@ pub fn parse_policy(headers: &HeaderMap) -> Result<PolicySnapshot, PolicyParseEr
         let mut states = states.into_iter();
         let burst_state = states.next().expect("length checked above");
         let sustained_state = states.next().expect("length checked above");
-        if burst_state.period != burst.period || sustained_state.period != sustained.period {
+        if burst_state.period != pair.burst().period
+            || sustained_state.period != pair.sustained().period
+        {
             return Err(PolicyParseError::StatePeriodsMismatch {
                 rule: rule.to_owned(),
             });
@@ -200,7 +171,7 @@ pub fn parse_policy(headers: &HeaderMap) -> Result<PolicySnapshot, PolicyParseEr
 
         rules.push(RuleSnapshot {
             name: rule.to_owned(),
-            pair: RulePair { burst, sustained },
+            pair,
             state: RuleStatePair {
                 burst: burst_state,
                 sustained: sustained_state,

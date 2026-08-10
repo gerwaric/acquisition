@@ -29,8 +29,16 @@ fn policy_name() -> PolicyName {
 
 fn configured_rule() -> Rule {
     let pair = RulePair::new(
-        Window::new(CONFIGURED_MAX_HITS, Duration::from_secs(1_000), Duration::ZERO),
-        Window::new(CONFIGURED_MAX_HITS, Duration::from_secs(2_000), Duration::ZERO),
+        Window::new(
+            CONFIGURED_MAX_HITS,
+            Duration::from_secs(1_000),
+            Duration::ZERO,
+        ),
+        Window::new(
+            CONFIGURED_MAX_HITS,
+            Duration::from_secs(2_000),
+            Duration::ZERO,
+        ),
     )
     .expect("configured periods increase");
     Rule::new(
@@ -137,13 +145,13 @@ fn response(observation: &PolicySnapshot) -> ObservedResponse {
     let mut headers = HeaderMap::new();
     headers.insert(
         "x-rate-limit-policy",
-        HeaderValue::try_from(observation.name()).expect("valid policy name"),
+        HeaderValue::try_from(observation.name.as_str()).expect("valid policy name"),
     );
     headers.insert(
         "x-rate-limit-rules",
         HeaderValue::try_from(
             observation
-                .rules()
+                .rules
                 .iter()
                 .map(|rule| rule.name.as_str())
                 .collect::<Vec<_>>()
@@ -151,26 +159,26 @@ fn response(observation: &PolicySnapshot) -> ObservedResponse {
         )
         .expect("valid rule names"),
     );
-    for rule in observation.rules() {
+    for rule in &observation.rules {
         let limit_name = HeaderName::try_from(format!("x-rate-limit-{}", rule.name)).unwrap();
         let state_name = HeaderName::try_from(format!("x-rate-limit-{}-state", rule.name)).unwrap();
         let limit = format!(
             "{}:{}:{}, {}:{}:{}",
-            rule.pair.burst().max_hits(),
-            rule.pair.burst().period().as_secs(),
-            rule.pair.burst().restriction().as_secs(),
-            rule.pair.sustained().max_hits(),
-            rule.pair.sustained().period().as_secs(),
-            rule.pair.sustained().restriction().as_secs(),
+            rule.pair.burst().max_hits,
+            rule.pair.burst().period.as_secs(),
+            rule.pair.burst().restriction.as_secs(),
+            rule.pair.sustained().max_hits,
+            rule.pair.sustained().period.as_secs(),
+            rule.pair.sustained().restriction.as_secs(),
         );
         let state = format!(
             "{}:{}:{}, {}:{}:{}",
-            rule.state.burst().current_hits(),
-            rule.state.burst().period().as_secs(),
-            rule.state.burst().restriction_active().as_secs(),
-            rule.state.sustained().current_hits(),
-            rule.state.sustained().period().as_secs(),
-            rule.state.sustained().restriction_active().as_secs(),
+            rule.state.burst.current_hits,
+            rule.state.burst.period.as_secs(),
+            rule.state.burst.restriction_active.as_secs(),
+            rule.state.sustained.current_hits,
+            rule.state.sustained.period.as_secs(),
+            rule.state.sustained.restriction_active.as_secs(),
         );
         headers.insert(limit_name, HeaderValue::try_from(limit).unwrap());
         headers.insert(state_name, HeaderValue::try_from(state).unwrap());
@@ -191,23 +199,18 @@ fn probe(
 /// "exactly" half): plain u64 arithmetic over the test's shadow timestamp
 /// list. An entry occupies the half-open window `(now - period, now]`, and
 /// future-dated entries are retained — `at + period > now` states both.
-fn expected_maximum_deficit(
-    shadow_ms: &[u64],
-    now_ms: u64,
-    observation: &PolicySnapshot,
-) -> usize {
+fn expected_maximum_deficit(shadow_ms: &[u64], now_ms: u64, observation: &PolicySnapshot) -> usize {
     observation
-        .rules()
+        .rules
         .iter()
-        .flat_map(|rule| [rule.state.burst(), rule.state.sustained()])
+        .flat_map(|rule| [&rule.state.burst, &rule.state.sustained])
         .map(|state| {
-            let period_ms =
-                u64::try_from(state.period().as_millis()).expect("test periods fit u64");
+            let period_ms = u64::try_from(state.period.as_millis()).expect("test periods fit u64");
             let local = shadow_ms
                 .iter()
                 .filter(|&&at_ms| at_ms + period_ms > now_ms)
                 .count();
-            let reported = state.current_hits().min(CONFIGURED_MAX_HITS) as usize;
+            let reported = state.current_hits.min(CONFIGURED_MAX_HITS) as usize;
             reported.saturating_sub(local)
         })
         .max()
@@ -234,13 +237,13 @@ fn assert_pessimistic(
         .expect("policy exists")
         .history();
     for state in observation
-        .rules()
+        .rules
         .iter()
-        .flat_map(|rule| [rule.state.burst(), rule.state.sustained()])
+        .flat_map(|rule| [&rule.state.burst, &rule.state.sustained])
     {
         prop_assert!(
-            history.count_within(now, state.period())
-                >= (state.current_hits().min(CONFIGURED_MAX_HITS)) as usize,
+            history.count_within(now, state.period)
+                >= (state.current_hits.min(CONFIGURED_MAX_HITS)) as usize,
             "local count remained below the capped reported post-increment count"
         );
     }
@@ -281,14 +284,14 @@ proptest! {
 
         let result = engine.on_response(token, now, &response(&observation));
 
-        prop_assert_eq!(result.disposition(), &Disposition::CompleteRequest);
+        prop_assert_eq!(result.disposition, Disposition::CompleteRequest);
         let after = entries(&engine);
         prop_assert_eq!(after.len() - before.len(), expected);
         prop_assert_eq!(&after[..before.len()], before.as_slice());
         prop_assert_eq!(after.len(), before.len() + expected);
         for entry in &after[before.len()..] {
-            prop_assert_eq!(entry.at(), now);
-            prop_assert_eq!(entry.kind(), EntryKind::Synthetic);
+            prop_assert_eq!(entry.at, now);
+            prop_assert_eq!(entry.kind, EntryKind::Synthetic);
         }
         assert_pessimistic(&engine, now, &observation)?;
     }
@@ -309,13 +312,13 @@ proptest! {
 
         let first = probe(&mut engine, now, &observation);
         let after_first = entries(&engine);
-        prop_assert_eq!(first.disposition(), &Disposition::ProbeReady);
+        prop_assert_eq!(first.disposition, Disposition::ProbeReady);
         prop_assert_eq!(after_first.len() - before.len(), expected);
         prop_assert_eq!(&after_first[..before.len()], before.as_slice());
         assert_pessimistic(&engine, now, &observation)?;
 
         let repeated = probe(&mut engine, now, &observation);
-        prop_assert_eq!(repeated.disposition(), &Disposition::ProbeReady);
+        prop_assert_eq!(repeated.disposition, Disposition::ProbeReady);
         prop_assert_eq!(entries(&engine), after_first.clone());
 
         let lower_rules = rules
@@ -329,7 +332,7 @@ proptest! {
             .collect::<Vec<_>>();
         let lower = build_observation(&lower_rules);
         let lower_result = probe(&mut engine, now, &lower);
-        prop_assert_eq!(lower_result.disposition(), &Disposition::ProbeReady);
+        prop_assert_eq!(lower_result.disposition, Disposition::ProbeReady);
         prop_assert_eq!(entries(&engine), after_first);
     }
 }
@@ -358,13 +361,13 @@ fn boot_probe_residue_uses_the_largest_reported_window_count() {
     let before = entries(&engine).len();
     let result = probe(&mut engine, now, &observation);
 
-    assert_eq!(result.disposition(), &Disposition::ProbeReady);
+    assert_eq!(result.disposition, Disposition::ProbeReady);
     assert_eq!(entries(&engine).len() - before, 7);
     assert_eq!(entries(&engine).len(), 7);
     assert!(
         entries(&engine)
             .iter()
-            .all(|entry| entry.kind() == EntryKind::Synthetic && entry.at() == now)
+            .all(|entry| entry.kind == EntryKind::Synthetic && entry.at == now)
     );
 }
 
@@ -394,7 +397,7 @@ fn ordinary_response_never_double_counts_its_reserved_send() {
 
     let result = engine.on_response(token, now, &response(&observation));
 
-    assert_eq!(result.disposition(), &Disposition::CompleteRequest);
+    assert_eq!(result.disposition, Disposition::CompleteRequest);
     assert_eq!(entries(&engine).len(), 5);
 }
 
@@ -416,7 +419,7 @@ fn ordinary_response_synthesizes_only_the_phantom_deficit() {
     let before = entries(&engine).len();
     let result = engine.on_response(token, now, &response(&observation));
 
-    assert_eq!(result.disposition(), &Disposition::CompleteRequest);
+    assert_eq!(result.disposition, Disposition::CompleteRequest);
     assert_eq!(entries(&engine).len() - before, 3);
     assert_eq!(entries(&engine).len(), 6);
 }
@@ -438,13 +441,13 @@ fn reported_hits_beyond_the_largest_configured_limit_are_capped() {
 
     let result = probe(&mut engine, now, &observation);
 
-    assert_eq!(result.disposition(), &Disposition::ProbeReady);
+    assert_eq!(result.disposition, Disposition::ProbeReady);
     assert_eq!(entries(&engine).len(), 512);
 
     // A repeat of the same over-limit report finds every window saturated
     // up to the cap and synthesizes nothing further.
     let repeated = probe(&mut engine, now, &observation);
-    assert_eq!(repeated.disposition(), &Disposition::ProbeReady);
+    assert_eq!(repeated.disposition, Disposition::ProbeReady);
     assert_eq!(entries(&engine).len(), 512);
 }
 
@@ -475,7 +478,7 @@ fn shared_history_inserts_maximum_deficit_not_sum() {
     let before = entries(&engine).len();
     let result = probe(&mut engine, now, &observation);
 
-    assert_eq!(result.disposition(), &Disposition::ProbeReady);
+    assert_eq!(result.disposition, Disposition::ProbeReady);
     assert_eq!(entries(&engine).len() - before, 4);
     assert_eq!(entries(&engine).len(), 7);
 }
@@ -497,17 +500,17 @@ fn same_instant_synthesis_does_not_weaken_exact_rollback_identity() {
 
     let before = entries(&engine).len();
     let result = probe(&mut engine, now, &observation);
-    assert_eq!(result.disposition(), &Disposition::ProbeReady);
+    assert_eq!(result.disposition, Disposition::ProbeReady);
     assert_eq!(entries(&engine).len() - before, 3);
     engine.rollback(rollback_token);
 
     let history = entries(&engine);
     assert_eq!(history.len(), 4);
-    assert!(history.iter().all(|entry| entry.id() != rollback_id));
+    assert!(history.iter().all(|entry| entry.id != rollback_id));
     assert!(
         history
             .iter()
-            .all(|entry| entry.kind() == EntryKind::Synthetic)
+            .all(|entry| entry.kind == EntryKind::Synthetic)
     );
 }
 
@@ -534,14 +537,14 @@ fn ordinary_and_probe_paths_apply_the_same_reconciliation_mechanism() {
     let ordinary_result = ordinary.on_response(ordinary_token, now, &response(&observation));
     let probe_result = self::probe(&mut probe, now, &observation);
 
-    assert_eq!(ordinary_result.disposition(), &Disposition::CompleteRequest);
-    assert_eq!(probe_result.disposition(), &Disposition::ProbeReady);
+    assert_eq!(ordinary_result.disposition, Disposition::CompleteRequest);
+    assert_eq!(probe_result.disposition, Disposition::ProbeReady);
     assert_eq!(entries(&ordinary).len() - ordinary_before, 5);
     assert_eq!(entries(&probe).len() - probe_before, 5);
     let shape = |engine: &PolicyEngine| {
         entries(engine)
             .into_iter()
-            .map(|entry| (entry.at(), entry.kind()))
+            .map(|entry| (entry.at, entry.kind))
             .collect::<Vec<_>>()
     };
     assert_eq!(shape(&ordinary), shape(&probe));
@@ -567,7 +570,7 @@ fn mismatched_ordinary_observation_consumes_without_rolling_back_the_send() {
     let transition = engine.on_response(token, now, &response(&observation));
 
     assert!(matches!(
-        transition.disposition(),
+        &transition.disposition,
         Disposition::Refuse {
             target: RefusalTarget::Policy(target),
             cause: RefusalCause::ObservationTarget(ObservationError::PolicyMismatch {
@@ -578,11 +581,7 @@ fn mismatched_ordinary_observation_consumes_without_rolling_back_the_send() {
             && reserved == &policy
             && observed == &PolicyName::from("renamed-policy")
     ));
-    assert!(
-        entries(&engine)
-            .iter()
-            .any(|entry| entry.id() == reserved_id)
-    );
+    assert!(entries(&engine).iter().any(|entry| entry.id == reserved_id));
 }
 
 #[test]
@@ -604,7 +603,7 @@ fn unknown_probe_policy_is_typed_and_does_not_mutate_existing_history() {
     let transition = probe(&mut engine, now, &observation);
 
     assert!(matches!(
-        transition.disposition(),
+        &transition.disposition,
         Disposition::Refuse {
             target: RefusalTarget::Endpoint(endpoint),
             cause: RefusalCause::ObservationTarget(ObservationError::UnknownPolicy(policy)),

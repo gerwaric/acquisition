@@ -166,7 +166,7 @@ fn assert_reserved_is_server_safe(
     let history = policy
         .history()
         .entries()
-        .map(|entry| entry.at().as_millis())
+        .map(|entry| entry.at.as_millis())
         .collect::<Vec<_>>();
 
     for (rule_index, case) in cases.iter().enumerate() {

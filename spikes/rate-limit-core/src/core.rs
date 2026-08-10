@@ -91,31 +91,24 @@ impl Resolution {
     }
 }
 
+// Plain-data types carry public fields; see the same note in header.rs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BucketModel {
-    burst: Resolution,
-    sustained: Resolution,
+    pub burst: Resolution,
+    pub sustained: Resolution,
 }
 
 impl BucketModel {
     pub const fn new(burst: Resolution, sustained: Resolution) -> Self {
         Self { burst, sustained }
     }
-
-    pub const fn burst(&self) -> Resolution {
-        self.burst
-    }
-
-    pub const fn sustained(&self) -> Resolution {
-        self.sustained
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Rule {
-    scope: RuleScope,
-    pair: RulePair,
-    buckets: BucketModel,
+    pub scope: RuleScope,
+    pub pair: RulePair,
+    pub buckets: BucketModel,
 }
 
 impl Rule {
@@ -125,18 +118,6 @@ impl Rule {
             pair,
             buckets,
         }
-    }
-
-    pub const fn scope(&self) -> RuleScope {
-        self.scope
-    }
-
-    pub const fn pair(&self) -> &RulePair {
-        &self.pair
-    }
-
-    pub const fn buckets(&self) -> BucketModel {
-        self.buckets
     }
 }
 
@@ -157,23 +138,9 @@ pub enum EntryKind {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HistoryEntry {
-    id: EntryId,
-    at: SimInstant,
-    kind: EntryKind,
-}
-
-impl HistoryEntry {
-    pub const fn id(&self) -> EntryId {
-        self.id
-    }
-
-    pub const fn at(&self) -> SimInstant {
-        self.at
-    }
-
-    pub const fn kind(&self) -> EntryKind {
-        self.kind
-    }
+    pub id: EntryId,
+    pub at: SimInstant,
+    pub kind: EntryKind,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -281,25 +248,13 @@ pub enum ConfirmationAttempt {
     Final,
 }
 
+// Readable state, not settable: instances are only ever reachable by
+// reference through Policy, whose fields stay private.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RecoveryEpisode {
-    opened_generation: u64,
-    completed_attempts: u8,
-    confirmation_entry: Option<(EntryId, ConfirmationAttempt)>,
-}
-
-impl RecoveryEpisode {
-    pub const fn opened_generation(&self) -> u64 {
-        self.opened_generation
-    }
-
-    pub const fn completed_attempts(&self) -> u8 {
-        self.completed_attempts
-    }
-
-    pub const fn confirmation_in_flight(&self) -> bool {
-        self.confirmation_entry.is_some()
-    }
+    pub opened_generation: u64,
+    pub completed_attempts: u8,
+    pub confirmation_entry: Option<(EntryId, ConfirmationAttempt)>,
 }
 
 #[must_use = "a reservation must be consumed by rollback, on_response, or on_unknown_outcome"]
@@ -379,13 +334,7 @@ pub struct EmptyPolicy(pub PolicyName);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Reconciliation {
-    synthesized_entries: usize,
-}
-
-impl Reconciliation {
-    pub const fn synthesized_entries(self) -> usize {
-        self.synthesized_entries
-    }
+    pub synthesized_entries: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -405,9 +354,9 @@ pub enum ReplyClassification {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ObservedResponse {
-    status: StatusCode,
-    headers: HeaderMap,
-    classification: ReplyClassification,
+    pub status: StatusCode,
+    pub headers: HeaderMap,
+    pub classification: ReplyClassification,
 }
 
 impl ObservedResponse {
@@ -421,18 +370,6 @@ impl ObservedResponse {
             headers,
             classification,
         }
-    }
-
-    pub const fn status(&self) -> StatusCode {
-        self.status
-    }
-
-    pub const fn headers(&self) -> &HeaderMap {
-        &self.headers
-    }
-
-    pub const fn classification(&self) -> ReplyClassification {
-        self.classification
     }
 }
 
@@ -476,22 +413,16 @@ pub enum Notification {
     StateChanged,
 }
 
+// Public fields on purpose: the design wants every branch of shell behavior
+// reachable from a unit test that just constructs the transition.
 #[must_use = "a response transition must be interpreted"]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Transition {
-    disposition: Disposition,
-    notifications: Vec<Notification>,
+    pub disposition: Disposition,
+    pub notifications: Vec<Notification>,
 }
 
 impl Transition {
-    pub const fn disposition(&self) -> &Disposition {
-        &self.disposition
-    }
-
-    pub fn notifications(&self) -> &[Notification] {
-        &self.notifications
-    }
-
     fn new(disposition: Disposition, state_changed: bool) -> Self {
         Self {
             disposition,
@@ -637,7 +568,7 @@ impl PolicyEngine {
             .expect("a live reservation token always names a history entry");
         assert_eq!(entry.kind, EntryKind::LocalReservation);
         let confirmation = self.confirmation_is_current(&token);
-        let escalated = self.complete_failed_confirmation(&token);
+        let escalated = self.fail_confirmation(&token, false);
         token.consume();
         Transition::new(
             if escalated {
@@ -673,7 +604,7 @@ impl PolicyEngine {
         let observation = match parse_policy(&response.headers) {
             Ok(observation) => observation,
             Err(error) => {
-                self.complete_failed_confirmation(&token);
+                self.fail_confirmation(&token, false);
                 let disposition = Disposition::Refuse {
                     target: RefusalTarget::Policy(token.policy.clone()),
                     cause: RefusalCause::PolicyObservation(error),
@@ -683,7 +614,7 @@ impl PolicyEngine {
             }
         };
         if let Err(error) = self.validate_observation_target(&token.policy, &observation) {
-            self.complete_failed_confirmation(&token);
+            self.fail_confirmation(&token, false);
             let disposition = Disposition::Refuse {
                 target: RefusalTarget::Policy(token.policy.clone()),
                 cause: RefusalCause::ObservationTarget(error),
@@ -698,7 +629,7 @@ impl PolicyEngine {
         // StateChanged means exactly that: this call mutated engine state.
         // Synthesis, restrictions, and every episode transition set it; a
         // zero-deficit ordinary completion leaves it unset.
-        let mut state_changed = reconciliation.synthesized_entries() > 0;
+        let mut state_changed = reconciliation.synthesized_entries > 0;
 
         let disposition = if response.status == StatusCode::TOO_MANY_REQUESTS {
             state_changed = true; // a restriction is recorded on both arms
@@ -706,7 +637,7 @@ impl PolicyEngine {
                 Ok(retry_after) => {
                     self.record_restriction(&token.policy, now, retry_after);
                     if confirmation {
-                        self.escalate_confirmation(&token);
+                        self.fail_confirmation(&token, true);
                         Disposition::Refuse {
                             target: RefusalTarget::Policy(token.policy.clone()),
                             cause: RefusalCause::RecoveryEscalated,
@@ -724,7 +655,7 @@ impl PolicyEngine {
                     // is no schedulable retry.
                     self.record_restriction(&token.policy, now, RETRY_AFTER_CAP);
                     if confirmation {
-                        self.escalate_confirmation(&token);
+                        self.fail_confirmation(&token, true);
                         Disposition::Refuse {
                             target: RefusalTarget::Policy(token.policy.clone()),
                             cause: RefusalCause::RecoveryEscalated,
@@ -743,7 +674,7 @@ impl PolicyEngine {
             Disposition::CompleteRequest
         } else if confirmation {
             state_changed = true;
-            if self.complete_failed_confirmation(&token) {
+            if self.fail_confirmation(&token, false) {
                 Disposition::Refuse {
                     target: RefusalTarget::Policy(token.policy.clone()),
                     cause: RefusalCause::RecoveryEscalated,
@@ -783,7 +714,7 @@ impl PolicyEngine {
                 );
             }
         };
-        let policy_name = PolicyName::from(observation.name());
+        let policy_name = PolicyName::from(observation.name.as_str());
         if let Err(error) = self.validate_observation_target(&policy_name, &observation) {
             return Transition::new(
                 Disposition::Refuse {
@@ -797,7 +728,7 @@ impl PolicyEngine {
         let reconciliation = self
             .reconcile_observation(&policy_name, now, &observation)
             .expect("the observation target was validated above");
-        let mut state_changed = reconciliation.synthesized_entries() > 0;
+        let mut state_changed = reconciliation.synthesized_entries > 0;
 
         let disposition = if response.status.is_success() {
             Disposition::ProbeReady
@@ -855,7 +786,7 @@ impl PolicyEngine {
         policy_name: &PolicyName,
         observation: &PolicySnapshot,
     ) -> Result<(), ObservationError> {
-        let observed = PolicyName::from(observation.name());
+        let observed = PolicyName::from(observation.name.as_str());
         if policy_name != &observed {
             return Err(ObservationError::PolicyMismatch {
                 reserved: policy_name.clone(),
@@ -947,7 +878,13 @@ impl PolicyEngine {
         policy.recovery_episode = None;
     }
 
-    fn complete_failed_confirmation(&mut self, token: &ReservationToken) -> bool {
+    /// Resolves the episode's live confirmation as failed.
+    ///
+    /// `escalate` forces suspension regardless of attempt (the 429 rows of
+    /// the confirmation matrix); otherwise a First failure consumes the
+    /// attempt and a Final failure suspends. Returns whether this call
+    /// suspended the policy. A no-op for ordinary and expired-stale tokens.
+    fn fail_confirmation(&mut self, token: &ReservationToken, escalate: bool) -> bool {
         let Some(attempt) = token.confirmation_attempt else {
             return false;
         };
@@ -963,32 +900,13 @@ impl PolicyEngine {
             .as_mut()
             .expect("ownership implies an active episode");
         episode.confirmation_entry = None;
-        match attempt {
-            ConfirmationAttempt::First => {
-                episode.completed_attempts = 1;
-                false
-            }
-            ConfirmationAttempt::Final => {
-                policy.escalation_suspended = true;
-                true
-            }
+        if escalate || attempt == ConfirmationAttempt::Final {
+            policy.escalation_suspended = true;
+            true
+        } else {
+            episode.completed_attempts = 1;
+            false
         }
-    }
-
-    fn escalate_confirmation(&mut self, token: &ReservationToken) {
-        let policy = self
-            .policies
-            .get_mut(&token.policy)
-            .expect("a reservation token names a configured policy");
-        if !episode_owns_confirmation(policy, token) {
-            return;
-        }
-        let episode = policy
-            .recovery_episode
-            .as_mut()
-            .expect("ownership implies an active episode");
-        episode.confirmation_entry = None;
-        policy.escalation_suspended = true;
     }
 
     /// Adds pessimistic history with distinct identity and synthetic provenance.
@@ -1038,21 +956,21 @@ impl PolicyEngine {
         let cap = policy
             .rules
             .iter()
-            .flat_map(|rule| [rule.pair.burst().max_hits(), rule.pair.sustained().max_hits()])
+            .flat_map(|rule| [rule.pair.burst().max_hits, rule.pair.sustained().max_hits])
             .max()
             .expect("policies are constructed with at least one rule");
         let cap = usize::try_from(cap).expect("u32 always fits usize on supported Rust targets");
 
         let maximum_deficit = observation
-            .rules()
+            .rules
             .iter()
-            .flat_map(|rule| [rule.state.burst(), rule.state.sustained()])
+            .flat_map(|rule| [&rule.state.burst, &rule.state.sustained])
             .map(|state| {
-                let reported = usize::try_from(state.current_hits())
+                let reported = usize::try_from(state.current_hits)
                     .expect("u32 always fits usize on supported Rust targets");
                 reported
                     .min(cap)
-                    .saturating_sub(policy.history.count_within(now, state.period()))
+                    .saturating_sub(policy.history.count_within(now, state.period))
             })
             .max()
             .unwrap_or(0);
@@ -1121,12 +1039,12 @@ fn expire_abandoned_confirmation(policy: &mut Policy, now: SimInstant) {
                 .iter()
                 .flat_map(|rule| {
                     [
-                        (rule.pair.burst(), rule.buckets.burst()),
-                        (rule.pair.sustained(), rule.buckets.sustained()),
+                        (rule.pair.burst(), rule.buckets.burst),
+                        (rule.pair.sustained(), rule.buckets.sustained),
                     ]
                 })
                 .any(|(window, resolution)| {
-                    is_within_padded(entry.at, now, window.period(), resolution.duration())
+                    is_within_padded(entry.at, now, window.period, resolution.duration())
                 })
         });
     if still_active {
@@ -1149,8 +1067,8 @@ fn policy_not_before(policy: &Policy, now: SimInstant) -> Option<SimInstant> {
         .iter()
         .flat_map(|rule| {
             [
-                (rule.pair.burst(), rule.buckets.burst()),
-                (rule.pair.sustained(), rule.buckets.sustained()),
+                (rule.pair.burst(), rule.buckets.burst),
+                (rule.pair.sustained(), rule.buckets.sustained),
             ]
         })
         .filter_map(|(window, resolution)| {
@@ -1167,8 +1085,8 @@ fn maximum_bucket_resolution(policy: &Policy) -> Duration {
         .iter()
         .flat_map(|rule| {
             [
-                rule.buckets.burst().duration(),
-                rule.buckets.sustained().duration(),
+                rule.buckets.burst.duration(),
+                rule.buckets.sustained.duration(),
             ]
         })
         .max()
@@ -1208,7 +1126,7 @@ fn window_not_before(
     resolution: Resolution,
     now: SimInstant,
 ) -> Option<SimInstant> {
-    let max_hits = usize::try_from(window.max_hits()).expect("u32 always fits usize");
+    let max_hits = usize::try_from(window.max_hits).expect("u32 always fits usize");
     if max_hits == 0 {
         return Some(SimInstant::MAX);
     }
@@ -1216,7 +1134,7 @@ fn window_not_before(
     let mut active = history
         .entries
         .iter()
-        .filter(|entry| is_within_padded(entry.at, now, window.period(), resolution.duration()))
+        .filter(|entry| is_within_padded(entry.at, now, window.period, resolution.duration()))
         .map(|entry| entry.at)
         .collect::<Vec<_>>();
     if active.len() < max_hits {
@@ -1226,7 +1144,7 @@ fn window_not_before(
     let entries_that_must_expire = active.len() - max_hits + 1;
     Some(
         active[entries_that_must_expire - 1]
-            .saturating_add(window.period())
+            .saturating_add(window.period)
             .saturating_add(resolution.duration()),
     )
 }
