@@ -1,0 +1,87 @@
+# Composite hand-off: the implemented core
+
+Status: review artifact per `slice-review.md` §2, written 2026-08-09
+after the external review noted its absence for the composite core
+(the hand-off process postdates the first slices). Covers everything
+implemented through the external-review fix series. Supersedes
+nothing; future slices attach their own hand-offs.
+
+## 1. Silences taken (doc gaps, the reading chosen, consequence traced)
+
+| Silence | Reading taken | Next-call consequence |
+|---|---|---|
+| 429 with valid policy headers but unusable `Retry-After` | record a `RETRY_AFTER_CAP`-length restriction, refuse the request | `try_reserve` answers `NotBefore` until cap + bucket + buffer |
+| Late 429 after halt / suspension | send-promising dispositions (Requeue, ProbeReady) refuse; outcome-delivering ones still deliver | requeue queues can no longer receive unkeepable promises |
+| Zombie 429 from an expired confirmation | joins the episode regardless of generation | episode state unchanged; no double-escalation, no abort |
+| Abandonment vs slow live token | age past the largest padded window = written off (shell obligation: resolve tokens well inside that horizon) | attempt consumed; a contract-violating shell risks a bounded double-confirmation window, never a wedge |
+| Unbounded wire values | absolute ceilings 8 / 8 / 10 000 / 3600 s at parse | out-of-range headers are typed refusals before any allocation |
+| Physical retention | retire entries past the largest padded window at both mutation surfaces | an observation window longer than every configured padded window may re-synthesize — pessimistic |
+| Duplicate rule names / duplicated headers | parse as-is; first header value wins | harmless under max-not-sum reconciliation; pinned as current behavior |
+| Zero-hit windows | wire-refused (D8); engine answers `Blocked` for constructed policies | defense in depth only |
+
+All entries have register records in `result-draft.md` §3.
+
+## 2. Seam map and invariants walk
+
+State each mechanism touches across slice boundaries: abandonment
+expiry × episodes (resolves the slot as a failed attempt);
+retirement × abandonment (same horizon — a retired confirmation
+entry reads as aged); retirement × token consumption (tolerant
+paths); terminal state × both response lanes; reconciliation ×
+retirement (counts run after retiring).
+
+1. **No permanent wedge** — confirmation slots and entries both age
+   out on the padded-window horizon; `Blocked` is re-asked on state
+   change, never slept on.
+2. **One send, one entry** — interleaving property now spans
+   reserve/rollback/observe/unknown in any token order; retirement
+   removes only aged entries, and consuming a retired token is a
+   no-op on history.
+3. **Pessimism direction** — synthesis targets min(reported, cap);
+   retirement can only lower local counts where re-synthesis
+   restores them; unknown outcomes keep entries until the horizon.
+4. **Single scheduling authority** — no new scheduling paths;
+   refusals on terminal state *remove* unkeepable promises rather
+   than adding timing channels.
+5. **Entry-point invariant** — swept across nine response shapes;
+   the halted/suspended gates return Refuse, never a cross-lane
+   disposition.
+6. **Truthful notifications** — StateChanged still tracks actual
+   mutation; the hoisted restriction recording sets it on every 429.
+
+## 3. Coverage confession and property reachability
+
+Not covered, deliberately: mock/M-series, C3/C4, X1/X2, actor
+(unbuilt, build-order); M5 remap and M6 shrink (deferred by
+decision); bootstrap seeding (accepted design, unimplemented).
+
+Not covered, honestly: no property sweeps the halted/suspended
+dimension (example tests only); the retirement × long-observation
+re-synthesis interaction is reasoned, not property-tested; the
+double-confirmation window under a contract-violating shell is
+untested; drop-bomb tests are debug-profile only (release runs 65 of
+67).
+
+Reachability accounting: C1 asserts on every generated branch
+(grant → oracle; NotBefore → re-ask must grant → oracle); the
+interleaving property generates ≥ 1 operation and asserts the full
+id/kind map after each; both reconciliation properties assert
+unconditionally; the C2 round-trip domain equals the accepted
+grammar, with every rejected complement pinned by name.
+
+## 4. Judgment calls
+
+- Zombie-429-joins (Tom-confirmed) extended to *any* generation by
+  deleting the open_or_join assert rather than tracking expired-
+  token generations — less machinery, same conservatism.
+- Restrictions are recorded on every 429 even when the disposition
+  refuses (halted/suspended/unusable-Retry-After) — uniform
+  pessimism over minimal mutation.
+- The probe lane's suspension gate goes beyond the reviewer's
+  finding (they named halt only) — same unkeepable-promise
+  reasoning.
+- Retirement horizon = abandonment horizon (one aging concept, not
+  two).
+- Ceiling values (8/8/10 000/3600) are mine; generous by ~2 orders
+  of magnitude over observed wire values, small enough to bound
+  worst-case synthesis at ~240 KB per policy.

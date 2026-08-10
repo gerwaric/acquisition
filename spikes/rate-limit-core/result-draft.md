@@ -281,6 +281,60 @@ process end to end.
   seeded" is unreachable as written; a seeding design is needed
   before the actor slice.
 
+### External review register (2026-08-09, second independent review)
+
+Tom commissioned an independent frontier-model review of the repo
+after the audit hardening pass; it found six real defects at exactly
+the seams-and-silences the post-mortem predicted — including two in
+the audit's own fixes. All six are resolved the same day (commit
+series 9ed954c1..; every finding reproduced by a failing test before
+its fix). The composite four-part hand-off the review noted was
+missing now exists (`core-handoff.md`).
+
+1. **Terminal/suspended state ignored by late responses** — a 429
+   after halt/suspension answered `Requeue` (probe lane:
+   `ProbeReady`), promises only a refusing `try_reserve` could
+   receive. Rule now encoded: send-promising dispositions (Requeue,
+   ProbeReady) are gated on halted/suspended state and refuse
+   (`RefusalCause::Halted` / `EscalationSuspended`);
+   outcome-delivering dispositions still reach their callers.
+2. **Reachable panic in the audit's own wedge fix**: late original
+   429s advance `restriction_generation` past `opened_generation`,
+   so an expired-stale confirmation carries a *newer* generation and
+   its zombie 429 failed the `open_or_join` `<=` assert. The assert
+   stated a false invariant and is removed — joining is conservative
+   for every generation. **Doc finding (shell obligation)**: aging
+   alone cannot distinguish a dropped token from a slow live one;
+   the shell must resolve every token (response/unknown/rollback)
+   well inside the smallest aging horizon — any sane transport
+   timeout satisfies this — and a shell that violates it gets the
+   defined degraded behavior (attempt written off; brief
+   double-confirmation exposure), never a wedge or an abort.
+3. **D8 grammar enforced**: empty/whitespace policy names, zero
+   limit hits, and zero periods are typed parse rejections
+   (post-seeding they would have been wire inputs permanently
+   blocking a policy). Engine-level zero-hit handling stays as
+   defense in depth.
+4. **Absolute wire ceilings** — the synthesis cap was circular once
+   seeding makes configuration wire-derived. **Doc finding (chosen
+   values)**: 8 rules/policy, 8 triplets/rule, `max_hits` ≤ 10 000,
+   periods ≤ 3600 s — each far above anything observed on the wire
+   (2 rules, 2 triplets, hits ≤ ~45, periods ≤ 300 s); boundaries
+   pinned at n/n+1.
+5. **Physical history retirement**: entries now retire at both
+   mutation surfaces once aged past the largest padded window;
+   token-consuming paths tolerate a retired entry. An observation
+   window longer than every configured padded window may
+   re-synthesize after retirement — the pessimistic direction.
+6. **Typed internal deadlines**: `WindowDeadline { Open, At, Never }`
+   replaces the internal `SimInstant::MAX` sentinel, so saturated
+   deadline arithmetic can never read as "never".
+
+Test-evidence fixes from the same review: the interleaving property
+generates ≥ 1 operation; `assert_pessimistic` does its own windowing
+arithmetic over raw entry timestamps; the synthesis cap is pinned at
+511/512/513.
+
 ## §4. Candidate N-claims
 
 Transcribed to `network-ground-truth.md` at hoist, cited by
@@ -421,3 +475,19 @@ outlives the spike branch; record what exists and where.⟩
   call is confirmed as decided. Sixty offline tests pass; the sole
   remaining open item is the probe/bootstrap seeding seam, which
   blocks the actor slice.
+- 2026-08-09 — bootstrap seeding designed, challenged, and accepted:
+  revision 1 (name-keyed resolution allow-list) was rejected in
+  Tom's review; revision 2 (one global positional bucket constant,
+  dynamic seeding, `ProbeReady { policy }`, `RuleScope` deleted) is
+  accepted and its §5 is the seeding slice's contract.
+- 2026-08-09 — second independent review (Tom-commissioned, external
+  frontier model) found six real defects at the predicted
+  seams-and-silences, two of them in the audit's own fixes (§3
+  external review register). All six fixed same-day, each reproduced
+  by a failing test first; three test-evidence fixes landed
+  alongside; the composite four-part hand-off now exists
+  (`core-handoff.md`). Sixty-seven offline tests pass in debug (65
+  in release — drop-bomb tests are debug-only); fmt and all-target
+  clippy green; focused 4,096-case property runs green. Third data
+  point for the post-mortem's thesis: independent review keeps
+  catching what green cannot, in whoever's code is newest.
