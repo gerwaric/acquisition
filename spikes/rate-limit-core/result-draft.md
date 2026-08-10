@@ -368,7 +368,25 @@ resolved same-day (Tom approved the batch):
 4. **Doc reconciliation**: aging-horizon wording aligned with the
    implementation (largest padded window per policy); the zero-hit
    "wire-legal" register wording marked superseded by D8; test
-   counts corrected (now 72 debug / 70 release).
+   counts corrected.
+
+The verifier's second pass on this batch (same day) held the
+behavioral fixes and found two more:
+
+5. **P2 — wire length still sized parsing work**: the field ceilings
+   bounded copies, but `to_str`/trim/split/digit scans ran over the
+   full wire length first. A 1024-byte whole-value gate now checks
+   raw bytes before any conversion or scan, in `required_header`
+   and `parse_retry_after` both (`HeaderValueTooLong` typed; an
+   oversized Retry-After is unusable and records the cap). Pinned
+   at n/n+1 through values that parse fully at the gate.
+6. **P3 — residual doc drift**: the `Blocked` rustdoc's "wire-legal
+   zero-hit rule" (superseded by D8), the changelog's 67/65 (the
+   pre-batch state was 68/66 — a miscount at writing), and the
+   hand-off's too-strong "before any allocation" (now "without
+   wire-sized allocations or wire-sized parsing work"). All fixed.
+
+Suite after the batch: 73 debug / 71 release.
 
 Open obligation carried to the actor slice: replace "any sane
 transport timeout" with the exact enforced timeout (or its stated
@@ -525,8 +543,9 @@ outlives the spike branch; record what exists and where.⟩
   external review register). All six fixed same-day, each reproduced
   by a failing test first; three test-evidence fixes landed
   alongside; the composite four-part hand-off now exists
-  (`core-handoff.md`). Sixty-seven offline tests pass in debug (65
-  in release — drop-bomb tests are debug-only); fmt and all-target
+  (`core-handoff.md`). Sixty-eight offline tests pass in debug (66
+  in release — drop-bomb tests are debug-only; the 67/65 recorded
+  here originally was a miscount); fmt and all-target
   clippy green; focused 4,096-case property runs green. Third data
   point for the post-mortem's thesis: independent review keeps
   catching what green cannot, in whoever's code is newest.

@@ -319,7 +319,8 @@ pub enum ReserveOutcome {
     /// may sleep on it.
     NotBefore(SimInstant),
     /// No clock time can be named: a confirmation attempt is in flight, or
-    /// no window can ever grant (a wire-legal zero-hit rule). Re-ask when
+    /// no window can ever grant (a zero-hit rule — wire-refused since D8,
+    /// so reachable only from constructed policies). Re-ask when
     /// engine state changes, never on a timer. (Tom-approved resolution of
     /// the audit's NotBefore(MAX) sentinel flag, 2026-08-09: an outcome an
     /// actor must not sleep on deserves its own variant, not a magic value.)
@@ -1204,12 +1205,16 @@ fn maximum_bucket_resolution(policy: &Policy) -> Duration {
 /// carries the same conservative cap-length restriction as any other
 /// unusable value.
 fn parse_retry_after(headers: &HeaderMap) -> Result<Duration, RetryAfterError> {
-    let raw = headers
+    let value = headers
         .get(&RETRY_AFTER_HEADER)
-        .ok_or(RetryAfterError::Missing)?
-        .to_str()
-        .map_err(|_| RetryAfterError::Invalid)?
-        .trim();
+        .ok_or(RetryAfterError::Missing)?;
+    // Byte-gated before any conversion or scan, like every policy header
+    // (follow-up review P2). An oversized value is unusable, and unusable
+    // values already record the conservative cap.
+    if value.as_bytes().len() > crate::header::MAX_HEADER_VALUE_BYTES {
+        return Err(RetryAfterError::Invalid);
+    }
+    let raw = value.to_str().map_err(|_| RetryAfterError::Invalid)?.trim();
     if !crate::header::ascii_digits_only(raw) {
         return Err(RetryAfterError::Invalid);
     }

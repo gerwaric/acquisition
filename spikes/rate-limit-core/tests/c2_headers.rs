@@ -3,8 +3,8 @@ use std::time::Duration;
 use http::{HeaderMap, HeaderValue};
 use proptest::prelude::*;
 use rate_limit_core::header::{
-    MAX_DIAGNOSTIC_BYTES, MAX_POLICY_NAME_BYTES, MAX_RULE_NAME_BYTES, PolicyParseError,
-    parse_policy,
+    MAX_DIAGNOSTIC_BYTES, MAX_HEADER_VALUE_BYTES, MAX_POLICY_NAME_BYTES, MAX_RULE_NAME_BYTES,
+    PolicyParseError, parse_policy,
 };
 
 fn headers(limit: &str, state: &str) -> HeaderMap {
@@ -256,11 +256,45 @@ fn wire_byte_ceilings_are_enforced_at_the_boundary() {
     ));
 }
 
-// Diagnostics quote at most MAX_DIAGNOSTIC_BYTES of raw wire text — an
-// enormous malformed field must not size the error allocation.
+// Whole header values are byte-gated before any conversion, trim, split,
+// or digit scan (follow-up review P2) — wire length must not size parsing
+// work either. Boundary pinned at n and n+1 through a value that parses
+// fully at the ceiling.
+#[test]
+fn header_value_byte_gate_is_enforced_before_parsing() {
+    let at_gate = format!("Account,{}", " ".repeat(MAX_HEADER_VALUE_BYTES - 8));
+    let over_gate = format!("Account,{}", " ".repeat(MAX_HEADER_VALUE_BYTES - 7));
+
+    // At the gate the value is scanned and fails on its own merits (the
+    // all-whitespace second slot); one byte over refuses before any scan.
+    let mut at_limit = headers("15:10:60, 30:300:300", "1:10:0, 1:300:0");
+    at_limit.insert(
+        "x-rate-limit-rules",
+        HeaderValue::from_str(&at_gate).expect("valid HTTP"),
+    );
+    assert!(matches!(
+        parse_policy(&at_limit),
+        Err(PolicyParseError::InvalidRuleName { .. })
+    ));
+
+    let mut over_limit = headers("15:10:60, 30:300:300", "1:10:0, 1:300:0");
+    over_limit.insert(
+        "x-rate-limit-rules",
+        HeaderValue::from_str(&over_gate).expect("valid HTTP"),
+    );
+    assert!(matches!(
+        parse_policy(&over_limit),
+        Err(PolicyParseError::HeaderValueTooLong { name, limit })
+            if name == "x-rate-limit-rules" && limit == MAX_HEADER_VALUE_BYTES
+    ));
+}
+
+// Diagnostics quote at most MAX_DIAGNOSTIC_BYTES of raw wire text — a
+// malformed field must not size the error allocation. Fields stay under
+// the whole-value byte gate so the truncation layer itself is exercised.
 #[test]
 fn diagnostic_raw_fields_are_truncated() {
-    let huge = "x".repeat(10_000);
+    let huge = "x".repeat(900);
 
     let limit = format!("{huge}, 30:300:300");
     match parse_policy(&headers(&limit, "1:10:0, 1:300:0")) {
@@ -275,7 +309,7 @@ fn diagnostic_raw_fields_are_truncated() {
     let mut rules = headers("15:10:60, 30:300:300", "1:10:0, 1:300:0");
     rules.insert(
         "x-rate-limit-rules",
-        HeaderValue::from_str(&format!("Account,{}", " ".repeat(10_000))).expect("valid HTTP"),
+        HeaderValue::from_str(&format!("Account,{}", " ".repeat(900))).expect("valid HTTP"),
     );
     match parse_policy(&rules) {
         Err(PolicyParseError::InvalidRuleName { raw }) => {

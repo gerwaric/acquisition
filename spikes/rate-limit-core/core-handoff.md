@@ -16,7 +16,7 @@ attach their own hand-offs.
 | Late 429 after halt / suspension | send-promising dispositions (Requeue, ProbeReady) refuse; outcome-delivering ones still deliver | requeue queues can no longer receive unkeepable promises |
 | Zombie 429 from an expired confirmation | joins the episode regardless of generation | episode state unchanged; no double-escalation, no abort |
 | Abandonment vs slow live token | age past the largest padded window = written off (shell obligation: resolve tokens well inside that horizon) | attempt consumed; a contract-violating shell risks a bounded double-confirmation window, never a wedge |
-| Unbounded wire values | absolute ceilings at parse: 8 rules, 8 triplets, 10 000 hits, 21 600 s periods, 256/64-byte names, 64-byte diagnostics | out-of-range headers are typed refusals before any allocation |
+| Unbounded wire values | absolute ceilings at parse: 8 rules, 8 triplets, 10 000 hits, 21 600 s periods, 256/64-byte names, 64-byte diagnostics, and a 1024-byte whole-value gate on raw bytes (incl. Retry-After) before any conversion or scan | out-of-range headers are typed refusals without wire-sized allocations or wire-sized parsing work |
 | Physical retention | retire entries past the largest padded window at both mutation surfaces | an observation window longer than every configured padded window may re-synthesize — pessimistic |
 | Duplicate rule names / duplicated headers | parse as-is; first header value wins | harmless under max-not-sum reconciliation; pinned as current behavior |
 | Zero-hit windows | wire-refused (D8); engine answers `Blocked` for constructed policies | defense in depth only |
@@ -61,8 +61,8 @@ Not covered, honestly: no property sweeps the halted/suspended
 dimension (example tests only); the retirement × long-observation
 re-synthesis interaction is reasoned, not property-tested; the
 double-confirmation window under a contract-violating shell is
-untested; drop-bomb tests are debug-profile only (release runs 70 of
-72).
+untested; drop-bomb tests are debug-profile only (release runs 71 of
+73).
 
 Reachability accounting: C1 asserts on every generated branch
 (grant → oracle; NotBefore → re-ask must grant → oracle); the
@@ -96,4 +96,9 @@ grammar, with every rejected complement pinned by name.
   over-ceiling policy refuses the endpoint, so availability wins.
 - Byte ceilings (256-byte policy names, 64-byte rule names,
   64-byte truncated diagnostics) close the follow-up review's
-  finding that names and error payloads were still wire-sized.
+  finding that names and error payloads were still wire-sized. The
+  verifier's second pass (P2) added the 1024-byte whole-value gate:
+  the field ceilings bounded copies but not scan work — `to_str`,
+  trim, split, and digit validation still ran over the full wire
+  length. The gate checks raw bytes first, in `required_header` and
+  `parse_retry_after` both.

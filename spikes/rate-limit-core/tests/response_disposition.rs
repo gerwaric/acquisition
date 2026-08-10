@@ -272,11 +272,28 @@ fn retry_after_delay_second_boundaries_are_validated_without_a_retry_side_channe
         Disposition::Requeue
     );
 
+    // Retry-After shares the whole-value byte gate (follow-up review P2):
+    // a 1024-byte value still parses on its merits; 1025 is unusable
+    // before any scan and joins the refusal loop below.
+    let mut at_gate = engine();
+    let token = reserve(&mut at_gate, 0);
+    assert_eq!(
+        at_gate
+            .on_response(
+                token,
+                SimInstant::from_millis(0),
+                &rate_limited(&format!("5{}", " ".repeat(1_023)))
+            )
+            .disposition,
+        Disposition::Requeue
+    );
+
     for reply in [
         rate_limited("901"),
         rate_limited("not-a-number"),
         rate_limited("+5"),
         rate_limited("Wed, 21 Oct 2026 07:28:00 GMT"),
+        rate_limited(&format!("5{}", " ".repeat(1_024))),
         ObservedResponse::new(
             StatusCode::TOO_MANY_REQUESTS,
             headers(None),

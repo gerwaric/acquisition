@@ -28,6 +28,14 @@ pub const MAX_POLICY_NAME_BYTES: usize = 256;
 pub const MAX_RULE_NAME_BYTES: usize = 64;
 pub const MAX_DIAGNOSTIC_BYTES: usize = 64;
 
+// One gate for whole header values, checked on raw bytes before any
+// conversion, trim, split, or digit scan — wire length must not size
+// parsing *work* either, only the ceilings above are not enough (follow-up
+// review P2). Sized with room above the largest value the per-field
+// ceilings admit (a full 8-rule list is under 520 bytes). Also gates
+// Retry-After in the core.
+pub const MAX_HEADER_VALUE_BYTES: usize = 1_024;
+
 // Plain-data types carry public fields: there is no invariant for a getter
 // to defend, so accessors would only be noise. `RulePair` is the deliberate
 // exception — its constructor enforces the shape invariant, so its fields
@@ -115,6 +123,10 @@ pub enum PolicyParseError {
     },
     InvalidHeaderValue {
         name: HeaderName,
+    },
+    HeaderValueTooLong {
+        name: HeaderName,
+        limit: usize,
     },
     // D8 Full grammar: an empty or whitespace policy name is not a policy.
     EmptyPolicyName,
@@ -249,9 +261,17 @@ fn required_header<'a>(
     headers: &'a HeaderMap,
     name: &HeaderName,
 ) -> Result<&'a str, PolicyParseError> {
-    headers
+    let value = headers
         .get(name)
-        .ok_or_else(|| PolicyParseError::MissingHeader { name: name.clone() })?
+        .ok_or_else(|| PolicyParseError::MissingHeader { name: name.clone() })?;
+    // Byte-gated on the raw value before any conversion or scan.
+    if value.as_bytes().len() > MAX_HEADER_VALUE_BYTES {
+        return Err(PolicyParseError::HeaderValueTooLong {
+            name: name.clone(),
+            limit: MAX_HEADER_VALUE_BYTES,
+        });
+    }
+    value
         .to_str()
         .map_err(|_| PolicyParseError::InvalidHeaderValue { name: name.clone() })
 }
