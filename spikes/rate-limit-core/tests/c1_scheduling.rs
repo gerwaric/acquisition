@@ -60,8 +60,11 @@ fn rule_cases() -> impl Strategy<Value = Vec<RuleCase>> {
     prop::collection::vec(
         (
             (
-                0_u32..8,
-                0_u32..8,
+                // 1..: a zero-hit window answers NotBefore(MAX) and would
+                // make the property vacuous; that boundary has its own
+                // pinned test below.
+                1_u32..8,
+                1_u32..8,
                 1_u64..250,
                 1_u64..250,
                 0_u64..500,
@@ -205,6 +208,13 @@ proptest! {
     // Known/Assumed resolutions, and independently generated server phases.
     // A Reserved result includes the new send, so <= max_hits proves that send
     // is safe under the server's independently bucketized windows.
+    //
+    // No generated case passes vacuously (audit, 2026-08-09: the original
+    // Reserved-only body asserted nothing on ~97% of cases): a grant is
+    // oracle-checked at `now`, and a NotBefore answer is re-asked at exactly
+    // that instant, where it must grant — and that grant is oracle-checked
+    // in turn, pinning the scheduling arithmetic as exact rather than merely
+    // sufficient.
     #[test]
     fn every_reserved_outcome_is_safe_for_every_server_phase(
         cases in rule_cases(),
@@ -215,13 +225,63 @@ proptest! {
         let policy = policy_name();
         let mut engine = build_engine(&cases, &history_ms);
 
-        if let ReserveOutcome::Reserved(token) =
-            engine.try_reserve(&policy, SimInstant::from_millis(now_ms))
-        {
-            assert_reserved_is_server_safe(&engine, &cases, now_ms, &phase_seeds)?;
-            engine.rollback(token);
+        match engine.try_reserve(&policy, SimInstant::from_millis(now_ms)) {
+            ReserveOutcome::Reserved(token) => {
+                assert_reserved_is_server_safe(&engine, &cases, now_ms, &phase_seeds)?;
+                engine.rollback(token);
+            }
+            ReserveOutcome::NotBefore(at) => {
+                prop_assert!(
+                    at.as_millis() > now_ms,
+                    "NotBefore must name a future instant"
+                );
+                match engine.try_reserve(&policy, at) {
+                    ReserveOutcome::Reserved(token) => {
+                        assert_reserved_is_server_safe(
+                            &engine,
+                            &cases,
+                            at.as_millis(),
+                            &phase_seeds,
+                        )?;
+                        engine.rollback(token);
+                    }
+                    other => prop_assert!(
+                        false,
+                        "re-asking at the answered NotBefore must grant, got {other:?}"
+                    ),
+                }
+            }
+            ReserveOutcome::Refused(reason) => {
+                prop_assert!(false, "unexpected refusal: {reason:?}");
+            }
         }
     }
+}
+
+// C1 boundary: a wire-legal 0:period:restriction window can never grant. The
+// core answers the NotBefore(MAX) sentinel — "wait for an event, not a
+// clock" — a contract the actor design still has to name (audit flag).
+#[test]
+fn zero_max_hits_blocks_forever() {
+    let cases = vec![RuleCase {
+        burst_hits: 0,
+        sustained_hits: 10,
+        burst_period_ms: 100,
+        sustained_period_ms: 1_000,
+        burst_restriction_ms: 0,
+        sustained_restriction_ms: 0,
+        burst_resolution_ms: 10,
+        sustained_resolution_ms: 20,
+        burst_assumed: false,
+        sustained_assumed: true,
+        scope: RuleScope::Account,
+    }];
+    let mut engine = build_engine(&cases, &[]);
+
+    assert!(matches!(
+        engine.try_reserve(&policy_name(), SimInstant::from_millis(0)),
+        ReserveOutcome::NotBefore(SimInstant::MAX)
+    ));
 }
 
 // C1: one shared history is judged by every rule/window, and the scheduling
