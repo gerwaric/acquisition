@@ -2,7 +2,10 @@ use std::time::Duration;
 
 use http::{HeaderMap, HeaderValue};
 use proptest::prelude::*;
-use rate_limit_core::header::{PolicyParseError, parse_policy};
+use rate_limit_core::header::{
+    MAX_DIAGNOSTIC_BYTES, MAX_POLICY_NAME_BYTES, MAX_RULE_NAME_BYTES, PolicyParseError,
+    parse_policy,
+};
 
 fn headers(limit: &str, state: &str) -> HeaderMap {
     let mut headers = HeaderMap::new();
@@ -203,6 +206,83 @@ fn wire_ceilings_are_enforced_at_the_boundary() {
         parse_policy(&headers(many, "1:10:0, 1:300:0")),
         Err(PolicyParseError::TooManyTriplets { .. })
     ));
+}
+
+// Byte ceilings (follow-up review 2026-08-10): wire-sized names and
+// diagnostics were the remaining unbounded copies after the count/numeric
+// ceilings. Boundaries pinned at n and n+1.
+#[test]
+fn wire_byte_ceilings_are_enforced_at_the_boundary() {
+    // Policy name: at the ceiling parses, one byte over refuses.
+    for (len, expect_ok) in [
+        (MAX_POLICY_NAME_BYTES, true),
+        (MAX_POLICY_NAME_BYTES + 1, false),
+    ] {
+        let mut headers = headers("15:10:60, 30:300:300", "1:10:0, 1:300:0");
+        headers.insert(
+            "x-rate-limit-policy",
+            HeaderValue::from_str(&"p".repeat(len)).expect("test name is valid HTTP"),
+        );
+        let result = parse_policy(&headers);
+        if expect_ok {
+            assert!(result.is_ok(), "a {len}-byte policy name should parse");
+        } else {
+            assert!(matches!(
+                result,
+                Err(PolicyParseError::PolicyNameTooLong { limit }) if limit == MAX_POLICY_NAME_BYTES
+            ));
+        }
+    }
+
+    // Rule name: at the ceiling proceeds to header lookup (MissingHeader —
+    // the name resolves no header), one byte over refuses before any lookup.
+    let mut at_limit = headers("15:10:60, 30:300:300", "1:10:0, 1:300:0");
+    at_limit.insert(
+        "x-rate-limit-rules",
+        HeaderValue::from_str(&"r".repeat(MAX_RULE_NAME_BYTES)).expect("valid HTTP"),
+    );
+    assert!(matches!(
+        parse_policy(&at_limit),
+        Err(PolicyParseError::MissingHeader { .. })
+    ));
+    let mut over_limit = headers("15:10:60, 30:300:300", "1:10:0, 1:300:0");
+    over_limit.insert(
+        "x-rate-limit-rules",
+        HeaderValue::from_str(&"r".repeat(MAX_RULE_NAME_BYTES + 1)).expect("valid HTTP"),
+    );
+    assert!(matches!(
+        parse_policy(&over_limit),
+        Err(PolicyParseError::RuleNameTooLong { limit }) if limit == MAX_RULE_NAME_BYTES
+    ));
+}
+
+// Diagnostics quote at most MAX_DIAGNOSTIC_BYTES of raw wire text — an
+// enormous malformed field must not size the error allocation.
+#[test]
+fn diagnostic_raw_fields_are_truncated() {
+    let huge = "x".repeat(10_000);
+
+    let limit = format!("{huge}, 30:300:300");
+    match parse_policy(&headers(&limit, "1:10:0, 1:300:0")) {
+        Err(PolicyParseError::MalformedTriplet { raw, .. }) => {
+            assert!(raw.len() <= MAX_DIAGNOSTIC_BYTES);
+        }
+        other => panic!("expected MalformedTriplet, got {other:?}"),
+    }
+
+    // An all-whitespace rule slot is empty after trim, so it reaches
+    // InvalidRuleName (not the length ceiling) with an unbounded raw.
+    let mut rules = headers("15:10:60, 30:300:300", "1:10:0, 1:300:0");
+    rules.insert(
+        "x-rate-limit-rules",
+        HeaderValue::from_str(&format!("Account,{}", " ".repeat(10_000))).expect("valid HTTP"),
+    );
+    match parse_policy(&rules) {
+        Err(PolicyParseError::InvalidRuleName { raw }) => {
+            assert!(raw.len() <= MAX_DIAGNOSTIC_BYTES);
+        }
+        other => panic!("expected InvalidRuleName, got {other:?}"),
+    }
 }
 
 // C2: limit and state headers must describe the same windows.

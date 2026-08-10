@@ -15,6 +15,14 @@ pub const MAX_TRIPLETS_PER_RULE: usize = 8;
 pub const MAX_HITS_CEILING: u32 = 10_000;
 pub const MAX_PERIOD_SECS: u32 = 3_600;
 
+// Byte ceilings (follow-up review 2026-08-10): names are copied into
+// snapshots and formatted into header names, and diagnostics quote raw wire
+// text — the remaining wire-sized copies after the count/numeric ceilings.
+// Observed names: policies <= 28 bytes, rules <= 7 ("Account").
+pub const MAX_POLICY_NAME_BYTES: usize = 256;
+pub const MAX_RULE_NAME_BYTES: usize = 64;
+pub const MAX_DIAGNOSTIC_BYTES: usize = 64;
+
 // Plain-data types carry public fields: there is no invariant for a getter
 // to defend, so accessors would only be noise. `RulePair` is the deliberate
 // exception — its constructor enforces the shape invariant, so its fields
@@ -105,8 +113,14 @@ pub enum PolicyParseError {
     },
     // D8 Full grammar: an empty or whitespace policy name is not a policy.
     EmptyPolicyName,
+    PolicyNameTooLong {
+        limit: usize,
+    },
     InvalidRuleName {
         raw: String,
+    },
+    RuleNameTooLong {
+        limit: usize,
     },
     TooManyRules {
         limit: usize,
@@ -139,10 +153,17 @@ pub enum PolicyParseError {
 }
 
 pub fn parse_policy(headers: &HeaderMap) -> Result<PolicySnapshot, PolicyParseError> {
-    let name = required_header(headers, &POLICY_HEADER)?.to_owned();
+    let name = required_header(headers, &POLICY_HEADER)?;
     if name.trim().is_empty() {
         return Err(PolicyParseError::EmptyPolicyName);
     }
+    // Length-checked before the copy: wire data must not size an allocation.
+    if name.len() > MAX_POLICY_NAME_BYTES {
+        return Err(PolicyParseError::PolicyNameTooLong {
+            limit: MAX_POLICY_NAME_BYTES,
+        });
+    }
+    let name = name.to_owned();
     let rule_names = required_header(headers, &RULES_HEADER)?;
     // Bounded before any per-rule work; take() short-circuits the count.
     if rule_names.split(',').take(MAX_RULES_PER_POLICY + 1).count() > MAX_RULES_PER_POLICY {
@@ -156,7 +177,12 @@ pub fn parse_policy(headers: &HeaderMap) -> Result<PolicySnapshot, PolicyParseEr
         let rule = raw_rule.trim();
         if rule.is_empty() {
             return Err(PolicyParseError::InvalidRuleName {
-                raw: raw_rule.to_owned(),
+                raw: truncate_raw(raw_rule),
+            });
+        }
+        if rule.len() > MAX_RULE_NAME_BYTES {
+            return Err(PolicyParseError::RuleNameTooLong {
+                limit: MAX_RULE_NAME_BYTES,
             });
         }
         let limit_header = rule_header(rule, false)?;
@@ -229,9 +255,19 @@ fn rule_header(rule: &str, state: bool) -> Result<HeaderName, PolicyParseError> 
     let suffix = if state { "-state" } else { "" };
     HeaderName::from_bytes(format!("x-rate-limit-{rule}{suffix}").as_bytes()).map_err(|_| {
         PolicyParseError::InvalidRuleName {
-            raw: rule.to_owned(),
+            raw: truncate_raw(rule),
         }
     })
+}
+
+/// Diagnostics keep at most `MAX_DIAGNOSTIC_BYTES` of raw wire text — an
+/// error payload is an allocation the wire must not size, same as any other.
+fn truncate_raw(raw: &str) -> String {
+    let mut end = raw.len().min(MAX_DIAGNOSTIC_BYTES);
+    while !raw.is_char_boundary(end) {
+        end -= 1;
+    }
+    raw[..end].to_owned()
 }
 
 /// Numeric wire fields are bare ASCII digits. `str::parse` alone would also
@@ -260,7 +296,7 @@ fn parse_triplets<T>(
         .map(|raw| {
             let malformed = || PolicyParseError::MalformedTriplet {
                 header: name.clone(),
-                raw: raw.to_owned(),
+                raw: truncate_raw(raw),
             };
             // take(4): a fourth field is already malformed, so nothing sized
             // by the wire is ever collected beyond it.
@@ -274,7 +310,7 @@ fn parse_triplets<T>(
             let fields: [u32; 3] = fields.try_into().map_err(|_| malformed())?;
             parse(fields).ok_or_else(|| PolicyParseError::OutOfRangeTriplet {
                 header: name.clone(),
-                raw: raw.to_owned(),
+                raw: truncate_raw(raw),
             })
         })
         .collect::<Result<Vec<T>, _>>()?;
