@@ -660,9 +660,10 @@ impl PolicyEngine {
         response: &ObservedResponse,
     ) -> Transition {
         if response.classification == ReplyClassification::CloudflareShaped {
+            let newly_halted = !self.halted;
             self.halted = true;
             token.consume();
-            return Transition::new(Disposition::Halt, true);
+            return Transition::new(Disposition::Halt, newly_halted);
         }
 
         // A token granted as a confirmation may have been expired by
@@ -691,10 +692,16 @@ impl PolicyEngine {
             return Transition::new(disposition, confirmation);
         }
 
-        self.reconcile_observation(&token.policy, now, &observation)
+        let reconciliation = self
+            .reconcile_observation(&token.policy, now, &observation)
             .expect("the observation target was validated above");
+        // StateChanged means exactly that: this call mutated engine state.
+        // Synthesis, restrictions, and every episode transition set it; a
+        // zero-deficit ordinary completion leaves it unset.
+        let mut state_changed = reconciliation.synthesized_entries() > 0;
 
         let disposition = if response.status == StatusCode::TOO_MANY_REQUESTS {
+            state_changed = true; // a restriction is recorded on both arms
             match parse_retry_after(&response.headers) {
                 Ok(retry_after) => {
                     self.record_restriction(&token.policy, now, retry_after);
@@ -732,17 +739,23 @@ impl PolicyEngine {
             }
         } else if response.status.is_success() && confirmation {
             self.confirm_recovery(&token);
+            state_changed = true;
             Disposition::CompleteRequest
-        } else if confirmation && self.complete_failed_confirmation(&token) {
-            Disposition::Refuse {
-                target: RefusalTarget::Policy(token.policy.clone()),
-                cause: RefusalCause::RecoveryEscalated,
+        } else if confirmation {
+            state_changed = true;
+            if self.complete_failed_confirmation(&token) {
+                Disposition::Refuse {
+                    target: RefusalTarget::Policy(token.policy.clone()),
+                    cause: RefusalCause::RecoveryEscalated,
+                }
+            } else {
+                Disposition::CompleteRequest
             }
         } else {
             Disposition::CompleteRequest
         };
         token.consume();
-        Transition::new(disposition, true)
+        Transition::new(disposition, state_changed)
     }
 
     /// Parses and resolves one non-counting probe response.
@@ -753,8 +766,9 @@ impl PolicyEngine {
         response: &ObservedResponse,
     ) -> Transition {
         if response.classification == ReplyClassification::CloudflareShaped {
+            let newly_halted = !self.halted;
             self.halted = true;
-            return Transition::new(Disposition::Halt, true);
+            return Transition::new(Disposition::Halt, newly_halted);
         }
 
         let observation = match parse_policy(&response.headers) {
@@ -780,12 +794,15 @@ impl PolicyEngine {
             );
         }
 
-        self.reconcile_observation(&policy_name, now, &observation)
+        let reconciliation = self
+            .reconcile_observation(&policy_name, now, &observation)
             .expect("the observation target was validated above");
+        let mut state_changed = reconciliation.synthesized_entries() > 0;
 
         let disposition = if response.status.is_success() {
             Disposition::ProbeReady
         } else if response.status == StatusCode::TOO_MANY_REQUESTS {
+            state_changed = true; // a restriction is recorded on both arms
             match parse_retry_after(&response.headers) {
                 Ok(retry_after) => {
                     self.record_restriction(&policy_name, now, retry_after);
@@ -809,7 +826,7 @@ impl PolicyEngine {
                 cause: RefusalCause::ProbeStatus(response.status),
             }
         };
-        Transition::new(disposition, true)
+        Transition::new(disposition, state_changed)
     }
 
     pub fn on_probe_unknown_outcome(&self, endpoint: &EndpointLabel) -> Transition {

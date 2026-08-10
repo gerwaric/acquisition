@@ -3,9 +3,10 @@ use std::time::Duration;
 use http::{HeaderMap, HeaderValue, StatusCode};
 use proptest::prelude::*;
 use rate_limit_core::core::{
-    BucketModel, ConfirmationAttempt, Disposition, EndpointLabel, ObservedResponse, Policy,
-    PolicyEngine, PolicyName, RefusalCause, RefusalReason, RefusalTarget, ReplyClassification,
-    ReservationToken, ReserveOutcome, Resolution, Rule, RulePair, RuleScope, SimInstant, Window,
+    BucketModel, ConfirmationAttempt, Disposition, EndpointLabel, Notification, ObservedResponse,
+    Policy, PolicyEngine, PolicyName, RefusalCause, RefusalReason, RefusalTarget,
+    ReplyClassification, ReservationToken, ReserveOutcome, Resolution, Rule, RulePair, RuleScope,
+    SimInstant, Window,
 };
 use rate_limit_core::header::PolicyParseError;
 
@@ -623,6 +624,57 @@ fn cloudflare_on_the_final_attempt_halts_instead_of_escalating() {
             .is_escalation_suspended(),
         "halt supersedes escalation; it does not masquerade as one"
     );
+}
+
+// StateChanged means exactly "this call mutated engine state": an actor can
+// trust an empty notification list as nothing-to-publish.
+#[test]
+fn state_changed_notification_tracks_actual_mutation() {
+    // Zero-deficit 2xx on an ordinary token: no mutation, no notification.
+    let mut quiet = engine();
+    let token = reserve(&mut quiet, 0);
+    let transition = quiet.on_response(token, SimInstant::from_millis(0), &response(StatusCode::OK));
+    assert_eq!(transition.disposition(), &Disposition::CompleteRequest);
+    assert!(transition.notifications().is_empty());
+
+    // A malformed refusal on an ordinary token mutates nothing either.
+    let mut refused = engine();
+    let token = reserve(&mut refused, 0);
+    let transition =
+        refused.on_response(token, SimInstant::from_millis(0), &malformed(StatusCode::OK));
+    assert!(transition.notifications().is_empty());
+
+    // A 429 records a restriction and opens an episode.
+    let mut restricted = engine();
+    let token = reserve(&mut restricted, 0);
+    let transition =
+        restricted.on_response(token, SimInstant::from_millis(0), &rate_limited("0"));
+    assert_eq!(transition.notifications(), &[Notification::StateChanged]);
+
+    // A 2xx whose state header reports unmodeled hits synthesizes history.
+    let mut synthesized = engine();
+    let token = reserve(&mut synthesized, 0);
+    let mut observed = headers(None);
+    observed.insert(
+        "x-rate-limit-account-state",
+        HeaderValue::from_static("3:10:0, 3:300:0"),
+    );
+    let transition = synthesized.on_response(
+        token,
+        SimInstant::from_millis(0),
+        &ObservedResponse::new(StatusCode::OK, observed, ReplyClassification::Normal),
+    );
+    assert_eq!(transition.notifications(), &[Notification::StateChanged]);
+
+    // A zero-deficit probe success mutates nothing; the mapping is actor state.
+    let mut probed = engine();
+    let transition = probed.on_probe_response(
+        &EndpointLabel::from(ENDPOINT),
+        SimInstant::from_millis(0),
+        &response(StatusCode::NO_CONTENT),
+    );
+    assert_eq!(transition.disposition(), &Disposition::ProbeReady);
+    assert!(transition.notifications().is_empty());
 }
 
 // core-design entry-point invariant: on_response never yields ProbeReady;
