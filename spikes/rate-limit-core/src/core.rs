@@ -755,6 +755,19 @@ impl PolicyEngine {
             .expect("the observation target was validated above");
         let mut state_changed = reconciliation.synthesized_entries > 0;
 
+        // Valid-429 bookkeeping precedes the disposition choice, as in the
+        // ordinary lane (follow-up review 2026-08-10): the server declared a
+        // restriction, and a terminal refusal must not discard it — uniform
+        // pessimism over minimal mutation. An unusable Retry-After records
+        // the conservative cap rather than leaving the policy grantable.
+        let retry_after = (response.status == StatusCode::TOO_MANY_REQUESTS)
+            .then(|| parse_retry_after(&response.headers));
+        if let Some(retry_after) = &retry_after {
+            state_changed = true;
+            let duration = *retry_after.as_ref().unwrap_or(&RETRY_AFTER_CAP);
+            self.record_restriction(&policy_name, now, duration);
+        }
+
         // ProbeReady releases parked requests — a promise of future sends,
         // like Requeue — so terminal/suspended state gates it (external
         // review finding 1, probe lane).
@@ -770,14 +783,7 @@ impl PolicyEngine {
             }
         } else if response.status.is_success() {
             Disposition::ProbeReady
-        } else if response.status == StatusCode::TOO_MANY_REQUESTS {
-            state_changed = true;
-            // Same conservative stance as the ordinary path: an unusable
-            // declared restriction blocks the policy for the cap rather
-            // than leaving it immediately grantable.
-            let retry_after = parse_retry_after(&response.headers);
-            let duration = *retry_after.as_ref().unwrap_or(&RETRY_AFTER_CAP);
-            self.record_restriction(&policy_name, now, duration);
+        } else if let Some(retry_after) = retry_after {
             match retry_after {
                 Ok(_) => {
                     self.open_probe_episode(&policy_name);

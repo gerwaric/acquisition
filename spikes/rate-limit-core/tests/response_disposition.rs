@@ -808,6 +808,79 @@ fn probe_responses_after_halt_refuse() {
     ));
 }
 
+// Follow-up review (2026-08-10): a valid probe 429 records its declared
+// restriction even when the terminal gate then refuses — the ordinary lane's
+// uniform-pessimism rule. Before the fix the halt/suspension gates returned
+// before the 429 branch, discarding the server's restriction.
+#[test]
+fn probe_429_after_halt_records_restriction_before_refusing() {
+    let endpoint = EndpointLabel::from(ENDPOINT);
+    let mut engine = engine();
+    let trigger = reserve(&mut engine, 0);
+    let _ = engine.on_response(
+        trigger,
+        SimInstant::from_millis(0),
+        &cloudflare(StatusCode::FORBIDDEN),
+    );
+
+    let transition =
+        engine.on_probe_response(&endpoint, SimInstant::from_millis(0), &rate_limited("300"));
+    assert!(matches!(
+        transition.disposition,
+        Disposition::Refuse {
+            target: RefusalTarget::Endpoint(_),
+            cause: RefusalCause::Halted,
+        }
+    ));
+    let policy = engine.policy(&PolicyName::from(POLICY)).unwrap();
+    assert_eq!(policy.restriction_generation(), 1);
+    assert_eq!(
+        policy.restricted_until(),
+        Some(SimInstant::from_millis(301_000))
+    );
+    // The refusal opens no probe episode: ProbeReady was never promised.
+    assert!(policy.recovery_episode().is_none());
+}
+
+#[test]
+fn probe_429_on_a_suspended_policy_records_restriction_before_refusing() {
+    let endpoint = EndpointLabel::from(ENDPOINT);
+    let mut engine = engine();
+    open_episode(&mut engine);
+    let confirmation = first_confirmation(&mut engine);
+    let escalated = engine.on_response(
+        confirmation,
+        SimInstant::from_millis(1_000),
+        &rate_limited("0"),
+    );
+    assert!(matches!(
+        escalated.disposition,
+        Disposition::Refuse {
+            cause: RefusalCause::RecoveryEscalated,
+            ..
+        }
+    ));
+
+    let transition = engine.on_probe_response(
+        &endpoint,
+        SimInstant::from_millis(2_000),
+        &rate_limited("600"),
+    );
+    assert!(matches!(
+        transition.disposition,
+        Disposition::Refuse {
+            target: RefusalTarget::Endpoint(_),
+            cause: RefusalCause::EscalationSuspended,
+        }
+    ));
+    let policy = engine.policy(&PolicyName::from(POLICY)).unwrap();
+    assert_eq!(policy.restriction_generation(), 3);
+    assert_eq!(
+        policy.restricted_until(),
+        Some(SimInstant::from_millis(603_000))
+    );
+}
+
 // External review finding 2 (2026-08-09): late original 429s advance the
 // restriction generation past opened_generation, so an expired-stale
 // confirmation can carry a generation GREATER than the episode's. Its zombie
