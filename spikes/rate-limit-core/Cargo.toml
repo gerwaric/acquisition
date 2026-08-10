@@ -5,7 +5,9 @@ edition = "2024"
 
 [dependencies]
 http = "1"
+httpdate = "1"
+tokio = { version = "1", features = ["sync", "time"] }
 
 [dev-dependencies]
 proptest = "1"
-
+tokio = { version = "1", features = ["macros", "rt", "sync", "test-util", "time"] }
