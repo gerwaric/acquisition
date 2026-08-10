@@ -998,6 +998,19 @@ impl PolicyEngine {
             .get(policy_name)
             .ok_or_else(|| ObservationError::UnknownPolicy(policy_name.clone()))?;
 
+        // Synthesis targets min(reported, largest configured max_hits).
+        // Synthesized entries all share the timestamp `now`, so once every
+        // configured window is saturated, further entries move no deadline —
+        // while an uncapped wire-controlled u32 could materialize gigabytes
+        // of history from a single state header.
+        let cap = policy
+            .rules
+            .iter()
+            .flat_map(|rule| [rule.pair.burst().max_hits(), rule.pair.sustained().max_hits()])
+            .max()
+            .expect("policies are constructed with at least one rule");
+        let cap = usize::try_from(cap).expect("u32 always fits usize on supported Rust targets");
+
         let maximum_deficit = observation
             .rules()
             .iter()
@@ -1005,7 +1018,9 @@ impl PolicyEngine {
             .map(|state| {
                 let reported = usize::try_from(state.current_hits())
                     .expect("u32 always fits usize on supported Rust targets");
-                reported.saturating_sub(policy.history.count_within(now, state.period()))
+                reported
+                    .min(cap)
+                    .saturating_sub(policy.history.count_within(now, state.period()))
             })
             .max()
             .unwrap_or(0);

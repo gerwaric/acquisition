@@ -11,6 +11,10 @@ use rate_limit_core::header::{PolicySnapshot, parse_policy};
 
 const NOW_MS: u64 = 100_000;
 
+// Shared by the configured policy and the pessimism oracle: reconciliation
+// promises local count >= min(reported, largest configured max_hits).
+const CONFIGURED_MAX_HITS: u32 = 512;
+
 #[derive(Clone, Debug)]
 struct ObservedRule {
     burst_hits: u32,
@@ -25,8 +29,8 @@ fn policy_name() -> PolicyName {
 
 fn configured_rule() -> Rule {
     let pair = RulePair::new(
-        Window::new(512, Duration::from_secs(1_000), Duration::ZERO),
-        Window::new(512, Duration::from_secs(2_000), Duration::ZERO),
+        Window::new(CONFIGURED_MAX_HITS, Duration::from_secs(1_000), Duration::ZERO),
+        Window::new(CONFIGURED_MAX_HITS, Duration::from_secs(2_000), Duration::ZERO),
     )
     .expect("configured periods increase");
     Rule::new(
@@ -227,8 +231,9 @@ fn assert_pessimistic(
         .flat_map(|rule| [rule.state.burst(), rule.state.sustained()])
     {
         prop_assert!(
-            history.count_within(now, state.period()) >= state.current_hits() as usize,
-            "local count remained below reported post-increment count"
+            history.count_within(now, state.period())
+                >= (state.current_hits().min(CONFIGURED_MAX_HITS)) as usize,
+            "local count remained below the capped reported post-increment count"
         );
     }
     Ok(())
@@ -405,6 +410,33 @@ fn ordinary_response_synthesizes_only_the_phantom_deficit() {
     assert_eq!(result.disposition(), &Disposition::CompleteRequest);
     assert_eq!(entries(&engine).len() - before, 3);
     assert_eq!(entries(&engine).len(), 6);
+}
+
+// A wire-controlled current-hits value cannot force unbounded synthesis:
+// the deficit targets min(reported, largest configured max_hits). Beyond
+// that bound every configured window is already saturated at `now`, so
+// further entries would move no scheduling deadline.
+#[test]
+fn reported_hits_beyond_the_largest_configured_limit_are_capped() {
+    let now = SimInstant::from_millis(NOW_MS);
+    let mut engine = engine(); // configured max_hits: 512 on both windows
+    let observation = build_observation(&[ObservedRule {
+        burst_hits: 4_000_000,
+        burst_period_secs: 10,
+        sustained_hits: 4_000_000_000,
+        sustained_period_secs: 60,
+    }]);
+
+    let result = probe(&mut engine, now, &observation);
+
+    assert_eq!(result.disposition(), &Disposition::ProbeReady);
+    assert_eq!(entries(&engine).len(), 512);
+
+    // A repeat of the same over-limit report finds every window saturated
+    // up to the cap and synthesizes nothing further.
+    let repeated = probe(&mut engine, now, &observation);
+    assert_eq!(repeated.disposition(), &Disposition::ProbeReady);
+    assert_eq!(entries(&engine).len(), 512);
 }
 
 #[test]
