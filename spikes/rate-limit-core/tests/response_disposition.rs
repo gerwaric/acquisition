@@ -34,7 +34,7 @@ fn configured_rule(
 fn engine_with_rules(rules: Vec<Rule>) -> PolicyEngine {
     let mut engine = PolicyEngine::new();
     engine
-        .insert_policy(Policy::new(PolicyName::from(POLICY), rules))
+        .insert_policy(Policy::new(PolicyName::from(POLICY), rules).unwrap())
         .unwrap();
     engine
 }

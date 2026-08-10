@@ -42,7 +42,10 @@ fn configured_rule() -> Rule {
 fn engine() -> PolicyEngine {
     let mut engine = PolicyEngine::new();
     engine
-        .insert_policy(Policy::new(policy_name(), vec![configured_rule()]))
+        .insert_policy(
+            Policy::new(policy_name(), vec![configured_rule()])
+                .expect("the test policy has one rule"),
+        )
         .expect("the test inserts one policy");
     engine
 }

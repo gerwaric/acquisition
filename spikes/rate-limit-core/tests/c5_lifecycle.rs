@@ -4,8 +4,8 @@ use std::time::Duration;
 
 use proptest::prelude::*;
 use rate_limit_core::core::{
-    BucketModel, EntryKind, Policy, PolicyEngine, PolicyName, RefusalReason, ReservationToken,
-    ReserveOutcome, Resolution, Rule, RulePair, RuleScope, SimInstant, Window,
+    BucketModel, EmptyPolicy, EntryKind, Policy, PolicyEngine, PolicyName, RefusalReason,
+    ReservationToken, ReserveOutcome, Resolution, Rule, RulePair, RuleScope, SimInstant, Window,
 };
 
 fn policy_name() -> PolicyName {
@@ -37,10 +37,10 @@ fn rule(max_hits: u32, burst_ms: u64, sustained_ms: u64) -> Rule {
 fn engine(max_hits: u32, burst_ms: u64, sustained_ms: u64) -> PolicyEngine {
     let mut engine = PolicyEngine::new();
     engine
-        .insert_policy(Policy::new(
-            policy_name(),
-            vec![rule(max_hits, burst_ms, sustained_ms)],
-        ))
+        .insert_policy(
+            Policy::new(policy_name(), vec![rule(max_hits, burst_ms, sustained_ms)])
+                .expect("the test policy has one rule"),
+        )
         .expect("the test inserts one policy");
     engine
 }
@@ -85,10 +85,9 @@ fn reservation_is_not_duplicated_across_policy_rules() {
     let policy = policy_name();
     let mut engine = PolicyEngine::new();
     engine
-        .insert_policy(Policy::new(
-            policy.clone(),
-            vec![rule(10, 100, 1_000), rule(10, 200, 2_000)],
-        ))
+        .insert_policy(
+            Policy::new(policy.clone(), vec![rule(10, 100, 1_000), rule(10, 200, 2_000)]).unwrap(),
+        )
         .unwrap();
 
     let token = reserve(&mut engine, &policy, SimInstant::from_millis(5));
@@ -123,6 +122,16 @@ fn unknown_outcome_stays_counted_until_every_window_passes() {
     ));
     let next = reserve(&mut engine, &policy, SimInstant::from_millis(61_000));
     engine.rollback(next);
+}
+
+// A rule-less policy would panic the probe path's bucket sizing the moment a
+// restriction arrived; the constructor makes the shape unrepresentable instead.
+#[test]
+fn empty_rule_policies_are_unrepresentable() {
+    assert_eq!(
+        Policy::new(policy_name(), Vec::new()),
+        Err(EmptyPolicy(policy_name()))
+    );
 }
 
 #[test]

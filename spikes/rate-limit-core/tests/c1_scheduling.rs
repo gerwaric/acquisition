@@ -114,10 +114,10 @@ fn build_engine(cases: &[RuleCase], history_ms: &[u64]) -> PolicyEngine {
     let policy = policy_name();
     let mut engine = PolicyEngine::new();
     engine
-        .insert_policy(Policy::new(
-            policy.clone(),
-            cases.iter().map(RuleCase::rule).collect(),
-        ))
+        .insert_policy(
+            Policy::new(policy.clone(), cases.iter().map(RuleCase::rule).collect())
+                .expect("generated rule sets are non-empty"),
+        )
         .expect("the test inserts one policy");
     for &at in history_ms {
         engine

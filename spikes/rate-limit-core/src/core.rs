@@ -227,16 +227,23 @@ pub struct Policy {
 }
 
 impl Policy {
-    pub fn new(name: impl Into<PolicyName>, rules: Vec<Rule>) -> Self {
-        Self {
-            name: name.into(),
+    /// A policy without rules would have no windows to schedule against and
+    /// no bucket to size a restriction with, so the shape is rejected here —
+    /// downstream code never re-checks for emptiness.
+    pub fn new(name: impl Into<PolicyName>, rules: Vec<Rule>) -> Result<Self, EmptyPolicy> {
+        let name = name.into();
+        if rules.is_empty() {
+            return Err(EmptyPolicy(name));
+        }
+        Ok(Self {
+            name,
             rules,
             history: History::default(),
             restriction_generation: 0,
             restricted_until: None,
             recovery_episode: None,
             escalation_suspended: false,
-        }
+        })
     }
 
     pub fn name(&self) -> &PolicyName {
@@ -360,13 +367,15 @@ pub enum ReserveOutcome {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RefusalReason {
     UnknownPolicy(PolicyName),
-    PolicyHasNoRules(PolicyName),
     EscalationSuspended(PolicyName),
     Halted,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DuplicatePolicy(pub PolicyName);
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EmptyPolicy(pub PolicyName);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Reconciliation {
@@ -532,9 +541,6 @@ impl PolicyEngine {
         let Some(policy) = self.policies.get(policy_name) else {
             return ReserveOutcome::Refused(RefusalReason::UnknownPolicy(policy_name.clone()));
         };
-        if policy.rules.is_empty() {
-            return ReserveOutcome::Refused(RefusalReason::PolicyHasNoRules(policy_name.clone()));
-        }
         if policy.escalation_suspended {
             return ReserveOutcome::Refused(RefusalReason::EscalationSuspended(
                 policy_name.clone(),
