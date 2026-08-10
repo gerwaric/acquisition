@@ -55,9 +55,10 @@ that shape of failure cannot recur. They bind every session.
 
 - **A slice is not complete at green.** Green tests, clippy, and fmt
   end the *coding*; the slice ends when Tom has reviewed it. Present
-  the slice for review with: what the docs did not specify and the
-  reading you took, any new cross-slice interaction, and what your
-  tests deliberately do not cover.
+  the slice for review with the four-part hand-off defined in
+  `slice-review.md` §2: silences taken (with consequences traced),
+  the seam map with the invariants walk, the coverage confession,
+  and your judgment calls.
 - **Bound every wire-derived quantity** before it sizes an
   allocation, a loop, or a deadline. "The docs state no bound" is
   not permission for unboundedness — it is a doc finding plus a
