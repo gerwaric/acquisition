@@ -181,9 +181,11 @@ proptest! {
     // token is explicitly rolled back.
     #[test]
     fn interleavings_neither_double_count_nor_lose_sends(
+        // 1..: an empty operation list would execute no assertion (external
+        // review — the vacuity rule applies to degenerate lengths too).
         operations in prop::collection::vec(
             (0_u8..6, 0_u16..20, any::<prop::sample::Index>()),
-            0..128,
+            1..128,
         ),
     ) {
         let policy = policy_name();

@@ -234,18 +234,29 @@ fn assert_pessimistic(
     now: SimInstant,
     observation: &PolicySnapshot,
 ) -> Result<(), TestCaseError> {
-    let history = engine
+    // Entry timestamps are read as raw data; the windowing arithmetic is the
+    // test's own (external review: production count_within must not be the
+    // instrument that certifies production pessimism).
+    let entry_times = engine
         .policy(&policy_name())
         .expect("policy exists")
-        .history();
+        .history()
+        .entries()
+        .map(|entry| entry.at.as_millis())
+        .collect::<Vec<_>>();
+    let now_ms = now.as_millis();
     for state in observation
         .rules
         .iter()
         .flat_map(|rule| [&rule.state.burst, &rule.state.sustained])
     {
+        let period_ms = u64::try_from(state.period.as_millis()).expect("test periods fit u64");
+        let local = entry_times
+            .iter()
+            .filter(|&&at_ms| at_ms + period_ms > now_ms)
+            .count();
         prop_assert!(
-            history.count_within(now, state.period)
-                >= (state.current_hits.min(CONFIGURED_MAX_HITS)) as usize,
+            local >= (state.current_hits.min(CONFIGURED_MAX_HITS)) as usize,
             "local count remained below the capped reported post-increment count"
         );
     }
@@ -451,6 +462,31 @@ fn reported_hits_beyond_the_largest_configured_limit_are_capped() {
     let repeated = probe(&mut engine, now, &observation);
     assert_eq!(repeated.disposition, Disposition::ProbeReady);
     assert_eq!(entries(&engine).len(), 512);
+}
+
+// The cap boundary itself, pinned at n-1 / n / n+1 (external review: a test
+// far above the cap does not pin where the cap sits).
+#[test]
+fn synthesis_cap_boundary_is_exact() {
+    for (reported, expected) in [(511_u32, 511_usize), (512, 512), (513, 512)] {
+        let now = SimInstant::from_millis(NOW_MS);
+        let mut engine = engine(); // configured max_hits: 512
+        let observation = build_observation(&[ObservedRule {
+            burst_hits: reported,
+            burst_period_secs: 10,
+            sustained_hits: reported,
+            sustained_period_secs: 60,
+        }]);
+
+        let result = probe(&mut engine, now, &observation);
+
+        assert_eq!(result.disposition, Disposition::ProbeReady);
+        assert_eq!(
+            entries(&engine).len(),
+            expected,
+            "reported {reported} should synthesize {expected}"
+        );
+    }
 }
 
 #[test]
