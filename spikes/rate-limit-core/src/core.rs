@@ -396,6 +396,11 @@ pub enum RefusalCause {
     RecoveryEscalated,
     ProbeStatus(StatusCode),
     ProbeUnknownOutcome,
+    // Terminal/suspended state at response time (external review finding 1):
+    // a late 429 on a halted engine or suspended policy refuses rather than
+    // requeueing into a try_reserve that can only refuse it.
+    Halted,
+    EscalationSuspended,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -646,40 +651,46 @@ impl PolicyEngine {
         let mut state_changed = reconciliation.synthesized_entries > 0;
 
         let disposition = if response.status == StatusCode::TOO_MANY_REQUESTS {
-            state_changed = true; // a restriction is recorded on both arms
-            match parse_retry_after(&response.headers) {
-                Ok(retry_after) => {
-                    self.record_restriction(&token.policy, now, retry_after);
-                    if confirmation {
-                        self.fail_confirmation(&token, true);
-                        Disposition::Refuse {
-                            target: RefusalTarget::Policy(token.policy.clone()),
-                            cause: RefusalCause::RecoveryEscalated,
-                        }
-                    } else {
+            state_changed = true;
+            // Always record: a usable Retry-After as given, an unusable one
+            // at the conservative cap — the server declared a restriction
+            // whose length we cannot read, and try_reserve must not send
+            // straight back into it.
+            let retry_after = parse_retry_after(&response.headers);
+            let duration = *retry_after.as_ref().unwrap_or(&RETRY_AFTER_CAP);
+            self.record_restriction(&token.policy, now, duration);
+            // Terminal/suspended state governs late responses too (external
+            // review finding 1): Requeue promises a future send, and a
+            // halted engine or suspended policy can never keep it — the
+            // request would only bounce off a refusing try_reserve.
+            if self.halted {
+                Disposition::Refuse {
+                    target: RefusalTarget::Policy(token.policy.clone()),
+                    cause: RefusalCause::Halted,
+                }
+            } else if self.policy_is_suspended(&token.policy) {
+                Disposition::Refuse {
+                    target: RefusalTarget::Policy(token.policy.clone()),
+                    cause: RefusalCause::EscalationSuspended,
+                }
+            } else if confirmation {
+                self.fail_confirmation(&token, true);
+                Disposition::Refuse {
+                    target: RefusalTarget::Policy(token.policy.clone()),
+                    cause: RefusalCause::RecoveryEscalated,
+                }
+            } else {
+                match retry_after {
+                    Ok(_) => {
                         self.open_or_join_episode(&token);
                         Disposition::Requeue
                     }
-                }
-                Err(error) => {
-                    // The server declared a restriction whose length we cannot
-                    // read; assuming the cap keeps try_reserve from sending
-                    // straight back into it. The refusal (not an episode) is
-                    // still the disposition: with no usable Retry-After there
-                    // is no schedulable retry.
-                    self.record_restriction(&token.policy, now, RETRY_AFTER_CAP);
-                    if confirmation {
-                        self.fail_confirmation(&token, true);
-                        Disposition::Refuse {
-                            target: RefusalTarget::Policy(token.policy.clone()),
-                            cause: RefusalCause::RecoveryEscalated,
-                        }
-                    } else {
-                        Disposition::Refuse {
-                            target: RefusalTarget::Policy(token.policy.clone()),
-                            cause: RefusalCause::RetryAfter(error),
-                        }
-                    }
+                    // No usable Retry-After: the refusal (never an episode)
+                    // is the disposition — there is no schedulable retry.
+                    Err(error) => Disposition::Refuse {
+                        target: RefusalTarget::Policy(token.policy.clone()),
+                        cause: RefusalCause::RetryAfter(error),
+                    },
                 }
             }
         } else if response.status.is_success() && confirmation {
@@ -744,26 +755,38 @@ impl PolicyEngine {
             .expect("the observation target was validated above");
         let mut state_changed = reconciliation.synthesized_entries > 0;
 
-        let disposition = if response.status.is_success() {
+        // ProbeReady releases parked requests — a promise of future sends,
+        // like Requeue — so terminal/suspended state gates it (external
+        // review finding 1, probe lane).
+        let disposition = if self.halted {
+            Disposition::Refuse {
+                target: RefusalTarget::Endpoint(endpoint.clone()),
+                cause: RefusalCause::Halted,
+            }
+        } else if self.policy_is_suspended(&policy_name) {
+            Disposition::Refuse {
+                target: RefusalTarget::Endpoint(endpoint.clone()),
+                cause: RefusalCause::EscalationSuspended,
+            }
+        } else if response.status.is_success() {
             Disposition::ProbeReady
         } else if response.status == StatusCode::TOO_MANY_REQUESTS {
-            state_changed = true; // a restriction is recorded on both arms
-            match parse_retry_after(&response.headers) {
-                Ok(retry_after) => {
-                    self.record_restriction(&policy_name, now, retry_after);
+            state_changed = true;
+            // Same conservative stance as the ordinary path: an unusable
+            // declared restriction blocks the policy for the cap rather
+            // than leaving it immediately grantable.
+            let retry_after = parse_retry_after(&response.headers);
+            let duration = *retry_after.as_ref().unwrap_or(&RETRY_AFTER_CAP);
+            self.record_restriction(&policy_name, now, duration);
+            match retry_after {
+                Ok(_) => {
                     self.open_probe_episode(&policy_name);
                     Disposition::ProbeReady
                 }
-                Err(error) => {
-                    // Same conservative stance as the ordinary path: an
-                    // unsizeable declared restriction blocks the policy for
-                    // the cap rather than leaving it immediately grantable.
-                    self.record_restriction(&policy_name, now, RETRY_AFTER_CAP);
-                    Disposition::Refuse {
-                        target: RefusalTarget::Endpoint(endpoint.clone()),
-                        cause: RefusalCause::RetryAfter(error),
-                    }
-                }
+                Err(error) => Disposition::Refuse {
+                    target: RefusalTarget::Endpoint(endpoint.clone()),
+                    cause: RefusalCause::RetryAfter(error),
+                },
             }
         } else {
             Disposition::Refuse {
@@ -772,6 +795,12 @@ impl PolicyEngine {
             }
         };
         Transition::new(disposition, state_changed)
+    }
+
+    fn policy_is_suspended(&self, policy_name: &PolicyName) -> bool {
+        self.policies
+            .get(policy_name)
+            .is_some_and(|policy| policy.escalation_suspended)
     }
 
     pub fn on_probe_unknown_outcome(&self, endpoint: &EndpointLabel) -> Transition {
@@ -849,14 +878,17 @@ impl PolicyEngine {
             .get_mut(&token.policy)
             .expect("a reservation token names a configured policy");
         match policy.recovery_episode.as_ref() {
-            // `<`: a pre-restriction concurrent token bounced by the same
-            // saturation. `==`: an expired-by-abandonment confirmation whose
-            // late 429 arrives after the slot was resolved; it joins rather
-            // than escalates because its attempt was already accounted.
-            Some(episode) => assert!(
-                token.restriction_generation <= episode.opened_generation,
-                "a token granted after an episode opened cannot join it as ordinary traffic"
-            ),
+            // Any 429 reaching this point joins the existing episode without
+            // a generation comparison (external review finding 2 removed the
+            // assert here): a pre-restriction concurrent original carries an
+            // older generation, while an expired-by-abandonment confirmation
+            // can carry a NEWER one than opened_generation — late original
+            // 429s advance the policy generation between episode-open and
+            // confirmation-grant. Both cases are already accounted (the
+            // original by the episode itself, the confirmation by aging
+            // expiry), so joining — never escalating, never aborting — is
+            // the conservative resolution for every generation.
+            Some(_) => {}
             None => {
                 policy.recovery_episode = Some(RecoveryEpisode {
                     opened_generation: policy.restriction_generation,

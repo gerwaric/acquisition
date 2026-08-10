@@ -721,6 +721,140 @@ fn entry_point_invariant_holds_across_response_shapes() {
     }
 }
 
+// External review finding 1 (2026-08-09): terminal and suspended states
+// govern late in-flight responses, not only new reservations. A 429 arriving
+// after halt must not answer Requeue — the requeue could only ever bounce
+// off a refusing try_reserve.
+#[test]
+fn late_429_after_halt_refuses_instead_of_requeueing() {
+    let mut engine = engine();
+    let survivor = reserve(&mut engine, 0);
+    let trigger = reserve(&mut engine, 0);
+    let halt = engine.on_response(
+        trigger,
+        SimInstant::from_millis(0),
+        &cloudflare(StatusCode::FORBIDDEN),
+    );
+    assert_eq!(halt.disposition, Disposition::Halt);
+
+    let transition = engine.on_response(survivor, SimInstant::from_millis(0), &rate_limited("0"));
+    assert!(matches!(
+        transition.disposition,
+        Disposition::Refuse {
+            target: RefusalTarget::Policy(_),
+            cause: RefusalCause::Halted,
+        }
+    ));
+}
+
+// External review finding 1, suspended half: a concurrent original's late 429
+// arriving after escalation suspended the policy refuses rather than
+// requeueing into a queue that can never drain.
+#[test]
+fn late_429_after_suspension_refuses_instead_of_requeueing() {
+    let mut engine = engine();
+    let survivor = reserve(&mut engine, 0);
+    open_episode(&mut engine);
+    let confirmation = first_confirmation(&mut engine);
+    let escalated = engine.on_response(
+        confirmation,
+        SimInstant::from_millis(1_000),
+        &rate_limited("0"),
+    );
+    assert!(matches!(
+        escalated.disposition,
+        Disposition::Refuse {
+            cause: RefusalCause::RecoveryEscalated,
+            ..
+        }
+    ));
+
+    let transition =
+        engine.on_response(survivor, SimInstant::from_millis(1_000), &rate_limited("0"));
+    assert!(matches!(
+        transition.disposition,
+        Disposition::Refuse {
+            cause: RefusalCause::EscalationSuspended,
+            ..
+        }
+    ));
+}
+
+// External review finding 1, probe lane: a halted engine refuses probe
+// outcomes too — ProbeReady after halt would release GETs into a refusing
+// try_reserve.
+#[test]
+fn probe_responses_after_halt_refuse() {
+    let endpoint = EndpointLabel::from(ENDPOINT);
+    let mut engine = engine();
+    let trigger = reserve(&mut engine, 0);
+    let _ = engine.on_response(
+        trigger,
+        SimInstant::from_millis(0),
+        &cloudflare(StatusCode::FORBIDDEN),
+    );
+
+    let transition = engine.on_probe_response(
+        &endpoint,
+        SimInstant::from_millis(0),
+        &response(StatusCode::NO_CONTENT),
+    );
+    assert!(matches!(
+        transition.disposition,
+        Disposition::Refuse {
+            target: RefusalTarget::Endpoint(_),
+            cause: RefusalCause::Halted,
+        }
+    ));
+}
+
+// External review finding 2 (2026-08-09): late original 429s advance the
+// restriction generation past opened_generation, so an expired-stale
+// confirmation can carry a generation GREATER than the episode's. Its zombie
+// 429 must join the episode (aging already accounted its attempt), not abort
+// the process — this test reproduced the open_or_join assertion panic before
+// the fix.
+#[test]
+fn expired_confirmations_late_429_joins_despite_generation_drift() {
+    let mut engine = engine();
+    let original_a = reserve(&mut engine, 0);
+    let original_b = reserve(&mut engine, 0);
+    let _ = engine.on_response(original_a, SimInstant::from_millis(0), &rate_limited("0"));
+    let _ = engine.on_response(original_b, SimInstant::from_millis(0), &rate_limited("0"));
+    // Episode opened at generation 1; B's joining late 429 advanced to 2.
+
+    let confirmation = reserve(&mut engine, 1_000);
+    assert_eq!(
+        confirmation.confirmation_attempt(),
+        Some(ConfirmationAttempt::First)
+    );
+    assert_eq!(confirmation.restriction_generation(), 2);
+
+    // The confirmation crosses the aging deadline (300s sustained period,
+    // zero buckets) while still in flight; the next try_reserve writes the
+    // attempt off and offers the final attempt, which we roll back.
+    let final_offer = reserve(&mut engine, 400_000);
+    assert_eq!(
+        final_offer.confirmation_attempt(),
+        Some(ConfirmationAttempt::Final)
+    );
+    engine.rollback(final_offer);
+
+    // The zombie reply arrives carrying generation 2 > opened_generation 1.
+    let transition = engine.on_response(
+        confirmation,
+        SimInstant::from_millis(400_000),
+        &rate_limited("0"),
+    );
+    assert_eq!(transition.disposition, Disposition::Requeue);
+    let episode = engine
+        .policy(&PolicyName::from(POLICY))
+        .unwrap()
+        .recovery_episode()
+        .expect("the episode survives the zombie reply");
+    assert_eq!(episode.opened_generation, 1);
+}
+
 #[test]
 fn malformed_429_takes_precedence_and_never_opens_a_retry_episode() {
     let mut engine = engine();
