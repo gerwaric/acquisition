@@ -208,6 +208,31 @@ impl PolicyState {
                     .saturating_add(horizon)
         });
     }
+
+    /// Carries server-observed facts into a new set of policy judgments.
+    ///
+    /// A rename and a shrink differ only in the definition name: neither
+    /// permits the server to forget received hits or an active restriction.
+    fn redefined(definition: PolicyDefinition, previous: Self) -> Self {
+        let mut replacement = Self::new(definition);
+        replacement.hits = previous.hits;
+        // The docs do not define how an active restriction maps across an
+        // arbitrary rule reorder/reshape. Carrying the latest old deadline to
+        // every new slot is conservative and independent of rule position.
+        let latest_restriction = previous
+            .restricted_until
+            .iter()
+            .flatten()
+            .flatten()
+            .copied()
+            .max();
+        if let Some(latest_restriction) = latest_restriction {
+            for new_window in replacement.restricted_until.iter_mut().flatten() {
+                *new_window = Some(latest_restriction);
+            }
+        }
+        replacement
+    }
 }
 
 // Retention is permitted to be looser than any individual window, but never
@@ -288,30 +313,37 @@ impl CounterModel {
     }
 
     /// Replaces judgments while retaining arrival facts (M6: hits are facts,
-    /// rules are judgments). Positional restriction slots retain their later
-    /// deadline where a corresponding new slot exists.
+    /// rules are judgments).
     pub fn replace_policy(&mut self, definition: PolicyDefinition) -> Result<(), ModelError> {
-        let Some(policy) = self.policies.get_mut(&definition.name) else {
+        let name = definition.name.clone();
+        let Some(previous) = self.policies.remove(&name) else {
             return Err(ModelError::UnknownPolicy(definition.name));
         };
-        let mut replacement = PolicyState::new(definition);
-        replacement.hits = std::mem::take(&mut policy.hits);
-        // The docs do not define how an active restriction maps across an
-        // arbitrary rule reorder/reshape. Carrying the latest old deadline to
-        // every new slot is conservative and independent of rule position.
-        let latest_restriction = policy
-            .restricted_until
-            .iter()
-            .flatten()
-            .flatten()
-            .copied()
-            .max();
-        if let Some(latest_restriction) = latest_restriction {
-            for new_window in replacement.restricted_until.iter_mut().flatten() {
-                *new_window = Some(latest_restriction);
-            }
+        self.policies
+            .insert(name, PolicyState::redefined(definition, previous));
+        Ok(())
+    }
+
+    /// Renames a policy without treating the new name as a fresh server
+    /// counter. M5 requires the response identity to change while all prior
+    /// hits and restrictions remain server facts.
+    pub fn rename_policy(
+        &mut self,
+        old_name: &str,
+        definition: PolicyDefinition,
+    ) -> Result<(), ModelError> {
+        let new_name = definition.name.clone();
+        if old_name == new_name {
+            return self.replace_policy(definition);
         }
-        *policy = replacement;
+        if self.policies.contains_key(&new_name) {
+            return Err(ModelError::DuplicatePolicy(new_name));
+        }
+        let Some(previous) = self.policies.remove(old_name) else {
+            return Err(ModelError::UnknownPolicy(old_name.to_owned()));
+        };
+        self.policies
+            .insert(new_name, PolicyState::redefined(definition, previous));
         Ok(())
     }
 

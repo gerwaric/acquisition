@@ -230,32 +230,57 @@ async fn b6_b9_residue_and_phantoms_are_mock_owned_counter_facts() {
 
 #[tokio::test(start_paused = true)]
 async fn b8_policy_rename_and_shrink_keep_existing_hits() {
-    let mut config = MockConfig::n23(8, 0);
-    let renamed = tiny_policy("renamed-policy", 15, 10_000, 60_000, 5_000);
-    config.policies.push(renamed);
-    let (service, controller) = rate_limit_core::mock::MockService::new(config).unwrap();
+    let (service, controller) =
+        rate_limit_core::mock::MockService::new(MockConfig::n23(8, 0)).unwrap();
 
-    let old = service
+    controller
+        .preload("stash-request-limit", ServerTime::from_millis(0), 14)
+        .await
+        .unwrap();
+    let last_slot = service
         .send(request(Method::GET, Endpoint::Stash, 1).unwrap())
         .await
         .unwrap();
-    assert_eq!(old.headers()["x-rate-limit-policy"], "stash-request-limit");
-    controller
-        .route(Endpoint::Stash, "renamed-policy")
-        .await
-        .unwrap();
-    let new = service
+    assert_eq!(last_slot.status(), StatusCode::OK);
+    let violation = service
         .send(request(Method::GET, Endpoint::Stash, 2).unwrap())
         .await
         .unwrap();
-    assert_eq!(new.headers()["x-rate-limit-policy"], "renamed-policy");
+    assert_eq!(violation.status(), StatusCode::TOO_MANY_REQUESTS);
+
+    let renamed = PolicyDefinition::new(
+        "renamed-policy",
+        vec![
+            RuleDefinition::new(
+                "Account",
+                vec![
+                    WindowDefinition::new(15, 10_000, 60_000, 5_000).unwrap(),
+                    WindowDefinition::new(30, 300_000, 300_000, 60_000).unwrap(),
+                ],
+            )
+            .unwrap(),
+        ],
+    )
+    .unwrap();
+    controller
+        .rename_policy("stash-request-limit", renamed)
+        .await
+        .unwrap();
+    let renamed_reply = service
+        .send(request(Method::HEAD, Endpoint::Stash, 3).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(renamed_reply.status(), StatusCode::TOO_MANY_REQUESTS);
+    let renamed_state = parse_policy(renamed_reply.headers()).unwrap();
+    assert_eq!(renamed_state.name, "renamed-policy");
+    assert_eq!(renamed_state.rules[0].state.burst.current_hits, 16);
 
     controller
-        .preload("stash-request-limit", ServerTime::from_millis(0), 10)
+        .preload("renamed-policy", ServerTime::from_millis(0), 10)
         .await
         .unwrap();
     let shrunk = PolicyDefinition::new(
-        "stash-request-limit",
+        "renamed-policy",
         vec![
             RuleDefinition::new(
                 "Account",
@@ -269,12 +294,8 @@ async fn b8_policy_rename_and_shrink_keep_existing_hits() {
     )
     .unwrap();
     controller.replace_policy(shrunk).await.unwrap();
-    controller
-        .route(Endpoint::Stash, "stash-request-limit")
-        .await
-        .unwrap();
     let response = service
-        .send(request(Method::GET, Endpoint::Stash, 3).unwrap())
+        .send(request(Method::GET, Endpoint::Stash, 4).unwrap())
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);

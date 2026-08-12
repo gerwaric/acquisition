@@ -551,6 +551,24 @@ impl MockController {
         self.state.lock().await.model.replace_policy(definition)
     }
 
+    /// Renames a policy atomically with all routes that point at it. The
+    /// counter model carries its server history and restrictions forward.
+    pub async fn rename_policy(
+        &self,
+        old_policy: &str,
+        definition: PolicyDefinition,
+    ) -> Result<(), ModelError> {
+        let new_policy = definition.name().to_owned();
+        let mut state = self.state.lock().await;
+        state.model.rename_policy(old_policy, definition)?;
+        for policy in state.routes.values_mut() {
+            if policy == old_policy {
+                *policy = new_policy.clone();
+            }
+        }
+        Ok(())
+    }
+
     pub async fn route(
         &self,
         endpoint: Endpoint,
