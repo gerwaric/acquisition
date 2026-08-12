@@ -8,7 +8,6 @@ use crate::mock::model::MAX_REQUESTS_PER_RUN;
 pub const G3_EPSILON_MS: u64 = 500;
 pub const MAX_SWEEP_CONFIGURATIONS: usize = 256;
 pub const D5_IN_FLIGHT_CAP: usize = 2;
-pub const MAX_ASSERTION_NAME_BYTES: usize = 256;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum ScenarioId {
@@ -67,6 +66,26 @@ pub struct ScenarioSpec {
     pub name: &'static str,
     pub sweep: SweepKind,
     pub binding_gates: &'static [Gate],
+    pub required_assertion: ScenarioAssertionId,
+}
+
+/// One scenario-owned assertion represents the complete scenario contract
+/// from `scenarios.md`; a run cannot substitute an unrelated passing flag.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum ScenarioAssertionId {
+    M1BootSequence,
+    M2Saturation,
+    M3DegradedProbe,
+    M4UnexpectedShape,
+    M5Rename,
+    M6Shrink,
+    M7Phantoms,
+    M8Recovery,
+    M9PhantomRace,
+    M10Stress,
+    M11Layer1,
+    M12Tripwire,
+    M13GateStructure,
 }
 
 const M1_GATES: &[Gate] = &[Gate::G1, Gate::G2, Gate::G6];
@@ -89,78 +108,91 @@ pub const SCENARIOS: [ScenarioSpec; 13] = [
         name: "cold start with residue",
         sweep: SweepKind::PhaseSwept,
         binding_gates: M1_GATES,
+        required_assertion: ScenarioAssertionId::M1BootSequence,
     },
     ScenarioSpec {
         id: ScenarioId::M2,
         name: "clean cold-start saturation burst",
         sweep: SweepKind::PhaseSwept,
         binding_gates: M2_GATES,
+        required_assertion: ScenarioAssertionId::M2Saturation,
     },
     ScenarioSpec {
         id: ScenarioId::M3,
         name: "degraded HEAD",
         sweep: SweepKind::PhaseIndependent,
         binding_gates: M3_GATES,
+        required_assertion: ScenarioAssertionId::M3DegradedProbe,
     },
     ScenarioSpec {
         id: ScenarioId::M4,
         name: "unexpected policy shape",
         sweep: SweepKind::PhaseIndependent,
         binding_gates: M4_GATES,
+        required_assertion: ScenarioAssertionId::M4UnexpectedShape,
     },
     ScenarioSpec {
         id: ScenarioId::M5,
         name: "policy rename mid-session",
         sweep: SweepKind::PhaseSwept,
         binding_gates: M5_GATES,
+        required_assertion: ScenarioAssertionId::M5Rename,
     },
     ScenarioSpec {
         id: ScenarioId::M6,
         name: "policy shrink mid-flight",
         sweep: SweepKind::PhaseSwept,
         binding_gates: M6_GATES,
+        required_assertion: ScenarioAssertionId::M6Shrink,
     },
     ScenarioSpec {
         id: ScenarioId::M7,
         name: "phantom same-account hits",
         sweep: SweepKind::PhaseSwept,
         binding_gates: M7_GATES,
+        required_assertion: ScenarioAssertionId::M7Phantoms,
     },
     ScenarioSpec {
         id: ScenarioId::M8,
         name: "429 recovery and escalation ladder",
         sweep: SweepKind::PhaseSwept,
         binding_gates: M8_GATES,
+        required_assertion: ScenarioAssertionId::M8Recovery,
     },
     ScenarioSpec {
         id: ScenarioId::M9,
         name: "phantom race at saturation",
         sweep: SweepKind::PhaseSwept,
         binding_gates: M9_GATES,
+        required_assertion: ScenarioAssertionId::M9PhantomRace,
     },
     ScenarioSpec {
         id: ScenarioId::M10,
         name: "agent-loop stress",
         sweep: SweepKind::PhaseSwept,
         binding_gates: M10_GATES,
+        required_assertion: ScenarioAssertionId::M10Stress,
     },
     ScenarioSpec {
         id: ScenarioId::M11,
         name: "layer-1 ceiling and Cloudflare terminal",
         sweep: SweepKind::PhaseIndependent,
         binding_gates: M11_GATES,
+        required_assertion: ScenarioAssertionId::M11Layer1,
     },
     ScenarioSpec {
         id: ScenarioId::M12,
         name: "4xx-tripwire obligations",
         sweep: SweepKind::PhaseIndependent,
         binding_gates: M12_GATES,
+        required_assertion: ScenarioAssertionId::M12Tripwire,
     },
     ScenarioSpec {
         id: ScenarioId::M13,
         name: "gate structure on the wire",
         sweep: SweepKind::PhaseIndependent,
         binding_gates: M13_GATES,
+        required_assertion: ScenarioAssertionId::M13GateStructure,
     },
 ];
 
@@ -259,29 +291,28 @@ pub struct AuthorizedExclusion {
     pub ends_ms: u64,
 }
 
-impl AuthorizedExclusion {
-    fn covers(self, begins_ms: u64, ends_ms: u64) -> bool {
-        self.begins_ms <= begins_ms && ends_ms <= self.ends_ms
-    }
-}
+/// Scenario-owned arithmetic independent of the actor under test.
+///
+/// The actor contributes no timing values to `RunEvidence`: G3 uses the
+/// mock's hand-off record and asks this oracle only for the separately
+/// computed safe time. The scenario fixture also owns every authorized
+/// exclusion and M2's padded-minimum calculation.
+pub trait ScenarioOracle {
+    fn independently_eligible_ms(&self, observation: &Observation) -> u64;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct DispatchSample {
-    pub correlation_id: u64,
-    pub independently_eligible_ms: u64,
-    pub dispatched_ms: u64,
+    fn authorizes_delay(&self, _begins_ms: u64, _ends_ms: u64) -> bool {
+        false
+    }
+
+    fn m2_theoretical_padded_minimum_ms(&self, _observations: &[Observation]) -> Option<u64> {
+        None
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ScenarioAssertion {
-    pub name: String,
+    pub id: ScenarioAssertionId,
     pub passed: bool,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct DurationEvidence {
-    pub actual_ms: u64,
-    pub theoretical_padded_minimum_ms: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -329,28 +360,35 @@ pub struct RunEvidence {
     pub scenario: ScenarioId,
     pub reproduction: Option<ReproductionRecord>,
     pub observations: Vec<Observation>,
-    pub dispatch_samples: Vec<DispatchSample>,
-    pub exclusions: Vec<AuthorizedExclusion>,
     pub unavoidable_exposure: Option<ExposureAllowance>,
     pub assertions: Vec<ScenarioAssertion>,
-    pub duration: Option<DurationEvidence>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum JudgeError {
-    EvidenceBudgetExceeded { kind: &'static str, limit: usize },
+    EvidenceBudgetExceeded {
+        kind: &'static str,
+        limit: usize,
+    },
     MissingWireObservation,
-    MissingDispatchSample,
     MissingScenarioAssertion,
+    UnexpectedScenarioAssertion {
+        expected: ScenarioAssertionId,
+        got: ScenarioAssertionId,
+    },
+    DuplicateScenarioAssertion {
+        id: ScenarioAssertionId,
+    },
     MissingReproductionRecord,
     MissingM2Duration,
     InvalidM2Duration,
-    UnexpectedDurationEvidence,
-    DuplicateCorrelation { kind: &'static str, id: u64 },
-    MissingDispatchForObservation { id: u64 },
-    MissingObservationForDispatch { id: u64 },
-    ReproductionMismatch { id: u64 },
-    AssertionNameTooLong { limit: usize },
+    DuplicateCorrelation {
+        kind: &'static str,
+        id: u64,
+    },
+    ReproductionMismatch {
+        id: u64,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -383,11 +421,12 @@ impl RunReport {
     }
 }
 
-pub fn judge(evidence: &RunEvidence) -> Result<RunReport, JudgeError> {
+pub fn judge(
+    evidence: &RunEvidence,
+    oracle: &impl ScenarioOracle,
+) -> Result<RunReport, JudgeError> {
     for (kind, length) in [
         ("observations", evidence.observations.len()),
-        ("dispatch samples", evidence.dispatch_samples.len()),
-        ("exclusions", evidence.exclusions.len()),
         ("assertions", evidence.assertions.len()),
     ] {
         if length > MAX_REQUESTS_PER_RUN {
@@ -400,20 +439,8 @@ pub fn judge(evidence: &RunEvidence) -> Result<RunReport, JudgeError> {
     if evidence.observations.is_empty() {
         return Err(JudgeError::MissingWireObservation);
     }
-    if evidence.dispatch_samples.is_empty() {
-        return Err(JudgeError::MissingDispatchSample);
-    }
     if evidence.assertions.is_empty() {
         return Err(JudgeError::MissingScenarioAssertion);
-    }
-    if evidence
-        .assertions
-        .iter()
-        .any(|assertion| assertion.name.len() > MAX_ASSERTION_NAME_BYTES)
-    {
-        return Err(JudgeError::AssertionNameTooLong {
-            limit: MAX_ASSERTION_NAME_BYTES,
-        });
     }
     let mut observation_ids = BTreeSet::new();
     for observation in &evidence.observations {
@@ -424,22 +451,19 @@ pub fn judge(evidence: &RunEvidence) -> Result<RunReport, JudgeError> {
             });
         }
     }
-    let mut dispatch_ids = BTreeSet::new();
-    for dispatch in &evidence.dispatch_samples {
-        if !dispatch_ids.insert(dispatch.correlation_id) {
-            return Err(JudgeError::DuplicateCorrelation {
-                kind: "dispatch sample",
-                id: dispatch.correlation_id,
+    let spec = scenario(evidence.scenario);
+    let mut assertion_ids = BTreeSet::new();
+    for assertion in &evidence.assertions {
+        if assertion.id != spec.required_assertion {
+            return Err(JudgeError::UnexpectedScenarioAssertion {
+                expected: spec.required_assertion,
+                got: assertion.id,
             });
         }
+        if !assertion_ids.insert(assertion.id) {
+            return Err(JudgeError::DuplicateScenarioAssertion { id: assertion.id });
+        }
     }
-    if let Some(id) = observation_ids.iter().find(|id| !dispatch_ids.contains(id)) {
-        return Err(JudgeError::MissingDispatchForObservation { id: *id });
-    }
-    if let Some(id) = dispatch_ids.iter().find(|id| !observation_ids.contains(id)) {
-        return Err(JudgeError::MissingObservationForDispatch { id: *id });
-    }
-    let spec = scenario(evidence.scenario);
     if spec.sweep == SweepKind::PhaseSwept && evidence.reproduction.is_none() {
         return Err(JudgeError::MissingReproductionRecord);
     }
@@ -452,17 +476,14 @@ pub fn judge(evidence: &RunEvidence) -> Result<RunReport, JudgeError> {
             id: observation.correlation_id,
         });
     }
-    match (evidence.scenario, &evidence.duration) {
-        (ScenarioId::M2, None) => return Err(JudgeError::MissingM2Duration),
-        (
-            ScenarioId::M2,
-            Some(DurationEvidence {
-                theoretical_padded_minimum_ms: 0,
-                ..
-            }),
-        ) => return Err(JudgeError::InvalidM2Duration),
-        (ScenarioId::M2, Some(_)) | (_, None) => {}
-        (_, Some(_)) => return Err(JudgeError::UnexpectedDurationEvidence),
+    let m2_padded_minimum = (evidence.scenario == ScenarioId::M2)
+        .then(|| oracle.m2_theoretical_padded_minimum_ms(&evidence.observations))
+        .flatten();
+    if evidence.scenario == ScenarioId::M2 && m2_padded_minimum.is_none() {
+        return Err(JudgeError::MissingM2Duration);
+    }
+    if m2_padded_minimum == Some(0) {
+        return Err(JudgeError::InvalidM2Duration);
     }
 
     let exposure = evidence.unavoidable_exposure.as_ref();
@@ -506,55 +527,60 @@ pub fn judge(evidence: &RunEvidence) -> Result<RunReport, JudgeError> {
         .collect::<Vec<_>>();
 
     let g3_failures = evidence
-        .dispatch_samples
+        .observations
         .iter()
-        .filter(|sample| {
-            if sample.dispatched_ms < sample.independently_eligible_ms {
+        .filter(|observation| {
+            let independently_eligible_ms = oracle.independently_eligible_ms(observation);
+            if observation.dispatch_ms < independently_eligible_ms {
                 return true;
             }
-            let deadline = sample
-                .independently_eligible_ms
-                .saturating_add(G3_EPSILON_MS);
-            if sample.dispatched_ms <= deadline {
+            let deadline = independently_eligible_ms.saturating_add(G3_EPSILON_MS);
+            if observation.dispatch_ms <= deadline {
                 return false;
             }
-            !evidence.exclusions.iter().any(|exclusion| {
-                exclusion.covers(sample.independently_eligible_ms, sample.dispatched_ms)
-            })
+            !oracle.authorizes_delay(independently_eligible_ms, observation.dispatch_ms)
         })
-        .map(|sample| {
-            if sample.dispatched_ms < sample.independently_eligible_ms {
+        .map(|observation| {
+            let independently_eligible_ms = oracle.independently_eligible_ms(observation);
+            if observation.dispatch_ms < independently_eligible_ms {
                 format!(
                     "correlation {} dispatched before independent eligibility",
-                    sample.correlation_id
+                    observation.correlation_id
                 )
             } else {
                 format!(
                     "correlation {} exceeded G3 by {} ms",
-                    sample.correlation_id,
-                    sample
-                        .dispatched_ms
-                        .saturating_sub(sample.independently_eligible_ms)
+                    observation.correlation_id,
+                    observation
+                        .dispatch_ms
+                        .saturating_sub(independently_eligible_ms)
                 )
             }
         })
         .collect::<Vec<_>>();
 
-    let g4_failures = evidence
-        .duration
-        .iter()
-        .filter(|duration| {
-            let limit = duration
-                .theoretical_padded_minimum_ms
-                .saturating_mul(105)
-                .div_ceil(100);
-            duration.actual_ms > limit
-        })
-        .map(|duration| {
-            format!(
-                "M2 duration {} ms exceeds 1.05x padded minimum {} ms",
-                duration.actual_ms, duration.theoretical_padded_minimum_ms
-            )
+    let g4_failures = m2_padded_minimum
+        .into_iter()
+        .filter_map(|theoretical_padded_minimum_ms| {
+            let first_dispatch_ms = evidence
+                .observations
+                .iter()
+                .map(|observation| observation.dispatch_ms)
+                .min()
+                .expect("non-empty wire evidence was checked above");
+            let last_completion_ms = evidence
+                .observations
+                .iter()
+                .map(|observation| observation.completion_ms)
+                .max()
+                .expect("non-empty wire evidence was checked above");
+            let actual_ms = last_completion_ms.saturating_sub(first_dispatch_ms);
+            let limit = theoretical_padded_minimum_ms.saturating_mul(105).div_ceil(100);
+            (actual_ms > limit).then(|| {
+                format!(
+                    "M2 duration {actual_ms} ms exceeds 1.05x padded minimum {theoretical_padded_minimum_ms} ms"
+                )
+            })
         })
         .collect::<Vec<_>>();
 
@@ -562,7 +588,7 @@ pub fn judge(evidence: &RunEvidence) -> Result<RunReport, JudgeError> {
         .assertions
         .iter()
         .filter(|assertion| !assertion.passed)
-        .map(|assertion| assertion.name.clone())
+        .map(|assertion| format!("{:?}", assertion.id))
         .collect::<Vec<_>>();
 
     let g6_failures = if spec.sweep == SweepKind::PhaseSwept && evidence.reproduction.is_none() {
