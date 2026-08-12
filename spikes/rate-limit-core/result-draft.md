@@ -86,15 +86,15 @@ optional for phase-independent and structural checks.
 | M2 | Clean cold-start saturation burst | phase-swept | G1–G4, G6 | partial — independent quantized counters and G1–G4 judge executable; actor saturation run pending | 2026-08-10: generated phase oracle plus exact expiry, post-increment, G3, and exact 1.05× G4 boundary tests green; mock-slice evidence below. |
 | M3 | Degraded HEAD | independent | G1, G2, G5 | partial — policy-only HEAD stimulus and typed production-parser failure executable; actor cooldown/caller behavior pending | 2026-08-10: `mock_fidelity::b11_m3_m4_script_channel_covers_every_response_shape` green. |
 | M4 | Unexpected policy shape | independent | G1, G2, G5 | partial — verbatim one-/three-window synthetic policies executable; actor scoped failure/watch behavior pending | 2026-08-10: `mock_fidelity::b1_b7_m4_synthetic_one_and_three_window_policies_cross_as_raw_headers` green. |
-| M5 | Policy rename mid-session | phase-swept | G1, G2, G6 | partial — route mutation, deterministic delay, unique correlation, and exposure attribution executable; client remap pending actor | 2026-08-10: `mock_fidelity::b8_policy_rename_and_shrink_keep_existing_hits`, B12/B13 tests, and `conformance_harness::correlation_and_reproduction_seams_are_structural` green. |
-| M6 | Policy shrink mid-flight | phase-swept | G1, G2, G6 | partial — hits-facts/rules-judgments replacement preserves history and restrictions pessimistically; client adoption pending actor | 2026-08-10: `mock_fidelity::b8_policy_rename_and_shrink_keep_existing_hits` green. |
+| M5 | Policy rename mid-session | phase-swept | G1, G2, G6 | partial — route mutation, deterministic delay, unique correlation, and exposure attribution executable; focused core/actor remap adoption green, phase-swept scenario-judge run pending | 2026-08-10: `mock_fidelity::b8_policy_rename_and_shrink_keep_existing_hits`, B12/B13 tests, and `conformance_harness::correlation_and_reproduction_seams_are_structural` green; 2026-08-12 `response_reconciliation::m5_remaps_an_ordinary_token_without_losing_in_flight_history` and `actor_shell::m5_remap_updates_the_actor_endpoint_mapping` green. |
+| M6 | Policy shrink mid-flight | phase-swept | G1, G2, G6 | partial — hits-facts/rules-judgments replacement preserves history and restrictions pessimistically; focused core/actor shrink adoption green, phase-swept scenario-judge run pending | 2026-08-10: `mock_fidelity::b8_policy_rename_and_shrink_keep_existing_hits` green; 2026-08-12 `response_reconciliation::m6_replaces_rules_immediately_while_retaining_history_facts` and `actor_shell::m6_shrink_blocks_new_dispatches_from_the_announcing_response` green. |
 | M7 | Phantom same-account hits | phase-swept | G1, G2, G6 | partial — core synthesis plus mock-owned bursty phantom injection/provenance green; actor observation loop pending | 2026-08-09 core evidence above; 2026-08-10 `mock_fidelity::b6_b9_residue_and_phantoms_are_mock_owned_counter_facts` green. |
-| M8 | 429 recovery and escalation | phase-swept | G1, G2, G5, G6 | partial — core ladder plus independent organic/injected 429, restriction, malformed, and transport-error shapes green; actor wire matrix pending | 2026-08-09 core evidence above; 2026-08-10 B2/B3 and B11 mock-fidelity tests green. |
+| M8 | 429 recovery and escalation | phase-swept | G1, G2, G5, G6 | partial — core ladder plus independent organic/injected 429, restriction, malformed, and transport-error shapes green; focused actor retry/first-confirmation-escalation tests green, phase-swept wire matrix pending | 2026-08-09 core evidence above; 2026-08-10 B2/B3 and B11 mock-fidelity tests green; 2026-08-12 `actor_shell::{m8_429_requeues_through_the_core_not_before_deadline,m8_confirmation_429_escalates_without_a_third_get}` green. |
 | M9 | Phantom race at saturation | phase-swept | G1, G2, G5, G6 + characterization | partial — arrival delay, phantom injection, source counts, correlation, and capped pre-observation exposure executable; actor race/headroom record pending | 2026-08-10: B6/B9, B12/B13, and capped G1 unavoidable-exposure tests green. |
 | M10 | Agent-loop stress | phase-swept | G1, G2, G3, G6 | partial — bounded 10,000-dispatch mock/log and global G1/G2/G3 judge executable; actor pressure/cancel/reprioritize run pending | 2026-08-10: exact budget/latch, ceiling, and non-vacuous judge tests green. |
 | M11 | Layer-1 ceiling + Cloudflare terminal | independent | G2, G5 | partial — core halt plus both independent B10 ceilings and injected/organic Cloudflare shapes green; compliant-client run pending actor | 2026-08-09 core evidence above; 2026-08-10 `mock_fidelity::b10_b11_layer1_and_injected_stimuli_are_distinct` green. |
 | M12 | 4xx-tripwire obligations | independent | G5 | partial — full/raw 401/generic-4xx/429 stimulus channel executable; tripwire feed/retry obligations pending actor | 2026-08-10: B11 script-channel tests green. |
-| M13 | Gate structure on the wire | independent | G2 + gate-definition assertions | partial — deterministic overlap, arrival order, HEAD overlap, in-flight, spacing timestamps, and run-wide identities observable; compliant gate run pending actor | 2026-08-10: `mock_fidelity::b12_b13_explicit_delay_makes_overlap_and_correlation_observable` green. |
+| M13 | Gate structure on the wire | independent | G2 + gate-definition assertions | partial — deterministic overlap, arrival order, HEAD overlap, in-flight, spacing timestamps, and run-wide identities observable; focused actor writer-preference/FIFO/cap/exclusivity tests green, compliant scenario-judge run pending | 2026-08-10: `mock_fidelity::b12_b13_explicit_delay_makes_overlap_and_correlation_observable` green; 2026-08-12 `actor_shell::{pending_head_writer_blocks_a_front_get_until_it_runs_exclusively,m13_ordinary_waiters_are_fifo_and_never_exceed_two_in_flight}` green. |
 
 G1, G2, G3, and G5 are armed in every mock-judged scenario; the
 column lists the gates each scenario is the *binding evidence*
@@ -106,15 +106,15 @@ for.
 |---|---|---|---|
 | C1 | Padding arithmetic safe over all φ | green — full N13 per-window padding uses each explicit Known/Assumed resolution; shared policy history is judged across every rule/window and the maximum required `NotBefore` wins; headroom remains zero | 2026-08-09: `cargo test --locked` in `spikes/rate-limit-core/` — 19 passed, including a generated C1 property over arbitrary histories, multi-rule definitions, and independently generated server phases plus explicit just-before/on/after rollover and zero-headroom/order-statistic cases; focused `PROPTEST_CASES=4096 cargo test --locked --test c1_scheduling every_reserved_outcome_is_safe_for_every_server_phase` green (4,096 cases); independent oracle bucketizes hits on the server phase rather than calling production scheduling arithmetic; `cargo clippy --locked --all-targets -- -D warnings` and `cargo fmt --check` green. No skew sensitivity observed because this slice has no server-clock input; O5 remains out. Audit hardening (2026-08-09, same day): the property now asserts on every generated case — the earlier body was ~97% vacuous (§3 register, item 7) — and the `NotBefore` branch is re-asked and oracle-checked, pinning exactness; re-verified at 4,096 cases |
 | C2 | Header parsing / shape validation | green for the implemented core slice — raw-header parsing, RulePair shape, and frozen response precedence are executable; remapping/shrink remain explicitly out of this slice | 2026-08-09: `cargo test --locked` in `spikes/rate-limit-core/` — 44 passed overall: the 7 parser tests remain green and 15 disposition tests pin Cloudflare-before-parse, malformed/out-of-model-before-429, valid-429 handling, and ordinary/probe outcomes; `cargo clippy --locked --all-targets -- -D warnings` and `cargo fmt --check` green |
-| C3 | Fuse trip logic | ⟨…⟩ | ⟨…⟩ |
-| C4 | 4xx tripwire logic | ⟨…⟩ | ⟨…⟩ |
+| C3 | Fuse trip logic | green for the implemented actor boundary — exact burst (10/11 + half-open edge), sustained (499/500), and a non-vacuous floor-compliant property are green | 2026-08-12: `actor::tests::{c3_and_x1_fault_injection_pin_burst_and_sustained_boundaries,fuse_uses_the_documented_half_open_boundaries,x1_fault_injection_trips_at_the_actor_transport_boundary,c3_floor_compliant_traces_never_trip}`; the property ran at 4,096 cases with independent timestamp-window arithmetic. |
+| C4 | 4xx tripwire logic | green for the implemented counter — burst, sustained, and half-open edge boundaries pinned | 2026-08-12: `actor::tests::c4_pins_burst_sustained_and_exact_window_edges` green in debug and release. |
 | C5 | Lifecycle invariants | green — reservation/rollback/unknown-outcome identity and abandonment semantics remain green; raw ordinary responses and tokenless probes still share one count-max/synthetic-history reconciler; unknown confirmation outcomes stay counted; abandonment now covers the confirmation half (a dropped confirmation ages out as a failed attempt instead of wedging the policy — §3 register, item 2) | 2026-08-09: `cargo test --locked` in `spikes/rate-limit-core/` — 44 passed: all prior C1/C5/reconciliation tests remain green, and the disposition suite pins confirmation rollback plus pessimistic unknown retention; focused `PROPTEST_CASES=4096 cargo test --locked --test response_reconciliation` remains green (4,096 cases for each of two generated properties); `cargo clippy --locked --all-targets -- -D warnings` and `cargo fmt --check` green. Audit hardening (2026-08-09, same day): abandoned-confirmation expiry pinned in debug and release; interleaving property extended with observed responses and non-FIFO token resolution (2,048-case focused run); 59 tests total |
 
 ### Fault-injection and structural
 
 | ID | Check | Result | Evidence |
 |---|---|---|---|
-| X1 | Fuse true-positive, burst and sustained fault shapes — the lane upgrade from declared-untested | ⟨…⟩ | ⟨…⟩ |
+| X1 | Fuse true-positive, burst and sustained fault shapes — the lane upgrade from declared-untested | green for the actor boundary — fault-injected counter contents reach `start_dispatch`, the last common hook before `Transport::send`; production D5 pacing remains enabled | 2026-08-12: `actor::tests::x1_fault_injection_trips_at_the_actor_transport_boundary` pins the 11th burst and 500th sustained trips without creating a second scheduling path. |
 | X2 | Transport boundary: one HTTP client, private, no second send path | ⟨…⟩ | ⟨…⟩ |
 
 ### Gate summary
@@ -539,10 +539,29 @@ growth and uses C3's 11/1 s and 500/60 s thresholds for all observed 4xx.
 The next call after capacity refusal remains independently schedulable when
 capacity is available; the next call after a C4 trip sees terminal halt.
 
-Offline implementation evidence (2026-08-12): `cargo test --locked` — 110
+Review revision (2026-08-12): writer preference is now structural. The actor
+drains ready command ingress before any permit decision and scans the explicit
+deque for an unknown endpoint; a queued HEAD blocks a front GET until current
+readers drain, then takes exclusive occupancy. `actor_shell` pins this with a
+forced delayed reader. The shell now bounds a response body at 16 KiB and its
+header map at 32 headers / 256-byte names / 1,024-byte values before clone or
+signature scan; n/n+1 boundaries are pinned. Overflow resolves ordinary work
+as unknown and probes as D4 failure, preserving pessimism. The trait itself
+receives a materialized `Vec`, so every production transport implementation
+must apply the same body read cap before constructing `WireResponse` (X2).
+
+C3/C4 and X1 actor-boundary evidence now cover reviewed burst/sustained thresholds and the
+floor-compliant generated trace; M8’s retry and first-confirmation escalation
+and M13 writer preference, HEAD exclusivity, FIFO, and in-flight cap now have
+actor tests. M5/M6 now preserve stable in-flight reservation anchors while
+adopting the response's remapped name and current rule judgments; focused
+actor scripts pin both paths. A policy name colliding with a separate existing
+route is a documented conservative refusal, not an invented history merge.
+
+Offline implementation evidence (2026-08-12): `cargo test --locked` — 123
 debug tests green; `PROPTEST_CASES=4096 cargo test --locked` — all existing
 generated properties green at 4,096 cases; `cargo test --locked --release` —
-108 tests green; all-target clippy with warnings denied, fmt check, and diff
+121 tests green; all-target clippy with warnings denied, fmt check, and diff
 check green. `actor_shell` pins paused-time probe→GET pacing, distinct B13
 correlations, queued and dispatched cancellation, D4 failure, timeout
 retention, and Cloudflare halt/watch behavior. Final M-series scenario runs

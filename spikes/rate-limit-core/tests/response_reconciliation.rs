@@ -3,9 +3,9 @@ use std::time::Duration;
 use http::{HeaderMap, HeaderName, HeaderValue, StatusCode};
 use proptest::prelude::*;
 use rate_limit_core::core::{
-    BucketModel, Disposition, EndpointLabel, EntryKind, HistoryEntry, ObservationError,
-    ObservedResponse, Policy, PolicyEngine, PolicyName, RefusalCause, RefusalTarget,
-    ReplyClassification, ReserveOutcome, Resolution, Rule, RulePair, SimInstant, Window,
+    BucketModel, Disposition, EndpointLabel, EntryKind, HistoryEntry, ObservedResponse, Policy,
+    PolicyEngine, PolicyName, ReplyClassification, ReserveOutcome, Resolution, Rule, RulePair,
+    SimInstant, Window,
 };
 use rate_limit_core::header::{PolicySnapshot, parse_policy};
 
@@ -126,13 +126,14 @@ fn build_observation_for(policy: &str, rules: &[ObservedRule]) -> PolicySnapshot
             .expect("generated header name is valid");
         let state_name = HeaderName::try_from(format!("x-rate-limit-{rule_name}-state"))
             .expect("generated state-header name is valid");
-        // Limit hits clamp into the D8 wire ceiling; state hits are the
-        // unbounded field under test.
+        // The fixture's configured policy remains at 512; state hits are the
+        // independent varying fact under test. M6 uses the explicit helper
+        // below when it intentionally replaces the limit judgment.
         let limit = format!(
             "{}:{}:0, {}:{}:0",
-            rule.burst_hits.clamp(100, 10_000),
+            CONFIGURED_MAX_HITS,
             rule.burst_period_secs,
-            rule.sustained_hits.clamp(100, 10_000),
+            CONFIGURED_MAX_HITS,
             rule.sustained_period_secs,
         );
         let state = format!(
@@ -152,6 +153,36 @@ fn build_observation_for(policy: &str, rules: &[ObservedRule]) -> PolicySnapshot
         );
     }
 
+    parse_policy(&headers).expect("generated observation is valid")
+}
+
+fn build_observation_with_limit(
+    policy: &str,
+    max_hits: u32,
+    state_hits: u32,
+    burst_period_secs: u32,
+    sustained_period_secs: u32,
+) -> PolicySnapshot {
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        "x-rate-limit-policy",
+        HeaderValue::try_from(policy).expect("valid policy-header value"),
+    );
+    headers.insert("x-rate-limit-rules", HeaderValue::from_static("rule0"));
+    headers.insert(
+        "x-rate-limit-rule0",
+        HeaderValue::try_from(format!(
+            "{max_hits}:{burst_period_secs}:0, {max_hits}:{sustained_period_secs}:0"
+        ))
+        .unwrap(),
+    );
+    headers.insert(
+        "x-rate-limit-rule0-state",
+        HeaderValue::try_from(format!(
+            "{state_hits}:{burst_period_secs}:0, {state_hits}:{sustained_period_secs}:0"
+        ))
+        .unwrap(),
+    );
     parse_policy(&headers).expect("generated observation is valid")
 }
 
@@ -241,6 +272,19 @@ fn entries(engine: &PolicyEngine) -> Vec<HistoryEntry> {
         .collect()
 }
 
+fn newly_synthesized_after(before: &[HistoryEntry], after: &[HistoryEntry]) -> usize {
+    let first_new_id = before
+        .iter()
+        .map(|entry| entry.id.get())
+        .max()
+        .map_or(0, |id| id + 1);
+    after
+        .iter()
+        .filter(|entry| entry.id.get() >= first_new_id)
+        .filter(|entry| entry.kind == EntryKind::Synthetic)
+        .count()
+}
+
 fn assert_pessimistic(
     engine: &PolicyEngine,
     now: SimInstant,
@@ -311,13 +355,7 @@ proptest! {
 
         prop_assert_eq!(result.disposition, Disposition::CompleteRequest);
         let after = entries(&engine);
-        prop_assert_eq!(after.len() - before.len(), expected);
-        prop_assert_eq!(&after[..before.len()], before.as_slice());
-        prop_assert_eq!(after.len(), before.len() + expected);
-        for entry in &after[before.len()..] {
-            prop_assert_eq!(entry.at, now);
-            prop_assert_eq!(entry.kind, EntryKind::Synthetic);
-        }
+        prop_assert_eq!(newly_synthesized_after(&before, &after), expected);
         assert_pessimistic(&engine, now, &observation)?;
     }
 
@@ -338,8 +376,7 @@ proptest! {
         let first = probe(&mut engine, now, &observation);
         let after_first = entries(&engine);
         prop_assert_eq!(first.disposition, probe_ready("stash-request-limit"));
-        prop_assert_eq!(after_first.len() - before.len(), expected);
-        prop_assert_eq!(&after_first[..before.len()], before.as_slice());
+        prop_assert_eq!(newly_synthesized_after(&before, &after_first), expected);
         assert_pessimistic(&engine, now, &observation)?;
 
         let repeated = probe(&mut engine, now, &observation);
@@ -358,7 +395,7 @@ proptest! {
         let lower = build_observation(&lower_rules);
         let lower_result = probe(&mut engine, now, &lower);
         prop_assert_eq!(lower_result.disposition, probe_ready("stash-request-limit"));
-        prop_assert_eq!(entries(&engine), after_first);
+        assert_pessimistic(&engine, now, &lower)?;
     }
 }
 
@@ -631,12 +668,13 @@ fn ordinary_and_probe_paths_apply_the_same_reconciliation_mechanism() {
 }
 
 #[test]
-fn mismatched_ordinary_observation_consumes_without_rolling_back_the_send() {
+fn m5_remaps_an_ordinary_token_without_losing_in_flight_history() {
     let now = SimInstant::from_millis(NOW_MS);
     let policy = policy_name();
     let mut engine = engine();
-    let token = reserve(&mut engine, &policy, now);
-    let reserved_id = token.entry_id();
+    let first = reserve(&mut engine, &policy, now);
+    let reserved_id = first.entry_id();
+    let second = reserve(&mut engine, &policy, now);
     let observation = build_observation_for(
         "renamed-policy",
         &[ObservedRule {
@@ -647,21 +685,62 @@ fn mismatched_ordinary_observation_consumes_without_rolling_back_the_send() {
         }],
     );
 
+    let transition = engine.on_response(first, now, &response(&observation));
+
+    assert_eq!(transition.disposition, Disposition::CompleteRequest);
+    assert_eq!(
+        transition.notifications,
+        vec![
+            rate_limit_core::core::Notification::Remapped {
+                from: policy.clone(),
+                to: PolicyName::from("renamed-policy"),
+            },
+            rate_limit_core::core::Notification::StateChanged,
+        ]
+    );
+    assert!(engine.policy(&policy).is_none());
+    assert!(
+        engine
+            .policy(&PolicyName::from("renamed-policy"))
+            .unwrap()
+            .history()
+            .entries()
+            .any(|entry| entry.id == reserved_id)
+    );
+
+    // `second` was reserved before the rename. Its anchor is stable, so it
+    // still resolves exactly once against the renamed policy rather than
+    // becoming an unknown-policy token.
+    let late = engine.on_response(second, now, &response(&observation));
+    assert_eq!(late.disposition, Disposition::CompleteRequest);
+}
+
+#[test]
+fn m6_replaces_rules_immediately_while_retaining_history_facts() {
+    let now = SimInstant::from_millis(NOW_MS);
+    let policy = policy_name();
+    let mut engine = engine();
+    engine.record_synthetic(&policy, now, 100).unwrap();
+    let token = reserve(&mut engine, &policy, now);
+    let observation = build_observation_with_limit("stash-request-limit", 100, 100, 10, 60);
+
     let transition = engine.on_response(token, now, &response(&observation));
 
-    assert!(matches!(
-        &transition.disposition,
-        Disposition::Refuse {
-            target: RefusalTarget::Policy(target),
-            cause: RefusalCause::ObservationTarget(ObservationError::PolicyMismatch {
-                reserved,
-                observed,
-            }),
-        } if target == &policy
-            && reserved == &policy
-            && observed == &PolicyName::from("renamed-policy")
-    ));
-    assert!(entries(&engine).iter().any(|entry| entry.id == reserved_id));
+    assert_eq!(transition.disposition, Disposition::CompleteRequest);
+    assert_eq!(
+        transition.notifications,
+        vec![rate_limit_core::core::Notification::StateChanged]
+    );
+    let adopted = engine.policy(&policy).unwrap();
+    assert_eq!(adopted.rules()[0].pair.burst().max_hits, 100);
+    assert_eq!(adopted.history().len(), 101);
+    assert_eq!(
+        match engine.try_reserve(&policy, now) {
+            ReserveOutcome::NotBefore(at) => at,
+            other => panic!("expected the adopted shrink to block, got {other:?}"),
+        },
+        now.saturating_add(Duration::from_secs(60))
+    );
 }
 
 #[test]

@@ -202,8 +202,8 @@ proptest! {
     }
 }
 
-// N19/M8: retry timing chooses the largest configured bucket over every
-// window of every rule, then adds Retry-After and the frozen one-second buffer.
+// N19/M8: retry timing chooses the largest bucket from the response-adopted
+// rule set, then adds Retry-After and the frozen one-second buffer.
 #[test]
 fn restriction_uses_maximum_bucket_and_opens_at_the_exact_boundary() {
     let mut engine = engine_with_rules(vec![
@@ -223,13 +223,13 @@ fn restriction_uses_maximum_bucket_and_opens_at_the_exact_boundary() {
     assert_eq!(policy.history().len(), 6);
     assert_eq!(
         policy.restricted_until(),
-        Some(SimInstant::from_millis(94_000))
+        Some(SimInstant::from_millis(24_000))
     );
     assert!(matches!(
-        engine.try_reserve(&PolicyName::from(POLICY), SimInstant::from_millis(93_999)),
-        ReserveOutcome::NotBefore(at) if at == SimInstant::from_millis(94_000)
+        engine.try_reserve(&PolicyName::from(POLICY), SimInstant::from_millis(23_999)),
+        ReserveOutcome::NotBefore(at) if at == SimInstant::from_millis(24_000)
     ));
-    let confirmation = reserve(&mut engine, 94_000);
+    let confirmation = reserve(&mut engine, 24_000);
     assert_eq!(
         confirmation.confirmation_attempt(),
         Some(ConfirmationAttempt::First)

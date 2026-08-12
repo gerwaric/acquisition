@@ -24,6 +24,7 @@ use crate::core::{
     RefusalCause, RefusalReason, RefusalTarget, ReplyClassification, ReservationToken,
     ReserveOutcome, SimInstant,
 };
+use crate::header::MAX_HEADER_VALUE_BYTES;
 use crate::transport::{Transport, TransportError, WireRequest, WireResponse};
 
 pub const MIN_SEND_SPACING: Duration = Duration::from_millis(250);
@@ -34,6 +35,12 @@ pub const TRANSPORT_TIMEOUT: Duration = Duration::from_secs(30);
 pub const MAX_PENDING_REQUESTS: usize = 10_000;
 pub const MAX_ENDPOINTS: usize = 5;
 pub const COMMAND_CAPACITY: usize = 256;
+/// The shell only needs a small, bounded header view before the core's own
+/// per-value parser limits run. This cap prevents a reply from making the
+/// actor clone or iterate an unbounded header map.
+pub const MAX_RESPONSE_HEADERS: usize = 32;
+pub const MAX_RESPONSE_HEADER_NAME_BYTES: usize = 256;
+pub const MAX_RESPONSE_BODY_BYTES: usize = 16 * 1024;
 
 const FUSE_BURST_LIMIT: usize = 10;
 const FUSE_SUSTAINED_LIMIT: usize = 500;
@@ -69,6 +76,15 @@ pub enum GateError {
     },
     Transport(TransportError),
     TimedOut,
+    ResponseBounds(ResponseBoundsError),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ResponseBoundsError {
+    TooManyHeaders { limit: usize },
+    HeaderNameTooLong { limit: usize },
+    HeaderValueTooLong { limit: usize },
+    BodyTooLong { limit: usize },
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -327,6 +343,13 @@ impl<T: Transport> Actor<T> {
     async fn run(mut self) {
         let mut commands_open = true;
         loop {
+            // Commands that have already reached ingress take effect before a
+            // permit decision. Without this drain, a ready pacing timer could
+            // grant a reader between two queued commands and miss a writer
+            // that was already waiting in the mpsc mailbox.
+            while let Ok(command) = self.commands.try_recv() {
+                self.handle_command(Some(command));
+            }
             self.schedule();
             if !commands_open
                 && self.queue.is_empty()
@@ -405,6 +428,17 @@ impl<T: Transport> Actor<T> {
             self.halt();
             return;
         }
+        // Writer preference is structural: a queued unknown endpoint is a
+        // pending HEAD writer even when an established GET appears earlier in
+        // FIFO order. No new ordinary permit can pass it; when the current
+        // readers drain, the earliest queued writer gets exclusive occupancy.
+        if let Some(endpoint) = self.pending_probe() {
+            if !self.active.is_empty() || self.probe.is_some() || !self.spacing_open() {
+                return;
+            }
+            self.start_probe(endpoint);
+            return;
+        }
         loop {
             let Some(front) = self.queue.front() else {
                 return;
@@ -480,7 +514,12 @@ impl<T: Transport> Actor<T> {
     }
 
     fn start_probe(&mut self, endpoint: EndpointLabel) {
-        let Some(request) = self.queue.front().map(|queued| queued.request.clone()) else {
+        let Some(request) = self
+            .queue
+            .iter()
+            .find(|queued| queued.endpoint == endpoint)
+            .map(|queued| queued.request.clone())
+        else {
             return;
         };
         let mut probe = request;
@@ -572,16 +611,22 @@ impl<T: Transport> Actor<T> {
         };
         let now = self.now();
         match outcome {
-            Ok(response) => {
-                let observed = observed_response(&response);
-                let transition = self.engine.on_response(active.token, now, &observed);
-                if response.status().is_client_error() && self.safety.four_xx(Instant::now()) {
-                    active.queued.finish(Err(GateError::Halted));
-                    self.halt();
-                } else {
-                    self.interpret_ordinary(active.queued, response, transition);
+            Ok(response) => match observed_response(&response) {
+                Ok(observed) => {
+                    let transition = self.engine.on_response(active.token, now, &observed);
+                    if response.status().is_client_error() && self.safety.four_xx(Instant::now()) {
+                        active.queued.finish(Err(GateError::Halted));
+                        self.halt();
+                    } else {
+                        self.interpret_ordinary(active.queued, response, transition);
+                    }
                 }
-            }
+                Err(error) => {
+                    let transition = self.engine.on_unknown_outcome(active.token, now);
+                    active.queued.finish(Err(GateError::ResponseBounds(error)));
+                    self.interpret_unknown_transition(transition);
+                }
+            },
             Err(error) => {
                 let transition = self.engine.on_unknown_outcome(active.token, now);
                 active.queued.finish(Err(error));
@@ -595,23 +640,25 @@ impl<T: Transport> Actor<T> {
         self.probe = None;
         let now = self.now();
         match outcome {
-            Ok(response) => {
-                let observed = observed_response(&response);
-                let transition = self.engine.on_probe_response(&endpoint, now, &observed);
-                if response.status().is_client_error() && self.safety.four_xx(Instant::now()) {
-                    self.halt();
-                } else {
-                    match transition.disposition {
-                        Disposition::ProbeReady { policy } => {
-                            self.endpoints
-                                .insert(endpoint, EndpointState::Established(policy));
+            Ok(response) => match observed_response(&response) {
+                Ok(observed) => {
+                    let transition = self.engine.on_probe_response(&endpoint, now, &observed);
+                    if response.status().is_client_error() && self.safety.four_xx(Instant::now()) {
+                        self.halt();
+                    } else {
+                        match transition.disposition {
+                            Disposition::ProbeReady { policy } => {
+                                self.endpoints
+                                    .insert(endpoint, EndpointState::Established(policy));
+                            }
+                            Disposition::Refuse { cause, .. } => self.cool(endpoint, cause),
+                            Disposition::Halt => self.halt(),
+                            _ => self.halt(),
                         }
-                        Disposition::Refuse { cause, .. } => self.cool(endpoint, cause),
-                        Disposition::Halt => self.halt(),
-                        _ => self.halt(),
                     }
                 }
-            }
+                Err(_) => self.cool(endpoint, RefusalCause::ProbeUnknownOutcome),
+            },
             Err(error) => {
                 let transition = self.engine.on_probe_unknown_outcome(&endpoint);
                 let cause = match transition.disposition {
@@ -631,6 +678,15 @@ impl<T: Transport> Actor<T> {
         response: WireResponse,
         transition: crate::core::Transition,
     ) {
+        for notification in &transition.notifications {
+            if let Notification::Remapped { from, to } = notification {
+                for state in self.endpoints.values_mut() {
+                    if matches!(state, EndpointState::Established(policy) if policy == from) {
+                        *state = EndpointState::Established(to.clone());
+                    }
+                }
+            }
+        }
         match transition.disposition {
             Disposition::CompleteRequest => {
                 queued.finish(Ok(response));
@@ -755,6 +811,15 @@ impl<T: Transport> Actor<T> {
         }
     }
 
+    fn pending_probe(&self) -> Option<EndpointLabel> {
+        self.queue.iter().find_map(|queued| {
+            self.endpoints
+                .get(&queued.endpoint)
+                .is_some_and(|state| matches!(state, EndpointState::Unknown))
+                .then(|| queued.endpoint.clone())
+        })
+    }
+
     fn allocate_correlation(&mut self) -> RequestId {
         let id = RequestId(self.next_correlation);
         self.next_correlation = self.next_correlation.saturating_add(1);
@@ -804,34 +869,97 @@ pub fn with_correlation_header(mut request: WireRequest, header: HeaderName) -> 
     request
 }
 
-fn observed_response(response: &WireResponse) -> ObservedResponse {
-    ObservedResponse::new(
-        response.status(),
-        response.headers().clone(),
-        if response.status() == StatusCode::FORBIDDEN
-            && response
-                .headers()
-                .get("cf-mitigated")
-                .is_some_and(|value| value.as_bytes().eq_ignore_ascii_case(b"challenge"))
-            && response
-                .headers()
-                .get("server")
-                .is_some_and(|value| value.as_bytes().eq_ignore_ascii_case(b"cloudflare"))
-            && response
-                .body()
-                .windows(4)
-                .any(|chunk| chunk.eq_ignore_ascii_case(b"html"))
+fn observed_response(response: &WireResponse) -> Result<ObservedResponse, ResponseBoundsError> {
+    // `WireResponse` is already materialized by the transport trait, but no
+    // actor path may clone, classify, or otherwise inspect an over-bound
+    // body. Production transport implementations must enforce the matching
+    // read cap before constructing this value (X2's single boundary).
+    if response.body().len() > MAX_RESPONSE_BODY_BYTES {
+        return Err(ResponseBoundsError::BodyTooLong {
+            limit: MAX_RESPONSE_BODY_BYTES,
+        });
+    }
+    let headers = bounded_headers(response.headers())?;
+    let is_cloudflare_candidate = response.status() == StatusCode::FORBIDDEN
+        && headers
+            .get("cf-mitigated")
+            .is_some_and(|value| value.as_bytes().eq_ignore_ascii_case(b"challenge"))
+        && headers
+            .get("server")
+            .is_some_and(|value| value.as_bytes().eq_ignore_ascii_case(b"cloudflare"));
+    let classification = if is_cloudflare_candidate {
+        if response
+            .body()
+            .windows(4)
+            .any(|chunk| chunk.eq_ignore_ascii_case(b"html"))
         {
             ReplyClassification::CloudflareShaped
         } else {
             ReplyClassification::Normal
-        },
-    )
+        }
+    } else {
+        ReplyClassification::Normal
+    };
+    Ok(ObservedResponse::new(
+        response.status(),
+        headers,
+        classification,
+    ))
+}
+
+fn bounded_headers(headers: &http::HeaderMap) -> Result<http::HeaderMap, ResponseBoundsError> {
+    if headers.len() > MAX_RESPONSE_HEADERS {
+        return Err(ResponseBoundsError::TooManyHeaders {
+            limit: MAX_RESPONSE_HEADERS,
+        });
+    }
+    if headers
+        .keys()
+        .any(|name| name.as_str().len() > MAX_RESPONSE_HEADER_NAME_BYTES)
+    {
+        return Err(ResponseBoundsError::HeaderNameTooLong {
+            limit: MAX_RESPONSE_HEADER_NAME_BYTES,
+        });
+    }
+    if headers
+        .values()
+        .any(|value| value.as_bytes().len() > MAX_HEADER_VALUE_BYTES)
+    {
+        return Err(ResponseBoundsError::HeaderValueTooLong {
+            limit: MAX_HEADER_VALUE_BYTES,
+        });
+    }
+    Ok(headers.clone())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::{BucketModel, Resolution};
+    use http::{HeaderMap, HeaderName, HeaderValue, Response};
+    use proptest::prelude::*;
+
+    struct FaultTransport;
+
+    impl Transport for FaultTransport {
+        async fn send(&self, _request: WireRequest) -> Result<WireResponse, TransportError> {
+            Err(TransportError::MockHarness("fault injection".to_owned()))
+        }
+    }
+
+    fn actor_at_transport_boundary() -> Actor<FaultTransport> {
+        let (_, commands) = mpsc::channel(1);
+        let (status, _) = watch::channel(GateStatus::default());
+        Actor::new(
+            PolicyEngine::new(BucketModel::new(
+                Resolution::Assumed(Duration::from_secs(60)),
+                Resolution::Assumed(Duration::from_secs(60)),
+            )),
+            Arc::new(FaultTransport),
+            commands,
+            status,
+        )
+    }
 
     #[test]
     fn fuse_uses_the_documented_half_open_boundaries() {
@@ -852,5 +980,183 @@ mod tests {
             halted: false,
         };
         assert!(!counters.dispatch(now));
+    }
+
+    // X1: this drives the actor's actual `start_dispatch` hook, which is the
+    // last common point before either HEAD or GET reaches `Transport::send`.
+    // Counter contents are fault-injected so D5's 250 ms floor need not be
+    // disabled just to exercise the fuse's otherwise unreachable trip path.
+    #[test]
+    fn x1_fault_injection_trips_at_the_actor_transport_boundary() {
+        let mut burst = actor_at_transport_boundary();
+        for _ in 0..FUSE_BURST_LIMIT {
+            burst.start_dispatch();
+            assert!(!burst.halted);
+        }
+        burst.start_dispatch();
+        assert!(burst.halted);
+
+        let mut sustained = actor_at_transport_boundary();
+        let now = Instant::now();
+        sustained.safety.dispatches = (0..FUSE_SUSTAINED_LIMIT - 1)
+            .map(|index| {
+                now - Duration::from_millis(59_800) + Duration::from_millis(index as u64 * 120)
+            })
+            .collect();
+        sustained.start_dispatch();
+        assert!(sustained.halted);
+    }
+
+    #[test]
+    fn response_header_boundary_is_checked_before_clone() {
+        let mut headers = HeaderMap::new();
+        for index in 0..MAX_RESPONSE_HEADERS {
+            let name = HeaderName::from_bytes(format!("x-bound-{index}").as_bytes()).unwrap();
+            headers.insert(name, HeaderValue::from_static("v"));
+        }
+        assert!(bounded_headers(&headers).is_ok());
+
+        headers.insert("x-bound-over", HeaderValue::from_static("v"));
+        assert_eq!(
+            bounded_headers(&headers),
+            Err(ResponseBoundsError::TooManyHeaders {
+                limit: MAX_RESPONSE_HEADERS,
+            })
+        );
+
+        let mut value_boundary = HeaderMap::new();
+        value_boundary.insert(
+            "x-bound-value",
+            "v".repeat(MAX_HEADER_VALUE_BYTES).parse().unwrap(),
+        );
+        assert!(bounded_headers(&value_boundary).is_ok());
+        value_boundary.insert(
+            "x-bound-value",
+            "v".repeat(MAX_HEADER_VALUE_BYTES + 1).parse().unwrap(),
+        );
+        assert_eq!(
+            bounded_headers(&value_boundary),
+            Err(ResponseBoundsError::HeaderValueTooLong {
+                limit: MAX_HEADER_VALUE_BYTES,
+            })
+        );
+    }
+
+    #[test]
+    fn cloudflare_body_boundary_is_checked_before_html_scan() {
+        let exact = Response::builder()
+            .status(StatusCode::FORBIDDEN)
+            .header("cf-mitigated", "challenge")
+            .header("server", "cloudflare")
+            .body(vec![b'x'; MAX_RESPONSE_BODY_BYTES])
+            .unwrap();
+        assert!(observed_response(&exact).is_ok());
+
+        let over = Response::builder()
+            .status(StatusCode::FORBIDDEN)
+            .header("cf-mitigated", "challenge")
+            .header("server", "cloudflare")
+            .body(vec![b'x'; MAX_RESPONSE_BODY_BYTES + 1])
+            .unwrap();
+        assert_eq!(
+            observed_response(&over),
+            Err(ResponseBoundsError::BodyTooLong {
+                limit: MAX_RESPONSE_BODY_BYTES,
+            })
+        );
+    }
+
+    #[test]
+    fn c3_and_x1_fault_injection_pin_burst_and_sustained_boundaries() {
+        let now = Instant::now();
+        let mut burst = SafetyCounters {
+            dispatches: VecDeque::new(),
+            four_xx: VecDeque::new(),
+            halted: false,
+        };
+        for _ in 0..FUSE_BURST_LIMIT {
+            assert!(!burst.dispatch(now));
+        }
+        assert!(burst.dispatch(now), "X1 burst trips on the 11th hand-off");
+
+        let mut below_sustained = SafetyCounters {
+            dispatches: VecDeque::from([now - Duration::from_secs(2); FUSE_SUSTAINED_LIMIT - 2]),
+            four_xx: VecDeque::new(),
+            halted: false,
+        };
+        assert!(!below_sustained.dispatch(now), "C3: 499/min is safe");
+
+        let mut sustained = SafetyCounters {
+            dispatches: VecDeque::from([now - Duration::from_secs(2); FUSE_SUSTAINED_LIMIT - 1]),
+            four_xx: VecDeque::new(),
+            halted: false,
+        };
+        assert!(sustained.dispatch(now), "X1 sustained trips at 500/min");
+    }
+
+    #[test]
+    fn c4_pins_burst_sustained_and_exact_window_edges() {
+        let now = Instant::now();
+        let mut burst = SafetyCounters {
+            dispatches: VecDeque::new(),
+            four_xx: VecDeque::new(),
+            halted: false,
+        };
+        for _ in 0..FUSE_BURST_LIMIT {
+            assert!(!burst.four_xx(now));
+        }
+        assert!(burst.four_xx(now), "C4 trips on its 11th 4xx");
+
+        let mut edge = SafetyCounters {
+            dispatches: VecDeque::new(),
+            four_xx: VecDeque::from([now - FUSE_BURST_WINDOW; FUSE_BURST_LIMIT]),
+            halted: false,
+        };
+        assert!(!edge.four_xx(now), "the 1 s boundary is half-open");
+
+        let mut below_sustained = SafetyCounters {
+            dispatches: VecDeque::new(),
+            four_xx: VecDeque::from([now - Duration::from_secs(2); FUSE_SUSTAINED_LIMIT - 2]),
+            halted: false,
+        };
+        assert!(!below_sustained.four_xx(now), "C4: 499/min is safe");
+
+        let mut sustained = SafetyCounters {
+            dispatches: VecDeque::new(),
+            four_xx: VecDeque::from([now - Duration::from_secs(2); FUSE_SUSTAINED_LIMIT - 1]),
+            halted: false,
+        };
+        assert!(sustained.four_xx(now), "C4 trips at 500/min");
+    }
+
+    proptest! {
+        #[test]
+        fn c3_floor_compliant_traces_never_trip(length in 1_usize..300) {
+            let start = Instant::now();
+            let mut counters = SafetyCounters {
+                dispatches: VecDeque::new(),
+                four_xx: VecDeque::new(),
+                halted: false,
+            };
+            let mut oracle = Vec::new();
+            for index in 0..length {
+                let now = start + MIN_SEND_SPACING * u32::try_from(index).unwrap();
+                oracle.push(now);
+                let burst = oracle
+                    .iter()
+                    .filter(|&&at| at > now - FUSE_BURST_WINDOW)
+                    .count();
+                let sustained = oracle
+                    .iter()
+                    .filter(|&&at| at > now - FUSE_SUSTAINED_WINDOW)
+                    .count();
+                // Independent arithmetic over the generated trace, not the
+                // counter under test: a 250 ms floor permits at most four
+                // trailing-half-open sends per second and 240 per minute.
+                prop_assert!(burst <= 4);
+                prop_assert!(sustained <= 240);
+                prop_assert!(!counters.dispatch(now));
+            }
+        }
     }
 }

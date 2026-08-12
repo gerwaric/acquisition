@@ -224,7 +224,11 @@ proptest! {
                     // its send stays exactly once, still locally attributed.
                     let token = live_tokens.remove(pick.index(live_tokens.len()));
                     let transition =
-                        engine.on_response(token, SimInstant::from_millis(now), &ok_response());
+                        engine.on_response(
+                            token,
+                            SimInstant::from_millis(now),
+                            &ok_response_with_limits(256, 10, 20),
+                        );
                     prop_assert_eq!(transition.disposition, Disposition::CompleteRequest);
                 }
                 _ => {
@@ -290,6 +294,10 @@ proptest! {
 // Valid headers for the test policy reporting zero hits, so reconciliation
 // synthesizes nothing on top of the locally recorded sends.
 fn policy_headers() -> HeaderMap {
+    policy_headers_with_limits(4, 1, 2)
+}
+
+fn policy_headers_with_limits(max_hits: u32, burst_secs: u64, sustained_secs: u64) -> HeaderMap {
     let mut headers = HeaderMap::new();
     headers.insert(
         "x-rate-limit-policy",
@@ -298,19 +306,26 @@ fn policy_headers() -> HeaderMap {
     headers.insert("x-rate-limit-rules", HeaderValue::from_static("Account"));
     headers.insert(
         "x-rate-limit-account",
-        HeaderValue::from_static("4:1:60, 4:2:300"),
+        HeaderValue::try_from(format!(
+            "{max_hits}:{burst_secs}:60, {max_hits}:{sustained_secs}:300"
+        ))
+        .unwrap(),
     );
     headers.insert(
         "x-rate-limit-account-state",
-        HeaderValue::from_static("0:1:0, 0:2:0"),
+        HeaderValue::try_from(format!("0:{burst_secs}:0, 0:{sustained_secs}:0")).unwrap(),
     );
     headers
 }
 
-fn ok_response() -> ObservedResponse {
+fn ok_response_with_limits(
+    max_hits: u32,
+    burst_secs: u64,
+    sustained_secs: u64,
+) -> ObservedResponse {
     ObservedResponse::new(
         StatusCode::OK,
-        policy_headers(),
+        policy_headers_with_limits(max_hits, burst_secs, sustained_secs),
         ReplyClassification::Normal,
     )
 }

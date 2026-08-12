@@ -336,11 +336,21 @@ pub struct Reconciliation {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+struct AppliedObservation {
+    state_changed: bool,
+    remapped: Option<(PolicyName, PolicyName)>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ObservationError {
     UnknownPolicy(PolicyName),
     PolicyMismatch {
         reserved: PolicyName,
         observed: PolicyName,
+    },
+    PolicyCollision {
+        observed: PolicyName,
+        existing: PolicyName,
     },
 }
 
@@ -415,6 +425,7 @@ pub enum Disposition {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Notification {
+    Remapped { from: PolicyName, to: PolicyName },
     StateChanged,
 }
 
@@ -438,11 +449,21 @@ impl Transition {
             },
         }
     }
+
+    fn remapped(mut self, from: PolicyName, to: PolicyName) -> Self {
+        self.notifications
+            .insert(0, Notification::Remapped { from, to });
+        self
+    }
 }
 
 #[derive(Debug)]
 pub struct PolicyEngine {
+    // Keys are stable policy anchors. The separately routed server-visible
+    // name may change after a response announces M5's reactive remap, while
+    // in-flight tokens must still remove/reconcile their exact entry.
     policies: HashMap<PolicyName, Policy>,
+    policy_routes: HashMap<PolicyName, PolicyName>,
     default_buckets: BucketModel,
     next_entry_id: u64,
     halted: bool,
@@ -454,6 +475,7 @@ impl PolicyEngine {
     pub fn new(default_buckets: BucketModel) -> Self {
         Self {
             policies: HashMap::new(),
+            policy_routes: HashMap::new(),
             default_buckets,
             next_entry_id: 0,
             halted: false,
@@ -465,12 +487,15 @@ impl PolicyEngine {
         if self.policies.contains_key(&name) {
             return Err(DuplicatePolicy(name));
         }
-        self.policies.insert(name, policy);
+        self.policies.insert(name.clone(), policy);
+        self.policy_routes.insert(name.clone(), name);
         Ok(())
     }
 
     pub fn policy(&self, name: &PolicyName) -> Option<&Policy> {
-        self.policies.get(name)
+        self.policy_routes
+            .get(name)
+            .and_then(|anchor| self.policies.get(anchor))
     }
 
     pub const fn is_halted(&self) -> bool {
@@ -482,8 +507,13 @@ impl PolicyEngine {
         if self.halted {
             return ReserveOutcome::Refused(RefusalReason::Halted);
         }
+        let Some(anchor) = self.policy_routes.get(policy_name).cloned() else {
+            return ReserveOutcome::Refused(RefusalReason::UnknownPolicy(policy_name.clone()));
+        };
         {
-            let Some(policy) = self.policies.get_mut(policy_name) else {
+            let Some(policy) = self.policies.get_mut(&anchor) else {
+                // Constructors and remapping maintain route integrity. This
+                // conservative refusal keeps a corrupted route from issuing.
                 return ReserveOutcome::Refused(RefusalReason::UnknownPolicy(policy_name.clone()));
             };
             retire_aged_entries(policy, now);
@@ -491,7 +521,7 @@ impl PolicyEngine {
         }
         let policy = self
             .policies
-            .get(policy_name)
+            .get(&anchor)
             .expect("policy existence checked above");
         if policy.escalation_suspended {
             return ReserveOutcome::Refused(RefusalReason::EscalationSuspended(
@@ -520,7 +550,7 @@ impl PolicyEngine {
         let entry_id = self.allocate_entry_id();
         let policy = self
             .policies
-            .get_mut(policy_name)
+            .get_mut(&anchor)
             .expect("policy existence checked above");
         policy.history.push(HistoryEntry {
             id: entry_id,
@@ -535,7 +565,7 @@ impl PolicyEngine {
                 .confirmation_entry = Some((entry_id, attempt));
         }
         ReserveOutcome::Reserved(ReservationToken {
-            policy: policy_name.clone(),
+            policy: anchor,
             entry_id,
             restriction_generation: policy.restriction_generation,
             confirmation_attempt,
@@ -632,23 +662,26 @@ impl PolicyEngine {
                 return Transition::new(disposition, confirmation);
             }
         };
-        if let Err(error) = self.validate_observation_target(&token.policy, &observation) {
-            self.fail_confirmation(&token, false);
-            let disposition = Disposition::Refuse {
-                target: RefusalTarget::Policy(token.policy.clone()),
-                cause: RefusalCause::ObservationTarget(error),
-            };
-            token.consume();
-            return Transition::new(disposition, confirmation);
-        }
+        let applied = match self.apply_ordinary_observation(&token.policy, &observation) {
+            Ok(applied) => applied,
+            Err(error) => {
+                self.fail_confirmation(&token, false);
+                let disposition = Disposition::Refuse {
+                    target: RefusalTarget::Policy(self.current_policy_name(&token.policy)),
+                    cause: RefusalCause::ObservationTarget(error),
+                };
+                token.consume();
+                return Transition::new(disposition, confirmation);
+            }
+        };
 
         let reconciliation = self
             .reconcile_observation(&token.policy, now, &observation)
-            .expect("the observation target was validated above");
+            .expect("the observation target was applied above");
         // StateChanged means exactly that: this call mutated engine state.
         // Synthesis, restrictions, and every episode transition set it; a
         // zero-deficit ordinary completion leaves it unset.
-        let mut state_changed = reconciliation.synthesized_entries > 0;
+        let mut state_changed = applied.state_changed || reconciliation.synthesized_entries > 0;
 
         let disposition = if response.status == StatusCode::TOO_MANY_REQUESTS {
             state_changed = true;
@@ -711,7 +744,11 @@ impl PolicyEngine {
             Disposition::CompleteRequest
         };
         token.consume();
-        Transition::new(disposition, state_changed)
+        let transition = Transition::new(disposition, state_changed);
+        match applied.remapped {
+            Some((from, to)) => transition.remapped(from, to),
+            None => transition,
+        }
     }
 
     /// Parses and resolves one non-counting probe response.
@@ -741,42 +778,54 @@ impl PolicyEngine {
         };
         let policy_name = PolicyName::from(observation.name.as_str());
         let default_buckets = self.default_buckets;
-        let seeded = match self.policies.entry(policy_name.clone()) {
-            Entry::Occupied(_) => false,
-            Entry::Vacant(slot) => {
-                let rules = observation
-                    .rules
-                    .iter()
-                    .map(|rule| Rule::new(rule.pair.clone(), default_buckets))
-                    .collect();
-                // `parse_policy` never returns an empty rules list: an empty
-                // rules header is `InvalidRuleName` (pinned by c2_headers::
-                // invalid_rule_names_are_typed), and the observation is parsed
-                // in this function, so no other construction path exists.
-                let policy = Policy::new(policy_name.clone(), rules)
-                    .expect("a valid policy observation contains at least one rule");
-                slot.insert(policy);
-                true
+        let (anchor, seeded) = match self.policy_routes.get(&policy_name).cloned() {
+            Some(anchor) => (anchor, false),
+            None => match self.policies.entry(policy_name.clone()) {
+                Entry::Occupied(_) => {
+                    // A previously remapped policy has retained this stable
+                    // anchor. Seeing the old name again restores the route;
+                    // it does not allocate a second history.
+                    self.policy_routes
+                        .insert(policy_name.clone(), policy_name.clone());
+                    (policy_name.clone(), false)
+                }
+                Entry::Vacant(slot) => {
+                    let rules = observation
+                        .rules
+                        .iter()
+                        .map(|rule| Rule::new(rule.pair.clone(), default_buckets))
+                        .collect();
+                    // `parse_policy` never returns an empty rules list: an empty
+                    // rules header is `InvalidRuleName` (pinned by c2_headers::
+                    // invalid_rule_names_are_typed), and the observation is parsed
+                    // in this function, so no other construction path exists.
+                    let policy = Policy::new(policy_name.clone(), rules)
+                        .expect("a valid policy observation contains at least one rule");
+                    slot.insert(policy);
+                    self.policy_routes
+                        .insert(policy_name.clone(), policy_name.clone());
+                    (policy_name.clone(), true)
+                }
+            },
+        };
+        let applied = match self.apply_ordinary_observation(&anchor, &observation) {
+            Ok(applied) => applied,
+            Err(error) => {
+                return Transition::new(
+                    Disposition::Refuse {
+                        target: RefusalTarget::Endpoint(endpoint.clone()),
+                        cause: RefusalCause::ObservationTarget(error),
+                    },
+                    seeded,
+                );
             }
         };
-        // Unreachable in this lane today — `policy_name` comes from the
-        // observation itself and seeding guarantees registration — but if a
-        // later slice makes it reachable, the refusal must still report the
-        // seeded mutation (review finding, bootstrap slice 2026-08-10).
-        if let Err(error) = self.validate_observation_target(&policy_name, &observation) {
-            return Transition::new(
-                Disposition::Refuse {
-                    target: RefusalTarget::Endpoint(endpoint.clone()),
-                    cause: RefusalCause::ObservationTarget(error),
-                },
-                seeded,
-            );
-        }
 
         let reconciliation = self
-            .reconcile_observation(&policy_name, now, &observation)
-            .expect("the observation target was validated above");
-        let mut state_changed = seeded || reconciliation.synthesized_entries > 0;
+            .reconcile_observation(&anchor, now, &observation)
+            .expect("the observation target was applied above");
+        let mut state_changed =
+            seeded || applied.state_changed || reconciliation.synthesized_entries > 0;
 
         // Valid-429 bookkeeping precedes the disposition choice, as in the
         // ordinary lane (follow-up review 2026-08-10): the server declared a
@@ -788,7 +837,7 @@ impl PolicyEngine {
         if let Some(retry_after) = &retry_after {
             state_changed = true;
             let duration = *retry_after.as_ref().unwrap_or(&RETRY_AFTER_CAP);
-            self.record_restriction(&policy_name, now, duration);
+            self.record_restriction(&anchor, now, duration);
         }
 
         // ProbeReady releases parked requests — a promise of future sends,
@@ -799,7 +848,7 @@ impl PolicyEngine {
                 target: RefusalTarget::Endpoint(endpoint.clone()),
                 cause: RefusalCause::Halted,
             }
-        } else if self.policy_is_suspended(&policy_name) {
+        } else if self.policy_is_suspended(&anchor) {
             Disposition::Refuse {
                 target: RefusalTarget::Endpoint(endpoint.clone()),
                 cause: RefusalCause::EscalationSuspended,
@@ -811,7 +860,7 @@ impl PolicyEngine {
         } else if let Some(retry_after) = retry_after {
             match retry_after {
                 Ok(_) => {
-                    self.open_probe_episode(&policy_name);
+                    self.open_probe_episode(&anchor);
                     Disposition::ProbeReady {
                         policy: policy_name.clone(),
                     }
@@ -857,22 +906,79 @@ impl PolicyEngine {
             .is_some_and(|policy| episode_owns_confirmation(policy, token))
     }
 
-    fn validate_observation_target(
-        &self,
-        policy_name: &PolicyName,
+    /// Updates the server-visible name and rule judgments for an existing
+    /// stable policy anchor. History is deliberately not rebuilt: M5/M6 say
+    /// hits are facts, while names and limits are current judgments.
+    fn apply_ordinary_observation(
+        &mut self,
+        anchor: &PolicyName,
         observation: &PolicySnapshot,
-    ) -> Result<(), ObservationError> {
+    ) -> Result<AppliedObservation, ObservationError> {
         let observed = PolicyName::from(observation.name.as_str());
-        if policy_name != &observed {
-            return Err(ObservationError::PolicyMismatch {
-                reserved: policy_name.clone(),
+        let Some(current) = self.policies.get(anchor).map(|policy| policy.name.clone()) else {
+            return Err(ObservationError::UnknownPolicy(anchor.clone()));
+        };
+        if let Some(existing_anchor) = self.policy_routes.get(&observed)
+            && existing_anchor != anchor
+        {
+            return Err(ObservationError::PolicyCollision {
                 observed,
+                existing: self.current_policy_name(existing_anchor),
             });
         }
-        if !self.policies.contains_key(policy_name) {
-            return Err(ObservationError::UnknownPolicy(policy_name.clone()));
+
+        let remapped = (current != observed).then(|| (current.clone(), observed.clone()));
+        if remapped.is_some() {
+            self.policy_routes.remove(&current);
+            self.policy_routes.insert(observed.clone(), anchor.clone());
         }
-        Ok(())
+
+        // A response changes the server's rule *pair*, not our established
+        // provenance for each bucket resolution. Preserve matching slots;
+        // only a newly introduced rule receives the explicit discovery
+        // default. This keeps M6's new limits authoritative without silently
+        // replacing Known timing knowledge with Assumed timing.
+        let prior_buckets = self
+            .policies
+            .get(anchor)
+            .expect("policy existence checked above")
+            .rules
+            .iter()
+            .map(|rule| rule.buckets)
+            .collect::<Vec<_>>();
+        let rules = observation
+            .rules
+            .iter()
+            .enumerate()
+            .map(|(index, rule)| {
+                Rule::new(
+                    rule.pair.clone(),
+                    prior_buckets
+                        .get(index)
+                        .copied()
+                        .unwrap_or(self.default_buckets),
+                )
+            })
+            .collect::<Vec<_>>();
+        let policy = self
+            .policies
+            .get_mut(anchor)
+            .expect("policy existence checked above");
+        let shape_changed = policy.rules != rules;
+        policy.name = observed;
+        policy.rules = rules;
+        Ok(AppliedObservation {
+            state_changed: remapped.is_some() || shape_changed,
+            remapped,
+        })
+    }
+
+    fn current_policy_name(&self, anchor: &PolicyName) -> PolicyName {
+        self.policies
+            .get(anchor)
+            .expect("a reservation token names a configured policy")
+            .name
+            .clone()
     }
 
     fn record_restriction(
@@ -998,9 +1104,11 @@ impl PolicyEngine {
         now: SimInstant,
         count: usize,
     ) -> Result<(), RefusalReason> {
-        if !self.policies.contains_key(policy_name) {
-            return Err(RefusalReason::UnknownPolicy(policy_name.clone()));
-        }
+        let anchor = self
+            .policy_routes
+            .get(policy_name)
+            .cloned()
+            .ok_or_else(|| RefusalReason::UnknownPolicy(policy_name.clone()))?;
         let entries = (0..count)
             .map(|_| HistoryEntry {
                 id: self.allocate_entry_id(),
@@ -1010,7 +1118,7 @@ impl PolicyEngine {
             .collect::<Vec<_>>();
         let policy = self
             .policies
-            .get_mut(policy_name)
+            .get_mut(&anchor)
             .expect("policy existence checked above");
         policy.history.entries.extend(entries);
         Ok(())

@@ -1,8 +1,8 @@
 # Tokio actor slice hand-off
 
-Status: implementation hand-off awaiting Tom's review per
-`slice-review.md` §2. This slice consumes the reviewed core and mock
-handoffs; it does not claim the final M-series verdicts.
+Status: review revision complete on 2026-08-12; awaiting re-review. This slice
+consumes the reviewed core and mock handoffs; it does not claim final M-series
+verdicts.
 
 ## 1. Silences taken
 
@@ -12,8 +12,10 @@ handoffs; it does not claim the final M-series verdicts.
 | The actor queue and number of dynamic endpoint records lack a bound. | Cap pending requests at 10,000 and endpoint records at D5's five labels. | Overflow gets a typed error before storage growth; the next valid submission can still enter when queue space exists. |
 | C4 says the 4xx tripwire has the fuse's “same shape” but gives no independent thresholds. | Use C3's reviewed burst/sustained thresholds (11/1 s and 500/60 s) for the 4xx counter as the least inventive literal reading. | Every 4xx is still counted; crossing either threshold halts, errors queued callers, and stops new dispatches. |
 | The core’s `Blocked` outcome has no timer, and a constructed zero-hit policy can be permanently blocked without a live request to resolve it. | Error one queued caller rather than sleeping or inventing a retry time; live confirmation blocks wait for their in-flight outcome. | A malformed constructed policy cannot wedge the actor; a normal confirmation block is reconsidered after its response/timeout changes core state. |
+| `WireResponse` exposes an already-materialized body and unrestricted `HeaderMap`; the docs set core parser limits but no actor ingress limit. | Before the actor clones headers or scans the Cloudflare signature, bound body (16 KiB), header count (32), header-name bytes (256), and value bytes (1,024). Overflow is an unknown ordinary outcome or D4 probe failure; production transport must apply the same read cap before constructing `WireResponse`. | The next ordinary reservation retains its counted entry; the next probe submission sees the endpoint cooldown. |
+| The docs do not say whether a renamed policy name can already name a distinct established policy. | Refuse the colliding ordinary observation without changing either policy route; never merge two histories by guesswork. | The caller and queued requests for the original policy receive scoped setup failure; the unrelated policy remains schedulable. |
 
-The timeout, C4 threshold, and actor queue-cap items are doc findings to
+The timeout, C4 threshold, actor queue-cap, and wire-ingress-bound items are doc findings to
 carry into `result-draft.md`; D4 itself supplies the 60 s cooldown.
 
 ## 2. Seam map and invariant walk
@@ -25,6 +27,14 @@ carry into `result-draft.md`; D4 itself supplies the 60 s cooldown.
   request order.
 - Mock-only B13 correlation injection is opt-in through a request extension;
   the actor issues distinct IDs for HEAD and GET hand-offs.
+- The scheduling turn drains already-received commands before making a permit
+  decision. A later unknown endpoint is therefore a writer even if an earlier
+  established GET is at the deque front; the first pending writer runs as soon
+  as current readers drain.
+- M5 keeps a stable internal policy anchor behind the server-visible route.
+  Remapping replaces only the route and rule judgments, so every in-flight
+  token still removes or reconciles its exact history entry. The actor applies
+  `Notification::Remapped` to every endpoint sharing that established policy.
 
 1. **No permanent wedge:** queued drops are pruned; a reservation that does
    not reach a transport task rolls back;
@@ -51,15 +61,19 @@ carry into `result-draft.md`; D4 itself supplies the 60 s cooldown.
 Covered: paused-time boot HEAD followed by spaced GET, unique B13 IDs,
 queued and dispatched cancellation (the latter still lands at the mock),
 degraded-HEAD D4 failure, Cloudflare-shaped terminal classification/watch
-publication, the fuse's exact burst boundary, and all pre-existing core/mock
-suites.
+publication, the fuse's exact burst/sustained boundaries and floor-compliant
+property, all C4 thresholds/edges, X1 burst/sustained actor-boundary fault
+injection, M5 remap and M6 shrink adoption, M8 retry and escalation, and M13
+forced-delay writer preference, HEAD exclusivity, FIFO, and in-flight cap
+behavior, plus all pre-existing core/mock suites.
+Header-count/value and body n/n+1 boundaries are unit-pinned before clone/scan.
 
-Not yet covered: full M1–M13 scenario-driver runs, M5/M6 policy
-remap/shrink adoption (the current core still returns its documented mismatch
-refusal), sustained fuse and C4 threshold boundaries, caller *drop* while
-dispatched (explicit cancellation is covered), 429 retry/confirmation integration, and full
-writer-preference/FIFO/in-flight-cap delay scripts. No property test is added
-in this slice, so there is no property reachability claim.
+Not yet covered: full M1–M13 scenario-driver runs; caller *drop* while
+dispatched (explicit cancellation is covered); and scenario driver/judge
+integration. The C3 floor property asserts on every
+generated trace and cannot pass vacuously: each generated dispatch is checked
+against independent timestamp-window arithmetic before it checks the counter
+under test.
 
 ## 4. Judgment calls
 
