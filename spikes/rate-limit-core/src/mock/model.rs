@@ -507,6 +507,15 @@ impl CounterModel {
     }
 }
 
+/// End of the `[start, end)` bucket containing `at_ms` — when a hit recorded
+/// at `at_ms` is treated as having aged, under CN5's adversarial reading.
+///
+/// Exposed so a scenario oracle can compute permit availability from the
+/// mock's observation log without duplicating this quantization (G3).
+pub fn bucket_end_ms(at_ms: u64, bucket_ms: NonZeroU64, phase_ms: u64) -> u64 {
+    bucket_end(at_ms, bucket_ms.get(), phase_ms)
+}
+
 /// Distance from t0 to the first `bucket_ms` boundary under `phase_ms`.
 ///
 /// `phase_ms` names the *upcoming* boundary; it is not an offset already

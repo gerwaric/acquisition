@@ -648,6 +648,15 @@ impl MockController {
         self.state.lock().await.model.preload(policy, at, count)
     }
 
+    /// The server's current definition of `policy`, for scenario oracles that
+    /// must compute permit availability independently (G3's "padded-safe
+    /// time ... plus permit availability"). Returned by clone so an oracle can
+    /// hold it without the mock's lock; it is server configuration, never
+    /// client state, and reflects any rename/replace already applied.
+    pub async fn definition(&self, policy: &str) -> Result<PolicyDefinition, ModelError> {
+        self.state.lock().await.model.definition(policy).cloned()
+    }
+
     pub async fn inject_phantoms(
         &self,
         policy: &str,

@@ -91,7 +91,7 @@ optional for phase-independent and structural checks.
 | M7 | Phantom same-account hits | phase-swept | G1, G2, G6 | partial — actor/judge driver covers a mock-owned phantom observation at φ=0/1; bursty threshold case remains pending | 2026-08-12: `cargo test --locked --test scenario_driver m1_m13_run_against_the_actor_and_the_judge` green. |
 | M8 | 429 recovery and escalation | phase-swept | G1, G2, G5, G6 | partial — actor/judge driver covers a valid 429 retry across OAuth Known and legacy Assumed profiles at φ=0/1; escalation/malformed/matrix rows remain pending | 2026-08-12: `cargo test --locked --test scenario_driver m1_m13_run_against_the_actor_and_the_judge` green; prior focused evidence retained below. |
 | M9 | Phantom race at saturation | phase-swept | G1, G2, G5, G6 + characterization | partial — actor/judge driver covers a phantom observation at φ=0/1; forced reservation-to-arrival race and headroom record remain pending | 2026-08-12: `cargo test --locked --test scenario_driver m1_m13_run_against_the_actor_and_the_judge` green. |
-| M10 | Agent-loop stress | phase-swept | G1, G2, G3, G6 | partial — actor/judge driver covers a 16-request pressure run, explicit cancellation, and caller drop while dispatched at φ=0/1; the hundreds-of-requests/many-minutes scale — and with it the fuse's false-positive-absence assert — remains pending (doc finding 11). Reprioritization is no longer required of this row: Tom amended M10's stimulus list 2026-08-12 | 2026-08-12: `cargo test --locked --test scenario_driver m1_m13_run_against_the_actor_and_the_judge` green. |
+| M10 | Agent-loop stress | phase-swept | G1, G2, G3, G6 | partial — actor/judge driver runs M10 at its stated scale: 300 enqueues, 30 spread cancellations, caller drop while dispatched, 66 simulated minutes at φ=0/1, with all five stated asserts checked (drain, cancel resolution, fuse quiet, in-flight ≤ 2, spacing floor). G3 now carries independent permit-availability arithmetic. Remaining: G3's epsilon cannot be finalized until the oracle models queueing time (doc finding 12b). Reprioritization is no longer required of this row: Tom amended M10's stimulus list 2026-08-12 | 2026-08-12: `cargo test --locked --test scenario_driver m1_m13_run_against_the_actor_and_the_judge` green. |
 | M11 | Layer-1 ceiling + Cloudflare terminal | independent | G2, G5 | partial — actor/judge driver covers injected Cloudflare terminal/halt; compliant-client ceiling sweep remains pending | 2026-08-12: `cargo test --locked --test scenario_driver m1_m13_run_against_the_actor_and_the_judge` green. |
 | M12 | 4xx-tripwire obligations | independent | G5 | partial — actor/judge driver covers injected 401 without a retry; generic-4xx and full tripwire threshold matrix remain pending | 2026-08-12: `cargo test --locked --test scenario_driver m1_m13_run_against_the_actor_and_the_judge` green. |
 | M13 | Gate structure on the wire | independent | G2 + gate-definition assertions | partial — actor/judge driver covers two unknown endpoints, forced HEAD delay, no HEAD overlap, and in-flight cap; FIFO/writer-preference cross-product remains pinned by focused actor tests and awaits its scenario assertion | 2026-08-12: `cargo test --locked --test scenario_driver m1_m13_run_against_the_actor_and_the_judge` green; prior focused evidence retained below. |
@@ -239,16 +239,26 @@ from the script and B13 observations; an allowance binds to the event ID,
 so an absent, duplicated, unrelated, post-arrival, unobservable, or
 too-late claim is a structural judge error rather than an exemption from
 G1.
-11. **M10's pressure run has not reached its stated scale.** The driver
-    runs 16 requests; `scenarios.md` M10 calls for hundreds sustained over
-    many simulated minutes. This is the row's real remaining gap and needs
-    no new API. Until it lands, M10's most distinctive assert — the fuse's
-    *false-positive absence under saturation* — is untested: C3's sustained
-    fuse is 500/60s and a compliant client at the 250ms floor emits ≤240
-    req/min (M11's arithmetic), so the ~2× headroom is only demonstrated by
-    running long enough to occupy it. Consequence: the next driver pass must
-    scale M10 in requests *and* simulated duration, or M10 stays partial no
-    matter how many other variants land. **Open — flagged for Tom.**
+11. **M10's pressure run has not reached its stated scale.** ~~The driver
+    runs 16 requests~~ *(resolved 2026-08-12, see below.)* `scenarios.md` M10
+    calls for hundreds sustained over many simulated minutes. This was the
+    row's real remaining gap. Until it landed, M10's most distinctive assert
+    — the fuse's *false-positive absence under saturation* — was untested:
+    C3's sustained fuse is 500/60s and a compliant client at the 250ms floor
+    emits ≤240 req/min (M11's arithmetic), so the ~2× headroom is only
+    demonstrated by running long enough to occupy it.
+
+    **Resolved 2026-08-12.** M10 now runs 300 enqueues with 30 cancellations
+    spread through the queue and one caller dropped while dispatched,
+    spanning **3,963,250 ms ≈ 66 simulated minutes** across many window
+    rollovers. All five of M10's stated asserts are checked directly from
+    mock-owned wire evidence and the actor's published status: 270/270
+    served, 30/30 cancelled callers resolved as `Cancelled`, fuse quiet,
+    in-flight ≤ 2, and the spacing floor never violated (absolute arithmetic
+    over the wire log, against D5's literal 250ms rather than the actor's
+    constant). The wire count is bounded two-sided rather than pinned —
+    a cancel issued under pressure may or may not beat its own dispatch, and
+    one did — with `served` pinned exactly so no wedge can hide in the band.
 
     *Superseded sub-finding (recorded 2026-08-12, resolved same day):* this
     entry originally read "M10 requires reprioritization, but the actor has
@@ -259,16 +269,43 @@ G1.
     note under M10 in `scenarios.md`), on the grounds that `design-brief.md`
     already scopes reorder out of the spike. See CN6 in §4 for the finding
     that came out of it.
-12. **`scenarios.md` §6 leaves G3's epsilon undefined against a
-    relative-versus-absolute eligibility anchor.** The driver's oracle
-    anchors each expected instant on the *previous observed* dispatch, so
-    the draft 500 ms epsilon bounds inter-dispatch *spacing*, not adherence
-    to an absolute schedule. Measured detection band: raising the actor's
-    250 ms floor to 600 ms leaves G3 green on every row (M2's G4 caught it);
-    1,000 ms trips G3. Consequence: the §6 finalization must state which
-    anchor it is finalizing, because epsilon=500 against a moving anchor is a
-    materially weaker gate than epsilon=500 against a script timeline, and
-    M10's only timing gate is G3. **Open — flagged for Tom.**
+12. **`scenarios.md` §6 cannot finalize G3's epsilon until the oracle
+    models when a request was queued.** Originally filed as a
+    relative-versus-absolute anchor problem; scaling M10 refined it twice.
+
+    *(a) Permit availability — resolved 2026-08-12.* The oracle assumed no
+    policy debt, which held at 16 requests and collapsed at 300: G3 read
+    every legitimate window wait as a violation (112,250 ms for the 30/60s
+    window, 1,497,250 ms for the 100/1800s). §6 names permit availability as
+    part of the padded-safe time and the mock's observation log as a
+    client-independent source, so the oracle now computes it from both,
+    mirroring the mock's own counting predicate — a hit stays active until
+    `bucket_end(at) + period`, so hit *k* may go once hit *k−H* has aged
+    out, and HEADs are excluded because the mock counts an arrival iff it is
+    not a HEAD and did not trip layer 1.
+
+    *(b) Queueing time — still open, and it blocks the epsilon decision.*
+    §6 says "whenever a request is **queued** and eligible," but the oracle
+    has no submission instants, so a request submitted long after it became
+    policy-eligible is scored as though the client sat on it. Measured at
+    25ms harness resolution: the eight rows whose submissions are
+    contemporaneous with eligibility show a max lateness of **25–50 ms**,
+    while M5/M6/M7/M9/M10 — all of which submit after an intervening
+    `advance` — show exactly **500 ms**. M5 is the clean example: its third
+    GET dispatched at 1,250 ms against an oracle expectation of 750 ms, but
+    was not submitted until ≈1,250 ms. The actor dispatched it the instant
+    it existed.
+
+    **Consequence: the observed 500 ms maxima are an oracle artifact, not
+    client sloppiness, so the current data cannot justify keeping epsilon at
+    500 ms — and equally cannot justify tightening it.** The eight clean
+    rows suggest the true bound is well under 50 ms. §6's revisit rule
+    ("tighten after the first implementation lands if the actor's scheduling
+    makes a smaller epsilon reliable under paused time") is unfollowable
+    until the oracle carries queueing instants. Note also that harness
+    granularity floors any measurement: `advance` steps 250 ms in the
+    committed driver, so at that setting no epsilon below 250 ms is
+    measurable at all. **Open — flagged for Tom.**
 
 All evidence below was re-run 2026-08-12, offline, with no socket and
 no live service contact:
@@ -1026,3 +1063,61 @@ outlives the spike branch; record what exists and where.⟩
   pain-saving action was recording *why* it is cheap, not building it — an
   inherited false warning was the actual risk. No code changed; gates re-run
   unchanged (127 debug, 125 release, clippy, fmt, diff check green).
+- 2026-08-12 — **M10 scaled; G3 gained permit-availability arithmetic;
+  epsilon still cannot be finalized.** Closing doc finding 11 and refining
+  finding 12, after Tom's call to prefer the smallest instrument that keeps
+  the row honest.
+  **Finding 11 resolved.** M10 now runs 300 enqueues against
+  `backend-item-request-limit` (Account 30/60s and 100/1800s) with 30
+  cancellations spread through the queue rather than taken off one end, plus
+  a caller dropped while dispatched. The policy, not the driver, sets the
+  duration: the run spans 3,963,250 ms ≈ 66 simulated minutes across many
+  window rollovers. All five of M10's stated asserts are read directly off
+  mock-owned wire evidence or the actor's published status — 270/270 served,
+  30/30 cancelled callers resolved as `Cancelled` (an assert the previous
+  driver omitted entirely), fuse quiet, in-flight ≤ 2, and the spacing floor
+  never violated, checked against D5's literal 250 ms rather than the
+  actor's own constant. The wire count is bounded two-sided instead of
+  pinned, because a cancel under pressure may or may not beat its dispatch
+  and one did; `served` is pinned exactly so a wedge cannot hide in the band.
+  **A planning error worth recording.** The first plan was to extend G4 to
+  M10. Reading §6 showed G4's text is M2-scoped and G3, not G4, names M10 a
+  binding stress row; M10's own asserts contain no duration bound at all. A
+  1.05× ratio over a coarse padded minimum would also have produced spurious
+  failures at this scale, since bucket quantization dominates the term. The
+  instrument M10 actually needed was none — its asserts are all directly
+  observable. That is the cheaper answer, and it was in the docs the whole
+  time.
+  **Finding 12(a) resolved.** Scaling did break G3, exactly as the row-level
+  arithmetic predicted: the oracle assumed no policy debt, so every
+  legitimate window wait read as a violation (112,250 ms on the 30/60s
+  window, 1,497,250 ms on the 100/1800s). §6 names permit availability as
+  part of the padded-safe time and the mock's observation log as a
+  client-independent source, so the oracle now derives it from both. It
+  mirrors the mock's counting predicate rather than the client's: a hit
+  stays active until `bucket_end(at) + period`, so hit *k* is permitted once
+  hit *k−H* has aged out. `MockController::definition` and
+  `mock::model::bucket_end_ms` were exposed so the oracle reads the server's
+  own windows and quantization instead of a hardcoded copy that could drift.
+  One off-by-one was found and fixed by reading the mock rather than
+  guessing: HEADs are not policy hits (`counted = method != HEAD &&
+  !layer1.tripped`), and counting them overstated debt by one, reporting the
+  boundary request as dispatched-before-eligible.
+  **Finding 12(b) opened, and it blocks the epsilon decision.** With the
+  debt term in place, measured lateness was *exactly* 500 ms — equal to
+  epsilon — which looked like a gate doing real work. It is not. Re-running
+  at 25 ms harness resolution splits the rows: the eight whose submissions
+  are contemporaneous with eligibility drop to 25–50 ms, while
+  M5/M6/M7/M9/M10 stay at exactly 500 ms. M5 shows why: its third GET
+  dispatched at 1,250 ms against an oracle expectation of 750 ms, having
+  been submitted at ≈1,250 ms. The actor dispatched it immediately; the
+  oracle simply does not know when a request was queued, though §6's wording
+  ("whenever a request is *queued* and eligible") makes queueing part of the
+  definition. So the 500 ms maxima are an artifact of the instrument, the
+  current data justifies neither keeping nor tightening epsilon, and the
+  clean rows suggest the true bound is well under 50 ms. Recorded rather
+  than fixed, because closing it means giving the oracle submission instants
+  and that is a scope decision for Tom.
+  Gate matrix: 127 debug, 125 release, all-target clippy with warnings
+  denied, fmt, and `git diff --check` green. Slice remains **open pending
+  re-review**; no verdict slot filled.

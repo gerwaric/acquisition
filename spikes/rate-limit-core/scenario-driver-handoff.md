@@ -1,11 +1,11 @@
 # Scenario-driver and judge-integration hand-off
 
-Status: **round-one findings F1–F6 and round-two finding F7 fixed
-2026-08-12; awaiting re-review.** The actor-to-judge seam is implemented and
+Status: **round-one findings F1–F6, round-two finding F7, and doc
+findings 11 and 12(a) all fixed 2026-08-12; awaiting re-review.** The actor-to-judge seam is implemented and
 exercised; this is not a final M-series close because every row is a
-`ContractCoverage::Fragment`, and M10 in particular has not reached its
-stated hundreds-of-requests/many-minutes scale (doc finding 11 in
-`result-draft.md`). Both review rounds and their fixes are recorded in the
+`ContractCoverage::Fragment`. M10 now runs at its stated scale (300
+enqueues, 66 simulated minutes), but doc finding 12(b) is open and blocks
+G3's epsilon finalization. Both review rounds and their fixes are recorded in the
 `result-draft.md` §9 entries dated 2026-08-12.
 
 M10's reprioritization stimulus was **removed by Tom on 2026-08-12** — it is
@@ -29,7 +29,8 @@ pins the distances, so the next misreading fails a test.
 | `scenarios.md` does not define what makes two phases adversarially separated. | Separation is measured in distance from t₀ to the first bucket edge, in *both* N23 bucket sizes, not in the numeric distance between phase values. | The next sweep that adds a phase must pass `swept_phases_are_separated_by_a_full_bucket`, which states the rule over whatever `SWEPT_PHASES_MS` holds rather than over fixed literals. |
 | `scenarios.md` does not say whether a partial run may report its scenario's assertion. | It may not. Evidence declares `ContractCoverage::Fragment`, and `RunReport::verdict_eligible()` requires a pass *and* full coverage. | The next run that wants to fill a verdict slot must first raise that row to `FullContract`; a green fragment cannot be mistaken for a scenario result. |
 | G3/G4 label 500ms and 1.05× as draft and require a §6 finalization before verdicts. | Exercise the judge at those draft numbers, but leave both verdict slots untouched. | The next evidence run can report draft-gate behavior only; it cannot promote either lane to a verdict. |
-| §6 does not say whether G3's ε applies to an absolute schedule or to inter-dispatch spacing. | Keep the relative anchor and record the consequence rather than invent an absolute timeline (doc finding 12). | The next §6 finalization must name the anchor: measured band is that a 250→600ms floor regression stays green and 1,000ms trips G3. |
+| §6 names permit availability as part of G3's padded-safe time but does not give the arithmetic. | Mirror the *server's* counting predicate from the mock's observation log and its own window definitions — never the client's — so a hit stays active until `bucket_end(at) + period` and HEADs are excluded, matching `counted`. | The next scenario that saturates a policy gets correct eligibility for free; one that injects residue or phantoms must not use it, because those hits are invisible to the log. |
+| §6 says "whenever a request is *queued* and eligible" but the harness has no submission instants. | Score against eligibility alone and record the resulting overstatement, rather than invent submission times or widen ε to hide it (doc finding 12b). | The next §6 finalization is blocked: measured maxima of exactly 500ms on five rows are this artifact, not client behavior, so ε can be neither kept nor tightened on today's data. |
 | M10 called for reprioritization but the closed actor only has enqueue/cancel. | Do not fabricate a reorder operation; test pressure, cancellation, and dispatched caller drop only. | **Resolved 2026-08-12:** Tom amended M10 to drop the stimulus (`design-brief.md` scopes reorder out of the spike). No assertion was lost — reprioritization was never in M10's asserts. The next M10 attempt owes scale, not reorder; see CN6 before ever adding one. |
 
 ## 2. Seam map and invariant walk
@@ -38,10 +39,11 @@ pins the distances, so the next misreading fails a test.
   handoffs, observations, and state changes feed `RunEvidence`.
 - **No permanent wedge:** the M10 caller-drop path leaves the actor's active
   reservation to finish normally; the later pressure queue continues to
-  drain. This is now *tested*, not asserted: M10 pins 14 surviving callers
-  served and exactly 16 wire observations, so a drop that wedged the queue
-  fails the row. (Round one found this claim resting on
-  `observations.len() >= 2` with every caller outcome discarded.)
+  drain. This is now *tested*, not asserted, and at scale: M10 pins 270/270
+  surviving callers served and 30/30 cancelled callers resolved across a
+  66-minute run, so a drop that wedged the queue fails the row. (Round one
+  found this claim resting on `observations.len() >= 2` with every caller
+  outcome discarded.)
 - **One send, one entry:** every ordinary send still originates from the
   actor's existing `try_reserve` path; the driver never constructs a token.
 - **Pessimism direction:** post-dispatch caller drop detaches only the
@@ -66,8 +68,7 @@ no report is `verdict_eligible()`. It deliberately does **not** claim the
 still-missing scenario variants listed in the M rows of `result-draft.md`:
 M1 probe-429, M2 saturation stall, M4 three-triplet, M5/M6 forced in-flight
 transition exposure, M7 bursty debt, M8 escalation/malformed matrix, M9
-forced race/headroom record, M10's hundreds-of-requests/many-minutes scale
-(and with it the fuse false-positive-absence assert), M11
+forced race/headroom record, M11
 ceiling sweep, M12 generic 4xx/matrix, and M13's full FIFO/writer-preference
 assertion.
 
@@ -84,9 +85,19 @@ Gate teeth, measured rather than assumed:
 - **G5** now reflects each fragment's computed result — verified by forcing
   M12 false and observing `G5 failed: ["M12Tripwire"]`. It was a hard-coded
   `true` in `92db9f0b`.
-- **G3 is the weakest**: its oracle re-anchors on the previous *observed*
-  dispatch, so it bounds spacing, not schedule. Measured: a 250→600ms floor
-  regression leaves it green; 1,000ms trips it. Doc finding 12.
+- **G3** now carries independent permit-availability arithmetic derived from
+  the mock's observation log and the server's own window definitions, which
+  is load-bearing at M10's scale: without it, legitimate window waits read
+  as 112s and 1,497s violations. It still has two known limits — the
+  spacing-floor term re-anchors on the previous observed dispatch (a
+  250→600ms floor regression stays green; 1,000ms trips it), and the oracle
+  has no submission instants, so requests queued after they became eligible
+  are scored as though the client sat on them. Doc finding 12.
+- **Do not read the 500ms lateness maxima as client sloppiness.** They are
+  the queueing-time gap above. At 25ms harness resolution the eight rows
+  with contemporaneous submissions measure 25–50ms; only the five rows that
+  submit after an intervening `advance` sit at 500ms. Anyone finalizing
+  epsilon must close finding 12(b) first.
 - `independently_observable_ms` is **not exercised** — `unavoidable_exposure`
   is always `None` here, so the M9 exposure-attribution seam is untested by
   this target.

@@ -16,7 +16,7 @@ use rate_limit_core::conformance::{
 };
 use rate_limit_core::core::{BucketModel, EndpointLabel, PolicyEngine, Resolution};
 use rate_limit_core::mock::model::{
-    PolicyDefinition, RuleDefinition, WindowDefinition, first_bucket_boundary_ms,
+    PolicyDefinition, RuleDefinition, WindowDefinition, bucket_end_ms, first_bucket_boundary_ms,
 };
 use rate_limit_core::mock::{
     CORRELATION_HEADER, Endpoint, ExchangeScript, MockConfig, MockController, MockService,
@@ -174,7 +174,7 @@ async fn run_m1_m13(phase_ms: u64) {
         // `(offset + index * 997) % 60_000`) collapsed the two sweeps to 1 ms
         // apart for every row but M1, because 59_999 == -1 (mod 60_000).
         let mut config = MockConfig::n23(100 + index as u64, phase_ms);
-        config.dispatch_budget = 128;
+        config.dispatch_budget = 1_024;
         let (mock, controller) = MockService::new(config).unwrap();
         let gate = spawn(engine(profile), mock);
 
@@ -441,7 +441,7 @@ async fn run_m1_m13(phase_ms: u64) {
                 );
                 advance(1_000).await;
                 drop(tickets.pop().unwrap());
-                for _ in 0..15 {
+                for _ in 0..M10_PRESSURE_REQUESTS {
                     tickets.push(
                         gate.submit(
                             EndpointLabel::from(endpoint.label()),
@@ -451,18 +451,75 @@ async fn run_m1_m13(phase_ms: u64) {
                         .unwrap(),
                     );
                 }
-                tickets.pop().unwrap().cancel().await.unwrap();
-                advance(80_000).await;
-                // Every surviving caller must be served, and the wire count is
-                // pinned exactly: the boot HEAD, the dropped caller's request
-                // (which stays dispatched), and the fourteen that remain --
-                // the cancelled one never reaches the wire.  A `>= 2` bound
-                // here would pass even if the caller drop wedged the queue.
+                // Cancellations are spread through the queue, not taken off
+                // one end: a cancel that only ever hits the tail never tests
+                // removal from the middle of the deque.
+                let mut cancelled_tickets = Vec::new();
+                let mut remaining = Vec::new();
+                for (index, ticket) in tickets.into_iter().enumerate() {
+                    if index % M10_CANCEL_EVERY == 0 {
+                        ticket.cancel().await.unwrap();
+                        cancelled_tickets.push(ticket);
+                    } else {
+                        remaining.push(ticket);
+                    }
+                }
+                let cancelled = cancelled_tickets.len();
+                advance(M10_RUN_MS).await;
+
                 let mut served = 0usize;
-                for ticket in tickets {
+                for ticket in remaining {
                     served += usize::from(ticket.await.is_ok());
                 }
-                served == 14 && controller.observations().await.len() == 16
+                // M10's "cancelled callers get prompt resolution": `cancel` is
+                // fire-and-forget and borrows the ticket, so every cancelled
+                // caller is still awaited here.  A cancel that raced a dispatch
+                // resolves the caller as Cancelled while the wire request is
+                // left to finish -- the contract forbids aborting in-flight
+                // work -- so the caller-visible outcome is Cancelled either way.
+                let mut resolved = 0usize;
+                for ticket in cancelled_tickets {
+                    resolved += usize::from(matches!(ticket.await, Err(GateError::Cancelled)));
+                }
+                let observations = controller.observations().await;
+                let expected_served = M10_PRESSURE_REQUESTS - cancelled;
+
+                // M10's stated asserts, each read off mock-owned wire evidence
+                // or the actor's published status.
+                //
+                // The wire count is bounded on both sides rather than pinned to
+                // a literal: a cancel issued under pressure may or may not beat
+                // its own dispatch, so between zero and `cancelled` of them
+                // legitimately reach the server.  Nothing else may.  With
+                // `served` pinned exactly, a wedge cannot hide inside the band.
+                let floor = expected_served + 2;
+                let drained = served == expected_served
+                    && resolved == cancelled
+                    && (floor..=floor + cancelled).contains(&observations.len());
+                let fuse_quiet = !gate.subscribe_status().borrow().halted;
+                let capped = observations
+                    .iter()
+                    .all(|o| o.in_flight_at_arrival <= 2 && !o.head_overlap);
+                // "Spacing floor never violated" is absolute arithmetic over
+                // the wire log: consecutive dispatches, HEADs included (N2's
+                // incident was a HEAD flood), never closer than the floor.
+                let mut dispatches = observations
+                    .iter()
+                    .map(|o| o.dispatch_ms)
+                    .collect::<Vec<_>>();
+                dispatches.sort_unstable();
+                let paced = dispatches
+                    .windows(2)
+                    .all(|pair| pair[1].saturating_sub(pair[0]) >= MIN_SEND_SPACING_MS);
+                // Sustained saturation is the point of the row: assert the run
+                // actually spanned many minutes and many window rollovers,
+                // otherwise "fuse did not trip" is a claim about a short run.
+                let sustained = dispatches
+                    .last()
+                    .zip(dispatches.first())
+                    .is_some_and(|(last, first)| last - first >= M10_MIN_SPAN_MS);
+
+                drained && fuse_quiet && capped && paced && sustained
             }
             ScenarioId::M11 => {
                 controller
@@ -557,7 +614,20 @@ async fn run_m1_m13(phase_ms: u64) {
         };
 
         let evidence = evidence(&controller, id, profile, assertion_passed).await;
-        let mut oracle = independently_scripted_oracle(id, &evidence.observations);
+        // Only M10 runs long enough to accrue policy debt, and only M10 has no
+        // residue/phantom hits to hide from this arithmetic.  See `PolicyDebt`.
+        let debt = match id {
+            ScenarioId::M10 => Some(
+                PolicyDebt::for_policy(
+                    &controller,
+                    &evidence.observations.first().expect("wire run").policy,
+                    phase_ms,
+                )
+                .await,
+            ),
+            _ => None,
+        };
+        let mut oracle = independently_scripted_oracle(id, &evidence.observations, debt.as_ref());
         if id == ScenarioId::M2 {
             // One boot HEAD at t=0, ten GETs at the 250ms D5 floor, and the
             // mock's fixed 50ms completion latency.  This is plain integer
@@ -617,7 +687,7 @@ async fn run_m8_oauth_lane(phase_ms: u64) {
     let evidence = evidence(&controller, ScenarioId::M8, profile, retried).await;
     let report = judge(
         &evidence,
-        &independently_scripted_oracle(ScenarioId::M8, &evidence.observations),
+        &independently_scripted_oracle(ScenarioId::M8, &evidence.observations, None),
     )
     .unwrap();
     assert!(report.passed(), "OAuth M8: {report:?}");
@@ -635,6 +705,26 @@ const SWEPT_PHASES_MS: [u64; 2] = [0, 1];
 
 const BURST_BUCKET_MS: u64 = 5_000;
 const SUSTAINED_BUCKET_MS: u64 = 60_000;
+
+/// D5's dispatch floor, restated here as a literal.  The driver must not
+/// import the actor's constant: "spacing floor never violated" is checked
+/// against the contract's number, not against whatever the actor believes.
+const MIN_SEND_SPACING_MS: u64 = 250;
+
+/// M10's scale, per `scenarios.md`: "hundreds of enqueues, cancellations,
+/// sustained for many simulated minutes."  The endpoint routes to
+/// `backend-item-request-limit` (Account 30/60s and 100/1800s), so a few
+/// hundred requests is inherently a multi-window, multi-minute run — the
+/// policy, not the driver, sets the duration.
+const M10_PRESSURE_REQUESTS: usize = 300;
+const M10_CANCEL_EVERY: usize = 10;
+/// Generous simulated ceiling; the row asserts the run actually drained
+/// rather than that it fit in this budget.
+const M10_RUN_MS: u64 = 4 * 60 * 60 * 1_000;
+/// Floor on the run's observed span, so "the fuse did not trip" is a claim
+/// about sustained saturation across many 60s windows rather than a claim
+/// about a short burst that never had the chance.
+const M10_MIN_SPAN_MS: u64 = 30 * 60 * 1_000;
 
 #[test]
 fn swept_phases_are_separated_by_a_full_bucket() {
@@ -679,11 +769,74 @@ async fn m1_m13_run_against_the_actor_and_the_judge() {
     }
 }
 
+/// Independent permit-availability arithmetic: when the *server* would next
+/// accept a hit, from the mock's observation log and the server's own policy
+/// definition. G3 names both as client-independent sources, and permit
+/// availability as part of the padded-safe time it measures against.
+///
+/// The rule mirrors the mock's counting predicate rather than the client's:
+/// a hit at `at` stays active until `bucket_end(at) + period`, so with `H`
+/// hits permitted per window, hit `k` may go once hit `k - H` has aged out.
+///
+/// Valid only where every server-side hit is an observed client request.
+/// Residue preloads and phantom injections add hits this cannot see, so
+/// M1/M7/M9 must not use it — they would get an understated debt and a
+/// spuriously early expectation.
+struct PolicyDebt {
+    /// `(max_hits, period_ms, bucket_ms)` for every window of every rule.
+    windows: Vec<(usize, u64, NonZeroU64)>,
+    phase_ms: u64,
+}
+
+impl PolicyDebt {
+    async fn for_policy(controller: &MockController, policy: &str, phase_ms: u64) -> Self {
+        let definition = controller
+            .definition(policy)
+            .await
+            .expect("the scenario's policy is server-configured");
+        let windows = definition
+            .rules()
+            .iter()
+            .flat_map(|rule| rule.windows())
+            .map(|window| {
+                (
+                    usize::try_from(window.max_hits()).expect("u32 fits usize"),
+                    window.period_ms(),
+                    NonZeroU64::new(window.bucket_ms()).expect("a window's bucket is non-zero"),
+                )
+            })
+            .collect();
+        Self { windows, phase_ms }
+    }
+
+    /// `prior_arrival_ms` holds every earlier hit's server-recorded instant,
+    /// oldest first.
+    fn eligible_ms(&self, prior_arrival_ms: &[u64]) -> u64 {
+        self.windows
+            .iter()
+            .map(|&(max_hits, period_ms, bucket_ms)| {
+                let Some(expiring) = prior_arrival_ms
+                    .len()
+                    .checked_sub(max_hits)
+                    .map(|index| prior_arrival_ms[index])
+                else {
+                    // Fewer hits than the window permits: no debt yet.
+                    return 0;
+                };
+                bucket_end_ms(expiring, bucket_ms, self.phase_ms).saturating_add(period_ms)
+            })
+            .max()
+            .unwrap_or(0)
+    }
+}
+
 fn independently_scripted_oracle(
     scenario_id: ScenarioId,
     observations: &[rate_limit_core::mock::Observation],
+    debt: Option<&PolicyDebt>,
 ) -> DriverOracle {
     let mut oracle = DriverOracle::default();
+    let mut prior_arrival_ms = Vec::new();
     let mut prior_dispatch = 0_u64;
     let mut prior_completion = 0_u64;
     let mut prior_was_head = false;
@@ -704,18 +857,27 @@ fn independently_scripted_oracle(
                 // 60s bucket plus its one-second buffer (N19).
                 prior_dispatch.saturating_add(61_000)
             } else {
-                // The default scripts have no policy debt after the preceding
-                // observation, so D5's 250ms floor is the only eligibility
-                // constraint.  This sees a late actor turn as G3 failure.
-                let floor_open = prior_dispatch.saturating_add(250);
+                // D5's 250ms floor, plus the server's permit availability when
+                // the scenario runs long enough to accrue policy debt.  Without
+                // the debt term a saturating row reads every legitimate window
+                // wait as a G3 violation.
+                let floor_open = prior_dispatch.saturating_add(MIN_SEND_SPACING_MS);
                 let exclusive_until = if prior_was_head { prior_completion } else { 0 };
-                exclusive_until.max(floor_open)
+                let permitted = debt.map_or(0, |debt| debt.eligible_ms(&prior_arrival_ms));
+                exclusive_until.max(floor_open).max(permitted)
             }
         };
         oracle.eligible.insert(observation.correlation_id, eligible);
         prior_dispatch = observation.dispatch_ms;
         prior_completion = observation.completion_ms;
         prior_was_head = observation.method == Method::HEAD;
+        // Mirror the server's own counting rule, not the wire log: the mock
+        // counts an arrival iff it is not a HEAD and did not trip layer 1.
+        // Counting HEAD probes here overstates debt by one hit and reports
+        // the boundary request as dispatched-before-eligible.
+        if observation.method != Method::HEAD && !observation.layer1.tripped {
+            prior_arrival_ms.push(observation.arrival_ms);
+        }
     }
     oracle
 }
