@@ -456,6 +456,31 @@ async fn b12_b13_explicit_delay_makes_overlap_and_correlation_observable() {
 }
 
 #[tokio::test(start_paused = true)]
+async fn b13_records_mock_owned_transport_handoff_before_arrival_delay() {
+    let (service, controller) =
+        rate_limit_core::mock::MockService::new(MockConfig::n23(0xb13, 0)).unwrap();
+    controller
+        .script(
+            1,
+            ExchangeScript {
+                arrival_delay: Duration::from_secs(1),
+                response_delay: Duration::ZERO,
+                response: None,
+            },
+        )
+        .await
+        .unwrap();
+
+    service
+        .send(request(Method::GET, Endpoint::Stash, 1).unwrap())
+        .await
+        .unwrap();
+    let observation = controller.observations().await.remove(0);
+    assert_eq!(observation.dispatch_ms, 0);
+    assert_eq!(observation.arrival_ms, 1_000);
+}
+
+#[tokio::test(start_paused = true)]
 async fn dropped_mock_transport_future_is_logged_and_ages_out_of_in_flight_state() {
     let (service, controller) =
         rate_limit_core::mock::MockService::new(MockConfig::n23(17, 0)).unwrap();

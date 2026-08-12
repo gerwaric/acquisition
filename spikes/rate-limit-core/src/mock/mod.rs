@@ -266,6 +266,9 @@ pub struct Observation {
     pub seed: u64,
     pub phase_ms: u64,
     pub correlation_id: u64,
+    /// Mock-owned transport hand-off instant, recorded before any scripted
+    /// server arrival delay. Gates use this instead of actor-reported timing.
+    pub dispatch_ms: u64,
     pub arrival_ms: u64,
     pub completion_ms: u64,
     pub method: Method,
@@ -361,6 +364,7 @@ impl MockService {
             ));
         }
 
+        let dispatch = self.now();
         let script = {
             let mut state = self.state.lock().await;
             state.scripts.remove(&correlation_id).unwrap_or_default()
@@ -466,6 +470,7 @@ impl MockService {
                 seed,
                 phase_ms,
                 correlation_id,
+                dispatch_ms: dispatch.as_millis(),
                 arrival_ms: arrival.as_millis(),
                 completion_ms,
                 method,
@@ -580,18 +585,6 @@ impl MockController {
                 *policy = new_policy.clone();
             }
         }
-        Ok(())
-    }
-
-    pub async fn route(
-        &self,
-        endpoint: Endpoint,
-        policy: impl Into<String>,
-    ) -> Result<(), ModelError> {
-        let policy = policy.into();
-        let mut state = self.state.lock().await;
-        state.model.definition(&policy)?;
-        state.routes.insert(endpoint, policy);
         Ok(())
     }
 
