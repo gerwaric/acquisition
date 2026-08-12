@@ -80,6 +80,15 @@ that shape of failure cannot recur. They bind every session.
   re-checking a shape an existing entry point already guards, the
   invariant belongs in a constructor (make the state
   unrepresentable), not copied to the new path.
+- **Closing a review round is three acts, not one:** fix the
+  findings, flip the hand-off status line, and write the register
+  entry — `slice-review.md` §5. Fixed findings under a status line
+  still reading "awaiting review" is the failure mode this rule
+  exists to stop; it has happened.
+- **The repo is the only shared channel.** Sessions differ — some
+  agents keep private memory, external reviewers keep none, and
+  neither can read the other's. Any status, decision, or process
+  rule that must outlive your session belongs in a file here.
 
 ### Cross-slice invariants — re-verify against every new slice
 

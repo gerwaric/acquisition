@@ -100,3 +100,33 @@ A slice closes when: findings are fixed or explicitly accepted,
 anything accepted-not-fixed is in the `result-draft.md` register
 with Tom's name on the decision, and the changelog entry cites the
 review. Decision provenance in commit bodies, as ever.
+
+**The commit that closes a round does all three of these, or the
+round is not closed.** Fixing the findings is only the first.
+
+1. Flip the slice hand-off's status line to name the round that just
+   closed. A hand-off that still says "awaiting review" after its
+   review is a trap for the next session, which has no other way to
+   know.
+2. Add or update the dated `result-draft.md` changelog entry: the
+   round's findings and where each was fixed, anything
+   accepted-not-fixed, the re-run gate matrix, and what the slice
+   leaves open.
+3. Mark superseded any *earlier* doc a reader could mistake for
+   current — especially the coverage confessions in previous
+   hand-offs, which go stale the moment a later slice builds what
+   they call unbuilt. Preserve the dated text and add a marker
+   beside it; do not rewrite the record.
+
+This is not hypothetical. On 2026-08-12 the actor slice's re-review
+findings were fixed in `02b60f47`, but the hand-off status line and
+the register entry were not touched; separately, `core-handoff.md`
+still listed C3/C4/X1/X2 as unbuilt long after they shipped, and a
+session read that stale paragraph as the plan for what to build
+next. Both were repaired in `693f0fc7` and `463ec155`.
+
+Note for sessions and reviewers that keep private notes or memory:
+this repository is the only channel every participant shares. A
+process rule, a decision, or a status that lives only in one agent's
+memory is invisible to the others — including external-model
+reviewers. If it must survive the session, it goes in a file.
