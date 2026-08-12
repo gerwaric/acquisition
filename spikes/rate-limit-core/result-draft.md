@@ -128,12 +128,13 @@ for.
 | G5 | Every scenario's own assertions (stimulus and structural alike) | ⟨…⟩ | ⟨…⟩ |
 | G6 | Reproduction record for every failure ((seed, φ) mandatory where swept/generated) | ⟨…⟩ | ⟨…⟩ |
 
-### Mock + M-series harness slice (2026-08-10 — awaiting Tom review)
+### Mock + M-series harness slice (2026-08-10 — revised after 2026-08-12 review)
 
 Baseline: reviewed bootstrap head `b3a0e7d5` (the user's named
 `17363429` baseline plus its review-status reconciliation commit).
 Implementation commits: `4353fb03`, `05ee15d1`, `12a799f8`,
-`4c69f05e`.
+`4c69f05e`; review corrections: `f013acd3`, `6428f46c`,
+`1a6124ed`, `606df936`, `03e3cf91`, `a74f9d5d`.
 
 This slice implements the §7 reusable test side of the transport
 trait, not the Tokio actor: independent server-phase counter
@@ -148,6 +149,16 @@ shipped provenance-typed `Assumed(60s/60s)` client configuration.
 The §4 sanitizer is a bounded allowlist over the real NetworkCapture
 JSONL schema and emits only canonical D5 labels, rebased timing, allowed
 headers/status/error fields, and the required provenance block.
+
+Review hardening (2026-08-12): B13 now records the mock-owned transport
+hand-off instant before any scripted arrival delay. The judge takes G3
+eligibility, authorized exclusions, and M2's padded minimum only from a
+scenario-owned oracle over B13 observations; it no longer accepts
+actor-reported dispatch or duration values. Each M-row has a typed,
+required scenario assertion, and G1 exposure allowances reject overflow,
+duplicate/detached correlations, and reservations claimed after mock
+transport hand-off. The unused arbitrary route mutator was removed, so a
+policy rename must carry server facts through the dedicated mutation path.
 
 No M row is marked green from infrastructure evidence alone. The
 frozen build order puts the actor last, so there is not yet a client
@@ -188,7 +199,7 @@ Doc findings and conservative dispositions exposed by implementation:
 6. **B14 specifies zero skew, not a calendar epoch.** The mock maps
    simulated t₀ to Unix epoch and advances at second-precision HTTP-date
    granularity. The next reply's Date is therefore deterministic and
-   consistent with its B13 arrival timestamp without importing wall
+   consistent with its scripted completion instant without importing wall
    time.
 7. **The actor contract forbids aborting in-flight work, but mock-future
    drop behavior is unstated.** A received arrival is logged before its
@@ -207,11 +218,11 @@ Doc findings and conservative dispositions exposed by implementation:
    The next record therefore preserves signed relative timing; a first
    HEAD, which has only received, begins at `received_ms = 0`.
 
-All evidence below was produced 2026-08-10, offline, with no socket and
+All evidence below was re-run 2026-08-12, offline, with no socket and
 no live service contact:
 
-- `cargo test --locked` — green, 99 tests.
-- `cargo test --locked --release` — green, 97 tests (the two core drop-
+- `cargo test --locked` — green, 101 tests.
+- `cargo test --locked --release` — green, 99 tests (the two core drop-
   bomb tests remain debug-only).
 - `PROPTEST_CASES=4096 cargo test --locked` — green; all ten properties
   ran 4,096 cases, including the new independent mock-phase oracle.
@@ -224,10 +235,12 @@ Property reachability: the new B3 property asserts bucket assignment,
 one millisecond before expiry, and exact expiry on every generated case;
 its expected value is independent integer arithmetic in the test and
 never calls mock or production scheduling helpers. The conformance
-judge rejects empty observations, dispatch samples, or scenario
-assertions; requires a run-wide unique dispatch/observation identity;
-and cross-checks `(seed, φ)` against every swept observation, so its
-gate checks cannot pass on empty or detached evidence.
+judge rejects empty observations or scenario assertions; obtains
+transport hand-off timing from the mock rather than actor reports;
+requires the typed assertion for the selected M-row; and cross-checks
+`(seed, φ)` against every swept observation. Exposure records are
+validated against that same B13 log, so gate checks cannot pass on empty,
+detached, or self-exempted evidence.
 
 Earlier implementation finding (2026-08-09, response-reconciliation slice):
 the frozen `core-design.md` sketches full response entry points over

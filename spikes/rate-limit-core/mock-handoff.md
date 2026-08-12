@@ -1,10 +1,12 @@
 # Mock + M-series harness slice hand-off
 
-Status: awaiting Tom review per `slice-review.md` §2. Implemented
-2026-08-10 from reviewed bootstrap head `b3a0e7d5` (the named
+Status: revised after the 2026-08-12 review findings; awaiting Tom
+re-review per `slice-review.md` §2. Implemented 2026-08-10 from
+reviewed bootstrap head `b3a0e7d5` (the named
 `17363429` baseline plus its review-status reconciliation commit).
 Implementation commits: `4353fb03`, `05ee15d1`, `12a799f8`,
-`4c69f05e`.
+`4c69f05e`; review corrections: `f013acd3`, `6428f46c`,
+`1a6124ed`, `606df936`, `03e3cf91`, `a74f9d5d`.
 No actor or live-service work is included.
 
 ## 1. Silences taken, with next-call consequences
@@ -16,7 +18,7 @@ No actor or live-service work is included.
 | Restriction identity across arbitrary policy rule reorder/reshape is unspecified | retain hits as facts and copy the latest old active restriction deadline to every new rule/window slot | the first call after mutation cannot escape a live restriction because its old positional slot disappeared |
 | B10-vs-B2 evaluation order is unspecified | layer 1 is outside layer 2; a B10 challenge wins before policy counting | the next call still sees the rolling layer-1 arrivals, while policy counters remain at their pre-challenge value |
 | CN5/N11–N13 do not define exact-boundary bucket ownership | use the most-adversarial `[start, end)` reading: an arrival exactly on a boundary enters the new bucket and gets a full bucket extension | at `bucket_end + period - 1 ms` the hit is active; at the exact expiry it is gone |
-| B14 requires zero skew but names no calendar epoch | map simulated t0 to Unix epoch; emit Date at HTTP-date second precision on full, degraded, malformed, and Cloudflare responses | the next response's Date advances deterministically with its B13 arrival timestamp and never reads wall time |
+| B14 requires zero skew but names no calendar epoch | map simulated t0 to Unix epoch; emit Date at HTTP-date second precision on full, degraded, malformed, and Cloudflare responses | the next response's Date advances deterministically with its scripted completion instant and never reads wall time |
 | B12 gives no delay bound or sub-millisecond convention | scripts accept whole simulated milliseconds up to six hours per arrival/response leg | an over-bound or fractional-millisecond script is rejected before insertion; the next request uses the ordinary/default script rather than an unrepresentable deadline |
 | The actor contract says in-flight requests are never aborted, but the mock-future drop case is not specified | record the received-wire observation before response delay and give occupancy a deterministic completion deadline | dropping the future loses the caller outcome but not the arrival; after the deadline, the next arrival prunes occupancy and cannot be falsely marked overlapping |
 | §7.4 requires the July 18 sanitized 132-record fixture, but no sanitized or raw capture exists in the branch/workspace | implement and test the §4 allowlist sanitizer, but do not invent a fixture or reconstruct observed records from prose | no replay verdict is claimed; the next replay remains unavailable until Tom supplies raw input to the sanitizer or a fixture already satisfying its contract |
@@ -44,7 +46,11 @@ Earlier-slice state touched or consumed by this slice:
   remains actor-slice work;
 - the transport trait returns only a response/error. Timing samples and
   gate reports are evidence; neither can grant a send or inject state
-  into `PolicyEngine`.
+  into `PolicyEngine`. B13 records the mock-owned transport hand-off
+  instant before any arrival delay; G3/G4 inputs come from a
+  scenario-owned oracle over that record, never actor-reported dispatch
+  or minimum-duration values. Scenario assertions are typed and bound to
+  their M-row; the judge rejects substitution or duplication.
 
 1. **No permanent wedge.** Mock in-flight occupancy has a scripted
    completion deadline and is pruned even if its future is dropped.
@@ -59,7 +65,9 @@ Earlier-slice state touched or consumed by this slice:
 3. **Pessimism direction.** Mock mutation retains all hit facts and
    carries the latest active restriction across every new slot. G1
    excludes an organic violation only through a pre-observation
-   correlation set capped at D5's two in-flight requests. The core is
+   correlation set capped at D5's two in-flight requests; overflow,
+   duplicate IDs, IDs absent from B13, and a claimed reservation after
+   B13's transport hand-off are structural refusal paths. The core is
    not mutated by the harness.
 4. **`try_reserve` is the single scheduling authority.** The mock
    responds only after transport hand-off; the judge observes dispatch
@@ -104,15 +112,15 @@ the assigned bucket end, then checks the hit is present one millisecond
 before independently computed expiry and absent exactly at expiry. Its
 oracle is plain test-local integer arithmetic and never calls mock or
 production bucket/scheduling functions. The conformance judge is not a
-property, but its anti-vacuity guards reject empty wire observations,
-dispatch samples, and scenario assertions; reject duplicate/detached
-correlations; and cross-check `(seed, phi)` against every swept
-observation.
+property, but its anti-vacuity guards reject empty wire observations or
+scenario assertions, require the typed assertion for the selected M-row,
+validate exposure against B13 transport hand-offs, and cross-check
+`(seed, phi)` against every swept observation.
 
-Gate evidence produced 2026-08-10, entirely offline:
+Gate evidence re-run 2026-08-12, entirely offline:
 
-- `cargo test --locked` — 99 debug tests green.
-- `cargo test --locked --release` — 97 release tests green (two core
+- `cargo test --locked` — 101 debug tests green.
+- `cargo test --locked --release` — 99 release tests green (two core
   drop-bomb tests are debug-only).
 - `PROPTEST_CASES=4096 cargo test --locked` — all ten properties green
   at 4,096 cases.
