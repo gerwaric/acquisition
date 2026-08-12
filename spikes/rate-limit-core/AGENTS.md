@@ -22,6 +22,9 @@ design; if that ever proves insufficient, that is itself a finding.
 4. `result-draft.md` — the evidence skeleton. Fill slots as results
    land, the day they land; never by assertion, always by citing a
    test run, commit, or fixture.
+5. The hand-off chain below — what has actually been built, by whom,
+   and what each slice left open. The four documents above are the
+   contract; the hand-offs are the state.
 
 Authority for cited claims: `docs/design/network-ground-truth.md`
 (N-numbers) and `docs/design/network-redesign.md` (D-numbers).
@@ -32,6 +35,31 @@ Authority for cited claims: `docs/design/network-ground-truth.md`
 2. Mock + conformance harness (M-series, §7 budget) after the core
    is green.
 3. Tokio actor shell last.
+
+All three landed and closed review as of 2026-08-12. What remains is
+not a fourth build slice: full M1–M13 scenario-driver runs and
+driver/judge integration, the G3/G4 finalization `scenarios.md` §6
+requires before any verdict slot, and the §7.4 capture replay (blocked
+— it needs raw capture input from Tom, and no synthetic stand-in may
+be substituted).
+
+## Slice hand-offs (the state of the build)
+
+Each slice attaches a hand-off written to `slice-review.md` §2. Newest
+last; **the newest one's coverage confession is the live one.**
+
+| Hand-off | Slice | Status |
+|---|---|---|
+| `core-handoff.md` | Sans-IO core, composite through the 2026-08-10 verifier fixes | closed; §3's coverage paragraph is **superseded in effect** — it predates the three slices below |
+| `bootstrap-handoff.md` | Bootstrap policy seeding | closed 2026-08-10 |
+| `mock-handoff.md` | Mock + M-series harness | closed 2026-08-12 (re-review) |
+| `actor-handoff.md` | Tokio actor shell, incl. C3/C4/X1/X2 | closed 2026-08-12 (re-review, no findings) |
+
+Read the newest hand-off before planning work. An older hand-off's
+"not covered" list describes the world on its own date and goes stale
+the moment a later slice builds what it calls unbuilt — that has
+already misled one session. `result-draft.md`'s dated changelog is the
+authority when two hand-offs disagree.
 
 ## Hard constraints
 
