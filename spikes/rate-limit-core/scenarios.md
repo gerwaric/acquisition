@@ -293,12 +293,31 @@ happens over data. Cites: headroom entry, N23, P-A.
 
 **M10. Agent-loop stress.** [phase-swept]
 Pathological caller pressure: hundreds of enqueues, cancellations,
-reprioritizations, sustained for many simulated minutes. Asserts:
+~~reprioritizations,~~ sustained for many simulated minutes. Asserts:
 wire stays paced — spacing floor never violated, in-flight ≤ 2,
 G1 holds; the fuse does **not** trip (false-positive absence under
 saturation — its true-positive path is X1); the queue drains to
 completion; cancelled callers get prompt resolution. Cites: P-B,
 N2, N4.
+
+> **Amended by Tom, 2026-08-12** (struck text preserved above).
+> Reprioritization is removed from M10's stimulus list because
+> `design-brief.md` scopes it out of the spike explicitly — "the spike
+> builds **none** of display/reorder/edit" — and the brief is the
+> charter. The two docs disagreed; the senior one wins.
+>
+> This costs no assertion. Reprioritization appeared only among M10's
+> stimuli, never among its asserts, and every M10 assert above is
+> order-independent; §6's G5 names "M10 drain-to-completion" as its
+> structural assertion. Enqueue pressure and cancellation remain, and
+> they agitate the same invariants.
+>
+> Consequence for the next M10 attempt: it must reach hundreds of
+> requests over many simulated minutes — that scaling is unblocked and
+> is the real remaining gap (`result-draft.md` doc finding 11) — and it
+> must not relabel FIFO as reprioritization. If a reorder command is
+> ever added, D5's "FIFO — no lane starvation" clause and M13's FIFO
+> assertion both need restating first; see CN6.
 
 **M11. Layer-1 ceiling and Cloudflare-shaped terminal.**
 [phase-independent]

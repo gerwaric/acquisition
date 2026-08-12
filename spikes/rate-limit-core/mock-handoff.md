@@ -107,6 +107,13 @@ cancellation/reprioritization, retry delivery, tripwire feed, watch
 publication, client remap/shrink adoption, or G3/G4 under a real actor.
 All M rows therefore remain partial in `result-draft.md`.
 
+**[Superseded in part, 2026-08-12 — dated text above preserved.** The actor
+slice and the scenario driver shipped; see `scenario-driver-handoff.md`,
+the live confession. Two items in the list above are no longer owed at all:
+*reprioritization* was removed from M10 by Tom (see CN6 and the dated note
+under M10 in `scenarios.md`), and the M rows are partial now for the
+per-row reasons in `result-draft.md`, not for want of an actor.**]**
+
 The §4 sanitizer is covered with synthetic secret-bearing raw records:
 its output allowlist, five-endpoint mapping, relative-time rebasing,
 provenance block, overwrite refusal, and exact record/line/header bounds

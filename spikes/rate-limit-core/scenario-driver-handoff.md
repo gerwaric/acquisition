@@ -3,10 +3,15 @@
 Status: **round-one findings F1–F6 and round-two finding F7 fixed
 2026-08-12; awaiting re-review.** The actor-to-judge seam is implemented and
 exercised; this is not a final M-series close because every row is a
-`ContractCoverage::Fragment` and M10's reprioritization requirement has no
-actor command/API (doc finding 11 in `result-draft.md`). Both review rounds
-and their fixes are recorded in the `result-draft.md` §9 entries dated
-2026-08-12.
+`ContractCoverage::Fragment`, and M10 in particular has not reached its
+stated hundreds-of-requests/many-minutes scale (doc finding 11 in
+`result-draft.md`). Both review rounds and their fixes are recorded in the
+`result-draft.md` §9 entries dated 2026-08-12.
+
+M10's reprioritization stimulus was **removed by Tom on 2026-08-12** — it is
+no longer owed by this slice or any other. Read CN6 in `result-draft.md` §4
+before adding a reorder command if that ever comes up; the code is trivial
+and the contract is not.
 
 **Read this before touching the phase sweep.** The mock reads `phase_ms` as
 the *upcoming* boundary, not an offset already elapsed. Two review rounds
@@ -25,7 +30,7 @@ pins the distances, so the next misreading fails a test.
 | `scenarios.md` does not say whether a partial run may report its scenario's assertion. | It may not. Evidence declares `ContractCoverage::Fragment`, and `RunReport::verdict_eligible()` requires a pass *and* full coverage. | The next run that wants to fill a verdict slot must first raise that row to `FullContract`; a green fragment cannot be mistaken for a scenario result. |
 | G3/G4 label 500ms and 1.05× as draft and require a §6 finalization before verdicts. | Exercise the judge at those draft numbers, but leave both verdict slots untouched. | The next evidence run can report draft-gate behavior only; it cannot promote either lane to a verdict. |
 | §6 does not say whether G3's ε applies to an absolute schedule or to inter-dispatch spacing. | Keep the relative anchor and record the consequence rather than invent an absolute timeline (doc finding 12). | The next §6 finalization must name the anchor: measured band is that a 250→600ms floor regression stays green and 1,000ms trips G3. |
-| M10 calls for reprioritization but the closed actor only has enqueue/cancel. | Do not fabricate a reorder operation; test pressure, cancellation, and dispatched caller drop only. | The next literal M10 attempt stops at doc finding 11 until an accepted command/API or scenario amendment exists. |
+| M10 called for reprioritization but the closed actor only has enqueue/cancel. | Do not fabricate a reorder operation; test pressure, cancellation, and dispatched caller drop only. | **Resolved 2026-08-12:** Tom amended M10 to drop the stimulus (`design-brief.md` scopes reorder out of the spike). No assertion was lost — reprioritization was never in M10's asserts. The next M10 attempt owes scale, not reorder; see CN6 before ever adding one. |
 
 ## 2. Seam map and invariant walk
 
@@ -61,7 +66,8 @@ no report is `verdict_eligible()`. It deliberately does **not** claim the
 still-missing scenario variants listed in the M rows of `result-draft.md`:
 M1 probe-429, M2 saturation stall, M4 three-triplet, M5/M6 forced in-flight
 transition exposure, M7 bursty debt, M8 escalation/malformed matrix, M9
-forced race/headroom record, M10 hundreds/minutes/reprioritization, M11
+forced race/headroom record, M10's hundreds-of-requests/many-minutes scale
+(and with it the fuse false-positive-absence assert), M11
 ceiling sweep, M12 generic 4xx/matrix, and M13's full FIFO/writer-preference
 assertion.
 

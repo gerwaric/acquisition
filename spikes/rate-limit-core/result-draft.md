@@ -91,7 +91,7 @@ optional for phase-independent and structural checks.
 | M7 | Phantom same-account hits | phase-swept | G1, G2, G6 | partial — actor/judge driver covers a mock-owned phantom observation at φ=0/1; bursty threshold case remains pending | 2026-08-12: `cargo test --locked --test scenario_driver m1_m13_run_against_the_actor_and_the_judge` green. |
 | M8 | 429 recovery and escalation | phase-swept | G1, G2, G5, G6 | partial — actor/judge driver covers a valid 429 retry across OAuth Known and legacy Assumed profiles at φ=0/1; escalation/malformed/matrix rows remain pending | 2026-08-12: `cargo test --locked --test scenario_driver m1_m13_run_against_the_actor_and_the_judge` green; prior focused evidence retained below. |
 | M9 | Phantom race at saturation | phase-swept | G1, G2, G5, G6 + characterization | partial — actor/judge driver covers a phantom observation at φ=0/1; forced reservation-to-arrival race and headroom record remain pending | 2026-08-12: `cargo test --locked --test scenario_driver m1_m13_run_against_the_actor_and_the_judge` green. |
-| M10 | Agent-loop stress | phase-swept | G1, G2, G3, G6 | partial — actor/judge driver covers a 16-request pressure run, explicit cancellation, and caller drop while dispatched at φ=0/1; hundreds/minutes and reprioritization remain blocked by doc finding 11 | 2026-08-12: `cargo test --locked --test scenario_driver m1_m13_run_against_the_actor_and_the_judge` green. |
+| M10 | Agent-loop stress | phase-swept | G1, G2, G3, G6 | partial — actor/judge driver covers a 16-request pressure run, explicit cancellation, and caller drop while dispatched at φ=0/1; the hundreds-of-requests/many-minutes scale — and with it the fuse's false-positive-absence assert — remains pending (doc finding 11). Reprioritization is no longer required of this row: Tom amended M10's stimulus list 2026-08-12 | 2026-08-12: `cargo test --locked --test scenario_driver m1_m13_run_against_the_actor_and_the_judge` green. |
 | M11 | Layer-1 ceiling + Cloudflare terminal | independent | G2, G5 | partial — actor/judge driver covers injected Cloudflare terminal/halt; compliant-client ceiling sweep remains pending | 2026-08-12: `cargo test --locked --test scenario_driver m1_m13_run_against_the_actor_and_the_judge` green. |
 | M12 | 4xx-tripwire obligations | independent | G5 | partial — actor/judge driver covers injected 401 without a retry; generic-4xx and full tripwire threshold matrix remain pending | 2026-08-12: `cargo test --locked --test scenario_driver m1_m13_run_against_the_actor_and_the_judge` green. |
 | M13 | Gate structure on the wire | independent | G2 + gate-definition assertions | partial — actor/judge driver covers two unknown endpoints, forced HEAD delay, no HEAD overlap, and in-flight cap; FIFO/writer-preference cross-product remains pinned by focused actor tests and awaits its scenario assertion | 2026-08-12: `cargo test --locked --test scenario_driver m1_m13_run_against_the_actor_and_the_judge` green; prior focused evidence retained below. |
@@ -175,7 +175,10 @@ frozen build order puts the actor last, so there is not yet a client
 that can drive the transport seam; client scheduling, caller outcomes,
 watch publication, cancellation/reprioritization, and final G1–G6
 verdicts remain the actor slice's work. This is a coverage boundary,
-not an inferred pass.
+not an inferred pass. **[Superseded in part, 2026-08-12 — dated text
+preserved. The actor slice and scenario driver shipped; reprioritization
+was removed from M10 by Tom (CN6) and is owed by no slice. The M rows'
+current boundaries are the per-row deltas in the table above.]**
 
 Doc findings and conservative dispositions exposed by implementation:
 
@@ -236,16 +239,26 @@ from the script and B13 observations; an allowance binds to the event ID,
 so an absent, duplicated, unrelated, post-arrival, unobservable, or
 too-late claim is a structural judge error rather than an exemption from
 G1.
-11. **M10 requires reprioritization, but the actor has no reorder
-    command.** `scenarios.md` calls for cancellations *and*
-    reprioritizations under pressure, while the closed actor exposes only
-    `Enqueue` and `Cancel`. The driver therefore exercises high pressure,
-    explicit cancellation, and dispatched caller drop, but cannot truthfully
-    claim M10's reprioritization assertion. Consequence: the next driver pass
-    must either receive an accepted actor reorder API/semantics or amend M10;
-    it must not relabel FIFO as reprioritization. The capability gap is at the
-    command surface, not the data structure: `actor-handoff.md` §4 records the
-    queue as an inspectable, reorderable deque. **Open — flagged for Tom.**
+11. **M10's pressure run has not reached its stated scale.** The driver
+    runs 16 requests; `scenarios.md` M10 calls for hundreds sustained over
+    many simulated minutes. This is the row's real remaining gap and needs
+    no new API. Until it lands, M10's most distinctive assert — the fuse's
+    *false-positive absence under saturation* — is untested: C3's sustained
+    fuse is 500/60s and a compliant client at the 250ms floor emits ≤240
+    req/min (M11's arithmetic), so the ~2× headroom is only demonstrated by
+    running long enough to occupy it. Consequence: the next driver pass must
+    scale M10 in requests *and* simulated duration, or M10 stays partial no
+    matter how many other variants land. **Open — flagged for Tom.**
+
+    *Superseded sub-finding (recorded 2026-08-12, resolved same day):* this
+    entry originally read "M10 requires reprioritization, but the actor has
+    no reorder command," and described the driver as unable to claim M10's
+    reprioritization assertion. That was miscast — reprioritization appears
+    in M10's stimulus clause, never among its asserts, so there was no such
+    assertion to claim. Tom amended M10 to drop the stimulus (see the dated
+    note under M10 in `scenarios.md`), on the grounds that `design-brief.md`
+    already scopes reorder out of the spike. See CN6 in §4 for the finding
+    that came out of it.
 12. **`scenarios.md` §6 leaves G3's epsilon undefined against a
     relative-versus-absolute eligibility anchor.** The driver's oracle
     anchors each expected instant on the *previous observed* dispatch, so
@@ -660,10 +673,28 @@ verdict.
 | CN3 | Recourse asymmetry: layer-1 blocks may be invisible to GGG support and unappealable for non-business Cloudflare users (informs Q7) | external | same thread as CN2 | awaiting transcription |
 | CN4 | Trade-API rules carry three windows per rule — the RulePair shape is not universal; a non-pair policy is out-of-model, not impossible | external | pathofexile.com forum thread 3056323, retrieved 2026-08-09 (URL in the charter's bucketing entry) | awaiting transcription |
 | CN5 | N11–N13 under-specify bucket quantization semantics (when a hit's age is measured / when it leaves the window); the spike's mock adopts the most-adversarial consistent reading — timestamp rounds up to bucket end, entry never quantized (N25 pins immediate 1:1 increment) | inferred (model choice); the gap itself is a doc finding | `scenarios.md` §7 B3, 2026-08-09 | awaiting transcription |
+| CN6 | **Reprioritization is cheap in the actor shape and was not in the coroutine/facade shape — `network-redesign.md` R7/D6's "not cheap later" warning does not carry over.** It failed there for a specific reason: the stop token is per-update, so per-entry cancellation did not exist and reorder needed entry identity invented first. The Rust actor already has that identity (`RequestId`, `Command::Cancel` doing positional removal on the owned deque), and its dispatch loop reads only `queue.front()` — no scheduling decision depends on arrival order. FIFO is emergent from append-at-back/take-from-front, not assumed; the actor already dispatches out of arrival order for writer preference. Reorder is therefore `remove(pos) + insert(pos)`, and the expensive part is contract, not code: D5's "no lane starvation" clause has no rule, so whoever adds reorder decides it. **This is evidence for the `design-brief.md` thesis that queue-as-data picks the actor shape.** | measured (structural, this branch) | `src/actor.rs` dispatch loop and `Command::Cancel`; contrast `docs/design/network-redesign.md` R7/D6 and `network-redesign-reviews.md` (2026-07-19 errata, "stale cancel+resubmit reprioritization claim removed"); Tom's decision 2026-08-12 | awaiting transcription |
 
 ⟨New candidates minted during implementation land here the day
 they appear — writing the mock exposing an N-claim ambiguity is a
 finding in its own right (charter, step 1).⟩
+
+**Tripwire on CN6 (the one thing that would invalidate it):** CN6 holds
+because the actor has *one* global deque, so a queue position is
+unambiguous. `network-redesign.md` describes per-policy FIFOs preserving
+source traversal order; if this actor ever fans its queue into per-policy
+lanes, "reorder to position N" stops having a single meaning and
+cross-lane priority becomes a genuine design decision. **That is the
+moment to revisit reorder — not before.** Recorded because a session that
+hits per-policy lanes will not otherwise know a deferred decision was
+resting on the single-deque property.
+
+**Note for whoever reads this after the C++ docs are superseded:** CN6 is
+a claim *about the comparison*, so it needs the superseded document to
+stay legible. If `network-redesign.md` is retired or this spike moves to
+its own repository, carry CN6's contrast with it — the R7 "not cheap
+later" warning is exactly the kind of conclusion that outlives its
+premises and gets re-inherited by a shape it never applied to.
 
 ## §5. Calibration: capture replay
 
@@ -960,3 +991,38 @@ outlives the spike branch; record what exists and where.⟩
   corrected phases, so F7 — like F1 — was a defect in the evidence's claim,
   not in the actor. Slice stays **open pending re-review**; no verdict slot
   filled, doc findings 11 and 12 still open.
+- 2026-08-12 — **Tom's decision on M10 and reprioritization.** Doc finding
+  11 was raised as "M10 requires reprioritization, the actor has no reorder
+  command." Reading the sources together showed the finding was miscast and
+  the docs were in conflict: `scenarios.md` M10 lists reprioritization among
+  its *stimuli* and never among its *asserts* (§6's G5 names
+  "M10 drain-to-completion"), while `design-brief.md` — the charter — scopes
+  it out of the spike outright: "the spike builds **none** of
+  display/reorder/edit." Three actions, all decided by Tom:
+  (1) **M10 amended** to drop reprioritization from its stimulus list, with
+  the struck text preserved and the reasoning dated in `scenarios.md`. No
+  assertion was lost; every M10 assert is order-independent, and enqueue
+  pressure plus cancellation agitate the same invariants.
+  (2) **Doc finding 11 re-scoped** to what actually remains: the run is 16
+  requests against a stated hundreds-over-many-minutes, which is why M10's
+  most distinctive assert — the fuse's false-positive absence under
+  saturation — is still untested. C3's sustained fuse is 500/60s against a
+  compliant ≤240 req/min, so that ~2× headroom is only demonstrated by
+  occupying it. No new API needed; this is the row's real gap.
+  (3) **CN6 minted** in §4: reprioritization is cheap in the actor shape and
+  was not in the coroutine/facade shape, so `network-redesign.md` R7/D6's
+  "not cheap later" warning does not carry over. It failed there because the
+  per-update stop token gave no per-entry identity; the Rust actor has that
+  identity already, its dispatch loop reads only `queue.front()`, and it
+  already dispatches out of arrival order for writer preference — FIFO is
+  emergent, not assumed. The expensive part of reorder is contract, not
+  code: D5's "no lane starvation" clause has no rule. CN6 carries a tripwire
+  (per-policy queue lanes would invalidate the single-deque premise and are
+  the moment to revisit) and a portability note, since a claim about a
+  comparison needs the superseded document to stay legible.
+  Rationale for deferring rather than building: the starvation rule is a
+  product decision with no product requirement yet to shape it, and the
+  primitive that made deferral costly in C++ is already present here. The
+  pain-saving action was recording *why* it is cheap, not building it — an
+  inherited false warning was the actual risk. No code changed; gates re-run
+  unchanged (127 debug, 125 release, clippy, fmt, diff check green).
