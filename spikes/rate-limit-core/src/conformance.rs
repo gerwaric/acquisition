@@ -348,6 +348,7 @@ pub enum JudgeError {
     UnexpectedDurationEvidence,
     DuplicateCorrelation { kind: &'static str, id: u64 },
     MissingDispatchForObservation { id: u64 },
+    MissingObservationForDispatch { id: u64 },
     ReproductionMismatch { id: u64 },
     AssertionNameTooLong { limit: usize },
 }
@@ -434,6 +435,9 @@ pub fn judge(evidence: &RunEvidence) -> Result<RunReport, JudgeError> {
     }
     if let Some(id) = observation_ids.iter().find(|id| !dispatch_ids.contains(id)) {
         return Err(JudgeError::MissingDispatchForObservation { id: *id });
+    }
+    if let Some(id) = dispatch_ids.iter().find(|id| !observation_ids.contains(id)) {
+        return Err(JudgeError::MissingObservationForDispatch { id: *id });
     }
     let spec = scenario(evidence.scenario);
     if spec.sweep == SweepKind::PhaseSwept && evidence.reproduction.is_none() {

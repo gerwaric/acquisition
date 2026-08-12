@@ -231,6 +231,18 @@ async fn correlation_and_reproduction_seams_are_structural() {
         Err(JudgeError::ReproductionMismatch { id: 1 })
     );
 
+    let observation = one_observation().await;
+    let mut evidence = base_evidence(observation);
+    evidence.dispatch_samples.push(DispatchSample {
+        correlation_id: 2,
+        independently_eligible_ms: 0,
+        dispatched_ms: 250,
+    });
+    assert_eq!(
+        judge(&evidence),
+        Err(JudgeError::MissingObservationForDispatch { id: 2 })
+    );
+
     assert!(
         rate_limit_core::conformance::ExposureAllowance::before_observable([(1, 0)], 1, 3,)
             .is_err()
