@@ -57,7 +57,7 @@ last; **the newest one's coverage confession is the live one.**
 | `bootstrap-handoff.md` | Bootstrap policy seeding | closed 2026-08-10 |
 | `mock-handoff.md` | Mock + M-series harness | closed 2026-08-12 (re-review) |
 | `actor-handoff.md` | Tokio actor shell, incl. C3/C4/X1/X2 | closed 2026-08-12 (re-review, no findings) |
-| `scenario-driver-handoff.md` | M1–M13 driver / judge integration | **open** — round-one findings fixed 2026-08-12, awaiting re-review |
+| `scenario-driver-handoff.md` | M1–M13 driver / judge integration | **open** — rounds one and two findings fixed 2026-08-12, awaiting re-review |
 
 Read the newest hand-off before planning work. An older hand-off's
 "not covered" list describes the world on its own date and goes stale

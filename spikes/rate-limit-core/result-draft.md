@@ -82,21 +82,21 @@ optional for phase-independent and structural checks.
 
 | ID | Scenario | Sweep | Gates exercised | Result | Evidence |
 |---|---|---|---|---|---|
-| M1 | Cold start with residue (flagship) | phase-swept | G1, G2, G6 | partial — actor/judge driver covers residue, one exclusive HEAD, and opening GET at φ=0/59,999; probe-429 confirmation variant remains pending | 2026-08-12: `cargo test --locked --test scenario_driver m1_m13_run_against_the_actor_and_the_judge` green. |
-| M2 | Clean cold-start saturation burst | phase-swept | G1–G4, G6 | partial — actor/judge driver covers ten paced opening GETs at φ=0/59,999 and evaluates G3/G4 against the **draft** 500ms/1.05× values; the required burst-then-stall saturation depth remains pending | 2026-08-12: `cargo test --locked --test scenario_driver m1_m13_run_against_the_actor_and_the_judge` green. |
+| M1 | Cold start with residue (flagship) | phase-swept | G1, G2, G6 | partial — actor/judge driver covers residue, one exclusive HEAD, and opening GET at φ=0/1; probe-429 confirmation variant remains pending | 2026-08-12: `cargo test --locked --test scenario_driver m1_m13_run_against_the_actor_and_the_judge` green. |
+| M2 | Clean cold-start saturation burst | phase-swept | G1–G4, G6 | partial — actor/judge driver covers ten paced opening GETs at φ=0/1 and evaluates G3/G4 against the **draft** 500ms/1.05× values; the required burst-then-stall saturation depth remains pending | 2026-08-12: `cargo test --locked --test scenario_driver m1_m13_run_against_the_actor_and_the_judge` green. |
 | M3 | Degraded HEAD | independent | G1, G2, G5 | partial — actor/judge driver covers policy-only HEAD → scoped caller error; cooldown re-entry and unaffected-policy flow remain pending | 2026-08-12: `cargo test --locked --test scenario_driver m1_m13_run_against_the_actor_and_the_judge` green. |
 | M4 | Unexpected policy shape | independent | G1, G2, G5 | partial — actor/judge driver covers one-triplet scoped failure; the separate three-triplet branch and watch assertion remain pending | 2026-08-12: `cargo test --locked --test scenario_driver m1_m13_run_against_the_actor_and_the_judge` green. |
-| M5 | Policy rename mid-session | phase-swept | G1, G2, G6 | partial — actor/judge driver covers reactive route rename without a repeat HEAD at φ=0/59,999; forced stale in-flight exposure remains pending | 2026-08-12: `cargo test --locked --test scenario_driver m1_m13_run_against_the_actor_and_the_judge` green; prior focused evidence retained below. |
-| M6 | Policy shrink mid-flight | phase-swept | G1, G2, G6 | partial — actor/judge driver covers response-route replacement at φ=0/59,999; held-history-above-new-limit case remains pending | 2026-08-12: `cargo test --locked --test scenario_driver m1_m13_run_against_the_actor_and_the_judge` green; prior focused evidence retained below. |
-| M7 | Phantom same-account hits | phase-swept | G1, G2, G6 | partial — actor/judge driver covers a mock-owned phantom observation at φ=0/59,999; bursty threshold case remains pending | 2026-08-12: `cargo test --locked --test scenario_driver m1_m13_run_against_the_actor_and_the_judge` green. |
-| M8 | 429 recovery and escalation | phase-swept | G1, G2, G5, G6 | partial — actor/judge driver covers a valid 429 retry across OAuth Known and legacy Assumed profiles at φ=0/59,999; escalation/malformed/matrix rows remain pending | 2026-08-12: `cargo test --locked --test scenario_driver m1_m13_run_against_the_actor_and_the_judge` green; prior focused evidence retained below. |
-| M9 | Phantom race at saturation | phase-swept | G1, G2, G5, G6 + characterization | partial — actor/judge driver covers a phantom observation at φ=0/59,999; forced reservation-to-arrival race and headroom record remain pending | 2026-08-12: `cargo test --locked --test scenario_driver m1_m13_run_against_the_actor_and_the_judge` green. |
-| M10 | Agent-loop stress | phase-swept | G1, G2, G3, G6 | partial — actor/judge driver covers a 16-request pressure run, explicit cancellation, and caller drop while dispatched at φ=0/59,999; hundreds/minutes and reprioritization remain blocked by doc finding 11 | 2026-08-12: `cargo test --locked --test scenario_driver m1_m13_run_against_the_actor_and_the_judge` green. |
+| M5 | Policy rename mid-session | phase-swept | G1, G2, G6 | partial — actor/judge driver covers reactive route rename without a repeat HEAD at φ=0/1; forced stale in-flight exposure remains pending | 2026-08-12: `cargo test --locked --test scenario_driver m1_m13_run_against_the_actor_and_the_judge` green; prior focused evidence retained below. |
+| M6 | Policy shrink mid-flight | phase-swept | G1, G2, G6 | partial — actor/judge driver covers response-route replacement at φ=0/1; held-history-above-new-limit case remains pending | 2026-08-12: `cargo test --locked --test scenario_driver m1_m13_run_against_the_actor_and_the_judge` green; prior focused evidence retained below. |
+| M7 | Phantom same-account hits | phase-swept | G1, G2, G6 | partial — actor/judge driver covers a mock-owned phantom observation at φ=0/1; bursty threshold case remains pending | 2026-08-12: `cargo test --locked --test scenario_driver m1_m13_run_against_the_actor_and_the_judge` green. |
+| M8 | 429 recovery and escalation | phase-swept | G1, G2, G5, G6 | partial — actor/judge driver covers a valid 429 retry across OAuth Known and legacy Assumed profiles at φ=0/1; escalation/malformed/matrix rows remain pending | 2026-08-12: `cargo test --locked --test scenario_driver m1_m13_run_against_the_actor_and_the_judge` green; prior focused evidence retained below. |
+| M9 | Phantom race at saturation | phase-swept | G1, G2, G5, G6 + characterization | partial — actor/judge driver covers a phantom observation at φ=0/1; forced reservation-to-arrival race and headroom record remain pending | 2026-08-12: `cargo test --locked --test scenario_driver m1_m13_run_against_the_actor_and_the_judge` green. |
+| M10 | Agent-loop stress | phase-swept | G1, G2, G3, G6 | partial — actor/judge driver covers a 16-request pressure run, explicit cancellation, and caller drop while dispatched at φ=0/1; hundreds/minutes and reprioritization remain blocked by doc finding 11 | 2026-08-12: `cargo test --locked --test scenario_driver m1_m13_run_against_the_actor_and_the_judge` green. |
 | M11 | Layer-1 ceiling + Cloudflare terminal | independent | G2, G5 | partial — actor/judge driver covers injected Cloudflare terminal/halt; compliant-client ceiling sweep remains pending | 2026-08-12: `cargo test --locked --test scenario_driver m1_m13_run_against_the_actor_and_the_judge` green. |
 | M12 | 4xx-tripwire obligations | independent | G5 | partial — actor/judge driver covers injected 401 without a retry; generic-4xx and full tripwire threshold matrix remain pending | 2026-08-12: `cargo test --locked --test scenario_driver m1_m13_run_against_the_actor_and_the_judge` green. |
 | M13 | Gate structure on the wire | independent | G2 + gate-definition assertions | partial — actor/judge driver covers two unknown endpoints, forced HEAD delay, no HEAD overlap, and in-flight cap; FIFO/writer-preference cross-product remains pinned by focused actor tests and awaits its scenario assertion | 2026-08-12: `cargo test --locked --test scenario_driver m1_m13_run_against_the_actor_and_the_judge` green; prior focused evidence retained below. |
 
-Driver integration status (2026-08-12, as corrected by the same-day review round below): `tests/scenario_driver.rs` drives every M row through the public actor handle and sends its mock-owned observations/state changes through `conformance::judge`; **every** row now runs at both φ=0 and φ=59,999, and M8 additionally runs both the OAuth Known and legacy Assumed profiles. Every row declares `ContractCoverage::Fragment`, so no report is `verdict_eligible()` and a green G5 here cannot be read as a scenario verdict. It is evidence of the actor-to-judge seam, **not a final M-series verdict**: the row-level coverage deltas above and doc findings 11 and 12 remain open. The run uses the draft G3/G4 values solely to exercise the judge; it does not fill either verdict slot.
+Driver integration status (2026-08-12, as corrected by the two review rounds below): `tests/scenario_driver.rs` drives every M row through the public actor handle and sends its mock-owned observations/state changes through `conformance::judge`; **every** row now runs at both φ=0 and φ=1, and M8 additionally runs both the OAuth Known and legacy Assumed profiles. Those two phases are the extremes of *boundary distance* — the mock reads `phase_ms` as the upcoming boundary, so φ=0 puts the first bucket edge a full bucket away (5,000ms and 60,000ms) and φ=1 puts it 1ms after t₀; `scenario_driver::swept_phases_are_separated_by_a_full_bucket` pins all four distances. Every row declares `ContractCoverage::Fragment`, so no report is `verdict_eligible()` and a green G5 here cannot be read as a scenario verdict. It is evidence of the actor-to-judge seam, **not a final M-series verdict**: the row-level coverage deltas above and doc findings 11 and 12 remain open. The run uses the draft G3/G4 values solely to exercise the judge; it does not fill either verdict slot.
 
 G1, G2, G3, and G5 are armed in every mock-judged scenario; the
 column lists the gates each scenario is the *binding evidence*
@@ -930,3 +930,33 @@ outlives the spike branch; record what exists and where.⟩
   test (`conformance_harness::a_fragment_run_is_judged_but_is_never_verdict_eligible`):
   both branches assert, and a failing fragment still fails G5. The slice remains **open pending re-review**;
   no verdict slot is filled and doc findings 11 and 12 stay open.
+- 2026-08-12 — scenario-driver review round **two**. One blocking finding,
+  fixed in the commit carrying this entry; the fragment/verdict guard and
+  the G5 failure path from round one were re-reviewed and held.
+  **F7 — the phase sweep was still effectively adjacent.** Round one fixed
+  the *arithmetic* that collapsed the sweep (F1) but kept the phase
+  *values* `[0, 59_999]` on a wrong model of what `phase_ms` means. The
+  mock's `bucket_end` treats `phase_ms` as the **upcoming** boundary, not
+  an offset already elapsed: at t₀, φ=59,999 puts the 60s edge 59,999ms
+  out versus 60,000ms for φ=0, and the 5s edge at 4,999ms versus 5,000ms.
+  The two sweeps therefore still differed by 1ms — the same coverage
+  defect as F1, re-created one layer up. The driver's own comment asserted
+  the opposite of what the code does, and nothing could contradict it.
+  Fixed by sweeping `[0, 1]`, which are the extremes of boundary distance
+  (a full bucket away versus 1ms out) in *both* N23 bucket sizes.
+  Root cause and the structural fix: the phase representation was only
+  knowable by reading a private function, so two successive readings of it
+  went unchecked. `mock::model::first_bucket_boundary_ms` now exposes the
+  distance, and `scenario_driver::swept_phases_are_separated_by_a_full_bucket`
+  pins all four literal distances (5,000 / 60,000 at φ=0; 1 / 1 at φ=1),
+  pins the trap itself (φ=59,999 → 59,999ms), and asserts over whatever
+  `SWEPT_PHASES_MS` holds that the phases move the first boundary by nearly
+  a whole bucket in both sizes. Verified by reverting the constant: the
+  guard fails with `phases must differ by nearly a whole 5000 ms bucket,
+  got 5000 vs 4999`. A third misreading now fails a test rather than a
+  review. The M rows above and the hand-off are corrected to φ=0/1.
+  Gate matrix: 127 debug, 125 release, all-target clippy with warnings
+  denied, fmt, and `git diff --check` green. The M-series is green at the
+  corrected phases, so F7 — like F1 — was a defect in the evidence's claim,
+  not in the actor. Slice stays **open pending re-review**; no verdict slot
+  filled, doc findings 11 and 12 still open.

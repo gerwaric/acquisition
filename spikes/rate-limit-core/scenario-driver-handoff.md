@@ -1,17 +1,27 @@
 # Scenario-driver and judge-integration hand-off
 
-Status: **round-one review findings F1–F6 fixed 2026-08-12; awaiting
-re-review.** The actor-to-judge seam is implemented and exercised; this is
-not a final M-series close because every row is a `ContractCoverage::
-Fragment` and M10's reprioritization requirement has no actor command/API
-(doc finding 11 in `result-draft.md`). The review round and its fixes are
-recorded in the `result-draft.md` §9 entry dated 2026-08-12.
+Status: **round-one findings F1–F6 and round-two finding F7 fixed
+2026-08-12; awaiting re-review.** The actor-to-judge seam is implemented and
+exercised; this is not a final M-series close because every row is a
+`ContractCoverage::Fragment` and M10's reprioritization requirement has no
+actor command/API (doc finding 11 in `result-draft.md`). Both review rounds
+and their fixes are recorded in the `result-draft.md` §9 entries dated
+2026-08-12.
+
+**Read this before touching the phase sweep.** The mock reads `phase_ms` as
+the *upcoming* boundary, not an offset already elapsed. Two review rounds
+were each spent on one consequence of getting that backwards: F1 collapsed
+the sweep with a per-row modulus, and F7 kept the values `[0, 59_999]`,
+which are 1 ms apart in boundary distance rather than a full bucket. The
+sweep is now `[0, 1]` and `swept_phases_are_separated_by_a_full_bucket`
+pins the distances, so the next misreading fails a test.
 
 ## 1. Silences taken
 
 | Silence | Conservative reading | Next-call consequence |
 |---|---|---|
-| `scenarios.md` does not state a cardinality for a phase sweep. | Run every driver case at φ=0 and φ=59,999 (`SWEPT_PHASES_MS`), retaining `(seed, φ)` in evidence. | A new phase is data-only; a failure still carries its exact reproduction record. This is baseline seam coverage, not a claim of exhaustive phase coverage. |
+| `scenarios.md` does not state a cardinality for a phase sweep. | Run every driver case at φ=0 and φ=1 (`SWEPT_PHASES_MS`) — the extremes of *boundary distance*, a full bucket versus 1ms — retaining `(seed, φ)` in evidence. | A new phase is data-only; a failure still carries its exact reproduction record. This is baseline seam coverage, not a claim of exhaustive phase coverage. |
+| `scenarios.md` does not define what makes two phases adversarially separated. | Separation is measured in distance from t₀ to the first bucket edge, in *both* N23 bucket sizes, not in the numeric distance between phase values. | The next sweep that adds a phase must pass `swept_phases_are_separated_by_a_full_bucket`, which states the rule over whatever `SWEPT_PHASES_MS` holds rather than over fixed literals. |
 | `scenarios.md` does not say whether a partial run may report its scenario's assertion. | It may not. Evidence declares `ContractCoverage::Fragment`, and `RunReport::verdict_eligible()` requires a pass *and* full coverage. | The next run that wants to fill a verdict slot must first raise that row to `FullContract`; a green fragment cannot be mistaken for a scenario result. |
 | G3/G4 label 500ms and 1.05× as draft and require a §6 finalization before verdicts. | Exercise the judge at those draft numbers, but leave both verdict slots untouched. | The next evidence run can report draft-gate behavior only; it cannot promote either lane to a verdict. |
 | §6 does not say whether G3's ε applies to an absolute schedule or to inter-dispatch spacing. | Keep the relative anchor and record the consequence rather than invent an absolute timeline (doc finding 12). | The next §6 finalization must name the anchor: measured band is that a 250→600ms floor regression stays green and 1,000ms trips G3. |
@@ -41,8 +51,10 @@ recorded in the `result-draft.md` §9 entry dated 2026-08-12.
 ## 3. Coverage confession
 
 `tests/scenario_driver.rs` runs M1–M13 through the public actor and judge,
-at φ=0 *and* φ=59,999 for every row, plus both bucket lanes for M8. It checks
+at φ=0 *and* φ=1 for every row, plus both bucket lanes for M8. It checks
 mock-owned G1/G2/G3/G4/G5/G6 evidence and includes dispatched caller drop.
+The M-series is green at both corrected phases, so neither F1 nor F7 was
+masking an actor defect — both were defects in what the evidence claimed.
 
 **Every row is a fragment.** Each declares `ContractCoverage::Fragment`, so
 no report is `verdict_eligible()`. It deliberately does **not** claim the
@@ -52,6 +64,9 @@ transition exposure, M7 bursty debt, M8 escalation/malformed matrix, M9
 forced race/headroom record, M10 hundreds/minutes/reprioritization, M11
 ceiling sweep, M12 generic 4xx/matrix, and M13's full FIFO/writer-preference
 assertion.
+
+Two phases are a baseline, not a claim of phase coverage: they pin the two
+extremes of boundary distance and nothing between them.
 
 Gate teeth, measured rather than assumed:
 
@@ -78,6 +93,11 @@ itself rejects empty observations/assertions and missing swept records.
 
 - Two adversarially separated phases are a useful initial driver baseline,
   not an invented definition of “phase-swept.”
+- `first_bucket_boundary_ms` adds a query to the closed mock slice purely so
+  a test can check a claim a reviewer previously had to check by hand. A
+  different session could have left the private function alone and fixed
+  only the constant; that would have fixed F7 without preventing its
+  successor, which is why the query landed.
 - `ContractCoverage` extends the closed conformance slice's API rather than
   documenting the fragment/whole distinction in prose. A different session
   could reasonably have left the judge alone and recorded the caveat in

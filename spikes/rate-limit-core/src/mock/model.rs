@@ -4,6 +4,7 @@
 //! Its only input is a received-wire timestamp plus typed mock configuration.
 
 use std::collections::{HashMap, VecDeque};
+use std::num::NonZeroU64;
 
 pub const MAX_REQUESTS_PER_RUN: usize = 10_000;
 pub const MAX_EVENTS_PER_POLICY: usize = 10_000;
@@ -504,6 +505,20 @@ impl CounterModel {
             windows,
         })
     }
+}
+
+/// Distance from t0 to the first `bucket_ms` boundary under `phase_ms`.
+///
+/// `phase_ms` names the *upcoming* boundary; it is not an offset already
+/// elapsed. Phase 0 therefore puts the first boundary a full bucket away,
+/// and phase 1 puts it 1 ms out — a phase just *under* the bucket length is
+/// 1 ms from phase 0, not from an immediate boundary.
+///
+/// Exposed because a phase sweep cannot otherwise assert what its own phases
+/// mean: reading this backwards is what produced review findings F1 and F7,
+/// and the second reading survived because nothing could pin it.
+pub fn first_bucket_boundary_ms(bucket_ms: NonZeroU64, phase_ms: u64) -> u64 {
+    bucket_end(0, bucket_ms.get(), phase_ms)
 }
 
 fn in_rolling_window(at_ms: u64, now_ms: u64, window_ms: u64) -> bool {

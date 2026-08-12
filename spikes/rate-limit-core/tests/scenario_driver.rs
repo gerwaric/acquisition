@@ -5,6 +5,7 @@
 //! below are scenario-script arithmetic, not values reported by the actor.
 
 use std::collections::BTreeMap;
+use std::num::NonZeroU64;
 use std::time::Duration;
 
 use http::{HeaderMap, HeaderValue, Method, StatusCode};
@@ -14,7 +15,9 @@ use rate_limit_core::conformance::{
     SHIPPED_ASSUMED_PROFILE, ScenarioAssertion, ScenarioId, ScenarioOracle, judge, scenario,
 };
 use rate_limit_core::core::{BucketModel, EndpointLabel, PolicyEngine, Resolution};
-use rate_limit_core::mock::model::{PolicyDefinition, RuleDefinition, WindowDefinition};
+use rate_limit_core::mock::model::{
+    PolicyDefinition, RuleDefinition, WindowDefinition, first_bucket_boundary_ms,
+};
 use rate_limit_core::mock::{
     CORRELATION_HEADER, Endpoint, ExchangeScript, MockConfig, MockController, MockService,
     MockStateChange, ResponseOverride, request,
@@ -620,9 +623,50 @@ async fn run_m8_oauth_lane(phase_ms: u64) {
     assert!(report.passed(), "OAuth M8: {report:?}");
 }
 
-/// The two swept phases sit at opposite ends of the minute: phi=59,999 puts a
-/// 60 s window boundary 1 ms after t0, phi=0 puts it a full minute out.
-const SWEPT_PHASES_MS: [u64; 2] = [0, 59_999];
+/// The two swept phases sit at opposite ends of the *boundary distance*, which
+/// is the quantity that actually varies the server's bucket alignment: phi=0
+/// puts the first boundary a full bucket away, phi=1 puts it 1 ms after t0.
+///
+/// `phase_ms` names the upcoming boundary, so phi=59,999 is 1 ms from phi=0,
+/// not from an immediate boundary — round one's F1 and the re-review's F7 were
+/// both that misreading. `swept_phases_are_separated_by_a_full_bucket` pins
+/// the real distances so a third mistake fails a test instead of a review.
+const SWEPT_PHASES_MS: [u64; 2] = [0, 1];
+
+const BURST_BUCKET_MS: u64 = 5_000;
+const SUSTAINED_BUCKET_MS: u64 = 60_000;
+
+#[test]
+fn swept_phases_are_separated_by_a_full_bucket() {
+    let burst = NonZeroU64::new(BURST_BUCKET_MS).unwrap();
+    let sustained = NonZeroU64::new(SUSTAINED_BUCKET_MS).unwrap();
+    let [immediate_boundary, full_bucket_away] = [1, 0];
+
+    // Both N23 bucket sizes, both swept phases, as literal distances.
+    assert_eq!(first_bucket_boundary_ms(burst, full_bucket_away), 5_000);
+    assert_eq!(
+        first_bucket_boundary_ms(sustained, full_bucket_away),
+        60_000
+    );
+    assert_eq!(first_bucket_boundary_ms(burst, immediate_boundary), 1);
+    assert_eq!(first_bucket_boundary_ms(sustained, immediate_boundary), 1);
+
+    // The trap itself, pinned: a phase just under the bucket length is 1 ms
+    // from phase 0, which is why 59,999 was not an adversarial second phase.
+    assert_eq!(first_bucket_boundary_ms(sustained, 59_999), 59_999);
+
+    // The real guard, stated over whatever SWEPT_PHASES_MS holds: the sweep is
+    // only a sweep if its phases move the first boundary by nearly a whole
+    // bucket, in *both* bucket sizes.  [0, 59_999] fails this by 59,998 ms.
+    for bucket in [burst, sustained] {
+        let [first, second] = SWEPT_PHASES_MS.map(|phase| first_bucket_boundary_ms(bucket, phase));
+        assert!(
+            first.abs_diff(second) >= bucket.get() - 1,
+            "phases must differ by nearly a whole {bucket} ms bucket, got {first} vs {second}"
+        );
+    }
+    assert_eq!(SWEPT_PHASES_MS, [full_bucket_away, immediate_boundary]);
+}
 
 #[tokio::test(start_paused = true)]
 async fn m1_m13_run_against_the_actor_and_the_judge() {
