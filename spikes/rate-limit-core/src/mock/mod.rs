@@ -10,7 +10,10 @@ use http::{HeaderMap, HeaderName, HeaderValue, Method, Request, Response, Status
 use tokio::sync::Mutex;
 use tokio::time::Instant;
 
-use crate::transport::{Transport, TransportError, WireRequest, WireResponse};
+use crate::transport::{
+    MAX_RESPONSE_BODY_BYTES, MAX_RESPONSE_HEADER_NAME_BYTES, MAX_RESPONSE_HEADERS, Transport,
+    TransportError, WireRequest, WireResponse,
+};
 use model::{
     CounterModel, Layer1Judgment, MAX_REQUESTS_PER_RUN, ModelError, PolicyDefinition,
     PolicyJudgment, RuleDefinition, ServerTime, WindowDefinition,
@@ -18,8 +21,8 @@ use model::{
 
 pub const CORRELATION_HEADER: HeaderName = HeaderName::from_static("x-acq-test-correlation");
 pub const DEFAULT_SERVICE_DELAY: Duration = Duration::from_millis(50);
-pub const MAX_RAW_RESPONSE_BODY_BYTES: usize = 16 * 1024;
-pub const MAX_RAW_RESPONSE_HEADERS: usize = 32;
+pub const MAX_RAW_RESPONSE_BODY_BYTES: usize = MAX_RESPONSE_BODY_BYTES;
+pub const MAX_RAW_RESPONSE_HEADERS: usize = MAX_RESPONSE_HEADERS;
 pub const MAX_MOCK_HEADER_VALUE_BYTES: usize = 1_024;
 
 const POLICY_HEADER: HeaderName = HeaderName::from_static("x-rate-limit-policy");
@@ -589,7 +592,9 @@ impl MockService {
         };
         self.state.lock().await.in_flight.remove(&correlation_id);
         date_result?;
-        response
+        response.and_then(|response| {
+            WireResponse::try_new(response).map_err(TransportError::ResponseBounds)
+        })
     }
 }
 
@@ -802,7 +807,7 @@ fn build_default_response(
     definition: &PolicyDefinition,
     judgment: &PolicyJudgment,
     layer1_tripped: bool,
-) -> Result<Result<WireResponse, TransportError>, TransportError> {
+) -> Result<Result<Response<Vec<u8>>, TransportError>, TransportError> {
     if layer1_tripped {
         return Ok(Ok(cloudflare_response()));
     }
@@ -917,7 +922,7 @@ fn insert_header(
 }
 
 fn apply_override(
-    response: &mut Result<WireResponse, TransportError>,
+    response: &mut Result<Response<Vec<u8>>, TransportError>,
     response_override: Option<ResponseOverride>,
 ) -> Result<Option<StimulusKind>, TransportError> {
     let Some(response_override) = response_override else {
@@ -976,7 +981,7 @@ fn apply_override(
     }
 }
 
-fn cloudflare_response() -> WireResponse {
+fn cloudflare_response() -> Response<Vec<u8>> {
     Response::builder()
         .status(StatusCode::FORBIDDEN)
         .header(CF_MITIGATED_HEADER, "challenge")
@@ -1033,6 +1038,9 @@ fn validate_script(script: &ExchangeScript) -> Result<(), MockConfigError> {
         return Ok(());
     };
     if headers.len() > MAX_RAW_RESPONSE_HEADERS
+        || headers
+            .keys()
+            .any(|name| name.as_str().len() > MAX_RESPONSE_HEADER_NAME_BYTES)
         || headers
             .values()
             .any(|value| value.as_bytes().len() > MAX_MOCK_HEADER_VALUE_BYTES)

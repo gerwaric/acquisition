@@ -12,7 +12,7 @@ verdicts.
 | The actor queue and number of dynamic endpoint records lack a bound. | Cap pending requests at 10,000 and endpoint records at D5's five labels. | Overflow gets a typed error before storage growth; the next valid submission can still enter when queue space exists. |
 | C4 says the 4xx tripwire has the fuse's “same shape” but gives no independent thresholds. | Use C3's reviewed burst/sustained thresholds (11/1 s and 500/60 s) for the 4xx counter as the least inventive literal reading. | Every 4xx is still counted; crossing either threshold halts, errors queued callers, and stops new dispatches. |
 | The core’s `Blocked` outcome has no timer, and a constructed zero-hit policy can be permanently blocked without a live request to resolve it. | Error one queued caller rather than sleeping or inventing a retry time; live confirmation blocks wait for their in-flight outcome. | A malformed constructed policy cannot wedge the actor; a normal confirmation block is reconsidered after its response/timeout changes core state. |
-| `WireResponse` exposes an already-materialized body and unrestricted `HeaderMap`; the docs set core parser limits but no actor ingress limit. | Before the actor clones headers or scans the Cloudflare signature, bound body (16 KiB), header count (32), header-name bytes (256), and value bytes (1,024). Overflow is an unknown ordinary outcome or D4 probe failure; production transport must apply the same read cap before constructing `WireResponse`. | The next ordinary reservation retains its counted entry; the next probe submission sees the endpoint cooldown. |
+| The docs set no actor ingress limit for a response. | `Transport::send` returns a private-field `WireResponse`; its 16 KiB / 32-header / 256-name-byte / 1,024-value-byte constructor is the sole actor ingress. Raw `Response<Vec<u8>>` cannot enter the actor. **Accepted X2 limitation:** this spike cannot force a future HTTP parser not to allocate upstream; that implementation must cap while collecting bytes. | An over-bound response is a transport error before it enters the actor; ordinary work resolves as unknown and the next probe enters D4 cooldown. |
 | The docs do not say whether a renamed policy name can already name a distinct established policy. | Refuse the colliding ordinary observation without changing either policy route; never merge two histories by guesswork. | The caller and queued requests for the original policy receive scoped setup failure; the unrelated policy remains schedulable. |
 
 The timeout, C4 threshold, actor queue-cap, and wire-ingress-bound items are doc findings to
@@ -35,6 +35,9 @@ carry into `result-draft.md`; D4 itself supplies the 60 s cooldown.
   Remapping replaces only the route and rule judgments, so every in-flight
   token still removes or reconciles its exact history entry. The actor applies
   `Notification::Remapped` to every endpoint sharing that established policy.
+- Every ordinary refusal resolves its `RefusalTarget::Policy` from that anchor's
+  current route, not the anchor spelling. `fail_policy` therefore drains the
+  queued callers of a remapped endpoint on malformed/retry/escalation paths.
 
 1. **No permanent wedge:** queued drops are pruned; a reservation that does
    not reach a transport task rolls back;
@@ -63,10 +66,12 @@ queued and dispatched cancellation (the latter still lands at the mock),
 degraded-HEAD D4 failure, Cloudflare-shaped terminal classification/watch
 publication, the fuse's exact burst/sustained boundaries and floor-compliant
 property, all C4 thresholds/edges, X1 burst/sustained actor-boundary fault
-injection, M5 remap and M6 shrink adoption, M8 retry and escalation, and M13
+injection, M5 remap including post-remap malformed queue drain, M6 same-policy
+limit shrink with held history, M8 retry and escalation, and M13
 forced-delay writer preference, HEAD exclusivity, FIFO, and in-flight cap
 behavior, plus all pre-existing core/mock suites.
-Header-count/value and body n/n+1 boundaries are unit-pinned before clone/scan.
+Header-count/name/value and body n/n+1 boundaries are unit-pinned at the
+transport constructor before clone/scan.
 
 Not yet covered: full M1–M13 scenario-driver runs; caller *drop* while
 dispatched (explicit cancellation is covered); and scenario driver/judge

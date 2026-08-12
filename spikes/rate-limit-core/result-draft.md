@@ -86,8 +86,8 @@ optional for phase-independent and structural checks.
 | M2 | Clean cold-start saturation burst | phase-swept | G1–G4, G6 | partial — independent quantized counters and G1–G4 judge executable; actor saturation run pending | 2026-08-10: generated phase oracle plus exact expiry, post-increment, G3, and exact 1.05× G4 boundary tests green; mock-slice evidence below. |
 | M3 | Degraded HEAD | independent | G1, G2, G5 | partial — policy-only HEAD stimulus and typed production-parser failure executable; actor cooldown/caller behavior pending | 2026-08-10: `mock_fidelity::b11_m3_m4_script_channel_covers_every_response_shape` green. |
 | M4 | Unexpected policy shape | independent | G1, G2, G5 | partial — verbatim one-/three-window synthetic policies executable; actor scoped failure/watch behavior pending | 2026-08-10: `mock_fidelity::b1_b7_m4_synthetic_one_and_three_window_policies_cross_as_raw_headers` green. |
-| M5 | Policy rename mid-session | phase-swept | G1, G2, G6 | partial — route mutation, deterministic delay, unique correlation, and exposure attribution executable; focused core/actor remap adoption green, phase-swept scenario-judge run pending | 2026-08-10: `mock_fidelity::b8_policy_rename_and_shrink_keep_existing_hits`, B12/B13 tests, and `conformance_harness::correlation_and_reproduction_seams_are_structural` green; 2026-08-12 `response_reconciliation::m5_remaps_an_ordinary_token_without_losing_in_flight_history` and `actor_shell::m5_remap_updates_the_actor_endpoint_mapping` green. |
-| M6 | Policy shrink mid-flight | phase-swept | G1, G2, G6 | partial — hits-facts/rules-judgments replacement preserves history and restrictions pessimistically; focused core/actor shrink adoption green, phase-swept scenario-judge run pending | 2026-08-10: `mock_fidelity::b8_policy_rename_and_shrink_keep_existing_hits` green; 2026-08-12 `response_reconciliation::m6_replaces_rules_immediately_while_retaining_history_facts` and `actor_shell::m6_shrink_blocks_new_dispatches_from_the_announcing_response` green. |
+| M5 | Policy rename mid-session | phase-swept | G1, G2, G6 | partial — route mutation, deterministic delay, unique correlation, and exposure attribution executable; focused core/actor remap adoption and post-remap refusal drain green, phase-swept scenario-judge run pending | 2026-08-10: `mock_fidelity::b8_policy_rename_and_shrink_keep_existing_hits`, B12/B13 tests, and `conformance_harness::correlation_and_reproduction_seams_are_structural` green; 2026-08-12 `response_reconciliation::m5_remaps_an_ordinary_token_without_losing_in_flight_history` plus `actor_shell::{m5_remap_updates_the_actor_endpoint_mapping,remap_then_malformed_response_drains_queued_callers_for_the_current_policy}` green. |
+| M6 | Policy shrink mid-flight | phase-swept | G1, G2, G6 | partial — hits-facts/rules-judgments replacement preserves history and restrictions pessimistically; focused core/actor same-policy limit shrink with held history green, phase-swept scenario-judge run pending | 2026-08-10: `mock_fidelity::b8_policy_rename_and_shrink_keep_existing_hits` green; 2026-08-12 `response_reconciliation::m6_replaces_rules_immediately_while_retaining_history_facts` and `actor_shell::m6_shrink_blocks_new_dispatches_from_the_announcing_response` green. |
 | M7 | Phantom same-account hits | phase-swept | G1, G2, G6 | partial — core synthesis plus mock-owned bursty phantom injection/provenance green; actor observation loop pending | 2026-08-09 core evidence above; 2026-08-10 `mock_fidelity::b6_b9_residue_and_phantoms_are_mock_owned_counter_facts` green. |
 | M8 | 429 recovery and escalation | phase-swept | G1, G2, G5, G6 | partial — core ladder plus independent organic/injected 429, restriction, malformed, and transport-error shapes green; focused actor retry/first-confirmation-escalation tests green, phase-swept wire matrix pending | 2026-08-09 core evidence above; 2026-08-10 B2/B3 and B11 mock-fidelity tests green; 2026-08-12 `actor_shell::{m8_429_requeues_through_the_core_not_before_deadline,m8_confirmation_429_escalates_without_a_third_get}` green. |
 | M9 | Phantom race at saturation | phase-swept | G1, G2, G5, G6 + characterization | partial — arrival delay, phantom injection, source counts, correlation, and capped pre-observation exposure executable; actor race/headroom record pending | 2026-08-10: B6/B9, B12/B13, and capped G1 unavoidable-exposure tests green. |
@@ -557,11 +557,19 @@ actor tests. M5/M6 now preserve stable in-flight reservation anchors while
 adopting the response's remapped name and current rule judgments; focused
 actor scripts pin both paths. A policy name colliding with a separate existing
 route is a documented conservative refusal, not an invented history merge.
+Review revision: post-remap refusal targets resolve to the current visible
+route, so actor scoped failure drains queued callers; the M6 actor script now
+shrinks `stash-list-request-limit` from 10/30 to 5/5 with response-held state
+and demonstrates no dispatch before the 120-second padded deadline. The
+transport trait now returns only bounded `WireResponse`; raw response vectors
+are validated before they can reach the actor. Accepted X2 limitation: the
+spike cannot force a future HTTP parser's upstream allocation cap, so that
+transport implementation must cap body collection itself.
 
-Offline implementation evidence (2026-08-12): `cargo test --locked` — 123
+Offline implementation evidence (2026-08-12): `cargo test --locked` — 124
 debug tests green; `PROPTEST_CASES=4096 cargo test --locked` — all existing
 generated properties green at 4,096 cases; `cargo test --locked --release` —
-121 tests green; all-target clippy with warnings denied, fmt check, and diff
+122 tests green; all-target clippy with warnings denied, fmt check, and diff
 check green. `actor_shell` pins paused-time probe→GET pacing, distinct B13
 correlations, queued and dispatched cancellation, D4 failure, timeout
 retention, and Cloudflare halt/watch behavior. Final M-series scenario runs

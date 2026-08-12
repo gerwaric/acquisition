@@ -23,6 +23,16 @@ fn wire_request(endpoint: Endpoint) -> rate_limit_core::transport::WireRequest {
 }
 
 fn policy_response(policy: &str, max_hits: u32, state_hits: u32) -> HeaderMap {
+    policy_response_with_periods(policy, max_hits, state_hits, 10, 60)
+}
+
+fn policy_response_with_periods(
+    policy: &str,
+    max_hits: u32,
+    state_hits: u32,
+    burst_period_secs: u64,
+    sustained_period_secs: u64,
+) -> HeaderMap {
     let mut headers = HeaderMap::new();
     headers.insert(
         "x-rate-limit-policy",
@@ -31,11 +41,17 @@ fn policy_response(policy: &str, max_hits: u32, state_hits: u32) -> HeaderMap {
     headers.insert("x-rate-limit-rules", HeaderValue::from_static("Account"));
     headers.insert(
         "x-rate-limit-account",
-        HeaderValue::from_str(&format!("{max_hits}:10:60, {max_hits}:60:300")).unwrap(),
+        HeaderValue::from_str(&format!(
+            "{max_hits}:{burst_period_secs}:60, {max_hits}:{sustained_period_secs}:300"
+        ))
+        .unwrap(),
     );
     headers.insert(
         "x-rate-limit-account-state",
-        HeaderValue::from_str(&format!("{state_hits}:10:0, {state_hits}:60:0")).unwrap(),
+        HeaderValue::from_str(&format!(
+            "{state_hits}:{burst_period_secs}:0, {state_hits}:{sustained_period_secs}:0"
+        ))
+        .unwrap(),
     );
     headers
 }
@@ -512,9 +528,95 @@ async fn m5_remap_updates_the_actor_endpoint_mapping() {
     );
 }
 
-// M6: a response's lower limit is effective immediately. Its reported 100
-// hits synthesize the conservative deficit, so a later queued GET cannot be
-// handed to transport before the adopted ten-second window opens.
+#[tokio::test(start_paused = true)]
+async fn remap_then_malformed_response_drains_queued_callers_for_the_current_policy() {
+    let (mock, controller) = MockService::new(MockConfig::n23(1, 0)).unwrap();
+    controller
+        .script(
+            2,
+            ExchangeScript {
+                response: Some(ResponseOverride::Raw {
+                    status: StatusCode::OK,
+                    headers: policy_response("renamed-policy", 100, 1),
+                    body: Vec::new(),
+                }),
+                ..ExchangeScript::default()
+            },
+        )
+        .await
+        .unwrap();
+    let gate = spawn(engine(), mock);
+    let boot = gate
+        .submit(
+            EndpointLabel::from(Endpoint::StashList.label()),
+            wire_request(Endpoint::StashList),
+        )
+        .await
+        .unwrap();
+    tokio::time::advance(Duration::from_secs(4)).await;
+    assert!(boot.await.unwrap().status().is_success());
+
+    controller
+        .script(
+            3,
+            ExchangeScript {
+                response_delay: Duration::from_secs(5),
+                response: Some(ResponseOverride::Raw {
+                    status: StatusCode::TOO_MANY_REQUESTS,
+                    headers: HeaderMap::new(),
+                    body: Vec::new(),
+                }),
+                ..ExchangeScript::default()
+            },
+        )
+        .await
+        .unwrap();
+    controller
+        .script(
+            4,
+            ExchangeScript {
+                response_delay: Duration::from_secs(10),
+                ..ExchangeScript::default()
+            },
+        )
+        .await
+        .unwrap();
+    let first = gate
+        .submit(
+            EndpointLabel::from(Endpoint::StashList.label()),
+            wire_request(Endpoint::StashList),
+        )
+        .await
+        .unwrap();
+    let second = gate
+        .submit(
+            EndpointLabel::from(Endpoint::StashList.label()),
+            wire_request(Endpoint::StashList),
+        )
+        .await
+        .unwrap();
+    let queued = gate
+        .submit(
+            EndpointLabel::from(Endpoint::StashList.label()),
+            wire_request(Endpoint::StashList),
+        )
+        .await
+        .unwrap();
+    tokio::task::yield_now().await;
+    tokio::time::advance(Duration::from_secs(6)).await;
+
+    assert!(matches!(
+        queued.await,
+        Err(GateError::SetupFailed { endpoint, .. }) if endpoint == EndpointLabel::from(Endpoint::StashList.label())
+    ));
+    assert_eq!(controller.handoffs().await.len(), 4);
+    assert!(matches!(first.await, Err(GateError::SetupFailed { .. })));
+    drop(second);
+}
+
+// M6: `stash-list-request-limit` shrinks from its boot policy's 10/30 limits
+// to 5/5. Its reported five hits synthesize the conservative deficit, so a
+// later GET cannot leave the actor before the adopted padded 60-second window.
 #[tokio::test(start_paused = true)]
 async fn m6_shrink_blocks_new_dispatches_from_the_announcing_response() {
     let (mock, controller) = MockService::new(MockConfig::n23(1, 0)).unwrap();
@@ -524,7 +626,7 @@ async fn m6_shrink_blocks_new_dispatches_from_the_announcing_response() {
             ExchangeScript {
                 response: Some(ResponseOverride::Raw {
                     status: StatusCode::OK,
-                    headers: policy_response("stash-request-limit", 100, 100),
+                    headers: policy_response_with_periods("stash-list-request-limit", 5, 5, 15, 60),
                     body: Vec::new(),
                 }),
                 ..ExchangeScript::default()
@@ -551,7 +653,7 @@ async fn m6_shrink_blocks_new_dispatches_from_the_announcing_response() {
         .await
         .unwrap();
     tokio::task::yield_now().await;
-    tokio::time::advance(Duration::from_secs(9)).await;
+    tokio::time::advance(Duration::from_secs(119)).await;
     assert_eq!(controller.handoffs().await.len(), 2);
     tokio::time::advance(Duration::from_secs(2)).await;
     assert!(second.await.unwrap().status().is_success());

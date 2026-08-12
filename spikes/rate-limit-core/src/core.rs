@@ -622,7 +622,7 @@ impl PolicyEngine {
         Transition::new(
             if escalated {
                 Disposition::Refuse {
-                    target: RefusalTarget::Policy(token.policy.clone()),
+                    target: RefusalTarget::Policy(self.current_policy_name(&token.policy)),
                     cause: RefusalCause::RecoveryEscalated,
                 }
             } else {
@@ -655,7 +655,7 @@ impl PolicyEngine {
             Err(error) => {
                 self.fail_confirmation(&token, false);
                 let disposition = Disposition::Refuse {
-                    target: RefusalTarget::Policy(token.policy.clone()),
+                    target: RefusalTarget::Policy(self.current_policy_name(&token.policy)),
                     cause: RefusalCause::PolicyObservation(error),
                 };
                 token.consume();
@@ -698,18 +698,18 @@ impl PolicyEngine {
             // request would only bounce off a refusing try_reserve.
             if self.halted {
                 Disposition::Refuse {
-                    target: RefusalTarget::Policy(token.policy.clone()),
+                    target: RefusalTarget::Policy(self.current_policy_name(&token.policy)),
                     cause: RefusalCause::Halted,
                 }
             } else if self.policy_is_suspended(&token.policy) {
                 Disposition::Refuse {
-                    target: RefusalTarget::Policy(token.policy.clone()),
+                    target: RefusalTarget::Policy(self.current_policy_name(&token.policy)),
                     cause: RefusalCause::EscalationSuspended,
                 }
             } else if confirmation {
                 self.fail_confirmation(&token, true);
                 Disposition::Refuse {
-                    target: RefusalTarget::Policy(token.policy.clone()),
+                    target: RefusalTarget::Policy(self.current_policy_name(&token.policy)),
                     cause: RefusalCause::RecoveryEscalated,
                 }
             } else {
@@ -721,7 +721,7 @@ impl PolicyEngine {
                     // No usable Retry-After: the refusal (never an episode)
                     // is the disposition — there is no schedulable retry.
                     Err(error) => Disposition::Refuse {
-                        target: RefusalTarget::Policy(token.policy.clone()),
+                        target: RefusalTarget::Policy(self.current_policy_name(&token.policy)),
                         cause: RefusalCause::RetryAfter(error),
                     },
                 }
@@ -734,7 +734,7 @@ impl PolicyEngine {
             state_changed = true;
             if self.fail_confirmation(&token, false) {
                 Disposition::Refuse {
-                    target: RefusalTarget::Policy(token.policy.clone()),
+                    target: RefusalTarget::Policy(self.current_policy_name(&token.policy)),
                     cause: RefusalCause::RecoveryEscalated,
                 }
             } else {

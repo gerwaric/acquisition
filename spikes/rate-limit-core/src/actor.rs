@@ -24,7 +24,6 @@ use crate::core::{
     RefusalCause, RefusalReason, RefusalTarget, ReplyClassification, ReservationToken,
     ReserveOutcome, SimInstant,
 };
-use crate::header::MAX_HEADER_VALUE_BYTES;
 use crate::transport::{Transport, TransportError, WireRequest, WireResponse};
 
 pub const MIN_SEND_SPACING: Duration = Duration::from_millis(250);
@@ -35,12 +34,6 @@ pub const TRANSPORT_TIMEOUT: Duration = Duration::from_secs(30);
 pub const MAX_PENDING_REQUESTS: usize = 10_000;
 pub const MAX_ENDPOINTS: usize = 5;
 pub const COMMAND_CAPACITY: usize = 256;
-/// The shell only needs a small, bounded header view before the core's own
-/// per-value parser limits run. This cap prevents a reply from making the
-/// actor clone or iterate an unbounded header map.
-pub const MAX_RESPONSE_HEADERS: usize = 32;
-pub const MAX_RESPONSE_HEADER_NAME_BYTES: usize = 256;
-pub const MAX_RESPONSE_BODY_BYTES: usize = 16 * 1024;
 
 const FUSE_BURST_LIMIT: usize = 10;
 const FUSE_SUSTAINED_LIMIT: usize = 500;
@@ -76,15 +69,6 @@ pub enum GateError {
     },
     Transport(TransportError),
     TimedOut,
-    ResponseBounds(ResponseBoundsError),
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ResponseBoundsError {
-    TooManyHeaders { limit: usize },
-    HeaderNameTooLong { limit: usize },
-    HeaderValueTooLong { limit: usize },
-    BodyTooLong { limit: usize },
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -611,22 +595,16 @@ impl<T: Transport> Actor<T> {
         };
         let now = self.now();
         match outcome {
-            Ok(response) => match observed_response(&response) {
-                Ok(observed) => {
-                    let transition = self.engine.on_response(active.token, now, &observed);
-                    if response.status().is_client_error() && self.safety.four_xx(Instant::now()) {
-                        active.queued.finish(Err(GateError::Halted));
-                        self.halt();
-                    } else {
-                        self.interpret_ordinary(active.queued, response, transition);
-                    }
+            Ok(response) => {
+                let observed = observed_response(&response);
+                let transition = self.engine.on_response(active.token, now, &observed);
+                if response.status().is_client_error() && self.safety.four_xx(Instant::now()) {
+                    active.queued.finish(Err(GateError::Halted));
+                    self.halt();
+                } else {
+                    self.interpret_ordinary(active.queued, response, transition);
                 }
-                Err(error) => {
-                    let transition = self.engine.on_unknown_outcome(active.token, now);
-                    active.queued.finish(Err(GateError::ResponseBounds(error)));
-                    self.interpret_unknown_transition(transition);
-                }
-            },
+            }
             Err(error) => {
                 let transition = self.engine.on_unknown_outcome(active.token, now);
                 active.queued.finish(Err(error));
@@ -640,25 +618,23 @@ impl<T: Transport> Actor<T> {
         self.probe = None;
         let now = self.now();
         match outcome {
-            Ok(response) => match observed_response(&response) {
-                Ok(observed) => {
-                    let transition = self.engine.on_probe_response(&endpoint, now, &observed);
-                    if response.status().is_client_error() && self.safety.four_xx(Instant::now()) {
-                        self.halt();
-                    } else {
-                        match transition.disposition {
-                            Disposition::ProbeReady { policy } => {
-                                self.endpoints
-                                    .insert(endpoint, EndpointState::Established(policy));
-                            }
-                            Disposition::Refuse { cause, .. } => self.cool(endpoint, cause),
-                            Disposition::Halt => self.halt(),
-                            _ => self.halt(),
+            Ok(response) => {
+                let observed = observed_response(&response);
+                let transition = self.engine.on_probe_response(&endpoint, now, &observed);
+                if response.status().is_client_error() && self.safety.four_xx(Instant::now()) {
+                    self.halt();
+                } else {
+                    match transition.disposition {
+                        Disposition::ProbeReady { policy } => {
+                            self.endpoints
+                                .insert(endpoint, EndpointState::Established(policy));
                         }
+                        Disposition::Refuse { cause, .. } => self.cool(endpoint, cause),
+                        Disposition::Halt => self.halt(),
+                        _ => self.halt(),
                     }
                 }
-                Err(_) => self.cool(endpoint, RefusalCause::ProbeUnknownOutcome),
-            },
+            }
             Err(error) => {
                 let transition = self.engine.on_probe_unknown_outcome(&endpoint);
                 let cause = match transition.disposition {
@@ -869,17 +845,11 @@ pub fn with_correlation_header(mut request: WireRequest, header: HeaderName) -> 
     request
 }
 
-fn observed_response(response: &WireResponse) -> Result<ObservedResponse, ResponseBoundsError> {
-    // `WireResponse` is already materialized by the transport trait, but no
-    // actor path may clone, classify, or otherwise inspect an over-bound
-    // body. Production transport implementations must enforce the matching
-    // read cap before constructing this value (X2's single boundary).
-    if response.body().len() > MAX_RESPONSE_BODY_BYTES {
-        return Err(ResponseBoundsError::BodyTooLong {
-            limit: MAX_RESPONSE_BODY_BYTES,
-        });
-    }
-    let headers = bounded_headers(response.headers())?;
+fn observed_response(response: &WireResponse) -> ObservedResponse {
+    // WireResponse is constructed only through the transport boundary's
+    // bounded constructor, so cloning its header view and scanning its body
+    // have fixed maximum work.
+    let headers = response.headers().clone();
     let is_cloudflare_candidate = response.status() == StatusCode::FORBIDDEN
         && headers
             .get("cf-mitigated")
@@ -900,42 +870,18 @@ fn observed_response(response: &WireResponse) -> Result<ObservedResponse, Respon
     } else {
         ReplyClassification::Normal
     };
-    Ok(ObservedResponse::new(
-        response.status(),
-        headers,
-        classification,
-    ))
-}
-
-fn bounded_headers(headers: &http::HeaderMap) -> Result<http::HeaderMap, ResponseBoundsError> {
-    if headers.len() > MAX_RESPONSE_HEADERS {
-        return Err(ResponseBoundsError::TooManyHeaders {
-            limit: MAX_RESPONSE_HEADERS,
-        });
-    }
-    if headers
-        .keys()
-        .any(|name| name.as_str().len() > MAX_RESPONSE_HEADER_NAME_BYTES)
-    {
-        return Err(ResponseBoundsError::HeaderNameTooLong {
-            limit: MAX_RESPONSE_HEADER_NAME_BYTES,
-        });
-    }
-    if headers
-        .values()
-        .any(|value| value.as_bytes().len() > MAX_HEADER_VALUE_BYTES)
-    {
-        return Err(ResponseBoundsError::HeaderValueTooLong {
-            limit: MAX_HEADER_VALUE_BYTES,
-        });
-    }
-    Ok(headers.clone())
+    ObservedResponse::new(response.status(), headers, classification)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::core::{BucketModel, Resolution};
+    use crate::header::MAX_HEADER_VALUE_BYTES;
+    use crate::transport::{
+        MAX_RESPONSE_BODY_BYTES, MAX_RESPONSE_HEADER_NAME_BYTES, MAX_RESPONSE_HEADERS,
+        ResponseBoundsError,
+    };
     use http::{HeaderMap, HeaderName, HeaderValue, Response};
     use proptest::prelude::*;
 
@@ -1014,14 +960,49 @@ mod tests {
             let name = HeaderName::from_bytes(format!("x-bound-{index}").as_bytes()).unwrap();
             headers.insert(name, HeaderValue::from_static("v"));
         }
-        assert!(bounded_headers(&headers).is_ok());
+        let mut exact = Response::new(Vec::new());
+        *exact.headers_mut() = headers.clone();
+        assert!(WireResponse::try_new(exact).is_ok());
 
         headers.insert("x-bound-over", HeaderValue::from_static("v"));
         assert_eq!(
-            bounded_headers(&headers),
-            Err(ResponseBoundsError::TooManyHeaders {
-                limit: MAX_RESPONSE_HEADERS,
+            WireResponse::try_new({
+                let mut response = Response::new(Vec::new());
+                *response.headers_mut() = headers;
+                response
             })
+            .unwrap_err(),
+            ResponseBoundsError::TooManyHeaders {
+                limit: MAX_RESPONSE_HEADERS,
+            }
+        );
+
+        let mut name_boundary = HeaderMap::new();
+        let exact_name = format!("x-{}", "n".repeat(MAX_RESPONSE_HEADER_NAME_BYTES - 2));
+        name_boundary.insert(
+            HeaderName::from_bytes(exact_name.as_bytes()).unwrap(),
+            HeaderValue::from_static("v"),
+        );
+        let mut exact = Response::new(Vec::new());
+        *exact.headers_mut() = name_boundary;
+        assert!(WireResponse::try_new(exact).is_ok());
+
+        let mut over_name = HeaderMap::new();
+        let overlong_name = format!("x-{}", "n".repeat(MAX_RESPONSE_HEADER_NAME_BYTES - 1));
+        over_name.insert(
+            HeaderName::from_bytes(overlong_name.as_bytes()).unwrap(),
+            HeaderValue::from_static("v"),
+        );
+        assert_eq!(
+            WireResponse::try_new({
+                let mut response = Response::new(Vec::new());
+                *response.headers_mut() = over_name;
+                response
+            })
+            .unwrap_err(),
+            ResponseBoundsError::HeaderNameTooLong {
+                limit: MAX_RESPONSE_HEADER_NAME_BYTES,
+            }
         );
 
         let mut value_boundary = HeaderMap::new();
@@ -1029,16 +1010,23 @@ mod tests {
             "x-bound-value",
             "v".repeat(MAX_HEADER_VALUE_BYTES).parse().unwrap(),
         );
-        assert!(bounded_headers(&value_boundary).is_ok());
+        let mut exact = Response::new(Vec::new());
+        *exact.headers_mut() = value_boundary.clone();
+        assert!(WireResponse::try_new(exact).is_ok());
         value_boundary.insert(
             "x-bound-value",
             "v".repeat(MAX_HEADER_VALUE_BYTES + 1).parse().unwrap(),
         );
         assert_eq!(
-            bounded_headers(&value_boundary),
-            Err(ResponseBoundsError::HeaderValueTooLong {
-                limit: MAX_HEADER_VALUE_BYTES,
+            WireResponse::try_new({
+                let mut response = Response::new(Vec::new());
+                *response.headers_mut() = value_boundary;
+                response
             })
+            .unwrap_err(),
+            ResponseBoundsError::HeaderValueTooLong {
+                limit: MAX_HEADER_VALUE_BYTES,
+            }
         );
     }
 
@@ -1050,7 +1038,7 @@ mod tests {
             .header("server", "cloudflare")
             .body(vec![b'x'; MAX_RESPONSE_BODY_BYTES])
             .unwrap();
-        assert!(observed_response(&exact).is_ok());
+        assert!(WireResponse::try_new(exact).is_ok());
 
         let over = Response::builder()
             .status(StatusCode::FORBIDDEN)
@@ -1059,10 +1047,10 @@ mod tests {
             .body(vec![b'x'; MAX_RESPONSE_BODY_BYTES + 1])
             .unwrap();
         assert_eq!(
-            observed_response(&over),
-            Err(ResponseBoundsError::BodyTooLong {
+            WireResponse::try_new(over).unwrap_err(),
+            ResponseBoundsError::BodyTooLong {
                 limit: MAX_RESPONSE_BODY_BYTES,
-            })
+            }
         );
     }
 
