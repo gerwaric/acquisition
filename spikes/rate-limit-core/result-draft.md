@@ -269,9 +269,11 @@ G1.
     note under M10 in `scenarios.md`), on the grounds that `design-brief.md`
     already scopes reorder out of the spike. See CN6 in §4 for the finding
     that came out of it.
-12. **`scenarios.md` §6 cannot finalize G3's epsilon until the oracle
-    models when a request was queued.** Originally filed as a
-    relative-versus-absolute anchor problem; scaling M10 refined it twice.
+12. **G3's epsilon is an unmodelled-padding allowance, not a slop
+    tolerance — §6 cannot finalize it until that is decided.** Originally
+    filed as a relative-versus-absolute anchor problem; scaling M10 and then
+    measuring at 25ms resolution refined it three times. (a) and (b) are
+    resolved; **(c) is the open decision.**
 
     *(a) Permit availability — resolved 2026-08-12.* The oracle assumed no
     policy debt, which held at 16 requests and collapsed at 300: G3 read
@@ -284,28 +286,44 @@ G1.
     out, and HEADs are excluded because the mock counts an arrival iff it is
     not a HEAD and did not trip layer 1.
 
-    *(b) Queueing time — still open, and it blocks the epsilon decision.*
-    §6 says "whenever a request is **queued** and eligible," but the oracle
-    has no submission instants, so a request submitted long after it became
-    policy-eligible is scored as though the client sat on it. Measured at
-    25ms harness resolution: the eight rows whose submissions are
-    contemporaneous with eligibility show a max lateness of **25–50 ms**,
-    while M5/M6/M7/M9/M10 — all of which submit after an intervening
-    `advance` — show exactly **500 ms**. M5 is the clean example: its third
-    GET dispatched at 1,250 ms against an oracle expectation of 750 ms, but
-    was not submitted until ≈1,250 ms. The actor dispatched it the instant
-    it existed.
+    *(b) Queueing time — resolved 2026-08-12.* §6 says "whenever a request
+    is **queued** and eligible," but the oracle had no submission instants, so
+    a request submitted long after it became policy-eligible was scored as
+    though the client sat on it. The oracle now raises each observation's
+    eligibility to the latest script submission instant at or before its
+    dispatch. Note the mapping trap found on the way: `RequestId` and the wire
+    correlation are *independent* counters — the actor allocates a fresh
+    correlation per **dispatch**, probes and retries included — so
+    `ticket.id()` is not `observation.correlation_id` and a per-request map is
+    not available. The bound above needs no such map. Soundness rests on the
+    arms awaiting outstanding work before the next submission; M10's burst is
+    safe because its submissions share one instant.
 
-    **Consequence: the observed 500 ms maxima are an oracle artifact, not
-    client sloppiness, so the current data cannot justify keeping epsilon at
-    500 ms — and equally cannot justify tightening it.** The eight clean
-    rows suggest the true bound is well under 50 ms. §6's revisit rule
-    ("tighten after the first implementation lands if the actor's scheduling
-    makes a smaller epsilon reliable under paused time") is unfollowable
-    until the oracle carries queueing instants. Note also that harness
-    granularity floors any measurement: `advance` steps 250 ms in the
-    committed driver, so at that setting no epsilon below 250 ms is
-    measurable at all. **Open — flagged for Tom.**
+    The harness step also dropped from 250ms to 25ms. That step is the floor
+    under any G3 measurement — nothing smaller than one step is observable —
+    and at 25ms the whole target, M10's 300-request run included, costs ~2s.
+
+    *(c) The oracle computes the server's permit instant, not the padded-safe
+    time §6 asks for — and that is what epsilon is really absorbing.* With (a)
+    and (b) in place, measured lateness at 25ms resolution decomposes cleanly:
+
+    | Where | Max observed | What it is |
+    |---|---|---|
+    | Every row away from a window rollover | **25 ms** (M8: 50 ms) | One harness tick: scheduling latency, at the measurement floor |
+    | M10 at each window rollover | **275 ms and 475 ms** | The client's N13 pessimism padding, which the oracle does not model |
+
+    §6 asks G3 to measure against "the padded-safe time"; the debt term
+    computes the *server's* raw permit instant, so the client's deliberate
+    padding at a rollover reads as lateness. Consequence, measured both ways:
+    at epsilon = 100 ms an **unmutated** actor fails M10 on padding alone,
+    while the same epsilon **catches** the 250→600 ms floor regression that
+    epsilon = 500 ms lets through (round one's demonstrated hole). So epsilon
+    = 500 ms is not slop tolerance — it is an unmodelled-padding allowance,
+    and the two cannot be separated until the oracle models N13 padding.
+    The choice: model padding and tighten epsilon to roughly 100 ms, gaining a
+    G3 that catches pacing regressions; or keep epsilon near 500 ms and record
+    that G3 cannot discriminate below the padding envelope. **Open — flagged
+    for Tom.**
 
 All evidence below was re-run 2026-08-12, offline, with no socket and
 no live service contact:
@@ -1118,6 +1136,47 @@ outlives the spike branch; record what exists and where.⟩
   clean rows suggest the true bound is well under 50 ms. Recorded rather
   than fixed, because closing it means giving the oracle submission instants
   and that is a scope decision for Tom.
+  Gate matrix: 127 debug, 125 release, all-target clippy with warnings
+  denied, fmt, and `git diff --check` green. Slice remains **open pending
+  re-review**; no verdict slot filled.
+- 2026-08-12 — **G3 epsilon decomposed; finding 12(b) closed, 12(c) opened.**
+  Tom's call was to close 12(b) if it cost the system nothing; it cost
+  nothing, and the measurement it unlocked reframed the epsilon question.
+  **12(b) resolved, after a wrong turn worth recording.** The first attempt
+  keyed submission instants by `ticket.id()`, on the assumption that the
+  actor stamps its `RequestId` into the correlation header. It does not:
+  `RequestId` and the wire correlation are independent counters, because
+  `start_probe` allocates a fresh correlation per *dispatch* (probes and
+  retries included). The test caught it immediately — M5 flipped to
+  "dispatched before independent eligibility". A second attempt used §6's
+  authorized-exclusion mechanism, which also failed, for an instructive
+  reason: the delay interval *straddles* the submission (M5's second GET was
+  submitted at 1,000 ms and dispatched at 1,250 ms), so no quiet window
+  bounded by the submission can contain it. What works needs no per-request
+  map at all: raise each observation's eligibility to the latest script
+  submission instant at or before its dispatch. A request is never expected
+  before the script asked for one.
+  **Harness step 250ms → 25ms.** The step is the floor under every G3
+  measurement, and at 25ms the whole target — M10's 300-request, 66-minute
+  run included — costs ~2s. There was no tradeoff to make.
+  **12(c) opened: epsilon is not what it appears to be.** With the oracle
+  correct, lateness decomposes cleanly. Away from window rollovers it is
+  **25 ms** (M8: 50 ms) — one tick, i.e. the measurement floor, so the actor
+  is tight enough that the harness cannot resolve it. At M10's window
+  rollovers it is **275 ms and 475 ms**, and that is the client's N13
+  pessimism padding: §6 asks G3 to measure against the *padded-safe* time,
+  while the debt term computes the *server's* raw permit instant, so
+  deliberate padding reads as lateness. Measured both directions: at
+  epsilon = 100 ms an **unmutated** actor fails M10 on padding alone, and the
+  same epsilon **catches** the 250→600 ms floor regression that epsilon =
+  500 ms lets through — round one's demonstrated hole. So the draft
+  epsilon = 500 ms is not slop tolerance; it is an allowance for padding the
+  oracle does not model, and the two cannot be separated without modelling
+  it. The §6 choice is now concrete: model N13 padding and tighten epsilon to
+  roughly 100 ms, gaining a G3 that catches pacing regressions; or keep
+  epsilon near 500 ms and record that G3 cannot discriminate below the
+  padding envelope. Not decided here — it is a gate constant, and the docs
+  make it Tom's.
   Gate matrix: 127 debug, 125 release, all-target clippy with warnings
   denied, fmt, and `git diff --check` green. Slice remains **open pending
   re-review**; no verdict slot filled.

@@ -9,7 +9,9 @@ use std::num::NonZeroU64;
 use std::time::Duration;
 
 use http::{HeaderMap, HeaderValue, Method, StatusCode};
-use rate_limit_core::actor::{GateError, spawn, with_correlation_header};
+use rate_limit_core::actor::{
+    GateError, GateHandle, RequestTicket, spawn, with_correlation_header,
+};
 use rate_limit_core::conformance::{
     ClientBucketProfile, ContractCoverage, Gate, ReproductionRecord, RunEvidence,
     SHIPPED_ASSUMED_PROFILE, ScenarioAssertion, ScenarioId, ScenarioOracle, judge, scenario,
@@ -44,9 +46,45 @@ fn wire_request(endpoint: Endpoint) -> rate_limit_core::transport::WireRequest {
     )
 }
 
+/// Submits through the gate, recording the script's own submission instant.
+///
+/// §6 measures G3 "whenever a request is **queued** and eligible", but the
+/// harness cannot key submissions to wire correlations: `RequestId` and the
+/// correlation counter are independent, because the actor allocates a fresh
+/// correlation per *dispatch* (probes and retries included).  So rather than
+/// invent a mapping, this uses §6's own exclusion mechanism — "the harness
+/// excludes what it cannot independently model" — bounded by two facts it
+/// does own: the mock's last recorded dispatch, and the script's own
+/// submission instant.  Nothing here is client-reported, which §6 forbids as
+/// an authorization source.
+///
+/// Soundness rests on the arms awaiting their outstanding tickets before the
+/// next submission, so the authorized window is genuinely idle.  A script
+/// that submits while earlier work is still in flight must not rely on it.
+async fn submit_recorded(
+    gate: &GateHandle,
+    controller: &MockController,
+    submitted_ms: &mut Vec<u64>,
+    endpoint: Endpoint,
+) -> RequestTicket {
+    submitted_ms.push(controller.now().as_millis());
+    gate.submit(
+        EndpointLabel::from(endpoint.label()),
+        wire_request(endpoint),
+    )
+    .await
+    .expect("the gate accepts a submission")
+}
+
+/// Simulated-time step.  This is the floor under every G3 measurement: no
+/// lateness smaller than one step is observable, so the step must stay well
+/// below any epsilon §6 finalizes.  25ms costs ~2s for the whole target,
+/// including M10's 300-request run, which is why it is not 250ms.
+const ADVANCE_STEP_MS: u64 = 25;
+
 async fn advance(millis: u64) {
-    for _ in 0..millis.div_ceil(250) {
-        tokio::time::advance(Duration::from_millis(250)).await;
+    for _ in 0..millis.div_ceil(ADVANCE_STEP_MS) {
+        tokio::time::advance(Duration::from_millis(ADVANCE_STEP_MS)).await;
         tokio::task::yield_now().await;
     }
 }
@@ -89,6 +127,8 @@ struct DriverOracle {
     /// HEADs are independent probe exclusions, so their own handoff is their
     /// first eligible instant.
     eligible: BTreeMap<u64, u64>,
+    /// Script-owned submission instants, ascending; see `submit_recorded`.
+    submitted_ms: Vec<u64>,
     m2_minimum_ms: Option<u64>,
 }
 
@@ -177,6 +217,7 @@ async fn run_m1_m13(phase_ms: u64) {
         config.dispatch_budget = 1_024;
         let (mock, controller) = MockService::new(config).unwrap();
         let gate = spawn(engine(profile), mock);
+        let mut submitted_ms = Vec::new();
 
         // Each arm yields its scenario fragment's verdict rather than
         // asserting it, so a failure reaches G5 and is reported with the
@@ -187,13 +228,9 @@ async fn run_m1_m13(phase_ms: u64) {
                     .preload("stash-list-request-limit", controller.now(), 1)
                     .await
                     .unwrap();
-                let ticket = gate
-                    .submit(
-                        EndpointLabel::from(Endpoint::StashList.label()),
-                        wire_request(Endpoint::StashList),
-                    )
-                    .await
-                    .unwrap();
+                let ticket =
+                    submit_recorded(&gate, &controller, &mut submitted_ms, Endpoint::StashList)
+                        .await;
                 advance(2_000).await;
                 let granted = ticket.await.is_ok();
                 let observations = controller.observations().await;
@@ -209,12 +246,8 @@ async fn run_m1_m13(phase_ms: u64) {
                 let mut tickets = Vec::new();
                 for _ in 0..10 {
                     tickets.push(
-                        gate.submit(
-                            EndpointLabel::from(Endpoint::StashList.label()),
-                            wire_request(Endpoint::StashList),
-                        )
-                        .await
-                        .unwrap(),
+                        submit_recorded(&gate, &controller, &mut submitted_ms, Endpoint::StashList)
+                            .await,
                     );
                 }
                 advance(6_000).await;
@@ -242,13 +275,7 @@ async fn run_m1_m13(phase_ms: u64) {
                     )
                     .await
                     .unwrap();
-                let ticket = gate
-                    .submit(
-                        EndpointLabel::from(endpoint.label()),
-                        wire_request(endpoint),
-                    )
-                    .await
-                    .unwrap();
+                let ticket = submit_recorded(&gate, &controller, &mut submitted_ms, endpoint).await;
                 advance(1_000).await;
                 let refused = matches!(ticket.await, Err(GateError::SetupFailed { .. }));
                 refused && controller.observations().await.len() == 1
@@ -268,38 +295,24 @@ async fn run_m1_m13(phase_ms: u64) {
                     )
                     .await
                     .unwrap();
-                let ticket = gate
-                    .submit(
-                        EndpointLabel::from(endpoint.label()),
-                        wire_request(endpoint),
-                    )
-                    .await
-                    .unwrap();
+                let ticket = submit_recorded(&gate, &controller, &mut submitted_ms, endpoint).await;
                 advance(1_000).await;
                 let refused = matches!(ticket.await, Err(GateError::SetupFailed { .. }));
                 refused && controller.observations().await.len() == 1
             }
             ScenarioId::M5 => {
-                let first = gate
-                    .submit(
-                        EndpointLabel::from(Endpoint::StashList.label()),
-                        wire_request(Endpoint::StashList),
-                    )
-                    .await
-                    .unwrap();
+                let first =
+                    submit_recorded(&gate, &controller, &mut submitted_ms, Endpoint::StashList)
+                        .await;
                 advance(1_000).await;
                 let first_granted = first.await.is_ok();
                 controller
                     .rename_policy("stash-list-request-limit", pair_policy("renamed-limit", 10))
                     .await
                     .unwrap();
-                let second = gate
-                    .submit(
-                        EndpointLabel::from(Endpoint::StashList.label()),
-                        wire_request(Endpoint::StashList),
-                    )
-                    .await
-                    .unwrap();
+                let second =
+                    submit_recorded(&gate, &controller, &mut submitted_ms, Endpoint::StashList)
+                        .await;
                 advance(1_000).await;
                 let second_granted = second.await.is_ok();
                 first_granted
@@ -313,50 +326,34 @@ async fn run_m1_m13(phase_ms: u64) {
                         == 1
             }
             ScenarioId::M6 => {
-                let first = gate
-                    .submit(
-                        EndpointLabel::from(Endpoint::StashList.label()),
-                        wire_request(Endpoint::StashList),
-                    )
-                    .await
-                    .unwrap();
+                let first =
+                    submit_recorded(&gate, &controller, &mut submitted_ms, Endpoint::StashList)
+                        .await;
                 advance(1_000).await;
                 let first_granted = first.await.is_ok();
                 controller
                     .replace_policy(pair_policy("stash-list-request-limit", 5))
                     .await
                     .unwrap();
-                let second = gate
-                    .submit(
-                        EndpointLabel::from(Endpoint::StashList.label()),
-                        wire_request(Endpoint::StashList),
-                    )
-                    .await
-                    .unwrap();
+                let second =
+                    submit_recorded(&gate, &controller, &mut submitted_ms, Endpoint::StashList)
+                        .await;
                 advance(1_000).await;
                 first_granted && second.await.is_ok()
             }
             ScenarioId::M7 => {
-                let first = gate
-                    .submit(
-                        EndpointLabel::from(Endpoint::StashList.label()),
-                        wire_request(Endpoint::StashList),
-                    )
-                    .await
-                    .unwrap();
+                let first =
+                    submit_recorded(&gate, &controller, &mut submitted_ms, Endpoint::StashList)
+                        .await;
                 advance(1_000).await;
                 let first_granted = first.await.is_ok();
                 controller
                     .inject_phantoms("stash-list-request-limit", 2)
                     .await
                     .unwrap();
-                let second = gate
-                    .submit(
-                        EndpointLabel::from(Endpoint::StashList.label()),
-                        wire_request(Endpoint::StashList),
-                    )
-                    .await
-                    .unwrap();
+                let second =
+                    submit_recorded(&gate, &controller, &mut submitted_ms, Endpoint::StashList)
+                        .await;
                 advance(1_000).await;
                 first_granted && second.await.is_ok()
             }
@@ -374,13 +371,7 @@ async fn run_m1_m13(phase_ms: u64) {
                     )
                     .await
                     .unwrap();
-                let ticket = gate
-                    .submit(
-                        EndpointLabel::from(endpoint.label()),
-                        wire_request(endpoint),
-                    )
-                    .await
-                    .unwrap();
+                let ticket = submit_recorded(&gate, &controller, &mut submitted_ms, endpoint).await;
                 advance(70_000).await;
                 let retried = ticket.await.is_ok();
                 retried
@@ -393,26 +384,16 @@ async fn run_m1_m13(phase_ms: u64) {
                         == 2
             }
             ScenarioId::M9 => {
-                let first = gate
-                    .submit(
-                        EndpointLabel::from(Endpoint::Stash.label()),
-                        wire_request(Endpoint::Stash),
-                    )
-                    .await
-                    .unwrap();
+                let first =
+                    submit_recorded(&gate, &controller, &mut submitted_ms, Endpoint::Stash).await;
                 advance(1_000).await;
                 let first_granted = first.await.is_ok();
                 controller
                     .inject_phantoms("stash-request-limit", 1)
                     .await
                     .unwrap();
-                let second = gate
-                    .submit(
-                        EndpointLabel::from(Endpoint::Stash.label()),
-                        wire_request(Endpoint::Stash),
-                    )
-                    .await
-                    .unwrap();
+                let second =
+                    submit_recorded(&gate, &controller, &mut submitted_ms, Endpoint::Stash).await;
                 advance(1_000).await;
                 first_granted && second.await.is_ok()
             }
@@ -431,24 +412,13 @@ async fn run_m1_m13(phase_ms: u64) {
                     .await
                     .unwrap();
                 let mut tickets = Vec::new();
-                tickets.push(
-                    gate.submit(
-                        EndpointLabel::from(endpoint.label()),
-                        wire_request(endpoint),
-                    )
-                    .await
-                    .unwrap(),
-                );
+                tickets
+                    .push(submit_recorded(&gate, &controller, &mut submitted_ms, endpoint).await);
                 advance(1_000).await;
                 drop(tickets.pop().unwrap());
                 for _ in 0..M10_PRESSURE_REQUESTS {
                     tickets.push(
-                        gate.submit(
-                            EndpointLabel::from(endpoint.label()),
-                            wire_request(endpoint),
-                        )
-                        .await
-                        .unwrap(),
+                        submit_recorded(&gate, &controller, &mut submitted_ms, endpoint).await,
                     );
                 }
                 // Cancellations are spread through the queue, not taken off
@@ -532,13 +502,7 @@ async fn run_m1_m13(phase_ms: u64) {
                     )
                     .await
                     .unwrap();
-                let ticket = gate
-                    .submit(
-                        EndpointLabel::from(endpoint.label()),
-                        wire_request(endpoint),
-                    )
-                    .await
-                    .unwrap();
+                let ticket = submit_recorded(&gate, &controller, &mut submitted_ms, endpoint).await;
                 advance(1_000).await;
                 let halted_caller = matches!(ticket.await, Err(GateError::Halted));
                 halted_caller && gate.subscribe_status().borrow().halted
@@ -557,13 +521,7 @@ async fn run_m1_m13(phase_ms: u64) {
                     )
                     .await
                     .unwrap();
-                let ticket = gate
-                    .submit(
-                        EndpointLabel::from(endpoint.label()),
-                        wire_request(endpoint),
-                    )
-                    .await
-                    .unwrap();
+                let ticket = submit_recorded(&gate, &controller, &mut submitted_ms, endpoint).await;
                 advance(1_000).await;
                 let completed = ticket.await.is_ok();
                 completed
@@ -586,20 +544,11 @@ async fn run_m1_m13(phase_ms: u64) {
                     )
                     .await
                     .unwrap();
-                let first = gate
-                    .submit(
-                        EndpointLabel::from(Endpoint::StashList.label()),
-                        wire_request(Endpoint::StashList),
-                    )
-                    .await
-                    .unwrap();
-                let second = gate
-                    .submit(
-                        EndpointLabel::from(Endpoint::Stash.label()),
-                        wire_request(Endpoint::Stash),
-                    )
-                    .await
-                    .unwrap();
+                let first =
+                    submit_recorded(&gate, &controller, &mut submitted_ms, Endpoint::StashList)
+                        .await;
+                let second =
+                    submit_recorded(&gate, &controller, &mut submitted_ms, Endpoint::Stash).await;
                 advance(6_000).await;
                 let first_granted = first.await.is_ok();
                 let second_granted = second.await.is_ok();
@@ -627,7 +576,8 @@ async fn run_m1_m13(phase_ms: u64) {
             ),
             _ => None,
         };
-        let mut oracle = independently_scripted_oracle(id, &evidence.observations, debt.as_ref());
+        let mut oracle =
+            independently_scripted_oracle(id, &evidence.observations, debt.as_ref(), &submitted_ms);
         if id == ScenarioId::M2 {
             // One boot HEAD at t=0, ten GETs at the 250ms D5 floor, and the
             // mock's fixed 50ms completion latency.  This is plain integer
@@ -675,19 +625,14 @@ async fn run_m8_oauth_lane(phase_ms: u64) {
         .await
         .unwrap();
     let gate = spawn(engine(profile), mock);
-    let ticket = gate
-        .submit(
-            EndpointLabel::from(Endpoint::Stash.label()),
-            wire_request(Endpoint::Stash),
-        )
-        .await
-        .unwrap();
+    let mut submitted_ms = Vec::new();
+    let ticket = submit_recorded(&gate, &controller, &mut submitted_ms, Endpoint::Stash).await;
     advance(70_000).await;
     let retried = ticket.await.is_ok();
     let evidence = evidence(&controller, ScenarioId::M8, profile, retried).await;
     let report = judge(
         &evidence,
-        &independently_scripted_oracle(ScenarioId::M8, &evidence.observations, None),
+        &independently_scripted_oracle(ScenarioId::M8, &evidence.observations, None, &submitted_ms),
     )
     .unwrap();
     assert!(report.passed(), "OAuth M8: {report:?}");
@@ -834,8 +779,12 @@ fn independently_scripted_oracle(
     scenario_id: ScenarioId,
     observations: &[rate_limit_core::mock::Observation],
     debt: Option<&PolicyDebt>,
+    submitted_ms: &[u64],
 ) -> DriverOracle {
-    let mut oracle = DriverOracle::default();
+    let mut oracle = DriverOracle {
+        submitted_ms: submitted_ms.to_vec(),
+        ..DriverOracle::default()
+    };
     let mut prior_arrival_ms = Vec::new();
     let mut prior_dispatch = 0_u64;
     let mut prior_completion = 0_u64;
@@ -867,7 +816,20 @@ fn independently_scripted_oracle(
                 exclusive_until.max(floor_open).max(permitted)
             }
         };
-        oracle.eligible.insert(observation.correlation_id, eligible);
+        // A request cannot be dispatched before the script asked for one.
+        // Without this the oracle scores a caller that was submitted long
+        // after it became policy-eligible as though the client sat on it --
+        // the artifact behind doc finding 12b's spurious 500ms maxima.
+        let requested = oracle
+            .submitted_ms
+            .iter()
+            .copied()
+            .filter(|submitted| *submitted <= observation.dispatch_ms)
+            .max()
+            .unwrap_or(0);
+        oracle
+            .eligible
+            .insert(observation.correlation_id, eligible.max(requested));
         prior_dispatch = observation.dispatch_ms;
         prior_completion = observation.completion_ms;
         prior_was_head = observation.method == Method::HEAD;

@@ -1,11 +1,12 @@
 # Scenario-driver and judge-integration hand-off
 
 Status: **round-one findings F1–F6, round-two finding F7, and doc
-findings 11 and 12(a) all fixed 2026-08-12; awaiting re-review.** The actor-to-judge seam is implemented and
+findings 11, 12(a) and 12(b) all fixed 2026-08-12; awaiting re-review.** The actor-to-judge seam is implemented and
 exercised; this is not a final M-series close because every row is a
 `ContractCoverage::Fragment`. M10 now runs at its stated scale (300
-enqueues, 66 simulated minutes), but doc finding 12(b) is open and blocks
-G3's epsilon finalization. Both review rounds and their fixes are recorded in the
+enqueues, 66 simulated minutes), and doc finding 12(c) is open: G3's
+epsilon cannot be finalized until Tom decides whether the oracle models N13
+padding. Both review rounds and their fixes are recorded in the
 `result-draft.md` §9 entries dated 2026-08-12.
 
 M10's reprioritization stimulus was **removed by Tom on 2026-08-12** — it is
@@ -30,7 +31,8 @@ pins the distances, so the next misreading fails a test.
 | `scenarios.md` does not say whether a partial run may report its scenario's assertion. | It may not. Evidence declares `ContractCoverage::Fragment`, and `RunReport::verdict_eligible()` requires a pass *and* full coverage. | The next run that wants to fill a verdict slot must first raise that row to `FullContract`; a green fragment cannot be mistaken for a scenario result. |
 | G3/G4 label 500ms and 1.05× as draft and require a §6 finalization before verdicts. | Exercise the judge at those draft numbers, but leave both verdict slots untouched. | The next evidence run can report draft-gate behavior only; it cannot promote either lane to a verdict. |
 | §6 names permit availability as part of G3's padded-safe time but does not give the arithmetic. | Mirror the *server's* counting predicate from the mock's observation log and its own window definitions — never the client's — so a hit stays active until `bucket_end(at) + period` and HEADs are excluded, matching `counted`. | The next scenario that saturates a policy gets correct eligibility for free; one that injects residue or phantoms must not use it, because those hits are invisible to the log. |
-| §6 says "whenever a request is *queued* and eligible" but the harness has no submission instants. | Score against eligibility alone and record the resulting overstatement, rather than invent submission times or widen ε to hide it (doc finding 12b). | The next §6 finalization is blocked: measured maxima of exactly 500ms on five rows are this artifact, not client behavior, so ε can be neither kept nor tightened on today's data. |
+| §6 says "whenever a request is *queued* and eligible" but `RequestId` and the wire correlation are independent counters, so submissions cannot be keyed to observations. | Bound eligibility by the latest script submission instant at or before each dispatch — no per-request map needed, and nothing client-reported. | A script that interleaves submissions with in-flight work would need real per-request identity; M10's burst is safe only because its submissions share one instant. |
+| §6 asks G3 to measure the *padded-safe* time but gives no padding arithmetic. | Compute the server's permit instant, and record the residual (the client's N13 padding) rather than widen ε silently or model padding uninstructed. | The next §6 finalization must choose: model padding and tighten ε to ~100ms, or keep ε ≈500ms and state that G3 cannot discriminate below the padding envelope (doc finding 12c). |
 | M10 called for reprioritization but the closed actor only has enqueue/cancel. | Do not fabricate a reorder operation; test pressure, cancellation, and dispatched caller drop only. | **Resolved 2026-08-12:** Tom amended M10 to drop the stimulus (`design-brief.md` scopes reorder out of the spike). No assertion was lost — reprioritization was never in M10's asserts. The next M10 attempt owes scale, not reorder; see CN6 before ever adding one. |
 
 ## 2. Seam map and invariant walk
@@ -90,14 +92,20 @@ Gate teeth, measured rather than assumed:
   is load-bearing at M10's scale: without it, legitimate window waits read
   as 112s and 1,497s violations. It still has two known limits — the
   spacing-floor term re-anchors on the previous observed dispatch (a
-  250→600ms floor regression stays green; 1,000ms trips it), and the oracle
-  has no submission instants, so requests queued after they became eligible
-  are scored as though the client sat on them. Doc finding 12.
-- **Do not read the 500ms lateness maxima as client sloppiness.** They are
-  the queueing-time gap above. At 25ms harness resolution the eight rows
-  with contemporaneous submissions measure 25–50ms; only the five rows that
-  submit after an intervening `advance` sit at 500ms. Anyone finalizing
-  epsilon must close finding 12(b) first.
+  250→600ms floor regression stays green at epsilon=500; 1,000ms trips it),
+  and the debt term computes the server's permit instant rather than the
+  padded-safe time §6 names. Doc finding 12(c). Submission instants are now
+  modelled: a request is never expected before the script asked for one.
+- **What epsilon is actually absorbing (read before touching G3).** At the
+  now-25ms harness step, lateness away from a window rollover is **25ms**
+  (M8: 50ms) — one tick, i.e. at the measurement floor. At M10's window
+  rollovers it is **275ms and 475ms**, and that is the client's N13
+  pessimism padding, which the oracle does not model: the debt term computes
+  the *server's* permit instant while §6 asks for the *padded-safe* time.
+  Measured both ways: epsilon=100ms fails an unmutated actor on padding
+  alone, and the same epsilon catches the 250→600ms floor regression that
+  epsilon=500ms lets through. So epsilon=500 buys tolerance for padding, not
+  for slop. Doc finding 12(c) — Tom's decision.
 - `independently_observable_ms` is **not exercised** — `unavoidable_exposure`
   is always `None` here, so the M9 exposure-attribution seam is untested by
   this target.
