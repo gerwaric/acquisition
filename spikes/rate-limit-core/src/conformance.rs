@@ -318,9 +318,24 @@ pub trait ScenarioOracle {
     }
 }
 
+/// Whether a run's assertion covers the whole `scenarios.md` contract for its
+/// ID, or only the fragment a partial driver implements.
+///
+/// A fragment run is still judged — G5 fails if the fragment fails — but the
+/// report carries the distinction so a passing G5 cannot be read as
+/// contract-complete evidence. Without this, a driver that exercises one
+/// branch of M8 reports `M8Recovery: passed`, which is exactly the
+/// "unrelated passing flag" [`ScenarioAssertionId`] forbids.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum ContractCoverage {
+    FullContract,
+    Fragment,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ScenarioAssertion {
     pub id: ScenarioAssertionId,
+    pub coverage: ContractCoverage,
     pub passed: bool,
 }
 
@@ -447,6 +462,8 @@ pub struct GateResult {
 pub struct RunReport {
     pub scenario: ScenarioId,
     pub reproduction: Option<ReproductionRecord>,
+    /// `Fragment` if *any* assertion in the evidence was a fragment.
+    pub contract_coverage: ContractCoverage,
     pub gates: Vec<GateResult>,
 }
 
@@ -455,6 +472,13 @@ impl RunReport {
         self.gates
             .iter()
             .all(|gate| !gate.applicable || gate.passed)
+    }
+
+    /// A verdict slot in `result-draft.md` may only be filled from a report
+    /// that both passed and covered the whole scenario contract. A green
+    /// fragment run is evidence of a seam, never of a scenario.
+    pub fn verdict_eligible(&self) -> bool {
+        self.passed() && self.contract_coverage == ContractCoverage::FullContract
     }
 
     pub fn gate(&self, gate: Gate) -> &GateResult {
@@ -699,9 +723,19 @@ pub fn judge(
         (Gate::G5, g5_failures),
         (Gate::G6, g6_failures),
     ]);
+    let contract_coverage = if evidence
+        .assertions
+        .iter()
+        .all(|assertion| assertion.coverage == ContractCoverage::FullContract)
+    {
+        ContractCoverage::FullContract
+    } else {
+        ContractCoverage::Fragment
+    };
     Ok(RunReport {
         scenario: evidence.scenario,
         reproduction: evidence.reproduction,
+        contract_coverage,
         gates: [Gate::G1, Gate::G2, Gate::G3, Gate::G4, Gate::G5, Gate::G6]
             .into_iter()
             .map(|gate| {

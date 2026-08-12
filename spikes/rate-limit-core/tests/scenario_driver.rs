@@ -10,8 +10,8 @@ use std::time::Duration;
 use http::{HeaderMap, HeaderValue, Method, StatusCode};
 use rate_limit_core::actor::{GateError, spawn, with_correlation_header};
 use rate_limit_core::conformance::{
-    ClientBucketProfile, Gate, ReproductionRecord, RunEvidence, SHIPPED_ASSUMED_PROFILE,
-    ScenarioAssertion, ScenarioId, ScenarioOracle, judge, scenario,
+    ClientBucketProfile, ContractCoverage, Gate, ReproductionRecord, RunEvidence,
+    SHIPPED_ASSUMED_PROFILE, ScenarioAssertion, ScenarioId, ScenarioOracle, judge, scenario,
 };
 use rate_limit_core::core::{BucketModel, EndpointLabel, PolicyEngine, Resolution};
 use rate_limit_core::mock::model::{PolicyDefinition, RuleDefinition, WindowDefinition};
@@ -142,13 +142,17 @@ async fn evidence(
         state_changes: controller.state_changes().await,
         unavoidable_exposure: None,
         assertions: vec![ScenarioAssertion {
+            // Every row here runs a fragment of its scenario contract: the
+            // per-row deltas are listed in `result-draft.md`. Declaring
+            // `Fragment` is what keeps a green G5 from reading as a verdict.
             id: spec.required_assertion,
+            coverage: ContractCoverage::Fragment,
             passed: assertion_passed,
         }],
     }
 }
 
-async fn run_m1_m13(phase_offset_ms: u64) {
+async fn run_m1_m13(phase_ms: u64) {
     // The two profile values make the known OAuth and shipped assumed legacy
     // lanes explicit.  Phase-swept rows run each representative phase below.
     let profiles = [
@@ -162,15 +166,19 @@ async fn run_m1_m13(phase_offset_ms: u64) {
 
     for (index, id) in ScenarioId::ALL.into_iter().enumerate() {
         let (profile, endpoint) = profiles[index % profiles.len()];
-        let mut config = MockConfig::n23(
-            100 + index as u64,
-            phase_offset_ms.saturating_add(index as u64 * 997) % 60_000,
-        );
+        // The phase is the caller's, verbatim: every row runs at each swept
+        // phase.  Folding the offset through a per-row modulus (the original
+        // `(offset + index * 997) % 60_000`) collapsed the two sweeps to 1 ms
+        // apart for every row but M1, because 59_999 == -1 (mod 60_000).
+        let mut config = MockConfig::n23(100 + index as u64, phase_ms);
         config.dispatch_budget = 128;
         let (mock, controller) = MockService::new(config).unwrap();
         let gate = spawn(engine(profile), mock);
 
-        match id {
+        // Each arm yields its scenario fragment's verdict rather than
+        // asserting it, so a failure reaches G5 and is reported with the
+        // whole gate matrix instead of panicking in isolation.
+        let assertion_passed = match id {
             ScenarioId::M1 => {
                 controller
                     .preload("stash-list-request-limit", controller.now(), 1)
@@ -184,16 +192,15 @@ async fn run_m1_m13(phase_offset_ms: u64) {
                     .await
                     .unwrap();
                 advance(2_000).await;
-                assert!(ticket.await.is_ok());
+                let granted = ticket.await.is_ok();
                 let observations = controller.observations().await;
-                assert_eq!(
-                    observations
+                granted
+                    && observations
                         .iter()
                         .filter(|o| o.method == Method::HEAD)
-                        .count(),
-                    1
-                );
-                assert_eq!(observations.len(), 2);
+                        .count()
+                        == 1
+                    && observations.len() == 2
             }
             ScenarioId::M2 => {
                 let mut tickets = Vec::new();
@@ -208,18 +215,18 @@ async fn run_m1_m13(phase_offset_ms: u64) {
                     );
                 }
                 advance(6_000).await;
+                let mut granted = true;
                 for ticket in tickets {
-                    assert!(ticket.await.is_ok());
+                    granted &= ticket.await.is_ok();
                 }
-                assert_eq!(
-                    controller
+                granted
+                    && controller
                         .observations()
                         .await
                         .iter()
                         .filter(|o| o.method == Method::GET)
-                        .count(),
-                    10
-                );
+                        .count()
+                        == 10
             }
             ScenarioId::M3 => {
                 controller
@@ -240,8 +247,8 @@ async fn run_m1_m13(phase_offset_ms: u64) {
                     .await
                     .unwrap();
                 advance(1_000).await;
-                assert!(matches!(ticket.await, Err(GateError::SetupFailed { .. })));
-                assert_eq!(controller.observations().await.len(), 1);
+                let refused = matches!(ticket.await, Err(GateError::SetupFailed { .. }));
+                refused && controller.observations().await.len() == 1
             }
             ScenarioId::M4 => {
                 controller
@@ -266,8 +273,8 @@ async fn run_m1_m13(phase_offset_ms: u64) {
                     .await
                     .unwrap();
                 advance(1_000).await;
-                assert!(matches!(ticket.await, Err(GateError::SetupFailed { .. })));
-                assert_eq!(controller.observations().await.len(), 1);
+                let refused = matches!(ticket.await, Err(GateError::SetupFailed { .. }));
+                refused && controller.observations().await.len() == 1
             }
             ScenarioId::M5 => {
                 let first = gate
@@ -278,7 +285,7 @@ async fn run_m1_m13(phase_offset_ms: u64) {
                     .await
                     .unwrap();
                 advance(1_000).await;
-                assert!(first.await.is_ok());
+                let first_granted = first.await.is_ok();
                 controller
                     .rename_policy("stash-list-request-limit", pair_policy("renamed-limit", 10))
                     .await
@@ -291,16 +298,16 @@ async fn run_m1_m13(phase_offset_ms: u64) {
                     .await
                     .unwrap();
                 advance(1_000).await;
-                assert!(second.await.is_ok());
-                assert_eq!(
-                    controller
+                let second_granted = second.await.is_ok();
+                first_granted
+                    && second_granted
+                    && controller
                         .observations()
                         .await
                         .iter()
                         .filter(|o| o.method == Method::HEAD)
-                        .count(),
-                    1
-                );
+                        .count()
+                        == 1
             }
             ScenarioId::M6 => {
                 let first = gate
@@ -311,7 +318,7 @@ async fn run_m1_m13(phase_offset_ms: u64) {
                     .await
                     .unwrap();
                 advance(1_000).await;
-                assert!(first.await.is_ok());
+                let first_granted = first.await.is_ok();
                 controller
                     .replace_policy(pair_policy("stash-list-request-limit", 5))
                     .await
@@ -324,7 +331,7 @@ async fn run_m1_m13(phase_offset_ms: u64) {
                     .await
                     .unwrap();
                 advance(1_000).await;
-                assert!(second.await.is_ok());
+                first_granted && second.await.is_ok()
             }
             ScenarioId::M7 => {
                 let first = gate
@@ -335,7 +342,7 @@ async fn run_m1_m13(phase_offset_ms: u64) {
                     .await
                     .unwrap();
                 advance(1_000).await;
-                assert!(first.await.is_ok());
+                let first_granted = first.await.is_ok();
                 controller
                     .inject_phantoms("stash-list-request-limit", 2)
                     .await
@@ -348,7 +355,7 @@ async fn run_m1_m13(phase_offset_ms: u64) {
                     .await
                     .unwrap();
                 advance(1_000).await;
-                assert!(second.await.is_ok());
+                first_granted && second.await.is_ok()
             }
             ScenarioId::M8 => {
                 controller
@@ -372,16 +379,15 @@ async fn run_m1_m13(phase_offset_ms: u64) {
                     .await
                     .unwrap();
                 advance(70_000).await;
-                assert!(ticket.await.is_ok());
-                assert_eq!(
-                    controller
+                let retried = ticket.await.is_ok();
+                retried
+                    && controller
                         .observations()
                         .await
                         .iter()
                         .filter(|o| o.method == Method::GET)
-                        .count(),
-                    2
-                );
+                        .count()
+                        == 2
             }
             ScenarioId::M9 => {
                 let first = gate
@@ -392,7 +398,7 @@ async fn run_m1_m13(phase_offset_ms: u64) {
                     .await
                     .unwrap();
                 advance(1_000).await;
-                assert!(first.await.is_ok());
+                let first_granted = first.await.is_ok();
                 controller
                     .inject_phantoms("stash-request-limit", 1)
                     .await
@@ -405,7 +411,7 @@ async fn run_m1_m13(phase_offset_ms: u64) {
                     .await
                     .unwrap();
                 advance(1_000).await;
-                assert!(second.await.is_ok());
+                first_granted && second.await.is_ok()
             }
             ScenarioId::M10 => {
                 // Keep the first ordinary request on the wire while its
@@ -444,10 +450,16 @@ async fn run_m1_m13(phase_offset_ms: u64) {
                 }
                 tickets.pop().unwrap().cancel().await.unwrap();
                 advance(80_000).await;
+                // Every surviving caller must be served, and the wire count is
+                // pinned exactly: the boot HEAD, the dropped caller's request
+                // (which stays dispatched), and the fourteen that remain --
+                // the cancelled one never reaches the wire.  A `>= 2` bound
+                // here would pass even if the caller drop wedged the queue.
+                let mut served = 0usize;
                 for ticket in tickets {
-                    let _ = ticket.await;
+                    served += usize::from(ticket.await.is_ok());
                 }
-                assert!(controller.observations().await.len() >= 2);
+                served == 14 && controller.observations().await.len() == 16
             }
             ScenarioId::M11 => {
                 controller
@@ -468,8 +480,8 @@ async fn run_m1_m13(phase_offset_ms: u64) {
                     .await
                     .unwrap();
                 advance(1_000).await;
-                assert!(matches!(ticket.await, Err(GateError::Halted)));
-                assert!(gate.subscribe_status().borrow().halted);
+                let halted_caller = matches!(ticket.await, Err(GateError::Halted));
+                halted_caller && gate.subscribe_status().borrow().halted
             }
             ScenarioId::M12 => {
                 controller
@@ -493,16 +505,15 @@ async fn run_m1_m13(phase_offset_ms: u64) {
                     .await
                     .unwrap();
                 advance(1_000).await;
-                assert!(ticket.await.is_ok());
-                assert_eq!(
-                    controller
+                let completed = ticket.await.is_ok();
+                completed
+                    && controller
                         .observations()
                         .await
                         .iter()
                         .filter(|o| o.method == Method::GET)
-                        .count(),
-                    1
-                );
+                        .count()
+                        == 1
             }
             ScenarioId::M13 => {
                 controller
@@ -530,19 +541,19 @@ async fn run_m1_m13(phase_offset_ms: u64) {
                     .await
                     .unwrap();
                 advance(6_000).await;
-                assert!(first.await.is_ok());
-                assert!(second.await.is_ok());
-                assert!(
-                    controller
+                let first_granted = first.await.is_ok();
+                let second_granted = second.await.is_ok();
+                first_granted
+                    && second_granted
+                    && controller
                         .observations()
                         .await
                         .iter()
                         .all(|o| o.in_flight_at_arrival <= 2 && !o.head_overlap)
-                );
             }
-        }
+        };
 
-        let evidence = evidence(&controller, id, profile, true).await;
+        let evidence = evidence(&controller, id, profile, assertion_passed).await;
         let mut oracle = independently_scripted_oracle(id, &evidence.observations);
         if id == ScenarioId::M2 {
             // One boot HEAD at t=0, ten GETs at the 250ms D5 floor, and the
@@ -564,6 +575,13 @@ async fn run_m1_m13(phase_offset_ms: u64) {
         reports
             .iter()
             .all(|report| report.gate(Gate::G1).passed && report.gate(Gate::G2).passed)
+    );
+    // Coverage guard: this driver runs fragments, so no report here may be
+    // read as fillable verdict evidence.  When a row's full contract lands,
+    // this assertion is what forces the claim to be revisited deliberately.
+    assert!(
+        reports.iter().all(|report| !report.verdict_eligible()),
+        "no fragment run may be verdict-eligible"
     );
 }
 
@@ -592,8 +610,8 @@ async fn run_m8_oauth_lane(phase_ms: u64) {
         .await
         .unwrap();
     advance(70_000).await;
-    assert!(ticket.await.is_ok());
-    let evidence = evidence(&controller, ScenarioId::M8, profile, true).await;
+    let retried = ticket.await.is_ok();
+    let evidence = evidence(&controller, ScenarioId::M8, profile, retried).await;
     let report = judge(
         &evidence,
         &independently_scripted_oracle(ScenarioId::M8, &evidence.observations),
@@ -602,14 +620,18 @@ async fn run_m8_oauth_lane(phase_ms: u64) {
     assert!(report.passed(), "OAuth M8: {report:?}");
 }
 
+/// The two swept phases sit at opposite ends of the minute: phi=59,999 puts a
+/// 60 s window boundary 1 ms after t0, phi=0 puts it a full minute out.
+const SWEPT_PHASES_MS: [u64; 2] = [0, 59_999];
+
 #[tokio::test(start_paused = true)]
 async fn m1_m13_run_against_the_actor_and_the_judge() {
-    // Each phase-swept row executes at two adversarially separated server
-    // phases.  The mock's phase is always recorded into the judge's G6
-    // reproduction record; adding a third phase is a data-only change here.
-    for phase_offset_ms in [0, 59_999] {
-        run_m1_m13(phase_offset_ms).await;
-        run_m8_oauth_lane(phase_offset_ms).await;
+    // Every row executes at both swept phases.  The mock's phase is always
+    // recorded into the judge's G6 reproduction record; adding a third phase
+    // is a data-only change here.
+    for phase_ms in SWEPT_PHASES_MS {
+        run_m1_m13(phase_ms).await;
+        run_m8_oauth_lane(phase_ms).await;
     }
 }
 

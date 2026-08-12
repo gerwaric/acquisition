@@ -91,12 +91,12 @@ optional for phase-independent and structural checks.
 | M7 | Phantom same-account hits | phase-swept | G1, G2, G6 | partial — actor/judge driver covers a mock-owned phantom observation at φ=0/59,999; bursty threshold case remains pending | 2026-08-12: `cargo test --locked --test scenario_driver m1_m13_run_against_the_actor_and_the_judge` green. |
 | M8 | 429 recovery and escalation | phase-swept | G1, G2, G5, G6 | partial — actor/judge driver covers a valid 429 retry across OAuth Known and legacy Assumed profiles at φ=0/59,999; escalation/malformed/matrix rows remain pending | 2026-08-12: `cargo test --locked --test scenario_driver m1_m13_run_against_the_actor_and_the_judge` green; prior focused evidence retained below. |
 | M9 | Phantom race at saturation | phase-swept | G1, G2, G5, G6 + characterization | partial — actor/judge driver covers a phantom observation at φ=0/59,999; forced reservation-to-arrival race and headroom record remain pending | 2026-08-12: `cargo test --locked --test scenario_driver m1_m13_run_against_the_actor_and_the_judge` green. |
-| M10 | Agent-loop stress | phase-swept | G1, G2, G3, G6 | partial — actor/judge driver covers a 16-request pressure run, explicit cancellation, and caller drop while dispatched at φ=0/59,999; hundreds/minutes and reprioritization remain blocked by finding 11 | 2026-08-12: `cargo test --locked --test scenario_driver m1_m13_run_against_the_actor_and_the_judge` green. |
+| M10 | Agent-loop stress | phase-swept | G1, G2, G3, G6 | partial — actor/judge driver covers a 16-request pressure run, explicit cancellation, and caller drop while dispatched at φ=0/59,999; hundreds/minutes and reprioritization remain blocked by doc finding 11 | 2026-08-12: `cargo test --locked --test scenario_driver m1_m13_run_against_the_actor_and_the_judge` green. |
 | M11 | Layer-1 ceiling + Cloudflare terminal | independent | G2, G5 | partial — actor/judge driver covers injected Cloudflare terminal/halt; compliant-client ceiling sweep remains pending | 2026-08-12: `cargo test --locked --test scenario_driver m1_m13_run_against_the_actor_and_the_judge` green. |
 | M12 | 4xx-tripwire obligations | independent | G5 | partial — actor/judge driver covers injected 401 without a retry; generic-4xx and full tripwire threshold matrix remain pending | 2026-08-12: `cargo test --locked --test scenario_driver m1_m13_run_against_the_actor_and_the_judge` green. |
 | M13 | Gate structure on the wire | independent | G2 + gate-definition assertions | partial — actor/judge driver covers two unknown endpoints, forced HEAD delay, no HEAD overlap, and in-flight cap; FIFO/writer-preference cross-product remains pinned by focused actor tests and awaits its scenario assertion | 2026-08-12: `cargo test --locked --test scenario_driver m1_m13_run_against_the_actor_and_the_judge` green; prior focused evidence retained below. |
 
-Driver integration status (2026-08-12): `tests/scenario_driver.rs` drives every M row through the public actor handle and sends its mock-owned observations/state changes through `conformance::judge`; phase-swept rows run at φ=0 and φ=59,999, and M8 additionally runs both the OAuth Known and legacy Assumed profiles. It is evidence of the actor-to-judge seam, **not a final M-series verdict**: the row-level coverage deltas above and finding 11 remain open. The run uses the draft G3/G4 values solely to exercise the judge; it does not fill either verdict slot.
+Driver integration status (2026-08-12, as corrected by the same-day review round below): `tests/scenario_driver.rs` drives every M row through the public actor handle and sends its mock-owned observations/state changes through `conformance::judge`; **every** row now runs at both φ=0 and φ=59,999, and M8 additionally runs both the OAuth Known and legacy Assumed profiles. Every row declares `ContractCoverage::Fragment`, so no report is `verdict_eligible()` and a green G5 here cannot be read as a scenario verdict. It is evidence of the actor-to-judge seam, **not a final M-series verdict**: the row-level coverage deltas above and doc findings 11 and 12 remain open. The run uses the draft G3/G4 values solely to exercise the judge; it does not fill either verdict slot.
 
 G1, G2, G3, and G5 are armed in every mock-judged scenario; the
 column lists the gates each scenario is the *binding evidence*
@@ -236,6 +236,26 @@ from the script and B13 observations; an allowance binds to the event ID,
 so an absent, duplicated, unrelated, post-arrival, unobservable, or
 too-late claim is a structural judge error rather than an exemption from
 G1.
+11. **M10 requires reprioritization, but the actor has no reorder
+    command.** `scenarios.md` calls for cancellations *and*
+    reprioritizations under pressure, while the closed actor exposes only
+    `Enqueue` and `Cancel`. The driver therefore exercises high pressure,
+    explicit cancellation, and dispatched caller drop, but cannot truthfully
+    claim M10's reprioritization assertion. Consequence: the next driver pass
+    must either receive an accepted actor reorder API/semantics or amend M10;
+    it must not relabel FIFO as reprioritization. The capability gap is at the
+    command surface, not the data structure: `actor-handoff.md` §4 records the
+    queue as an inspectable, reorderable deque. **Open — flagged for Tom.**
+12. **`scenarios.md` §6 leaves G3's epsilon undefined against a
+    relative-versus-absolute eligibility anchor.** The driver's oracle
+    anchors each expected instant on the *previous observed* dispatch, so
+    the draft 500 ms epsilon bounds inter-dispatch *spacing*, not adherence
+    to an absolute schedule. Measured detection band: raising the actor's
+    250 ms floor to 600 ms leaves G3 green on every row (M2's G4 caught it);
+    1,000 ms trips G3. Consequence: the §6 finalization must state which
+    anchor it is finalizing, because epsilon=500 against a moving anchor is a
+    materially weaker gate than epsilon=500 against a script timeline, and
+    M10's only timing gate is G3. **Open — flagged for Tom.**
 
 All evidence below was re-run 2026-08-12, offline, with no socket and
 no live service contact:
@@ -368,14 +388,6 @@ marker; resolved items cite the commit series landed the same day.
     4xx completes and reconciles, `Retry-After: 0` exact deadline,
     Halt superseding the final-attempt matrix row, and the
     entry-point invariant swept across nine response shapes.
-12. **M10 requires reprioritization, but the actor has no reorder
-    command.** `scenarios.md` calls for cancellations *and*
-    reprioritizations under pressure, while the closed actor exposes only
-    `Enqueue` and `Cancel`. The driver therefore exercises high pressure,
-    explicit cancellation, and dispatched caller drop, but cannot truthfully
-    claim M10's reprioritization assertion. Consequence: the next driver pass
-    must either receive an accepted actor reorder API/semantics or amend M10;
-    it must not relabel FIFO as reprioritization.
 
 **Decided by Tom, 2026-08-09 (same-day review of the register):**
 
@@ -872,3 +884,49 @@ outlives the spike branch; record what exists and where.⟩
   M1–M13 scenario-driver runs, driver/judge integration, caller *drop*
   while dispatched, the G3/G4 finalization required by `scenarios.md` §6,
   and the §7.4 capture replay (still blocked on raw input).
+- 2026-08-12 — scenario-driver/judge integration landed (`92db9f0b`),
+  then its review round one landed the fixes below. Six findings, all
+  fixed, none accepted-not-fixed:
+  **F1 — the phase sweep was a no-op for twelve of thirteen rows.**
+  `(phase_offset_ms + index * 997) % 60_000` folded the offset through a
+  per-row modulus, and 59,999 ≡ −1 (mod 60,000), so the two sweeps landed
+  1 ms apart (997/996, 1994/1993, …) for every row but M1. The driver,
+  its hand-off, and twelve M rows all claimed φ=0/59,999. The phase is
+  now passed through verbatim (`SWEPT_PHASES_MS`), so every row genuinely
+  runs at both ends of the minute; the corrected sweep is green.
+  **F2 — G5 was a hard-coded `true`.** Both `evidence(...)` call sites
+  passed a literal, so G5 could not fail on any row while the driver
+  reported each scenario's *complete* contract as passed — the exact
+  "unrelated passing flag" the `ScenarioAssertionId` doc comment forbids,
+  against fragments the coverage confession admits are partial. Each
+  match arm now yields its fragment's verdict, and `ContractCoverage`
+  (new, in `conformance.rs`) makes the overclaim unrepresentable:
+  evidence declares `Fragment` or `FullContract`, `RunReport` carries it,
+  and `verdict_eligible()` requires both a pass and full coverage. The
+  driver asserts no report is verdict-eligible. Verified live: forcing
+  M12's fragment false now reports `G5 failed: ["M12Tripwire"]`.
+  **F3 — G3's oracle anchors on measured dispatch times**, so the draft
+  ε bounds spacing rather than schedule; recorded as doc finding 12 with
+  its measured detection band rather than rewritten, because the anchor
+  choice is an input to the §6 G3 finalization, not an implementation
+  detail.
+  **F4 — M10's assertion was `observations.len() >= 2`** with every
+  caller outcome discarded (`let _ = ticket.await`), while the run
+  actually produces 16 observations; a caller drop that wedged the queue
+  passed. Now pinned exactly: 14 surviving callers served, 16 wire
+  observations.
+  **F5 — the M10 register entry was misfiled** as item 12 under
+  "Resolved in code (with tests)" in the 2026-08-09 audit register though
+  it is open and undated there, and its three cross-references disagreed
+  (row said 11, item said 12, hand-off said 12). It is now doc finding 11
+  with an explicit open marker, and every reference agrees.
+  **F6 — `AGENTS.md`'s hand-off table omitted `scenario-driver-handoff.md`**,
+  so a fresh session would have read the actor hand-off as newest and
+  missed this slice's live coverage confession — the failure mode
+  `slice-review.md` §5 rule 3 exists to stop. Table updated.
+  Gate matrix re-run after the fixes: `cargo test --locked` (126 debug,
+  124 release), all-target clippy with warnings denied, `fmt --check`, and
+  `git diff --check` green. `ContractCoverage` carries its own non-vacuous
+  test (`conformance_harness::a_fragment_run_is_judged_but_is_never_verdict_eligible`):
+  both branches assert, and a failing fragment still fails G5. The slice remains **open pending re-review**;
+  no verdict slot is filled and doc findings 11 and 12 stay open.

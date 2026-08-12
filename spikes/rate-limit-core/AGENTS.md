@@ -37,11 +37,14 @@ Authority for cited claims: `docs/design/network-ground-truth.md`
 3. Tokio actor shell last.
 
 All three landed and closed review as of 2026-08-12. What remains is
-not a fourth build slice: full M1–M13 scenario-driver runs and
-driver/judge integration, the G3/G4 finalization `scenarios.md` §6
-requires before any verdict slot, and the §7.4 capture replay (blocked
-— it needs raw capture input from Tom, and no synthetic stand-in may
-be substituted).
+not a fourth build slice: the actor-to-judge driver seam now exists
+(`tests/scenario_driver.rs`) but every row is `ContractCoverage::
+Fragment`, so what is left is raising those fragments to full scenario
+contracts, the G3/G4 finalization `scenarios.md` §6 requires before any
+verdict slot, and the §7.4 capture replay (blocked — it needs raw
+capture input from Tom, and no synthetic stand-in may be substituted).
+No report a fragment run produces is `verdict_eligible()`; do not fill a
+verdict slot from one.
 
 ## Slice hand-offs (the state of the build)
 
@@ -54,6 +57,7 @@ last; **the newest one's coverage confession is the live one.**
 | `bootstrap-handoff.md` | Bootstrap policy seeding | closed 2026-08-10 |
 | `mock-handoff.md` | Mock + M-series harness | closed 2026-08-12 (re-review) |
 | `actor-handoff.md` | Tokio actor shell, incl. C3/C4/X1/X2 | closed 2026-08-12 (re-review, no findings) |
+| `scenario-driver-handoff.md` | M1–M13 driver / judge integration | **open** — round-one findings fixed 2026-08-12, awaiting re-review |
 
 Read the newest hand-off before planning work. An older hand-off's
 "not covered" list describes the world on its own date and goes stale

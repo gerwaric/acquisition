@@ -77,7 +77,12 @@ transport constructor before clone/scan.
 
 Not yet covered: full M1–M13 scenario-driver runs; caller *drop* while
 dispatched (explicit cancellation is covered); and scenario driver/judge
-integration. The C3 floor property asserts on every
+integration. **[Superseded in part, 2026-08-12 — see
+`scenario-driver-handoff.md`, which is the live confession. Caller drop
+while dispatched and the driver/judge integration both shipped in
+`92db9f0b`; M1–M13 now run through the actor and the judge, though every
+row is still a `ContractCoverage::Fragment`. The dated text above is
+preserved as the record of its own day.]** The C3 floor property asserts on every
 generated trace and cannot pass vacuously: each generated dispatch is checked
 against independent timestamp-window arithmetic before it checks the counter
 under test.

@@ -1,9 +1,10 @@
 use http::Method;
 use rate_limit_core::conformance::{
-    AuthorizedExclusion, AuthorizedExclusionKind, ClientBucketProfile, ExposureAllowance,
-    ExposureError, Gate, JudgeError, OAUTH_KNOWN_PROFILE, ReproductionRecord, RunEvidence,
-    SCENARIOS, SHIPPED_ASSUMED_PROFILE, ScenarioAssertion, ScenarioAssertionId, ScenarioId,
-    ScenarioOracle, SweepConfiguration, SweepKind, SweepPlan, SweepPlanError, judge, scenario,
+    AuthorizedExclusion, AuthorizedExclusionKind, ClientBucketProfile, ContractCoverage,
+    ExposureAllowance, ExposureError, Gate, JudgeError, OAUTH_KNOWN_PROFILE, ReproductionRecord,
+    RunEvidence, SCENARIOS, SHIPPED_ASSUMED_PROFILE, ScenarioAssertion, ScenarioAssertionId,
+    ScenarioId, ScenarioOracle, SweepConfiguration, SweepKind, SweepPlan, SweepPlanError, judge,
+    scenario,
 };
 use rate_limit_core::mock::{
     Endpoint, MockConfig, MockService, MockStateChange, MockStateChangeKind, request,
@@ -126,6 +127,7 @@ fn base_evidence(observation: rate_limit_core::mock::Observation) -> RunEvidence
         unavoidable_exposure: None,
         assertions: vec![ScenarioAssertion {
             id: ScenarioAssertionId::M1BootSequence,
+            coverage: ContractCoverage::FullContract,
             passed: true,
         }],
     }
@@ -169,6 +171,34 @@ async fn all_global_gates_are_armed_and_judged_from_wire_evidence() {
     assert!(!report.gate(Gate::G2).passed);
     assert!(!report.gate(Gate::G3).passed);
     assert!(!report.gate(Gate::G5).passed);
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_fragment_run_is_judged_but_is_never_verdict_eligible() {
+    // Both branches assert, so this cannot pass vacuously: a fragment and a
+    // full-contract run differ *only* in coverage, and the pass/verdict
+    // answers must diverge.
+    let full = base_evidence(one_observation().await);
+    let report = judge(&full, &TestOracle::default()).unwrap();
+    assert!(report.passed());
+    assert_eq!(report.contract_coverage, ContractCoverage::FullContract);
+    assert!(report.verdict_eligible());
+
+    let mut fragment = full.clone();
+    fragment.assertions[0].coverage = ContractCoverage::Fragment;
+    let report = judge(&fragment, &TestOracle::default()).unwrap();
+    assert!(
+        report.passed(),
+        "a fragment is still judged on its own terms"
+    );
+    assert_eq!(report.contract_coverage, ContractCoverage::Fragment);
+    assert!(!report.verdict_eligible());
+
+    // G5 still has teeth under Fragment coverage: partial is not exempt.
+    fragment.assertions[0].passed = false;
+    let report = judge(&fragment, &TestOracle::default()).unwrap();
+    assert!(!report.gate(Gate::G5).passed);
+    assert!(!report.verdict_eligible());
 }
 
 #[tokio::test(start_paused = true)]
