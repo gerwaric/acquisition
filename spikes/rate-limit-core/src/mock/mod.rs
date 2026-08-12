@@ -450,9 +450,6 @@ impl MockService {
         } else {
             apply_override(&mut response, script.response)?
         };
-        if let Ok(wire_response) = &mut response {
-            emit_date(wire_response.headers_mut(), arrival)?;
-        }
         let response_status = response.as_ref().ok().map(Response::status);
         {
             let mut state = self.state.lock().await;
@@ -483,7 +480,24 @@ impl MockService {
             });
         }
         tokio::time::sleep(script.response_delay).await;
+        let date_result = if let Ok(wire_response) = &mut response {
+            // Date is response metadata, so its zero-skew mock-clock value is
+            // the scripted completion instant rather than server receipt.
+            emit_date(
+                wire_response.headers_mut(),
+                ServerTime::from_millis(
+                    arrival
+                        .as_millis()
+                        .saturating_add(u64::try_from(script.response_delay.as_millis()).expect(
+                            "script delays are structurally capped below u64 milliseconds",
+                        )),
+                ),
+            )
+        } else {
+            Ok(())
+        };
         self.state.lock().await.in_flight.remove(&correlation_id);
+        date_result?;
         response
     }
 }

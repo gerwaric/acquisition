@@ -92,6 +92,32 @@ async fn b1_b4_b5_b7_b13_b14_full_protocol_and_n23_topology() {
     }
 }
 
+#[tokio::test(start_paused = true)]
+async fn b14_date_uses_the_scripted_response_completion_instant() {
+    let (service, controller) =
+        rate_limit_core::mock::MockService::new(MockConfig::n23(0xdade, 0)).unwrap();
+    controller
+        .script(
+            1,
+            ExchangeScript {
+                response_delay: Duration::from_secs(2),
+                ..ExchangeScript::default()
+            },
+        )
+        .await
+        .unwrap();
+
+    let response = service
+        .send(request(Method::GET, Endpoint::Stash, 1).unwrap())
+        .await
+        .unwrap();
+    let date = httpdate::parse_http_date(response.headers()[DATE].to_str().unwrap()).unwrap();
+    let observation = controller.observations().await.remove(0);
+    assert_eq!(observation.arrival_ms, 0);
+    assert_eq!(observation.completion_ms, 2_000);
+    assert_eq!(date, UNIX_EPOCH + Duration::from_secs(2));
+}
+
 proptest! {
     // B3: the test oracle is independent arithmetic in this test module. It
     // never calls mock::model::bucket_end or any production-core helper, and
