@@ -524,6 +524,30 @@ Open obligation carried to the actor slice: replace "any sane
 transport timeout" with the exact enforced timeout (or its stated
 relationship to the aging horizon) plus a test.
 
+### Tokio actor slice (2026-08-12 — awaiting review)
+
+Implementation currently uses a 30 s enforced transport timeout, classified
+as an unknown outcome so a dispatched reservation remains counted. It is below
+the smallest padded N23 horizon (10 s period + 60 s configured bucket); the
+exact relationship and timeout test are recorded in `actor-handoff.md`.
+
+Actor-owned queue capacity (10,000 pending entries), the five-endpoint D5
+record bound, and C4's literal “same shape as C3” 4xx thresholds are new doc
+findings: the docs did not name the first two bounds or independent C4
+thresholds. The conservative implementation rejects overflow before queue
+growth and uses C3's 11/1 s and 500/60 s thresholds for all observed 4xx.
+The next call after capacity refusal remains independently schedulable when
+capacity is available; the next call after a C4 trip sees terminal halt.
+
+Offline implementation evidence (2026-08-12): `cargo test --locked` — 110
+debug tests green; `PROPTEST_CASES=4096 cargo test --locked` — all existing
+generated properties green at 4,096 cases; `cargo test --locked --release` —
+108 tests green; all-target clippy with warnings denied, fmt check, and diff
+check green. `actor_shell` pins paused-time probe→GET pacing, distinct B13
+correlations, queued and dispatched cancellation, D4 failure, timeout
+retention, and Cloudflare halt/watch behavior. Final M-series scenario runs
+remain unclaimed in `actor-handoff.md` §3.
+
 ### Bootstrap-seeding slice (2026-08-10 — reviewed and closed)
 
 Baseline: `a3245e8667f15524fc837618131d5f692cd2e860`.
