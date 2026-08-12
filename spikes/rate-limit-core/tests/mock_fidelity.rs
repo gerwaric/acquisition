@@ -11,7 +11,8 @@ use rate_limit_core::mock::model::{
 };
 use rate_limit_core::mock::{
     Endpoint, ExchangeScript, MAX_MOCK_HEADER_VALUE_BYTES, MAX_RAW_RESPONSE_BODY_BYTES,
-    MAX_RAW_RESPONSE_HEADERS, MockConfig, MockConfigError, ResponseOverride, StimulusKind, request,
+    MAX_RAW_RESPONSE_HEADERS, MockConfig, MockConfigError, MockStateChangeError,
+    MockStateChangeKind, ResponseOverride, StimulusKind, request,
 };
 use rate_limit_core::transport::{Transport, TransportError};
 
@@ -233,10 +234,16 @@ async fn b6_b9_residue_and_phantoms_are_mock_owned_counter_facts() {
         .unwrap();
     assert_eq!(last_slot.status(), StatusCode::OK);
 
-    controller
+    let phantom_change = controller
         .inject_phantoms("stash-request-limit", 1)
         .await
         .unwrap();
+    assert_eq!(phantom_change.id, 0);
+    assert!(matches!(
+        phantom_change.kind,
+        MockStateChangeKind::PhantomInjection { ref policy, count: 1 }
+            if policy == "stash-request-limit"
+    ));
     let raced = service
         .send(request(Method::GET, Endpoint::Stash, 3).unwrap())
         .await
@@ -288,10 +295,15 @@ async fn b8_policy_rename_and_shrink_keep_existing_hits() {
         ],
     )
     .unwrap();
-    controller
+    let rename_change = controller
         .rename_policy("stash-request-limit", renamed)
         .await
         .unwrap();
+    assert!(matches!(
+        rename_change.kind,
+        MockStateChangeKind::PolicyRename { ref old_policy, ref new_policy }
+            if old_policy == "stash-request-limit" && new_policy == "renamed-policy"
+    ));
     let renamed_reply = service
         .send(request(Method::HEAD, Endpoint::Stash, 3).unwrap())
         .await
@@ -319,7 +331,20 @@ async fn b8_policy_rename_and_shrink_keep_existing_hits() {
         ],
     )
     .unwrap();
-    controller.replace_policy(shrunk).await.unwrap();
+    let shrink_change = controller.replace_policy(shrunk).await.unwrap();
+    assert!(matches!(
+        shrink_change.kind,
+        MockStateChangeKind::PolicyReplacement { ref policy } if policy == "renamed-policy"
+    ));
+    assert_eq!(
+        controller
+            .state_changes()
+            .await
+            .into_iter()
+            .map(|state_change| state_change.id)
+            .collect::<Vec<_>>(),
+        vec![0, 1]
+    );
     let response = service
         .send(request(Method::GET, Endpoint::Stash, 4).unwrap())
         .await
@@ -478,6 +503,62 @@ async fn b13_records_mock_owned_transport_handoff_before_arrival_delay() {
     let observation = controller.observations().await.remove(0);
     assert_eq!(observation.dispatch_ms, 0);
     assert_eq!(observation.arrival_ms, 1_000);
+}
+
+#[tokio::test(start_paused = true)]
+async fn b13_handoff_survives_arrival_delay_cancellation_and_reserves_identity() {
+    let (service, controller) =
+        rate_limit_core::mock::MockService::new(MockConfig::n23(0xb13, 0)).unwrap();
+    controller
+        .script(
+            1,
+            ExchangeScript {
+                arrival_delay: Duration::from_secs(1),
+                response_delay: Duration::ZERO,
+                response: None,
+            },
+        )
+        .await
+        .unwrap();
+
+    let delayed_service = service.clone();
+    let task = tokio::spawn(async move {
+        delayed_service
+            .send(request(Method::GET, Endpoint::Stash, 1).unwrap())
+            .await
+    });
+    tokio::task::yield_now().await;
+    task.abort();
+
+    let handoffs = controller.handoffs().await;
+    assert_eq!(handoffs.len(), 1);
+    assert_eq!(handoffs[0].correlation_id, 1);
+    assert_eq!(handoffs[0].dispatch_ms, 0);
+    assert!(controller.observations().await.is_empty());
+
+    let duplicate = service
+        .send(request(Method::GET, Endpoint::Stash, 1).unwrap())
+        .await
+        .unwrap_err();
+    assert!(matches!(duplicate, TransportError::MockHarness(_)));
+}
+
+#[tokio::test(start_paused = true)]
+async fn mock_state_change_timeline_has_an_exact_run_bound() {
+    let (_, controller) =
+        rate_limit_core::mock::MockService::new(MockConfig::n23(0x5ca1e, 0)).unwrap();
+    for _ in 0..MAX_REQUESTS_PER_RUN {
+        controller
+            .inject_phantoms("stash-request-limit", 1)
+            .await
+            .unwrap();
+    }
+    assert_eq!(
+        controller.inject_phantoms("stash-request-limit", 1).await,
+        Err(MockStateChangeError::BudgetExceeded {
+            limit: MAX_REQUESTS_PER_RUN,
+        })
+    );
 }
 
 #[tokio::test(start_paused = true)]

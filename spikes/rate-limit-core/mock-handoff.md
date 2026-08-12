@@ -1,8 +1,8 @@
 # Mock + M-series harness slice hand-off
 
-Status: revised after the 2026-08-12 review findings; awaiting Tom
-re-review per `slice-review.md` §2. Implemented 2026-08-10 from
-reviewed bootstrap head `b3a0e7d5` (the named
+Status: reviewed and closed by Tom on 2026-08-12 per
+`slice-review.md` §5. Implemented 2026-08-10 from reviewed bootstrap
+head `b3a0e7d5` (the named
 `17363429` baseline plus its review-status reconciliation commit).
 Implementation commits: `4353fb03`, `05ee15d1`, `12a799f8`,
 `4c69f05e`; review corrections: `f013acd3`, `6428f46c`,
@@ -13,7 +13,7 @@ No actor or live-service work is included.
 
 | Silence | Conservative reading taken | Next-call consequence |
 |---|---|---|
-| B13 does not bound a run's wire-driven history/log growth | 10,000 received requests per run and 10,000 retained events per policy; mock definitions, raw stimuli, scripts, diagnostics, and delays have structural constructors/bounds | request 10,001 latches harness exhaustion without allocating/logging; every later send returns the same typed transport error |
+| B13 does not bound a run's wire-driven history/log growth | 10,000 transport handoffs per run, 10,000 retained events per policy, and 10,000 mock state-change records; mock definitions, raw stimuli, scripts, diagnostics, and delays have structural constructors/bounds | request 10,001 latches harness exhaustion without allocating/logging; every later send returns the same typed transport error |
 | The docs do not say whether an arrival during an already-active restriction renews it | active restriction alone refuses but does not renew; a newly over-limit arrival may extend it under the active rule | another early call remains refused through the original/latest over-limit deadline; at the deadline the current counters alone decide |
 | Restriction identity across arbitrary policy rule reorder/reshape is unspecified | retain hits as facts and copy the latest old active restriction deadline to every new rule/window slot | the first call after mutation cannot escape a live restriction because its old positional slot disappeared |
 | B10-vs-B2 evaluation order is unspecified | layer 1 is outside layer 2; a B10 challenge wins before policy counting | the next call still sees the rolling layer-1 arrivals, while policy counters remain at their pre-challenge value |
@@ -21,6 +21,7 @@ No actor or live-service work is included.
 | B14 requires zero skew but names no calendar epoch | map simulated t0 to Unix epoch; emit Date at HTTP-date second precision on full, degraded, malformed, and Cloudflare responses | the next response's Date advances deterministically with its scripted completion instant and never reads wall time |
 | B12 gives no delay bound or sub-millisecond convention | scripts accept whole simulated milliseconds up to six hours per arrival/response leg | an over-bound or fractional-millisecond script is rejected before insertion; the next request uses the ordinary/default script rather than an unrepresentable deadline |
 | The actor contract says in-flight requests are never aborted, but the mock-future drop case is not specified | record the received-wire observation before response delay and give occupancy a deterministic completion deadline | dropping the future loses the caller outcome but not the arrival; after the deadline, the next arrival prunes occupancy and cannot be falsely marked overlapping |
+| §2 requires harness-attributed unavoidable exposure but does not prescribe evidence of the state change or its observable instant | record every phantom injection and policy mutation with a mock-owned ID/time; bind an allowance to that ID, while the scenario oracle derives its observable instant from its script and B13 evidence | an allowance with a missing, duplicated, unobservable, or already-observable state change is rejected rather than hiding an organic 429 |
 | §7.4 requires the July 18 sanitized 132-record fixture, but no sanitized or raw capture exists in the branch/workspace | implement and test the §4 allowlist sanitizer, but do not invent a fixture or reconstruct observed records from prose | no replay verdict is claimed; the next replay remains unavailable until Tom supplies raw input to the sanitizer or a fixture already satisfying its contract |
 | §4 says t0 is the first record but does not choose among a reply record's scheduled/sent/received fields | use the first available client-side instant in scheduled→sent→received order; never use second-precision server Date as origin | the next record preserves negative/positive relative timing honestly, while a first HEAD (received only) begins at `received_ms = 0` |
 
@@ -39,8 +40,10 @@ Earlier-slice state touched or consumed by this slice:
 - the future actor will construct the existing `PolicyEngine` from
   each sweep's provenance-typed client bucket profile; the plan
   constructor refuses plans omitting shipped `Assumed(60s/60s)`;
-- B13's run-wide correlation ID joins future actor dispatch records to
-  mock arrivals; duplicate IDs are structurally refused;
+- a mock-owned transport-handoff record is created before any arrival
+  delay; it fixes the run-wide correlation identity even if cancellation
+  prevents server receipt, while received requests add the B13 arrival
+  observation later;
 - mock policy replacement preserves its own server hit/restriction
   facts but does not mutate core policy history; M5/M6 client adoption
   remains actor-slice work;
@@ -49,8 +52,10 @@ Earlier-slice state touched or consumed by this slice:
   into `PolicyEngine`. B13 records the mock-owned transport hand-off
   instant before any arrival delay; G3/G4 inputs come from a
   scenario-owned oracle over that record, never actor-reported dispatch
-  or minimum-duration values. Scenario assertions are typed and bound to
-  their M-row; the judge rejects substitution or duplication.
+  or minimum-duration values. G1 allowances bind to mock-owned state
+  changes and obtain their observable time from the same oracle. Scenario
+  assertions are typed and bound to their M-row; the judge rejects
+  substitution or duplication.
 
 1. **No permanent wedge.** Mock in-flight occupancy has a scripted
    completion deadline and is pruned even if its future is dropped.
@@ -60,15 +65,18 @@ Earlier-slice state touched or consumed by this slice:
    green.
 2. **One send, one entry.** Each received GET adds exactly one shared
    policy hit; HEAD adds none; layer-1-rejected traffic never reaches
-   policy counters. Correlation identity is unique for the whole run,
-   and every judged observation must have exactly one dispatch sample.
+   policy counters. Correlation identity is unique from the mock transport
+   hand-off onward, and every judged observation carries that one
+   mock-owned hand-off instant.
 3. **Pessimism direction.** Mock mutation retains all hit facts and
    carries the latest active restriction across every new slot. G1
    excludes an organic violation only through a pre-observation
    correlation set capped at D5's two in-flight requests; overflow,
-   duplicate IDs, IDs absent from B13, and a claimed reservation after
-   B13's transport hand-off are structural refusal paths. The core is
-   not mutated by the harness.
+   duplicate IDs, IDs absent from B13, a missing/duplicate, unrelated, or
+   post-arrival state-change record, a reservation at or after its
+   scenario-derived observable instant, and a claimed reservation after
+   B13's transport hand-off are structural refusal paths. The core is not
+   mutated by the harness.
 4. **`try_reserve` is the single scheduling authority.** The mock
    responds only after transport hand-off; the judge observes dispatch
    times but never supplies one. Retry stimuli carry headers, never a
@@ -114,13 +122,13 @@ oracle is plain test-local integer arithmetic and never calls mock or
 production bucket/scheduling functions. The conformance judge is not a
 property, but its anti-vacuity guards reject empty wire observations or
 scenario assertions, require the typed assertion for the selected M-row,
-validate exposure against B13 transport hand-offs, and cross-check
-`(seed, phi)` against every swept observation.
+validate exposure against B13 transport hand-offs and a mock-owned state
+change, and cross-check `(seed, phi)` against every swept observation.
 
 Gate evidence re-run 2026-08-12, entirely offline:
 
-- `cargo test --locked` — 101 debug tests green.
-- `cargo test --locked --release` — 99 release tests green (two core
+- `cargo test --locked` — 103 debug tests green.
+- `cargo test --locked --release` — 101 release tests green (two core
   drop-bomb tests are debug-only).
 - `PROPTEST_CASES=4096 cargo test --locked` — all ten properties green
   at 4,096 cases.
@@ -141,10 +149,11 @@ Gate evidence re-run 2026-08-12, entirely offline:
   window's bucket resolution. The recorded scalar is sufficient for G6
   and avoids a burst×sustained Cartesian phase vocabulary the docs do
   not define.
-- Observations are appended at server receipt with their deterministic
-  scripted completion instant, rather than only when the caller awaits
-  completion. This preserves B13 truth if a future is dropped and is
-  safe because scripts are deterministic whole-millisecond values.
+- Transport handoffs are recorded before arrival delay, then observations
+  are appended at server receipt with their deterministic scripted
+  completion instant rather than only when the caller awaits completion.
+  This preserves identity through an arrival-delay cancellation and B13
+  receipt truth through a dropped response future.
 - G4 is reported as not applicable outside M2, not vacuously passed.
   G1/G2/G3/G5 are evaluated globally on every run as §3 requires, even
   where the table names a different binding gate.

@@ -128,7 +128,7 @@ for.
 | G5 | Every scenario's own assertions (stimulus and structural alike) | ⟨…⟩ | ⟨…⟩ |
 | G6 | Reproduction record for every failure ((seed, φ) mandatory where swept/generated) | ⟨…⟩ | ⟨…⟩ |
 
-### Mock + M-series harness slice (2026-08-10 — revised after 2026-08-12 review)
+### Mock + M-series harness slice (2026-08-12 — reviewed and closed)
 
 Baseline: reviewed bootstrap head `b3a0e7d5` (the user's named
 `17363429` baseline plus its review-status reconciliation commit).
@@ -150,15 +150,23 @@ The §4 sanitizer is a bounded allowlist over the real NetworkCapture
 JSONL schema and emits only canonical D5 labels, rebased timing, allowed
 headers/status/error fields, and the required provenance block.
 
-Review hardening (2026-08-12): B13 now records the mock-owned transport
-hand-off instant before any scripted arrival delay. The judge takes G3
+Review hardening (2026-08-12): B13 now records a mock-owned transport
+handoff before any scripted arrival delay, preserving its run-wide identity
+even if cancellation prevents server receipt. The judge takes G3
 eligibility, authorized exclusions, and M2's padded minimum only from a
 scenario-owned oracle over B13 observations; it no longer accepts
 actor-reported dispatch or duration values. Each M-row has a typed,
-required scenario assertion, and G1 exposure allowances reject overflow,
-duplicate/detached correlations, and reservations claimed after mock
-transport hand-off. The unused arbitrary route mutator was removed, so a
-policy rename must carry server facts through the dedicated mutation path.
+required scenario assertion. G1 exposure allowances bind to a mock-owned
+phantom-injection or policy-mutation record, reject overflow,
+duplicate/detached correlations and post-handoff reservations, and reject a
+reservation at or after the scenario-derived observable instant. The unused
+arbitrary route mutator was removed, so a policy rename must carry server
+facts through the dedicated mutation path.
+
+Tom completed the re-review on 2026-08-12. The three evidence-seam
+findings (arrival-delay cancellation, state-change attribution, and stale
+dispatch-sample terminology) are fixed and covered; no accepted-not-fixed
+items remain in this slice. The Tokio actor shell is unblocked.
 
 No M row is marked green from infrastructure evidence alone. The
 frozen build order puts the actor last, so there is not yet a client
@@ -170,8 +178,9 @@ not an inferred pass.
 Doc findings and conservative dispositions exposed by implementation:
 
 1. **B13/run growth has no stated finite cap.** The mock accepts at
-   most 10,000 received requests and 10,000 retained events per policy;
-   header/rule/window/script quantities are constructor-bounded too.
+   most 10,000 transport handoffs, 10,000 retained events per policy,
+   and 10,000 mock state-change records; header/rule/window/script
+   quantities are constructor-bounded too.
    At request 10,001 the harness latches exhausted and returns a typed
    transport error without growing history or the observation log; the
    next call returns the same refusal.
@@ -217,12 +226,20 @@ Doc findings and conservative dispositions exposed by implementation:
    in scheduled→sent→received order and never the rounded server Date.
    The next record therefore preserves signed relative timing; a first
    HEAD, which has only received, begins at `received_ms = 0`.
+10. **§2 requires independent unavoidable-exposure attribution but does
+   not specify a state-change evidence shape.** The mock now records each
+phantom injection and policy mutation with a bounded run-local ID and
+instant. A scenario oracle derives that event's client-observable instant
+from the script and B13 observations; an allowance binds to the event ID,
+so an absent, duplicated, unrelated, post-arrival, unobservable, or
+too-late claim is a structural judge error rather than an exemption from
+G1.
 
 All evidence below was re-run 2026-08-12, offline, with no socket and
 no live service contact:
 
-- `cargo test --locked` — green, 101 tests.
-- `cargo test --locked --release` — green, 99 tests (the two core drop-
+- `cargo test --locked` — green, 103 tests.
+- `cargo test --locked --release` — green, 101 tests (the two core drop-
   bomb tests remain debug-only).
 - `PROPTEST_CASES=4096 cargo test --locked` — green; all ten properties
   ran 4,096 cases, including the new independent mock-phase oracle.
@@ -236,11 +253,12 @@ one millisecond before expiry, and exact expiry on every generated case;
 its expected value is independent integer arithmetic in the test and
 never calls mock or production scheduling helpers. The conformance
 judge rejects empty observations or scenario assertions; obtains
-transport hand-off timing from the mock rather than actor reports;
-requires the typed assertion for the selected M-row; and cross-checks
-`(seed, φ)` against every swept observation. Exposure records are
-validated against that same B13 log, so gate checks cannot pass on empty,
-detached, or self-exempted evidence.
+transport-handoff timing from the mock rather than actor reports; requires
+the typed assertion for the selected M-row; and cross-checks `(seed, φ)`
+against every swept observation. Exposure records are validated against the
+same B13 log, a mock-owned state-change record, and the scenario-derived
+observable instant, so gate checks cannot pass on empty, detached, or
+self-exempted evidence.
 
 Earlier implementation finding (2026-08-09, response-reconciliation slice):
 the frozen `core-design.md` sketches full response entry points over
@@ -752,3 +770,13 @@ outlives the spike branch; record what exists and where.⟩
   denied, fmt, diff check, and four sanitizer tests green. Actor-driven
   M verdicts and the absent §7.4 capture replay remain explicitly
   pending; review artifact: `mock-handoff.md`.
+- 2026-08-12 — Tom completed the mock + M-series re-review. The mock now
+  reserves a bounded, run-wide handoff identity before arrival delay;
+  unavoidable-exposure attribution binds to bounded mock state changes and
+  rejects missing, unrelated, post-arrival, post-handoff, or too-late
+  claims; the handoff wording now names mock-owned timing rather than the
+  removed dispatch samples. Gate matrix re-run: 103 debug, 101 release,
+  all ten properties at 4,096 cases, all-target clippy with warnings
+  denied, fmt, diff check, and four sanitizer tests green. No
+  accepted-not-fixed findings remain; the slice is closed and the actor is
+  unblocked.

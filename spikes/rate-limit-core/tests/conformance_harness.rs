@@ -5,7 +5,9 @@ use rate_limit_core::conformance::{
     SCENARIOS, SHIPPED_ASSUMED_PROFILE, ScenarioAssertion, ScenarioAssertionId, ScenarioId,
     ScenarioOracle, SweepConfiguration, SweepKind, SweepPlan, SweepPlanError, judge, scenario,
 };
-use rate_limit_core::mock::{Endpoint, MockConfig, MockService, request};
+use rate_limit_core::mock::{
+    Endpoint, MockConfig, MockService, MockStateChange, MockStateChangeKind, request,
+};
 use rate_limit_core::transport::Transport;
 
 #[test]
@@ -79,6 +81,7 @@ async fn one_observation() -> rate_limit_core::mock::Observation {
 #[derive(Default)]
 struct TestOracle {
     eligible_ms: u64,
+    observable_ms: Option<u64>,
     exclusions: Vec<AuthorizedExclusion>,
     m2_padded_minimum_ms: Option<u64>,
 }
@@ -86,6 +89,14 @@ struct TestOracle {
 impl ScenarioOracle for TestOracle {
     fn independently_eligible_ms(&self, _: &rate_limit_core::mock::Observation) -> u64 {
         self.eligible_ms
+    }
+
+    fn independently_observable_ms(
+        &self,
+        state_change: &MockStateChange,
+        _: &[rate_limit_core::mock::Observation],
+    ) -> Option<u64> {
+        self.observable_ms.or(Some(state_change.occurred_ms))
     }
 
     fn authorizes_delay(&self, begins_ms: u64, ends_ms: u64) -> bool {
@@ -111,11 +122,23 @@ fn base_evidence(observation: rate_limit_core::mock::Observation) -> RunEvidence
             client_buckets: SHIPPED_ASSUMED_PROFILE,
         }),
         observations: vec![observation],
+        state_changes: Vec::new(),
         unavoidable_exposure: None,
         assertions: vec![ScenarioAssertion {
             id: ScenarioAssertionId::M1BootSequence,
             passed: true,
         }],
+    }
+}
+
+fn phantom_change(id: u64, occurred_ms: u64) -> MockStateChange {
+    MockStateChange {
+        id,
+        occurred_ms,
+        kind: MockStateChangeKind::PhantomInjection {
+            policy: "stash-request-limit".to_owned(),
+            count: 1,
+        },
     }
 }
 
@@ -190,15 +213,21 @@ async fn g1_unavoidable_exposure_is_pre_observation_only_and_capped() {
     for observation in &mut evidence.observations {
         observation.policy_judgment.organic_violation = true;
         observation.dispatch_ms = 12;
+        observation.arrival_ms = 12;
     }
+    evidence.state_changes = vec![phantom_change(7, 9)];
     evidence.unavoidable_exposure =
-        Some(ExposureAllowance::before_observable([(1, 10), (2, 11), (3, 13)], 12, 2).unwrap());
+        Some(ExposureAllowance::for_state_change(7, [(1, 10), (2, 11)], 2).unwrap());
 
-    let report = judge(&evidence, &TestOracle::default()).unwrap();
+    let oracle = TestOracle {
+        observable_ms: Some(12),
+        ..TestOracle::default()
+    };
+    let report = judge(&evidence, &oracle).unwrap();
     assert!(!report.gate(Gate::G1).passed);
     assert!(report.gate(Gate::G1).failures[0].contains("correlation 3"));
     assert_eq!(
-        ExposureAllowance::before_observable([(1, 10), (2, 11), (3, 11)], 12, 2),
+        ExposureAllowance::for_state_change(7, [(1, 10), (2, 11), (3, 11)], 2),
         Err(ExposureError::TooManyPreObservableReservations { maximum: 2 })
     );
 }
@@ -293,7 +322,17 @@ async fn correlation_and_reproduction_seams_are_structural() {
     let observation = one_observation().await;
     let mut evidence = base_evidence(observation);
     evidence.unavoidable_exposure =
-        Some(ExposureAllowance::before_observable([(2, 0)], 1, 1).unwrap());
+        Some(ExposureAllowance::for_state_change(7, [(2, 0)], 1).unwrap());
+    assert_eq!(
+        judge(&evidence, &TestOracle::default()),
+        Err(JudgeError::ExposureWithoutStateChange { id: 7 })
+    );
+
+    let observation = one_observation().await;
+    let mut evidence = base_evidence(observation);
+    evidence.state_changes = vec![phantom_change(7, 0)];
+    evidence.unavoidable_exposure =
+        Some(ExposureAllowance::for_state_change(7, [(2, 0)], 1).unwrap());
     assert_eq!(
         judge(&evidence, &TestOracle::default()),
         Err(JudgeError::ExposureWithoutObservation { id: 2 })
@@ -301,17 +340,79 @@ async fn correlation_and_reproduction_seams_are_structural() {
 
     let observation = one_observation().await;
     let mut evidence = base_evidence(observation);
+    evidence.state_changes = vec![phantom_change(7, 0)];
     evidence.unavoidable_exposure =
-        Some(ExposureAllowance::before_observable([(1, 1)], 2, 1).unwrap());
+        Some(ExposureAllowance::for_state_change(7, [(1, 1)], 1).unwrap());
     assert_eq!(
-        judge(&evidence, &TestOracle::default()),
+        judge(
+            &evidence,
+            &TestOracle {
+                observable_ms: Some(2),
+                ..TestOracle::default()
+            }
+        ),
         Err(JudgeError::ExposureAfterTransportHandoff { id: 1 })
     );
 
-    assert!(
-        rate_limit_core::conformance::ExposureAllowance::before_observable([(1, 0)], 1, 3,)
-            .is_err()
+    let observation = one_observation().await;
+    let mut evidence = base_evidence(observation);
+    evidence.state_changes = vec![phantom_change(7, 1)];
+    evidence.observations[0].dispatch_ms = 20;
+    evidence.observations[0].arrival_ms = 20;
+    evidence.unavoidable_exposure =
+        Some(ExposureAllowance::for_state_change(7, [(1, 12)], 1).unwrap());
+    assert_eq!(
+        judge(
+            &evidence,
+            &TestOracle {
+                observable_ms: Some(12),
+                ..TestOracle::default()
+            }
+        ),
+        Err(JudgeError::ExposureAfterStateChangeObservable {
+            id: 1,
+            state_change_id: 7,
+        })
     );
+
+    let observation = one_observation().await;
+    let mut evidence = base_evidence(observation);
+    evidence.observations[0].dispatch_ms = 20;
+    evidence.observations[0].arrival_ms = 20;
+    evidence.state_changes = vec![MockStateChange {
+        id: 7,
+        occurred_ms: 1,
+        kind: MockStateChangeKind::PhantomInjection {
+            policy: "character-request-limit".to_owned(),
+            count: 1,
+        },
+    }];
+    evidence.unavoidable_exposure =
+        Some(ExposureAllowance::for_state_change(7, [(1, 1)], 1).unwrap());
+    assert_eq!(
+        judge(&evidence, &TestOracle::default()),
+        Err(JudgeError::ExposureUnrelatedStateChange {
+            id: 1,
+            state_change_id: 7,
+        })
+    );
+
+    let observation = one_observation().await;
+    let mut evidence = base_evidence(observation);
+    evidence.observations[0].dispatch_ms = 20;
+    evidence.observations[0].arrival_ms = 20;
+    evidence.state_changes = vec![phantom_change(7, 21)];
+    evidence.unavoidable_exposure =
+        Some(ExposureAllowance::for_state_change(7, [(1, 1)], 1).unwrap());
+    assert_eq!(
+        judge(&evidence, &TestOracle::default()),
+        Err(JudgeError::ExposureStateChangeAfterArrival {
+            id: 1,
+            state_change_id: 7,
+        })
+    );
+
+    assert!(ExposureAllowance::for_state_change(7, [(1, 0)], 3).is_err());
 }
 
 #[test]

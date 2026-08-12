@@ -2,8 +2,8 @@
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
-use crate::mock::Observation;
 use crate::mock::model::MAX_REQUESTS_PER_RUN;
+use crate::mock::{MockStateChange, Observation};
 
 pub const G3_EPSILON_MS: u64 = 500;
 pub const MAX_SWEEP_CONFIGURATIONS: usize = 256;
@@ -300,6 +300,15 @@ pub struct AuthorizedExclusion {
 pub trait ScenarioOracle {
     fn independently_eligible_ms(&self, observation: &Observation) -> u64;
 
+    /// Returns when this particular mock-side change first becomes visible to
+    /// the client in this scenario. The implementation must derive this from
+    /// the scenario script and B13 evidence, never from actor state.
+    fn independently_observable_ms(
+        &self,
+        state_change: &MockStateChange,
+        observations: &[Observation],
+    ) -> Option<u64>;
+
     fn authorizes_delay(&self, _begins_ms: u64, _ends_ms: u64) -> bool {
         false
     }
@@ -317,6 +326,7 @@ pub struct ScenarioAssertion {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExposureAllowance {
+    state_change_id: u64,
     reservations: BTreeMap<u64, u64>,
 }
 
@@ -328,11 +338,12 @@ pub enum ExposureError {
 }
 
 impl ExposureAllowance {
-    /// Attributes only reservations made before the mutation/race became
-    /// observable, capped independently at the D5 in-flight limit.
-    pub fn before_observable(
+    /// Binds an unavoidable-exposure claim to one mock-owned state change.
+    /// The judge, not the evidence producer, obtains that change's
+    /// independently derived observable instant from the scenario oracle.
+    pub fn for_state_change(
+        state_change_id: u64,
         reservations: impl IntoIterator<Item = (u64, u64)>,
-        observable_at_ms: u64,
         in_flight_cap: usize,
     ) -> Result<Self, ExposureError> {
         if in_flight_cap > D5_IN_FLIGHT_CAP {
@@ -340,9 +351,6 @@ impl ExposureAllowance {
         }
         let mut pre_observable = BTreeMap::new();
         for (correlation, reserved_at) in reservations {
-            if reserved_at >= observable_at_ms {
-                continue;
-            }
             if pre_observable.insert(correlation, reserved_at).is_some() {
                 return Err(ExposureError::DuplicateCorrelation { id: correlation });
             }
@@ -353,6 +361,7 @@ impl ExposureAllowance {
             }
         }
         Ok(Self {
+            state_change_id,
             reservations: pre_observable,
         })
     }
@@ -367,6 +376,7 @@ pub struct RunEvidence {
     pub scenario: ScenarioId,
     pub reproduction: Option<ReproductionRecord>,
     pub observations: Vec<Observation>,
+    pub state_changes: Vec<MockStateChange>,
     pub unavoidable_exposure: Option<ExposureAllowance>,
     pub assertions: Vec<ScenarioAssertion>,
 }
@@ -397,6 +407,27 @@ pub enum JudgeError {
         id: u64,
     },
     ExposureAfterTransportHandoff {
+        id: u64,
+    },
+    ExposureUnrelatedStateChange {
+        id: u64,
+        state_change_id: u64,
+    },
+    ExposureStateChangeAfterArrival {
+        id: u64,
+        state_change_id: u64,
+    },
+    ExposureWithoutStateChange {
+        id: u64,
+    },
+    DuplicateStateChange {
+        id: u64,
+    },
+    ExposureAfterStateChangeObservable {
+        id: u64,
+        state_change_id: u64,
+    },
+    StateChangeNotObservable {
         id: u64,
     },
     ReproductionMismatch {
@@ -440,6 +471,7 @@ pub fn judge(
 ) -> Result<RunReport, JudgeError> {
     for (kind, length) in [
         ("observations", evidence.observations.len()),
+        ("state changes", evidence.state_changes.len()),
         ("assertions", evidence.assertions.len()),
     ] {
         if length > MAX_REQUESTS_PER_RUN {
@@ -464,7 +496,31 @@ pub fn judge(
             });
         }
     }
+    let mut state_change_ids = BTreeSet::new();
+    for state_change in &evidence.state_changes {
+        if !state_change_ids.insert(state_change.id) {
+            return Err(JudgeError::DuplicateStateChange {
+                id: state_change.id,
+            });
+        }
+    }
     if let Some(exposure) = &evidence.unavoidable_exposure {
+        let Some(state_change) = evidence
+            .state_changes
+            .iter()
+            .find(|state_change| state_change.id == exposure.state_change_id)
+        else {
+            return Err(JudgeError::ExposureWithoutStateChange {
+                id: exposure.state_change_id,
+            });
+        };
+        let Some(observable_at_ms) =
+            oracle.independently_observable_ms(state_change, &evidence.observations)
+        else {
+            return Err(JudgeError::StateChangeNotObservable {
+                id: exposure.state_change_id,
+            });
+        };
         for (correlation_id, reserved_at_ms) in &exposure.reservations {
             let Some(observation) = evidence
                 .observations
@@ -475,9 +531,27 @@ pub fn judge(
                     id: *correlation_id,
                 });
             };
+            if !state_change.kind.affects_policy(&observation.policy) {
+                return Err(JudgeError::ExposureUnrelatedStateChange {
+                    id: *correlation_id,
+                    state_change_id: state_change.id,
+                });
+            }
+            if state_change.occurred_ms > observation.arrival_ms {
+                return Err(JudgeError::ExposureStateChangeAfterArrival {
+                    id: *correlation_id,
+                    state_change_id: state_change.id,
+                });
+            }
             if *reserved_at_ms > observation.dispatch_ms {
                 return Err(JudgeError::ExposureAfterTransportHandoff {
                     id: *correlation_id,
+                });
+            }
+            if *reserved_at_ms >= observable_at_ms {
+                return Err(JudgeError::ExposureAfterStateChangeObservable {
+                    id: *correlation_id,
+                    state_change_id: state_change.id,
                 });
             }
         }

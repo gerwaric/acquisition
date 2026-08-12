@@ -85,6 +85,13 @@ pub enum MockConfigError {
     InvalidScript(String),
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum MockStateChangeError {
+    Model(ModelError),
+    Noop,
+    BudgetExceeded { limit: usize },
+}
+
 #[derive(Debug, Clone)]
 pub struct MockConfig {
     pub seed: u64,
@@ -282,6 +289,64 @@ pub struct Observation {
     pub response_status: Option<StatusCode>,
 }
 
+/// A mock-owned record made atomically when the transport accepts a request.
+///
+/// Unlike an [`Observation`], this survives cancellation during a scripted
+/// arrival delay: the transport hand-off has happened even if the simulated
+/// server never receives the request.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TransportHandoff {
+    pub ordinal: usize,
+    pub seed: u64,
+    pub phase_ms: u64,
+    pub correlation_id: u64,
+    pub dispatch_ms: u64,
+    pub method: Method,
+    pub endpoint: Endpoint,
+}
+
+/// A mock-side counter or policy change that a scenario may use to attribute
+/// bounded unavoidable exposure independently of the client under test.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MockStateChange {
+    pub id: u64,
+    pub occurred_ms: u64,
+    pub kind: MockStateChangeKind,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum MockStateChangeKind {
+    PhantomInjection {
+        policy: String,
+        count: usize,
+    },
+    PolicyReplacement {
+        policy: String,
+    },
+    PolicyRename {
+        old_policy: String,
+        new_policy: String,
+    },
+}
+
+impl MockStateChangeKind {
+    pub fn affects_policy(&self, policy: &str) -> bool {
+        match self {
+            Self::PhantomInjection {
+                policy: affected_policy,
+                ..
+            }
+            | Self::PolicyReplacement {
+                policy: affected_policy,
+            } => affected_policy == policy,
+            Self::PolicyRename {
+                old_policy,
+                new_policy,
+            } => old_policy == policy || new_policy == policy,
+        }
+    }
+}
+
 #[derive(Debug)]
 struct MockState {
     seed: u64,
@@ -293,6 +358,9 @@ struct MockState {
     scripts: HashMap<u64, ExchangeScript>,
     seen_correlations: HashSet<u64>,
     in_flight: HashMap<u64, ActiveExchange>,
+    handoffs: Vec<TransportHandoff>,
+    state_changes: Vec<MockStateChange>,
+    next_state_change_id: u64,
     observations: Vec<Observation>,
 }
 
@@ -334,6 +402,9 @@ impl MockService {
             scripts: HashMap::new(),
             seen_correlations: HashSet::new(),
             in_flight: HashMap::new(),
+            handoffs: Vec::new(),
+            state_changes: Vec::new(),
+            next_state_change_id: 0,
             observations: Vec::new(),
         }));
         Ok((
@@ -364,19 +435,8 @@ impl MockService {
             ));
         }
 
-        let dispatch = self.now();
-        let script = {
+        let (ordinal, dispatch, script) = {
             let mut state = self.state.lock().await;
-            state.scripts.remove(&correlation_id).unwrap_or_default()
-        };
-        tokio::time::sleep(script.arrival_delay).await;
-
-        let arrival = self.now();
-        let (ordinal, policy, layer1, judgment, definition, in_flight_at_arrival, head_overlap) = {
-            let mut state = self.state.lock().await;
-            state
-                .in_flight
-                .retain(|_, exchange| arrival < exchange.completes_at);
             if state.exhausted || state.dispatches == state.dispatch_budget {
                 state.exhausted = true;
                 return Err(TransportError::MockHarness(format!(
@@ -389,8 +449,34 @@ impl MockService {
                     "duplicate run-wide correlation identity".to_owned(),
                 ));
             }
+            let dispatch = self.now();
+            let ordinal = state.dispatches;
+            let seed = state.seed;
+            let phase_ms = state.model.phase_ms();
             state.dispatches += 1;
-            let ordinal = state.dispatches - 1;
+            state.handoffs.push(TransportHandoff {
+                ordinal,
+                seed,
+                phase_ms,
+                correlation_id,
+                dispatch_ms: dispatch.as_millis(),
+                method: method.clone(),
+                endpoint,
+            });
+            (
+                ordinal,
+                dispatch,
+                state.scripts.remove(&correlation_id).unwrap_or_default(),
+            )
+        };
+        tokio::time::sleep(script.arrival_delay).await;
+
+        let arrival = self.now();
+        let (ordinal, policy, layer1, judgment, definition, in_flight_at_arrival, head_overlap) = {
+            let mut state = self.state.lock().await;
+            state
+                .in_flight
+                .retain(|_, exchange| arrival < exchange.completes_at);
             let in_flight_at_arrival = state.in_flight.len() + 1;
             let head_overlap = if method == Method::HEAD {
                 !state.in_flight.is_empty()
@@ -557,17 +643,47 @@ impl MockController {
         self.state.lock().await.model.preload(policy, at, count)
     }
 
-    pub async fn inject_phantoms(&self, policy: &str, count: usize) -> Result<(), ModelError> {
+    pub async fn inject_phantoms(
+        &self,
+        policy: &str,
+        count: usize,
+    ) -> Result<MockStateChange, MockStateChangeError> {
+        if count == 0 {
+            return Err(MockStateChangeError::Noop);
+        }
+        let mut state = self.state.lock().await;
+        ensure_state_change_capacity(&state)?;
         let now = self.now();
-        self.state
-            .lock()
-            .await
+        state
             .model
             .inject_phantoms(policy, now, count)
+            .map_err(MockStateChangeError::Model)?;
+        Ok(record_state_change(
+            &mut state,
+            now,
+            MockStateChangeKind::PhantomInjection {
+                policy: policy.to_owned(),
+                count,
+            },
+        ))
     }
 
-    pub async fn replace_policy(&self, definition: PolicyDefinition) -> Result<(), ModelError> {
-        self.state.lock().await.model.replace_policy(definition)
+    pub async fn replace_policy(
+        &self,
+        definition: PolicyDefinition,
+    ) -> Result<MockStateChange, MockStateChangeError> {
+        let policy = definition.name().to_owned();
+        let mut state = self.state.lock().await;
+        ensure_state_change_capacity(&state)?;
+        state
+            .model
+            .replace_policy(definition)
+            .map_err(MockStateChangeError::Model)?;
+        Ok(record_state_change(
+            &mut state,
+            self.now(),
+            MockStateChangeKind::PolicyReplacement { policy },
+        ))
     }
 
     /// Renames a policy atomically with all routes that point at it. The
@@ -576,16 +692,39 @@ impl MockController {
         &self,
         old_policy: &str,
         definition: PolicyDefinition,
-    ) -> Result<(), ModelError> {
+    ) -> Result<MockStateChange, MockStateChangeError> {
         let new_policy = definition.name().to_owned();
         let mut state = self.state.lock().await;
-        state.model.rename_policy(old_policy, definition)?;
+        ensure_state_change_capacity(&state)?;
+        state
+            .model
+            .rename_policy(old_policy, definition)
+            .map_err(MockStateChangeError::Model)?;
         for policy in state.routes.values_mut() {
             if policy == old_policy {
                 *policy = new_policy.clone();
             }
         }
-        Ok(())
+        Ok(record_state_change(
+            &mut state,
+            self.now(),
+            MockStateChangeKind::PolicyRename {
+                old_policy: old_policy.to_owned(),
+                new_policy,
+            },
+        ))
+    }
+
+    pub async fn handoffs(&self) -> Vec<TransportHandoff> {
+        let mut handoffs = self.state.lock().await.handoffs.clone();
+        handoffs.sort_by_key(|handoff| handoff.ordinal);
+        handoffs
+    }
+
+    pub async fn state_changes(&self) -> Vec<MockStateChange> {
+        let mut state_changes = self.state.lock().await.state_changes.clone();
+        state_changes.sort_by_key(|state_change| state_change.id);
+        state_changes
     }
 
     pub async fn observations(&self) -> Vec<Observation> {
@@ -593,6 +732,30 @@ impl MockController {
         observations.sort_by_key(|observation| observation.ordinal);
         observations
     }
+}
+
+fn record_state_change(
+    state: &mut MockState,
+    now: ServerTime,
+    kind: MockStateChangeKind,
+) -> MockStateChange {
+    let state_change = MockStateChange {
+        id: state.next_state_change_id,
+        occurred_ms: now.as_millis(),
+        kind,
+    };
+    state.next_state_change_id = state.next_state_change_id.saturating_add(1);
+    state.state_changes.push(state_change.clone());
+    state_change
+}
+
+fn ensure_state_change_capacity(state: &MockState) -> Result<(), MockStateChangeError> {
+    if state.state_changes.len() == MAX_REQUESTS_PER_RUN {
+        return Err(MockStateChangeError::BudgetExceeded {
+            limit: MAX_REQUESTS_PER_RUN,
+        });
+    }
+    Ok(())
 }
 
 pub fn request(
