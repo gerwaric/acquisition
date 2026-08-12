@@ -6,7 +6,9 @@ after the external review noted its absence for the composite core
 implemented through the external-review fix series and the follow-up
 verifier fixes of 2026-08-10 (probe-lane 429 recording, byte
 ceilings, 6 h period ceiling). Supersedes nothing; future slices
-attach their own hand-offs.
+attach their own hand-offs — `bootstrap-handoff.md`, `mock-handoff.md`,
+and `actor-handoff.md`, in build order. §3's deliberate-coverage
+paragraph is superseded in effect by all three; see the note there.
 
 ## 1. Silences taken (doc gaps, the reading chosen, consequence traced)
 
@@ -56,6 +58,15 @@ retirement (counts run after retiring).
 Not covered, deliberately: mock/M-series, C3/C4, X1/X2, actor
 (unbuilt, build-order); M5 remap and M6 shrink (deferred by
 decision); bootstrap seeding (accepted design, unimplemented).
+
+**Superseded in effect, 2026-08-12** (the paragraph above is kept as
+the dated 2026-08-09 record, per the seeding-review precedent for
+`core-design.md`). Every item in it has since been built and reviewed:
+bootstrap seeding in `708b32d8..17363429` (`bootstrap-handoff.md`), the
+mock and M-series harness in `4353fb03..74d589fe` (`mock-handoff.md`),
+and the Tokio actor shell in `d0eabcae..02b60f47` (`actor-handoff.md`),
+which carries C3, C4, X1, X2, M5 remap, and M6 shrink. For what remains
+open, read `actor-handoff.md` §3 — not this paragraph.
 
 Not covered, honestly: no property sweeps the halted/suspended
 dimension (example tests only); the retirement × long-observation
