@@ -524,7 +524,7 @@ Open obligation carried to the actor slice: replace "any sane
 transport timeout" with the exact enforced timeout (or its stated
 relationship to the aging horizon) plus a test.
 
-### Tokio actor slice (2026-08-12 — awaiting review)
+### Tokio actor slice (2026-08-12 — closed)
 
 Implementation currently uses a 30 s enforced transport timeout, classified
 as an unknown outcome so a dispatched reservation remains counted. It is below
@@ -831,3 +831,34 @@ outlives the spike branch; record what exists and where.⟩
   denied, fmt, diff check, and four sanitizer tests green. No
   accepted-not-fixed findings remain; the slice is closed and the actor is
   unblocked.
+- 2026-08-12 — Tokio actor shell implemented, reviewed, and closed
+  (`d0eabcae`, `e3efb812`, `02b60f47`; review artifact
+  `actor-handoff.md`). The shell supplies D5's gate contract — in-flight
+  cap 2, HEAD-exclusive with structural writer preference, FIFO among
+  ordinary waiters — plus queue drain, cancellation, retry delivery, and
+  watch publication, and it carries C3, C4, X1, and X2: fuse burst 10/1 s
+  and sustained 500/60 s with exact half-open edges and a non-vacuous
+  floor-compliant property, the 4xx tripwire over the same thresholds,
+  both X1 fault shapes driven at the real `start_dispatch` hook, and the
+  private-field transport boundary. Round-one findings were fixed in
+  `e3efb812`; the re-review's findings — post-remap refusals resolving
+  through the anchor's current route so scoped failure drains queued
+  callers, a genuine same-policy M6 shrink with held history, and bounded
+  `WireResponse` as the sole transport-to-actor ingress — were fixed in
+  `02b60f47`. Tom's re-review then closed with no findings; no
+  accepted-not-fixed findings remain and the slice is closed. Both
+  obligations the core slice carried to the actor are discharged: the
+  enforced 30 s transport timeout is pinned below the smallest padded N23
+  horizon with a test, and the five-endpoint D5 record bound is
+  actor-owned and enforced. New doc findings recorded above: the
+  actor-owned 10,000-entry queue cap, that same D5 record bound, C4's
+  absent independent thresholds (it reuses C3's), and the accepted X2
+  limitation that this spike cannot force a future HTTP parser's upstream
+  allocation cap — that transport implementation must cap body collection
+  itself. Gate matrix re-run at closure: 124 debug, 122 release, all
+  eleven properties at 4,096 cases, all-target clippy with warnings
+  denied, fmt, diff check, and four sanitizer tests green. The charter
+  build order is now complete. Remaining before either verdict slot: full
+  M1–M13 scenario-driver runs, driver/judge integration, caller *drop*
+  while dispatched, the G3/G4 finalization required by `scenarios.md` §6,
+  and the §7.4 capture replay (still blocked on raw input).

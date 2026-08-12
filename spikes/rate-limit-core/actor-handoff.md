@@ -1,8 +1,10 @@
 # Tokio actor slice hand-off
 
-Status: review revision complete on 2026-08-12; awaiting re-review. This slice
+Status: **slice closed 2026-08-12** — Tom's re-review closed with no findings,
+after the re-review's own findings were fixed in `02b60f47`. This slice
 consumes the reviewed core and mock handoffs; it does not claim final M-series
-verdicts.
+verdicts. §3's "not yet covered" list is the live one: read it before starting
+the next slice.
 
 ## 1. Silences taken
 
