@@ -1,9 +1,9 @@
 use http::Method;
 use rate_limit_core::conformance::{
-    AuthorizedExclusion, AuthorizedExclusionKind, ClientBucketProfile, ExposureAllowance, Gate,
-    JudgeError, OAUTH_KNOWN_PROFILE, ReproductionRecord, RunEvidence, SCENARIOS,
-    SHIPPED_ASSUMED_PROFILE, ScenarioAssertion, ScenarioAssertionId, ScenarioId, ScenarioOracle,
-    SweepConfiguration, SweepKind, SweepPlan, SweepPlanError, judge, scenario,
+    AuthorizedExclusion, AuthorizedExclusionKind, ClientBucketProfile, ExposureAllowance,
+    ExposureError, Gate, JudgeError, OAUTH_KNOWN_PROFILE, ReproductionRecord, RunEvidence,
+    SCENARIOS, SHIPPED_ASSUMED_PROFILE, ScenarioAssertion, ScenarioAssertionId, ScenarioId,
+    ScenarioOracle, SweepConfiguration, SweepKind, SweepPlan, SweepPlanError, judge, scenario,
 };
 use rate_limit_core::mock::{Endpoint, MockConfig, MockService, request};
 use rate_limit_core::transport::Transport;
@@ -189,6 +189,7 @@ async fn g1_unavoidable_exposure_is_pre_observation_only_and_capped() {
     evidence.observations.push(third);
     for observation in &mut evidence.observations {
         observation.policy_judgment.organic_violation = true;
+        observation.dispatch_ms = 12;
     }
     evidence.unavoidable_exposure =
         Some(ExposureAllowance::before_observable([(1, 10), (2, 11), (3, 13)], 12, 2).unwrap());
@@ -196,6 +197,10 @@ async fn g1_unavoidable_exposure_is_pre_observation_only_and_capped() {
     let report = judge(&evidence, &TestOracle::default()).unwrap();
     assert!(!report.gate(Gate::G1).passed);
     assert!(report.gate(Gate::G1).failures[0].contains("correlation 3"));
+    assert_eq!(
+        ExposureAllowance::before_observable([(1, 10), (2, 11), (3, 11)], 12, 2),
+        Err(ExposureError::TooManyPreObservableReservations { maximum: 2 })
+    );
 }
 
 #[tokio::test(start_paused = true)]
@@ -283,6 +288,24 @@ async fn correlation_and_reproduction_seams_are_structural() {
         Err(JudgeError::DuplicateScenarioAssertion {
             id: ScenarioAssertionId::M1BootSequence,
         })
+    );
+
+    let observation = one_observation().await;
+    let mut evidence = base_evidence(observation);
+    evidence.unavoidable_exposure =
+        Some(ExposureAllowance::before_observable([(2, 0)], 1, 1).unwrap());
+    assert_eq!(
+        judge(&evidence, &TestOracle::default()),
+        Err(JudgeError::ExposureWithoutObservation { id: 2 })
+    );
+
+    let observation = one_observation().await;
+    let mut evidence = base_evidence(observation);
+    evidence.unavoidable_exposure =
+        Some(ExposureAllowance::before_observable([(1, 1)], 2, 1).unwrap());
+    assert_eq!(
+        judge(&evidence, &TestOracle::default()),
+        Err(JudgeError::ExposureAfterTransportHandoff { id: 1 })
     );
 
     assert!(

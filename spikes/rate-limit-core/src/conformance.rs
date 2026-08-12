@@ -1,6 +1,6 @@
 //! M-series scenario metadata and client-independent gate judgment.
 
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use crate::mock::Observation;
 use crate::mock::model::MAX_REQUESTS_PER_RUN;
@@ -317,13 +317,14 @@ pub struct ScenarioAssertion {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExposureAllowance {
-    correlations: BTreeSet<u64>,
-    maximum: usize,
+    reservations: BTreeMap<u64, u64>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExposureError {
     AboveD5InFlightCap,
+    TooManyPreObservableReservations { maximum: usize },
+    DuplicateCorrelation { id: u64 },
 }
 
 impl ExposureAllowance {
@@ -337,21 +338,27 @@ impl ExposureAllowance {
         if in_flight_cap > D5_IN_FLIGHT_CAP {
             return Err(ExposureError::AboveD5InFlightCap);
         }
-        let correlations = reservations
-            .into_iter()
-            .filter_map(|(correlation, reserved_at)| {
-                (reserved_at < observable_at_ms).then_some(correlation)
-            })
-            .take(in_flight_cap)
-            .collect();
+        let mut pre_observable = BTreeMap::new();
+        for (correlation, reserved_at) in reservations {
+            if reserved_at >= observable_at_ms {
+                continue;
+            }
+            if pre_observable.insert(correlation, reserved_at).is_some() {
+                return Err(ExposureError::DuplicateCorrelation { id: correlation });
+            }
+            if pre_observable.len() > in_flight_cap {
+                return Err(ExposureError::TooManyPreObservableReservations {
+                    maximum: in_flight_cap,
+                });
+            }
+        }
         Ok(Self {
-            correlations,
-            maximum: in_flight_cap,
+            reservations: pre_observable,
         })
     }
 
     fn contains(&self, correlation_id: u64) -> bool {
-        self.correlations.contains(&correlation_id)
+        self.reservations.contains_key(&correlation_id)
     }
 }
 
@@ -384,6 +391,12 @@ pub enum JudgeError {
     InvalidM2Duration,
     DuplicateCorrelation {
         kind: &'static str,
+        id: u64,
+    },
+    ExposureWithoutObservation {
+        id: u64,
+    },
+    ExposureAfterTransportHandoff {
         id: u64,
     },
     ReproductionMismatch {
@@ -451,6 +464,24 @@ pub fn judge(
             });
         }
     }
+    if let Some(exposure) = &evidence.unavoidable_exposure {
+        for (correlation_id, reserved_at_ms) in &exposure.reservations {
+            let Some(observation) = evidence
+                .observations
+                .iter()
+                .find(|observation| observation.correlation_id == *correlation_id)
+            else {
+                return Err(JudgeError::ExposureWithoutObservation {
+                    id: *correlation_id,
+                });
+            };
+            if *reserved_at_ms > observation.dispatch_ms {
+                return Err(JudgeError::ExposureAfterTransportHandoff {
+                    id: *correlation_id,
+                });
+            }
+        }
+    }
     let spec = scenario(evidence.scenario);
     let mut assertion_ids = BTreeSet::new();
     for assertion in &evidence.assertions {
@@ -501,18 +532,7 @@ pub fn judge(
             )
         })
         .collect::<Vec<_>>();
-    let allowed_exposure_count = evidence
-        .observations
-        .iter()
-        .filter(|observation| observation.policy_judgment.organic_violation)
-        .filter(|observation| {
-            exposure.is_some_and(|allowance| allowance.contains(observation.correlation_id))
-        })
-        .count();
-    let mut g1_failures = organic;
-    if exposure.is_some_and(|allowance| allowed_exposure_count > allowance.maximum) {
-        g1_failures.push("unavoidable exposure exceeded its independent cap".to_owned());
-    }
+    let g1_failures = organic;
 
     let g2_failures = evidence
         .observations
