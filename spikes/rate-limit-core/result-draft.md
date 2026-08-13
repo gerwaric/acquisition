@@ -1743,3 +1743,21 @@ outlives the spike branch; record what exists and where.⟩
   accepted X2 parser-cap limitation) / 13 Excluded. Gate evidence:
   `cargo test --locked` 135 debug green, `cargo fmt --all --check`,
   all-target clippy clean, `git diff --check` clean.
+- 2026-08-13 — **sanitizer v2** (first real-capture integration
+  finding): the capture instrument (`networkcapture.cpp`, schema v1)
+  emits local-time timestamps with no UTC offset —
+  `QDateTime::currentDateTime().toString(Qt::ISODateWithMs)` — and
+  v1 of the sanitizer correctly refused the first real capture
+  (2026-08-13, ~1,081 stash gets, VPN, zero 429s). v2 accepts such
+  captures only with an explicit `--utc-offset`, validated per
+  record against the server `Date` header (±10 s bound; a wrong
+  whole-timezone offset misses by ≥ 15 min); the same bound is now
+  a standing invariant for every capture, and a repeated boot HEAD
+  per endpoint is refused as an append-mode multi-session file.
+  Verified against the real capture: correct offset passes with max
+  client/server Date disagreement 1,057 ms (within Date's 1 s wire
+  precision — incidental real-world support for B14's zero-skew
+  model); missing and wrong offsets both refuse; doubled file
+  refuses. Owed to master (main-app code, not this branch): the
+  one-line instrument fix to emit UTC (`currentDateTimeUtc`), after
+  which `--utc-offset` becomes unnecessary for new captures.

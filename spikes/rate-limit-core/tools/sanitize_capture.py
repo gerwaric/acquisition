@@ -1,21 +1,35 @@
 #!/usr/bin/env python3
-"""Sanitize NetworkCapture JSONL into the scenarios.md §4 fixture shape."""
+"""Sanitize NetworkCapture JSONL into the scenarios.md §4 fixture shape.
+
+v2 (2026-08-13): the capture instrument (networkcapture.cpp, through at
+least schema v1) emits local-time timestamps with no UTC offset. Such
+captures are accepted only with an explicit --utc-offset, and the offset
+is validated per record against the server Date header rather than
+trusted; the same client/server agreement bound now applies to every
+capture. A repeated boot HEAD per endpoint is refused as a probable
+append-mode multi-session file.
+"""
 
 from __future__ import annotations
 
 import argparse
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 from pathlib import Path
 from typing import Any
 
-SANITIZER_VERSION = 1
+SANITIZER_VERSION = 2
 MAX_INPUT_BYTES = 40 * 1024 * 1024
 MAX_RECORDS = 10_000
 MAX_LINE_BYTES = 64 * 1024
 MAX_HEADER_VALUE_BYTES = 1_024
 MAX_METADATA_BYTES = 512
+# Server Date has one-second wire precision and is stamped before network
+# transit; a correct offset keeps |received - Date| within a few seconds.
+# A wrong whole-timezone offset misses by >= 15 minutes, so this bound
+# separates the two failure modes by orders of magnitude.
+DATE_AGREEMENT_TOLERANCE_MS = 10_000
 
 ENDPOINTS = {
     "List Stashes": "list-stashes",
@@ -38,14 +52,37 @@ def _bounded_text(value: Any, field: str, limit: int = MAX_METADATA_BYTES) -> st
     return value
 
 
-def _parse_iso(value: Any, field: str) -> datetime:
+def _parse_utc_offset(value: str) -> timezone:
+    # Strict ±HH:MM only: this flag asserts evidence about the capture
+    # clock, so sloppy spellings are rejected rather than guessed at.
+    if len(value) == 6 and value[0] in "+-" and value[3] == ":":
+        try:
+            hours = int(value[1:3])
+            minutes = int(value[4:6])
+        except ValueError:
+            hours, minutes = -1, -1
+        if 0 <= hours <= 14 and 0 <= minutes < 60:
+            delta = timedelta(hours=hours, minutes=minutes)
+            return timezone(-delta if value[0] == "-" else delta)
+    raise SanitizationError("--utc-offset must be spelled ±HH:MM (e.g. -05:00)")
+
+
+def _parse_iso(
+    value: Any, field: str, assumed_offset: timezone | None = None
+) -> datetime:
     raw = _bounded_text(value, field)
     try:
         parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
     except ValueError as error:
         raise SanitizationError(f"{field} is not ISO-8601") from error
     if parsed.tzinfo is None:
-        raise SanitizationError(f"{field} has no UTC offset; rebasing would be ambiguous")
+        if assumed_offset is None:
+            raise SanitizationError(
+                f"{field} has no UTC offset; pass --utc-offset (it is validated "
+                "against server Date headers) or re-capture with offset-bearing "
+                "timestamps"
+            )
+        parsed = parsed.replace(tzinfo=assumed_offset)
     return parsed.astimezone(timezone.utc)
 
 
@@ -63,14 +100,16 @@ def _relative_ms(value: datetime, origin: datetime) -> int:
     return round((value - origin).total_seconds() * 1_000)
 
 
-def _first_record_origin(record: dict[str, Any]) -> datetime:
+def _first_record_origin(
+    record: dict[str, Any], assumed_offset: timezone | None
+) -> datetime:
     # "t0 = first record" is interpreted as the first client-side instant in
     # that record: scheduled, then sent, then received. A HEAD has received
     # only. Server Date is deliberately not the origin because its wire
     # precision is one second and could move t0 backward by rounding.
     for field in ("scheduled", "sent", "received"):
         if field in record:
-            return _parse_iso(record[field], field)
+            return _parse_iso(record[field], field, assumed_offset)
     raise SanitizationError("first record has no scheduled/sent/received timestamp")
 
 
@@ -97,7 +136,10 @@ def _sanitize_headers(
 
 
 def _sanitize_record(
-    raw: Any, origin: datetime, expected_capture_version: int
+    raw: Any,
+    origin: datetime,
+    expected_capture_version: int,
+    assumed_offset: timezone | None,
 ) -> dict[str, Any]:
     if not isinstance(raw, dict):
         raise SanitizationError("capture line is not an object")
@@ -126,7 +168,9 @@ def _sanitize_record(
 
     for field in ("scheduled", "sent", "received"):
         if field in raw:
-            record[f"{field}_ms"] = _relative_ms(_parse_iso(raw[field], field), origin)
+            record[f"{field}_ms"] = _relative_ms(
+                _parse_iso(raw[field], field, assumed_offset), origin
+            )
     if "received_ms" not in record:
         raise SanitizationError("record has no received timestamp")
 
@@ -134,6 +178,15 @@ def _sanitize_record(
     record["headers"] = headers
     if date_ms is not None:
         record["date_ms"] = date_ms
+        # Validates both the capture clock and any --utc-offset: a wrong
+        # offset shifts every client instant against the server Date by the
+        # offset error, which dwarfs this bound.
+        if abs(date_ms - record["received_ms"]) > DATE_AGREEMENT_TOLERANCE_MS:
+            raise SanitizationError(
+                "client received time and server Date disagree by more than "
+                f"{DATE_AGREEMENT_TOLERANCE_MS} ms — wrong --utc-offset, or a "
+                "capture-clock/server skew that would poison timing analysis"
+            )
     return record
 
 
@@ -144,6 +197,7 @@ def sanitize(
     capture_schema_version: int,
     session_shape: str,
     claim_lanes: list[str],
+    utc_offset: timezone | None = None,
 ) -> dict[str, Any]:
     if not lines:
         raise SanitizationError("capture is empty")
@@ -162,22 +216,37 @@ def sanitize(
             raise SanitizationError("capture line is not an object")
         decoded.append(raw)
 
-    origin = _first_record_origin(decoded[0])
+    origin = _first_record_origin(decoded[0], utc_offset)
+    seen_head_endpoints: set[str] = set()
     for raw in decoded:
-        records.append(_sanitize_record(raw, origin, capture_schema_version))
+        record = _sanitize_record(raw, origin, capture_schema_version, utc_offset)
+        if record["kind"] == "head":
+            # One boot HEAD per touched endpoint (M1/N24): a repeat means
+            # the append-mode capture file holds more than one session.
+            if record["endpoint"] in seen_head_endpoints:
+                raise SanitizationError(
+                    f"second boot HEAD for endpoint {record['endpoint']!r} — the "
+                    "capture likely contains multiple appended sessions; split "
+                    "the file at the session boundary before sanitizing"
+                )
+            seen_head_endpoints.add(record["endpoint"])
+        records.append(record)
 
-    return {
-        "provenance": {
-            "capture_date": _bounded_text(capture_date, "capture_date", 32),
-            "capture_schema_version": capture_schema_version,
-            "sanitizer_version": SANITIZER_VERSION,
-            "session_shape": _bounded_text(session_shape, "session_shape"),
-            "claim_lanes": [
-                _bounded_text(lane, "claim lane", 64) for lane in claim_lanes
-            ],
-        },
-        "records": records,
+    provenance: dict[str, Any] = {
+        "capture_date": _bounded_text(capture_date, "capture_date", 32),
+        "capture_schema_version": capture_schema_version,
+        "sanitizer_version": SANITIZER_VERSION,
+        "session_shape": _bounded_text(session_shape, "session_shape"),
+        "claim_lanes": [
+            _bounded_text(lane, "claim lane", 64) for lane in claim_lanes
+        ],
     }
+    if utc_offset is not None:
+        # Record that the offset was assumed (and how it was checked), not
+        # its value: rebased fixtures do not need it, and the allowlist
+        # spirit is to retain nothing the replay does not consume.
+        provenance["utc_offset"] = "operator-supplied, validated against server Date"
+    return {"provenance": provenance, "records": records}
 
 
 def _arguments() -> argparse.Namespace:
@@ -188,6 +257,12 @@ def _arguments() -> argparse.Namespace:
     parser.add_argument("--capture-schema-version", required=True, type=int)
     parser.add_argument("--session-shape", required=True)
     parser.add_argument("--claim-lane", action="append", required=True)
+    parser.add_argument(
+        "--utc-offset",
+        help="±HH:MM offset for captures whose timestamps carry none "
+        "(networkcapture.cpp emits local time through schema v1); validated "
+        "per record against the server Date header",
+    )
     return parser.parse_args()
 
 
@@ -204,6 +279,11 @@ def main() -> None:
         capture_schema_version=arguments.capture_schema_version,
         session_shape=arguments.session_shape,
         claim_lanes=arguments.claim_lane,
+        utc_offset=(
+            _parse_utc_offset(arguments.utc_offset)
+            if arguments.utc_offset is not None
+            else None
+        ),
     )
     # The output is a new sanitized artifact. Refuse to overwrite any file so
     # a mistaken target cannot destroy the retained raw capture.
