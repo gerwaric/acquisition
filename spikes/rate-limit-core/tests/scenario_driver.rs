@@ -18,7 +18,7 @@ use rate_limit_core::conformance::{
 };
 use rate_limit_core::core::{BucketModel, EndpointLabel, PolicyEngine, Resolution};
 use rate_limit_core::mock::model::{
-    PolicyDefinition, RuleDefinition, WindowDefinition, bucket_end_ms, first_bucket_boundary_ms,
+    PolicyDefinition, RuleDefinition, WindowDefinition, first_bucket_boundary_ms,
 };
 use rate_limit_core::mock::{
     CORRELATION_HEADER, Endpoint, ExchangeScript, MockConfig, MockController, MockService,
@@ -51,16 +51,15 @@ fn wire_request(endpoint: Endpoint) -> rate_limit_core::transport::WireRequest {
 /// §6 measures G3 "whenever a request is **queued** and eligible", but the
 /// harness cannot key submissions to wire correlations: `RequestId` and the
 /// correlation counter are independent, because the actor allocates a fresh
-/// correlation per *dispatch* (probes and retries included).  So rather than
-/// invent a mapping, this uses §6's own exclusion mechanism — "the harness
-/// excludes what it cannot independently model" — bounded by two facts it
-/// does own: the mock's last recorded dispatch, and the script's own
-/// submission instant.  Nothing here is client-reported, which §6 forbids as
-/// an authorization source.
+/// correlation per *dispatch* (probes and retries included).  The oracle
+/// consequently uses the latest script submission at or before each observed
+/// dispatch as a lower bound. Nothing here is client-reported, which §6
+/// forbids as an authorization source.
 ///
-/// Soundness rests on the arms awaiting their outstanding tickets before the
-/// next submission, so the authorized window is genuinely idle.  A script
-/// that submits while earlier work is still in flight must not rely on it.
+/// This is sound for the current driver shapes: either submissions share one
+/// instant (M2, M10, M13) or an outstanding ticket is awaited before the next
+/// submission. A scenario that interleaves distinct submission instants with
+/// in-flight work needs an explicit script-owned identity map instead.
 async fn submit_recorded(
     gate: &GateHandle,
     controller: &MockController,
@@ -435,21 +434,17 @@ async fn run_m1_m13(phase_ms: u64) {
                     }
                 }
                 let cancelled = cancelled_tickets.len();
+                advance(M10_PROMPT_CANCEL_MS).await;
+                let mut promptly_cancelled = 0usize;
+                for ticket in cancelled_tickets {
+                    promptly_cancelled +=
+                        usize::from(matches!(ticket.await, Err(GateError::Cancelled)));
+                }
                 advance(M10_RUN_MS).await;
 
                 let mut served = 0usize;
                 for ticket in remaining {
                     served += usize::from(ticket.await.is_ok());
-                }
-                // M10's "cancelled callers get prompt resolution": `cancel` is
-                // fire-and-forget and borrows the ticket, so every cancelled
-                // caller is still awaited here.  A cancel that raced a dispatch
-                // resolves the caller as Cancelled while the wire request is
-                // left to finish -- the contract forbids aborting in-flight
-                // work -- so the caller-visible outcome is Cancelled either way.
-                let mut resolved = 0usize;
-                for ticket in cancelled_tickets {
-                    resolved += usize::from(matches!(ticket.await, Err(GateError::Cancelled)));
                 }
                 let observations = controller.observations().await;
                 let expected_served = M10_PRESSURE_REQUESTS - cancelled;
@@ -464,7 +459,7 @@ async fn run_m1_m13(phase_ms: u64) {
                 // `served` pinned exactly, a wedge cannot hide inside the band.
                 let floor = expected_served + 2;
                 let drained = served == expected_served
-                    && resolved == cancelled
+                    && promptly_cancelled == cancelled
                     && (floor..=floor + cancelled).contains(&observations.len());
                 let fuse_quiet = !gate.subscribe_status().borrow().halted;
                 let capped = observations
@@ -656,6 +651,11 @@ const SUSTAINED_BUCKET_MS: u64 = 60_000;
 /// against the contract's number, not against whatever the actor believes.
 const MIN_SEND_SPACING_MS: u64 = 250;
 
+/// M10's Tom-approved prompt-cancellation bound. It is one harness tick,
+/// deliberately far below the D5 send floor: cancellation is command ingress,
+/// not a paced send, and the actor `select!`s its inbox while waiting.
+const M10_PROMPT_CANCEL_MS: u64 = ADVANCE_STEP_MS;
+
 /// M10's scale, per `scenarios.md`: "hundreds of enqueues, cancellations,
 /// sustained for many simulated minutes."  The endpoint routes to
 /// `backend-item-request-limit` (Account 30/60s and 100/1800s), so a few
@@ -733,6 +733,30 @@ struct PolicyDebt {
     phase_ms: u64,
 }
 
+/// Independent arithmetic for the G3 oracle. This deliberately does not call
+/// the mock's `bucket_end` helper: the mock and the expected-value oracle must
+/// disagree when either one implements CN5's boundary rule incorrectly.
+fn independent_bucket_end_ms(at_ms: u64, bucket_ms: NonZeroU64, phase_ms: u64) -> u64 {
+    let bucket_ms = bucket_ms.get();
+    let phase = phase_ms % bucket_ms;
+    if at_ms < phase {
+        return phase;
+    }
+    let bucket_index = (at_ms - phase) / bucket_ms;
+    phase.saturating_add(bucket_index.saturating_add(1).saturating_mul(bucket_ms))
+}
+
+#[test]
+fn g3_oracle_pins_its_independent_bucket_boundaries() {
+    let bucket = NonZeroU64::new(1_000).unwrap();
+
+    assert_eq!(independent_bucket_end_ms(999, bucket, 0), 1_000);
+    assert_eq!(independent_bucket_end_ms(1_000, bucket, 0), 2_000);
+    assert_eq!(independent_bucket_end_ms(1_001, bucket, 0), 2_000);
+    assert_eq!(independent_bucket_end_ms(0, bucket, 1), 1);
+    assert_eq!(independent_bucket_end_ms(1, bucket, 1), 1_001);
+}
+
 impl PolicyDebt {
     async fn for_policy(controller: &MockController, policy: &str, phase_ms: u64) -> Self {
         let definition = controller
@@ -768,7 +792,8 @@ impl PolicyDebt {
                     // Fewer hits than the window permits: no debt yet.
                     return 0;
                 };
-                bucket_end_ms(expiring, bucket_ms, self.phase_ms).saturating_add(period_ms)
+                independent_bucket_end_ms(expiring, bucket_ms, self.phase_ms)
+                    .saturating_add(period_ms)
             })
             .max()
             .unwrap_or(0)

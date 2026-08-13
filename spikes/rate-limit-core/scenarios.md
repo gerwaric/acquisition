@@ -319,6 +319,17 @@ N2, N4.
 > ever added, D5's "FIFO — no lane starvation" clause and M13's FIFO
 > assertion both need restating first; see CN6.
 
+> **Amended by Tom, 2026-08-12 — prompt cancellation bound.** “Prompt” means
+> that, once `RequestTicket::cancel()` has completed command ingress, the
+> caller receives `Cancelled` within **25 ms simulated time** — one harness
+> tick. This applies to both queued and already-dispatched callers; the latter
+> only detach the caller, while their reserved wire work still reconciles.
+> The bound is intentionally below D5's 250 ms send floor: cancellation is
+> actor command handling, not a paced dispatch. M10 pins the boundary by
+> issuing its selected cancellations without advancing the paused clock,
+> advancing exactly 25 ms, then requiring every selected ticket to be ready
+> as `Cancelled`.
+
 **M11. Layer-1 ceiling and Cloudflare-shaped terminal.**
 [phase-independent]
 Two parts. (a) The mock's layer-1 emulation enforces the B10
