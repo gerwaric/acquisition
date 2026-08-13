@@ -1,14 +1,18 @@
 # Scenario-driver and judge-integration hand-off
 
-Status: **round-one findings F1–F6, round-two finding F7, round-three
-findings F8–F10, and doc findings 11, 12(a), 12(b), and 13 all fixed
-2026-08-12; awaiting re-review.** The actor-to-judge seam is implemented and
-exercised; this is not a final M-series close because every row is a
-`ContractCoverage::Fragment`. M10 now runs at its stated scale (300
-enqueues, 66 simulated minutes), and doc finding 12(c) is open: G3's
-epsilon cannot be finalized until Tom decides whether the oracle models N13
-padding. Both review rounds and their fixes are recorded in the
-`result-draft.md` §9 entries dated 2026-08-12.
+Status: **open — round four (2026-08-12) recorded findings F14–F16
+(driver twin-guard, duplicated floor literal, mirror fallbacks), which
+are unaddressed; awaiting those fixes and re-review.** Rounds one–three
+findings F1–F10 and doc findings 11, 12(a), 12(b), and 13 were all fixed
+2026-08-12. Round four changed no driver code: it relocated the
+fuse-headroom claim to its C3 owner and strengthened C3's property. The
+actor-to-judge seam is implemented and exercised; this is not a final
+M-series close because every row is a `ContractCoverage::Fragment`. M10
+runs at its stated scale (300 enqueues, 66 simulated minutes), and doc
+finding 12(c) is open: G3's epsilon cannot be finalized until Tom
+decides whether the oracle models N13 padding. All four review rounds
+and their fixes are recorded in the `result-draft.md` §9 entries dated
+2026-08-12.
 
 M10's reprioritization stimulus was **removed by Tom on 2026-08-12** — it is
 no longer owed by this slice or any other. Read CN6 in `result-draft.md` §4
