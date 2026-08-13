@@ -76,7 +76,10 @@ small. Sections, in reading order:
    register pointer. Seed from: G3 ε / doc finding 12(c); what a
    spike-scope X2 test is (audit §8.2 item 2); an owner for the
    dropped dispatched-ticket lifecycle (§8.1 item 2); the §8.5
-   ambiguity flags, M11a-vs-G2 ownership first among them.
+   ambiguity flags, M11a-vs-G2 ownership first among them; and the
+   REG-R1-F4 deferral (`c4-halt-semantics-shared` reclassification,
+   see the REG-R1 closure entry in `result-draft.md` §9). Also sweep
+   that closure entry for anything newer this list predates.
 4. **Blocked** — §7.4 capture replay, blocked on raw input from Tom;
    no synthetic stand-in permitted.
 5. **Next work** — the current sequence, one line each.
@@ -91,8 +94,9 @@ small. Sections, in reading order:
 - `slice-review.md` §5: closing a round updates `status.md` (this
   becomes the status-flip act's home) plus the register entry;
   hand-off status lines become historical markers on closure.
-- Every **closed** hand-off (`core-`, `bootstrap-`, `mock-`,
-  `actor-handoff.md`) gets one line under its status line:
+- Every hand-off whose slice has **closed** by the time you run — at
+  minimum `core-`, `bootstrap-`, `mock-`, `actor-`, and
+  `registry-handoff.md` — gets one line under its status line:
   "Historical record — live state lives in `status.md`." Dated text
   untouched. The **open** scenario-driver hand-off keeps its live
   confession until its slice closes; `status.md` §2 links to it and
