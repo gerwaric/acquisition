@@ -1,11 +1,20 @@
 # Clause registry design note
 
-Status: **proposed (rev 1), awaiting Tom's review** — the
-`bootstrap-seeding.md` precedent: this note is reviewed and accepted
-(or revised) *before* any implementation session starts. Produced
-2026-08-12 by the obligation-map audit session, at head `f03632b9`
-(map) / `e2034807` (code). The migration source and acceptance oracle
-is `obligation-map.md`.
+Status: **accepted by Tom, 2026-08-12 — rev 1, D1–D4 all as
+recommended.** This note is now the implementation contract for the
+registry slice; `kickoff-registry-slice.md` is cleared to fire.
+Disposition of the §7 open questions at acceptance: item 1 (X2 as
+`Untested` / open) proceeds as proposed — it is the conservative
+default and adds no scope; item 2 (a `SHELL`-owned entry for the
+dropped dispatched-ticket lifecycle) **remains Tom's call** — if
+still undecided when the slice runs, the implementing session omits
+the entry and records the unowned gap as a finding in its hand-off,
+per the kickoff brief's licensing rules; item 3 stands as written
+(row collapses during review are rev-2 edits, not design changes).
+
+Produced 2026-08-12 by the obligation-map audit session, at head
+`f03632b9` (map) / `e2034807` (code). The migration source and
+acceptance oracle is `obligation-map.md`.
 
 ## 1. Problem
 
