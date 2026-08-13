@@ -18,9 +18,11 @@ acceptance oracle is `obligation-map.md`.
 
 *[Marker, 2026-08-13 (DS-R1): the slice ran and closed review
 2026-08-12 (REG-R1) — this note is now history. Two §6 updates: the
-first bullet (deriving `verdict_eligible()` from the registry) is an
-open decision, now tracked in `status.md` §3 (registry payoff
-wiring); the second
+first bullet (deriving `verdict_eligible()` from the registry) was
+**declined as designed by Tom 2026-08-13** — the derivation runs
+backwards (clauses become `Full` because full-contract runs land),
+so the driver keeps its per-run declarations and a two-authority
+slot-fill rule in `AGENTS.md` replaces the wiring; the second
 bullet's prediction did not happen as written — the doc-split
 kickoff downgraded the M-row collapse to a preamble sentence, and
 the resulting drift risk is noted in `status.md` §5 item 2.]*

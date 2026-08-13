@@ -37,10 +37,14 @@ fn known_owners() -> BTreeSet<String> {
         ("U", 4),
         ("O", 8),
     ];
-    series
+    let mut owners: BTreeSet<String> = series
         .iter()
         .flat_map(|(prefix, count)| (1..=*count).map(move |n| format!("{prefix}{n}")))
-        .collect()
+        .collect();
+    // SHELL: the external-review shell-obligation owner, a deliberate
+    // one-off series adopted by Tom 2026-08-13 (design §7 item 2).
+    owners.insert("SHELL".to_string());
+    owners
 }
 
 #[test]

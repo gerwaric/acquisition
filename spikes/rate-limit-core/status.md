@@ -12,10 +12,9 @@ per fact, pointers instead of copies.
 ## 1. Coverage truth
 
 Coverage is **machine-checked**, not prose. The authority is
-`src/obligations.rs` — `CLAUSES`, 122 entries migrated from
-`obligation-map.md`'s 125 rows (two U-register pointer rows
-collapsed, one deliberate omission: the dropped-ticket clause,
-decision 3 below; arithmetic in `registry-handoff.md`) — verified by
+`src/obligations.rs` — `CLAUSES` (122 entries as of 2026-08-13;
+lineage from `obligation-map.md`'s 125 rows is recorded in
+`registry-handoff.md` and the §9 changelog) — verified by
 `tests/obligations.rs`; run it with
 
 ```
@@ -30,10 +29,10 @@ prose, per the registry's coverage confession
 limits, though that hand-off is otherwise historical).
 
 The open-untested list is the `OPEN_UNTESTED` constant in
-`src/obligations.rs` — **not** any prose table. As of 2026-08-12 it
-holds 13 ids; per REG-R1-F2 they are not thirteen owed tests
-(`m7-threshold-tuning` is an ambiguity that may resolve by a
-`scenarios.md` wording decision). `obligation-map.md` is the
+`src/obligations.rs` — **not** any prose table. As of 2026-08-13 it
+holds 14 ids, each a genuinely owed test (the one ambiguity id,
+`m7-threshold-tuning`, resolved by wording and was removed;
+`c4-halt-semantics-shared` demoted honestly — decisions 4 and 5). `obligation-map.md` is the
 superseded prose ancestor; read its §8 for the audit's discrepancy
 analysis (dated at `e2034807`), never for current coverage.
 
@@ -56,37 +55,15 @@ analysis (dated at `e2034807`), never for current coverage.
 
 ## 3. Open decisions (Tom)
 
-1. **G3 epsilon** — model N13 padding in the oracle and tighten
-   epsilon to ~100 ms, or keep ~500 ms and record that G3 cannot
-   discriminate below the padding envelope. Doc finding 12(c),
-   `result-draft.md` §3. Blocks the `scenarios.md` §6 G3/G4
-   finalization, which blocks every verdict slot.
-2. **What a spike-scope X2 structural test is** — the required
-   "one client, no second send path" test is unbuilt and no
-   production transport exists to pin; the accepted limitation covers
-   the parser cap only. `obligation-map.md` §8.2 item 2.
-3. **Owner for the dropped dispatched `RequestTicket` lifecycle** —
-   confessed untested; no scenario, C row, or X row owns it, so it
-   can stay untested forever without any row going red.
-   `obligation-map.md` §8.1 item 2; carried as a finding in
-   `registry-handoff.md` (it is deliberately absent from `CLAUSES`).
-4. **The §8.5 ambiguity flags** — requirement text two readers would
-   allocate differently; **M11a-vs-G2 ownership first** (who owns
-   "the compliant client never trips the ceiling": M11's dedicated
-   sweep or G2-everywhere). Also there: M7 threshold-tuning wording
-   (= `m7-threshold-tuning` in `OPEN_UNTESTED`), M2's N25 reading,
-   G4's "harness-computed", M1 boot-HEAD serialization scope, C3's
-   "~500" vs the exact 500 pin. `obligation-map.md` §8.5.
-5. **REG-R1-F4 deferral** — `c4-halt-semantics-shared` stays
-   `Partial` as migrated; reclassification deferred until the
-   latch/feed tests are sequenced. REG-R1 closure entry,
-   `result-draft.md` §9.
-6. **Registry payoff wiring** — derive `verdict_eligible()` /
-   per-scenario `FullContract` from the registry, retiring the
-   driver's hand-maintained fragment declarations; deliberately "a
-   second, separate decision after the registry has bedded in"
-   (`clause-registry-design.md` §6). Tracked here since DS-R1; no
-   urgency implied.
+**None.** The 2026-08-13 decisions pass resolved all six standing
+items: G3 ε final at 500 ms; the X2 spike-scope test defined as a
+structure pin (production re-pins later); the dropped-ticket
+lifecycle adopted into the registry; the six §8.5 ambiguities
+amended into `scenarios.md` (one sentence deleted outright);
+`c4-halt-semantics-shared` demoted honestly to Untested; registry
+payoff wiring declined in favor of the two-authority slot-fill rule
+(AGENTS.md). Full dispositions and reasoning: the `result-draft.md`
+§9 decisions-pass entry. A new decision gets a numbered item here.
 
 ## 4. Blocked
 
@@ -109,7 +86,10 @@ analysis (dated at `e2034807`), never for current coverage.
    onto registry pointers (kickoff downgrade of registry-design §6),
    so those cells can drift from the registry; where they disagree,
    the registry wins.
-3. G3/G4 finalization per `scenarios.md` §6 (needs decision 1).
+3. The X2 structure pin per decision 2 (G3/G4 finalization landed
+   2026-08-13 — no longer owed).
 4. §7.4 capture replay, when unblocked.
-5. Verdict slots last — only a `verdict_eligible()` full-contract run
-   may fill one; no fragment run qualifies.
+5. Verdict slots last — only a `verdict_eligible()` full-contract
+   run may fill one, and the fill takes two agreeing authorities:
+   the run's declaration and the registry showing every owned
+   clause `Full` (AGENTS.md standing rule).

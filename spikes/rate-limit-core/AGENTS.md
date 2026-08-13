@@ -46,7 +46,10 @@ what is blocked, and what comes next live in `status.md` — do not
 reconstruct them from this file or from hand-offs. One standing rule
 stays here because it is a rule, not a status: no report a fragment
 run produces is `verdict_eligible()`; do not fill a verdict slot from
-one.
+one. Filling one takes two agreeing authorities (Tom, 2026-08-13):
+the run's own full-contract declaration and the registry showing
+every clause the scenario owns `Full`. If they disagree, one of them
+is lying — stop and find out which.
 
 ## Slice hand-offs (the chain of the build)
 

@@ -139,8 +139,8 @@ closure disposition, 2026-08-13; the cells stay `⟨…⟩` until a
 |---|---|---|---|
 | G1 | Zero client-caused violations (incl. follow-on) | ⟨…⟩ | ⟨…⟩ |
 | G2 | Neither B10 ceiling rule tripped, armed everywhere | ⟨…⟩ | ⟨…⟩ |
-| G3 | Per-dispatch over-delay ≤ ε (final ε: ⟨…⟩) | ⟨…⟩ | ⟨…⟩ |
-| G4 | M2 duration ≤ multiplier × padded minimum (final: ⟨…⟩) | ⟨…⟩ | ⟨…⟩ |
+| G3 | Per-dispatch over-delay ≤ ε (final ε: 500 ms — Tom, 2026-08-13, doc finding 12(c) decision) | ⟨…⟩ | ⟨…⟩ |
+| G4 | M2 duration ≤ multiplier × padded minimum (final: 1.05× — Tom, 2026-08-13, same §6 finalization) | ⟨…⟩ | ⟨…⟩ |
 | G5 | Every scenario's own assertions (stimulus and structural alike) | ⟨…⟩ | ⟨…⟩ |
 | G6 | Reproduction record for every failure ((seed, φ) mandatory where swept/generated) | ⟨…⟩ | ⟨…⟩ |
 
@@ -356,6 +356,16 @@ G1.
     G3 that catches pacing regressions; or keep epsilon near 500 ms and record
     that G3 cannot discriminate below the padding envelope. **Open — flagged
     for Tom.**
+    **Decided by Tom, 2026-08-13: keep ε ≈ 500 ms** and record the
+    limitation — the oracle stays independent of the padding model
+    rather than mirroring it (ε only bounds the too-late direction;
+    too-early keeps zero tolerance either way). Recorded with the
+    known consequence above: a floor regression like 250→600 ms
+    escapes G3 at this ε; the accepted mitigation is G4's 1.05×
+    duration bound on M2, whose theoretical minimum is computed from
+    the contract floor and therefore fails loudly on any sustained
+    floor regression. The `scenarios.md` §6 finalization (next-work
+    item 3) lands this as a dated amendment with the final values.
 13. **M10 required “prompt” cancellation but gave no deadline.** The scaled
     driver waits until its four-hour simulated run has completed before
     awaiting cancelled tickets, so it establishes only eventual
@@ -1579,3 +1589,57 @@ outlives the spike branch; record what exists and where.⟩
   the comment-level precedent). Open work unchanged: F14–F16,
   fragment raising, G3/G4 finalization (decision 1), §7.4 replay,
   verdict slots last.
+- 2026-08-13 — **decisions pass (Tom, working with the DS-R1
+  auditor): all six standing decisions resolved; `status.md` §3 is
+  empty.** Each disposition, in the day's order:
+  **(1) G3 ε final at 500 ms** (doc finding 12(c) closed above): the
+  oracle stays padding-independent rather than mirroring the padding
+  model; ε bounds only the too-late direction. Known consequence
+  recorded with the decision: a floor regression escapes G3, and the
+  accepted mitigation is G4's harness-computed minimum. The §6
+  finalization amendment is applied and the G3/G4 gate-summary
+  statement cells carry the final values (500 ms, 1.05×) — verdict
+  slots now wait on nothing but full-contract runs.
+  **(2) X2 spike-scope test defined**: a structure pin — transport
+  handle private to the actor, a single send call site, compile-fail
+  on outside construction — with a recorded obligation that
+  production integration re-pins X2 when a real HTTP client exists
+  (clause note). The pin itself is owed work, next-work item 3.
+  **(3) Dropped dispatched `RequestTicket` adopted**:
+  `shell-dropped-dispatched-ticket` (owner `SHELL`, design §7 item 2
+  as proposed) added to `CLAUSES` and `OPEN_UNTESTED`; the
+  registry-handoff finding is discharged and no obligation lives
+  solely in prose confessions.
+  **(4) All §8.5 ambiguity flags resolved** as dated `scenarios.md`
+  amendments in Tom's wording: G2 owns "never trips the ceiling"
+  with M11a as its named binding evidence; the M7 threshold-tuning
+  sentence **deleted outright** — it named no testable obligation —
+  and `m7-threshold-tuning` removed from the registry
+  (resolved-by-wording, as REG-R1-F2 predicted); N25 1:1 tracking is
+  B4's fidelity obligation, no client-side instrument; G4's
+  "harness-computed" means runtime-derived from the scenario's own
+  policy and queue depth, precomputed literals do not qualify;
+  M1's "strictly serialized" binds per endpoint with global HEAD
+  exclusivity M13's; C3's sustained trip pinned **exactly 500**.
+  The drop-don't-carry test was applied to all six: only M7's
+  sentence failed it.
+  **(5) REG-R1-F4 resolved: `c4-halt-semantics-shared` demoted to
+  `Untested`** — the migrated Partial was borrowed evidence (a code
+  citation plus a test proving a different clause's property); the
+  owed wire-4xx halt/drain/publish test batches with the latch/feed
+  tests.
+  **(6) Registry payoff wiring declined as designed** — deriving run
+  eligibility from the registry is circular, since clauses become
+  `Full` because full-contract runs land, not the reverse. The
+  driver keeps its per-run declarations as the primary source;
+  replaced by the two-authority slot-fill rule now standing in
+  `AGENTS.md`: a verdict slot fills only when the run's declaration
+  and the registry agree.
+  Registry after the pass: **122 clauses, `OPEN_UNTESTED` = 14 ids,
+  every one a genuinely owed test** (the +shell/−m7/+c4 arithmetic
+  against the migrated 122/13). Simplicity outcome: everything open
+  in the spike is now plain owed work — no standing decisions, no
+  ambiguity ids, no prose-only obligations. Gate matrix: `cargo
+  test --locked` 135 debug / 133 release, `PROPTEST_CASES=4096`
+  green (135), all-target clippy with warnings denied,
+  `cargo fmt --all --check`, and `git diff --check` green.

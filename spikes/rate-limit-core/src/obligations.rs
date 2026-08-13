@@ -82,13 +82,14 @@ pub const OPEN_UNTESTED: &[&str] = &[
     "m4-other-policies-flowing",
     "m5-stale-window-exposure",
     "m6-preannouncement-exposure",
-    "m7-threshold-tuning",
     "m8-b12-timing-script",
     "m9-headroom-record",
     "m12-tripwire-feed",
     "c3-trip-latched",
+    "c4-halt-semantics-shared",
     "x1-trip-drain-publish",
     "x2-single-send-path",
+    "shell-dropped-dispatched-ticket",
 ];
 
 pub const CLAUSES: &[Clause] = &[
@@ -637,19 +638,10 @@ pub const CLAUSES: &[Clause] = &[
         }],
         note: "Small injection only",
     },
-    Clause {
-        id: "m7-threshold-tuning",
-        owner: "M7",
-        text: "Thresholds must not be tuned against a constant-drizzle world \
-               (scenarios.md:256)",
-        coverage: Coverage::Untested,
-        citations: &[],
-        note: "Ownership ambiguous (map §8.5 item 3): no client-side \
-               threshold exists to tune, and the clause has no test-shaped \
-               reading — it could bind reconciliation constants, the B9 \
-               script shape, or a future scenario author. \
-               open — flagged for Tom",
-    },
+    // m7-threshold-tuning was removed 2026-08-13: Tom deleted the
+    // contract sentence (scenarios.md M7 amendment) — it named no
+    // testable obligation, resolving map §8.5 item 3 by wording, as
+    // REG-R1-F2 predicted the id might.
     // ── M8 — 429 recovery and escalation ladder (scenarios.md:260) ─
     Clause {
         id: "m8-retry-wait-arithmetic",
@@ -1015,12 +1007,27 @@ pub const CLAUSES: &[Clause] = &[
                item 7); corrected to the measured 3,963,500 ms in both at \
                77aee08 (doc-split commit 1)",
     },
-    // The adjacent dropped-dispatched-RequestTicket lifecycle has no
-    // owning row in scenarios.md (map §8.1 item 2). Design §7 item 2
-    // left a SHELL-owned entry as Tom's call; undecided at slice
-    // time, so it is omitted here and recorded as a finding in the
-    // slice hand-off, per the kickoff's licensing rules.
-
+    // The dropped-dispatched-RequestTicket lifecycle has no owning
+    // row in scenarios.md (map §8.1 item 2). Design §7 item 2 left a
+    // SHELL-owned entry as Tom's call; it was omitted at slice time
+    // and adopted by Tom 2026-08-13 (DS decisions pass) so that no
+    // obligation lives solely in prose confessions.
+    Clause {
+        id: "shell-dropped-dispatched-ticket",
+        owner: "SHELL",
+        text: "A dispatched RequestTicket dropped without cancel resolves \
+               cleanly: the reservation still reconciles, scheduling \
+               continues, nothing wedges (external-review shell \
+               obligation; stated by no scenario — adopted by Tom \
+               2026-08-13, design §7 item 2)",
+        coverage: Coverage::Untested,
+        citations: &[],
+        note: "Until adoption this was the only obligation living solely \
+               in prose confessions (registry-handoff §5 item 2). Test \
+               shape: drop a ticket after dispatch confirmation, advance \
+               time, assert scheduling and reconciliation continue. \
+               open — flagged for Tom",
+    },
     // ── M11 — layer-1 ceiling and Cloudflare terminal
     //    (scenarios.md:333) ────────────────────────────────────────
     Clause {
@@ -1521,17 +1528,19 @@ pub const CLAUSES: &[Clause] = &[
         id: "c4-halt-semantics-shared",
         owner: "C4",
         text: "Shares the fuse's halt semantics (scenarios.md:409)",
-        coverage: Coverage::Partial,
-        citations: &[Citation {
-            file: "src/actor.rs",
-            test_fn: "c4_pins_burst_sustained_and_exact_window_edges",
-            must_assert: "the 4xx trip itself fires at the pinned edges",
-        }],
-        note: "The map cited code, not a test, for this row (the shared \
-               `halted` latch, src/actor.rs:254–268 at e2034807) — recorded \
-               as a migration finding. Halt-path sharing is structural only; \
-               the latch is untested (as C3) and no test drives a wire 4xx \
-               across the trip threshold",
+        coverage: Coverage::Untested,
+        citations: &[],
+        note: "Demoted Partial→Untested by Tom 2026-08-13 (REG-R1-F4 \
+               resolved): the migrated Partial rested on a code citation \
+               (the shared `halted` latch, src/actor.rs:254–268 at \
+               e2034807) plus the trip-edge test \
+               (c4_pins_burst_sustained_and_exact_window_edges), which \
+               proves a different clause's property. Halt-path sharing is \
+               structural only; the latch is untested (as C3) and no test \
+               drives a wire 4xx across the trip threshold. Owed test: \
+               X1-style variant tripping via wire 4xx, asserting \
+               halt/drain/publish — batch with the latch/feed tests. \
+               open — flagged for Tom",
     },
     Clause {
         id: "c5-rollback-exact",
@@ -1686,9 +1695,13 @@ pub const CLAUSES: &[Clause] = &[
                (src/transport.rs), and the WireResponse bounds tests \
                (response_header_boundary_is_checked_before_clone, \
                cloudflare_body_boundary_is_checked_before_html_scan) pin \
-               ingress shape, not path uniqueness — map §8.2 item 2. What a \
-               spike-scope X2 test is stays outside this slice (design §7 \
-               item 1, accepted). open — flagged for Tom",
+               ingress shape, not path uniqueness — map §8.2 item 2. \
+               Decided by Tom 2026-08-13: the spike-scope test is a \
+               structure pin (transport handle private to the actor, one \
+               send call site, compile-fail on outside construction); \
+               production integration owes its own re-pin when a real \
+               client exists. Test not yet built: open — flagged for Tom \
+               only until it lands",
     },
     Clause {
         id: "x2-parser-cap-limitation",

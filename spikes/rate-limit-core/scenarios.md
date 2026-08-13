@@ -195,12 +195,20 @@ matrix's two-attempt cap was the reviewed decision, F6, and a probe-
 opened episode is not stricter than an ordinary one).
 Cites: N24, N16, N13, N12, N5.
 
+> **Amendment (Tom), 2026-08-13** — "strictly serialized" binds per
+> endpoint: each endpoint's HEAD completes before that endpoint's
+> first GET. Global HEAD exclusivity is M13's row.
+
 **M2. Clean cold-start saturation burst.** [phase-swept]
 Empty counters, deep queue (one policy). Client drains the burst
 window, stalls padded, drains again into the sustained window,
 stalls padded (the N26 burst-then-stall shape). Asserts: G1; state
 tracks 1:1 post-increment (N25); over-delay bounds G3/G4 measured
 here. Cites: N5, N12, N13, N25, N26.
+
+> **Amendment (Tom), 2026-08-13** — "state tracks 1:1
+> post-increment (N25)" is the mock's fidelity obligation, owned and
+> tested by B4. It demands no client-side counter instrument.
 
 **M3. Degraded HEAD.** [phase-independent]
 HEAD returns `x-rate-limit-policy` only (the Dec 2023 regression
@@ -254,8 +262,15 @@ Mock injects counter increments the client under test didn't cause
 corrected threat model; N23: Account-scoped rules), not constant
 drizzle. Asserts: client reconciles pessimistically when observed
 state exceeds its model (scope-blind — no per-scope machinery);
-no client-caused violation. Thresholds must not be tuned against a
-constant-drizzle world that doesn't exist. Cites: N23, N24, N25.
+no client-caused violation. Cites: N23, N24, N25.
+
+> **Amendment (Tom), 2026-08-13** — the sentence "Thresholds must
+> not be tuned against a constant-drizzle world that doesn't exist"
+> is **removed**: it named no testable obligation (the client has no
+> thresholds to tune), and stimulus diversity is the scenario
+> definitions' job — M7's own stimulus is already "occasional and
+> bursty … not constant drizzle". The registry clause
+> `m7-threshold-tuning` is removed with it.
 
 **M8. 429 recovery and escalation ladder.** [phase-swept]
 Injected 429 with `Retry-After` (stimulus, §2). Runs over both an
@@ -351,6 +366,11 @@ Asserts: the client recognizes the shape generally and treats it
 as a halt-shaped terminal condition — zero retries, halt
 published, pending errored. Cites: N1, N2, N3, N4, P-B.
 
+> **Amendment (Tom), 2026-08-13** — ownership of M11a's "never
+> trips it": **G2 owns the property** everywhere it is armed; M11a's
+> sweep is its named binding evidence — the same composition pattern
+> as G3's M2/M10.
+
 **M12. 4xx-tripwire obligations.** [phase-independent]
 The mock models the client's documented obligations, not the
 server's opaque threshold. Injected 401: zero retries. Injected
@@ -394,9 +414,11 @@ Tripped | Ok`, two clauses detecting different failure shapes
 (burst clause approved at review close-out, 2026-08-09; the
 sustained clause is the charter's original):
 
-- **Sustained**: trips at or above ~500 dispatches in the
-  trailing minute (derived: strictly between the spacing-implied
-  240/min and the ~1000/min known-bad, N2).
+- **Sustained**: trips at or above **exactly 500** dispatches in
+  the trailing minute (derived: strictly between the spacing-implied
+  240/min and the ~1000/min known-bad, N2). *[Was "~500"; pinned
+  exact per the implementation's 499/500 boundary tests — Tom,
+  2026-08-13.]*
 - **Burst**: at most **10** dispatches in any trailing half-open
   window `(now − 1 s, now]` — the **11th trips**. Boundary
   convention explicit: a dispatch exactly 1 s old has left the
@@ -536,6 +558,19 @@ no headroom term anywhere.
   > 12(c) (`status.md` §3 item 1); G4's multiplier is revisited in
   > the same §6 pass, per its own note. Finalizing §6 remains a
   > prerequisite for every verdict slot (`result-draft.md` §1).
+
+  > **Amendment (Tom), 2026-08-13 (later the same day) — G3/G4
+  > final.** G3's ε = 500 ms and G4's 1.05× multiplier are
+  > **final**, no longer draft. ε deliberately does not discriminate
+  > below the client's N13 padding envelope (doc finding 12(c)
+  > decision; the oracle stays padding-independent rather than
+  > mirroring the padding model). Sustained pacing regressions are
+  > bounded by G4, whose minimum is harness-computed from the
+  > contract floor.
+
+  > **Amendment (Tom), 2026-08-13** — "harness-computed" means
+  > derived at runtime from the scenario's own policy and queue
+  > depth; a precomputed literal does not qualify.
 - **G5 — scenario-level assertions.** Every scenario's own
   assertions pass — the injected-stimulus ones (M8 retry timing,
   M8 escalation, M11b halt, M12 obligations, M3/M4 clean-failure

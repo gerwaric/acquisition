@@ -200,7 +200,9 @@ decision live in `status.md` (§5, §3 item 2).]*
    so per the acceptance disposition the entry is omitted and the
    gap is carried here: it is currently the only known obligation
    living solely in prose confessions. When Tom decides, adding it
-   is a two-line diff (entry + `OPEN_UNTESTED`).
+   is a two-line diff (entry + `OPEN_UNTESTED`). *[Decided and
+   adopted 2026-08-13: `shell-dropped-dispatched-ticket` is in
+   `CLAUSES` and `OPEN_UNTESTED`; this finding is discharged.]*
 3. **Two U-register pointer rows collapsed** (licensed, recording
    required): the M5 table's "remap triggers beyond reactive are U1"
    row and the M12 table's "server-side restriction behavior" row
