@@ -19,7 +19,8 @@ acceptance oracle is `obligation-map.md`.
 *[Marker, 2026-08-13 (DS-R1): the slice ran and closed review
 2026-08-12 (REG-R1) — this note is now history. Two §6 updates: the
 first bullet (deriving `verdict_eligible()` from the registry) is an
-open decision, now tracked as `status.md` §3 item 7; the second
+open decision, now tracked in `status.md` §3 (registry payoff
+wiring); the second
 bullet's prediction did not happen as written — the doc-split
 kickoff downgraded the M-row collapse to a preamble sentence, and
 the resulting drift risk is noted in `status.md` §5 item 2.]*

@@ -50,15 +50,9 @@ analysis (dated at `e2034807`), never for current coverage.
   unreachable). They are the next coding work this slice owes. Its
   hand-off, `scenario-driver-handoff.md`, keeps its **live coverage
   confession** until the slice closes; read it there, not here.
-- **Open: doc-split slice** (this restructure), review round one
-  (DS-R1) filed and fixed 2026-08-13 — awaiting Tom's closure.
-  Hand-off in `doc-split-handoff.md`; register entry in
-  `result-draft.md` §9.
-- Every other slice (core, bootstrap, mock, actor, clause registry)
-  is closed; their hand-offs are historical records. The core slice
-  has no closure record (its reviews predate the closure rule) —
-  marker in `core-handoff.md`, disposition Tom's at the DS-R1
-  review.
+- Every other slice (core, bootstrap, mock, actor, clause registry,
+  doc split) is closed; their hand-offs are historical records.
+  (Doc split closed 2026-08-13, DS-R1 — `result-draft.md` §9.)
 
 ## 3. Open decisions (Tom)
 
@@ -87,17 +81,7 @@ analysis (dated at `e2034807`), never for current coverage.
    `Partial` as migrated; reclassification deferred until the
    latch/feed tests are sequenced. REG-R1 closure entry,
    `result-draft.md` §9.
-6. **Gate-summary partial-evidence marker** — whether the unfilled
-   G1–G6 register rows get an evidence pointer, and which wording:
-   the audit proposed "partial — fragment evidence, see driver
-   status note" (`obligation-map.md` §8.2 item 6); the doc-split
-   kickoff proposed "unfilled pending full contracts; fragment-level
-   gate evidence green at φ=0/1, see driver status note"
-   (`kickoff-doc-split.md`). This item previously quoted the
-   kickoff's wording under the audit's citation — DS-R1-F3. Deferred
-   because it edits register cells; confirm a wording or decline at
-   the DS-R1 closure.
-7. **Registry payoff wiring** — derive `verdict_eligible()` /
+6. **Registry payoff wiring** — derive `verdict_eligible()` /
    per-scenario `FullContract` from the registry, retiring the
    driver's hand-maintained fragment declarations; deliberately "a
    second, separate decision after the registry has bedded in"

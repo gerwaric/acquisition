@@ -129,6 +129,12 @@ for.
 
 ### Gate summary
 
+All rows unfilled pending full contracts; fragment-level gate
+evidence is green at φ=0/1 — see the driver status note above.
+(One-line preamble in place of per-cell markers, Tom's DS-R1
+closure disposition, 2026-08-13; the cells stay `⟨…⟩` until a
+`verdict_eligible()` run fills them.)
+
 | Gate | Statement | Result | Evidence |
 |---|---|---|---|
 | G1 | Zero client-caused violations (incl. follow-on) | ⟨…⟩ | ⟨…⟩ |
@@ -1549,3 +1555,27 @@ outlives the spike branch; record what exists and where.⟩
   with warnings denied, `cargo fmt --all --check`, and
   `git diff --check` green. The slice remains **open pending Tom's
   closure review**.
+- 2026-08-13 — **doc-split review round one closed (DS-R1); the
+  slice is closed.** Tom delegated the two open dispositions with a
+  simplicity mandate (the system must come out simpler to
+  understand, not just correct). Gate-summary marker: the six-cell
+  edit is **declined**; the marker's content lands once as a
+  preamble line above the §3 gate-summary table ("all rows unfilled
+  pending full contracts; fragment-level gate evidence green at
+  φ=0/1 — see the driver status note") — the kickoff's own
+  say-it-once precedent, with "unfilled pending" chosen over the
+  audit's "partial" because a partial-looking value in a verdict
+  table could be read as a graded verdict, which fragments must
+  never produce. Core closure-record gap: **accepted as-is** — the
+  chain and the `core-handoff.md` marker are the record; no
+  retroactive closure entry is manufactured. Three acts done:
+  `status.md` §2 flipped (doc split joins the closed list;
+  scenario-driver is again the only open slice, and §3 drops the
+  resolved marker decision, renumbering payoff wiring to item 6),
+  the hand-off status line flipped with the historical marker, this
+  entry written. The approved `scenarios.md` addenda landed at
+  `d953aeba` (previous entry). Gate evidence: `cargo test --locked`
+  135 debug green, `git diff --check` clean (docs-only closure, per
+  the comment-level precedent). Open work unchanged: F14–F16,
+  fragment raising, G3/G4 finalization (decision 1), §7.4 replay,
+  verdict slots last.

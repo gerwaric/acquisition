@@ -17,7 +17,9 @@ closure record — its reviews were the 2026-08-09 audit,
 external-review, and follow-up verifier rounds (`result-draft.md` §3
 registers), which predate the `slice-review.md` closure rule. The
 chain treats it as closed; noted so the missing record reads as
-history, not an oversight. Disposition Tom's at the DS-R1 review.]*
+history, not an oversight. Accepted as-is at the DS-R1 closure,
+2026-08-13: the chain and this marker are the record — no
+retroactive closure entry is manufactured.]*
 
 ## 1. Silences taken (doc gaps, the reading chosen, consequence traced)
 
