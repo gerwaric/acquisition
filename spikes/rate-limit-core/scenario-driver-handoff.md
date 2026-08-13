@@ -34,7 +34,7 @@ pins the distances, so the next misreading fails a test.
 | §6 names permit availability as part of G3's padded-safe time but does not give the arithmetic. | Mirror the *server's* counting predicate from the mock's observation log and its own window definitions — never the client's — so a hit stays active until `bucket_end(at) + period` and HEADs are excluded, matching `counted`. | The next scenario that saturates a policy gets correct eligibility for free; one that injects residue or phantoms must not use it, because those hits are invisible to the log. |
 | §6 says "whenever a request is *queued* and eligible" but `RequestId` and the wire correlation are independent counters, so submissions cannot be keyed to observations. | Bound eligibility by the latest script submission instant at or before each dispatch — no per-request map needed, and nothing client-reported. | A script that interleaves submissions with in-flight work would need real per-request identity; M10's burst is safe only because its submissions share one instant. |
 | §6 asks G3 to measure the *padded-safe* time but gives no padding arithmetic. | Compute the server's permit instant, and record the residual (the client's N13 padding) rather than widen ε silently or model padding uninstructed. | The next §6 finalization must choose: model padding and tighten ε to ~100ms, or keep ε ≈500ms and state that G3 cannot discriminate below the padding envelope (doc finding 12c). |
-| `scenarios.md` called cancellation “prompt” but named no deadline. | **Resolved by Tom, 2026-08-12:** command ingress completion → caller-visible `Cancelled` within one 25ms simulated harness tick, for queued and dispatched callers alike. | M10 issues all selected cancels without advancing time, advances exactly 25ms, then requires every selected ticket to yield `Cancelled`; a delayed command path fails F8 at the boundary. |
+| `scenarios.md` called cancellation “prompt” but named no deadline. | **Resolved by Tom, 2026-08-12:** command ingress completion → caller-visible `Cancelled` within one 25ms simulated harness tick, for queued and dispatched callers alike. | M10 first proves one caller is dispatched from mock handoff/status evidence, then separately cancels that caller and 30 spread queued callers. After each exact 25ms step it polls every ticket once; no await can advance time past the boundary. A delayed command path fails F8 at the boundary, while the dispatched response is driven to reconciliation later. |
 | M10 called for reprioritization but the closed actor only has enqueue/cancel. | Do not fabricate a reorder operation; test pressure, cancellation, and dispatched caller drop only. | **Resolved 2026-08-12:** Tom amended M10 to drop the stimulus (`design-brief.md` scopes reorder out of the spike). No assertion was lost — reprioritization was never in M10's asserts. The next M10 attempt owes scale, not reorder; see CN6 before ever adding one. |
 
 ## 2. Seam map and invariant walk
@@ -44,7 +44,8 @@ pins the distances, so the next misreading fails a test.
 - **No permanent wedge:** the M10 caller-drop path leaves the actor's active
   reservation to finish normally; the later pressure queue continues to
   drain. This is now *tested*, not asserted, and at scale: M10 pins 270/270
-  surviving callers served and 30/30 cancelled callers resolved within 25ms
+  surviving callers served and all 31 cancelled callers (30 queued plus one
+  proven-dispatched) resolved within 25ms
   of command ingress across a 66-minute run, so a drop that wedged the queue
   or cancellation behind pacing fails the row. (Round one
   found this claim resting on `observations.len() >= 2` with every caller
@@ -99,12 +100,16 @@ Gate teeth, measured rather than assumed:
   and the debt term computes the server's permit instant rather than the
   padded-safe time §6 names. Doc finding 12(c). Submission instants are now
   modelled: a request is never expected before the script asked for one.
-- **G3 oracle independence:** its bucket-expiry expected value is now local
-  bounded integer arithmetic with just-before/on/after boundary pins; it no
-  longer calls the mock's production `bucket_end` helper (F9).
-- **M10 cancellation:** all 30 selected callers must yield `Cancelled` after
-  exactly one 25ms harness step, before the long run advances; eventual
-  resolution is no longer mislabeled promptness (F8).
+- **G3 oracle independence:** its bucket-expiry expected value is a local
+  reference model of the declared half-open intervals (prefix interval plus
+  whole post-boundary intervals), with just-before/on/after pins at phase 0
+  and phase 1. It neither calls nor copies the mock's production
+  `bucket_end` implementation (F9).
+- **M10 cancellation:** 30 queued callers and one mock-proven dispatched
+  caller must already be `Cancelled` after their respective exact 25ms
+  harness steps. Each ticket is polled once rather than awaited, so later
+  timer progress cannot satisfy the bound; the dispatched caller's delayed
+  response is then driven until its reservation reconciles (F8).
 - **What epsilon is actually absorbing (read before touching G3).** At the
   now-25ms harness step, lateness away from a window rollover is **25ms**
   (M8: 50ms) — one tick, i.e. at the measurement floor. At M10's window

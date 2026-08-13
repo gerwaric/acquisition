@@ -5,7 +5,9 @@
 //! below are scenario-script arithmetic, not values reported by the actor.
 
 use std::collections::BTreeMap;
+use std::future::{Future, poll_fn};
 use std::num::NonZeroU64;
+use std::task::Poll;
 use std::time::Duration;
 
 use http::{HeaderMap, HeaderValue, Method, StatusCode};
@@ -86,6 +88,17 @@ async fn advance(millis: u64) {
         tokio::time::advance(Duration::from_millis(ADVANCE_STEP_MS)).await;
         tokio::task::yield_now().await;
     }
+}
+
+/// Poll a caller outcome exactly once.  Unlike awaiting a ticket (or using a
+/// timeout), this cannot drive Tokio's paused clock to a later wake-up: it is
+/// the M10 assertion that the result was already observable at the boundary.
+async fn already_cancelled(ticket: RequestTicket) -> bool {
+    let mut ticket = Box::pin(ticket);
+    matches!(
+        poll_fn(|cx| Poll::Ready(ticket.as_mut().poll(cx))).await,
+        Poll::Ready(Err(GateError::Cancelled))
+    )
 }
 
 fn pair_policy(name: &str, burst: u32) -> PolicyDefinition {
@@ -398,8 +411,9 @@ async fn run_m1_m13(phase_ms: u64) {
             }
             ScenarioId::M10 => {
                 // Keep the first ordinary request on the wire while its
-                // caller disappears.  The actor must retain the reservation
-                // and still consume the response; only the caller detaches.
+                // caller cancels. The mock handoff and published active count
+                // prove this ticket is dispatched before cancellation; the
+                // delayed response must still reconcile later.
                 controller
                     .script(
                         2,
@@ -410,11 +424,20 @@ async fn run_m1_m13(phase_ms: u64) {
                     )
                     .await
                     .unwrap();
-                let mut tickets = Vec::new();
-                tickets
-                    .push(submit_recorded(&gate, &controller, &mut submitted_ms, endpoint).await);
+                let dispatched_ticket =
+                    submit_recorded(&gate, &controller, &mut submitted_ms, endpoint).await;
                 advance(1_000).await;
-                drop(tickets.pop().unwrap());
+                let was_dispatched = controller
+                    .handoffs()
+                    .await
+                    .iter()
+                    .any(|handoff| handoff.method == Method::GET)
+                    && gate.subscribe_status().borrow().ordinary_in_flight == 1;
+                dispatched_ticket.cancel().await.unwrap();
+                advance(M10_PROMPT_CANCEL_MS).await;
+                let dispatched_cancelled = already_cancelled(dispatched_ticket).await;
+
+                let mut tickets = Vec::new();
                 for _ in 0..M10_PRESSURE_REQUESTS {
                     tickets.push(
                         submit_recorded(&gate, &controller, &mut submitted_ms, endpoint).await,
@@ -437,8 +460,7 @@ async fn run_m1_m13(phase_ms: u64) {
                 advance(M10_PROMPT_CANCEL_MS).await;
                 let mut promptly_cancelled = 0usize;
                 for ticket in cancelled_tickets {
-                    promptly_cancelled +=
-                        usize::from(matches!(ticket.await, Err(GateError::Cancelled)));
+                    promptly_cancelled += usize::from(already_cancelled(ticket).await);
                 }
                 advance(M10_RUN_MS).await;
 
@@ -448,6 +470,7 @@ async fn run_m1_m13(phase_ms: u64) {
                 }
                 let observations = controller.observations().await;
                 let expected_served = M10_PRESSURE_REQUESTS - cancelled;
+                let reconciled = gate.subscribe_status().borrow().ordinary_in_flight == 0;
 
                 // M10's stated asserts, each read off mock-owned wire evidence
                 // or the actor's published status.
@@ -460,6 +483,9 @@ async fn run_m1_m13(phase_ms: u64) {
                 let floor = expected_served + 2;
                 let drained = served == expected_served
                     && promptly_cancelled == cancelled
+                    && was_dispatched
+                    && dispatched_cancelled
+                    && reconciled
                     && (floor..=floor + cancelled).contains(&observations.len());
                 let fuse_quiet = !gate.subscribe_status().borrow().halted;
                 let capped = observations
@@ -733,17 +759,23 @@ struct PolicyDebt {
     phase_ms: u64,
 }
 
-/// Independent arithmetic for the G3 oracle. This deliberately does not call
-/// the mock's `bucket_end` helper: the mock and the expected-value oracle must
-/// disagree when either one implements CN5's boundary rule incorrectly.
+/// Reference model for the half-open bucket contract used by G3.
+///
+/// There is a prefix interval `[0, phase)` (when phase is non-zero), followed
+/// by complete intervals of `bucket_ms`: `[phase + n*bucket, phase +
+/// (n+1)*bucket)`.  The expected expiry is the right endpoint of the interval
+/// containing `at_ms`. This formulation intentionally does not reuse the
+/// mock's `at < phase` / bucket-index implementation: it derives the answer
+/// from the interval sequence and its first-boundary membership instead.
 fn independent_bucket_end_ms(at_ms: u64, bucket_ms: NonZeroU64, phase_ms: u64) -> u64 {
-    let bucket_ms = bucket_ms.get();
-    let phase = phase_ms % bucket_ms;
-    if at_ms < phase {
-        return phase;
-    }
-    let bucket_index = (at_ms - phase) / bucket_ms;
-    phase.saturating_add(bucket_index.saturating_add(1).saturating_mul(bucket_ms))
+    let width = bucket_ms.get();
+    let first_boundary = phase_ms % width;
+    let post_prefix_ms = at_ms.saturating_sub(first_boundary);
+    let whole_intervals = post_prefix_ms / width;
+    let has_reached_first_boundary = u64::from(at_ms >= first_boundary);
+    let intervals_to_expiry =
+        has_reached_first_boundary.saturating_mul(whole_intervals.saturating_add(1));
+    first_boundary.saturating_add(intervals_to_expiry.saturating_mul(width))
 }
 
 #[test]
@@ -755,6 +787,7 @@ fn g3_oracle_pins_its_independent_bucket_boundaries() {
     assert_eq!(independent_bucket_end_ms(1_001, bucket, 0), 2_000);
     assert_eq!(independent_bucket_end_ms(0, bucket, 1), 1);
     assert_eq!(independent_bucket_end_ms(1, bucket, 1), 1_001);
+    assert_eq!(independent_bucket_end_ms(2, bucket, 1), 1_001);
 }
 
 impl PolicyDebt {

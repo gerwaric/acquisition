@@ -91,7 +91,7 @@ optional for phase-independent and structural checks.
 | M7 | Phantom same-account hits | phase-swept | G1, G2, G6 | partial — actor/judge driver covers a mock-owned phantom observation at φ=0/1; bursty threshold case remains pending | 2026-08-12: `cargo test --locked --test scenario_driver m1_m13_run_against_the_actor_and_the_judge` green. |
 | M8 | 429 recovery and escalation | phase-swept | G1, G2, G5, G6 | partial — actor/judge driver covers a valid 429 retry across OAuth Known and legacy Assumed profiles at φ=0/1; escalation/malformed/matrix rows remain pending | 2026-08-12: `cargo test --locked --test scenario_driver m1_m13_run_against_the_actor_and_the_judge` green; prior focused evidence retained below. |
 | M9 | Phantom race at saturation | phase-swept | G1, G2, G5, G6 + characterization | partial — actor/judge driver covers a phantom observation at φ=0/1; forced reservation-to-arrival race and headroom record remain pending | 2026-08-12: `cargo test --locked --test scenario_driver m1_m13_run_against_the_actor_and_the_judge` green. |
-| M10 | Agent-loop stress | phase-swept | G1, G2, G3, G6 | partial — actor/judge driver runs M10 at its stated scale: 300 enqueues, 30 spread cancellations, caller drop while dispatched, 66 simulated minutes at φ=0/1. It checks drain, cancellation within Tom's 25ms simulated-time bound, fuse quiet, in-flight ≤ 2, and the spacing floor. G3 uses independent permit-availability arithmetic. Remaining: G3's epsilon cannot be finalized until the oracle models N13 padding (doc finding 12c). Reprioritization is no longer required of this row: Tom amended M10's stimulus list 2026-08-12 | 2026-08-12: `cargo test --locked --test scenario_driver m1_m13_run_against_the_actor_and_the_judge` green. |
+| M10 | Agent-loop stress | phase-swept | G1, G2, G3, G6 | partial — actor/judge driver runs M10 at its stated scale: 300 enqueues, 30 spread queued cancellations, one proven-dispatched cancellation, 66 simulated minutes at φ=0/1. It non-blockingly polls each cancellation at Tom's 25ms simulated-time bound, then proves the dispatched response reconciles; it also checks drain, fuse quiet, in-flight ≤ 2, and the spacing floor. G3 uses an independent half-open-interval permit oracle. Remaining: G3's epsilon cannot be finalized until the oracle models N13 padding (doc finding 12c). Reprioritization is no longer required of this row: Tom amended M10's stimulus list 2026-08-12 | 2026-08-12: `cargo test --locked --test scenario_driver m1_m13_run_against_the_actor_and_the_judge` green. |
 | M11 | Layer-1 ceiling + Cloudflare terminal | independent | G2, G5 | partial — actor/judge driver covers injected Cloudflare terminal/halt; compliant-client ceiling sweep remains pending | 2026-08-12: `cargo test --locked --test scenario_driver m1_m13_run_against_the_actor_and_the_judge` green. |
 | M12 | 4xx-tripwire obligations | independent | G5 | partial — actor/judge driver covers injected 401 without a retry; generic-4xx and full tripwire threshold matrix remain pending | 2026-08-12: `cargo test --locked --test scenario_driver m1_m13_run_against_the_actor_and_the_judge` green. |
 | M13 | Gate structure on the wire | independent | G2 + gate-definition assertions | partial — actor/judge driver covers two unknown endpoints, forced HEAD delay, no HEAD overlap, and in-flight cap; FIFO/writer-preference cross-product remains pinned by focused actor tests and awaits its scenario assertion | 2026-08-12: `cargo test --locked --test scenario_driver m1_m13_run_against_the_actor_and_the_judge` green; prior focused evidence retained below. |
@@ -248,12 +248,13 @@ G1.
     emits ≤240 req/min (M11's arithmetic), so the ~2× headroom is only
     demonstrated by running long enough to occupy it.
 
-    **Resolved 2026-08-12.** M10 now runs 300 enqueues with 30 cancellations
-    spread through the queue and one caller dropped while dispatched,
+    **Superseded in part 2026-08-12 by the F8 re-review fix below.** M10 now
+    runs 300 enqueues with 30 cancellations spread through the queue and one
+    caller initially dropped while dispatched,
     spanning **3,963,250 ms ≈ 66 simulated minutes** across many window
     rollovers. All five of M10's stated asserts are checked directly from
     mock-owned wire evidence and the actor's published status: 270/270
-    served, 30/30 cancelled callers resolved as `Cancelled` within the
+    served, 30/30 queued cancelled callers resolved as `Cancelled` within the
     Tom-approved 25ms simulated-time bound, fuse quiet,
     in-flight ≤ 2, and the spacing floor never violated (absolute arithmetic
     over the wire log, against D5's literal 250ms rather than the actor's
@@ -333,9 +334,9 @@ G1.
     `Cancelled` within 25ms simulated time, one harness tick. The driver
     sends all selected cancels without advancing time, advances exactly 25ms,
     and then awaits all 30 tickets before beginning the multi-minute run.
-    This covers queued and already-dispatched cancellation: the latter still
-    leaves wire work counted and reconciling. The bound is below D5's 250ms
-    send floor because cancellation is command handling, not dispatch.
+    This claim was re-reviewed and corrected below: at this point the driver
+    did not yet cancel its dispatched caller, and its awaits did not pin
+    readiness at the boundary.
 
 All evidence below was re-run 2026-08-12, offline, with no socket and
 no live service contact:
@@ -1202,15 +1203,19 @@ outlives the spike branch; record what exists and where.⟩
   “prompt” and supplies no deadline. Recorded as doc finding 13 for Tom's
   decision; no promptness claim is made. The slice remains **open pending
   re-review**.
-- 2026-08-12 — **Tom resolved F8 / doc finding 13.** M10 now defines prompt
-  cancellation as command ingress completion to `Cancelled` within one 25ms
-  simulated harness tick, for queued and dispatched callers alike. The
-  scaled driver sends all 30 cancellation commands without advancing time,
-  advances exactly 25ms, and awaits every ticket before beginning its
-  66-minute run; no later eventual-result check can satisfy this assertion.
-  The 25ms bound is deliberately below D5's 250ms dispatch floor because
-  the actor must remain command-responsive while paced. Gate matrix re-run:
-  `cargo test --locked` (128 debug), `cargo test --locked --release` (126
-  release), all-target clippy with warnings denied, fmt, and `git diff
-  --check` green. Slice remains **open pending re-review**; no verdict slot
-  filled.
+- 2026-08-12 — **F8/F9 re-review findings fixed; awaiting re-review.**
+  **F8:** M10 now first proves the delayed first GET is dispatched from the
+  mock's handoff record and published active count, cancels that caller, and
+  advances exactly one 25ms tick. It does the same for the 30 cancellations
+  distributed through the later queue. Each ticket is then single-polled;
+  `Poll::Pending` fails immediately, so an await or a later timer cannot
+  manufacture promptness. After the long run, published in-flight state must
+  be zero, proving the cancelled dispatched caller's delayed response still
+  reconciled. **F9:** the G3 expiry oracle is now a separately structured
+  half-open-interval reference model: a `[0, phase)` prefix followed by
+  whole width intervals. Its phase-zero and phase-one before/on/after pins
+  are independent of the mock's branch/index implementation. Gate matrix
+  re-run: `cargo test --locked` (128 debug), `cargo test --locked --release`
+  (126 release), all-target clippy with warnings denied, fmt, and `git diff
+  --check` green. The slice remains **open pending re-review**; no verdict
+  slot is filled.
