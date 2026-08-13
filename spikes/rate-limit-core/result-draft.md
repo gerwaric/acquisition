@@ -1375,3 +1375,38 @@ outlives the spike branch; record what exists and where.⟩
   closure; the review's own suite run (135 debug, green) is the gate
   evidence, per the bootstrap-closure precedent for comment-level
   changes.
+- 2026-08-12 — **live/history doc split presented for review**
+  (`kickoff-doc-split.md`; commits `77aee08` corrections, `087dc56`
+  the split, plus the hand-off commit carrying this entry). Commit 1
+  paid the round-four owed list in full: doc finding 11's fuse text
+  corrected to the C3 ⊗ M10 ⊗ X1 composition with the original
+  preserved under a dated marker, and its dropped-dispatched-caller
+  wording corrected per F10; the §3 M10 row cites the composition;
+  the M10 span corrected to the measured 3,963,500 ms in both places;
+  `AGENTS.md`'s driver row and `scenario-driver-handoff.md`'s status
+  line brought current, naming F14–F16 as recorded and unaddressed
+  (they remain the driver slice's debt, deliberately untouched).
+  Commit 2 created `status.md` — the single live-state file: coverage
+  truth (the registry + `OPEN_UNTESTED`), slice/review state linking
+  the one live confession, six open decisions for Tom with register
+  pointers, the blocked §7.4 replay, and next work — and re-pointed
+  both authorities in the same commit: `AGENTS.md`'s read order now
+  leads with `status.md` and its hand-off table keeps the chain but
+  drops the status column; `slice-review.md` §5's status-flip act now
+  updates `status.md` first and adds the historical marker on slice
+  closure; the five closed hand-offs each carry that marker; this §3
+  gained its deltas-are-historical preamble sentence. The gate-summary
+  partial-evidence marker (audit §8.2 item 6) is **deferred to Tom**
+  (`status.md` §3 item 6) because it edits register cells. The
+  naive-reader probe ran twice on cold sessions (the kickoff's
+  verbatim prompt plus a rephrasing): both matched `status.md` on
+  open/next/blocked/coverage and cited no superseded source as live;
+  verbatim transcripts in `doc-split-handoff.md`, including probe 1's
+  honest catch of the not-yet-written hand-off file itself. Gate
+  matrix re-run (docs-only): `cargo test --locked` 135 debug / 133
+  release, `PROPTEST_CASES=4096` green (135), all-target clippy with
+  warnings denied, `cargo fmt --all --check`, and `git diff --check`
+  green — identical to the REG-R1 closure matrix. No dated paragraph
+  was rewritten; no register cell, verdict slot, or `scenarios.md`
+  text was touched. The slice is **open pending Tom's review**;
+  four-part hand-off in `doc-split-handoff.md`.
