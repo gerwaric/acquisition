@@ -147,6 +147,24 @@ still listed C3/C4/X1/X2 as unbuilt long after they shipped, and a
 session read that stale paragraph as the plan for what to build
 next. Both were repaired in `693f0fc7` and `463ec155`.
 
+### Finding-ID namespaces (added 2026-08-12)
+
+Future review-round findings are round-scoped:
+`<slice>-R<round>-F<n>` — e.g. `SD-R5-F1` for the scenario-driver
+slice's round five, finding one. New text must not mint a bare
+`F<n>`.
+
+Disambiguation key for the existing collisions — a note only; dated
+text keeps its numbering and is never renumbered. Bare `F1`–`F10`
+currently mean different findings in three separate registers: the
+external design review register, the follow-up verifier register,
+and the scenario-driver review rounds (`F6`, for example, is both
+"confirmation matrix two-attempt cap" and "AGENTS.md hand-off table
+omission", depending on the register). `F57`/`F61` belong to
+`docs/cleanup/findings.md`, a different register entirely. When
+citing a bare finding ID from dated text, name the register it
+belongs to.
+
 Note for sessions and reviewers that keep private notes or memory:
 this repository is the only channel every participant shares. A
 process rule, a decision, or a status that lives only in one agent's
