@@ -126,10 +126,16 @@ review. Decision provenance in commit bodies, as ever.
 **The commit that closes a round does all three of these, or the
 round is not closed.** Fixing the findings is only the first.
 
-1. Flip the slice hand-off's status line to name the round that just
-   closed. A hand-off that still says "awaiting review" after its
-   review is a trap for the next session, which has no other way to
-   know.
+1. Update `status.md` — the status flip lives there (added
+   2026-08-12 by the doc-split slice): bring §2's slice-and-review
+   state current, plus any open-decision, blocked, or next-work line
+   the closure changes. Then flip the slice hand-off's own status
+   line to name the round that just closed; when the close ends the
+   *slice*, the hand-off's status line becomes a historical marker —
+   add "Historical record — live state lives in `status.md`." under
+   it, so no closed hand-off reads as a live authority. A hand-off
+   that still says "awaiting review" after its review is a trap for
+   the next session, which has no other way to know.
 2. Add or update the dated `result-draft.md` changelog entry: the
    round's findings and where each was fixed, anything
    accepted-not-fixed, the re-run gate matrix, and what the slice

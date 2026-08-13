@@ -10,6 +10,8 @@ attach their own hand-offs — `bootstrap-handoff.md`, `mock-handoff.md`,
 and `actor-handoff.md`, in build order. §3's deliberate-coverage
 paragraph is superseded in effect by all three; see the note there.
 
+Historical record — live state lives in `status.md`. (2026-08-12)
+
 ## 1. Silences taken (doc gaps, the reading chosen, consequence traced)
 
 | Silence | Reading taken | Next-call consequence |

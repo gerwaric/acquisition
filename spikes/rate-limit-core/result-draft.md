@@ -78,6 +78,12 @@ optional for phase-independent and structural checks.
 
 ## §3. Conformance results
 
+Coverage deltas in these tables ("… remains pending") are historical
+as of the clause registry's landing date (2026-08-12); live coverage
+is the registry — `src/obligations.rs` verified by
+`tests/obligations.rs`, with `OPEN_UNTESTED` as the open-untested
+list (see `status.md` §1).
+
 ### Mock-judged wire scenarios
 
 | ID | Scenario | Sweep | Gates exercised | Result | Evidence |

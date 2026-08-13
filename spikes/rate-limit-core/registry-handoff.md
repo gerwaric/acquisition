@@ -12,6 +12,8 @@ judgment-call-4 candidate collapse of the two tripwire-feed rows is
 **declined** (they are distinct call-site lanes). Coding completed
 2026-08-12; per AGENTS.md the slice ended at review, not at green.
 
+Historical record — live state lives in `status.md`. (2026-08-12)
+
 Contract: `clause-registry-design.md` (accepted rev 1, `ce5730d4`).
 Migration source and acceptance oracle: `obligation-map.md` at
 `f03632b9` (code at `e2034807`), now marked superseded-by-registry.

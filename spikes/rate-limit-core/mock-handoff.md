@@ -9,6 +9,8 @@ Implementation commits: `4353fb03`, `05ee15d1`, `12a799f8`,
 `1a6124ed`, `606df936`, `03e3cf91`, `a74f9d5d`.
 No actor or live-service work is included.
 
+Historical record — live state lives in `status.md`. (2026-08-12)
+
 ## 1. Silences taken, with next-call consequences
 
 | Silence | Conservative reading taken | Next-call consequence |

@@ -5,6 +5,8 @@ Status: reviewed and closed by Tom on 2026-08-10; review-close commit
 the accepted `bootstrap-seeding.md` §5 slice implemented from baseline
 `a3245e86`. Coding gates are green. No mock or actor work is included.
 
+Historical record — live state lives in `status.md`. (2026-08-12)
+
 ## 1. Silences taken, with next-call consequences
 
 No new doc gap required an invented policy rule. The accepted note

@@ -6,6 +6,10 @@ consumes the reviewed core and mock handoffs; it does not claim final M-series
 verdicts. §3's "not yet covered" list is the live one: read it before starting
 the next slice.
 
+Historical record — live state lives in `status.md`; the "live" claim
+above about §3's list describes 2026-08-12 and is superseded.
+(2026-08-12)
+
 ## 1. Silences taken
 
 | Silence | Conservative reading | Next-call consequence |

@@ -8,23 +8,27 @@ design; if that ever proves insufficient, that is itself a finding.
 
 ## Read before writing any code, in this order
 
-1. `design-brief.md` — the charter. Frozen decision record: the
+1. `status.md` — the **single live-state file**: what is open, what
+   is next, what is blocked, which decisions await Tom, and where
+   coverage truth lives. Everything else you read after it is
+   contract or history.
+2. `design-brief.md` — the charter. Frozen decision record: the
    reconciliation log and plan-review addendum are settled. Do not
    re-litigate them.
-2. `scenarios.md` — the test contract: scenarios M1–M13 / C1–C5 /
+3. `scenarios.md` — the test contract: scenarios M1–M13 / C1–C5 /
    X1–X2 / U1–U4, gates G1–G6, §7 mock fidelity budget (B/O series).
    Tests cite scenario IDs the way designs cite N-numbers.
-3. `core-design.md` — the API contract being implemented: types,
+4. `core-design.md` — the API contract being implemented: types,
    request lifecycle, reconciliation and phantom synthesis, episode
    semantics and confirmation matrix, response precedence, probe
    outcome table. When code lands, code becomes authority and this
    doc becomes history.
-4. `result-draft.md` — the evidence skeleton. Fill slots as results
+5. `result-draft.md` — the evidence skeleton. Fill slots as results
    land, the day they land; never by assertion, always by citing a
    test run, commit, or fixture.
-5. The hand-off chain below — what has actually been built, by whom,
-   and what each slice left open. The four documents above are the
-   contract; the hand-offs are the state.
+6. The hand-off chain below — what has actually been built, by whom,
+   and what each slice left open. The documents above are the
+   contract and the record; live state is `status.md` alone.
 
 Authority for cited claims: `docs/design/network-ground-truth.md`
 (N-numbers) and `docs/design/network-redesign.md` (D-numbers).
@@ -36,35 +40,37 @@ Authority for cited claims: `docs/design/network-ground-truth.md`
    is green.
 3. Tokio actor shell last.
 
-All three landed and closed review as of 2026-08-12. What remains is
-not a fourth build slice: the actor-to-judge driver seam now exists
-(`tests/scenario_driver.rs`) but every row is `ContractCoverage::
-Fragment`, so what is left is raising those fragments to full scenario
-contracts, the G3/G4 finalization `scenarios.md` §6 requires before any
-verdict slot, and the §7.4 capture replay (blocked — it needs raw
-capture input from Tom, and no synthetic stand-in may be substituted).
-No report a fragment run produces is `verdict_eligible()`; do not fill a
-verdict slot from one.
+All three landed and closed review as of 2026-08-12. What remains,
+what is blocked, and what comes next live in `status.md` — do not
+reconstruct them from this file or from hand-offs. One standing rule
+stays here because it is a rule, not a status: no report a fragment
+run produces is `verdict_eligible()`; do not fill a verdict slot from
+one.
 
-## Slice hand-offs (the state of the build)
+## Slice hand-offs (the chain of the build)
 
-Each slice attaches a hand-off written to `slice-review.md` §2. Newest
-last; **the newest one's coverage confession is the live one.**
+Each slice attaches a hand-off written to `slice-review.md` §2. The
+table records the chain — who built what, in which document. **Live
+state — which slice is open, which round, what it owes — is
+`status.md`, not this table**; a closed hand-off's status line is a
+historical marker, and only the open slice named by `status.md` §2
+carries a live coverage confession.
 
-| Hand-off | Slice | Status |
-|---|---|---|
-| `core-handoff.md` | Sans-IO core, composite through the 2026-08-10 verifier fixes | closed; §3's coverage paragraph is **superseded in effect** — it predates the three slices below |
-| `bootstrap-handoff.md` | Bootstrap policy seeding | closed 2026-08-10 |
-| `mock-handoff.md` | Mock + M-series harness | closed 2026-08-12 (re-review) |
-| `actor-handoff.md` | Tokio actor shell, incl. C3/C4/X1/X2 | closed 2026-08-12 (re-review, no findings) |
-| `scenario-driver-handoff.md` | M1–M13 driver / judge integration | **open** — rounds one–three findings (F1–F10) and doc findings 11–13 fixed 2026-08-12; round four recorded findings F14–F16 (driver twin-guard, duplicated floor literal, mirror fallbacks), still unaddressed; awaiting those fixes and re-review |
-| `registry-handoff.md` | Clause registry: `obligation-map.md` migrated to `src/obligations.rs`, machine-verified | closed 2026-08-12 (round one, no blocking findings) |
+| Hand-off | Slice |
+|---|---|
+| `core-handoff.md` | Sans-IO core, composite through the 2026-08-10 verifier fixes |
+| `bootstrap-handoff.md` | Bootstrap policy seeding |
+| `mock-handoff.md` | Mock + M-series harness |
+| `actor-handoff.md` | Tokio actor shell, incl. C3/C4/X1/X2 |
+| `scenario-driver-handoff.md` | M1–M13 driver / judge integration |
+| `registry-handoff.md` | Clause registry: `obligation-map.md` migrated to `src/obligations.rs`, machine-verified |
+| `doc-split-handoff.md` | Live/history doc split: `status.md` created, authorities re-pointed |
 
-Read the newest hand-off before planning work. An older hand-off's
-"not covered" list describes the world on its own date and goes stale
-the moment a later slice builds what it calls unbuilt — that has
-already misled one session. `result-draft.md`'s dated changelog is the
-authority when two hand-offs disagree.
+An older hand-off's "not covered" list describes the world on its own
+date and goes stale the moment a later slice builds what it calls
+unbuilt — that has already misled one session. `result-draft.md`'s
+dated changelog is the authority when two hand-offs disagree about
+history; `status.md` is the authority for now.
 
 ## Hard constraints
 
