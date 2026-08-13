@@ -968,8 +968,8 @@ pub const CLAUSES: &[Clause] = &[
             },
         ],
         note: "Composition per the round-four ruling. Doc finding 11's text \
-               still claims this \"was untested\" — map §8.2 item 1; the \
-               correction is owed by the round-four list (doc-split slice)",
+               was corrected to cite the composition at 77aee08 (doc-split \
+               commit 1), closing map §8.2 item 1",
     },
     Clause {
         id: "m10-queue-drains",
@@ -1011,8 +1011,9 @@ pub const CLAUSES: &[Clause] = &[
             must_assert: "300 enqueues; `sustained` asserts span ≥ 30 min \
                           (actual ≈ 66 min)",
         }],
-        note: "Recorded span figure stale in two places (map §8.3 item 7); \
-               correction owed by the round-four list",
+        note: "Recorded span figure was stale in two places (map §8.3 \
+               item 7); corrected to the measured 3,963,500 ms in both at \
+               77aee08 (doc-split commit 1)",
     },
     // The adjacent dropped-dispatched-RequestTicket lifecycle has no
     // owning row in scenarios.md (map §8.1 item 2). Design §7 item 2

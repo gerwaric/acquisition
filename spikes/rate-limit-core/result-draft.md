@@ -104,6 +104,8 @@ list (see `status.md` §1).
 
 Driver integration status (2026-08-12, as corrected by the two review rounds below): `tests/scenario_driver.rs` drives every M row through the public actor handle and sends its mock-owned observations/state changes through `conformance::judge`; **every** row now runs at both φ=0 and φ=1, and M8 additionally runs both the OAuth Known and legacy Assumed profiles. Those two phases are the extremes of *boundary distance* — the mock reads `phase_ms` as the upcoming boundary, so φ=0 puts the first bucket edge a full bucket away (5,000ms and 60,000ms) and φ=1 puts it 1ms after t₀; `scenario_driver::swept_phases_are_separated_by_a_full_bucket` pins all four distances. Every row declares `ContractCoverage::Fragment`, so no report is `verdict_eligible()` and a green G5 here cannot be read as a scenario verdict. It is evidence of the actor-to-judge seam, **not a final M-series verdict**: the row-level coverage deltas above and doc findings 11 and 12 remain open. The run uses the draft G3/G4 values solely to exercise the judge; it does not fill either verdict slot.
 
+*[Superseded in part, 2026-08-13 (DS-R1 stale sweep — the one live-reading paragraph the doc-split missed): four review rounds have run, not two (§9 entries); doc finding 11 is resolved and 12(a)/(b) are resolved — only 12(c) remains open (`status.md` §3 item 1). The paragraph's fragment/verdict rule stands unchanged. Dated text above preserved.]*
+
 G1, G2, G3, and G5 are armed in every mock-judged scenario; the
 column lists the gates each scenario is the *binding evidence*
 for.
@@ -541,6 +543,12 @@ process end to end.
   seeded" is unreachable as written; a seeding design is needed
   before the actor slice.
 
+  *[Marker, 2026-08-13 (DS-R1): this bullet predates the acceptance
+  block above it — it is the finding that motivated
+  `bootstrap-seeding.md`, whose slice built the path and closed
+  2026-08-10 (§9). Resolved; preserved as the record of why the
+  seeding design exists.]*
+
 ### External review register (2026-08-09, second independent review)
 
 Tom commissioned an independent frontier-model review of the repo
@@ -647,7 +655,10 @@ Suite after the batch: 73 debug / 71 release.
 
 Open obligation carried to the actor slice: replace "any sane
 transport timeout" with the exact enforced timeout (or its stated
-relationship to the aging horizon) plus a test.
+relationship to the aging horizon) plus a test. *[Discharged
+2026-08-12 by the actor slice — see the entry directly below and its
+closure paragraph ("both obligations … are discharged"). Marker
+added 2026-08-13, DS-R1.]*
 
 ### Tokio actor slice (2026-08-12 — closed)
 
@@ -698,7 +709,9 @@ generated properties green at 4,096 cases; `cargo test --locked --release` —
 check green. `actor_shell` pins paused-time probe→GET pacing, distinct B13
 correlations, queued and dispatched cancellation, D4 failure, timeout
 retention, and Cloudflare halt/watch behavior. Final M-series scenario runs
-remain unclaimed in `actor-handoff.md` §3.
+remain unclaimed in `actor-handoff.md` §3. *[Marker, 2026-08-13: still true
+that no full-contract M-series run exists, but the live location for what
+remains is `status.md` §5, not a closed hand-off.]*
 
 ### Bootstrap-seeding slice (2026-08-10 — reviewed and closed)
 
@@ -747,7 +760,9 @@ header work are bounded before policy construction. The cumulative
 number of boot-discovered policies remains an actor-owned structural
 bound (D5's five endpoint labels plus N16 exactly-once probing), not
 a second name-based refusal in the core; the actor is still unbuilt
-and this obligation is confessed in the slice hand-off.
+and this obligation is confessed in the slice hand-off. *[Marker,
+2026-08-13: the actor has since been built and closed (2026-08-12)
+and pins the bound; dated text preserved.]*
 
 ## §4. Candidate N-claims
 
@@ -1410,3 +1425,125 @@ outlives the spike branch; record what exists and where.⟩
   was rewritten; no register cell, verdict slot, or `scenarios.md`
   text was touched. The slice is **open pending Tom's review**;
   four-part hand-off in `doc-split-handoff.md`.
+- 2026-08-13 — **round-four findings F14–F16: substance recorded
+  (scenario-driver register).** Round four filed the three findings
+  as three-word glosses; their substance was written down nowhere
+  (that lesson is DS-R1's, below). A targeted re-review of
+  `tests/scenario_driver.rs` re-derived all three; verdicts and
+  proposed fixes recorded here, code untouched — the fixes remain
+  the driver slice's owed work.
+  **F14 — driver twin-guard: real, two instances.** (a)
+  `run_m8_oauth_lane` (`tests/scenario_driver.rs:632–660`) is a
+  second copy of the M8 matrix arm (`:372–397`) whose assertion
+  dropped the `GET count == 2` conjunct (`:653` asserts `retried`
+  alone), and its report is never pushed into `reports`, so it
+  bypasses both post-loop guards at `:613–629`, including the
+  `!verdict_eligible()` coverage guard. Not a false green today —
+  correlation numbering makes the 429 script apply in both lanes —
+  but the lane would not notice if it stopped applying. Fix: one
+  shared M8 helper returning the full conjunction, OAuth report
+  routed through the same guards. (b) The D5 in-flight-cap guard is
+  duplicated verbatim in the M10 and M13 arms (`:492–493`,
+  `:578–582`), each hard-coding `2` rather than
+  `conformance::D5_IN_FLIGHT_CAP`. Fix: one shared helper on the
+  constant.
+  **F15 — duplicated floor literal: real, unambiguous.** The D5
+  send floor exists as `MIN_SEND_SPACING_MS = 250` (`:678`, used at
+  `:504` and `:871`) and as a bare `250` in the oracle's HEAD branch
+  (`:859`). The floor covers HEADs by contract, so the copies cannot
+  legally diverge — the second can only ever silently disagree with
+  the first (a floor mutation would leave the HEAD branch at 250,
+  weakening the oracle exactly where N2's incident was a HEAD
+  flood). Fix: use the constant at `:859`.
+  **F16 — mirror fallbacks: structurally real, currently
+  unreachable.** `independently_eligible_ms`
+  (`tests/scenario_driver.rs:148–153`) falls back to
+  `observation.dispatch_ms` for a correlation missing from the
+  oracle map; that value satisfies both G3 comparisons by
+  construction (`src/conformance.rs:647–660`), so any unkeyed
+  observation would be silently exempt from G3 — a fail-open default
+  under the gate that catches trivially-safe-by-being-slow. Today
+  the oracle map is exhaustive over the judged set by construction
+  (built from the same observation slice that is judged; correlation
+  ids unique run-wide), so **G3 is not currently vacuous** and the
+  fallback is dead code — but any future judging of a superset (a
+  re-fetched log, a second `judge` call) would disarm G3 with no
+  test noticing. Fix: `.unwrap_or(u64::MAX)` so an unkeyed
+  observation fails loud as dispatched-before-eligible.
+  Net: none of the three changes a gate result on current code —
+  consistent with round four having changed no driver code; F14(a)
+  has the most teeth (a live path missing an assertion conjunct and
+  a coverage guard).
+- 2026-08-13 — **doc-split review round one filed and fixed
+  (DS-R1).** Tom commissioned an external consistency audit of the
+  spike (five independent document/code readers plus a fresh test
+  run) and adopted its findings as this slice's review round rather
+  than new work. Fix policy per Tom's planning session: prefer
+  removal or a pointer over a fresher copy wherever a finding was a
+  drifted duplicate; dated history takes markers, never rewrites.
+  Six findings against `status.md` itself — the file whose
+  precedence rule makes its errors the costliest:
+  **DS-R1-F1** — §2 said "doc findings 11–13 are fixed"; 12(c) is
+  open and is §3 item 1 (the G3-epsilon decision). Fixed to match
+  the driver hand-off: "11, 12(a), 12(b), and 13".
+  **DS-R1-F2** — §2 called the driver hand-off "the one open
+  hand-off" while listing a second open hand-off two lines later.
+  Fixed by removal.
+  **DS-R1-F3** — §3 item 6 quoted the kickoff's marker wording under
+  the audit's citation; audit §8.2 item 6 actually proposes
+  "partial — fragment evidence, see driver status note". Fixed: the
+  item now carries both candidate wordings, correctly attributed;
+  the choice stays Tom's.
+  **DS-R1-F4** — §1 claimed "one entry per obligation-map row";
+  `CLAUSES` has 122 entries against 125 map rows (two pointer-row
+  collapses, one deliberate omission — `registry-handoff.md` §5).
+  Fixed: §1 states the arithmetic.
+  **DS-R1-F5** — §4 cited `result-draft.md` §5 (an empty slot
+  template) for the capture-replay block; the block is mock-slice
+  doc finding 8 (§3 register), and §4 also dropped the
+  already-compliant-fixture escape hatch both sources state. Fixed:
+  citation corrected, hatch restored.
+  **DS-R1-F6** — §1 forbade reading the map for current coverage
+  while §5 item 2 pointed next work at map §8.2, a list containing
+  two since-discharged items and missing M12's narrowed delta
+  (which lives in §8.1 item 1). Fixed: §5 frames the §8 lists as
+  dated analysis and names both subsections.
+  Stale-sweep, same round: two `src/obligations.rs` notes still
+  claimed the debt `77aee08` paid (m10 fuse composition, m10 span) —
+  notes updated (the only code-file edits, string literals in
+  `note:` fields); the §3 "driver integration status" paragraph —
+  the one live-reading paragraph the split missed ("two review
+  rounds", "findings 11 and 12 remain open") — marked superseded in
+  part; the orphaned seeding-seam bullet after "no open items"
+  marked resolved; the core→actor timeout obligation and the
+  "actor is still unbuilt" sentence marked discharged/dated; both
+  kickoffs got Executed banners; `AGENTS.md`'s core-design entry
+  brought to the in-effect tense and its confession rule pluralized
+  for two open slices; `core-handoff.md`'s second confession
+  paragraph marked dated (71/73 counts) and its missing closure
+  record flagged; `bootstrap-handoff.md`'s §1/§3 deferrals marked
+  built; `registry-handoff.md`'s drift-window and readiness
+  paragraphs marked; `clause-registry-design.md` marked
+  executed with §6 outcome notes; `design-brief.md`'s "nothing here
+  is decided" scoped to its writing date; `core-design.md` §5's
+  "pinned by X2's structural test" corrected to design intent (the
+  test is unbuilt, `OPEN_UNTESTED`); the map's banner gained the
+  `status.md` pointer, §1–§7 gained superseded-snapshot reminders,
+  and its three discharged §8 items (8.2/1, 8.2/7, 8.3/7) plus the
+  M10 table-cell note gained resolution markers; the F11–F13
+  numbering gap recorded in `slice-review.md` §5. Newly tracked in
+  `status.md`: the registry payoff-wiring decision (§3 item 7, from
+  design §6) and the declined-collapse drift window (§5 item 2).
+  Accepted-not-fixed, dispositions Tom's at closure: the
+  gate-summary marker choice (§3 item 6) and the core
+  closure-record gap. F14–F16 substance is the entry above; their
+  code fixes stay the driver slice's debt — no driver code changed.
+  `scenarios.md` untouched per its authorship rule: two dated
+  addenda (the M10 amendment's stale "real remaining gap" clause;
+  §6's pre-implementation G3/G4 revisit notes) are drafted for Tom
+  in the review conversation, not applied.
+  Gate matrix re-run 2026-08-13: `cargo test --locked` 135 debug /
+  133 release, `PROPTEST_CASES=4096` green (135), all-target clippy
+  with warnings denied, `cargo fmt --all --check`, and
+  `git diff --check` green. The slice remains **open pending Tom's
+  closure review**.

@@ -171,6 +171,13 @@ omission", depending on the register). `F57`/`F61` belong to
 citing a bare finding ID from dated text, name the register it
 belongs to.
 
+One recorded gap (2026-08-13, DS-R1): the scenario-driver register's
+bare F-series runs F1–F10 then F14–F16 — F11–F13 were never minted.
+The round-three *doc findings* 11–13 occupy that range of the running
+count, and round four resumed at 14. No findings are lost; recorded
+so the jump reads as collision avoidance, not missing records. Cite
+those three as "doc finding 11/12/13", never "F11–F13".
+
 Note for sessions and reviewers that keep private notes or memory:
 this repository is the only channel every participant shares. A
 process rule, a decision, or a status that lives only in one agent's

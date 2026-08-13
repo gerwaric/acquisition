@@ -1,5 +1,11 @@
 # Kickoff: live/history doc split
 
+> **Executed.** The slice ran 2026-08-12 (commits `77aee08`,
+> `087dc56`); hand-off in `doc-split-handoff.md`, review state in
+> `status.md` §2. Preserved verbatim as the brief the slice ran
+> under — including statements that were true only at writing (e.g.
+> "`status.md`" not yet existing). (Marker added 2026-08-13, DS-R1.)
+
 **Do not start until the clause-registry slice has closed Tom's
 review** — the split's live-status file points at the registry for
 coverage truth; run early and you will write coverage prose the

@@ -12,6 +12,13 @@ paragraph is superseded in effect by all three; see the note there.
 
 Historical record — live state lives in `status.md`. (2026-08-12)
 
+*[Marker, 2026-08-13 (DS-R1): this composite slice has no single
+closure record — its reviews were the 2026-08-09 audit,
+external-review, and follow-up verifier rounds (`result-draft.md` §3
+registers), which predate the `slice-review.md` closure rule. The
+chain treats it as closed; noted so the missing record reads as
+history, not an oversight. Disposition Tom's at the DS-R1 review.]*
+
 ## 1. Silences taken (doc gaps, the reading chosen, consequence traced)
 
 | Silence | Reading taken | Next-call consequence |
@@ -76,6 +83,12 @@ re-synthesis interaction is reasoned, not property-tested; the
 double-confirmation window under a contract-violating shell is
 untested; drop-bomb tests are debug-profile only (release runs 71 of
 73).
+
+*[Marker, 2026-08-13 (DS-R1): the paragraph above is the dated
+2026-08-09 record, like the one before it — the test counts are of
+that date (the matrix is now 135 debug / 133 release), and current
+coverage state for every item is the registry's
+(`src/obligations.rs`), not this confession.]*
 
 Reachability accounting: C1 asserts on every generated branch
 (grant → oracle; NotBefore → re-ask must grant → oracle); the

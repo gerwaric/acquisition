@@ -9,7 +9,11 @@
 > §8 discrepancy report, which remains the record of the open
 > findings as of `e2034807`. (Supersession per the `core-design.md`
 > precedent; migration deltas are listed in the registry slice's
-> hand-off.)
+> hand-off.) Live state — what is open, blocked, and next — is
+> `status.md`, nothing here. *(Sentence and the per-section
+> reminders below added 2026-08-13, DS-R1: the banner fires once in
+> a 500-line file, and everything below it reads as live to a reader
+> who lands mid-file by grep or a §8 pointer.)*
 
 Status: audit artifact, 2026-08-12, produced at head `e2034807`
 ("make C3 own the fuse headroom claim"). Audit only — no code, no
@@ -45,6 +49,9 @@ which runs every M row at φ=0 and φ=1 as `ContractCoverage::Fragment`
 (no fragment is `verdict_eligible()`).
 
 ## §1. Mock-judged wire scenarios (M1–M13)
+
+*Superseded snapshot at `e2034807` — current coverage is
+`src/obligations.rs`; live state is `status.md`.*
 
 ### M1 — cold start with residue (`scenarios.md:170`)
 
@@ -145,7 +152,7 @@ which runs every M row at φ=0 and φ=1 as `ContractCoverage::Fragment`
 | Spacing floor never violated | M10 | driver M10 arm `paced` (absolute arithmetic over 273 dispatches vs literal 250 ms, HEADs included) | full | |
 | In-flight ≤ 2 | M10 | driver M10 arm `capped` | full | |
 | G1 holds | M10 → G1 | driver (both φ) | full | At the row's stated scale |
-| Fuse does not trip (false-positive absence under saturation) | **C3** owns the property incl. headroom; M10 owns the integration instance; X1 owns true-positive | `src/actor.rs:1205` `c3_floor_compliant_traces_never_trip` (4,096 cases) + `src/actor.rs:1161` `c3_floor_compliant_cadence_holds_the_steady_state_maximum` (exact 4/s, 240/min peaks) ⊗ driver M10 `fuse_quiet` + `paced` ⊗ `src/actor.rs:936` (X1) | full | Composition per the round-four ruling. **Doc finding 11's text still claims this "was untested" — §8.2 item 1** |
+| Fuse does not trip (false-positive absence under saturation) | **C3** owns the property incl. headroom; M10 owns the integration instance; X1 owns true-positive | `src/actor.rs:1205` `c3_floor_compliant_traces_never_trip` (4,096 cases) + `src/actor.rs:1161` `c3_floor_compliant_cadence_holds_the_steady_state_maximum` (exact 4/s, 240/min peaks) ⊗ driver M10 `fuse_quiet` + `paced` ⊗ `src/actor.rs:936` (X1) | full | Composition per the round-four ruling. **Doc finding 11's text still claims this "was untested" — §8.2 item 1** *(since resolved at `77aee08` — see the item's marker)* |
 | Queue drains to completion | M10 (named by G5) | driver M10 arm (`served == expected_served`, 270/270) | full | |
 | Cancelled callers get prompt resolution (25 ms bound, queued and dispatched) | M10 (Tom's 2026-08-12 amendment) | driver M10 arm (single-poll after exactly one 25 ms tick, 30 queued + 1 mock-proven dispatched; dispatched response later reconciles to in-flight 0) | full | |
 | Scale: hundreds of enqueues over many simulated minutes | M10 | driver M10 arm (300 enqueues; `sustained` asserts span ≥ 30 min; actual ≈ 66 min) | full | Recorded span figure stale in two places (§8.3 item 7) |
@@ -185,6 +192,9 @@ which runs every M row at φ=0 and φ=1 as `ContractCoverage::Fragment`
 
 ## §2. Core-property scenarios (C1–C5)
 
+*Superseded snapshot at `e2034807` — current coverage is
+`src/obligations.rs`; live state is `status.md`.*
+
 | Clause | Owning row | Discharging test | Coverage | Notes |
 |---|---|---|---|---|
 | C1: granted reservation never inside a saturated window on any server φ, full-bucket padding | C1 | `tests/c1_scheduling.rs:219` `every_reserved_outcome_is_safe_for_every_server_phase` (4,096 cases, asserts both branches, independent phase-bucketizing oracle) | full | De-vacuized 2026-08-09 (was ~97% vacuous); `NotBefore` re-ask pinned exact |
@@ -206,6 +216,9 @@ which runs every M row at φ=0 and φ=1 as `ContractCoverage::Fragment`
 
 ## §3. Fault-injection and structural (X1–X2)
 
+*Superseded snapshot at `e2034807` — current coverage is
+`src/obligations.rs`; live state is `status.md`.*
+
 | Clause | Owning row | Discharging test | Coverage | Notes |
 |---|---|---|---|---|
 | X1: burst fault trips at the 11th attempt at the transport boundary | X1 | `src/actor.rs:936` `x1_fault_injection_trips_at_the_actor_transport_boundary` (real `start_dispatch` hook, pacing enabled) | full | |
@@ -216,6 +229,9 @@ which runs every M row at φ=0 and φ=1 as `ContractCoverage::Fragment`
 
 ## §4. Declared-untested register (U1–U4) — exclusions verified
 
+*Superseded snapshot at `e2034807` ("verified" is of that date) —
+current coverage is `src/obligations.rs`; live state is `status.md`.*
+
 | Row | Exclusion | Still honored? | Evidence |
 |---|---|---|---|
 | U1 | Proactive remap triggers out of scope; M5 reactive is the tested surface | yes | No proactive-remap code path or test claim found; M5 tests are all response-reactive |
@@ -224,6 +240,9 @@ which runs every M row at φ=0 and φ=1 as `ContractCoverage::Fragment`
 | U4 | Real layer-1 rules uncharacterized; B10 inferred-lane | yes | B10 numbers documented as inferred; no external Cloudflare evidence claimed |
 
 ## §5. Gates (G1–G6)
+
+*Superseded snapshot at `e2034807` — current coverage is
+`src/obligations.rs`; live state is `status.md`.*
 
 | Clause | Owning row | Discharging test | Coverage | Notes |
 |---|---|---|---|---|
@@ -238,6 +257,9 @@ The §3 gate-summary rows (`result-draft.md:122–131`) are all unfilled;
 see §8.2 item 6 for how that interacts with the per-run evidence above.
 
 ## §6. Mock fidelity budget (§7.2 B-series)
+
+*Superseded snapshot at `e2034807` — current coverage is
+`src/obligations.rs`; live state is `status.md`.*
 
 | Row | Behavior | Discharging test | Coverage | Notes |
 |---|---|---|---|---|
@@ -260,6 +282,9 @@ Bounds hygiene (cross-cutting): `tests/mock_fidelity.rs:750`, `:803`,
 `:821`, `:731`, `:547` pin every declared n/n+1 mock bound.
 
 ## §7. Out-of-scope register (§7.3 O-series) — exclusions verified
+
+*Superseded snapshot at `e2034807` ("verified" is of that date) —
+current coverage is `src/obligations.rs`; live state is `status.md`.*
 
 | Row | Excluded | Still honored? | Evidence |
 |---|---|---|---|
@@ -325,7 +350,9 @@ below was fixed by this audit.
    written. The round-four entry itself lists this correction as
    owed (`result-draft.md:1273–1276`) and it is unfixed at
    `e2034807`. The same owed list is the authority; this audit just
-   confirms nothing has drifted further.
+   confirms nothing has drifted further. *[Resolved at `77aee08`
+   (doc-split commit 1), 2026-08-12 — marker added 2026-08-13,
+   DS-R1.]*
 2. **X2 is simultaneously unfilled and claimed carried.** The §3 row
    is `⟨…⟩` (`result-draft.md:120`), while the 2026-08-12 actor-slice
    changelog says the shell "carries C3, C4, X1, and X2"
@@ -382,7 +409,9 @@ below was fixed by this audit.
    round four, whose findings F14–F16 are recorded only inside the
    §9 round-four entry (`result-draft.md:1279–1280`). A session that
    reads the hand-off chain per AGENTS.md's own instructions will not
-   learn F14–F16 exist.
+   learn F14–F16 exist. *[Resolved at `77aee08` and by the doc split
+   itself: both status lines are current and `status.md` §2 names
+   F14–F16 — marker added 2026-08-13, DS-R1.]*
 
 ### 8.3 Discharged claims weaker than their clause
 
@@ -435,7 +464,8 @@ below was fixed by this audit.
    `result-draft.md:254` and `:1107` say 3,963,250 ms; round four
    measured 3,963,500 ms after the 250→25 ms step change and lists
    the correction as owed (`result-draft.md:1278`). Trivial, but it
-   is a number in an evidence register.
+   is a number in an evidence register. *[Resolved at `77aee08` —
+   both places corrected; marker added 2026-08-13, DS-R1.]*
 
 ### 8.4 Evidence citing tests that no longer exist
 

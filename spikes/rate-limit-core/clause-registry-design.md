@@ -16,6 +16,14 @@ Produced 2026-08-12 by the obligation-map audit session, at head
 `f03632b9` (map) / `e2034807` (code). The migration source and
 acceptance oracle is `obligation-map.md`.
 
+*[Marker, 2026-08-13 (DS-R1): the slice ran and closed review
+2026-08-12 (REG-R1) — this note is now history. Two §6 updates: the
+first bullet (deriving `verdict_eligible()` from the registry) is an
+open decision, now tracked as `status.md` §3 item 7; the second
+bullet's prediction did not happen as written — the doc-split
+kickoff downgraded the M-row collapse to a preamble sentence, and
+the resulting drift risk is noted in `status.md` §5 item 2.]*
+
 ## 1. Problem
 
 Since the actor slice closed, every review round's findings have been

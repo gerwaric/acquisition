@@ -481,7 +481,11 @@ each transition, not pulled by callers.
 
 - **The fuse and 4xx tripwire counters** live at the transport
   boundary (plan-review addendum, finding 6), immutable to
-  scheduling logic, pinned by X2's structural test. Their feeds
+  scheduling logic, pinned by X2's structural test *[marker,
+  2026-08-13: that structural test is unbuilt — `x2-single-send-path`
+  sits in `OPEN_UNTESTED`, and what a spike-scope X2 test is remains
+  `status.md` §3 item 2; this bullet states the design intent, not an
+  existing pin]*. Their feeds
   differ (split stated explicitly in the 2026-08-09 first-eyes
   review; the earlier wording lumped both under "dispatch
   attempts", which is wrong for the tripwire): the fuse increments

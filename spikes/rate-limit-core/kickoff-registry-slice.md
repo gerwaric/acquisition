@@ -1,5 +1,11 @@
 # Kickoff: clause-registry slice
 
+> **Executed.** The slice ran and closed review 2026-08-12 (REG-R1;
+> hand-off in `registry-handoff.md`). Preserved verbatim as the brief
+> the slice ran under; its pinned numbers (e.g. the 129/127 test
+> inventory) are of its writing date. (Marker added 2026-08-13,
+> DS-R1.)
+
 **Do not start until `clause-registry-design.md` carries Tom's
 acceptance** (status line names the accepted revision). This brief
 was written 2026-08-12 by the audit session that produced

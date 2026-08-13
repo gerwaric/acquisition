@@ -11,6 +11,12 @@ decided — the design session's job is to pressure-test and refine
 this, with Tom hands-on (this spike doubles as his first substantial
 Rust work; explain idioms as they arise, don't just emit them).
 
+*[Marker, 2026-08-13 (DS-R1): "Nothing here is decided" describes
+this charter at writing. The design session has since run and its
+output is frozen (2026-08-09, gate closed below; `AGENTS.md`) — the
+reconciliation log and addenda in this file are the decided record,
+not open questions.]*
+
 ## The question (spike register, `docs/redesign/README.md`)
 
 Can a Rust client demonstrably honor the N-claims in

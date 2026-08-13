@@ -106,6 +106,12 @@ drift; the supersession marker on the map closes the largest such
 window, but `result-draft.md` §3 rows still carry their own coverage
 wording, unchanged by this slice on the kickoff's instruction.
 
+*[Marker, 2026-08-13 (DS-R1): the doc-split slice ran and
+deliberately declined the collapse — its kickoff downgraded design
+§6's prediction to a single §3 preamble sentence. The drift window
+this paragraph warned about is therefore standing, now tracked in
+`status.md` §5 item 2.]*
+
 ## 3. Coverage confession
 
 What the verification tests deliberately do not check:
@@ -145,7 +151,9 @@ are one-line-scale tests, ready whenever scheduled.
 `x1-trip-drain-publish` needs a fuse-trip variant of the existing
 Cloudflare drain test. `x2-single-send-path` is blocked on Tom's
 decision about what a spike-scope structural test even is (map §8.2
-item 2; design §7 item 1 kept it open deliberately).
+item 2; design §7 item 1 kept it open deliberately). *[Marker,
+2026-08-13: dated readiness analysis — sequencing and the X2
+decision live in `status.md` (§5, §3 item 2).]*
 
 ## 4. Judgment calls
 

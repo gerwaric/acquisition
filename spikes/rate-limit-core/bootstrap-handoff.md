@@ -25,6 +25,8 @@ could otherwise read differently:
 The first three consequences are test-pinned. The actor-owned bound is
 not executable yet because the mandated build order leaves the actor
 for last; it is carried in §3 rather than silently claimed as covered.
+*[Marker, 2026-08-13 (DS-R1): the actor slice has since landed the
+bound — see `actor-handoff.md`.]*
 
 ## 2. Seam map and six-invariant walk
 
@@ -91,6 +93,11 @@ every unusable `Retry-After` grammar case is not repeated; existing-policy
 tests cover each terminal/restriction disposition, while focused vacant
 tests cover success, 429, 5xx, and parse refusal. No live service was
 contacted.
+
+*[Marker, 2026-08-13 (DS-R1): the deliberate-deferral list above is
+the dated 2026-08-10 record. Everything in it except U3's default
+flip has since been built by the mock, actor, and driver slices;
+current coverage state is the registry's (`src/obligations.rs`).]*
 
 This slice adds example tests, not a new property. The full 4,096-case run
 still covers nine properties, none assertion-free:

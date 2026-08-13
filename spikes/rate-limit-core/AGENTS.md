@@ -18,11 +18,12 @@ design; if that ever proves insufficient, that is itself a finding.
 3. `scenarios.md` — the test contract: scenarios M1–M13 / C1–C5 /
    X1–X2 / U1–U4, gates G1–G6, §7 mock fidelity budget (B/O series).
    Tests cite scenario IDs the way designs cite N-numbers.
-4. `core-design.md` — the API contract being implemented: types,
+4. `core-design.md` — the API contract as designed: types,
    request lifecycle, reconciliation and phantom synthesis, episode
    semantics and confirmation matrix, response precedence, probe
-   outcome table. When code lands, code becomes authority and this
-   doc becomes history.
+   outcome table. The code has landed and the doc's own header marks
+   the supersession in effect: code is the authority; the sketch is
+   history.
 5. `result-draft.md` — the evidence skeleton. Fill slots as results
    land, the day they land; never by assertion, always by citing a
    test run, commit, or fixture.
@@ -53,8 +54,9 @@ Each slice attaches a hand-off written to `slice-review.md` §2. The
 table records the chain — who built what, in which document. **Live
 state — which slice is open, which round, what it owes — is
 `status.md`, not this table**; a closed hand-off's status line is a
-historical marker, and only the open slice named by `status.md` §2
-carries a live coverage confession.
+historical marker, and only open slices named by `status.md` §2
+carry live coverage confessions (one per open slice, scoped to that
+slice's own work).
 
 | Hand-off | Slice |
 |---|---|

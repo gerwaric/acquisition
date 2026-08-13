@@ -1,6 +1,14 @@
 # Slice hand-off: live/history doc split
 
-Status: **open — presented for Tom's review 2026-08-12.** Doc-only
+Status: **open — review round one (DS-R1) filed and fixed
+2026-08-13; awaiting Tom's closure.** Tom commissioned an external
+consistency audit of the whole spike (five independent readers plus
+a test run) and adopted its findings as this slice's review round;
+findings and fixes are in the `result-draft.md` §9 DS-R1 entry. Two
+decisions remain his at closure: the gate-summary marker
+(`status.md` §3 item 6, now with both candidate wordings) and the
+core-slice closure-record gap (marker in `core-handoff.md`).
+Originally presented for review 2026-08-12. Doc-only
 slice per `kickoff-doc-split.md` (adjusted at `6dd3c79b`); unblocked
 by the REG-R1 closure. Commit 1 (`77aee08`) pays the round-four doc
 debt; commit 2 (`087dc56`) creates `status.md` and re-points both
