@@ -1,7 +1,16 @@
 # Slice hand-off: clause registry
 
-Status: **open — awaiting Tom's review (round one).** Coding complete
-2026-08-12; per AGENTS.md the slice ends at review, not at green.
+Status: **closed 2026-08-12 — review round one (REG-R1).** Tom closed
+with no blocking findings, after an independent row-for-row
+reconciliation by the obligation-map audit session (125 map rows
+confirmed; per-section coverage-class distributions exact across all
+27 groups; `OPEN_UNTESTED` matched the set predicted from the map;
+two mutation checks replayed on fresh instances, both failing on the
+intended rule). Four observations REG-R1-F1–F4, dispositions recorded
+in the `result-draft.md` §9 closure entry — including F3: the
+judgment-call-4 candidate collapse of the two tripwire-feed rows is
+**declined** (they are distinct call-site lanes). Coding completed
+2026-08-12; per AGENTS.md the slice ended at review, not at green.
 
 Contract: `clause-registry-design.md` (accepted rev 1, `ce5730d4`).
 Migration source and acceptance oracle: `obligation-map.md` at

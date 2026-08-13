@@ -1309,3 +1309,45 @@ outlives the spike branch; record what exists and where.⟩
   `cargo fmt --check`, and `git diff --check` green. The slice is
   **open pending Tom's review**; four-part hand-off in
   `registry-handoff.md`.
+- 2026-08-12 — **clause-registry review round one closed (REG-R1 — first
+  round under the new finding-ID namespace convention).** Before Tom's
+  review, the obligation-map audit session re-performed the acceptance
+  reconciliation independently of the implementing session: the map's
+  125 rows confirmed by mechanical count; 122 = 125 − 2 − 1 verified;
+  aggregate coverage classes 63/33/14/12 matched; per-section class
+  distributions **exact across all 27 groups** (the check aggregates
+  cannot carry — no silent swap anywhere); cross-ownership tallies
+  reconciled (M8 = 10, C2 = 6, C3 = 5 incl. the M10 fuse row, B8/B10/
+  B13 absorbing their M-section mock rows); `OPEN_UNTESTED`'s 13 ids
+  equal to the set predicted from the map before reading the registry;
+  ~16 entries deep-read including every high-risk row, all faithful.
+  Two mutation checks were replayed on **fresh instances** (an
+  `OPEN_UNTESTED` desync via `m9-headroom-record`; a nonexistent-fn
+  citation on the M13 FIFO test) — each failed on exactly its intended
+  rule; the restored tree ran 135 debug tests green. Tom then closed
+  the round with **no blocking findings**. Four observations,
+  dispositions Tom's, 2026-08-12:
+  **REG-R1-F1** — the map's two `—` rows entered the registry as
+  `Untested` (`m7-threshold-tuning` open, `x2-parser-cap-limitation`
+  accepted); correct, since `Excluded` is structurally U-/O-only, but
+  the transformation was disclosed only through the tallies — recorded
+  here so it is explicit.
+  **REG-R1-F2** — `m7-threshold-tuning` sits in `OPEN_UNTESTED` as an
+  ambiguity (map §8.5 item 3), not test debt; it may resolve by a
+  `scenarios.md` wording decision rather than a test. The open list is
+  13 ids, not thirteen owed tests.
+  **REG-R1-F3** — the hand-off's judgment-call-4 candidate collapse
+  (`m1-probe-429-tripwire-feed` + `m12-tripwire-feed`) is **declined**:
+  the rows are the two distinct feed call sites (`finish_probe` /
+  `finish_ordinary`), and one merged clause could read as discharged
+  after testing only one lane. Two rows keep one line per lane.
+  **REG-R1-F4** — `c4-halt-semantics-shared` stays `Partial` as
+  migrated, with the map's code-not-test citation mismatch recorded in
+  its note (migration finding 1); reclassification is deferred until
+  the latch/feed tests are sequenced.
+  The slice is **closed**; `src/obligations.rs` + `tests/obligations.rs`
+  are now the live coverage authority, and the doc-split slice
+  (`kickoff-doc-split.md`) is unblocked. No code changed in this
+  closure; the review's own suite run (135 debug, green) is the gate
+  evidence, per the bootstrap-closure precedent for comment-level
+  changes.
