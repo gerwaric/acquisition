@@ -1101,8 +1101,10 @@ outlives the spike branch; record what exists and where.⟩
   **Finding 11 resolved.** M10 now runs 300 enqueues against
   `backend-item-request-limit` (Account 30/60s and 100/1800s) with 30
   cancellations spread through the queue rather than taken off one end, plus
-  a caller dropped while dispatched. The policy, not the driver, sets the
-  duration: the run spans 3,963,250 ms ≈ 66 simulated minutes across many
+  a caller dropped while dispatched. **Superseded for current coverage by
+  F8/F10 below:** M10 now exercises explicit dispatched cancellation instead;
+  a dropped dispatched ticket is not currently covered. The policy, not the
+  driver, sets the duration: the run spans 3,963,250 ms ≈ 66 simulated minutes across many
   window rollovers. All five of M10's stated asserts are read directly off
   mock-owned wire evidence or the actor's published status — 270/270 served,
   30/30 cancelled callers resolved as `Cancelled` (an assert the previous
@@ -1203,7 +1205,7 @@ outlives the spike branch; record what exists and where.⟩
   “prompt” and supplies no deadline. Recorded as doc finding 13 for Tom's
   decision; no promptness claim is made. The slice remains **open pending
   re-review**.
-- 2026-08-12 — **F8/F9 re-review findings fixed; awaiting re-review.**
+- 2026-08-12 — **F8–F10 re-review findings fixed; awaiting re-review.**
   **F8:** M10 now first proves the delayed first GET is dispatched from the
   mock's handoff record and published active count, cancels that caller, and
   advances exactly one 25ms tick. It does the same for the 30 cancellations
@@ -1217,5 +1219,8 @@ outlives the spike branch; record what exists and where.⟩
   are independent of the mock's branch/index implementation. Gate matrix
   re-run: `cargo test --locked` (128 debug), `cargo test --locked --release`
   (126 release), all-target clippy with warnings denied, fmt, and `git diff
-  --check` green. The slice remains **open pending re-review**; no verdict
-  slot is filled.
+  --check` green. **F10:** the hand-off's stale claim that M10 still drops a
+  dispatched caller was removed. M10 now covers dispatched cancellation;
+  neither its driver nor a focused actor-shell test covers a dropped
+  dispatched `RequestTicket`, which is stated as an omitted coverage cell.
+  The slice remains **open pending re-review**; no verdict slot is filled.

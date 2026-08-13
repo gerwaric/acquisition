@@ -1,7 +1,7 @@
 # Scenario-driver and judge-integration hand-off
 
 Status: **round-one findings F1–F6, round-two finding F7, round-three
-findings F8–F9, and doc findings 11, 12(a), 12(b), and 13 all fixed
+findings F8–F10, and doc findings 11, 12(a), 12(b), and 13 all fixed
 2026-08-12; awaiting re-review.** The actor-to-judge seam is implemented and
 exercised; this is not a final M-series close because every row is a
 `ContractCoverage::Fragment`. M10 now runs at its stated scale (300
@@ -35,25 +35,29 @@ pins the distances, so the next misreading fails a test.
 | §6 says "whenever a request is *queued* and eligible" but `RequestId` and the wire correlation are independent counters, so submissions cannot be keyed to observations. | Bound eligibility by the latest script submission instant at or before each dispatch — no per-request map needed, and nothing client-reported. | A script that interleaves submissions with in-flight work would need real per-request identity; M10's burst is safe only because its submissions share one instant. |
 | §6 asks G3 to measure the *padded-safe* time but gives no padding arithmetic. | Compute the server's permit instant, and record the residual (the client's N13 padding) rather than widen ε silently or model padding uninstructed. | The next §6 finalization must choose: model padding and tighten ε to ~100ms, or keep ε ≈500ms and state that G3 cannot discriminate below the padding envelope (doc finding 12c). |
 | `scenarios.md` called cancellation “prompt” but named no deadline. | **Resolved by Tom, 2026-08-12:** command ingress completion → caller-visible `Cancelled` within one 25ms simulated harness tick, for queued and dispatched callers alike. | M10 first proves one caller is dispatched from mock handoff/status evidence, then separately cancels that caller and 30 spread queued callers. After each exact 25ms step it polls every ticket once; no await can advance time past the boundary. A delayed command path fails F8 at the boundary, while the dispatched response is driven to reconciliation later. |
-| M10 called for reprioritization but the closed actor only has enqueue/cancel. | Do not fabricate a reorder operation; test pressure, cancellation, and dispatched caller drop only. | **Resolved 2026-08-12:** Tom amended M10 to drop the stimulus (`design-brief.md` scopes reorder out of the spike). No assertion was lost — reprioritization was never in M10's asserts. The next M10 attempt owes scale, not reorder; see CN6 before ever adding one. |
+| M10 called for reprioritization but the closed actor only has enqueue/cancel. | Do not fabricate a reorder operation; test pressure and dispatched cancellation only. | **Resolved 2026-08-12:** Tom amended M10 to drop the stimulus (`design-brief.md` scopes reorder out of the spike). No assertion was lost — reprioritization was never in M10's asserts. The next M10 attempt owes scale, not reorder; see CN6 before ever adding one. A dropped-oneshot lifecycle is distinct and is not exercised by this driver. |
 
 ## 2. Seam map and invariant walk
 
 - The driver owns no policy state: it submits only through `GateHandle`; mock
   handoffs, observations, and state changes feed `RunEvidence`.
-- **No permanent wedge:** the M10 caller-drop path leaves the actor's active
-  reservation to finish normally; the later pressure queue continues to
-  drain. This is now *tested*, not asserted, and at scale: M10 pins 270/270
+- **No permanent wedge:** the M10 dispatched-cancellation path leaves the
+  actor's active reservation to finish normally; the later pressure queue
+  continues to drain. This is now *tested*, not asserted, and at scale: M10
+  pins 270/270
   surviving callers served and all 31 cancelled callers (30 queued plus one
   proven-dispatched) resolved within 25ms
-  of command ingress across a 66-minute run, so a drop that wedged the queue
-  or cancellation behind pacing fails the row. (Round one
-  found this claim resting on `observations.len() >= 2` with every caller
+  of command ingress across a 66-minute run, so cancellation behind pacing
+  fails the row. A dropped `RequestTicket` is a distinct lifecycle: it is
+  not covered by the scenario driver or a focused actor-shell test. (Round
+  one found this claim resting on `observations.len() >= 2` with every caller
   outcome discarded.)
 - **One send, one entry:** every ordinary send still originates from the
   actor's existing `try_reserve` path; the driver never constructs a token.
-- **Pessimism direction:** post-dispatch caller drop detaches only the
-  oneshot, so the wire response still reconciles.
+- **Pessimism direction:** post-dispatch cancellation detaches only the
+  caller, so the wire response still reconciles. The distinct dropped-oneshot
+  behavior remains outside this slice's current driver and focused-test
+  coverage.
 - **Single scheduling authority:** expected G3 eligibility is independent
   script/mock arithmetic; it cannot issue a permit or alter actor timing.
 - **Entry-point invariant:** HEAD/GET observations traverse the actor's
@@ -65,7 +69,7 @@ pins the distances, so the next misreading fails a test.
 
 `tests/scenario_driver.rs` runs M1–M13 through the public actor and judge,
 at φ=0 *and* φ=1 for every row, plus both bucket lanes for M8. It checks
-mock-owned G1/G2/G3/G4/G5/G6 evidence and includes dispatched caller drop.
+mock-owned G1/G2/G3/G4/G5/G6 evidence and includes dispatched cancellation.
 The M-series is green at both corrected phases, so neither F1 nor F7 was
 masking an actor defect — both were defects in what the evidence claimed.
 
@@ -77,6 +81,12 @@ transition exposure, M7 bursty debt, M8 escalation/malformed matrix, M9
 forced race/headroom record, M11
 ceiling sweep, M12 generic 4xx/matrix, and M13's full FIFO/writer-preference
 assertion.
+
+**Dropped-ticket coverage is absent.** Earlier M10 revisions dropped a
+dispatched ticket, but the F8 fix correctly replaced that stimulus with an
+explicit cancellation. Neither this driver nor `tests/actor_shell.rs`
+currently isolates a dropped dispatched `RequestTicket`; do not infer that
+coverage from the cancellation evidence.
 
 Two phases are a baseline, not a claim of phase coverage: they pin the two
 extremes of boundary distance and nothing between them.
