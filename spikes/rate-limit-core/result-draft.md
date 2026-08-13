@@ -1279,3 +1279,33 @@ outlives the spike branch; record what exists and where.⟩
   step change; and review findings F14–F16 (driver twin-guard, duplicated
   floor literal, mirror fallbacks) are unaddressed. The slice remains **open
   pending re-review**; no verdict slot is filled.
+- 2026-08-12 — clause-registry slice landed (design accepted at
+  `ce5730d4`; kickoff `kickoff-registry-slice.md`). `obligation-map.md`
+  migrated row-for-row into `src/obligations.rs` — `CLAUSES`, 122
+  entries, and `OPEN_UNTESTED`, 13 ids — verified by
+  `tests/obligations.rs` (id uniqueness, owner vocabulary,
+  coverage/citation-count consistency with the negative rule on
+  exclusions, source-existence of every cited fn including the
+  `src/` unit modules and proptest-macro properties, Untested
+  disposition strings, exact `OPEN_UNTESTED` match, owner-series
+  reachability). 122 = 125 map rows − 2 collapses (the M5 table's
+  U1 pointer row and the M12 table's U2 pointer row are the U-register
+  entries respelled) − 1 omission (the unowned dropped-dispatched-
+  ticket clause: design §7 item 2 remained undecided, so it is
+  carried as a hand-off finding, not an entry). Coverage classes
+  transcribed from the audit unchanged; one transcription finding
+  recorded in the table itself (`c4-halt-semantics-shared` was
+  "partial" in the map on a code citation only — the registry cites
+  the nearest real test and records the gap in its note). All six
+  design-§5 mutation checks demonstrated to fail on their intended
+  rule (removed citation, nonexistent fn, misspelled file, citation
+  on an exclusion, `OPEN_UNTESTED` desync, duplicate id). The map is
+  marked superseded-by-registry, dated text preserved. Kickoff
+  commit 1 added the finding-ID namespaces subsection to
+  `slice-review.md` §5. Gate matrix: `cargo test --locked` 135
+  debug / 133 release (the 129/127 baseline plus 6 registry tests),
+  `PROPTEST_CASES=4096 cargo test --locked` green (135),
+  `cargo clippy --locked --all-targets -- -D warnings`,
+  `cargo fmt --check`, and `git diff --check` green. The slice is
+  **open pending Tom's review**; four-part hand-off in
+  `registry-handoff.md`.

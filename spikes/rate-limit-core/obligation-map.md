@@ -1,5 +1,16 @@
 # Obligation map: rate-limit-core spike
 
+> **Superseded by the clause registry, 2026-08-12.** Every row below
+> was migrated row-for-row into `src/obligations.rs` (verified by
+> `tests/obligations.rs`); the registry is now the authority for
+> clause ownership, coverage state, and citations, and
+> coverage-state changes are diffs to the registry, not edits here.
+> The dated audit text below is preserved as history — including the
+> §8 discrepancy report, which remains the record of the open
+> findings as of `e2034807`. (Supersession per the `core-design.md`
+> precedent; migration deltas are listed in the registry slice's
+> hand-off.)
+
 Status: audit artifact, 2026-08-12, produced at head `e2034807`
 ("make C3 own the fuse headroom claim"). Audit only — no code, no
 test, and no existing register or evidence text was changed. The
