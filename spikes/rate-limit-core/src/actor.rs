@@ -1117,34 +1117,121 @@ mod tests {
         assert!(sustained.four_xx(now), "C4 trips at 500/min");
     }
 
+    /// C3's spacing-implied legitimate maxima, derived from D5's floor rather
+    /// than copied from the clause being tested: a half-open trailing second
+    /// admits four 250 ms-spaced instants, a half-open trailing minute 240.
+    const FLOOR_BURST_MAXIMUM: usize = 4;
+    const FLOOR_SUSTAINED_MAXIMUM: usize = 240;
+
+    /// Long enough that the sustained clause prunes across several trailing
+    /// minutes instead of filling one.  At the floor these are 6.25 and 3.1
+    /// simulated minutes respectively.
+    const UNIFORM_FLOOR_TRACE_LEN: usize = 1_500;
+    const IRREGULAR_FLOOR_TRACE_LEN: usize = 750;
+
+    /// Independent trailing-window counts over a generated trace, using C3's
+    /// half-open convention — an entry exactly one window old has left it.
+    ///
+    /// Never consults the counter under test.  The trace is ascending, so the
+    /// backward scan stops at the first entry outside the sustained window and
+    /// costs the window's occupancy rather than the whole trace.
+    fn trailing_counts(trace: &[Instant], now: Instant) -> (usize, usize) {
+        let (mut burst, mut sustained) = (0_usize, 0_usize);
+        for &at in trace.iter().rev() {
+            if at <= now - FUSE_SUSTAINED_WINDOW {
+                break;
+            }
+            sustained += 1;
+            if at > now - FUSE_BURST_WINDOW {
+                burst += 1;
+            }
+        }
+        (burst, sustained)
+    }
+
+    /// The worst floor-compliant trace — a uniform cadence exactly at the
+    /// floor — run past several trailing minutes, so the sustained clause is
+    /// exercised at maximum density rather than assumed.
+    ///
+    /// The two equalities are this pin's reachability guard: they fail if the
+    /// trace never reaches steady state, which is how it could go quietly
+    /// vacuous.  C3's headroom claim is exactly this: the legitimate maxima
+    /// sit at 4 of 10 and 240 of 500.
+    #[test]
+    fn c3_floor_compliant_cadence_holds_the_steady_state_maximum() {
+        let start = Instant::now();
+        let mut counters = SafetyCounters {
+            dispatches: VecDeque::new(),
+            four_xx: VecDeque::new(),
+            halted: false,
+        };
+        let mut trace = Vec::new();
+        let (mut peak_burst, mut peak_sustained) = (0_usize, 0_usize);
+        for index in 0..UNIFORM_FLOOR_TRACE_LEN {
+            let now =
+                start + MIN_SEND_SPACING * u32::try_from(index).expect("trace length fits u32");
+            trace.push(now);
+            let (burst, sustained) = trailing_counts(&trace, now);
+            peak_burst = peak_burst.max(burst);
+            peak_sustained = peak_sustained.max(sustained);
+            assert!(
+                !counters.dispatch(now),
+                "a floor-compliant cadence must never trip either clause"
+            );
+        }
+        assert_eq!(peak_burst, FLOOR_BURST_MAXIMUM);
+        assert_eq!(peak_sustained, FLOOR_SUSTAINED_MAXIMUM);
+    }
+
+    /// Mostly at the floor, with occasional pauses and idle stretches, so the
+    /// generated traces are irregular without drifting so sparse that they
+    /// stop pressing on the clauses.
+    fn floor_compliant_extra_gap_ms() -> impl Strategy<Value = u64> {
+        prop_oneof![
+            8 => Just(0_u64),
+            1 => 1_u64..1_000,
+            1 => 1_000_u64..20_000,
+        ]
+    }
+
     proptest! {
+        /// C3's stated property: *no* floor-compliant trace trips either
+        /// clause.  The gaps are generated rather than uniform, so the claim
+        /// covers irregular callers — bursty-then-idle included — and not one
+        /// cadence; `c3_floor_compliant_cadence_holds_the_steady_state_maximum`
+        /// pins the worst case exactly.  Every step of every case asserts, so
+        /// the property cannot pass vacuously.
         #[test]
-        fn c3_floor_compliant_traces_never_trip(length in 1_usize..300) {
+        fn c3_floor_compliant_traces_never_trip(
+            extra_gaps_ms in prop::collection::vec(
+                floor_compliant_extra_gap_ms(),
+                IRREGULAR_FLOOR_TRACE_LEN,
+            ),
+        ) {
             let start = Instant::now();
             let mut counters = SafetyCounters {
                 dispatches: VecDeque::new(),
                 four_xx: VecDeque::new(),
                 halted: false,
             };
-            let mut oracle = Vec::new();
-            for index in 0..length {
-                let now = start + MIN_SEND_SPACING * u32::try_from(index).unwrap();
-                oracle.push(now);
-                let burst = oracle
-                    .iter()
-                    .filter(|&&at| at > now - FUSE_BURST_WINDOW)
-                    .count();
-                let sustained = oracle
-                    .iter()
-                    .filter(|&&at| at > now - FUSE_SUSTAINED_WINDOW)
-                    .count();
+            let mut trace = Vec::new();
+            let mut offset = Duration::ZERO;
+            for extra_ms in extra_gaps_ms {
+                let now = start + offset;
+                trace.push(now);
+                let (burst, sustained) = trailing_counts(&trace, now);
                 // Independent arithmetic over the generated trace, not the
-                // counter under test: a 250 ms floor permits at most four
-                // trailing-half-open sends per second and 240 per minute.
-                prop_assert!(burst <= 4);
-                prop_assert!(sustained <= 240);
+                // counter under test.
+                prop_assert!(burst <= FLOOR_BURST_MAXIMUM);
+                prop_assert!(sustained <= FLOOR_SUSTAINED_MAXIMUM);
                 prop_assert!(!counters.dispatch(now));
+                offset += MIN_SEND_SPACING + Duration::from_millis(extra_ms);
             }
+            // Guards the trace length constant, not the generator: shortening
+            // it below three trailing minutes would silently stop exercising
+            // the pruning this property exists to reach.
+            let span = trace.last().expect("the trace is non-empty").duration_since(start);
+            prop_assert!(span >= FUSE_SUSTAINED_WINDOW * 3, "trace spanned only {span:?}");
         }
     }
 }

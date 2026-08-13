@@ -108,7 +108,7 @@ for.
 |---|---|---|---|
 | C1 | Padding arithmetic safe over all φ | green — full N13 per-window padding uses each explicit Known/Assumed resolution; shared policy history is judged across every rule/window and the maximum required `NotBefore` wins; headroom remains zero | 2026-08-09: `cargo test --locked` in `spikes/rate-limit-core/` — 19 passed, including a generated C1 property over arbitrary histories, multi-rule definitions, and independently generated server phases plus explicit just-before/on/after rollover and zero-headroom/order-statistic cases; focused `PROPTEST_CASES=4096 cargo test --locked --test c1_scheduling every_reserved_outcome_is_safe_for_every_server_phase` green (4,096 cases); independent oracle bucketizes hits on the server phase rather than calling production scheduling arithmetic; `cargo clippy --locked --all-targets -- -D warnings` and `cargo fmt --check` green. No skew sensitivity observed because this slice has no server-clock input; O5 remains out. Audit hardening (2026-08-09, same day): the property now asserts on every generated case — the earlier body was ~97% vacuous (§3 register, item 7) — and the `NotBefore` branch is re-asked and oracle-checked, pinning exactness; re-verified at 4,096 cases |
 | C2 | Header parsing / shape validation | green for the implemented core slice — raw-header parsing, RulePair shape, and frozen response precedence are executable; remapping/shrink remain explicitly out of this slice | 2026-08-09: `cargo test --locked` in `spikes/rate-limit-core/` — 44 passed overall: the 7 parser tests remain green and 15 disposition tests pin Cloudflare-before-parse, malformed/out-of-model-before-429, valid-429 handling, and ordinary/probe outcomes; `cargo clippy --locked --all-targets -- -D warnings` and `cargo fmt --check` green |
-| C3 | Fuse trip logic | green for the implemented actor boundary — exact burst (10/11 + half-open edge), sustained (499/500), and a non-vacuous floor-compliant property are green | 2026-08-12: `actor::tests::{c3_and_x1_fault_injection_pin_burst_and_sustained_boundaries,fuse_uses_the_documented_half_open_boundaries,x1_fault_injection_trips_at_the_actor_transport_boundary,c3_floor_compliant_traces_never_trip}`; the property ran at 4,096 cases with independent timestamp-window arithmetic. |
+| C3 | Fuse trip logic | green for the implemented actor boundary — exact burst (10/11 + half-open edge), sustained (499/500), and the floor-compliant property are green. **This row owns `scenarios.md`'s "never trips on any floor-compliant trace" property, including its headroom claim; M10 owns only the integration instance** (that the actor's own trace is floor-compliant), and the two compose — see the 2026-08-12 round-four changelog entry | 2026-08-12: `actor::tests::{c3_and_x1_fault_injection_pin_burst_and_sustained_boundaries,fuse_uses_the_documented_half_open_boundaries,x1_fault_injection_trips_at_the_actor_transport_boundary,c3_floor_compliant_cadence_holds_the_steady_state_maximum,c3_floor_compliant_traces_never_trip}`. The cadence pin runs 1,500 dispatches (6.25 simulated minutes) uniformly at D5's floor and asserts the trailing-window peaks reach **exactly 4/s and 240/min** — the legitimate maxima, against clause limits of 10 and 500, which is the headroom occupied. The property generates irregular floor-compliant gaps over 750 dispatches (≥3.1 simulated minutes, so the sustained clause prunes across several windows rather than filling one); independent backward-scan window arithmetic, asserting on every step of every case; green at 4,096 cases (21 s focused run). |
 | C4 | 4xx tripwire logic | green for the implemented counter — burst, sustained, and half-open edge boundaries pinned | 2026-08-12: `actor::tests::c4_pins_burst_sustained_and_exact_window_edges` green in debug and release. |
 | C5 | Lifecycle invariants | green — reservation/rollback/unknown-outcome identity and abandonment semantics remain green; raw ordinary responses and tokenless probes still share one count-max/synthetic-history reconciler; unknown confirmation outcomes stay counted; abandonment now covers the confirmation half (a dropped confirmation ages out as a failed attempt instead of wedging the policy — §3 register, item 2) | 2026-08-09: `cargo test --locked` in `spikes/rate-limit-core/` — 44 passed: all prior C1/C5/reconciliation tests remain green, and the disposition suite pins confirmation rollback plus pessimistic unknown retention; focused `PROPTEST_CASES=4096 cargo test --locked --test response_reconciliation` remains green (4,096 cases for each of two generated properties); `cargo clippy --locked --all-targets -- -D warnings` and `cargo fmt --check` green. Audit hardening (2026-08-09, same day): abandoned-confirmation expiry pinned in debug and release; interleaving property extended with observed responses and non-FIFO token resolution (2,048-case focused run); 59 tests total |
 
@@ -1224,3 +1224,58 @@ outlives the spike branch; record what exists and where.⟩
   neither its driver nor a focused actor-shell test covers a dropped
   dispatched `RequestTicket`, which is stated as an omitted coverage cell.
   The slice remains **open pending re-review**; no verdict slot is filled.
+- 2026-08-12 — scenario-driver review round **four**: **the fuse headroom
+  finding was mislocated twice, and C3's property is strengthened.** No
+  driver code changed.
+  **What was claimed.** Doc finding 11's re-scope (`86c60f94`, 15:58) said
+  M10's fuse false-positive assert "was untested" and that the ~2× headroom
+  between the spacing-implied 240/min and the 500/60s clause "is only
+  demonstrated by occupying it" — implying M10 needed a saturation lane.
+  The round-four review then re-filed the same finding, having measured
+  M10's real dispatch rate (peak **31 per 60 s**, 4 per 1 s, over 273
+  dispatches spanning 3,963,500 ms) and concluded nothing exercised the
+  headroom.
+  **Both were wrong, for the same reason.** `scenarios.md` C3 assigns the
+  property — "never trips on any floor-compliant trace" — to **C3**, and
+  carries the headroom in C3's own derivation ("the clause sits at 2× the
+  legitimate maximum"). M10's clause is the *integration instance*: that the
+  trace the actor actually emits under caller pressure is floor-compliant,
+  which its `paced` check measures directly over the whole wire log, with
+  `fuse_quiet` observed alongside. C3 ⊗ M10 ⊗ X1 discharge the clause with
+  nothing left to build. And C3's property had already landed in `e3efb812`
+  at 13:03 — **three hours before** the re-scope that called it untested —
+  reaching steady state at exactly 240/min. The C3 row of the same §3 table
+  said so, 130 lines above the finding. The reviewer's repeat was a `tests/`
+  search that missed a unit test inside `src/actor.rs`.
+  **Process rule added**, since this is a failure mode the guide did not
+  name: `slice-review.md` §1 lesson 4 and §3 step 4 — evidence rows are a
+  seam like slice boundaries are, and before recording that something is
+  untested, look up which scenario or property `scenarios.md` makes
+  responsible for it and read that row.
+  **C3's property strengthened** so its row's wording is literally true.
+  It previously varied only trace *length* over a single uniform cadence,
+  which reached the steady state by construction but tested one shape and
+  stopped at ~75 s. Now split in two: a deterministic cadence pin (1,500
+  dispatches at the floor, 6.25 simulated minutes) asserting the trailing
+  peaks equal exactly 4 and 240 — the equalities are its reachability guard,
+  and they are the headroom claim stated as a measurement; and the property
+  proper, over generated irregular gaps (750 dispatches, ≥3.1 simulated
+  minutes) so the sustained clause prunes across several windows instead of
+  filling one. Both verified by mutation: shortening the cadence trace to
+  100 fails with `left: 100, right: 240`, and putting the generated gaps 1 ms
+  under the floor fails the oracle's `burst <= 4` premise — the fuse itself
+  correctly stays quiet there, which is why the premise, not the clause, is
+  what has to catch it.
+  Gate matrix: `cargo test --locked` (129 debug), `cargo test --locked
+  --release` (127 release), `PROPTEST_CASES=4096 cargo test --locked --lib
+  c3_floor_compliant` green (21 s), all-target clippy with warnings denied,
+  `cargo fmt --all --check`, and `git diff --check` green.
+  **Still open and owed by this round:**
+  finding 11's resolution text still reads as though scaling M10 discharged
+  the fuse assert (it did not — C3 did) and still describes M10 as dropping a
+  dispatched caller, superseded by F10; the §3 M10 row should cite the
+  composition; `AGENTS.md`'s hand-off table still says "rounds one and two";
+  the recorded M10 span 3,963,250 ms measures 3,963,500 ms since the 250→25 ms
+  step change; and review findings F14–F16 (driver twin-guard, duplicated
+  floor literal, mirror fallbacks) are unaddressed. The slice remains **open
+  pending re-review**; no verdict slot is filled.

@@ -29,6 +29,23 @@ tests were real. Every defect came from one of three blind spots:
    A mirror-oracle is green. The design got four review rounds; the
    code got zero until the audit. → Review interrogates what green
    *means*, and no slice ends at green.
+4. **Evidence rows are a seam too** (added 2026-08-12 from the
+   scenario-driver round-four review). Lesson 2 is about seams
+   between *slices*; the same failure happens between *rows of the
+   same evidence table*. Doc finding 11 was re-scoped to say M10's
+   fuse false-positive assert "was untested" and could only be
+   demonstrated by occupying the fuse's headroom in a saturation
+   run. It was already tested: `scenarios.md` assigns that property
+   to **C3** ("never trips on any floor-compliant trace"), not to
+   M10, and C3's row in the same §3 table — 130 lines up, updated
+   three hours earlier the same day — already cited the green
+   property. Two evidence rows contradicted each other and neither
+   author looked at the other. The reviewer then filed the same
+   finding a second time, from a `tests/` grep that missed a test
+   living in a `src/` unit module. → **Before writing "X is
+   untested", find the row that *owns* X and read it.** Ownership
+   is in `scenarios.md`, not in whichever row you happen to be
+   editing.
 
 ## 2. The hand-off (what the implementing session must present)
 
@@ -69,6 +86,11 @@ Budget roughly: 10% happy path, 90% everything else. In order:
    the test that fails if it's wrong. For each property test: what
    makes it non-vacuous, and does the oracle avoid production code?
    For each bound: is the boundary itself pinned (n and n+1)?
+   Before recording that something is *untested*, look up which
+   scenario or property `scenarios.md` makes responsible for it and
+   read that row's evidence — including unit tests inside `src/`,
+   which a `tests/` search will not find (lesson 4). A claim owned
+   by C-series or X-series is not M-series' to re-prove.
 5. **Invariants walk.** Read the session's six one-liners (§2 item
    2) skeptically; spot-check one with the code open.
 6. **Grep-level red flags** (each caught a real defect or is the
