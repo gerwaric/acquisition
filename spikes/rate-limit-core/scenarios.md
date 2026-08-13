@@ -229,6 +229,16 @@ status published on the watch channel; **at most one request ever
 sent under an unknown shape**; other policies keep flowing.
 Cites: N5, N9, N20 (transient-server-bug premise).
 
+> **Amendment (Tom), 2026-08-13 (ballot pass)** — the one-triplet
+> branch is the actor-exercised representative of the
+> unexpected-shape family: C2 types both shapes
+> (`rejects_non_pair_shapes`) and both cross the wire as raw headers
+> (`b1_b7_m4_synthetic_one_and_three_window_policies_cross_as_raw_headers`);
+> the actor consumes the same typed parse error for each.
+> Pending-caller draining is discharged by the shared D4 drain path
+> (`degraded_probe_cools_the_endpoint_and_errors_parked_callers`,
+> `remap_then_malformed_response_drains_queued_callers_for_the_current_policy`).
+
 **M5. Policy rename mid-session (reactive remap).** [phase-swept]
 Mid-scenario, responses start carrying a new `X-Rate-Limit-Policy`
 name (N5, N9). Asserts: client remaps the endpoint and
@@ -371,6 +381,14 @@ published, pending errored. Cites: N1, N2, N3, N4, P-B.
 > sweep is its named binding evidence — the same composition pattern
 > as G3's M2/M10.
 
+> **Amendment (Tom), 2026-08-13 (ballot pass)** — halt-time
+> draining of pending callers is discharged by composition: the halt
+> path errors the pending caller and publishes
+> (`cloudflare_shaped_response_halts_the_gate_and_publishes_status`);
+> the shared refusal path drains a queue
+> (`remap_then_malformed_response_drains_queued_callers_for_the_current_policy`);
+> both traverse the same drain loop.
+
 **M12. 4xx-tripwire obligations.** [phase-independent]
 The mock models the client's documented obligations, not the
 server's opaque threshold. Injected 401: zero retries. Injected
@@ -378,6 +396,13 @@ generic 4xx: no retry loop. 429: at-most-one-retry-then-escalate
 (M8's ladder). All 4xx responses feed the tripwire counter
 (trip logic itself is C4). Server-side restriction behavior is U2.
 Cites: the 4xx-budget candidate claim (DOC lane), N10.
+
+> **Amendment (Tom), 2026-08-13 (ballot pass)** — the generic-4xx
+> no-retry-loop clause is discharged by composition: disposition
+> totality is core-pinned
+> (`generic_4xx_with_valid_headers_completes_and_reconciles`; 429
+> alone yields `Requeue`) and the M12 driver arm demonstrates a
+> wire-level 4xx completing with exactly one GET.
 
 **M13. Gate structure on the wire.** [phase-independent]
 Makes the addendum's gate definition executable from the mock's
@@ -501,6 +526,13 @@ a head start before runs are spent on it.
 **U4. Real layer-1 rules.** Deliberately uncharacterized (N4
 strategy); M11's ceiling number sits in the inferred lane.
 
+**U5. Headroom instrumentation** (added 2026-08-13, ballot pass).
+M9's "records what nonzero headroom would have bought per
+contention level" is characterization for the headroom-zero
+decision (§6, decided 2026-08-09, reconciliation log), not
+conformance: no gate consumes the record. Declared untested and
+unbuilt; carried like U1–U4 into the scoped conclusion.
+
 ---
 
 ## §6. Pass/fail criteria (agenda item 2 — headroom-free)
@@ -589,6 +621,13 @@ no headroom term anywhere.
   (seed, φ) mandatory for swept and property-generated tests;
   optional for phase-independent and structural checks, which may
   have neither (external review F8).
+
+  > **Amendment (Tom), 2026-08-13 (ballot pass)** — G6's
+  > enforcement locus is the judge's hard-error path: a missing
+  > reproduction record aborts evaluation before any gate table
+  > exists (`evidence_cannot_pass_vacuously`;
+  > `ReproductionMismatch` is structural). The G6 gate row reports
+  > record-keeping the hard-error path has already enforced.
 
 Verdict scoping (§1): G1–G6 over the four OAuth policies support
 the unconditional verdict; the same gates over

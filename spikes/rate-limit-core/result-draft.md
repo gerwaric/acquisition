@@ -42,9 +42,13 @@ Two lanes, per the bucket-knowledge split (`scenarios.md` §1).
 Prerequisites for **either** verdict slot (external review round 3
 — explicit, so a green G-table alone can never justify a verdict):
 M1–M13 with G1–G6 green over the lane's policies, **and** C1–C5
-green, **and** X1–X2 green, with U1–U4 carried into the scoped
+green, **and** X1–X2 green, with U1–U5 carried into the scoped
 conclusion. X2 is load-bearing, not auxiliary: "single serialized
-gate" is part of the register question itself.
+gate" is part of the register question itself. The SHELL-owned
+dropped-ticket clause (adopted 2026-08-13) counts among the
+verdict prerequisites: both verdict slots require it `Full`,
+alongside X1–X2 (amended 2026-08-13, ballot pass — SHELL
+previously appeared in no prerequisite lane).
 
 - **Unconditional** — the four OAuth policies, bucket resolution
   `Known(5s/60s)` (N12): ⟨verdict; requires the prerequisites
@@ -54,9 +58,10 @@ gate" is part of the register question itself.
   upper bound): ⟨verdict, stated *with* its assumption; same
   prerequisites, conditional lane⟩
 
-G3 (ε = 500 ms) and G4 (1.05×) are draft numbers; they must be
-finalized (`scenarios.md` §6 revisit rule) before either verdict
-slot is filled.
+G3 (ε = 500 ms) and G4 (1.05×) were finalized 2026-08-13
+(`scenarios.md` §6 amendments), satisfying the finalization
+prerequisite this paragraph previously stated for the verdict
+slots.
 
 ## §2. How to read the evidence
 
@@ -1717,4 +1722,24 @@ outlives the spike branch; record what exists and where.⟩
   F14–F16, the G3 ε decision (already final), the §7.4 replay.
   Gate evidence: `cargo test --locked` 135 debug green (incl. the
   six registry structural checks), `cargo fmt --all --check`,
+  all-target clippy clean, `git diff --check` clean.
+- 2026-08-13 — **ballot-pass amendments approved by Tom as-is and
+  applied** (status.md §3 item 1 closed same-day). Landed: the five
+  `scenarios.md` amendment blocks (M4 representative + D4-drain
+  composition, M11 halt-drain composition, M12 generic-4xx
+  composition, G6 enforcement locus, the U5
+  headroom-instrumentation exclusion) and the §1 SHELL-prerequisite
+  sentence (this document; §1's exclusion carry widened U1–U4 →
+  U1–U5, and its stale "draft numbers" paragraph updated to the
+  2026-08-13 finalization fact). Registry: six rows flipped
+  Partial→Full by composition (`m4-scoped-clean-failure`,
+  `m4-pending-errored`, `m4-at-most-one-request`,
+  `m11-pending-errored` and `m12-generic-4xx-no-retry-loop` with
+  composition citations added, `g6-reproduction-records`);
+  `m9-headroom-record` re-owned M9→U5 and flipped
+  Untested→Excluded, leaving **`OPEN_UNTESTED` = 13**; the owner
+  vocabulary grew U to 5 in `tests/obligations.rs`. Registry after:
+  122 clauses — 70 Full / 25 Partial / 14 Untested (13 open + the
+  accepted X2 parser-cap limitation) / 13 Excluded. Gate evidence:
+  `cargo test --locked` 135 debug green, `cargo fmt --all --check`,
   all-target clippy clean, `git diff --check` clean.

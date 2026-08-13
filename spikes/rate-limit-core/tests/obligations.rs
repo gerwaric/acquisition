@@ -25,8 +25,9 @@ const OPEN_DISPOSITION: &str = "open — flagged for Tom";
 const ACCEPTED_DISPOSITION: &str = "accepted —";
 
 /// The full owner vocabulary: M1–M13, C1–C5, X1–X2, G1–G6, B1–B14,
-/// U1–U4, O1–O8. Generated, not listed, so a typo cannot silently
-/// shrink it.
+/// U1–U5, O1–O8. Generated, not listed, so a typo cannot silently
+/// shrink it. (U grew to 5 at the 2026-08-13 ballot pass: the U5
+/// headroom-instrumentation exclusion.)
 fn known_owners() -> BTreeSet<String> {
     let series: [(&str, u32); 7] = [
         ("M", 13),
@@ -34,7 +35,7 @@ fn known_owners() -> BTreeSet<String> {
         ("X", 2),
         ("G", 6),
         ("B", 14),
-        ("U", 4),
+        ("U", 5),
         ("O", 8),
     ];
     let mut owners: BTreeSet<String> = series

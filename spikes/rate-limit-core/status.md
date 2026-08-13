@@ -29,10 +29,12 @@ prose, per the registry's coverage confession
 limits, though that hand-off is otherwise historical).
 
 The open-untested list is the `OPEN_UNTESTED` constant in
-`src/obligations.rs` — **not** any prose table. As of 2026-08-13 it
-holds 14 ids, each a genuinely owed test (the one ambiguity id,
-`m7-threshold-tuning`, resolved by wording and was removed;
-`c4-halt-semantics-shared` demoted honestly — decisions 4 and 5). `obligation-map.md` is the
+`src/obligations.rs` — **not** any prose table. As of 2026-08-13
+(post ballot pass) it holds 13 ids, each a genuinely owed test
+(`m9-headroom-record` left the list by demotion to the U5
+exclusion; earlier the same day `m7-threshold-tuning` resolved by
+wording and `c4-halt-semantics-shared` was demoted honestly —
+decisions 4 and 5). `obligation-map.md` is the
 superseded prose ancestor; read its §8 for the audit's discrepancy
 analysis (dated at `e2034807`), never for current coverage.
 
@@ -55,20 +57,14 @@ analysis (dated at `e2034807`), never for current coverage.
 
 ## 3. Open decisions (Tom)
 
-1. **Approve the ballot-pass amendment drafts** (2026-08-13). The
-   coverage ballot's AMEND/DEMOTE dispositions are approved in
-   principle; the amendment *wording* (six blocks: M4 composition,
-   M11 deep-queue composition, M12 generic-4xx composition, G6
-   enforcement locus, the U5 headroom-instrumentation entry, and
-   the §1 SHELL-prerequisite sentence) awaits Tom's approval per
-   the amendment principle. Full drafts: the `result-draft.md` §9
-   ballot-pass entry. On approval, seven registry entries flip
-   (six Partial→Full by composition; `m9-headroom-record` →
-   Excluded under U5, leaving `OPEN_UNTESTED` at 13).
-
-The 2026-08-13 decisions pass resolved all six prior standing
-items (full dispositions: the `result-draft.md` §9 decisions-pass
-entry). A new decision gets a numbered item here.
+**None.** The 2026-08-13 ballot-pass amendment drafts were
+approved by Tom as-is the same day and are applied: five
+`scenarios.md` amendment blocks (M4, M11, M12, G6, U5), the
+`result-draft.md` §1 SHELL-prerequisite sentence, and the seven
+registry flips. Earlier the same day the decisions pass resolved
+all six prior standing items (full dispositions: the
+`result-draft.md` §9 entries). A new decision gets a numbered
+item here.
 
 ## 4. Blocked
 
@@ -126,11 +122,9 @@ item below names the clauses it discharges.
      (drop-after-dispatch test per its note);
      `g5-scenario-assertions` (unauthorized-refusal teeth);
      `b1-header-protocol` (organic-429 Retry-After wire assert).
-3. Registry flips gated on §3 item 1 (six AMEND rows → Full by
-   composition; `m9-headroom-record` → Excluded/U5).
-4. §7.4 capture replay, when unblocked (also retires
+3. §7.4 capture replay, when unblocked (also retires
    `b12-scripted-delay`'s 50 ms placeholder confession).
-5. Verdict slots last — the full-contract run (which also finishes
+4. Verdict slots last — the full-contract run (which also finishes
    the fragment-scale-only partials: `m6-g1-post-announcement`,
    `m6-queue-drains-new-pace`, `m7-no-client-violation`,
    `m8-no-follow-on-violation`, `g1-zero-client-violations`,

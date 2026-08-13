@@ -83,7 +83,6 @@ pub const OPEN_UNTESTED: &[&str] = &[
     "m5-stale-window-exposure",
     "m6-preannouncement-exposure",
     "m8-b12-timing-script",
-    "m9-headroom-record",
     "m12-tripwire-feed",
     "c3-trip-latched",
     "c4-halt-semantics-shared",
@@ -413,20 +412,23 @@ pub const CLAUSES: &[Clause] = &[
         owner: "M4",
         text: "Scoped per-policy clean failure (D4-style), not app abort \
                (scenarios.md:213)",
-        coverage: Coverage::Partial,
+        coverage: Coverage::Full,
         citations: &[Citation {
             file: DRIVER,
             test_fn: DRIVER_FN,
             must_assert: "M4 arm: SetupFailed, no abort",
         }],
-        note: "One-triplet branch only",
+        note: "Full per the 2026-08-13 ballot amendment (scenarios.md M4): \
+               the one-triplet branch is the actor-exercised representative; \
+               both shapes typed and wire-crossed under \
+               m4-unexpected-shape-typed's citations",
     },
     Clause {
         id: "m4-pending-errored",
         owner: "M4",
         text: "Pending requests errored to callers via the shared D4 drain \
                path (scenarios.md:213)",
-        coverage: Coverage::Partial,
+        coverage: Coverage::Full,
         citations: &[
             Citation {
                 file: "tests/actor_shell.rs",
@@ -439,7 +441,10 @@ pub const CLAUSES: &[Clause] = &[
                 must_assert: "queued callers drain via the shared refusal path",
             },
         ],
-        note: "Not exercised with an M4-shaped trigger and a queue behind it",
+        note: "Full per the 2026-08-13 ballot amendment (scenarios.md M4): \
+               discharged by the shared D4 drain path — cooldown and \
+               refusal-drain cited; M4 trigger provenance pinned by C2's \
+               typing tests",
     },
     Clause {
         id: "m4-watch-status-published",
@@ -457,13 +462,14 @@ pub const CLAUSES: &[Clause] = &[
         owner: "M4",
         text: "At most one request ever sent under an unknown shape \
                (scenarios.md:213)",
-        coverage: Coverage::Partial,
+        coverage: Coverage::Full,
         citations: &[Citation {
             file: DRIVER,
             test_fn: DRIVER_FN,
             must_assert: "M4 arm: observations.len() == 1",
         }],
-        note: "One-triplet branch",
+        note: "Full per the 2026-08-13 ballot amendment (scenarios.md M4): \
+               one-triplet branch as the actor-exercised representative",
     },
     Clause {
         id: "m4-other-policies-flowing",
@@ -866,15 +872,17 @@ pub const CLAUSES: &[Clause] = &[
     },
     Clause {
         id: "m9-headroom-record",
-        owner: "M9",
+        owner: "U5",
         text: "Records what nonzero headroom would have bought per contention \
-               level (scenarios.md:283, :289)",
-        coverage: Coverage::Untested,
+               level — demoted to the U5 exclusion 2026-08-13 (ballot pass): \
+               characterization for the settled headroom-zero decision, not \
+               conformance (scenarios.md:283, :289, U5)",
+        coverage: Coverage::Excluded,
         citations: &[],
-        note: "No instrument exists anywhere; the headroom-zero decision's \
-               evidence base is unstarted (map §8.1 item 3) — the only \
-               M-series clause whose output is data, and nothing will produce \
-               it incidentally. open — flagged for Tom",
+        note: "Exclusion adopted at the 2026-08-13 ballot pass (scenarios.md \
+               U5): no gate consumes the record; instrument unbuilt and \
+               declared so. Pre-demotion state: no instrument existed \
+               anywhere (map §8.1 item 3)",
     },
     Clause {
         id: "m9-race-exposure-attribution",
@@ -1125,13 +1133,28 @@ pub const CLAUSES: &[Clause] = &[
         id: "m11-pending-errored",
         owner: "M11",
         text: "Pending errored (scenarios.md:333)",
-        coverage: Coverage::Partial,
-        citations: &[Citation {
-            file: DRIVER,
-            test_fn: DRIVER_FN,
-            must_assert: "M11 arm: the one pending caller errored",
-        }],
-        note: "No test halts with a deep queue behind the halt",
+        coverage: Coverage::Full,
+        citations: &[
+            Citation {
+                file: DRIVER,
+                test_fn: DRIVER_FN,
+                must_assert: "M11 arm: the one pending caller errored",
+            },
+            Citation {
+                file: "tests/actor_shell.rs",
+                test_fn: "cloudflare_shaped_response_halts_the_gate_and_publishes_status",
+                must_assert: "the halt path errors the pending caller and \
+                              publishes",
+            },
+            Citation {
+                file: "tests/actor_shell.rs",
+                test_fn: "remap_then_malformed_response_drains_queued_callers_for_the_current_policy",
+                must_assert: "the shared refusal path drains a queue",
+            },
+        ],
+        note: "Full per the 2026-08-13 ballot amendment (scenarios.md M11): \
+               halt-time draining discharged by composition — both cited \
+               paths traverse the same drain loop",
     },
     // ── M12 — 4xx-tripwire obligations (scenarios.md:347) ────────
     Clause {
@@ -1159,14 +1182,24 @@ pub const CLAUSES: &[Clause] = &[
         owner: "M12",
         text: "Generic 4xx: no retry loop; disposition core-owned \
                (scenarios.md:347)",
-        coverage: Coverage::Partial,
-        citations: &[Citation {
-            file: "tests/response_disposition.rs",
-            test_fn: "generic_4xx_with_valid_headers_completes_and_reconciles",
-            must_assert: "generic 4xx completes and reconciles; only 429 \
-                          yields Requeue",
-        }],
-        note: "Core-complete; no wire-level generic-4xx run",
+        coverage: Coverage::Full,
+        citations: &[
+            Citation {
+                file: "tests/response_disposition.rs",
+                test_fn: "generic_4xx_with_valid_headers_completes_and_reconciles",
+                must_assert: "generic 4xx completes and reconciles; only 429 \
+                              yields Requeue",
+            },
+            Citation {
+                file: DRIVER,
+                test_fn: DRIVER_FN,
+                must_assert: "M12 arm: a wire-level 4xx completes with \
+                              exactly 1 GET",
+            },
+        ],
+        note: "Full per the 2026-08-13 ballot amendment (scenarios.md M12): \
+               core disposition totality + the M12 driver arm's wire-level \
+               4xx compose",
     },
     Clause {
         id: "m12-429-single-retry-ladder",
@@ -1908,7 +1941,7 @@ pub const CLAUSES: &[Clause] = &[
         owner: "G6",
         text: "Reproduction record for every failure; (seed, φ) mandatory \
                where swept (scenarios.md:537)",
-        coverage: Coverage::Partial,
+        coverage: Coverage::Full,
         citations: &[
             Citation {
                 file: "tests/conformance_harness.rs",
@@ -1926,10 +1959,12 @@ pub const CLAUSES: &[Clause] = &[
                 must_assert: "the driver records (seed, φ) per swept row",
             },
         ],
-        note: "Real enforcement is the judge's hard-error path \
-               (MissingReproductionRecord / ReproductionMismatch); the G6 \
-               GateResult itself is structurally vacuous — it can never be \
-               passed: false — map §8.3 item 3",
+        note: "Full per the 2026-08-13 ballot amendment (scenarios.md §6 \
+               G6): the enforcement locus is the judge's hard-error path \
+               (MissingReproductionRecord / ReproductionMismatch), which the \
+               citations pin; the G6 GateResult reports record-keeping that \
+               path has already enforced (it is never passed: false — map \
+               §8.3 item 3, accepted by the amendment)",
     },
     // ── B1–B14 mock fidelity budget (scenarios.md:612, §7.2) ─────
     Clause {
