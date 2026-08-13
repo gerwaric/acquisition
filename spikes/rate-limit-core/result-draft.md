@@ -1538,10 +1538,12 @@ outlives the spike branch; record what exists and where.⟩
   gate-summary marker choice (§3 item 6) and the core
   closure-record gap. F14–F16 substance is the entry above; their
   code fixes stay the driver slice's debt — no driver code changed.
-  `scenarios.md` untouched per its authorship rule: two dated
-  addenda (the M10 amendment's stale "real remaining gap" clause;
-  §6's pre-implementation G3/G4 revisit notes) are drafted for Tom
-  in the review conversation, not applied.
+  `scenarios.md` untouched in the round's own commit per its
+  authorship rule: two dated addenda (the M10 amendment's stale
+  "real remaining gap" clause; §6's pre-implementation G3/G4 revisit
+  notes) were drafted for Tom in the review conversation. Tom
+  approved his reworded versions the same day; they are applied, as
+  his amendments, in the follow-up commit.
   Gate matrix re-run 2026-08-13: `cargo test --locked` 135 debug /
   133 release, `PROPTEST_CASES=4096` green (135), all-target clippy
   with warnings denied, `cargo fmt --all --check`, and

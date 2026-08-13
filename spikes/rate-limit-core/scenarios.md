@@ -319,6 +319,13 @@ N2, N4.
 > ever added, D5's "FIFO — no lane starvation" clause and M13's FIFO
 > assertion both need restating first; see CN6.
 
+> **Amendment (Tom), 2026-08-13:** the sentence "that scaling is
+> unblocked and is the real remaining gap" described the state before
+> the driver's round-three fix; M10 has since run at its stated scale
+> (300 enqueues, 66 simulated minutes — driver register). What remains
+> open against M10 is tracked in `status.md` and the clause registry,
+> not here.
+
 > **Amended by Tom, 2026-08-12 — prompt cancellation bound.** “Prompt” means
 > that, once `RequestTicket::cancel()` has completed command ingress, the
 > caller receives `Cancelled` within **25 ms simulated time** — one harness
@@ -521,6 +528,14 @@ no headroom term anywhere.
   ≤ **1.05×** the theoretical padded minimum for its queue depth
   and policy (harness-computed, full N13 padding, spacing floor
   included). *Draft multiplier, same revisit rule as G3.*
+
+  > **Amendment (Tom), 2026-08-13** — covers the G3 and G4 draft
+  > notes: the "tighten after the first implementation lands"
+  > trigger has fired — the implementation landed 2026-08-12 and the
+  > measurements exist. The finalization question is doc finding
+  > 12(c) (`status.md` §3 item 1); G4's multiplier is revisited in
+  > the same §6 pass, per its own note. Finalizing §6 remains a
+  > prerequisite for every verdict slot (`result-draft.md` §1).
 - **G5 — scenario-level assertions.** Every scenario's own
   assertions pass — the injected-stimulus ones (M8 retry timing,
   M8 escalation, M11b halt, M12 obligations, M3/M4 clean-failure
