@@ -1643,3 +1643,78 @@ outlives the spike branch; record what exists and where.⟩
   test --locked` 135 debug / 133 release, `PROPTEST_CASES=4096`
   green (135), all-target clippy with warnings denied,
   `cargo fmt --all --check`, and `git diff --check` green.
+- 2026-08-13 — **coverage ballot pass (Tom, with the auditor):
+  every non-Full registry clause balloted and marked.** One row per
+  clause: the 14 `OPEN_UNTESTED` ids plus the 32 `Partial` entries
+  (46 rows; counts machine-verified against `src/obligations.rs`).
+  Tom marked all rows as recommended: **38 BLOCK, 7 AMEND,
+  1 DEMOTE**. The 38 BLOCKs collapse onto the lettered work items
+  A–I plus five singles and the full-contract run — `status.md` §5
+  is rewritten as that closed list (entries leave by discharge or
+  approved amendment; new obligations require a failing test or a
+  §3 decision). Complexity constraint adopted with the ballot: the
+  list is final scope for the spike.
+  **Applied immediately** (settled decisions, no new wording):
+  `m2-state-tracks-post-increment` re-owned M2→B4 and flipped
+  Partial→Full (decisions-pass amendment, `scenarios.md:209` — the
+  registry had never been flipped to match);
+  `m11-compliant-never-trips` re-owned M11→G2, stays Partial with
+  the M11a sweep as G2's named binding evidence
+  (`scenarios.md:369`); stale-note sweep applying the decisions
+  pass to six registry strings (ε-final in the G3 note, the
+  m2-g3-g4-bounds note and its must_assert, "harness-computed" in
+  the G4 note, per-endpoint boot in the M1 note, exact-500 in the
+  C3 sustained text).
+  **Drafted, pending Tom's wording approval (`status.md` §3
+  item 1)** — on approval six rows flip Partial→Full by composition
+  and `m9-headroom-record` flips to Excluded, `OPEN_UNTESTED` 14→13:
+  **(a) M4 row** (covers `m4-scoped-clean-failure`,
+  `m4-at-most-one-request`, `m4-pending-errored`): "The one-triplet
+  branch is the actor-exercised representative of the
+  unexpected-shape family: C2 types both shapes
+  (`rejects_non_pair_shapes`) and both cross the wire as raw headers
+  (`b1_b7_m4_synthetic_one_and_three_window_policies_cross_as_raw_headers`);
+  the actor consumes the same typed parse error for each.
+  Pending-caller draining is discharged by the shared D4 drain path
+  (`degraded_probe_cools_the_endpoint_and_errors_parked_callers`,
+  `remap_then_malformed_response_drains_queued_callers_for_the_current_policy`)."
+  **(b) M11 row** (`m11-pending-errored`): "Halt-time draining of
+  pending callers is discharged by composition: the halt path errors
+  the pending caller and publishes
+  (`cloudflare_shaped_response_halts_the_gate_and_publishes_status`);
+  the shared refusal path drains a queue
+  (`remap_then_malformed_response_drains_queued_callers_for_the_current_policy`);
+  both traverse the same drain loop."
+  **(c) M12 row** (`m12-generic-4xx-no-retry-loop`): "The
+  generic-4xx no-retry-loop clause is discharged by composition:
+  disposition totality is core-pinned
+  (`generic_4xx_with_valid_headers_completes_and_reconciles`; 429
+  alone yields Requeue) and the M12 driver arm demonstrates a
+  wire-level 4xx completing with exactly one GET."
+  **(d) G6** (`g6-reproduction-records`): "G6's enforcement locus is
+  the judge's hard-error path: a missing reproduction record aborts
+  evaluation before any gate table exists
+  (`evidence_cannot_pass_vacuously`; `ReproductionMismatch` is
+  structural). The G6 gate row reports record-keeping the hard-error
+  path has already enforced."
+  **(e) U5 entry** (demotes `m9-headroom-record`; joins U1–U4 at
+  `scenarios.md` §5's U block): "U5. Headroom instrumentation
+  (added 2026-08-13, ballot pass). M9's 'records what nonzero
+  headroom would have bought per contention level' is
+  characterization for the headroom-zero decision (§6, decided
+  2026-08-09, reconciliation log), not conformance: no gate consumes
+  the record. Declared untested and unbuilt; carried like U1–U4
+  into the scoped conclusion."
+  **(f) §1 sentence** (this document, closing the ballot's SHELL
+  finding — SHELL appears in no prerequisite lane): "The SHELL-owned
+  dropped-ticket clause (adopted 2026-08-13) counts among the
+  verdict prerequisites: both verdict slots require it `Full`,
+  alongside X1–X2."
+  Ballot findings recorded: the SHELL/§1 enumeration gap (draft f);
+  `x2-parser-cap-limitation` sits on neither ballot list
+  (Untested-but-accepted) — noted so its absence reads as a
+  decision, not an oversight. Out of ballot scope by charter:
+  F14–F16, the G3 ε decision (already final), the §7.4 replay.
+  Gate evidence: `cargo test --locked` 135 debug green (incl. the
+  six registry structural checks), `cargo fmt --all --check`,
+  all-target clippy clean, `git diff --check` clean.

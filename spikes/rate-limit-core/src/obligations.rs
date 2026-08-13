@@ -114,8 +114,11 @@ pub const CLAUSES: &[Clause] = &[
                 must_assert: "probe and GET share the actor gate with distinct wire ids",
             },
         ],
-        note: "One endpoint only; multi-endpoint boot serialization untested \
-               (map ambiguity §8.5 item 6: per-endpoint vs globally serialized)",
+        note: "One endpoint only; the 2026-08-13 amendment \
+               (scenarios.md:198) binds boot serialization per endpoint \
+               (global HEAD exclusivity is M13's). Delta: second-endpoint \
+               boot discipline unexercised — rides the M3/M4 two-endpoint \
+               rig (2026-08-13 ballot, work item B)",
     },
     Clause {
         id: "m1-head-does-not-count",
@@ -263,10 +266,11 @@ pub const CLAUSES: &[Clause] = &[
     },
     Clause {
         id: "m2-state-tracks-post-increment",
-        owner: "M2",
-        text: "State tracks 1:1 post-increment (N25); mock emission is B4, \
-               client identity is C5/reconciliation (scenarios.md:197, :202)",
-        coverage: Coverage::Partial,
+        owner: "B4",
+        text: "State tracks 1:1 post-increment (N25) — the mock's fidelity \
+               obligation, owned by B4 per the 2026-08-13 amendment; client \
+               identity is C5/reconciliation (scenarios.md:197, :209)",
+        coverage: Coverage::Full,
         citations: &[
             Citation {
                 file: "tests/mock_fidelity.rs",
@@ -280,8 +284,11 @@ pub const CLAUSES: &[Clause] = &[
                               double-counted on reconciliation",
             },
         ],
-        note: "Both halves proven separately; no wire assert compares them in \
-               a run (map ambiguity §8.5 item 4)",
+        note: "Re-owned M2→B4 and flipped Full at the 2026-08-13 ballot \
+               pass, applying the decisions-pass amendment \
+               (scenarios.md:209): no client-side counter instrument owed; \
+               the cited B4 emission and reconciliation-identity tests \
+               discharge the clause at scope",
     },
     Clause {
         id: "m2-g3-g4-bounds",
@@ -292,11 +299,12 @@ pub const CLAUSES: &[Clause] = &[
         citations: &[Citation {
             file: DRIVER,
             test_fn: DRIVER_FN,
-            must_assert: "M2 judged at draft ε=500 / 1.05×; minimum = \
-                          hardcoded 2,550 ms",
+            must_assert: "M2 judged at ε=500 / 1.05× (final 2026-08-13); \
+                          minimum = hardcoded 2,550 ms",
         }],
         note: "G4's N13-padding term has never been non-zero in a judged run \
-               (map §8.3 item 4); ε undecided (doc finding 12c)",
+               (map §8.3 item 4); ε final at 500 ms (2026-08-13, \
+               scenarios.md:562)",
     },
     // ── M3 — degraded HEAD (scenarios.md:205) ────────────────────
     Clause {
@@ -1046,10 +1054,10 @@ pub const CLAUSES: &[Clause] = &[
     },
     Clause {
         id: "m11-compliant-never-trips",
-        owner: "M11",
-        text: "Compliant client never trips either ceiling; allocation \
-               between M11a's sweep and G2-armed-everywhere is ambiguous \
-               (map §8.5 item 2) (scenarios.md:333, :341)",
+        owner: "G2",
+        text: "Compliant client never trips either ceiling; G2 owns the \
+               property, M11a's sweep is its named binding evidence \
+               (2026-08-13 amendment) (scenarios.md:333, :369)",
         coverage: Coverage::Partial,
         citations: &[Citation {
             file: DRIVER,
@@ -1057,9 +1065,11 @@ pub const CLAUSES: &[Clause] = &[
             must_assert: "G2 judged green in every fragment run, including \
                           M10's 66-minute run at both φ",
         }],
-        note: "Substantial standing evidence via G2; M11a's dedicated sweep \
-               pending; needs an ownership sentence either way (map §8.5 \
-               item 2)",
+        note: "Re-owned M11→G2 at the 2026-08-13 ballot pass, applying the \
+               decisions-pass amendment (scenarios.md:369). Substantial \
+               standing evidence via G2 in every judged run; delta: M11a's \
+               dedicated near-ceiling sweep, the amendment's named binding \
+               evidence (the composition pattern of G3's M2/M10)",
     },
     Clause {
         id: "m11-cloudflare-terminal",
@@ -1488,9 +1498,8 @@ pub const CLAUSES: &[Clause] = &[
     Clause {
         id: "c3-sustained-threshold",
         owner: "C3",
-        text: "Sustained never fires below 500/min (scenarios.md:385, :392 — \
-               the contract's \"~500\" vs the exact pin is map ambiguity \
-               §8.5 item 7)",
+        text: "Sustained never fires below 500/min — pinned exactly 500 by \
+               the 2026-08-13 decisions pass (scenarios.md:385, :392)",
         coverage: Coverage::Full,
         citations: &[Citation {
             file: "src/actor.rs",
@@ -1843,9 +1852,10 @@ pub const CLAUSES: &[Clause] = &[
                               intervals",
             },
         ],
-        note: "ε = 500 is an unmodelled-padding allowance, not slop — doc \
-               finding 12(c), Tom's decision; \"padded-safe time\" is the \
-               live ambiguity instance (map §8.5 item 1)",
+        note: "ε = 500 ms final (2026-08-13, scenarios.md:562): an \
+               unmodelled-padding allowance, not slop; the oracle stays \
+               padding-independent. Delta: fragment scale — finished by \
+               the full-contract run",
     },
     Clause {
         id: "g4-m2-duration-bound",
@@ -1866,8 +1876,8 @@ pub const CLAUSES: &[Clause] = &[
         ],
         note: "The padding term has never been non-zero in a judged run — map \
                §8.3 item 4; when M2's saturation depth lands, the literal \
-               must become real arithmetic (\"harness-computed\" ambiguity, \
-               map §8.5 item 5)",
+               must become runtime arithmetic per the 2026-08-13 amendment \
+               (scenarios.md:571: a precomputed literal does not qualify)",
     },
     Clause {
         id: "g5-scenario-assertions",

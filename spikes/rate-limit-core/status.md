@@ -55,15 +55,20 @@ analysis (dated at `e2034807`), never for current coverage.
 
 ## 3. Open decisions (Tom)
 
-**None.** The 2026-08-13 decisions pass resolved all six standing
-items: G3 ε final at 500 ms; the X2 spike-scope test defined as a
-structure pin (production re-pins later); the dropped-ticket
-lifecycle adopted into the registry; the six §8.5 ambiguities
-amended into `scenarios.md` (one sentence deleted outright);
-`c4-halt-semantics-shared` demoted honestly to Untested; registry
-payoff wiring declined in favor of the two-authority slot-fill rule
-(AGENTS.md). Full dispositions and reasoning: the `result-draft.md`
-§9 decisions-pass entry. A new decision gets a numbered item here.
+1. **Approve the ballot-pass amendment drafts** (2026-08-13). The
+   coverage ballot's AMEND/DEMOTE dispositions are approved in
+   principle; the amendment *wording* (six blocks: M4 composition,
+   M11 deep-queue composition, M12 generic-4xx composition, G6
+   enforcement locus, the U5 headroom-instrumentation entry, and
+   the §1 SHELL-prerequisite sentence) awaits Tom's approval per
+   the amendment principle. Full drafts: the `result-draft.md` §9
+   ballot-pass entry. On approval, seven registry entries flip
+   (six Partial→Full by composition; `m9-headroom-record` →
+   Excluded under U5, leaving `OPEN_UNTESTED` at 13).
+
+The 2026-08-13 decisions pass resolved all six prior standing
+items (full dispositions: the `result-draft.md` §9 decisions-pass
+entry). A new decision gets a numbered item here.
 
 ## 4. Blocked
 
@@ -76,20 +81,60 @@ payoff wiring declined in favor of the two-authority slot-fill rule
 
 ## 5. Next work
 
+This list is the 2026-08-13 coverage ballot's outcome (register:
+`result-draft.md` §9 ballot-pass entry) and it is **closed**:
+entries leave by test discharge or approved amendment; a new
+obligation enters only from a failing test or a numbered §3
+decision. Every non-Full registry clause was balloted; each work
+item below names the clauses it discharges.
+
 1. Fix F14–F16 (substance in the `result-draft.md` §9 addendum,
    2026-08-13) and close scenario-driver round four.
-2. Raise M-row fragments toward full contracts. The open ids are
-   `OPEN_UNTESTED`; the audit's narrowed per-row deltas (M8/M1/M4 in
-   `obligation-map.md` §8.2 items 3–5, M12 in §8.1 item 1) are dated
-   analysis at `e2034807` — a map, not an authority. The
-   `result-draft.md` §3 M-row prose was deliberately not collapsed
-   onto registry pointers (kickoff downgrade of registry-design §6),
-   so those cells can drift from the registry; where they disagree,
-   the registry wins.
-3. The X2 structure pin per decision 2 (G3/G4 finalization landed
-   2026-08-13 — no longer owed).
-4. §7.4 capture replay, when unblocked.
-5. Verdict slots last — only a `verdict_eligible()` full-contract
-   run may fill one, and the fill takes two agreeing authorities:
-   the run's declaration and the registry showing every owned
-   clause `Full` (AGENTS.md standing rule).
+2. Ballot work items (test code; letters per the ballot):
+   - **A** — probe-429 wire arm (boot HEAD scripted 429 through
+     the actor): `m1-probe-429-seeding`,
+     `m1-probe-429-first-get-confirmation`,
+     `m1-probe-429-tripwire-feed` (feed assert, ties to H).
+   - **B** — two-endpoint rig (second policy flowing while the
+     first is cooled/failed): `m3-other-policies-unaffected`,
+     `m4-other-policies-flowing`, `m1-boot-head-discipline`.
+   - **C** — M1 residue sweep incl. zero-remaining-budget:
+     `m1-no-first-request-violation`, `m1-g1-sweep`.
+   - **D** — M2 saturation depth + runtime-computed G4 minimum
+     (retires the 2,550 ms literal per scenarios.md:571):
+     `m2-burst-stall-drain`, `m2-g1`, `m2-g3-g4-bounds`,
+     `g4-m2-duration-bound`.
+   - **E** — B12 M5 timing script (forced stale window), plus one
+     M6 shrink-variant arm riding it: `m5-stale-window-exposure`,
+     `m5-no-violation-after-merge`, `m6-preannouncement-exposure`.
+   - **F** — B12 M8 timing script (concurrent in-flight
+     originals): `m8-b12-timing-script`,
+     `m8-single-retry-in-flight`.
+   - **G** — B12 M9 timing script (phantom race at 14/15):
+     `m9-recovery-survives-race`, `m9-race-exposure-attribution`.
+     E+F+G complete `b12-scripted-delay`'s required script set.
+   - **H** — fuse-trip batch (latch re-ask, wire-4xx trip →
+     halt/drain/publish, feed-deletion asserts): `c3-trip-latched`,
+     `c4-halt-semantics-shared`, `x1-trip-drain-publish`,
+     `m12-tripwire-feed`.
+   - **I** — X2 structure pin per decision 2:
+     `x2-single-send-path`.
+   - Singles: `m3-cooldown-clean-failure` (60 s re-entry assert);
+     `m4-watch-status-published` (watch assert on D4 cooldown);
+     `m11-compliant-never-trips` (M11a near-ceiling sweep arm,
+     G2's named binding evidence); `shell-dropped-dispatched-ticket`
+     (drop-after-dispatch test per its note);
+     `g5-scenario-assertions` (unauthorized-refusal teeth);
+     `b1-header-protocol` (organic-429 Retry-After wire assert).
+3. Registry flips gated on §3 item 1 (six AMEND rows → Full by
+   composition; `m9-headroom-record` → Excluded/U5).
+4. §7.4 capture replay, when unblocked (also retires
+   `b12-scripted-delay`'s 50 ms placeholder confession).
+5. Verdict slots last — the full-contract run (which also finishes
+   the fragment-scale-only partials: `m6-g1-post-announcement`,
+   `m6-queue-drains-new-pace`, `m7-no-client-violation`,
+   `m8-no-follow-on-violation`, `g1-zero-client-violations`,
+   `g2-ceilings-never-tripped`, `g3-over-delay-bounded`); the fill
+   takes two agreeing authorities: the run's declaration and the
+   registry showing every owned clause `Full` (AGENTS.md standing
+   rule).
