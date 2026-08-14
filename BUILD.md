@@ -117,8 +117,9 @@ Static analysis is run by `.github/workflows/codeql.yml` using GitHub CodeQL.
 The workflow performs a manual Linux CMake build so CodeQL sees the same Qt,
 compiler, generated sources, and include paths used by the application build.
 
-The workflow runs on pushes and pull requests to `main`, on a weekly schedule,
-and by `workflow_dispatch`.
+The CodeQL and sanitizer workflows run on pushes and pull requests to `master`
+and by `workflow_dispatch`. Each workflow groups runs by pull request or ref and
+cancels an in-progress run when a newer commit supersedes it.
 
 ## Linux
 
