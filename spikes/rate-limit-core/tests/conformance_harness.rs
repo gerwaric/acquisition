@@ -202,6 +202,28 @@ async fn a_fragment_run_is_judged_but_is_never_verdict_eligible() {
 }
 
 #[tokio::test(start_paused = true)]
+async fn g5_rejects_unauthorized_refusal_when_wire_safety_is_green() {
+    // Model a client that sent one harmless request and then entered a
+    // refusal state without any scenario-script trigger. The scenario-owned
+    // assertion is the independent evidence that the expected continuation
+    // never happened; G1/G2 staying green must not launder that refusal into
+    // a pass (scenarios.md G5 unauthorized-refusal clause).
+    let mut evidence = base_evidence(one_observation().await);
+    evidence.assertions[0].passed = false;
+    let report = judge(&evidence, &TestOracle::default()).unwrap();
+
+    assert!(report.gate(Gate::G1).passed);
+    assert!(report.gate(Gate::G2).passed);
+    assert!(!report.gate(Gate::G5).passed);
+    assert_eq!(
+        report.gate(Gate::G5).failures,
+        vec!["M1BootSequence".to_owned()]
+    );
+    assert!(!report.passed());
+    assert!(!report.verdict_eligible());
+}
+
+#[tokio::test(start_paused = true)]
 async fn g3_exclusions_require_script_owned_bounded_intervals() {
     let mut evidence = base_evidence(one_observation().await);
     evidence.observations[0].dispatch_ms = 1_000;

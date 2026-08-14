@@ -23,8 +23,8 @@ use rate_limit_core::mock::model::{
     PolicyDefinition, RuleDefinition, WindowDefinition, first_bucket_boundary_ms,
 };
 use rate_limit_core::mock::{
-    CORRELATION_HEADER, Endpoint, ExchangeScript, MockConfig, MockController, MockService,
-    MockStateChange, ResponseOverride, request,
+    CORRELATION_HEADER, DEFAULT_SERVICE_DELAY, Endpoint, ExchangeScript, MockConfig,
+    MockController, MockService, MockStateChange, ResponseOverride, request,
 };
 
 fn engine(profile: ClientBucketProfile) -> PolicyEngine {
@@ -149,7 +149,10 @@ impl ScenarioOracle for DriverOracle {
         self.eligible
             .get(&observation.correlation_id)
             .copied()
-            .unwrap_or(observation.dispatch_ms)
+            // Fail closed if the judged set ever grows beyond the set used
+            // to build this oracle. Falling back to the dispatch under test
+            // would manufacture zero lateness (round-four F16).
+            .unwrap_or(u64::MAX)
     }
 
     fn independently_observable_ms(
@@ -207,20 +210,39 @@ async fn evidence(
     }
 }
 
+fn m8_fragment_passed(observations: &[rate_limit_core::mock::Observation]) -> bool {
+    observations
+        .iter()
+        .filter(|observation| observation.method == Method::GET)
+        .count()
+        == 2
+}
+
+fn d5_wire_shape_holds(observations: &[rate_limit_core::mock::Observation]) -> bool {
+    observations.iter().all(|observation| {
+        observation.in_flight_at_arrival <= rate_limit_core::conformance::D5_IN_FLIGHT_CAP
+            && !observation.head_overlap
+    })
+}
+
 async fn run_m1_m13(phase_ms: u64) {
-    // The two profile values make the known OAuth and shipped assumed legacy
-    // lanes explicit.  Phase-swept rows run each representative phase below.
-    let profiles = [
-        (
-            rate_limit_core::conformance::OAUTH_KNOWN_PROFILE,
-            Endpoint::StashList,
-        ),
-        (SHIPPED_ASSUMED_PROFILE, Endpoint::LegacyStashIndex),
-    ];
     let mut reports = Vec::new();
 
     for (index, id) in ScenarioId::ALL.into_iter().enumerate() {
-        let (profile, endpoint) = profiles[index % profiles.len()];
+        // M8 runs the required legacy lane here and its OAuth lane in the
+        // shared helper below. M10 intentionally uses the legacy two-rule
+        // policy for its long saturation run. Every other row uses the OAuth
+        // Known profile so hard-coded OAuth endpoints never inherit the
+        // legacy 60s/60s padding model by parity accident.
+        let (profile, endpoint) = match id {
+            ScenarioId::M8 | ScenarioId::M10 => {
+                (SHIPPED_ASSUMED_PROFILE, Endpoint::LegacyStashIndex)
+            }
+            _ => (
+                rate_limit_core::conformance::OAUTH_KNOWN_PROFILE,
+                Endpoint::StashList,
+            ),
+        };
         // The phase is the caller's, verbatim: every row runs at each swept
         // phase.  Folding the offset through a per-row modulus (the original
         // `(offset + index * 997) % 60_000`) collapsed the two sweeps to 1 ms
@@ -256,25 +278,32 @@ async fn run_m1_m13(phase_ms: u64) {
             }
             ScenarioId::M2 => {
                 let mut tickets = Vec::new();
-                for _ in 0..10 {
+                for _ in 0..M2_QUEUE_DEPTH {
                     tickets.push(
                         submit_recorded(&gate, &controller, &mut submitted_ms, Endpoint::StashList)
                             .await,
                     );
                 }
-                advance(6_000).await;
+                advance(M2_RUN_MS).await;
                 let mut granted = true;
                 for ticket in tickets {
                     granted &= ticket.await.is_ok();
                 }
-                granted
-                    && controller
-                        .observations()
-                        .await
-                        .iter()
-                        .filter(|o| o.method == Method::GET)
-                        .count()
-                        == 10
+                let observations = controller.observations().await;
+                let dispatches = observations
+                    .iter()
+                    .filter(|observation| observation.method == Method::GET)
+                    .map(|observation| observation.dispatch_ms)
+                    .collect::<Vec<_>>();
+                let stalls = dispatches
+                    .windows(2)
+                    .enumerate()
+                    .filter(|(index, pair)| {
+                        (index + 1) % 10 == 0
+                            && pair[1].saturating_sub(pair[0]) > MIN_SEND_SPACING_MS
+                    })
+                    .count();
+                granted && dispatches.len() == M2_QUEUE_DEPTH && stalls == 3
             }
             ScenarioId::M3 => {
                 controller
@@ -386,14 +415,8 @@ async fn run_m1_m13(phase_ms: u64) {
                 let ticket = submit_recorded(&gate, &controller, &mut submitted_ms, endpoint).await;
                 advance(70_000).await;
                 let retried = ticket.await.is_ok();
-                retried
-                    && controller
-                        .observations()
-                        .await
-                        .iter()
-                        .filter(|o| o.method == Method::GET)
-                        .count()
-                        == 2
+                let observations = controller.observations().await;
+                retried && m8_fragment_passed(&observations)
             }
             ScenarioId::M9 => {
                 let first =
@@ -488,9 +511,7 @@ async fn run_m1_m13(phase_ms: u64) {
                     && reconciled
                     && (floor..=floor + cancelled).contains(&observations.len());
                 let fuse_quiet = !gate.subscribe_status().borrow().halted;
-                let capped = observations
-                    .iter()
-                    .all(|o| o.in_flight_at_arrival <= 2 && !o.head_overlap);
+                let capped = d5_wire_shape_holds(&observations);
                 // "Spacing floor never violated" is absolute arithmetic over
                 // the wire log: consecutive dispatches, HEADs included (N2's
                 // incident was a HEAD flood), never closer than the floor.
@@ -575,11 +596,7 @@ async fn run_m1_m13(phase_ms: u64) {
                 let second_granted = second.await.is_ok();
                 first_granted
                     && second_granted
-                    && controller
-                        .observations()
-                        .await
-                        .iter()
-                        .all(|o| o.in_flight_at_arrival <= 2 && !o.head_overlap)
+                    && d5_wire_shape_holds(&controller.observations().await)
             }
         };
 
@@ -587,7 +604,7 @@ async fn run_m1_m13(phase_ms: u64) {
         // Only M10 runs long enough to accrue policy debt, and only M10 has no
         // residue/phantom hits to hide from this arithmetic.  See `PolicyDebt`.
         let debt = match id {
-            ScenarioId::M10 => Some(
+            ScenarioId::M2 | ScenarioId::M10 => Some(
                 PolicyDebt::for_policy(
                     &controller,
                     &evidence.observations.first().expect("wire run").policy,
@@ -600,10 +617,14 @@ async fn run_m1_m13(phase_ms: u64) {
         let mut oracle =
             independently_scripted_oracle(id, &evidence.observations, debt.as_ref(), &submitted_ms);
         if id == ScenarioId::M2 {
-            // One boot HEAD at t=0, ten GETs at the 250ms D5 floor, and the
-            // mock's fixed 50ms completion latency.  This is plain integer
-            // arithmetic over the scenario script, not actor scheduling code.
-            oracle.m2_minimum_ms = Some(2_550);
+            let definition = controller
+                .definition(&evidence.observations.first().expect("wire run").policy)
+                .await
+                .expect("M2 policy is configured by the scenario");
+            oracle.m2_minimum_ms = Some(m2_theoretical_padded_minimum_ms(
+                &definition,
+                M2_QUEUE_DEPTH,
+            ));
         }
         let report = judge(&evidence, &oracle).unwrap();
         assert!(report.passed(), "{id:?}: {report:?}");
@@ -650,13 +671,82 @@ async fn run_m8_oauth_lane(phase_ms: u64) {
     let ticket = submit_recorded(&gate, &controller, &mut submitted_ms, Endpoint::Stash).await;
     advance(70_000).await;
     let retried = ticket.await.is_ok();
-    let evidence = evidence(&controller, ScenarioId::M8, profile, retried).await;
+    let observations = controller.observations().await;
+    let assertion_passed = retried && m8_fragment_passed(&observations);
+    let evidence = evidence(&controller, ScenarioId::M8, profile, assertion_passed).await;
     let report = judge(
         &evidence,
         &independently_scripted_oracle(ScenarioId::M8, &evidence.observations, None, &submitted_ms),
     )
     .unwrap();
     assert!(report.passed(), "OAuth M8: {report:?}");
+    assert!(
+        !report.verdict_eligible(),
+        "the OAuth M8 fragment must pass through the coverage guard"
+    );
+}
+
+async fn run_m1_residue_sweep(phase_ms: u64) {
+    const RESIDUE_CASES: [usize; 4] = [0, 1, 9, 10];
+    let profile = rate_limit_core::conformance::OAUTH_KNOWN_PROFILE;
+
+    for residue in RESIDUE_CASES {
+        let (mock, controller) =
+            MockService::new(MockConfig::n23(1_000 + residue as u64, phase_ms)).unwrap();
+        if residue > 0 {
+            controller
+                .preload("stash-list-request-limit", controller.now(), residue)
+                .await
+                .unwrap();
+        }
+        let gate = spawn(engine(profile), mock);
+        let mut submitted_ms = Vec::new();
+        let ticket =
+            submit_recorded(&gate, &controller, &mut submitted_ms, Endpoint::StashList).await;
+        advance(21_000).await;
+        let served = ticket.await.is_ok();
+        let observations = controller.observations().await;
+        let head = observations
+            .iter()
+            .find(|observation| observation.method == Method::HEAD)
+            .expect("M1 boot HEAD");
+        let get = observations
+            .iter()
+            .find(|observation| observation.method == Method::GET)
+            .expect("M1 opening GET");
+        let zero_budget_waited = residue < 10 || get.dispatch_ms >= 20_000;
+        let assertion_passed = served
+            && observations.len() == 2
+            && !head.policy_judgment.counted
+            && !get.policy_judgment.organic_violation
+            && zero_budget_waited;
+
+        let evidence = evidence(&controller, ScenarioId::M1, profile, assertion_passed).await;
+        let mut oracle = DriverOracle {
+            submitted_ms,
+            ..DriverOracle::default()
+        };
+        oracle.eligible.insert(head.correlation_id, 0);
+        // At the zero-budget boundary the HEAD completes with the residue
+        // observation at the B12 default delay. Independent contract
+        // arithmetic keeps those
+        // observed hits active for the 15 s burst period plus its full 5 s
+        // bucket (N13). Below the limit, only D5's 250 ms floor applies.
+        oracle.eligible.insert(
+            get.correlation_id,
+            if residue == 10 {
+                head.completion_ms.saturating_add(20_000)
+            } else {
+                MIN_SEND_SPACING_MS
+            },
+        );
+        let report = judge(&evidence, &oracle).unwrap();
+        assert!(
+            report.passed(),
+            "M1 residue={residue}, phase={phase_ms}: {report:?}"
+        );
+        assert!(!report.verdict_eligible());
+    }
 }
 
 /// The two swept phases sit at opposite ends of the *boundary distance*, which
@@ -677,6 +767,11 @@ const SUSTAINED_BUCKET_MS: u64 = 60_000;
 /// against the contract's number, not against whatever the actor believes.
 const MIN_SEND_SPACING_MS: u64 = 250;
 
+/// Forty requests fill three ten-hit burst windows and then force the
+/// sustained 30-hit window to age before the final burst can drain.
+const M2_QUEUE_DEPTH: usize = 40;
+const M2_RUN_MS: u64 = 130_000;
+
 /// M10's Tom-approved prompt-cancellation bound. It is one harness tick,
 /// deliberately far below the D5 send floor: cancellation is command ingress,
 /// not a paced send, and the actor `select!`s its inbox while waiting.
@@ -696,6 +791,84 @@ const M10_RUN_MS: u64 = 4 * 60 * 60 * 1_000;
 /// about sustained saturation across many 60s windows rather than a claim
 /// about a short burst that never had the chance.
 const M10_MIN_SPAN_MS: u64 = 30 * 60 * 1_000;
+
+/// Independent G4 minimum for M2.
+///
+/// This is scenario arithmetic over the runtime policy definition and queue
+/// depth. It does not call the core scheduler or mock counter helpers. Each
+/// prior GET remains locally active for `period + bucket` (N13); the next
+/// greedy dispatch is the first instant satisfying every window and D5's
+/// global floor. The boot HEAD is at t=0 and the final response adds the
+/// scenario's configured default service delay.
+fn m2_theoretical_padded_minimum_ms(definition: &PolicyDefinition, queue_depth: usize) -> u64 {
+    let windows = definition
+        .rules()
+        .iter()
+        .flat_map(|rule| rule.windows())
+        .map(|window| {
+            (
+                usize::try_from(window.max_hits()).expect("u32 fits usize"),
+                window.period_ms().saturating_add(window.bucket_ms()),
+            )
+        })
+        .collect::<Vec<_>>();
+    assert!(!windows.is_empty(), "M2 policy must contain a window");
+    assert!(
+        windows.iter().all(|(max_hits, _)| *max_hits > 0),
+        "M2 policy must be schedulable"
+    );
+
+    let mut dispatches = Vec::<u64>::with_capacity(queue_depth);
+    let mut prior_dispatch = 0_u64; // boot HEAD
+    for _ in 0..queue_depth {
+        let mut candidate = prior_dispatch.saturating_add(MIN_SEND_SPACING_MS);
+        loop {
+            let mut required = candidate;
+            for &(max_hits, padded_lifetime_ms) in &windows {
+                let active = dispatches
+                    .iter()
+                    .copied()
+                    .filter(|at| candidate < at.saturating_add(padded_lifetime_ms))
+                    .collect::<Vec<_>>();
+                if active.len() >= max_hits {
+                    let must_expire = active.len() - max_hits + 1;
+                    required =
+                        required.max(active[must_expire - 1].saturating_add(padded_lifetime_ms));
+                }
+            }
+            if required == candidate {
+                break;
+            }
+            candidate = required;
+        }
+        dispatches.push(candidate);
+        prior_dispatch = candidate;
+    }
+
+    dispatches.last().copied().unwrap_or(0).saturating_add(
+        u64::try_from(DEFAULT_SERVICE_DELAY.as_millis()).expect("service delay fits u64"),
+    )
+}
+
+#[test]
+fn m2_g4_minimum_is_runtime_derived_and_reaches_both_stalls() {
+    let config = MockConfig::n23(2, 0);
+    let definition = config
+        .policies
+        .iter()
+        .find(|definition| definition.name() == "stash-list-request-limit")
+        .expect("N23 M2 policy");
+    assert_eq!(M2_QUEUE_DEPTH, 40);
+    assert_eq!(
+        m2_theoretical_padded_minimum_ms(definition, M2_QUEUE_DEPTH),
+        122_581
+    );
+    assert!(
+        m2_theoretical_padded_minimum_ms(definition, M2_QUEUE_DEPTH)
+            > m2_theoretical_padded_minimum_ms(definition, 30),
+        "the final burst must wait for sustained-window capacity"
+    );
+}
 
 #[test]
 fn swept_phases_are_separated_by_a_full_bucket() {
@@ -736,6 +909,7 @@ async fn m1_m13_run_against_the_actor_and_the_judge() {
     // is a data-only change here.
     for phase_ms in SWEPT_PHASES_MS {
         run_m1_m13(phase_ms).await;
+        run_m1_residue_sweep(phase_ms).await;
         run_m8_oauth_lane(phase_ms).await;
     }
 }
@@ -856,7 +1030,7 @@ fn independently_scripted_oracle(
             // A later writer becomes eligible only when the prior reader has
             // completed; the scenario's wire log supplies that server-owned
             // fact, while writer preference/exclusivity remain G5 assertions.
-            prior_completion.max(prior_dispatch.saturating_add(250))
+            prior_completion.max(prior_dispatch.saturating_add(MIN_SEND_SPACING_MS))
         } else {
             ordinary += 1;
             if scenario_id == ScenarioId::M8 && ordinary == 2 {

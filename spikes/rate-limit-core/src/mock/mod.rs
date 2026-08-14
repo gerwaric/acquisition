@@ -20,7 +20,8 @@ use model::{
 };
 
 pub const CORRELATION_HEADER: HeaderName = HeaderName::from_static("x-acq-test-correlation");
-pub const DEFAULT_SERVICE_DELAY: Duration = Duration::from_millis(50);
+/// Canonical wired-capture median `sent -> received` latency (§7.4, B12).
+pub const DEFAULT_SERVICE_DELAY: Duration = Duration::from_millis(81);
 pub const MAX_RAW_RESPONSE_BODY_BYTES: usize = MAX_RESPONSE_BODY_BYTES;
 pub const MAX_RAW_RESPONSE_HEADERS: usize = MAX_RESPONSE_HEADERS;
 pub const MAX_MOCK_HEADER_VALUE_BYTES: usize = 1_024;
