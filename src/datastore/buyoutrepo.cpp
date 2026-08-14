@@ -72,6 +72,54 @@ ON CONFLICT(location_id) DO UPDATE SET
     value           = excluded.value
 )"};
 
+constexpr const char *IMPORT_ITEM_BUYOUT{R"(
+INSERT INTO item_buyouts (
+    item_id, location_id, location_type, currency, inherited, last_update, source, type, value
+) VALUES (
+    :item_id, :location_id, :location_type, :currency, :inherited, :last_update, :source, :type, :value
+)
+ON CONFLICT(item_id) DO UPDATE SET
+    location_id     = excluded.location_id,
+    location_type   = excluded.location_type,
+    currency        = excluded.currency,
+    inherited       = excluded.inherited,
+    last_update     = excluded.last_update,
+    source          = excluded.source,
+    type            = excluded.type,
+    value           = excluded.value
+WHERE item_buyouts.location_id IS NOT excluded.location_id
+   OR item_buyouts.location_type IS NOT excluded.location_type
+   OR item_buyouts.currency IS NOT excluded.currency
+   OR item_buyouts.inherited IS NOT excluded.inherited
+   OR item_buyouts.last_update IS NOT excluded.last_update
+   OR item_buyouts.source IS NOT excluded.source
+   OR item_buyouts.type IS NOT excluded.type
+   OR item_buyouts.value IS NOT excluded.value
+)"};
+
+constexpr const char *IMPORT_LOCATION_BUYOUT{R"(
+INSERT INTO location_buyouts (
+    location_id, location_type, currency, inherited, last_update, source, type, value
+) VALUES (
+    :location_id, :location_type, :currency, :inherited, :last_update, :source, :type, :value
+)
+ON CONFLICT(location_id) DO UPDATE SET
+    location_type   = excluded.location_type,
+    currency        = excluded.currency,
+    inherited       = excluded.inherited,
+    last_update     = excluded.last_update,
+    source          = excluded.source,
+    type            = excluded.type,
+    value           = excluded.value
+WHERE location_buyouts.location_type IS NOT excluded.location_type
+   OR location_buyouts.currency IS NOT excluded.currency
+   OR location_buyouts.inherited IS NOT excluded.inherited
+   OR location_buyouts.last_update IS NOT excluded.last_update
+   OR location_buyouts.source IS NOT excluded.source
+   OR location_buyouts.type IS NOT excluded.type
+   OR location_buyouts.value IS NOT excluded.value
+)"};
+
 constexpr const char *INSERT_ITEM_BUYOUT{R"(
 INSERT INTO item_buyouts (
     item_id, location_id, location_type, currency, inherited, last_update, source, type, value
@@ -101,6 +149,16 @@ namespace {
             return "character";
         }
         return {};
+    }
+
+    void bindBuyout(QSqlQuery &query, const Buyout &buyout)
+    {
+        query.bindValue(":currency", buyout.CurrencyAsTag());
+        query.bindValue(":inherited", buyout.inherited);
+        query.bindValue(":last_update", buyout.last_update);
+        query.bindValue(":source", buyout.BuyoutSourceAsTag());
+        query.bindValue(":type", buyout.BuyoutTypeAsTag());
+        query.bindValue(":value", buyout.value);
     }
 
 } // namespace
@@ -299,6 +357,77 @@ BuyoutSaveResult BuyoutRepo::saveLocationBuyout(const Buyout &buyout,
         return BuyoutSaveResult::Error;
     }
     return q.numRowsAffected() == 0 ? BuyoutSaveResult::Existing : BuyoutSaveResult::Saved;
+}
+
+BuyoutBatchSaveResult BuyoutRepo::saveImportBatch(const std::vector<ItemBuyoutWrite> &items,
+                                                  const std::vector<LocationBuyoutWrite> &locations)
+{
+    BuyoutBatchSaveResult result;
+    if (!m_db.transaction()) {
+        result.error = QString("Could not start buyout import transaction: %1")
+                           .arg(m_db.lastError().text());
+        return result;
+    }
+
+    const auto rollback = [this, &result](const QString &error) {
+        result.error = error;
+        if (!m_db.rollback()) {
+            result.error += QString("; rollback also failed: %1").arg(m_db.lastError().text());
+        }
+    };
+
+    QSqlQuery item_query(m_db);
+    if (!items.empty() && !item_query.prepare(IMPORT_ITEM_BUYOUT)) {
+        rollback(
+            QString("Could not prepare item buyout import: %1").arg(item_query.lastError().text()));
+        return result;
+    }
+    result.item_results.reserve(items.size());
+    for (const ItemBuyoutWrite &item : items) {
+        item_query.bindValue(":item_id", item.item_id);
+        item_query.bindValue(":location_id", item.location_id);
+        item_query.bindValue(":location_type", locationTypeTag(item.location_type));
+        bindBuyout(item_query, item.buyout);
+        if (!item_query.exec()) {
+            ds::logQueryError("BuyoutRepo::saveImportBatch(item)", item_query);
+            rollback(QString("Could not save item '%1': %2")
+                         .arg(item.item_id, item_query.lastError().text()));
+            return result;
+        }
+        result.item_results.push_back(item_query.numRowsAffected() == 0 ? BuyoutSaveResult::Existing
+                                                                        : BuyoutSaveResult::Saved);
+    }
+
+    QSqlQuery location_query(m_db);
+    if (!locations.empty() && !location_query.prepare(IMPORT_LOCATION_BUYOUT)) {
+        rollback(QString("Could not prepare location buyout import: %1")
+                     .arg(location_query.lastError().text()));
+        return result;
+    }
+    result.location_results.reserve(locations.size());
+    for (const LocationBuyoutWrite &location : locations) {
+        location_query.bindValue(":location_id", location.location_id);
+        location_query.bindValue(":location_type", locationTypeTag(location.location_type));
+        bindBuyout(location_query, location.buyout);
+        if (!location_query.exec()) {
+            ds::logQueryError("BuyoutRepo::saveImportBatch(location)", location_query);
+            rollback(QString("Could not save location '%1': %2")
+                         .arg(location.location_id, location_query.lastError().text()));
+            return result;
+        }
+        result.location_results.push_back(location_query.numRowsAffected() == 0
+                                              ? BuyoutSaveResult::Existing
+                                              : BuyoutSaveResult::Saved);
+    }
+
+    if (!m_db.commit()) {
+        rollback(
+            QString("Could not commit buyout import transaction: %1").arg(m_db.lastError().text()));
+        return result;
+    }
+
+    result.success = true;
+    return result;
 }
 
 bool BuyoutRepo::removeItemBuyout(const Item &item)

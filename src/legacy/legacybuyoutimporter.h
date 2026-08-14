@@ -38,6 +38,18 @@ struct LegacyBuyoutPlanReport
     QString summary() const;
 };
 
+struct LegacyBuyoutApplyReport
+{
+    bool success{false};
+    qint64 imported{0};
+    qint64 already_present{0};
+    qint64 skipped{0};
+    qint64 errors{0};
+    QString error;
+
+    QString summary() const;
+};
+
 class LegacyBuyoutImporter
 {
 public:
@@ -59,6 +71,7 @@ public:
 
     LegacyBuyoutImportReport importFile(const QString &filename);
     LegacyBuyoutPlanReport createPlan(const QString &source_filename, const QString &plan_filename);
+    LegacyBuyoutApplyReport applyPlan(const QString &plan_filename);
 
 private:
     BuyoutRepo &m_repo;

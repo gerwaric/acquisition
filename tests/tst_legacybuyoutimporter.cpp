@@ -266,6 +266,35 @@ namespace {
         return *found;
     }
 
+    void editPlanRow(const QString &filename,
+                     const QString &match_column,
+                     const QString &match_value,
+                     const QHash<QString, QVariant> &changes)
+    {
+        QXlsx::Document document(filename);
+        QVERIFY(document.load());
+        QVERIFY(document.selectSheet("plan"));
+        QHash<QString, int> columns;
+        const QXlsx::CellRange dimension = document.dimension();
+        for (int column = 1; column <= dimension.lastColumn(); ++column) {
+            columns[document.read(1, column).toString()] = column;
+        }
+        QVERIFY(columns.contains(match_column));
+        int matching_row = 0;
+        for (int row = 2; row <= dimension.lastRow(); ++row) {
+            if (document.read(row, columns.value(match_column)).toString() == match_value) {
+                matching_row = row;
+                break;
+            }
+        }
+        QVERIFY(matching_row > 0);
+        for (auto change = changes.constBegin(); change != changes.constEnd(); ++change) {
+            QVERIFY(columns.contains(change.key()));
+            QVERIFY(document.write(matching_row, columns.value(change.key()), change.value()));
+        }
+        QVERIFY(document.save());
+    }
+
 } // namespace
 
 class LegacyBuyoutImporterTest : public QObject
@@ -276,6 +305,9 @@ private slots:
     void createsEditablePlanWithRevisedMatchingDefaults();
     void matchesRenamedCharacterByEquippedItems();
     void plansVersion5StampedFiles();
+    void appliesEditedPlanTransactionallyAndIsIdempotent();
+    void rejectsInvalidPlanBeforeWriting();
+    void rollsBackAndReportsDatabaseErrors();
     void importsMatchesWithoutOverwritingAndIsIdempotent();
     void importsVersion5StampedFiles();
     void refusesPreVersion4Files();
@@ -412,6 +444,136 @@ void LegacyBuyoutImporterTest::plansVersion5StampedFiles()
     QVERIFY2(report.success, qPrintable(report.error));
     QCOMPARE(report.total, 5);
     QVERIFY(QFileInfo::exists(plan_path));
+}
+
+void LegacyBuyoutImporterTest::appliesEditedPlanTransactionallyAndIsIdempotent()
+{
+    QTemporaryDir source_dir;
+    QVERIFY(source_dir.isValid());
+    const QString source_path = source_dir.filePath("legacy-v4.db");
+    const QString plan_path = source_dir.filePath("buyout-plan.xlsx");
+    createLegacyDatabase(source_path, "4");
+    reviseLegacyDatabaseForPlan(source_path);
+
+    PlanningFixture destination;
+    destination.seedStash("0123456789", "Renamed Priced", 0);
+    destination.seedCharacter("character-id-bob", "Bob");
+    LegacyBuyoutImporter importer(*destination.buyouts.repo,
+                                  *destination.stashes,
+                                  *destination.characters,
+                                  "pc",
+                                  "Standard");
+    QVERIFY(importer.createPlan(source_path, plan_path).success);
+
+    // An orphan becomes importable when the user supplies the target ids.
+    editPlanRow(plan_path,
+                "legacy_hash",
+                "orphan-hash",
+                {{"action", "import"},
+                 {"item_id", "recovered-item"},
+                 {"location_id", "0123456789"},
+                 {"location_type", "stash"}});
+
+    const LegacyBuyoutApplyReport first = importer.applyPlan(plan_path);
+    QVERIFY2(first.success, qPrintable(first.error));
+    QCOMPARE(first.imported, 5);
+    QCOMPARE(first.already_present, 0);
+    QCOMPARE(first.skipped, 2);
+    QCOMPARE(first.errors, 0);
+    QCOMPARE(destination.buyouts.repo->getItemBuyouts().size(), std::size_t(3));
+    QCOMPARE(destination.buyouts.repo->getItemBuyouts().at("recovered-item").value, 7.0);
+    QCOMPARE(destination.buyouts.repo->getLocationBuyouts().size(), std::size_t(2));
+    QVERIFY(!destination.buyouts.repo->getLocationBuyouts().contains("fedcba9876"));
+
+    const PlanRows applied_rows = readPlanRows(plan_path);
+    QCOMPARE(findPlanRow(applied_rows, "item_id", "recovered-item").value("outcome").toString(),
+             QString("imported"));
+
+    const LegacyBuyoutApplyReport second = importer.applyPlan(plan_path);
+    QVERIFY2(second.success, qPrintable(second.error));
+    QCOMPARE(second.imported, 0);
+    QCOMPARE(second.already_present, 5);
+    QCOMPARE(second.skipped, 2);
+    QCOMPARE(second.errors, 0);
+}
+
+void LegacyBuyoutImporterTest::rejectsInvalidPlanBeforeWriting()
+{
+    QTemporaryDir source_dir;
+    QVERIFY(source_dir.isValid());
+    const QString source_path = source_dir.filePath("legacy-v4.db");
+    const QString plan_path = source_dir.filePath("buyout-plan.xlsx");
+    createLegacyDatabase(source_path, "4");
+    reviseLegacyDatabaseForPlan(source_path);
+
+    PlanningFixture destination;
+    destination.seedStash("0123456789", "Renamed Priced", 0);
+    destination.seedCharacter("character-id-bob", "Bob");
+    LegacyBuyoutImporter importer(*destination.buyouts.repo,
+                                  *destination.stashes,
+                                  *destination.characters,
+                                  "pc",
+                                  "Standard");
+    QVERIFY(importer.createPlan(source_path, plan_path).success);
+    editPlanRow(plan_path, "item_id", "item-a", {{"currency", "not-a-currency"}});
+
+    const LegacyBuyoutApplyReport report = importer.applyPlan(plan_path);
+    QVERIFY(!report.success);
+    QVERIFY(report.error.contains("validation"));
+    QCOMPARE(report.imported, 0);
+    QCOMPARE(report.errors, 1);
+    QVERIFY(destination.buyouts.repo->getItemBuyouts().empty());
+    QVERIFY(destination.buyouts.repo->getLocationBuyouts().empty());
+
+    const PlanRows rows = readPlanRows(plan_path);
+    const auto &invalid = findPlanRow(rows, "item_id", "item-a");
+    QCOMPARE(invalid.value("outcome").toString(), QString("error"));
+    QVERIFY(invalid.value("error").toString().contains("invalid"));
+    const auto &valid = findPlanRow(rows, "item_id", "item-b");
+    QCOMPARE(valid.value("outcome").toString(), QString("not-applied"));
+}
+
+void LegacyBuyoutImporterTest::rollsBackAndReportsDatabaseErrors()
+{
+    QTemporaryDir source_dir;
+    QVERIFY(source_dir.isValid());
+    const QString source_path = source_dir.filePath("legacy-v4.db");
+    const QString plan_path = source_dir.filePath("buyout-plan.xlsx");
+    createLegacyDatabase(source_path, "4");
+    reviseLegacyDatabaseForPlan(source_path);
+
+    PlanningFixture destination;
+    destination.seedStash("0123456789", "Renamed Priced", 0);
+    destination.seedCharacter("character-id-bob", "Bob");
+    LegacyBuyoutImporter importer(*destination.buyouts.repo,
+                                  *destination.stashes,
+                                  *destination.characters,
+                                  "pc",
+                                  "Standard");
+    QVERIFY(importer.createPlan(source_path, plan_path).success);
+
+    QSqlQuery trigger(*destination.buyouts.db);
+    QVERIFY(trigger.exec(R"(
+        CREATE TRIGGER fail_item_b
+        BEFORE INSERT ON item_buyouts
+        WHEN NEW.item_id = 'item-b'
+        BEGIN
+            SELECT RAISE(ABORT, 'forced import failure');
+        END
+    )"));
+
+    const LegacyBuyoutApplyReport report = importer.applyPlan(plan_path);
+    QVERIFY(!report.success);
+    QVERIFY(report.error.contains("forced import failure"));
+    QCOMPARE(report.imported, 0);
+    QCOMPARE(report.errors, 4);
+    QVERIFY(destination.buyouts.repo->getItemBuyouts().empty());
+    QVERIFY(destination.buyouts.repo->getLocationBuyouts().empty());
+
+    const PlanRows rows = readPlanRows(plan_path);
+    const auto &rolled_back = findPlanRow(rows, "item_id", "item-a");
+    QCOMPARE(rolled_back.value("outcome").toString(), QString("error"));
+    QVERIFY(rolled_back.value("error").toString().contains("rolled back"));
 }
 
 void LegacyBuyoutImporterTest::importsMatchesWithoutOverwritingAndIsIdempotent()

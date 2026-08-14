@@ -5,7 +5,9 @@
 
 #include <QColor>
 #include <QDateTime>
+#include <QFile>
 #include <QFileInfo>
+#include <QHash>
 #include <QStringList>
 
 #include <algorithm>
@@ -67,6 +69,18 @@ namespace {
         QString current_character;
         QString legacy_hash;
         std::optional<Buyout> existing;
+    };
+
+    struct ParsedItemWrite
+    {
+        int row{0};
+        ItemBuyoutWrite write;
+    };
+
+    struct ParsedLocationWrite
+    {
+        int row{0};
+        LocationBuyoutWrite write;
     };
 
     const QStringList PLAN_HEADERS{
@@ -279,6 +293,39 @@ namespace {
         return document.saveAs(filename);
     }
 
+    std::optional<bool> planBool(const QVariant &value)
+    {
+        if (value.metaType() == QMetaType::fromType<bool>()) {
+            return value.toBool();
+        }
+        if (value.metaType() == QMetaType::fromType<int>()
+            || value.metaType() == QMetaType::fromType<double>()) {
+            const double numeric = value.toDouble();
+            if (numeric == 0.0 || numeric == 1.0) {
+                return numeric == 1.0;
+            }
+        }
+        const QString text = value.toString().trimmed().toLower();
+        if (text == "true" || text == "1") {
+            return true;
+        }
+        if (text == "false" || text == "0") {
+            return false;
+        }
+        return std::nullopt;
+    }
+
+    std::optional<ItemLocationType> locationTypeFromTag(const QString &tag)
+    {
+        if (tag == "stash") {
+            return ItemLocationType::STASH;
+        }
+        if (tag == "character") {
+            return ItemLocationType::CHARACTER;
+        }
+        return std::nullopt;
+    }
+
     std::optional<Buyout> convertBuyout(const LegacyBuyout &legacy)
     {
         Buyout buyout;
@@ -328,6 +375,15 @@ QString LegacyBuyoutPlanReport::summary() const
         .arg(orphaned)
         .arg(rows)
         .arg(skipped);
+}
+
+QString LegacyBuyoutApplyReport::summary() const
+{
+    return QString("Imported: %1\nAlready present: %2\nSkipped: %3\nErrors: %4")
+        .arg(imported)
+        .arg(already_present)
+        .arg(skipped)
+        .arg(errors);
 }
 
 LegacyBuyoutPlanReport LegacyBuyoutImporter::createPlan(const QString &source_filename,
@@ -670,6 +726,237 @@ LegacyBuyoutPlanReport LegacyBuyoutImporter::createPlan(const QString &source_fi
     report.rows = static_cast<qint64>(rows.size());
     if (!writePlanWorkbook(plan_filename, source_filename, db_version, rows)) {
         report.error = QString("Could not write legacy buyout plan '%1'.").arg(plan_filename);
+        return report;
+    }
+    report.success = true;
+    return report;
+}
+
+LegacyBuyoutApplyReport LegacyBuyoutImporter::applyPlan(const QString &plan_filename)
+{
+    LegacyBuyoutApplyReport report;
+    QXlsx::Document document(plan_filename);
+    if (!document.load()) {
+        report.error = "The selected file is not a readable XLSX buyout plan.";
+        return report;
+    }
+    if (!document.selectSheet("meta")) {
+        report.error = "The buyout plan has no 'meta' sheet.";
+        return report;
+    }
+
+    QHash<QString, QString> metadata;
+    const QXlsx::CellRange meta_dimension = document.dimension();
+    for (int row = 1; row <= meta_dimension.lastRow(); ++row) {
+        const QString key = document.read(row, 1).toString().trimmed();
+        if (!key.isEmpty()) {
+            metadata[key] = document.read(row, 2).toString().trimmed();
+        }
+    }
+    if (metadata.value("format_version") != "1") {
+        report.error = QString("Unsupported buyout plan format version '%1'.")
+                           .arg(metadata.value("format_version", "missing"));
+        return report;
+    }
+    if (!document.selectSheet("plan")) {
+        report.error = "The buyout plan has no 'plan' sheet.";
+        return report;
+    }
+
+    QHash<QString, int> columns;
+    const QXlsx::CellRange plan_dimension = document.dimension();
+    for (int column = 1; column <= plan_dimension.lastColumn(); ++column) {
+        const QString header = document.read(1, column).toString().trimmed();
+        if (header.isEmpty()) {
+            continue;
+        }
+        if (columns.contains(header)) {
+            report.error = QString("The buyout plan contains duplicate '%1' columns.").arg(header);
+            return report;
+        }
+        columns[header] = column;
+    }
+    const QStringList required_headers{
+        "action",
+        "outcome",
+        "target_type",
+        "value",
+        "currency",
+        "type",
+        "source",
+        "inherited",
+        "last_update",
+        "item_id",
+        "location_id",
+        "location_type",
+        "error",
+    };
+    for (const QString &header : required_headers) {
+        if (!columns.contains(header)) {
+            report.error = QString("The buyout plan is missing the '%1' column.").arg(header);
+            return report;
+        }
+    }
+
+    QFile writable_check(plan_filename);
+    if (!writable_check.open(QIODevice::ReadWrite)) {
+        report.error = QString("The buyout plan cannot be updated: %1")
+                           .arg(writable_check.errorString());
+        return report;
+    }
+    writable_check.close();
+
+    const auto cell = [&document, &columns](int row, const QString &header) {
+        return document.read(row, columns.value(header));
+    };
+    const auto annotate =
+        [&document, &columns](int row, const QString &outcome, const QString &error = QString()) {
+            document.write(row, columns.value("outcome"), outcome);
+            document.write(row, columns.value("error"), error);
+        };
+
+    std::vector<ParsedItemWrite> item_writes;
+    std::vector<ParsedLocationWrite> location_writes;
+    std::vector<int> import_rows;
+    for (int row = 2; row <= plan_dimension.lastRow(); ++row) {
+        const QString action = cell(row, "action").toString().trimmed();
+        if (action != "import" && action != "skip") {
+            annotate(row, "error", "Action must be 'import' or 'skip'.");
+            ++report.errors;
+            continue;
+        }
+
+        bool value_ok = false;
+        const double value = cell(row, "value").toDouble(&value_ok);
+        bool update_ok = false;
+        const qint64 last_update = cell(row, "last_update").toLongLong(&update_ok);
+        const auto inherited = planBool(cell(row, "inherited"));
+        LegacyBuyout legacy{.value = value,
+                            .last_update = last_update,
+                            .type = cell(row, "type").toString().trimmed(),
+                            .currency = cell(row, "currency").toString().trimmed(),
+                            .source = cell(row, "source").toString().trimmed(),
+                            .inherited = inherited.value_or(false)};
+        const auto buyout = convertBuyout(legacy);
+        const QString target_type = cell(row, "target_type").toString().trimmed();
+        QString validation_error;
+        if (!value_ok) {
+            validation_error = "Value must be numeric.";
+        } else if (!update_ok) {
+            validation_error = "Last update must be numeric.";
+        } else if (!inherited) {
+            validation_error = "Inherited must be true or false.";
+        } else if (!buyout) {
+            validation_error = "Buyout currency, type, source, or value is invalid.";
+        } else if (target_type != "item" && target_type != "location") {
+            validation_error = "Target type must be 'item' or 'location'.";
+        }
+        if (!validation_error.isEmpty()) {
+            annotate(row, "error", validation_error);
+            ++report.errors;
+            continue;
+        }
+
+        if (action == "skip") {
+            annotate(row, "skipped");
+            ++report.skipped;
+            continue;
+        }
+
+        const QString item_id = cell(row, "item_id").toString().trimmed();
+        const QString location_id = cell(row, "location_id").toString().trimmed();
+        const auto location_type = locationTypeFromTag(
+            cell(row, "location_type").toString().trimmed());
+        if (target_type == "item" && item_id.isEmpty()) {
+            validation_error = "Item imports require a non-empty item id.";
+        } else if (location_id.isEmpty()) {
+            validation_error = "Imports require a non-empty location id.";
+        } else if (!location_type) {
+            validation_error = "Location type must be 'stash' or 'character'.";
+        }
+        if (!validation_error.isEmpty()) {
+            annotate(row, "error", validation_error);
+            ++report.errors;
+            continue;
+        }
+
+        import_rows.push_back(row);
+        if (target_type == "item") {
+            item_writes.push_back(ParsedItemWrite{
+                .row = row,
+                .write = ItemBuyoutWrite{.buyout = *buyout,
+                                         .item_id = item_id,
+                                         .location_id = location_id,
+                                         .location_type = *location_type},
+            });
+        } else {
+            location_writes.push_back(ParsedLocationWrite{
+                .row = row,
+                .write = LocationBuyoutWrite{.buyout = *buyout,
+                                             .location_id = location_id,
+                                             .location_type = *location_type},
+            });
+        }
+    }
+
+    if (report.errors > 0) {
+        for (int row : import_rows) {
+            annotate(row, "not-applied", "Another row failed validation; no changes applied.");
+        }
+        if (!document.save()) {
+            report.error = "Plan validation failed, and the annotated plan could not be saved.";
+        } else {
+            report.error = "Plan validation failed; no changes were applied.";
+        }
+        return report;
+    }
+
+    std::vector<ItemBuyoutWrite> item_values;
+    item_values.reserve(item_writes.size());
+    for (const ParsedItemWrite &item : item_writes) {
+        item_values.push_back(item.write);
+    }
+    std::vector<LocationBuyoutWrite> location_values;
+    location_values.reserve(location_writes.size());
+    for (const ParsedLocationWrite &location : location_writes) {
+        location_values.push_back(location.write);
+    }
+
+    const BuyoutBatchSaveResult batch = m_repo.saveImportBatch(item_values, location_values);
+    if (!batch.success) {
+        report.errors = static_cast<qint64>(import_rows.size());
+        for (int row : import_rows) {
+            annotate(row, "error", "Database transaction failed; all writes were rolled back.");
+        }
+        report.error = batch.error;
+        if (!document.save()) {
+            report.error += " The annotated plan could not be saved.";
+        }
+        return report;
+    }
+
+    for (std::size_t index = 0; index < item_writes.size(); ++index) {
+        if (batch.item_results.at(index) == BuyoutSaveResult::Saved) {
+            annotate(item_writes.at(index).row, "imported");
+            ++report.imported;
+        } else {
+            annotate(item_writes.at(index).row, "already-present");
+            ++report.already_present;
+        }
+    }
+    for (std::size_t index = 0; index < location_writes.size(); ++index) {
+        if (batch.location_results.at(index) == BuyoutSaveResult::Saved) {
+            annotate(location_writes.at(index).row, "imported");
+            ++report.imported;
+        } else {
+            annotate(location_writes.at(index).row, "already-present");
+            ++report.already_present;
+        }
+    }
+
+    if (!document.save()) {
+        report.error = "Buyouts were applied, but the plan outcomes could not be saved.";
+        ++report.errors;
         return report;
     }
     report.success = true;
