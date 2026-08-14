@@ -57,17 +57,27 @@ coverage.
 ## 3. Open decisions (Tom)
 
 1. **§7.4 adversarial-replay adjudication.** The canonical replay's
-   required every-phase zero-violation gate fails for exactly
-   φ=7,454–7,466 ms: one `stash-request-limit` sustained-window
-   overflow, 31/30, at counted reply 110 (fixture record 114),
-   t=727,453 ms at the first phase. The B3 model and independent
-   arithmetic agree: 25 earlier hits remain active until 727,454 ms
-   and six new hits arrive one millisecond before expiry. Phase
-   7,453 and 7,467 are safe, and phase 0 matches all 43 recorded
-   saturation components. Decide whether this is a frozen-contract
-   expectation error or requires a separately authorized model/
-   fixture disposition. The implementation must not tune the gate
-   away or amend the frozen scope silently.
+   required every-phase zero-violation gate fails for **1,052 of the
+   60,000 phases, in 20 disjoint bands** (φ=7,454–7,466 first,
+   φ=25,854–25,944 last; two clusters, initiating replies 110–119
+   and 125–134, all on `stash-request-limit`'s sustained
+   30-hits/300 s window at 31/30 under the 60 s adversarial
+   bucket). The earlier "exactly φ=7,454–7,466" record (CR-R1-F1)
+   came from a first-failure abort of the asserting gate and is
+   amended by SD-R5-F2: the full enumeration is pinned as
+   `VIOLATING_BANDS` in `tests/capture_replay.rs`, verified by the
+   active band-edge test and the ignored exhaustive enumeration.
+   This is a systematic B3-model-vs-recorded-server mismatch across
+   1.75% of phase space and 20 initiating records — at counted
+   reply 110 (fixture record 114) the server itself recorded
+   `6:300:0` where the model computes 31 — not a knife-edge
+   coincidence at one band. Band-one arithmetic is unchanged: 25
+   earlier hits remain active until 727,454 ms and six new hits
+   arrive one millisecond before expiry; phase 0 still matches all
+   43 recorded saturation components. Decide whether this is a
+   frozen-contract expectation error or requires a separately
+   authorized model/fixture disposition. The implementation must
+   not tune the gate away or amend the frozen scope silently.
 
 ## 4. Blocked
 

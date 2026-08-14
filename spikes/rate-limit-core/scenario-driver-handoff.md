@@ -15,7 +15,7 @@ run declares `FullContract`, and no verdict slot was filled.
 | Public actor traffic cannot reach the C3/C4 trip thresholds while D5 is intact. | Use the established internal `SafetyCounters` fault-injection seam, but finish through the real probe/ordinary feed, latch, drain, and watch-publication methods. | The next response-feed deletion fails a focused test. D5 is not weakened to manufacture an impossible public trace: its cap is at most 4 dispatches/s and 240/minute, plus at most two already-held completions, versus 11/s and 500/minute. |
 | X2's spike-scope structure pin does not prescribe a reflection mechanism. | Collapse probe and ordinary sends into one private actor method, pin the single call site from source, and add a compile-fail example for outside `Actor` access. | A second `Transport::send` path or public actor owner fails structurally; a future production HTTP integration still owes its own pin. |
 | The canonical fixture is finite but §7.4 does not bound parser resources. | Bound input at 2 MiB, 10,000 JSON nodes, depth 16, and 4 KiB strings. | An oversized or excessively nested next fixture refuses before allocation/recursion can grow without limit. |
-| §7.4 requires zero violations for every server phase but does not say what to do when the adversarial model exceeds the recorded behavior. | Keep the exhaustive gate, pin the exact counterexample independently, and open a Tom decision. Do not tune the model, fixture, or phase set. | The exhaustive test stays ignored with a known-finding reason; running it explicitly fails at the recorded boundary until the frozen-contract conflict is adjudicated. |
+| §7.4 requires zero violations for every server phase but does not say what to do when the adversarial model exceeds the recorded behavior. | Keep the exhaustive gate, pin the full violating band set independently (20 bands / 1,052 phases, SD-R5-F2 — the original single-band record was a first-failure artifact), and open a Tom decision. Do not tune the model, fixture, or phase set. | The exhaustive gate stays ignored with a known-finding reason; running it explicitly fails at the recorded boundary until the frozen-contract conflict is adjudicated, and the band-edge test fails if the violating set moves. |
 
 Existing phase semantics still apply: `phase_ms` is the upcoming
 boundary, and φ=0/1 are the two boundary-distance extremes. Focused
@@ -100,16 +100,24 @@ Exact remaining ballot/closure items:
    `g1-zero-client-violations`, `g2-ceilings-never-tripped`, and
    `g3-over-delay-bounded`.
 
-The canonical replay is not green. Its exact counterexample is
-φ=7,454..7,466 inclusive, one sustained-window violation at counted
-reply 110 (fixture record 114), `stash-request-limit`, 31/30. Phase
-7,453 and 7,467 are safe. At φ=7,454, 25 hits from
+The canonical replay is not green. The violating set is **1,052
+phases in 20 disjoint bands** (φ=7,454–7,466 through 25,854–25,944;
+initiating replies 110–119 and 125–134), every band initiating on
+`stash-request-limit`'s sustained 30/300 s window at 31/30 —
+SD-R5-F2's amendment of CR-R1-F1, whose "exactly φ=7,454..7,466" came
+from the asserting gate's first-failure abort. The full band table is
+`VIOLATING_BANDS` in `tests/capture_replay.rs`, pinned by the active
+band-edge test and the ignored exhaustive enumeration. Band-one
+arithmetic is unchanged: at φ=7,454, 25 hits from
 367,466..385,944 ms round to bucket end 427,454 and remain active
-until 727,454; six new hits reach 31 one millisecond earlier. The
-production `CounterModel` and independent arithmetic agree. The
-phase-0 diagnostic still matches all 43 recorded saturation
-components, including 15/15 and 30/30. This is a narrow calibration
-finding, not evidence that the entire trace is broadly noncompliant.
+until 727,454; six new hits reach 31 one millisecond earlier; at that
+reply the server recorded `6:300:0`. The production `CounterModel`
+and independent arithmetic agree. The phase-0 diagnostic still
+matches all 43 recorded saturation components, including 15/15 and
+30/30. The trace replays cleanly at 98.25% of phases and the mismatch
+is confined to one rule shape, but it is a systematic
+model-vs-recorded-server disagreement, not a narrow single-band
+coincidence.
 
 ## 4. Judgment calls
 

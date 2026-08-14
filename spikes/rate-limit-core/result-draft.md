@@ -841,12 +841,18 @@ observed lane:
   383 ordinary replay arrivals. The bounded parser caps input at
   2 MiB, 10,000 nodes, depth 16, and 4 KiB strings.
 - Gate — zero violations at every φ: **finding, awaiting Tom's
-  adjudication.** Exactly φ=7,454..7,466 has one initiating overflow:
-  counted reply 110 (fixture record 114), `stash-request-limit`,
-  sustained 31/30. At φ=7,454 the dispatch is t=727,453 ms, one
-  millisecond before 25 earlier hits expire. Phase 7,453 and 7,467
-  are safe. `CounterModel` and independent arithmetic agree; the
-  ignored exhaustive gate is retained and not tuned away.
+  adjudication.** The violating set is 1,052 phases in 20 disjoint
+  bands, φ=7,454–7,466 through 25,854–25,944 (initiating replies
+  110–119 and 125–134, every band `stash-request-limit` sustained
+  31/30) — SD-R5-F2's 2026-08-14 amendment of CR-R1-F1, whose
+  single-band record was the asserting gate's first-failure abort.
+  The band table is `VIOLATING_BANDS` in `tests/capture_replay.rs`
+  (active band-edge test + ignored exhaustive enumeration). Band-one
+  arithmetic is unchanged: counted reply 110 (fixture record 114)
+  dispatches at t=727,453 ms, one millisecond before 25 earlier hits
+  expire, where the server recorded `6:300:0`. `CounterModel` and
+  independent arithmetic agree; the ignored exhaustive gate is
+  retained and not tuned away.
 - Diagnostic — saturation-state agreement (15/15, 30/30; N25/N26):
   phase 0 matches all 43/43 recorded saturation components,
   including 15/15 and 30/30. This does not waive the failed gate.
@@ -1834,6 +1840,16 @@ outlives the spike branch; record what exists and where.⟩
   gate is retained as an ignored known-finding test and its active
   exact-boundary test prevents disappearance. No model, fixture, or
   frozen scope was amended.
+
+  *[Marker, 2026-08-14 (SD-R5-F2, round-five review): "exactly one
+  overflow for each φ=7,454..7,466" is a first-failure artifact —
+  the asserting gate aborted at the first violating phase and never
+  examined the rest of the cycle. Full enumeration with the same
+  production `CounterModel` finds 1,052 violating phases in 20
+  disjoint bands (through φ=25,854–25,944; initiating replies
+  110–119 and 125–134). Band-one arithmetic above stays correct.
+  See the 2026-08-14 repair entry and `VIOLATING_BANDS` in
+  `tests/capture_replay.rs`.]*
 
   Proportional verification: `cargo test --locked` green (154 passed,
   one intentionally ignored); `cargo test --locked --release` green
