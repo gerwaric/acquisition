@@ -11,18 +11,6 @@ class BuyoutRepo;
 class CharacterRepo;
 class StashRepo;
 
-struct LegacyBuyoutImportReport
-{
-    bool success{false};
-    qint64 imported{0};
-    qint64 ambiguous{0};
-    qint64 orphaned{0};
-    qint64 skipped{0};
-    QString error;
-
-    QString summary() const;
-};
-
 struct LegacyBuyoutPlanReport
 {
     bool success{false};
@@ -69,7 +57,6 @@ public:
         , m_league(std::move(league))
     {}
 
-    LegacyBuyoutImportReport importFile(const QString &filename);
     LegacyBuyoutPlanReport createPlan(const QString &source_filename, const QString &plan_filename);
     LegacyBuyoutApplyReport applyPlan(const QString &plan_filename);
 

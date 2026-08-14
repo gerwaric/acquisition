@@ -21,6 +21,8 @@
 #include <QNetworkRequest>
 #include <QPainter>
 #include <QPushButton>
+#include <QSaveFile>
+#include <QScopeGuard>
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QSettings>
@@ -36,7 +38,9 @@
 #include "buyoutmanager.h"
 #include "currencymanager.h"
 #include "datastore/buyoutrepo.h"
+#include "datastore/characterrepo.h"
 #include "datastore/datastore.h"
+#include "datastore/stashrepo.h"
 #include "imagecache.h"
 #include "item.h"
 #include "itemconstants.h"
@@ -75,6 +79,48 @@ constexpr int SEARCH_UPDATE_DELAY_MS = 350;
 // this often (bounded staleness AND bounded work).
 constexpr int DELTA_RESIZE_DEBOUNCE_MS = 250;
 
+namespace {
+
+    QString legacyBuyoutAuditPath(const QDir &data_dir)
+    {
+        const QString timestamp = QDateTime::currentDateTimeUtc().toString("yyyyMMdd'T'HHmmss'Z'");
+        const QString stem = "buyout-import-" + timestamp;
+        QString path = data_dir.filePath(stem + ".xlsx");
+        int suffix = 2;
+        while (QFileInfo::exists(path)) {
+            path = data_dir.filePath(QString("%1-%2.xlsx").arg(stem).arg(suffix++));
+        }
+        return path;
+    }
+
+    bool copyPlanFile(const QString &source_path, const QString &destination_path, QString &error)
+    {
+        QFile source(source_path);
+        if (!source.open(QIODevice::ReadOnly)) {
+            error = source.errorString();
+            return false;
+        }
+        const QByteArray contents = source.readAll();
+        if (source.error() != QFileDevice::NoError) {
+            error = source.errorString();
+            return false;
+        }
+        source.close();
+
+        QSaveFile destination(destination_path);
+        if (!destination.open(QIODevice::WriteOnly)) {
+            error = destination.errorString();
+            return false;
+        }
+        if (destination.write(contents) != contents.size() || !destination.commit()) {
+            error = destination.errorString();
+            return false;
+        }
+        return true;
+    }
+
+} // namespace
+
 struct ImgurStatus
 {
     struct Link
@@ -93,6 +139,8 @@ MainWindow::MainWindow(QSettings &settings,
                        ItemsManager &items_manager,
                        BuyoutManager &buyout_manager,
                        BuyoutRepo &buyout_repo,
+                       StashRepo &stash_repo,
+                       CharacterRepo &character_repo,
                        CurrencyManager &currency_manager,
                        Shop &shop,
                        ImageCache &image_cache,
@@ -104,6 +152,8 @@ MainWindow::MainWindow(QSettings &settings,
     , m_items_manager(items_manager)
     , m_buyout_manager(buyout_manager)
     , m_buyout_repo(buyout_repo)
+    , m_stash_repo(stash_repo)
+    , m_character_repo(character_repo)
     , m_currency_manager(currency_manager)
     , m_shop(shop)
     , m_image_cache(image_cache)
@@ -456,6 +506,10 @@ void MainWindow::InitializeUi()
             &QAction::triggered,
             this,
             &MainWindow::OnImportLegacyBuyouts);
+    connect(ui->actionImportLegacyBuyoutPlan,
+            &QAction::triggered,
+            this,
+            &MainWindow::OnImportLegacyBuyoutPlan);
 }
 
 void MainWindow::LoadSettings()
@@ -786,21 +840,126 @@ void MainWindow::OnImportLegacyBuyouts()
         return;
     }
 
-    LegacyBuyoutImporter importer(m_buyout_repo);
-    const LegacyBuyoutImportReport report = importer.importFile(file_name);
-    if (!report.success) {
-        spdlog::info("Legacy buyout import failed for '{}': {}", file_name, report.error);
-        QMessageBox::warning(this, tr("Legacy buyout import"), report.error);
+    const QString plan_path = legacyBuyoutAuditPath(m_app_data_dir);
+    LegacyBuyoutImporter importer(m_buyout_repo,
+                                  m_stash_repo,
+                                  m_character_repo,
+                                  m_settings.value("realm").toString(),
+                                  m_settings.value("league").toString());
+    QApplication::setOverrideCursor(Qt::WaitCursor);
+    auto restore_cursor = qScopeGuard([] { QApplication::restoreOverrideCursor(); });
+    const LegacyBuyoutPlanReport plan = importer.createPlan(file_name, plan_path);
+    if (!plan.success) {
+        spdlog::info("Legacy buyout planning failed for '{}': {}", file_name, plan.error);
+        QMessageBox::warning(this, tr("Legacy buyout import"), plan.error);
+        return;
+    }
+    QApplication::restoreOverrideCursor();
+    restore_cursor.dismiss();
+
+    QMessageBox choice(this);
+    choice.setWindowTitle(tr("Legacy buyout import"));
+    choice.setIcon(QMessageBox::Information);
+    choice.setText(plan.summary());
+    choice.setInformativeText(
+        tr("Import works best immediately after a full refresh of stashes and characters.\n\n"
+           "The audit plan is saved at:\n%1")
+            .arg(QDir::toNativeSeparators(plan_path)));
+    QPushButton *const import_now = choice.addButton(tr("Import now"), QMessageBox::AcceptRole);
+    QPushButton *const save_plan = choice.addButton(tr("Save plan for review…"),
+                                                    QMessageBox::ActionRole);
+    choice.addButton(QMessageBox::Cancel);
+    choice.exec();
+
+    if (choice.clickedButton() == save_plan) {
+        const QString destination
+            = QFileDialog::getSaveFileName(this,
+                                           tr("Save legacy buyout plan"),
+                                           QDir::toNativeSeparators(
+                                               QFileInfo(file_name).dir().filePath(
+                                                   QFileInfo(plan_path).fileName())),
+                                           tr("Excel workbooks (*.xlsx)"));
+        if (destination.isEmpty()) {
+            return;
+        }
+        QString copy_error;
+        if (!copyPlanFile(plan_path, destination, copy_error)) {
+            QMessageBox::warning(this,
+                                 tr("Legacy buyout import"),
+                                 tr("Could not save the plan: %1").arg(copy_error));
+            return;
+        }
+        QMessageBox::information(this,
+                                 tr("Legacy buyout import"),
+                                 tr("The editable plan was saved to:\n%1")
+                                     .arg(QDir::toNativeSeparators(destination)));
+        return;
+    }
+    if (choice.clickedButton() != import_now) {
         return;
     }
 
-    if (report.imported > 0) {
-        m_buyout_manager.ReloadBuyouts();
+    QApplication::setOverrideCursor(Qt::WaitCursor);
+    auto restore_apply_cursor = qScopeGuard([] { QApplication::restoreOverrideCursor(); });
+    const LegacyBuyoutApplyReport report = importer.applyPlan(plan_path);
+    if (!report.success) {
+        spdlog::error("Legacy buyout plan apply failed for '{}': {}", plan_path, report.error);
+        QMessageBox::warning(this,
+                             tr("Legacy buyout import"),
+                             report.error + "\n\n" + report.summary());
+        return;
     }
+    if (report.imported > 0) {
+        OnLegacyBuyoutsImported();
+    }
+    QApplication::restoreOverrideCursor();
+    restore_apply_cursor.dismiss();
     QString log_summary = report.summary();
     log_summary.replace('\n', ", ");
-    spdlog::info("Legacy buyout import from '{}': {}", file_name, log_summary);
+    spdlog::info("Legacy buyout import from '{}' via '{}': {}", file_name, plan_path, log_summary);
     QMessageBox::information(this, tr("Legacy buyout import"), report.summary());
+}
+
+void MainWindow::OnImportLegacyBuyoutPlan()
+{
+    const QString plan_path = QFileDialog::getOpenFileName(this,
+                                                           tr("Import legacy buyout plan"),
+                                                           QDir::toNativeSeparators(
+                                                               m_app_data_dir.absolutePath()),
+                                                           tr("Excel workbooks (*.xlsx)"));
+    if (plan_path.isEmpty()) {
+        return;
+    }
+
+    LegacyBuyoutImporter importer(m_buyout_repo);
+    QApplication::setOverrideCursor(Qt::WaitCursor);
+    auto restore_cursor = qScopeGuard([] { QApplication::restoreOverrideCursor(); });
+    const LegacyBuyoutApplyReport report = importer.applyPlan(plan_path);
+    if (!report.success) {
+        spdlog::error("Legacy buyout plan apply failed for '{}': {}", plan_path, report.error);
+        QMessageBox::warning(this,
+                             tr("Legacy buyout import"),
+                             report.error + "\n\n" + report.summary());
+        return;
+    }
+    if (report.imported > 0) {
+        OnLegacyBuyoutsImported();
+    }
+    QApplication::restoreOverrideCursor();
+    restore_cursor.dismiss();
+    QString log_summary = report.summary();
+    log_summary.replace('\n', ", ");
+    spdlog::info("Legacy buyout plan applied from '{}': {}", plan_path, log_summary);
+    QMessageBox::information(this, tr("Legacy buyout import"), report.summary());
+}
+
+void MainWindow::OnLegacyBuyoutsImported()
+{
+    const BuyoutBatch batch(m_buyout_manager);
+    m_buyout_manager.ReloadBuyouts();
+    m_items_manager.PropagateTabBuyouts();
+    m_shop.ExpireShopData();
+    ScheduleResizeTreeColumns();
 }
 
 bool MainWindow::eventFilter(QObject *o, QEvent *e)

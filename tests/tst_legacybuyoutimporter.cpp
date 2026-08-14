@@ -308,8 +308,6 @@ private slots:
     void appliesEditedPlanTransactionallyAndIsIdempotent();
     void rejectsInvalidPlanBeforeWriting();
     void rollsBackAndReportsDatabaseErrors();
-    void importsMatchesWithoutOverwritingAndIsIdempotent();
-    void importsVersion5StampedFiles();
     void refusesPreVersion4Files();
 };
 
@@ -576,98 +574,6 @@ void LegacyBuyoutImporterTest::rollsBackAndReportsDatabaseErrors()
     QVERIFY(rolled_back.value("error").toString().contains("rolled back"));
 }
 
-void LegacyBuyoutImporterTest::importsMatchesWithoutOverwritingAndIsIdempotent()
-{
-    QTemporaryDir source_dir;
-    QVERIFY(source_dir.isValid());
-    const QString source_path = source_dir.filePath("legacy-v4.db");
-    createLegacyDatabase(source_path, "4");
-
-    BuyoutManagerFixture destination;
-    const Buyout existing_item = makeChaosBuyout(99.0);
-    const Buyout existing_location = makeChaosBuyout(98.0);
-    QCOMPARE(destination.repo->saveItemBuyout(existing_item,
-                                              "item-a",
-                                              "stash-a",
-                                              ItemLocationType::STASH,
-                                              false),
-             BuyoutSaveResult::Saved);
-    QCOMPARE(destination.repo->saveLocationBuyout(existing_location,
-                                                  "stash-a",
-                                                  ItemLocationType::STASH,
-                                                  false),
-             BuyoutSaveResult::Saved);
-
-    LegacyBuyoutImporter importer(*destination.repo);
-    const LegacyBuyoutImportReport first = importer.importFile(source_path);
-
-    QVERIFY2(first.success, qPrintable(first.error));
-    QCOMPARE(first.imported, 4);
-    QCOMPARE(first.ambiguous, 2);
-    QCOMPARE(first.orphaned, 1);
-    QCOMPARE(first.skipped, 2);
-
-    bool reload_notified_everything = false;
-    connect(destination.manager.get(),
-            &BuyoutManager::BuyoutsChanged,
-            this,
-            [&reload_notified_everything](const BuyoutChangeSet &changes) {
-                reload_notified_everything = changes.everything;
-            });
-    destination.manager->ReloadBuyouts();
-    QVERIFY(reload_notified_everything);
-    const Item imported_item = makeTestItem("item-b");
-    QCOMPARE(destination.manager->Get(imported_item).value, 5.0);
-
-    const auto item_buyouts = destination.repo->getItemBuyouts();
-    QCOMPARE(item_buyouts.size(), std::size_t(3));
-    QCOMPARE(item_buyouts.at("item-a").value, 99.0);
-    QCOMPARE(item_buyouts.at("item-b").value, 5.0);
-    QCOMPARE(item_buyouts.at("item-character").value, 6.0);
-
-    const auto location_buyouts = destination.repo->getLocationBuyouts();
-    QCOMPARE(location_buyouts.size(), std::size_t(3));
-    QCOMPARE(location_buyouts.at("stash-a").value, 98.0);
-    QCOMPARE(location_buyouts.at("stash-b").value, 8.0);
-    QCOMPARE(location_buyouts.at("character-id-bob").value, 9.0);
-
-    QSqlQuery location_query(*destination.db);
-    location_query.prepare(
-        "SELECT location_id, location_type FROM item_buyouts WHERE item_id = 'item-character'");
-    QVERIFY(location_query.exec());
-    QVERIFY(location_query.next());
-    QCOMPARE(location_query.value(0).toString(), QString("character-id-bob"));
-    QCOMPARE(location_query.value(1).toString(), QString("character"));
-
-    const LegacyBuyoutImportReport second = importer.importFile(source_path);
-    QVERIFY(second.success);
-    QCOMPARE(second.imported, 0);
-    QCOMPARE(second.ambiguous, 2);
-    QCOMPARE(second.orphaned, 1);
-    QCOMPARE(second.skipped, 6);
-}
-
-void LegacyBuyoutImporterTest::importsVersion5StampedFiles()
-{
-    // Master's MigrateBuyouts stamps db_version 5 into upgraded legacy
-    // files while leaving the v4-generation hash keys intact (R1-1), so
-    // a 5-stamped file must import exactly like a 4-stamped one.
-    QTemporaryDir source_dir;
-    QVERIFY(source_dir.isValid());
-    const QString source_path = source_dir.filePath("legacy-v5.db");
-    createLegacyDatabase(source_path, "5");
-
-    BuyoutManagerFixture destination;
-    LegacyBuyoutImporter importer(*destination.repo);
-    const LegacyBuyoutImportReport report = importer.importFile(source_path);
-
-    QVERIFY2(report.success, qPrintable(report.error));
-    QCOMPARE(report.imported, 6);
-    QCOMPARE(report.orphaned, 1);
-    QCOMPARE(destination.repo->getItemBuyouts().size(), std::size_t(3));
-    QCOMPARE(destination.repo->getLocationBuyouts().size(), std::size_t(3));
-}
-
 void LegacyBuyoutImporterTest::refusesPreVersion4Files()
 {
     QTemporaryDir source_dir;
@@ -675,14 +581,19 @@ void LegacyBuyoutImporterTest::refusesPreVersion4Files()
     const QString source_path = source_dir.filePath("legacy-v3.db");
     createLegacyDatabase(source_path, "3");
 
-    BuyoutManagerFixture destination;
-    LegacyBuyoutImporter importer(*destination.repo);
-    const LegacyBuyoutImportReport report = importer.importFile(source_path);
+    PlanningFixture destination;
+    LegacyBuyoutImporter importer(*destination.buyouts.repo,
+                                  *destination.stashes,
+                                  *destination.characters,
+                                  "pc",
+                                  "Standard");
+    const LegacyBuyoutPlanReport report = importer.createPlan(source_path,
+                                                              source_dir.filePath("plan.xlsx"));
 
     QVERIFY(!report.success);
     QVERIFY(report.error.contains("db_version 4"));
-    QVERIFY(destination.repo->getItemBuyouts().empty());
-    QVERIFY(destination.repo->getLocationBuyouts().empty());
+    QVERIFY(destination.buyouts.repo->getItemBuyouts().empty());
+    QVERIFY(destination.buyouts.repo->getLocationBuyouts().empty());
 }
 
 QTEST_GUILESS_MAIN(LegacyBuyoutImporterTest)

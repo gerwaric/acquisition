@@ -415,6 +415,7 @@
      <string>Buyouts</string>
     </property>
     <addaction name="actionImportLegacyBuyouts"/>
+    <addaction name="actionImportLegacyBuyoutPlan"/>
    </widget>
    <widget class="QMenu" name="menuSettings">
     <property name="title">
@@ -544,7 +545,12 @@
   </action>
   <action name="actionImportLegacyBuyouts">
    <property name="text">
-    <string>Import legacy buyouts…</string>
+    <string>Recover legacy buyouts…</string>
+   </property>
+  </action>
+  <action name="actionImportLegacyBuyoutPlan">
+   <property name="text">
+    <string>Import buyout plan…</string>
    </property>
   </action>
   <action name="actionRefreshCheckedTabs">

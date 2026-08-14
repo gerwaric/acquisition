@@ -36,6 +36,7 @@ private slots:
     void initTestCase();
     void cleanupTestCase();
     void fixtureConstructsOffline();
+    void legacyImportPropagationRefreshesPricingState();
     void tabChangeActivatesSelectedSearch();
     // Renegotiated in M3 S6 from `itemsRefreshRefiltersBackgroundSearches`
     // (the F33-era eager background refilter rode the final-snapshot reset
@@ -367,10 +368,55 @@ void MainWindowTest::fixtureConstructsOffline()
         const auto *import_action = fixture.window->findChild<QAction *>(
             "actionImportLegacyBuyouts");
         QVERIFY(import_action);
-        QCOMPARE(import_action->text(), QString("Import legacy buyouts…"));
+        QCOMPARE(import_action->text(), QString("Recover legacy buyouts…"));
+        const auto *plan_action = fixture.window->findChild<QAction *>(
+            "actionImportLegacyBuyoutPlan");
+        QVERIFY(plan_action);
+        QCOMPARE(plan_action->text(), QString("Import buyout plan…"));
         QCOMPARE(static_cast<int>(m_sink_hub->sinks().size()), 2);
     }
     QCOMPARE(static_cast<int>(m_sink_hub->sinks().size()), 0);
+}
+
+void MainWindowTest::legacyImportPropagationRefreshesPricingState()
+{
+    MainWindowFixture fixture;
+    const ItemLocation tab = makeTestStashLocation("priced-tab", "Priced", 0);
+    const auto item = std::make_shared<Item>(makeTestItem(R"json({
+        "verified":true,"w":1,"h":1,"icon":"","id":"propagated-item",
+        "name":"","typeLine":"Test Sword","baseType":"Test Sword",
+        "identified":true,"ilvl":1,"x":0,"y":0
+    })json",
+                                                          tab));
+    Items items;
+    items.push_back(item);
+    fixture.itemsManager->OnItemsRefreshed(items, {tab}, false);
+
+    const Buyout imported_tab = makeChaosBuyout(12.0);
+    QCOMPARE(fixture.buyoutFixture.repo->saveLocationBuyout(imported_tab, tab.id(), tab.type(), true),
+             BuyoutSaveResult::Saved);
+    int change_count = 0;
+    bool everything_changed = false;
+    connect(fixture.buyoutFixture.manager.get(),
+            &BuyoutManager::BuyoutsChanged,
+            this,
+            [&](const BuyoutChangeSet &changes) {
+                ++change_count;
+                everything_changed = changes.everything;
+            });
+
+    QVERIFY(QMetaObject::invokeMethod(fixture.window.get(),
+                                      "OnLegacyBuyoutsImported",
+                                      Qt::DirectConnection));
+
+    QCOMPARE(change_count, 1);
+    QVERIFY(everything_changed);
+    QCOMPARE(fixture.buyoutFixture.manager->GetTab(tab).value, 12.0);
+    const Buyout propagated = fixture.buyoutFixture.manager->Get(*item);
+    QCOMPARE(propagated.value, 12.0);
+    QVERIFY(propagated.inherited);
+    QVERIFY(fixture.buyoutFixture.manager->GetRefreshLocked(tab));
+    QVERIFY(fixture.shop->shop_data_outdated());
 }
 
 void MainWindowTest::tabChangeActivatesSelectedSearch()
@@ -2708,10 +2754,10 @@ void MainWindowTest::appliedDeltasLeaveActiveSearchClean()
     // trip still refilters nothing.
     Items final_items;
     final_items.push_back(makeMainWindowItem("item-a3", "AlphaItem Three", "Sword", tabA));
-    fixture.itemsManager
-        ->OnItemsRefreshed(final_items,
-                           {tabA, makeTestStashLocation("stash-bbbb", "Beta Renamed", 1)},
-                           false);
+    fixture.itemsManager->OnItemsRefreshed(final_items,
+                                           {tabA,
+                                            makeTestStashLocation("stash-bbbb", "Beta Renamed", 1)},
+                                           false);
     QCOMPARE(first_resets.count(), resets_after_switch);
     tabs->setCurrentIndex(1);
     tabs->setCurrentIndex(0);
@@ -3407,8 +3453,7 @@ void MainWindowTest::noModelResetDuringRefresh()
     fixture.itemsManager->OnTabRefreshed(tabC, {});
     const ItemLocation tabB_renamed = makeTestStashLocation("stash-bbbb", "Beta Renamed", 1);
     fixture.itemsManager->OnTabRefreshed(tabB_renamed, {});
-    fixture.itemsManager->OnChildrenReconciled(tabA,
-                                               {FetchSourceKey::ForLocation(tabA)});
+    fixture.itemsManager->OnChildrenReconciled(tabA, {FetchSourceKey::ForLocation(tabA)});
     Items final_items;
     final_items.push_back(alpha_fresh);
     final_items.push_back(beta_fresh);
@@ -3429,8 +3474,7 @@ void MainWindowTest::noModelResetDuringRefresh()
     probes.enabled = false;
 
     // The refresh's whole effect landed through row operations.
-    QCOMPARE(visibleItemNames(*tree),
-             QStringList({"AlphaItem Two Sword", "BetaItem Shield"}));
+    QCOMPARE(visibleItemNames(*tree), QStringList({"AlphaItem Two Sword", "BetaItem Shield"}));
     QVERIFY(findBucket(*model, tabB_renamed.GetHeader()).isValid());
     QVERIFY(!findBucket(*model, tabC.GetHeader()).isValid());
 }
@@ -3607,9 +3651,7 @@ void MainWindowTest::modelTesterPassesUnderDeltaStorm()
                                     QAbstractItemModelTester::FailureReportingMode::QtTest);
 
     std::mt19937 rng(20260731u);
-    const auto pick = [&rng](int n) {
-        return std::uniform_int_distribution<int>(0, n - 1)(rng);
-    };
+    const auto pick = [&rng](int n) { return std::uniform_int_distribution<int>(0, n - 1)(rng); };
 
     auto &probes = ModelProbes::instance();
     probes.reset();
@@ -3629,8 +3671,8 @@ void MainWindowTest::modelTesterPassesUnderDeltaStorm()
                 fresh.push_back(makeStormItem(QString("it-%1").arg(item_counter++), tab));
             }
             if ((count > 0) && (pick(4) == 0)) {
-                const TabState &other = world[static_cast<size_t>(
-                    pick(static_cast<int>(world.size())))];
+                const TabState &other
+                    = world[static_cast<size_t>(pick(static_cast<int>(world.size())))];
                 if ((&other != &tab) && !other.items.empty()) {
                     fresh.push_back(makeStormItem(other.items.front()->id(), tab));
                 }
@@ -3664,9 +3706,9 @@ void MainWindowTest::modelTesterPassesUnderDeltaStorm()
             // stable key — the no-op form and the erase-everything form.
             TabState &tab = world[static_cast<size_t>(pick(static_cast<int>(world.size())))];
             if (pick(2) == 0) {
-                fixture.itemsManager
-                    ->OnChildrenReconciled(locationFor(tab),
-                                           {FetchSourceKey::ForLocation(locationFor(tab))});
+                fixture.itemsManager->OnChildrenReconciled(locationFor(tab),
+                                                           {FetchSourceKey::ForLocation(
+                                                               locationFor(tab))});
             } else {
                 tab.items.clear();
                 fixture.itemsManager->OnChildrenReconciled(locationFor(tab), {});
@@ -3691,8 +3733,7 @@ void MainWindowTest::modelTesterPassesUnderDeltaStorm()
                 world.erase(world.begin() + pick(static_cast<int>(world.size())));
             }
             if (pick(3) == 0) {
-                world[static_cast<size_t>(pick(static_cast<int>(world.size())))].position = pick(
-                    10);
+                world[static_cast<size_t>(pick(static_cast<int>(world.size())))].position = pick(10);
             }
             if ((pick(4) == 0) && (world.size() < 9)) {
                 world.push_back(newTab());

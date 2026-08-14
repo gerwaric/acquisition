@@ -50,6 +50,11 @@ public:
 
         settings = std::make_unique<QSettings>(tempDir.filePath("settings.ini"),
                                                QSettings::IniFormat);
+        stashRepo = std::make_unique<StashRepo>(*buyoutFixture.db);
+        characterRepo = std::make_unique<CharacterRepo>(*buyoutFixture.db);
+        if (!stashRepo->ensureSchema() || !characterRepo->ensureSchema()) {
+            qFatal("MainWindowFixture: failed to create current-store schema");
+        }
         networkManager = std::make_unique<NetworkManager>();
         rateLimiter = std::make_unique<RateLimiter>(*networkManager);
         api = std::make_unique<PoeApiClient>(*rateLimiter);
@@ -73,6 +78,8 @@ public:
                                               *itemsManager,
                                               *buyoutFixture.manager,
                                               *buyoutFixture.repo,
+                                              *stashRepo,
+                                              *characterRepo,
                                               *currencyManager,
                                               *shop,
                                               *imageCache,
@@ -99,6 +106,8 @@ public:
 
     QTemporaryDir tempDir;
     BuyoutManagerFixture buyoutFixture;
+    std::unique_ptr<StashRepo> stashRepo;
+    std::unique_ptr<CharacterRepo> characterRepo;
     std::unique_ptr<QSettings> settings;
     std::unique_ptr<NetworkManager> networkManager;
     std::unique_ptr<RateLimiter> rateLimiter;

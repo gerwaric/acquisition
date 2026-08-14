@@ -262,9 +262,9 @@ Application::UserSession::UserSession(const Application::CoreServices &core)
         // One file per session, stamped at enable time: a fixed name would
         // either pile sessions into one file (append) or destroy retained
         // capture evidence on the next launch (truncate).
-        const QString capture_name
-            = QString("network-capture-%1.jsonl")
-                  .arg(QDateTime::currentDateTimeUtc().toString("yyyyMMdd'T'hhmmss'Z'"));
+        const QString capture_name = QString("network-capture-%1.jsonl")
+                                         .arg(QDateTime::currentDateTimeUtc().toString(
+                                             "yyyyMMdd'T'hhmmss'Z'"));
         rate_limiter->EnableCapture(dir.filePath(capture_name));
     }
 
@@ -300,6 +300,8 @@ Application::UserSession::UserSession(const Application::CoreServices &core)
                                        *items_manager,
                                        *buyout_manager,
                                        userstore->buyouts(),
+                                       userstore->stashes(),
+                                       userstore->characters(),
                                        *currency_manager,
                                        *shop,
                                        image_cache,

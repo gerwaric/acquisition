@@ -30,6 +30,7 @@ class QVBoxLayout;
 
 class BuyoutManager;
 class BuyoutRepo;
+class CharacterRepo;
 class CurrencyDialog;
 class CurrencyManager;
 class DataStore;
@@ -44,6 +45,7 @@ class RateLimitDialog;
 class Search;
 class SearchForm;
 class Shop;
+class StashRepo;
 class UpdateChecker;
 
 struct Buyout;
@@ -64,6 +66,8 @@ public:
                         ItemsManager &items_mangaer,
                         BuyoutManager &buyout_manager,
                         BuyoutRepo &buyout_repo,
+                        StashRepo &stash_repo,
+                        CharacterRepo &character_repo,
                         CurrencyManager &currency_manager,
                         Shop &shop,
                         ImageCache &image_cache,
@@ -151,6 +155,8 @@ private slots:
 
     // Buyouts menu actions
     void OnImportLegacyBuyouts();
+    void OnImportLegacyBuyoutPlan();
+    void OnLegacyBuyoutsImported();
 
     // Theme submenu actions
     void OnSetDarkTheme(bool toggle);
@@ -211,6 +217,8 @@ private:
     ItemsManager &m_items_manager;
     BuyoutManager &m_buyout_manager;
     BuyoutRepo &m_buyout_repo;
+    StashRepo &m_stash_repo;
+    CharacterRepo &m_character_repo;
     CurrencyManager &m_currency_manager;
     Shop &m_shop;
     ImageCache &m_image_cache;
