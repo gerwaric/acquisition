@@ -68,12 +68,13 @@ item here.
 
 ## 4. Blocked
 
-- **§7.4 capture replay** — blocked on a sanitized fixture: raw
-  `networkcapture` input from Tom passed through the `scenarios.md`
-  §4 sanitizer, or a fixture already satisfying that contract
-  (mock-slice doc finding 8, `result-draft.md` §3 register;
-  `mock-handoff.md` §1). No record may be reconstructed from prose,
-  and no synthetic stand-in may be claimed as observed evidence.
+**Nothing.** The §7.4 fixture landed 2026-08-14 (ballot-external
+input, closing mock-slice doc finding 8):
+`fixtures/capture-20260814-wired.json` is the canonical capture
+(Tom's typical network condition), with
+`fixtures/capture-20260813-vpn.json` committed alongside as the
+supplemental B12 latency comparison. The replay is now plain owed
+work (§5 item 3).
 
 ## 5. Next work
 
@@ -122,8 +123,11 @@ item below names the clauses it discharges.
      (drop-after-dispatch test per its note);
      `g5-scenario-assertions` (unauthorized-refusal teeth);
      `b1-header-protocol` (organic-429 Retry-After wire assert).
-3. §7.4 capture replay, when unblocked (also retires
-   `b12-scripted-delay`'s 50 ms placeholder confession).
+3. §7.4 capture replay against
+   `fixtures/capture-20260814-wired.json` (canonical; the VPN
+   comparison fixture is committed alongside). Also retires
+   `b12-scripted-delay`'s 50 ms placeholder confession — capture
+   median `sent→received` is 81 ms wired / 148 ms VPN.
 4. Verdict slots last — the full-contract run (which also finishes
    the fragment-scale-only partials: `m6-g1-post-announcement`,
    `m6-queue-drains-new-pace`, `m7-no-client-violation`,

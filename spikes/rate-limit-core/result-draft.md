@@ -827,8 +827,15 @@ premises and gets re-inherited by a shape it never applied to.
 Per `scenarios.md` §7.4 — the piece that grounds the model in the
 observed lane:
 
-- Fixture: ⟨sanitized July 18, 2026 capture (132 records), §4
-  contract; sanitizer version, capture schema `v`⟩
+- Fixture: `fixtures/capture-20260814-wired.json` — sanitized
+  2026-08-14 capture, 387 records, sanitizer v2, capture schema
+  v1; canonical per Tom 2026-08-14 (his typical network
+  condition; condition labels attested by Tom). Supplemental
+  latency comparison: `fixtures/capture-20260813-vpn.json`
+  (1,129 records, sanitizer v2, operator-supplied UTC offset
+  validated per record against server `Date`). Median
+  `sent→received`: 81 ms wired / 148 ms VPN. The July 18 capture
+  anticipated at drafting was superseded by these.
 - Initialization: seeded from the capture's boot-HEAD state
   headers (reconciliation mechanism, phantoms at t₀); boot-HEAD
   records are initialization evidence, never replayed as
@@ -1761,3 +1768,26 @@ outlives the spike branch; record what exists and where.⟩
   refuses. Owed to master (main-app code, not this branch): the
   one-line instrument fix to emit UTC (`currentDateTimeUtc`), after
   which `--utc-offset` becomes unnecessary for new captures.
+- 2026-08-14 — **§7.4 fixtures landed; the replay is unblocked**
+  (mock-slice doc finding 8 closed). Two committed fixtures, both
+  §4-contract sanitized (sanitizer v2), condition labels attested
+  by Tom: `fixtures/capture-20260814-wired.json` (387 records,
+  wired ethernet no VPN, native-Z timestamps from the fixed
+  instrument, no offset flag) designated **canonical** — Tom's
+  typical condition; and `fixtures/capture-20260813-vpn.json`
+  (1,129 records, VPN over wifi, offset-naive v1-instrument
+  capture accepted via validated `--utc-offset -05:00`) as the
+  supplemental B12 latency comparison. Median `sent→received`:
+  81 ms wired / 148 ms VPN — same regime, both far below the
+  250 ms floor, so the B12 re-anchor is not hypersensitive to
+  condition choice; canonical-condition sensitivity was examined
+  and found immaterial (any test whose outcome flipped between
+  the two defaults would itself be a timing-sensitivity finding
+  owing an explicit script). Both sessions: zero 429s; max
+  client/server Date disagreement ≈ 1 s (Date wire precision).
+  Network-conditions scope closed at two captures by design — no
+  matrix. Master-branch instrument commits f53d8cb1 (UTC
+  timestamps) and 6288e185 (per-session capture files) are the
+  producer-side fixes; the spike branch inherits them at its next
+  sync. Gate evidence: registry structural checks green,
+  `git diff --check` clean (fixtures + docs otherwise).

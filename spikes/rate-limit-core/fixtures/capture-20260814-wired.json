@@ -1,0 +1,6193 @@
+{
+  "provenance": {
+    "capture_date": "2026-08-14",
+    "capture_schema_version": 1,
+    "claim_lanes": [
+      "measured"
+    ],
+    "sanitizer_version": 2,
+    "session_shape": "partial refresh, 339 stash gets + 42 character gets, OAuth, PC realm, wired ethernet, no VPN"
+  },
+  "records": [
+    {
+      "date_ms": -58,
+      "endpoint": "list-stashes",
+      "headers": {
+        "x-rate-limit-account": "10:15:60,30:60:300",
+        "x-rate-limit-account-state": "0:15:0,0:60:0",
+        "x-rate-limit-policy": "stash-list-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "head",
+      "received_ms": 0,
+      "status": 204
+    },
+    {
+      "date_ms": -58,
+      "endpoint": "list-characters",
+      "headers": {
+        "x-rate-limit-account": "2:10:60,5:300:300",
+        "x-rate-limit-account-state": "0:10:0,0:300:0",
+        "x-rate-limit-policy": "character-list-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "head",
+      "received_ms": 253,
+      "status": 204
+    },
+    {
+      "date_ms": -58,
+      "endpoint": "list-stashes",
+      "headers": {
+        "x-rate-limit-account": "10:15:60,30:60:300",
+        "x-rate-limit-account-state": "1:15:0,1:60:0",
+        "x-rate-limit-policy": "stash-list-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-list-request-limit",
+      "received_ms": 558,
+      "scheduled_ms": 100,
+      "sent_ms": 457,
+      "status": 200
+    },
+    {
+      "date_ms": -58,
+      "endpoint": "list-characters",
+      "headers": {
+        "x-rate-limit-account": "2:10:60,5:300:300",
+        "x-rate-limit-account-state": "1:10:0,1:300:0",
+        "x-rate-limit-policy": "character-list-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "character-list-request-limit",
+      "received_ms": 839,
+      "scheduled_ms": 353,
+      "sent_ms": 707,
+      "status": 200
+    },
+    {
+      "date_ms": 1942,
+      "endpoint": "list-stashes",
+      "headers": {
+        "x-rate-limit-account": "10:15:60,30:60:300",
+        "x-rate-limit-account-state": "2:15:0,2:60:0",
+        "x-rate-limit-policy": "stash-list-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-list-request-limit",
+      "received_ms": 2919,
+      "scheduled_ms": 2855,
+      "sent_ms": 2856,
+      "status": 200
+    },
+    {
+      "date_ms": 2942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "0:10:0,0:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "head",
+      "received_ms": 3145,
+      "status": 204
+    },
+    {
+      "date_ms": 2942,
+      "endpoint": "list-characters",
+      "headers": {
+        "x-rate-limit-account": "2:10:60,5:300:300",
+        "x-rate-limit-account-state": "2:10:0,2:300:0",
+        "x-rate-limit-policy": "character-list-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "character-list-request-limit",
+      "received_ms": 3430,
+      "scheduled_ms": 2855,
+      "sent_ms": 3357,
+      "status": 200
+    },
+    {
+      "date_ms": 2942,
+      "endpoint": "get-character",
+      "headers": {
+        "x-rate-limit-account": "5:10:60,30:300:300",
+        "x-rate-limit-account-state": "0:10:0,0:300:0",
+        "x-rate-limit-policy": "character-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "head",
+      "received_ms": 3655,
+      "status": 204
+    },
+    {
+      "date_ms": 3942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "1:10:0,1:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 3960,
+      "scheduled_ms": 3245,
+      "sent_ms": 3859,
+      "status": 200
+    },
+    {
+      "date_ms": 3942,
+      "endpoint": "get-character",
+      "headers": {
+        "x-rate-limit-account": "5:10:60,30:300:300",
+        "x-rate-limit-account-state": "1:10:0,1:300:0",
+        "x-rate-limit-policy": "character-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "character-request-limit",
+      "received_ms": 4209,
+      "scheduled_ms": 3755,
+      "sent_ms": 4109,
+      "status": 200
+    },
+    {
+      "date_ms": 3942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "2:10:0,2:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 4418,
+      "scheduled_ms": 4063,
+      "sent_ms": 4360,
+      "status": 200
+    },
+    {
+      "date_ms": 3942,
+      "endpoint": "get-character",
+      "headers": {
+        "x-rate-limit-account": "5:10:60,30:300:300",
+        "x-rate-limit-account-state": "2:10:0,2:300:0",
+        "x-rate-limit-policy": "character-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "character-request-limit",
+      "received_ms": 4673,
+      "scheduled_ms": 4311,
+      "sent_ms": 4610,
+      "status": 200
+    },
+    {
+      "date_ms": 4942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "3:10:0,3:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 4952,
+      "scheduled_ms": 4519,
+      "sent_ms": 4861,
+      "status": 200
+    },
+    {
+      "date_ms": 4942,
+      "endpoint": "get-character",
+      "headers": {
+        "x-rate-limit-account": "5:10:60,30:300:300",
+        "x-rate-limit-account-state": "3:10:0,3:300:0",
+        "x-rate-limit-policy": "character-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "character-request-limit",
+      "received_ms": 5192,
+      "scheduled_ms": 4774,
+      "sent_ms": 5112,
+      "status": 200
+    },
+    {
+      "date_ms": 4942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "4:10:0,4:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 5430,
+      "scheduled_ms": 5054,
+      "sent_ms": 5363,
+      "status": 200
+    },
+    {
+      "date_ms": 4942,
+      "endpoint": "get-character",
+      "headers": {
+        "x-rate-limit-account": "5:10:60,30:300:300",
+        "x-rate-limit-account-state": "4:10:0,4:300:0",
+        "x-rate-limit-policy": "character-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "character-request-limit",
+      "received_ms": 5674,
+      "scheduled_ms": 5294,
+      "sent_ms": 5614,
+      "status": 200
+    },
+    {
+      "date_ms": 4942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "5:10:0,5:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 5922,
+      "scheduled_ms": 5532,
+      "sent_ms": 5865,
+      "status": 200
+    },
+    {
+      "date_ms": 5942,
+      "endpoint": "get-character",
+      "headers": {
+        "x-rate-limit-account": "5:10:60,30:300:300",
+        "x-rate-limit-account-state": "5:10:0,5:300:0",
+        "x-rate-limit-policy": "character-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "character-request-limit",
+      "received_ms": 6171,
+      "scheduled_ms": 5775,
+      "sent_ms": 6115,
+      "status": 200
+    },
+    {
+      "date_ms": 5942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "6:10:0,6:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 6465,
+      "scheduled_ms": 6023,
+      "sent_ms": 6366,
+      "status": 200
+    },
+    {
+      "date_ms": 5942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "7:10:0,7:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 6688,
+      "scheduled_ms": 6567,
+      "sent_ms": 6615,
+      "status": 200
+    },
+    {
+      "date_ms": 6942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "8:10:0,8:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 6961,
+      "scheduled_ms": 6790,
+      "sent_ms": 6866,
+      "status": 200
+    },
+    {
+      "date_ms": 6942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "9:10:0,9:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 7180,
+      "scheduled_ms": 7064,
+      "sent_ms": 7115,
+      "status": 200
+    },
+    {
+      "date_ms": 6942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "10:10:0,10:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 7419,
+      "scheduled_ms": 7281,
+      "sent_ms": 7366,
+      "status": 200
+    },
+    {
+      "date_ms": 6942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "11:10:0,11:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 7682,
+      "scheduled_ms": 7520,
+      "sent_ms": 7616,
+      "status": 200
+    },
+    {
+      "date_ms": 7942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "12:10:0,12:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 8004,
+      "scheduled_ms": 7784,
+      "sent_ms": 7867,
+      "status": 200
+    },
+    {
+      "date_ms": 7942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "13:10:0,13:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 8203,
+      "scheduled_ms": 8109,
+      "sent_ms": 8117,
+      "status": 200
+    },
+    {
+      "date_ms": 7942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "14:10:0,14:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 8564,
+      "scheduled_ms": 8306,
+      "sent_ms": 8368,
+      "status": 200
+    },
+    {
+      "date_ms": 7942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "15:10:0,15:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 8757,
+      "scheduled_ms": 8669,
+      "sent_ms": 8669,
+      "status": 200
+    },
+    {
+      "date_ms": 19942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "1:10:0,16:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 20026,
+      "scheduled_ms": 19960,
+      "sent_ms": 19962,
+      "status": 200
+    },
+    {
+      "date_ms": 19942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "2:10:0,17:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 20418,
+      "scheduled_ms": 20128,
+      "sent_ms": 20213,
+      "status": 200
+    },
+    {
+      "date_ms": 19942,
+      "endpoint": "get-character",
+      "headers": {
+        "x-rate-limit-account": "5:10:60,30:300:300",
+        "x-rate-limit-account-state": "1:10:0,6:300:0",
+        "x-rate-limit-policy": "character-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "character-request-limit",
+      "received_ms": 20547,
+      "scheduled_ms": 20209,
+      "sent_ms": 20464,
+      "status": 200
+    },
+    {
+      "date_ms": 19942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "3:10:0,18:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 20892,
+      "scheduled_ms": 20526,
+      "sent_ms": 20715,
+      "status": 200
+    },
+    {
+      "date_ms": 20942,
+      "endpoint": "get-character",
+      "headers": {
+        "x-rate-limit-account": "5:10:60,30:300:300",
+        "x-rate-limit-account-state": "2:10:0,7:300:0",
+        "x-rate-limit-policy": "character-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "character-request-limit",
+      "received_ms": 21040,
+      "scheduled_ms": 20649,
+      "sent_ms": 20966,
+      "status": 200
+    },
+    {
+      "date_ms": 20942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "4:10:0,19:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 21334,
+      "scheduled_ms": 20999,
+      "sent_ms": 21217,
+      "status": 200
+    },
+    {
+      "date_ms": 20942,
+      "endpoint": "get-character",
+      "headers": {
+        "x-rate-limit-account": "5:10:60,30:300:300",
+        "x-rate-limit-account-state": "3:10:0,8:300:0",
+        "x-rate-limit-policy": "character-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "character-request-limit",
+      "received_ms": 21543,
+      "scheduled_ms": 21143,
+      "sent_ms": 21468,
+      "status": 200
+    },
+    {
+      "date_ms": 20942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "5:10:0,20:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 21891,
+      "scheduled_ms": 21437,
+      "sent_ms": 21718,
+      "status": 200
+    },
+    {
+      "date_ms": 21942,
+      "endpoint": "get-character",
+      "headers": {
+        "x-rate-limit-account": "5:10:60,30:300:300",
+        "x-rate-limit-account-state": "4:10:0,9:300:0",
+        "x-rate-limit-policy": "character-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "character-request-limit",
+      "received_ms": 22020,
+      "scheduled_ms": 21644,
+      "sent_ms": 21969,
+      "status": 200
+    },
+    {
+      "date_ms": 21942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "6:10:0,21:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 22299,
+      "scheduled_ms": 21995,
+      "sent_ms": 22220,
+      "status": 200
+    },
+    {
+      "date_ms": 21942,
+      "endpoint": "get-character",
+      "headers": {
+        "x-rate-limit-account": "5:10:60,30:300:300",
+        "x-rate-limit-account-state": "5:10:0,10:300:0",
+        "x-rate-limit-policy": "character-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "character-request-limit",
+      "received_ms": 22520,
+      "scheduled_ms": 22122,
+      "sent_ms": 22471,
+      "status": 200
+    },
+    {
+      "date_ms": 21942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "7:10:0,22:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 22862,
+      "scheduled_ms": 22400,
+      "sent_ms": 22721,
+      "status": 200
+    },
+    {
+      "date_ms": 22942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "8:10:0,23:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 23042,
+      "scheduled_ms": 22964,
+      "sent_ms": 22972,
+      "status": 200
+    },
+    {
+      "date_ms": 22942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "9:10:0,24:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 23288,
+      "scheduled_ms": 23144,
+      "sent_ms": 23221,
+      "status": 200
+    },
+    {
+      "date_ms": 22942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "10:10:0,25:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 23531,
+      "scheduled_ms": 23390,
+      "sent_ms": 23472,
+      "status": 200
+    },
+    {
+      "date_ms": 22942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "11:10:0,26:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 23790,
+      "scheduled_ms": 23632,
+      "sent_ms": 23721,
+      "status": 200
+    },
+    {
+      "date_ms": 23942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "12:10:0,27:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 24047,
+      "scheduled_ms": 23892,
+      "sent_ms": 23972,
+      "status": 200
+    },
+    {
+      "date_ms": 23942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "13:10:0,28:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 24307,
+      "scheduled_ms": 24149,
+      "sent_ms": 24223,
+      "status": 200
+    },
+    {
+      "date_ms": 23942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "14:10:0,29:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 24647,
+      "scheduled_ms": 24409,
+      "sent_ms": 24474,
+      "status": 200
+    },
+    {
+      "date_ms": 23942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "15:10:0,30:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 24811,
+      "scheduled_ms": 24754,
+      "sent_ms": 24754,
+      "status": 200
+    },
+    {
+      "date_ms": 35942,
+      "endpoint": "get-character",
+      "headers": {
+        "x-rate-limit-account": "5:10:60,30:300:300",
+        "x-rate-limit-account-state": "1:10:0,11:300:0",
+        "x-rate-limit-policy": "character-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "character-request-limit",
+      "received_ms": 36629,
+      "scheduled_ms": 36547,
+      "sent_ms": 36548,
+      "status": 200
+    },
+    {
+      "date_ms": 35942,
+      "endpoint": "get-character",
+      "headers": {
+        "x-rate-limit-account": "5:10:60,30:300:300",
+        "x-rate-limit-account-state": "2:10:0,12:300:0",
+        "x-rate-limit-policy": "character-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "character-request-limit",
+      "received_ms": 36851,
+      "scheduled_ms": 36732,
+      "sent_ms": 36798,
+      "status": 200
+    },
+    {
+      "date_ms": 36942,
+      "endpoint": "get-character",
+      "headers": {
+        "x-rate-limit-account": "5:10:60,30:300:300",
+        "x-rate-limit-account-state": "3:10:0,13:300:0",
+        "x-rate-limit-policy": "character-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "character-request-limit",
+      "received_ms": 37129,
+      "scheduled_ms": 36953,
+      "sent_ms": 37048,
+      "status": 200
+    },
+    {
+      "date_ms": 36942,
+      "endpoint": "get-character",
+      "headers": {
+        "x-rate-limit-account": "5:10:60,30:300:300",
+        "x-rate-limit-account-state": "4:10:0,14:300:0",
+        "x-rate-limit-policy": "character-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "character-request-limit",
+      "received_ms": 37369,
+      "scheduled_ms": 37231,
+      "sent_ms": 37297,
+      "status": 200
+    },
+    {
+      "date_ms": 36942,
+      "endpoint": "get-character",
+      "headers": {
+        "x-rate-limit-account": "5:10:60,30:300:300",
+        "x-rate-limit-account-state": "5:10:0,15:300:0",
+        "x-rate-limit-policy": "character-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "character-request-limit",
+      "received_ms": 37653,
+      "scheduled_ms": 37472,
+      "sent_ms": 37547,
+      "status": 200
+    },
+    {
+      "date_ms": 51942,
+      "endpoint": "get-character",
+      "headers": {
+        "x-rate-limit-account": "5:10:60,30:300:300",
+        "x-rate-limit-account-state": "1:10:0,16:300:0",
+        "x-rate-limit-policy": "character-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "character-request-limit",
+      "received_ms": 52686,
+      "scheduled_ms": 52629,
+      "sent_ms": 52630,
+      "status": 200
+    },
+    {
+      "date_ms": 52942,
+      "endpoint": "get-character",
+      "headers": {
+        "x-rate-limit-account": "5:10:60,30:300:300",
+        "x-rate-limit-account-state": "2:10:0,17:300:0",
+        "x-rate-limit-policy": "character-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "character-request-limit",
+      "received_ms": 52971,
+      "scheduled_ms": 52788,
+      "sent_ms": 52880,
+      "status": 200
+    },
+    {
+      "date_ms": 52942,
+      "endpoint": "get-character",
+      "headers": {
+        "x-rate-limit-account": "5:10:60,30:300:300",
+        "x-rate-limit-account-state": "3:10:0,18:300:0",
+        "x-rate-limit-policy": "character-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "character-request-limit",
+      "received_ms": 53233,
+      "scheduled_ms": 53073,
+      "sent_ms": 53131,
+      "status": 200
+    },
+    {
+      "date_ms": 52942,
+      "endpoint": "get-character",
+      "headers": {
+        "x-rate-limit-account": "5:10:60,30:300:300",
+        "x-rate-limit-account-state": "4:10:0,19:300:0",
+        "x-rate-limit-policy": "character-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "character-request-limit",
+      "received_ms": 53448,
+      "scheduled_ms": 53336,
+      "sent_ms": 53382,
+      "status": 200
+    },
+    {
+      "date_ms": 52942,
+      "endpoint": "get-character",
+      "headers": {
+        "x-rate-limit-account": "5:10:60,30:300:300",
+        "x-rate-limit-account-state": "5:10:0,20:300:0",
+        "x-rate-limit-policy": "character-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "character-request-limit",
+      "received_ms": 53716,
+      "scheduled_ms": 53550,
+      "sent_ms": 53631,
+      "status": 200
+    },
+    {
+      "date_ms": 67942,
+      "endpoint": "get-character",
+      "headers": {
+        "x-rate-limit-account": "5:10:60,30:300:300",
+        "x-rate-limit-account-state": "1:10:0,21:300:0",
+        "x-rate-limit-policy": "character-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "character-request-limit",
+      "received_ms": 68780,
+      "scheduled_ms": 68686,
+      "sent_ms": 68687,
+      "status": 200
+    },
+    {
+      "date_ms": 68942,
+      "endpoint": "get-character",
+      "headers": {
+        "x-rate-limit-account": "5:10:60,30:300:300",
+        "x-rate-limit-account-state": "2:10:0,22:300:0",
+        "x-rate-limit-policy": "character-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "character-request-limit",
+      "received_ms": 69054,
+      "scheduled_ms": 68882,
+      "sent_ms": 68936,
+      "status": 200
+    },
+    {
+      "date_ms": 68942,
+      "endpoint": "get-character",
+      "headers": {
+        "x-rate-limit-account": "5:10:60,30:300:300",
+        "x-rate-limit-account-state": "3:10:0,23:300:0",
+        "x-rate-limit-policy": "character-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "character-request-limit",
+      "received_ms": 69234,
+      "scheduled_ms": 69157,
+      "sent_ms": 69187,
+      "status": 200
+    },
+    {
+      "date_ms": 68942,
+      "endpoint": "get-character",
+      "headers": {
+        "x-rate-limit-account": "5:10:60,30:300:300",
+        "x-rate-limit-account-state": "4:10:0,24:300:0",
+        "x-rate-limit-policy": "character-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "character-request-limit",
+      "received_ms": 69533,
+      "scheduled_ms": 69335,
+      "sent_ms": 69437,
+      "status": 200
+    },
+    {
+      "date_ms": 68942,
+      "endpoint": "get-character",
+      "headers": {
+        "x-rate-limit-account": "5:10:60,30:300:300",
+        "x-rate-limit-account-state": "5:10:0,25:300:0",
+        "x-rate-limit-policy": "character-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "character-request-limit",
+      "received_ms": 69751,
+      "scheduled_ms": 69636,
+      "sent_ms": 69686,
+      "status": 200
+    },
+    {
+      "date_ms": 83942,
+      "endpoint": "get-character",
+      "headers": {
+        "x-rate-limit-account": "5:10:60,30:300:300",
+        "x-rate-limit-account-state": "1:10:0,26:300:0",
+        "x-rate-limit-policy": "character-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "character-request-limit",
+      "received_ms": 84832,
+      "scheduled_ms": 84780,
+      "sent_ms": 84782,
+      "status": 200
+    },
+    {
+      "date_ms": 84942,
+      "endpoint": "get-character",
+      "headers": {
+        "x-rate-limit-account": "5:10:60,30:300:300",
+        "x-rate-limit-account-state": "2:10:0,27:300:0",
+        "x-rate-limit-policy": "character-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "character-request-limit",
+      "received_ms": 85086,
+      "scheduled_ms": 84934,
+      "sent_ms": 85032,
+      "status": 200
+    },
+    {
+      "date_ms": 84942,
+      "endpoint": "get-character",
+      "headers": {
+        "x-rate-limit-account": "5:10:60,30:300:300",
+        "x-rate-limit-account-state": "3:10:0,28:300:0",
+        "x-rate-limit-policy": "character-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "character-request-limit",
+      "received_ms": 85345,
+      "scheduled_ms": 85187,
+      "sent_ms": 85281,
+      "status": 200
+    },
+    {
+      "date_ms": 84942,
+      "endpoint": "get-character",
+      "headers": {
+        "x-rate-limit-account": "5:10:60,30:300:300",
+        "x-rate-limit-account-state": "4:10:0,29:300:0",
+        "x-rate-limit-policy": "character-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "character-request-limit",
+      "received_ms": 85610,
+      "scheduled_ms": 85446,
+      "sent_ms": 85532,
+      "status": 200
+    },
+    {
+      "date_ms": 84942,
+      "endpoint": "get-character",
+      "headers": {
+        "x-rate-limit-account": "5:10:60,30:300:300",
+        "x-rate-limit-account-state": "5:10:0,30:300:0",
+        "x-rate-limit-policy": "character-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "character-request-limit",
+      "received_ms": 85864,
+      "scheduled_ms": 85712,
+      "sent_ms": 85782,
+      "status": 200
+    },
+    {
+      "date_ms": 364942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "1:10:0,1:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 365183,
+      "scheduled_ms": 364960,
+      "sent_ms": 364961,
+      "status": 200
+    },
+    {
+      "date_ms": 364942,
+      "endpoint": "get-character",
+      "headers": {
+        "x-rate-limit-account": "5:10:60,30:300:300",
+        "x-rate-limit-account-state": "1:10:0,1:300:0",
+        "x-rate-limit-policy": "character-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "character-request-limit",
+      "received_ms": 365299,
+      "scheduled_ms": 365209,
+      "sent_ms": 365211,
+      "status": 200
+    },
+    {
+      "date_ms": 364942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "2:10:0,2:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 365546,
+      "scheduled_ms": 365285,
+      "sent_ms": 365461,
+      "status": 200
+    },
+    {
+      "date_ms": 364942,
+      "endpoint": "get-character",
+      "headers": {
+        "x-rate-limit-account": "5:10:60,30:300:300",
+        "x-rate-limit-account-state": "2:10:0,2:300:0",
+        "x-rate-limit-policy": "character-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "character-request-limit",
+      "received_ms": 365802,
+      "scheduled_ms": 365401,
+      "sent_ms": 365712,
+      "status": 200
+    },
+    {
+      "date_ms": 365942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "3:10:0,3:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 366040,
+      "scheduled_ms": 365648,
+      "sent_ms": 365963,
+      "status": 200
+    },
+    {
+      "date_ms": 365942,
+      "endpoint": "get-character",
+      "headers": {
+        "x-rate-limit-account": "5:10:60,30:300:300",
+        "x-rate-limit-account-state": "3:10:0,3:300:0",
+        "x-rate-limit-policy": "character-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "character-request-limit",
+      "received_ms": 366344,
+      "scheduled_ms": 365905,
+      "sent_ms": 366213,
+      "status": 200
+    },
+    {
+      "date_ms": 365942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "4:10:0,4:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 366546,
+      "scheduled_ms": 366142,
+      "sent_ms": 366464,
+      "status": 200
+    },
+    {
+      "date_ms": 365942,
+      "endpoint": "get-character",
+      "headers": {
+        "x-rate-limit-account": "5:10:60,30:300:300",
+        "x-rate-limit-account-state": "4:10:0,4:300:0",
+        "x-rate-limit-policy": "character-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "character-request-limit",
+      "received_ms": 366787,
+      "scheduled_ms": 366445,
+      "sent_ms": 366714,
+      "status": 200
+    },
+    {
+      "date_ms": 366942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "5:10:0,5:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 367042,
+      "scheduled_ms": 366648,
+      "sent_ms": 366965,
+      "status": 200
+    },
+    {
+      "date_ms": 366942,
+      "endpoint": "get-character",
+      "headers": {
+        "x-rate-limit-account": "5:10:60,30:300:300",
+        "x-rate-limit-account-state": "5:10:0,5:300:0",
+        "x-rate-limit-policy": "character-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "character-request-limit",
+      "received_ms": 367308,
+      "scheduled_ms": 366889,
+      "sent_ms": 367215,
+      "status": 200
+    },
+    {
+      "date_ms": 366942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "6:10:0,6:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 367533,
+      "scheduled_ms": 367143,
+      "sent_ms": 367466,
+      "status": 200
+    },
+    {
+      "date_ms": 366942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "7:10:0,7:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 367801,
+      "scheduled_ms": 367635,
+      "sent_ms": 367717,
+      "status": 200
+    },
+    {
+      "date_ms": 367942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "8:10:0,8:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 368034,
+      "scheduled_ms": 367908,
+      "sent_ms": 367967,
+      "status": 200
+    },
+    {
+      "date_ms": 367942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "9:10:0,9:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 368282,
+      "scheduled_ms": 368135,
+      "sent_ms": 368217,
+      "status": 200
+    },
+    {
+      "date_ms": 367942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "10:10:0,10:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 368617,
+      "scheduled_ms": 368384,
+      "sent_ms": 368468,
+      "status": 200
+    },
+    {
+      "date_ms": 367942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "11:10:0,11:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 368789,
+      "scheduled_ms": 368719,
+      "sent_ms": 368719,
+      "status": 200
+    },
+    {
+      "date_ms": 368942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "12:10:0,12:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 369069,
+      "scheduled_ms": 368891,
+      "sent_ms": 368970,
+      "status": 200
+    },
+    {
+      "date_ms": 368942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "13:10:0,13:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 369361,
+      "scheduled_ms": 369171,
+      "sent_ms": 369221,
+      "status": 200
+    },
+    {
+      "date_ms": 368942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "14:10:0,14:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 369530,
+      "scheduled_ms": 369467,
+      "sent_ms": 369471,
+      "status": 200
+    },
+    {
+      "date_ms": 368942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "15:10:0,15:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 369914,
+      "scheduled_ms": 369632,
+      "sent_ms": 369721,
+      "status": 200
+    },
+    {
+      "date_ms": 380942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "1:10:0,16:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 381269,
+      "scheduled_ms": 381183,
+      "sent_ms": 381184,
+      "status": 200
+    },
+    {
+      "date_ms": 380942,
+      "endpoint": "get-character",
+      "headers": {
+        "x-rate-limit-account": "5:10:60,30:300:300",
+        "x-rate-limit-account-state": "1:10:0,6:300:0",
+        "x-rate-limit-policy": "character-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "character-request-limit",
+      "received_ms": 381551,
+      "scheduled_ms": 381299,
+      "sent_ms": 381436,
+      "status": 200
+    },
+    {
+      "date_ms": 380942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "2:10:0,17:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 381739,
+      "scheduled_ms": 381371,
+      "sent_ms": 381686,
+      "status": 200
+    },
+    {
+      "date_ms": 381942,
+      "endpoint": "get-character",
+      "headers": {
+        "x-rate-limit-account": "5:10:60,30:300:300",
+        "x-rate-limit-account-state": "2:10:0,7:300:0",
+        "x-rate-limit-policy": "character-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "character-request-limit",
+      "received_ms": 382018,
+      "scheduled_ms": 381653,
+      "sent_ms": 381937,
+      "status": 200
+    },
+    {
+      "date_ms": 381942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "3:10:0,18:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 382247,
+      "scheduled_ms": 381841,
+      "sent_ms": 382188,
+      "status": 200
+    },
+    {
+      "date_ms": 381942,
+      "endpoint": "get-character",
+      "headers": {
+        "x-rate-limit-account": "5:10:60,30:300:300",
+        "x-rate-limit-account-state": "3:10:0,8:300:0",
+        "x-rate-limit-policy": "character-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "character-request-limit",
+      "received_ms": 382505,
+      "scheduled_ms": 382120,
+      "sent_ms": 382438,
+      "status": 200
+    },
+    {
+      "date_ms": 381942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "4:10:0,19:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 382769,
+      "scheduled_ms": 382348,
+      "sent_ms": 382689,
+      "status": 200
+    },
+    {
+      "date_ms": 382942,
+      "endpoint": "get-character",
+      "headers": {
+        "x-rate-limit-account": "5:10:60,30:300:300",
+        "x-rate-limit-account-state": "4:10:0,9:300:0",
+        "x-rate-limit-policy": "character-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "character-request-limit",
+      "received_ms": 383090,
+      "scheduled_ms": 382606,
+      "sent_ms": 382940,
+      "status": 200
+    },
+    {
+      "date_ms": 382942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "5:10:0,20:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 383260,
+      "scheduled_ms": 382872,
+      "sent_ms": 383191,
+      "status": 200
+    },
+    {
+      "date_ms": 382942,
+      "endpoint": "get-character",
+      "headers": {
+        "x-rate-limit-account": "5:10:60,30:300:300",
+        "x-rate-limit-account-state": "5:10:0,10:300:0",
+        "x-rate-limit-policy": "character-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "character-request-limit",
+      "received_ms": 383502,
+      "scheduled_ms": 383192,
+      "sent_ms": 383441,
+      "status": 200
+    },
+    {
+      "date_ms": 382942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "6:10:0,21:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 383761,
+      "scheduled_ms": 383362,
+      "sent_ms": 383691,
+      "status": 200
+    },
+    {
+      "date_ms": 383942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "7:10:0,22:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 384037,
+      "scheduled_ms": 383863,
+      "sent_ms": 383941,
+      "status": 200
+    },
+    {
+      "date_ms": 383942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "8:10:0,23:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 384257,
+      "scheduled_ms": 384139,
+      "sent_ms": 384192,
+      "status": 200
+    },
+    {
+      "date_ms": 383942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "9:10:0,24:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 384507,
+      "scheduled_ms": 384359,
+      "sent_ms": 384441,
+      "status": 200
+    },
+    {
+      "date_ms": 383942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "10:10:0,25:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 384780,
+      "scheduled_ms": 384609,
+      "sent_ms": 384692,
+      "status": 200
+    },
+    {
+      "date_ms": 384942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "11:10:0,26:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 385017,
+      "scheduled_ms": 384882,
+      "sent_ms": 384942,
+      "status": 200
+    },
+    {
+      "date_ms": 384942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "12:10:0,27:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 385261,
+      "scheduled_ms": 385119,
+      "sent_ms": 385193,
+      "status": 200
+    },
+    {
+      "date_ms": 384942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "13:10:0,28:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 385526,
+      "scheduled_ms": 385363,
+      "sent_ms": 385444,
+      "status": 200
+    },
+    {
+      "date_ms": 384942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "14:10:0,29:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 385782,
+      "scheduled_ms": 385628,
+      "sent_ms": 385693,
+      "status": 200
+    },
+    {
+      "date_ms": 385942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "15:10:0,30:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 386065,
+      "scheduled_ms": 385884,
+      "sent_ms": 385944,
+      "status": 200
+    },
+    {
+      "date_ms": 396942,
+      "endpoint": "get-character",
+      "headers": {
+        "x-rate-limit-account": "5:10:60,30:300:300",
+        "x-rate-limit-account-state": "1:10:0,11:300:0",
+        "x-rate-limit-policy": "character-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "character-request-limit",
+      "received_ms": 397621,
+      "scheduled_ms": 397551,
+      "sent_ms": 397552,
+      "status": 200
+    },
+    {
+      "date_ms": 725942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "1:10:0,1:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 726349,
+      "scheduled_ms": 726183,
+      "sent_ms": 726183,
+      "status": 200
+    },
+    {
+      "date_ms": 725942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "2:10:0,2:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 726518,
+      "scheduled_ms": 726452,
+      "sent_ms": 726453,
+      "status": 200
+    },
+    {
+      "date_ms": 725942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "3:10:0,3:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 726777,
+      "scheduled_ms": 726620,
+      "sent_ms": 726704,
+      "status": 200
+    },
+    {
+      "date_ms": 726942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "4:10:0,4:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 727036,
+      "scheduled_ms": 726879,
+      "sent_ms": 726954,
+      "status": 200
+    },
+    {
+      "date_ms": 726942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "5:10:0,5:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 727283,
+      "scheduled_ms": 727138,
+      "sent_ms": 727204,
+      "status": 200
+    },
+    {
+      "date_ms": 726942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "6:10:0,6:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 727520,
+      "scheduled_ms": 727385,
+      "sent_ms": 727453,
+      "status": 200
+    },
+    {
+      "date_ms": 726942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "7:10:0,7:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 727814,
+      "scheduled_ms": 727622,
+      "sent_ms": 727704,
+      "status": 200
+    },
+    {
+      "date_ms": 727942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "8:10:0,8:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 728036,
+      "scheduled_ms": 727916,
+      "sent_ms": 727954,
+      "status": 200
+    },
+    {
+      "date_ms": 727942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "9:10:0,9:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 728284,
+      "scheduled_ms": 728139,
+      "sent_ms": 728204,
+      "status": 200
+    },
+    {
+      "date_ms": 727942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "10:10:0,10:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 728574,
+      "scheduled_ms": 728386,
+      "sent_ms": 728453,
+      "status": 200
+    },
+    {
+      "date_ms": 727942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "11:10:0,11:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 728773,
+      "scheduled_ms": 728676,
+      "sent_ms": 728703,
+      "status": 200
+    },
+    {
+      "date_ms": 728942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "12:10:0,12:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 729070,
+      "scheduled_ms": 728875,
+      "sent_ms": 728954,
+      "status": 200
+    },
+    {
+      "date_ms": 728942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "13:10:0,13:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 729305,
+      "scheduled_ms": 729173,
+      "sent_ms": 729204,
+      "status": 200
+    },
+    {
+      "date_ms": 728942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "14:10:0,14:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 729548,
+      "scheduled_ms": 729407,
+      "sent_ms": 729454,
+      "status": 200
+    },
+    {
+      "date_ms": 728942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "15:10:0,15:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 729777,
+      "scheduled_ms": 729649,
+      "sent_ms": 729704,
+      "status": 200
+    },
+    {
+      "date_ms": 741942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "1:10:0,16:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 742437,
+      "scheduled_ms": 742349,
+      "sent_ms": 742350,
+      "status": 200
+    },
+    {
+      "date_ms": 741942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "2:10:0,17:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 742676,
+      "scheduled_ms": 742540,
+      "sent_ms": 742601,
+      "status": 200
+    },
+    {
+      "date_ms": 741942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "3:10:0,18:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 742914,
+      "scheduled_ms": 742778,
+      "sent_ms": 742851,
+      "status": 200
+    },
+    {
+      "date_ms": 742942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "4:10:0,19:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 743194,
+      "scheduled_ms": 743015,
+      "sent_ms": 743101,
+      "status": 200
+    },
+    {
+      "date_ms": 742942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "5:10:0,20:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 743447,
+      "scheduled_ms": 743297,
+      "sent_ms": 743352,
+      "status": 200
+    },
+    {
+      "date_ms": 742942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "6:10:0,21:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 743676,
+      "scheduled_ms": 743549,
+      "sent_ms": 743601,
+      "status": 200
+    },
+    {
+      "date_ms": 742942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "7:10:0,22:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 743912,
+      "scheduled_ms": 743778,
+      "sent_ms": 743852,
+      "status": 200
+    },
+    {
+      "date_ms": 743942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "8:10:0,23:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 744182,
+      "scheduled_ms": 744014,
+      "sent_ms": 744102,
+      "status": 200
+    },
+    {
+      "date_ms": 743942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "9:10:0,24:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 744438,
+      "scheduled_ms": 744284,
+      "sent_ms": 744351,
+      "status": 200
+    },
+    {
+      "date_ms": 743942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "10:10:0,25:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 744685,
+      "scheduled_ms": 744540,
+      "sent_ms": 744602,
+      "status": 200
+    },
+    {
+      "date_ms": 743942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "11:10:0,26:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 744918,
+      "scheduled_ms": 744787,
+      "sent_ms": 744852,
+      "status": 200
+    },
+    {
+      "date_ms": 744942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "12:10:0,27:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 745200,
+      "scheduled_ms": 745020,
+      "sent_ms": 745102,
+      "status": 200
+    },
+    {
+      "date_ms": 744942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "13:10:0,28:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 745447,
+      "scheduled_ms": 745301,
+      "sent_ms": 745353,
+      "status": 200
+    },
+    {
+      "date_ms": 744942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "14:10:0,29:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 745669,
+      "scheduled_ms": 745548,
+      "sent_ms": 745603,
+      "status": 200
+    },
+    {
+      "date_ms": 744942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "15:10:0,30:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 745927,
+      "scheduled_ms": 745771,
+      "sent_ms": 745853,
+      "status": 200
+    },
+    {
+      "date_ms": 1086942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "1:10:0,1:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1087483,
+      "scheduled_ms": 1087349,
+      "sent_ms": 1087349,
+      "status": 200
+    },
+    {
+      "date_ms": 1086942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "2:10:0,2:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1087675,
+      "scheduled_ms": 1087585,
+      "sent_ms": 1087599,
+      "status": 200
+    },
+    {
+      "date_ms": 1086942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "3:10:0,3:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1087923,
+      "scheduled_ms": 1087778,
+      "sent_ms": 1087850,
+      "status": 200
+    },
+    {
+      "date_ms": 1087942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "4:10:0,4:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1088191,
+      "scheduled_ms": 1088025,
+      "sent_ms": 1088100,
+      "status": 200
+    },
+    {
+      "date_ms": 1087942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "5:10:0,5:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1088416,
+      "scheduled_ms": 1088293,
+      "sent_ms": 1088349,
+      "status": 200
+    },
+    {
+      "date_ms": 1087942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "6:10:0,6:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1088651,
+      "scheduled_ms": 1088518,
+      "sent_ms": 1088600,
+      "status": 200
+    },
+    {
+      "date_ms": 1087942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "7:10:0,7:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1088921,
+      "scheduled_ms": 1088753,
+      "sent_ms": 1088850,
+      "status": 200
+    },
+    {
+      "date_ms": 1088942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "8:10:0,8:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1089203,
+      "scheduled_ms": 1089022,
+      "sent_ms": 1089100,
+      "status": 200
+    },
+    {
+      "date_ms": 1088942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "9:10:0,9:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1089531,
+      "scheduled_ms": 1089305,
+      "sent_ms": 1089350,
+      "status": 200
+    },
+    {
+      "date_ms": 1088942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "10:10:0,10:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1089796,
+      "scheduled_ms": 1089632,
+      "sent_ms": 1089633,
+      "status": 200
+    },
+    {
+      "date_ms": 1089942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "11:10:0,11:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1090047,
+      "scheduled_ms": 1089898,
+      "sent_ms": 1089899,
+      "status": 200
+    },
+    {
+      "date_ms": 1089942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "12:10:0,12:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1090265,
+      "scheduled_ms": 1090148,
+      "sent_ms": 1090149,
+      "status": 200
+    },
+    {
+      "date_ms": 1089942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "13:10:0,13:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1090507,
+      "scheduled_ms": 1090367,
+      "sent_ms": 1090400,
+      "status": 200
+    },
+    {
+      "date_ms": 1089942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "14:10:0,14:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1090735,
+      "scheduled_ms": 1090608,
+      "sent_ms": 1090649,
+      "status": 200
+    },
+    {
+      "date_ms": 1090942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "15:10:0,15:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1091056,
+      "scheduled_ms": 1090836,
+      "sent_ms": 1090899,
+      "status": 200
+    },
+    {
+      "date_ms": 1102942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "1:10:0,16:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1103579,
+      "scheduled_ms": 1103483,
+      "sent_ms": 1103484,
+      "status": 200
+    },
+    {
+      "date_ms": 1102942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "2:10:0,17:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1103887,
+      "scheduled_ms": 1103681,
+      "sent_ms": 1103734,
+      "status": 200
+    },
+    {
+      "date_ms": 1103942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "3:10:0,18:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1104095,
+      "scheduled_ms": 1103989,
+      "sent_ms": 1103990,
+      "status": 200
+    },
+    {
+      "date_ms": 1103942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "4:10:0,19:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1104323,
+      "scheduled_ms": 1104196,
+      "sent_ms": 1104240,
+      "status": 200
+    },
+    {
+      "date_ms": 1103942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "5:10:0,20:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1104562,
+      "scheduled_ms": 1104425,
+      "sent_ms": 1104490,
+      "status": 200
+    },
+    {
+      "date_ms": 1103942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "6:10:0,21:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1104858,
+      "scheduled_ms": 1104664,
+      "sent_ms": 1104740,
+      "status": 200
+    },
+    {
+      "date_ms": 1104942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "7:10:0,22:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1105047,
+      "scheduled_ms": 1104960,
+      "sent_ms": 1104989,
+      "status": 200
+    },
+    {
+      "date_ms": 1104942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "8:10:0,23:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1105302,
+      "scheduled_ms": 1105149,
+      "sent_ms": 1105240,
+      "status": 200
+    },
+    {
+      "date_ms": 1104942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "9:10:0,24:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1105555,
+      "scheduled_ms": 1105404,
+      "sent_ms": 1105490,
+      "status": 200
+    },
+    {
+      "date_ms": 1104942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "10:10:0,25:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1105798,
+      "scheduled_ms": 1105657,
+      "sent_ms": 1105739,
+      "status": 200
+    },
+    {
+      "date_ms": 1105942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "11:10:0,26:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1106103,
+      "scheduled_ms": 1105899,
+      "sent_ms": 1105990,
+      "status": 200
+    },
+    {
+      "date_ms": 1105942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "12:10:0,27:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1106316,
+      "scheduled_ms": 1106205,
+      "sent_ms": 1106241,
+      "status": 200
+    },
+    {
+      "date_ms": 1105942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "13:10:0,28:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1106553,
+      "scheduled_ms": 1106418,
+      "sent_ms": 1106491,
+      "status": 200
+    },
+    {
+      "date_ms": 1105942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "14:10:0,29:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1106837,
+      "scheduled_ms": 1106655,
+      "sent_ms": 1106741,
+      "status": 200
+    },
+    {
+      "date_ms": 1106942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "15:10:0,30:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1107136,
+      "scheduled_ms": 1106940,
+      "sent_ms": 1106992,
+      "status": 200
+    },
+    {
+      "date_ms": 1447942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "1:10:0,1:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1448725,
+      "scheduled_ms": 1448483,
+      "sent_ms": 1448484,
+      "status": 200
+    },
+    {
+      "date_ms": 1447942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "2:10:0,2:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1448914,
+      "scheduled_ms": 1448830,
+      "sent_ms": 1448831,
+      "status": 200
+    },
+    {
+      "date_ms": 1448942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "3:10:0,3:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1449232,
+      "scheduled_ms": 1449017,
+      "sent_ms": 1449081,
+      "status": 200
+    },
+    {
+      "date_ms": 1448942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "4:10:0,4:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1449412,
+      "scheduled_ms": 1449336,
+      "sent_ms": 1449337,
+      "status": 200
+    },
+    {
+      "date_ms": 1448942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "5:10:0,5:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1449708,
+      "scheduled_ms": 1449514,
+      "sent_ms": 1449586,
+      "status": 200
+    },
+    {
+      "date_ms": 1448942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "6:10:0,6:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1449908,
+      "scheduled_ms": 1449812,
+      "sent_ms": 1449837,
+      "status": 200
+    },
+    {
+      "date_ms": 1449942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "7:10:0,7:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1450204,
+      "scheduled_ms": 1450010,
+      "sent_ms": 1450087,
+      "status": 200
+    },
+    {
+      "date_ms": 1449942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "8:10:0,8:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1450400,
+      "scheduled_ms": 1450307,
+      "sent_ms": 1450338,
+      "status": 200
+    },
+    {
+      "date_ms": 1449942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "9:10:0,9:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1450674,
+      "scheduled_ms": 1450502,
+      "sent_ms": 1450589,
+      "status": 200
+    },
+    {
+      "date_ms": 1449942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "10:10:0,10:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1450932,
+      "scheduled_ms": 1450776,
+      "sent_ms": 1450839,
+      "status": 200
+    },
+    {
+      "date_ms": 1450942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "11:10:0,11:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1451160,
+      "scheduled_ms": 1451035,
+      "sent_ms": 1451090,
+      "status": 200
+    },
+    {
+      "date_ms": 1450942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "12:10:0,12:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1451407,
+      "scheduled_ms": 1451262,
+      "sent_ms": 1451341,
+      "status": 200
+    },
+    {
+      "date_ms": 1450942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "13:10:0,13:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1451723,
+      "scheduled_ms": 1451509,
+      "sent_ms": 1451592,
+      "status": 200
+    },
+    {
+      "date_ms": 1450942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "14:10:0,14:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1451914,
+      "scheduled_ms": 1451825,
+      "sent_ms": 1451842,
+      "status": 200
+    },
+    {
+      "date_ms": 1451942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "15:10:0,15:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1452176,
+      "scheduled_ms": 1452016,
+      "sent_ms": 1452092,
+      "status": 200
+    },
+    {
+      "date_ms": 1463942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "1:10:0,16:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1464838,
+      "scheduled_ms": 1464725,
+      "sent_ms": 1464726,
+      "status": 200
+    },
+    {
+      "date_ms": 1464942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "2:10:0,17:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1465089,
+      "scheduled_ms": 1464941,
+      "sent_ms": 1464975,
+      "status": 200
+    },
+    {
+      "date_ms": 1464942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "3:10:0,18:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1465309,
+      "scheduled_ms": 1465191,
+      "sent_ms": 1465225,
+      "status": 200
+    },
+    {
+      "date_ms": 1464942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "4:10:0,19:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1465532,
+      "scheduled_ms": 1465411,
+      "sent_ms": 1465475,
+      "status": 200
+    },
+    {
+      "date_ms": 1464942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "5:10:0,20:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1465842,
+      "scheduled_ms": 1465634,
+      "sent_ms": 1465726,
+      "status": 200
+    },
+    {
+      "date_ms": 1465942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "6:10:0,21:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1466047,
+      "scheduled_ms": 1465944,
+      "sent_ms": 1465976,
+      "status": 200
+    },
+    {
+      "date_ms": 1465942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "7:10:0,22:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1466304,
+      "scheduled_ms": 1466149,
+      "sent_ms": 1466226,
+      "status": 200
+    },
+    {
+      "date_ms": 1465942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "8:10:0,23:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1466557,
+      "scheduled_ms": 1466406,
+      "sent_ms": 1466476,
+      "status": 200
+    },
+    {
+      "date_ms": 1465942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "9:10:0,24:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1466809,
+      "scheduled_ms": 1466659,
+      "sent_ms": 1466727,
+      "status": 200
+    },
+    {
+      "date_ms": 1466942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "10:10:0,25:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1467046,
+      "scheduled_ms": 1466911,
+      "sent_ms": 1466977,
+      "status": 200
+    },
+    {
+      "date_ms": 1466942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "11:10:0,26:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1467298,
+      "scheduled_ms": 1467148,
+      "sent_ms": 1467227,
+      "status": 200
+    },
+    {
+      "date_ms": 1466942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "12:10:0,27:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1467594,
+      "scheduled_ms": 1467400,
+      "sent_ms": 1467477,
+      "status": 200
+    },
+    {
+      "date_ms": 1466942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "13:10:0,28:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1467871,
+      "scheduled_ms": 1467702,
+      "sent_ms": 1467726,
+      "status": 200
+    },
+    {
+      "date_ms": 1467942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "14:10:0,29:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1468142,
+      "scheduled_ms": 1467973,
+      "sent_ms": 1467976,
+      "status": 200
+    },
+    {
+      "date_ms": 1467942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "15:10:0,30:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1468349,
+      "scheduled_ms": 1468245,
+      "sent_ms": 1468245,
+      "status": 200
+    },
+    {
+      "date_ms": 1808942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "1:10:0,1:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1809859,
+      "scheduled_ms": 1809725,
+      "sent_ms": 1809725,
+      "status": 200
+    },
+    {
+      "date_ms": 1809942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "2:10:0,2:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1810090,
+      "scheduled_ms": 1809961,
+      "sent_ms": 1809976,
+      "status": 200
+    },
+    {
+      "date_ms": 1809942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "3:10:0,3:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1810296,
+      "scheduled_ms": 1810192,
+      "sent_ms": 1810227,
+      "status": 200
+    },
+    {
+      "date_ms": 1809942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "4:10:0,4:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1810558,
+      "scheduled_ms": 1810397,
+      "sent_ms": 1810476,
+      "status": 200
+    },
+    {
+      "date_ms": 1809942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "5:10:0,5:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1810805,
+      "scheduled_ms": 1810660,
+      "sent_ms": 1810727,
+      "status": 200
+    },
+    {
+      "date_ms": 1810942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "6:10:0,6:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1811064,
+      "scheduled_ms": 1810907,
+      "sent_ms": 1810977,
+      "status": 200
+    },
+    {
+      "date_ms": 1810942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "7:10:0,7:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1811294,
+      "scheduled_ms": 1811166,
+      "sent_ms": 1811227,
+      "status": 200
+    },
+    {
+      "date_ms": 1810942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "8:10:0,8:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1811550,
+      "scheduled_ms": 1811396,
+      "sent_ms": 1811477,
+      "status": 200
+    },
+    {
+      "date_ms": 1810942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "9:10:0,9:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1811840,
+      "scheduled_ms": 1811651,
+      "sent_ms": 1811726,
+      "status": 200
+    },
+    {
+      "date_ms": 1811942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "10:10:0,10:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1812047,
+      "scheduled_ms": 1811942,
+      "sent_ms": 1811977,
+      "status": 200
+    },
+    {
+      "date_ms": 1811942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "11:10:0,11:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1812324,
+      "scheduled_ms": 1812149,
+      "sent_ms": 1812227,
+      "status": 200
+    },
+    {
+      "date_ms": 1811942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "12:10:0,12:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1812579,
+      "scheduled_ms": 1812427,
+      "sent_ms": 1812478,
+      "status": 200
+    },
+    {
+      "date_ms": 1811942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "13:10:0,13:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1812814,
+      "scheduled_ms": 1812683,
+      "sent_ms": 1812729,
+      "status": 200
+    },
+    {
+      "date_ms": 1812942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "14:10:0,14:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1813077,
+      "scheduled_ms": 1812917,
+      "sent_ms": 1812980,
+      "status": 200
+    },
+    {
+      "date_ms": 1812942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "15:10:0,15:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1813366,
+      "scheduled_ms": 1813181,
+      "sent_ms": 1813229,
+      "status": 200
+    },
+    {
+      "date_ms": 1824942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "1:10:0,16:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1825944,
+      "scheduled_ms": 1825859,
+      "sent_ms": 1825859,
+      "status": 200
+    },
+    {
+      "date_ms": 1825942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "2:10:0,17:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1826290,
+      "scheduled_ms": 1826048,
+      "sent_ms": 1826110,
+      "status": 200
+    },
+    {
+      "date_ms": 1825942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "3:10:0,18:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1826544,
+      "scheduled_ms": 1826396,
+      "sent_ms": 1826397,
+      "status": 200
+    },
+    {
+      "date_ms": 1825942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "4:10:0,19:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1826758,
+      "scheduled_ms": 1826650,
+      "sent_ms": 1826651,
+      "status": 200
+    },
+    {
+      "date_ms": 1826942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "5:10:0,20:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1826964,
+      "scheduled_ms": 1826860,
+      "sent_ms": 1826902,
+      "status": 200
+    },
+    {
+      "date_ms": 1826942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "6:10:0,21:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1827227,
+      "scheduled_ms": 1827066,
+      "sent_ms": 1827151,
+      "status": 200
+    },
+    {
+      "date_ms": 1826942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "7:10:0,22:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1827565,
+      "scheduled_ms": 1827330,
+      "sent_ms": 1827402,
+      "status": 200
+    },
+    {
+      "date_ms": 1826942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "8:10:0,23:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1827763,
+      "scheduled_ms": 1827671,
+      "sent_ms": 1827671,
+      "status": 200
+    },
+    {
+      "date_ms": 1827942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "9:10:0,24:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1828043,
+      "scheduled_ms": 1827865,
+      "sent_ms": 1827922,
+      "status": 200
+    },
+    {
+      "date_ms": 1827942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "10:10:0,25:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1828248,
+      "scheduled_ms": 1828145,
+      "sent_ms": 1828172,
+      "status": 200
+    },
+    {
+      "date_ms": 1827942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "11:10:0,26:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1828511,
+      "scheduled_ms": 1828350,
+      "sent_ms": 1828422,
+      "status": 200
+    },
+    {
+      "date_ms": 1827942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "12:10:0,27:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1828738,
+      "scheduled_ms": 1828614,
+      "sent_ms": 1828672,
+      "status": 200
+    },
+    {
+      "date_ms": 1828942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "13:10:0,28:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1828992,
+      "scheduled_ms": 1828840,
+      "sent_ms": 1828921,
+      "status": 200
+    },
+    {
+      "date_ms": 1828942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "14:10:0,29:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1829232,
+      "scheduled_ms": 1829094,
+      "sent_ms": 1829171,
+      "status": 200
+    },
+    {
+      "date_ms": 1828942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "15:10:0,30:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 1829496,
+      "scheduled_ms": 1829334,
+      "sent_ms": 1829422,
+      "status": 200
+    },
+    {
+      "date_ms": 2170942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "1:10:0,1:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2170978,
+      "scheduled_ms": 2170859,
+      "sent_ms": 2170860,
+      "status": 200
+    },
+    {
+      "date_ms": 2170942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "2:10:0,2:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2171176,
+      "scheduled_ms": 2171080,
+      "sent_ms": 2171110,
+      "status": 200
+    },
+    {
+      "date_ms": 2170942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "3:10:0,3:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2171447,
+      "scheduled_ms": 2171278,
+      "sent_ms": 2171360,
+      "status": 200
+    },
+    {
+      "date_ms": 2170942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "4:10:0,4:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2171711,
+      "scheduled_ms": 2171549,
+      "sent_ms": 2171611,
+      "status": 200
+    },
+    {
+      "date_ms": 2171942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "5:10:0,5:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2171950,
+      "scheduled_ms": 2171813,
+      "sent_ms": 2171861,
+      "status": 200
+    },
+    {
+      "date_ms": 2171942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "6:10:0,6:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2172193,
+      "scheduled_ms": 2172052,
+      "sent_ms": 2172112,
+      "status": 200
+    },
+    {
+      "date_ms": 2171942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "7:10:0,7:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2172443,
+      "scheduled_ms": 2172295,
+      "sent_ms": 2172362,
+      "status": 200
+    },
+    {
+      "date_ms": 2171942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "8:10:0,8:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2172690,
+      "scheduled_ms": 2172545,
+      "sent_ms": 2172611,
+      "status": 200
+    },
+    {
+      "date_ms": 2171942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "9:10:0,9:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2172917,
+      "scheduled_ms": 2172791,
+      "sent_ms": 2172861,
+      "status": 200
+    },
+    {
+      "date_ms": 2172942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "10:10:0,10:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2173184,
+      "scheduled_ms": 2173018,
+      "sent_ms": 2173112,
+      "status": 200
+    },
+    {
+      "date_ms": 2172942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "11:10:0,11:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2173423,
+      "scheduled_ms": 2173286,
+      "sent_ms": 2173363,
+      "status": 200
+    },
+    {
+      "date_ms": 2172942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "12:10:0,12:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2173693,
+      "scheduled_ms": 2173525,
+      "sent_ms": 2173612,
+      "status": 200
+    },
+    {
+      "date_ms": 2172942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "13:10:0,13:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2173928,
+      "scheduled_ms": 2173795,
+      "sent_ms": 2173863,
+      "status": 200
+    },
+    {
+      "date_ms": 2173942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "14:10:0,14:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2174167,
+      "scheduled_ms": 2174030,
+      "sent_ms": 2174113,
+      "status": 200
+    },
+    {
+      "date_ms": 2173942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "15:10:0,15:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2174433,
+      "scheduled_ms": 2174268,
+      "sent_ms": 2174363,
+      "status": 200
+    },
+    {
+      "date_ms": 2186942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "1:10:0,16:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2187043,
+      "scheduled_ms": 2186978,
+      "sent_ms": 2186979,
+      "status": 200
+    },
+    {
+      "date_ms": 2186942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "2:10:0,17:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2187295,
+      "scheduled_ms": 2187145,
+      "sent_ms": 2187229,
+      "status": 200
+    },
+    {
+      "date_ms": 2186942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "3:10:0,18:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2187584,
+      "scheduled_ms": 2187397,
+      "sent_ms": 2187480,
+      "status": 200
+    },
+    {
+      "date_ms": 2186942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "4:10:0,19:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2187834,
+      "scheduled_ms": 2187686,
+      "sent_ms": 2187729,
+      "status": 200
+    },
+    {
+      "date_ms": 2187942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "5:10:0,20:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2188070,
+      "scheduled_ms": 2187935,
+      "sent_ms": 2187979,
+      "status": 200
+    },
+    {
+      "date_ms": 2187942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "6:10:0,21:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2188313,
+      "scheduled_ms": 2188172,
+      "sent_ms": 2188230,
+      "status": 200
+    },
+    {
+      "date_ms": 2187942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "7:10:0,22:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2188533,
+      "scheduled_ms": 2188415,
+      "sent_ms": 2188481,
+      "status": 200
+    },
+    {
+      "date_ms": 2187942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "8:10:0,23:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2188805,
+      "scheduled_ms": 2188635,
+      "sent_ms": 2188731,
+      "status": 200
+    },
+    {
+      "date_ms": 2188942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "9:10:0,24:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2189055,
+      "scheduled_ms": 2188907,
+      "sent_ms": 2188981,
+      "status": 200
+    },
+    {
+      "date_ms": 2188942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "10:10:0,25:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2189340,
+      "scheduled_ms": 2189157,
+      "sent_ms": 2189230,
+      "status": 200
+    },
+    {
+      "date_ms": 2188942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "11:10:0,26:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2189552,
+      "scheduled_ms": 2189442,
+      "sent_ms": 2189481,
+      "status": 200
+    },
+    {
+      "date_ms": 2188942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "12:10:0,27:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2189787,
+      "scheduled_ms": 2189654,
+      "sent_ms": 2189731,
+      "status": 200
+    },
+    {
+      "date_ms": 2189942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "13:10:0,28:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2190064,
+      "scheduled_ms": 2189888,
+      "sent_ms": 2189981,
+      "status": 200
+    },
+    {
+      "date_ms": 2189942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "14:10:0,29:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2190341,
+      "scheduled_ms": 2190167,
+      "sent_ms": 2190231,
+      "status": 200
+    },
+    {
+      "date_ms": 2189942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "15:10:0,30:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2190547,
+      "scheduled_ms": 2190443,
+      "sent_ms": 2190481,
+      "status": 200
+    },
+    {
+      "date_ms": 2531942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "1:10:0,1:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2532168,
+      "scheduled_ms": 2531978,
+      "sent_ms": 2531979,
+      "status": 200
+    },
+    {
+      "date_ms": 2531942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "2:10:0,2:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2532354,
+      "scheduled_ms": 2532270,
+      "sent_ms": 2532271,
+      "status": 200
+    },
+    {
+      "date_ms": 2531942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "3:10:0,3:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2532576,
+      "scheduled_ms": 2532456,
+      "sent_ms": 2532522,
+      "status": 200
+    },
+    {
+      "date_ms": 2531942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "4:10:0,4:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2532846,
+      "scheduled_ms": 2532677,
+      "sent_ms": 2532772,
+      "status": 200
+    },
+    {
+      "date_ms": 2532942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "5:10:0,5:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2533117,
+      "scheduled_ms": 2532948,
+      "sent_ms": 2533023,
+      "status": 200
+    },
+    {
+      "date_ms": 2532942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "6:10:0,6:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2533338,
+      "scheduled_ms": 2533219,
+      "sent_ms": 2533273,
+      "status": 200
+    },
+    {
+      "date_ms": 2532942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "7:10:0,7:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2533613,
+      "scheduled_ms": 2533440,
+      "sent_ms": 2533523,
+      "status": 200
+    },
+    {
+      "date_ms": 2532942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "8:10:0,8:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2533843,
+      "scheduled_ms": 2533715,
+      "sent_ms": 2533773,
+      "status": 200
+    },
+    {
+      "date_ms": 2533942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "9:10:0,9:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2534099,
+      "scheduled_ms": 2533945,
+      "sent_ms": 2534023,
+      "status": 200
+    },
+    {
+      "date_ms": 2533942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "10:10:0,10:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2534330,
+      "scheduled_ms": 2534201,
+      "sent_ms": 2534273,
+      "status": 200
+    },
+    {
+      "date_ms": 2533942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "11:10:0,11:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2534592,
+      "scheduled_ms": 2534431,
+      "sent_ms": 2534523,
+      "status": 200
+    },
+    {
+      "date_ms": 2533942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "12:10:0,12:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2534838,
+      "scheduled_ms": 2534693,
+      "sent_ms": 2534773,
+      "status": 200
+    },
+    {
+      "date_ms": 2534942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "13:10:0,13:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2535106,
+      "scheduled_ms": 2534940,
+      "sent_ms": 2535022,
+      "status": 200
+    },
+    {
+      "date_ms": 2534942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "14:10:0,14:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2535395,
+      "scheduled_ms": 2535209,
+      "sent_ms": 2535274,
+      "status": 200
+    },
+    {
+      "date_ms": 2534942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "15:10:0,15:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2535606,
+      "scheduled_ms": 2535497,
+      "sent_ms": 2535524,
+      "status": 200
+    },
+    {
+      "date_ms": 2547942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "1:10:0,16:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2548246,
+      "scheduled_ms": 2548168,
+      "sent_ms": 2548169,
+      "status": 200
+    },
+    {
+      "date_ms": 2547942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "2:10:0,17:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2548495,
+      "scheduled_ms": 2548348,
+      "sent_ms": 2548420,
+      "status": 200
+    },
+    {
+      "date_ms": 2547942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "3:10:0,18:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2548742,
+      "scheduled_ms": 2548597,
+      "sent_ms": 2548669,
+      "status": 200
+    },
+    {
+      "date_ms": 2548942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "4:10:0,19:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2548976,
+      "scheduled_ms": 2548844,
+      "sent_ms": 2548919,
+      "status": 200
+    },
+    {
+      "date_ms": 2548942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "5:10:0,20:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2549252,
+      "scheduled_ms": 2549078,
+      "sent_ms": 2549170,
+      "status": 200
+    },
+    {
+      "date_ms": 2548942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "6:10:0,21:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2549550,
+      "scheduled_ms": 2549354,
+      "sent_ms": 2549421,
+      "status": 200
+    },
+    {
+      "date_ms": 2548942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "7:10:0,22:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2549735,
+      "scheduled_ms": 2549652,
+      "sent_ms": 2549671,
+      "status": 200
+    },
+    {
+      "date_ms": 2549942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "8:10:0,23:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2550018,
+      "scheduled_ms": 2549836,
+      "sent_ms": 2549921,
+      "status": 200
+    },
+    {
+      "date_ms": 2549942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "9:10:0,24:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2550250,
+      "scheduled_ms": 2550120,
+      "sent_ms": 2550171,
+      "status": 200
+    },
+    {
+      "date_ms": 2549942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "10:10:0,25:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2550487,
+      "scheduled_ms": 2550351,
+      "sent_ms": 2550420,
+      "status": 200
+    },
+    {
+      "date_ms": 2549942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "11:10:0,26:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2550733,
+      "scheduled_ms": 2550588,
+      "sent_ms": 2550671,
+      "status": 200
+    },
+    {
+      "date_ms": 2550942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "12:10:0,27:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2551031,
+      "scheduled_ms": 2550834,
+      "sent_ms": 2550921,
+      "status": 200
+    },
+    {
+      "date_ms": 2550942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "13:10:0,28:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2551228,
+      "scheduled_ms": 2551133,
+      "sent_ms": 2551172,
+      "status": 200
+    },
+    {
+      "date_ms": 2550942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "14:10:0,29:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2551526,
+      "scheduled_ms": 2551330,
+      "sent_ms": 2551421,
+      "status": 200
+    },
+    {
+      "date_ms": 2550942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "15:10:0,30:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2551743,
+      "scheduled_ms": 2551627,
+      "sent_ms": 2551671,
+      "status": 200
+    },
+    {
+      "date_ms": 2892942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "1:10:0,1:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2893379,
+      "scheduled_ms": 2893168,
+      "sent_ms": 2893169,
+      "status": 200
+    },
+    {
+      "date_ms": 2892942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "2:10:0,2:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2893589,
+      "scheduled_ms": 2893481,
+      "sent_ms": 2893482,
+      "status": 200
+    },
+    {
+      "date_ms": 2892942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "3:10:0,3:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2893794,
+      "scheduled_ms": 2893691,
+      "sent_ms": 2893733,
+      "status": 200
+    },
+    {
+      "date_ms": 2893942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "4:10:0,4:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2894064,
+      "scheduled_ms": 2893896,
+      "sent_ms": 2893984,
+      "status": 200
+    },
+    {
+      "date_ms": 2893942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "5:10:0,5:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2894335,
+      "scheduled_ms": 2894166,
+      "sent_ms": 2894234,
+      "status": 200
+    },
+    {
+      "date_ms": 2893942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "6:10:0,6:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2894554,
+      "scheduled_ms": 2894437,
+      "sent_ms": 2894483,
+      "status": 200
+    },
+    {
+      "date_ms": 2893942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "7:10:0,7:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2894810,
+      "scheduled_ms": 2894655,
+      "sent_ms": 2894733,
+      "status": 200
+    },
+    {
+      "date_ms": 2894942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "8:10:0,8:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2895059,
+      "scheduled_ms": 2894912,
+      "sent_ms": 2894984,
+      "status": 200
+    },
+    {
+      "date_ms": 2894942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "9:10:0,9:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2895292,
+      "scheduled_ms": 2895160,
+      "sent_ms": 2895234,
+      "status": 200
+    },
+    {
+      "date_ms": 2894942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "10:10:0,10:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2895555,
+      "scheduled_ms": 2895394,
+      "sent_ms": 2895484,
+      "status": 200
+    },
+    {
+      "date_ms": 2894942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "11:10:0,11:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2895801,
+      "scheduled_ms": 2895657,
+      "sent_ms": 2895735,
+      "status": 200
+    },
+    {
+      "date_ms": 2895942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "12:10:0,12:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2896047,
+      "scheduled_ms": 2895903,
+      "sent_ms": 2895985,
+      "status": 200
+    },
+    {
+      "date_ms": 2895942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "13:10:0,13:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2896292,
+      "scheduled_ms": 2896149,
+      "sent_ms": 2896236,
+      "status": 200
+    },
+    {
+      "date_ms": 2895942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "14:10:0,14:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2896567,
+      "scheduled_ms": 2896393,
+      "sent_ms": 2896487,
+      "status": 200
+    },
+    {
+      "date_ms": 2895942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "15:10:0,15:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2896838,
+      "scheduled_ms": 2896669,
+      "sent_ms": 2896737,
+      "status": 200
+    },
+    {
+      "date_ms": 2908942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "1:10:0,16:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2909500,
+      "scheduled_ms": 2909379,
+      "sent_ms": 2909381,
+      "status": 200
+    },
+    {
+      "date_ms": 2908942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "2:10:0,17:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2909718,
+      "scheduled_ms": 2909602,
+      "sent_ms": 2909631,
+      "status": 200
+    },
+    {
+      "date_ms": 2909942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "3:10:0,18:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2910019,
+      "scheduled_ms": 2909819,
+      "sent_ms": 2909882,
+      "status": 200
+    },
+    {
+      "date_ms": 2909942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "4:10:0,19:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2910208,
+      "scheduled_ms": 2910120,
+      "sent_ms": 2910131,
+      "status": 200
+    },
+    {
+      "date_ms": 2909942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "5:10:0,20:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2910524,
+      "scheduled_ms": 2910310,
+      "sent_ms": 2910382,
+      "status": 200
+    },
+    {
+      "date_ms": 2909942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "6:10:0,21:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2910691,
+      "scheduled_ms": 2910626,
+      "sent_ms": 2910633,
+      "status": 200
+    },
+    {
+      "date_ms": 2910942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "7:10:0,22:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2910954,
+      "scheduled_ms": 2910793,
+      "sent_ms": 2910882,
+      "status": 200
+    },
+    {
+      "date_ms": 2910942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "8:10:0,23:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2911245,
+      "scheduled_ms": 2911055,
+      "sent_ms": 2911133,
+      "status": 200
+    },
+    {
+      "date_ms": 2910942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "9:10:0,24:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2911489,
+      "scheduled_ms": 2911346,
+      "sent_ms": 2911382,
+      "status": 200
+    },
+    {
+      "date_ms": 2910942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "10:10:0,25:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2911680,
+      "scheduled_ms": 2911591,
+      "sent_ms": 2911633,
+      "status": 200
+    },
+    {
+      "date_ms": 2910942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "11:10:0,26:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2911937,
+      "scheduled_ms": 2911781,
+      "sent_ms": 2911883,
+      "status": 200
+    },
+    {
+      "date_ms": 2911942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "12:10:0,27:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2912272,
+      "scheduled_ms": 2912039,
+      "sent_ms": 2912134,
+      "status": 200
+    },
+    {
+      "date_ms": 2911942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "13:10:0,28:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2912448,
+      "scheduled_ms": 2912373,
+      "sent_ms": 2912384,
+      "status": 200
+    },
+    {
+      "date_ms": 2911942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "14:10:0,29:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2912682,
+      "scheduled_ms": 2912550,
+      "sent_ms": 2912635,
+      "status": 200
+    },
+    {
+      "date_ms": 2912942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "15:10:0,30:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 2913051,
+      "scheduled_ms": 2912784,
+      "sent_ms": 2912885,
+      "status": 200
+    },
+    {
+      "date_ms": 3253942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "1:10:0,1:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 3254507,
+      "scheduled_ms": 3254379,
+      "sent_ms": 3254380,
+      "status": 200
+    },
+    {
+      "date_ms": 3253942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "2:10:0,2:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 3254683,
+      "scheduled_ms": 3254609,
+      "sent_ms": 3254630,
+      "status": 200
+    },
+    {
+      "date_ms": 3254942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "3:10:0,3:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 3254956,
+      "scheduled_ms": 3254785,
+      "sent_ms": 3254880,
+      "status": 200
+    },
+    {
+      "date_ms": 3254942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "4:10:0,4:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 3255178,
+      "scheduled_ms": 3255058,
+      "sent_ms": 3255130,
+      "status": 200
+    },
+    {
+      "date_ms": 3254942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "5:10:0,5:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 3255438,
+      "scheduled_ms": 3255280,
+      "sent_ms": 3255380,
+      "status": 200
+    },
+    {
+      "date_ms": 3254942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "6:10:0,6:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 3255722,
+      "scheduled_ms": 3255540,
+      "sent_ms": 3255630,
+      "status": 200
+    },
+    {
+      "date_ms": 3255942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "7:10:0,7:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 3255975,
+      "scheduled_ms": 3255825,
+      "sent_ms": 3255881,
+      "status": 200
+    },
+    {
+      "date_ms": 3255942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "8:10:0,8:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 3256190,
+      "scheduled_ms": 3256078,
+      "sent_ms": 3256131,
+      "status": 200
+    },
+    {
+      "date_ms": 3255942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "9:10:0,9:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 3256458,
+      "scheduled_ms": 3256292,
+      "sent_ms": 3256382,
+      "status": 200
+    },
+    {
+      "date_ms": 3255942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "10:10:0,10:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 3256767,
+      "scheduled_ms": 3256560,
+      "sent_ms": 3256633,
+      "status": 200
+    },
+    {
+      "date_ms": 3256942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "11:10:0,11:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 3256954,
+      "scheduled_ms": 3256873,
+      "sent_ms": 3256884,
+      "status": 200
+    },
+    {
+      "date_ms": 3256942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "12:10:0,12:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 3257194,
+      "scheduled_ms": 3257056,
+      "sent_ms": 3257134,
+      "status": 200
+    },
+    {
+      "date_ms": 3256942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "13:10:0,13:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 3257465,
+      "scheduled_ms": 3257296,
+      "sent_ms": 3257384,
+      "status": 200
+    },
+    {
+      "date_ms": 3256942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "14:10:0,14:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 3257704,
+      "scheduled_ms": 3257568,
+      "sent_ms": 3257633,
+      "status": 200
+    },
+    {
+      "date_ms": 3257942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "15:10:0,15:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 3258032,
+      "scheduled_ms": 3257806,
+      "sent_ms": 3257884,
+      "status": 200
+    },
+    {
+      "date_ms": 3269942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "1:10:0,16:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 3270593,
+      "scheduled_ms": 3270507,
+      "sent_ms": 3270508,
+      "status": 200
+    },
+    {
+      "date_ms": 3269942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "2:10:0,17:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 3270838,
+      "scheduled_ms": 3270696,
+      "sent_ms": 3270759,
+      "status": 200
+    },
+    {
+      "date_ms": 3270942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "3:10:0,18:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 3271083,
+      "scheduled_ms": 3270940,
+      "sent_ms": 3271010,
+      "status": 200
+    },
+    {
+      "date_ms": 3270942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "4:10:0,19:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 3271317,
+      "scheduled_ms": 3271185,
+      "sent_ms": 3271260,
+      "status": 200
+    },
+    {
+      "date_ms": 3270942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "5:10:0,20:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 3271642,
+      "scheduled_ms": 3271419,
+      "sent_ms": 3271511,
+      "status": 200
+    },
+    {
+      "date_ms": 3270942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "6:10:0,21:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 3271836,
+      "scheduled_ms": 3271744,
+      "sent_ms": 3271761,
+      "status": 200
+    },
+    {
+      "date_ms": 3271942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "7:10:0,22:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 3272128,
+      "scheduled_ms": 3271938,
+      "sent_ms": 3272010,
+      "status": 200
+    },
+    {
+      "date_ms": 3271942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "8:10:0,23:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 3272325,
+      "scheduled_ms": 3272231,
+      "sent_ms": 3272260,
+      "status": 200
+    },
+    {
+      "date_ms": 3271942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "9:10:0,24:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 3272622,
+      "scheduled_ms": 3272427,
+      "sent_ms": 3272510,
+      "status": 200
+    },
+    {
+      "date_ms": 3271942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "10:10:0,25:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 3272861,
+      "scheduled_ms": 3272725,
+      "sent_ms": 3272760,
+      "status": 200
+    },
+    {
+      "date_ms": 3272942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "11:10:0,26:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 3273108,
+      "scheduled_ms": 3272964,
+      "sent_ms": 3273010,
+      "status": 200
+    },
+    {
+      "date_ms": 3272942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "12:10:0,27:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 3273329,
+      "scheduled_ms": 3273210,
+      "sent_ms": 3273260,
+      "status": 200
+    },
+    {
+      "date_ms": 3272942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "13:10:0,28:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 3273743,
+      "scheduled_ms": 3273431,
+      "sent_ms": 3273511,
+      "status": 200
+    },
+    {
+      "date_ms": 3272942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "14:10:0,29:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 3273925,
+      "scheduled_ms": 3273847,
+      "sent_ms": 3273848,
+      "status": 200
+    },
+    {
+      "date_ms": 3273942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "15:10:0,30:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 3274243,
+      "scheduled_ms": 3274027,
+      "sent_ms": 3274098,
+      "status": 200
+    },
+    {
+      "date_ms": 3614942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "1:10:0,1:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 3615652,
+      "scheduled_ms": 3615507,
+      "sent_ms": 3615507,
+      "status": 200
+    },
+    {
+      "date_ms": 3614942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "2:10:0,2:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 3615864,
+      "scheduled_ms": 3615755,
+      "sent_ms": 3615758,
+      "status": 200
+    },
+    {
+      "date_ms": 3615942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "3:10:0,3:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 3616062,
+      "scheduled_ms": 3615968,
+      "sent_ms": 3616007,
+      "status": 200
+    },
+    {
+      "date_ms": 3615942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "4:10:0,4:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 3616332,
+      "scheduled_ms": 3616164,
+      "sent_ms": 3616258,
+      "status": 200
+    },
+    {
+      "date_ms": 3615942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "5:10:0,5:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 3616610,
+      "scheduled_ms": 3616434,
+      "sent_ms": 3616508,
+      "status": 200
+    },
+    {
+      "date_ms": 3615942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "6:10:0,6:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 3616842,
+      "scheduled_ms": 3616711,
+      "sent_ms": 3616759,
+      "status": 200
+    },
+    {
+      "date_ms": 3616942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "7:10:0,7:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 3617092,
+      "scheduled_ms": 3616944,
+      "sent_ms": 3617008,
+      "status": 200
+    },
+    {
+      "date_ms": 3616942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "8:10:0,8:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 3617375,
+      "scheduled_ms": 3617195,
+      "sent_ms": 3617259,
+      "status": 200
+    },
+    {
+      "date_ms": 3616942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "9:10:0,9:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 3617582,
+      "scheduled_ms": 3617478,
+      "sent_ms": 3617509,
+      "status": 200
+    },
+    {
+      "date_ms": 3616942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "10:10:0,10:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 3617852,
+      "scheduled_ms": 3617684,
+      "sent_ms": 3617759,
+      "status": 200
+    },
+    {
+      "date_ms": 3617942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "11:10:0,11:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 3618097,
+      "scheduled_ms": 3617955,
+      "sent_ms": 3618010,
+      "status": 200
+    },
+    {
+      "date_ms": 3617942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "12:10:0,12:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 3618322,
+      "scheduled_ms": 3618199,
+      "sent_ms": 3618260,
+      "status": 200
+    },
+    {
+      "date_ms": 3617942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "13:10:0,13:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 3618613,
+      "scheduled_ms": 3618423,
+      "sent_ms": 3618511,
+      "status": 200
+    },
+    {
+      "date_ms": 3617942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "14:10:0,14:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 3618814,
+      "scheduled_ms": 3618716,
+      "sent_ms": 3618760,
+      "status": 200
+    },
+    {
+      "date_ms": 3618942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "15:10:0,15:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 3619102,
+      "scheduled_ms": 3618915,
+      "sent_ms": 3619011,
+      "status": 200
+    },
+    {
+      "date_ms": 3630942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "1:10:0,16:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 3631759,
+      "scheduled_ms": 3631652,
+      "sent_ms": 3631653,
+      "status": 200
+    },
+    {
+      "date_ms": 3631942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "2:10:0,17:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 3631992,
+      "scheduled_ms": 3631862,
+      "sent_ms": 3631904,
+      "status": 200
+    },
+    {
+      "date_ms": 3631942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "3:10:0,18:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 3632208,
+      "scheduled_ms": 3632095,
+      "sent_ms": 3632155,
+      "status": 200
+    },
+    {
+      "date_ms": 3631942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "4:10:0,19:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 3632514,
+      "scheduled_ms": 3632310,
+      "sent_ms": 3632404,
+      "status": 200
+    },
+    {
+      "date_ms": 3631942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "5:10:0,20:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 3632717,
+      "scheduled_ms": 3632617,
+      "sent_ms": 3632655,
+      "status": 200
+    },
+    {
+      "date_ms": 3632942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "6:10:0,21:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 3632970,
+      "scheduled_ms": 3632819,
+      "sent_ms": 3632905,
+      "status": 200
+    },
+    {
+      "date_ms": 3632942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "7:10:0,22:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 3633206,
+      "scheduled_ms": 3633072,
+      "sent_ms": 3633155,
+      "status": 200
+    },
+    {
+      "date_ms": 3632942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "8:10:0,23:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 3633480,
+      "scheduled_ms": 3633307,
+      "sent_ms": 3633405,
+      "status": 200
+    },
+    {
+      "date_ms": 3632942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "9:10:0,24:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 3633750,
+      "scheduled_ms": 3633582,
+      "sent_ms": 3633655,
+      "status": 200
+    },
+    {
+      "date_ms": 3633942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "10:10:0,25:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 3634021,
+      "scheduled_ms": 3633852,
+      "sent_ms": 3633906,
+      "status": 200
+    },
+    {
+      "date_ms": 3633942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "11:10:0,26:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 3634252,
+      "scheduled_ms": 3634123,
+      "sent_ms": 3634157,
+      "status": 200
+    },
+    {
+      "date_ms": 3633942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "12:10:0,27:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 3634518,
+      "scheduled_ms": 3634355,
+      "sent_ms": 3634408,
+      "status": 200
+    },
+    {
+      "date_ms": 3633942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "13:10:0,28:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 3634773,
+      "scheduled_ms": 3634621,
+      "sent_ms": 3634658,
+      "status": 200
+    },
+    {
+      "date_ms": 3634942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "14:10:0,29:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 3635036,
+      "scheduled_ms": 3634876,
+      "sent_ms": 3634908,
+      "status": 200
+    },
+    {
+      "date_ms": 3634942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "15:10:0,30:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 3635250,
+      "scheduled_ms": 3635139,
+      "sent_ms": 3635158,
+      "status": 200
+    },
+    {
+      "date_ms": 3975942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "1:10:0,1:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 3976778,
+      "scheduled_ms": 3976652,
+      "sent_ms": 3976653,
+      "status": 200
+    },
+    {
+      "date_ms": 3976942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "2:10:0,2:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 3977014,
+      "scheduled_ms": 3976881,
+      "sent_ms": 3976904,
+      "status": 200
+    },
+    {
+      "date_ms": 3976942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "3:10:0,3:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 3977258,
+      "scheduled_ms": 3977118,
+      "sent_ms": 3977155,
+      "status": 200
+    },
+    {
+      "date_ms": 3976942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "4:10:0,4:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 3977517,
+      "scheduled_ms": 3977360,
+      "sent_ms": 3977405,
+      "status": 200
+    },
+    {
+      "date_ms": 3976942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "5:10:0,5:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 3977710,
+      "scheduled_ms": 3977621,
+      "sent_ms": 3977654,
+      "status": 200
+    },
+    {
+      "date_ms": 3977942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "6:10:0,6:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 3978000,
+      "scheduled_ms": 3977812,
+      "sent_ms": 3977904,
+      "status": 200
+    },
+    {
+      "date_ms": 3977942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "7:10:0,7:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 3978210,
+      "scheduled_ms": 3978101,
+      "sent_ms": 3978154,
+      "status": 200
+    },
+    {
+      "date_ms": 3977942,
+      "endpoint": "get-stash",
+      "headers": {
+        "x-rate-limit-account": "15:10:60,30:300:300",
+        "x-rate-limit-account-state": "8:10:0,8:300:0",
+        "x-rate-limit-policy": "stash-request-limit",
+        "x-rate-limit-rules": "Account"
+      },
+      "kind": "reply",
+      "policy": "stash-request-limit",
+      "received_ms": 3978468,
+      "scheduled_ms": 3978311,
+      "sent_ms": 3978405,
+      "status": 200
+    }
+  ]
+}
