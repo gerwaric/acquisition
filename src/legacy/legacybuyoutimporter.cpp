@@ -21,6 +21,8 @@
 #include <xlsxdatavalidation.h>
 #include <xlsxdocument.h>
 #include <xlsxformat.h>
+#include <xlsxworkbook.h>
+#include <xlsxworksheet.h>
 
 #include "buyout.h"
 #include "currency.h"
@@ -203,6 +205,7 @@ namespace {
         if (!document.addSheet("plan")) {
             return false;
         }
+        document.workbook()->setStringsToHyperlinksEnabled(false);
 
         QXlsx::Format header_format;
         header_format.setFontBold(true);
@@ -215,7 +218,16 @@ namespace {
         }
 
         const auto write = [&document](int row, int column, const QVariant &value) {
-            return !value.isValid() || value.isNull() || document.write(row, column, value);
+            if (!value.isValid() || value.isNull()) {
+                return true;
+            }
+            // Plan cells are data: QXlsx's generic write() turns a leading
+            // '=' into a formula (a '=== SELL ===' tab label would render
+            // as #NAME?), so strings go through writeString() verbatim.
+            if (value.metaType() == QMetaType::fromType<QString>()) {
+                return document.currentWorksheet()->writeString(row, column, value.toString());
+            }
+            return document.write(row, column, value);
         };
         int row_number = 2;
         for (const PlanRow &row : rows) {
@@ -282,8 +294,7 @@ namespace {
         };
         int meta_row = 1;
         for (const auto &[key, value] : metadata) {
-            if (!document.write(meta_row, 1, key, header_format)
-                || !document.write(meta_row, 2, value)) {
+            if (!document.write(meta_row, 1, key, header_format) || !write(meta_row, 2, value)) {
                 return false;
             }
             ++meta_row;
@@ -402,7 +413,8 @@ LegacyBuyoutPlanReport LegacyBuyoutImporter::createPlan(const QString &source_fi
         }
     }
 
-    const std::vector<poe::Character> current_characters = m_characters->getCharacterList(m_realm);
+    const std::vector<poe::Character> current_characters = m_characters->getCharacterList(m_realm,
+                                                                                          m_league);
     std::unordered_map<QString, std::unordered_set<QString>> current_character_item_ids;
     for (const poe::Character &character : current_characters) {
         const auto detail = m_characters->getCharacter(character.name, m_realm);
@@ -802,9 +814,31 @@ LegacyBuyoutApplyReport LegacyBuyoutImporter::applyPlan(const QString &plan_file
     std::vector<int> import_rows;
     for (int row = 2; row <= plan_dimension.lastRow(); ++row) {
         const QString action = cell(row, "action").toString().trimmed();
+
+        // A fully blank row is ignored, not an error: clearing a row's
+        // contents (instead of deleting the row) or inserting a separator
+        // row leaves an empty row inside the sheet dimension when Excel
+        // re-saves the plan.
+        if (action.isEmpty() && cell(row, "target_type").toString().trimmed().isEmpty()
+            && cell(row, "item_id").toString().trimmed().isEmpty()
+            && cell(row, "location_id").toString().trimmed().isEmpty()
+            && cell(row, "value").toString().trimmed().isEmpty()) {
+            continue;
+        }
+
         if (action != "import" && action != "skip") {
             annotate(row, "error", "Action must be 'import' or 'skip'.");
             ++report.errors;
+            continue;
+        }
+
+        // Skip rows short-circuit before any field validation: the user
+        // opted out of this row, so editing its now-meaningless cells
+        // (e.g. clearing an orphaned row's value) must not abort the
+        // import.
+        if (action == "skip") {
+            annotate(row, "skipped");
+            ++report.skipped;
             continue;
         }
 
@@ -836,12 +870,6 @@ LegacyBuyoutApplyReport LegacyBuyoutImporter::applyPlan(const QString &plan_file
         if (!validation_error.isEmpty()) {
             annotate(row, "error", validation_error);
             ++report.errors;
-            continue;
-        }
-
-        if (action == "skip") {
-            annotate(row, "skipped");
-            ++report.skipped;
             continue;
         }
 
