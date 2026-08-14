@@ -164,8 +164,14 @@ impl Future for RequestTicket {
     }
 }
 
-/// Starts the actor. `engine` is moved in, so no other task can call its
-/// scheduling or response entry points.
+/// Starts the actor. `engine` and `transport` are moved in, so no other task
+/// can call the scheduling/response entry points or reach the wire handle.
+///
+/// The concrete owner is intentionally private:
+///
+/// ```compile_fail
+/// use rate_limit_core::actor::Actor;
+/// ```
 pub fn spawn<T>(engine: PolicyEngine, transport: T) -> GateHandle
 where
     T: Transport,
@@ -518,15 +524,7 @@ impl<T: Transport> Actor<T> {
         self.endpoints
             .insert(endpoint.clone(), EndpointState::Probing);
         self.probe = Some(endpoint.clone());
-        let transport = self.transport.clone();
-        self.jobs.spawn(async move {
-            let outcome = match timeout(TRANSPORT_TIMEOUT, transport.send(probe)).await {
-                Ok(Ok(response)) => Ok(response),
-                Ok(Err(error)) => Err(GateError::Transport(error)),
-                Err(_) => Err(GateError::TimedOut),
-            };
-            Completed::Probe { endpoint, outcome }
-        });
+        self.start_transport(probe, move |outcome| Completed::Probe { endpoint, outcome });
         self.publish();
     }
 
@@ -548,6 +546,18 @@ impl<T: Transport> Actor<T> {
         let id = queued.id;
         let request = queued.request.clone();
         self.active.insert(id, ActiveRequest { queued, token });
+        self.start_transport(request, move |outcome| Completed::Ordinary { id, outcome });
+        self.publish();
+    }
+
+    /// The sole hand-off to `Transport::send` (X2). Probe and ordinary
+    /// callers supply only the typed completion wrapper; timeout and error
+    /// classification cannot drift between two wire paths.
+    fn start_transport(
+        &mut self,
+        request: WireRequest,
+        complete: impl FnOnce(Result<WireResponse, GateError>) -> Completed + Send + 'static,
+    ) {
         let transport = self.transport.clone();
         self.jobs.spawn(async move {
             let outcome = match timeout(TRANSPORT_TIMEOUT, transport.send(request)).await {
@@ -555,9 +565,8 @@ impl<T: Transport> Actor<T> {
                 Ok(Err(error)) => Err(GateError::Transport(error)),
                 Err(_) => Err(GateError::TimedOut),
             };
-            Completed::Ordinary { id, outcome }
+            complete(outcome)
         });
-        self.publish();
     }
 
     fn start_dispatch(&mut self) {
@@ -907,6 +916,53 @@ mod tests {
         )
     }
 
+    fn queued_request(
+        id: u64,
+        endpoint: &EndpointLabel,
+    ) -> (
+        QueuedRequest,
+        oneshot::Receiver<Result<WireResponse, GateError>>,
+    ) {
+        let (reply, response) = oneshot::channel();
+        (
+            QueuedRequest {
+                id: RequestId(id),
+                endpoint: endpoint.clone(),
+                request: http::Request::new(Vec::new()),
+                reply: Some(reply),
+            },
+            response,
+        )
+    }
+
+    fn policy_wire_response(status: StatusCode) -> WireResponse {
+        let response = Response::builder()
+            .status(status)
+            .header("x-rate-limit-policy", "safety-policy")
+            .header("x-rate-limit-rules", "Account")
+            .header("x-rate-limit-account", "10:10:60, 30:60:300")
+            .header("x-rate-limit-account-state", "0:10:0, 0:60:0")
+            .header("retry-after", "0")
+            .body(Vec::new())
+            .unwrap();
+        WireResponse::try_new(response).unwrap()
+    }
+
+    fn seed_safety_policy(
+        actor: &mut Actor<FaultTransport>,
+        endpoint: &EndpointLabel,
+    ) -> PolicyName {
+        let response = policy_wire_response(StatusCode::NO_CONTENT);
+        let transition =
+            actor
+                .engine
+                .on_probe_response(endpoint, actor.now(), &observed_response(&response));
+        match transition.disposition {
+            Disposition::ProbeReady { policy } => policy,
+            other => panic!("valid policy seed returned {other:?}"),
+        }
+    }
+
     #[test]
     fn fuse_uses_the_documented_half_open_boundaries() {
         let now = Instant::now();
@@ -951,6 +1007,128 @@ mod tests {
             .collect();
         sustained.start_dispatch();
         assert!(sustained.halted);
+    }
+
+    #[test]
+    fn c3_x1_trip_is_latched_and_drains_and_publishes() {
+        let mut actor = actor_at_transport_boundary();
+        let mut status = actor.status.subscribe();
+        let endpoint = EndpointLabel::from("stash-list");
+        let (queued, mut outcome) = queued_request(1, &endpoint);
+        actor.queue.push_back(queued);
+        let now = Instant::now();
+        actor.safety.dispatches = VecDeque::from([now; FUSE_BURST_LIMIT]);
+
+        actor.start_dispatch();
+
+        assert!(actor.halted, "the 11th dispatch attempt trips X1");
+        assert!(actor.queue.is_empty(), "trip drains the pending deque");
+        assert!(status.borrow_and_update().halted, "Halted is published");
+        assert!(matches!(outcome.try_recv(), Ok(Err(GateError::Halted))));
+
+        // Advance beyond both rolling windows, erase the historical shape,
+        // and re-ask. The terminal latch, not recomputation, keeps the actor
+        // halted (C3).
+        actor.safety.dispatches.clear();
+        actor.start_dispatch();
+        assert!(actor.halted);
+        assert!(actor.safety.halted);
+    }
+
+    #[test]
+    fn c4_probe_feed_trips_shared_halt_and_drains_and_publishes() {
+        let mut actor = actor_at_transport_boundary();
+        let mut status = actor.status.subscribe();
+        let endpoint = EndpointLabel::from("stash-list");
+        let (queued, mut outcome) = queued_request(1, &endpoint);
+        actor.queue.push_back(queued);
+        actor
+            .endpoints
+            .insert(endpoint.clone(), EndpointState::Probing);
+        actor.probe = Some(endpoint.clone());
+        actor.safety.four_xx = VecDeque::from([Instant::now(); FUSE_BURST_LIMIT]);
+
+        actor.finish_probe(
+            endpoint,
+            Ok(policy_wire_response(StatusCode::TOO_MANY_REQUESTS)),
+        );
+
+        assert_eq!(actor.safety.four_xx.len(), FUSE_BURST_LIMIT + 1);
+        assert!(actor.halted, "the probe 429 feed shares terminal halt");
+        assert!(actor.queue.is_empty());
+        assert!(status.borrow_and_update().halted);
+        assert!(matches!(outcome.try_recv(), Ok(Err(GateError::Halted))));
+    }
+
+    #[test]
+    fn c4_ordinary_feed_trips_shared_halt_and_drains_and_publishes() {
+        let mut actor = actor_at_transport_boundary();
+        let mut status = actor.status.subscribe();
+        let endpoint = EndpointLabel::from("stash-list");
+        let policy = seed_safety_policy(&mut actor, &endpoint);
+        actor
+            .endpoints
+            .insert(endpoint.clone(), EndpointState::Established(policy.clone()));
+        let token = match actor.engine.try_reserve(&policy, actor.now()) {
+            ReserveOutcome::Reserved(token) => token,
+            other => panic!("seeded policy did not reserve: {other:?}"),
+        };
+        let (active, mut active_outcome) = queued_request(1, &endpoint);
+        actor.active.insert(
+            RequestId(1),
+            ActiveRequest {
+                queued: active,
+                token,
+            },
+        );
+        let (queued, mut queued_outcome) = queued_request(2, &endpoint);
+        actor.queue.push_back(queued);
+        actor.safety.four_xx = VecDeque::from([Instant::now(); FUSE_BURST_LIMIT]);
+
+        actor.finish_ordinary(
+            RequestId(1),
+            Ok(policy_wire_response(StatusCode::UNAUTHORIZED)),
+        );
+
+        assert_eq!(actor.safety.four_xx.len(), FUSE_BURST_LIMIT + 1);
+        assert!(actor.halted, "the ordinary 4xx feed shares terminal halt");
+        assert!(actor.queue.is_empty());
+        assert!(status.borrow_and_update().halted);
+        assert!(matches!(
+            active_outcome.try_recv(),
+            Ok(Err(GateError::Halted))
+        ));
+        assert!(matches!(
+            queued_outcome.try_recv(),
+            Ok(Err(GateError::Halted))
+        ));
+    }
+
+    #[test]
+    fn x2_transport_owner_is_private_and_has_one_send_call_site() {
+        let source = include_str!("actor.rs");
+        assert!(
+            source
+                .lines()
+                .any(|line| line.trim() == concat!("struct Actor", "<T: Transport> {"))
+        );
+        assert!(!source.lines().any(|line| {
+            line.trim_start()
+                .starts_with(concat!("pub struct Actor", "<T: Transport>"))
+        }));
+        assert!(source.contains("transport: Arc<T>"));
+        assert_eq!(
+            source
+                .matches(concat!("transport", ".send(request)"))
+                .count(),
+            1,
+            "probe and ordinary traffic must share one transport hand-off"
+        );
+        assert_eq!(
+            source.matches(concat!("fn start_", "transport(")).count(),
+            1,
+            "the single send path must remain a unique actor method"
+        );
     }
 
     #[test]
