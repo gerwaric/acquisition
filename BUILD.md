@@ -121,6 +121,16 @@ The CodeQL and sanitizer workflows run on pushes and pull requests to `master`
 and by `workflow_dispatch`. Each workflow groups runs by pull request or ref and
 cancels an in-progress run when a newer commit supersedes it.
 
+## Protected Branch
+
+The repository's `Protect default branch` ruleset applies to `master`. Changes
+must arrive through a pull request, the CodeQL and ASan + LSan checks must pass,
+and all review conversations must be resolved. CodeQL security alerts at high
+severity or above and code-quality errors block the merge. No approval is
+required while the repository has a single maintainer, and a branch need not be
+rebased onto the latest `master` before merging. Force pushes and deletion of
+the default branch are blocked.
+
 ## Linux
 
 Linux builds require OpenSSL 3.x support at build and runtime. On Ubuntu-like
