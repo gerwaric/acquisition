@@ -5,6 +5,7 @@
 
 #include <QAction>
 #include <QApplication>
+#include <QDateTime>
 #include <QDir>
 #include <QFileDialog>
 #include <QMessageBox>
@@ -252,7 +253,13 @@ Application::UserSession::UserSession(const Application::CoreServices &core)
     spdlog::trace("Application::InitLogin() creating rate limiter");
     rate_limiter = std::make_unique<RateLimiter>(network_manager);
     if (settings.value("network_capture_enabled", false).toBool()) {
-        rate_limiter->EnableCapture(dir.filePath("network-capture.jsonl"));
+        // One file per session, stamped at enable time: a fixed name would
+        // either pile sessions into one file (append) or destroy retained
+        // capture evidence on the next launch (truncate).
+        const QString capture_name
+            = QString("network-capture-%1.jsonl")
+                  .arg(QDateTime::currentDateTimeUtc().toString("yyyyMMdd'T'hhmmss'Z'"));
+        rate_limiter->EnableCapture(dir.filePath(capture_name));
     }
 
     spdlog::trace("Application::InitLogin() creating the api client");
