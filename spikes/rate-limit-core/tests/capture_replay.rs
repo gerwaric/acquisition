@@ -1,13 +1,25 @@
 use std::collections::{BTreeMap, BTreeSet};
 
+use rate_limit_core::mock::DEFAULT_SERVICE_DELAY;
 use rate_limit_core::mock::model::{
     CounterModel, PolicyDefinition, RuleDefinition, ServerTime, WindowDefinition,
 };
 
 const CANONICAL_CAPTURE: &str = include_str!("../fixtures/capture-20260814-wired.json");
+const SUPPLEMENTAL_VPN_CAPTURE: &str = include_str!("../fixtures/capture-20260813-vpn.json");
+/// `include_str!` has already embedded the bytes by the time this runs, so
+/// this cap bounds the *parser's* work on the next fixture, not the binary's
+/// size — the embedding bound is the §4 review of what gets committed
+/// (SD-R5-F12). Enforced inside `bounded_parse` so no loader can skip it.
 const MAX_FIXTURE_BYTES: usize = 2 * 1024 * 1024;
 const MAX_JSON_DEPTH: usize = 16;
-const MAX_JSON_ITEMS: usize = 10_000;
+/// Sized to admit every committed fixture with headroom — the canonical
+/// capture is 5,415 nodes and the supplemental VPN capture 15,804 — while
+/// still binding well below what MAX_FIXTURE_BYTES of minimal JSON could
+/// hold (~300k nodes). The previous 10,000 cap sat below the committed VPN
+/// fixture, so the declared "next fixture refuses" consequence would have
+/// fired on a legitimate input already in the tree (SD-R5-F12).
+const MAX_JSON_ITEMS: usize = 32_768;
 const MAX_JSON_STRING_BYTES: usize = 4_096;
 const PHASE_CYCLE_MS: u64 = 60_000;
 const KNOWN_BUCKETS_MS: [u64; 2] = [5_000, 60_000];
@@ -342,9 +354,64 @@ fn b12_canonical_sent_to_received_median_is_81_ms() {
     latencies.sort_unstable();
 
     assert_eq!(latencies.len(), 383, "canonical latency sample count");
-    assert_eq!(latencies[latencies.len() / 2], 81);
+    let median_ms = latencies[latencies.len() / 2];
+    assert_eq!(median_ms, 81);
+    // The B12 anchor is an assertion, not two coincidentally equal literals
+    // (SD-R5-F8): a re-capture that moves the median fails here until the
+    // mock default is deliberately re-anchored.
+    assert_eq!(
+        u64::try_from(DEFAULT_SERVICE_DELAY.as_millis()).expect("service delay fits u64"),
+        median_ms,
+        "DEFAULT_SERVICE_DELAY must equal the canonical fixture's computed median"
+    );
 }
 
+// Grounds the supplemental VPN comparison recorded in result-draft.md §5
+// (148 ms median), which previously no code read — and exercises the parser
+// caps on the largest committed fixture (15,804 nodes), the input the old
+// 10,000-item cap would have refused (SD-R5-F12's exposing case).
+#[test]
+fn b12_supplemental_vpn_median_is_148_ms() {
+    let root = bounded_parse(SUPPLEMENTAL_VPN_CAPTURE)
+        .expect("the committed VPN fixture must stay within the parser caps");
+    let root = root.object("root");
+    let provenance = root
+        .get("provenance")
+        .expect("fixture carries provenance")
+        .object("provenance");
+    assert_eq!(provenance.string("capture_date"), "2026-08-13");
+    assert_eq!(provenance.number("sanitizer_version"), 2);
+
+    let records = root
+        .get("records")
+        .expect("fixture carries records")
+        .array("records");
+    assert_eq!(records.len(), 1_129, "supplemental fixture cardinality");
+
+    let mut latencies: Vec<u64> = records
+        .iter()
+        .map(|record| record.object("record"))
+        .filter(|record| record.string("kind") == "reply")
+        .map(|record| {
+            nonnegative_millis(record.number("received_ms"))
+                .checked_sub(nonnegative_millis(record.number("sent_ms")))
+                .expect("received_ms must not precede sent_ms")
+        })
+        .collect();
+    latencies.sort_unstable();
+    assert_eq!(latencies.len(), 1_125, "supplemental latency sample count");
+    assert_eq!(latencies[latencies.len() / 2], 148);
+}
+
+/// Pinned as current behavior, not a §7.4 gate: scenarios.md §7.4 makes
+/// saturation-state agreement a *diagnostic* ("mismatches inform, they don't
+/// fail"), and this test does not substitute for the zero-violation gate
+/// (status.md §3 / the registry's b12 note both say so). The equalities are a
+/// pin of the model's current φ=0 agreement — 43 of 43 recorded saturation
+/// components — kept because silently losing agreement is exactly what the
+/// diagnostic exists to surface. A deliberate model refinement that changes
+/// the agreement updates this pin with provenance rather than tuning around
+/// it (SD-R5-F13).
 #[test]
 fn section_7_4_saturation_diagnostic_has_a_43_of_43_witness_phase() {
     let records = canonical_records();
@@ -364,12 +431,20 @@ fn section_7_4_saturation_diagnostic_has_a_43_of_43_witness_phase() {
     let mut observed_components = 0;
     let mut agreements = 0;
     for (index, record) in replies.iter().enumerate() {
-        let at = ServerTime::from_millis(record.sent_ms.unwrap());
-        assert!(!model.record_layer1_arrival(at).tripped);
+        let sent_ms = record.sent_ms.unwrap();
+        let at = ServerTime::from_millis(sent_ms);
+        assert!(
+            !model.record_layer1_arrival(at).tripped,
+            "§7.4 diagnostic run: B10 trip at phi=0, reply {index}, t={sent_ms}ms"
+        );
         let judgment = model
             .judge(&record.policy, at, index as u64 + 1, true)
             .unwrap();
-        assert!(!judgment.organic_violation);
+        assert!(
+            !judgment.organic_violation,
+            "§7.4 diagnostic run: organic violation at phi=0, reply {index}, policy {}, t={sent_ms}ms: {:?}",
+            record.policy, judgment.windows
+        );
         for ((window, state), limit) in judgment
             .windows
             .iter()
@@ -383,18 +458,71 @@ fn section_7_4_saturation_diagnostic_has_a_43_of_43_witness_phase() {
         }
     }
 
-    assert_eq!(observed_components, 43);
-    assert_eq!(agreements, observed_components);
+    assert_eq!(
+        observed_components, 43,
+        "§7.4 diagnostic pin (phi=0): recorded saturation components changed"
+    );
+    assert_eq!(
+        agreements, observed_components,
+        "§7.4 diagnostic pin (phi=0): model/recorded saturation agreement dropped below 43/43"
+    );
+}
+
+// SD-R5-F12: every parser bound pinned at n and n+1, per the slice hardening
+// rule that a bound without its boundary tests is a claim, not a defense.
+#[test]
+fn parser_bounds_are_pinned_at_their_exact_boundaries() {
+    // Byte cap, enforced at the single bounded_parse seam. `input.len()` is
+    // the whole check, so a boundary probe needs real bytes.
+    let payload = format!("[{}1]", "1,".repeat(100));
+    let exact = format!("{payload}{}", " ".repeat(MAX_FIXTURE_BYTES - payload.len()));
+    assert!(bounded_parse(&exact).is_ok());
+    let over = format!("{exact} ");
+    assert_eq!(
+        bounded_parse(&over).unwrap_err(),
+        format!("fixture exceeds the test-local {MAX_FIXTURE_BYTES}-byte parse bound")
+    );
+
+    // Depth: N nested arrays parse while N+1 refuse before further recursion.
+    let nested = |depth: usize| format!("{}1{}", "[".repeat(depth), "]".repeat(depth));
+    assert!(bounded_parse(&nested(MAX_JSON_DEPTH)).is_ok());
+    assert_eq!(
+        bounded_parse(&nested(MAX_JSON_DEPTH + 1)).unwrap_err(),
+        "JSON nesting exceeds test-local bound"
+    );
+
+    // Item count: the root array is itself a value, so MAX_JSON_ITEMS - 1
+    // elements is the largest admissible flat array.
+    let flat = |elements: usize| format!("[{}1]", "1,".repeat(elements.saturating_sub(1)));
+    assert!(bounded_parse(&flat(MAX_JSON_ITEMS - 1)).is_ok());
+    assert_eq!(
+        bounded_parse(&flat(MAX_JSON_ITEMS)).unwrap_err(),
+        "JSON value count exceeds test-local bound"
+    );
+
+    // String bytes: refusal fires before the string grows past the cap plus
+    // one pushed character.
+    let stringy = |bytes: usize| format!("\"{}\"", "a".repeat(bytes));
+    assert!(bounded_parse(&stringy(MAX_JSON_STRING_BYTES)).is_ok());
+    assert_eq!(
+        bounded_parse(&stringy(MAX_JSON_STRING_BYTES + 1)).unwrap_err(),
+        "JSON string exceeds test-local byte bound"
+    );
+}
+
+/// The single entry to the bounded parser: every fixture loader goes through
+/// the byte cap here, so no loader can reach `JsonParser` without it.
+fn bounded_parse(input: &str) -> Result<Json, String> {
+    if input.len() > MAX_FIXTURE_BYTES {
+        return Err(format!(
+            "fixture exceeds the test-local {MAX_FIXTURE_BYTES}-byte parse bound"
+        ));
+    }
+    JsonParser::new(input).parse()
 }
 
 fn canonical_records() -> Vec<ReplayRecord> {
-    assert!(
-        CANONICAL_CAPTURE.len() <= MAX_FIXTURE_BYTES,
-        "fixture exceeds the test-local parse bound"
-    );
-    let root = JsonParser::new(CANONICAL_CAPTURE)
-        .parse()
-        .expect("canonical fixture is bounded valid JSON");
+    let root = bounded_parse(CANONICAL_CAPTURE).expect("canonical fixture is bounded valid JSON");
     let root = root.object("root");
     let provenance = root
         .get("provenance")
