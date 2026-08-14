@@ -62,8 +62,10 @@ divides the 60,000 ms cycle.
 
 ## 3. Coverage confession
 
-The registry is the coverage authority. At hand-off it contains 122
-clauses: 97 Full, 11 Partial, one accepted Untested limitation, and 13
+The registry is the coverage authority. As repaired for round five it
+contains 123 clauses: 97 Full, 12 Partial (the twelfth is
+`s7-4-replay-gate`, the failing §7.4 gate's machine-checked slot,
+minted per SD-R5-F11), one accepted Untested limitation, and 13
 Excluded; `OPEN_UNTESTED` is empty and
 `cargo test --locked --test obligations` verifies the structure.
 

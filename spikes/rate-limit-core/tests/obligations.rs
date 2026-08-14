@@ -45,6 +45,11 @@ fn known_owners() -> BTreeSet<String> {
     // SHELL: the external-review shell-obligation owner, a deliberate
     // one-off series adopted by Tom 2026-08-13 (design §7 item 2).
     owners.insert("SHELL".to_string());
+    // §7.4: the capture-replay calibration gate, a deliberate one-off owner
+    // minted by SD-R5-F11 (2026-08-14) so the failing gate has a
+    // machine-checked slot; scenarios.md §7.4 is its own contract section,
+    // owned by no M/C/X/B row.
+    owners.insert("§7.4".to_string());
     owners
 }
 

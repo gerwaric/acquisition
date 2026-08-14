@@ -12,10 +12,11 @@ per fact, pointers instead of copies.
 ## 1. Coverage truth
 
 Coverage is **machine-checked**, not prose. The authority is
-`src/obligations.rs` — `CLAUSES` (122 entries as of 2026-08-13;
-lineage from `obligation-map.md`'s 125 rows is recorded in
-`registry-handoff.md` and the §9 changelog) — verified by
-`tests/obligations.rs`; run it with
+`src/obligations.rs` — `CLAUSES` (123 entries as of 2026-08-14, the
+§7.4 gate clause minted per SD-R5-F11; lineage from
+`obligation-map.md`'s 125 rows is recorded in `registry-handoff.md`
+and the §9 changelog) — verified by `tests/obligations.rs`; run it
+with
 
 ```
 cargo test --locked --test obligations
@@ -32,10 +33,13 @@ The open-untested list is the `OPEN_UNTESTED` constant in
 `src/obligations.rs` — **not** any prose table. As of 2026-08-14 it
 is empty: the implementation swarm discharged all 13 previously
 open Untested ids.
-Registry totals are 97 Full, 11 Partial, one accepted Untested
-limitation (`x2-parser-cap-limitation`), and 13 Excluded. Empty
-`OPEN_UNTESTED` does not imply verdict readiness; the Partial set
-and the failed §7.4 replay gate are itemized in §5. `obligation-map.md`
+Registry totals are 97 Full, 12 Partial, one accepted Untested
+limitation (`x2-parser-cap-limitation`), and 13 Excluded. The
+twelfth Partial is `s7-4-replay-gate`, the failing §7.4 gate's
+machine-checked slot (SD-R5-F11); its delta is §3 decision 1's
+adjudication plus the green rerun. Empty `OPEN_UNTESTED` does not
+imply verdict readiness; the Partial set and the failed §7.4 replay
+gate are itemized in §5. `obligation-map.md`
 is the superseded prose ancestor; read its §8 for the audit's
 discrepancy analysis (dated at `e2034807`), never for current
 coverage.
@@ -78,6 +82,21 @@ coverage.
    frozen-contract expectation error or requires a separately
    authorized model/fixture disposition. The implementation must
    not tune the gate away or amend the frozen scope silently.
+
+2. **Profile-lane assignment ratification (non-blocking).** Which
+   client bucket profile each test lane runs under is a doc silence
+   the frozen docs support both ways (SD-R5-F3/F4). The repair
+   session's conservative reading, now uniform in the driver and the
+   focused transition lanes: OAuth-endpoint lanes run
+   `Known(5s/60s)`, explicitly legacy lanes run `Assumed(60s/60s)`,
+   and the shipped-Assumed default is structurally unlosable
+   (`SweepPlan::new` on the driver's path). The remaining
+   `actor_safety`/`actor_shell` focused targets still build Assumed
+   engines over OAuth endpoints; their asserted bounds are
+   profile-invariant (the shared 60 s sustained resolution governs
+   every one), so they were left unchanged rather than churned ahead
+   of your statement. Ratify or correct the assignment; recorded as
+   a doc finding in the 2026-08-14 repair entry.
 
 ## 4. Blocked
 

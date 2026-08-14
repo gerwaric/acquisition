@@ -148,12 +148,23 @@ pub const CLAUSES: &[Clause] = &[
         owner: "M1",
         text: "G1 across the residue × φ sweep (M1 → G1) (scenarios.md:170)",
         coverage: Coverage::Full,
-        citations: &[Citation {
-            file: DRIVER,
-            test_fn: DRIVER_FN,
-            must_assert: "G1 judged over residues 0/1/9/10 at φ ∈ {0, 1}",
-        }],
-        note: "Required residue boundary set crossed with both driver phases",
+        citations: &[
+            Citation {
+                file: DRIVER,
+                test_fn: DRIVER_FN,
+                must_assert: "G1 judged over residues 0/1/9/10 at φ ∈ {0, 1}",
+            },
+            Citation {
+                file: "tests/c1_scheduling.rs",
+                test_fn: "every_reserved_outcome_is_safe_for_every_server_phase",
+                must_assert: "generated-φ safety of every granted reservation \
+                              (the §3 sweep property C1 owns)",
+            },
+        ],
+        note: "SD-R5-F10: the generated-φ sweep property is C1's \
+               (scenarios.md §3, lesson 4 ownership), co-cited here; the \
+               driver contributes the wire-level residue boundary set at the \
+               two boundary-distance phases",
     },
     Clause {
         id: "m1-probe-429-seeding",
@@ -463,7 +474,12 @@ pub const CLAUSES: &[Clause] = &[
             test_fn: "unexpected_shape_cooldown_is_published_on_the_watch_channel",
             must_assert: "watch changes from probing to a non-halted drained cooldown snapshot",
         }],
-        note: "D4 cooldown publication observed directly",
+        note: "SD-R5-F15: `GateStatus` carries no cooldown representation, so \
+               what is observed is the drained non-halted post-cooldown \
+               snapshot, not a cooldown field; what M4's published status \
+               must contain is a recorded doc silence (result-draft.md, \
+               2026-08-14 repair entry) with the conservative reading that \
+               this snapshot discharges the clause",
     },
     Clause {
         id: "m4-at-most-one-request",
@@ -2298,14 +2314,55 @@ pub const CLAUSES: &[Clause] = &[
             Citation {
                 file: "tests/capture_replay.rs",
                 test_fn: "b12_canonical_sent_to_received_median_is_81_ms",
-                must_assert: "all 383 canonical samples produce an 81 ms median",
+                must_assert: "all 383 canonical samples produce an 81 ms \
+                              median AND DEFAULT_SERVICE_DELAY equals that \
+                              computed median (the SD-R5-F8 anchor)",
             },
         ],
         note: "Mechanism, canonical default, M5, M8, and M13 are pinned. The \
                remaining Partial delta is M9's explicit saturation-race \
                timing script. The separate exhaustive §7.4 replay gate has \
-               a recorded adjudication finding; its active diagnostic is not \
-               used to waive that gate",
+               a recorded adjudication finding (see s7-4-replay-gate); its \
+               active diagnostic is not used to waive that gate",
+    },
+    Clause {
+        id: "s7-4-replay-gate",
+        owner: "§7.4",
+        text: "Canonical capture replay: zero violations at every φ; a \
+               failing φ is a finding to adjudicate, never tuned away \
+               (scenarios.md:820)",
+        coverage: Coverage::Partial,
+        citations: &[
+            Citation {
+                file: "tests/capture_replay.rs",
+                test_fn: "section_7_4_canonical_capture_replay_is_compliant_for_every_server_phase",
+                must_assert: "asserts zero violations at all 60,000 phases; \
+                              currently ignored-and-failing with the \
+                              CR-R1-F1/SD-R5-F2 finding as its reason, \
+                              untuned",
+            },
+            Citation {
+                file: "tests/capture_replay.rs",
+                test_fn: "section_7_4_violating_band_edges_are_pinned_for_all_twenty_bands",
+                must_assert: "all 40 band edges produce exactly the recorded \
+                              initiating overflow and their outside \
+                              neighbors replay cleanly; band widths sum to \
+                              1,052",
+            },
+            Citation {
+                file: "tests/capture_replay.rs",
+                test_fn: "section_7_4_exhaustive_enumeration_matches_the_band_table",
+                must_assert: "no violating phase exists outside \
+                              VIOLATING_BANDS (ignored: exhaustive; run \
+                              explicitly)",
+            },
+        ],
+        note: "SD-R5-F11: minted so the spike's one failing contract gate is \
+               visible to the machine-checked authority instead of living \
+               only in prose. Partial delta: the gate itself fails pending \
+               Tom's §7.4 adjudication (status.md §3 decision 1) and its \
+               green rerun afterward; the band table and diagnostic are the \
+               active evidence meanwhile",
     },
     Clause {
         id: "b13-observation-log",
