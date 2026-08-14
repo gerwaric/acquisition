@@ -100,7 +100,7 @@ QRectF ItemLocation::GetRect() const
 
     // The number of pixels per slot depends on whether we are looking
     // at a quad stash or not.
-    float pixels_per_slot = static_cast<float>(PIXELS_PER_MINIMAP_SLOT);
+    qreal pixels_per_slot = PIXELS_PER_MINIMAP_SLOT;
     if (0 == m_tab_type.compare("QuadStash")) {
         pixels_per_slot /= 2.0;
     }
