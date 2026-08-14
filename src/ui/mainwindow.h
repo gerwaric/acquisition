@@ -209,6 +209,7 @@ private:
     void UpdateBuyoutWidgets(const Buyout &bo);
     void closeEvent(QCloseEvent *event);
     void CheckSelected(bool value);
+    bool ConfirmLegacyBuyoutWrite();
 
     QSettings &m_settings;
     NetworkManager &m_network_manager;

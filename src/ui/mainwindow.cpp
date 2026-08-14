@@ -119,6 +119,26 @@ namespace {
         return true;
     }
 
+    bool showActionPrompt(QWidget *parent,
+                          QMessageBox::Icon icon,
+                          const QString &title,
+                          const QString &text,
+                          const QString &informative_text,
+                          const QString &accept_text)
+    {
+        QMessageBox dialog(parent);
+        dialog.setWindowTitle(title);
+        dialog.setIcon(icon);
+        dialog.setText(text);
+        dialog.setInformativeText(informative_text);
+        QPushButton *const accept = dialog.addButton(accept_text, QMessageBox::AcceptRole);
+        accept->setMinimumWidth(accept->sizeHint().width());
+        QPushButton *const cancel = dialog.addButton(QMessageBox::Cancel);
+        dialog.setDefaultButton(cancel);
+        dialog.exec();
+        return dialog.clickedButton() == accept;
+    }
+
 } // namespace
 
 struct ImgurStatus
@@ -829,10 +849,32 @@ void MainWindow::OnExportCurrency()
     m_currency_manager.ExportCurrency(file_name);
 }
 
+bool MainWindow::ConfirmLegacyBuyoutWrite()
+{
+    return showActionPrompt(this,
+                            QMessageBox::Warning,
+                            tr("Confirm legacy buyout import"),
+                            tr("Import buyouts into the current account?"),
+                            tr("This will write the selected buyouts to the current account's data "
+                               "file. Are you sure you want to continue?"),
+                            tr("Import buyouts"));
+}
+
 void MainWindow::OnImportLegacyBuyouts()
 {
+    if (!showActionPrompt(
+            this,
+            QMessageBox::Information,
+            tr("Recover legacy buyouts"),
+            tr("Select a data file containing legacy buyouts."),
+            tr("Choose an Acquisition data file from before version 0.16 that contains "
+               "the buyouts you want to recover."),
+            tr("Choose data file…"))) {
+        return;
+    }
+
     const QString file_name = QFileDialog::getOpenFileName(this,
-                                                           tr("Import legacy buyouts"),
+                                                           tr("Open Acquisition data file"),
                                                            QDir::toNativeSeparators(
                                                                m_app_data_dir.absolutePath()),
                                                            tr("Acquisition database files (*)"));
@@ -868,7 +910,9 @@ void MainWindow::OnImportLegacyBuyouts()
     QPushButton *const import_now = choice.addButton(tr("Import now"), QMessageBox::AcceptRole);
     QPushButton *const save_plan = choice.addButton(tr("Save plan for review…"),
                                                     QMessageBox::ActionRole);
-    choice.addButton(QMessageBox::Cancel);
+    save_plan->setMinimumWidth(save_plan->sizeHint().width());
+    QPushButton *const cancel = choice.addButton(QMessageBox::Cancel);
+    choice.setDefaultButton(cancel);
     choice.exec();
 
     if (choice.clickedButton() == save_plan) {
@@ -896,6 +940,9 @@ void MainWindow::OnImportLegacyBuyouts()
         return;
     }
     if (choice.clickedButton() != import_now) {
+        return;
+    }
+    if (!ConfirmLegacyBuyoutWrite()) {
         return;
     }
 
@@ -929,12 +976,26 @@ void MainWindow::OnImportLegacyBuyouts()
 
 void MainWindow::OnImportLegacyBuyoutPlan()
 {
+    if (!showActionPrompt(this,
+                          QMessageBox::Information,
+                          tr("Import buyout plan"),
+                          tr("Select a previously exported or edited buyout plan."),
+                          tr("Choose an Excel workbook previously exported by Acquisition, either "
+                             "unchanged or edited."),
+                          tr("Choose plan…"))) {
+        return;
+    }
+
     const QString plan_path = QFileDialog::getOpenFileName(this,
-                                                           tr("Import legacy buyout plan"),
+                                                           tr("Open legacy buyout plan"),
                                                            QDir::toNativeSeparators(
                                                                m_app_data_dir.absolutePath()),
                                                            tr("Excel workbooks (*.xlsx)"));
     if (plan_path.isEmpty()) {
+        return;
+    }
+
+    if (!ConfirmLegacyBuyoutWrite()) {
         return;
     }
 

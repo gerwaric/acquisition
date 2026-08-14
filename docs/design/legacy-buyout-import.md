@@ -1,10 +1,9 @@
 # Legacy Buyout Import — Design
 
-Status: revised August 14, 2026, after the round-1 review and the UX
-discussion (plan/apply split agreed; not yet built). The original tracer
-bullet is implemented (c687409f). Deliberately minimal — this is not a
-frozen spec. Evidence: `legacy-buyout-import-investigation.md`; review
-findings cited as `R1-*` from `legacy-buyout-import-reviews.md`.
+Status: implemented August 14, 2026, after the round-1 and round-2 reviews
+and UX validation. Deliberately minimal — this is not a frozen spec.
+Evidence: `legacy-buyout-import-investigation.md`; review findings cited as
+`R1-*` and `R2-*` from `legacy-buyout-import-reviews.md`.
 
 ## Goal
 
@@ -23,12 +22,20 @@ hardcode blind (R1-5, R1-7) with prefilled rows the user can flip.
 characters), and produce a plan. The user sees one dialog:
 
 > Matched N of M buyouts (X ambiguous, Y orphaned).
-> [Import now]  [Save plan for review…]
+> [Import now]  [Save plan for review…]  [Cancel]
 
 "Import now" runs apply immediately with the prefilled defaults and still
 writes the plan file next to the logs (`buyout-import-<timestamp>.xlsx`)
 as the audit record. "Save plan…" lets the user edit it in a spreadsheet
 and later run "Import buyout plan…" to apply it.
+
+Because native file pickers may not render their captions, each picker is
+preceded by an Acquisition message: recovery asks for a pre-0.16 data file
+containing legacy buyouts, while plan import asks for a previously exported or
+edited workbook. After the user chooses "Import now" or selects a saved plan,
+both paths present the same warning that the import will write to the current
+account's data file. That final confirmation defaults to Cancel and is the last
+reversible point before apply.
 
 **Apply**: execute the plan's `action = import` rows. Apply validates
 consistency only — known currency/type/source tags, numeric values,
