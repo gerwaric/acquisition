@@ -76,19 +76,9 @@ const DRIVER_FN: &str = "m1_m13_run_against_the_actor_and_the_judge";
 /// must touch this list too, so every state transition is a
 /// deliberate two-line diff (the `swept_phases` pattern).
 pub const OPEN_UNTESTED: &[&str] = &[
-    "m1-probe-429-tripwire-feed",
-    "m3-other-policies-unaffected",
-    "m4-watch-status-published",
-    "m4-other-policies-flowing",
-    "m5-stale-window-exposure",
-    "m6-preannouncement-exposure",
-    "m8-b12-timing-script",
-    "m12-tripwire-feed",
-    "c3-trip-latched",
-    "c4-halt-semantics-shared",
-    "x1-trip-drain-publish",
-    "x2-single-send-path",
-    "shell-dropped-dispatched-ticket",
+    // Empty: every formerly open Untested clause now has a discharging test.
+    // This does not imply verdict readiness: Partial clauses and the failed
+    // §7.4 replay gate remain live work in status.md.
 ];
 
 pub const CLAUSES: &[Clause] = &[
@@ -99,7 +89,7 @@ pub const CLAUSES: &[Clause] = &[
         text: "One boot HEAD per touched endpoint, never repeated, never \
                overlapping; overlap discipline itself is M13/N18 \
                (scenarios.md:170)",
-        coverage: Coverage::Partial,
+        coverage: Coverage::Full,
         citations: &[
             Citation {
                 file: DRIVER,
@@ -112,12 +102,13 @@ pub const CLAUSES: &[Clause] = &[
                 test_fn: "probe_then_get_share_the_actor_gate_and_keep_distinct_wire_ids",
                 must_assert: "probe and GET share the actor gate with distinct wire ids",
             },
+            Citation {
+                file: "tests/actor_safety.rs",
+                test_fn: "degraded_probe_cools_one_endpoint_while_another_policy_keeps_flowing",
+                must_assert: "two endpoint records bootstrap independently; the healthy endpoint has exactly one HEAD before GET",
+            },
         ],
-        note: "One endpoint only; the 2026-08-13 amendment \
-               (scenarios.md:198) binds boot serialization per endpoint \
-               (global HEAD exclusivity is M13's). Delta: second-endpoint \
-               boot discipline unexercised — rides the M3/M4 two-endpoint \
-               rig (2026-08-13 ballot, work item B)",
+        note: "Two-endpoint rig landed 2026-08-14; global HEAD exclusivity remains M13-owned",
     },
     Clause {
         id: "m1-head-does-not-count",
@@ -144,26 +135,25 @@ pub const CLAUSES: &[Clause] = &[
         owner: "M1",
         text: "First-request violation does not occur; the HEAD state header \
                is the only prevention (scenarios.md:170)",
-        coverage: Coverage::Partial,
+        coverage: Coverage::Full,
         citations: &[Citation {
             file: DRIVER,
             test_fn: DRIVER_FN,
-            must_assert: "M1 arm: residue=1 preload, G1 green",
+            must_assert: "M1 residue sweep: residues 0/1/9/10 at phi 0/1; zero-budget opening GET waits and G1 stays green",
         }],
-        note: "Residue magnitude not swept; zero-remaining-budget boundary \
-               case pending",
+        note: "Residue magnitude and zero-remaining-budget boundary swept",
     },
     Clause {
         id: "m1-g1-sweep",
         owner: "M1",
         text: "G1 across the residue × φ sweep (M1 → G1) (scenarios.md:170)",
-        coverage: Coverage::Partial,
+        coverage: Coverage::Full,
         citations: &[Citation {
             file: DRIVER,
             test_fn: DRIVER_FN,
-            must_assert: "G1 judged at φ ∈ {0, 1}",
+            must_assert: "G1 judged over residues 0/1/9/10 at φ ∈ {0, 1}",
         }],
-        note: "Two phases, one residue value",
+        note: "Required residue boundary set crossed with both driver phases",
     },
     Clause {
         id: "m1-probe-429-seeding",
@@ -171,26 +161,33 @@ pub const CLAUSES: &[Clause] = &[
         text: "Probe-429 variant: ProbeReady seeding (mapping, restriction, \
                generation); core semantics owned by the disposition suite \
                (scenarios.md:170)",
-        coverage: Coverage::Partial,
-        citations: &[Citation {
-            file: "tests/response_disposition.rs",
-            test_fn: "valid_probe_429_discovers_policy_then_seeds_restriction_and_confirmation",
-            must_assert: "probe 429 discovers the policy, seeds restriction \
-                          and confirmation state",
-        }],
-        note: "Core-complete; the wire path (a boot HEAD answered 429 through \
-               the actor) has no test",
+        coverage: Coverage::Full,
+        citations: &[
+            Citation {
+                file: "tests/response_disposition.rs",
+                test_fn: "valid_probe_429_discovers_policy_then_seeds_restriction_and_confirmation",
+                must_assert: "probe 429 discovers the policy, seeds restriction and confirmation state",
+            },
+            Citation {
+                file: "tests/actor_safety.rs",
+                test_fn: "m1_probe_429_through_actor_seeds_then_first_get_confirms_and_escalates",
+                must_assert: "wire HEAD 429 establishes mapping/restriction and releases the first GET only after 61 seconds",
+            },
+        ],
+        note: "Core semantics and actor wire path compose",
     },
     Clause {
         id: "m1-probe-429-tripwire-feed",
         owner: "M1",
         text: "Probe-429 variant: 4xx tripwire fed; feed obligation restated \
                by M12 (scenarios.md:170)",
-        coverage: Coverage::Untested,
-        citations: &[],
-        note: "Feed exists (probe completion path in src/actor.rs, \
-               finish_probe) but no test fails if it is deleted — map §8.1 \
-               item 4. open — flagged for Tom",
+        coverage: Coverage::Full,
+        citations: &[Citation {
+            file: "src/actor.rs",
+            test_fn: "c4_probe_feed_trips_shared_halt_and_drains_and_publishes",
+            must_assert: "the actual finish_probe 429 feed supplies the 11th 4xx and trips halt",
+        }],
+        note: "Internal fault injection is required because intact D5 pacing cannot reach C4 thresholds through public traffic",
     },
     Clause {
         id: "m1-probe-429-head-not-requeued",
@@ -219,14 +216,20 @@ pub const CLAUSES: &[Clause] = &[
         text: "Probe-429 variant: the first GET is the confirmation attempt, \
                full matrix governs (F6, external design review register); \
                matrix owned by core-design (scenarios.md:170)",
-        coverage: Coverage::Partial,
-        citations: &[Citation {
-            file: "tests/response_disposition.rs",
-            test_fn: "probe_opened_episode_permits_the_matrix_final_attempt",
-            must_assert: "a probe-opened episode is governed by the \
-                          confirmation matrix",
-        }],
-        note: "Core-complete; actor wire path pending",
+        coverage: Coverage::Full,
+        citations: &[
+            Citation {
+                file: "tests/response_disposition.rs",
+                test_fn: "probe_opened_episode_permits_the_matrix_final_attempt",
+                must_assert: "a probe-opened episode is governed by the confirmation matrix",
+            },
+            Citation {
+                file: "tests/actor_safety.rs",
+                test_fn: "m1_probe_429_through_actor_seeds_then_first_get_confirms_and_escalates",
+                must_assert: "the first actor GET after probe 429 is the confirmation and a 429 earns no third knock",
+            },
+        ],
+        note: "Core matrix and actor wire path compose",
     },
     // ── M2 — clean cold-start saturation burst (scenarios.md:197) ─
     Clause {
@@ -234,7 +237,7 @@ pub const CLAUSES: &[Clause] = &[
         owner: "M2",
         text: "Burst-then-stall drain shape (N26) with padded stalls; padding \
                arithmetic owned by C1 (scenarios.md:197)",
-        coverage: Coverage::Partial,
+        coverage: Coverage::Full,
         citations: &[
             Citation {
                 file: "tests/c1_scheduling.rs",
@@ -245,23 +248,22 @@ pub const CLAUSES: &[Clause] = &[
             Citation {
                 file: DRIVER,
                 test_fn: DRIVER_FN,
-                must_assert: "M2 arm: 10 unsaturated GETs complete",
+                must_assert: "M2 arm: 40 GETs force three padded stalls, including the sustained-window stall, then drain",
             },
         ],
-        note: "No judged run has ever saturated a window and stalled; C1 \
-               proves the arithmetic, not the wire shape",
+        note: "C1 arithmetic and the judged 40-request wire shape compose",
     },
     Clause {
         id: "m2-g1",
         owner: "M2",
         text: "G1 (M2 → G1) (scenarios.md:197)",
-        coverage: Coverage::Partial,
+        coverage: Coverage::Full,
         citations: &[Citation {
             file: DRIVER,
             test_fn: DRIVER_FN,
-            must_assert: "M2 arm judged with G1 armed",
+            must_assert: "40-request saturation arm judged with G1 armed at phi 0/1",
         }],
-        note: "Unsaturated fragment",
+        note: "Saturation-depth G1 evidence",
     },
     Clause {
         id: "m2-state-tracks-post-increment",
@@ -294,16 +296,13 @@ pub const CLAUSES: &[Clause] = &[
         owner: "M2",
         text: "G3/G4 over-delay and duration bounds measured here (M2 → \
                G3/G4) (scenarios.md:197)",
-        coverage: Coverage::Partial,
+        coverage: Coverage::Full,
         citations: &[Citation {
             file: DRIVER,
             test_fn: DRIVER_FN,
-            must_assert: "M2 judged at ε=500 / 1.05× (final 2026-08-13); \
-                          minimum = hardcoded 2,550 ms",
+            must_assert: "M2 judged at ε=500 / 1.05× using a runtime minimum derived from the policy windows and queue depth",
         }],
-        note: "G4's N13-padding term has never been non-zero in a judged run \
-               (map §8.3 item 4); ε final at 500 ms (2026-08-13, \
-               scenarios.md:562)",
+        note: "The 40-request run reaches burst and sustained padding; the independent minimum is runtime-derived, never a literal",
     },
     // ── M3 — degraded HEAD (scenarios.md:205) ────────────────────
     Clause {
@@ -333,7 +332,7 @@ pub const CLAUSES: &[Clause] = &[
         id: "m3-cooldown-clean-failure",
         owner: "M3",
         text: "Endpoint fails cleanly under cooldown (D4) (scenarios.md:205)",
-        coverage: Coverage::Partial,
+        coverage: Coverage::Full,
         citations: &[
             Citation {
                 file: "tests/actor_shell.rs",
@@ -345,8 +344,13 @@ pub const CLAUSES: &[Clause] = &[
                 test_fn: DRIVER_FN,
                 must_assert: "M3 arm: degraded HEAD yields clean failure",
             },
+            Citation {
+                file: "tests/actor_safety.rs",
+                test_fn: "degraded_probe_cools_one_endpoint_while_another_policy_keeps_flowing",
+                must_assert: "the endpoint refuses during cooldown and successfully probes/serves again after 60 seconds",
+            },
         ],
-        note: "Cooldown re-entry (probe permitted again after 60 s) untested",
+        note: "D4 cooldown refusal and finite 60-second re-entry are both pinned",
     },
     Clause {
         id: "m3-zero-requests-sent",
@@ -364,10 +368,13 @@ pub const CLAUSES: &[Clause] = &[
         id: "m3-other-policies-unaffected",
         owner: "M3",
         text: "Other policies unaffected (scenarios.md:205)",
-        coverage: Coverage::Untested,
-        citations: &[],
-        note: "No test drives a second endpoint while one is cooled. \
-               open — flagged for Tom",
+        coverage: Coverage::Full,
+        citations: &[Citation {
+            file: "tests/actor_safety.rs",
+            test_fn: "degraded_probe_cools_one_endpoint_while_another_policy_keeps_flowing",
+            must_assert: "Stash HEAD+GET succeeds while StashList is cooled",
+        }],
+        note: "Two-endpoint scoped-cooldown rig",
     },
     Clause {
         id: "m3-pending-callers-errored",
@@ -450,12 +457,13 @@ pub const CLAUSES: &[Clause] = &[
         id: "m4-watch-status-published",
         owner: "M4",
         text: "Status published on the watch channel (scenarios.md:213)",
-        coverage: Coverage::Untested,
-        citations: &[],
-        note: "Watch publication is tested only for the halt path \
-               (cloudflare_shaped_response_halts_the_gate_and_publishes_status); \
-               no test observes the watch on a D4 cooldown. \
-               open — flagged for Tom",
+        coverage: Coverage::Full,
+        citations: &[Citation {
+            file: "tests/actor_safety.rs",
+            test_fn: "unexpected_shape_cooldown_is_published_on_the_watch_channel",
+            must_assert: "watch changes from probing to a non-halted drained cooldown snapshot",
+        }],
+        note: "D4 cooldown publication observed directly",
     },
     Clause {
         id: "m4-at-most-one-request",
@@ -475,9 +483,13 @@ pub const CLAUSES: &[Clause] = &[
         id: "m4-other-policies-flowing",
         owner: "M4",
         text: "Other policies keep flowing (scenarios.md:213)",
-        coverage: Coverage::Untested,
-        citations: &[],
-        note: "Same gap as M3's cross-policy clause. open — flagged for Tom",
+        coverage: Coverage::Full,
+        citations: &[Citation {
+            file: "tests/actor_safety.rs",
+            test_fn: "unexpected_shape_cools_one_endpoint_while_another_policy_keeps_flowing",
+            must_assert: "unexpected-shape endpoint fails while the other policy completes HEAD+GET",
+        }],
+        note: "M4-specific two-endpoint rig",
     },
     // ── M5 — policy rename mid-session (scenarios.md:224) ────────
     Clause {
@@ -512,28 +524,39 @@ pub const CLAUSES: &[Clause] = &[
                organic 429 among them is unavoidable exposure clearing M8 \
                recovery; attribution machinery owned by the judge (§2/B13) \
                (scenarios.md:224)",
-        coverage: Coverage::Untested,
-        citations: &[],
-        note: "Judge attribution machinery is unit-tested only \
-               (g1_unavoidable_exposure_is_pre_observation_only_and_capped, \
-               correlation_and_reproduction_seams_are_structural); the B12 \
-               timing script for the forced stale window does not exist and \
-               independently_observable_ms is never exercised by an \
-               integration run (scenario-driver-handoff.md:133). \
-               open — flagged for Tom",
+        coverage: Coverage::Full,
+        citations: &[Citation {
+            file: "tests/transition_timing.rs",
+            test_fn: "m5_forced_stale_mapping_window_caps_exposure_and_stays_safe_after_merge",
+            must_assert: "exactly the D5-cap stale handoffs precede the \
+                          observable rename; the queued post-merge request is \
+                          not attributed to that window",
+        }],
+        note: "Forced at both boundary phases (phi=0 and phi=1); the test \
+               exercises the observable stale window and independent exposure \
+               attribution without declaring full-contract coverage",
     },
     Clause {
         id: "m5-no-violation-after-merge",
         owner: "M5",
         text: "No client-caused violation after the merge (M5 → G1) \
                (scenarios.md:224)",
-        coverage: Coverage::Partial,
-        citations: &[Citation {
-            file: DRIVER,
-            test_fn: DRIVER_FN,
-            must_assert: "M5 arm judged with G1 armed",
-        }],
-        note: "Without the forced stale window, G1 is not stressed here",
+        coverage: Coverage::Full,
+        citations: &[
+            Citation {
+                file: DRIVER,
+                test_fn: DRIVER_FN,
+                must_assert: "M5 arm judged with G1 armed",
+            },
+            Citation {
+                file: "tests/transition_timing.rs",
+                test_fn: "m5_forced_stale_mapping_window_caps_exposure_and_stays_safe_after_merge",
+                must_assert: "post-merge dispatch waits for both independent \
+                              windows and produces no organic violation",
+            },
+        ],
+        note: "The focused timing test supplies the forced stale-window shape \
+               that the fragment driver arm cannot reach",
     },
     // M5's "remap triggers beyond reactive are U1" row is the U1
     // exclusion itself — collapsed into `u1-proactive-remap`
@@ -580,10 +603,17 @@ pub const CLAUSES: &[Clause] = &[
         owner: "M6",
         text: "Pre-announcement in-flight exposure clears M8 recovery (same \
                machinery as M5's) (scenarios.md:236)",
-        coverage: Coverage::Untested,
-        citations: &[],
-        note: "Same B12/exposure gap as M5 (m5-stale-window-exposure). \
-               open — flagged for Tom",
+        coverage: Coverage::Full,
+        citations: &[Citation {
+            file: "tests/transition_timing.rs",
+            test_fn: "m6_forced_preannouncement_original_recovers_at_the_shrunk_pace",
+            must_assert: "the sole organic 429 was reserved before the shrink, \
+                          arrived after it became observable, and is accepted \
+                          only by the bounded ExposureAllowance",
+        }],
+        note: "Forced at phi=0 and phi=1 with a fail-closed independent \
+               scenario oracle; the resulting report is explicitly a \
+               non-verdict fragment",
     },
     Clause {
         id: "m6-g1-post-announcement",
@@ -591,12 +621,21 @@ pub const CLAUSES: &[Clause] = &[
         text: "G1 from the first post-announcement reservation (M6 → G1) \
                (scenarios.md:236)",
         coverage: Coverage::Partial,
-        citations: &[Citation {
-            file: DRIVER,
-            test_fn: DRIVER_FN,
-            must_assert: "M6 arm judged with G1 armed",
-        }],
-        note: "Fragment scale",
+        citations: &[
+            Citation {
+                file: DRIVER,
+                test_fn: DRIVER_FN,
+                must_assert: "M6 arm judged with G1 armed",
+            },
+            Citation {
+                file: "tests/transition_timing.rs",
+                test_fn: "m6_forced_preannouncement_original_recovers_at_the_shrunk_pace",
+                must_assert: "G1 passes from the observable shrink while only \
+                              the pre-announcement handoff is excluded",
+            },
+        ],
+        note: "Focused transition evidence is stronger than the driver arm; \
+               the full-contract scale run remains the closure delta",
     },
     Clause {
         id: "m6-queue-drains-new-pace",
@@ -604,12 +643,21 @@ pub const CLAUSES: &[Clause] = &[
         text: "Queue keeps draining at the new pace — no wedge \
                (scenarios.md:236)",
         coverage: Coverage::Partial,
-        citations: &[Citation {
-            file: "tests/actor_shell.rs",
-            test_fn: "m6_shrink_blocks_new_dispatches_from_the_announcing_response",
-            must_assert: "the second caller is served after the deadline",
-        }],
-        note: "Single queued caller",
+        citations: &[
+            Citation {
+                file: "tests/actor_shell.rs",
+                test_fn: "m6_shrink_blocks_new_dispatches_from_the_announcing_response",
+                must_assert: "the second caller is served after the deadline",
+            },
+            Citation {
+                file: "tests/transition_timing.rs",
+                test_fn: "m6_forced_preannouncement_original_recovers_at_the_shrunk_pace",
+                must_assert: "the exposed request retries only after the wire \
+                              Retry-After and independent bucket padding",
+            },
+        ],
+        note: "Focused evidence covers the transition and retry; full-contract \
+               queue scale remains the closure delta",
     },
     // ── M7 — phantom same-account hits (scenarios.md:251) ────────
     Clause {
@@ -750,7 +798,7 @@ pub const CLAUSES: &[Clause] = &[
         text: "≤ 1 post-restriction reservation in flight; concurrent \
                originals join one episode; episode identity core-owned \
                (scenarios.md:260)",
-        coverage: Coverage::Partial,
+        coverage: Coverage::Full,
         citations: &[
             Citation {
                 file: "tests/response_disposition.rs",
@@ -759,14 +807,20 @@ pub const CLAUSES: &[Clause] = &[
                               one is in flight",
             },
             Citation {
+                file: "tests/transition_timing.rs",
+                test_fn: "m8_forced_concurrent_originals_allow_only_one_confirmation_in_flight",
+                must_assert: "two delayed originals overlap, only one \
+                              confirmation is published in flight, and the \
+                              sibling cannot dispatch until it completes",
+            },
+            Citation {
                 file: "tests/response_disposition.rs",
                 test_fn: "arbitrary_generation_tagged_in_flight_sets_join_one_episode",
                 must_assert: "arbitrary in-flight sets join one episode",
             },
         ],
-        note: "Core-complete; the B12-scripted wire shape (concurrent \
-               in-flight originals forced by delays) has no test — the \
-               genuinely open M8 delta",
+        note: "Core and forced B12 wire shape are both pinned; the timing test \
+               is a focused fragment, not a verdict-producing run",
     },
     Clause {
         id: "m8-confirmation-matrix",
@@ -838,22 +892,35 @@ pub const CLAUSES: &[Clause] = &[
         owner: "M8",
         text: "No follow-on violation (§2) (M8 → G1) (scenarios.md:260)",
         coverage: Coverage::Partial,
-        citations: &[Citation {
-            file: DRIVER,
-            test_fn: DRIVER_FN,
-            must_assert: "M8 arms judged with G1 armed",
-        }],
-        note: "Fragment scale",
+        citations: &[
+            Citation {
+                file: DRIVER,
+                test_fn: DRIVER_FN,
+                must_assert: "M8 arms judged with G1 armed",
+            },
+            Citation {
+                file: "tests/transition_timing.rs",
+                test_fn: "m8_forced_concurrent_originals_allow_only_one_confirmation_in_flight",
+                must_assert: "both callers complete after serialized \
+                              confirmation and no follow-on organic violation",
+            },
+        ],
+        note: "Focused timing evidence covers the forced overlap; the \
+               full-contract run remains the closure delta",
     },
     Clause {
         id: "m8-b12-timing-script",
         owner: "M8",
         text: "B12 explicit timing script for forced reordering \
                (scenarios.md:260)",
-        coverage: Coverage::Untested,
-        citations: &[],
-        note: "Confessed pending; blocks m8-single-retry-in-flight's wire \
-               shape. open — flagged for Tom",
+        coverage: Coverage::Full,
+        citations: &[Citation {
+            file: "tests/transition_timing.rs",
+            test_fn: "m8_forced_concurrent_originals_allow_only_one_confirmation_in_flight",
+            must_assert: "explicit 2 s original delays and a 5 s confirmation \
+                          delay force the required reordering",
+        }],
+        note: "Pinned at phi=0 and phi=1",
     },
     // ── M9 — phantom race at saturation (scenarios.md:283) ───────
     Clause {
@@ -1036,13 +1103,16 @@ pub const CLAUSES: &[Clause] = &[
                continues, nothing wedges (external-review shell \
                obligation; stated by no scenario — adopted by Tom \
                2026-08-13, design §7 item 2)",
-        coverage: Coverage::Untested,
-        citations: &[],
-        note: "Until adoption this was the only obligation living solely \
-               in prose confessions (registry-handoff §5 item 2). Test \
-               shape: drop a ticket after dispatch confirmation, advance \
-               time, assert scheduling and reconciliation continue. \
-               open — flagged for Tom",
+        coverage: Coverage::Full,
+        citations: &[Citation {
+            file: "tests/actor_safety.rs",
+            test_fn: "dropped_dispatched_ticket_still_reconciles_and_does_not_wedge_following_work",
+            must_assert: "drop occurs only after mock handoff; detached \
+                          completion reconciles and the following request \
+                          eventually dispatches without a reprobe or wedge",
+        }],
+        note: "The public actor test pins the lifecycle at the transport \
+               handoff boundary",
     },
     // ── M11 — layer-1 ceiling and Cloudflare terminal
     //    (scenarios.md:333) ────────────────────────────────────────
@@ -1226,12 +1296,24 @@ pub const CLAUSES: &[Clause] = &[
         owner: "M12",
         text: "All 4xx responses feed the tripwire counter — M12 owns the \
                feed; trip logic is C4's (scenarios.md:347)",
-        coverage: Coverage::Untested,
-        citations: &[],
-        note: "Both call sites exist (src/actor.rs finish_ordinary and \
-               finish_probe); deleting either fails no test — C4's green pins \
-               the pure counter, not the feed (map §8.1 item 4, the one \
-               genuinely untested M12 clause). open — flagged for Tom",
+        coverage: Coverage::Full,
+        citations: &[
+            Citation {
+                file: "src/actor.rs",
+                test_fn: "c4_probe_feed_trips_shared_halt_and_drains_and_publishes",
+                must_assert: "probe 4xx completion feeds the actual tripwire \
+                              path and trips the shared halt",
+            },
+            Citation {
+                file: "src/actor.rs",
+                test_fn: "c4_ordinary_feed_trips_shared_halt_and_drains_and_publishes",
+                must_assert: "ordinary 4xx completion feeds the actual \
+                              tripwire path and trips the shared halt",
+            },
+        ],
+        note: "Internal fault seeding is required because intact D5 pacing \
+               makes the public actor unable to accumulate either threshold; \
+               both real response-feed call sites remain load-bearing",
     },
     Clause {
         id: "m12-trip-logic-thresholds",
@@ -1545,12 +1627,15 @@ pub const CLAUSES: &[Clause] = &[
         id: "c3-trip-latched",
         owner: "C3",
         text: "Trip is latched (scenarios.md:405)",
-        coverage: Coverage::Untested,
-        citations: &[],
-        note: "The latch exists (src/actor.rs dispatch early-returns when \
-               halted); no test advances past a trip and re-asks, so \
-               recomputing `halted` each call would fail nothing — map §8.3 \
-               item 1. open — flagged for Tom",
+        coverage: Coverage::Full,
+        citations: &[Citation {
+            file: "src/actor.rs",
+            test_fn: "c3_x1_trip_is_latched_and_drains_and_publishes",
+            must_assert: "after a fuse trip, a later dispatch attempt remains \
+                          halted and the pending queue stays drained",
+        }],
+        note: "Uses the established internal SafetyCounters fault-injection \
+               seam so the test does not weaken D5 to manufacture a trip",
     },
     Clause {
         id: "c4-thresholds-edges",
@@ -1570,19 +1655,23 @@ pub const CLAUSES: &[Clause] = &[
         id: "c4-halt-semantics-shared",
         owner: "C4",
         text: "Shares the fuse's halt semantics (scenarios.md:409)",
-        coverage: Coverage::Untested,
-        citations: &[],
-        note: "Demoted Partial→Untested by Tom 2026-08-13 (REG-R1-F4 \
-               resolved): the migrated Partial rested on a code citation \
-               (the shared `halted` latch, src/actor.rs:254–268 at \
-               e2034807) plus the trip-edge test \
-               (c4_pins_burst_sustained_and_exact_window_edges), which \
-               proves a different clause's property. Halt-path sharing is \
-               structural only; the latch is untested (as C3) and no test \
-               drives a wire 4xx across the trip threshold. Owed test: \
-               X1-style variant tripping via wire 4xx, asserting \
-               halt/drain/publish — batch with the latch/feed tests. \
-               open — flagged for Tom",
+        coverage: Coverage::Full,
+        citations: &[
+            Citation {
+                file: "src/actor.rs",
+                test_fn: "c4_probe_feed_trips_shared_halt_and_drains_and_publishes",
+                must_assert: "probe-fed trip drains queued callers and \
+                              publishes Halted",
+            },
+            Citation {
+                file: "src/actor.rs",
+                test_fn: "c4_ordinary_feed_trips_shared_halt_and_drains_and_publishes",
+                must_assert: "ordinary-fed trip drains queued callers and \
+                              publishes Halted",
+            },
+        ],
+        note: "Both response entry paths compose the C4 counter with the same \
+               latched halt/drain/publication semantics",
     },
     Clause {
         id: "c5-rollback-exact",
@@ -1716,14 +1805,15 @@ pub const CLAUSES: &[Clause] = &[
         owner: "X1",
         text: "On trip — pending deque errored back, Halted published \
                (scenarios.md:436)",
-        coverage: Coverage::Untested,
-        citations: &[],
-        note: "Drain + publication are tested only via the Cloudflare halt \
-               path (cloudflare_shaped_response_halts_the_gate_and_publishes_status), \
-               never via a fuse trip; the plumbing is shared (`self.halted` \
-               gates) but that composition is asserted by nobody — map §8.3 \
-               item 2. The X1 evidence row reads broader than its test. \
-               open — flagged for Tom",
+        coverage: Coverage::Full,
+        citations: &[Citation {
+            file: "src/actor.rs",
+            test_fn: "c3_x1_trip_is_latched_and_drains_and_publishes",
+            must_assert: "fuse trip errors the pending deque, publishes \
+                          Halted, and remains latched on a later dispatch",
+        }],
+        note: "Composes the X1/C3 injected trip with the actor's actual \
+               drain and watch-publication path",
     },
     Clause {
         id: "x2-single-send-path",
@@ -1731,19 +1821,16 @@ pub const CLAUSES: &[Clause] = &[
         text: "One private HTTP client, no second construction/send path, \
                pinned by a structural test (scenarios.md:440, :443) — \
                load-bearing per result-draft.md §1",
-        coverage: Coverage::Untested,
-        citations: &[],
-        note: "No structural test exists: only a doc comment \
-               (src/transport.rs), and the WireResponse bounds tests \
-               (response_header_boundary_is_checked_before_clone, \
-               cloudflare_body_boundary_is_checked_before_html_scan) pin \
-               ingress shape, not path uniqueness — map §8.2 item 2. \
-               Decided by Tom 2026-08-13: the spike-scope test is a \
-               structure pin (transport handle private to the actor, one \
-               send call site, compile-fail on outside construction); \
-               production integration owes its own re-pin when a real \
-               client exists. Test not yet built: open — flagged for Tom \
-               only until it lands",
+        coverage: Coverage::Full,
+        citations: &[Citation {
+            file: "src/actor.rs",
+            test_fn: "x2_transport_owner_is_private_and_has_one_send_call_site",
+            must_assert: "Actor remains private and source structure contains \
+                          exactly one transport send call site",
+        }],
+        note: "The public spawn API also carries a compile-fail doctest that \
+               outside code cannot import the private Actor; production \
+               integration still owes its own re-pin when a real client lands",
     },
     Clause {
         id: "x2-parser-cap-limitation",
@@ -1894,7 +1981,7 @@ pub const CLAUSES: &[Clause] = &[
         id: "g4-m2-duration-bound",
         owner: "G4",
         text: "M2 duration ≤ 1.05× the padded minimum (scenarios.md:520)",
-        coverage: Coverage::Partial,
+        coverage: Coverage::Full,
         citations: &[
             Citation {
                 file: "tests/conformance_harness.rs",
@@ -1904,20 +1991,27 @@ pub const CLAUSES: &[Clause] = &[
             Citation {
                 file: DRIVER,
                 test_fn: DRIVER_FN,
-                must_assert: "M2 judged at the hardcoded 2,550 ms minimum",
+                must_assert: "M2 saturates burst and sustained windows and is \
+                              judged against the runtime-derived padded minimum",
+            },
+            Citation {
+                file: DRIVER,
+                test_fn: "m2_g4_minimum_is_runtime_derived_and_reaches_both_stalls",
+                must_assert: "independent arithmetic derives the minimum from \
+                              the policy definition, queue depth, D5 floor, \
+                              bucket padding, and service delay",
             },
         ],
-        note: "The padding term has never been non-zero in a judged run — map \
-               §8.3 item 4; when M2's saturation depth lands, the literal \
-               must become runtime arithmetic per the 2026-08-13 amendment \
-               (scenarios.md:571: a precomputed literal does not qualify)",
+        note: "The judged M2 run now crosses both the 5 s burst and 60 s \
+               sustained boundaries; the oracle uses independent arithmetic \
+               and no production scheduling helper",
     },
     Clause {
         id: "g5-scenario-assertions",
         owner: "G5",
         text: "Every scenario's own assertions, fragments included; \
                unauthorized refusal fails G5 (scenarios.md:524)",
-        coverage: Coverage::Partial,
+        coverage: Coverage::Full,
         citations: &[
             Citation {
                 file: "tests/conformance_harness.rs",
@@ -1931,10 +2025,16 @@ pub const CLAUSES: &[Clause] = &[
                 must_assert: "driver arms yield computed verdicts, never \
                               constants",
             },
+            Citation {
+                file: "tests/conformance_harness.rs",
+                test_fn: "g5_rejects_unauthorized_refusal_when_wire_safety_is_green",
+                must_assert: "G1 and G2 remain green while an independent \
+                              unauthorized-refusal assertion alone fails G5",
+            },
         ],
-        note: "Judge at src/conformance.rs (G5 section). \"Unauthorized \
-               client-entered refusal state fails G5\" has no test (needs a \
-               misbehaving client)",
+        note: "Judge at src/conformance.rs (G5 section); the dedicated teeth \
+               test proves the refusal condition cannot hide behind a wire \
+               safety failure",
     },
     Clause {
         id: "g6-reproduction-records",
@@ -1972,7 +2072,7 @@ pub const CLAUSES: &[Clause] = &[
         owner: "B1",
         text: "Full verbatim header protocol; Retry-After on 429 \
                (scenarios.md:612)",
-        coverage: Coverage::Partial,
+        coverage: Coverage::Full,
         citations: &[
             Citation {
                 file: "tests/mock_fidelity.rs",
@@ -1984,12 +2084,16 @@ pub const CLAUSES: &[Clause] = &[
                 test_fn: "b1_b7_m4_synthetic_one_and_three_window_policies_cross_as_raw_headers",
                 must_assert: "synthetic shapes cross verbatim",
             },
+            Citation {
+                file: "tests/actor_safety.rs",
+                test_fn: "organic_429_emits_retry_after_and_actor_honors_the_wire_value",
+                must_assert: "an organic mock 429 emits Retry-After as wire \
+                              text and the actor delays the retry by the parsed \
+                              value plus policy padding",
+            },
         ],
-        note: "Everything pinned except the retry-after header string on an \
-               organic 429 — the model value is tested (inside \
-               b2_b3_quantized_expiry_and_restriction_are_independent) but \
-               the wire emission (src/mock/mod.rs) is never asserted; \
-               scripted 429s supply their own value — map §8.3 item 5",
+        note: "The organic path is load-bearing: a capturing wrapper observes \
+               the emitted wire text before the public actor consumes it",
     },
     Clause {
         id: "b2-black-box-counters",
@@ -2164,7 +2268,7 @@ pub const CLAUSES: &[Clause] = &[
     Clause {
         id: "b12-scripted-delay",
         owner: "B12",
-        text: "Deterministic scripted delay; 50 ms placeholder default; \
+        text: "Deterministic scripted delay; canonical 81 ms default; \
                M5/M8/M9/M13 explicit timing scripts (scenarios.md:684)",
         coverage: Coverage::Partial,
         citations: &[
@@ -2178,12 +2282,27 @@ pub const CLAUSES: &[Clause] = &[
                 test_fn: DRIVER_FN,
                 must_assert: "M13's timing script (the scripted 2 s delay)",
             },
+            Citation {
+                file: "tests/transition_timing.rs",
+                test_fn: "m5_forced_stale_mapping_window_caps_exposure_and_stays_safe_after_merge",
+                must_assert: "M5 forced stale companion timing at both boundary phases",
+            },
+            Citation {
+                file: "tests/transition_timing.rs",
+                test_fn: "m8_forced_concurrent_originals_allow_only_one_confirmation_in_flight",
+                must_assert: "M8 delayed concurrent originals and delayed confirmation",
+            },
+            Citation {
+                file: "tests/capture_replay.rs",
+                test_fn: "b12_canonical_sent_to_received_median_is_81_ms",
+                must_assert: "all 383 canonical samples produce an 81 ms median",
+            },
         ],
-        note: "Mechanism full; the 50 ms placeholder default is honored \
-               pending the §7.4 fixture (src/mock/mod.rs). Of the four \
-               required timing scripts only M13's exists; M5/M8/M9 pending — \
-               this single gap underlies the M5/M6 exposure, M8 \
-               concurrent-originals, and M9 race clauses",
+        note: "Mechanism, canonical default, M5, M8, and M13 are pinned. The \
+               remaining Partial delta is M9's explicit saturation-race \
+               timing script. The separate exhaustive §7.4 replay gate has \
+               a recorded adjudication finding; its active diagnostic is not \
+               used to waive that gate",
     },
     Clause {
         id: "b13-observation-log",

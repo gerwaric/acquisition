@@ -29,110 +29,75 @@ prose, per the registry's coverage confession
 limits, though that hand-off is otherwise historical).
 
 The open-untested list is the `OPEN_UNTESTED` constant in
-`src/obligations.rs` — **not** any prose table. As of 2026-08-13
-(post ballot pass) it holds 13 ids, each a genuinely owed test
-(`m9-headroom-record` left the list by demotion to the U5
-exclusion; earlier the same day `m7-threshold-tuning` resolved by
-wording and `c4-halt-semantics-shared` was demoted honestly —
-decisions 4 and 5). `obligation-map.md` is the
-superseded prose ancestor; read its §8 for the audit's discrepancy
-analysis (dated at `e2034807`), never for current coverage.
+`src/obligations.rs` — **not** any prose table. As of 2026-08-14 it
+is empty: the implementation swarm discharged all 13 previously
+open Untested ids.
+Registry totals are 97 Full, 11 Partial, one accepted Untested
+limitation (`x2-parser-cap-limitation`), and 13 Excluded. Empty
+`OPEN_UNTESTED` does not imply verdict readiness; the Partial set
+and the failed §7.4 replay gate are itemized in §5. `obligation-map.md`
+is the superseded prose ancestor; read its §8 for the audit's
+discrepancy analysis (dated at `e2034807`), never for current
+coverage.
 
 ## 2. Slice and review state
 
 - **Open: scenario-driver slice** (M1–M13 driver/judge integration),
-  in review round four. Rounds one–three findings (F1–F10, driver
-  register) and doc findings 11, 12(a), 12(b), and 13 are fixed;
-  12(c) is decision 1 below. Round four (2026-08-12) changed no
-  driver code but recorded findings **F14–F16**, **unaddressed** —
-  substance re-derived 2026-08-13 in the `result-draft.md` §9
-  addendum (twin M8 arm missing a conjunct + duplicated cap guard;
-  duplicated floor literal; fail-open oracle fallback, currently
-  unreachable). They are the next coding work this slice owes. Its
-  hand-off, `scenario-driver-handoff.md`, keeps its **live coverage
-  confession** until the slice closes; read it there, not here.
+  **review-ready for round five**. F14–F16 are fixed: the twin M8
+  arms share the full guard and non-verdict check, the D5/floor
+  literals come from their authorities, and the oracle fallback is
+  fail-closed. The 2026-08-14 implementation swarm also landed the
+  ballot work listed in the prior status revision; it has not been
+  independently reviewed and the slice is not closed. Its hand-off,
+  `scenario-driver-handoff.md`, is the live four-part review packet.
 - Every other slice (core, bootstrap, mock, actor, clause registry,
   doc split) is closed; their hand-offs are historical records.
   (Doc split closed 2026-08-13, DS-R1 — `result-draft.md` §9.)
 
 ## 3. Open decisions (Tom)
 
-**None.** The 2026-08-13 ballot-pass amendment drafts were
-approved by Tom as-is the same day and are applied: five
-`scenarios.md` amendment blocks (M4, M11, M12, G6, U5), the
-`result-draft.md` §1 SHELL-prerequisite sentence, and the seven
-registry flips. Earlier the same day the decisions pass resolved
-all six prior standing items (full dispositions: the
-`result-draft.md` §9 entries). A new decision gets a numbered
-item here.
+1. **§7.4 adversarial-replay adjudication.** The canonical replay's
+   required every-phase zero-violation gate fails for exactly
+   φ=7,454–7,466 ms: one `stash-request-limit` sustained-window
+   overflow, 31/30, at counted reply 110 (fixture record 114),
+   t=727,453 ms at the first phase. The B3 model and independent
+   arithmetic agree: 25 earlier hits remain active until 727,454 ms
+   and six new hits arrive one millisecond before expiry. Phase
+   7,453 and 7,467 are safe, and phase 0 matches all 43 recorded
+   saturation components. Decide whether this is a frozen-contract
+   expectation error or requires a separately authorized model/
+   fixture disposition. The implementation must not tune the gate
+   away or amend the frozen scope silently.
 
 ## 4. Blocked
 
-**Nothing.** The §7.4 fixture landed 2026-08-14 (ballot-external
-input, closing mock-slice doc finding 8):
-`fixtures/capture-20260814-wired.json` is the canonical capture
-(Tom's typical network condition), with
-`fixtures/capture-20260813-vpn.json` committed alongside as the
-supplemental B12 latency comparison. The replay is now plain owed
-work (§5 item 3).
+The slice can undergo independent review, and the remaining test
+work in §5 can proceed. §7.4 calibration closure and any final
+verdict are blocked on decision 1. No live-service input is needed.
 
 ## 5. Next work
 
-This list is the 2026-08-13 coverage ballot's outcome (register:
-`result-draft.md` §9 ballot-pass entry) and it is **closed**:
-entries leave by test discharge or approved amendment; a new
-obligation enters only from a failing test or a numbered §3
-decision. Every non-Full registry clause was balloted; each work
-item below names the clauses it discharges.
+The 2026-08-13 ballot remains closed; this is the exact residual
+set after the implementation swarm.
 
-1. Fix F14–F16 (substance in the `result-draft.md` §9 addendum,
-   2026-08-13) and close scenario-driver round four.
-2. Ballot work items (test code; letters per the ballot):
-   - **A** — probe-429 wire arm (boot HEAD scripted 429 through
-     the actor): `m1-probe-429-seeding`,
-     `m1-probe-429-first-get-confirmation`,
-     `m1-probe-429-tripwire-feed` (feed assert, ties to H).
-   - **B** — two-endpoint rig (second policy flowing while the
-     first is cooled/failed): `m3-other-policies-unaffected`,
-     `m4-other-policies-flowing`, `m1-boot-head-discipline`.
-   - **C** — M1 residue sweep incl. zero-remaining-budget:
-     `m1-no-first-request-violation`, `m1-g1-sweep`.
-   - **D** — M2 saturation depth + runtime-computed G4 minimum
-     (retires the 2,550 ms literal per scenarios.md:571):
-     `m2-burst-stall-drain`, `m2-g1`, `m2-g3-g4-bounds`,
-     `g4-m2-duration-bound`.
-   - **E** — B12 M5 timing script (forced stale window), plus one
-     M6 shrink-variant arm riding it: `m5-stale-window-exposure`,
-     `m5-no-violation-after-merge`, `m6-preannouncement-exposure`.
-   - **F** — B12 M8 timing script (concurrent in-flight
-     originals): `m8-b12-timing-script`,
-     `m8-single-retry-in-flight`.
-   - **G** — B12 M9 timing script (phantom race at 14/15):
-     `m9-recovery-survives-race`, `m9-race-exposure-attribution`.
-     E+F+G complete `b12-scripted-delay`'s required script set.
-   - **H** — fuse-trip batch (latch re-ask, wire-4xx trip →
-     halt/drain/publish, feed-deletion asserts): `c3-trip-latched`,
-     `c4-halt-semantics-shared`, `x1-trip-drain-publish`,
-     `m12-tripwire-feed`.
-   - **I** — X2 structure pin per decision 2:
-     `x2-single-send-path`.
-   - Singles: `m3-cooldown-clean-failure` (60 s re-entry assert);
-     `m4-watch-status-published` (watch assert on D4 cooldown);
-     `m11-compliant-never-trips` (M11a near-ceiling sweep arm,
-     G2's named binding evidence); `shell-dropped-dispatched-ticket`
-     (drop-after-dispatch test per its note);
-     `g5-scenario-assertions` (unauthorized-refusal teeth);
-     `b1-header-protocol` (organic-429 Retry-After wire assert).
-3. §7.4 capture replay against
-   `fixtures/capture-20260814-wired.json` (canonical; the VPN
-   comparison fixture is committed alongside). Also retires
-   `b12-scripted-delay`'s 50 ms placeholder confession — capture
-   median `sent→received` is 81 ms wired / 148 ms VPN.
-4. Verdict slots last — the full-contract run (which also finishes
-   the fragment-scale-only partials: `m6-g1-post-announcement`,
+1. Independent round-five review of `scenario-driver-handoff.md`;
+   do not flip its status or close the slice in the implementation
+   session.
+2. **Ballot G** — build the forced M9 phantom race at 14/15. It
+   discharges `m9-recovery-survives-race`,
+   `m9-race-exposure-attribution`, and the last scripted arm of
+   `b12-scripted-delay`.
+3. **M11a named binding evidence** — near-ceiling compliant sweep
+   for `m11-compliant-never-trips`.
+4. Resolve §3 decision 1, then rerun the exhaustive canonical gate.
+   The active exact-counterexample and 43/43 diagnostic tests remain
+   load-bearing; the exhaustive gate remains ignored with its known-
+   finding reason until adjudication.
+5. Full-contract run last. It finishes the fragment-scale-only
+   clauses `m6-g1-post-announcement`,
    `m6-queue-drains-new-pace`, `m7-no-client-violation`,
    `m8-no-follow-on-violation`, `g1-zero-client-violations`,
-   `g2-ceilings-never-tripped`, `g3-over-delay-bounded`); the fill
-   takes two agreeing authorities: the run's declaration and the
-   registry showing every owned clause `Full` (AGENTS.md standing
-   rule).
+   `g2-ceilings-never-tripped`, and `g3-over-delay-bounded`.
+   Verdict slots may be filled only when the run declares
+   `FullContract` and the registry independently shows every owned
+   clause `Full`; until then they remain blank.
