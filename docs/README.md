@@ -7,8 +7,9 @@ when this map and a header disagree, the header wins.
 ## Active
 
 - `design/legacy-buyout-import.md` — deliberately minimal design for
-  recovering pre-0.16 hash-keyed buyouts into the id-keyed store; tracer
-  bullet first, iteration deferred.
+  recovering pre-0.16 hash-keyed buyouts into the id-keyed store.
+  Revised August 14, 2026 to a plan/apply split around an editable XLSX
+  plan file (QXlsx); tracer bullet implemented, revision not yet built.
 - `design/legacy-buyout-import-investigation.md` — evidence record for
   that design (August 13, 2026): old/new formats, the validated
   hash-to-id join (100% match on a real 0.15.0 database), defects in the

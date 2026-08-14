@@ -8,8 +8,11 @@ commits as `R1-1` etc. Design: `legacy-buyout-import.md`; evidence:
 ## Round 1 — August 14, 2026 (tracer bullet, commit c687409f)
 
 High-effort multi-angle review with adversarial verification; ten findings
-survived. Status values: **open** (not yet addressed), **fixed** (commit
-noted), **decision needed** (policy question for Tom, not a plain bug).
+survived. Status values: **open** (not yet addressed), **agreed** (fix
+shape settled in the August 14 design discussion, recorded in the design
+doc's revision — see "Round 1 resolutions" below), **resolved by design
+revision** (the plan/apply redesign dissolves the question), **fixed**
+(commit noted), **decision needed** (policy question for Tom).
 
 ### R1-1. The db_version gate refuses files master itself stamps 5 — fixed
 
@@ -25,7 +28,7 @@ and 5 and refuse only `<4` (matching the design doc, which always said
 "refuse `<4`"). **Fixed** on this branch: gate accepts 4 and 5; test
 `importsVersion5StampedFiles` pins it.
 
-### R1-2. Tab buyouts keyed on the untruncated 64-char legacy stash id — open
+### R1-2. Tab buyouts keyed on the untruncated 64-char legacy stash id — agreed
 
 `add_stash` writes `location_buyouts` rows keyed on the raw `stash.id`
 from the old tabs blob. Pre-0.16 truncated legacy-API 64-hex stash ids to
@@ -38,7 +41,7 @@ rows, reported as imported, and idempotent against the wrong key so
 re-running never heals it. Fix shape: apply the same first-10 truncation
 when the id is longer than 10 hex chars.
 
-### R1-3. `add_stash` ignores the legacy `n` label field — open
+### R1-3. `add_stash` ignores the legacy `n` label field — agreed
 
 Old-format stash lists carry the tab label in `n` (injected by pre-0.16
 `ItemLocation`); legacy-API tab JSON had no `name` at all. `add_stash`
@@ -48,7 +51,7 @@ buyouts report orphaned while item buyouts import — a plausible-looking
 partial success. The validation script already does
 `s.get("n", s.get("name", ""))`; the importer should match it.
 
-### R1-4. Write failures are indistinguishable from a clean re-run — open
+### R1-4. Write failures are indistinguishable from a clean re-run — agreed
 
 `report.success = true` is unconditional and `countSave` folds
 `BuyoutSaveResult::Error` into `skipped`. A locked/read-only/full-disk
@@ -59,7 +62,7 @@ rows, so no single count is interpretable. Fix shape: count errors
 separately, fail the report (or at least say so) when errors are
 nonzero, and split "already present" from "skipped".
 
-### R1-5. Imported inherited buyouts die on the next refresh — open
+### R1-5. Imported inherited buyouts die on the next refresh — resolved by design revision
 
 `convertBuyout` copies `legacy.inherited` through. Pre-0.16 persisted
 inherited item rows (`IsSavable` filtered only on type). On the next
@@ -70,7 +73,7 @@ deletes the row. Recovered prices vanish silently. Decision needed on
 the fix: drop `inherited` on import, skip inherited rows, or import them
 only when the owning tab buyout also imported.
 
-### R1-6. One malformed item still discards a whole tab's items row — open
+### R1-6. One malformed item still discards a whole tab's items row — agreed
 
 `LegacyDataStore`'s leniency stops at row granularity: `glz::read` of a
 row's entire `std::vector<LegacyItem>` fails on a single malformed item
@@ -83,7 +86,7 @@ populated map on error while the store stays valid. Fix shape: parse
 items rows as `std::vector<glz::raw_json>` (or equivalent) and convert
 per element, skipping only the bad ones.
 
-### R1-7. Skip-existing discards manual prices behind auto-generated rows — decision needed
+### R1-7. Skip-existing discards manual prices behind auto-generated rows — resolved by design revision
 
 `ApplyAutoItemBuyouts` and `PropagateTabBuyouts` persist rows for every
 item with a priced note or under a priced tab, so by import time most
@@ -95,7 +98,7 @@ machine-generated row, and buries the fact in `skipped`. The
 protected. Policy decision: e.g. legacy MANUAL overwrites non-MANUAL
 existing rows; everything else keeps skip-existing.
 
-### R1-8. The import result never reaches items, shop, or refresh state — open
+### R1-8. The import result never reaches items, shop, or refresh state — agreed
 
 `OnImportLegacyBuyouts` only calls `ReloadBuyouts()`. Unlike
 `OnBuyoutChange` it never runs `PropagateTabBuyouts` (items under an
@@ -105,7 +108,7 @@ post right after import uses pre-import prices). The user's rational
 read is that the import did nothing. Fix shape: after a successful
 import, do what the existing buyout-change path does.
 
-### R1-9. Character join hard-requires an id old files don't have — open
+### R1-9. Character join hard-requires an id old files don't have — agreed
 
 POESESSID-era character lists carry no `id`; pre-0.16 keyed characters
 by name everywhere (`character:<name>`, empty unique id). With
@@ -115,7 +118,7 @@ shape: fall back to the name as the location id when `id` is missing —
 matching what master's character locations use when GGG provides no id.
 No test covers a characters row lacking `id`.
 
-### R1-10. Synchronous GUI import; no transaction; per-row prepare — open
+### R1-10. Synchronous GUI import; no transaction; per-row prepare — agreed
 
 The whole import runs in the GUI slot: full parse of a potentially
 27 MB file, ~20k MD5 hashes, then 1,200+ autocommit INSERTs each
@@ -124,6 +127,40 @@ unlike `OnExpandAll`/`OnCollapseAll`), and a force-quit leaves a partial
 import with no rollback. Fix shape: wrap the save loops in
 `m_db.transaction()`/`commit()` (the `userstore.cpp` migrate pattern),
 hoist one prepared query per loop, and set a wait cursor.
+
+### Round 1 resolutions — August 14, 2026
+
+The design discussion (Tom + review follow-up) revised the design to a
+plan/apply split around an editable XLSX plan file; full detail in
+`legacy-buyout-import.md`. Dispositions:
+
+- **R1-1**: fixed on-branch (8a4a4d14); gate accepts db_version 4 and 5.
+- **R1-2**: truncate >10-char legacy-API stash ids to their first 10 —
+  confident, not heuristic, since only the non-OAuth API returned long
+  ids. Cross-check failures flag the row `needs-attention` per-row
+  rather than aborting.
+- **R1-3**: read the label from `n` (fallback `name`). The label is only
+  the join key within the old file; the unique id bridges to the current
+  store (labels are rename-prone). Plan shows old label and current name.
+- **R1-4**: dissolved into the plan format — per-row outcomes, write
+  errors counted separately from skips, failures fail loudly.
+- **R1-5**: resolved by prefill default — inherited legacy rows default
+  to `skip` (derived data; tab buyouts import separately); user can flip
+  per row.
+- **R1-6**: parse items per element (e.g. vector of raw JSON, convert
+  individually) so one malformed item flags that item, not its tab; same
+  guard for the buyouts blobs.
+- **R1-7**: resolved by prefill defaults — legacy price imports over an
+  existing non-MANUAL row; an existing MANUAL row defaults to `skip`
+  (MigrateItem precedent); user can flip per row.
+- **R1-8**: after apply, treat the import like any other buyout update
+  (propagate tab buyouts, refresh locks, expire shop data).
+- **R1-9**: character fallback chain id → name match → equipped-item
+  search (propose, reason `character-matched-by-items`) → orphan. The
+  search uses whatever the userstore holds; no fetch-state gating — the
+  refresh precondition stays external (dialog warning only).
+- **R1-10**: transaction-wrapped apply, hoisted prepared statements,
+  wait cursor; errors reported.
 
 ### Cleanup notes (below the round's severity cap)
 
