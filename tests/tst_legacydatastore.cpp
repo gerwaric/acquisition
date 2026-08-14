@@ -51,7 +51,11 @@ void LegacyDataStoreTest::readsRealShapedItemsAndSkipsBadRows()
         };
         QVERIFY(insert_data("db_version", "4"));
         // Deliberately omit `version`: missing data keys are non-fatal.
-        QVERIFY(insert_data("buyouts", "{}"));
+        QVERIFY(insert_data("buyouts",
+                            R"json({
+                "good":{"value":2,"last_update":1,"type":"b/o","currency":"chaos","source":"manual","inherited":false},
+                "bad":{"value":"not-a-number"}
+            })json"));
         QVERIFY(insert_data("tab_buyouts", "{}"));
 
         query.prepare("INSERT INTO tabs (type, value) VALUES (?, ?)");
@@ -78,12 +82,15 @@ void LegacyDataStoreTest::readsRealShapedItemsAndSkipsBadRows()
 
     QVERIFY(store.isValid());
     QCOMPARE(store.data().db_version, QString("4"));
+    QCOMPARE(store.data().buyouts.size(), std::size_t(1));
+    QVERIFY(store.data().buyouts.contains("good"));
     QCOMPARE(store.itemCount(), 1);
     QCOMPARE(store.items().size(), std::size_t(1));
     QVERIFY(store.items().contains("abc123def0"));
     QCOMPARE(store.items().at("abc123def0").front().typeLine, QString("Chaos Orb"));
     QCOMPARE(store.tabs().stashes.size(), std::size_t(1));
-    QCOMPARE(store.skippedRowCount(), 3); // version, characters, malformed items row
+    // Missing version, malformed buyout element, missing characters, malformed items row.
+    QCOMPARE(store.skippedRowCount(), 4);
 }
 
 QTEST_GUILESS_MAIN(LegacyDataStoreTest)

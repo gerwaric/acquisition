@@ -3,11 +3,15 @@
 
 #include <QtTest/QtTest>
 
+#include <QFileInfo>
 #include <QSqlDatabase>
 #include <QSqlError>
 #include <QSqlQuery>
 #include <QTemporaryDir>
 #include <QUuid>
+
+#include <xlsxcellrange.h>
+#include <xlsxdocument.h>
 
 #include "legacy/legacybuyoutimporter.h"
 #include "legacy/legacyitem.h"
@@ -96,6 +100,172 @@ namespace {
         QSqlDatabase::removeDatabase(connection_name);
     }
 
+    void reviseLegacyDatabaseForPlan(const QString &filename)
+    {
+        LegacyItem stash_item;
+        stash_item.name = "";
+        stash_item.typeLine = "Chaos Orb";
+        stash_item._tab_label = "Old Priced";
+        const QString stash_hash = stash_item.hash();
+
+        LegacyItem character_item;
+        character_item.name = "";
+        character_item.typeLine = "Divine Orb";
+        character_item._character = "Bob";
+        const QString character_hash = character_item.hash();
+
+        const QString buyout_json = QString(R"json({
+                "%1":{"value":5,"last_update":1700000000,"type":"b/o","currency":"chaos","source":"manual","inherited":false},
+                "%2":{"value":6,"last_update":1700000001,"type":"price","currency":"divine","source":"manual","inherited":true},
+                "orphan-hash":{"value":7,"last_update":1700000002,"type":"b/o","currency":"chaos","source":"manual","inherited":false}
+            })json")
+                                        .arg(stash_hash, character_hash);
+        const QString tab_buyout_json = R"json({
+            "stash:Old Priced":{"value":8,"last_update":1700000003,"type":"b/o","currency":"chaos","source":"manual","inherited":false},
+            "character:Bob":{"value":9,"last_update":1700000004,"type":"price","currency":"divine","source":"manual","inherited":false}
+        })json";
+        const QString long_stash_a = "0123456789" + QString(54, 'a');
+        const QString long_stash_b = "fedcba9876" + QString(54, 'b');
+        const QString stashes_json = QString(R"json([
+                {"id":"%1","n":"Old Priced","type":"PremiumStash","index":0,"metadata":{"colour":"7f7f7f"}},
+                {"id":"%2","n":"Old Priced","type":"PremiumStash","index":1,"metadata":{"colour":"7f7f7f"}}
+            ])json")
+                                         .arg(long_stash_a, long_stash_b);
+        const QString characters_json = R"json([
+            {"name":"Bob","realm":"pc","class":"Marauder","league":"Standard","level":90,"experience":1}
+        ])json";
+        const QString stash_items_json = R"json([
+            {"id":"broken","name":"","typeLine":"Broken","_tab_label":"Old Priced","sockets":"not-an-array"},
+            {"id":"item-a","name":"","typeLine":"Chaos Orb","_tab_label":"Old Priced","ilvl":0,"frameType":5},
+            {"id":"item-b","name":"","typeLine":"Chaos Orb","_tab_label":"Old Priced","ilvl":0,"frameType":5}
+        ])json";
+
+        const QString connection_name = "legacy-plan-update:"
+                                        + QUuid::createUuid().toString(QUuid::WithoutBraces);
+        {
+            QSqlDatabase db = QSqlDatabase::addDatabase("QSQLITE", connection_name);
+            db.setDatabaseName(filename);
+            QVERIFY2(db.open(), qPrintable(db.lastError().text()));
+            QSqlQuery query(db);
+            query.prepare("UPDATE data SET value = ? WHERE key = ?");
+            const auto update_data = [&query](const QString &key, const QString &value) {
+                query.bindValue(0, value);
+                query.bindValue(1, key);
+                return query.exec();
+            };
+            QVERIFY(update_data("buyouts", buyout_json));
+            QVERIFY(update_data("tab_buyouts", tab_buyout_json));
+
+            query.prepare("UPDATE tabs SET value = ? WHERE type = ?");
+            query.bindValue(0, stashes_json);
+            query.bindValue(1, 0);
+            QVERIFY(query.exec());
+            query.bindValue(0, characters_json);
+            query.bindValue(1, 1);
+            QVERIFY(query.exec());
+
+            QVERIFY(query.exec("DELETE FROM items WHERE loc = 'stash-a'"));
+            query.prepare("INSERT INTO items (loc, value) VALUES (?, ?)");
+            query.bindValue(0, "0123456789");
+            query.bindValue(1, stash_items_json);
+            QVERIFY(query.exec());
+            db.close();
+        }
+        QSqlDatabase::removeDatabase(connection_name);
+    }
+
+    struct PlanningFixture
+    {
+        PlanningFixture()
+            : stashes(std::make_unique<StashRepo>(*buyouts.db))
+            , characters(std::make_unique<CharacterRepo>(*buyouts.db))
+        {
+            if (!stashes->ensureSchema() || !characters->ensureSchema()) {
+                qFatal("Failed to create planning fixture schema");
+            }
+        }
+
+        void seedStash(const QString &id, const QString &name, unsigned index)
+        {
+            poe::StashTab stash;
+            stash.id = id;
+            stash.name = name;
+            stash.type = "PremiumStash";
+            stash.index = index;
+            if (!saveStashFixture(*stashes, stash, "pc", "Standard")) {
+                qFatal("Failed to seed planning stash");
+            }
+        }
+
+        void seedCharacter(const QString &id,
+                           const QString &name,
+                           const std::optional<QString> equipped_item_id = {})
+        {
+            poe::Character character{};
+            character.id = id;
+            character.name = name;
+            character.realm = "pc";
+            character.class_ = "Marauder";
+            character.league = "Standard";
+            character.level = 90;
+            character.experience = 1;
+            if (equipped_item_id) {
+                poe::Item item{};
+                item.id = *equipped_item_id;
+                item.name = "";
+                item.typeLine = "Divine Orb";
+                item.baseType = "Divine Orb";
+                character.equipment = std::vector{item};
+            }
+            if (!characters->saveCharacterList({character})
+                || !saveCharacterFixture(*characters, character)) {
+                qFatal("Failed to seed planning character");
+            }
+        }
+
+        BuyoutManagerFixture buyouts;
+        std::unique_ptr<StashRepo> stashes;
+        std::unique_ptr<CharacterRepo> characters;
+    };
+
+    using PlanRows = QList<QHash<QString, QVariant>>;
+
+    PlanRows readPlanRows(const QString &filename)
+    {
+        QXlsx::Document document(filename);
+        if (!document.load() || !document.selectSheet("plan")) {
+            return {};
+        }
+        QHash<int, QString> headers;
+        const QXlsx::CellRange dimension = document.dimension();
+        for (int column = 1; column <= dimension.lastColumn(); ++column) {
+            headers[column] = document.read(1, column).toString();
+        }
+
+        PlanRows rows;
+        for (int row = 2; row <= dimension.lastRow(); ++row) {
+            QHash<QString, QVariant> values;
+            for (int column = 1; column <= dimension.lastColumn(); ++column) {
+                values[headers[column]] = document.read(row, column);
+            }
+            rows.push_back(std::move(values));
+        }
+        return rows;
+    }
+
+    const QHash<QString, QVariant> &findPlanRow(const PlanRows &rows,
+                                                const QString &column,
+                                                const QString &value)
+    {
+        const auto found = std::ranges::find_if(rows, [&](const auto &row) {
+            return row.value(column).toString() == value;
+        });
+        if (found == rows.end()) {
+            qFatal("Plan row not found: %s=%s", qPrintable(column), qPrintable(value));
+        }
+        return *found;
+    }
+
 } // namespace
 
 class LegacyBuyoutImporterTest : public QObject
@@ -103,10 +273,146 @@ class LegacyBuyoutImporterTest : public QObject
     Q_OBJECT
 
 private slots:
+    void createsEditablePlanWithRevisedMatchingDefaults();
+    void matchesRenamedCharacterByEquippedItems();
+    void plansVersion5StampedFiles();
     void importsMatchesWithoutOverwritingAndIsIdempotent();
     void importsVersion5StampedFiles();
     void refusesPreVersion4Files();
 };
+
+void LegacyBuyoutImporterTest::createsEditablePlanWithRevisedMatchingDefaults()
+{
+    QTemporaryDir source_dir;
+    QVERIFY(source_dir.isValid());
+    const QString source_path = source_dir.filePath("legacy-v4.db");
+    const QString plan_path = source_dir.filePath("buyout-plan.xlsx");
+    createLegacyDatabase(source_path, "4");
+    reviseLegacyDatabaseForPlan(source_path);
+
+    PlanningFixture destination;
+    destination.seedStash("0123456789", "Renamed Priced", 0);
+    destination.seedCharacter("character-id-bob", "Bob");
+
+    Buyout manual = makeChaosBuyout(99.0);
+    manual.source = Buyout::BUYOUT_SOURCE_MANUAL;
+    QCOMPARE(destination.buyouts.repo
+                 ->saveItemBuyout(manual, "item-a", "0123456789", ItemLocationType::STASH, false),
+             BuyoutSaveResult::Saved);
+    Buyout automatic = makeChaosBuyout(98.0);
+    automatic.source = Buyout::BUYOUT_SOURCE_AUTO;
+    QCOMPARE(destination.buyouts.repo
+                 ->saveItemBuyout(automatic, "item-b", "0123456789", ItemLocationType::STASH, false),
+             BuyoutSaveResult::Saved);
+
+    LegacyBuyoutImporter importer(*destination.buyouts.repo,
+                                  *destination.stashes,
+                                  *destination.characters,
+                                  "pc",
+                                  "Standard");
+    const LegacyBuyoutPlanReport report = importer.createPlan(source_path, plan_path);
+
+    QVERIFY2(report.success, qPrintable(report.error));
+    QCOMPARE(report.total, 5);
+    QCOMPARE(report.matched, 4);
+    QCOMPARE(report.ambiguous, 2);
+    QCOMPARE(report.orphaned, 1);
+    QCOMPARE(report.skipped, 1); // one malformed item, not the whole stash row (R1-6)
+    QCOMPARE(report.rows, 7);
+
+    const PlanRows rows = readPlanRows(plan_path);
+    QCOMPARE(rows.size(), 7);
+
+    const auto &manual_row = findPlanRow(rows, "item_id", "item-a");
+    QCOMPARE(manual_row.value("action").toString(), QString("skip"));
+    QCOMPARE(manual_row.value("reason").toString(), QString("existing-manual"));
+    QCOMPARE(manual_row.value("location_id").toString(), QString("0123456789"));
+    QCOMPARE(manual_row.value("old_tab_label").toString(), QString("Old Priced"));
+    QCOMPARE(manual_row.value("current_tab_name").toString(), QString("Renamed Priced"));
+    QCOMPARE(manual_row.value("value").toDouble(), 5.0);
+    QCOMPARE(manual_row.value("item_id").metaType(), QMetaType::fromType<QString>());
+
+    const auto &automatic_row = findPlanRow(rows, "item_id", "item-b");
+    QCOMPARE(automatic_row.value("action").toString(), QString("import"));
+    QVERIFY(automatic_row.value("reason").toString().startsWith("ambiguous-"));
+    QCOMPARE(automatic_row.value("existing_source").toString(), QString("auto"));
+
+    const auto &character_row = findPlanRow(rows, "item_id", "item-character");
+    QCOMPARE(character_row.value("action").toString(), QString("skip"));
+    QCOMPARE(character_row.value("reason").toString(), QString("inherited"));
+    QCOMPARE(character_row.value("location_id").toString(), QString("character-id-bob"));
+
+    const auto &orphan_row = findPlanRow(rows, "legacy_hash", "orphan-hash");
+    QCOMPARE(orphan_row.value("action").toString(), QString("skip"));
+    QCOMPARE(orphan_row.value("reason").toString(), QString("orphaned"));
+    QVERIFY(orphan_row.value("item_id").toString().isEmpty());
+
+    const auto &second_stash_row = findPlanRow(rows, "location_id", "fedcba9876");
+    QCOMPARE(second_stash_row.value("action").toString(), QString("skip"));
+    QCOMPARE(second_stash_row.value("reason").toString(), QString("needs-attention"));
+    QCOMPARE(second_stash_row.value("old_tab_label").toString(), QString("Old Priced"));
+    QVERIFY(second_stash_row.value("current_tab_name").toString().isEmpty());
+
+    QXlsx::Document document(plan_path);
+    QVERIFY(document.load());
+    QVERIFY(document.sheetNames().contains("plan"));
+    QVERIFY(document.selectSheet("meta"));
+    QCOMPARE(document.read(1, 1).toString(), QString("format_version"));
+    QCOMPARE(document.read(1, 2).toString(), QString("1"));
+    QCOMPARE(document.read(4, 2).toString(), QString("4"));
+}
+
+void LegacyBuyoutImporterTest::matchesRenamedCharacterByEquippedItems()
+{
+    QTemporaryDir source_dir;
+    QVERIFY(source_dir.isValid());
+    const QString source_path = source_dir.filePath("legacy-v4.db");
+    const QString plan_path = source_dir.filePath("buyout-plan.xlsx");
+    createLegacyDatabase(source_path, "4");
+    reviseLegacyDatabaseForPlan(source_path);
+
+    PlanningFixture destination;
+    destination.seedCharacter("character-id-robert", "Robert", "item-character");
+
+    LegacyBuyoutImporter importer(*destination.buyouts.repo,
+                                  *destination.stashes,
+                                  *destination.characters,
+                                  "pc",
+                                  "Standard");
+    const LegacyBuyoutPlanReport report = importer.createPlan(source_path, plan_path);
+
+    QVERIFY2(report.success, qPrintable(report.error));
+    const PlanRows rows = readPlanRows(plan_path);
+    const auto &character_row = findPlanRow(rows, "item_id", "item-character");
+    QCOMPARE(character_row.value("location_id").toString(), QString("character-id-robert"));
+    QCOMPARE(character_row.value("current_character").toString(), QString("Robert"));
+    QCOMPARE(character_row.value("reason").toString(), QString("inherited"));
+
+    const auto &location_row = findPlanRow(rows, "legacy_hash", "character:Bob");
+    QCOMPARE(location_row.value("location_id").toString(), QString("character-id-robert"));
+    QCOMPARE(location_row.value("reason").toString(), QString("character-matched-by-items"));
+}
+
+void LegacyBuyoutImporterTest::plansVersion5StampedFiles()
+{
+    QTemporaryDir source_dir;
+    QVERIFY(source_dir.isValid());
+    const QString source_path = source_dir.filePath("legacy-v5.db");
+    const QString plan_path = source_dir.filePath("buyout-plan.xlsx");
+    createLegacyDatabase(source_path, "5");
+
+    PlanningFixture destination;
+    LegacyBuyoutImporter importer(*destination.buyouts.repo,
+                                  *destination.stashes,
+                                  *destination.characters,
+                                  "pc",
+                                  "Standard");
+    const LegacyBuyoutPlanReport report = importer.createPlan(source_path, plan_path);
+
+    QVERIFY2(report.success, qPrintable(report.error));
+    QCOMPARE(report.total, 5);
+    QVERIFY(QFileInfo::exists(plan_path));
+}
 
 void LegacyBuyoutImporterTest::importsMatchesWithoutOverwritingAndIsIdempotent()
 {

@@ -75,6 +75,46 @@ namespace {
         return ReadResult::Loaded;
     }
 
+    template<typename T>
+    static ReadResult getStructMap(QSqlDatabase db,
+                                   const QString &query,
+                                   std::unordered_map<QString, T> &value,
+                                   qint64 &skipped_count)
+    {
+        QByteArray data;
+        const ReadResult read_result = getByteArray(db, query, data);
+        if (read_result != ReadResult::Loaded) {
+            return read_result;
+        }
+
+        const std::string_view sv{data.constData(), static_cast<std::size_t>(data.size())};
+        constexpr glz::opts opts{.null_terminated = false, .error_on_unknown_keys = false};
+
+        std::unordered_map<QString, glz::raw_json> raw_values;
+        if (auto ec = glz::read<opts>(raw_values, sv); ec) {
+            value.clear();
+            spdlog::warn("LegacyDataStore: JSON error parsing object from '{}'; skipping: {}",
+                         query.toStdString(),
+                         glz::format_error(ec, sv));
+            return ReadResult::Skipped;
+        }
+
+        for (auto &[key, raw_value] : raw_values) {
+            T parsed;
+            if (auto ec = glz::read<opts>(parsed, raw_value.str); ec) {
+                spdlog::warn("LegacyDataStore: JSON error parsing entry '{}' from '{}'; "
+                             "skipping entry: {}",
+                             key,
+                             query,
+                             glz::format_error(ec, raw_value.str));
+                ++skipped_count;
+                continue;
+            }
+            value.emplace(std::move(key), std::move(parsed));
+        }
+        return ReadResult::Loaded;
+    }
+
 } // namespace
 
 //-------------------------------------------------------------------------------------------
@@ -115,10 +155,14 @@ LegacyDataStore::LegacyDataStore(const QString &filename)
         getString(db, "SELECT value FROM data WHERE (key = 'db_version')", m_data.db_version));
     structurally_valid &= load(
         getString(db, "SELECT value FROM data WHERE (key = 'version')", m_data.version));
-    structurally_valid &= load(
-        getStruct(db, "SELECT value FROM data WHERE (key = 'buyouts')", m_data.buyouts));
-    structurally_valid &= load(
-        getStruct(db, "SELECT value FROM data WHERE (key = 'tab_buyouts')", m_data.tab_buyouts));
+    structurally_valid &= load(getStructMap(db,
+                                            "SELECT value FROM data WHERE (key = 'buyouts')",
+                                            m_data.buyouts,
+                                            m_skipped_row_count));
+    structurally_valid &= load(getStructMap(db,
+                                            "SELECT value FROM data WHERE (key = 'tab_buyouts')",
+                                            m_data.tab_buyouts,
+                                            m_skipped_row_count));
     structurally_valid &= load(
         getStruct(db, "SELECT value FROM tabs WHERE (type = 0)", m_tabs.stashes));
     structurally_valid &= load(
@@ -145,19 +189,31 @@ LegacyDataStore::LegacyDataStore(const QString &filename)
         const QString loc = query.value(0).toString();
         const QByteArray ba = query.value(1).toByteArray();
 
-        std::vector<LegacyItem> result;
-
         // Parse from a size-aware view (don't assume null-terminated input)
         const std::string_view sv{ba.constData(), static_cast<std::size_t>(ba.size())};
-
         constexpr glz::opts opts{.null_terminated = false, .error_on_unknown_keys = false};
 
-        if (auto ec = glz::read<opts>(result, sv); ec) {
+        std::vector<glz::raw_json> raw_items;
+        if (auto ec = glz::read<opts>(raw_items, sv); ec) {
             spdlog::warn("LegacyDataStore: error parsing 'items' for '{}'; skipping row: {}",
                          loc.toStdString(),
                          glz::format_error(ec, sv));
             ++m_skipped_row_count;
             continue;
+        }
+
+        std::vector<LegacyItem> result;
+        result.reserve(raw_items.size());
+        for (const glz::raw_json &raw_item : raw_items) {
+            LegacyItem item;
+            if (auto ec = glz::read<opts>(item, raw_item.str); ec) {
+                spdlog::warn("LegacyDataStore: error parsing item for '{}'; skipping item: {}",
+                             loc,
+                             glz::format_error(ec, raw_item.str));
+                ++m_skipped_row_count;
+                continue;
+            }
+            result.push_back(std::move(item));
         }
 
         m_item_count += static_cast<qint64>(result.size());
