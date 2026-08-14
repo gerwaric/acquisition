@@ -194,7 +194,7 @@ eight findings confirmed by verification, two candidates refuted (the
 `ambiguous` prefill matches documented intent; the `appendUnique`
 equality narrowing reproduces the old semantics). All open.
 
-### R2-1. Apply lost the never-clobber guarantee — open
+### R2-1. Apply lost the never-clobber guarantee — fixed
 
 `IMPORT_ITEM_BUYOUT`/`IMPORT_LOCATION_BUYOUT` use `ON CONFLICT DO
 UPDATE` on every column where the tracer bullet used `DO NOTHING`; the
@@ -211,7 +211,7 @@ with `WHERE source != 'manual'` unless the plan row's `existing_source`
 was already manual, or re-read and demote conflicting rows to a
 `skipped-existing-manual` outcome).
 
-### R2-2. Post-apply propagation destroys imported inherited rows — open
+### R2-2. Post-apply propagation destroys imported inherited rows — fixed
 
 `OnLegacyBuyoutsImported()` runs `PropagateTabBuyouts()` (per R1-8),
 which deletes or overwrites any imported item buyout whose `inherited`
@@ -222,7 +222,7 @@ removed. Fix shape: strip `inherited` on write (an explicitly imported
 row is by definition no longer derived), or refuse `import` +
 `inherited: true` at validation with a clear per-row error.
 
-### R2-3. Workbook save failure after commit leaves caches stale — open
+### R2-3. Workbook save failure after commit leaves caches stale — fixed
 
 `applyPlan` commits the DB transaction, then saves the annotated
 workbook; if the save fails (file open in Excel on Windows, network
@@ -233,7 +233,7 @@ the stale cache. Fix shape: after a successful commit, always reload and
 propagate; report the workbook-save failure as a warning, not a failed
 import.
 
-### R2-4. Skip rows are validated before the skip short-circuit — open
+### R2-4. Skip rows are validated before the skip short-circuit — fixed
 
 Buyout-field validation (value/type/currency/`convertBuyout`) runs
 before the `action == "skip"` test, so editing the value cell of a row
@@ -242,7 +242,7 @@ the user opted out of (e.g. clearing an orphaned row's price) errors and
 The id-validation block already sits after the skip test, showing the
 intended split. Fix: hoist the skip check above the buyout validation.
 
-### R2-5. A blank row aborts the whole plan — open
+### R2-5. A blank row aborts the whole plan — fixed
 
 An empty row inside the sheet dimension (contents cleared rather than
 row deleted, or a blank separator row — Excel keeps both in the
@@ -250,7 +250,7 @@ dimension) yields an empty `action`, which is treated as a hard error
 and aborts the import. The header scan in the same function skips empty
 cells; the row loop should skip fully blank rows the same way.
 
-### R2-6. Character lookup ignores the league — open
+### R2-6. Character lookup ignores the league — fixed
 
 `createPlan` calls `getCharacterList(m_realm)` without `m_league`
 (which is in scope and used by the stash lookup two lines up).
@@ -259,7 +259,7 @@ characters, which keep their ids and item ids — enter the equipped-item
 match and produce `character-matched-by-items` proposals for the wrong
 league. One-word fix: pass `m_league`.
 
-### R2-7. Labels starting with '=' become Excel formulas — open
+### R2-7. Labels starting with '=' become Excel formulas — fixed
 
 Cells are written as raw QStrings and QXlsx dispatches any string
 beginning with `=` to `writeFormula` — verified empirically: a tab named
@@ -270,7 +270,7 @@ are common and are exactly what a reviewer wants to see.
 text cells with an explicit string type / disable formula and hyperlink
 interpretation for data cells.
 
-### R2-8. The v5 test can no longer catch a matching regression — open
+### R2-8. The v5 test can no longer catch a matching regression — fixed
 
 `plansVersion5StampedFiles` (the only db_version-5 test) asserts
 `success`, `total == 5`, and plan-file existence — but `total` counts
@@ -280,3 +280,29 @@ green for the exact file shape most ≤0.15 upgraders have. The R1-1
 rationale comment was also dropped from test and source. Fix: assert
 matched/orphaned counts (or apply the plan and check the repo), and
 restore the comment.
+
+### Round 2 resolutions — August 14, 2026
+
+All eight findings fixed on-branch in three commits:
+
+- **194745eb** — R2-4 (skip short-circuit hoisted above buyout
+  validation), R2-5 (fully blank rows ignored), R2-6 (character lookup
+  league-filtered), R2-7 (string cells written verbatim via
+  `writeString`; string-to-hyperlink conversion disabled). Pinned by
+  `skipRowEditsDoNotAbortTheImport`, `blankPlanRowsAreIgnored`,
+  `characterMatchingIsLeagueScoped`, `formulaLikeLabelsStayText`.
+- **8b257ce6** — R2-1 (write-time manual guard inside the import
+  transaction: a manual row is only overwritten when the plan row's
+  `existing_source` was already manual; a manual row byte-identical to
+  the incoming write is the plan's own earlier import and still reports
+  already-present, preserving idempotence reporting; new
+  `skipped-existing-manual` outcome and `Protected manual` count), R2-2
+  (inherited flag stripped from imported rows), R2-3 (`success` reflects
+  the committed database; a post-commit workbook-save failure becomes
+  `report.warning`, both UI callers still reload/propagate and surface
+  it — no failure-injection test for the save path; the ordering is the
+  fix). Pinned by `manualPricesSetAfterPlanningAreProtected`,
+  `importedInheritedBuyoutsLoseTheFlag`.
+- R2-8 — `importsVersion5StampedFiles` restored to end-to-end parity
+  (matched/orphaned counts, apply, repo contents) and the R1-1 rationale
+  comment restored in test and source.

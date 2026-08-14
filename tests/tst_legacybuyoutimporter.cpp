@@ -307,7 +307,7 @@ private slots:
     void matchesRenamedCharacterByEquippedItems();
     void characterMatchingIsLeagueScoped();
     void formulaLikeLabelsStayText();
-    void plansVersion5StampedFiles();
+    void importsVersion5StampedFiles();
     void appliesEditedPlanTransactionallyAndIsIdempotent();
     void manualPricesSetAfterPlanningAreProtected();
     void importedInheritedBuyoutsLoseTheFlag();
@@ -510,8 +510,15 @@ void LegacyBuyoutImporterTest::formulaLikeLabelsStayText()
     QCOMPARE(tab_row.value("old_tab_label").toString(), QString("=== SELL ==="));
 }
 
-void LegacyBuyoutImporterTest::plansVersion5StampedFiles()
+void LegacyBuyoutImporterTest::importsVersion5StampedFiles()
 {
+    // Master's MigrateBuyouts stamps db_version 5 into upgraded legacy
+    // files while leaving the v4-generation hash keys intact (R1-1), so
+    // a 5-stamped file must match and import exactly like a 4-stamped
+    // one — this is the file shape most <=0.15 upgraders actually have.
+    // Asserting matched/orphaned counts (not just totals) keeps a
+    // regression in LegacyItem::hash() or the version gate visible
+    // (R2-8).
     QTemporaryDir source_dir;
     QVERIFY(source_dir.isValid());
     const QString source_path = source_dir.filePath("legacy-v5.db");
@@ -524,11 +531,22 @@ void LegacyBuyoutImporterTest::plansVersion5StampedFiles()
                                   *destination.characters,
                                   "pc",
                                   "Standard");
-    const LegacyBuyoutPlanReport report = importer.createPlan(source_path, plan_path);
+    const LegacyBuyoutPlanReport plan = importer.createPlan(source_path, plan_path);
 
-    QVERIFY2(report.success, qPrintable(report.error));
-    QCOMPARE(report.total, 5);
+    QVERIFY2(plan.success, qPrintable(plan.error));
+    QCOMPARE(plan.total, 5);
+    QCOMPARE(plan.matched, 4);
+    QCOMPARE(plan.ambiguous, 2);
+    QCOMPARE(plan.orphaned, 1);
+    QCOMPARE(plan.rows, 7);
     QVERIFY(QFileInfo::exists(plan_path));
+
+    const LegacyBuyoutApplyReport report = importer.applyPlan(plan_path);
+    QVERIFY2(report.success, qPrintable(report.error));
+    QCOMPARE(report.imported, 6);
+    QCOMPARE(report.errors, 0);
+    QCOMPARE(destination.buyouts.repo->getItemBuyouts().size(), std::size_t(3));
+    QCOMPARE(destination.buyouts.repo->getLocationBuyouts().size(), std::size_t(3));
 }
 
 void LegacyBuyoutImporterTest::appliesEditedPlanTransactionallyAndIsIdempotent()
