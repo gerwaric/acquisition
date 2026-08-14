@@ -31,8 +31,8 @@ the GCC floor is stricter for the miscompilation above.
 ## Third-Party Dependencies
 
 CMake fetches third-party libraries (sentry-native, glaze, cpp-semver, spdlog,
-and QCoro) at configure time via FetchContent; the vendored qdarkstyle lives in
-`deps/`. QCoro is pinned exactly at v0.13.0 — a hard floor, not a preference:
+QCoro, and QXlsx) at configure time via FetchContent; the vendored qdarkstyle
+lives in `deps/`. QCoro is pinned exactly at v0.13.0 — a hard floor, not a preference:
 the coroutine semantics acquisition relies on are verified at that release (see
 `docs/design/network-redesign.md`, "Dependency: QCoro"). Its examples and tests
 are kept out of the build with `QCORO_BUILD_EXAMPLES=OFF` and

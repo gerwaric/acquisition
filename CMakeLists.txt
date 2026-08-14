@@ -246,6 +246,17 @@ if(NOT TARGET spdlog)
     FetchContent_MakeAvailable(spdlog)
 endif()
 
+if(NOT TARGET QXlsx::QXlsx)
+    FetchContent_Declare(
+        qxlsx
+        GIT_REPOSITORY https://github.com/QtExcel/QXlsx.git
+        GIT_TAG        v1.5.1.1
+        GIT_SHALLOW    TRUE
+        SOURCE_SUBDIR  QXlsx
+    )
+    FetchContent_MakeAvailable(qxlsx)
+endif()
+
 #------------------------------------------------------
 # Acquisition Sources
 #------------------------------------------------------
@@ -649,6 +660,7 @@ target_link_libraries(acquisition_core PUBLIC
     QCoro6::Core
     QCoro6::Network
     qdarkstyle
+    QXlsx::QXlsx
     sentry::sentry
     semver
     spdlog::spdlog_header_only
