@@ -34,8 +34,12 @@ divides the 60,000 ms cycle.
 - F15 is structural now: HEAD pacing uses `MIN_SEND_SPACING_MS`; M2's
   G4 minimum is derived from the policy definition, queue depth, D5
   floor, N13 periods/buckets, and the canonical service delay.
-- F16 fails closed: a missing oracle key returns `u64::MAX`, so the
-  next dispatch is ineligible rather than silently eligible.
+- F16 fails closed structurally (hardened for SD-R5-F6): the oracle
+  trait returns `Option<u64>` and the judge itself scores a missing
+  eligibility entry as a G3 failure — the fail-closed branch lives in
+  one place, is documented on the trait, and
+  `g3_fails_closed_when_the_oracle_has_no_eligibility_entry` fails if
+  it is lost. The per-implementation `u64::MAX` sentinel is gone.
 - **No permanent wedge:** dropped dispatched tickets reconcile in a
   detached task; M5/M6 transition queues eventually drain; M8 sibling
   callers resume after the sole confirmation; fuse/C4 trips drain all

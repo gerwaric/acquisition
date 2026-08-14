@@ -25,11 +25,10 @@ struct TransitionOracle {
 }
 
 impl ScenarioOracle for TransitionOracle {
-    fn independently_eligible_ms(&self, observation: &Observation) -> u64 {
-        self.eligible_ms
-            .get(&observation.correlation_id)
-            .copied()
-            .unwrap_or(u64::MAX)
+    fn independently_eligible_ms(&self, observation: &Observation) -> Option<u64> {
+        // A missing entry reaches the judge as `None`, which fails G3 closed
+        // (SD-R5-F6: the fail-closed branch is the judge's, not ours).
+        self.eligible_ms.get(&observation.correlation_id).copied()
     }
 
     fn independently_observable_ms(

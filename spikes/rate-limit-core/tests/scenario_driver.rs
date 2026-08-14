@@ -145,14 +145,15 @@ struct DriverOracle {
 }
 
 impl ScenarioOracle for DriverOracle {
-    fn independently_eligible_ms(&self, observation: &rate_limit_core::mock::Observation) -> u64 {
-        self.eligible
-            .get(&observation.correlation_id)
-            .copied()
-            // Fail closed if the judged set ever grows beyond the set used
-            // to build this oracle. Falling back to the dispatch under test
-            // would manufacture zero lateness (round-four F16).
-            .unwrap_or(u64::MAX)
+    fn independently_eligible_ms(
+        &self,
+        observation: &rate_limit_core::mock::Observation,
+    ) -> Option<u64> {
+        // If the judged set ever grows beyond the set used to build this
+        // oracle, `None` reaches the judge, which fails G3 closed (the
+        // fail-closed branch lives there — SD-R5-F6, superseding the
+        // per-implementation u64::MAX sentinel of round-four F16).
+        self.eligible.get(&observation.correlation_id).copied()
     }
 
     fn independently_observable_ms(

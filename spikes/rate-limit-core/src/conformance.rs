@@ -298,7 +298,19 @@ pub struct AuthorizedExclusion {
 /// computed safe time. The scenario fixture also owns every authorized
 /// exclusion and M2's padded-minimum calculation.
 pub trait ScenarioOracle {
-    fn independently_eligible_ms(&self, observation: &Observation) -> u64;
+    /// The independently derived instant at which this observation's dispatch
+    /// became eligible, or `None` when the oracle has no entry for it.
+    ///
+    /// `None` fails closed *in the judge*: the dispatch is scored as a G3
+    /// failure ("no independent eligibility"), never as trivially eligible.
+    /// Implementations must return `None` for an unknown observation rather
+    /// than substituting the dispatch under test — that fallback would
+    /// manufacture zero lateness (round-four F16) — and must not encode the
+    /// convention themselves with a sentinel (round-five SD-R5-F6: the
+    /// previous `u64::MAX` sentinel lived in each implementation, where a
+    /// one-token slip to `unwrap_or_default()` would have disarmed G3 with
+    /// nothing failing).
+    fn independently_eligible_ms(&self, observation: &Observation) -> Option<u64>;
 
     /// Returns when this particular mock-side change first becomes visible to
     /// the client in this scenario. The implementation must derive this from
@@ -647,33 +659,35 @@ pub fn judge(
     let g3_failures = evidence
         .observations
         .iter()
-        .filter(|observation| {
-            let independently_eligible_ms = oracle.independently_eligible_ms(observation);
+        .filter_map(|observation| {
+            // Fail closed here, in exactly one place: an observation the
+            // oracle cannot vouch for is a G3 failure, not a free pass.
+            let Some(independently_eligible_ms) = oracle.independently_eligible_ms(observation)
+            else {
+                return Some(format!(
+                    "correlation {} has no independent eligibility entry",
+                    observation.correlation_id
+                ));
+            };
             if observation.dispatch_ms < independently_eligible_ms {
-                return true;
-            }
-            let deadline = independently_eligible_ms.saturating_add(G3_EPSILON_MS);
-            if observation.dispatch_ms <= deadline {
-                return false;
-            }
-            !oracle.authorizes_delay(independently_eligible_ms, observation.dispatch_ms)
-        })
-        .map(|observation| {
-            let independently_eligible_ms = oracle.independently_eligible_ms(observation);
-            if observation.dispatch_ms < independently_eligible_ms {
-                format!(
+                return Some(format!(
                     "correlation {} dispatched before independent eligibility",
                     observation.correlation_id
-                )
-            } else {
-                format!(
-                    "correlation {} exceeded G3 by {} ms",
-                    observation.correlation_id,
-                    observation
-                        .dispatch_ms
-                        .saturating_sub(independently_eligible_ms)
-                )
+                ));
             }
+            let deadline = independently_eligible_ms.saturating_add(G3_EPSILON_MS);
+            if observation.dispatch_ms <= deadline
+                || oracle.authorizes_delay(independently_eligible_ms, observation.dispatch_ms)
+            {
+                return None;
+            }
+            Some(format!(
+                "correlation {} exceeded G3 by {} ms",
+                observation.correlation_id,
+                observation
+                    .dispatch_ms
+                    .saturating_sub(independently_eligible_ms)
+            ))
         })
         .collect::<Vec<_>>();
 

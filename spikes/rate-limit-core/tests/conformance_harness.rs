@@ -82,14 +82,17 @@ async fn one_observation() -> rate_limit_core::mock::Observation {
 #[derive(Default)]
 struct TestOracle {
     eligible_ms: u64,
+    /// Simulates an oracle with no entry for the judged observation; the
+    /// judge must fail G3 closed (SD-R5-F6).
+    withhold_eligibility: bool,
     observable_ms: Option<u64>,
     exclusions: Vec<AuthorizedExclusion>,
     m2_padded_minimum_ms: Option<u64>,
 }
 
 impl ScenarioOracle for TestOracle {
-    fn independently_eligible_ms(&self, _: &rate_limit_core::mock::Observation) -> u64 {
-        self.eligible_ms
+    fn independently_eligible_ms(&self, _: &rate_limit_core::mock::Observation) -> Option<u64> {
+        (!self.withhold_eligibility).then_some(self.eligible_ms)
     }
 
     fn independently_observable_ms(
@@ -218,6 +221,28 @@ async fn g5_rejects_unauthorized_refusal_when_wire_safety_is_green() {
     assert_eq!(
         report.gate(Gate::G5).failures,
         vec!["M1BootSequence".to_owned()]
+    );
+    assert!(!report.passed());
+    assert!(!report.verdict_eligible());
+}
+
+// SD-R5-F6's exposing test: before the judge owned the fail-closed branch,
+// an oracle with no entry for a judged observation depended on each
+// implementation's u64::MAX sentinel, and an `unwrap_or_default()` slip would
+// have made every observation trivially eligible with nothing failing.
+#[tokio::test(start_paused = true)]
+async fn g3_fails_closed_when_the_oracle_has_no_eligibility_entry() {
+    let evidence = base_evidence(one_observation().await);
+    let oracle = TestOracle {
+        withhold_eligibility: true,
+        ..TestOracle::default()
+    };
+    let report = judge(&evidence, &oracle).unwrap();
+    assert!(!report.gate(Gate::G3).passed);
+    assert!(
+        report.gate(Gate::G3).failures[0].contains("no independent eligibility entry"),
+        "unexpected G3 failure text: {:?}",
+        report.gate(Gate::G3).failures
     );
     assert!(!report.passed());
     assert!(!report.verdict_eligible());
