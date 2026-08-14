@@ -186,3 +186,97 @@ plan/apply split around an editable XLSX plan file; full detail in
 - Build and both new tests pass; clang-format clean. `tst_networkcapture`
   fails on this branch but the failure is pre-existing from master
   (timezone assertion introduced by f53d8cb1), unrelated to this work.
+
+## Round 2 — August 14, 2026 (plan/apply revision, commits 6c25c427…b64f3e29)
+
+Medium-effort review of the four plan/apply implementation commits;
+eight findings confirmed by verification, two candidates refuted (the
+`ambiguous` prefill matches documented intent; the `appendUnique`
+equality narrowing reproduces the old semantics). All open.
+
+### R2-1. Apply lost the never-clobber guarantee — open
+
+`IMPORT_ITEM_BUYOUT`/`IMPORT_LOCATION_BUYOUT` use `ON CONFLICT DO
+UPDATE` on every column where the tracer bullet used `DO NOTHING`; the
+only protection is the prefill computed at *plan* time (`prefillAction`
+skips only when the existing source is MANUAL), and `applyPlan` never
+re-reads current buyouts. Consequences: existing AUTO/GAME rows are
+overwritten even in the one-click path (that half is the agreed R1-7
+default); but a *saved* plan applied later — after the user hand-priced
+items, or after the auto-refresh timer fired inside the file dialog's
+nested event loop — silently replaces manual prices set since the plan
+was generated, reporting them "imported". Fix shape: apply must re-check
+the target row's current source at write time (e.g. guard the upsert
+with `WHERE source != 'manual'` unless the plan row's `existing_source`
+was already manual, or re-read and demote conflicting rows to a
+`skipped-existing-manual` outcome).
+
+### R2-2. Post-apply propagation destroys imported inherited rows — open
+
+`OnLegacyBuyoutsImported()` runs `PropagateTabBuyouts()` (per R1-8),
+which deletes or overwrites any imported item buyout whose `inherited`
+flag survived — the prefill only *defaults* inherited rows to skip; a
+user can flip one to import and applyPlan writes the flag through. The
+workbook and dialog then claim success for a row propagation just
+removed. Fix shape: strip `inherited` on write (an explicitly imported
+row is by definition no longer derived), or refuse `import` +
+`inherited: true` at validation with a clear per-row error.
+
+### R2-3. Workbook save failure after commit leaves caches stale — open
+
+`applyPlan` commits the DB transaction, then saves the annotated
+workbook; if the save fails (file open in Excel on Windows, network
+share, disk full) `success` stays false and both callers skip
+`OnLegacyBuyoutsImported()`, leaving BuyoutManager/model/shop stale
+against an already-mutated database — and later edits write back from
+the stale cache. Fix shape: after a successful commit, always reload and
+propagate; report the workbook-save failure as a warning, not a failed
+import.
+
+### R2-4. Skip rows are validated before the skip short-circuit — open
+
+Buyout-field validation (value/type/currency/`convertBuyout`) runs
+before the `action == "skip"` test, so editing the value cell of a row
+the user opted out of (e.g. clearing an orphaned row's price) errors and
+— via the all-or-nothing gate — stamps every other row `not-applied`.
+The id-validation block already sits after the skip test, showing the
+intended split. Fix: hoist the skip check above the buyout validation.
+
+### R2-5. A blank row aborts the whole plan — open
+
+An empty row inside the sheet dimension (contents cleared rather than
+row deleted, or a blank separator row — Excel keeps both in the
+dimension) yields an empty `action`, which is treated as a hard error
+and aborts the import. The header scan in the same function skips empty
+cells; the row loop should skip fully blank rows the same way.
+
+### R2-6. Character lookup ignores the league — open
+
+`createPlan` calls `getCharacterList(m_realm)` without `m_league`
+(which is in scope and used by the stash lookup two lines up).
+Characters from other leagues — including Standard heirs of dead-league
+characters, which keep their ids and item ids — enter the equipped-item
+match and produce `character-matched-by-items` proposals for the wrong
+league. One-word fix: pass `m_league`.
+
+### R2-7. Labels starting with '=' become Excel formulas — open
+
+Cells are written as raw QStrings and QXlsx dispatches any string
+beginning with `=` to `writeFormula` — verified empirically: a tab named
+`=== SELL ===` renders as `#NAME?` in the plan. Legibility, not
+integrity (those columns are not read back), but separator-named tabs
+are common and are exactly what a reviewer wants to see.
+`strings_to_hyperlinks_enabled` also defaults true. Fix shape: write
+text cells with an explicit string type / disable formula and hyperlink
+interpretation for data cells.
+
+### R2-8. The v5 test can no longer catch a matching regression — open
+
+`plansVersion5StampedFiles` (the only db_version-5 test) asserts
+`success`, `total == 5`, and plan-file existence — but `total` counts
+rows before any hash lookup, so it passes identically when every row
+orphans. A regression in `LegacyItem::hash()` or the version gate stays
+green for the exact file shape most ≤0.15 upgraders have. The R1-1
+rationale comment was also dropped from test and source. Fix: assert
+matched/orphaned counts (or apply the plan and check the repo), and
+restore the comment.
