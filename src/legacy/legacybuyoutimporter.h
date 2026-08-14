@@ -31,9 +31,13 @@ struct LegacyBuyoutApplyReport
     bool success{false};
     qint64 imported{0};
     qint64 already_present{0};
+    qint64 protected_manual{0};
     qint64 skipped{0};
     qint64 errors{0};
     QString error;
+    // Set when the buyouts were applied but a post-commit step (saving
+    // the annotated workbook) failed; success stays true.
+    QString warning;
 
     QString summary() const;
 };

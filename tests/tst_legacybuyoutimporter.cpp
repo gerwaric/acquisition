@@ -309,6 +309,8 @@ private slots:
     void formulaLikeLabelsStayText();
     void plansVersion5StampedFiles();
     void appliesEditedPlanTransactionallyAndIsIdempotent();
+    void manualPricesSetAfterPlanningAreProtected();
+    void importedInheritedBuyoutsLoseTheFlag();
     void skipRowEditsDoNotAbortTheImport();
     void blankPlanRowsAreIgnored();
     void rejectsInvalidPlanBeforeWriting();
@@ -578,6 +580,93 @@ void LegacyBuyoutImporterTest::appliesEditedPlanTransactionallyAndIsIdempotent()
     QCOMPARE(second.already_present, 5);
     QCOMPARE(second.skipped, 2);
     QCOMPARE(second.errors, 0);
+}
+
+void LegacyBuyoutImporterTest::manualPricesSetAfterPlanningAreProtected()
+{
+    QTemporaryDir source_dir;
+    QVERIFY(source_dir.isValid());
+    const QString source_path = source_dir.filePath("legacy-v4.db");
+    const QString plan_path = source_dir.filePath("buyout-plan.xlsx");
+    createLegacyDatabase(source_path, "4");
+    reviseLegacyDatabaseForPlan(source_path);
+
+    PlanningFixture destination;
+    destination.seedStash("0123456789", "Renamed Priced", 0);
+    destination.seedCharacter("character-id-bob", "Bob");
+    LegacyBuyoutImporter importer(*destination.buyouts.repo,
+                                  *destination.stashes,
+                                  *destination.characters,
+                                  "pc",
+                                  "Standard");
+    QVERIFY(importer.createPlan(source_path, plan_path).success);
+
+    // A manual price written between plan and apply (a hand edit, or the
+    // auto-refresh timer) must be protected at write time — the plan's
+    // prefill could not have known about it (R2-1).
+    Buyout manual = makeChaosBuyout(99.0);
+    manual.source = Buyout::BUYOUT_SOURCE_MANUAL;
+    QCOMPARE(destination.buyouts.repo
+                 ->saveItemBuyout(manual, "item-a", "0123456789", ItemLocationType::STASH, false),
+             BuyoutSaveResult::Saved);
+
+    const LegacyBuyoutApplyReport report = importer.applyPlan(plan_path);
+    QVERIFY2(report.success, qPrintable(report.error));
+    QCOMPARE(report.protected_manual, 1);
+    QCOMPARE(report.imported, 3);
+    QCOMPARE(report.errors, 0);
+    QCOMPARE(destination.buyouts.repo->getItemBuyouts().at("item-a").value, 99.0);
+
+    const PlanRows rows = readPlanRows(plan_path);
+    QCOMPARE(findPlanRow(rows, "item_id", "item-a").value("outcome").toString(),
+             QString("skipped-existing-manual"));
+
+    // A plan generated with the manual row visible (existing_source =
+    // manual, prefilled skip) may overwrite it once the user explicitly
+    // flips the row to import.
+    const QString second_plan = source_dir.filePath("buyout-plan-2.xlsx");
+    QVERIFY(importer.createPlan(source_path, second_plan).success);
+    const PlanRows second_rows = readPlanRows(second_plan);
+    QCOMPARE(findPlanRow(second_rows, "item_id", "item-a").value("reason").toString(),
+             QString("existing-manual"));
+    editPlanRow(second_plan, "item_id", "item-a", {{"action", "import"}});
+
+    const LegacyBuyoutApplyReport second = importer.applyPlan(second_plan);
+    QVERIFY2(second.success, qPrintable(second.error));
+    QCOMPARE(second.protected_manual, 0);
+    QCOMPARE(destination.buyouts.repo->getItemBuyouts().at("item-a").value, 5.0);
+}
+
+void LegacyBuyoutImporterTest::importedInheritedBuyoutsLoseTheFlag()
+{
+    QTemporaryDir source_dir;
+    QVERIFY(source_dir.isValid());
+    const QString source_path = source_dir.filePath("legacy-v4.db");
+    const QString plan_path = source_dir.filePath("buyout-plan.xlsx");
+    createLegacyDatabase(source_path, "4");
+    reviseLegacyDatabaseForPlan(source_path);
+
+    PlanningFixture destination;
+    destination.seedStash("0123456789", "Renamed Priced", 0);
+    destination.seedCharacter("character-id-bob", "Bob");
+    LegacyBuyoutImporter importer(*destination.buyouts.repo,
+                                  *destination.stashes,
+                                  *destination.characters,
+                                  "pc",
+                                  "Standard");
+    QVERIFY(importer.createPlan(source_path, plan_path).success);
+
+    // The character item's legacy buyout is inherited and prefilled skip;
+    // flipping it to import must strip the flag so PropagateTabBuyouts
+    // cannot destroy the recovered price on the next refresh (R2-2).
+    editPlanRow(plan_path, "item_id", "item-character", {{"action", "import"}});
+
+    const LegacyBuyoutApplyReport report = importer.applyPlan(plan_path);
+    QVERIFY2(report.success, qPrintable(report.error));
+
+    const auto buyouts = destination.buyouts.repo->getItemBuyouts();
+    QCOMPARE(buyouts.at("item-character").value, 6.0);
+    QCOMPARE(buyouts.at("item-character").inherited, false);
 }
 
 void LegacyBuyoutImporterTest::skipRowEditsDoNotAbortTheImport()

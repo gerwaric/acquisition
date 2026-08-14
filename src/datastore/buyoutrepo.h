@@ -16,7 +16,7 @@ class QSqlDatabase;
 class Item;
 class ItemLocation;
 
-enum class BuyoutSaveResult { Saved, Existing, Error };
+enum class BuyoutSaveResult { Saved, Existing, ProtectedManual, Error };
 
 struct ItemBuyoutWrite
 {
@@ -24,6 +24,10 @@ struct ItemBuyoutWrite
     QString item_id;
     QString location_id;
     ItemLocationType location_type{ItemLocationType::STASH};
+    // A manual row may only be overwritten when the plan knew it was
+    // manual at generation time (the user saw it and chose import); a
+    // manual price that appeared after planning is protected.
+    bool allow_manual_overwrite{false};
 };
 
 struct LocationBuyoutWrite
@@ -31,6 +35,7 @@ struct LocationBuyoutWrite
     Buyout buyout;
     QString location_id;
     ItemLocationType location_type{ItemLocationType::STASH};
+    bool allow_manual_overwrite{false};
 };
 
 struct BuyoutBatchSaveResult

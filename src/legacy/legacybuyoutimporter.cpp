@@ -372,9 +372,11 @@ QString LegacyBuyoutPlanReport::summary() const
 
 QString LegacyBuyoutApplyReport::summary() const
 {
-    return QString("Imported: %1\nAlready present: %2\nSkipped: %3\nErrors: %4")
+    return QString(
+               "Imported: %1\nAlready present: %2\nProtected manual: %3\nSkipped: %4\nErrors: %5")
         .arg(imported)
         .arg(already_present)
+        .arg(protected_manual)
         .arg(skipped)
         .arg(errors);
 }
@@ -890,21 +892,38 @@ LegacyBuyoutApplyReport LegacyBuyoutImporter::applyPlan(const QString &plan_file
             continue;
         }
 
+        // An imported row is by definition no longer derived from a tab
+        // buyout: the inherited flag is stripped so PropagateTabBuyouts
+        // cannot delete or overwrite the recovered price on the next
+        // refresh (R2-2).
+        Buyout write_buyout = *buyout;
+        write_buyout.inherited = false;
+
+        // A manual row at the target may only be overwritten when the
+        // plan knew about it (the user saw existing_source=manual and
+        // still chose import); otherwise the write-time guard in
+        // saveImportBatch protects a manual price set after planning
+        // (R2-1).
+        const bool allow_manual = columns.contains("existing_source")
+                                  && cell(row, "existing_source").toString().trimmed() == "manual";
+
         import_rows.push_back(row);
         if (target_type == "item") {
             item_writes.push_back(ParsedItemWrite{
                 .row = row,
-                .write = ItemBuyoutWrite{.buyout = *buyout,
+                .write = ItemBuyoutWrite{.buyout = write_buyout,
                                          .item_id = item_id,
                                          .location_id = location_id,
-                                         .location_type = *location_type},
+                                         .location_type = *location_type,
+                                         .allow_manual_overwrite = allow_manual},
             });
         } else {
             location_writes.push_back(ParsedLocationWrite{
                 .row = row,
-                .write = LocationBuyoutWrite{.buyout = *buyout,
+                .write = LocationBuyoutWrite{.buyout = write_buyout,
                                              .location_id = location_id,
-                                             .location_type = *location_type},
+                                             .location_type = *location_type,
+                                             .allow_manual_overwrite = allow_manual},
             });
         }
     }
@@ -945,30 +964,39 @@ LegacyBuyoutApplyReport LegacyBuyoutImporter::applyPlan(const QString &plan_file
         return report;
     }
 
-    for (std::size_t index = 0; index < item_writes.size(); ++index) {
-        if (batch.item_results.at(index) == BuyoutSaveResult::Saved) {
-            annotate(item_writes.at(index).row, "imported");
+    const auto record = [&](int row, BuyoutSaveResult save_result) {
+        switch (save_result) {
+        case BuyoutSaveResult::Saved:
+            annotate(row, "imported");
             ++report.imported;
-        } else {
-            annotate(item_writes.at(index).row, "already-present");
+            break;
+        case BuyoutSaveResult::ProtectedManual:
+            annotate(row,
+                     "skipped-existing-manual",
+                     "A manual price now exists for this target; it was not overwritten.");
+            ++report.protected_manual;
+            break;
+        default:
+            annotate(row, "already-present");
             ++report.already_present;
+            break;
         }
+    };
+    for (std::size_t index = 0; index < item_writes.size(); ++index) {
+        record(item_writes.at(index).row, batch.item_results.at(index));
     }
     for (std::size_t index = 0; index < location_writes.size(); ++index) {
-        if (batch.location_results.at(index) == BuyoutSaveResult::Saved) {
-            annotate(location_writes.at(index).row, "imported");
-            ++report.imported;
-        } else {
-            annotate(location_writes.at(index).row, "already-present");
-            ++report.already_present;
-        }
+        record(location_writes.at(index).row, batch.location_results.at(index));
     }
 
-    if (!document.save()) {
-        report.error = "Buyouts were applied, but the plan outcomes could not be saved.";
-        ++report.errors;
-        return report;
-    }
+    // The database changes are committed at this point, so the import
+    // succeeded no matter what happens to the workbook: callers must
+    // reload and propagate from the mutated database, or the in-memory
+    // buyouts go stale (R2-3). A failed outcome save is only a warning.
     report.success = true;
+    if (!document.save()) {
+        report.warning = "The buyouts were applied, but the plan outcomes could not be saved "
+                         "to the workbook.";
+    }
     return report;
 }

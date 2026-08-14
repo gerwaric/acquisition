@@ -376,14 +376,47 @@ BuyoutBatchSaveResult BuyoutRepo::saveImportBatch(const std::vector<ItemBuyoutWr
         }
     };
 
+    // The manual guard reads the target row inside the same transaction,
+    // so a manual price written between plan and apply (a later hand
+    // edit, or the auto-refresh timer) is seen and protected here rather
+    // than trusted to the plan-time prefill. A manual row identical to
+    // the incoming write is this plan's own earlier import, so a re-run
+    // still reports it already-present instead of protected.
+    QSqlQuery item_source_query(m_db);
     QSqlQuery item_query(m_db);
-    if (!items.empty() && !item_query.prepare(IMPORT_ITEM_BUYOUT)) {
+    if (!items.empty()
+        && (!item_source_query.prepare(
+                "SELECT source,"
+                "    (location_id = :location_id AND location_type = :location_type"
+                "     AND currency = :currency AND inherited = :inherited"
+                "     AND last_update = :last_update AND source = :source"
+                "     AND type = :type AND value = :value) AS identical"
+                " FROM item_buyouts WHERE item_id = :item_id")
+            || !item_query.prepare(IMPORT_ITEM_BUYOUT))) {
         rollback(
             QString("Could not prepare item buyout import: %1").arg(item_query.lastError().text()));
         return result;
     }
     result.item_results.reserve(items.size());
     for (const ItemBuyoutWrite &item : items) {
+        if (!item.allow_manual_overwrite) {
+            item_source_query.bindValue(":item_id", item.item_id);
+            item_source_query.bindValue(":location_id", item.location_id);
+            item_source_query.bindValue(":location_type", locationTypeTag(item.location_type));
+            bindBuyout(item_source_query, item.buyout);
+            if (!item_source_query.exec()) {
+                ds::logQueryError("BuyoutRepo::saveImportBatch(item source)", item_source_query);
+                rollback(QString("Could not check item '%1': %2")
+                             .arg(item.item_id, item_source_query.lastError().text()));
+                return result;
+            }
+            if (item_source_query.next() && item_source_query.value(0).toString() == "manual") {
+                result.item_results.push_back(item_source_query.value(1).toBool()
+                                                  ? BuyoutSaveResult::Existing
+                                                  : BuyoutSaveResult::ProtectedManual);
+                continue;
+            }
+        }
         item_query.bindValue(":item_id", item.item_id);
         item_query.bindValue(":location_id", item.location_id);
         item_query.bindValue(":location_type", locationTypeTag(item.location_type));
@@ -398,14 +431,42 @@ BuyoutBatchSaveResult BuyoutRepo::saveImportBatch(const std::vector<ItemBuyoutWr
                                                                         : BuyoutSaveResult::Saved);
     }
 
+    QSqlQuery location_source_query(m_db);
     QSqlQuery location_query(m_db);
-    if (!locations.empty() && !location_query.prepare(IMPORT_LOCATION_BUYOUT)) {
+    if (!locations.empty()
+        && (!location_source_query.prepare(
+                "SELECT source,"
+                "    (location_type = :location_type AND currency = :currency"
+                "     AND inherited = :inherited AND last_update = :last_update"
+                "     AND source = :source AND type = :type AND value = :value) AS identical"
+                " FROM location_buyouts WHERE location_id = :location_id")
+            || !location_query.prepare(IMPORT_LOCATION_BUYOUT))) {
         rollback(QString("Could not prepare location buyout import: %1")
                      .arg(location_query.lastError().text()));
         return result;
     }
     result.location_results.reserve(locations.size());
     for (const LocationBuyoutWrite &location : locations) {
+        if (!location.allow_manual_overwrite) {
+            location_source_query.bindValue(":location_id", location.location_id);
+            location_source_query.bindValue(":location_type",
+                                            locationTypeTag(location.location_type));
+            bindBuyout(location_source_query, location.buyout);
+            if (!location_source_query.exec()) {
+                ds::logQueryError("BuyoutRepo::saveImportBatch(location source)",
+                                  location_source_query);
+                rollback(QString("Could not check location '%1': %2")
+                             .arg(location.location_id, location_source_query.lastError().text()));
+                return result;
+            }
+            if (location_source_query.next()
+                && location_source_query.value(0).toString() == "manual") {
+                result.location_results.push_back(location_source_query.value(1).toBool()
+                                                      ? BuyoutSaveResult::Existing
+                                                      : BuyoutSaveResult::ProtectedManual);
+                continue;
+            }
+        }
         location_query.bindValue(":location_id", location.location_id);
         location_query.bindValue(":location_type", locationTypeTag(location.location_type));
         bindBuyout(location_query, location.buyout);

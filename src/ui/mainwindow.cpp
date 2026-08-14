@@ -917,7 +917,14 @@ void MainWindow::OnImportLegacyBuyouts()
     QString log_summary = report.summary();
     log_summary.replace('\n', ", ");
     spdlog::info("Legacy buyout import from '{}' via '{}': {}", file_name, plan_path, log_summary);
-    QMessageBox::information(this, tr("Legacy buyout import"), report.summary());
+    if (report.warning.isEmpty()) {
+        QMessageBox::information(this, tr("Legacy buyout import"), report.summary());
+    } else {
+        spdlog::warn("Legacy buyout import: {}", report.warning);
+        QMessageBox::warning(this,
+                             tr("Legacy buyout import"),
+                             report.summary() + "\n\n" + report.warning);
+    }
 }
 
 void MainWindow::OnImportLegacyBuyoutPlan()
@@ -950,7 +957,14 @@ void MainWindow::OnImportLegacyBuyoutPlan()
     QString log_summary = report.summary();
     log_summary.replace('\n', ", ");
     spdlog::info("Legacy buyout plan applied from '{}': {}", plan_path, log_summary);
-    QMessageBox::information(this, tr("Legacy buyout import"), report.summary());
+    if (report.warning.isEmpty()) {
+        QMessageBox::information(this, tr("Legacy buyout import"), report.summary());
+    } else {
+        spdlog::warn("Legacy buyout import: {}", report.warning);
+        QMessageBox::warning(this,
+                             tr("Legacy buyout import"),
+                             report.summary() + "\n\n" + report.warning);
+    }
 }
 
 void MainWindow::OnLegacyBuyoutsImported()
