@@ -1876,9 +1876,12 @@ pub const CLAUSES: &[Clause] = &[
         coverage: Coverage::Excluded,
         citations: &[],
         note: "Exclusion verified honored at the audit: the shipped default \
-               is structurally required \
-               (sweep_plan_structurally_requires_the_shipped_assumed_60s_default); \
-               the §6 supplemental ledger is empty; no run claimed",
+               is structurally required by `SweepPlan::new` \
+               (sweep_plan_structurally_requires_the_shipped_assumed_60s_default), \
+               and since SD-R5-F3 the M-series driver builds its row plan \
+               through that constructor, so losing the last Assumed driver \
+               row fails structurally; the §6 supplemental ledger is empty; \
+               no run claimed",
     },
     Clause {
         id: "u4-layer1-uncharacterized",

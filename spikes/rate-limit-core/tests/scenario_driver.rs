@@ -16,7 +16,8 @@ use rate_limit_core::actor::{
 };
 use rate_limit_core::conformance::{
     ClientBucketProfile, ContractCoverage, Gate, ReproductionRecord, RunEvidence,
-    SHIPPED_ASSUMED_PROFILE, ScenarioAssertion, ScenarioId, ScenarioOracle, judge, scenario,
+    SHIPPED_ASSUMED_PROFILE, ScenarioAssertion, ScenarioId, ScenarioOracle, SweepConfiguration,
+    SweepPlan, judge, scenario,
 };
 use rate_limit_core::core::{BucketModel, EndpointLabel, PolicyEngine, Resolution};
 use rate_limit_core::mock::model::{
@@ -229,26 +230,47 @@ fn d5_wire_shape_holds(observations: &[rate_limit_core::mock::Observation]) -> b
 async fn run_m1_m13(phase_ms: u64) {
     let mut reports = Vec::new();
 
-    for (index, id) in ScenarioId::ALL.into_iter().enumerate() {
-        // M8 runs the required legacy lane here and its OAuth lane in the
-        // shared helper below. M10 intentionally uses the legacy two-rule
-        // policy for its long saturation run. Every other row uses the OAuth
-        // Known profile so hard-coded OAuth endpoints never inherit the
-        // legacy 60s/60s padding model by parity accident.
-        let (profile, endpoint) = match id {
+    // M8 runs the required legacy lane here and its OAuth lane in the
+    // shared helper below. M10 intentionally uses the legacy two-rule
+    // policy for its long saturation run. Every other row uses the OAuth
+    // Known profile so hard-coded OAuth endpoints never inherit the
+    // legacy 60s/60s padding model by parity accident.
+    let rows: Vec<(ScenarioId, ClientBucketProfile, Endpoint)> = ScenarioId::ALL
+        .into_iter()
+        .map(|id| match id {
             ScenarioId::M8 | ScenarioId::M10 => {
-                (SHIPPED_ASSUMED_PROFILE, Endpoint::LegacyStashIndex)
+                (id, SHIPPED_ASSUMED_PROFILE, Endpoint::LegacyStashIndex)
             }
             _ => (
+                id,
                 rate_limit_core::conformance::OAUTH_KNOWN_PROFILE,
                 Endpoint::StashList,
             ),
-        };
+        })
+        .collect();
+    // The driver's per-row profile set goes through `SweepPlan::new`, whose
+    // constructor rejects a plan without the shipped `Assumed(60s/60s)`
+    // default (SD-R5-F3): deleting the last legacy row fails here,
+    // structurally, before any scenario body runs. The seeds below come from
+    // the plan so this guard is load-bearing, not decorative.
+    let plan = SweepPlan::new(
+        rows.iter()
+            .enumerate()
+            .map(|(index, (_, profile, _))| SweepConfiguration {
+                seed: 100 + index as u64,
+                phase_ms,
+                client_buckets: *profile,
+            })
+            .collect(),
+    )
+    .expect("the driver's rows must retain the shipped Assumed(60s/60s) default");
+
+    for ((id, profile, endpoint), configuration) in rows.into_iter().zip(plan.configurations()) {
         // The phase is the caller's, verbatim: every row runs at each swept
         // phase.  Folding the offset through a per-row modulus (the original
         // `(offset + index * 997) % 60_000`) collapsed the two sweeps to 1 ms
         // apart for every row but M1, because 59_999 == -1 (mod 60_000).
-        let mut config = MockConfig::n23(100 + index as u64, phase_ms);
+        let mut config = MockConfig::n23(configuration.seed, configuration.phase_ms);
         config.dispatch_budget = 1_024;
         let (mock, controller) = MockService::new(config).unwrap();
         let gate = spawn(engine(profile), mock);
