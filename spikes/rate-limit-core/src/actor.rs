@@ -169,7 +169,7 @@ impl Future for RequestTicket {
 ///
 /// The concrete owner is intentionally private:
 ///
-/// ```compile_fail
+/// ```compile_fail,E0603
 /// use rate_limit_core::actor::Actor;
 /// ```
 pub fn spawn<T>(engine: PolicyEngine, transport: T) -> GateHandle
@@ -1116,11 +1116,16 @@ mod tests {
             line.trim_start()
                 .starts_with(concat!("pub struct Actor", "<T: Transport>"))
         }));
-        assert!(source.contains("transport: Arc<T>"));
+        // concat! keeps every needle out of this test's own string literals;
+        // `source` is this very file, so an unsplit needle matches itself and
+        // the assertion becomes vacuous (round-five SD-R5-F5 caught exactly
+        // that on the field check below).
+        assert!(source.contains(concat!("transport: ", "Arc<T>")));
+        // Count transport sends by receiver, not by argument name: the
+        // pre-refactor two-path shape sent from start_probe with an argument
+        // named `probe`, which a needle ending in `(request)` cannot see.
         assert_eq!(
-            source
-                .matches(concat!("transport", ".send(request)"))
-                .count(),
+            source.matches(concat!("transport", ".send(")).count(),
             1,
             "probe and ordinary traffic must share one transport hand-off"
         );
