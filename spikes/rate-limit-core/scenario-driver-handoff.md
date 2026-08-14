@@ -79,6 +79,10 @@ New or strengthened evidence:
   concurrent-original serialization at φ=0/1.
 - C3 latch/drain/publication, both C4 response feeds, X1 trip
   composition, and X2 one-send-path structure.
+- The `start_ordinary` trip branch — the one path holding a popped
+  caller and a granted reservation in neither collection — resolves
+  its caller and rolls its reservation back (SD-R5-F9;
+  mutation-checked for both loss modes).
 - Canonical 383-dispatch replay, 81 ms B12 median, and the 43/43
   saturation diagnostic.
 

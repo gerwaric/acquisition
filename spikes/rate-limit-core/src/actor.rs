@@ -1026,13 +1026,69 @@ mod tests {
         assert!(status.borrow_and_update().halted, "Halted is published");
         assert!(matches!(outcome.try_recv(), Ok(Err(GateError::Halted))));
 
-        // Advance beyond both rolling windows, erase the historical shape,
-        // and re-ask. The terminal latch, not recomputation, keeps the actor
-        // halted (C3).
+        // Erase the historical dispatch shape entirely and re-ask: with the
+        // deque cleared, recomputation over history could never trip again,
+        // so only the terminal latch can keep the actor halted (C3).
         actor.safety.dispatches.clear();
         actor.start_dispatch();
         assert!(actor.halted);
         assert!(actor.safety.halted);
+    }
+
+    // SD-R5-F9: `start_ordinary`'s trip branch is the only place a caller has
+    // been popped from the queue but is not yet in `active` while holding a
+    // granted reservation. If its `finish(Err(Halted))` were lost, the caller
+    // would sit in neither collection — `halt()`'s drain never reaches it and
+    // its oneshot never resolves (cross-slice invariant 1's exact failure);
+    // if its rollback were lost, an entry would stay counted with no send
+    // (invariant 3's direction inverted). The C3 test drives
+    // `start_dispatch()` with the request still queued, so it exercises the
+    // drain, never this branch — this test drives `schedule()` itself.
+    #[test]
+    fn fuse_trip_inside_start_ordinary_rolls_back_and_resolves_the_popped_caller() {
+        let mut actor = actor_at_transport_boundary();
+        let mut status = actor.status.subscribe();
+        let endpoint = EndpointLabel::from("stash-list");
+        let policy = seed_safety_policy(&mut actor, &endpoint);
+        actor
+            .endpoints
+            .insert(endpoint.clone(), EndpointState::Established(policy.clone()));
+        let (queued, mut outcome) = queued_request(1, &endpoint);
+        actor.queue.push_back(queued);
+        actor.safety.dispatches = VecDeque::from([Instant::now(); FUSE_BURST_LIMIT]);
+
+        actor.schedule();
+
+        assert!(
+            actor.halted,
+            "the dispatch attempt inside start_ordinary trips the fuse"
+        );
+        assert!(actor.queue.is_empty());
+        assert!(
+            actor.active.is_empty(),
+            "the popped caller must not linger as in-flight state"
+        );
+        assert!(
+            matches!(outcome.try_recv(), Ok(Err(GateError::Halted))),
+            "the popped caller resolves instead of pending forever"
+        );
+        assert!(status.borrow_and_update().halted);
+
+        // Rollback proof: the tripping dispatch's reservation must be gone
+        // from policy history. The seeded burst window grants exactly ten
+        // reservations from an empty history, so all ten succeed iff the
+        // trip-path entry was rolled back — a leaked entry caps this at nine.
+        let now = actor.now();
+        let mut tokens = Vec::new();
+        for grant in 0..10 {
+            match actor.engine.try_reserve(&policy, now) {
+                ReserveOutcome::Reserved(token) => tokens.push(token),
+                other => panic!("rollback must restore the full budget (grant {grant}): {other:?}"),
+            }
+        }
+        for token in tokens {
+            actor.engine.rollback(token);
+        }
     }
 
     #[test]
