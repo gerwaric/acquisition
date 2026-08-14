@@ -157,8 +157,14 @@ void Application::InitUserSession()
     auto buyout_mgr = &buyout_manager();
     auto buyouts = &userstore().buyouts();
 
-    connect(buyout_mgr, &BuyoutManager::SetItemBuyout, buyouts, &BuyoutRepo::saveItemBuyout);
-    connect(buyout_mgr, &BuyoutManager::SetLocationBuyout, buyouts, &BuyoutRepo::saveLocationBuyout);
+    connect(buyout_mgr,
+            &BuyoutManager::SetItemBuyout,
+            buyouts,
+            qOverload<const Buyout &, const Item &>(&BuyoutRepo::saveItemBuyout));
+    connect(buyout_mgr,
+            &BuyoutManager::SetLocationBuyout,
+            buyouts,
+            qOverload<const Buyout &, const ItemLocation &>(&BuyoutRepo::saveLocationBuyout));
 
     auto updater = &update_checker();
     auto cache = &image_cache();
@@ -293,9 +299,11 @@ Application::UserSession::UserSession(const Application::CoreServices &core)
                                        *data,
                                        *items_manager,
                                        *buyout_manager,
+                                       userstore->buyouts(),
                                        *currency_manager,
                                        *shop,
-                                       image_cache));
+                                       image_cache,
+                                       dir));
 }
 
 void Application::OnLogin()

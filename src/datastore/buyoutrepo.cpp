@@ -72,6 +72,39 @@ ON CONFLICT(location_id) DO UPDATE SET
     value           = excluded.value
 )"};
 
+constexpr const char *INSERT_ITEM_BUYOUT{R"(
+INSERT INTO item_buyouts (
+    item_id, location_id, location_type, currency, inherited, last_update, source, type, value
+) VALUES (
+    :item_id, :location_id, :location_type, :currency, :inherited, :last_update, :source, :type, :value
+)
+ON CONFLICT(item_id) DO NOTHING
+)"};
+
+constexpr const char *INSERT_LOCATION_BUYOUT{R"(
+INSERT INTO location_buyouts (
+    location_id, location_type, currency, inherited, last_update, source, type, value
+) VALUES (
+    :location_id, :location_type, :currency, :inherited, :last_update, :source, :type, :value
+)
+ON CONFLICT(location_id) DO NOTHING
+)"};
+
+namespace {
+
+    QString locationTypeTag(ItemLocationType type)
+    {
+        switch (type) {
+        case ItemLocationType::STASH:
+            return "stash";
+        case ItemLocationType::CHARACTER:
+            return "character";
+        }
+        return {};
+    }
+
+} // namespace
+
 BuyoutRepo::BuyoutRepo(QSqlDatabase &db)
     : m_db(db) {};
 
@@ -184,29 +217,31 @@ bool BuyoutRepo::saveItemBuyout(const Buyout &buyout, const Item &item)
                   buyout.AsText());
 
     const ItemLocation &location = item.location();
+    return saveItemBuyout(buyout, item.id(), location.id(), location.type(), true)
+           == BuyoutSaveResult::Saved;
+}
 
-    QString location_type;
-    switch (location.type()) {
-    case ItemLocationType::STASH:
-        location_type = "stash";
-        break;
-    case ItemLocationType::CHARACTER:
-        location_type = "character";
-        break;
-    default:
-        spdlog::error("BuyoutRepo::saveItemBuyout: invalid item location type: {}", location.type());
-        return false;
+BuyoutSaveResult BuyoutRepo::saveItemBuyout(const Buyout &buyout,
+                                            const QString &item_id,
+                                            const QString &location_id,
+                                            ItemLocationType location_type,
+                                            bool overwrite_existing)
+{
+    const QString location_type_tag = locationTypeTag(location_type);
+    if (location_type_tag.isEmpty()) {
+        spdlog::error("BuyoutRepo::saveItemBuyout: invalid item location type: {}", location_type);
+        return BuyoutSaveResult::Error;
     }
 
     QSqlQuery q(m_db);
-    if (!q.prepare(UPSERT_ITEM_BUYOUT)) {
+    if (!q.prepare(overwrite_existing ? UPSERT_ITEM_BUYOUT : INSERT_ITEM_BUYOUT)) {
         spdlog::error("BuyoutRepo: prepare() failed: {}", q.lastError().text());
-        return false;
+        return BuyoutSaveResult::Error;
     }
 
-    q.bindValue(":item_id", item.id());
-    q.bindValue(":location_id", location.id());
-    q.bindValue(":location_type", location_type);
+    q.bindValue(":item_id", item_id);
+    q.bindValue(":location_id", location_id);
+    q.bindValue(":location_type", location_type_tag);
     q.bindValue(":currency", buyout.CurrencyAsTag());
     q.bindValue(":inherited", buyout.inherited);
     q.bindValue(":last_update", buyout.last_update);
@@ -216,9 +251,9 @@ bool BuyoutRepo::saveItemBuyout(const Buyout &buyout, const Item &item)
 
     if (!q.exec()) {
         ds::logQueryError("BuyoutRepo::saveItemBuyout()", q);
-        return false;
+        return BuyoutSaveResult::Error;
     }
-    return true;
+    return q.numRowsAffected() == 0 ? BuyoutSaveResult::Existing : BuyoutSaveResult::Saved;
 }
 
 bool BuyoutRepo::saveLocationBuyout(const Buyout &buyout, const ItemLocation &location)
@@ -228,28 +263,30 @@ bool BuyoutRepo::saveLocationBuyout(const Buyout &buyout, const ItemLocation &lo
                   location.id(),
                   buyout.AsText());
 
-    QString location_type;
-    switch (location.type()) {
-    case ItemLocationType::STASH:
-        location_type = "stash";
-        break;
-    case ItemLocationType::CHARACTER:
-        location_type = "character";
-        break;
-    default:
+    return saveLocationBuyout(buyout, location.id(), location.type(), true)
+           == BuyoutSaveResult::Saved;
+}
+
+BuyoutSaveResult BuyoutRepo::saveLocationBuyout(const Buyout &buyout,
+                                                const QString &location_id,
+                                                ItemLocationType location_type,
+                                                bool overwrite_existing)
+{
+    const QString location_type_tag = locationTypeTag(location_type);
+    if (location_type_tag.isEmpty()) {
         spdlog::error("BuyoutRepo::saveLocationBuyout: invalid item location type: {}",
-                      location.type());
-        return false;
+                      location_type);
+        return BuyoutSaveResult::Error;
     }
 
     QSqlQuery q(m_db);
-    if (!q.prepare(UPSERT_LOCATION_BUYOUT)) {
+    if (!q.prepare(overwrite_existing ? UPSERT_LOCATION_BUYOUT : INSERT_LOCATION_BUYOUT)) {
         spdlog::error("BuyoutRepo: prepare() failed: {}", q.lastError().text());
-        return false;
+        return BuyoutSaveResult::Error;
     }
 
-    q.bindValue(":location_id", location.id());
-    q.bindValue(":location_type", location_type);
+    q.bindValue(":location_id", location_id);
+    q.bindValue(":location_type", location_type_tag);
     q.bindValue(":currency", buyout.CurrencyAsTag());
     q.bindValue(":inherited", buyout.inherited);
     q.bindValue(":last_update", buyout.last_update);
@@ -259,9 +296,9 @@ bool BuyoutRepo::saveLocationBuyout(const Buyout &buyout, const ItemLocation &lo
 
     if (!q.exec()) {
         ds::logQueryError("BuyoutRepo::saveLocationBuyout()", q);
-        return false;
+        return BuyoutSaveResult::Error;
     }
-    return true;
+    return q.numRowsAffected() == 0 ? BuyoutSaveResult::Existing : BuyoutSaveResult::Saved;
 }
 
 bool BuyoutRepo::removeItemBuyout(const Item &item)

@@ -4,10 +4,12 @@
 #pragma once
 
 class QObject;
+class QDir;
 class QSettings;
 
 class Application;
 class BuyoutManager;
+class BuyoutRepo;
 class CurrencyManager;
 class DataStore;
 class ImageCache;
@@ -25,9 +27,11 @@ MainWindow *CreateMainWindow(QSettings &settings,
                              DataStore &datastore,
                              ItemsManager &items_manager,
                              BuyoutManager &buyout_manager,
+                             BuyoutRepo &buyout_repo,
                              CurrencyManager &currency_manager,
                              Shop &shop,
-                             ImageCache &image_cache);
+                             ImageCache &image_cache,
+                             const QDir &app_data_dir);
 
 void ConnectMainWindow(Application &application,
                        MainWindow &main_window,

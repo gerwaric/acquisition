@@ -72,9 +72,11 @@ public:
                                               *buyoutFixture.data,
                                               *itemsManager,
                                               *buyoutFixture.manager,
+                                              *buyoutFixture.repo,
                                               *currencyManager,
                                               *shop,
-                                              *imageCache);
+                                              *imageCache,
+                                              QDir(tempDir.path()));
 
         QObject::connect(itemsManager.get(),
                          &ItemsManager::ItemsRefreshed,

@@ -24,8 +24,9 @@ QString LegacyItem::effectiveTypeLine() const
 
 QString LegacyItem::hash() const
 {
-    if (_character && _tab_label) {
-        spdlog::error("LegacyItem::hash() item contains both '_character' and '_tab_label': {} {}",
+    if (_character.has_value() == _tab_label.has_value()) {
+        spdlog::error("LegacyItem::hash() item must contain exactly one of '_character' and "
+                      "'_tab_label': {} {}",
                       name,
                       id);
         return QString();

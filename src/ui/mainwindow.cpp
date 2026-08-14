@@ -35,6 +35,7 @@
 
 #include "buyoutmanager.h"
 #include "currencymanager.h"
+#include "datastore/buyoutrepo.h"
 #include "datastore/datastore.h"
 #include "imagecache.h"
 #include "item.h"
@@ -42,6 +43,7 @@
 #include "itemlocation.h"
 #include "items_model.h"
 #include "itemsmanager.h"
+#include "legacy/legacybuyoutimporter.h"
 #include "modelprobes.h"
 #include "ratelimit/ratelimit.h"
 #include "ratelimit/ratelimitdialog.h"
@@ -90,18 +92,22 @@ MainWindow::MainWindow(QSettings &settings,
                        DataStore &datastore,
                        ItemsManager &items_manager,
                        BuyoutManager &buyout_manager,
+                       BuyoutRepo &buyout_repo,
                        CurrencyManager &currency_manager,
                        Shop &shop,
-                       ImageCache &image_cache)
+                       ImageCache &image_cache,
+                       const QDir &app_data_dir)
     : m_settings(settings)
     , m_network_manager(network_manager)
     , m_rate_limiter(rate_limiter)
     , m_datastore(datastore)
     , m_items_manager(items_manager)
     , m_buyout_manager(buyout_manager)
+    , m_buyout_repo(buyout_repo)
     , m_currency_manager(currency_manager)
     , m_shop(shop)
     , m_image_cache(image_cache)
+    , m_app_data_dir(app_data_dir)
     , m_filter_catalog(BuildFilterCatalog(buyout_manager))
     , ui(new Ui::MainWindow)
     , m_currency_dialog(nullptr)
@@ -444,6 +450,12 @@ void MainWindow::InitializeUi()
     // Connect the currency actions.
     connect(ui->actionListCurrency, &QAction::triggered, this, &MainWindow::OnListCurrency);
     connect(ui->actionExportCurrency, &QAction::triggered, this, &MainWindow::OnExportCurrency);
+
+    // Connect the Buyouts menu.
+    connect(ui->actionImportLegacyBuyouts,
+            &QAction::triggered,
+            this,
+            &MainWindow::OnImportLegacyBuyouts);
 }
 
 void MainWindow::LoadSettings()
@@ -761,6 +773,34 @@ void MainWindow::OnExportCurrency()
         return;
     }
     m_currency_manager.ExportCurrency(file_name);
+}
+
+void MainWindow::OnImportLegacyBuyouts()
+{
+    const QString file_name = QFileDialog::getOpenFileName(this,
+                                                           tr("Import legacy buyouts"),
+                                                           QDir::toNativeSeparators(
+                                                               m_app_data_dir.absolutePath()),
+                                                           tr("Acquisition database files (*)"));
+    if (file_name.isEmpty()) {
+        return;
+    }
+
+    LegacyBuyoutImporter importer(m_buyout_repo);
+    const LegacyBuyoutImportReport report = importer.importFile(file_name);
+    if (!report.success) {
+        spdlog::info("Legacy buyout import failed for '{}': {}", file_name, report.error);
+        QMessageBox::warning(this, tr("Legacy buyout import"), report.error);
+        return;
+    }
+
+    if (report.imported > 0) {
+        m_buyout_manager.ReloadBuyouts();
+    }
+    QString log_summary = report.summary();
+    log_summary.replace('\n', ", ");
+    spdlog::info("Legacy buyout import from '{}': {}", file_name, log_summary);
+    QMessageBox::information(this, tr("Legacy buyout import"), report.summary());
 }
 
 bool MainWindow::eventFilter(QObject *o, QEvent *e)

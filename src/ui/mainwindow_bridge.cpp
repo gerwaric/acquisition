@@ -22,9 +22,11 @@ MainWindow *CreateMainWindow(QSettings &settings,
                              DataStore &datastore,
                              ItemsManager &items_manager,
                              BuyoutManager &buyout_manager,
+                             BuyoutRepo &buyout_repo,
                              CurrencyManager &currency_manager,
                              Shop &shop,
-                             ImageCache &image_cache)
+                             ImageCache &image_cache,
+                             const QDir &app_data_dir)
 {
     return new MainWindow(settings,
                           network_manager,
@@ -32,9 +34,11 @@ MainWindow *CreateMainWindow(QSettings &settings,
                           datastore,
                           items_manager,
                           buyout_manager,
+                          buyout_repo,
                           currency_manager,
                           shop,
-                          image_cache);
+                          image_cache,
+                          app_data_dir);
 }
 
 void ConnectMainWindow(Application &application,

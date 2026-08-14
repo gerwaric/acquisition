@@ -4,6 +4,7 @@
 #pragma once
 
 #include <QCloseEvent>
+#include <QDir>
 #include <QLabel>
 #include <QMainWindow>
 #include <QMenu>
@@ -28,6 +29,7 @@ class QSettings;
 class QVBoxLayout;
 
 class BuyoutManager;
+class BuyoutRepo;
 class CurrencyDialog;
 class CurrencyManager;
 class DataStore;
@@ -61,9 +63,11 @@ public:
                         DataStore &datastore,
                         ItemsManager &items_mangaer,
                         BuyoutManager &buyout_manager,
+                        BuyoutRepo &buyout_repo,
                         CurrencyManager &currency_manager,
                         Shop &shop,
-                        ImageCache &image_cache);
+                        ImageCache &image_cache,
+                        const QDir &app_data_dir);
     ~MainWindow();
     void LoadSettings();
 
@@ -145,6 +149,9 @@ private slots:
     void OnListCurrency();
     void OnExportCurrency();
 
+    // Buyouts menu actions
+    void OnImportLegacyBuyouts();
+
     // Theme submenu actions
     void OnSetDarkTheme(bool toggle);
     void OnSetLightTheme(bool toggle);
@@ -203,9 +210,11 @@ private:
     DataStore &m_datastore;
     ItemsManager &m_items_manager;
     BuyoutManager &m_buyout_manager;
+    BuyoutRepo &m_buyout_repo;
     CurrencyManager &m_currency_manager;
     Shop &m_shop;
     ImageCache &m_image_cache;
+    const QDir m_app_data_dir;
 
     // Application owns BuyoutManager and outlives MainWindow. Keep m_searches
     // declared after m_filter_catalog so reverse destruction destroys searches

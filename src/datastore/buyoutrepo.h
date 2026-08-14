@@ -8,13 +8,17 @@
 #include <unordered_map>
 
 #include "buyout.h"
+#include "itemlocation.h"
 
 class QSqlDatabase;
 
 class Item;
 class ItemLocation;
 
-class BuyoutRepo : public QObject {
+enum class BuyoutSaveResult { Saved, Existing, Error };
+
+class BuyoutRepo : public QObject
+{
     Q_OBJECT
 public:
     explicit BuyoutRepo(QSqlDatabase &db);
@@ -24,6 +28,16 @@ public:
 
     bool removeItemBuyout(const Item &item);
     bool removeLocationBuyout(const ItemLocation &location);
+
+    BuyoutSaveResult saveItemBuyout(const Buyout &buyout,
+                                    const QString &item_id,
+                                    const QString &location_id,
+                                    ItemLocationType location_type,
+                                    bool overwrite_existing);
+    BuyoutSaveResult saveLocationBuyout(const Buyout &buyout,
+                                        const QString &location_id,
+                                        ItemLocationType location_type,
+                                        bool overwrite_existing);
 
     bool resetRepo();
     bool ensureSchema();

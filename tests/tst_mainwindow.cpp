@@ -5,6 +5,7 @@
 
 #include <QAbstractItemModel>
 #include <QAbstractItemModelTester>
+#include <QAction>
 #include <QComboBox>
 #include <QHeaderView>
 #include <QItemSelectionModel>
@@ -363,6 +364,10 @@ void MainWindowTest::fixtureConstructsOffline()
     {
         MainWindowFixture fixture;
         QVERIFY(fixture.window);
+        const auto *import_action = fixture.window->findChild<QAction *>(
+            "actionImportLegacyBuyouts");
+        QVERIFY(import_action);
+        QCOMPARE(import_action->text(), QString("Import legacy buyouts…"));
         QCOMPARE(static_cast<int>(m_sink_hub->sinks().size()), 2);
     }
     QCOMPARE(static_cast<int>(m_sink_hub->sinks().size()), 0);

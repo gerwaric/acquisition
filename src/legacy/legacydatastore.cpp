@@ -7,77 +7,72 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QProcess>
+#include <QScopeGuard>
 #include <QSqlError>
 #include <QSqlQuery>
 #include <QTemporaryDir>
+#include <QUuid>
 
 namespace {
 
-    static bool getByteArray(QSqlDatabase db, const QString &query, QByteArray &value)
+    enum class ReadResult { Loaded, Skipped, Error };
+
+    static ReadResult getByteArray(QSqlDatabase db, const QString &query, QByteArray &value)
     {
         QSqlQuery q(db);
         q.setForwardOnly(true);
         q.prepare(query);
         if (!q.exec()) {
             spdlog::error("Database error calling exec(): {}: {}", query, db.lastError().text());
-            return false;
+            return ReadResult::Error;
         }
         if (!q.next()) {
-            spdlog::error("Database error calling next(): {}: {}", query, db.lastError().text());
-            return false;
+            spdlog::warn("LegacyDataStore: no row found for '{}'; skipping", query);
+            return ReadResult::Skipped;
         }
         value = q.value(0).toByteArray();
-        return true;
+        return ReadResult::Loaded;
     }
 
-    static bool getString(QSqlDatabase db, const QString &query, QString &value)
+    static ReadResult getString(QSqlDatabase db, const QString &query, QString &value)
     {
         QSqlQuery q(db);
         q.setForwardOnly(true);
         q.prepare(query);
         if (!q.exec()) {
             spdlog::error("Database error calling exec(): {}: {}", query, db.lastError().text());
-            return false;
+            return ReadResult::Error;
         }
         if (!q.next()) {
-            spdlog::error("Database error calling next(): {}: {}", query, db.lastError().text());
-            return false;
+            spdlog::warn("LegacyDataStore: no row found for '{}'; skipping", query);
+            return ReadResult::Skipped;
         }
         value = q.value(0).toString();
-        return true;
+        return ReadResult::Loaded;
     }
 
-    // Strict read: not null-terminated input; error on unknown keys.
-    template <typename T>
-    static bool getStruct(QSqlDatabase db, const QString& query, T& value)
+    template<typename T>
+    static ReadResult getStruct(QSqlDatabase db, const QString &query, T &value)
     {
         QByteArray data;
-        if (!getByteArray(db, query, data)) {
-            return false;
+        const ReadResult read_result = getByteArray(db, query, data);
+        if (read_result != ReadResult::Loaded) {
+            return read_result;
         }
 
         // Create a view over the QByteArray (it may contain '\0', so don't assume C-strings)
-        const std::string_view sv{data.constData(),
-                                  static_cast<std::size_t>(data.size())};
+        const std::string_view sv{data.constData(), static_cast<std::size_t>(data.size())};
 
-        // Glaze options:
-        // - null_terminated = false: we pass a size-aware view
-        // - error on unknown keys: depending on Glaze minor version, either use
-        //     `.unknown_keys = glz::unknown_keys::error`
-        //   or older `.error_on_unknown_keys = true`.
-        constexpr glz::opts opts{
-            .null_terminated = false,
-            .error_on_unknown_keys = true
-        };
+        constexpr glz::opts opts{.null_terminated = false, .error_on_unknown_keys = false};
 
         if (auto ec = glz::read<opts>(value, sv); ec) {
-            spdlog::error("Json error parsing {} from '{}': {}",
-                          typeid(T).name(),
-                          query.toStdString(),
-                          glz::format_error(ec, sv));
-            return false;
+            spdlog::warn("LegacyDataStore: JSON error parsing {} from '{}'; skipping: {}",
+                         typeid(T).name(),
+                         query.toStdString(),
+                         glz::format_error(ec, sv));
+            return ReadResult::Skipped;
         }
-        return true;
+        return ReadResult::Loaded;
     }
 
 } // namespace
@@ -91,7 +86,14 @@ LegacyDataStore::LegacyDataStore(const QString &filename)
         return;
     }
 
-    QSqlDatabase db = QSqlDatabase::addDatabase("QSQLITE", "LegacyDataStore");
+    const QString connection_name = "LegacyDataStore:"
+                                    + QUuid::createUuid().toString(QUuid::WithoutBraces);
+    QSqlDatabase db = QSqlDatabase::addDatabase("QSQLITE", connection_name);
+    const auto close_database = qScopeGuard([&db, &connection_name] {
+        db.close();
+        db = QSqlDatabase();
+        QSqlDatabase::removeDatabase(connection_name);
+    });
     db.setConnectOptions("QSQLITE_OPEN_READONLY");
     db.setDatabaseName(filename);
     if (!db.open()) {
@@ -101,15 +103,29 @@ LegacyDataStore::LegacyDataStore(const QString &filename)
         return;
     }
 
-    bool ok = true;
-    ok &= getString(db, "SELECT value FROM data WHERE (key = 'db_version')", m_data.db_version);
-    ok &= getString(db, "SELECT value FROM data WHERE (key = 'version')", m_data.version);
-    ok &= getStruct(db, "SELECT value FROM data WHERE (key = 'buyouts')", m_data.buyouts);
-    ok &= getStruct(db, "SELECT value FROM data WHERE (key = 'tab_buyouts')", m_data.tab_buyouts);
-    ok &= getStruct(db, "SELECT value FROM tabs WHERE (type = 0)", m_tabs.stashes);
-    ok &= getStruct(db, "SELECT value FROM tabs WHERE (type = 1)", m_tabs.characters);
-    if (!ok) {
-        spdlog::error("LegacyDataStore: unable to load all data from {}", filename);
+    const auto load = [this](ReadResult result) {
+        if (result == ReadResult::Skipped) {
+            ++m_skipped_row_count;
+        }
+        return result != ReadResult::Error;
+    };
+
+    bool structurally_valid = true;
+    structurally_valid &= load(
+        getString(db, "SELECT value FROM data WHERE (key = 'db_version')", m_data.db_version));
+    structurally_valid &= load(
+        getString(db, "SELECT value FROM data WHERE (key = 'version')", m_data.version));
+    structurally_valid &= load(
+        getStruct(db, "SELECT value FROM data WHERE (key = 'buyouts')", m_data.buyouts));
+    structurally_valid &= load(
+        getStruct(db, "SELECT value FROM data WHERE (key = 'tab_buyouts')", m_data.tab_buyouts));
+    structurally_valid &= load(
+        getStruct(db, "SELECT value FROM tabs WHERE (type = 0)", m_tabs.stashes));
+    structurally_valid &= load(
+        getStruct(db, "SELECT value FROM tabs WHERE (type = 1)", m_tabs.characters));
+    if (!structurally_valid) {
+        spdlog::error("LegacyDataStore: required database tables could not be read from {}",
+                      filename);
         return;
     }
 
@@ -126,7 +142,7 @@ LegacyDataStore::LegacyDataStore(const QString &filename)
 
     m_item_count = 0;
     while (query.next()) {
-        const QString loc   = query.value(0).toString();
+        const QString loc = query.value(0).toString();
         const QByteArray ba = query.value(1).toByteArray();
 
         std::vector<LegacyItem> result;
@@ -134,17 +150,14 @@ LegacyDataStore::LegacyDataStore(const QString &filename)
         // Parse from a size-aware view (don't assume null-terminated input)
         const std::string_view sv{ba.constData(), static_cast<std::size_t>(ba.size())};
 
-        // Strictish read; set unknown_keys to error if you want to reject extra fields
-        constexpr glz::opts opts{
-            .null_terminated = false,
-            .error_on_unknown_keys = true
-        };
+        constexpr glz::opts opts{.null_terminated = false, .error_on_unknown_keys = false};
 
         if (auto ec = glz::read<opts>(result, sv); ec) {
-            spdlog::error("LegacyDataStore: error parsing 'items' for '{}': {}",
-                          loc.toStdString(),
-                          glz::format_error(ec, sv));
-            return; // or 'continue' if you want to skip bad rows
+            spdlog::warn("LegacyDataStore: error parsing 'items' for '{}'; skipping row: {}",
+                         loc.toStdString(),
+                         glz::format_error(ec, sv));
+            ++m_skipped_row_count;
+            continue;
         }
 
         m_item_count += static_cast<qint64>(result.size());
@@ -158,8 +171,6 @@ LegacyDataStore::LegacyDataStore(const QString &filename)
     }
 
     query.finish();
-    db.close();
-    db.removeDatabase("LegacyDataStore");
 
     m_valid = true;
 }

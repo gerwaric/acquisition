@@ -7,10 +7,10 @@
 
 struct LegacyBuyout
 {
-    double value;
-    long long last_update;
+    double value{0.0};
+    long long last_update{0};
     QString type;
     QString currency;
     QString source;
-    bool inherited;
+    bool inherited{false};
 };

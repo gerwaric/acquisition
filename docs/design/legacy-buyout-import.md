@@ -1,6 +1,6 @@
 # Legacy Buyout Import — Design
 
-Status: tracer bullet in progress, August 13, 2026. Deliberately minimal —
+Status: tracer bullet implemented, August 13, 2026. Deliberately minimal —
 this is not a frozen spec. Evidence backing every claim here:
 `legacy-buyout-import-investigation.md`.
 
