@@ -123,9 +123,14 @@ void NetworkCaptureTest::replyRecordCarriesHeadersAndTiming()
     QVERIFY(record["request_id"].toInteger() > 0);
     QCOMPARE(record["status"].toInt(), 200);
     QVERIFY(!record.contains("error"));
-    QCOMPARE(record["sent"].toString(), request.send_time.toString(Qt::ISODateWithMs));
-    QCOMPARE(record["scheduled"].toString(), request.scheduled_time.toString(Qt::ISODateWithMs));
-    QCOMPARE(record["received"].toString(), received.toString(Qt::ISODateWithMs));
+    // Capture timestamps are UTC (f53d8cb1): converting the local fixture
+    // times the same way keeps the comparison timezone-independent, and
+    // the trailing 'Z' pins the unambiguous-offset contract itself.
+    QVERIFY(record["sent"].toString().endsWith("Z"));
+    QCOMPARE(record["sent"].toString(), request.send_time.toUTC().toString(Qt::ISODateWithMs));
+    QCOMPARE(record["scheduled"].toString(),
+             request.scheduled_time.toUTC().toString(Qt::ISODateWithMs));
+    QCOMPARE(record["received"].toString(), received.toUTC().toString(Qt::ISODateWithMs));
 
     // Header names are lowercased in the capture; values are verbatim.
     const QJsonObject captured = record["headers"].toObject();
