@@ -65,6 +65,17 @@ row, delete the hash-keyed one) inside `MigrateItem`, or have
 (dual persistence), F51 ledger entry (do not rekey `GetLegacyHash` — a
 correct future v4→v5 migration depends on it).
 
+Update (August 14, 2026): the `legacy-buyout-import` branch wires
+`LegacyDataStore` into the application via `LegacyBuyoutImporter`
+(menu-driven, writes id-keyed rows directly through `BuyoutRepo`), so
+the "no callers outside `src/legacy/`" reachability note above is stale
+on that branch. The importer never lowers `db_version`, so it still
+cannot arm this migration; instead it supersedes it — once the importer
+proves out in a release, the plan of record
+(`design/legacy-buyout-import.md`, deferred list) is to delete
+`MigrateBuyouts`/`hash_v4`/`old_hash`/`GetLegacyHash`, resolving this
+finding by removal and retiring the F51 constraint.
+
 ### F63. `Character::guardian` and `skills` are modeled but never ingested — Confirmed; deferred by decision
 
 Found July 27, 2026, during the 3.29 documentation reconciliation

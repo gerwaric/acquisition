@@ -84,11 +84,16 @@ LegacyBuyoutImportReport LegacyBuyoutImporter::importFile(const QString &filenam
         report.error = "The selected file is not a readable legacy Acquisition database.";
         return report;
     }
-    if (store.data().db_version.trimmed() != "4") {
+    // Both 4 and 5 hold v4-generation hash keys: master's MigrateBuyouts
+    // stamps db_version 5 into upgraded legacy files without touching the
+    // buyouts, so the live file of a <=0.15 upgrader reads 5 (R1-1). Only
+    // pre-4 files used the <<set:...>>-prefixed hash this importer does
+    // not compute.
+    const QString db_version = store.data().db_version.trimmed();
+    if (db_version != "4" && db_version != "5") {
         report.error = QString("Unsupported legacy database version '%1'. This importer currently "
-                               "supports db_version 4 only.")
-                           .arg(store.data().db_version.isEmpty() ? "missing"
-                                                                  : store.data().db_version);
+                               "supports db_version 4 and 5 only.")
+                           .arg(db_version.isEmpty() ? "missing" : db_version);
         return report;
     }
 

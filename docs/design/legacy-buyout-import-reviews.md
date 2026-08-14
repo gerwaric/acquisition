@@ -1,0 +1,151 @@
+# Legacy Buyout Import — Review History
+
+Findings from reviews of the legacy buyout import branch, following the
+project's review-record convention: round-scoped IDs, cited from code and
+commits as `R1-1` etc. Design: `legacy-buyout-import.md`; evidence:
+`legacy-buyout-import-investigation.md`.
+
+## Round 1 — August 14, 2026 (tracer bullet, commit c687409f)
+
+High-effort multi-angle review with adversarial verification; ten findings
+survived. Status values: **open** (not yet addressed), **fixed** (commit
+noted), **decision needed** (policy question for Tom, not a plain bug).
+
+### R1-1. The db_version gate refuses files master itself stamps 5 — fixed
+
+`importFile` refused any `db_version != "4"`. But master's
+`ItemsManager::MigrateBuyouts` stamps `db_version` 5 into the legacy
+`data/<md5>` file on the first refresh after an upgrade (a no-op v4→v5
+pass; the `buyouts`/`tab_buyouts` keys are not deleted). So the *live*
+file of the primary target user — an upgrade from ≤0.15 straight to
+current master — was refused as "Unsupported legacy database version '5'"
+despite holding every v4-generation hash-keyed buyout. The keys in a
+5-stamped file are still v4-generation hashes, so the fix is to accept 4
+and 5 and refuse only `<4` (matching the design doc, which always said
+"refuse `<4`"). **Fixed** on this branch: gate accepts 4 and 5; test
+`importsVersion5StampedFiles` pins it.
+
+### R1-2. Tab buyouts keyed on the untruncated 64-char legacy stash id — open
+
+`add_stash` writes `location_buyouts` rows keyed on the raw `stash.id`
+from the old tabs blob. Pre-0.16 truncated legacy-API 64-hex stash ids to
+their first 10 chars (`ItemLocation::FixUid`), which is what the old
+`items.loc` keys and master's `ItemLocation::id()` both use — but the
+serialized tab JSON keeps the untruncated id. Importing a legacy-API-era
+file therefore writes tab buyouts under a 64-char key that
+`BuyoutManager::GetTab()` (10-char) can never find: unreachable dead
+rows, reported as imported, and idempotent against the wrong key so
+re-running never heals it. Fix shape: apply the same first-10 truncation
+when the id is longer than 10 hex chars.
+
+### R1-3. `add_stash` ignores the legacy `n` label field — open
+
+Old-format stash lists carry the tab label in `n` (injected by pre-0.16
+`ItemLocation`); legacy-API tab JSON had no `name` at all. `add_stash`
+reads only `LegacyStash::name`, so for such files every tab is skipped,
+`location_targets` gets no `stash:<label>` keys, and all stash tab
+buyouts report orphaned while item buyouts import — a plausible-looking
+partial success. The validation script already does
+`s.get("n", s.get("name", ""))`; the importer should match it.
+
+### R1-4. Write failures are indistinguishable from a clean re-run — open
+
+`report.success = true` is unconditional and `countSave` folds
+`BuyoutSaveResult::Error` into `skipped`. A locked/read-only/full-disk
+userstore produces "Imported: 0 … Skipped: N" — the same output as a
+healthy second run. `skipped` also aggregates parse skips, id-less
+items, unknown characters, unconvertible buyouts, and already-present
+rows, so no single count is interpretable. Fix shape: count errors
+separately, fail the report (or at least say so) when errors are
+nonzero, and split "already present" from "skipped".
+
+### R1-5. Imported inherited buyouts die on the next refresh — open
+
+`convertBuyout` copies `legacy.inherited` through. Pre-0.16 persisted
+inherited item rows (`IsSavable` filtered only on type). On the next
+refresh `PropagateTabBuyouts` sees `IsInherited()` and either overwrites
+the recovered price with the current tab price or — likely, given R1-2/
+R1-3 orphan the tab buyouts — clears it via `Set(item, Buyout())`, which
+deletes the row. Recovered prices vanish silently. Decision needed on
+the fix: drop `inherited` on import, skip inherited rows, or import them
+only when the owning tab buyout also imported.
+
+### R1-6. One malformed item still discards a whole tab's items row — open
+
+`LegacyDataStore`'s leniency stops at row granularity: `glz::read` of a
+row's entire `std::vector<LegacyItem>` fails on a single malformed item
+(non-optional `id`/`name`/`typeLine`; QString via std::string chokes on
+a JSON null), and the row — an entire stash tab — is skipped. Every
+buyout hashing into that tab then reports orphaned, which reads as "gone
+forever" when the cause is one bad element. `getStruct` has the same
+shape for the `buyouts`/`tab_buyouts` blobs: glaze returns a partially
+populated map on error while the store stays valid. Fix shape: parse
+items rows as `std::vector<glz::raw_json>` (or equivalent) and convert
+per element, skipping only the bad ones.
+
+### R1-7. Skip-existing discards manual prices behind auto-generated rows — decision needed
+
+`ApplyAutoItemBuyouts` and `PropagateTabBuyouts` persist rows for every
+item with a priced note or under a priced tab, so by import time most
+sellable items already have an `item_buyouts` row. The importer's
+`ON CONFLICT DO NOTHING` then declines the legacy price — including a
+MANUAL one, the only genuinely unrecoverable data — in favour of a
+machine-generated row, and buries the fact in `skipped`. The
+`MigrateItem` precedent points the other way: only a MANUAL *target* is
+protected. Policy decision: e.g. legacy MANUAL overwrites non-MANUAL
+existing rows; everything else keeps skip-existing.
+
+### R1-8. The import result never reaches items, shop, or refresh state — open
+
+`OnImportLegacyBuyouts` only calls `ReloadBuyouts()`. Unlike
+`OnBuyoutChange` it never runs `PropagateTabBuyouts` (items under an
+imported tab price stay blank — `BuyoutManager::Get` has no tab
+fallback), never sets refresh locks, and never expires shop data (a shop
+post right after import uses pre-import prices). The user's rational
+read is that the import did nothing. Fix shape: after a successful
+import, do what the existing buyout-change path does.
+
+### R1-9. Character join hard-requires an id old files don't have — open
+
+POESESSID-era character lists carry no `id`; pre-0.16 keyed characters
+by name everywhere (`character:<name>`, empty unique id). With
+`LegacyCharacter::id` empty, every character is skipped and all
+character buyouts (item- and location-level) report orphaned. Fix
+shape: fall back to the name as the location id when `id` is missing —
+matching what master's character locations use when GGG provides no id.
+No test covers a characters row lacking `id`.
+
+### R1-10. Synchronous GUI import; no transaction; per-row prepare — open
+
+The whole import runs in the GUI slot: full parse of a potentially
+27 MB file, ~20k MD5 hashes, then 1,200+ autocommit INSERTs each
+re-preparing constant SQL. The window stops repainting (no wait cursor,
+unlike `OnExpandAll`/`OnCollapseAll`), and a force-quit leaves a partial
+import with no rollback. Fix shape: wrap the save loops in
+`m_db.transaction()`/`commit()` (the `userstore.cpp` migrate pattern),
+hoist one prepared query per loop, and set a wait cursor.
+
+### Cleanup notes (below the round's severity cap)
+
+- R1-C1. The four `INSERT_*`/`UPSERT_*` SQL constants in `buyoutrepo.cpp`
+  could collapse to one guarded upsert (`DO UPDATE … WHERE :overwrite`).
+- R1-C2. `convertBuyout` re-implements `BuyoutManager::Deserialize` over
+  a struct twin of `SerializedBuyout`.
+- R1-C3. The item and location apply loops in the importer share ~20
+  duplicated lines.
+- R1-C4. `BuyoutManager::ReloadBuyouts()` duplicates the head of
+  `Load()`.
+- R1-C5. The `std::function` recursion in `add_stash` should be a plain
+  helper (cf. `flattenStashList`, `stashrepo.cpp`).
+- R1-C6. `item_targets` is built for every stored item (~19.6k hashes on
+  the validated file) when only the hashes present in `data().buyouts`
+  (~1.1k) can ever match.
+
+### Conventions
+
+- F54's reachability note ("`LegacyDataStore` has no callers outside
+  `src/legacy/`") is falsified by this branch; `cleanup/findings.md`
+  carries a dated update.
+- Build and both new tests pass; clang-format clean. `tst_networkcapture`
+  fails on this branch but the failure is pre-existing from master
+  (timezone assertion introduced by f53d8cb1), unrelated to this work.

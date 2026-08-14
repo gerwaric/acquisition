@@ -14,6 +14,9 @@ when this map and a header disagree, the header wins.
   hash-to-id join (100% match on a real 0.15.0 database), defects in the
   existing `src/legacy/` bridge code, and where old files survive.
   `design/legacy-buyout-hash-check.py` is the validation script.
+- `design/legacy-buyout-import-reviews.md` — review history for that
+  design's implementation: round-scoped findings (`R1-*`) with status,
+  cleanup notes, and conventions follow-ups.
 - `design/items-pipeline.md` — plan for the delta-native redesign of the
   items refresh pipeline. Milestone 1 shipped July 2026; M2 merged and
   M3 implemented July 30–31, 2026, each against its own frozen spec.

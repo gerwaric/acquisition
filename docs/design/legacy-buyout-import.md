@@ -33,8 +33,10 @@ A menu-driven, single-file import, end to end:
 Simplifying assumptions, on purpose:
 
 - **GGG ids are persistent.** Validated at 1170/1171 over 14 months.
-- **db_version 4 only.** Files at `<4` are detected and refused with a
-  clear message (add the prefixed-hash variant later if anyone hits it).
+- **db_version 4 and 5 only** (5 is master's harmless re-stamp of a v4
+  file — see R1-1 in `legacy-buyout-import-reviews.md`). Files at `<4`
+  are detected and refused with a clear message (add the prefixed-hash
+  variant later if anyone hits it).
 - Import is idempotent by construction (skip-existing upserts), so no
   imported-state tracking is needed.
 

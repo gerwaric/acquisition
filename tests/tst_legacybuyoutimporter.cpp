@@ -104,6 +104,7 @@ class LegacyBuyoutImporterTest : public QObject
 
 private slots:
     void importsMatchesWithoutOverwritingAndIsIdempotent();
+    void importsVersion5StampedFiles();
     void refusesPreVersion4Files();
 };
 
@@ -176,6 +177,27 @@ void LegacyBuyoutImporterTest::importsMatchesWithoutOverwritingAndIsIdempotent()
     QCOMPARE(second.ambiguous, 2);
     QCOMPARE(second.orphaned, 1);
     QCOMPARE(second.skipped, 6);
+}
+
+void LegacyBuyoutImporterTest::importsVersion5StampedFiles()
+{
+    // Master's MigrateBuyouts stamps db_version 5 into upgraded legacy
+    // files while leaving the v4-generation hash keys intact (R1-1), so
+    // a 5-stamped file must import exactly like a 4-stamped one.
+    QTemporaryDir source_dir;
+    QVERIFY(source_dir.isValid());
+    const QString source_path = source_dir.filePath("legacy-v5.db");
+    createLegacyDatabase(source_path, "5");
+
+    BuyoutManagerFixture destination;
+    LegacyBuyoutImporter importer(*destination.repo);
+    const LegacyBuyoutImportReport report = importer.importFile(source_path);
+
+    QVERIFY2(report.success, qPrintable(report.error));
+    QCOMPARE(report.imported, 6);
+    QCOMPARE(report.orphaned, 1);
+    QCOMPARE(destination.repo->getItemBuyouts().size(), std::size_t(3));
+    QCOMPARE(destination.repo->getLocationBuyouts().size(), std::size_t(3));
 }
 
 void LegacyBuyoutImporterTest::refusesPreVersion4Files()
