@@ -4,9 +4,9 @@ use std::time::Duration;
 use http::Method;
 use rate_limit_core::actor::{GateHandle, RequestTicket, spawn, with_correlation_header};
 use rate_limit_core::conformance::{
-    ContractCoverage, D5_IN_FLIGHT_CAP, ExposureAllowance, Gate, ReproductionRecord, RunEvidence,
-    SHIPPED_ASSUMED_PROFILE, ScenarioAssertion, ScenarioAssertionId, ScenarioId, ScenarioOracle,
-    judge,
+    ContractCoverage, D5_IN_FLIGHT_CAP, ExposureAllowance, Gate, OAUTH_KNOWN_PROFILE,
+    ReproductionRecord, RunEvidence, ScenarioAssertion, ScenarioAssertionId, ScenarioId,
+    ScenarioOracle, judge,
 };
 use rate_limit_core::core::{BucketModel, EndpointLabel, PolicyEngine, Resolution};
 use rate_limit_core::mock::model::{PolicyDefinition, RuleDefinition, WindowDefinition};
@@ -16,7 +16,18 @@ use rate_limit_core::mock::{
 };
 
 const STEP: Duration = Duration::from_millis(25);
-const ASSUMED_BUCKET_AND_BUFFER_MS: u64 = 61_000;
+/// N19's applicable bucket is the maximum configured resolution across the
+/// policy's windows — 60 s in both lanes (the Known sustained resolution here,
+/// the Assumed pair in the legacy lane) — plus the one-second buffer. Restated
+/// as scenario arithmetic, not read from the engine.
+const APPLICABLE_BUCKET_AND_BUFFER_MS: u64 = 60_000 + 1_000;
+/// N13 padding for one sustained-window hit under the Known profile: the 60 s
+/// period plus the 60 s sustained bucket. Scenario arithmetic, not engine
+/// state.
+const SUSTAINED_PERIOD_PLUS_BUCKET_MS: u64 = 60_000 + 60_000;
+/// D5's dispatch floor, restated as the contract's literal (the same rule as
+/// the driver's constant): oracle rows must not import the actor's value.
+const MIN_SEND_SPACING_MS: u64 = 250;
 const PHASES_MS: [u64; 2] = [0, 1];
 
 struct TransitionOracle {
@@ -40,10 +51,16 @@ impl ScenarioOracle for TransitionOracle {
     }
 }
 
+/// These focused lanes submit `Endpoint::StashList`, a Known(5s/60s) OAuth
+/// policy, so the client runs under the OAuth Known profile (SD-R5-F4): the
+/// hand-off's profile rule — OAuth rows use `Known`, only the explicitly
+/// legacy M8/M10 lanes use `Assumed` — has no carve-out for focused tests,
+/// and the previous `Assumed(60s/60s)` engine paced ~4.7x more conservatively
+/// than the lane these clauses bind.
 fn engine() -> PolicyEngine {
     PolicyEngine::new(BucketModel::new(
-        Resolution::Assumed(Duration::from_secs(60)),
-        Resolution::Assumed(Duration::from_secs(60)),
+        Resolution::Known(Duration::from_millis(OAUTH_KNOWN_PROFILE.burst_ms)),
+        Resolution::Known(Duration::from_millis(OAUTH_KNOWN_PROFILE.sustained_ms)),
     ))
 }
 
@@ -256,8 +273,8 @@ async fn m5_forced_stale_mapping_window_caps_exposure_and_stays_safe_after_merge
         let after_merge = by_correlation(&observations, 5);
         assert_eq!(after_merge.policy, "renamed-limit");
         assert!(
-            after_merge.dispatch_ms >= opening_get.dispatch_ms + 120_000,
-            "phase {phase_ms}: the post-merge send must wait the independent 60s period + 60s assumed bucket"
+            after_merge.dispatch_ms >= opening_get.dispatch_ms + SUSTAINED_PERIOD_PLUS_BUCKET_MS,
+            "phase {phase_ms}: the post-merge send must wait the independent 60s period + 60s sustained bucket"
         );
         assert!(
             observations
@@ -334,9 +351,10 @@ async fn m6_forced_preannouncement_original_recovers_at_the_shrunk_pace() {
             .retry_after_seconds
             .expect("an organic mock 429 carries Retry-After")
             * 1_000;
+        let recovery_bound_ms =
+            organic.completion_ms + retry_after_ms + APPLICABLE_BUCKET_AND_BUFFER_MS;
         assert!(
-            recovered.dispatch_ms
-                >= organic.completion_ms + retry_after_ms + ASSUMED_BUCKET_AND_BUFFER_MS,
+            recovered.dispatch_ms >= recovery_bound_ms,
             "phase {phase_ms}: recovery must wait Retry-After + 60s bucket + 1s buffer"
         );
         assert!(
@@ -344,19 +362,31 @@ async fn m6_forced_preannouncement_original_recovers_at_the_shrunk_pace() {
             "phase {phase_ms}: recovery may not create a follow-on violation"
         );
 
+        // The scenario assertion handed to the judge is *measured* from the
+        // same wire facts the raw asserts above use, never declared
+        // (SD-R5-F7): G5 must carry scenario information for this arm.
+        let fragment_passed = organic.policy_judgment.organic_violation
+            && observations
+                .iter()
+                .filter(|observation| observation.policy_judgment.organic_violation)
+                .count()
+                == 1
+            && recovered.dispatch_ms >= recovery_bound_ms
+            && !recovered.policy_judgment.organic_violation;
+
         // Exercise the public attribution seam rather than merely declaring
         // correlation 4 exceptional. Eligibility is separately scripted and
         // fail-closed; the shrink becomes observable at response completion,
-        // not at the mock-side mutation instant.
+        // not at the mock-side mutation instant. The boot HEAD's row anchors
+        // at the script-owned submission instant (t=0), not at its own
+        // observed dispatch (SD-R5-F7's self-referential row could never
+        // fail G3).
         let eligible_ms = BTreeMap::from([
-            (1, observations[0].dispatch_ms),
-            (2, observations[0].dispatch_ms + 250),
-            (3, observations[1].dispatch_ms + 250),
-            (4, observations[2].dispatch_ms + 250),
-            (
-                5,
-                organic.completion_ms + retry_after_ms + ASSUMED_BUCKET_AND_BUFFER_MS,
-            ),
+            (1, 0),
+            (2, observations[0].dispatch_ms + MIN_SEND_SPACING_MS),
+            (3, observations[1].dispatch_ms + MIN_SEND_SPACING_MS),
+            (4, observations[2].dispatch_ms + MIN_SEND_SPACING_MS),
+            (5, recovery_bound_ms),
         ]);
         let oracle = TransitionOracle {
             eligible_ms,
@@ -367,7 +397,7 @@ async fn m6_forced_preannouncement_original_recovers_at_the_shrunk_pace() {
             reproduction: Some(ReproductionRecord {
                 seed: 606,
                 phase_ms,
-                client_buckets: SHIPPED_ASSUMED_PROFILE,
+                client_buckets: OAUTH_KNOWN_PROFILE,
             }),
             observations,
             state_changes: controller.state_changes().await,
@@ -382,7 +412,7 @@ async fn m6_forced_preannouncement_original_recovers_at_the_shrunk_pace() {
             assertions: vec![ScenarioAssertion {
                 id: ScenarioAssertionId::M6Shrink,
                 coverage: ContractCoverage::Fragment,
-                passed: true,
+                passed: fragment_passed,
             }],
         };
         let report = judge(&evidence, &oracle).expect("the exposure evidence is structural");
@@ -466,7 +496,7 @@ async fn m8_forced_concurrent_originals_allow_only_one_confirmation_in_flight() 
         let confirmation = controller.observations().await;
         let confirmation = by_correlation(&confirmation, 5);
         assert!(
-            confirmation.dispatch_ms >= originals_complete_ms + ASSUMED_BUCKET_AND_BUFFER_MS,
+            confirmation.dispatch_ms >= originals_complete_ms + APPLICABLE_BUCKET_AND_BUFFER_MS,
             "phase {phase_ms}: confirmation must wait past both original 429 observations"
         );
         assert_eq!(confirmation.in_flight_at_arrival, 1);
