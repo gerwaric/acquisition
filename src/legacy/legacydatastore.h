@@ -44,6 +44,7 @@ struct LegacyDataStore
 
     bool isValid() const { return m_valid; }
     qint64 itemCount() const { return m_item_count; }
+    qint64 skippedRowCount() const { return m_skipped_row_count; }
     const LegacyDataStore::DataTable &data() const { return m_data; }
     const LegacyDataStore::TabsTable &tabs() const { return m_tabs; }
     const LegacyDataStore::ItemsTable &items() const { return m_items; }
@@ -56,6 +57,7 @@ private:
 
     bool m_valid{false};
     qint64 m_item_count{0};
+    qint64 m_skipped_row_count{0};
 
     // Grant access to Glaze’s reflection for this type
     friend struct glz::meta<LegacyDataStore>;

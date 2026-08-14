@@ -410,6 +410,13 @@
     <addaction name="actionListCurrency"/>
     <addaction name="actionExportCurrency"/>
    </widget>
+   <widget class="QMenu" name="menuBuyouts">
+    <property name="title">
+     <string>Buyouts</string>
+    </property>
+    <addaction name="actionImportLegacyBuyouts"/>
+    <addaction name="actionImportLegacyBuyoutPlan"/>
+   </widget>
    <widget class="QMenu" name="menuSettings">
     <property name="title">
      <string>Settings</string>
@@ -454,6 +461,7 @@
    </widget>
    <addaction name="menuTabs"/>
    <addaction name="menuShop"/>
+   <addaction name="menuBuyouts"/>
    <addaction name="menuCurrency"/>
    <addaction name="menuSettings"/>
   </widget>
@@ -533,6 +541,16 @@
   <action name="actionExportCurrency">
    <property name="text">
     <string>Export to CSV...</string>
+   </property>
+  </action>
+  <action name="actionImportLegacyBuyouts">
+   <property name="text">
+    <string>Recover legacy buyouts…</string>
+   </property>
+  </action>
+  <action name="actionImportLegacyBuyoutPlan">
+   <property name="text">
+    <string>Import buyout plan…</string>
    </property>
   </action>
   <action name="actionRefreshCheckedTabs">

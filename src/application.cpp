@@ -157,8 +157,14 @@ void Application::InitUserSession()
     auto buyout_mgr = &buyout_manager();
     auto buyouts = &userstore().buyouts();
 
-    connect(buyout_mgr, &BuyoutManager::SetItemBuyout, buyouts, &BuyoutRepo::saveItemBuyout);
-    connect(buyout_mgr, &BuyoutManager::SetLocationBuyout, buyouts, &BuyoutRepo::saveLocationBuyout);
+    connect(buyout_mgr,
+            &BuyoutManager::SetItemBuyout,
+            buyouts,
+            qOverload<const Buyout &, const Item &>(&BuyoutRepo::saveItemBuyout));
+    connect(buyout_mgr,
+            &BuyoutManager::SetLocationBuyout,
+            buyouts,
+            qOverload<const Buyout &, const ItemLocation &>(&BuyoutRepo::saveLocationBuyout));
 
     auto updater = &update_checker();
     auto cache = &image_cache();
@@ -256,9 +262,9 @@ Application::UserSession::UserSession(const Application::CoreServices &core)
         // One file per session, stamped at enable time: a fixed name would
         // either pile sessions into one file (append) or destroy retained
         // capture evidence on the next launch (truncate).
-        const QString capture_name
-            = QString("network-capture-%1.jsonl")
-                  .arg(QDateTime::currentDateTimeUtc().toString("yyyyMMdd'T'hhmmss'Z'"));
+        const QString capture_name = QString("network-capture-%1.jsonl")
+                                         .arg(QDateTime::currentDateTimeUtc().toString(
+                                             "yyyyMMdd'T'hhmmss'Z'"));
         rate_limiter->EnableCapture(dir.filePath(capture_name));
     }
 
@@ -293,9 +299,13 @@ Application::UserSession::UserSession(const Application::CoreServices &core)
                                        *data,
                                        *items_manager,
                                        *buyout_manager,
+                                       userstore->buyouts(),
+                                       userstore->stashes(),
+                                       userstore->characters(),
                                        *currency_manager,
                                        *shop,
-                                       image_cache));
+                                       image_cache,
+                                       dir));
 }
 
 void Application::OnLogin()

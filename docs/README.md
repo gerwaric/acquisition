@@ -6,6 +6,18 @@ when this map and a header disagree, the header wins.
 
 ## Active
 
+- `design/legacy-buyout-import.md` — deliberately minimal design for
+  recovering pre-0.16 hash-keyed buyouts into the id-keyed store.
+  Revised August 14, 2026 to a plan/apply split around an editable XLSX
+  plan file (QXlsx); tracer bullet implemented, revision not yet built.
+- `design/legacy-buyout-import-investigation.md` — evidence record for
+  that design (August 13, 2026): old/new formats, the validated
+  hash-to-id join (100% match on a real 0.15.0 database), defects in the
+  existing `src/legacy/` bridge code, and where old files survive.
+  `design/legacy-buyout-hash-check.py` is the validation script.
+- `design/legacy-buyout-import-reviews.md` — review history for that
+  design's implementation: round-scoped findings (`R1-*`) with status,
+  cleanup notes, and conventions follow-ups.
 - `design/items-pipeline.md` — plan for the delta-native redesign of the
   items refresh pipeline. Milestone 1 shipped July 2026; M2 merged and
   M3 implemented July 30–31, 2026, each against its own frozen spec.

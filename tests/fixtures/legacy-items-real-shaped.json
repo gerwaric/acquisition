@@ -1,0 +1,36 @@
+[
+  {
+    "verified": false,
+    "w": 1,
+    "h": 1,
+    "icon": "https://web.poecdn.com/image/Art/2DItems/Currency/CurrencyRerollRare.png",
+    "league": "Standard",
+    "id": "5f1f7e4b6b3b19c7d8b7a6a5e4d3c2b1a0f9e8d7c6b5a4938271615141312110",
+    "name": "",
+    "typeLine": "Chaos Orb",
+    "baseType": "Chaos Orb",
+    "identified": true,
+    "ilvl": 0,
+    "descrText": "Right click this item then left click a rare item to apply it.",
+    "frameType": 5,
+    "stackSize": 17,
+    "maxStackSize": 20,
+    "properties": [
+      {
+        "name": "Stack Size",
+        "values": [["17/20", 0]],
+        "displayMode": 0,
+        "type": 32
+      }
+    ],
+    "sockets": [],
+    "x": 3,
+    "y": 7,
+    "inventoryId": "Stash1",
+    "_tab_label": "Priced",
+    "_tab": 1,
+    "_type": "stash",
+    "_removeonly": false,
+    "_socketed": false
+  }
+]

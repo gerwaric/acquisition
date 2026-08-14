@@ -31,8 +31,8 @@ the GCC floor is stricter for the miscompilation above.
 ## Third-Party Dependencies
 
 CMake fetches third-party libraries (sentry-native, glaze, cpp-semver, spdlog,
-and QCoro) at configure time via FetchContent; the vendored qdarkstyle lives in
-`deps/`. QCoro is pinned exactly at v0.13.0 — a hard floor, not a preference:
+QCoro, and QXlsx) at configure time via FetchContent; the vendored qdarkstyle
+lives in `deps/`. QCoro is pinned exactly at v0.13.0 — a hard floor, not a preference:
 the coroutine semantics acquisition relies on are verified at that release (see
 `docs/design/network-redesign.md`, "Dependency: QCoro"). Its examples and tests
 are kept out of the build with `QCORO_BUILD_EXAMPLES=OFF` and
@@ -117,8 +117,19 @@ Static analysis is run by `.github/workflows/codeql.yml` using GitHub CodeQL.
 The workflow performs a manual Linux CMake build so CodeQL sees the same Qt,
 compiler, generated sources, and include paths used by the application build.
 
-The workflow runs on pushes and pull requests to `main`, on a weekly schedule,
-and by `workflow_dispatch`.
+The CodeQL and sanitizer workflows run on pushes and pull requests to `master`
+and by `workflow_dispatch`. Each workflow groups runs by pull request or ref and
+cancels an in-progress run when a newer commit supersedes it.
+
+## Protected Branch
+
+The repository's `Protect default branch` ruleset applies to `master`. Changes
+must arrive through a pull request, the CodeQL and ASan + LSan checks must pass,
+and all review conversations must be resolved. CodeQL security alerts at high
+severity or above and code-quality errors block the merge. No approval is
+required while the repository has a single maintainer, and a branch need not be
+rebased onto the latest `master` before merging. Force pushes and deletion of
+the default branch are blocked.
 
 ## Linux
 

@@ -72,6 +72,7 @@ public:
     Buyout StringToBuyout(QString);
 
     void Save();
+    void ReloadBuyouts();
 
     void MigrateItem(const QString &old_hash, const QString &new_hash);
 

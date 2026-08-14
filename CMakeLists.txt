@@ -9,7 +9,7 @@ cmake_minimum_required(VERSION 3.24)
 # tags on github are prefixed with a 'v'.
 
 project(acquisition
-    VERSION 0.18.2
+    VERSION 0.18.3
     DESCRIPTION "Stash and forum shop management for Path of Exile (TM)"
     HOMEPAGE_URL "https://github.com/gerwaric/acquisition"
     LANGUAGES CXX
@@ -18,7 +18,7 @@ project(acquisition
 include(CTest)
 
 # Use this to define pre-releases
-set(app_version_suffix "")
+set(app_version_suffix "-beta.1")
 
 # Variables used in version_defines.h and platforn-specific files and properties.
 set(app_name            "${CMAKE_PROJECT_NAME}")
@@ -246,6 +246,17 @@ if(NOT TARGET spdlog)
     FetchContent_MakeAvailable(spdlog)
 endif()
 
+if(NOT TARGET QXlsx::QXlsx)
+    FetchContent_Declare(
+        qxlsx
+        GIT_REPOSITORY https://github.com/QtExcel/QXlsx.git
+        GIT_TAG        v1.5.1.1
+        GIT_SHALLOW    TRUE
+        SOURCE_SUBDIR  QXlsx
+    )
+    FetchContent_MakeAvailable(qxlsx)
+endif()
+
 #------------------------------------------------------
 # Acquisition Sources
 #------------------------------------------------------
@@ -324,6 +335,8 @@ set(ACQ_DATASTORE
 
 set(ACQ_LEGACY
     src/legacy/legacybuyout.h
+    src/legacy/legacybuyoutimporter.cpp
+    src/legacy/legacybuyoutimporter.h
     src/legacy/legacycharacter.h
     src/legacy/legacycurrency.h
     src/legacy/legacydatastore.cpp
@@ -647,6 +660,7 @@ target_link_libraries(acquisition_core PUBLIC
     QCoro6::Core
     QCoro6::Network
     qdarkstyle
+    QXlsx::QXlsx
     sentry::sentry
     semver
     spdlog::spdlog_header_only
