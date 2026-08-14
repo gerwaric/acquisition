@@ -7,6 +7,12 @@ use crate::mock::{MockStateChange, Observation};
 
 pub const G3_EPSILON_MS: u64 = 500;
 pub const MAX_SWEEP_CONFIGURATIONS: usize = 256;
+/// The judge's restatement of D5's in-flight cap, deliberately independent of
+/// `actor::D5_IN_FLIGHT_CAP` (the judge must not read the value it verifies
+/// from the code under test). This copy also caps the G1 unavoidable-exposure
+/// allowance, so unnoticed drift would widen forgiveness —
+/// `d5_in_flight_cap_restatements_agree` trips on any divergence so the pair
+/// only ever moves together, deliberately (SD-R5-F14).
 pub const D5_IN_FLIGHT_CAP: usize = 2;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]

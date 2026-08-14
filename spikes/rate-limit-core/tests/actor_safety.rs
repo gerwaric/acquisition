@@ -3,7 +3,8 @@ use std::time::Duration;
 
 use http::{HeaderMap, HeaderValue, Method, StatusCode};
 use rate_limit_core::actor::{GateError, spawn, with_correlation_header};
-use rate_limit_core::core::{BucketModel, EndpointLabel, PolicyEngine, Resolution};
+use rate_limit_core::core::{BucketModel, EndpointLabel, PolicyEngine, RefusalCause, Resolution};
+use rate_limit_core::header::PolicyParseError;
 use rate_limit_core::mock::{
     CORRELATION_HEADER, Endpoint, ExchangeScript, MockConfig, MockService, ResponseOverride,
     request,
@@ -11,6 +12,12 @@ use rate_limit_core::mock::{
 use rate_limit_core::transport::{Transport, TransportError, WireRequest, WireResponse};
 
 type RecordedResponses = Arc<Mutex<Vec<(StatusCode, Option<String>)>>>;
+
+/// N19's applicable bucket — the maximum configured resolution across the
+/// policy's windows, 60 s in both lanes — plus the one-second buffer.
+/// Scenario arithmetic, derived here rather than left as a bare 61,000
+/// (SD-R5-F14).
+const APPLICABLE_BUCKET_AND_BUFFER_MS: u64 = 60_000 + 1_000;
 
 fn engine() -> PolicyEngine {
     PolicyEngine::new(BucketModel::new(
@@ -133,7 +140,16 @@ async fn m1_probe_429_through_actor_seeds_then_first_get_confirms_and_escalates(
 
     advance_in_steps(Duration::from_secs(70)).await;
 
-    assert!(matches!(ticket.await, Err(GateError::SetupFailed { .. })));
+    // The cause pin distinguishes escalation from a shape cooldown
+    // (SD-R5-F15): a cooldown-shaped refusal here would silently change what
+    // this test proves.
+    assert!(matches!(
+        ticket.await,
+        Err(GateError::SetupFailed {
+            cause: RefusalCause::RecoveryEscalated,
+            ..
+        })
+    ));
     let handoffs = controller.handoffs().await;
     assert_eq!(
         handoffs.len(),
@@ -143,7 +159,7 @@ async fn m1_probe_429_through_actor_seeds_then_first_get_confirms_and_escalates(
     assert_eq!(handoffs[0].method, Method::HEAD);
     assert_eq!(handoffs[1].method, Method::GET);
     assert!(
-        handoffs[1].dispatch_ms >= handoffs[0].dispatch_ms + 61_000,
+        handoffs[1].dispatch_ms >= handoffs[0].dispatch_ms + APPLICABLE_BUCKET_AND_BUFFER_MS,
         "the probe's Retry-After=0 still seeds the 60s bucket + 1s buffer restriction"
     );
     let observations = controller.observations().await;
@@ -190,7 +206,15 @@ async fn degraded_probe_cools_one_endpoint_while_another_policy_keeps_flowing() 
         .await
         .unwrap();
     advance_in_steps(Duration::from_secs(1)).await;
-    assert!(matches!(failed.await, Err(GateError::SetupFailed { .. })));
+    // A parse-shaped cause, not escalation: the degraded HEAD's refusal must
+    // be attributable to the missing headers (SD-R5-F15).
+    assert!(matches!(
+        failed.await,
+        Err(GateError::SetupFailed {
+            cause: RefusalCause::PolicyObservation(_),
+            ..
+        })
+    ));
     assert_eq!(controller.handoffs().await.len(), 1);
 
     let cooled = gate
@@ -209,7 +233,15 @@ async fn degraded_probe_cools_one_endpoint_while_another_policy_keeps_flowing() 
         .unwrap();
     advance_in_steps(Duration::from_secs(3)).await;
 
-    assert!(matches!(cooled.await, Err(GateError::SetupFailed { .. })));
+    // The cooldown refusal carries the recorded parse cause forward, so the
+    // repeat caller can see *why* the endpoint is cooling.
+    assert!(matches!(
+        cooled.await,
+        Err(GateError::SetupFailed {
+            cause: RefusalCause::PolicyObservation(_),
+            ..
+        })
+    ));
     assert!(flowing.await.unwrap().status().is_success());
 
     // D4's 60 s cooldown is finite: the failed endpoint becomes probeable
@@ -287,7 +319,15 @@ async fn unexpected_shape_cools_one_endpoint_while_another_policy_keeps_flowing(
         .unwrap();
 
     advance_in_steps(Duration::from_secs(4)).await;
-    assert!(matches!(failed.await, Err(GateError::SetupFailed { .. })));
+    // Pin the M4 trigger itself: a one-triplet rule must refuse as an
+    // unexpected policy shape, not as some other parse failure (SD-R5-F15).
+    assert!(matches!(
+        failed.await,
+        Err(GateError::SetupFailed {
+            cause: RefusalCause::PolicyObservation(PolicyParseError::UnexpectedPolicyShape { .. }),
+            ..
+        })
+    ));
     assert!(flowing.await.unwrap().status().is_success());
     let handoffs = controller.handoffs().await;
     assert_eq!(
@@ -343,7 +383,13 @@ async fn unexpected_shape_cooldown_is_published_on_the_watch_channel() {
 
     advance_in_steps(Duration::from_secs(3)).await;
     status.changed().await.unwrap();
-    assert!(matches!(failed.await, Err(GateError::SetupFailed { .. })));
+    assert!(matches!(
+        failed.await,
+        Err(GateError::SetupFailed {
+            cause: RefusalCause::PolicyObservation(PolicyParseError::UnexpectedPolicyShape { .. }),
+            ..
+        })
+    ));
     let published = status.borrow_and_update().clone();
     assert_eq!(published.queued, 0);
     assert_eq!(published.probing, None);
@@ -434,7 +480,7 @@ async fn organic_429_emits_retry_after_and_actor_honors_the_wire_value() {
             >= organic
                 .completion_ms
                 .saturating_add(retry_after_secs * 1_000)
-                .saturating_add(61_000),
+                .saturating_add(APPLICABLE_BUCKET_AND_BUFFER_MS),
         "retry must wait the wire Retry-After plus the applicable 60s bucket and 1s buffer"
     );
 }

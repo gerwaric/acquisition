@@ -737,7 +737,7 @@ async fn run_m1_residue_sweep(phase_ms: u64) {
             .iter()
             .find(|observation| observation.method == Method::GET)
             .expect("M1 opening GET");
-        let zero_budget_waited = residue < 10 || get.dispatch_ms >= 20_000;
+        let zero_budget_waited = residue < 10 || get.dispatch_ms >= M1_ZERO_BUDGET_WAIT_MS;
         let assertion_passed = served
             && observations.len() == 2
             && !head.policy_judgment.counted
@@ -758,7 +758,7 @@ async fn run_m1_residue_sweep(phase_ms: u64) {
         oracle.eligible.insert(
             get.correlation_id,
             if residue == 10 {
-                head.completion_ms.saturating_add(20_000)
+                head.completion_ms.saturating_add(M1_ZERO_BUDGET_WAIT_MS)
             } else {
                 MIN_SEND_SPACING_MS
             },
@@ -789,6 +789,21 @@ const SUSTAINED_BUCKET_MS: u64 = 60_000;
 /// import the actor's constant: "spacing floor never violated" is checked
 /// against the contract's number, not against whatever the actor believes.
 const MIN_SEND_SPACING_MS: u64 = 250;
+
+/// N19's applicable bucket — the maximum configured resolution across the
+/// policy's windows, 60 s in both lanes — plus the one-second buffer.
+/// Scenario arithmetic, derived here rather than left as a bare 61,000
+/// (SD-R5-F14).
+const APPLICABLE_BUCKET_AND_BUFFER_MS: u64 = SUSTAINED_BUCKET_MS + 1_000;
+
+/// The M1 endpoint's burst period from the N23 stash-list definition
+/// (10 hits / 15 s), independently declared: the oracle must not read it
+/// from the client.
+const M1_BURST_PERIOD_MS: u64 = 15_000;
+/// M1's zero-budget wait: the residue hits stay active for the burst period
+/// plus its full Known 5 s bucket (N13). Derived, not a bare 20,000
+/// (SD-R5-F14).
+const M1_ZERO_BUDGET_WAIT_MS: u64 = M1_BURST_PERIOD_MS + BURST_BUCKET_MS;
 
 /// Forty requests fill three ten-hit burst windows and then force the
 /// sustained 30-hit window to age before the final burst can drain.
@@ -1059,7 +1074,7 @@ fn independently_scripted_oracle(
             if scenario_id == ScenarioId::M8 && ordinary == 2 {
                 // M8's scripted Retry-After=0 still demands the applicable
                 // 60s bucket plus its one-second buffer (N19).
-                prior_dispatch.saturating_add(61_000)
+                prior_dispatch.saturating_add(APPLICABLE_BUCKET_AND_BUFFER_MS)
             } else {
                 // D5's 250ms floor, plus the server's permit availability when
                 // the scenario runs long enough to accrue policy debt.  Without

@@ -492,6 +492,19 @@ async fn correlation_and_reproduction_seams_are_structural() {
     assert!(ExposureAllowance::for_state_change(7, [(1, 0)], 3).is_err());
 }
 
+// Drift tripwire, not an oracle: the two D5_IN_FLIGHT_CAP constants are
+// deliberately independent restatements (judge vs. code under test), and the
+// judge's copy also caps the G1 exposure allowance. If either moves alone,
+// this fails and forces the other side to be re-derived deliberately
+// (SD-R5-F14).
+#[test]
+fn d5_in_flight_cap_restatements_agree() {
+    assert_eq!(
+        rate_limit_core::conformance::D5_IN_FLIGHT_CAP,
+        rate_limit_core::actor::D5_IN_FLIGHT_CAP,
+    );
+}
+
 #[test]
 fn profile_equality_keeps_provenance_in_the_sweep_key() {
     assert_ne!(

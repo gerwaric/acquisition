@@ -27,6 +27,11 @@ use crate::core::{
 use crate::transport::{Transport, TransportError, WireRequest, WireResponse};
 
 pub const MIN_SEND_SPACING: Duration = Duration::from_millis(250);
+/// The actor's own D5 in-flight cap. `conformance::D5_IN_FLIGHT_CAP` is a
+/// deliberately independent restatement — the judge must not read the value
+/// it verifies from the code under test — so this constant must never be
+/// imported there. `d5_in_flight_cap_restatements_agree` trips on drift so a
+/// change here is re-derived on the judge side deliberately (SD-R5-F14).
 pub const D5_IN_FLIGHT_CAP: usize = 2;
 pub const SETUP_RETRY_COOLDOWN: Duration = Duration::from_secs(60);
 /// This must stay below the smallest padded policy horizon used by the spike.
