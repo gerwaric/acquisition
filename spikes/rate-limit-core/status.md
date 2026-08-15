@@ -247,13 +247,19 @@ coverage.
 
 ## 3. Open decisions (Tom)
 
-One from the repeated re-close review (2026-08-15, SD-R8-F21/F22
-entry, `result-draft.md` §9): whether the three enumerated unbound
-run-owned labels — assertion coverage, assertion-passed carriage,
-observation-vector carriage — are **bound** by the F21/F22 repair or
-**recorded** as named trust surfaces in the confession and registry
-notes. The F21/F22 sealing repairs themselves have proposed
-dispositions and need no contract decision.
+None open. Tom decided the F21/F22 follow-on on 2026-08-15
+(record in `result-draft.md` §9): **hybrid** — the observation
+vector (and the state-change carriage, same class) is **bound** by
+sealing: mock-module-only construction, so the evidence reaching
+the judge is mock-authentic by construction; assertion coverage
+and assertion-passed carriage are **recorded as named trust
+surfaces** in the coverage confession and registry notes, with
+their compensating controls cited (the falsifiability guards and
+the scale-shape test) — they sit at the test-authorship boundary
+no in-process binding can cross, and naming that boundary honestly
+is the repair. The F21/F22 sealing repairs proceed per their §9
+proposed dispositions; `f21-f22-repair-charge.md` collects the
+assignment.
 
 None from the final audit remain open. Tom decided both routed
 findings on 2026-08-15 (records in `result-draft.md` §9):

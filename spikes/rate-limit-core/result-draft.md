@@ -3896,3 +3896,29 @@ hoistable to its own repository without surgery.
   service was contacted. The verdict fills are not restored; the
   repeated final audit does not start until F21/F22 are repaired and
   SD-R8 re-closes over a fresh packet.
+
+- 2026-08-15 — **Tom decided the F21/F22 follow-on: hybrid
+  binding.** Decision, given in-session: of the three unbound
+  labels the review enumerated, the **observation vector is bound**
+  by the same sealing move — a carriage type only the mock module
+  can construct, extended to the state-change vector, which is the
+  identical class — so the evidence reaching the judge is
+  mock-authentic by construction; **assertion coverage and
+  assertion-passed carriage are recorded as named trust surfaces**
+  in the coverage confession and registry notes, with their
+  compensating controls cited (the per-scenario falsifiability
+  guards; `full_contract_scale_reaches_every_fragment_closure_shape`).
+  Rationale accepted with the decision: those two labels are the
+  test's own claims about its own run — the RE-2 sole-decider
+  design deliberately keeps the judge from re-deriving scenario
+  facts, so a binding there would claim protection against test
+  rewrites that no in-process mechanism can provide; naming the
+  boundary honestly is the repair, and a guard must never claim
+  more than it enforces. The analyst session's accountability note,
+  recorded with the decision: F21/F22 are also findings against its
+  prescribed F11/F12 approach — "unrepresentable" was specified
+  without naming the enforcement mechanism, and a lexical pin
+  cannot be one; the sealing repair's mechanism is Rust privacy
+  across the integration-test crate boundary, under which all four
+  generations of forgery fail to compile, pinnable by compile-fail
+  tests. `f21-f22-repair-charge.md` collects the assignment.
