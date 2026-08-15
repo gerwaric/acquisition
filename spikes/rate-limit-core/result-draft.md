@@ -2341,3 +2341,37 @@ outlives the spike branch; record what exists and where.⟩
   exactly what the test asserts. No findings were minted; no
   verdict slot was filled; no live service was contacted. The slice
   stays open on `status.md` §5 items 4–5.
+
+- 2026-08-14 — **§7.4 replacement-gate spec drafted and presented
+  for adjudication** (`s7-4-replacement-gate.md`; `status.md` §5
+  item 4, decision in §3). Drafted by the SD-R6 session at Tom's
+  direction, deliberately relaxing the session firewall; the
+  compensating controls were two adversarial fresh-context agent
+  reviews and probe measurements against the committed fixture and
+  model (probes temporary, deleted; every number re-derivable). The
+  spec defines feedback-consistency from the **production C++
+  client's** measured semantics (`src/ratelimit/`): state headers
+  reach scheduling only through a per-window three-way
+  classification aggregated by maximum, so consistency at a phase
+  is C1 (no modeled violation) + C2 (no understatement of any
+  recorded component) + C3 (no spurious borderline: model at limit
+  where the server recorded below it). Key measurements: C2 holds
+  at all 60,000 phases; the C3 halo excludes 29,347 clean phases in
+  28 bands; the consistent set is 29,601 phases in 9 bands; the
+  partition with the SD-R5-F2 bands is exact
+  (29,601 + 29,347 + 1,052 = 60,000); saturation agreement 43/43 at
+  every clean phase (entailed corollary of C1+C2); no phase
+  achieves full 766-component equality (max 741). Review round one
+  produced twenty findings (entailment unmasking, a withdrawn false
+  equivalence, the anti-strictness reduction now stated in the
+  spec's §1, a missing anti-echo anchor, and the wrong-client
+  ledger argument whose refutation forced the production-code
+  reading); round two attacked the revision with an independent
+  replay probe — every attack on the tables and conditions failed;
+  its justification repairs (halo story corrected to
+  classification-equivalence with 73%/54% masking measured, an
+  unsupported convention claim withdrawn, P1 extended, the
+  stash-list bucket-cutoff divergence recorded as a pending doc
+  finding) are incorporated. Adjudication asks are the spec's §6;
+  implementation is blocked on them. No code changed; no live
+  service was contacted.

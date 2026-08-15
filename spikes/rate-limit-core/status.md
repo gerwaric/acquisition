@@ -77,8 +77,16 @@ coverage.
 
 ## 3. Open decisions (Tom)
 
-None. Tom approved both pending sign-offs on 2026-08-14; the exact
-wording and consequences are recorded in `result-draft.md` §9.
+- **Adjudicate the proposed §7.4 replacement-gate spec**
+  (`s7-4-replacement-gate.md` §6, presented 2026-08-14): ratify
+  premises P1/P2/P3, approve the C1–C3 consistency definition and
+  the strict halo treatment, accept the stated anti-strictness
+  reduction, approve the superseded-test deletion and §7.4 marker
+  text, and confirm the discharge line. Until adjudicated, the spec
+  is a proposal, not contract; implementation must not start.
+
+Both earlier pending sign-offs were approved 2026-08-14; wording
+and consequences are recorded in `result-draft.md` §9.
 
 - §7.4 is adjudicated as a frozen-contract expectation error: a
   feedback-dependent captured dispatch trace is not required to stay
@@ -117,12 +125,15 @@ work.
 3. ~~**M11a named binding evidence**~~ — **done 2026-08-14**
    (`tests/m11_ceiling_sweep.rs`; `m11-compliant-never-trips` Full —
    `result-draft.md` §9 changelog).
-4. Specify, review, implement, and run the feedback-consistent §7.4
-   replacement calibration gate authorized in §3. The active band-edge,
+4. The feedback-consistent §7.4 replacement calibration gate.
+   **Specified 2026-08-14** (`s7-4-replacement-gate.md`, drafted with
+   two adversarial fresh-context reviews and probe measurements —
+   §9 changelog); now awaiting Tom's adjudication (§3), then
+   implementation and its review round. The active band-edge,
    exhaustive band enumeration, and 43/43 witness diagnostics remain
-   load-bearing; the superseded open-loop every-phase assertion remains
-   only as a finding reproduction until that replacement removes or
-   recasts it deliberately.
+   load-bearing; the superseded open-loop every-phase assertion
+   remains only as a finding reproduction until the adopted
+   replacement deletes it per the spec's §4.
 5. Full-contract run last. It finishes the fragment-scale-only
    clauses `m6-g1-post-announcement`,
    `m6-queue-drains-new-pace`, `m7-no-client-violation`,
