@@ -2724,3 +2724,37 @@ outlives the spike branch; record what exists and where.⟩
   blocked-run diagnostic, and pinned scale. The final offline matrix
   is recorded in `scenario-driver-handoff.md` §5. No live service was
   contacted. The implementing session does not close SD-R8.
+
+- 2026-08-15 — **Tom adjudicated SD-R8-F2: G3's eligibility is the
+  padded-safe time.** Analysis presented in-session (SD-R7's
+  reviewer acting as analyst; decision Tom's, given the same day):
+  the M6 failures carry the bucket-complement fingerprint of
+  contract-mandated N13 padding measured against a raw
+  server-permit oracle — at generated φ=2,290 the two over-delays
+  are exactly 5,000 − 2,015 and 60,000 − 2,015 ms (one hit, 2,015 ms
+  into both its buckets, against the burst and sustained windows),
+  and the pinned 725 ms cases are a hit 725 ms past a boundary. The
+  client is behaving exactly per N13, which forbids it knowing φ;
+  the raw oracle penalizes the safety margin the spike exists to
+  validate. The contract carried a genuine ambiguity: §6's base
+  text says eligibility is "the padded-safe time", while the
+  2026-08-13 finalization note says "the oracle stays
+  padding-independent" — every focused-test oracle had implemented
+  the former (M1's 20 s zero-budget bound, the transition lanes'
+  recovery bounds, M2's G4 minimum), and the full-contract scale
+  needed one generic oracle for the first time, colliding the
+  readings. **Decision (Tom):** G3's eligibility is the padded-safe
+  time, restated by the harness as N13's `hit + period + bucket`
+  arithmetic over B13 mock-side facts; "client-independent" means
+  independent in derivation (the oracle never reads client state),
+  not free of padding; the 2026-08-13 "padding-independent" note is
+  clarified to forbid mirroring the client's *implementation*, not
+  restating the padding *contract*; ε = 500 ms unchanged and final.
+  Alternatives considered and rejected: raising ε (needs ε > 60 s,
+  gutting the gate) and a per-window `bucket + 500 ms` ε (the
+  padded oracle with strictly looser teeth). The dated amendment is
+  applied in `scenarios.md` §6. Consequence: the SD-R8 blocker is
+  an oracle-side fix in the open round — no client, mock, or
+  gate-machinery change — after which the declared run makes its
+  real attempt under the standing two-authorities rule. No registry
+  clause or verdict slot moved with this decision.

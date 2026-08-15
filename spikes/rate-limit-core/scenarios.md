@@ -613,6 +613,24 @@ no headroom term anywhere.
   > **Amendment (Tom), 2026-08-13** — "harness-computed" means
   > derived at runtime from the scenario's own policy and queue
   > depth; a precomputed literal does not qualify.
+
+  > **Amendment (Tom), 2026-08-15 (SD-R8-F2)** — G3's eligibility
+  > means the **padded-safe time** exactly as this gate's opening
+  > sentence states: the harness restates N13's
+  > `hit + period + bucket` arithmetic over the mock's B13
+  > observation log and the scenario's policy definitions.
+  > "Client-independent" means independent in *derivation* — the
+  > oracle never reads client state — not free of padding. The
+  > 2026-08-13 note's "the oracle stays padding-independent rather
+  > than mirroring the padding model" is hereby clarified: it
+  > forbids mirroring the client's *implementation*; it does not
+  > forbid restating the padding *contract*. A raw server-permit
+  > oracle (`bucket_end + period`) is not G3's eligibility
+  > instant: measured against it, contract-mandated padding
+  > appears as over-delay of up to one full bucket — the SD-R8
+  > pinned failure's 725 / 2,985 / 57,985 ms bucket-complement
+  > fingerprint — which ε = 500 ms was never meant to absorb.
+  > ε is unchanged and remains final.
 - **G5 — scenario-level assertions.** Every scenario's own
   assertions pass — the injected-stimulus ones (M8 retry timing,
   M8 escalation, M11b halt, M12 obligations, M3/M4 clean-failure

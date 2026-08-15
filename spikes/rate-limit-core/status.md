@@ -99,16 +99,15 @@ coverage.
 
 ## 3. Open decisions (Tom)
 
-1. **SD-R8-F2 — reconcile G3 with intentional N13 padding.** The
-   ratified G3 oracle is server-permit time, expressly independent of
-   client padding, with ε = 500 ms. At full-contract scale the client
-   deliberately retains hits for N13's additional bucket, so the
-   pinned φ=0 run fails M6 twice at 725 ms over-delay (correlations 9
-   and 14); a generated φ=2,290 attempt measured 2,985 ms and 57,985
-   ms cases. Tom must decide whether G3's independent oracle should
-   model padded-safe N13 time, or whether the existing bound/statement
-   changes. The implementation session preserves the ratified raw
-   oracle and refuses to declare `FullContract`.
+None. Tom adjudicated SD-R8-F2 on 2026-08-15: **G3's eligibility is
+the padded-safe time** — the harness restates N13's
+`hit + period + bucket` arithmetic over B13 mock-side facts;
+"client-independent" means independent in derivation, not free of
+padding; ε = 500 ms unchanged. The clarifying amendment is applied
+in `scenarios.md` §6 (dated, Tom-attributed) and the decision is
+recorded in `result-draft.md` §9. Consequence: the SD-R8 blocker is
+an oracle-side fix only — no client, mock, or gate-machinery change
+— after which the declared run makes its real attempt.
 
 Earlier decisions remain closed. Tom ratified the §7.4 replacement-
 gate spec in full on 2026-08-15 — all five §6 asks, with the
@@ -134,13 +133,12 @@ ratification record is in `result-draft.md` §9. (Both earlier
 
 ## 4. Blocked
 
-The declared full-contract run is blocked on SD-R8-F2 in §3. The
-pinned attempt executes all M rows but M6's two G3 failures make its
-report ineligible, so `FullContractRun::declare` returns
-`ReportNotVerdictEligible { scenario: M6 }`. The 4,096-case phase
-run cannot be presented as complete while that deterministic case
-fails. No
-registry clause or verdict slot may move while this remains true.
+None. SD-R8-F2 was adjudicated 2026-08-15 (§3): the full-contract
+run's G3 oracle must compute padded-safe eligibility, an
+oracle-side fix in the open SD-R8 round. Until that fix lands and a
+run truthfully declares `FullContract`, no registry clause or
+verdict slot may move — that is the standing two-authorities rule,
+not a block.
 
 ## 5. Next work
 
