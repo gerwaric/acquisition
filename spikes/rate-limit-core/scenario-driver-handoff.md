@@ -1,6 +1,12 @@
 # Scenario-driver and safety-closure hand-off
 
-Status: **open — the reopened-range four-part packet (F4/F5/F9
+Status: **closed — the repeated independent SD-R8 re-close review
+accepted the reopened-range four-part packet on 2026-08-15 with no
+new findings.** The reviewer validated F9/F10, reproduced both
+authorities and the exact F4/F5/F9 mutations, and restored both
+verdict fills. Historical record — live state lives in `status.md`.
+
+Prior status: **open — the reopened-range four-part packet (F4/F5/F9
 repairs; dated 2026-08-15 additions in each section below, current
 124/110 totals) is present and awaits the repeated independent
 re-close review.** The F9 endpoint binding is repaired and

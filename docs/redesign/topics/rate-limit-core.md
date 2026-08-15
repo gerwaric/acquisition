@@ -1,7 +1,7 @@
 # Rate-limit core spike
 
-Status: migration-package draft for SD-R8 re-close review and the final
-external audit; not yet delivered.
+Status: migration-package draft accepted by the repeated SD-R8 re-close
+review; awaiting the final external audit, not yet delivered.
 
 Provenance: **[Measured]** Distilled 2026-08-15 from
 `spikes/rate-limit-core/result-draft.md` on branch

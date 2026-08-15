@@ -60,8 +60,10 @@ binds `reproduction.endpoint` to every observation alongside seed
 and phase, the structural seam test pins the relabel, both
 authorities reran green under the binding, and the review's own
 end-to-end mutation is refused (`ReproductionMismatch { id: 1 }`).
-The binding also caught and fixed two real M9 label errors. Verdict
-readiness still waits on the repeated independent re-close review.
+The binding also caught and fixed two real M9 label errors. The
+repeated independent re-close review reproduced both authorities and
+all three refusal mutations, found no new findings, and restored
+verdict readiness (§2, `result-draft.md` §9).
 `obligation-map.md`
 is the superseded prose ancestor; read its §8 for the audit's
 discrepancy analysis (dated at `e2034807`), never for current
@@ -69,7 +71,7 @@ coverage.
 
 ## 2. Slice and review state
 
-- **Reopened: scenario-driver slice** (M1–M13 driver/judge
+- **Closed: scenario-driver slice** (M1–M13 driver/judge
   integration; closed with SD-R8 on 2026-08-15, then **reopened
   the same day by the external no-context audit of the closure**
   — the round history follows).
@@ -164,6 +166,17 @@ coverage.
   re-close findings. The verdict fills are suspended again pending the
   F9 repair, authority reruns, a complete reopened-range hand-off, and
   re-review. Review entry in `result-draft.md` §9.
+  **Repeated independent re-close review passed 2026-08-15 with no
+  new findings; SD-R8 and the scenario-driver slice re-close.** The
+  reviewer accepted the complete F4/F5/F9 reopened-range hand-off,
+  verified the endpoint binding and both corrected M9 labels against
+  the wire, reran the debug/release/4,096-property matrix, the pinned
+  and explicit 4,096-case declarations, obligations, exhaustive
+  replay, clippy, fmt, and sanitizer, and reproduced the exact F4/F5/F9
+  refusal signatures. Both verdict fills are restored. The unchanged
+  migration diffs retain the prior re-close review's no-finding result.
+  Closure entry in `result-draft.md` §9; the hand-off is historical
+  again. The spike remains open only on the F6 delivery gate.
 - Every other slice (core, bootstrap, mock, actor, clause registry,
   doc split) is closed; their hand-offs are historical records.
   (Doc split closed 2026-08-13, DS-R1 — `result-draft.md` §9.)
@@ -173,12 +186,11 @@ coverage.
 None. Every Tom-routed SD-R8 audit finding is dispositioned. Tom ratified
 the F7 O-series carriage on 2026-08-15 (plain-English form, his
 requested rewrite); it is part of both verdict statements in
-`result-draft.md` §1. The re-close review has **suspended both
-verdict slots again** on SD-R8-F9; no Tom decision is needed for its
-structural repair or for F10's packet repair. The audit scoreboard: F4
+`result-draft.md` §1. The repeated re-close review has **restored both
+verdict slots** after independently validating F9/F10. The scoreboard: F4
 repaired, F5 extended and landed, F6 gated-hoist recorded, F7
-repaired and ratified, F8 discharged; re-close findings F9 and F10
-are open.
+repaired and ratified, F8 discharged, F9 repaired and mutation-verified,
+F10 repaired and review-accepted.
 
 Decided 2026-08-15: **SD-R8-F6 — complete via gated hoist; the
 spike ends with a PR** (Tom; full record in `result-draft.md`
@@ -234,10 +246,9 @@ ratification record is in `result-draft.md` §9. (Both earlier
 
 ## 4. Blocked
 
-Nothing is externally blocked. The F9/F10 repairs landed 2026-08-15
-and the reopened-range packet is presented; the verdicts stay
-suspended until review. The remaining path is: repeated independent
-SD-R8 re-close review → final external adversarial audit
+Nothing is externally blocked. SD-R8 and the scenario-driver slice
+are re-closed, and the verdicts are restored. The remaining path is:
+final external adversarial audit
 (`final-audit-charge.md`) → the two delivery PRs. Each step waits
 only on the one before it.
 
@@ -271,8 +282,8 @@ Reopened SD-R8 work (audit and re-close-review entries,
   minted `m2-character-policy-lanes`; both authorities green
   over the extended contract (§9 changelog).
 - ~~**F7 O-series carriage**~~ — **ratified by Tom 2026-08-15**;
-  part of both verdict statements; its refill is historically recorded,
-  but the slots are suspended again on F9 (§3, §9 changelog).
+  part of both verdict statements; verdict fills restored by the
+  repeated re-close review (§3, §9 changelog).
 - ~~**F9 endpoint-provenance repair**~~ — **done 2026-08-15**
   (`3813c40a`): the judge binds `reproduction.endpoint` to every
   wire observation alongside seed and phase; the structural seam
@@ -296,10 +307,11 @@ Reopened SD-R8 work (audit and re-close-review entries,
      note `88d8266c` on this branch; CN1–CN6 transcribed as N27–N32
      in `c1d92417` on `rate-limit-core-ground-truth`, cut from
      `master`. Drafts only; no push or PR occurred.
-  2. **Next: the repeated independent SD-R8 re-close review** — the
-     F9/F10 repairs landed and the reopened-range packet is
-     presented (`scenario-driver-handoff.md`).
-  3. The final external adversarial audit —
+  2. ~~**Repeated independent SD-R8 re-close review**~~ — **closed
+     2026-08-15 with no new findings**; F9/F10 validated, both
+     authorities and all three mutations reproduced, verdict fills
+     restored (`result-draft.md` §9).
+  3. **Next: the final external adversarial audit** —
      `final-audit-charge.md` holds the standing charge; its
      object includes both migration diffs.
   4. The two delivery PRs (`spike/rate-limit-core` → `redesign`;

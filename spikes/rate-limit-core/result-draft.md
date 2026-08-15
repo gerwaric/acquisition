@@ -128,6 +128,17 @@ the absent reopened-range four-part hand-off required by
 both authority reruns, the completed F4/F5/F9/F10 hand-off, and an
 independent re-review. `status.md` is live state.]*
 
+*[Repeated re-close refill, 2026-08-15, same day: **the independent
+SD-R8 re-close review accepted the repaired reopened-range packet
+with no new findings.** The F9 endpoint binding and complete F10
+four-part hand-off were validated; the pinned and explicit 4,096-case
+declarations and the 110-Full registry authority agree; and the exact
+F4/F5/F9 mutations now refuse as `MissingM8KnownLane`,
+`MissingEndpointLane { endpoint: CharacterList }`, and
+`ReproductionMismatch { id: 1 }`. The suspension is lifted and both
+verdict slots above are refilled. SD-R8 and the scenario-driver slice
+are closed; the next F6 gate is the final external audit.]*
+
 **O-series carriage (SD-R8-F7) — ratified by Tom, 2026-08-15; part
 of both verdict statements:**
 
@@ -3357,3 +3368,44 @@ hoistable to its own repository without surgery.
   clippy `-D warnings`, fmt, `git diff --check` clean. The verdict
   fills remain suspended; the repairing session does not re-close
   SD-R8. No live service was contacted.
+
+- 2026-08-15 — **Repeated independent SD-R8 re-close review passed
+  with no new findings; F9/F10 are validated, both verdict fills are
+  restored, and the scenario-driver slice re-closes.** The reviewer
+  began from the repaired four-part packet in
+  `scenario-driver-handoff.md`, checked every reopened-range silence,
+  seam/invariant statement, coverage confession, and judgment call,
+  and walked commit `3813c40a` against the code. The endpoint chain is
+  now mock-fact-anchored: every `Observation.endpoint` must equal its
+  `ReproductionRecord.endpoint` in `judge` before a report can reach
+  `FullContractRun::declare`; the declaration then requires every N23
+  endpoint and both M8 provenance lanes. The strict-equality judgment
+  is valid for every current phase-swept single-endpoint lane, and the
+  two corrected M9 labels match their Stash wire traffic. The current
+  124-clause / 110-Full registry accounting and the stated character-
+  lane non-coverage were accepted. The spike-side topic/register/
+  artifact/F6 package and the `rate-limit-core-ground-truth` N27–N32
+  diff are unchanged from the prior re-close review and retain its
+  no-finding result.
+
+  Restored-tree matrix, entirely offline: `cargo test --locked` 172
+  passed / 0 failed / 3 ignored; release 170 / 0 / 3;
+  `PROPTEST_CASES=4096 cargo test --locked` 172 / 0 / 3; pinned φ=0
+  declaration green over all sixteen reports; explicit 4,096-case
+  full-contract declaration green in 307.05 s; obligations 6/6,
+  reporting 110 Full / 0 Partial / 1 accepted Untested / 13 Excluded;
+  both ignored §7.4 release tests 2/2 green in 8.03 s; sanitizer 4/4;
+  all-target clippy with warnings denied, fmt, the spike diff check,
+  and the ground-truth migration diff check clean.
+
+  Three mutations were applied from committed code and reverted
+  cleanly: F4's M8 OAuth profile flip refused exactly
+  `MissingM8KnownLane`; F5's deleted CharacterList lane refused
+  exactly `MissingEndpointLane { endpoint: CharacterList }`; F9's
+  former bypass — a second Character wire lane retaining the
+  CharacterList reproduction label for seed 809 — failed its judge
+  call exactly as `ReproductionMismatch { id: 1 }` before declaration.
+  The restored pinned declaration reran green. No live service was
+  contacted. SD-R8 and the scenario-driver slice are closed; the spike
+  remains open on F6 until the final external audit and both delivery
+  PRs complete.
