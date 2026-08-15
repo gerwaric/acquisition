@@ -11,13 +11,14 @@ use std::task::Poll;
 use std::time::Duration;
 
 use http::{HeaderMap, HeaderValue, Method, StatusCode};
+use proptest::prelude::*;
 use rate_limit_core::actor::{
     GateError, GateHandle, RequestTicket, spawn, with_correlation_header,
 };
 use rate_limit_core::conformance::{
-    ClientBucketProfile, ContractCoverage, Gate, ReproductionRecord, RunEvidence,
-    SHIPPED_ASSUMED_PROFILE, ScenarioAssertion, ScenarioId, ScenarioOracle, SweepConfiguration,
-    SweepPlan, judge, scenario,
+    ClientBucketProfile, ContractCoverage, FullContractRun, Gate, ReproductionRecord, RunEvidence,
+    RunReport, SHIPPED_ASSUMED_PROFILE, ScenarioAssertion, ScenarioId, ScenarioOracle,
+    SweepConfiguration, SweepPlan, judge, scenario,
 };
 use rate_limit_core::core::{BucketModel, EndpointLabel, PolicyEngine, Resolution};
 use rate_limit_core::mock::model::{
@@ -25,7 +26,7 @@ use rate_limit_core::mock::model::{
 };
 use rate_limit_core::mock::{
     CORRELATION_HEADER, DEFAULT_SERVICE_DELAY, Endpoint, ExchangeScript, MockConfig,
-    MockController, MockService, MockStateChange, ResponseOverride, request,
+    MockController, MockService, MockStateChange, MockStateChangeKind, ResponseOverride, request,
 };
 
 fn engine(profile: ClientBucketProfile) -> PolicyEngine {
@@ -100,6 +101,18 @@ async fn already_cancelled(ticket: RequestTicket) -> bool {
         poll_fn(|cx| Poll::Ready(ticket.as_mut().poll(cx))).await,
         Poll::Ready(Err(GateError::Cancelled))
     )
+}
+
+async fn serve_within(tickets: Vec<RequestTicket>, budget_ms: u64) -> usize {
+    tokio::time::timeout(Duration::from_millis(budget_ms), async move {
+        let mut served = 0usize;
+        for ticket in tickets {
+            served += usize::from(ticket.await.is_ok());
+        }
+        served
+    })
+    .await
+    .expect("the bounded scenario queue must drain")
 }
 
 fn pair_policy(name: &str, burst: u32) -> PolicyDefinition {
@@ -177,6 +190,7 @@ async fn evidence(
     controller: &MockController,
     id: ScenarioId,
     profile: ClientBucketProfile,
+    coverage: ContractCoverage,
     assertion_passed: bool,
 ) -> RunEvidence {
     let spec = scenario(id);
@@ -202,11 +216,8 @@ async fn evidence(
         state_changes: controller.state_changes().await,
         unavoidable_exposure: None,
         assertions: vec![ScenarioAssertion {
-            // Every row here runs a fragment of its scenario contract: the
-            // per-row deltas are listed in `result-draft.md`. Declaring
-            // `Fragment` is what keeps a green G5 from reading as a verdict.
             id: spec.required_assertion,
-            coverage: ContractCoverage::Fragment,
+            coverage,
             passed: assertion_passed,
         }],
     }
@@ -227,7 +238,7 @@ fn d5_wire_shape_holds(observations: &[rate_limit_core::mock::Observation]) -> b
     })
 }
 
-async fn run_m1_m13(phase_ms: u64) {
+async fn run_m1_m13(phase_ms: u64, coverage: ContractCoverage) -> Vec<RunReport> {
     let mut reports = Vec::new();
 
     // M8 runs the required legacy lane here and its OAuth lane in the
@@ -403,7 +414,31 @@ async fn run_m1_m13(phase_ms: u64) {
                     submit_recorded(&gate, &controller, &mut submitted_ms, Endpoint::StashList)
                         .await;
                 advance(1_000).await;
-                first_granted && second.await.is_ok()
+                let second_granted = second.await.is_ok();
+                if coverage == ContractCoverage::FullContract {
+                    let mut queued = Vec::new();
+                    for _ in 0..M6_POST_SHRINK_QUEUE {
+                        queued.push(
+                            submit_recorded(
+                                &gate,
+                                &controller,
+                                &mut submitted_ms,
+                                Endpoint::StashList,
+                            )
+                            .await,
+                        );
+                    }
+                    let served = serve_within(queued, M6_DRAIN_BUDGET_MS).await;
+                    let observations = controller.observations().await;
+                    first_granted
+                        && second_granted
+                        && served == M6_POST_SHRINK_QUEUE
+                        && observations
+                            .iter()
+                            .all(|observation| !observation.policy_judgment.organic_violation)
+                } else {
+                    first_granted && second_granted
+                }
             }
             ScenarioId::M7 => {
                 let first =
@@ -412,14 +447,52 @@ async fn run_m1_m13(phase_ms: u64) {
                 advance(1_000).await;
                 let first_granted = first.await.is_ok();
                 controller
-                    .inject_phantoms("stash-list-request-limit", 2)
+                    .inject_phantoms(
+                        "stash-list-request-limit",
+                        if coverage == ContractCoverage::FullContract {
+                            M7_PHANTOM_BURST
+                        } else {
+                            2
+                        },
+                    )
                     .await
                     .unwrap();
                 let second =
                     submit_recorded(&gate, &controller, &mut submitted_ms, Endpoint::StashList)
                         .await;
                 advance(1_000).await;
-                first_granted && second.await.is_ok()
+                let second_granted = second.await.is_ok();
+                if coverage == ContractCoverage::FullContract {
+                    let mut queued = Vec::new();
+                    for _ in 0..M7_POST_PHANTOM_QUEUE {
+                        queued.push(
+                            submit_recorded(
+                                &gate,
+                                &controller,
+                                &mut submitted_ms,
+                                Endpoint::StashList,
+                            )
+                            .await,
+                        );
+                    }
+                    let served = serve_within(queued, M7_DRAIN_BUDGET_MS).await;
+                    let observations = controller.observations().await;
+                    first_granted
+                        && second_granted
+                        && served == M7_POST_PHANTOM_QUEUE
+                        && observations.iter().any(|observation| {
+                            observation
+                                .policy_judgment
+                                .windows
+                                .iter()
+                                .any(|window| window.phantom_hits >= M7_PHANTOM_BURST as u32)
+                        })
+                        && observations
+                            .iter()
+                            .all(|observation| !observation.policy_judgment.organic_violation)
+                } else {
+                    first_granted && second_granted
+                }
             }
             ScenarioId::M8 => {
                 controller
@@ -435,11 +508,34 @@ async fn run_m1_m13(phase_ms: u64) {
                     )
                     .await
                     .unwrap();
-                let ticket = submit_recorded(&gate, &controller, &mut submitted_ms, endpoint).await;
-                advance(70_000).await;
-                let retried = ticket.await.is_ok();
+                let request_count = if coverage == ContractCoverage::FullContract {
+                    M8_RECOVERY_QUEUE
+                } else {
+                    1
+                };
+                let mut tickets = Vec::new();
+                for _ in 0..request_count {
+                    tickets.push(
+                        submit_recorded(&gate, &controller, &mut submitted_ms, endpoint).await,
+                    );
+                }
+                let served = serve_within(tickets, M8_DRAIN_BUDGET_MS).await;
                 let observations = controller.observations().await;
-                retried && m8_fragment_passed(&observations)
+                if coverage == ContractCoverage::FullContract {
+                    served == request_count
+                        && observations
+                            .iter()
+                            .filter(|observation| {
+                                observation.response_status == Some(StatusCode::TOO_MANY_REQUESTS)
+                            })
+                            .count()
+                            == 1
+                        && observations
+                            .iter()
+                            .all(|observation| !observation.policy_judgment.organic_violation)
+                } else {
+                    served == 1 && m8_fragment_passed(&observations)
+                }
             }
             ScenarioId::M9 => {
                 let first =
@@ -508,12 +604,7 @@ async fn run_m1_m13(phase_ms: u64) {
                 for ticket in cancelled_tickets {
                     promptly_cancelled += usize::from(already_cancelled(ticket).await);
                 }
-                advance(M10_RUN_MS).await;
-
-                let mut served = 0usize;
-                for ticket in remaining {
-                    served += usize::from(ticket.await.is_ok());
-                }
+                let served = serve_within(remaining, M10_RUN_MS).await;
                 let observations = controller.observations().await;
                 let expected_served = M10_PRESSURE_REQUESTS - cancelled;
                 let reconciled = gate.subscribe_status().borrow().ordinary_in_flight == 0;
@@ -623,11 +714,11 @@ async fn run_m1_m13(phase_ms: u64) {
             }
         };
 
-        let evidence = evidence(&controller, id, profile, assertion_passed).await;
+        let evidence = evidence(&controller, id, profile, coverage, assertion_passed).await;
         // Only M10 runs long enough to accrue policy debt, and only M10 has no
         // residue/phantom hits to hide from this arithmetic.  See `PolicyDebt`.
         let debt = match id {
-            ScenarioId::M2 | ScenarioId::M10 => Some(
+            ScenarioId::M2 | ScenarioId::M6 | ScenarioId::M7 | ScenarioId::M10 => Some(
                 PolicyDebt::for_policy(
                     &controller,
                     &evidence.observations.first().expect("wire run").policy,
@@ -637,8 +728,13 @@ async fn run_m1_m13(phase_ms: u64) {
             ),
             _ => None,
         };
-        let mut oracle =
-            independently_scripted_oracle(id, &evidence.observations, debt.as_ref(), &submitted_ms);
+        let mut oracle = independently_scripted_oracle(
+            id,
+            &evidence.observations,
+            &evidence.state_changes,
+            debt.as_ref(),
+            &submitted_ms,
+        );
         if id == ScenarioId::M2 {
             let definition = controller
                 .definition(&evidence.observations.first().expect("wire run").policy)
@@ -664,16 +760,21 @@ async fn run_m1_m13(phase_ms: u64) {
             .iter()
             .all(|report| report.gate(Gate::G1).passed && report.gate(Gate::G2).passed)
     );
-    // Coverage guard: this driver runs fragments, so no report here may be
-    // read as fillable verdict evidence.  When a row's full contract lands,
-    // this assertion is what forces the claim to be revisited deliberately.
-    assert!(
-        reports.iter().all(|report| !report.verdict_eligible()),
-        "no fragment run may be verdict-eligible"
-    );
+    match coverage {
+        ContractCoverage::Fragment => assert!(
+            reports.iter().all(|report| !report.verdict_eligible()),
+            "no fragment run may be verdict-eligible"
+        ),
+        ContractCoverage::FullContract => assert!(
+            reports.iter().all(RunReport::verdict_eligible),
+            "every full-contract report must be verdict-eligible"
+        ),
+    }
+
+    reports
 }
 
-async fn run_m8_oauth_lane(phase_ms: u64) {
+async fn run_m8_oauth_lane(phase_ms: u64, coverage: ContractCoverage) -> RunReport {
     let profile = rate_limit_core::conformance::OAUTH_KNOWN_PROFILE;
     let (mock, controller) = MockService::new(MockConfig::n23(808, phase_ms)).unwrap();
     controller
@@ -691,22 +792,57 @@ async fn run_m8_oauth_lane(phase_ms: u64) {
         .unwrap();
     let gate = spawn(engine(profile), mock);
     let mut submitted_ms = Vec::new();
-    let ticket = submit_recorded(&gate, &controller, &mut submitted_ms, Endpoint::Stash).await;
-    advance(70_000).await;
-    let retried = ticket.await.is_ok();
+    let request_count = if coverage == ContractCoverage::FullContract {
+        M8_RECOVERY_QUEUE
+    } else {
+        1
+    };
+    let mut tickets = Vec::new();
+    for _ in 0..request_count {
+        tickets.push(submit_recorded(&gate, &controller, &mut submitted_ms, Endpoint::Stash).await);
+    }
+    let served = serve_within(tickets, M8_DRAIN_BUDGET_MS).await;
     let observations = controller.observations().await;
-    let assertion_passed = retried && m8_fragment_passed(&observations);
-    let evidence = evidence(&controller, ScenarioId::M8, profile, assertion_passed).await;
+    let assertion_passed = if coverage == ContractCoverage::FullContract {
+        served == request_count
+            && observations
+                .iter()
+                .filter(|observation| {
+                    observation.response_status == Some(StatusCode::TOO_MANY_REQUESTS)
+                })
+                .count()
+                == 1
+            && observations
+                .iter()
+                .all(|observation| !observation.policy_judgment.organic_violation)
+    } else {
+        served == 1 && m8_fragment_passed(&observations)
+    };
+    let evidence = evidence(
+        &controller,
+        ScenarioId::M8,
+        profile,
+        coverage,
+        assertion_passed,
+    )
+    .await;
     let report = judge(
         &evidence,
-        &independently_scripted_oracle(ScenarioId::M8, &evidence.observations, None, &submitted_ms),
+        &independently_scripted_oracle(
+            ScenarioId::M8,
+            &evidence.observations,
+            &evidence.state_changes,
+            None,
+            &submitted_ms,
+        ),
     )
     .unwrap();
     assert!(report.passed(), "OAuth M8: {report:?}");
-    assert!(
-        !report.verdict_eligible(),
-        "the OAuth M8 fragment must pass through the coverage guard"
+    assert_eq!(
+        report.verdict_eligible(),
+        coverage == ContractCoverage::FullContract
     );
+    report
 }
 
 async fn run_m1_residue_sweep(phase_ms: u64) {
@@ -744,7 +880,14 @@ async fn run_m1_residue_sweep(phase_ms: u64) {
             && !get.policy_judgment.organic_violation
             && zero_budget_waited;
 
-        let evidence = evidence(&controller, ScenarioId::M1, profile, assertion_passed).await;
+        let evidence = evidence(
+            &controller,
+            ScenarioId::M1,
+            profile,
+            ContractCoverage::Fragment,
+            assertion_passed,
+        )
+        .await;
         let mut oracle = DriverOracle {
             submitted_ms,
             ..DriverOracle::default()
@@ -809,6 +952,24 @@ const M1_ZERO_BUDGET_WAIT_MS: u64 = M1_BURST_PERIOD_MS + BURST_BUCKET_MS;
 /// sustained 30-hit window to age before the final burst can drain.
 const M2_QUEUE_DEPTH: usize = 40;
 const M2_RUN_MS: u64 = 130_000;
+
+/// Full-contract closure scale for M6: enough post-announcement work to fill
+/// the shrunk five-hit burst window twice and prove the queue resumes across
+/// more than one new-pace stall.
+const M6_POST_SHRINK_QUEUE: usize = 12;
+const M6_DRAIN_BUDGET_MS: u64 = 500_000;
+
+/// M7 calls for occasional, bursty phantom traffic rather than drizzle. Eight
+/// same-instant hits leave one slot for the observing GET after the opening
+/// client hit, then the queued tail must drain under the reconciled debt.
+const M7_PHANTOM_BURST: usize = 8;
+const M7_POST_PHANTOM_QUEUE: usize = 12;
+const M7_DRAIN_BUDGET_MS: u64 = 500_000;
+
+/// M8's full-contract lane keeps a queue behind the injected restriction so
+/// the confirmation and every follow-on dispatch are mock-judged.
+const M8_RECOVERY_QUEUE: usize = 12;
+const M8_DRAIN_BUDGET_MS: u64 = 500_000;
 
 /// M10's Tom-approved prompt-cancellation bound. It is one harness tick,
 /// deliberately far below the D5 send floor: cancellation is command ingress,
@@ -946,9 +1107,74 @@ async fn m1_m13_run_against_the_actor_and_the_judge() {
     // recorded into the judge's G6 reproduction record; adding a third phase
     // is a data-only change here.
     for phase_ms in SWEPT_PHASES_MS {
-        run_m1_m13(phase_ms).await;
+        run_m1_m13(phase_ms, ContractCoverage::Fragment).await;
         run_m1_residue_sweep(phase_ms).await;
-        run_m8_oauth_lane(phase_ms).await;
+        run_m8_oauth_lane(phase_ms, ContractCoverage::Fragment).await;
+    }
+}
+
+/// Full-contract phase generation covers the entire common 60 s alignment
+/// cycle and gives the exact before/on/after cases for both configured bucket
+/// widths dedicated strategy weight. A failing case already carries its
+/// `(seed, phi)` through every swept report; proptest adds shrinking and its
+/// persisted generator seed.
+fn full_contract_phase_strategy() -> impl Strategy<Value = u64> {
+    prop_oneof![
+        12 => 0..SUSTAINED_BUCKET_MS,
+        1 => Just(BURST_BUCKET_MS - 1),
+        1 => Just(BURST_BUCKET_MS),
+        1 => Just(BURST_BUCKET_MS + 1),
+        1 => Just(SUSTAINED_BUCKET_MS - 1),
+        1 => Just(0),
+        1 => Just(1),
+    ]
+}
+
+fn run_full_contract_case(phase_ms: u64) {
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_time()
+        .start_paused(true)
+        .build()
+        .expect("the full-contract paused runtime builds");
+    runtime.block_on(async move {
+        let mut reports = run_m1_m13(phase_ms, ContractCoverage::FullContract).await;
+        reports.push(run_m8_oauth_lane(phase_ms, ContractCoverage::FullContract).await);
+
+        let declaration = FullContractRun::declare(reports)
+            .expect("the run-owned FullContract declaration must be structurally complete");
+        assert_eq!(
+            declaration.reports().len(),
+            ScenarioId::ALL.len() + 1,
+            "all M rows plus M8's second provenance lane"
+        );
+        assert!(
+            declaration
+                .reports()
+                .iter()
+                .all(RunReport::verdict_eligible),
+            "the declaration may contain no green fragment"
+        );
+    });
+}
+
+#[test]
+#[ignore = "FC-R1-F2: G3's padding-independent oracle conflicts with the 500 ms bound"]
+fn full_contract_pinned_boundary_attempt_exposes_g3_contract_conflict() {
+    run_full_contract_case(0);
+}
+
+proptest! {
+    /// The run's first authority: each generated configuration produces a
+    /// mechanically declared `FullContract` M1-M13 report set, including
+    /// both the OAuth Known and shipped legacy Assumed lanes. The clause
+    /// registry is intentionally not consulted here; it is the independent
+    /// second authority used only after this run lands.
+    #[test]
+    #[ignore = "FC-R1-F2: blocked before the declared scale can complete"]
+    fn full_contract_m1_m13_mock_judged_suite_declares_full_contract(
+        phase_ms in full_contract_phase_strategy(),
+    ) {
+        run_full_contract_case(phase_ms);
     }
 }
 
@@ -1048,6 +1274,7 @@ impl PolicyDebt {
 fn independently_scripted_oracle(
     scenario_id: ScenarioId,
     observations: &[rate_limit_core::mock::Observation],
+    state_changes: &[MockStateChange],
     debt: Option<&PolicyDebt>,
     submitted_ms: &[u64],
 ) -> DriverOracle {
@@ -1056,6 +1283,16 @@ fn independently_scripted_oracle(
         ..DriverOracle::default()
     };
     let mut prior_arrival_ms = Vec::new();
+    let phantom_hits = state_changes
+        .iter()
+        .flat_map(|change| match &change.kind {
+            MockStateChangeKind::PhantomInjection { count, .. } => {
+                vec![change.occurred_ms; *count]
+            }
+            MockStateChangeKind::PolicyReplacement { .. }
+            | MockStateChangeKind::PolicyRename { .. } => Vec::new(),
+        })
+        .collect::<Vec<_>>();
     let mut prior_dispatch = 0_u64;
     let mut prior_completion = 0_u64;
     let mut prior_was_head = false;
@@ -1082,7 +1319,17 @@ fn independently_scripted_oracle(
                 // wait as a G3 violation.
                 let floor_open = prior_dispatch.saturating_add(MIN_SEND_SPACING_MS);
                 let exclusive_until = if prior_was_head { prior_completion } else { 0 };
-                let permitted = debt.map_or(0, |debt| debt.eligible_ms(&prior_arrival_ms));
+                let permitted = debt.map_or(0, |debt| {
+                    let mut server_hits = prior_arrival_ms.clone();
+                    server_hits.extend(
+                        phantom_hits
+                            .iter()
+                            .copied()
+                            .filter(|occurred_ms| *occurred_ms <= observation.dispatch_ms),
+                    );
+                    server_hits.sort_unstable();
+                    debt.eligible_ms(&server_hits)
+                });
                 exclusive_until.max(floor_open).max(permitted)
             }
         };

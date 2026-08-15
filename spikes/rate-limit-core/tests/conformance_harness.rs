@@ -1,10 +1,10 @@
 use http::Method;
 use rate_limit_core::conformance::{
     AuthorizedExclusion, AuthorizedExclusionKind, ClientBucketProfile, ContractCoverage,
-    ExposureAllowance, ExposureError, Gate, JudgeError, OAUTH_KNOWN_PROFILE, ReproductionRecord,
-    RunEvidence, SCENARIOS, SHIPPED_ASSUMED_PROFILE, ScenarioAssertion, ScenarioAssertionId,
-    ScenarioId, ScenarioOracle, SweepConfiguration, SweepKind, SweepPlan, SweepPlanError, judge,
-    scenario,
+    ExposureAllowance, ExposureError, FullContractDeclarationError, FullContractRun, Gate,
+    JudgeError, OAUTH_KNOWN_PROFILE, ReproductionRecord, RunEvidence, SCENARIOS,
+    SHIPPED_ASSUMED_PROFILE, ScenarioAssertion, ScenarioAssertionId, ScenarioId, ScenarioOracle,
+    SweepConfiguration, SweepKind, SweepPlan, SweepPlanError, judge, scenario,
 };
 use rate_limit_core::mock::{
     Endpoint, MockConfig, MockService, MockStateChange, MockStateChangeKind, request,
@@ -202,6 +202,62 @@ async fn a_fragment_run_is_judged_but_is_never_verdict_eligible() {
     let report = judge(&fragment, &TestOracle::default()).unwrap();
     assert!(!report.gate(Gate::G5).passed);
     assert!(!report.verdict_eligible());
+}
+
+#[tokio::test(start_paused = true)]
+async fn full_contract_declaration_requires_every_m_row_and_both_profiles() {
+    let mut evidence = base_evidence(one_observation().await);
+    evidence.reproduction.as_mut().unwrap().client_buckets = OAUTH_KNOWN_PROFILE;
+    let template = judge(&evidence, &TestOracle::default()).unwrap();
+    let mut reports = ScenarioId::ALL
+        .into_iter()
+        .map(|scenario| {
+            let mut report = template.clone();
+            report.scenario = scenario;
+            report
+        })
+        .collect::<Vec<_>>();
+    let mut assumed = template.clone();
+    assumed.scenario = ScenarioId::M8;
+    assumed.reproduction.as_mut().unwrap().client_buckets = SHIPPED_ASSUMED_PROFILE;
+    reports.push(assumed);
+
+    let declaration = FullContractRun::declare(reports.clone()).unwrap();
+    assert_eq!(declaration.reports().len(), ScenarioId::ALL.len() + 1);
+
+    let missing_m13 = reports
+        .iter()
+        .filter(|report| report.scenario != ScenarioId::M13)
+        .cloned()
+        .collect();
+    assert_eq!(
+        FullContractRun::declare(missing_m13),
+        Err(FullContractDeclarationError::MissingScenario {
+            scenario: ScenarioId::M13,
+        })
+    );
+
+    let known_only = reports
+        .iter()
+        .filter(|report| {
+            report
+                .reproduction
+                .is_some_and(|record| record.client_buckets == OAUTH_KNOWN_PROFILE)
+        })
+        .cloned()
+        .collect();
+    assert_eq!(
+        FullContractRun::declare(known_only),
+        Err(FullContractDeclarationError::MissingAssumedProfile)
+    );
+
+    reports[0].contract_coverage = ContractCoverage::Fragment;
+    assert_eq!(
+        FullContractRun::declare(reports),
+        Err(FullContractDeclarationError::ReportNotVerdictEligible {
+            scenario: ScenarioId::M1,
+        })
+    );
 }
 
 #[tokio::test(start_paused = true)]

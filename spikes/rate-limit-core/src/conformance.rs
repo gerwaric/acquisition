@@ -507,6 +507,65 @@ impl RunReport {
     }
 }
 
+/// A run-owned declaration that the complete mock-judged M-series contract
+/// passed. This is deliberately independent of the clause registry: the
+/// registry is the second authority consulted before evidence can fill a
+/// verdict slot, not an input that can manufacture this declaration.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FullContractRun {
+    reports: Vec<RunReport>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FullContractDeclarationError {
+    MissingScenario { scenario: ScenarioId },
+    ReportNotVerdictEligible { scenario: ScenarioId },
+    MissingKnownProfile,
+    MissingAssumedProfile,
+}
+
+impl FullContractRun {
+    /// Declares a full-contract run only when every M-row has at least one
+    /// verdict-eligible report and the run contains both provenance-typed
+    /// bucket lanes. Scale and phase-domain reachability are asserted by the
+    /// dedicated run producer; this constructor guards the report set itself.
+    pub fn declare(reports: Vec<RunReport>) -> Result<Self, FullContractDeclarationError> {
+        for report in &reports {
+            if !report.verdict_eligible() {
+                return Err(FullContractDeclarationError::ReportNotVerdictEligible {
+                    scenario: report.scenario,
+                });
+            }
+        }
+
+        for scenario in ScenarioId::ALL {
+            if !reports.iter().any(|report| report.scenario == scenario) {
+                return Err(FullContractDeclarationError::MissingScenario { scenario });
+            }
+        }
+
+        let has_profile = |profile| {
+            reports.iter().any(|report| {
+                report
+                    .reproduction
+                    .is_some_and(|record| record.client_buckets == profile)
+            })
+        };
+        if !has_profile(OAUTH_KNOWN_PROFILE) {
+            return Err(FullContractDeclarationError::MissingKnownProfile);
+        }
+        if !has_profile(SHIPPED_ASSUMED_PROFILE) {
+            return Err(FullContractDeclarationError::MissingAssumedProfile);
+        }
+
+        Ok(Self { reports })
+    }
+
+    pub fn reports(&self) -> &[RunReport] {
+        &self.reports
+    }
+}
+
 pub fn judge(
     evidence: &RunEvidence,
     oracle: &impl ScenarioOracle,
