@@ -3041,3 +3041,32 @@ outlives the spike branch; record what exists and where.⟩
   in the packet at re-close. Verdict slots stay suspended until
   F6 and the F7 O-series carriage are also disposed and both
   authorities rerun over the extended contract.
+
+- 2026-08-15 — **Tom adjudicated SD-R8-F6: complete via gated
+  hoist; the spike ends with a PR.** Decision (Tom, converged over
+  the same-day discussion): the charter deliverables are completed,
+  not renounced, under this gate — (1) the open SD-R8 items close
+  (the F5 extension; the F7 O-series wording), with the migration
+  package drafted alongside as final spike-branch commits: the
+  distilled topic doc (`docs/redesign/topics/`), the register row
+  flip, the §8 reusable-artifact record, and a dated `AGENTS.md`
+  note; the CN1–CN6 transcription is authored once, on a branch
+  off `master`, as a separate docs-only PR (master's
+  `network-ground-truth.md` is the citation authority; `redesign`
+  inherits on its next sync — the charter's literal "on
+  `redesign`" is amended by this decision); (2) SD-R8 re-close
+  review; (3) a final external no-context adversarial audit whose
+  object is the re-close packet **plus both migration diffs** —
+  the consumed distillation must itself survive adversarial eyes;
+  (4) delivery: a PR from `spike/rate-limit-core` into `redesign`
+  (the branch forked from `redesign` and already carries
+  `docs/redesign/`), and the small ground-truth PR into `master`.
+  **The charter's "never merged; snapshot" line is explicitly
+  overridden by Tom**: it existed to keep mid-spike churn out of
+  real branches and has done its job; merging puts the reusable
+  acceptance suite in-tree on `redesign` where follow-on work
+  consumes it. F6 marks **complete at landing, not at readiness**
+  — completion of a delivery finding means delivered. Context
+  noted for the record: Tom judges the ADR direction as
+  near-certain toward the rewrite path, which the `redesign`
+  target serves either way.

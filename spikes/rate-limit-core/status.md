@@ -141,22 +141,26 @@ coverage.
 
 ## 3. Open decisions (Tom)
 
-Two contract-touching dispositions from the 2026-08-15 external
-audit await Tom (findings in `result-draft.md` §9; each changes
-what the result claims, so none may be settled in-session):
+One disposition still awaits Tom:
 
-- **SD-R8-F6 — charter deliverables.** Complete or explicitly
-  renounce each: the distilled result doc landing in
-  `docs/redesign/topics/` on `redesign` with the register row
-  updated (this also collides with the spike `AGENTS.md` hard
-  constraint "No commits to `master` or `redesign`" — how and by
-  whom the hoist lands is Tom's to say), CN1–CN6 transcription to
-  `network-ground-truth.md`, and the §8 reusable-artifact record.
-- **SD-R8-F7 (O-series half) — verdict scope carriage.** Whether
-  the verdict statement explicitly carries O1–O8 (no sockets/TLS,
-  no auth/OAuth flow, no real Cloudflare rules, no forum regime).
-  The U5 half is a mechanical §7 repair in the reopened round —
-  U5's own text already mandates carriage "like U1–U4".
+- **SD-R8-F7 (O-series half) — verdict scope carriage wording.**
+  The verdict statement will explicitly carry O1–O8 (no
+  sockets/TLS, no auth/OAuth flow, no real Cloudflare rules, no
+  forum regime); the concrete wording is drafted in-session and
+  awaits Tom's sign-off (it changes the result statement). The
+  U5 half was repaired 2026-08-15.
+
+Decided 2026-08-15: **SD-R8-F6 — complete via gated hoist; the
+spike ends with a PR** (Tom; full record in `result-draft.md`
+§9). Gate: open items close with the migration package drafted
+alongside → SD-R8 re-close review → final external no-context
+adversarial audit over the re-close packet **plus both migration
+diffs** → delivery via PR `spike/rate-limit-core` → `redesign`
+(charter's "never merged" snapshot line explicitly overridden by
+Tom) plus a small CN1–CN6 docs PR into `master`
+(`network-ground-truth.md` there is the citation authority; the
+charter's "on `redesign`" is amended). **F6 completes at
+landing, not readiness.**
 
 Decided 2026-08-15: **SD-R8-F5 — extend, don't narrow** (Tom).
 Coverage extends to the two remaining Known-profile policies
