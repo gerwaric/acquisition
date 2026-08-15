@@ -505,9 +505,18 @@ August 9, 2026]
 The rate-limit-core mock adopts the most-adversarial consistent reading
 recorded in `spikes/rate-limit-core/scenarios.md` §7 B3: a request
 timestamp rounds up to the bucket end, while the history entry itself
-is never quantized. N25's immediate one-request/one-increment observation
-is the constraint on the latter choice. This is an explicit model choice,
-not a claim that the server implements those exact boundary semantics.
+is never quantized. Two further boundary conventions are pinned by B3's
+ratified amendment (August 15, 2026, with the §7.4 gate adoption):
+buckets are half-open — an arrival exactly on a grid point takes the
+full following bucket — and expiry is exclusive — a hit whose
+adversarial expiry equals an arrival instant is no longer counted at
+that arrival. N25's immediate one-request/one-increment observation
+is the constraint on the never-quantized-entry choice. All of these
+are explicit model choices, not claims that the server implements
+those exact boundary semantics. (Both added conventions transcribed
+August 15, 2026, repairing the spike's final-audit finding SD-R8-F19;
+the §7.4 band tables are sensitive to the expiry convention by ±1 ms
+at their edges, while N13's one-second buffer dwarfs the slop.)
 
 **N32. Reprioritization is cheap in the rate-limit-core actor shape and
 was not cheap in the superseded C++ coroutine/facade shape; the R7/D6
@@ -517,10 +526,16 @@ CODE — Confirmed structurally on `spike/rate-limit-core`, August 12,
 In the C++ shape, the stop token is per update, so per-entry
 cancellation did not exist and reordering first required entry identity.
 The Rust actor already has that identity: `RequestId`, positional removal
-in `Command::Cancel`, and a dispatch loop that reads only
-`queue.front()` in `spikes/rate-limit-core/src/actor.rs`. FIFO emerges
-from append-at-back/take-from-front rather than being assumed, and the
-actor already dispatches out of arrival order for writer preference.
+in `Command::Cancel`, and a dispatch loop whose ordinary GET selection
+reads and pops only `queue.front()`, while probe writer selection —
+`Actor::schedule` via `pending_probe()` — scans the whole deque for a
+queued unknown endpoint, in `spikes/rate-limit-core/src/actor.rs`
+(mechanism narrowed August 15, 2026, repairing the spike's final-audit
+finding SD-R8-F20; the earlier front-only wording overstated it). FIFO
+emerges from append-at-back/take-from-front rather than being assumed,
+and the actor already dispatches out of arrival order for writer
+preference — that out-of-order dispatch is exactly the deque scan. The
+single-deque conclusion stands with the mechanism narrowed.
 Reordering is therefore `remove(pos) + insert(pos)`; the expensive part
 is specifying the contract because D5's “no lane starvation” clause does
 not define a priority rule. This is structural evidence for the spike
