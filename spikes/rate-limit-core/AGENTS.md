@@ -83,6 +83,16 @@ history; `status.md` is the authority for now.
   testing is offline (`tokio::time::pause`; the mock is in-process).
 - Greenfield code stays inside `spikes/rate-limit-core/`. No changes
   to `src/`. No commits to `master` or `redesign`.
+- **F6 delivery override (Tom, 2026-08-15; migration package drafted
+  2026-08-15):** the preceding branch rule governed spike
+  implementation, not the adjudicated delivery. Tom authorized the
+  final result package as ordinary commits on `spike/rate-limit-core`
+  for a gated PR into `redesign`, and the CN1–CN6 transcription as a
+  separate docs-only branch off `master`, where
+  `network-ground-truth.md` is authoritative. The migration package
+  executes that authorization; it does not commit directly on either
+  protected branch. F6 completes only when both deliveries land,
+  after SD-R8 re-close review and the final external audit.
 - The docs are the whole spec. If they are ambiguous or silent on
   something needed, that is a **doc finding**: record it in
   `result-draft.md`, take the conservative reading, and flag it for
