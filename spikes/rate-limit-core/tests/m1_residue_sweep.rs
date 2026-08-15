@@ -290,6 +290,7 @@ async fn run_case_paused(residue: u32, phase_ms: u64) {
             seed,
             phase_ms,
             client_buckets: OAUTH_KNOWN_PROFILE,
+            endpoint: Endpoint::StashList,
         }),
         observations: observations.clone(),
         state_changes: controller.state_changes().await,

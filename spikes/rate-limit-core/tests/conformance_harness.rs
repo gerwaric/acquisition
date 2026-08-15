@@ -124,6 +124,7 @@ fn base_evidence(observation: rate_limit_core::mock::Observation) -> RunEvidence
             seed: observation.seed,
             phase_ms: observation.phase_ms,
             client_buckets: SHIPPED_ASSUMED_PROFILE,
+            endpoint: Endpoint::Stash,
         }),
         observations: vec![observation],
         state_changes: Vec::new(),
@@ -217,13 +218,28 @@ async fn full_contract_declaration_requires_every_m_row_and_both_m8_lanes() {
             report
         })
         .collect::<Vec<_>>();
+    // The real driver's extra lanes, shaped for the declaration's
+    // requirements: M8's legacy Assumed lane, and the StashList plus
+    // SD-R8-F5 character-policy lanes the endpoint requirement watches.
     let mut assumed = template.clone();
     assumed.scenario = ScenarioId::M8;
-    assumed.reproduction.as_mut().unwrap().client_buckets = SHIPPED_ASSUMED_PROFILE;
+    let record = assumed.reproduction.as_mut().unwrap();
+    record.client_buckets = SHIPPED_ASSUMED_PROFILE;
+    record.endpoint = Endpoint::LegacyStashIndex;
     reports.push(assumed);
+    for endpoint in [
+        Endpoint::StashList,
+        Endpoint::CharacterList,
+        Endpoint::Character,
+    ] {
+        let mut lane = template.clone();
+        lane.scenario = ScenarioId::M2;
+        lane.reproduction.as_mut().unwrap().endpoint = endpoint;
+        reports.push(lane);
+    }
 
     let declaration = FullContractRun::declare(reports.clone()).unwrap();
-    assert_eq!(declaration.reports().len(), ScenarioId::ALL.len() + 1);
+    assert_eq!(declaration.reports().len(), ScenarioId::ALL.len() + 4);
 
     let missing_m13 = reports
         .iter()
@@ -267,6 +283,25 @@ async fn full_contract_declaration_requires_every_m_row_and_both_m8_lanes() {
     assert_eq!(
         FullContractRun::declare(known_only),
         Err(FullContractDeclarationError::MissingM8AssumedLane)
+    );
+
+    // The SD-R8-F5 state: both M8 lanes present, but a character-policy
+    // lane dropped. Before the endpoint requirement this declared cleanly —
+    // the same silent-vanish shape as F4, aimed at the tightest policy.
+    let character_list_missing = reports
+        .iter()
+        .filter(|report| {
+            report
+                .reproduction
+                .is_none_or(|record| record.endpoint != Endpoint::CharacterList)
+        })
+        .cloned()
+        .collect();
+    assert_eq!(
+        FullContractRun::declare(character_list_missing),
+        Err(FullContractDeclarationError::MissingEndpointLane {
+            endpoint: Endpoint::CharacterList,
+        })
     );
 
     reports[0].contract_coverage = ContractCoverage::Fragment;

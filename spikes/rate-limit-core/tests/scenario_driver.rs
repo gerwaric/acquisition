@@ -190,6 +190,7 @@ async fn evidence(
     controller: &MockController,
     id: ScenarioId,
     profile: ClientBucketProfile,
+    endpoint: Endpoint,
     coverage: ContractCoverage,
     assertion_passed: bool,
 ) -> RunEvidence {
@@ -204,6 +205,7 @@ async fn evidence(
                     .first()
                     .expect("wire run")
                     .seed,
+                endpoint,
                 phase_ms: controller
                     .observations()
                     .await
@@ -714,7 +716,15 @@ async fn run_m1_m13(phase_ms: u64, coverage: ContractCoverage) -> Vec<RunReport>
             }
         };
 
-        let evidence = evidence(&controller, id, profile, coverage, assertion_passed).await;
+        let evidence = evidence(
+            &controller,
+            id,
+            profile,
+            endpoint,
+            coverage,
+            assertion_passed,
+        )
+        .await;
         // These rows accrue policy debt at full-contract scale. M7's phantom
         // changes are merged into the B13-derived arrivals below; M1's residue
         // preload is not observable there and therefore stays on its dedicated
@@ -826,6 +836,7 @@ async fn run_m8_oauth_lane(phase_ms: u64, coverage: ContractCoverage) -> RunRepo
         &controller,
         ScenarioId::M8,
         profile,
+        Endpoint::Stash,
         coverage,
         assertion_passed,
     )
@@ -842,6 +853,83 @@ async fn run_m8_oauth_lane(phase_ms: u64, coverage: ContractCoverage) -> RunRepo
     )
     .unwrap();
     assert!(report.passed(), "OAuth M8: {report:?}");
+    assert_eq!(
+        report.verdict_eligible(),
+        coverage == ContractCoverage::FullContract
+    );
+    report
+}
+
+/// SD-R8-F5's character-policy lanes: the M2 saturation shape run against a
+/// character endpoint, whose N23 policies carry the topology's tightest
+/// limits. The gate matrix, policy-debt oracle, and G4 minimum are the same
+/// policy-generic machinery the main M2 row uses — nothing here is tuned to
+/// the policy's numbers except the independently declared policy name the
+/// assertion pins. The queue depth is identical at both coverage levels;
+/// only the coverage flag differs, exactly like the main M2 row.
+async fn run_character_policy_lane(
+    endpoint: Endpoint,
+    expected_policy: &str,
+    seed: u64,
+    phase_ms: u64,
+    coverage: ContractCoverage,
+) -> RunReport {
+    let profile = rate_limit_core::conformance::OAUTH_KNOWN_PROFILE;
+    let (mock, controller) = MockService::new(MockConfig::n23(seed, phase_ms)).unwrap();
+    let gate = spawn(engine(profile), mock);
+    let mut submitted_ms = Vec::new();
+    let mut tickets = Vec::new();
+    for _ in 0..CHARACTER_LANE_QUEUE {
+        tickets.push(submit_recorded(&gate, &controller, &mut submitted_ms, endpoint).await);
+    }
+    let served = serve_within(tickets, CHARACTER_LANE_DRAIN_BUDGET_MS).await;
+    let observations = controller.observations().await;
+    // The vacuity pin: every wire observation must have been judged under
+    // the expected character policy. A routing mistake toward a looser
+    // policy would otherwise let every gate pass without ever exercising
+    // the tight limits this lane exists to cover.
+    let on_policy = observations
+        .iter()
+        .all(|observation| observation.policy == expected_policy);
+    let dispatched = observations
+        .iter()
+        .filter(|observation| observation.method == Method::GET)
+        .count();
+    let assertion_passed =
+        served == CHARACTER_LANE_QUEUE && dispatched == CHARACTER_LANE_QUEUE && on_policy;
+    let evidence = evidence(
+        &controller,
+        ScenarioId::M2,
+        profile,
+        endpoint,
+        coverage,
+        assertion_passed,
+    )
+    .await;
+    let policy = evidence
+        .observations
+        .first()
+        .expect("wire run")
+        .policy
+        .clone();
+    let debt = PolicyDebt::for_policy(&controller, &policy).await;
+    let mut oracle = independently_scripted_oracle(
+        ScenarioId::M2,
+        &evidence.observations,
+        &evidence.state_changes,
+        Some(&debt),
+        &submitted_ms,
+    );
+    let definition = controller
+        .definition(&policy)
+        .await
+        .expect("the lane's character policy is configured by N23");
+    oracle.m2_minimum_ms = Some(m2_theoretical_padded_minimum_ms(
+        &definition,
+        CHARACTER_LANE_QUEUE,
+    ));
+    let report = judge(&evidence, &oracle).unwrap();
+    assert!(report.passed(), "{endpoint:?} lane: {report:?}");
     assert_eq!(
         report.verdict_eligible(),
         coverage == ContractCoverage::FullContract
@@ -888,6 +976,7 @@ async fn run_m1_residue_sweep(phase_ms: u64) {
             &controller,
             ScenarioId::M1,
             profile,
+            Endpoint::StashList,
             ContractCoverage::Fragment,
             assertion_passed,
         )
@@ -975,6 +1064,27 @@ const M7_DRAIN_BUDGET_MS: u64 = 500_000;
 const M8_RECOVERY_QUEUE: usize = 12;
 const M8_DRAIN_BUDGET_MS: u64 = 500_000;
 
+/// Independently declared N23 character-policy facts (SD-R8-F5). The lanes'
+/// reachability pins must not read these from the client or the mock's
+/// runtime config: character-list is 2 hits/10 s burst and 5 hits/300 s
+/// sustained — the topology's tightest limits — and character is
+/// 5 hits/10 s burst.
+const CHARACTER_LIST_BURST_HITS: usize = 2;
+const CHARACTER_LIST_SUSTAINED_HITS: usize = 5;
+const CHARACTER_BURST_HITS: usize = 5;
+
+/// SD-R8-F5's character-policy lanes run the M2 saturation shape against
+/// both character endpoints at every coverage level. Twelve requests cross
+/// the character burst window twice and, on the character-list policy,
+/// exceed its sustained window repeatedly, so the padded wait regime at
+/// very small limits — one mistimed request is a 50% budget error at
+/// limit 2 — is forced on every run rather than loaded-but-idle.
+const CHARACTER_LANE_QUEUE: usize = 12;
+/// Generous simulated ceiling: the character-list lane's padded greedy
+/// minimum spans ~720 s (pinned below); the lane asserts it drained, not
+/// that it fit a tight budget.
+const CHARACTER_LANE_DRAIN_BUDGET_MS: u64 = 1_500_000;
+
 /// Conservative resolution of SD-R8-F1's unspecified full-contract scale:
 /// use the spike's established evidence scale rather than proptest's 256-case
 /// default. The ignored run owns this declaration; ordinary fragment tests do
@@ -998,6 +1108,21 @@ fn full_contract_scale_reaches_every_fragment_closure_shape() {
     assert_eq!(1 + m7_phantom_burst + 1, 10);
     assert!(m7_post_phantom_queue > 10);
     assert!(m8_recovery_queue > 10);
+
+    // SD-R8-F5 lane reachability: the queue must cross the character burst
+    // window twice, and must exceed the character-list burst and sustained
+    // limits, so every lane run is forced through padded waits at the
+    // topology's tightest limits rather than passing while idle.
+    let character_lane_queue = CHARACTER_LANE_QUEUE;
+    assert!(
+        character_lane_queue > 2 * CHARACTER_BURST_HITS,
+        "the lane must cross two complete character burst windows"
+    );
+    assert!(character_lane_queue > 2 * CHARACTER_LIST_BURST_HITS);
+    assert!(
+        character_lane_queue > CHARACTER_LIST_SUSTAINED_HITS,
+        "the character-list lane must exceed its five-hit sustained window"
+    );
 }
 
 /// M10's Tom-approved prompt-cancellation bound. It is one harness tick,
@@ -1098,6 +1223,48 @@ fn m2_g4_minimum_is_runtime_derived_and_reaches_both_stalls() {
     );
 }
 
+/// SD-R8-F5 lane fingerprints, hand-derived from the padded greedy schedule
+/// over the independently declared character policies (boot HEAD at t=0,
+/// D5's 250 ms floor, N13 `period + bucket` lifetimes, final 81 ms service
+/// delay). Character-list's 720,581 ms shows twelve requests forced through
+/// both the 2-hit burst window and two full 5-hit/300 s sustained waves;
+/// character's 30,581 ms shows two complete 5-hit burst windows crossed.
+#[test]
+fn character_lane_g4_minimums_are_runtime_derived_and_span_padded_waits() {
+    let config = MockConfig::n23(2, 0);
+    let definition = |name: &str| {
+        config
+            .policies
+            .iter()
+            .find(|definition| definition.name() == name)
+            .expect("N23 character policy")
+    };
+    assert_eq!(
+        m2_theoretical_padded_minimum_ms(
+            definition("character-list-request-limit"),
+            CHARACTER_LANE_QUEUE
+        ),
+        720_581
+    );
+    assert_eq!(
+        m2_theoretical_padded_minimum_ms(
+            definition("character-request-limit"),
+            CHARACTER_LANE_QUEUE
+        ),
+        30_581
+    );
+    assert!(
+        m2_theoretical_padded_minimum_ms(
+            definition("character-list-request-limit"),
+            CHARACTER_LANE_QUEUE
+        ) > m2_theoretical_padded_minimum_ms(
+            definition("character-list-request-limit"),
+            CHARACTER_LIST_SUSTAINED_HITS
+        ),
+        "the lane must wait on sustained-window capacity, not only bursts"
+    );
+}
+
 #[test]
 fn swept_phases_are_separated_by_a_full_bucket() {
     let burst = NonZeroU64::new(BURST_BUCKET_MS).unwrap();
@@ -1139,6 +1306,22 @@ async fn m1_m13_run_against_the_actor_and_the_judge() {
         run_m1_m13(phase_ms, ContractCoverage::Fragment).await;
         run_m1_residue_sweep(phase_ms).await;
         run_m8_oauth_lane(phase_ms, ContractCoverage::Fragment).await;
+        run_character_policy_lane(
+            Endpoint::CharacterList,
+            "character-list-request-limit",
+            809,
+            phase_ms,
+            ContractCoverage::Fragment,
+        )
+        .await;
+        run_character_policy_lane(
+            Endpoint::Character,
+            "character-request-limit",
+            810,
+            phase_ms,
+            ContractCoverage::Fragment,
+        )
+        .await;
     }
 }
 
@@ -1168,14 +1351,35 @@ fn run_full_contract_case(phase_ms: u64) {
     runtime.block_on(async move {
         let mut reports = run_m1_m13(phase_ms, ContractCoverage::FullContract).await;
         reports.push(run_m8_oauth_lane(phase_ms, ContractCoverage::FullContract).await);
+        reports.push(
+            run_character_policy_lane(
+                Endpoint::CharacterList,
+                "character-list-request-limit",
+                809,
+                phase_ms,
+                ContractCoverage::FullContract,
+            )
+            .await,
+        );
+        reports.push(
+            run_character_policy_lane(
+                Endpoint::Character,
+                "character-request-limit",
+                810,
+                phase_ms,
+                ContractCoverage::FullContract,
+            )
+            .await,
+        );
 
         let declaration = FullContractRun::declare(reports.clone()).unwrap_or_else(|error| {
             panic!("the run-owned FullContract declaration failed: {error:?}; reports={reports:#?}")
         });
         assert_eq!(
             declaration.reports().len(),
-            ScenarioId::ALL.len() + 1,
-            "all M rows plus M8's second provenance lane"
+            ScenarioId::ALL.len() + 3,
+            "all M rows plus M8's second provenance lane plus the two \
+             SD-R8-F5 character-policy lanes"
         );
         assert!(
             declaration
@@ -1197,9 +1401,10 @@ proptest! {
 
     /// The run's first authority: each generated configuration produces a
     /// mechanically declared `FullContract` M1-M13 report set, including
-    /// both the OAuth Known and shipped legacy Assumed lanes. The clause
-    /// registry is intentionally not consulted here; it is the independent
-    /// second authority used only after this run lands.
+    /// both the OAuth Known and shipped legacy Assumed lanes and the
+    /// SD-R8-F5 character-policy lanes over every routed endpoint. The
+    /// clause registry is intentionally not consulted here; it is the
+    /// independent second authority used only after this run lands.
     #[test]
     #[ignore = "4,096-case full-contract generated-phase run; explicit review evidence"]
     fn full_contract_m1_m13_mock_judged_suite_declares_full_contract(

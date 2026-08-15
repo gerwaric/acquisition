@@ -3,7 +3,7 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use crate::mock::model::MAX_REQUESTS_PER_RUN;
-use crate::mock::{MockStateChange, Observation};
+use crate::mock::{Endpoint, MockStateChange, Observation};
 
 pub const G3_EPSILON_MS: u64 = 500;
 pub const MAX_SWEEP_CONFIGURATIONS: usize = 256;
@@ -279,6 +279,11 @@ pub struct ReproductionRecord {
     pub seed: u64,
     pub phase_ms: u64,
     pub client_buckets: ClientBucketProfile,
+    /// The lane's routed endpoint — run-owned provenance, like
+    /// `client_buckets`. The full-contract declaration keys its
+    /// policy-coverage requirement to this field (SD-R8-F5): the verdict
+    /// claims every N23 policy, so the declaration must see every endpoint.
+    pub endpoint: Endpoint,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -522,6 +527,7 @@ pub enum FullContractDeclarationError {
     ReportNotVerdictEligible { scenario: ScenarioId },
     MissingM8KnownLane,
     MissingM8AssumedLane,
+    MissingEndpointLane { endpoint: Endpoint },
 }
 
 impl FullContractRun {
@@ -562,6 +568,22 @@ impl FullContractRun {
         }
         if !m8_lane(SHIPPED_ASSUMED_PROFILE) {
             return Err(FullContractDeclarationError::MissingM8AssumedLane);
+        }
+
+        // The verdict claims every policy in the N23 topology, so the
+        // declaration requires every routed endpoint to appear in some
+        // verdict-eligible report (SD-R8-F5). Without this, dropping the
+        // character-policy lanes — the topology's tightest limits — would
+        // still declare cleanly, the same silent-vanish shape as F4.
+        for endpoint in Endpoint::ALL {
+            let exercised = reports.iter().any(|report| {
+                report
+                    .reproduction
+                    .is_some_and(|record| record.endpoint == endpoint)
+            });
+            if !exercised {
+                return Err(FullContractDeclarationError::MissingEndpointLane { endpoint });
+            }
         }
 
         Ok(Self { reports })

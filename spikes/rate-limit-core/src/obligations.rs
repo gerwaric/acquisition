@@ -330,6 +330,33 @@ pub const CLAUSES: &[Clause] = &[
         }],
         note: "The 40-request run reaches burst and sustained padding; the independent minimum is runtime-derived, never a literal",
     },
+    Clause {
+        id: "m2-character-policy-lanes",
+        owner: "M2",
+        text: "The M2 saturation shape runs against both character policies \
+               — the topology's tightest limits — and the full-contract \
+               declaration requires every routed endpoint (scenarios.md, \
+               2026-08-15 SD-R8-F5 amendment)",
+        coverage: Coverage::Full,
+        citations: &[
+            Citation {
+                file: DRIVER,
+                test_fn: DRIVER_FN,
+                must_assert: "run_character_policy_lane over CharacterList \
+                              and Character at both coverage levels, both φ, \
+                              G1–G4 armed with the policy-generic oracle",
+            },
+            Citation {
+                file: "tests/conformance_harness.rs",
+                test_fn: "full_contract_declaration_requires_every_m_row_and_both_m8_lanes",
+                must_assert: "declare refuses a run missing a character \
+                              endpoint lane (SD-R8-F5)",
+            },
+        ],
+        note: "Character-list is 2/10 s burst and 5/300 s sustained: one \
+               mistimed request is a 50% budget error, the regime the F5 \
+               adjudication owes evidence for",
+    },
     // ── M3 — degraded HEAD (scenarios.md:205) ────────────────────
     Clause {
         id: "m3-header-parse-typed",

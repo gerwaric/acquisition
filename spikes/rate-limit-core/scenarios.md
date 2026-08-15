@@ -897,3 +897,27 @@ over φ:
 Lane bookkeeping: mock verdicts remain measured-against-model; the
 replay test is the piece that grounds the model in the observed
 lane (charter step 2).
+
+---
+
+## Amendment (Tom), 2026-08-15 — SD-R8-F5: character-policy lanes
+
+Adjudicating SD-R8-F5 (external closure audit; decision record in
+`result-draft.md` §9), the full-contract evidence extends to the two
+remaining Known-profile policies rather than narrowing the verdict's
+four-policy claim:
+
+- The M2 saturation shape runs as additional full-contract lanes
+  against `character-list-request-limit` (2 hits/10 s burst,
+  5 hits/300 s sustained — the topology's tightest limits) and
+  `character-request-limit` (5 hits/10 s burst), at both coverage
+  levels and both swept phases, judged by the same policy-generic
+  padded-safe oracle and G4 minimum arithmetic as the main M2 row.
+- The run-owned full-contract declaration requires every routed N23
+  endpoint to appear in a verdict-eligible report, so this coverage
+  cannot silently vanish — the same guard principle as the SD-R8-F4
+  repair keying M8's lanes to M8.
+- No M-row definition above changes; the lanes reuse M2's contract
+  semantics against different policies. This amendment is appended
+  rather than inlined so the registry's cited line numbers above it
+  stay stable.
