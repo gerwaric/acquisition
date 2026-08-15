@@ -63,7 +63,12 @@ end-to-end mutation is refused (`ReproductionMismatch { id: 1 }`).
 The binding also caught and fixed two real M9 label errors. The
 repeated independent re-close review reproduced both authorities and
 all three refusal mutations, found no new findings, and restored
-verdict readiness (§2, `result-draft.md` §9).
+verdict readiness (§2, `result-draft.md` §9). **The final external audit
+then reopened that agreement with SD-R8-F11/F12:** both the pinned
+declaration and the structural registry pass when the CharacterList
+report is carried by M5 instead of its required M2 lane, and when the M8
+actor is configured Assumed while its reproduction record claims Known.
+The registry totals remain accurate; verdict readiness is suspended.
 `obligation-map.md`
 is the superseded prose ancestor; read its §8 for the audit's
 discrepancy analysis (dated at `e2034807`), never for current
@@ -71,7 +76,7 @@ coverage.
 
 ## 2. Slice and review state
 
-- **Closed: scenario-driver slice** (M1–M13 driver/judge
+- **Open: scenario-driver slice** (M1–M13 driver/judge
   integration; closed with SD-R8 on 2026-08-15, then **reopened
   the same day by the external no-context audit of the closure**
   — the round history follows).
@@ -177,20 +182,32 @@ coverage.
   migration diffs retain the prior re-close review's no-finding result.
   Closure entry in `result-draft.md` §9; the hand-off is historical
   again. The spike remains open only on the F6 delivery gate.
+  **The F6 final external audit ran 2026-08-15 and reopened SD-R8 with
+  SD-R8-F11–F20; do not deliver.** F11/F12 are high declaration-chain
+  bypasses reproduced against both authorities. F13–F18 are migration-
+  package overclaims or incomplete carriage, and F19/F20 are defects in
+  the N31/N32 transcriptions. The committed debug/release/4,096-property
+  matrix, both declarations, obligations, exhaustive replay, clippy,
+  fmt, sanitizer, and diff checks all remained green; the audit's point
+  is that green machinery does not establish the claims as written.
+  Both verdict fills are suspended, the scenario-driver hand-off is live
+  again, and delivery waits on repair, re-close, and a repeated final
+  audit. Full evidence and proposed dispositions are in
+  `result-draft.md` §9.
 - Every other slice (core, bootstrap, mock, actor, clause registry,
   doc split) is closed; their hand-offs are historical records.
   (Doc split closed 2026-08-13, DS-R1 — `result-draft.md` §9.)
 
 ## 3. Open decisions (Tom)
 
-None. Every Tom-routed SD-R8 audit finding is dispositioned. Tom ratified
-the F7 O-series carriage on 2026-08-15 (plain-English form, his
-requested rewrite); it is part of both verdict statements in
-`result-draft.md` §1. The repeated re-close review has **restored both
-verdict slots** after independently validating F9/F10. The scoreboard: F4
-repaired, F5 extended and landed, F6 gated-hoist recorded, F7
-repaired and ratified, F8 discharged, F9 repaired and mutation-verified,
-F10 repaired and review-accepted.
+Two scope choices from the final audit need Tom. **F14** corrects the O5
+sentence in carriage Tom ratified: the evidence says skew sensitivity was
+not observed and the re-entry trigger has not fired. **F16** requires a
+choice between narrowing the reusable-artifact claim to a foundation that
+still needs a standalone/client-neutral adapter, or building that adapter
+before delivery. F11–F13, F15, and F17–F20 have evidence-preserving repair
+shapes recorded in `result-draft.md` §9 and do not otherwise need a new
+contract decision.
 
 Decided 2026-08-15: **SD-R8-F6 — complete via gated hoist; the
 spike ends with a PR** (Tom; full record in `result-draft.md`
@@ -246,11 +263,11 @@ ratification record is in `result-draft.md` §9. (Both earlier
 
 ## 4. Blocked
 
-Nothing is externally blocked. SD-R8 and the scenario-driver slice
-are re-closed, and the verdicts are restored. The remaining path is:
-final external adversarial audit
-(`final-audit-charge.md`) → the two delivery PRs. Each step waits
-only on the one before it.
+Delivery is blocked on the final-audit findings. SD-R8 and the
+scenario-driver slice are open, both verdict fills are suspended, and the
+migration drafts are not accepted. F14/F16 await Tom's scope decisions;
+then repairs, authority reruns, a fresh four-part hand-off, independent
+re-close, and a repeated final audit precede either delivery PR.
 
 ## 5. Next work
 
@@ -265,6 +282,18 @@ claimed: the spike is not concluded.
 Reopened SD-R8 work (audit and re-close-review entries,
 `result-draft.md` §9):
 
+- **Final-audit F11/F12 authority repairs:** bind both character
+  endpoints to M2 in the declaration, and bind M8's claimed bucket
+  profile to the actor configuration; add the two audit bypasses as
+  negative pins, rerun the pinned/4,096 declarations and obligations,
+  and update all four hand-off parts.
+- **Final-audit F13–F18 package repairs:** correct the universal mock
+  claim, the false O5 skew statement, the registry-verification wording,
+  the reusable-artifact readiness claim, the external claim lanes, and
+  G1–G6/G3/G4 carriage. F14/F16 wait on §3 decisions.
+- **Final-audit F19/F20 ground-truth repairs:** carry B3's half-open and
+  exclusive-expiry conventions into N31; narrow N32 to ordinary front
+  dispatch and probe writer scanning; mirror both in the topic.
 - ~~**F4 repair**~~ — **done 2026-08-15**: declare's profile
   guard keyed to M8, negative test pins the audit's exact state
   (accepted before, `MissingM8KnownLane` now), `m8-both-lanes`
@@ -311,10 +340,11 @@ Reopened SD-R8 work (audit and re-close-review entries,
      2026-08-15 with no new findings**; F9/F10 validated, both
      authorities and all three mutations reproduced, verdict fills
      restored (`result-draft.md` §9).
-  3. **Next: the final external adversarial audit** —
-     `final-audit-charge.md` holds the standing charge; its
-     object includes both migration diffs.
-  4. The two delivery PRs (`spike/rate-limit-core` → `redesign`;
+  3. ~~**Final external adversarial audit**~~ — **ran 2026-08-15 and
+     reopened SD-R8 with F11–F20; package not deliverable.**
+  4. Repair and independently re-close the reopened round, then repeat
+     `final-audit-charge.md` over the repaired tree and both diffs.
+  5. The two delivery PRs (`spike/rate-limit-core` → `redesign`;
      CN docs → `master`). **F6 — and the spike — complete at
      landing.**
 

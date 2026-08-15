@@ -1,6 +1,15 @@
 # Scenario-driver and safety-closure hand-off
 
-Status: **closed — the repeated independent SD-R8 re-close review
+Status: **open — the 2026-08-15 final external audit found
+SD-R8-F11/F12 in the declaration chain and reopened the slice.** F11
+shows the character-policy requirement is endpoint-only rather than
+bound to its required M2 saturation lane. F12 shows M8's bucket-profile
+provenance is a run-owned label unbound to the profile that configured
+the actor. Both bypass mutations passed the pinned declaration and the
+obligations verifier. The repair session owes a fresh four-part packet;
+live dispositions are in `status.md` and `result-draft.md` §9.
+
+Prior status: **closed — the repeated independent SD-R8 re-close review
 accepted the reopened-range four-part packet on 2026-08-15 with no
 new findings.** The reviewer validated F9/F10, reproduced both
 authorities and the exact F4/F5/F9 mutations, and restored both

@@ -139,6 +139,20 @@ F4/F5/F9 mutations now refuse as `MissingM8KnownLane`,
 verdict slots above are refilled. SD-R8 and the scenario-driver slice
 are closed; the next F6 gate is the final external audit.]*
 
+*[Final external audit marker, 2026-08-15, same day: **the F6 gate's
+final audit reopened SD-R8 with findings SD-R8-F11–F20 (§9).** Both
+verdict fills are suspended again, not erased. F11 and F12 reproduce
+two states in which the pinned declaration and structural obligations
+verifier both pass while required evidence provenance is false: the
+character endpoint is carried by M5 instead of its required M2 lane,
+and M8 runs an Assumed-profile actor while its record claims Known.
+F13–F18 find overclaim and incomplete scope/claim-lane carriage in the
+consumer package; F19/F20 find two inaccurate CN transcriptions. The
+committed verification matrix remains green, but the close and package
+do not stand. Refilling requires dispositions, repaired authorities and
+migration drafts, a fresh four-part packet and independent re-close, and
+a repeated final audit. `status.md` is live state.]*
+
 **O-series carriage (SD-R8-F7) — ratified by Tom, 2026-08-15; part
 of both verdict statements:**
 
@@ -3409,3 +3423,144 @@ hoistable to its own repository without surgery.
   contacted. SD-R8 and the scenario-driver slice are closed; the spike
   remains open on F6 until the final external audit and both delivery
   PRs complete.
+
+- 2026-08-15 — **The final external adversarial audit reopened SD-R8
+  with SD-R8-F11–F20; verdict: reopen, do not deliver.** The audit
+  covered the committed reopened range `f6e024dc^..af9c829a`, both
+  migration diffs, and the two delivery claims. It re-derived the
+  consumer topic sentence by sentence from this result record, checked
+  U1–U5 and O1–O8 carriage, compared N27–N32 on
+  `rate-limit-core-ground-truth` with CN1–CN6 and their cited committed
+  sources, walked the declaration/judge/registry chain, and reproduced
+  the full offline matrix. No network or live service was contacted.
+
+  **SD-R8-F11 (high) — the F5 declaration guard requires a character
+  endpoint somewhere, not the required M2 character-policy lane.** The
+  `m2-character-policy-lanes` clause and the F5 landing record require
+  the M2 saturation shape against both character policies, but
+  `FullContractRun::declare` checks `Endpoint::ALL` independently of
+  scenario identity. Audit mutation: the seed-809 CharacterList report
+  kept its real CharacterList wire traffic but changed its scenario
+  identity from M2 to phase-swept M5. The pinned declaration passed and
+  `cargo test --locked --test obligations` passed 6/6. Thus the two
+  authorities agree after the M2 CharacterList lane has vanished; the
+  existing negative test removes all CharacterList reports and cannot
+  see this bypass. Proposed disposition: require the explicit
+  `(M2, CharacterList)` and `(M2, Character)` pairs in the declaration,
+  pin both wrong-scenario bypasses, rerun both authorities, and carry the
+  repair into the four-part hand-off.
+
+  **SD-R8-F12 (high) — M8 profile provenance is still an unbound
+  run-owned label.** `run_m8_oauth_lane` normally reuses one local
+  `profile` for `engine(profile)` and
+  `ReproductionRecord.client_buckets`, but `judge` binds only seed,
+  phase, and endpoint to mock observations. Audit mutation: the M8 actor
+  was configured with `SHIPPED_ASSUMED_PROFILE` while the reproduction
+  record remained `OAUTH_KNOWN_PROFILE`. The pinned declaration passed
+  and obligations passed 6/6, so `MissingM8KnownLane` trusts a label
+  that need not describe the client exercised. Proposed disposition:
+  make the configured client bucket profile an independently bound
+  evidence fact (or construct report provenance from an unforgeable
+  run configuration), pin the split-profile mutation, and rerun both
+  authorities before refilling either verdict.
+
+  **SD-R8-F13 (medium) — the O-series opening falsely says every test
+  used the in-process mock and simulated time.** The statement appears
+  in the ratified §1 carriage and the consumer topic. C1–C5/X1–X2 also
+  include direct property, parser, fault-injection, and source-structure
+  tests; `tests/c2_headers.rs`, for example, invokes the parser directly.
+  This document's §2 explicitly distinguishes those test lanes. The
+  no-live-traffic conclusion is true; the universal instrument claim is
+  not. Proposed disposition: restrict the sentence to the M-series and
+  mock-judged wire evidence while preserving the no-network scope.
+
+  **SD-R8-F14 (medium) — O5 claims skew-sensitivity evidence that the
+  evidence record explicitly says does not exist.** The topic and
+  ratified §1 block say C1 shows the arithmetic is sensitive to clock
+  skew. The C1 result row says no skew sensitivity was observed because
+  the slice has no server-clock input, and the `o5-date-skew` registry
+  note says the re-entry trigger has not fired. `scenarios.md` §7.3
+  carries the same stale trigger. Proposed disposition: correct all
+  three source/consumer locations to say skew remains untested; because
+  the wording Tom ratified is touched, record his acceptance of the
+  corrected carriage before refilling.
+
+  **SD-R8-F15 (medium) — the package describes the registry as
+  semantically verifying Full coverage.** The verdict and topic say the
+  registry “verifies every prerequisite clause Full.” Its tests verify
+  registry structure, declared coverage labels, citation arity, cited
+  function-name existence, and the open-set match; they do not prove
+  `must_assert` semantics. That limitation is explicit in
+  `registry-handoff.md` §3 and this document's earlier audit entries.
+  F11/F12 demonstrate the consequence: obligations stays green through
+  semantic bypasses. Proposed disposition: say the independently edited
+  registry *records* the prerequisites Full and its structural verifier
+  passes, with semantic accuracy prose-reviewed; audit every affected
+  result/topic/status sentence for the broader wording.
+
+  **SD-R8-F16 (medium) — the reusable-artifact package overstates
+  cross-client acceptance readiness.** §8 and the topic call the mock
+  plus M-series an acceptance suite any future limiter, including the
+  C++ client, can pass through a standalone delivery shim. The current
+  driver directly imports and spawns the Rust actor, consumes
+  `GateHandle`/`RequestTicket`, Tokio paused time, and the in-process
+  `MockService`; no standalone HTTP shim or client-neutral driver exists.
+  `scenarios.md` describes wrapping the counter engine in such a server
+  as a future delivery-shim job. Proposed disposition: either narrow the
+  delivered claim to a reusable foundation and name the adapter work, or
+  build and verify the standalone/client-neutral layer; route that scope
+  choice to Tom because the migration-package charge required the
+  cross-client acceptance claim.
+
+  **SD-R8-F17 (low) — the verdict paragraphs misclassify external model
+  premises as measured.** The topic promises External claims carry their
+  source and retrieval date at point of use, then labels the verdicts only
+  “Measured against model” while embedding N12's bucket resolutions and
+  N14/N21's lack-of-upper-bound premise. Proposed disposition: separate
+  the offline measured outcome from the external/private-correspondence
+  premises and label/cite each with the provenance actually available.
+
+  **SD-R8-F18 (medium) — the consumer verdict omits gate-level scope.**
+  The topic says the run covered M1–M13 but does not state G1–G6 were
+  green and omits the finalized G3 epsilon (500 ms) and G4 multiplier
+  (1.05×), although §1 makes the gates verdict prerequisites and records
+  those tolerances as finalization conditions. Proposed disposition:
+  carry G1–G6 and the two numeric tolerances into the consumer evidence
+  basis so “honors” cannot be read with unstated acceptance thresholds.
+
+  **SD-R8-F19 (medium) — N31 incompletely transcribes the exact B3
+  boundary model it cites.** N31 says timestamps round up to the bucket
+  end and entries are not quantized, but B3's ratified amendment also
+  pins half-open buckets (a grid-point arrival takes the full following
+  bucket) and exclusive expiry (an entry expiring exactly at arrival is
+  not counted). N31 is specifically about exact boundary semantics, so
+  omitting both conventions leaves the model ambiguous at the edge where
+  §7.4's tables move by 1 ms. Proposed disposition: transcribe both
+  conventions explicitly in N31 and mirror the corrected summary in the
+  topic; preserve the claim's model-choice, not-server-fact lane.
+
+  **SD-R8-F20 (medium) — N32 falsely says the dispatch loop reads only
+  `queue.front()`.** `Actor::schedule` first calls `pending_probe()`,
+  which scans the whole deque and may dispatch a later unknown endpoint's
+  HEAD under writer preference; only ordinary GET selection reads/pops
+  the front. N32's next sentence acknowledges out-of-arrival-order writer
+  preference. The single-deque/cheap-reorder conclusion can stand after
+  the mechanism is narrowed. Proposed disposition: state that ordinary
+  dispatch is front-only while probe writer selection scans the global
+  deque, in CN6, N32, and the consumer summary.
+
+  Restored-tree verification, entirely offline: `cargo test --locked`
+  172 passed / 0 failed / 3 ignored; release 170 / 0 / 3;
+  `PROPTEST_CASES=4096 cargo test --locked` 172 / 0 / 3; pinned
+  declaration 1/1; explicit ignored 4,096-case declaration 1/1 in
+  306.11 s; obligations 6/6; both ignored §7.4 release tests 2/2 in
+  7.79 s; sanitizer 4/4; all-target clippy with warnings denied, fmt,
+  the spike diff check, and the ground-truth migration diff check clean.
+  The advertised F4/F5/F9 mutations refused exactly as
+  `MissingM8KnownLane`,
+  `MissingEndpointLane { endpoint: CharacterList }`, and
+  `ReproductionMismatch { id: 1 }`, then were reverted. The F11/F12
+  bypass mutations and their 6/6 obligations runs were also reverted;
+  the restored pinned declaration reran green and the tree was clean
+  before this audit record was written. The green machinery stands as
+  reproducible evidence, but the close and migration package do not.
