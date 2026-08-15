@@ -1,10 +1,12 @@
 # Scenario-driver and safety-closure hand-off
 
-Status: **open — implementation is review-ready for round five
-(2026-08-14); awaiting independent review.** Do not close this slice
-from the implementation session. Rounds one–four and their findings
-remain in `result-draft.md` §9. F14–F16 are fixed in this packet; no
-run declares `FullContract`, and no verdict slot was filled.
+Status: **open — round-five findings SD-R5-F2..F15 repaired
+(2026-08-14, same-day repair session); awaiting independent
+re-review.** Do not close this slice from the implementing or
+repairing session. Rounds one–four and their findings remain in
+`result-draft.md` §9; the round-five dispositions are its 2026-08-14
+repair entry. F14–F16 are fixed in this packet; no run declares
+`FullContract`, and no verdict slot was filled.
 
 ## 1. Silences taken
 
@@ -148,6 +150,18 @@ coincidence.
 - The OAuth/Assumed profile correction is recorded as SD-R5-F1
   because it was an evidence-validity defect found during integration,
   not a silent cleanup.
+- (Repair session, 2026-08-14:) the focused M5/M6/M8 transition lanes
+  now run under the Known profile too (SD-R5-F4) — every asserted
+  bound is profile-invariant because the shared 60 s sustained
+  resolution governs each one, verified by rerun. The remaining
+  Assumed-engined focused targets (`actor_safety`, `actor_shell`) are
+  deliberately unchanged pending Tom's profile-lane ratification
+  (status.md §3 decision 2): their bounds are equally
+  profile-invariant, and churning them ahead of the statement risks
+  encoding another silent convention.
+- (Repair session, 2026-08-14:) the supplemental VPN median (148 ms)
+  is now test-grounded rather than prose-only, which is also what
+  exposed the parser item-cap miscalibration (SD-R5-F12).
 
 ## 5. Verification presented with this packet
 

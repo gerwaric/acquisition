@@ -46,14 +46,15 @@ coverage.
 
 ## 2. Slice and review state
 
-- **Open: scenario-driver slice** (M1–M13 driver/judge integration),
-  **review-ready for round five**. F14–F16 are fixed: the twin M8
-  arms share the full guard and non-verdict check, the D5/floor
-  literals come from their authorities, and the oracle fallback is
-  fail-closed. The 2026-08-14 implementation swarm also landed the
-  ballot work listed in the prior status revision; it has not been
-  independently reviewed and the slice is not closed. Its hand-off,
-  `scenario-driver-handoff.md`, is the live four-part review packet.
+- **Open: scenario-driver slice** (M1–M13 driver/judge integration).
+  The round-five independent review returned findings SD-R5-F2
+  through SD-R5-F15; the 2026-08-14 repair session validated all
+  fifteen (none invalid) and fixed them — dispositions,
+  commits, and doc findings in `result-draft.md` §9's 2026-08-14
+  repair entry. **The round is not closed**: the repaired packet
+  awaits independent re-review, and no verdict slot was filled.
+  `scenario-driver-handoff.md` remains the live four-part review
+  packet, updated in place by the repair.
 - Every other slice (core, bootstrap, mock, actor, clause registry,
   doc split) is closed; their hand-offs are historical records.
   (Doc split closed 2026-08-13, DS-R1 — `result-draft.md` §9.)
@@ -109,9 +110,10 @@ verdict are blocked on decision 1. No live-service input is needed.
 The 2026-08-13 ballot remains closed; this is the exact residual
 set after the implementation swarm.
 
-1. Independent round-five review of `scenario-driver-handoff.md`;
-   do not flip its status or close the slice in the implementation
-   session.
+1. Independent re-review of the repaired round-five packet
+   (`scenario-driver-handoff.md` plus the 2026-08-14 repair entry);
+   do not flip its status or close the slice from the implementing
+   or repairing session.
 2. **Ballot G** — build the forced M9 phantom race at 14/15. It
    discharges `m9-recovery-survives-race`,
    `m9-race-exposure-attribution`, and the last scripted arm of

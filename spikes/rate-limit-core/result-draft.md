@@ -1851,6 +1851,134 @@ outlives the spike branch; record what exists and where.⟩
   See the 2026-08-14 repair entry and `VIOLATING_BANDS` in
   `tests/capture_replay.rs`.]*
 
+- 2026-08-14 — **round-five repair session: all fifteen independent-
+  review findings validated and dispositioned; review not closed, no
+  verdict slot filled, no status flipped to closed.** Every finding
+  was independently reproduced against the repository before any
+  change; none was invalid. Commits `3e82a963..` (this entry's
+  commit closes the series). Dispositions:
+
+  - **SD-R5-F2 (HIGH) — valid, fixed** (`3e82a963`). Reproduced
+    exactly before any change: 1,052 violating phases in 20 bands,
+    matching the reviewer to the digit; the recorded single-band
+    claim was the asserting gate's first-failure abort. The band
+    table is pinned (`VIOLATING_BANDS`), the active band-edge test
+    covers all 40 edges plus clean neighbors and the 1,052-phase
+    accounting, an ignored exhaustive enumeration proves nothing
+    violates outside the table, and the four documents carrying the
+    understated claim are amended (dated text kept under markers).
+    The gate itself is untuned and still fails at φ=7,454/reply 110.
+    Whether the 19 further bands were known to the implementation
+    session remains undeterminable from the record.
+  - **SD-R5-F3 (HIGH) — valid, fixed** (`ec147f96`). The driver now
+    builds its per-row profile set through `SweepPlan::new` and takes
+    its seeds from the plan, so losing the last shipped-Assumed row
+    fails structurally; the `u3-legacy-resolution` note states the
+    real guard chain. Profile-lane assignment itself is a recorded
+    doc silence for Tom (status.md §3 decision 2).
+  - **SD-R5-F4 (MEDIUM) — valid, fixed** (`e135b139`). The focused
+    M5/M6/M8 transition lanes run under `OAUTH_KNOWN_PROFILE`; every
+    asserted bound was derivation-checked as profile-invariant (the
+    shared 60 s sustained resolution governs each) and the tests
+    pass under the corrected profile, so the Full evidence for
+    `m5-stale-window-exposure`, `m5-no-violation-after-merge`, and
+    `m6-preannouncement-exposure` now comes from the bound lane's
+    own pacing. Remaining Assumed-engined focused targets are
+    deliberately unchanged pending decision 2.
+  - **SD-R5-F5 (MEDIUM) — valid, fixed** (`acf22cdb`). The
+    tautological `contains` is concat!-split; the send count keys on
+    the receiver, not the argument name, and was demonstrated to
+    detect a second textual send site. The pinned claim itself was
+    re-verified true (one production send site).
+  - **SD-R5-F6 (MEDIUM) — valid, fixed** (`5f5da2d7`). The oracle
+    trait returns `Option<u64>`; the judge owns the single
+    fail-closed branch; the convention is documented on the trait;
+    `g3_fails_closed_when_the_oracle_has_no_eligibility_entry` is
+    the exposing test. The `u64::MAX` sentinel no longer exists.
+  - **SD-R5-F7 (MEDIUM) — valid, fixed** (`e135b139`). The M6 judge
+    arm's `passed` is measured from the same wire facts as its raw
+    asserts; the boot row anchors at the scripted t=0 instead of its
+    own dispatch.
+  - **SD-R5-F8 (MEDIUM) — valid, fixed** (`31d6fcfb`). The median
+    test asserts `DEFAULT_SERVICE_DELAY` equals the computed fixture
+    median; the two 81s are now one anchored fact.
+  - **SD-R5-F9 (MEDIUM-LOW) — valid, fixed** (`14928996`). New test
+    drives `schedule()` into `start_ordinary`'s trip branch;
+    mutation-checked in a scratch copy for both loss modes (lost
+    caller resolution, lost rollback). Confessed in the hand-off.
+  - **SD-R5-F10 (LOW-MEDIUM) — valid, fixed** (`23f422cc`).
+    `m1-g1-sweep` co-cites C1's generated-φ property with an
+    ownership note; the contradiction between the two evidence rows
+    is gone.
+  - **SD-R5-F11 (LOW-MEDIUM) — valid, fixed** (`23f422cc`).
+    `s7-4-replay-gate` minted (owner `§7.4`, a deliberate one-off
+    like SHELL), Partial, citing the failing gate and both new
+    tests; registry totals 123 = 97 Full / 12 Partial / 1 Untested /
+    13 Excluded.
+  - **SD-R5-F12 (LOW) — valid, fixed** (`31d6fcfb`). All four parser
+    bounds pinned at n/n+1; the byte cap enforced at the single
+    `bounded_parse` seam with its embedding limitation documented;
+    `MAX_JSON_ITEMS` recalibrated 10,000 → 32,768 with derivation
+    (the old cap sat below the committed VPN fixture's 15,804
+    nodes — scratch-verified that the new VPN test fails under it).
+  - **SD-R5-F13 (LOW) — valid, fixed** (`31d6fcfb`). The 43/43
+    diagnostic carries the required "pinned as current behavior"
+    provenance and states it does not substitute for the gate; its
+    asserts carry φ/reply reproduction context.
+  - **SD-R5-F14 (LOW) — valid, fixed** (`e135b139`, `83191310`).
+    Bare 250/61,000/120,000/20,000s replaced by named
+    contract-arithmetic constants with N19/N13/D5 derivations; both
+    `D5_IN_FLIGHT_CAP` constants document the deliberate
+    judge-independence, with `d5_in_flight_cap_restatements_agree`
+    as the drift tripwire (a declaration-consistency check, not an
+    oracle).
+  - **SD-R5-F15 (LOW) — valid, fixed across the series.** Refusal
+    causes pinned at the discriminating level in `actor_safety`
+    (escalation vs. parse vs. unexpected-shape); the m4 watch
+    clause's note states the doc silence instead of overclaiming;
+    the compile_fail doctest pinned to E0603; the C3 latch comment
+    describes the actual mechanism; `scenarios.md` §7.4 carries a
+    supersession marker beside the stale July 18 fixture text; the
+    supplemental VPN median (148 ms) is test-grounded. The fixture
+    loader's schema accessors still panic test-locally by design —
+    the *parser* is the refusing layer — and the hand-off no longer
+    implies otherwise.
+
+  **Doc findings recorded (conservative readings taken, next-call
+  consequences traced):**
+  (a) *M4 watch-status content* — scenarios.md M4 requires "status
+  published on the watch channel" but never says what the snapshot
+  must contain; `GateStatus` has no cooldown representation.
+  Conservative reading: the drained, non-halted, non-probing
+  snapshot discharges the clause. Next-call consequence: a new
+  submission on the cooled endpoint is refused with the recorded
+  parse cause (now pinned) until the 60 s cooldown expires, after
+  which the endpoint re-probes — no wedge.
+  (b) *Profile-lane assignment* — the frozen docs bind the shipped
+  client default but are silent on which client profile each test
+  lane's engine must build. Conservative reading applied where
+  evidence claims changed: OAuth-endpoint lanes use Known, legacy
+  lanes Assumed, shipped default structurally retained. Next-call
+  consequence: none at runtime (test-harness configuration only);
+  flagged as status.md §3 decision 2 rather than settled silently.
+
+  **Proportional verification (exact results):**
+  `cargo test --locked` — 159 passed, 0 failed, 2 ignored (the §7.4
+  gate and the exhaustive enumeration). `cargo test --locked
+  --release` — 157 passed, 2 ignored (the two debug-only drop-bomb
+  cases absent, as previously recorded). `PROPTEST_CASES=4096 cargo
+  test --locked` — 159 passed. `cargo clippy --locked --all-targets
+  -- -D warnings` green; `cargo fmt --all --check` clean;
+  `git diff --check` clean; `python3 -m unittest discover -s tests
+  -p 'test_sanitize_capture.py'` — 4 passed. Explicitly running the
+  ignored pair in release: the exhaustive enumeration **passes**
+  (6.8 s) and the untuned gate **fails as expected** at φ=7,454,
+  reply 110, `stash-request-limit` 31/30, restriction 301 s, with
+  its full reproduction record. No live service was contacted; no
+  verdict slot was filled; the hand-off status line still reads
+  awaiting independent review (re-review of this repair packet is
+  the next act).
+
   Proportional verification: `cargo test --locked` green (154 passed,
   one intentionally ignored); `cargo test --locked --release` green
   (152 passed, one intentionally ignored; two debug-only drop-bomb

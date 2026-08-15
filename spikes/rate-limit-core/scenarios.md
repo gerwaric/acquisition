@@ -803,6 +803,14 @@ enters under the §4 contract. The replay test drives the capture's
 *relative dispatch timestamps* through the mock's counters, swept
 over φ:
 
+> *[Marker, 2026-08-14 (SD-R5-F15): the July 18 / 132-record fixture
+> named above was anticipated at drafting and never landed; the
+> fixtures that actually entered are the 2026-08-14 wired capture
+> (387 records, canonical) and the 2026-08-13 VPN capture
+> (supplemental). The substitution is authorized and recorded in
+> `result-draft.md` §5 and its 2026-08-14 changelog entry; the dated
+> text above is preserved, not rewritten.]*
+
 - **Initialization** (external Q&A, 2026-08-09): replay seeds the
   mock's counters from the capture's boot-HEAD state headers via
   the core-design reconciliation mechanism (phantoms at t₀,
