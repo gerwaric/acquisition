@@ -12,35 +12,130 @@ use std::time::Duration;
 
 use http::{HeaderMap, HeaderValue, Method, StatusCode};
 use proptest::prelude::*;
-use rate_limit_core::actor::{
-    GateError, GateHandle, RequestTicket, spawn, with_correlation_header,
-};
+use rate_limit_core::actor::{GateError, GateHandle, RequestTicket, with_correlation_header};
 use rate_limit_core::conformance::{
-    ClientBucketProfile, ContractCoverage, FullContractRun, Gate, ReproductionRecord, RunEvidence,
-    RunReport, SHIPPED_ASSUMED_PROFILE, ScenarioAssertion, ScenarioId, ScenarioOracle,
-    SweepConfiguration, SweepPlan, judge, scenario,
+    ClientBucketProfile, ContractCoverage, FullContractRun, Gate, RunReport,
+    SHIPPED_ASSUMED_PROFILE, ScenarioId, ScenarioOracle, SweepConfiguration, SweepPlan, judge,
 };
-use rate_limit_core::core::{BucketModel, EndpointLabel, PolicyEngine, Resolution};
+use rate_limit_core::core::EndpointLabel;
 use rate_limit_core::mock::model::{
     PolicyDefinition, RuleDefinition, WindowDefinition, first_bucket_boundary_ms,
 };
 use rate_limit_core::mock::{
     CORRELATION_HEADER, DEFAULT_SERVICE_DELAY, Endpoint, ExchangeScript, MockConfig,
-    MockController, MockService, MockStateChange, MockStateChangeKind, ResponseOverride, request,
+    MockController, MockStateChange, MockStateChangeKind, ResponseOverride, request,
 };
 
-fn engine(profile: ClientBucketProfile) -> PolicyEngine {
-    let resolution = |millis| {
-        if profile == SHIPPED_ASSUMED_PROFILE {
-            Resolution::Assumed(Duration::from_millis(millis))
-        } else {
-            Resolution::Known(Duration::from_millis(millis))
-        }
+/// SD-R8-F12: the single run-configuration source. The final external audit
+/// forged a state in which the M8 actor ran under `SHIPPED_ASSUMED_PROFILE`
+/// while its reproduction record still claimed `OAUTH_KNOWN_PROFILE`, and
+/// both authorities passed — the record's profile was a run-owned label
+/// unbound to the engine actually exercised. Per the recorded repair
+/// approach (`result-draft.md` §9: by construction, not by check), the
+/// engine the actor runs and the provenance the reproduction record claims
+/// now flow from one `Lane` value: the fields are private to this module,
+/// `Lane::start` is the driver's only engine-construction and spawn path,
+/// and `Lane::evidence` is the only place a `ReproductionRecord` is built —
+/// all three pinned structurally by
+/// `f12_driver_has_one_engine_construction_and_one_provenance_path`.
+/// A split profile is unrepresentable outside this module; editing the
+/// module itself remains the recorded residual trust surface (the wire
+/// cannot distinguish the M8 profiles, so no judge-side check can replace
+/// this construction binding).
+mod lane {
+    use std::time::Duration;
+
+    use rate_limit_core::actor::{GateHandle, spawn};
+    use rate_limit_core::conformance::{
+        ClientBucketProfile, ContractCoverage, ReproductionRecord, RunEvidence,
+        SHIPPED_ASSUMED_PROFILE, ScenarioAssertion, ScenarioId, SweepKind, scenario,
     };
-    PolicyEngine::new(BucketModel::new(
-        resolution(profile.burst_ms),
-        resolution(profile.sustained_ms),
-    ))
+    use rate_limit_core::core::{BucketModel, PolicyEngine, Resolution};
+    use rate_limit_core::mock::{Endpoint, MockConfig, MockController, MockService};
+
+    pub struct Lane {
+        gate: GateHandle,
+        controller: MockController,
+        profile: ClientBucketProfile,
+        endpoint: Endpoint,
+    }
+
+    impl Lane {
+        /// The driver's sole engine-construction path: the profile that
+        /// builds the engine is the profile every later evidence record
+        /// claims, because both read the same private field.
+        pub fn start(profile: ClientBucketProfile, endpoint: Endpoint, config: MockConfig) -> Self {
+            let resolution = |millis| {
+                if profile == SHIPPED_ASSUMED_PROFILE {
+                    Resolution::Assumed(Duration::from_millis(millis))
+                } else {
+                    Resolution::Known(Duration::from_millis(millis))
+                }
+            };
+            let engine = PolicyEngine::new(BucketModel::new(
+                resolution(profile.burst_ms),
+                resolution(profile.sustained_ms),
+            ));
+            let (mock, controller) = MockService::new(config).expect("mock config is valid");
+            let gate = spawn(engine, mock);
+            Self {
+                gate,
+                controller,
+                profile,
+                endpoint,
+            }
+        }
+
+        pub fn gate(&self) -> &GateHandle {
+            &self.gate
+        }
+
+        pub fn controller(&self) -> &MockController {
+            &self.controller
+        }
+
+        /// The driver's sole reproduction-record constructor. Seed and phase
+        /// are read from the wire (and the judge binds them, with the
+        /// endpoint, to every observation — SD-R8-F9); the profile can only
+        /// be the one `start` built the engine from (SD-R8-F12).
+        pub async fn evidence(
+            &self,
+            id: ScenarioId,
+            coverage: ContractCoverage,
+            assertion_passed: bool,
+        ) -> RunEvidence {
+            let spec = scenario(id);
+            RunEvidence {
+                scenario: id,
+                reproduction: (spec.sweep == SweepKind::PhaseSwept).then_some(ReproductionRecord {
+                    seed: self
+                        .controller
+                        .observations()
+                        .await
+                        .first()
+                        .expect("wire run")
+                        .seed,
+                    endpoint: self.endpoint,
+                    phase_ms: self
+                        .controller
+                        .observations()
+                        .await
+                        .first()
+                        .expect("wire run")
+                        .phase_ms,
+                    client_buckets: self.profile,
+                }),
+                observations: self.controller.observations().await,
+                state_changes: self.controller.state_changes().await,
+                unavoidable_exposure: None,
+                assertions: vec![ScenarioAssertion {
+                    id: spec.required_assertion,
+                    coverage,
+                    passed: assertion_passed,
+                }],
+            }
+        }
+    }
 }
 
 fn wire_request(endpoint: Endpoint) -> rate_limit_core::transport::WireRequest {
@@ -186,45 +281,6 @@ impl ScenarioOracle for DriverOracle {
     }
 }
 
-async fn evidence(
-    controller: &MockController,
-    id: ScenarioId,
-    profile: ClientBucketProfile,
-    endpoint: Endpoint,
-    coverage: ContractCoverage,
-    assertion_passed: bool,
-) -> RunEvidence {
-    let spec = scenario(id);
-    RunEvidence {
-        scenario: id,
-        reproduction: (spec.sweep == rate_limit_core::conformance::SweepKind::PhaseSwept)
-            .then_some(ReproductionRecord {
-                seed: controller
-                    .observations()
-                    .await
-                    .first()
-                    .expect("wire run")
-                    .seed,
-                endpoint,
-                phase_ms: controller
-                    .observations()
-                    .await
-                    .first()
-                    .expect("wire run")
-                    .phase_ms,
-                client_buckets: profile,
-            }),
-        observations: controller.observations().await,
-        state_changes: controller.state_changes().await,
-        unavoidable_exposure: None,
-        assertions: vec![ScenarioAssertion {
-            id: spec.required_assertion,
-            coverage,
-            passed: assertion_passed,
-        }],
-    }
-}
-
 fn m8_fragment_passed(observations: &[rate_limit_core::mock::Observation]) -> bool {
     observations
         .iter()
@@ -293,8 +349,9 @@ async fn run_m1_m13(phase_ms: u64, coverage: ContractCoverage) -> Vec<RunReport>
         // apart for every row but M1, because 59_999 == -1 (mod 60_000).
         let mut config = MockConfig::n23(configuration.seed, configuration.phase_ms);
         config.dispatch_budget = 1_024;
-        let (mock, controller) = MockService::new(config).unwrap();
-        let gate = spawn(engine(profile), mock);
+        let lane = lane::Lane::start(profile, endpoint, config);
+        let gate = lane.gate().clone();
+        let controller = lane.controller().clone();
         let mut submitted_ms = Vec::new();
 
         // Each arm yields its scenario fragment's verdict rather than
@@ -724,15 +781,7 @@ async fn run_m1_m13(phase_ms: u64, coverage: ContractCoverage) -> Vec<RunReport>
             }
         };
 
-        let evidence = evidence(
-            &controller,
-            id,
-            profile,
-            endpoint,
-            coverage,
-            assertion_passed,
-        )
-        .await;
+        let evidence = lane.evidence(id, coverage, assertion_passed).await;
         // These rows accrue policy debt at full-contract scale. M7's phantom
         // changes are merged into the B13-derived arrivals below; M1's residue
         // preload is not observable there and therefore stays on its dedicated
@@ -798,7 +847,9 @@ async fn run_m1_m13(phase_ms: u64, coverage: ContractCoverage) -> Vec<RunReport>
 
 async fn run_m8_oauth_lane(phase_ms: u64, coverage: ContractCoverage) -> RunReport {
     let profile = rate_limit_core::conformance::OAUTH_KNOWN_PROFILE;
-    let (mock, controller) = MockService::new(MockConfig::n23(808, phase_ms)).unwrap();
+    let lane = lane::Lane::start(profile, Endpoint::Stash, MockConfig::n23(808, phase_ms));
+    let gate = lane.gate().clone();
+    let controller = lane.controller().clone();
     controller
         .script(
             2,
@@ -812,7 +863,6 @@ async fn run_m8_oauth_lane(phase_ms: u64, coverage: ContractCoverage) -> RunRepo
         )
         .await
         .unwrap();
-    let gate = spawn(engine(profile), mock);
     let mut submitted_ms = Vec::new();
     let request_count = if coverage == ContractCoverage::FullContract {
         M8_RECOVERY_QUEUE
@@ -840,15 +890,9 @@ async fn run_m8_oauth_lane(phase_ms: u64, coverage: ContractCoverage) -> RunRepo
     } else {
         served == 1 && m8_fragment_passed(&observations)
     };
-    let evidence = evidence(
-        &controller,
-        ScenarioId::M8,
-        profile,
-        Endpoint::Stash,
-        coverage,
-        assertion_passed,
-    )
-    .await;
+    let evidence = lane
+        .evidence(ScenarioId::M8, coverage, assertion_passed)
+        .await;
     let report = judge(
         &evidence,
         &independently_scripted_oracle(
@@ -883,8 +927,9 @@ async fn run_character_policy_lane(
     coverage: ContractCoverage,
 ) -> RunReport {
     let profile = rate_limit_core::conformance::OAUTH_KNOWN_PROFILE;
-    let (mock, controller) = MockService::new(MockConfig::n23(seed, phase_ms)).unwrap();
-    let gate = spawn(engine(profile), mock);
+    let lane = lane::Lane::start(profile, endpoint, MockConfig::n23(seed, phase_ms));
+    let gate = lane.gate().clone();
+    let controller = lane.controller().clone();
     let mut submitted_ms = Vec::new();
     let mut tickets = Vec::new();
     for _ in 0..CHARACTER_LANE_QUEUE {
@@ -905,15 +950,9 @@ async fn run_character_policy_lane(
         .count();
     let assertion_passed =
         served == CHARACTER_LANE_QUEUE && dispatched == CHARACTER_LANE_QUEUE && on_policy;
-    let evidence = evidence(
-        &controller,
-        ScenarioId::M2,
-        profile,
-        endpoint,
-        coverage,
-        assertion_passed,
-    )
-    .await;
+    let evidence = lane
+        .evidence(ScenarioId::M2, coverage, assertion_passed)
+        .await;
     let policy = evidence
         .observations
         .first()
@@ -950,15 +989,19 @@ async fn run_m1_residue_sweep(phase_ms: u64) {
     let profile = rate_limit_core::conformance::OAUTH_KNOWN_PROFILE;
 
     for residue in RESIDUE_CASES {
-        let (mock, controller) =
-            MockService::new(MockConfig::n23(1_000 + residue as u64, phase_ms)).unwrap();
+        let lane = lane::Lane::start(
+            profile,
+            Endpoint::StashList,
+            MockConfig::n23(1_000 + residue as u64, phase_ms),
+        );
+        let gate = lane.gate().clone();
+        let controller = lane.controller().clone();
         if residue > 0 {
             controller
                 .preload("stash-list-request-limit", controller.now(), residue)
                 .await
                 .unwrap();
         }
-        let gate = spawn(engine(profile), mock);
         let mut submitted_ms = Vec::new();
         let ticket =
             submit_recorded(&gate, &controller, &mut submitted_ms, Endpoint::StashList).await;
@@ -980,15 +1023,9 @@ async fn run_m1_residue_sweep(phase_ms: u64) {
             && !get.policy_judgment.organic_violation
             && zero_budget_waited;
 
-        let evidence = evidence(
-            &controller,
-            ScenarioId::M1,
-            profile,
-            Endpoint::StashList,
-            ContractCoverage::Fragment,
-            assertion_passed,
-        )
-        .await;
+        let evidence = lane
+            .evidence(ScenarioId::M1, ContractCoverage::Fragment, assertion_passed)
+            .await;
         let mut oracle = DriverOracle {
             submitted_ms,
             ..DriverOracle::default()
@@ -1131,6 +1168,46 @@ fn full_contract_scale_reaches_every_fragment_closure_shape() {
         character_lane_queue > CHARACTER_LIST_SUSTAINED_HITS,
         "the character-list lane must exceed its five-hit sustained window"
     );
+}
+
+/// SD-R8-F12's structural pin, in the X2 single-send-path pattern: the
+/// driver has exactly one engine-construction path, one actor spawn, and one
+/// reproduction-record constructor, all inside `mod lane`, whose provenance
+/// fields are private. A future second path — the shape the audit's
+/// split-profile mutation needed — fails here by count. concat! keeps every
+/// needle out of this test's own literals (the SD-R5-F5 vacuity lesson);
+/// this is a lexical spike pin, not a Rust parser, so a rename requires
+/// re-deriving the needles deliberately.
+#[test]
+fn f12_driver_has_one_engine_construction_and_one_provenance_path() {
+    let source = include_str!("scenario_driver.rs");
+    assert_eq!(
+        source.matches(concat!("PolicyEngine", "::new(")).count(),
+        1,
+        "the driver must have exactly one engine-construction path"
+    );
+    assert_eq!(
+        source.matches(concat!("spawn", "(")).count(),
+        1,
+        "the driver must spawn the actor from exactly one place"
+    );
+    assert_eq!(
+        source.matches(concat!("fn ", "start(")).count(),
+        1,
+        "Lane::start must remain the unique lane constructor"
+    );
+    assert_eq!(
+        source.matches(concat!("ReproductionRecord", " {")).count(),
+        1,
+        "reproduction provenance must be built only by Lane::evidence"
+    );
+    // The provenance fields are private to `mod lane`: present as private
+    // declarations, never as `pub` fields a caller could overwrite after
+    // construction.
+    assert!(source.contains(concat!("        profile: ", "ClientBucketProfile,")));
+    assert!(source.contains(concat!("        endpoint: ", "Endpoint,")));
+    assert!(!source.contains(concat!("pub ", "profile:")));
+    assert!(!source.contains(concat!("pub ", "endpoint:")));
 }
 
 /// M10's Tom-approved prompt-cancellation bound. It is one harness tick,
