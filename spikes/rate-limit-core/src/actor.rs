@@ -1083,9 +1083,10 @@ mod tests {
         // from policy history. The seeded burst window grants exactly ten
         // reservations from an empty history, so all ten succeed iff the
         // trip-path entry was rolled back — a leaked entry caps this at nine.
+        const ROLLBACK_PROOF_GRANTS: usize = 10;
         let now = actor.now();
         let mut tokens = Vec::new();
-        for grant in 0..10 {
+        for grant in 0..ROLLBACK_PROOF_GRANTS {
             match actor.engine.try_reserve(&policy, now) {
                 ReserveOutcome::Reserved(token) => tokens.push(token),
                 other => panic!("rollback must restore the full budget (grant {grant}): {other:?}"),
@@ -1185,6 +1186,11 @@ mod tests {
         // Count transport sends by receiver, not by argument name: the
         // pre-refactor two-path shape sent from start_probe with an argument
         // named `probe`, which a needle ending in `(request)` cannot see.
+        // This is deliberately a lexical spike pin, not a Rust parser: a
+        // receiver rename requires re-deriving the needle, and an unrelated
+        // comment containing the unsplit receiver-call spelling can make it
+        // fail. The split literal prevents this explanation from counting
+        // itself; production HTTP integration still owes its own X2 pin.
         assert_eq!(
             source.matches(concat!("transport", ".send(")).count(),
             1,
