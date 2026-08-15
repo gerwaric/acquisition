@@ -44,15 +44,17 @@ spec's discharge line — §9 changelog. `m1-g1-sweep` flipped to
 Full on 2026-08-14: the generated-φ mock-side residue sweep
 landed — §9 changelog.)
 Empty `OPEN_UNTESTED` alone does not imply verdict readiness; the
-declared run and registry must also agree. They now do, subject to
-SD-R8 independent review (§2). `obligation-map.md`
+declared run and registry must also agree. They do, and SD-R8's
+independent review confirmed both authorities (§2). `obligation-map.md`
 is the superseded prose ancestor; read its §8 for the audit's
 discrepancy analysis (dated at `e2034807`), never for current
 coverage.
 
 ## 2. Slice and review state
 
-- **Open: scenario-driver slice** (M1–M13 driver/judge integration).
+- **Closed: scenario-driver slice** (M1–M13 driver/judge
+  integration; closed with SD-R8 on 2026-08-15 — the round history
+  follows).
   **Round five is closed** (SD-R5, 2026-08-14): an independent
   re-review validated all twenty-four repairs — SD-R5-F2..F15 and
   RE-1..RE-9 — against code, tests, and docs, reproduced the full
@@ -88,16 +90,21 @@ coverage.
   both closure entries are in `result-draft.md` §9. The slice stays
   open on §5 item 5 only — the full-contract run;
   `scenario-driver-handoff.md` remains the live packet file for it.
-  **Round eight is awaiting independent review** (SD-R8,
-  2026-08-15): after Tom adjudicated F2, the harness-only G3 oracle
-  now independently restates N13 padded-safe eligibility. The pinned
-  φ=0 run and the full 4,096-case generated-phase run both declared
-  `FullContract`; the latter passed in 298.84 s. The independent
-  registry verifies 109 Full / 0 Partial / 1 accepted Untested / 13
-  Excluded, including all seven former fragment-scale clauses. Both
-  verdict lanes and G1–G6 are filled from the agreeing authorities.
-  The updated four-part packet is `scenario-driver-handoff.md`; the
-  implementing session does not close the round.
+  **Round eight is closed (SD-R8, 2026-08-15) — and with it the
+  scenario-driver slice.** An independent review validated the
+  full-contract packet across its whole range (the declaration
+  machinery, the SD-R8-F3 padded-history reconciliation fix in the
+  core — walked against the pessimism invariant — the scale pins,
+  and the post-adjudication padded-safe G3 oracle), independently
+  re-ran both declared runs (the 4,096-case run's scale is pinned
+  in code; all green), verified the registry as the agreeing second
+  authority, and reproduced all four mutation signatures verbatim,
+  including resolving the pinned-refusal determinism question
+  (`ReportNotVerdictEligible { scenario: M2 }` exactly). No
+  findings against the implementation. Both verdict lanes and
+  G1–G6 stand as filled. Closure entry in `result-draft.md` §9.
+  **Every slice of the spike is now closed**; this hand-off is a
+  historical record.
 - Every other slice (core, bootstrap, mock, actor, clause registry,
   doc split) is closed; their hand-offs are historical records.
   (Doc split closed 2026-08-13, DS-R1 — `result-draft.md` §9.)
@@ -147,8 +154,12 @@ independently agrees. SD-R8 now awaits review, not implementation.
 The 2026-08-13 ballot remains closed; this is the exact residual
 set after the round-five close (SD-R5, 2026-08-14 re-review). Items
 1–3 were implemented later on 2026-08-14 and their packet closed
-independent review the same day (SD-R6, §2); items 4–5 are now
-implemented, with item 5 awaiting SD-R8 independent review.
+independent review the same day (SD-R6, §2); items 4–5 closed
+review on 2026-08-15 (SD-R7 re-close; SD-R8). **Every item is
+done: no spike work remains open.** What follows the spike — Tom's
+reading of the filled verdicts and how the result feeds the
+rewrite-vs-evolve decision (`docs/adr/0003`) — is outside this
+file's scope by design.
 
 1. ~~**M1 generated-φ mock-side residue sweep**~~ — **done
    2026-08-14** (`tests/m1_residue_sweep.rs`; `m1-g1-sweep` Full —
@@ -171,8 +182,8 @@ implemented, with item 5 awaiting SD-R8 independent review.
    fixed to carry the recorded count, verified). §9 changelog. The
    band-edge, exhaustive-enumeration, and 43/43 witness diagnostics
    remain load-bearing, retained unchanged.
-5. ~~**Full-contract run last**~~ — **implemented and green
-   2026-08-15; awaiting SD-R8 independent review.** The harness-only
+5. ~~**Full-contract run last**~~ — **done 2026-08-15; SD-R8
+   review closed with no findings (§2).** The harness-only
    G3 correction implements Tom's F2 adjudication as independent
    `hit + period + bucket` arithmetic over B13 facts. The pinned φ=0
    declaration passed, followed by the full 4,096-case generated-
@@ -186,6 +197,6 @@ implemented, with item 5 awaiting SD-R8 independent review.
    `g2-ceilings-never-tripped`, and `g3-over-delay-bounded`.
    The run declared `FullContract` and the registry
    independently verifies every owned clause Full; all seven flipped
-   to Full, G1–G6 and both verdict lanes are filled, and the packet is
-   presented in `scenario-driver-handoff.md`. The implementation
-   session does not close SD-R8.
+   to Full, G1–G6 and both verdict lanes are filled, and the
+   packet's review closed the round and the slice (§2, §9
+   changelog).

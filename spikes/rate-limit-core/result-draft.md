@@ -2828,3 +2828,51 @@ outlives the spike branch; record what exists and where.⟩
   release tests 2/2 green in 7.72 s. No live service was contacted.
   The four-part packet is `scenario-driver-handoff.md`; the
   implementing session does not close SD-R8.
+
+- 2026-08-15 — **SD-R8 closed by independent review: no findings
+  against the implementation; the scenario-driver slice — the
+  spike's last open slice — closes with it.** The reviewer
+  (SD-R7's reviewer; no authorship conflict this round — the
+  contract under review is `scenarios.md` and the driver, neither
+  theirs) validated the packet across the whole SD-R8 range,
+  including the pre-adjudication commits: the `FullContractRun`
+  declaration guard confirmed registry-independent by construction
+  (every report `verdict_eligible`, all 13 rows, both profiles);
+  the SD-R8-F3 padded-history reconciliation fix in `src/core.rs`
+  walked against cross-slice invariant 3 — padded-local counting
+  covers every hit the server could still count
+  (`bucket_end + period ≤ hit + bucket + period`), so the client
+  model never understates the reported state, and the prior
+  raw-period behavior was safe-but-double-counting; the scale pins;
+  and the post-adjudication padded-safe oracle (φ-blind by design,
+  client state unreachable, the adjudication's fingerprint case
+  pinned). **Both authorities verified independently:** the
+  reviewer re-ran the pinned declared run and the full 4,096-case
+  generated run (the scale is `ProptestConfig::with_cases(4_096)`
+  in code, not env-dependent; green in 26.96 s on the review
+  machine — the packet's 298.84 s is environment speed, not a
+  scale difference), and confirmed the registry at 109 Full / 0
+  Partial / 1 accepted Untested / 13 Excluded with the seven flips
+  citing the run, obligations 6/6. Full matrix reproduced:
+  171/0/3 debug, 169/0/3 release, 171/0/3 at the 4,096-property
+  suite; §7.4 ignored pair 2/2; clippy `-D warnings`, fmt,
+  sanitizer 4/4, `git diff --check` clean. All four mutation
+  signatures reproduced verbatim and reverted — including
+  resolving the pinned-refusal determinism question: the declare
+  error is exactly `ReportNotVerdictEligible { scenario: M2 }`
+  (earlier grep ambiguity was the panic's report dump) — and the
+  registry-cited reconciliation property was additionally shown to
+  fail under the raw-period mutation, so coverage does not rest on
+  the un-cited defense-in-depth regression (observation, not a
+  finding; citing it remains available to a future pass). Verdict
+  and gate fills checked against §6's verdict scoping: the
+  unconditional Known-lane verdict and the conditional legacy
+  verdict with its stated `Assumed(60s/60s)` assumption are
+  correctly sourced from the two agreeing authorities. Doc
+  findings SD-R8-F1 and SD-R8-F3 stand as recorded. No live
+  service was contacted at any point. **All five §5 items are
+  done; every slice is closed.** What remains is outside the
+  spike's files: Tom's reading of the filled verdicts and the
+  result's feed into `docs/adr/0003`. A final external
+  no-context audit of this closure is recommended before the spike
+  is treated as concluded, per the SD-R7 precedent.

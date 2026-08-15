@@ -1,6 +1,17 @@
 # Scenario-driver and safety-closure hand-off
 
-Status: **open — SD-R8 final full-contract packet presented
+Status: **closed — SD-R8 closed by independent review, 2026-08-15,
+with no findings against the implementation; this closes the
+scenario-driver slice itself.** Historical record — live state
+lives in `status.md`. The reviewer independently re-ran the pinned
+and full 4,096-case declared runs (scale pinned in code), verified
+the registry's 109 Full / 0 Partial / 1 accepted Untested / 13
+Excluded as the agreeing second authority, reproduced all four
+mutation signatures verbatim, and walked the SD-R8-F3 core
+reconciliation change against the pessimism invariant. Closure
+entry in `result-draft.md` §9.
+
+Prior status: **open — SD-R8 final full-contract packet presented
 2026-08-15; the implementing session does not close it.** After Tom's
 F2 adjudication, the harness-only G3 oracle independently restates
 N13 padded-safe time. The pinned φ=0 run and all 4,096 generated
