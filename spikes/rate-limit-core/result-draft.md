@@ -115,6 +115,19 @@ Full / 0 Partial / 1 accepted Untested / 13 Excluded. The §3 gate
 fills stand on the same basis. What remains before the spike ends
 is the F6 gate's delivery path, not evidence: `status.md` §5.]*
 
+*[Re-close review marker, 2026-08-15, same day: **the SD-R8
+re-close review found SD-R8-F9/F10 and did not close the round.**
+Both verdict fills are suspended again, not erased. F9 shows that
+the F5 endpoint declaration trusts `ReproductionRecord.endpoint`
+without the judge binding it to the mock's wire observations: a
+review mutation replaced the CharacterList wire lane with a second
+Character lane but retained a CharacterList reproduction label, and
+both the pinned declaration and obligations verifier passed. F10 is
+the absent reopened-range four-part hand-off required by
+`slice-review.md` §2. Refilling now requires the F9 structural repair,
+both authority reruns, the completed F4/F5/F9/F10 hand-off, and an
+independent re-review. `status.md` is live state.]*
+
 **O-series carriage (SD-R8-F7) — ratified by Tom, 2026-08-15; part
 of both verdict statements:**
 
@@ -3230,3 +3243,66 @@ hoistable to its own repository without surgery.
   no push, PR, merge, or live-service contact occurred. The next gate
   step is the SD-R8 re-close review, followed by the final external
   audit; F6 remains open until both deliveries land.
+
+- 2026-08-15 — **SD-R8 re-close review found SD-R8-F9/F10; the
+  round, slice, and spike remain open and both verdict fills are
+  suspended again.** The independent reviewer walked the reopened
+  range `f6e024dc^..e022160b`, the spike-side migration package, and
+  the `master..rate-limit-core-ground-truth` diff. The F4 M8-lane
+  guard, F5 character-policy drivers, endpoint declaration, registry
+  addition, verdict/scope carriage, topic distillation, register row,
+  reusable-artifact record, F6 override, and N27–N32 transcription
+  were inspected against the contract and result record. No migration-
+  diff claim finding was found.
+
+  **SD-R8-F9 (high) — endpoint coverage is declared from unbound
+  provenance, so both authorities can agree with a claimed OAuth
+  policy absent.** `FullContractRun::declare` treats
+  `ReproductionRecord.endpoint` as proof that an N23 endpoint ran, but
+  `judge`'s `ReproductionMismatch` check compares only seed and phase
+  with the mock observations. Endpoint is wire-observable and is not
+  compared. The review first confirmed the narrow seam directly: a
+  test evidence record relabeled from Stash to CharacterList remained
+  accepted by `correlation_and_reproduction_seams_are_structural`.
+  The end-to-end mutation then replaced the full-contract
+  CharacterList lane with a second Character lane while retaining the
+  CharacterList reproduction label for seed 809. The pinned
+  `FullContract` declaration passed, and `cargo test --locked --test
+  obligations` passed 6/6 — exactly the two-authorities agreement F4's
+  repair was meant to make trustworthy, with
+  `character-list-request-limit` no longer exercised on the wire.
+  Reverted cleanly. Proposed disposition: bind every reproduction
+  endpoint to every observation's endpoint in `judge`, pin the
+  mismatch in the structural seam test, rerun both authorities, and
+  repeat this mutation expecting refusal before restoring the verdicts.
+
+  **SD-R8-F10 (medium) — the required reopened-range four-part hand-off
+  is absent and its live header is stale.** `status.md` returned
+  `scenario-driver-handoff.md` to live-packet status at the audit
+  reopening, but that file still declared the pre-audit SD-R8 close,
+  reported 123 clauses / 109 Full, and contained no F4/F5 update to
+  silences, seams/invariants, coverage confession, or judgment calls.
+  `slice-review.md` §2 says to refuse review until all four are present
+  and makes their absence the finding; §5 requires the hand-off status
+  flip. Proposed disposition: the repair session updates all four
+  sections for F4/F5/F9 and presents current 124/110 totals, then an
+  independent reviewer repeats this re-close review. The status header
+  is flipped open by this review so the stale close cannot mislead the
+  next session; the missing packet content is not authored by its
+  reviewer.
+
+  Restored-tree verification, entirely offline: `cargo test --locked`
+  172 passed / 0 failed / 3 ignored; release 170 / 0 / 3;
+  `PROPTEST_CASES=4096 cargo test --locked` 172 / 0 / 3; pinned
+  declaration green; explicit 4,096-case full-contract declaration
+  green in 306.97 s over all sixteen reports per case; obligations
+  6/6; both ignored §7.4 release tests green in 7.79 s; all-target
+  clippy with warnings denied, fmt, both migration-diff checks, and
+  sanitizer 4/4 clean. Advertised refusal mutations reproduced and
+  were reverted: M8 OAuth profile changed to Assumed → exactly
+  `MissingM8KnownLane`; CharacterList lane removed → exactly
+  `MissingEndpointLane { endpoint: CharacterList }`. The restored
+  pinned declaration reran green, and the working tree was clean
+  before this review record was written. No live service was
+  contacted. The final external audit does not start until F9/F10 are
+  repaired and SD-R8 re-closes.

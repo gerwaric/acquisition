@@ -1,6 +1,20 @@
 # Scenario-driver and safety-closure hand-off
 
-Status: **closed — SD-R8 closed by independent review, 2026-08-15,
+Status: **open — the 2026-08-15 SD-R8 re-close review found
+SD-R8-F9/F10; this file requires a reopened-range four-part update
+before re-review.** F9 is the unbound endpoint-provenance seam:
+`ReproductionRecord.endpoint` can disagree with the wire observations,
+letting the pinned declaration and registry both pass after the
+CharacterList wire lane is replaced by a duplicate Character lane.
+F10 is this packet's own stale state: it still carried the pre-audit
+close, 123/109 totals, and none of the F4/F5 additions in the four
+required sections. Live disposition and the reproduced matrix are in
+`status.md` and `result-draft.md` §9. The implementing/repair session
+must update the silences, seam map/invariant walk, coverage confession,
+and judgment calls; this review session does not manufacture its
+missing hand-off for it.
+
+Prior status: **closed — SD-R8 closed by independent review, 2026-08-15,
 with no findings against the implementation; this closes the
 scenario-driver slice itself.** Historical record — live state
 lives in `status.md`. The reviewer independently re-ran the pinned

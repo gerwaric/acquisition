@@ -77,7 +77,8 @@ Specifically:
 Hard rules: **never contact pathofexile.com or any live service**;
 raw captures never leave the §4 sanitization contract; the tree is
 left clean. Findings are minted in the SD-R8 namespace continuing
-the existing numbering (F9 onward), recorded with severity,
+the existing numbering (F11 onward; F9/F10 were minted by the
+2026-08-15 re-close review), recorded with severity,
 evidence, and a disposition proposal, in the style of the §9 audit
 entries. The verdict is one of: **the close and the package stand
 (deliver)**, or **reopen** with the findings. Per the F6 gate, the

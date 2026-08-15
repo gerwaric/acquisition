@@ -52,7 +52,14 @@ landed the same day** — the declaration guard is now keyed to M8
 (`MissingM8KnownLane`/`MissingM8AssumedLane`, negative test pins
 the audit's exact state) and both authorities reran green over the
 repaired guard (§9). The registry verifier remains structural by
-design; its limits are unchanged. `obligation-map.md`
+design; its limits are unchanged. **The SD-R8 re-close review has
+since suspended that agreement again on F9:** endpoint coverage is
+read from a reproduction label the judge does not bind to the wire
+observations, and the review reproduced both authorities passing with
+the CharacterList wire lane absent (§2/§5, `result-draft.md` §9).
+The recorded totals and green restored-tree runs stand; verdict
+readiness does not until F9 is repaired and both authorities rerun.
+`obligation-map.md`
 is the superseded prose ancestor; read its §8 for the audit's
 discrepancy analysis (dated at `e2034807`), never for current
 coverage.
@@ -136,19 +143,39 @@ coverage.
   `scenario-driver-handoff.md` returns to being the live packet
   file. The padded-history production fix and Tom's F2
   adjudication are unaffected.
+  **The 2026-08-15 SD-R8 re-close review did not close the round.**
+  It reproduced the committed matrix and both advertised F4/F5
+  refusal signatures, but found **SD-R8-F9** (high): the new endpoint
+  declaration guard trusts `ReproductionRecord.endpoint` while the
+  judge's reproduction seam validates only seed and phase. In the
+  review mutation, the CharacterList wire lane was replaced by a
+  second Character lane while the reproduction record still claimed
+  CharacterList; both the pinned declaration and the structural
+  registry verifier passed. The two authorities can therefore agree
+  without one of the four claimed OAuth policies being exercised.
+  It also found **SD-R8-F10** (medium): the live four-part hand-off was
+  never updated for the reopened F4/F5 range and still declared the
+  pre-audit close with stale 123/109 totals. Per `slice-review.md` §2,
+  that missing packet is itself a finding. The spike-side migration
+  package and the `rate-limit-core-ground-truth` diff had no additional
+  re-close findings. The verdict fills are suspended again pending the
+  F9 repair, authority reruns, a complete reopened-range hand-off, and
+  re-review. Review entry in `result-draft.md` §9.
 - Every other slice (core, bootstrap, mock, actor, clause registry,
   doc split) is closed; their hand-offs are historical records.
   (Doc split closed 2026-08-13, DS-R1 — `result-draft.md` §9.)
 
 ## 3. Open decisions (Tom)
 
-None. Every SD-R8 audit finding is dispositioned. Tom ratified
+None. Every Tom-routed SD-R8 audit finding is dispositioned. Tom ratified
 the F7 O-series carriage on 2026-08-15 (plain-English form, his
 requested rewrite); it is part of both verdict statements in
-`result-draft.md` §1 and **both verdict slots are refilled**,
-citing the extended-contract authority runs. The scoreboard: F4
+`result-draft.md` §1. The re-close review has **suspended both
+verdict slots again** on SD-R8-F9; no Tom decision is needed for its
+structural repair or for F10's packet repair. The audit scoreboard: F4
 repaired, F5 extended and landed, F6 gated-hoist recorded, F7
-repaired and ratified, F8 discharged.
+repaired and ratified, F8 discharged; re-close findings F9 and F10
+are open.
 
 Decided 2026-08-15: **SD-R8-F6 — complete via gated hoist; the
 spike ends with a PR** (Tom; full record in `result-draft.md`
@@ -204,10 +231,10 @@ ratification record is in `result-draft.md` §9. (Both earlier
 
 ## 4. Blocked
 
-Nothing is blocked. The verdicts are refilled (§3) and all
-reopened-round evidence work is done. The remaining path is the
-F6 delivery gate, in order: SD-R8 re-close review → final external
-adversarial audit
+Nothing is externally blocked. SD-R8 remains open on F9/F10 and the
+verdicts are suspended (§3). The remaining path is: repair and
+re-present the reopened-range packet → SD-R8 re-close re-review →
+final external adversarial audit
 (`final-audit-charge.md`) → the two delivery PRs. Each step waits
 only on the one before it.
 
@@ -221,7 +248,8 @@ reading of the verdicts and the feed into `docs/adr/0003` — stays
 outside this file's scope, and is farther off than the closure
 claimed: the spike is not concluded.
 
-Reopened SD-R8 work (audit entry, `result-draft.md` §9):
+Reopened SD-R8 work (audit and re-close-review entries,
+`result-draft.md` §9):
 
 - ~~**F4 repair**~~ — **done 2026-08-15**: declare's profile
   guard keyed to M8, negative test pins the audit's exact state
@@ -240,8 +268,18 @@ Reopened SD-R8 work (audit entry, `result-draft.md` §9):
   minted `m2-character-policy-lanes`; both authorities green
   over the extended contract (§9 changelog).
 - ~~**F7 O-series carriage**~~ — **ratified by Tom 2026-08-15**;
-  part of both verdict statements, verdicts refilled (§3, §9
-  changelog).
+  part of both verdict statements; its refill is historically recorded,
+  but the slots are suspended again on F9 (§3, §9 changelog).
+- **F9 endpoint-provenance repair** — open from the 2026-08-15
+  re-close review: bind `ReproductionRecord.endpoint` to the mock's
+  wire observations in the judge (with a negative seam test), then
+  rerun both declared authorities and the F9 end-to-end mutation. A
+  declaration must not accept a claimed endpoint that no observation
+  used.
+- **F10 reopened-range hand-off** — open from the same review: update
+  all four `scenario-driver-handoff.md` parts for F4/F5/F9, replace
+  the stale live status/totals, and present the repaired packet for
+  independent re-review.
 - **Remaining, per the F6 gate (delivery, not evidence):**
   1. ~~Draft the migration package~~ — **done 2026-08-15** per
      `migration-package-charge.md`: topic doc `f0bbb92d`, register
@@ -249,7 +287,8 @@ Reopened SD-R8 work (audit entry, `result-draft.md` §9):
      note `88d8266c` on this branch; CN1–CN6 transcribed as N27–N32
      in `c1d92417` on `rate-limit-core-ground-truth`, cut from
      `master`. Drafts only; no push or PR occurred.
-  2. **Next: SD-R8 re-close review over the reopened-range packet.**
+  2. **Next: repair F9/F10 and re-present the SD-R8 re-close packet;
+     then independent re-review.**
   3. The final external adversarial audit —
      `final-audit-charge.md` holds the standing charge; its
      object includes both migration diffs.
