@@ -205,7 +205,7 @@ async fn a_fragment_run_is_judged_but_is_never_verdict_eligible() {
 }
 
 #[tokio::test(start_paused = true)]
-async fn full_contract_declaration_requires_every_m_row_and_both_profiles() {
+async fn full_contract_declaration_requires_every_m_row_and_both_m8_lanes() {
     let mut evidence = base_evidence(one_observation().await);
     evidence.reproduction.as_mut().unwrap().client_buckets = OAUTH_KNOWN_PROFILE;
     let template = judge(&evidence, &TestOracle::default()).unwrap();
@@ -237,6 +237,24 @@ async fn full_contract_declaration_requires_every_m_row_and_both_profiles() {
         })
     );
 
+    // The SD-R8-F4 state: M8 present only in its Assumed lane while every
+    // other row still supplies Known, so a whole-set profile check sees both
+    // profiles and accepts. The M8-keyed guard must refuse it.
+    let m8_assumed_lane_only = reports
+        .iter()
+        .filter(|report| {
+            !(report.scenario == ScenarioId::M8
+                && report
+                    .reproduction
+                    .is_some_and(|record| record.client_buckets == OAUTH_KNOWN_PROFILE))
+        })
+        .cloned()
+        .collect();
+    assert_eq!(
+        FullContractRun::declare(m8_assumed_lane_only),
+        Err(FullContractDeclarationError::MissingM8KnownLane)
+    );
+
     let known_only = reports
         .iter()
         .filter(|report| {
@@ -248,7 +266,7 @@ async fn full_contract_declaration_requires_every_m_row_and_both_profiles() {
         .collect();
     assert_eq!(
         FullContractRun::declare(known_only),
-        Err(FullContractDeclarationError::MissingAssumedProfile)
+        Err(FullContractDeclarationError::MissingM8AssumedLane)
     );
 
     reports[0].contract_coverage = ContractCoverage::Fragment;

@@ -44,13 +44,14 @@ spec's discharge line — §9 changelog. `m1-g1-sweep` flipped to
 Full on 2026-08-14: the generated-φ mock-side residue sweep
 landed — §9 changelog.)
 Empty `OPEN_UNTESTED` alone does not imply verdict readiness; the
-declared run and registry must also agree. **That agreement is not
-currently trustworthy**: the 2026-08-15 external audit (SD-R8-F4,
-`result-draft.md` §9) demonstrated both authorities pass with M8's
-required Known lane missing — the declaration's profile guard is
-not keyed to M8, and the registry verifier is structural by design.
-Until the F4 repair lands and both authorities rerun, their
-agreement certifies nothing. `obligation-map.md`
+declared run and registry must also agree. The 2026-08-15 external
+audit (SD-R8-F4, `result-draft.md` §9) showed both authorities
+could pass with M8's required Known lane missing; **the F4 repair
+landed the same day** — the declaration guard is now keyed to M8
+(`MissingM8KnownLane`/`MissingM8AssumedLane`, negative test pins
+the audit's exact state) and both authorities reran green over the
+repaired guard (§9). The registry verifier remains structural by
+design; its limits are unchanged. `obligation-map.md`
 is the superseded prose ancestor; read its §8 for the audit's
 discrepancy analysis (dated at `e2034807`), never for current
 coverage.
@@ -199,11 +200,12 @@ ratification record is in `result-draft.md` §9. (Both earlier
 
 ## 4. Blocked
 
-Refilling the suspended verdict slots is blocked on, in order:
-Tom's F5/F6/F7 dispositions (§3), the SD-R8-F4 declaration repair
-(implementation work, unblocked now — §5), and a rerun of both
-declared authorities after both land. Nothing else is blocked; the
-F4 repair and the mechanical F7 U5 line can proceed immediately.
+Refilling the suspended verdict slots is blocked on Tom's F5/F6/F7
+dispositions alone (§3). The F4 repair and the F7 U5 line landed
+2026-08-15 and both declared authorities reran green over the
+repaired guard (§9 changelog). Once Tom's dispositions land, any
+evidence work they require runs, the authorities rerun once more,
+and the slots refill only if they truthfully agree.
 
 ## 5. Next work
 
@@ -217,18 +219,19 @@ claimed: the spike is not concluded.
 
 Reopened SD-R8 work (audit entry, `result-draft.md` §9):
 
-- **F4 repair (unblocked):** key `FullContractRun::declare`'s
-  profile requirement to M8 itself — both contract-mandated lanes
-  on the M8 scenario — and pin the missing-M8-Known-lane case
-  with a negative declare test (the audit's reproduced experiment
-  is the test's shape). No contract change.
-- **F7 U5 repair (unblocked, mechanical):** carry U5 in
-  `result-draft.md` §7 alongside U1–U4, per U5's own carriage
-  mandate.
+- ~~**F4 repair**~~ — **done 2026-08-15**: declare's profile
+  guard keyed to M8, negative test pins the audit's exact state
+  (accepted before, `MissingM8KnownLane` now), `m8-both-lanes`
+  cites it; end-to-end mutation reproduced the audit experiment
+  against the repaired guard and it is refused. Both authorities
+  reran green (§9 changelog).
+- ~~**F7 U5 repair**~~ — **done 2026-08-15**: U5 carried in
+  `result-draft.md` §7 alongside U1–U4, per its own carriage
+  mandate. The O-series half stays with Tom.
 - **Awaiting Tom (§3):** F5 narrow-or-extend, F6 deliverables,
   F7's O-series carriage wording.
-- **Then:** rerun both declared authorities (pinned + 4,096-case
-  declaration; registry verifier), refill the verdict slots only
+- **Then:** run any evidence work Tom's dispositions require,
+  rerun both declared authorities, refill the verdict slots only
   if they truthfully agree, and present the packet for SD-R8
   re-close review.
 

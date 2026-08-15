@@ -520,15 +520,16 @@ pub struct FullContractRun {
 pub enum FullContractDeclarationError {
     MissingScenario { scenario: ScenarioId },
     ReportNotVerdictEligible { scenario: ScenarioId },
-    MissingKnownProfile,
-    MissingAssumedProfile,
+    MissingM8KnownLane,
+    MissingM8AssumedLane,
 }
 
 impl FullContractRun {
     /// Declares a full-contract run only when every M-row has at least one
-    /// verdict-eligible report and the run contains both provenance-typed
-    /// bucket lanes. Scale and phase-domain reachability are asserted by the
-    /// dedicated run producer; this constructor guards the report set itself.
+    /// verdict-eligible report and M8 — the one row the contract requires in
+    /// both provenance-typed bucket lanes (`m8-both-lanes`) — carries both.
+    /// Scale and phase-domain reachability are asserted by the dedicated run
+    /// producer; this constructor guards the report set itself.
     pub fn declare(reports: Vec<RunReport>) -> Result<Self, FullContractDeclarationError> {
         for report in &reports {
             if !report.verdict_eligible() {
@@ -544,18 +545,23 @@ impl FullContractRun {
             }
         }
 
-        let has_profile = |profile| {
+        // The lane requirement is keyed to M8, not to the whole report set:
+        // a whole-set check is satisfiable with no M8 Known lane at all
+        // (M10's legacy row supplies Assumed and every ordinary row supplies
+        // Known), so it cannot defend `m8-both-lanes` (SD-R8-F4).
+        let m8_lane = |profile| {
             reports.iter().any(|report| {
-                report
-                    .reproduction
-                    .is_some_and(|record| record.client_buckets == profile)
+                report.scenario == ScenarioId::M8
+                    && report
+                        .reproduction
+                        .is_some_and(|record| record.client_buckets == profile)
             })
         };
-        if !has_profile(OAUTH_KNOWN_PROFILE) {
-            return Err(FullContractDeclarationError::MissingKnownProfile);
+        if !m8_lane(OAUTH_KNOWN_PROFILE) {
+            return Err(FullContractDeclarationError::MissingM8KnownLane);
         }
-        if !has_profile(SHIPPED_ASSUMED_PROFILE) {
-            return Err(FullContractDeclarationError::MissingAssumedProfile);
+        if !m8_lane(SHIPPED_ASSUMED_PROFILE) {
+            return Err(FullContractDeclarationError::MissingM8AssumedLane);
         }
 
         Ok(Self { reports })

@@ -803,12 +803,20 @@ pub const CLAUSES: &[Clause] = &[
         owner: "M8",
         text: "Both lanes: OAuth Known and legacy Assumed (scenarios.md:260)",
         coverage: Coverage::Full,
-        citations: &[Citation {
-            file: DRIVER,
-            test_fn: DRIVER_FN,
-            must_assert: "run_m8_oauth_lane plus the legacy lane in the main \
-                          loop, both φ",
-        }],
+        citations: &[
+            Citation {
+                file: DRIVER,
+                test_fn: DRIVER_FN,
+                must_assert: "run_m8_oauth_lane plus the legacy lane in the main \
+                              loop, both φ",
+            },
+            Citation {
+                file: "tests/conformance_harness.rs",
+                test_fn: "full_contract_declaration_requires_every_m_row_and_both_m8_lanes",
+                must_assert: "declare refuses a run whose M8 row lacks either \
+                              lane (SD-R8-F4)",
+            },
+        ],
         note: "At fragment scale, both φ",
     },
     Clause {

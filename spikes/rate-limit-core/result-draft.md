@@ -973,7 +973,11 @@ states its own blind spots: U1 remap triggers (reactive handling
 M5 is the tested surface), U2 server-side 4xx restriction behavior
 (obligations tested, M12), U3 legacy bucket resolution (conditional
 lane; §6 instrument designed), U4 real layer-1 rules (deliberately
-uncharacterized, N4 strategy; B10's numbers are inferred-lane).
+uncharacterized, N4 strategy; B10's numbers are inferred-lane), U5
+headroom instrumentation (declared untested and unbuilt;
+characterization for the headroom-zero decision, no gate consumes
+it — carried per its own 2026-08-13 mandate; its omission here was
+SD-R8-F7, repaired 2026-08-15).
 
 ## §8. Reusable artifact
 
@@ -2988,3 +2992,34 @@ outlives the spike branch; record what exists and where.⟩
   authorities. Doc findings SD-R8-F1/F3 and Tom's F2
   adjudication stand unaffected. No live service was contacted;
   the only tree mutation (the F4 reproduction) was reverted.
+
+- 2026-08-15 — **SD-R8 unblocked repairs landed: the F4 declaration
+  guard is keyed to M8, and F7's U5 carriage is restored.**
+  `FullContractRun::declare` now requires the M8 scenario itself to
+  carry both provenance-typed bucket lanes — the whole-set profile
+  checks are replaced, and the error variants renamed to say what
+  they check (`MissingM8KnownLane` / `MissingM8AssumedLane`). The
+  negative declaration test is renamed
+  (`full_contract_declaration_requires_every_m_row_and_both_m8_lanes`)
+  and now pins the exact SD-R8-F4 state: M8 present only in its
+  Assumed lane while every other row supplies Known — previously
+  accepted, now refused. The registry's `m8-both-lanes` clause
+  gains a citation to that test, so the clause is defended by the
+  guard, not only by the driver's happy path. §7's declared-
+  untested register now carries U5 alongside U1–U4, per U5's own
+  2026-08-13 carriage mandate (the F7 O-series half stays open,
+  routed to Tom).
+
+  End-to-end mutation, run from the repaired tree and reverted with
+  `git checkout --`: the audit's original experiment
+  (`run_m8_oauth_lane` flipped from `OAUTH_KNOWN_PROFILE` to
+  `SHIPPED_ASSUMED_PROFILE`) — which at `2c4a1ea1` declared
+  `FullContract` — now fails the pinned declaration with exactly
+  `MissingM8KnownLane`. Restored-tree matrix, entirely offline:
+  debug 171/0/3; release 169/0/3; the declared 4,096-case
+  full-contract run green in 27.16 s; obligations 6/6; clippy
+  `-D warnings`, fmt, and `git diff --check` clean. Both declared
+  authorities therefore rerun green over the repaired guard. The
+  verdict slots remain suspended: refilling still awaits Tom's F5,
+  F6, and F7-O-series dispositions (`status.md` §3). No live
+  service was contacted.
