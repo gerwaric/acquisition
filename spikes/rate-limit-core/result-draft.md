@@ -93,7 +93,7 @@ list (see `status.md` §1).
 
 | ID | Scenario | Sweep | Gates exercised | Result | Evidence |
 |---|---|---|---|---|---|
-| M1 | Cold start with residue (flagship) | phase-swept | G1, G2, G6 | partial — actor/judge evidence now covers residues 0/1/9/10 at φ=0/1, exclusive boot HEAD, probe-429 seeding, and first-GET confirmation/escalation; reports remain fragments | 2026-08-14: `scenario_driver` and `actor_safety` targets green; registry clauses Full. |
+| M1 | Cold start with residue (flagship) | phase-swept | G1, G2, G6 | partial — actor/judge evidence now covers residues 0/1/9/10 at φ=0/1, exclusive boot HEAD, probe-429 seeding, and first-GET confirmation/escalation; reports remain fragments | 2026-08-14: `scenario_driver` and `actor_safety` targets green; `m1-g1-sweep` Partial pending a generated-φ mock-side residue sweep (RE-9), other M1 clauses Full. |
 | M2 | Clean cold-start saturation burst | phase-swept | G1–G4, G6 | partial — 40-request actor run crosses both burst and sustained stalls; G4 minimum is independent runtime arithmetic over the actual policy, queue depth, D5 floor, bucket padding, and 81 ms service delay | 2026-08-14: `scenario_driver` target green; `m2_g4_minimum_is_runtime_derived_and_reaches_both_stalls` pins 122,581 ms. |
 | M3 | Degraded HEAD | independent | G1, G2, G5 | partial — scoped refusal, unaffected-policy flow, and 60 s cooldown re-entry are pinned through the public actor | 2026-08-14: `scenario_driver` and `actor_safety` targets green; registry clauses Full. |
 | M4 | Unexpected policy shape | independent | G1, G2, G5 | partial — scoped D4 refusal, unaffected-policy flow, and cooldown watch publication are pinned; the scenario report remains a fragment | 2026-08-14: `scenario_driver` and `actor_safety` targets green; registry clauses Full. |
@@ -839,7 +839,7 @@ observed lane:
 - Initialization: four boot HEADs seed their endpoint state exactly
   once at t₀ (canonical residue is zero); they are excluded from the
   383 ordinary replay arrivals. The bounded parser caps input at
-  2 MiB, 10,000 nodes, depth 16, and 4 KiB strings.
+  2 MiB, 32,768 JSON items, depth 16, and 4 KiB strings.
 - Gate — zero violations at every φ: **finding, awaiting Tom's
   adjudication.** The violating set is 1,052 phases in 20 disjoint
   bands, φ=7,454–7,466 through 25,854–25,944 (initiating replies
@@ -1855,8 +1855,13 @@ outlives the spike branch; record what exists and where.⟩
   review findings validated and dispositioned; review not closed, no
   verdict slot filled, no status flipped to closed.** Every finding
   was independently reproduced against the repository before any
-  change; none was invalid. Commits `3e82a963..` (this entry's
-  commit closes the series). Dispositions:
+  change; none was invalid. Commits `3e82a963` through `1f61c22a`
+  (this entry's commit closes the series). Process note (RE-8):
+  `3e82a963` accidentally swept in Tom's unrelated uncommitted
+  CMake version bump; `1f61c22a` restored the branch's committed
+  CMake content, leaving a net-zero branch delta while preserving
+  the bump as the working-tree change where the session found it.
+  Dispositions:
 
   - **SD-R5-F2 (HIGH) — valid, fixed** (`3e82a963`). Reproduced
     exactly before any change: 1,052 violating phases in 20 bands,
@@ -1979,6 +1984,12 @@ outlives the spike branch; record what exists and where.⟩
   awaiting independent review (re-review of this repair packet is
   the next act).
 
+  *[Marker, 2026-08-14 (RE-3): the paragraph below is the
+  implementation-swarm packet's pre-repair matrix, preserved as dated
+  history. It is superseded by the 159/157, two-ignored repair matrix
+  immediately above and does not describe the enumeration's current
+  existence or status.]*
+
   Proportional verification: `cargo test --locked` green (154 passed,
   one intentionally ignored); `cargo test --locked --release` green
   (152 passed, one intentionally ignored; two debug-only drop-bomb
@@ -1989,3 +2000,81 @@ outlives the spike branch; record what exists and where.⟩
   sustained 31/30, restriction 301 s. Formatting and diff checks are
   recorded with the review-ready commits. No live service was
   contacted and no verdict slot was filled.
+
+- 2026-08-14 — **round-five residual repair sweep: RE-1..RE-9 all
+  independently validated and repaired; review remains open.** None
+  was invalid, no verdict slot was filled, and the implementing/
+  repairing session did not close the round.
+
+  - **RE-1 (MEDIUM) — valid, fixed** (`2afcb13b`). The ignored
+    enumeration now accumulates the complete actual `(phase,
+    initiating-window-overflow)` set across all 60,000 phases before
+    comparing it with the independently expanded band table. It
+    retains every overflowing window on the initiating reply and
+    measures the total from discovery. Pre-fix mutation reproduced the
+    first-φ abort in 0.90 s; the same two-separated-band mutation after
+    repair completed the sweep in 6.93 s and reported both φ=7,454 and
+    φ=25,944 discrepancies together.
+  - **RE-2 (MEDIUM-LOW) — valid, fixed** (`8ed8a922`). M6's four
+    wire-derived fragment facts now have one decider whose result
+    reaches `judge`; the duplicate raw panic-asserts are gone.
+    `m6_fragment_verdict_is_not_constant_true` proves each conjunct can
+    make the fragment false. Mutation of the live organic fact reached
+    a report with G5 false and `M6Shrink`, rather than aborting before
+    the judge.
+  - **RE-3 (MEDIUM-LOW) — valid, fixed** (this entry's documentation
+    commit). The orphaned 154/152, one-ignored paragraph is explicitly
+    marked as the pre-repair packet matrix and superseded by the
+    adjacent 159/157, two-ignored repair record.
+  - **RE-4 (LOW) — valid, fixed** (`12afb693`). The three orphaned
+    tests are citation-visible under their actual owners: the popped-
+    caller/rollback trip test under X1, the missing-eligibility test
+    under G3, and the D5 restatement tripwire under both direct M10/M13
+    cap clauses. Deleting any now fails registry verification.
+  - **RE-5 (LOW) — valid, fixed** (documentation commit). §5 now
+    states the implemented 32,768-JSON-item cap.
+  - **RE-6 (LOW) — valid, fixed** (`8ed8a922`). The last bare 61,000
+    became the named N19 derivation: 60 s applicable bucket + 1 s
+    buffer, independently restated in the actor-shell test lane.
+  - **RE-7 (LOW) — valid, fixed** (`8ed8a922`). Both degraded-probe
+    assertions now discriminate `PolicyParseError::MissingHeader`,
+    including the cause replayed to the next caller during cooldown.
+    The next call after cooldown still re-probes; no new silence was
+    exposed.
+  - **RE-8 (LOW, process) — valid, fixed** in the earlier repair entry:
+    it now records why `3e82a963` and `1f61c22a` touched CMake and that
+    their branch delta is net zero while Tom's working-tree bump is
+    preserved.
+  - **RE-9 (LOW, judgment/nits) — valid, fixed** (`2afcb13b`,
+    `10a5e7ef`, `12afb693`, documentation commit). `m1-g1-sweep` is
+    conservatively Partial because C1's generated-φ core mirror never
+    judges a mock-side boot-residue run; totals are now 123 = 96 Full /
+    13 Partial / one accepted Untested / 13 Excluded, with empty
+    `OPEN_UNTESTED`. Replay keeps all initiating-window overflows,
+    outside neighbors compare against an empty collection, the dead
+    neighbor and array guards are removed, the 2 MiB minimal-JSON
+    ceiling is correctly described as ~1.05 million values, the
+    rollback proof's ten grants are named, the X2 lexical limitation is
+    stated beside the claim, and stale singular replay wording is
+    pluralized.
+
+  The residual sweep exposed **no new specification silence**. It
+  strengthens evidence collection and classification under already
+  settled G5, N19, M3, §7.4, and registry rules. Tom's two existing
+  decisions (§7.4 adjudication and profile-lane ratification) remain
+  exactly as recorded in `status.md` §3.
+
+  **Proportional verification (exact results):** `cargo test
+  --locked` — 160 passed, 0 failed, 2 ignored (doc-tests included);
+  `cargo test --locked --release` — 158 passed, 0 failed, 2 ignored
+  (the two debug-only drop-bomb tests are absent); `PROPTEST_CASES=4096
+  cargo test --locked` — 160 passed, 0 failed, 2 ignored. `cargo
+  clippy --locked --all-targets -- -D warnings`, `cargo fmt --all
+  --check`, `git diff --check`, and the six registry verification
+  tests were clean; the Python sanitizer suite passed 4/4. Explicit
+  release ignored runs: the collect-first exhaustive enumeration
+  passed all 60,000 phases in 6.76 s; the untuned canonical gate
+  failed as expected at φ=7,454, reply 110, `stash-request-limit`
+  sustained 31/30 with restriction 301 s and a full reproduction
+  record. No live service was contacted; no verdict slot was filled;
+  the round and slice remain open for independent re-review.

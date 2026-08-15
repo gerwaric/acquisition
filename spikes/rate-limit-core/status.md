@@ -33,11 +33,13 @@ The open-untested list is the `OPEN_UNTESTED` constant in
 `src/obligations.rs` — **not** any prose table. As of 2026-08-14 it
 is empty: the implementation swarm discharged all 13 previously
 open Untested ids.
-Registry totals are 97 Full, 12 Partial, one accepted Untested
+Registry totals are 96 Full, 13 Partial, one accepted Untested
 limitation (`x2-parser-cap-limitation`), and 13 Excluded. The
-twelfth Partial is `s7-4-replay-gate`, the failing §7.4 gate's
-machine-checked slot (SD-R5-F11); its delta is §3 decision 1's
-adjudication plus the green rerun. Empty `OPEN_UNTESTED` does not
+Partial set now includes `s7-4-replay-gate`, the failing §7.4 gate's
+machine-checked slot (SD-R5-F11), and `m1-g1-sweep`, whose missing
+delta is a generated-φ mock-side residue sweep (RE-9). The replay
+slot's delta is §3 decision 1's adjudication plus the green rerun.
+Empty `OPEN_UNTESTED` does not
 imply verdict readiness; the Partial set and the failed §7.4 replay
 gate are itemized in §5. `obligation-map.md`
 is the superseded prose ancestor; read its §8 for the audit's
@@ -51,8 +53,10 @@ coverage.
   through SD-R5-F15; the 2026-08-14 repair session validated all
   fifteen (none invalid) and fixed them — dispositions,
   commits, and doc findings in `result-draft.md` §9's 2026-08-14
-  repair entry. **The round is not closed**: the repaired packet
-  awaits independent re-review, and no verdict slot was filled.
+  repair entry. The residual RE-1..RE-9 re-review sweep was also
+  validated and repaired on 2026-08-14; its dispositions and matrix
+  are in the next §9 entry. **The round is not closed**: the repaired
+  packet awaits independent re-review, and no verdict slot was filled.
   `scenario-driver-handoff.md` remains the live four-part review
   packet, updated in place by the repair.
 - Every other slice (core, bootstrap, mock, actor, clause registry,
@@ -110,21 +114,26 @@ verdict are blocked on decision 1. No live-service input is needed.
 The 2026-08-13 ballot remains closed; this is the exact residual
 set after the implementation swarm.
 
-1. Independent re-review of the repaired round-five packet
+1. Independent re-review of the repaired round-five packet, including
+   the RE-1..RE-9 residual sweep
    (`scenario-driver-handoff.md` plus the 2026-08-14 repair entry);
    do not flip its status or close the slice from the implementing
    or repairing session.
-2. **Ballot G** — build the forced M9 phantom race at 14/15. It
+2. **M1 generated-φ mock-side residue sweep** — the exact Partial
+   delta for `m1-g1-sweep` after RE-9 corrected C1's core-side mirror
+   over-classification.
+3. **Ballot G** — build the forced M9 phantom race at 14/15. It
    discharges `m9-recovery-survives-race`,
    `m9-race-exposure-attribution`, and the last scripted arm of
    `b12-scripted-delay`.
-3. **M11a named binding evidence** — near-ceiling compliant sweep
+4. **M11a named binding evidence** — near-ceiling compliant sweep
    for `m11-compliant-never-trips`.
-4. Resolve §3 decision 1, then rerun the exhaustive canonical gate.
-   The active exact-counterexample and 43/43 diagnostic tests remain
-   load-bearing; the exhaustive gate remains ignored with its known-
-   finding reason until adjudication.
-5. Full-contract run last. It finishes the fragment-scale-only
+5. Resolve §3 decision 1, then rerun the exhaustive canonical gate.
+   The active band-edge and 43/43 diagnostic tests remain load-bearing.
+   Of the two ignored replay tests, the collect-first exhaustive band
+   enumeration remains expected to pass and the untuned canonical gate
+   remains expected to fail until adjudication.
+6. Full-contract run last. It finishes the fragment-scale-only
    clauses `m6-g1-post-announcement`,
    `m6-queue-drains-new-pace`, `m7-no-client-violation`,
    `m8-no-follow-on-violation`, `g1-zero-client-violations`,
