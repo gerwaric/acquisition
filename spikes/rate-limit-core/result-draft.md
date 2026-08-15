@@ -104,19 +104,52 @@ authorities.]*
 **Proposed O-series carriage (SD-R8-F7) — awaiting Tom's sign-off;
 becomes part of both verdict statements when ratified:**
 
-> Both verdicts carry the O-series exclusions of `scenarios.md`
-> §7.3 verbatim as scope, alongside U1–U5: no real sockets, TLS,
-> connection reuse, or HTTP framing (O1); no stochastic transit
-> latency (O2); no payload handling beyond B10's Cloudflare
-> signature (O3); no multi-account or multi-IP scope semantics
-> (O4); no server `Date`-header skew (O5); no adversarial header
-> case or ordering beyond C2's parser domain (O6); **no
-> authentication of any kind — no tokens, no POESESSID, no OAuth
-> flow** (O7); and no server-side 4xx restriction behavior, no
-> real Cloudflare rules, no forum regime, and no unlimited
-> endpoints (O8). Every gate result is measured against the
-> modeled mock under these exclusions; nothing in either verdict
-> is live-service validation.
+> **What these verdicts do and do not cover.** Every test in this
+> spike ran against an in-process mock server on simulated time —
+> no real network traffic was ever sent. Both verdicts therefore
+> carry the following exclusions (the O-series, `scenarios.md`
+> §7.3) as part of their meaning, alongside the declared-untested
+> U1–U5 register in §7:
+>
+> - **O1 — no real network plumbing.** No sockets, no TLS
+>   handshakes, no connection reuse, no HTTP/1.1-versus-2
+>   differences. The client and the mock exchange requests in
+>   memory, so anything that can go wrong at the transport layer
+>   is untested.
+> - **O2 — no random timing.** The mock answers after a fixed,
+>   deterministic delay. Real-world jitter — a response arriving
+>   unusually early or late — was not simulated.
+> - **O3 — no message bodies.** The client under test never reads
+>   response payloads, so none were tested. The one exception is
+>   recognizing the Cloudflare block page by its HTML signature.
+> - **O4 — one account, one IP.** The limiter was never tested
+>   sharing a rate budget with traffic from other accounts or
+>   addresses. The mock can inject "phantom" hits that mimic the
+>   *countable* effects of such traffic, but the real sharing
+>   semantics are out of scope.
+> - **O5 — perfect clocks.** The mock's `Date` header always
+>   agrees with its own clock. Skew between a server's clock and
+>   its stated time was not tested — and the C1 property tests
+>   show the timing arithmetic *is* sensitive to skew, so this
+>   exclusion is flagged for re-entry, not waved off.
+> - **O6 — well-formed headers only, on the wire.** The mock
+>   always emits canonical lowercase headers. Adversarial header
+>   casing and ordering *are* covered, but at the parser by C2's
+>   generated inputs, not end to end over the wire.
+> - **O7 — no authentication at all.** No OAuth flow, no tokens,
+>   no POESESSID; no credential appears anywhere in the tests or
+>   fixtures. Everything about acquiring, refreshing, or
+>   attaching credentials is a later phase.
+> - **O8 — the declared leftovers, listed so this list is
+>   closed.** Server-side punishment for repeated 4xx errors
+>   (U2), the real Cloudflare rules (U4), the forum-posting
+>   regime, and endpoints that carry no rate limit — each already
+>   declared out of scope in its own register.
+>
+> In short: these verdicts say the client's *scheduling logic*
+> honors the modeled rate-limit contract. They say nothing about
+> transport, authentication, or the live service — nothing in
+> either verdict is live-service validation.
 
 ## §2. How to read the evidence
 
