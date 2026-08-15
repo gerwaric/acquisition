@@ -51,16 +51,20 @@ alongside X1–X2 (amended 2026-08-13, ballot pass — SHELL
 previously appeared in no prerequisite lane).
 
 - **Unconditional** — **yes, within the offline spike scope** for the
-  four OAuth policies at `Known(5s/60s)` (N12). The declared
-  4,096-case M1–M13 run is green, C1–C5 and X1–X2 are green, the
-  SHELL prerequisite is Full, and the independent registry verifies
-  every prerequisite clause Full; U1–U5 and the accepted future-
-  parser limitation remain carried exclusions.
+  four OAuth policies at `Known(5s/60s)` (N12) — **all four now
+  exercised**: the declared 4,096-case extended-contract run
+  (M1–M13, both M8 provenance lanes, and the SD-R8-F5
+  character-policy lanes, covering every routed N23 endpoint) is
+  green, C1–C5 and X1–X2 are green, the SHELL prerequisite is
+  Full, and the independent registry verifies every prerequisite
+  clause Full; U1–U5, the accepted future-parser limitation, and
+  the ratified O-series carriage below are the claim's scope.
 - **Conditional** — **yes for `backend-item-request-limit`, conditional
   on `Assumed(60s/60s)` being no smaller than the server's actual
   bucket resolution.** N14/N21 provide no upper bound, so this is not
   an unconditional claim. The same declared run includes the shipped
-  Assumed lane and the same prerequisite registry set is Full.
+  Assumed lane and the same prerequisite registry set is Full; the
+  same scope carriage applies.
 
 G3 (ε = 500 ms) and G4 (1.05×) were finalized 2026-08-13
 (`scenarios.md` §6 amendments), satisfying the finalization
@@ -101,8 +105,18 @@ the F7 O-series carriage wording alone — the proposed paragraph
 below — after which the verdicts refill citing the already-rerun
 authorities.]*
 
-**Proposed O-series carriage (SD-R8-F7) — awaiting Tom's sign-off;
-becomes part of both verdict statements when ratified:**
+*[Refill, 2026-08-15, same day: **Tom ratified the O-series
+carriage below** — the last open audit disposition — and the
+suspension is lifted. Both verdict slots above are refilled, citing
+the two agreeing authorities as rerun over the extended contract:
+the declared pinned and 4,096-case runs (16 reports per case, every
+N23 endpoint required by the declaration) and the registry at 110
+Full / 0 Partial / 1 accepted Untested / 13 Excluded. The §3 gate
+fills stand on the same basis. What remains before the spike ends
+is the F6 gate's delivery path, not evidence: `status.md` §5.]*
+
+**O-series carriage (SD-R8-F7) — ratified by Tom, 2026-08-15; part
+of both verdict statements:**
 
 > **What these verdicts do and do not cover.** Every test in this
 > spike ran against an in-process mock server on simulated time —
@@ -3169,3 +3183,26 @@ outlives the spike branch; record what exists and where.⟩
   extended contract.** The verdict slots remain suspended on the
   F7 O-series carriage wording alone; the F6 gate's migration
   package and reviews follow. No live service was contacted.
+
+- 2026-08-15 — **Tom ratified the F7 O-series carriage; the
+  verdict slots are refilled. Every SD-R8 audit finding is now
+  dispositioned.** Tom approved the plain-English carriage
+  paragraph after review (rewritten at his request from the
+  compressed first draft — same scope, clearer statement); it is
+  now part of both verdict statements in §1. With that, the last
+  gate on the refill fell: the suspension marker is closed by a
+  dated refill marker, both verdicts are refilled citing the two
+  agreeing authorities as rerun over the extended contract (the
+  pinned and 4,096-case declared runs with every N23 endpoint
+  required, and the registry at 110 Full / 0 Partial / 1
+  accepted Untested / 13 Excluded), and the unconditional
+  verdict's four-policy claim now rests on all four policies
+  exercised (F5 extension, `7a2d49e5`). Audit scoreboard:
+  F4 repaired and mutation-verified; F5 adjudicated (extend) and
+  landed; F6 adjudicated (gated hoist) with the gate recorded
+  and the audit charge written; F7 repaired (U5) and ratified
+  (O-series); F8 discharged by the reopening flip. What remains
+  is the F6 delivery gate — migration package, SD-R8 re-close
+  review, the final external audit per `final-audit-charge.md`,
+  and the two PRs — which is delivery work, not evidence work.
+  No live service was contacted.

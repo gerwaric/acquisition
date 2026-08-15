@@ -142,16 +142,13 @@ coverage.
 
 ## 3. Open decisions (Tom)
 
-One disposition still awaits Tom:
-
-- **SD-R8-F7 (O-series half) — verdict scope carriage wording.**
-  The concrete paragraph is drafted and placed in
-  `result-draft.md` §1 (marked "Proposed … awaiting Tom's
-  sign-off"); ratifying it makes it part of both verdict
-  statements. It is the **only** item still gating the verdict
-  refill: F4/F5 landed and both authorities reran green over the
-  extended contract, so on sign-off the verdicts refill citing
-  those runs. The U5 half was repaired 2026-08-15.
+None. Every SD-R8 audit finding is dispositioned. Tom ratified
+the F7 O-series carriage on 2026-08-15 (plain-English form, his
+requested rewrite); it is part of both verdict statements in
+`result-draft.md` §1 and **both verdict slots are refilled**,
+citing the extended-contract authority runs. The scoreboard: F4
+repaired, F5 extended and landed, F6 gated-hoist recorded, F7
+repaired and ratified, F8 discharged.
 
 Decided 2026-08-15: **SD-R8-F6 — complete via gated hoist; the
 spike ends with a PR** (Tom; full record in `result-draft.md`
@@ -207,14 +204,12 @@ ratification record is in `result-draft.md` §9. (Both earlier
 
 ## 4. Blocked
 
-Refilling the suspended verdict slots is blocked on Tom's F7
-O-series wording sign-off alone (§3). Everything else has landed:
-the F4 guard repair, the F7 U5 line, and the F5 character-policy
-extension, with both declared authorities green over the extended
-contract (§9 changelog). After the refill, the F6 gate governs the
-rest of the spike's end: migration package drafted → SD-R8
-re-close review → final external adversarial audit (re-close
-packet + both migration diffs) → the two delivery PRs.
+Nothing is blocked. The verdicts are refilled (§3) and all
+reopened-round evidence work is done. The remaining path is the
+F6 delivery gate, in order: draft the migration package → SD-R8
+re-close review → final external adversarial audit
+(`final-audit-charge.md`) → the two delivery PRs. Each step waits
+only on the one before it.
 
 ## 5. Next work
 
@@ -244,15 +239,22 @@ Reopened SD-R8 work (audit entry, `result-draft.md` §9):
   hand-derived G4 fingerprints matched on first run; registry
   minted `m2-character-policy-lanes`; both authorities green
   over the extended contract (§9 changelog).
-- **Awaiting Tom (§3):** the F7 O-series carriage wording
-  (drafted in `result-draft.md` §1) — the last gate on the
-  verdict refill.
-- **Then, per the F6 gate:** refill the verdicts citing the
-  rerun authorities; draft the migration package (topic doc,
-  register row, §8 record, dated `AGENTS.md` note, and the
-  CN1–CN6 master ground-truth diff); SD-R8 re-close review; the
-  final external adversarial audit (`final-audit-charge.md`
-  holds the standing charge); then the two delivery PRs.
+- ~~**F7 O-series carriage**~~ — **ratified by Tom 2026-08-15**;
+  part of both verdict statements, verdicts refilled (§3, §9
+  changelog).
+- **Remaining, per the F6 gate (delivery, not evidence):**
+  1. Draft the migration package — the distilled topic doc for
+     `docs/redesign/topics/`, the register-row flip, the §8
+     reusable-artifact record, the dated `AGENTS.md` hoist note
+     (spike-branch commits), and the CN1–CN6 transcription diff
+     on a branch off `master`.
+  2. SD-R8 re-close review over the reopened-range packet.
+  3. The final external adversarial audit —
+     `final-audit-charge.md` holds the standing charge; its
+     object includes both migration diffs.
+  4. The two delivery PRs (`spike/rate-limit-core` → `redesign`;
+     CN docs → `master`). **F6 — and the spike — complete at
+     landing.**
 
 1. ~~**M1 generated-φ mock-side residue sweep**~~ — **done
    2026-08-14** (`tests/m1_residue_sweep.rs`; `m1-g1-sweep` Full —
