@@ -77,8 +77,8 @@ const DRIVER_FN: &str = "m1_m13_run_against_the_actor_and_the_judge";
 /// deliberate two-line diff (the `swept_phases` pattern).
 pub const OPEN_UNTESTED: &[&str] = &[
     // Empty: every formerly open Untested clause now has a discharging test.
-    // This does not imply verdict readiness: Partial clauses and the §7.4
-    // replacement calibration gate remain live work in status.md.
+    // This does not imply verdict readiness: the seven full-contract Partial
+    // clauses remain live work in status.md.
 ];
 
 pub const CLAUSES: &[Clause] = &[
