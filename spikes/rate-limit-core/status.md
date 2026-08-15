@@ -33,14 +33,14 @@ The open-untested list is the `OPEN_UNTESTED` constant in
 `src/obligations.rs` — **not** any prose table. As of 2026-08-14 it
 is empty: the implementation swarm discharged all 13 previously
 open Untested ids.
-Registry totals are 96 Full, 13 Partial, one accepted Untested
+Registry totals are 97 Full, 12 Partial, one accepted Untested
 limitation (`x2-parser-cap-limitation`), and 13 Excluded. The
-Partial set now includes `s7-4-replay-gate`, §7.4 calibration's
-machine-checked slot (SD-R5-F11), and `m1-g1-sweep`, whose missing
-delta is a generated-φ mock-side residue sweep (RE-9). The replay
-slot's delta is a precisely specified feedback-consistent replacement
-gate plus its green run; Tom's adjudication is recorded in
-`result-draft.md` §9.
+Partial set includes `s7-4-replay-gate`, §7.4 calibration's
+machine-checked slot (SD-R5-F11), whose delta is a precisely
+specified feedback-consistent replacement gate plus its green run;
+Tom's adjudication is recorded in `result-draft.md` §9.
+(`m1-g1-sweep` flipped to Full on 2026-08-14: the generated-φ
+mock-side residue sweep landed — §9 changelog.)
 Empty `OPEN_UNTESTED` does not
 imply verdict readiness; the Partial set and §7.4 replacement gate
 work are itemized in §5. `obligation-map.md`
@@ -94,9 +94,9 @@ live-service input blocks it.
 The 2026-08-13 ballot remains closed; this is the exact residual
 set after the round-five close (SD-R5, 2026-08-14 re-review).
 
-1. **M1 generated-φ mock-side residue sweep** — the exact Partial
-   delta for `m1-g1-sweep` after RE-9 corrected C1's core-side mirror
-   over-classification.
+1. ~~**M1 generated-φ mock-side residue sweep**~~ — **done
+   2026-08-14** (`tests/m1_residue_sweep.rs`; `m1-g1-sweep` Full —
+   `result-draft.md` §9 changelog).
 2. **Ballot G** — build the forced M9 phantom race at 14/15. It
    discharges `m9-recovery-survives-race`,
    `m9-race-exposure-attribution`, and the last scripted arm of

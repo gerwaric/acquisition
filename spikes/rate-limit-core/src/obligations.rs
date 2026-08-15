@@ -147,7 +147,7 @@ pub const CLAUSES: &[Clause] = &[
         id: "m1-g1-sweep",
         owner: "M1",
         text: "G1 across the residue × φ sweep (M1 → G1) (scenarios.md:170)",
-        coverage: Coverage::Partial,
+        coverage: Coverage::Full,
         citations: &[
             Citation {
                 file: DRIVER,
@@ -155,17 +155,30 @@ pub const CLAUSES: &[Clause] = &[
                 must_assert: "G1 judged over residues 0/1/9/10 at φ ∈ {0, 1}",
             },
             Citation {
+                file: "tests/m1_residue_sweep.rs",
+                test_fn: "m1_generated_phi_mock_side_residue_sweep_holds_g1",
+                must_assert: "generated residue 0..=12 × generated φ over the \
+                              60,000 ms cycle (plus pinned 4,999/5,000/5,001 \
+                              rollover arms) boots the public actor and is \
+                              judged by the mock with G1 armed; the \
+                              sustained-window residue count anchors \
+                              non-vacuity and zero-budget cases wait the \
+                              independent 20 s bound under G3",
+            },
+            Citation {
                 file: "tests/c1_scheduling.rs",
                 test_fn: "every_reserved_outcome_is_safe_for_every_server_phase",
                 must_assert: "generated-φ safety of every granted reservation \
-                              (the §3 sweep property C1 owns)",
+                              (the §3 sweep property C1 owns — the core-side \
+                              mirror, kept as supporting evidence only)",
             },
         ],
-        note: "RE-9 corrects SD-R5-F10's over-classification: C1 is the \
-               core-side generated-φ mirror and never judges mock-side G1. \
-               The driver covers residues 0/1/9/10 only at the two \
-               boundary-distance phases; delta: no generated-φ mock-side \
-               residue sweep",
+        note: "Discharged 2026-08-14: the generated-φ mock-side residue sweep \
+               closes RE-9's delta. The driver's residues 0/1/9/10 at \
+               φ ∈ {0, 1} remain the pinned boundary cases; the sweep caps \
+               residue at 12 (above the burst limit, strictly below the \
+               sustained 30) so the zero-budget bound is always the burst \
+               window's — recorded in the hand-off",
     },
     Clause {
         id: "m1-probe-429-seeding",

@@ -93,7 +93,7 @@ list (see `status.md` §1).
 
 | ID | Scenario | Sweep | Gates exercised | Result | Evidence |
 |---|---|---|---|---|---|
-| M1 | Cold start with residue (flagship) | phase-swept | G1, G2, G6 | partial — actor/judge evidence now covers residues 0/1/9/10 at φ=0/1, exclusive boot HEAD, probe-429 seeding, and first-GET confirmation/escalation; reports remain fragments | 2026-08-14: `scenario_driver` and `actor_safety` targets green; `m1-g1-sweep` Partial pending a generated-φ mock-side residue sweep (RE-9), other M1 clauses Full. |
+| M1 | Cold start with residue (flagship) | phase-swept | G1, G2, G6 | partial — actor/judge evidence covers residues 0/1/9/10 at φ=0/1, the generated-φ mock-side residue sweep (residues 0–12 × generated φ over the 60,000 ms cycle, judged by the mock with G1 armed), exclusive boot HEAD, probe-429 seeding, and first-GET confirmation/escalation; reports remain fragments | 2026-08-14: `scenario_driver`, `actor_safety`, and `m1_residue_sweep` targets green (the sweep also at 4,096 generated cases, mutation-checked through G5 and G3); all M1 registry clauses Full. |
 | M2 | Clean cold-start saturation burst | phase-swept | G1–G4, G6 | partial — 40-request actor run crosses both burst and sustained stalls; G4 minimum is independent runtime arithmetic over the actual policy, queue depth, D5 floor, bucket padding, and 81 ms service delay | 2026-08-14: `scenario_driver` target green; `m2_g4_minimum_is_runtime_derived_and_reaches_both_stalls` pins 122,581 ms. |
 | M3 | Degraded HEAD | independent | G1, G2, G5 | partial — scoped refusal, unaffected-policy flow, and 60 s cooldown re-entry are pinned through the public actor | 2026-08-14: `scenario_driver` and `actor_safety` targets green; registry clauses Full. |
 | M4 | Unexpected policy shape | independent | G1, G2, G5 | partial — scoped D4 refusal, unaffected-policy flow, and cooldown watch publication are pinned; the scenario report remains a fragment | 2026-08-14: `scenario_driver` and `actor_safety` targets green; registry clauses Full. |
@@ -2177,3 +2177,30 @@ outlives the spike branch; record what exists and where.⟩
   flipped to name the closed round, and this entry. The slice
   remains open on `status.md` §5's residual set; no verdict slot
   was filled; no live service was contacted.
+
+- 2026-08-14 — **M1 generated-φ mock-side residue sweep landed**,
+  discharging the exact RE-9 delta for `m1-g1-sweep` (residual item 1
+  of `status.md` §5). New target `tests/m1_residue_sweep.rs`:
+  proptest generates residue 0..=12 and φ over the full 60,000 ms
+  cycle (with the three §3 rollover cases 4,999/5,000/5,001 pinned as
+  explicit strategy arms), and every case boots the public actor
+  against the mock, submits one stash-list request, and hands the
+  mock's observations to `conformance::judge` with G1/G2/G3/G6 armed
+  under the OAuth Known profile. The wire facts reach the judge as
+  the M1 scenario assertion (the RE-2 sole-decider pattern) with a
+  falsifiability guard; the sustained-window residue count is the
+  per-case non-vacuity anchor (the mock provably judged against live
+  residue at every generated φ, in both branches); zero-budget cases
+  assert branch reachability (no early dispatch, before and after the
+  coarse advance) and wait the independently derived 20 s bound. The
+  residue cap of 12 — above the burst limit, strictly below the
+  sustained 30 — is a recorded judgment call, not a doc silence.
+  Mutation checks: a broken residue anchor reached the judge as
+  `G5 failed: ["M1BootSequence"]`, and the weakened zero-budget
+  oracle entry reached G3 as 19,875 ms measured lateness; the real
+  bound's observed slack is 19 ms against ε=500 ms. Runs green at the
+  default 256 and at 4,096 generated cases (0.96 s). Registry:
+  `m1-g1-sweep` flipped to Full with the new citation (C1 retained
+  as the core-side mirror, supporting only); totals now 97 Full /
+  12 Partial / 1 Untested / 13 Excluded. No verdict slot was filled;
+  no live service was contacted.
