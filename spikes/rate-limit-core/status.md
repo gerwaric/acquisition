@@ -206,8 +206,8 @@ ratification record is in `result-draft.md` §9. (Both earlier
 
 Nothing is blocked. The verdicts are refilled (§3) and all
 reopened-round evidence work is done. The remaining path is the
-F6 delivery gate, in order: draft the migration package → SD-R8
-re-close review → final external adversarial audit
+F6 delivery gate, in order: SD-R8 re-close review → final external
+adversarial audit
 (`final-audit-charge.md`) → the two delivery PRs. Each step waits
 only on the one before it.
 
@@ -243,13 +243,13 @@ Reopened SD-R8 work (audit entry, `result-draft.md` §9):
   part of both verdict statements, verdicts refilled (§3, §9
   changelog).
 - **Remaining, per the F6 gate (delivery, not evidence):**
-  1. Draft the migration package —
-     **`migration-package-charge.md` is the self-contained task
-     spec** (topic doc, register-row flip, §8 record, dated
-     `AGENTS.md` hoist note as spike-branch commits; CN1–CN6
-     transcription diff on a branch off `master`). Drafts only:
-     no PRs until steps 2–3 pass.
-  2. SD-R8 re-close review over the reopened-range packet.
+  1. ~~Draft the migration package~~ — **done 2026-08-15** per
+     `migration-package-charge.md`: topic doc `f0bbb92d`, register
+     row `1177fa56`, §8 artifact record `82d7a434`, and AGENTS F6
+     note `88d8266c` on this branch; CN1–CN6 transcribed as N27–N32
+     in `c1d92417` on `rate-limit-core-ground-truth`, cut from
+     `master`. Drafts only; no push or PR occurred.
+  2. **Next: SD-R8 re-close review over the reopened-range packet.**
   3. The final external adversarial audit —
      `final-audit-charge.md` holds the standing charge; its
      object includes both migration diffs.

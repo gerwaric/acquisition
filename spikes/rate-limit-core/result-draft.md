@@ -905,19 +905,19 @@ and pins the bound; dated text preserved.]*
 
 ## §4. Candidate N-claims
 
-Transcribed to `network-ground-truth.md` at hoist, cited by
-number there. Accumulated during reconciliation and design; each
+Transcribed to `network-ground-truth.md` for the migration package,
+cited by number there. Accumulated during reconciliation and design; each
 survives or falls on its cited source, independent of the spike
 verdict.
 
 | # | Candidate claim | Claim lane | Source | Status |
 |---|---|---|---|---|
-| CN1 | Invalid-request (4xx) budget: too many 4xx responses in a short period restrict access; 429s double-dip (policy budget + invalid budget); threshold parameters undocumented (sibling of Q8) | DOC, Confirmed | developer docs, retrieved 2026-08-09 (verbatim quotes in the charter's 4xx entry) | awaiting transcription |
-| CN2 | Cloudflare challenge-block signature: layer-1 blocks can present as 403 + `cf-mitigated: challenge` (not 1015), no rate-limit headers (extends N3) | external | community.cloudflare.com thread, retrieved 2026-08-09 (URL in the charter's bucketing entry) | awaiting transcription |
-| CN3 | Recourse asymmetry: layer-1 blocks may be invisible to GGG support and unappealable for non-business Cloudflare users (informs Q7) | external | same thread as CN2 | awaiting transcription |
-| CN4 | Trade-API rules carry three windows per rule — the RulePair shape is not universal; a non-pair policy is out-of-model, not impossible | external | pathofexile.com forum thread 3056323, retrieved 2026-08-09 (URL in the charter's bucketing entry) | awaiting transcription |
-| CN5 | N11–N13 under-specify bucket quantization semantics (when a hit's age is measured / when it leaves the window); the spike's mock adopts the most-adversarial consistent reading — timestamp rounds up to bucket end, entry never quantized (N25 pins immediate 1:1 increment) | inferred (model choice); the gap itself is a doc finding | `scenarios.md` §7 B3, 2026-08-09 | awaiting transcription |
-| CN6 | **Reprioritization is cheap in the actor shape and was not in the coroutine/facade shape — `network-redesign.md` R7/D6's "not cheap later" warning does not carry over.** It failed there for a specific reason: the stop token is per-update, so per-entry cancellation did not exist and reorder needed entry identity invented first. The Rust actor already has that identity (`RequestId`, `Command::Cancel` doing positional removal on the owned deque), and its dispatch loop reads only `queue.front()` — no scheduling decision depends on arrival order. FIFO is emergent from append-at-back/take-from-front, not assumed; the actor already dispatches out of arrival order for writer preference. Reorder is therefore `remove(pos) + insert(pos)`, and the expensive part is contract, not code: D5's "no lane starvation" clause has no rule, so whoever adds reorder decides it. **This is evidence for the `design-brief.md` thesis that queue-as-data picks the actor shape.** | measured (structural, this branch) | `src/actor.rs` dispatch loop and `Command::Cancel`; contrast `docs/design/network-redesign.md` R7/D6 and `network-redesign-reviews.md` (2026-07-19 errata, "stale cancel+resubmit reprioritization claim removed"); Tom's decision 2026-08-12 | awaiting transcription |
+| CN1 | Invalid-request (4xx) budget: too many 4xx responses in a short period restrict access; 429s double-dip (policy budget + invalid budget); threshold parameters undocumented (sibling of Q8) | DOC, Confirmed | developer docs, retrieved 2026-08-09 (verbatim quotes in the charter's 4xx entry) | transcribed 2026-08-15 as N27 (`c1d92417`, `rate-limit-core-ground-truth`) |
+| CN2 | Cloudflare challenge-block signature: layer-1 blocks can present as 403 + `cf-mitigated: challenge` (not 1015), no rate-limit headers (extends N3) | external | community.cloudflare.com thread, retrieved 2026-08-09 (URL in the charter's bucketing entry) | transcribed 2026-08-15 as N28 (`c1d92417`, `rate-limit-core-ground-truth`) |
+| CN3 | Recourse asymmetry: layer-1 blocks may be invisible to GGG support and unappealable for non-business Cloudflare users (informs Q7) | external | same thread as CN2 | transcribed 2026-08-15 as N29 (`c1d92417`, `rate-limit-core-ground-truth`) |
+| CN4 | Trade-API rules carry three windows per rule — the RulePair shape is not universal; a non-pair policy is out-of-model, not impossible | external | pathofexile.com forum thread 3056323, retrieved 2026-08-09 (URL in the charter's bucketing entry) | transcribed 2026-08-15 as N30 (`c1d92417`, `rate-limit-core-ground-truth`) |
+| CN5 | N11–N13 under-specify bucket quantization semantics (when a hit's age is measured / when it leaves the window); the spike's mock adopts the most-adversarial consistent reading — timestamp rounds up to bucket end, entry never quantized (N25 pins immediate 1:1 increment) | inferred (model choice); the gap itself is a doc finding | `scenarios.md` §7 B3, 2026-08-09 | transcribed 2026-08-15 as N31 (`c1d92417`, `rate-limit-core-ground-truth`) |
+| CN6 | **Reprioritization is cheap in the actor shape and was not in the coroutine/facade shape — `network-redesign.md` R7/D6's "not cheap later" warning does not carry over.** It failed there for a specific reason: the stop token is per-update, so per-entry cancellation did not exist and reorder needed entry identity invented first. The Rust actor already has that identity (`RequestId`, `Command::Cancel` doing positional removal on the owned deque), and its dispatch loop reads only `queue.front()` — no scheduling decision depends on arrival order. FIFO is emergent from append-at-back/take-from-front, not assumed; the actor already dispatches out of arrival order for writer preference. Reorder is therefore `remove(pos) + insert(pos)`, and the expensive part is contract, not code: D5's "no lane starvation" clause has no rule, so whoever adds reorder decides it. **This is evidence for the `design-brief.md` thesis that queue-as-data picks the actor shape.** | measured (structural, this branch) | `src/actor.rs` dispatch loop and `Command::Cancel`; contrast `docs/design/network-redesign.md` R7/D6 and `network-redesign-reviews.md` (2026-07-19 errata, "stale cancel+resubmit reprioritization claim removed"); Tom's decision 2026-08-12 | transcribed 2026-08-15 as N32 (`c1d92417`, `rate-limit-core-ground-truth`) |
 
 ⟨New candidates minted during implementation land here the day
 they appear — writing the mock exposing an N-claim ambiguity is a
@@ -3215,3 +3215,18 @@ hoistable to its own repository without surgery.
   review, the final external audit per `final-audit-charge.md`,
   and the two PRs — which is delivery work, not evidence work.
   No live service was contacted.
+
+- 2026-08-15 — **F6 migration package drafted; step 1 of the
+  delivery gate is complete.** The spike-side drafts landed as four
+  one-concern commits: the consumer topic with both verdicts and full
+  U1–U5/O1–O8 carriage (`f0bbb92d`), the unchanged-question register
+  row flip (`1177fa56`), the dated reusable-artifact record
+  (`82d7a434`), and the AGENTS F6 delivery override (`88d8266c`).
+  The separate branch `rate-limit-core-ground-truth`, cut from
+  `master`, transcribes CN1–CN6 as N27–N32 in
+  `docs/design/network-ground-truth.md` (`c1d92417`), preserving the
+  external citations and CN6's tripwire/outliving-premises note; the
+  CN rows in §4 are marked transcribed. These are drafts for review:
+  no push, PR, merge, or live-service contact occurred. The next gate
+  step is the SD-R8 re-close review, followed by the final external
+  audit; F6 remains open until both deliveries land.
