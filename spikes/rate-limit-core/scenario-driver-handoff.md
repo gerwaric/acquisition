@@ -1,6 +1,15 @@
 # Scenario-driver and safety-closure hand-off
 
-Status: **open — SD-R7 re-closed (2026-08-15) after the external
+Status: **open — SD-R8 full-contract packet presented 2026-08-15;
+the implementing session does not close it.** The pinned attempt ran
+all M1–M13 rows and both profile lanes, but M6's two G3 failures made
+the report ineligible and the run-owned declaration refused it. The
+registry remains 102 Full / 7 Partial / 1 accepted Untested / 13
+Excluded; no gate or verdict slot was filled. SD-R8-F2 requires Tom's
+contract decision before a 4,096-case declared run can complete. This
+packet's four parts and verification matrix are below.
+
+Prior status: **SD-R7 re-closed (2026-08-15) after the external
 audit's reopening; the slice stays open on `status.md` §5 item 5
 (the full-contract run) only.** Tom adjudicated both audit
 findings the same day: F1's erratum ratified (alternate kill
@@ -55,6 +64,9 @@ preserved below, not rewritten.
 | §7.4's fixed-dispatch every-phase replay changes hypothetical server feedback without letting the captured client schedule react. | Tom adjudicated this as a frozen-contract expectation error on 2026-08-14. Preserve B3, both fixtures, and the complete 20-band / 1,052-phase counterexample diagnostic; replace the gate with feedback-consistent calibration. | The superseded assertion remains a finding reproduction until the replacement gate is precisely specified and implemented. Closed-loop C1/M-series every-phase safety is unchanged. |
 | M1 says "sweep residue magnitude" but states no upper bound for the generated sweep. | Cap generated residue at 12 — above the burst limit of 10 (so over-limit state headers are exercised) and strictly below the sustained 30 (so the zero-budget wait is always the burst window's 20 s bound). | A future residue ≥ 30 case saturates the sustained window and needs the 120 s bound instead; the sweep's G1 claim is scoped to residues ≤ 12, stated in the registry note. The driver's pinned 0/1/9/10 boundary cases are unchanged. |
 | M11a's "compliant client never trips" names no traffic source that can approach the ceilings: every N23 policy caps the wire far below the D5 floor rate. | Use B7's scriptable-synthetic-policy channel (1,000/10 s + 10,000/60 s) so the 250 ms floor is the binding constraint and the actor reaches its compliant maximum — the closest a correct client can get to layer 1. | The sweep's "never trips" evidence is bound to floor-paced traffic at the compliant maxima (4/s, 240/min, pinned exactly); a floor-*violating* client evading the ceilings remains B13's wire-shape assertion per B10's recorded caveat, not this sweep's claim. |
+| The frozen docs do not specify the exact full-contract scale or what mechanically constitutes a declaration (SD-R8-F1). | Use 4,096 generated cases across all 60,000 phases with dedicated before/on/after boundary cases; require all M1–M13 rows, both provenance profiles, and exclusively verdict-eligible reports in a run-owned declaration that does not consult the registry. | A missing row/profile or one fragment/failing report refuses declaration; only after declaration may the independent registry authority be considered. |
+| Reconciliation says to compare reported server counts with local in-window history, but does not say whether that local window is raw or N13-padded (SD-R8-F3). | Count local entries through each configured padded window. The server observation still supplies the lower bound, and synthesis remains capped by configured limits. | The next `try_reserve` sees retained N13-padded client hits once, not again as synthetic phantoms; no state understates the server, and entries still age out at the configured horizon. |
+| G3's ratified oracle is raw server permit time and expressly padding-independent, while N13 deliberately holds client hits through another bucket and ε is 500 ms (SD-R8-F2). | Preserve the ratified oracle and bound; report the measured conflict instead of silently teaching the oracle about padding or widening ε. | M6's ineligible report stops `FullContractRun::declare`; no clause promotion, gate cell, or verdict follows until Tom resolves the contract. |
 
 Existing phase semantics still apply: `phase_ms` is the upcoming
 boundary, and φ=0/1 are the two boundary-distance extremes. Focused
@@ -178,6 +190,36 @@ ratified spec:
   (6) notifications untouched (no watch channel in the replay
   path).
 
+(SD-R8 full-contract packet, 2026-08-15) — seams and invariant walk:
+
+- **Run declaration ↔ registry:** `FullContractRun::declare` checks
+  only the run's reports (all M rows, both profiles, eligibility).
+  It cannot read or mutate `src/obligations.rs`; the registry remains
+  the genuinely independent second authority. Here the first
+  authority refuses and the second remains Partial, so they agree.
+- **Driver ↔ actor ↔ mock ↔ judge:** full-scale M6/M7/M8 stimuli use
+  the same public `GateHandle`, in-process mock observations, and
+  independent conformance oracles as the fragment driver. Queue and
+  burst constants are structurally pinned, including two complete
+  shrunk M6 windows. `try_reserve` remains the only permit source.
+- **Reconciliation ↔ padded history:** the only production-state
+  change is at the existing response reconciler. It counts the
+  client's already-pessimistic history using configured resolutions;
+  the wire-derived reported count is still capped before synthesis.
+  The six invariants hold: (1) no new permanent state — entries age
+  out at the padded horizon; (2) reservation ids and consumption are
+  unchanged; (3) reported counts can add debt but never remove it,
+  while own retained hits are no longer double-counted; (4)
+  `try_reserve` remains sole scheduling authority; (5) ordinary and
+  probe entry-point result types are unchanged and share only the
+  reconciler; (6) eliminating spurious synthesis eliminates a
+  spurious `StateChanged`, while real synthesis still emits it iff
+  state mutates.
+- **G3 contract seam:** the independent oracle intentionally remains
+  raw-server arithmetic. Its full-scale disagreement with N13 is
+  surfaced as SD-R8-F2 rather than patched on either side without
+  authority.
+
 ## 3. Coverage confession
 
 The registry is the coverage authority. After the §7.4 gate packet
@@ -187,6 +229,17 @@ limitation, and 13 Excluded; `OPEN_UNTESTED` is empty and
 remaining Partial set is exactly the seven fragment-scale clauses
 only the declared full-contract run can finish (`s7-4-replay-gate`
 flipped to Full 2026-08-15 per the ratified spec's discharge line).
+
+SD-R8 adds full-scale reachability and declaration machinery, but
+does **not** change those totals. At pinned φ=0, all M rows executed;
+M1–M5 and M7–M13 (including M8's second profile lane) produced green
+FullContract-labeled reports. M6 produced a non-eligible report:
+G1/G2/G4/G5/G6 green, G3 false twice by 725 ms. Because
+`FullContractRun::declare` refused that report, no completed run
+exists, no one-report subset is verdict evidence, and all seven ids
+remain Partial. The generated 4,096-case phase sweep is blocked by
+the same deterministic contract conflict. Registry verification is
+still 6/6 with `OPEN_UNTESTED` empty.
 
 New or strengthened evidence:
 
@@ -275,7 +328,8 @@ below is discharged by the §7.4 gate packet, pending its review):
    retain the exhaustive fixed-trace counterexample as a
    diagnostic.~~ — **implemented 2026-08-15** (this packet; the
    band-edge test and enumeration are retained unchanged).
-2. A declared full-contract run for the seven fragment-scale clauses:
+2. A declared full-contract run for the seven fragment-scale clauses
+   — **attempted in SD-R8 and blocked by SD-R8-F2; not declared**:
    `m6-g1-post-announcement`, `m6-queue-drains-new-pace`,
    `m7-no-client-violation`, `m8-no-follow-on-violation`,
    `g1-zero-client-violations`, `g2-ceilings-never-tripped`, and
@@ -400,6 +454,30 @@ consistent set. Dated text preserved, not rewritten.]*
     shrinks the sample set fails the census rather than passing
     thinner.
 
+(SD-R8 full-contract packet, 2026-08-15):
+
+- 4,096 cases is the conservative existing property-test scale; the
+  phase strategy spans the full 60,000 ms common cycle and explicitly
+  weights before/on/after 5 s and 60 s boundaries. The run producer,
+  not `FullContractRun`, owns this reachability claim so the declaration
+  cannot manufacture scale from a small report set.
+- M6/M7/M8 use 12/12/12 queued follow-on requests, with M7's eight-hit
+  phantom burst. These are the smallest round-number shapes chosen
+  above the relevant one-window thresholds; runtime assertions make
+  loss of the intended scale fail.
+- Reconciliation reads “local in-window” in client terms: its window
+  includes configured N13 padding. Using raw server periods there made
+  the client re-synthesize its own retained entries and broke both
+  performance and truthfulness.
+- The G3 oracle and ε were deliberately **not** changed. That choice
+  makes the run fail, but preserves the frozen contract and exposes the
+  decision to Tom. Reasonable dispositions include independently
+  computing N13 padded-safe time or revising G3's bound/statement; this
+  packet does not choose between them.
+- **Result-statement proposal: none.** The result is not completable:
+  neither full-contract authority is satisfied and both verdict slots
+  remain blank.
+
 ## 5. Verification presented with this packet
 
 Residual-items matrix, entirely offline: `cargo test --locked` — 166
@@ -451,3 +529,28 @@ packet (spec §4; residue-zero assert migrated into the gate's
 preconditions), so its finding-reproduction line above is now
 historical. No command in this packet contacts a live service; no
 report declares `FullContract`; no verdict slot was filled.
+
+(SD-R8 full-contract packet, 2026-08-15) — final matrix, entirely
+offline: `cargo test --locked` — 170 passed / 0 failed / 4 ignored;
+`cargo test --locked --release` — 168 / 0 / 4 (two debug-only drop-
+bomb tests absent); `PROPTEST_CASES=4096 cargo test --locked` — 170 /
+0 / 4; all-target clippy with warnings denied, fmt, and
+`git diff --check` clean; obligations 6/6; sanitizer 4/4; both ignored
+§7.4 release tests 2/2 green in 7.70 s. The full-contract scale-shape
+test is green on the restored tree. The explicitly ignored pinned
+full-contract attempt is the expected blocker reproduction, not a
+green matrix member: all 14 reports are present, M6 G3 fails by 725 ms
+at correlations 9 and 14, and declaration refuses M6.
+
+Mutation checks were run from committed implementation and reverted
+with `git checkout --`: (1) raw-period rather than padded-window
+reconciliation → focused regression `left: 2, right: 0`; (2) remove
+the declaration eligibility guard → fragment refusal returns
+`Ok(FullContractRun { ... M1 Fragment ... })` instead of
+`Err(ReportNotVerdictEligible { scenario: M1 })`; (3) reduce M6's
+post-shrink queue 12→10 → `M6 must cross two complete five-hit
+new-pace windows`. The lint-only local-binding adjustment was committed
+before mutation 3 was repeated; its signature was unchanged. No live
+service was contacted. No run declared `FullContract`, no registry row
+was promoted, no gate/verdict slot was filled, and this implementing
+session does not close SD-R8.

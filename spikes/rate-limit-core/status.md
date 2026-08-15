@@ -86,15 +86,34 @@ coverage.
   both closure entries are in `result-draft.md` §9. The slice stays
   open on §5 item 5 only — the full-contract run;
   `scenario-driver-handoff.md` remains the live packet file for it.
+  **Round eight is awaiting independent review** (SD-R8,
+  2026-08-15): the full-contract implementation and attempted run
+  reached every M1–M13 row at pinned φ=0, but M6 failed the ratified
+  G3 oracle before the run-owned declaration could be issued. The
+  seven clauses therefore remain Partial and both verdict slots stay
+  blank. The four-part packet and exact failure are in
+  `scenario-driver-handoff.md`; Tom's open contract decision is §3.
 - Every other slice (core, bootstrap, mock, actor, clause registry,
   doc split) is closed; their hand-offs are historical records.
   (Doc split closed 2026-08-13, DS-R1 — `result-draft.md` §9.)
 
 ## 3. Open decisions (Tom)
 
-None. Tom ratified the §7.4 replacement-gate spec in full on
-2026-08-15 — all five §6 asks, with the retrospective-P1 and
-future-capture amendments folded in at ratification.
+1. **SD-R8-F2 — reconcile G3 with intentional N13 padding.** The
+   ratified G3 oracle is server-permit time, expressly independent of
+   client padding, with ε = 500 ms. At full-contract scale the client
+   deliberately retains hits for N13's additional bucket, so the
+   pinned φ=0 run fails M6 twice at 725 ms over-delay (correlations 9
+   and 14); a generated φ=2,290 attempt measured 2,985 ms and 57,985
+   ms cases. Tom must decide whether G3's independent oracle should
+   model padded-safe N13 time, or whether the existing bound/statement
+   changes. The implementation session preserves the ratified raw
+   oracle and refuses to declare `FullContract`.
+
+Earlier decisions remain closed. Tom ratified the §7.4 replacement-
+gate spec in full on 2026-08-15 — all five §6 asks, with the
+retrospective-P1 and future-capture amendments folded in at
+ratification.
 `s7-4-replacement-gate.md` is now contract; the adoption marker and
 the B3 convention amendment are applied in `scenarios.md`; the
 ratification record is in `result-draft.md` §9. (Both earlier
@@ -115,10 +134,13 @@ ratification record is in `result-draft.md` §9. (Both earlier
 
 ## 4. Blocked
 
-None. Tom adjudicated SD-R7-F1 on 2026-08-15 (alternate kill
-signature accepted, erratum ratified; disclosed silences ratified)
-and authorized the in-session SD-R7-F2 fix; the round is re-closed.
-Decisions and consequences are recorded in `result-draft.md` §9.
+The declared full-contract run is blocked on SD-R8-F2 in §3. The
+pinned attempt executes all M rows but M6's two G3 failures make its
+report ineligible, so `FullContractRun::declare` returns
+`ReportNotVerdictEligible { scenario: M6 }`. The 4,096-case phase
+run cannot be presented as complete while that deterministic case
+fails. No
+registry clause or verdict slot may move while this remains true.
 
 ## 5. Next work
 
@@ -149,11 +171,19 @@ work.
    fixed to carry the recorded count, verified). §9 changelog. The
    band-edge, exhaustive-enumeration, and 43/43 witness diagnostics
    remain load-bearing, retained unchanged.
-5. Full-contract run last. It finishes the fragment-scale-only
+5. **Full-contract run attempted 2026-08-15; blocked on SD-R8-F2.**
+   The implementation pins 4,096 generated phases over the complete
+   60,000 ms cycle, both bucket profiles, and full M6/M7/M8 queue
+   shapes. A pinned φ=0 preflight executes every M row; all reports
+   except M6 pass all gates, while M6 passes G1/G2/G4/G5/G6 and fails
+   G3 twice by 725 ms. Consequently no run-owned `FullContract`
+   declaration exists. The run would finish the fragment-scale-only
    clauses `m6-g1-post-announcement`,
    `m6-queue-drains-new-pace`, `m7-no-client-violation`,
    `m8-no-follow-on-violation`, `g1-zero-client-violations`,
    `g2-ceilings-never-tripped`, and `g3-over-delay-bounded`.
    Verdict slots may be filled only when the run declares
    `FullContract` and the registry independently shows every owned
-   clause `Full`; until then they remain blank.
+   clause `Full`; neither authority does, so all seven remain Partial
+   and both verdict slots remain blank. Review packet:
+   `scenario-driver-handoff.md` (SD-R8).

@@ -63,6 +63,15 @@ G3 (ε = 500 ms) and G4 (1.05×) were finalized 2026-08-13
 prerequisite this paragraph previously stated for the verdict
 slots.
 
+**2026-08-15 full-contract attempt:** neither slot is filled. The
+run-owned authority did not declare `FullContract`: after every M row
+executed at pinned φ=0, M6 failed G3 twice by 725 ms and
+`FullContractRun::declare` refused its report. Independently, the
+registry still reports the seven full-contract clauses as Partial.
+The two authorities therefore agree that the run is not verdict-
+eligible; a green fragment or a subset of green full-scale reports is
+not used to fill a slot. SD-R8-F2 in §9 records the contract conflict.
+
 ## §2. How to read the evidence
 
 Two orthogonal lane taxonomies apply:
@@ -139,6 +148,13 @@ evidence is green at φ=0/1 — see the driver status note above.
 (One-line preamble in place of per-cell markers, Tom's DS-R1
 closure disposition, 2026-08-13; the cells stay `⟨…⟩` until a
 `verdict_eligible()` run fills them.)
+
+The 2026-08-15 SD-R8 attempt does not change a cell: its pinned
+preflight ran all M1–M13 scenarios, but M6's G3 failures prevented
+the run-owned declaration, and the registry therefore remained
+102 Full / 7 Partial / 1 accepted Untested / 13 Excluded. Even the
+green G1/G2/G4/G5/G6 results from that attempt are not independently
+promoted.
 
 | Gate | Statement | Result | Evidence |
 |---|---|---|---|
@@ -2640,3 +2656,71 @@ outlives the spike branch; record what exists and where.⟩
   fmt clean. No verdict slot was filled; no live service was
   contacted. The slice stays open on `status.md` §5 item 5 alone —
   the full-contract run.
+
+- 2026-08-15 — **SD-R8 full-contract packet presented; run blocked,
+  not declared, and awaiting independent review.** The docs did not
+  specify either the exact full-contract scale or a mechanical meaning
+  for “declares `FullContract`” (**SD-R8-F1**, doc finding). The
+  conservative implementation uses 4,096 generated cases over the
+  complete 0..59,999 ms phase domain with dedicated before/on/after
+  boundary weight; exercises both `Known(5s/60s)` and
+  `Assumed(60s/60s)` profiles; expands M6 to 12 queued post-shrink
+  requests, M7 to an eight-hit phantom burst plus 12 queued requests,
+  and M8 to 12 queued recovery requests; and adds a run-owned
+  `FullContractRun::declare` guard, independent of the registry, that
+  requires every M1–M13 row, both profiles, and only
+  `verdict_eligible()` reports. A negative test pins missing-row,
+  missing-profile, and fragment refusal. Consequence: any one bad row
+  stops declaration before the registry can be promoted.
+
+  The first generated attempt exposed a core seam defect
+  (**SD-R8-F3**): response reconciliation compared a server count to
+  raw-period local history, then synthesized “phantom” entries for the
+  client's own N13-padded retained hits. Commit `cc448b79` now compares
+  against each configured padded local window; the independent
+  property oracle changed with independent arithmetic and the focused
+  regression
+  `reconciliation_does_not_resynthesize_locally_padded_hits_as_phantoms`
+  pins zero new synthesis. On the next call, `try_reserve` sees the
+  already-retained pessimistic history without extra synthetic debt;
+  one-send/one-entry identity, age-out, and no-understatement remain
+  intact. At generated φ=2,290, M2's prior spurious G4 duration
+  (~240,331 ms against 122,581 ms) returned to the expected ~122.5 s.
+
+  The repaired pinned φ=0 attempt executed every M row and both
+  profile lanes. Every report except M6 passed every armed gate; M6
+  passed G1, G2, G4, G5, and G6, but G3 reported
+  `correlation 9 exceeded G3 by 725 ms` and
+  `correlation 14 exceeded G3 by 725 ms`. Declaration consequently
+  returned `ReportNotVerdictEligible { scenario: M6 }`. This is
+  **SD-R8-F2**, a contract finding requiring Tom: G3's ratified
+  independent oracle uses raw server permit time and explicitly does
+  not model N13 padding, while the client deliberately delays through
+  that padding and ε remains 500 ms. A generated φ=2,290 attempt also
+  measured 2,985 ms and 57,985 ms G3 excesses, demonstrating the
+  possible bucket-scale gap. The session preserved the ratified
+  oracle and bound rather than improvising a new one. The declared
+  4,096-case run is therefore blocked before it can complete.
+
+  The independent registry authority remains exactly 102 Full / 7
+  Partial / 1 accepted Untested / 13 Excluded; its seven Partial ids
+  remain `m6-g1-post-announcement`, `m6-queue-drains-new-pace`,
+  `m7-no-client-violation`, `m8-no-follow-on-violation`,
+  `g1-zero-client-violations`, `g2-ceilings-never-tripped`, and
+  `g3-over-delay-bounded`. No gate-summary or verdict slot was filled:
+  both authorities agree the attempted run is ineligible. No result-
+  statement proposal is offered because the prerequisites are not
+  complete.
+
+  Three implementation mutations were run against committed code and
+  reverted with `git checkout --`: raw-period reconciliation made
+  `reconciliation_does_not_resynthesize_locally_padded_hits_as_phantoms`
+  fail `left: 2, right: 0`; removing the declaration eligibility guard
+  made the fragment-refusal test return `Ok(FullContractRun { ... M1
+  Fragment ... })` instead of `Err(ReportNotVerdictEligible {
+  scenario: M1 })`; reducing the M6 queue from 12 to 10 failed
+  `M6 must cross two complete five-hit new-pace windows`. Commits
+  `7a92f354`, `0c8cb5ad`, and `dcf4691a` carry the declaration,
+  blocked-run diagnostic, and pinned scale. The final offline matrix
+  is recorded in `scenario-driver-handoff.md` §5. No live service was
+  contacted. The implementing session does not close SD-R8.
