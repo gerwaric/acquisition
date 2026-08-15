@@ -161,6 +161,18 @@ impl History {
             .count()
     }
 
+    fn count_within_padded(
+        &self,
+        now: SimInstant,
+        period: Duration,
+        resolution: Duration,
+    ) -> usize {
+        self.entries
+            .iter()
+            .filter(|entry| is_within_padded(entry.at, now, period, resolution))
+            .count()
+    }
+
     fn push(&mut self, entry: HistoryEntry) {
         self.entries.push_back(entry);
     }
@@ -1158,13 +1170,21 @@ impl PolicyEngine {
         let maximum_deficit = observation
             .rules
             .iter()
-            .flat_map(|rule| [&rule.state.burst, &rule.state.sustained])
-            .map(|state| {
+            .zip(&policy.rules)
+            .flat_map(|(observed, configured)| {
+                [
+                    (&observed.state.burst, configured.buckets.burst),
+                    (&observed.state.sustained, configured.buckets.sustained),
+                ]
+            })
+            .map(|(state, resolution)| {
                 let reported = usize::try_from(state.current_hits)
                     .expect("u32 always fits usize on supported Rust targets");
-                reported
-                    .min(cap)
-                    .saturating_sub(policy.history.count_within(now, state.period))
+                let local =
+                    policy
+                        .history
+                        .count_within_padded(now, state.period, resolution.duration());
+                reported.min(cap).saturating_sub(local)
             })
             .max()
             .unwrap_or(0);

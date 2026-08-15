@@ -74,6 +74,31 @@ fn engine() -> PolicyEngine {
     engine
 }
 
+fn padded_engine() -> PolicyEngine {
+    let pair = RulePair::new(
+        Window::new(512, Duration::from_secs(15), Duration::ZERO),
+        Window::new(512, Duration::from_secs(60), Duration::ZERO),
+    )
+    .expect("configured periods increase");
+    let mut engine = PolicyEngine::new(default_buckets());
+    engine
+        .insert_policy(
+            Policy::new(
+                policy_name(),
+                vec![Rule::new(
+                    pair,
+                    BucketModel::new(
+                        Resolution::Known(Duration::from_secs(5)),
+                        Resolution::Known(Duration::from_secs(60)),
+                    ),
+                )],
+            )
+            .expect("the padded test policy has one rule"),
+        )
+        .expect("the test inserts one padded policy");
+    engine
+}
+
 fn reserve(
     engine: &mut PolicyEngine,
     policy: &PolicyName,
@@ -242,18 +267,26 @@ fn probe(
 /// Independent oracle (audit, 2026-08-09: the previous version re-derived
 /// the deficit through production's own `count_within`, mirror-testing the
 /// "exactly" half): plain u64 arithmetic over the test's shadow timestamp
-/// list. An entry occupies the half-open window `(now - period, now]`, and
-/// future-dated entries are retained — `at + period > now` states both.
+/// list. Reconciliation compares against the client's padded local model:
+/// the preconfigured first rule has zero padding, while newly observed rules
+/// receive the explicit 60 s default. Future-dated entries are retained.
 fn expected_maximum_deficit(shadow_ms: &[u64], now_ms: u64, observation: &PolicySnapshot) -> usize {
     observation
         .rules
         .iter()
-        .flat_map(|rule| [&rule.state.burst, &rule.state.sustained])
-        .map(|state| {
+        .enumerate()
+        .flat_map(|(rule_index, rule)| {
+            [
+                (&rule.state.burst, rule_index),
+                (&rule.state.sustained, rule_index),
+            ]
+        })
+        .map(|(state, rule_index)| {
             let period_ms = u64::try_from(state.period.as_millis()).expect("test periods fit u64");
+            let padding_ms = if rule_index == 0 { 0 } else { 60_000 };
             let local = shadow_ms
                 .iter()
-                .filter(|&&at_ms| at_ms + period_ms > now_ms)
+                .filter(|&&at_ms| at_ms + period_ms + padding_ms > now_ms)
                 .count();
             let reported = state.current_hits.min(CONFIGURED_MAX_HITS) as usize;
             reported.saturating_sub(local)
@@ -301,20 +334,24 @@ fn assert_pessimistic(
         .map(|entry| entry.at.as_millis())
         .collect::<Vec<_>>();
     let now_ms = now.as_millis();
-    for state in observation
-        .rules
-        .iter()
-        .flat_map(|rule| [&rule.state.burst, &rule.state.sustained])
-    {
-        let period_ms = u64::try_from(state.period.as_millis()).expect("test periods fit u64");
-        let local = entry_times
-            .iter()
-            .filter(|&&at_ms| at_ms + period_ms > now_ms)
-            .count();
-        prop_assert!(
-            local >= (state.current_hits.min(CONFIGURED_MAX_HITS)) as usize,
-            "local count remained below the capped reported post-increment count"
-        );
+    let policy = engine.policy(&policy_name()).expect("policy exists");
+    for (observed, configured) in observation.rules.iter().zip(policy.rules()) {
+        for (state, resolution) in [
+            (&observed.state.burst, configured.buckets.burst),
+            (&observed.state.sustained, configured.buckets.sustained),
+        ] {
+            let period_ms = u64::try_from(state.period.as_millis()).expect("test periods fit u64");
+            let padding_ms = u64::try_from(resolution.duration().as_millis())
+                .expect("test bucket resolution fits u64");
+            let local = entry_times
+                .iter()
+                .filter(|&&at_ms| at_ms + period_ms + padding_ms > now_ms)
+                .count();
+            prop_assert!(
+                local >= (state.current_hits.min(CONFIGURED_MAX_HITS)) as usize,
+                "local count remained below the capped reported post-increment count"
+            );
+        }
     }
     Ok(())
 }
@@ -397,6 +434,37 @@ proptest! {
         prop_assert_eq!(lower_result.disposition, probe_ready("stash-request-limit"));
         assert_pessimistic(&engine, now, &lower)?;
     }
+}
+
+#[test]
+fn reconciliation_does_not_resynthesize_locally_padded_hits_as_phantoms() {
+    let mut engine = padded_engine();
+    let policy = policy_name();
+    for at_ms in (0..2_500).step_by(250) {
+        let at = SimInstant::from_millis(at_ms);
+        let token = reserve(&mut engine, &policy, at);
+        let _ = engine.on_unknown_outcome(token, at);
+    }
+
+    // At 20 s, raw 15-second counting sees no opening hit, while the N13
+    // local model correctly retains nine of them through period + 5 s. A
+    // server report of two burst hits is therefore already covered by local
+    // pessimism and must not synthesize two phantom entries at `now`.
+    let now = SimInstant::from_millis(20_000);
+    let observation = build_observation(&[ObservedRule {
+        burst_hits: 2,
+        burst_period_secs: 15,
+        sustained_hits: 10,
+        sustained_period_secs: 60,
+    }]);
+    let before = entries(&engine);
+
+    let result = probe(&mut engine, now, &observation);
+    let after = entries(&engine);
+
+    assert_eq!(result.disposition, probe_ready("stash-request-limit"));
+    assert_eq!(newly_synthesized_after(&before, &after), 0);
+    assert_eq!(after.len(), before.len());
 }
 
 // M1 core mechanism: a non-counting boot probe seeds cross-session residue
