@@ -61,6 +61,13 @@ coverage.
   slice itself stays open on the residual work in §5;
   `scenario-driver-handoff.md` remains the live four-part packet for
   that work.
+  **Residual-items packet awaiting independent review** (2026-08-14,
+  after the SD-R5 close): §5 items 1–3 — the M1 generated-φ residue
+  sweep, Ballot G's forced M9 race, and M11a's near-ceiling sweep —
+  are implemented, mutation-checked, and presented in the updated
+  four-part hand-off. The implementing session has not closed its
+  own review; the next round opens when an independent reviewer
+  takes the packet.
 - Every other slice (core, bootstrap, mock, actor, clause registry,
   doc split) is closed; their hand-offs are historical records.
   (Doc split closed 2026-08-13, DS-R1 — `result-draft.md` §9.)
@@ -92,7 +99,9 @@ live-service input blocks it.
 ## 5. Next work
 
 The 2026-08-13 ballot remains closed; this is the exact residual
-set after the round-five close (SD-R5, 2026-08-14 re-review).
+set after the round-five close (SD-R5, 2026-08-14 re-review). Items
+1–3 were implemented later on 2026-08-14 and await independent
+review as the packet described in §2; items 4–5 are the live work.
 
 1. ~~**M1 generated-φ mock-side residue sweep**~~ — **done
    2026-08-14** (`tests/m1_residue_sweep.rs`; `m1-g1-sweep` Full —

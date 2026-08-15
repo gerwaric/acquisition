@@ -2266,3 +2266,31 @@ outlives the spike branch; record what exists and where.⟩
   `s7-4-replay-gate` plus the seven fragment-scale clauses the
   full-contract run owns. No verdict slot was filled; no live service
   was contacted.
+
+- 2026-08-14 — **residual-items packet presented for independent
+  review.** The three implementation entries above (M1 sweep, M9
+  race, M11a sweep) are bundled as the updated four-part hand-off in
+  `scenario-driver-handoff.md`: silences taken (two new boundary
+  rows — M1's residue bound and M11a's pressure source — with
+  next-call consequences traced; M9 required none), the seam map
+  with the invariants walk (all three tests consume only public
+  actor/mock/judge seams with independently restated contract
+  arithmetic; M9 exercises the §2 exposure-attribution seam in an
+  integration run for the first time), the coverage confession
+  (123 = 101 Full / 8 Partial / 1 Untested / 13 Excluded;
+  `OPEN_UNTESTED` empty; the Partial set is exactly
+  `s7-4-replay-gate` plus the seven full-contract-scale clauses),
+  and the packet's judgment calls. Proportional verification,
+  entirely offline: `cargo test --locked` 166 passed / 0 failed /
+  2 ignored; `--release` 164 / 0 / 2; `PROPTEST_CASES=4096`
+  166 / 0 / 2 in 37.6 s; all-target clippy with warnings denied, fmt
+  check, `git diff --check`, obligations 6/6, and the Python
+  sanitizer suite 4/4 clean. Explicit release run of the ignored
+  replay pair, unchanged by this packet: the exhaustive enumeration
+  passed all 60,000 phases in 6.78 s; the superseded open-loop
+  assertion reproduced the adjudicated finding at φ=7,454, reply
+  110, sustained 31/30, restriction 301 s. The implementing session
+  did not close its own review; the slice stays open on `status.md`
+  §5 items 4–5 (the §7.4 replacement gate and the full-contract
+  run), neither touched here. No verdict slot was filled; no live
+  service was contacted.
