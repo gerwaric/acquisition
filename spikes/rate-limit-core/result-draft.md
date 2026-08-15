@@ -2570,3 +2570,46 @@ outlives the spike branch; record what exists and where.⟩
   spec. No verdict slot was filled; no live service was contacted.
   The slice stays open on `status.md` §5 item 5 alone — the
   full-contract run.
+
+  *[Marker, 2026-08-15 (external audit): the closure above was
+  REOPENED the same day — next entry. The verification claims stand
+  (independently re-verified); the closure's adjudications did
+  not.]*
+
+- 2026-08-15 — **SD-R7 reopened by external audit** (a no-context
+  external reviewer, Tom's independence check on the
+  spec-author-as-reviewer conflict; report received in-session,
+  transcribed here). The audit independently re-verified: fixture
+  integrity directly from JSON (387 records, 4 unique boot
+  HEADs/204, 383 replies/200, zero residue, zero over-limit or
+  restricted components, 43 reply saturations, stable raw limits,
+  ordered periods, max `Date − received` = −8 ms); `HALO_BANDS`,
+  the derived complement, the partition, the 98-phase census, and
+  the companion logic against spec §3; the full matrix (debug
+  green, ignored release pair 2/2 in 7.78 s, obligations 6/6); and
+  the weaken-mutation measurement end to end (anti-echo kill at
+  φ=0, exactly 30,399 misclassified phases, C2 never firing, the
+  assert ordering proving the 766-component echo). Verdict: "the
+  gate's calibration result remains credible, but SD-R7's closure
+  does not stand." Findings minted: **SD-R7-F1** (high) — the
+  weaken-mutation erratum redefined what ratified contract text
+  requires (C2 kill signature → killed-by-any-mechanism) and was
+  adjudicated by the spec-author/reviewer with no recorded Tom
+  decision, violating AGENTS.md's flag-for-Tom rule and
+  `slice-review.md` §5's Tom-named-decision rule; disposition:
+  present the verified measurement to Tom — accept-the-alternate-
+  signature ratifies the erratum, otherwise redefine the mutation;
+  no production-code change needed if accepted. **SD-R7-F2** (low)
+  — spec §3 requires failure messages to carry φ, reply index,
+  policy, window, model *and recorded* counts; the C1 path prints
+  `CounterOverflow` (model vs limit, recorded discarded though in
+  hand at construction) and the anti-echo message carries only the
+  phase; a direct §3 miss contradicting SD-R7's "no findings
+  against the implementation". Silences adjudicated by the audit:
+  C2-at-halo-edges genuinely conservative; the interior-stride
+  rule an acceptable disclosed pin ("conservative" was imprecise —
+  smoke samples are not ordered by strictness), ideally ratified
+  alongside the erratum; the remaining readings faithful or
+  stricter. The audit left the tree exactly as found. SD-R7
+  re-closes on Tom's F1 adjudication (open in `status.md` §3) plus
+  the F2 fix.

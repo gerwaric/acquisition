@@ -369,6 +369,12 @@ recorded):
   quantization at its actual alignment matches the non-adversarial
   floor-rounding model exactly across this capture — noted as
   context only, claiming nothing.]*
+
+  *[SD-R7-F1 (external audit, 2026-08-15): the erratum above was
+  applied by the SD-R7 reviewer — the spec's author — without a
+  recorded Tom adjudication, which ratified contract text requires.
+  Its measurement is triple-verified; its ratification is pending —
+  `status.md` §3.]*
 - Strengthen the model (hold hits one bucket longer) → a consistent
   edge produces a violation or spurious borderline.
 - Corrupt one recorded state in memory after load → precondition or

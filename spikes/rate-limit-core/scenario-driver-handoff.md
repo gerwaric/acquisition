@@ -1,14 +1,22 @@
 # Scenario-driver and safety-closure hand-off
 
-Status: **open — §7.4 replacement-gate packet review closed
-(SD-R7, 2026-08-15): an independent review validated the gate
-against the ratified spec clause by clause, reproduced the full
-verification matrix and all seven mutation signatures (including
-the flagged weaken-mutation deviation, confirmed and adjudicated a
-spec erratum — corrected by a dated marker in the spec's §3), and
-accepted the precondition-5 doc finding as recorded; no findings
-against the implementation. The slice stays open on `status.md` §5
-item 5 only.** The reviewed packet implements
+Status: **open — SD-R7 REOPENED by external audit (2026-08-15).**
+The in-repo SD-R7 close validated the gate against the ratified
+spec, reproduced the matrix and all seven mutation signatures, and
+confirmed the weaken-mutation deviation — but an external
+no-context audit found two findings: **SD-R7-F1** (high) — the
+reviewer, who authored the spec, applied the weaken-mutation
+erratum to ratified contract text without a recorded Tom
+adjudication (AGENTS.md's flag-for-Tom rule; `slice-review.md` §5's
+Tom-named-decision rule); and **SD-R7-F2** (low) — the C1 failure
+path prints `CounterOverflow` (model vs limit) and omits the
+recorded count §3's failure-message requirement names, despite
+having it in hand. The audit independently re-verified the
+measurements, tables, and matrix ("the gate's calibration result
+remains credible") and its verdict is transcribed in
+`result-draft.md` §9. The round re-closes on Tom's F1 adjudication
+plus the F2 fix. The slice stays open on `status.md` §5 item 5
+afterward. The reviewed packet implements
 `status.md` §5 item 4 — the feedback-consistent §7.4 replacement
 calibration gate per the ratified `s7-4-replacement-gate.md` §3/§4
 (code commit `fdacd206`) — and flags one spec-expectation deviation
