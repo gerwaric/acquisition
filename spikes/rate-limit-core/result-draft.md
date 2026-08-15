@@ -2294,3 +2294,50 @@ outlives the spike branch; record what exists and where.⟩
   §5 items 4–5 (the §7.4 replacement gate and the full-contract
   run), neither touched here. No verdict slot was filled; no live
   service was contacted.
+
+- 2026-08-14 — **round six closed (SD-R6): independent review of the
+  residual-items packet found no findings.** The reviewer read the
+  mandated documents in AGENTS.md order, walked the four-part
+  hand-off per `slice-review.md` §3, and validated each item against
+  the contract: the M1 sweep's strategy pins the three §3 rollover
+  arms, its sustained-residue anchor and zero-budget
+  branch-reachability asserts are real (no skip path), and its
+  zero-budget bound is independently derived from the N23/N13
+  literals; the M9 race pins 14 residue + 1 phantom + 1 client = 16
+  over 15 from the mock's own burst judgment with both race
+  inequalities asserted, recovery runs per M8, and the judge's
+  `ExposureAllowance` path independently enforces §2 (reservation
+  before observability and hand-off, state change on the observed
+  policy, cap ≤ in-flight at injection) with the in-test
+  no-allowance branch failing G1 at both phases; M11a pins the
+  compliant maxima exactly under both bucket profiles with zero
+  trips and rejects above-maxima peaks. The registry diff over
+  00875011..75b2fad7 is exactly the five claimed promotions
+  (`m1-g1-sweep`, `m9-recovery-survives-race`,
+  `m9-race-exposure-attribution`, `b12-scripted-delay`,
+  `m11-compliant-never-trips`); totals verified from source as
+  123 = 101 Full / 8 Partial / 1 Untested / 13 Excluded with
+  `OPEN_UNTESTED` empty and the Partial set exactly
+  `s7-4-replay-gate` plus the seven full-contract clauses. Matrix
+  reproduced entirely offline: `cargo test --locked` 166 / 0 / 2;
+  `--release` 164 / 0 / 2 (the two absentees confirmed as the
+  debug-only drop-bomb pair); `PROPTEST_CASES=4096` 166 / 0 / 2
+  (the M1 sweep ~1.0 s at 4,096 cases); all-target clippy with
+  warnings denied, fmt check, `git diff --check`, obligations 6/6,
+  sanitizer suite 4/4; the ignored replay pair matched the record
+  (enumeration green over all 60,000 phases in 6.8 s; the
+  superseded open-loop assertion reproduced φ=7,454, reply 110,
+  sustained 31/30, restriction 301 s). All four mutation checks
+  were re-run and reverted with the claimed signatures: broken M1
+  anchor → judge-level G5 failure; weakened M1 zero-budget oracle →
+  exactly 19,875 ms G3 lateness; wrong-policy M9 phantom → the
+  organic-429 assertion; shrunk M11a burst limit → G5 (peak
+  sustained 41) and G3 (unmodeled policy waits) together. One
+  reviewer note, not a finding: M11a's "identical wire shape across
+  the two runs" is demonstrated at the asserted-facts level (equal
+  pinned counts, pacing, and peaks per profile), not by a
+  timestamp-level cross-profile comparison — consistent with B13's
+  wire-shape vocabulary, and the registry's binding claim is
+  exactly what the test asserts. No findings were minted; no
+  verdict slot was filled; no live service was contacted. The slice
+  stays open on `status.md` §5 items 4–5.

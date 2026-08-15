@@ -1,7 +1,10 @@
 # Scenario-driver and safety-closure hand-off
 
-Status: **open — residual-items packet presented for independent
-review (2026-08-14, after the SD-R5 close).** This packet implements
+Status: **open — residual-items packet review closed (SD-R6,
+2026-08-14): an independent review validated all three items,
+reproduced the verification matrix and mutation checks, and found
+no findings; the slice stays open on `status.md` §5 items 4–5.**
+This packet implements
 the first three residual items of the round-five close: the M1
 generated-φ mock-side residue sweep (`m1-g1-sweep`), Ballot G's
 forced M9 phantom race at 14/15 (`m9-recovery-survives-race`,
