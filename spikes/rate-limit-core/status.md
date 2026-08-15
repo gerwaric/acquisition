@@ -76,16 +76,16 @@ coverage.
   the flagged weaken-mutation deviation and adjudicated it a spec
   erratum (corrected by a dated marker in the spec's §3), and
   accepted the precondition-5 doc finding as recorded.
-  **REOPENED the same day by the external no-context audit** (Tom's
-  independence check on the spec-author/reviewer conflict): two
-  findings — SD-R7-F1, the erratum was applied to ratified contract
-  text without a recorded Tom decision (now the open decision in
-  §3); SD-R7-F2, the C1 failure message omits the recorded count
-  the spec's §3 requires. The audit independently re-verified the
-  calibration measurements and matrix; both the reopening and its
-  transcribed verdict are in `result-draft.md` §9. Re-closure needs
-  the §3 decision plus the F2 fix; then the slice stays open on §5
-  item 5 only — the full-contract run.
+  Reopened the same day by the external no-context audit (Tom's
+  independence check on the spec-author/reviewer conflict; two
+  findings), then **re-closed the same day on Tom's recorded
+  adjudications**: SD-R7-F1 discharged (alternate kill signature
+  accepted, erratum ratified, disclosed silences ratified) and
+  SD-R7-F2 fixed and verified (C1 failures now carry full component
+  witnesses including the recorded count). The audit's verdict and
+  both closure entries are in `result-draft.md` §9. The slice stays
+  open on §5 item 5 only — the full-contract run;
+  `scenario-driver-handoff.md` remains the live packet file for it.
 - Every other slice (core, bootstrap, mock, actor, clause registry,
   doc split) is closed; their hand-offs are historical records.
   (Doc split closed 2026-08-13, DS-R1 — `result-draft.md` §9.)
@@ -115,19 +115,10 @@ ratification record is in `result-draft.md` §9. (Both earlier
 
 ## 4. Blocked
 
-- **Adjudicate SD-R7-F1** (external audit, 2026-08-15): the
-  weaken-mutation erratum in `s7-4-replacement-gate.md` §3 was
-  applied to ratified contract text without a recorded Tom
-  decision. The measurement is triple-verified (implementer, SD-R7
-  reviewer, external auditor): under the one-bucket-early
-  weakening, zero C2 understatements occur at any phase and the
-  mutation is killed by the anti-echo anchor (perfect 766-component
-  echo at φ=0). Tom decides: accept the alternate kill signature
-  (ratifying the erratum as written), or require the mutation
-  redefined so a C2-killing weakening variant is demonstrated. The
-  external auditor also recommends ratifying the packet's disclosed
-  silences (C2-at-halo-edges, the interior-stride rule) in the same
-  pass. SD-R7 re-closes on this decision plus the SD-R7-F2 fix.
+None. Tom adjudicated SD-R7-F1 on 2026-08-15 (alternate kill
+signature accepted, erratum ratified; disclosed silences ratified)
+and authorized the in-session SD-R7-F2 fix; the round is re-closed.
+Decisions and consequences are recorded in `result-draft.md` §9.
 
 ## 5. Next work
 
@@ -151,13 +142,11 @@ work.
    **done 2026-08-15**: spec ratified (`s7-4-replacement-gate.md`,
    contract), implemented green the same day (code `fdacd206`;
    `s7-4-replay-gate` Full; superseded open-loop test deleted after
-   its residue-zero assert migrated), and reviewed (SD-R7) —
-   **but SD-R7 was REOPENED by the 2026-08-15 external audit**:
-   two findings (SD-R7-F1, the unratified erratum adjudication —
-   Tom's decision now open in §3; SD-R7-F2, the C1 failure message
-   omits the recorded count §3 requires). The audit independently
-   re-verified the calibration itself as credible. Re-closure
-   needs the §3 decision plus the F2 fix. §9 changelog. The
+   its residue-zero assert migrated), reviewed (SD-R7), reopened by
+   the external audit, and **re-closed 2026-08-15 on Tom's recorded
+   adjudications** (F1: alternate kill signature accepted and
+   erratum ratified, silences ratified; F2: C1 failure messages
+   fixed to carry the recorded count, verified). §9 changelog. The
    band-edge, exhaustive-enumeration, and 43/43 witness diagnostics
    remain load-bearing, retained unchanged.
 5. Full-contract run last. It finishes the fragment-scale-only

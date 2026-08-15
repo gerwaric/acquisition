@@ -375,6 +375,16 @@ recorded):
   recorded Tom adjudication, which ratified contract text requires.
   Its measurement is triple-verified; its ratification is pending —
   `status.md` §3.]*
+
+  *[Ratified by Tom, 2026-08-15 (SD-R7 re-close): the alternate
+  kill signature is accepted — the weaken mutation's contractual
+  point is that it is killed, and its measured kill mechanism is
+  the anti-echo anchor; C2's own kill-ability is independently
+  demonstrated by the corrupt-state mutation. In the same decision
+  Tom ratified the packet's disclosed silences: C2 and the
+  766-component anchor asserted at halo edges, and the
+  interior-stride sampling rule as a disclosed pin. Recorded in
+  `result-draft.md` §9.]*
 - Strengthen the model (hold hits one bucket longer) → a consistent
   edge produces a violation or spurious borderline.
 - Corrupt one recorded state in memory after load → precondition or

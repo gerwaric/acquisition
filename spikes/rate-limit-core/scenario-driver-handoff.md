@@ -1,6 +1,12 @@
 # Scenario-driver and safety-closure hand-off
 
-Status: **open — SD-R7 REOPENED by external audit (2026-08-15).**
+Status: **open — SD-R7 re-closed (2026-08-15) after the external
+audit's reopening; the slice stays open on `status.md` §5 item 5
+(the full-contract run) only.** Tom adjudicated both audit
+findings the same day: F1's erratum ratified (alternate kill
+signature accepted; disclosed silences ratified with it) and F2
+fixed and verified — dispositions in `result-draft.md` §9. The
+reopening record below is preserved as dated text.
 The in-repo SD-R7 close validated the gate against the ratified
 spec, reproduced the matrix and all seven mutation signatures, and
 confirmed the weaken-mutation deviation — but an external

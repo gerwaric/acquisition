@@ -154,7 +154,9 @@ struct ComponentWitness {
 /// count cover every component compared up to that point.
 #[derive(Debug)]
 struct PhaseConsistency {
-    initiating_violation: Vec<CounterOverflow>,
+    /// C1 failures as full component witnesses, so the failure message
+    /// carries the recorded count alongside model and limit (SD-R7-F2).
+    initiating_violation: Vec<ComponentWitness>,
     components: usize,
     /// C2 failures: model < recorded (pessimism broken).
     understatements: Vec<ComponentWitness>,
@@ -237,17 +239,10 @@ fn replay_consistency(
                 report.strict_overstatements += 1;
             }
             if window.current_hits == limit.max_hits && state.current_hits < limit.max_hits {
-                report.spurious_borderlines.push(witness);
+                report.spurious_borderlines.push(witness.clone());
             }
             if window.current_hits > limit.max_hits {
-                overflows.push(CounterOverflow {
-                    reply_index,
-                    policy: record.policy.clone(),
-                    sent_ms,
-                    window_index,
-                    current_hits: window.current_hits,
-                    max_hits: limit.max_hits,
-                });
+                overflows.push(witness);
             }
         }
         assert_eq!(
@@ -530,6 +525,9 @@ fn assert_consistent_phase(
         "C3 failed at consistent {kind} phi={phase_ms}: {:?}",
         report.spurious_borderlines
     );
+    // Aggregate condition: this failure is the absence of any qualifying
+    // component, so no per-component witness exists; the phase-only message
+    // is the accepted disposition (Tom, SD-R7 re-close, 2026-08-15).
     assert!(
         report.strict_overstatements >= 1,
         "anti-echo anchor failed at consistent {kind} phi={phase_ms}: no component strictly above its recorded state"

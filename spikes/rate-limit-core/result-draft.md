@@ -2613,3 +2613,30 @@ outlives the spike branch; record what exists and where.⟩
   stricter. The audit left the tree exactly as found. SD-R7
   re-closes on Tom's F1 adjudication (open in `status.md` §3) plus
   the F2 fix.
+
+- 2026-08-15 — **SD-R7 re-closed on Tom's adjudications; both
+  external-audit findings discharged.** Tom's decisions, given
+  in-session the same day: (1) **SD-R7-F1 — the alternate kill
+  signature is accepted**, ratifying the erratum: the weaken
+  mutation's contractual point is that it is killed; its measured
+  mechanism is the anti-echo anchor, and C2's kill-ability is
+  independently demonstrated by the corrupt-state mutation, so no
+  condition is left untested (ratification marker added beneath the
+  erratum in `s7-4-replacement-gate.md` §3); (2) **the disclosed
+  silences are ratified** — C2 and the 766-component anchor at halo
+  edges, and the interior-stride rule as a disclosed pin, per the
+  external auditor's recommendation; (3) the **SD-R7-F2 fix**
+  applied in-session with Tom's authorization: the gate's C1
+  failures now carry full `ComponentWitness` output (φ, reply
+  index, policy, window, model, recorded, and limit counts —
+  `PhaseConsistency::initiating_violation` re-typed; verified by
+  re-running the strengthen mutation, whose C1 message now prints
+  `model_hits: 16, recorded_hits: 1, max_hits: 15` at φ=0, reply
+  24, then reverted); the anti-echo message's phase-only form is
+  accepted with Tom's name — it is an aggregate condition with no
+  per-component witness (code comment records the disposition).
+  Re-verification after the fix: `cargo test --locked` 167/0/2;
+  ignored release pair 2/2 green (7.78 s); clippy `-D warnings` and
+  fmt clean. No verdict slot was filled; no live service was
+  contacted. The slice stays open on `status.md` §5 item 5 alone —
+  the full-contract run.
