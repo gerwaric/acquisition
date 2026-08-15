@@ -200,14 +200,27 @@ coverage.
 
 ## 3. Open decisions (Tom)
 
-Two scope choices from the final audit need Tom. **F14** corrects the O5
-sentence in carriage Tom ratified: the evidence says skew sensitivity was
-not observed and the re-entry trigger has not fired. **F16** requires a
-choice between narrowing the reusable-artifact claim to a foundation that
-still needs a standalone/client-neutral adapter, or building that adapter
-before delivery. F11–F13, F15, and F17–F20 have evidence-preserving repair
-shapes recorded in `result-draft.md` §9 and do not otherwise need a new
-contract decision.
+None from the final audit remain open. Tom decided both routed
+findings on 2026-08-15 (records in `result-draft.md` §9):
+
+- **F14 — corrected O5 carriage accepted**: all three locations
+  (consumer topic, the ratified §1 carriage block, and
+  `scenarios.md` §7.3's trigger note) say skew remains **untested**
+  — the slice has no server-clock input and the `o5-date-skew`
+  re-entry trigger has not fired. The O5 exclusion stands with an
+  honest trigger; no skew evidence is manufactured.
+- **F16 — narrow the claim**: the package delivers a **reusable
+  foundation** (the independent counter engine plus the scenario
+  contract), with the standalone HTTP delivery shim and a
+  client-neutral driver explicitly named as future adapter work —
+  matching `scenarios.md` §7.1's own "delivery-shim job" framing.
+  The migration-package charge's cross-client acceptance wording is
+  amended accordingly, by Tom. If ADR-0003 takes the rewrite path,
+  the shim is built there against real requirements.
+
+F11–F13, F15, and F17–F20 have evidence-preserving repair shapes
+recorded in `result-draft.md` §9 and need no further contract
+decision.
 
 Decided 2026-08-15: **SD-R8-F6 — complete via gated hoist; the
 spike ends with a PR** (Tom; full record in `result-draft.md`

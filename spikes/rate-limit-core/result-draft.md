@@ -3564,3 +3564,31 @@ hoistable to its own repository without surgery.
   the restored pinned declaration reran green and the tree was clean
   before this audit record was written. The green machinery stands as
   reproducible evidence, but the close and migration package do not.
+
+- 2026-08-15 — **Tom decided both audit-routed findings; F11–F20 all
+  have dispositions and the repair round is unblocked.** Decisions,
+  given in-session: **F14 — the corrected O5 carriage is accepted**:
+  the topic, the ratified §1 carriage block, and `scenarios.md`
+  §7.3's trigger note are corrected to say skew remains untested
+  (the slice has no server-clock input; the `o5-date-skew` re-entry
+  trigger has not fired); the exclusion stands with an honest
+  trigger, and no skew evidence is manufactured. **F16 — the
+  reusable-artifact claim is narrowed**: the package delivers a
+  reusable foundation — the independent counter engine plus the
+  scenario contract — with the standalone HTTP delivery shim and a
+  client-neutral driver explicitly named as future adapter work
+  (per `scenarios.md` §7.1's delivery-shim framing); Tom amends his
+  own migration-package charge's cross-client wording accordingly,
+  and the shim, if wanted, is built on the ADR-0003 rewrite path
+  against real requirements. Additionally recorded as the repair
+  round's binding approach note, from the reviewer-analyst's class
+  analysis of F4→F9→F11/F12: **F12 is to be repaired by
+  construction, not by check** — one `RunConfig` source feeding
+  both the engine construction and the reproduction record, with a
+  structural pin that no second engine-construction path exists
+  (the X2 single-send-path pattern) — and **F11 by required
+  (scenario, endpoint) pairs plus both bypass pins**, with an
+  honest registry note that scenario identity remains driver-owned,
+  bound through each scenario's sole-decider assertion and the pair
+  requirement; the residual trust surface is recorded, not
+  patched silently.
