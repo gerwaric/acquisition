@@ -1052,11 +1052,20 @@ SD-R8-F7, repaired 2026-08-15).
 
 ## §8. Reusable artifact
 
-⟨If the conformance suite works out: the mock (counter engine +
-delivery shim, `scenarios.md` §7.1 layering) plus M1–M13 are the
-acceptance tests any future core's limiter must pass — including,
-via a standalone delivery shim, the C++ client. This outcome
-outlives the spike branch; record what exists and where.⟩
+**Reusable-artifact record, 2026-08-15.** The artifact exists as the
+self-contained `spikes/rate-limit-core/` package: the counter engine
+and delivery shim are in `src/mock/`; the M1–M13 contract is in
+`scenarios.md` and its public-actor driver is in
+`tests/scenario_driver.rs`; the G1–G6 judge and full-contract
+declaration machinery are in `src/conformance.rs`; the focused
+C1–C5/X1–X2 suites live under `tests/` and the actor's unit tests;
+and the obligations registry and verifier are
+`src/obligations.rs` / `tests/obligations.rs`. The mock plus the
+M-series are the acceptance suite any future limiter must pass,
+including the C++ client through a standalone delivery shim. The
+consumer-facing description is
+`docs/redesign/topics/rate-limit-core.md`; the package remains
+hoistable to its own repository without surgery.
 
 ## §9. Changelog
 
