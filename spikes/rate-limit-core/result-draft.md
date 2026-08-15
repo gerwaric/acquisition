@@ -82,6 +82,18 @@ the latter completed in 298.84 s. The registry independently verifies
 109 Full / 0 Partial / 1 accepted Untested / 13 Excluded. The two
 authorities agree, so both verdict slots above are filled.
 
+*[Marker, 2026-08-15 (SD-R8 reopened): the external no-context audit
+of the closure reopened SD-R8 with findings SD-R8-F4..F8 (§9). The
+verdict fills above are **suspended, not erased**: F4 shows the
+declared-run authority accepts a missing M8 Known lane, so the
+two-authorities agreement cited here is not currently trustworthy;
+F5 challenges the unconditional lane's "four OAuth policies" scope
+directly (only the stash-list and stash policies are exercised); F7
+finds the carried-scope statement incomplete (U5 omitted from §7, no
+explicit O-series carriage). Refilling awaits Tom's F5/F6/F7
+dispositions, the F4 repair, and a rerun of both authorities —
+`status.md` is live state.]*
+
 ## §2. How to read the evidence
 
 Two orthogonal lane taxonomies apply:
@@ -2876,3 +2888,103 @@ outlives the spike branch; record what exists and where.⟩
   result's feed into `docs/adr/0003`. A final external
   no-context audit of this closure is recommended before the spike
   is treated as concluded, per the SD-R7 precedent.
+
+- 2026-08-15 — **SD-R8 reopened by external audit; the
+  scenario-driver slice and the spike reopen with it** (the
+  recommended no-context audit of the closure; report received
+  in-session, transcribed here; the closure entry above is the
+  audited object, at `2c4a1ea1`). The audit's verdict: "reopen
+  SD-R8 … the padded-history production fix stands, but the
+  verdict authority and spike-completeness claims do not." What
+  the audit verified as standing: the pinned declaration 1/1; the
+  release 4,096-case declaration 1/1 in 26.92 s; the registry
+  verifier 6/6 with totals independently counted 109 Full / 0
+  Partial / 1 Untested / 13 Excluded; the `cc448b79`
+  padded-history reconciliation fix (its own bound walk:
+  `bucket_end(h)+P ≤ h+r+P`, so every server-countable hit stays
+  in padded local history); the shadow-timestamp property oracle;
+  tree exactly clean at `2c4a1ea1`; no live service contacted.
+
+  The processing session (this entry's author; not the closure's
+  author) independently confirmed every finding against code and
+  docs before minting, including reproducing the audit's F4
+  experiment: with `run_m8_oauth_lane` temporarily flipped from
+  `OAUTH_KNOWN_PROFILE` to `SHIPPED_ASSUMED_PROFILE` — M8's Known
+  lane therefore absent — the pinned
+  `full_contract_pinned_boundary_declares_full_contract` still
+  passed and `tests/obligations.rs` still passed 6/6. The
+  mutation was reverted with `git checkout --`; the tree is again
+  exactly `2c4a1ea1`.
+
+  Findings minted: **SD-R8-F4** (high) —
+  `FullContractRun::declare` keys its two profile checks to the
+  whole report set, not to M8: M10's legacy lane satisfies
+  `Assumed` and any ordinary row satisfies `Known`, so the
+  declaration accepts a run in which M8 — the one row the
+  contract requires in both lanes (`m8-both-lanes`) — is missing
+  its Known lane entirely. The registry's verifier is structural
+  by design (`registry-handoff.md` §3 confession: it checks cited
+  fns exist, not that `must_assert` semantics hold), so **both
+  authorities agree while a required lane is missing — the exact
+  state the two-authorities rule treats as impossible**.
+  Disposition: implementation repair in the reopened round — key
+  the profile requirement to M8 (both lanes on the M8 scenario
+  itself), pin the miss with a negative declare test, then rerun
+  both authorities. No contract change; no Tom decision needed
+  for the repair itself. **SD-R8-F5** (high) — the filled
+  unconditional verdict claims "the four OAuth policies," but the
+  driver routes every ordinary Known row to `Endpoint::StashList`
+  and the M8 OAuth lane to `Endpoint::Stash`;
+  `Endpoint::CharacterList` and `Endpoint::Character` appear
+  nowhere in `tests/scenario_driver.rs`, and the N23 mock gives
+  the character policies materially different limits (2/10s and
+  5/10s bursts against stash-list's 10/15s). Loading the
+  five-policy topology is not G1–G6 evidence over the unexercised
+  policies; the evidence supports the exercised OAuth routes
+  only. Disposition: **contract-touching, routed to Tom** —
+  either narrow the verdict statement to the exercised policies
+  or extend the driver to exercise the character policies and
+  rerun; the choice changes the result statement the register
+  inherits. **SD-R8-F6** (high) — the charter's end-of-spike
+  deliverables are unfinished and were never renounced: the spike
+  "ends when its distilled result doc lands in
+  `docs/redesign/topics/` on `redesign`, with the register row
+  updated" (`design-brief.md`), CN1–CN6 must survive
+  transcription to `network-ground-truth.md`, and the
+  reusable-artifact outcome must be recorded. Current state:
+  CN1–CN6 all "awaiting transcription" (§4), §8 explicitly
+  unfilled, the register row's result still "—"
+  (`docs/redesign/README.md`), no rate-limit topic on
+  `origin/redesign`. Disposition: **routed to Tom** — complete or
+  explicitly renounce each deliverable; note the hoist also
+  collides with this spike's `AGENTS.md` hard constraint ("No
+  commits to `master` or `redesign`"), so how and by whom the
+  result lands is Tom's call by construction. **SD-R8-F7**
+  (medium) — the final scope ledger is incomplete: §7 says it
+  carries the U-series "verbatim" but omits U5 (declared untested
+  and unbuilt, and whose own text mandates carriage "like U1–U4
+  into the scoped conclusion" — `scenarios.md` §5), while §1
+  claims U1–U5 carried; and the verdict carries no explicit
+  O-series statement (no sockets/TLS, no auth/OAuth flow, no real
+  Cloudflare rules, no forum regime — O1–O8). The U5 line is a
+  mechanical §7 repair; the O-series carriage changes the verdict
+  statement's wording and is **routed to Tom** with F5.
+  **SD-R8-F8** (low) — `status.md`, the single live-state
+  authority, contradicted itself at the audited commit: §2/§5
+  declared SD-R8 and every slice closed while §4 still read
+  "SD-R8 now awaits review." Discharged by this reopening's
+  status flip itself: the reopening rewrite replaces the stale §4
+  line with live truth (the flip is the mandated §5-of-
+  `slice-review.md` status act, not an adjudication).
+
+  Consequences applied with this entry, before any adjudication
+  (SD-R7 precedent — status flips first): `status.md` reopens
+  SD-R8 and the scenario-driver slice, lists Tom's open
+  decisions (F5, F6, F7's O-series carriage), and the spike is
+  **not concluded**. The §1 verdict fills and §3 gate fills are
+  suspended under a dated marker — not erased; the closure entry
+  above remains the audited historical record — pending Tom's
+  dispositions, the F4 repair, and a rerun of both declared
+  authorities. Doc findings SD-R8-F1/F3 and Tom's F2
+  adjudication stand unaffected. No live service was contacted;
+  the only tree mutation (the F4 reproduction) was reverted.
