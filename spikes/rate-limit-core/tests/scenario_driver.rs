@@ -254,6 +254,14 @@ async fn run_m1_m13(phase_ms: u64, coverage: ContractCoverage) -> Vec<RunReport>
             ScenarioId::M8 | ScenarioId::M10 => {
                 (id, SHIPPED_ASSUMED_PROFILE, Endpoint::LegacyStashIndex)
             }
+            // M9's arm drives stash-request-limit phantoms and submits to
+            // Stash; the row label must state the wire endpoint, and the
+            // judge now enforces that binding (SD-R8-F9).
+            ScenarioId::M9 => (
+                id,
+                rate_limit_core::conformance::OAUTH_KNOWN_PROFILE,
+                Endpoint::Stash,
+            ),
             _ => (
                 id,
                 rate_limit_core::conformance::OAUTH_KNOWN_PROFILE,

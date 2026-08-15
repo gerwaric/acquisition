@@ -484,6 +484,17 @@ async fn correlation_and_reproduction_seams_are_structural() {
         Err(JudgeError::ReproductionMismatch { id: 1 })
     );
 
+    // SD-R8-F9's exact seam: a record relabeled to an endpoint the wire
+    // never carried must be refused, or the declaration's endpoint
+    // coverage rests on run-owned provenance instead of mock facts.
+    let observation = one_observation().await;
+    let mut evidence = base_evidence(observation);
+    evidence.reproduction.as_mut().unwrap().endpoint = Endpoint::CharacterList;
+    assert_eq!(
+        judge(&evidence, &TestOracle::default()),
+        Err(JudgeError::ReproductionMismatch { id: 1 })
+    );
+
     let observation = one_observation().await;
     let mut evidence = base_evidence(observation);
     evidence.assertions[0].id = ScenarioAssertionId::M2Saturation;

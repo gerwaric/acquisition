@@ -701,9 +701,17 @@ pub fn judge(
     if spec.sweep == SweepKind::PhaseSwept && evidence.reproduction.is_none() {
         return Err(JudgeError::MissingReproductionRecord);
     }
+    // Endpoint is bound alongside seed and phase (SD-R8-F9): it is a
+    // wire-observable mock fact, and the full-contract declaration's
+    // endpoint-coverage requirement reads it from this record — an unbound
+    // label would let both authorities agree with a claimed policy absent
+    // from the wire. Every driver lane is single-endpoint, so the binding
+    // is exact, not at-least-one.
     if let Some(reproduction) = evidence.reproduction
         && let Some(observation) = evidence.observations.iter().find(|observation| {
-            observation.seed != reproduction.seed || observation.phase_ms != reproduction.phase_ms
+            observation.seed != reproduction.seed
+                || observation.phase_ms != reproduction.phase_ms
+                || observation.endpoint != reproduction.endpoint
         })
     {
         return Err(JudgeError::ReproductionMismatch {

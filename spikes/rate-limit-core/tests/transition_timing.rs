@@ -708,7 +708,11 @@ async fn m9_forced_phantom_race_at_saturation_recovers_per_m8() {
                 seed: 909,
                 phase_ms,
                 client_buckets: OAUTH_KNOWN_PROFILE,
-                endpoint: Endpoint::StashList,
+                // This lane submits to Stash (stash-request-limit phantoms),
+                // unlike the file's other lanes; the judge binds this label
+                // to the wire (SD-R8-F9) and caught the earlier StashList
+                // mislabel here.
+                endpoint: Endpoint::Stash,
             }),
             observations,
             state_changes: controller.state_changes().await,
