@@ -306,10 +306,10 @@ expiry equals an arrival instant is not counted at that arrival) —
 the readings the mock's `CounterModel` implements. The band edges
 are convention-sensitive by construction: the audited first halo
 edge (φ=2,298 vs 2,297) is decided by exactly the expiry
-convention's 1 ms. This underdetermination is a **doc finding to
-mint at implementation**, and a clarifying amendment to the B3 note
-is proposed for adoption alongside this spec (Tom's, as the
-contract owner). N13 safety is indifferent to the choice — the
+convention's 1 ms. This underdetermination was recorded as a doc
+finding (2026-08-15 §9 entry) and **resolved at contract level at
+ratification**: Tom's B3 amendment in `scenarios.md` pins both
+readings. N13 safety is indifferent to the choice — the
 client's 1 s buffer dwarfs the 1 ms slop — so this is a
 model-definition precision issue, not a safety one.
 
@@ -393,10 +393,11 @@ clauses still await the declared full-contract run.
   witness, and it is labeled as exactly that. If the implementation
   ever revisits the convention, that is a model change and moves
   the pinned tables — with provenance, like any other.
-- **`scenarios.md` §7.4 amendment** (Tom's to apply on adoption —
-  proposed marker text, describing what actually runs): *"The
+- **`scenarios.md` §7.4 amendment** (**applied at ratification,
+  2026-08-15** — marker text as adopted, describing what runs): *"The
   replacement calibration gate is specified in
-  `s7-4-replacement-gate.md` (adopted [date]): the capture refutes
+  `s7-4-replacement-gate.md` (ratified in full 2026-08-15): the
+  capture refutes
   phases two ways — the SD-R5-F2 bands by disposition, a pinned
   borderline halo by state classification — and on the remaining
   consistent bands the gate asserts disposition agreement,
