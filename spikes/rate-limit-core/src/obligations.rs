@@ -965,14 +965,26 @@ pub const CLAUSES: &[Clause] = &[
         owner: "M9",
         text: "Recovery machinery survives the organic-429 race, per M8's \
                asserts; recovery itself M8/core-owned (scenarios.md:283)",
-        coverage: Coverage::Partial,
-        citations: &[Citation {
-            file: DRIVER,
-            test_fn: DRIVER_FN,
-            must_assert: "M9 arm: phantom injected, recovery completes",
-        }],
-        note: "The race itself (phantom lands between reservation and receipt \
-               at 14/15) has never occurred in a test",
+        coverage: Coverage::Full,
+        citations: &[
+            Citation {
+                file: DRIVER,
+                test_fn: DRIVER_FN,
+                must_assert: "M9 arm: phantom injected, recovery completes",
+            },
+            Citation {
+                file: "tests/transition_timing.rs",
+                test_fn: "m9_forced_phantom_race_at_saturation_recovers_per_m8",
+                must_assert: "at 14/15 the phantom lands strictly between the \
+                              raced send's transport hand-off and its mock \
+                              receipt; the organic 16th-hit 429 recovers per \
+                              M8 (single confirmation in flight, N19 wait \
+                              bound, no follow-on violation) at φ ∈ {0, 1}",
+            },
+        ],
+        note: "Forced reservation-to-receipt race landed 2026-08-14 \
+               (Ballot G); mutation-checked — a phantom missing the raced \
+               policy fails the organic-429 assertion",
     },
     Clause {
         id: "m9-headroom-record",
@@ -993,8 +1005,17 @@ pub const CLAUSES: &[Clause] = &[
         owner: "B13",
         text: "Race exposure attributed via B13 correlation identity (§2); \
                judge/B13-owned (scenarios.md:283)",
-        coverage: Coverage::Partial,
+        coverage: Coverage::Full,
         citations: &[
+            Citation {
+                file: "tests/transition_timing.rs",
+                test_fn: "m9_forced_phantom_race_at_saturation_recovers_per_m8",
+                must_assert: "unavoidable_exposure is Some over a real \
+                              integration run: the judge validates the \
+                              correlation-bound allowance against the phantom \
+                              state change, and the identical evidence \
+                              without the allowance fails G1",
+            },
             Citation {
                 file: "tests/conformance_harness.rs",
                 test_fn: "g1_unavoidable_exposure_is_pre_observation_only_and_capped",
@@ -1006,8 +1027,8 @@ pub const CLAUSES: &[Clause] = &[
                 must_assert: "correlation identity is structural",
             },
         ],
-        note: "Machinery fully unit-tested; never exercised by an integration \
-               run (unavoidable_exposure is always None in the driver)",
+        note: "Integration run landed 2026-08-14 (Ballot G); the allowance \
+               is proven load-bearing by the no-allowance G1 failure",
     },
     // ── M10 — agent-loop stress (scenarios.md:294, amended
     //    2026-08-12) ──────────────────────────────────────────────
@@ -2340,7 +2361,7 @@ pub const CLAUSES: &[Clause] = &[
         owner: "B12",
         text: "Deterministic scripted delay; canonical 81 ms default; \
                M5/M8/M9/M13 explicit timing scripts (scenarios.md:684)",
-        coverage: Coverage::Partial,
+        coverage: Coverage::Full,
         citations: &[
             Citation {
                 file: "tests/mock_fidelity.rs",
@@ -2363,6 +2384,13 @@ pub const CLAUSES: &[Clause] = &[
                 must_assert: "M8 delayed concurrent originals and delayed confirmation",
             },
             Citation {
+                file: "tests/transition_timing.rs",
+                test_fn: "m9_forced_phantom_race_at_saturation_recovers_per_m8",
+                must_assert: "M9's explicit 2 s arrival delay is the forced \
+                              reservation-to-receipt race window the phantom \
+                              lands inside",
+            },
+            Citation {
                 file: "tests/capture_replay.rs",
                 test_fn: "b12_canonical_sent_to_received_median_is_81_ms",
                 must_assert: "all 383 canonical samples produce an 81 ms \
@@ -2370,10 +2398,10 @@ pub const CLAUSES: &[Clause] = &[
                               computed median (the SD-R5-F8 anchor)",
             },
         ],
-        note: "Mechanism, canonical default, M5, M8, and M13 are pinned. The \
-               remaining Partial delta is M9's explicit saturation-race \
-               timing script. The separate §7.4 fixed-trace mismatch was \
-               adjudicated as an expectation error (see s7-4-replay-gate); \
+        note: "Mechanism, canonical default, and all four required timing \
+               scripts (M5, M8, M9, M13) are pinned; the M9 arm landed \
+               2026-08-14 (Ballot G). The separate §7.4 fixed-trace mismatch \
+               was adjudicated as an expectation error (see s7-4-replay-gate); \
                its active diagnostic does not substitute for the \
                feedback-consistent replacement gate",
     },

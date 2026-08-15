@@ -101,7 +101,7 @@ list (see `status.md` §1).
 | M6 | Policy shrink mid-flight | phase-swept | G1, G2, G6 | partial — forced φ=0/1 pre-announcement request is the sole organic exposure and recovers at the shrunk pace; full-contract G1/queue scale remains pending | 2026-08-14: `transition_timing` target green; `m6-preannouncement-exposure` Full. |
 | M7 | Phantom same-account hits | phase-swept | G1, G2, G6 | partial — actor/judge driver covers a mock-owned phantom observation at φ=0/1; bursty threshold case remains pending | 2026-08-12: `cargo test --locked --test scenario_driver m1_m13_run_against_the_actor_and_the_judge` green. |
 | M8 | 429 recovery and escalation | phase-swept | G1, G2, G5, G6 | partial — concurrent delayed originals serialize to one confirmation in flight; organic Retry-After is captured and honored; escalation/malformed matrix remains pinned by focused core/actor tests; only full-contract follow-on G1 remains | 2026-08-14: `transition_timing` and `actor_safety` targets green. |
-| M9 | Phantom race at saturation | phase-swept | G1, G2, G5, G6 + characterization | partial — actor/judge driver covers a phantom observation at φ=0/1; forced reservation-to-arrival race and headroom record remain pending | 2026-08-12: `cargo test --locked --test scenario_driver m1_m13_run_against_the_actor_and_the_judge` green. |
+| M9 | Phantom race at saturation | phase-swept | G1, G2, G5, G6 + characterization | partial — forced φ=0/1 race at 14/15: the B12-scripted 2 s reservation-to-receipt window admits a mock-owned phantom, the raced 16th hit draws an organic 429 attributed as §2 race exposure through the public `ExposureAllowance` seam (proven load-bearing: the same evidence without the allowance fails G1), and recovery completes per M8's asserts; the headroom record stays U5-excluded | 2026-08-14: `transition_timing` target green; M9/B13 registry clauses Full. |
 | M10 | Agent-loop stress | phase-swept | G1, G2, G3, G6 | partial — actor/judge driver runs M10 at its stated scale: 300 enqueues, 30 spread queued cancellations, one proven-dispatched cancellation, 66 simulated minutes at φ=0/1. It non-blockingly polls each cancellation at Tom's 25ms simulated-time bound, then proves the dispatched response reconciles; it also checks drain, fuse quiet, in-flight ≤ 2, and the spacing floor. The fuse false-positive property — "never trips on any floor-compliant trace", headroom included — is **C3-owned** (see the C3 row); this row supplies the integration instance (the trace the actor emits under caller pressure is floor-compliant, with `fuse_quiet` observed alongside) and X1 the true positive: C3 ⊗ M10 ⊗ X1 discharge the clause (§9 round-four entry, 2026-08-12). G3 uses an independent half-open-interval permit oracle. Remaining: G3's epsilon cannot be finalized until the oracle models N13 padding (doc finding 12c). Reprioritization is no longer required of this row: Tom amended M10's stimulus list 2026-08-12 | 2026-08-12: `cargo test --locked --test scenario_driver m1_m13_run_against_the_actor_and_the_judge` green. |
 | M11 | Layer-1 ceiling + Cloudflare terminal | independent | G2, G5 | partial — actor/judge driver covers injected Cloudflare terminal/halt; compliant-client ceiling sweep remains pending | 2026-08-12: `cargo test --locked --test scenario_driver m1_m13_run_against_the_actor_and_the_judge` green. |
 | M12 | 4xx-tripwire obligations | independent | G5 | partial — injected 401/generic 4xx dispositions plus both actual probe and ordinary tripwire feeds are pinned; internally seeded threshold composition proves shared latch/drain/publication without weakening D5 | 2026-08-14: actor unit and driver targets green; M12/C4 registry clauses Full. |
@@ -2204,3 +2204,34 @@ outlives the spike branch; record what exists and where.⟩
   as the core-side mirror, supporting only); totals now 97 Full /
   12 Partial / 1 Untested / 13 Excluded. No verdict slot was filled;
   no live service was contacted.
+
+- 2026-08-14 — **Ballot G landed: the forced M9 phantom race at
+  14/15** (residual item 2 of `status.md` §5), discharging
+  `m9-recovery-survives-race`, `m9-race-exposure-attribution`, and
+  the last scripted arm of `b12-scripted-delay`. New focused test
+  `transition_timing::m9_forced_phantom_race_at_saturation_recovers_per_m8`
+  at φ=0/1: 14 residue hits preload `stash-request-limit`'s 15/10 s
+  burst window; the boot HEAD announces 14/15; the opening GET
+  reserves and dispatches, and B12's explicit 2 s arrival delay holds
+  it on the wire while a mock-owned phantom consumes the last slot
+  strictly between transport hand-off and mock receipt (both
+  inequalities asserted). The send lands as the 16th and draws an
+  *organic* 429 — the mock's burst-window judgment pins the exact
+  construction: 14 residue + 1 phantom + 1 client = 16 over 15.
+  Recovery runs per M8's asserts: no immediate re-knock, exactly one
+  confirmation in flight, the retry waits `Retry-After` + the 60 s
+  applicable bucket + buffer (N19) past the raced completion, and no
+  follow-on violation. The exposure is attributed through the public
+  §2 seam — `ExposureAllowance::for_state_change` bound to the
+  phantom injection with cap 1 (the in-flight set at injection time),
+  the observable instant independently scripted as the raced
+  response's completion — and the judge passes with G1 armed, while
+  the identical evidence without the allowance fails G1 on the raced
+  correlation, so the attribution is load-bearing, not decorative.
+  Wire facts reach the judge as the sole G5 decider (RE-2 pattern)
+  behind an eleven-way falsifiability guard. Mutation check: a
+  phantom injected on a different policy fails the organic-429
+  assertion (the race cannot pass vacuously). Registry: all three
+  clauses flipped to Full; totals now 100 Full / 9 Partial /
+  1 Untested / 13 Excluded. No verdict slot was filled; no live
+  service was contacted.

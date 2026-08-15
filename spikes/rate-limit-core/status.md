@@ -33,7 +33,7 @@ The open-untested list is the `OPEN_UNTESTED` constant in
 `src/obligations.rs` — **not** any prose table. As of 2026-08-14 it
 is empty: the implementation swarm discharged all 13 previously
 open Untested ids.
-Registry totals are 97 Full, 12 Partial, one accepted Untested
+Registry totals are 100 Full, 9 Partial, one accepted Untested
 limitation (`x2-parser-cap-limitation`), and 13 Excluded. The
 Partial set includes `s7-4-replay-gate`, §7.4 calibration's
 machine-checked slot (SD-R5-F11), whose delta is a precisely
@@ -97,10 +97,10 @@ set after the round-five close (SD-R5, 2026-08-14 re-review).
 1. ~~**M1 generated-φ mock-side residue sweep**~~ — **done
    2026-08-14** (`tests/m1_residue_sweep.rs`; `m1-g1-sweep` Full —
    `result-draft.md` §9 changelog).
-2. **Ballot G** — build the forced M9 phantom race at 14/15. It
-   discharges `m9-recovery-survives-race`,
-   `m9-race-exposure-attribution`, and the last scripted arm of
-   `b12-scripted-delay`.
+2. ~~**Ballot G** — the forced M9 phantom race at 14/15~~ — **done
+   2026-08-14** (`transition_timing::m9_forced_phantom_race_at_saturation_recovers_per_m8`;
+   `m9-recovery-survives-race`, `m9-race-exposure-attribution`, and
+   `b12-scripted-delay` Full — `result-draft.md` §9 changelog).
 3. **M11a named binding evidence** — near-ceiling compliant sweep
    for `m11-compliant-never-trips`.
 4. Specify, review, implement, and run the feedback-consistent §7.4

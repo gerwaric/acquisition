@@ -466,6 +466,288 @@ async fn m6_forced_preannouncement_original_recovers_at_the_shrunk_pace() {
     }
 }
 
+/// The stash-request-limit burst window from the N23 definition
+/// (15 hits / 10 s), independently declared — M9's "at 14/15" is this
+/// window one short of saturation.
+const M9_BURST_LIMIT: u32 = 15;
+const M9_PRELOADED_RESIDUE: u32 = M9_BURST_LIMIT - 1;
+
+/// The wire facts M9's forced race must establish. They reach the judge as
+/// the M9 scenario assertion (the RE-2 sole-decider pattern); the
+/// falsifiability test below proves each one can make the verdict false.
+#[derive(Debug, Clone, Copy)]
+struct M9RaceFacts {
+    /// The raced send drew an *organic* 429 — mock counter arithmetic, not
+    /// an injected stimulus.
+    raced_organic: bool,
+    organic_violation_count: usize,
+    /// The phantom landed strictly between the raced send's transport
+    /// hand-off and its mock receipt — the §2 race window, forced by the
+    /// B12 scripted delay.
+    phantom_after_handoff: bool,
+    phantom_before_receipt: bool,
+    /// The 14/15 construction, read off the mock's own burst-window
+    /// judgment at the raced arrival: 14 residue + 1 phantom + 1 client
+    /// = 16 over the limit of 15.
+    burst_residue_hits: u32,
+    burst_phantom_hits: u32,
+    burst_client_hits: u32,
+    burst_current_hits: u32,
+    /// M8's recovery asserts: one confirmation in flight, N19 wait, no
+    /// follow-on violation.
+    single_confirmation: bool,
+    retry_dispatch_ms: u64,
+    recovery_bound_ms: u64,
+    retry_organic: bool,
+}
+
+impl M9RaceFacts {
+    fn passed(self) -> bool {
+        self.raced_organic
+            && self.organic_violation_count == 1
+            && self.phantom_after_handoff
+            && self.phantom_before_receipt
+            && self.burst_residue_hits == M9_PRELOADED_RESIDUE
+            && self.burst_phantom_hits == 1
+            && self.burst_client_hits == 1
+            && self.burst_current_hits == M9_BURST_LIMIT + 1
+            && self.single_confirmation
+            && self.retry_dispatch_ms >= self.recovery_bound_ms
+            && !self.retry_organic
+    }
+}
+
+// RE-2 reachability guard: every wire fact carried by the M9 scenario
+// assertion can make G5 false on its own.
+#[test]
+fn m9_race_verdict_is_not_constant_true() {
+    let passing = M9RaceFacts {
+        raced_organic: true,
+        organic_violation_count: 1,
+        phantom_after_handoff: true,
+        phantom_before_receipt: true,
+        burst_residue_hits: 14,
+        burst_phantom_hits: 1,
+        burst_client_hits: 1,
+        burst_current_hits: 16,
+        single_confirmation: true,
+        retry_dispatch_ms: 126_500,
+        recovery_bound_ms: 126_500,
+        retry_organic: false,
+    };
+    assert!(passing.passed());
+
+    for failing in [
+        M9RaceFacts {
+            raced_organic: false,
+            ..passing
+        },
+        M9RaceFacts {
+            organic_violation_count: 2,
+            ..passing
+        },
+        M9RaceFacts {
+            phantom_after_handoff: false,
+            ..passing
+        },
+        M9RaceFacts {
+            phantom_before_receipt: false,
+            ..passing
+        },
+        M9RaceFacts {
+            burst_residue_hits: 13,
+            ..passing
+        },
+        M9RaceFacts {
+            burst_phantom_hits: 0,
+            ..passing
+        },
+        M9RaceFacts {
+            burst_client_hits: 2,
+            ..passing
+        },
+        M9RaceFacts {
+            burst_current_hits: 15,
+            ..passing
+        },
+        M9RaceFacts {
+            single_confirmation: false,
+            ..passing
+        },
+        M9RaceFacts {
+            retry_dispatch_ms: 126_499,
+            ..passing
+        },
+        M9RaceFacts {
+            retry_organic: true,
+            ..passing
+        },
+    ] {
+        assert!(
+            !failing.passed(),
+            "wire fact must reach G5 false: {failing:?}"
+        );
+    }
+}
+
+/// M9's forced saturation race (Ballot G): at 14/15 a mock-owned phantom
+/// consumes the last slot inside the scripted reservation-to-receipt window,
+/// the client's send lands as the 16th and draws an organic 429, and M8's
+/// recovery machinery carries it home. The exposure is attributed through
+/// the public §2 seam — `ExposureAllowance` bound to the phantom state
+/// change via B13 correlation identity — and the same evidence without the
+/// allowance is proven to fail G1, so the attribution is load-bearing.
+#[tokio::test(start_paused = true)]
+async fn m9_forced_phantom_race_at_saturation_recovers_per_m8() {
+    for phase_ms in PHASES_MS {
+        let (mock, controller) = MockService::new(MockConfig::n23(909, phase_ms)).unwrap();
+        controller
+            .preload(
+                "stash-request-limit",
+                controller.now(),
+                M9_PRELOADED_RESIDUE as usize,
+            )
+            .await
+            .unwrap();
+        // B12's M9 timing script: a 2 s server arrival delay opens the
+        // reservation-to-receipt window the phantom must land inside.
+        controller
+            .script(
+                2,
+                ExchangeScript {
+                    arrival_delay: Duration::from_secs(2),
+                    response_delay: Duration::from_millis(100),
+                    response: None,
+                },
+            )
+            .await
+            .unwrap();
+        let gate = spawn(engine(), mock);
+        let ticket = submit(&gate, Endpoint::Stash).await;
+
+        wait_for_handoffs(&controller, 2, Duration::from_secs(2), phase_ms).await;
+        advance(Duration::from_millis(1)).await;
+        let phantom = controller
+            .inject_phantoms("stash-request-limit", 1)
+            .await
+            .unwrap();
+
+        wait_for_observations(&controller, 2, Duration::from_secs(3), phase_ms).await;
+        advance(Duration::from_millis(200)).await;
+        let raced_observations = controller.observations().await;
+        let head = by_correlation(&raced_observations, 1);
+        let raced = by_correlation(&raced_observations, 2);
+        assert_eq!(
+            raced.response_status,
+            Some(http::StatusCode::TOO_MANY_REQUESTS),
+            "phase {phase_ms}: the raced 16th hit must draw an organic 429"
+        );
+        let retry_after_ms = raced
+            .policy_judgment
+            .retry_after_seconds
+            .expect("an organic mock 429 carries Retry-After")
+            * 1_000;
+        let recovery_bound_ms =
+            raced.completion_ms + retry_after_ms + APPLICABLE_BUCKET_AND_BUFFER_MS;
+
+        advance(Duration::from_secs(3)).await;
+        assert_eq!(
+            controller.handoffs().await.len(),
+            2,
+            "phase {phase_ms}: the raced caller must not immediately re-knock"
+        );
+
+        wait_for_handoffs(&controller, 3, Duration::from_secs(130), phase_ms).await;
+        wait_for_observations(&controller, 3, Duration::from_secs(1), phase_ms).await;
+        advance(Duration::from_millis(200)).await;
+        assert!(
+            ticket.await.unwrap().status().is_success(),
+            "phase {phase_ms}: the raced caller eventually observes the recovered outcome"
+        );
+
+        let observations = controller.observations().await;
+        let retry = by_correlation(&observations, 3);
+        // The N23 stash-request rule orders its windows [burst, sustained].
+        let raced_burst = &raced.policy_judgment.windows[0];
+        let facts = M9RaceFacts {
+            raced_organic: raced.policy_judgment.organic_violation,
+            organic_violation_count: observations
+                .iter()
+                .filter(|observation| observation.policy_judgment.organic_violation)
+                .count(),
+            phantom_after_handoff: phantom.occurred_ms > raced.dispatch_ms,
+            phantom_before_receipt: phantom.occurred_ms < raced.arrival_ms,
+            burst_residue_hits: raced_burst.residue_hits,
+            burst_phantom_hits: raced_burst.phantom_hits,
+            burst_client_hits: raced_burst.client_hits,
+            burst_current_hits: raced_burst.current_hits,
+            single_confirmation: observations.len() == 3 && retry.in_flight_at_arrival == 1,
+            retry_dispatch_ms: retry.dispatch_ms,
+            recovery_bound_ms,
+            retry_organic: retry.policy_judgment.organic_violation,
+        };
+
+        // Independent eligibility: floor-only for the pre-race rows, the N19
+        // recovery bound for the confirmation. The exposure allowance binds
+        // the raced reservation to the phantom state change; the phantom
+        // first becomes client-observable at the raced response's
+        // completion.
+        let eligible_ms = BTreeMap::from([
+            (1, 0),
+            (2, head.dispatch_ms + MIN_SEND_SPACING_MS),
+            (3, recovery_bound_ms),
+        ]);
+        let oracle = TransitionOracle {
+            eligible_ms,
+            observable_ms: BTreeMap::from([(phantom.id, raced.completion_ms)]),
+        };
+        let evidence = RunEvidence {
+            scenario: ScenarioId::M9,
+            reproduction: Some(ReproductionRecord {
+                seed: 909,
+                phase_ms,
+                client_buckets: OAUTH_KNOWN_PROFILE,
+            }),
+            observations,
+            state_changes: controller.state_changes().await,
+            unavoidable_exposure: Some(
+                ExposureAllowance::for_state_change(
+                    phantom.id,
+                    [(raced.correlation_id, raced.dispatch_ms)],
+                    1,
+                )
+                .expect("one in-flight racer fits the §2 race exposure bound"),
+            ),
+            assertions: vec![ScenarioAssertion {
+                id: ScenarioAssertionId::M9PhantomRace,
+                coverage: ContractCoverage::Fragment,
+                passed: facts.passed(),
+            }],
+        };
+        let report = judge(&evidence, &oracle).expect("the race exposure evidence is structural");
+        assert!(report.passed(), "phase {phase_ms}: {facts:?} {report:?}");
+        assert!(report.gate(Gate::G1).passed);
+        assert!(
+            !report.verdict_eligible(),
+            "the focused M9 race arm remains a fragment"
+        );
+
+        // Attribution teeth: the identical evidence without the allowance
+        // must fail G1 on the raced correlation — the organic violation is
+        // real and only the attributed race exposure forgives it.
+        let unattributed = RunEvidence {
+            unavoidable_exposure: None,
+            ..evidence
+        };
+        let unforgiven =
+            judge(&unattributed, &oracle).expect("the unattributed evidence stays structural");
+        assert!(
+            !unforgiven.gate(Gate::G1).passed,
+            "phase {phase_ms}: without the race allowance the organic 429 must fail G1"
+        );
+    }
+}
+
 #[tokio::test(start_paused = true)]
 async fn m8_forced_concurrent_originals_allow_only_one_confirmation_in_flight() {
     for phase_ms in PHASES_MS {
