@@ -1,6 +1,20 @@
 # Scenario-driver and safety-closure hand-off
 
-Status: **open — the 2026-08-15 final external audit found
+Status: **open — the F11–F20 repair packet (dated 2026-08-15 additions
+in each section below) is presented and awaits the repeated independent
+re-close review.** All ten final-audit findings are repaired per their
+`result-draft.md` §9 dispositions and Tom's F14/F16 decisions: the
+declaration requires named (M2, endpoint) saturation pairs with
+endpoint-bound M8 profile checks (F11), the driver's engine and record
+provenance flow from one structurally pinned lane source (F12), the
+carriage corrections are applied across the record, topic,
+`scenarios.md` §7.3, and the migration-package charge (F13–F18), and
+the N31/N32 transcriptions are corrected on
+`rate-limit-core-ground-truth` (F19/F20). Both authorities and the full
+matrix reran green; five mutation signatures are recorded in §5. The
+repairing session closes nothing; live state is `status.md`.
+
+Prior status: **open — the 2026-08-15 final external audit found
 SD-R8-F11/F12 in the declaration chain and reopened the slice.** F11
 shows the character-policy requirement is endpoint-only rather than
 bound to its required M2 saturation lane. F12 shows M8's bucket-profile
@@ -154,7 +168,18 @@ the F4/F5/F9 repairs:
 | Tom's F5 amendment requires character-policy evidence but defines no character-specific scenario shape. | Reuse M2's contract semantics against the character endpoints as extra lanes — no new M-row, no new scenario id; queue 12 pinned above the character burst threshold and character-list's sustained limit; policy facts independently declared, never read from config at assert time. | Adding coverage needs no scenario-table change; dropping a lane refuses declaration (`MissingEndpointLane`); shrinking the queue below the pinned thresholds fails the scale test. |
 | The declaration's endpoint requirement stated no proof obligation binding record labels to the wire (SD-R8-F9's root — the F4 repair introduced `ReproductionRecord.endpoint` as run-owned provenance, the same trust shape F4 itself condemned). | Endpoint is a wire-observable mock fact (`Observation.endpoint`); the judge binds `reproduction.endpoint` to **every** observation with exact equality, valid because every phase-swept lane is single-endpoint. | A relabeled or re-routed lane fails `judge` as `ReproductionMismatch` before any declaration; the two real M9 mislabels the binding immediately caught (driver row and focused race fixture, both labeled StashList over a Stash wire) are the demonstration that the seam was live, not theoretical. |
 
-## 2. Seam map and invariant walk
+(F11–F20 repair packet, 2026-08-15) — silences taken across the
+repairs:
+
+| Silence or boundary | Conservative reading | Next-call consequence |
+|---|---|---|
+| The F11 disposition names the two character pairs but says "audit the other required lanes for the same pair-shape"; it does not enumerate the full pair set. | Require (M2, StashList) too — the main M2 row is G4's binding measurement and the same relabel class applies — and bind each M8 profile check to its endpoint (Known on Stash, pinned as current driver behavior; Assumed on the legacy route, contract-derived as its only route). Endpoints of other scenarios stay unbound beyond the F5 endpoint loop: no claim's lane structure names them. | Moving M8's OAuth lane or the main M2 row to another policy refuses declaration until the pair table is re-derived deliberately; a relabel of any named saturation lane refuses as `MissingScenarioEndpointLane`. |
+| "Unrepresentable in the driver" (F12) does not name a privacy boundary — a test file has no crate-privacy seam by default. | A nested `mod lane` with private provenance fields is the boundary; the sole construction/spawn/record paths are pinned lexically (X2 pattern, concat!-split needles), not by a Rust parser. | Expressing the split now requires either a second construction path (fails the structural pin by count, before any declaration) or editing `mod lane` itself — the recorded residual trust surface, which no runtime check can see because the M8 profiles are wire-indistinguishable. |
+| F15's sweep says "every sentence"; the record's dated markers also carry the old "verifies … Full" wording, and dated text is never rewritten. | Live claim sentences are corrected in place; one dated §1 marker states how to read the older dated wording. | A reader of the historical markers meets the clarifying marker in the same section before any verdict text. |
+| The declaration-check order after adding the pair requirement is unspecified, but three refusal signatures are already pinned by prior reviews. | Pair check runs last — after eligibility, scenario, M8-lane, and endpoint checks. | The F4/F5 pinned signatures (`MissingM8KnownLane`, `MissingEndpointLane`) are preserved verbatim; only states the old guard accepted reach the new pair refusal. |
+| F19 names the conventions to carry but not where they live in N31. | Transcribed into N31's own body with dated attribution to B3's ratified amendment — no new N-number, staying in the model-choice lane. | The repeated audit's CN5↔N31 comparison reads one entry; the ±1 ms §7.4 edge sensitivity and N13's indifference are stated with it. |
+
+
 
 - The public driver submits only through `GateHandle`. Mock
   observations and watch state feed independent scenario oracles and
@@ -307,7 +332,41 @@ walk for the F4/F5/F9 repairs:
   invariant untouched (no `on_response`/`on_probe_response`
   change); (6) notifications untouched (no watch-channel change).
 
-## 3. Coverage confession
+(F11–F20 repair packet, 2026-08-15) — seams and invariant walk:
+
+- **Declaration ↔ driver lanes:** the pair requirement and the
+  endpoint-bound M8 checks read the same judge-bound reproduction
+  records the F9 repair anchored to the wire; scenario identity is the
+  one non-wire fact in the pair, bound through each scenario's
+  sole-decider assertion plus the pair table (the recorded residual
+  trust surface). Check order preserves both previously pinned refusal
+  signatures — the pair check runs last.
+- **`mod lane` ↔ judge:** the lane supplies exactly the label set the
+  judge already binds (seed/phase/endpoint per F9); what the lane adds
+  is the construction binding for the profile, the one field the wire
+  cannot corroborate. `Lane::evidence` reads seed/phase from the wire
+  observations, endpoint and profile from the private fields set at
+  engine construction.
+- **Diff scope of the whole repair range:** conformance declaration
+  machinery, the driver and harness tests, registry citations/notes on
+  two existing clauses, and documents. **No client core, actor, or
+  mock production code changed**, so the six cross-slice invariants
+  are untouched by construction — in order: (1) no token or entry
+  state is created anywhere in the range; (2) reservation identity is
+  never exercised by declaration machinery; (3) pessimism direction is
+  unchanged (no reconciliation or scheduling change); (4)
+  `try_reserve` remains the sole scheduling authority (the refactored
+  lanes submit through the same public gate); (5) the entry-point
+  invariant is untouched (no `on_response`/`on_probe_response`
+  change); (6) notifications are untouched (no watch-channel change).
+- **Document seams:** the ratified §1 O-series block is edited only
+  per the F13/F14 dispositions, with a dated repair marker and Tom's
+  F14 acceptance cited; `scenarios.md` §7.3's cell keeps its struck
+  text; the migration-package charge carries Tom's own F16 amendment
+  with attribution; the ground-truth branch still touches only
+  `network-ground-truth.md`.
+
+
 
 The registry is the coverage authority. After the final SD-R8 run it
 contains 123 clauses: 109 Full, no Partial, one accepted Untested
@@ -497,7 +556,40 @@ violating phases and the 29,347-phase borderline halo are the pinned
 refuted sets, and the gate holds on the 29,601-phase derived
 consistent set. Dated text preserved, not rewritten.]*
 
-## 4. Judgment calls
+(F11–F20 repair packet, 2026-08-15) — coverage after the repairs. The
+registry still contains **124 clauses: 110 Full, no Partial, one
+accepted Untested limitation, and 13 Excluded** — totals unchanged; no
+new clause was minted. F11/F12 are carried as added citations and
+honest notes on the existing `m2-character-policy-lanes` and
+`m8-both-lanes` clauses. New evidence: the two declaration bypass pins
+(each asserting the pre-F11 acceptance condition still holds before
+refusing, so neither can go vacuous), the M8 endpoint-binding pin, and
+the F12 structural source pin.
+
+**What this packet's tests deliberately do not cover:**
+
+- The pair table names only the three M2 saturation lanes; the M8
+  pairs live in the endpoint-bound profile checks. Every other
+  scenario's endpoint is unbound beyond the F5 endpoint loop — their
+  identities are not part of any verdict's lane structure, and binding
+  them would pin incidental driver choices as contract.
+- Scenario identity remains driver-owned (the registry note): a driver
+  edit that relabels a lane *and* swaps its typed assertion is refused
+  only where a required pair names that lane. The wire cannot carry
+  scenario identity; this is recorded, not solved.
+- The F12 binding is a construction guarantee plus a lexical pin, not
+  a parser: editing `mod lane` itself forges undetectably at runtime
+  (the M8 profiles are wire-indistinguishable), and a renamed needle
+  requires re-deriving the pin deliberately.
+- The corrected carriage sentences (F13–F18) are prose; nothing
+  machine-checks that the topic keeps matching the record. The
+  repeated final audit's sentence-by-sentence re-derivation is the
+  covering control.
+- The registry's `must_assert` semantic accuracy remains reviewed
+  prose — the standing confession, now stated accurately everywhere
+  per F15 rather than overstated.
+
+
 
 - The canonical wired median (81 ms across 383 samples) replaces the
   50 ms placeholder. The supplemental VPN median remains 148 ms; it
@@ -654,6 +746,42 @@ consistent set. Dated text preserved, not rewritten.]*
   exactly the class of unbound label F9 condemns; it is fixed with
   a comment at the row.
 
+(F11–F20 repair packet, 2026-08-15) — judgment calls:
+
+- **(M2, StashList) is in the pair table although the charge named
+  only the character pairs.** The "audit the other required lanes"
+  instruction was read as: any lane a claim's structure requires gets
+  the pair shape. The main M2 row is G4's binding measurement; leaving
+  it endpoint-only would preserve the F11 class for the stash-list
+  policy. A different session might have pinned only the two named
+  pairs.
+- **M8's pair shape was implemented by binding the existing
+  `MissingM8KnownLane`/`MissingM8AssumedLane` checks to endpoints
+  rather than adding M8 rows to the pair table.** This keeps the
+  pinned F4 signature meaning "the required Known lane (Stash) is
+  missing" — broadened conservatively to include a wrong-endpoint
+  Known lane — instead of introducing a second refusal for an
+  overlapping condition that could never fire.
+- **No new registry clause was minted.** The F11/F12 guards defend
+  existing obligations (`m2-character-policy-lanes`, `m8-both-lanes`),
+  so they land as citations and notes; minting would have changed the
+  totals without a new obligation existing.
+- **The F12 mutation is recorded in two forms** because the audit's
+  exact edit is no longer expressible: the faithful end-to-end replay
+  (a second Assumed engine behind Known-claimed provenance) fails the
+  structural pin before any declaration, and the closest in-lane edit
+  (flipping `Lane::start`'s profile) flips both facts together and
+  refuses `MissingM8KnownLane`. Recording only one would either
+  understate the unrepresentability or hide that the flip case is
+  refused by the F4 guard, not by F12's machinery.
+- **F17's private-correspondence labeling extends the External lane's
+  definition instead of inventing a new lane.** The charter's lane
+  vocabulary is measured/estimated/inferred/external; N12/N14 are
+  external facts without URLs, so the topic states that explicitly at
+  the lane definition and cites the carrying N-entries at point of
+  use. A different session might have minted a "private" lane; that
+  seemed like vocabulary invention beyond the charter.
+
 ## 5. Verification presented with this packet
 
 Residual-items matrix, entirely offline: `cargo test --locked` — 166
@@ -799,3 +927,58 @@ No live service was contacted. The verdict fills remain suspended
 per the re-close review; this repairing session does not re-close
 SD-R8 — the packet awaits the repeated independent re-close
 review.
+
+(F11–F20 repair packet, 2026-08-15) — verification presented with
+this packet, entirely offline, on the tree at the repair commits
+(`f3865ef9` F12, `23ecbd0d` F11, `58cfdb67`/`39a86163` carriage,
+`3088d6e4` on `rate-limit-core-ground-truth`):
+
+- `cargo test --locked`: 175 passed / 0 failed / 3 ignored (the
+  three new pins: both F11 bypass tests and the F12 structural
+  source pin; the M8 endpoint-binding pin shares one of those
+  test files).
+- `cargo test --locked --release`: 173 / 0 / 3.
+- `PROPTEST_CASES=4096 cargo test --locked`: 175 / 0 / 3.
+- Pinned φ=0 declaration: green over all sixteen reports under the
+  repaired guards.
+- Explicit 4,096-case full-contract declaration: green in 306.83 s.
+- Obligations: 6/6, reporting 124 clauses — 110 Full / 0 Partial /
+  1 accepted Untested / 13 Excluded (totals unchanged by design).
+- Both ignored §7.4 release tests: 2/2 green in 7.79 s. Sanitizer:
+  4/4. All-target clippy with warnings denied, fmt, and
+  `git diff --check`: clean.
+- Migration diff checks: `rate-limit-core-ground-truth` vs `master`
+  touches only `docs/design/network-ground-truth.md`; the spike
+  branch outside `spikes/` touches only
+  `docs/redesign/topics/rate-limit-core.md` and
+  `docs/redesign/README.md`.
+
+Mutation checks, each run from committed code and reverted with
+`git checkout --`, signatures exact:
+
+1. F11's audit experiment end to end (the CharacterList lane
+   relabeled M2→M5 in the driver, real wire traffic intact): the
+   pinned declaration refuses
+   `MissingScenarioEndpointLane { scenario: M2, endpoint:
+   CharacterList }`; obligations stays 6/6, so the forged agreement
+   is broken by the declaration authority.
+2. F12's audit experiment end to end (a second Assumed-profile
+   engine behind Known-claimed lane provenance): requires a second
+   engine-construction path and fails the structural pin before any
+   declaration — `assertion 'left == right' failed: the driver must
+   have exactly one engine-construction path — left: 2, right: 1`.
+3. F12's closest in-lane expression (`Lane::start` profile flipped
+   to Assumed): both facts flip together and the pinned declaration
+   refuses `MissingM8KnownLane` — the preserved F4 signature.
+4. F5's pinned mutation re-run (CharacterList lane deleted): still
+   exactly `MissingEndpointLane { endpoint: CharacterList }`.
+5. F9's pinned mutation re-run (Character wire under a
+   CharacterList-labeled lane, seed 809): still exactly
+   `ReproductionMismatch { id: 1 }`, at the judge, before any
+   declaration.
+
+No live service was contacted. No verdict slot was refilled; this
+repairing session does not close SD-R8 — the packet awaits the
+repeated independent re-close review, then the repeated
+`final-audit-charge.md` audit over the repaired tree and both
+migration diffs.

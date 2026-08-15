@@ -69,6 +69,18 @@ declaration and the structural registry pass when the CharacterList
 report is carried by M5 instead of its required M2 lane, and when the M8
 actor is configured Assumed while its reproduction record claims Known.
 The registry totals remain accurate; verdict readiness is suspended.
+**The F11/F12 repairs landed 2026-08-15** (`23ecbd0d`, `f3865ef9`): the
+declaration requires the named (M2, endpoint) saturation pairs and
+binds each M8 profile check to its endpoint, and the driver's engine
+construction and record provenance flow from one structurally pinned
+lane source (`mod lane`), so the audit's split-profile state is
+unrepresentable outside that module. Both audit bypasses are pinned as
+negative tests, both authorities reran green over the repaired guards
+(pinned declaration; 4,096-case declared run in 306.83 s; obligations
+6/6 at unchanged 124/110 totals), and all five mutation signatures —
+the preserved F5/F9 pins and the new F11/F12 refusals — are recorded
+in `result-draft.md` §9. Verdict readiness stays suspended pending the
+repeated re-close review and the repeated final audit.
 `obligation-map.md`
 is the superseded prose ancestor; read its §8 for the audit's
 discrepancy analysis (dated at `e2034807`), never for current
@@ -194,6 +206,17 @@ coverage.
   again, and delivery waits on repair, re-close, and a repeated final
   audit. Full evidence and proposed dispositions are in
   `result-draft.md` §9.
+  **The F11–F20 repair session completed 2026-08-15**: all ten findings
+  repaired per their §9 dispositions and Tom's F14/F16 decisions — the
+  F11/F12 authority repairs (§1), the F13–F18 package and carriage
+  corrections across the record, the topic, `scenarios.md` §7.3, and
+  the migration-package charge, and the F19/F20 ground-truth
+  corrections (`3088d6e4` on `rate-limit-core-ground-truth`). The
+  fresh four-part packet is presented in `scenario-driver-handoff.md`;
+  the repair session closed nothing. SD-R8 remains open awaiting the
+  repeated independent re-close review, then the repeated
+  `final-audit-charge.md` audit over the repaired tree and both
+  migration diffs.
 - Every other slice (core, bootstrap, mock, actor, clause registry,
   doc split) is closed; their hand-offs are historical records.
   (Doc split closed 2026-08-13, DS-R1 — `result-draft.md` §9.)
@@ -220,7 +243,8 @@ findings on 2026-08-15 (records in `result-draft.md` §9):
 
 F11–F13, F15, and F17–F20 have evidence-preserving repair shapes
 recorded in `result-draft.md` §9 and need no further contract
-decision.
+decision. (All ten repairs, F14/F16 included, landed 2026-08-15 —
+§2, §5.)
 
 Decided 2026-08-15: **SD-R8-F6 — complete via gated hoist; the
 spike ends with a PR** (Tom; full record in `result-draft.md`
@@ -276,11 +300,13 @@ ratification record is in `result-draft.md` §9. (Both earlier
 
 ## 4. Blocked
 
-Delivery is blocked on the final-audit findings. SD-R8 and the
-scenario-driver slice are open, both verdict fills are suspended, and the
-migration drafts are not accepted. F14/F16 await Tom's scope decisions;
-then repairs, authority reruns, a fresh four-part hand-off, independent
-re-close, and a repeated final audit precede either delivery PR.
+Delivery is blocked on re-closing SD-R8. The F11–F20 repairs, authority
+reruns, and the fresh four-part hand-off are done (§2); the amended
+migration drafts are not yet accepted. What remains before either
+delivery PR: the repeated independent re-close review over the repair
+packet, then the repeated `final-audit-charge.md` audit over the
+repaired tree and both migration diffs. Both verdict fills stay
+suspended until then. No decision currently waits on Tom.
 
 ## 5. Next work
 
@@ -295,18 +321,26 @@ claimed: the spike is not concluded.
 Reopened SD-R8 work (audit and re-close-review entries,
 `result-draft.md` §9):
 
-- **Final-audit F11/F12 authority repairs:** bind both character
-  endpoints to M2 in the declaration, and bind M8's claimed bucket
-  profile to the actor configuration; add the two audit bypasses as
-  negative pins, rerun the pinned/4,096 declarations and obligations,
-  and update all four hand-off parts.
-- **Final-audit F13–F18 package repairs:** correct the universal mock
-  claim, the false O5 skew statement, the registry-verification wording,
-  the reusable-artifact readiness claim, the external claim lanes, and
-  G1–G6/G3/G4 carriage. F14/F16 wait on §3 decisions.
-- **Final-audit F19/F20 ground-truth repairs:** carry B3's half-open and
-  exclusive-expiry conventions into N31; narrow N32 to ordinary front
-  dispatch and probe writer scanning; mirror both in the topic.
+- ~~**Final-audit F11/F12 authority repairs**~~ — **done 2026-08-15**
+  (`23ecbd0d`, `f3865ef9`): named (M2, endpoint) pairs plus
+  endpoint-bound M8 profile checks in the declaration; one structurally
+  pinned lane source for engine and record provenance; both bypasses
+  negative-pinned; both authorities rerun green; all four hand-off
+  parts updated (§1, §2, `result-draft.md` §9).
+- ~~**Final-audit F13–F18 package repairs**~~ — **done 2026-08-15**
+  (`58cfdb67`, `39a86163`): instrument claim restricted to the
+  M-series, O5 corrected per Tom's F14 acceptance, registry wording
+  corrected to records-plus-structural-verifier, reusable claim
+  narrowed to a foundation per Tom's F16 decision (charge amendment
+  applied with his attribution), external premises labeled with their
+  provenance lanes, and G1–G6 with the finalized tolerances carried
+  into the consumer evidence basis.
+- ~~**Final-audit F19/F20 ground-truth repairs**~~ — **done
+  2026-08-15** (`3088d6e4` on `rate-limit-core-ground-truth`): N31
+  carries B3's half-open and exclusive-expiry conventions in the
+  model-choice lane; N32 narrowed to front-only ordinary dispatch with
+  deque-scanning probe writer selection; both mirrored in the topic
+  and §4's CN6 row.
 - ~~**F4 repair**~~ — **done 2026-08-15**: declare's profile
   guard keyed to M8, negative test pins the audit's exact state
   (accepted before, `MissingM8KnownLane` now), `m8-both-lanes`
@@ -357,6 +391,10 @@ Reopened SD-R8 work (audit and re-close-review entries,
      reopened SD-R8 with F11–F20; package not deliverable.**
   4. Repair and independently re-close the reopened round, then repeat
      `final-audit-charge.md` over the repaired tree and both diffs.
+     **Repairs done 2026-08-15** (the three bullets above); the
+     repeated independent re-close review over the fresh
+     `scenario-driver-handoff.md` packet is now the next step, then
+     the repeated final audit.
   5. The two delivery PRs (`spike/rate-limit-core` → `redesign`;
      CN docs → `master`). **F6 — and the spike — complete at
      landing.**

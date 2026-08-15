@@ -157,6 +157,17 @@ do not stand. Refilling requires dispositions, repaired authorities and
 migration drafts, a fresh four-part packet and independent re-close, and
 a repeated final audit. `status.md` is live state.]*
 
+*[Repair marker, 2026-08-15, same day: **all ten F11–F20 repairs landed
+per their §9 dispositions and Tom's F14/F16 decisions** (repair-session
+entry, §9): the declaration now requires the named (scenario, endpoint)
+saturation pairs, the driver's engine and record provenance flow from
+one structurally pinned lane source, the carriage corrections above are
+applied in place, and both authorities plus the full matrix reran green
+with all five mutation signatures recorded. Both verdict fills remain
+**suspended** — refilling still requires the repeated independent
+re-close review and the repeated final audit. `status.md` is live
+state.]*
+
 **O-series carriage (SD-R8-F7) — ratified by Tom, 2026-08-15; part
 of both verdict statements:**
 
@@ -973,8 +984,8 @@ verdict.
 | CN2 | Cloudflare challenge-block signature: layer-1 blocks can present as 403 + `cf-mitigated: challenge` (not 1015), no rate-limit headers (extends N3) | external | community.cloudflare.com thread, retrieved 2026-08-09 (URL in the charter's bucketing entry) | transcribed 2026-08-15 as N28 (`c1d92417`, `rate-limit-core-ground-truth`) |
 | CN3 | Recourse asymmetry: layer-1 blocks may be invisible to GGG support and unappealable for non-business Cloudflare users (informs Q7) | external | same thread as CN2 | transcribed 2026-08-15 as N29 (`c1d92417`, `rate-limit-core-ground-truth`) |
 | CN4 | Trade-API rules carry three windows per rule — the RulePair shape is not universal; a non-pair policy is out-of-model, not impossible | external | pathofexile.com forum thread 3056323, retrieved 2026-08-09 (URL in the charter's bucketing entry) | transcribed 2026-08-15 as N30 (`c1d92417`, `rate-limit-core-ground-truth`) |
-| CN5 | N11–N13 under-specify bucket quantization semantics (when a hit's age is measured / when it leaves the window); the spike's mock adopts the most-adversarial consistent reading — timestamp rounds up to bucket end, entry never quantized (N25 pins immediate 1:1 increment) | inferred (model choice); the gap itself is a doc finding | `scenarios.md` §7 B3, 2026-08-09 | transcribed 2026-08-15 as N31 (`c1d92417`, `rate-limit-core-ground-truth`) |
-| CN6 | **Reprioritization is cheap in the actor shape and was not in the coroutine/facade shape — `network-redesign.md` R7/D6's "not cheap later" warning does not carry over.** It failed there for a specific reason: the stop token is per-update, so per-entry cancellation did not exist and reorder needed entry identity invented first. The Rust actor already has that identity (`RequestId`, `Command::Cancel` doing positional removal on the owned deque), and ~~its dispatch loop reads only `queue.front()`~~ *[corrected 2026-08-15, SD-R8-F20: ordinary GET dispatch reads only `queue.front()`, while probe writer selection — `Actor::schedule` via `pending_probe()` — scans the whole deque for a queued unknown endpoint]* — no ordinary scheduling decision depends on arrival order. FIFO is emergent from append-at-back/take-from-front, not assumed; the actor already dispatches out of arrival order for writer preference. Reorder is therefore `remove(pos) + insert(pos)`, and the expensive part is contract, not code: D5's "no lane starvation" clause has no rule, so whoever adds reorder decides it. **This is evidence for the `design-brief.md` thesis that queue-as-data picks the actor shape.** | measured (structural, this branch) | `src/actor.rs` dispatch loop and `Command::Cancel`; contrast `docs/design/network-redesign.md` R7/D6 and `network-redesign-reviews.md` (2026-07-19 errata, "stale cancel+resubmit reprioritization claim removed"); Tom's decision 2026-08-12 | transcribed 2026-08-15 as N32 (`c1d92417`, `rate-limit-core-ground-truth`) |
+| CN5 | N11–N13 under-specify bucket quantization semantics (when a hit's age is measured / when it leaves the window); the spike's mock adopts the most-adversarial consistent reading — timestamp rounds up to bucket end, entry never quantized (N25 pins immediate 1:1 increment) | inferred (model choice); the gap itself is a doc finding | `scenarios.md` §7 B3, 2026-08-09 | transcribed 2026-08-15 as N31 (`c1d92417`, `rate-limit-core-ground-truth`); B3's half-open and exclusive-expiry conventions carried 2026-08-15, SD-R8-F19 (`3088d6e4`) |
+| CN6 | **Reprioritization is cheap in the actor shape and was not in the coroutine/facade shape — `network-redesign.md` R7/D6's "not cheap later" warning does not carry over.** It failed there for a specific reason: the stop token is per-update, so per-entry cancellation did not exist and reorder needed entry identity invented first. The Rust actor already has that identity (`RequestId`, `Command::Cancel` doing positional removal on the owned deque), and ~~its dispatch loop reads only `queue.front()`~~ *[corrected 2026-08-15, SD-R8-F20: ordinary GET dispatch reads only `queue.front()`, while probe writer selection — `Actor::schedule` via `pending_probe()` — scans the whole deque for a queued unknown endpoint]* — no ordinary scheduling decision depends on arrival order. FIFO is emergent from append-at-back/take-from-front, not assumed; the actor already dispatches out of arrival order for writer preference. Reorder is therefore `remove(pos) + insert(pos)`, and the expensive part is contract, not code: D5's "no lane starvation" clause has no rule, so whoever adds reorder decides it. **This is evidence for the `design-brief.md` thesis that queue-as-data picks the actor shape.** | measured (structural, this branch) | `src/actor.rs` dispatch loop and `Command::Cancel`; contrast `docs/design/network-redesign.md` R7/D6 and `network-redesign-reviews.md` (2026-07-19 errata, "stale cancel+resubmit reprioritization claim removed"); Tom's decision 2026-08-12 | transcribed 2026-08-15 as N32 (`c1d92417`, `rate-limit-core-ground-truth`); dispatch mechanism narrowed 2026-08-15, SD-R8-F20 (`3088d6e4`; this row's mirror corrected in place) |
 
 ⟨New candidates minted during implementation land here the day
 they appear — writing the mock exposing an N-claim ambiguity is a
@@ -3618,3 +3629,129 @@ hoistable to its own repository without surgery.
   bound through each scenario's sole-decider assertion and the pair
   requirement; the residual trust surface is recorded, not
   patched silently.
+
+- 2026-08-15 — **F11–F20 repair session: all ten final-audit findings
+  repaired per their §9 dispositions and Tom's F14/F16 decisions; the
+  round is not closed and no verdict slot is refilled.** No live
+  service was contacted. The repairs, by charge section:
+
+  **Authority repairs (F11/F12 — the F4→F9 class, by construction,
+  not by check, per the binding approach note):**
+  - F12 (`f3865ef9`): the driver's engine construction and
+    `ReproductionRecord` provenance now flow from one source — `mod
+    lane` in `tests/scenario_driver.rs` owns private profile/endpoint
+    fields, `Lane::start` is the sole engine-construction and spawn
+    path, and `Lane::evidence` is the sole reproduction-record
+    constructor. The structural pin
+    `f12_driver_has_one_engine_construction_and_one_provenance_path`
+    (the X2 single-send-path pattern, concat!-split needles) fails any
+    second path by count. Residual trust surface recorded in the
+    module doc and the `m8-both-lanes` registry note: editing `mod
+    lane` itself — the M8 profiles are wire-indistinguishable, so no
+    judge-side check can replace the construction binding.
+  - F11 (`23ecbd0d`): `FullContractRun::declare` requires the explicit
+    (M2, StashList), (M2, CharacterList), and (M2, Character)
+    saturation pairs (`REQUIRED_SCENARIO_ENDPOINT_LANES`, refusal
+    `MissingScenarioEndpointLane`), checked after the F5 endpoint loop
+    so a fully deleted lane keeps its pinned `MissingEndpointLane`
+    signature. The pair-shape audit of the other required lanes binds
+    each M8 profile check to its endpoint — Known on Stash (pinned as
+    current driver behavior), Assumed on the legacy route (its only
+    route, contract-derived) — so the two lanes cannot swap policies
+    behind a profile-only check. Negative pins:
+    `full_contract_declaration_refuses_a_relabeled_required_lane`
+    (both audit bypasses — the M2→M5 relabel and endpoint-only
+    satisfaction — each first asserting the pre-F11 acceptance
+    condition still holds, so the pin cannot go vacuous) and
+    `full_contract_declaration_binds_each_m8_profile_to_its_endpoint`.
+    The honest note is in `m2-character-policy-lanes`: scenario
+    identity remains driver-owned, bound through each scenario's
+    sole-decider assertion plus the pair requirement — the wire does
+    not carry scenario identity.
+
+  **Package and carriage repairs (F13, F15, F17, F18 — `58cfdb67`,
+  `39a86163`):** the ratified §1 O-series opening and the topic now
+  restrict the in-process-mock/simulated-time instrument claim to the
+  M-series wire evidence, with the no-live-traffic scope kept
+  universal (F13); every live "registry verifies … Full" sentence in
+  §1, `status.md`, and the topic reads records-plus-structural-
+  verifier with semantic accuracy prose-reviewed, and a dated §1
+  marker covers the section's earlier dated wording (F15); the
+  topic's verdict paragraphs separate the measured offline outcome
+  from the external premises — N12's `Known(5s/60s)` resolutions are
+  private GGG correspondence, the legacy no-upper-bound premise is
+  N14 correspondence plus N21 observation — with the External lane
+  definition extended to cover private correspondence, which has no
+  URL to cite (F17); the topic's evidence basis carries G1–G6 with
+  the finalized G3 ε = 500 ms and G4 1.05× named as the acceptance
+  thresholds behind "honors" (F18).
+
+  **Tom-decided repairs (F14, F16 — decisions recorded above):** the
+  O5 sentence corrected in all three locations (topic, ratified §1
+  carriage, `scenarios.md` §7.3 trigger note) to say skew remains
+  untested — no server-clock input, trigger honest and unfired —
+  citing Tom's acceptance (F14); §8, the topic, and the
+  migration-package charge narrow the reusable-artifact claim to a
+  reusable foundation (independent counter engine + scenario
+  contract) with the standalone HTTP shim and client-neutral driver
+  named as future adapter work, citing Tom's decision — the charge
+  amendment carries his attribution with the struck text preserved
+  (F16).
+
+  **Ground-truth transcription repairs (F19, F20 — `3088d6e4` on
+  `rate-limit-core-ground-truth`):** N31 carries B3's ratified
+  half-open-bucket and exclusive-expiry conventions explicitly,
+  staying in the model-choice lane; N32 states that ordinary dispatch
+  reads the queue front while probe writer selection
+  (`Actor::schedule` via `pending_probe()`) scans the whole deque,
+  keeping the single-deque conclusion with the mechanism narrowed.
+  Both are mirrored in the topic and in §4's CN6 row (dated in-place
+  correction, struck text preserved).
+
+  **Authority reruns and matrix, entirely offline:** pinned φ=0
+  declaration green over all sixteen reports; explicit 4,096-case
+  full-contract declaration green in 306.83 s under the repaired
+  guards; obligations 6/6, still reporting 124 clauses — 110 Full /
+  0 Partial / 1 accepted Untested / 13 Excluded (totals unchanged:
+  F11/F12 were carried as citations and notes on the existing
+  `m2-character-policy-lanes` and `m8-both-lanes` clauses, not new
+  clauses); `cargo test --locked` 175 / 0 / 3 (the three new pins);
+  release 173 / 0 / 3; `PROPTEST_CASES=4096 cargo test --locked`
+  175 / 0 / 3; both ignored §7.4 release tests 2/2 in 7.79 s;
+  sanitizer 4/4; all-target clippy with warnings denied, fmt,
+  `git diff --check`, and both migration diff checks clean (the
+  ground-truth branch touches only `network-ground-truth.md`; the
+  spike branch outside `spikes/` touches only the two authorized
+  package files).
+
+  **Mutation checks, each run from committed code and reverted with
+  `git checkout --`, signatures exact:**
+  1. F11's audit experiment, end to end (the CharacterList lane's
+     scenario identity relabeled to M5 in the driver, real wire
+     traffic intact): the pinned declaration refuses
+     `MissingScenarioEndpointLane { scenario: M2, endpoint:
+     CharacterList }` while obligations stays 6/6 — the agreement the
+     audit forged is now broken by the declaration authority.
+  2. F12's audit experiment, end to end: expressing the exact split —
+     a second Assumed-profile engine behind lane-claimed Known
+     provenance — now requires a second engine-construction path, and
+     the structural pin fails before any declaration runs:
+     `assertion 'left == right' failed: the driver must have exactly
+     one engine-construction path — left: 2, right: 1`.
+  3. F12's closest in-lane expression (the `Lane::start` profile
+     flipped to Assumed): both facts flip together — the split cannot
+     form — and the pinned declaration refuses `MissingM8KnownLane`,
+     which is also the preserved F4 signature.
+  4. F5's pinned mutation re-run under the new guard (the
+     CharacterList lane deleted): still exactly
+     `MissingEndpointLane { endpoint: CharacterList }`.
+  5. F9's pinned mutation re-run (Character wire under a
+     CharacterList-labeled lane, seed 809): still exactly
+     `ReproductionMismatch { id: 1 }`, failing at the judge before
+     any declaration.
+
+  The fresh four-part packet is in `scenario-driver-handoff.md`
+  (dated repair-session additions in each section). Per the charge,
+  this session closes nothing: next are the repeated independent
+  re-close review, then the repeated `final-audit-charge.md` audit
+  over the repaired tree and both migration diffs.
