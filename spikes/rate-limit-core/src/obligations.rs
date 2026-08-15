@@ -70,6 +70,7 @@ pub struct Clause {
 /// `ContractCoverage::Fragment`. Cited per-arm below.
 const DRIVER: &str = "tests/scenario_driver.rs";
 const DRIVER_FN: &str = "m1_m13_run_against_the_actor_and_the_judge";
+const FULL_CONTRACT_FN: &str = "full_contract_m1_m13_mock_judged_suite_declares_full_contract";
 
 /// Exactly the `Untested` clauses whose disposition is
 /// `open — flagged for Tom`. Changing any clause's coverage state
@@ -77,8 +78,8 @@ const DRIVER_FN: &str = "m1_m13_run_against_the_actor_and_the_judge";
 /// deliberate two-line diff (the `swept_phases` pattern).
 pub const OPEN_UNTESTED: &[&str] = &[
     // Empty: every formerly open Untested clause now has a discharging test.
-    // This does not imply verdict readiness: the seven full-contract Partial
-    // clauses remain live work in status.md.
+    // This does not alone imply verdict readiness: declared runs and every
+    // prerequisite registry owner must independently agree.
 ];
 
 pub const CLAUSES: &[Clause] = &[
@@ -650,7 +651,7 @@ pub const CLAUSES: &[Clause] = &[
         owner: "M6",
         text: "G1 from the first post-announcement reservation (M6 → G1) \
                (scenarios.md:236)",
-        coverage: Coverage::Partial,
+        coverage: Coverage::Full,
         citations: &[
             Citation {
                 file: DRIVER,
@@ -670,16 +671,23 @@ pub const CLAUSES: &[Clause] = &[
                               can make the scenario assertion false instead \
                               of being panic-asserted before judge",
             },
+            Citation {
+                file: DRIVER,
+                test_fn: FULL_CONTRACT_FN,
+                must_assert: "4,096 generated phases: M6's first \
+                              post-announcement reservation and queued tail \
+                              keep G1 green in a declared run",
+            },
         ],
-        note: "Focused transition evidence is stronger than the driver arm; \
-               the full-contract scale run remains the closure delta",
+        note: "Closed by the declared 4,096-case full-contract run, with the \
+               focused transition and falsifiability evidence retained",
     },
     Clause {
         id: "m6-queue-drains-new-pace",
         owner: "M6",
         text: "Queue keeps draining at the new pace — no wedge \
                (scenarios.md:236)",
-        coverage: Coverage::Partial,
+        coverage: Coverage::Full,
         citations: &[
             Citation {
                 file: "tests/actor_shell.rs",
@@ -692,9 +700,15 @@ pub const CLAUSES: &[Clause] = &[
                 must_assert: "the exposed request retries only after the wire \
                               Retry-After and independent bucket padding",
             },
+            Citation {
+                file: DRIVER,
+                test_fn: FULL_CONTRACT_FN,
+                must_assert: "M6 drains 12 post-shrink requests across more \
+                              than two complete five-hit new-pace windows",
+            },
         ],
-        note: "Focused evidence covers the transition and retry; full-contract \
-               queue scale remains the closure delta",
+        note: "Focused transition evidence plus the declared full-scale \
+               queue-drain run",
     },
     // ── M7 — phantom same-account hits (scenarios.md:251) ────────
     Clause {
@@ -729,13 +743,22 @@ pub const CLAUSES: &[Clause] = &[
         id: "m7-no-client-violation",
         owner: "M7",
         text: "No client-caused violation (M7 → G1) (scenarios.md:251)",
-        coverage: Coverage::Partial,
-        citations: &[Citation {
-            file: DRIVER,
-            test_fn: DRIVER_FN,
-            must_assert: "M7 arm judged with G1 armed",
-        }],
-        note: "Small injection only",
+        coverage: Coverage::Full,
+        citations: &[
+            Citation {
+                file: DRIVER,
+                test_fn: DRIVER_FN,
+                must_assert: "M7 arm judged with G1 armed",
+            },
+            Citation {
+                file: DRIVER,
+                test_fn: FULL_CONTRACT_FN,
+                must_assert: "4,096 generated phases: eight same-instant \
+                              phantom hits plus a 12-request tail remain \
+                              violation-free in a declared run",
+            },
+        ],
+        note: "Bursty threshold shape closed by the declared full-contract run",
     },
     // m7-threshold-tuning was removed 2026-08-13: Tom deleted the
     // contract sentence (scenarios.md M7 amendment) — it named no
@@ -928,7 +951,7 @@ pub const CLAUSES: &[Clause] = &[
         id: "m8-no-follow-on-violation",
         owner: "M8",
         text: "No follow-on violation (§2) (M8 → G1) (scenarios.md:260)",
-        coverage: Coverage::Partial,
+        coverage: Coverage::Full,
         citations: &[
             Citation {
                 file: DRIVER,
@@ -941,9 +964,15 @@ pub const CLAUSES: &[Clause] = &[
                 must_assert: "both callers complete after serialized \
                               confirmation and no follow-on organic violation",
             },
+            Citation {
+                file: DRIVER,
+                test_fn: FULL_CONTRACT_FN,
+                must_assert: "M8's 12-request recovery tail stays G1-green \
+                              under both Known and Assumed profile reports",
+            },
         ],
-        note: "Focused timing evidence covers the forced overlap; the \
-               full-contract run remains the closure delta",
+        note: "Focused overlap evidence plus declared full-scale recovery \
+               under both profile lanes",
     },
     Clause {
         id: "m8-b12-timing-script",
@@ -1993,7 +2022,7 @@ pub const CLAUSES: &[Clause] = &[
         owner: "G1",
         text: "Zero client-caused violations, follow-on included, exposure \
                excluded per §2 (scenarios.md:482)",
-        coverage: Coverage::Partial,
+        coverage: Coverage::Full,
         citations: &[
             Citation {
                 file: DRIVER,
@@ -2017,17 +2046,23 @@ pub const CLAUSES: &[Clause] = &[
                 must_assert: "teeth: the gate is armed and judged from wire \
                               evidence",
             },
+            Citation {
+                file: DRIVER,
+                test_fn: FULL_CONTRACT_FN,
+                must_assert: "every M1-M13 FullContract report keeps G1 \
+                              green across 4,096 generated phases",
+            },
         ],
-        note: "Judge at src/conformance.rs (G1 section). Green across all 13 \
-               fragments × 2 φ × (M8 × 2 lanes); no full-contract run; the \
-               exposure path is never used in integration",
+        note: "Judge at src/conformance.rs (G1 section). Declared green \
+               across the complete generated-phase run; focused exposure \
+               validation remains load-bearing",
     },
     Clause {
         id: "g2-ceilings-never-tripped",
         owner: "G2",
         text: "Neither B10 ceiling tripped, armed everywhere \
                (scenarios.md:489)",
-        coverage: Coverage::Partial,
+        coverage: Coverage::Full,
         citations: &[
             Citation {
                 file: DRIVER,
@@ -2040,15 +2075,21 @@ pub const CLAUSES: &[Clause] = &[
                 test_fn: "all_global_gates_are_armed_and_judged_from_wire_evidence",
                 must_assert: "teeth: G2 armed",
             },
+            Citation {
+                file: DRIVER,
+                test_fn: FULL_CONTRACT_FN,
+                must_assert: "every M1-M13 FullContract report keeps both \
+                              B10 ceilings green across 4,096 phases",
+            },
         ],
-        note: "Same fragment qualifier as G1",
+        note: "Declared green across the complete generated-phase run",
     },
     Clause {
         id: "g3-over-delay-bounded",
         owner: "G3",
         text: "Over-delay ≤ ε against padded-safe time, exclusions authorized \
                (scenarios.md:493)",
-        coverage: Coverage::Partial,
+        coverage: Coverage::Full,
         citations: &[
             Citation {
                 file: DRIVER,
@@ -2061,6 +2102,13 @@ pub const CLAUSES: &[Clause] = &[
                 test_fn: "g3_oracle_pins_its_independent_padded_safe_arithmetic",
                 must_assert: "independent N13 hit + period + bucket pins for \
                               the oracle",
+            },
+            Citation {
+                file: DRIVER,
+                test_fn: FULL_CONTRACT_FN,
+                must_assert: "every M1-M13 FullContract report stays within \
+                              500 ms of independently derived padded-safe \
+                              eligibility across 4,096 phases",
             },
             Citation {
                 file: "tests/conformance_harness.rs",
@@ -2076,10 +2124,10 @@ pub const CLAUSES: &[Clause] = &[
                               verdict-eligible",
             },
         ],
-        note: "ε = 500 ms final (2026-08-13, scenarios.md:562): an \
-               unmodelled-padding allowance, not slop; the oracle stays \
-               padding-independent. Delta: fragment scale — finished by \
-               the full-contract run",
+        note: "ε = 500 ms unchanged; Tom's 2026-08-15 SD-R8-F2 amendment \
+               defines eligibility as independently restated N13 \
+               hit + period + bucket arithmetic. Closed by the declared \
+               4,096-case run",
     },
     Clause {
         id: "g4-m2-duration-bound",
