@@ -830,7 +830,7 @@ Notes on the load-bearing rows:
 | O2 | Stochastic latency/jitter | B12's deterministic delay covers every scenario need; no verdict depends on transit randomness | a scenario whose verdict does |
 | O3 | Request/response payloads, incl. synthdata userstores | the client under test never parses bodies; sole exception is B10's Cloudflare HTML signature | a scenario judging body handling |
 | O4 | Multi-account / multi-IP scope semantics | B9 reproduces all counter-observable effects; client reconciliation is scope-blind (charter) | never for the spike |
-| O5 | Server `Date`-header skew | mock emits zero-skew `Date` (B14) | **conditional, already armed:** C1 shows the arithmetic is sensitive to skew |
+| O5 | Server `Date`-header skew | mock emits zero-skew `Date` (B14) | **conditional, not yet fired:** ~~C1 shows the arithmetic is sensitive to skew~~ skew remains untested — the slice has no server-clock input, so no sensitivity evidence exists; the trigger fires when a server-clock input lands and C1 demonstrates sensitivity *(corrected per Tom's SD-R8-F14 acceptance, 2026-08-15 — struck text preserved)* |
 | O6 | Header case/order adversarial variants | C2's property domain (adversarial generation at the parser); mock emits canonical lowercase | none — covered elsewhere |
 | O7 | Auth of any kind (tokens, POESESSID, OAuth flows) | no credential ever appears in mock traffic or fixtures — §4 hygiene by construction | out for the spike (charter flags OAuth as a later phase) |
 | O8 | Server-side 4xx restriction (U2), real Cloudflare rules (U4), forum regime (D5, ungated), unlimited endpoints | declared elsewhere; listed to close the loop | per their registers |

@@ -397,8 +397,10 @@ Reopened SD-R8 work (audit and re-close-review entries,
    `m6-queue-drains-new-pace`, `m7-no-client-violation`,
    `m8-no-follow-on-violation`, `g1-zero-client-violations`,
    `g2-ceilings-never-tripped`, and `g3-over-delay-bounded`.
-   The run declared `FullContract` and the registry
-   independently verifies every owned clause Full; all seven flipped
+   The run declared `FullContract` and the independently edited
+   registry records every owned clause Full under its structural
+   verifier (semantic accuracy is prose-reviewed — SD-R8-F15
+   wording); all seven flipped
    to Full, G1–G6 and both verdict lanes were filled, and the
    packet's review closed the round and the slice (§2, §9
    changelog) — the fills are now suspended per the audit

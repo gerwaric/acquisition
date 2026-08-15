@@ -56,15 +56,19 @@ previously appeared in no prerequisite lane).
   (M1–M13, both M8 provenance lanes, and the SD-R8-F5
   character-policy lanes, covering every routed N23 endpoint) is
   green, C1–C5 and X1–X2 are green, the SHELL prerequisite is
-  Full, and the independent registry verifies every prerequisite
-  clause Full; U1–U5, the accepted future-parser limitation, and
+  Full, and the independently edited registry records every
+  prerequisite clause Full with its structural verifier green —
+  the verifier checks structure, not assertion semantics, which
+  remain prose-reviewed (`registry-handoff.md` §3; wording per
+  SD-R8-F15); U1–U5, the accepted future-parser limitation, and
   the ratified O-series carriage below are the claim's scope.
 - **Conditional** — **yes for `backend-item-request-limit`, conditional
   on `Assumed(60s/60s)` being no smaller than the server's actual
   bucket resolution.** N14/N21 provide no upper bound, so this is not
   an unconditional claim. The same declared run includes the shipped
-  Assumed lane and the same prerequisite registry set is Full; the
-  same scope carriage applies.
+  Assumed lane and the registry records the same prerequisite set
+  Full under the same structural verification; the same scope
+  carriage applies.
 
 G3 (ε = 500 ms) and G4 (1.05×) were finalized 2026-08-13
 (`scenarios.md` §6 amendments), satisfying the finalization
@@ -156,9 +160,22 @@ a repeated final audit. `status.md` is live state.]*
 **O-series carriage (SD-R8-F7) — ratified by Tom, 2026-08-15; part
 of both verdict statements:**
 
-> **What these verdicts do and do not cover.** Every test in this
-> spike ran against an in-process mock server on simulated time —
-> no real network traffic was ever sent. Both verdicts therefore
+*[Repair marker, 2026-08-15: the block's opening sentence and its O5
+bullet are corrected in place per the final audit's SD-R8-F13 and
+SD-R8-F14 dispositions (§9). The F14 correction touches wording Tom
+ratified; his acceptance of the corrected carriage is recorded in the
+§9 decisions entry. Where this section's earlier dated markers say the
+registry "verifies … Full", read that as the structural verification
+of recorded coverage — the verifier does not prove assertion
+semantics (SD-R8-F15; `registry-handoff.md` §3).]*
+
+> **What these verdicts do and do not cover.** Every mock-judged
+> wire test — the M-series, which both verdicts are grounded in —
+> ran against an in-process mock server on simulated time; the
+> remaining evidence lanes (C-series properties, the parser suite,
+> X-series fault-injection and source-structure tests, §2) exercise
+> the code directly. No test anywhere sent real network traffic.
+> Both verdicts therefore
 > carry the following exclusions (the O-series, `scenarios.md`
 > §7.3) as part of their meaning, alongside the declared-untested
 > U1–U5 register in §7:
@@ -181,9 +198,11 @@ of both verdict statements:**
 >   semantics are out of scope.
 > - **O5 — perfect clocks.** The mock's `Date` header always
 >   agrees with its own clock. Skew between a server's clock and
->   its stated time was not tested — and the C1 property tests
->   show the timing arithmetic *is* sensitive to skew, so this
->   exclusion is flagged for re-entry, not waved off.
+>   its stated time remains untested — the slice has no
+>   server-clock input, so the `o5-date-skew` conditional
+>   re-entry trigger has not fired. The exclusion stands with its
+>   trigger armed, not waved off. (Corrected per Tom's SD-R8-F14
+>   acceptance, 2026-08-15; no skew evidence exists or is claimed.)
 > - **O6 — well-formed headers only, on the wire.** The mock
 >   always emits canonical lowercase headers. Adversarial header
 >   casing and ordering *are* covered, but at the parser by C2's
@@ -955,7 +974,7 @@ verdict.
 | CN3 | Recourse asymmetry: layer-1 blocks may be invisible to GGG support and unappealable for non-business Cloudflare users (informs Q7) | external | same thread as CN2 | transcribed 2026-08-15 as N29 (`c1d92417`, `rate-limit-core-ground-truth`) |
 | CN4 | Trade-API rules carry three windows per rule — the RulePair shape is not universal; a non-pair policy is out-of-model, not impossible | external | pathofexile.com forum thread 3056323, retrieved 2026-08-09 (URL in the charter's bucketing entry) | transcribed 2026-08-15 as N30 (`c1d92417`, `rate-limit-core-ground-truth`) |
 | CN5 | N11–N13 under-specify bucket quantization semantics (when a hit's age is measured / when it leaves the window); the spike's mock adopts the most-adversarial consistent reading — timestamp rounds up to bucket end, entry never quantized (N25 pins immediate 1:1 increment) | inferred (model choice); the gap itself is a doc finding | `scenarios.md` §7 B3, 2026-08-09 | transcribed 2026-08-15 as N31 (`c1d92417`, `rate-limit-core-ground-truth`) |
-| CN6 | **Reprioritization is cheap in the actor shape and was not in the coroutine/facade shape — `network-redesign.md` R7/D6's "not cheap later" warning does not carry over.** It failed there for a specific reason: the stop token is per-update, so per-entry cancellation did not exist and reorder needed entry identity invented first. The Rust actor already has that identity (`RequestId`, `Command::Cancel` doing positional removal on the owned deque), and its dispatch loop reads only `queue.front()` — no scheduling decision depends on arrival order. FIFO is emergent from append-at-back/take-from-front, not assumed; the actor already dispatches out of arrival order for writer preference. Reorder is therefore `remove(pos) + insert(pos)`, and the expensive part is contract, not code: D5's "no lane starvation" clause has no rule, so whoever adds reorder decides it. **This is evidence for the `design-brief.md` thesis that queue-as-data picks the actor shape.** | measured (structural, this branch) | `src/actor.rs` dispatch loop and `Command::Cancel`; contrast `docs/design/network-redesign.md` R7/D6 and `network-redesign-reviews.md` (2026-07-19 errata, "stale cancel+resubmit reprioritization claim removed"); Tom's decision 2026-08-12 | transcribed 2026-08-15 as N32 (`c1d92417`, `rate-limit-core-ground-truth`) |
+| CN6 | **Reprioritization is cheap in the actor shape and was not in the coroutine/facade shape — `network-redesign.md` R7/D6's "not cheap later" warning does not carry over.** It failed there for a specific reason: the stop token is per-update, so per-entry cancellation did not exist and reorder needed entry identity invented first. The Rust actor already has that identity (`RequestId`, `Command::Cancel` doing positional removal on the owned deque), and ~~its dispatch loop reads only `queue.front()`~~ *[corrected 2026-08-15, SD-R8-F20: ordinary GET dispatch reads only `queue.front()`, while probe writer selection — `Actor::schedule` via `pending_probe()` — scans the whole deque for a queued unknown endpoint]* — no ordinary scheduling decision depends on arrival order. FIFO is emergent from append-at-back/take-from-front, not assumed; the actor already dispatches out of arrival order for writer preference. Reorder is therefore `remove(pos) + insert(pos)`, and the expensive part is contract, not code: D5's "no lane starvation" clause has no rule, so whoever adds reorder decides it. **This is evidence for the `design-brief.md` thesis that queue-as-data picks the actor shape.** | measured (structural, this branch) | `src/actor.rs` dispatch loop and `Command::Cancel`; contrast `docs/design/network-redesign.md` R7/D6 and `network-redesign-reviews.md` (2026-07-19 errata, "stale cancel+resubmit reprioritization claim removed"); Tom's decision 2026-08-12 | transcribed 2026-08-15 as N32 (`c1d92417`, `rate-limit-core-ground-truth`) |
 
 ⟨New candidates minted during implementation land here the day
 they appear — writing the mock exposing an N-claim ambiguity is a
@@ -1090,17 +1109,24 @@ SD-R8-F7, repaired 2026-08-15).
 
 ## §8. Reusable artifact
 
-**Reusable-artifact record, 2026-08-15.** The artifact exists as the
+**Reusable-artifact record, 2026-08-15 (claim narrowed per Tom's
+SD-R8-F16 decision, same day — §9).** The artifact exists as the
 self-contained `spikes/rate-limit-core/` package: the counter engine
-and delivery shim are in `src/mock/`; the M1–M13 contract is in
-`scenarios.md` and its public-actor driver is in
-`tests/scenario_driver.rs`; the G1–G6 judge and full-contract
+and its in-process trait-impl delivery shim are in `src/mock/`; the
+M1–M13 contract is in `scenarios.md` and its public-actor driver is
+in `tests/scenario_driver.rs`; the G1–G6 judge and full-contract
 declaration machinery are in `src/conformance.rs`; the focused
 C1–C5/X1–X2 suites live under `tests/` and the actor's unit tests;
 and the obligations registry and verifier are
-`src/obligations.rs` / `tests/obligations.rs`. The mock plus the
-M-series are the acceptance suite any future limiter must pass,
-including the C++ client through a standalone delivery shim. The
+`src/obligations.rs` / `tests/obligations.rs`. What this delivers is
+a **reusable foundation** — the §3-independent counter engine plus
+the scenario contract — not a ready cross-client acceptance suite:
+the current driver imports and spawns the Rust actor directly and
+runs on Tokio paused time against the in-process mock. Wrapping the
+same engine in a standalone HTTP server and writing a client-neutral
+driver are explicitly future adapter work (`scenarios.md` §7.1's
+"delivery-shim job" framing); if ADR-0003 takes the rewrite path,
+that shim is built there against real requirements. The
 consumer-facing description is
 `docs/redesign/topics/rate-limit-core.md`; the package remains
 hoistable to its own repository without surgery.

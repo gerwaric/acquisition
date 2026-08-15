@@ -46,11 +46,17 @@ readers consume instead of this branch. Distill from
   named).
 - Claim lanes per the charter: measured / estimated / inferred /
   external (with URL and retrieval date). Every claim gets a lane.
-- The reusable-artifact section: the mock (counter engine + delivery
+- The reusable-artifact section: ~~the mock (counter engine + delivery
   shim) plus the M-series as the acceptance suite any future
-  limiter must pass, C++ client included — and the register's
-  standing note that it can hoist to its own repository without
-  surgery.
+  limiter must pass, C++ client included~~ the **reusable
+  foundation** — the independent counter engine plus the M-series
+  scenario contract — with the standalone HTTP delivery shim and a
+  client-neutral driver explicitly named as future adapter work
+  (`scenarios.md` §7.1's delivery-shim framing) *(cross-client
+  wording amended by Tom, 2026-08-15, deciding SD-R8-F16 — decision
+  record in `result-draft.md` §9; struck text preserved)* — and the
+  register's standing note that it can hoist to its own repository
+  without surgery.
 - A pointer to CN1–CN6 as transcribed to ground truth (deliverable
   5), and the branch name `spike/rate-limit-core` recorded (register
   rule: the result doc records the branch).
