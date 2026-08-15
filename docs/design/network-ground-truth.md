@@ -31,6 +31,8 @@ Source tags:
 | CODE | Inference from what the current client does and has survived doing |
 | TOM | Tom's recollection, not yet backed by a retrievable artifact |
 | HYP | Hypothesis — plausible, load-bearing, unverified |
+| COMMUNITY | Retrievable public community report or forum evidence |
+| SPIKE | Offline code, tests, fixtures, or review evidence on a named spike branch |
 
 Confidence: **Confirmed** (primary source or direct observation),
 **High** (strong secondary evidence), **Provisional** (acting on it,
@@ -451,6 +453,89 @@ Also observed: the worker queue is not strictly stashes-first — the
 character fetch (request id 54) sat behind only the ~47 initially
 queued tabs, with ~74 children appended behind it as parents resolved
 (refines F56's description).
+
+### Rate-limit-core spike follow-up claims (August 15, 2026)
+
+These claims were transcribed from CN1–CN6 in
+`spikes/rate-limit-core/result-draft.md` on branch
+`spike/rate-limit-core`. They survive or fall on their cited sources
+independently of that spike's verdict.
+
+**N27. Too many invalid requests in a short period restrict access;
+the invalid-request budget includes every HTTP 4xx response, including
+429, and its threshold parameters are undocumented.** [DOC —
+Confirmed; retrieved August 9, 2026]
+Official developer docs:
+`https://www.pathofexile.com/developer/docs/index`. A 429 therefore
+spends both the violated rate-limit policy's budget and the separate
+invalid-request budget. This extends the layer-4 revocation concern in
+N10 with a distinct restriction mechanism whose threshold is unknown
+(the sibling of Q8).
+
+**N28. A Cloudflare layer-1 block can present as HTTP 403 with
+`cf-mitigated: challenge`, rather than error 1015, and without
+rate-limit headers.** [COMMUNITY — High for the reported incident;
+retrieved August 9, 2026]
+The public report is
+`https://community.cloudflare.com/t/blocked-from-path-of-exile-api-but-not-allowed-to-contact-support/549055`.
+This extends N3's client-side recognition surface; it does not claim
+that every Cloudflare block has this shape.
+
+**N29. Recourse for a layer-1 block can be asymmetric: the block may
+be invisible to GGG support while Cloudflare support is unavailable to
+a non-business user.** [COMMUNITY — High for the reported incident;
+retrieved August 9, 2026]
+The source is the same public report as N28:
+`https://community.cloudflare.com/t/blocked-from-path-of-exile-api-but-not-allowed-to-contact-support/549055`.
+This informs Q7; it is evidence from one reported incident, not a
+universal support-policy claim.
+
+**N30. Trade-API rules have been observed with three windows per rule;
+the two-window `RulePair` shape is not universal.** [COMMUNITY — High
+for the reported policy shape; community-observed February 2021,
+retrieved August 9, 2026]
+Source: `https://www.pathofexile.com/forum/view-thread/3056323`.
+A policy whose rule has one or three windows is therefore out of the
+spike model, not impossible.
+
+**N31. N11–N13 do not specify the exact bucket-quantization boundary
+semantics: when a hit's age is measured and exactly when it leaves a
+window.** [SPIKE — Confirmed documentation gap; inferred model choice,
+August 9, 2026]
+The rate-limit-core mock adopts the most-adversarial consistent reading
+recorded in `spikes/rate-limit-core/scenarios.md` §7 B3: a request
+timestamp rounds up to the bucket end, while the history entry itself
+is never quantized. N25's immediate one-request/one-increment observation
+is the constraint on the latter choice. This is an explicit model choice,
+not a claim that the server implements those exact boundary semantics.
+
+**N32. Reprioritization is cheap in the rate-limit-core actor shape and
+was not cheap in the superseded C++ coroutine/facade shape; the R7/D6
+“not cheap later” warning does not carry over unchanged.** [SPIKE +
+CODE — Confirmed structurally on `spike/rate-limit-core`, August 12,
+2026]
+In the C++ shape, the stop token is per update, so per-entry
+cancellation did not exist and reordering first required entry identity.
+The Rust actor already has that identity: `RequestId`, positional removal
+in `Command::Cancel`, and a dispatch loop that reads only
+`queue.front()` in `spikes/rate-limit-core/src/actor.rs`. FIFO emerges
+from append-at-back/take-from-front rather than being assumed, and the
+actor already dispatches out of arrival order for writer preference.
+Reordering is therefore `remove(pos) + insert(pos)`; the expensive part
+is specifying the contract because D5's “no lane starvation” clause does
+not define a priority rule. This is structural evidence for the spike
+charter's thesis that queue-as-data selects the actor shape.
+
+N32's tripwire is the actor's one global deque. If the actor fans out
+into per-policy lanes, “reorder to position N” loses a single meaning
+and cross-lane priority becomes a design decision; that is when N32 must
+be revisited. The comparison also intentionally preserves its superseded
+C++ premise: `docs/design/network-redesign.md` R7/D6 and
+`docs/design/network-redesign-reviews.md` (July 19 errata, the removed
+stale cancel-and-resubmit reprioritization claim). If those C++ documents
+are retired or the spike is hoisted into its own repository, carry this
+contrast with N32 so the old warning cannot outlive the shape that made
+it true.
 
 ## Open questions
 
