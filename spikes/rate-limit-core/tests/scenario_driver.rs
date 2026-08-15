@@ -982,15 +982,21 @@ const FULL_CONTRACT_PROPERTY_CASES: u32 = 4_096;
 
 #[test]
 fn full_contract_scale_reaches_every_fragment_closure_shape() {
-    assert_eq!(FULL_CONTRACT_PROPERTY_CASES, 4_096);
+    let property_cases = FULL_CONTRACT_PROPERTY_CASES;
+    let m6_post_shrink_queue = M6_POST_SHRINK_QUEUE;
+    let m7_phantom_burst = M7_PHANTOM_BURST;
+    let m7_post_phantom_queue = M7_POST_PHANTOM_QUEUE;
+    let m8_recovery_queue = M8_RECOVERY_QUEUE;
+
+    assert_eq!(property_cases, 4_096);
     assert!(
-        M6_POST_SHRINK_QUEUE > 2 * 5,
+        m6_post_shrink_queue > 2 * 5,
         "M6 must cross two complete five-hit new-pace windows"
     );
-    assert!(M7_PHANTOM_BURST > 1, "M7's stimulus must be bursty");
-    assert_eq!(1 + M7_PHANTOM_BURST + 1, 10);
-    assert!(M7_POST_PHANTOM_QUEUE > 10);
-    assert!(M8_RECOVERY_QUEUE > 10);
+    assert!(m7_phantom_burst > 1, "M7's stimulus must be bursty");
+    assert_eq!(1 + m7_phantom_burst + 1, 10);
+    assert!(m7_post_phantom_queue > 10);
+    assert!(m8_recovery_queue > 10);
 }
 
 /// M10's Tom-approved prompt-cancellation bound. It is one harness tick,
@@ -1181,7 +1187,7 @@ fn run_full_contract_case(phase_ms: u64) {
 }
 
 #[test]
-#[ignore = "FC-R1-F2: G3's padding-independent oracle conflicts with the 500 ms bound"]
+#[ignore = "SD-R8-F2: G3's padding-independent oracle conflicts with the 500 ms bound"]
 fn full_contract_pinned_boundary_attempt_exposes_g3_contract_conflict() {
     run_full_contract_case(0);
 }
@@ -1195,7 +1201,7 @@ proptest! {
     /// registry is intentionally not consulted here; it is the independent
     /// second authority used only after this run lands.
     #[test]
-    #[ignore = "FC-R1-F2: blocked before the declared scale can complete"]
+    #[ignore = "SD-R8-F2: blocked before the declared scale can complete"]
     fn full_contract_m1_m13_mock_judged_suite_declares_full_contract(
         phase_ms in full_contract_phase_strategy(),
     ) {
