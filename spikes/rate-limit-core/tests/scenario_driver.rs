@@ -974,6 +974,25 @@ const M7_DRAIN_BUDGET_MS: u64 = 500_000;
 const M8_RECOVERY_QUEUE: usize = 12;
 const M8_DRAIN_BUDGET_MS: u64 = 500_000;
 
+/// Conservative resolution of SD-R8-F1's unspecified full-contract scale:
+/// use the spike's established evidence scale rather than proptest's 256-case
+/// default. The ignored run owns this declaration; ordinary fragment tests do
+/// not inherit the cost.
+const FULL_CONTRACT_PROPERTY_CASES: u32 = 4_096;
+
+#[test]
+fn full_contract_scale_reaches_every_fragment_closure_shape() {
+    assert_eq!(FULL_CONTRACT_PROPERTY_CASES, 4_096);
+    assert!(
+        M6_POST_SHRINK_QUEUE > 2 * 5,
+        "M6 must cross two complete five-hit new-pace windows"
+    );
+    assert!(M7_PHANTOM_BURST > 1, "M7's stimulus must be bursty");
+    assert_eq!(1 + M7_PHANTOM_BURST + 1, 10);
+    assert!(M7_POST_PHANTOM_QUEUE > 10);
+    assert!(M8_RECOVERY_QUEUE > 10);
+}
+
 /// M10's Tom-approved prompt-cancellation bound. It is one harness tick,
 /// deliberately far below the D5 send floor: cancellation is command ingress,
 /// not a paced send, and the actor `select!`s its inbox while waiting.
@@ -1168,6 +1187,8 @@ fn full_contract_pinned_boundary_attempt_exposes_g3_contract_conflict() {
 }
 
 proptest! {
+    #![proptest_config(ProptestConfig::with_cases(FULL_CONTRACT_PROPERTY_CASES))]
+
     /// The run's first authority: each generated configuration produces a
     /// mechanically declared `FullContract` M1-M13 report set, including
     /// both the OAuth Known and shipped legacy Assumed lanes. The clause
