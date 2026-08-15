@@ -674,7 +674,7 @@ pub const CLAUSES: &[Clause] = &[
             Citation {
                 file: DRIVER,
                 test_fn: FULL_CONTRACT_FN,
-                must_assert: "4,096 generated phases: M6's first \
+                must_assert: "4,096 generated phase cases: M6's first \
                               post-announcement reservation and queued tail \
                               keep G1 green in a declared run",
             },
@@ -753,7 +753,7 @@ pub const CLAUSES: &[Clause] = &[
             Citation {
                 file: DRIVER,
                 test_fn: FULL_CONTRACT_FN,
-                must_assert: "4,096 generated phases: eight same-instant \
+                must_assert: "4,096 generated phase cases: eight same-instant \
                               phantom hits plus a 12-request tail remain \
                               violation-free in a declared run",
             },
@@ -2050,7 +2050,7 @@ pub const CLAUSES: &[Clause] = &[
                 file: DRIVER,
                 test_fn: FULL_CONTRACT_FN,
                 must_assert: "every M1-M13 FullContract report keeps G1 \
-                              green across 4,096 generated phases",
+                              green across 4,096 generated phase cases",
             },
         ],
         note: "Judge at src/conformance.rs (G1 section). Declared green \
@@ -2079,7 +2079,7 @@ pub const CLAUSES: &[Clause] = &[
                 file: DRIVER,
                 test_fn: FULL_CONTRACT_FN,
                 must_assert: "every M1-M13 FullContract report keeps both \
-                              B10 ceilings green across 4,096 phases",
+                              B10 ceilings green across 4,096 generated cases",
             },
         ],
         note: "Declared green across the complete generated-phase run",
@@ -2108,7 +2108,7 @@ pub const CLAUSES: &[Clause] = &[
                 test_fn: FULL_CONTRACT_FN,
                 must_assert: "every M1-M13 FullContract report stays within \
                               500 ms of independently derived padded-safe \
-                              eligibility across 4,096 phases",
+                              eligibility across 4,096 generated cases",
             },
             Citation {
                 file: "tests/conformance_harness.rs",

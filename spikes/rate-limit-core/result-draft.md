@@ -50,20 +50,24 @@ verdict prerequisites: both verdict slots require it `Full`,
 alongside X1–X2 (amended 2026-08-13, ballot pass — SHELL
 previously appeared in no prerequisite lane).
 
-- **Unconditional** — the four OAuth policies, bucket resolution
-  `Known(5s/60s)` (N12): ⟨verdict; requires the prerequisites
-  above over these policies⟩
-- **Conditional** — `backend-item-request-limit`, bucket resolution
-  `Assumed(60s/60s)` (not provably pessimistic; N14/N21 give no
-  upper bound): ⟨verdict, stated *with* its assumption; same
-  prerequisites, conditional lane⟩
+- **Unconditional** — **yes, within the offline spike scope** for the
+  four OAuth policies at `Known(5s/60s)` (N12). The declared
+  4,096-case M1–M13 run is green, C1–C5 and X1–X2 are green, the
+  SHELL prerequisite is Full, and the independent registry verifies
+  every prerequisite clause Full; U1–U5 and the accepted future-
+  parser limitation remain carried exclusions.
+- **Conditional** — **yes for `backend-item-request-limit`, conditional
+  on `Assumed(60s/60s)` being no smaller than the server's actual
+  bucket resolution.** N14/N21 provide no upper bound, so this is not
+  an unconditional claim. The same declared run includes the shipped
+  Assumed lane and the same prerequisite registry set is Full.
 
 G3 (ε = 500 ms) and G4 (1.05×) were finalized 2026-08-13
 (`scenarios.md` §6 amendments), satisfying the finalization
 prerequisite this paragraph previously stated for the verdict
 slots.
 
-**2026-08-15 full-contract attempt:** neither slot is filled. The
+**Historical marker — first 2026-08-15 full-contract attempt:** neither slot was filled. The
 run-owned authority did not declare `FullContract`: after every M row
 executed at pinned φ=0, M6 failed G3 twice by 725 ms and
 `FullContractRun::declare` refused its report. Independently, the
@@ -71,6 +75,12 @@ registry still reports the seven full-contract clauses as Partial.
 The two authorities therefore agree that the run is not verdict-
 eligible; a green fragment or a subset of green full-scale reports is
 not used to fill a slot. SD-R8-F2 in §9 records the contract conflict.
+
+**Final 2026-08-15 attempt after Tom's SD-R8-F2 adjudication:** the
+pinned run and all 4,096 generated cases declared `FullContract`;
+the latter completed in 298.84 s. The registry independently verifies
+109 Full / 0 Partial / 1 accepted Untested / 13 Excluded. The two
+authorities agree, so both verdict slots above are filled.
 
 ## §2. How to read the evidence
 
@@ -120,6 +130,13 @@ Driver integration status (2026-08-12, as corrected by the two review rounds bel
 
 *[Superseded in part, 2026-08-13 (DS-R1 stale sweep — the one live-reading paragraph the doc-split missed): four review rounds have run, not two (§9 entries); doc finding 11 is resolved and 12(a)/(b) are resolved — only 12(c) remains open (`status.md` §3 item 1). The paragraph's fragment/verdict rule stands unchanged. Dated text above preserved.]*
 
+*[Final marker, 2026-08-15 (SD-R8): the table's per-row “partial”
+descriptions are dated integration history. After Tom adjudicated F2,
+the pinned run and the 4,096-case generated-phase run produced
+FullContract reports for every M1–M13 row and both M8 profile lanes;
+all gates were green and the run-owned declaration succeeded in every
+case. The live registry has no Partial clauses.]*
+
 G1, G2, G3, and G5 are armed in every mock-judged scenario; the
 column lists the gates each scenario is the *binding evidence*
 for.
@@ -139,31 +156,33 @@ for.
 | ID | Check | Result | Evidence |
 |---|---|---|---|
 | X1 | Fuse true-positive, burst and sustained fault shapes — the lane upgrade from declared-untested | green for the actor boundary — fault-injected counter contents reach `start_dispatch`, the last common hook before `Transport::send`; production D5 pacing remains enabled | 2026-08-12: `actor::tests::x1_fault_injection_trips_at_the_actor_transport_boundary` pins the 11th burst and 500th sustained trips without creating a second scheduling path. |
-| X2 | Transport boundary: one HTTP client, private, no second send path | ⟨…⟩ | ⟨…⟩ |
+| X2 | Transport boundary: one HTTP client, private, no second send path | green for the spike boundary; future production HTTP integration owes its own re-pin | `actor::tests::x2_transport_owner_is_private_and_has_one_send_call_site` plus the compile-fail `actor::spawn` doctest; `x2-single-send-path` Full. The accepted upstream-parser allocation limitation remains scoped, not a verdict prerequisite. |
 
 ### Gate summary
 
-All rows unfilled pending full contracts; fragment-level gate
-evidence is green at φ=0/1 — see the driver status note above.
-(One-line preamble in place of per-cell markers, Tom's DS-R1
-closure disposition, 2026-08-13; the cells stay `⟨…⟩` until a
-`verdict_eligible()` run fills them.)
+All rows are filled from the declared 4,096-case full-contract run
+and the independently verified registry. The earlier fragment-level
+evidence remains supporting evidence, never a verdict source.
 
-The 2026-08-15 SD-R8 attempt does not change a cell: its pinned
+Historical marker: the first 2026-08-15 SD-R8 attempt did not change a cell: its pinned
 preflight ran all M1–M13 scenarios, but M6's G3 failures prevented
 the run-owned declaration, and the registry therefore remained
 102 Full / 7 Partial / 1 accepted Untested / 13 Excluded. Even the
 green G1/G2/G4/G5/G6 results from that attempt are not independently
 promoted.
 
+After Tom's SD-R8-F2 amendment, the oracle-only correction made both
+the pinned and 4,096-case runs declare. Registry totals are now 109
+Full / 0 Partial / 1 accepted Untested / 13 Excluded.
+
 | Gate | Statement | Result | Evidence |
 |---|---|---|---|
-| G1 | Zero client-caused violations (incl. follow-on) | ⟨…⟩ | ⟨…⟩ |
-| G2 | Neither B10 ceiling rule tripped, armed everywhere | ⟨…⟩ | ⟨…⟩ |
-| G3 | Per-dispatch over-delay ≤ ε (final ε: 500 ms — Tom, 2026-08-13, doc finding 12(c) decision) | ⟨…⟩ | ⟨…⟩ |
-| G4 | M2 duration ≤ multiplier × padded minimum (final: 1.05× — Tom, 2026-08-13, same §6 finalization) | ⟨…⟩ | ⟨…⟩ |
-| G5 | Every scenario's own assertions (stimulus and structural alike) | ⟨…⟩ | ⟨…⟩ |
-| G6 | Reproduction record for every failure ((seed, φ) mandatory where swept/generated) | ⟨…⟩ | ⟨…⟩ |
+| G1 | Zero client-caused violations (incl. follow-on) | green | Every M1–M13 report passed G1 in the pinned and 4,096-case declared runs; `g1-zero-client-violations` Full. |
+| G2 | Neither B10 ceiling rule tripped, armed everywhere | green | Both ceilings were armed and green in every report; `g2-ceilings-never-tripped` Full. |
+| G3 | Per-dispatch over-delay ≤ ε (final ε: 500 ms; padded-safe eligibility clarified by Tom's 2026-08-15 SD-R8-F2 amendment) | green | Independent N13 `hit + period + bucket` oracle pin plus every declared report green across 4,096 generated cases; `g3-over-delay-bounded` Full. |
+| G4 | M2 duration ≤ multiplier × padded minimum (final: 1.05× — Tom, 2026-08-13, same §6 finalization) | green | M2 stayed within its runtime-derived padded minimum bound in every declared case; focused exact-boundary test retained. |
+| G5 | Every scenario's own assertions (stimulus and structural alike) | green | All M1–M13 FullContract assertions passed in all 4,096 cases and both profile lanes. |
+| G6 | Reproduction record for every failure ((seed, φ) mandatory where swept/generated) | green | Every swept/generated report carried its `(seed, φ)` record; the declared run produced no failure. |
 
 ### Mock + M-series harness slice (2026-08-12 — reviewed and closed)
 
@@ -2758,3 +2777,54 @@ outlives the spike branch; record what exists and where.⟩
   gate-machinery change — after which the declared run makes its
   real attempt under the standing two-authorities rule. No registry
   clause or verdict slot moved with this decision.
+
+- 2026-08-15 — **SD-R8 final full-contract run declared; packet
+  updated and awaiting independent review.** Commit `68100590`
+  implements Tom's F2 adjudication only in the harness oracle: the
+  generic G3 debt model now derives padded-safe eligibility as N13
+  `hit + period + bucket` arithmetic from B13 arrival facts and the
+  mock-owned scenario policy definitions. It no longer consumes φ;
+  it never reads client state or calls production scheduling code.
+  Client/core, mock, actor, conformance judge/gate machinery, and
+  network boundary are unchanged. The focused arithmetic pins the
+  2,015 ms hit at 22,015 ms for a 15 s + 5 s window and 122,015 ms
+  for a 60 s + 60 s window.
+
+  The active pinned φ=0 run declared all 14 reports green. The
+  explicit ignored review-evidence run then completed all 4,096
+  generated phases in 298.84 s; every case passed
+  `FullContractRun::declare`, including all M1–M13 rows and both M8
+  provenance lanes. No failure or persistence record was produced.
+  The independently edited and machine-verified registry promoted
+  exactly the seven closure clauses and now reports 109 Full / 0
+  Partial / 1 accepted Untested / 13 Excluded, with
+  `OPEN_UNTESTED` empty. Obligations passed 6/6. The accepted
+  `x2-parser-cap-limitation` remains outside the prerequisite list by
+  Tom's 2026-08-13 ballot decision.
+
+  The two authorities therefore agree. G1–G6 are filled green in §3;
+  the unconditional Known-profile verdict and conditional Assumed-
+  profile verdict are filled in §1, with U1–U5 and the accepted
+  future-parser limitation carried in scope. X2's already-Full
+  structural evidence is filled in its previously blank table row.
+  Proposed result statement for review: **the Rust actor/core
+  demonstrably honors the modeled N-claims as one serialized gate in
+  the offline calibrated harness for all four OAuth policies under
+  Known 5 s/60 s bucket resolutions; it does so conditionally for
+  `backend-item-request-limit`, assuming 60 s/60 s is no smaller than
+  the actual server bucket resolution. This is not live-service
+  validation.**
+
+  Oracle mutation was run from committed implementation and reverted
+  with `git checkout --`: deleting the bucket term made
+  `g3_oracle_pins_its_independent_padded_safe_arithmetic` fail
+  `left: 17015, right: 22015`; the pinned declaration then refused M2,
+  with correlations 12/22 exactly 5,000 ms late and correlation 32
+  exactly 60,000 ms late, while also restoring M6's 725 ms and M10's
+  60,000 ms fingerprints. Restored-tree matrix, entirely offline:
+  debug 171/0/3; release 169/0/3; ordinary 4,096-property run
+  171/0/3; full-contract 4,096/4,096 green; clippy `-D warnings`, fmt,
+  and `git diff --check` clean; sanitizer 4/4; both ignored §7.4
+  release tests 2/2 green in 7.72 s. No live service was contacted.
+  The four-part packet is `scenario-driver-handoff.md`; the
+  implementing session does not close SD-R8.

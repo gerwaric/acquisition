@@ -33,17 +33,19 @@ The open-untested list is the `OPEN_UNTESTED` constant in
 `src/obligations.rs` — **not** any prose table. As of 2026-08-14 it
 is empty: the implementation swarm discharged all 13 previously
 open Untested ids.
-Registry totals are 102 Full, 7 Partial, one accepted Untested
-limitation (`x2-parser-cap-limitation`), and 13 Excluded. The
-Partial set is now exactly the seven fragment-scale clauses §5
-item 5 names. (`s7-4-replay-gate` flipped to Full on 2026-08-15:
+Registry totals are 109 Full, no Partial, one accepted Untested
+limitation (`x2-parser-cap-limitation`), and 13 Excluded. The seven
+former fragment-scale clauses §5 item 5 names flipped to Full on
+2026-08-15 after the declared 4,096-case run and are cited to that
+run in the registry. (`s7-4-replay-gate` flipped to Full earlier on
+2026-08-15:
 the replacement calibration gate landed green per the ratified
 spec's discharge line — §9 changelog. `m1-g1-sweep` flipped to
 Full on 2026-08-14: the generated-φ mock-side residue sweep
 landed — §9 changelog.)
-Empty `OPEN_UNTESTED` does not
-imply verdict readiness; the remaining Partial set is itemized in
-§5. `obligation-map.md`
+Empty `OPEN_UNTESTED` alone does not imply verdict readiness; the
+declared run and registry must also agree. They now do, subject to
+SD-R8 independent review (§2). `obligation-map.md`
 is the superseded prose ancestor; read its §8 for the audit's
 discrepancy analysis (dated at `e2034807`), never for current
 coverage.
@@ -87,12 +89,15 @@ coverage.
   open on §5 item 5 only — the full-contract run;
   `scenario-driver-handoff.md` remains the live packet file for it.
   **Round eight is awaiting independent review** (SD-R8,
-  2026-08-15): the full-contract implementation and attempted run
-  reached every M1–M13 row at pinned φ=0, but M6 failed the ratified
-  G3 oracle before the run-owned declaration could be issued. The
-  seven clauses therefore remain Partial and both verdict slots stay
-  blank. The four-part packet and exact failure are in
-  `scenario-driver-handoff.md`; Tom's open contract decision is §3.
+  2026-08-15): after Tom adjudicated F2, the harness-only G3 oracle
+  now independently restates N13 padded-safe eligibility. The pinned
+  φ=0 run and the full 4,096-case generated-phase run both declared
+  `FullContract`; the latter passed in 298.84 s. The independent
+  registry verifies 109 Full / 0 Partial / 1 accepted Untested / 13
+  Excluded, including all seven former fragment-scale clauses. Both
+  verdict lanes and G1–G6 are filled from the agreeing authorities.
+  The updated four-part packet is `scenario-driver-handoff.md`; the
+  implementing session does not close the round.
 - Every other slice (core, bootstrap, mock, actor, clause registry,
   doc split) is closed; their hand-offs are historical records.
   (Doc split closed 2026-08-13, DS-R1 — `result-draft.md` §9.)
@@ -107,7 +112,7 @@ padding; ε = 500 ms unchanged. The clarifying amendment is applied
 in `scenarios.md` §6 (dated, Tom-attributed) and the decision is
 recorded in `result-draft.md` §9. Consequence: the SD-R8 blocker is
 an oracle-side fix only — no client, mock, or gate-machinery change
-— after which the declared run makes its real attempt.
+— and that fix plus the declared run have now landed (§2/§5).
 
 Earlier decisions remain closed. Tom ratified the §7.4 replacement-
 gate spec in full on 2026-08-15 — all five §6 asks, with the
@@ -122,8 +127,8 @@ ratification record is in `result-draft.md` §9. (Both earlier
   feedback-dependent captured dispatch trace is not required to stay
   safe when replayed open-loop under counterfactual server phases.
   B3, both fixtures, and the exhaustive counterexample diagnostic stay
-  unchanged. A feedback-consistent replacement calibration gate is
-  open implementation work; every-phase safety remains in the
+  unchanged. The feedback-consistent replacement calibration gate is
+  implemented and SD-R7-closed; every-phase safety remains in the
   closed-loop C1/M-series tests.
 - Profile lanes are ratified: OAuth-bound scenario evidence uses
   `Known(5s/60s)`; explicit legacy evidence uses
@@ -133,20 +138,17 @@ ratification record is in `result-draft.md` §9. (Both earlier
 
 ## 4. Blocked
 
-None. SD-R8-F2 was adjudicated 2026-08-15 (§3): the full-contract
-run's G3 oracle must compute padded-safe eligibility, an
-oracle-side fix in the open SD-R8 round. Until that fix lands and a
-run truthfully declares `FullContract`, no registry clause or
-verdict slot may move — that is the standing two-authorities rule,
-not a block.
+None. SD-R8-F2's oracle-only fix landed and both the pinned and
+4,096-case runs truthfully declared `FullContract`. The registry
+independently agrees. SD-R8 now awaits review, not implementation.
 
 ## 5. Next work
 
 The 2026-08-13 ballot remains closed; this is the exact residual
 set after the round-five close (SD-R5, 2026-08-14 re-review). Items
 1–3 were implemented later on 2026-08-14 and their packet closed
-independent review the same day (SD-R6, §2); items 4–5 are the live
-work.
+independent review the same day (SD-R6, §2); items 4–5 are now
+implemented, with item 5 awaiting SD-R8 independent review.
 
 1. ~~**M1 generated-φ mock-side residue sweep**~~ — **done
    2026-08-14** (`tests/m1_residue_sweep.rs`; `m1-g1-sweep` Full —
@@ -169,19 +171,21 @@ work.
    fixed to carry the recorded count, verified). §9 changelog. The
    band-edge, exhaustive-enumeration, and 43/43 witness diagnostics
    remain load-bearing, retained unchanged.
-5. **Full-contract run attempted 2026-08-15; blocked on SD-R8-F2.**
-   The implementation pins 4,096 generated phases over the complete
-   60,000 ms cycle, both bucket profiles, and full M6/M7/M8 queue
-   shapes. A pinned φ=0 preflight executes every M row; all reports
-   except M6 pass all gates, while M6 passes G1/G2/G4/G5/G6 and fails
-   G3 twice by 725 ms. Consequently no run-owned `FullContract`
-   declaration exists. The run would finish the fragment-scale-only
+5. ~~**Full-contract run last**~~ — **implemented and green
+   2026-08-15; awaiting SD-R8 independent review.** The harness-only
+   G3 correction implements Tom's F2 adjudication as independent
+   `hit + period + bucket` arithmetic over B13 facts. The pinned φ=0
+   declaration passed, followed by the full 4,096-case generated-
+   phase run (298.84 s), drawing from the complete 60,000 ms strategy
+   domain and covering both bucket profiles and full M6/M7/M8 queue
+   shapes. It
+   finishes the former fragment-scale-only
    clauses `m6-g1-post-announcement`,
    `m6-queue-drains-new-pace`, `m7-no-client-violation`,
    `m8-no-follow-on-violation`, `g1-zero-client-violations`,
    `g2-ceilings-never-tripped`, and `g3-over-delay-bounded`.
-   Verdict slots may be filled only when the run declares
-   `FullContract` and the registry independently shows every owned
-   clause `Full`; neither authority does, so all seven remain Partial
-   and both verdict slots remain blank. Review packet:
-   `scenario-driver-handoff.md` (SD-R8).
+   The run declared `FullContract` and the registry
+   independently verifies every owned clause Full; all seven flipped
+   to Full, G1–G6 and both verdict lanes are filled, and the packet is
+   presented in `scenario-driver-handoff.md`. The implementation
+   session does not close SD-R8.

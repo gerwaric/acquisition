@@ -1,13 +1,14 @@
 # Scenario-driver and safety-closure hand-off
 
-Status: **open — SD-R8 full-contract packet presented 2026-08-15;
-the implementing session does not close it.** The pinned attempt ran
-all M1–M13 rows and both profile lanes, but M6's two G3 failures made
-the report ineligible and the run-owned declaration refused it. The
-registry remains 102 Full / 7 Partial / 1 accepted Untested / 13
-Excluded; no gate or verdict slot was filled. SD-R8-F2 requires Tom's
-contract decision before a 4,096-case declared run can complete. This
-packet's four parts and verification matrix are below.
+Status: **open — SD-R8 final full-contract packet presented
+2026-08-15; the implementing session does not close it.** After Tom's
+F2 adjudication, the harness-only G3 oracle independently restates
+N13 padded-safe time. The pinned φ=0 run and all 4,096 generated
+phases declared `FullContract`; the generated run completed green in
+298.84 s. The independent registry verifies 109 Full / 0 Partial / 1
+accepted Untested / 13 Excluded. G1–G6 and both verdict lanes are
+filled from the agreeing authorities. This four-part packet awaits an
+independent reviewer.
 
 Prior status: **SD-R7 re-closed (2026-08-15) after the external
 audit's reopening; the slice stays open on `status.md` §5 item 5
@@ -66,7 +67,7 @@ preserved below, not rewritten.
 | M11a's "compliant client never trips" names no traffic source that can approach the ceilings: every N23 policy caps the wire far below the D5 floor rate. | Use B7's scriptable-synthetic-policy channel (1,000/10 s + 10,000/60 s) so the 250 ms floor is the binding constraint and the actor reaches its compliant maximum — the closest a correct client can get to layer 1. | The sweep's "never trips" evidence is bound to floor-paced traffic at the compliant maxima (4/s, 240/min, pinned exactly); a floor-*violating* client evading the ceilings remains B13's wire-shape assertion per B10's recorded caveat, not this sweep's claim. |
 | The frozen docs do not specify the exact full-contract scale or what mechanically constitutes a declaration (SD-R8-F1). | Use 4,096 generated cases across all 60,000 phases with dedicated before/on/after boundary cases; require all M1–M13 rows, both provenance profiles, and exclusively verdict-eligible reports in a run-owned declaration that does not consult the registry. | A missing row/profile or one fragment/failing report refuses declaration; only after declaration may the independent registry authority be considered. |
 | Reconciliation says to compare reported server counts with local in-window history, but does not say whether that local window is raw or N13-padded (SD-R8-F3). | Count local entries through each configured padded window. The server observation still supplies the lower bound, and synthesis remains capped by configured limits. | The next `try_reserve` sees retained N13-padded client hits once, not again as synthetic phantoms; no state understates the server, and entries still age out at the configured horizon. |
-| G3's ratified oracle is raw server permit time and expressly padding-independent, while N13 deliberately holds client hits through another bucket and ε is 500 ms (SD-R8-F2). | Preserve the ratified oracle and bound; report the measured conflict instead of silently teaching the oracle about padding or widening ε. | M6's ineligible report stops `FullContractRun::declare`; no clause promotion, gate cell, or verdict follows until Tom resolves the contract. |
+| “Client-independent” and “padded-safe” appeared to conflict in G3 (SD-R8-F2). | Tom's dated amendment resolves the silence: independently restate N13 as `hit + period + bucket` over B13 arrivals and scenario policy definitions; never read client state. ε remains 500 ms. | The next eligibility calculation includes the contractual bucket once; the pinned and generated declarations judge client work conservation without penalizing N13's safety margin. |
 
 Existing phase semantics still apply: `phase_ms` is the upcoming
 boundary, and φ=0/1 are the two boundary-distance extremes. Focused
@@ -195,8 +196,9 @@ ratified spec:
 - **Run declaration ↔ registry:** `FullContractRun::declare` checks
   only the run's reports (all M rows, both profiles, eligibility).
   It cannot read or mutate `src/obligations.rs`; the registry remains
-  the genuinely independent second authority. Here the first
-  authority refuses and the second remains Partial, so they agree.
+  the genuinely independent second authority. In the final attempt,
+  every generated case declares and the separately updated registry
+  has no Partial clause, so the authorities agree without circularity.
 - **Driver ↔ actor ↔ mock ↔ judge:** full-scale M6/M7/M8 stimuli use
   the same public `GateHandle`, in-process mock observations, and
   independent conformance oracles as the fragment driver. Queue and
@@ -215,31 +217,43 @@ ratified spec:
   reconciler; (6) eliminating spurious synthesis eliminates a
   spurious `StateChanged`, while real synthesis still emits it iff
   state mutates.
-- **G3 contract seam:** the independent oracle intentionally remains
-  raw-server arithmetic. Its full-scale disagreement with N13 is
-  surfaced as SD-R8-F2 rather than patched on either side without
-  authority.
+- **G3 contract seam:** only the harness oracle changed after Tom's
+  adjudication. It consumes B13 arrival instants and mock-owned policy
+  definitions, then performs its own `hit + period + bucket`
+  arithmetic. It does not read actor/core state, call production
+  scheduling code, or alter the mock. Client, mock, actor, and gate
+  machinery diffs are zero in the continuation commit.
 
 ## 3. Coverage confession
 
-The registry is the coverage authority. After the §7.4 gate packet
-it contains 123 clauses: 102 Full, 7 Partial, one accepted Untested
+The registry is the coverage authority. After the final SD-R8 run it
+contains 123 clauses: 109 Full, no Partial, one accepted Untested
 limitation, and 13 Excluded; `OPEN_UNTESTED` is empty and
 `cargo test --locked --test obligations` verifies the structure. The
-remaining Partial set is exactly the seven fragment-scale clauses
-only the declared full-contract run can finish (`s7-4-replay-gate`
-flipped to Full 2026-08-15 per the ratified spec's discharge line).
+seven former fragment-scale clauses cite the declared run directly;
+the accepted parser limitation is explicitly outside the verdict
+prerequisite list.
 
-SD-R8 adds full-scale reachability and declaration machinery, but
-does **not** change those totals. At pinned φ=0, all M rows executed;
+Historical first attempt: SD-R8 added full-scale reachability and
+declaration machinery but did not change the totals. At pinned φ=0, all M rows executed;
 M1–M5 and M7–M13 (including M8's second profile lane) produced green
 FullContract-labeled reports. M6 produced a non-eligible report:
 G1/G2/G4/G5/G6 green, G3 false twice by 725 ms. Because
 `FullContractRun::declare` refused that report, no completed run
-exists, no one-report subset is verdict evidence, and all seven ids
-remain Partial. The generated 4,096-case phase sweep is blocked by
+existed, no one-report subset was verdict evidence, and all seven ids
+remained Partial. The generated 4,096-case phase sweep was blocked by
 the same deterministic contract conflict. Registry verification is
-still 6/6 with `OPEN_UNTESTED` empty.
+6/6 with `OPEN_UNTESTED` empty.
+
+Final attempt after F2: the pinned φ=0 report set declared, then the
+4,096-case generated-phase test declared every case in 298.84 s.
+Every M row and both M8 provenance lanes passed G1–G6 as applicable.
+The registry independently promoted exactly
+`m6-g1-post-announcement`, `m6-queue-drains-new-pace`,
+`m7-no-client-violation`, `m8-no-follow-on-violation`,
+`g1-zero-client-violations`, `g2-ceilings-never-tripped`, and
+`g3-over-delay-bounded`; obligations remains 6/6. No Partial clause
+remains.
 
 New or strengthened evidence:
 
@@ -313,12 +327,14 @@ New or strengthened evidence:
   client-safety evidence; closed-loop every-phase safety stays with
   C1 and the M-series.
 
-Every scenario-driver and focused transition report remains
+Every ordinary scenario-driver and focused transition report remains
 `ContractCoverage::Fragment` and explicitly fails
-`verdict_eligible()`. Two-phase tests are boundary checks, not an
-exhaustive property claim. Public actor tests cannot make fuse
-thresholds reachable under intact D5; the internal trip tests are
-deliberate fault-injection composition evidence.
+`verdict_eligible()`. Only the dedicated SD-R8 pinned/generated
+producer labels reports FullContract, and its run-owned constructor
+guards the declaration. Two-phase fragment tests remain boundary
+checks, not an exhaustive property claim. Public actor tests cannot
+make fuse thresholds reachable under intact D5; the internal trip
+tests are deliberate fault-injection composition evidence.
 
 Exact remaining ballot/closure items (items 1–3 of the round-five
 residual set were discharged by the residual-items packet; item 1
@@ -328,8 +344,9 @@ below is discharged by the §7.4 gate packet, pending its review):
    retain the exhaustive fixed-trace counterexample as a
    diagnostic.~~ — **implemented 2026-08-15** (this packet; the
    band-edge test and enumeration are retained unchanged).
-2. A declared full-contract run for the seven fragment-scale clauses
-   — **attempted in SD-R8 and blocked by SD-R8-F2; not declared**:
+2. ~~A declared full-contract run for the seven fragment-scale
+   clauses~~ — **green after Tom's SD-R8-F2 adjudication; awaiting
+   independent review**:
    `m6-g1-post-announcement`, `m6-queue-drains-new-pace`,
    `m7-no-client-violation`, `m8-no-follow-on-violation`,
    `g1-zero-client-violations`, `g2-ceilings-never-tripped`, and
@@ -469,14 +486,23 @@ consistent set. Dated text preserved, not rewritten.]*
   includes configured N13 padding. Using raw server periods there made
   the client re-synthesize its own retained entries and broke both
   performance and truthfulness.
-- The G3 oracle and ε were deliberately **not** changed. That choice
-  makes the run fail, but preserves the frozen contract and exposes the
-  decision to Tom. Reasonable dispositions include independently
-  computing N13 padded-safe time or revising G3's bound/statement; this
-  packet does not choose between them.
-- **Result-statement proposal: none.** The result is not completable:
-  neither full-contract authority is satisfied and both verdict slots
-  remain blank.
+- After Tom's adjudication, the G3 oracle changed and ε did not. The
+  implementation is deliberately smaller than the decision surface:
+  replace phase-dependent raw `bucket_end + period` with independently
+  derived `hit + period + bucket`; preserve every client, mock, actor,
+  and judge mechanism.
+- The full generated run remains `#[ignore]` because its 298.84 s cost
+  is review evidence, not ordinary CI cost. The pinned declaration is
+  active in the normal suite so a regression cannot silently restore
+  the old blocker.
+- **Proposed result statement for Tom/reviewer:** “The Rust actor/core
+  demonstrably honors the modeled N-claims as one serialized gate in
+  the offline calibrated harness for all four OAuth policies under
+  Known 5 s/60 s bucket resolutions. It does so conditionally for
+  `backend-item-request-limit`, assuming 60 s/60 s is no smaller than
+  the server's actual bucket resolution. The conclusion carries U1–U5
+  and the accepted future-parser limitation; it is not live-service
+  validation.”
 
 ## 5. Verification presented with this packet
 
@@ -554,3 +580,35 @@ before mutation 3 was repeated; its signature was unchanged. No live
 service was contacted. No run declared `FullContract`, no registry row
 was promoted, no gate/verdict slot was filled, and this implementing
 session does not close SD-R8.
+
+(SD-R8 continuation after Tom's F2 adjudication, 2026-08-15) —
+final verification, entirely offline:
+
+- Pinned φ=0 declaration: green, 14/14 reports, 0.07 s focused.
+- Full generated-phase declaration: green, 4,096/4,096 cases,
+  298.84 s; every case passed the run-owned declaration.
+- `cargo test --locked`: 171 passed / 0 failed / 3 ignored.
+- `cargo test --locked --release`: 169 / 0 / 3 (two debug-only
+  drop-bomb tests absent).
+- `PROPTEST_CASES=4096 cargo test --locked`: 171 / 0 / 3.
+- Obligations: 6/6, independently reporting 109 Full / 0 Partial /
+  1 accepted Untested / 13 Excluded; `OPEN_UNTESTED` empty.
+- All-target clippy with warnings denied, fmt, and
+  `git diff --check`: clean. Sanitizer: 4/4. Both ignored §7.4
+  release tests: 2/2 green in 7.72 s.
+
+Oracle mutation, run from committed `68100590` and reverted with
+`git checkout --`: removing N13's bucket term made
+`g3_oracle_pins_its_independent_padded_safe_arithmetic` fail
+`left: 17015, right: 22015`. The pinned declaration then failed
+`ReportNotVerdictEligible { scenario: M2 }`: M2 correlations
+12/22 exceeded G3 by exactly 5,000 ms and correlation 32 by 60,000
+ms; the same run also restored M6's 725 ms bucket-complement failures
+and M10's 60,000 ms failures. On the restored tree, the focused
+scenario-driver target and both declaration runs are green.
+
+Diff-scope audit: the continuation changes the scenario-driver oracle
+and its registry citation/coverage only. No client core, mock, actor,
+judge/gate machinery, or network boundary changed. No live service was
+contacted. Both verdict authorities agree and the evidence slots are
+filled, but this implementing session does not close SD-R8.
