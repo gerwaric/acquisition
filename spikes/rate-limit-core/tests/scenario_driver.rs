@@ -715,14 +715,15 @@ async fn run_m1_m13(phase_ms: u64, coverage: ContractCoverage) -> Vec<RunReport>
         };
 
         let evidence = evidence(&controller, id, profile, coverage, assertion_passed).await;
-        // Only M10 runs long enough to accrue policy debt, and only M10 has no
-        // residue/phantom hits to hide from this arithmetic.  See `PolicyDebt`.
+        // These rows accrue policy debt at full-contract scale. M7's phantom
+        // changes are merged into the B13-derived arrivals below; M1's residue
+        // preload is not observable there and therefore stays on its dedicated
+        // scenario oracle. See `PolicyDebt`.
         let debt = match id {
             ScenarioId::M2 | ScenarioId::M6 | ScenarioId::M7 | ScenarioId::M10 => Some(
                 PolicyDebt::for_policy(
                     &controller,
                     &evidence.observations.first().expect("wire run").policy,
-                    phase_ms,
                 )
                 .await,
             ),
@@ -1187,8 +1188,7 @@ fn run_full_contract_case(phase_ms: u64) {
 }
 
 #[test]
-#[ignore = "SD-R8-F2: G3's padding-independent oracle conflicts with the 500 ms bound"]
-fn full_contract_pinned_boundary_attempt_exposes_g3_contract_conflict() {
+fn full_contract_pinned_boundary_declares_full_contract() {
     run_full_contract_case(0);
 }
 
@@ -1201,7 +1201,7 @@ proptest! {
     /// registry is intentionally not consulted here; it is the independent
     /// second authority used only after this run lands.
     #[test]
-    #[ignore = "SD-R8-F2: blocked before the declared scale can complete"]
+    #[ignore = "4,096-case full-contract generated-phase run; explicit review evidence"]
     fn full_contract_m1_m13_mock_judged_suite_declares_full_contract(
         phase_ms in full_contract_phase_strategy(),
     ) {
@@ -1209,58 +1209,44 @@ proptest! {
     }
 }
 
-/// Independent permit-availability arithmetic: when the *server* would next
-/// accept a hit, from the mock's observation log and the server's own policy
-/// definition. G3 names both as client-independent sources, and permit
-/// availability as part of the padded-safe time it measures against.
+/// Independently restated N13 padded-safe eligibility, derived only from the
+/// mock's B13 observation log and the scenario's policy definition. A hit at
+/// `at` remains client-side debt through `at + period + bucket`; with `H` hits
+/// permitted per window, hit `k` may go once hit `k - H` has aged out.
 ///
-/// The rule mirrors the mock's counting predicate rather than the client's:
-/// a hit at `at` stays active until `bucket_end(at) + period`, so with `H`
-/// hits permitted per window, hit `k` may go once hit `k - H` has aged out.
-///
-/// Valid only where every server-side hit is an observed client request.
-/// Residue preloads and phantom injections add hits this cannot see, so
-/// M1/M7/M9 must not use it — they would get an understated debt and a
-/// spuriously early expectation.
+/// Valid only where every server-side hit is present in the harness facts.
+/// The caller merges B13 phantom state changes before asking this arithmetic;
+/// residue preloads are not in that log, so M1 must keep its dedicated oracle.
 struct PolicyDebt {
     /// `(max_hits, period_ms, bucket_ms)` for every window of every rule.
     windows: Vec<(usize, u64, NonZeroU64)>,
-    phase_ms: u64,
 }
 
-/// Reference model for the half-open bucket contract used by G3.
-///
-/// There is a prefix interval `[0, phase)` (when phase is non-zero), followed
-/// by complete intervals of `bucket_ms`: `[phase + n*bucket, phase +
-/// (n+1)*bucket)`.  The expected expiry is the right endpoint of the interval
-/// containing `at_ms`. This formulation intentionally does not reuse the
-/// mock's `at < phase` / bucket-index implementation: it derives the answer
-/// from the interval sequence and its first-boundary membership instead.
-fn independent_bucket_end_ms(at_ms: u64, bucket_ms: NonZeroU64, phase_ms: u64) -> u64 {
-    let width = bucket_ms.get();
-    let first_boundary = phase_ms % width;
-    let post_prefix_ms = at_ms.saturating_sub(first_boundary);
-    let whole_intervals = post_prefix_ms / width;
-    let has_reached_first_boundary = u64::from(at_ms >= first_boundary);
-    let intervals_to_expiry =
-        has_reached_first_boundary.saturating_mul(whole_intervals.saturating_add(1));
-    first_boundary.saturating_add(intervals_to_expiry.saturating_mul(width))
+/// Independent arithmetic only: this function deliberately cannot inspect
+/// client state or call the production scheduling implementation.
+fn independent_padded_safe_expiry_ms(hit_ms: u64, period_ms: u64, bucket_ms: NonZeroU64) -> u64 {
+    hit_ms
+        .saturating_add(period_ms)
+        .saturating_add(bucket_ms.get())
 }
 
 #[test]
-fn g3_oracle_pins_its_independent_bucket_boundaries() {
-    let bucket = NonZeroU64::new(1_000).unwrap();
+fn g3_oracle_pins_its_independent_padded_safe_arithmetic() {
+    let burst_bucket = NonZeroU64::new(5_000).unwrap();
+    let sustained_bucket = NonZeroU64::new(60_000).unwrap();
 
-    assert_eq!(independent_bucket_end_ms(999, bucket, 0), 1_000);
-    assert_eq!(independent_bucket_end_ms(1_000, bucket, 0), 2_000);
-    assert_eq!(independent_bucket_end_ms(1_001, bucket, 0), 2_000);
-    assert_eq!(independent_bucket_end_ms(0, bucket, 1), 1);
-    assert_eq!(independent_bucket_end_ms(1, bucket, 1), 1_001);
-    assert_eq!(independent_bucket_end_ms(2, bucket, 1), 1_001);
+    assert_eq!(
+        independent_padded_safe_expiry_ms(2_015, 15_000, burst_bucket),
+        22_015
+    );
+    assert_eq!(
+        independent_padded_safe_expiry_ms(2_015, 60_000, sustained_bucket),
+        122_015
+    );
 }
 
 impl PolicyDebt {
-    async fn for_policy(controller: &MockController, policy: &str, phase_ms: u64) -> Self {
+    async fn for_policy(controller: &MockController, policy: &str) -> Self {
         let definition = controller
             .definition(policy)
             .await
@@ -1277,7 +1263,7 @@ impl PolicyDebt {
                 )
             })
             .collect();
-        Self { windows, phase_ms }
+        Self { windows }
     }
 
     /// `prior_arrival_ms` holds every earlier hit's server-recorded instant,
@@ -1294,8 +1280,7 @@ impl PolicyDebt {
                     // Fewer hits than the window permits: no debt yet.
                     return 0;
                 };
-                independent_bucket_end_ms(expiring, bucket_ms, self.phase_ms)
-                    .saturating_add(period_ms)
+                independent_padded_safe_expiry_ms(expiring, period_ms, bucket_ms)
             })
             .max()
             .unwrap_or(0)

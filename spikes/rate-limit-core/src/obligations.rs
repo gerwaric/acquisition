@@ -2058,8 +2058,9 @@ pub const CLAUSES: &[Clause] = &[
             },
             Citation {
                 file: DRIVER,
-                test_fn: "g3_oracle_pins_its_independent_bucket_boundaries",
-                must_assert: "independent boundary pins for the oracle",
+                test_fn: "g3_oracle_pins_its_independent_padded_safe_arithmetic",
+                must_assert: "independent N13 hit + period + bucket pins for \
+                              the oracle",
             },
             Citation {
                 file: "tests/conformance_harness.rs",
