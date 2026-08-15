@@ -3306,3 +3306,54 @@ hoistable to its own repository without surgery.
   before this review record was written. No live service was
   contacted. The final external audit does not start until F9/F10 are
   repaired and SD-R8 re-closes.
+
+- 2026-08-15 — **SD-R8-F9 and F10 repaired; the reopened-range
+  packet is presented for the repeated re-close review.** Commit
+  `3813c40a` implements F9's proposed disposition exactly: the
+  judge's `ReproductionMismatch` seam now binds
+  `reproduction.endpoint` to **every** wire observation alongside
+  seed and phase — endpoint was always a mock-owned wire fact
+  (`Observation.endpoint`); the judge simply never compared it, so
+  the declaration's endpoint-coverage requirement rested on a
+  run-owned label, the same trust shape F4 condemned. The binding
+  is exact equality, valid because every phase-swept lane is
+  single-endpoint; the structural seam test pins the review's
+  relabel (a Stash-wire record flipped to CharacterList →
+  `ReproductionMismatch { id: 1 }`). **The binding immediately
+  caught two real mislabels**, demonstrating the seam was live: the
+  driver's M9 row was labeled StashList while its arm submits to
+  Stash (row corrected with comment), and the focused M9 race
+  fixture in `transition_timing.rs` carried the same error
+  (corrected with comment).
+
+  The review's own end-to-end mutation was repeated from the
+  committed repair and reverted cleanly: the CharacterList wire
+  lane replaced by a second Character lane retaining the
+  CharacterList reproduction label for seed 809 — previously
+  accepted by both authorities — now fails the lane's judge call
+  with exactly `ReproductionMismatch { id: 1 }` before any
+  declaration is reached. F4's and F5's advertised refusals were
+  re-verified in the same pass (`MissingM8KnownLane`;
+  `MissingEndpointLane { endpoint: CharacterList }`).
+
+  F10: `scenario-driver-handoff.md` now carries the reopened-range
+  four-part packet as dated 2026-08-15 additions — the F4/F5/F9
+  silences with next-call consequences, the seam map showing the
+  coverage chain now mock-fact-anchored end to end plus the
+  six-invariant walk (untouched by construction; the range changes
+  no engine/actor/mock production code), the coverage confession at
+  the current 124 clauses / 110 Full / 0 Partial / 1 accepted
+  Untested / 13 Excluded (correcting the stale 123/109), and the
+  judgment calls (strict every-observation equality and its stated
+  relaxation cost; all-endpoints guard; uniform lane depth; the
+  pre-run hand-derived G4 fingerprints). Its status header presents
+  the packet.
+
+  Matrix on the repaired tree, entirely offline: debug 172/0/3;
+  release 170/0/3; `PROPTEST_CASES=4096` 172/0/3; pinned
+  declaration green over sixteen reports; declared 4,096-case
+  full-contract run green in 26.81 s under the binding; obligations
+  6/6; ignored §7.4 release pair 2/2 in 7.76 s; sanitizer 4/4;
+  clippy `-D warnings`, fmt, `git diff --check` clean. The verdict
+  fills remain suspended; the repairing session does not re-close
+  SD-R8. No live service was contacted.
