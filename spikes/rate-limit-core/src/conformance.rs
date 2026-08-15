@@ -523,19 +523,53 @@ pub struct FullContractRun {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FullContractDeclarationError {
-    MissingScenario { scenario: ScenarioId },
-    ReportNotVerdictEligible { scenario: ScenarioId },
+    MissingScenario {
+        scenario: ScenarioId,
+    },
+    ReportNotVerdictEligible {
+        scenario: ScenarioId,
+    },
     MissingM8KnownLane,
     MissingM8AssumedLane,
-    MissingEndpointLane { endpoint: Endpoint },
+    MissingEndpointLane {
+        endpoint: Endpoint,
+    },
+    MissingScenarioEndpointLane {
+        scenario: ScenarioId,
+        endpoint: Endpoint,
+    },
 }
+
+/// The (scenario, endpoint) lanes the declaration requires by name
+/// (SD-R8-F11). The verdict's four-policy claim rests on the M2 saturation
+/// shape against each OAuth policy the contract names: the main M2 row
+/// (StashList) and the SD-R8-F5 character-policy lanes. An endpoint-only
+/// requirement is satisfiable by any scenario's traffic — the audit relabeled
+/// the CharacterList lane from M2 to M5 with its real wire traffic intact and
+/// both authorities passed — so the pair, not the endpoint, is the guarded
+/// fact. The M8 lanes get the same pair shape through their profile checks in
+/// [`FullContractRun::declare`], which bind each M8 profile to its endpoint.
+///
+/// Honest residual trust surface, recorded rather than patched silently:
+/// scenario identity itself remains driver-owned. It is bound through each
+/// scenario's sole-decider assertion (the judge refuses a report whose typed
+/// assertion does not match its scenario) plus this pair requirement; the
+/// wire does not carry scenario identity, so a driver edit that relabels a
+/// lane *and* swaps its typed assertion is refused only by these pairs.
+pub const REQUIRED_SCENARIO_ENDPOINT_LANES: [(ScenarioId, Endpoint); 3] = [
+    (ScenarioId::M2, Endpoint::StashList),
+    (ScenarioId::M2, Endpoint::CharacterList),
+    (ScenarioId::M2, Endpoint::Character),
+];
 
 impl FullContractRun {
     /// Declares a full-contract run only when every M-row has at least one
-    /// verdict-eligible report and M8 — the one row the contract requires in
-    /// both provenance-typed bucket lanes (`m8-both-lanes`) — carries both.
-    /// Scale and phase-domain reachability are asserted by the dedicated run
-    /// producer; this constructor guards the report set itself.
+    /// verdict-eligible report, M8 — the one row the contract requires in
+    /// both provenance-typed bucket lanes (`m8-both-lanes`) — carries both
+    /// on their endpoints, every routed N23 endpoint appears (SD-R8-F5), and
+    /// every [`REQUIRED_SCENARIO_ENDPOINT_LANES`] pair is present as itself
+    /// (SD-R8-F11). Scale and phase-domain reachability are asserted by the
+    /// dedicated run producer; this constructor guards the report set itself.
     pub fn declare(reports: Vec<RunReport>) -> Result<Self, FullContractDeclarationError> {
         for report in &reports {
             if !report.verdict_eligible() {
@@ -554,19 +588,25 @@ impl FullContractRun {
         // The lane requirement is keyed to M8, not to the whole report set:
         // a whole-set check is satisfiable with no M8 Known lane at all
         // (M10's legacy row supplies Assumed and every ordinary row supplies
-        // Known), so it cannot defend `m8-both-lanes` (SD-R8-F4).
-        let m8_lane = |profile| {
+        // Known), so it cannot defend `m8-both-lanes` (SD-R8-F4). Each lane
+        // also binds its endpoint (the SD-R8-F11 pair-shape audit): the Known
+        // lane is the OAuth stash policy and the Assumed lane is the legacy
+        // policy — its only route — so the two lanes cannot swap policies
+        // while both profile checks still pass. The Known lane's Stash
+        // endpoint is pinned as current driver behavior; moving M8's OAuth
+        // lane to another policy is a deliberate re-derivation, not a drift.
+        let m8_lane = |profile, endpoint| {
             reports.iter().any(|report| {
                 report.scenario == ScenarioId::M8
-                    && report
-                        .reproduction
-                        .is_some_and(|record| record.client_buckets == profile)
+                    && report.reproduction.is_some_and(|record| {
+                        record.client_buckets == profile && record.endpoint == endpoint
+                    })
             })
         };
-        if !m8_lane(OAUTH_KNOWN_PROFILE) {
+        if !m8_lane(OAUTH_KNOWN_PROFILE, Endpoint::Stash) {
             return Err(FullContractDeclarationError::MissingM8KnownLane);
         }
-        if !m8_lane(SHIPPED_ASSUMED_PROFILE) {
+        if !m8_lane(SHIPPED_ASSUMED_PROFILE, Endpoint::LegacyStashIndex) {
             return Err(FullContractDeclarationError::MissingM8AssumedLane);
         }
 
@@ -583,6 +623,27 @@ impl FullContractRun {
             });
             if !exercised {
                 return Err(FullContractDeclarationError::MissingEndpointLane { endpoint });
+            }
+        }
+
+        // Endpoint presence alone is not lane identity (SD-R8-F11): the
+        // audit's mutation kept real CharacterList traffic in the run but
+        // relabeled its scenario from M2 to M5, and the loop above cannot
+        // see that. Each named saturation lane must exist as its exact
+        // (scenario, endpoint) pair. This check runs after the endpoint
+        // loop so a fully deleted lane keeps the pinned SD-R8-F5 signature.
+        for (scenario, endpoint) in REQUIRED_SCENARIO_ENDPOINT_LANES {
+            let exercised = reports.iter().any(|report| {
+                report.scenario == scenario
+                    && report
+                        .reproduction
+                        .is_some_and(|record| record.endpoint == endpoint)
+            });
+            if !exercised {
+                return Err(FullContractDeclarationError::MissingScenarioEndpointLane {
+                    scenario,
+                    endpoint,
+                });
             }
         }
 

@@ -205,8 +205,11 @@ async fn a_fragment_run_is_judged_but_is_never_verdict_eligible() {
     assert!(!report.verdict_eligible());
 }
 
-#[tokio::test(start_paused = true)]
-async fn full_contract_declaration_requires_every_m_row_and_both_m8_lanes() {
+/// A minimal report set satisfying every declaration requirement, shaped
+/// like the real driver's: one row per scenario, M8's legacy Assumed lane on
+/// its endpoint, and the StashList plus SD-R8-F5 character-policy M2 lanes
+/// the endpoint and pair requirements watch.
+async fn full_contract_report_set() -> Vec<rate_limit_core::conformance::RunReport> {
     let mut evidence = base_evidence(one_observation().await);
     evidence.reproduction.as_mut().unwrap().client_buckets = OAUTH_KNOWN_PROFILE;
     let template = judge(&evidence, &TestOracle::default()).unwrap();
@@ -218,9 +221,6 @@ async fn full_contract_declaration_requires_every_m_row_and_both_m8_lanes() {
             report
         })
         .collect::<Vec<_>>();
-    // The real driver's extra lanes, shaped for the declaration's
-    // requirements: M8's legacy Assumed lane, and the StashList plus
-    // SD-R8-F5 character-policy lanes the endpoint requirement watches.
     let mut assumed = template.clone();
     assumed.scenario = ScenarioId::M8;
     let record = assumed.reproduction.as_mut().unwrap();
@@ -237,6 +237,12 @@ async fn full_contract_declaration_requires_every_m_row_and_both_m8_lanes() {
         lane.reproduction.as_mut().unwrap().endpoint = endpoint;
         reports.push(lane);
     }
+    reports
+}
+
+#[tokio::test(start_paused = true)]
+async fn full_contract_declaration_requires_every_m_row_and_both_m8_lanes() {
+    let mut reports = full_contract_report_set().await;
 
     let declaration = FullContractRun::declare(reports.clone()).unwrap();
     assert_eq!(declaration.reports().len(), ScenarioId::ALL.len() + 4);
@@ -310,6 +316,100 @@ async fn full_contract_declaration_requires_every_m_row_and_both_m8_lanes() {
         Err(FullContractDeclarationError::ReportNotVerdictEligible {
             scenario: ScenarioId::M1,
         })
+    );
+}
+
+// SD-R8-F11's two audit bypasses, pinned. The final audit relabeled the
+// seed-809 CharacterList lane's scenario from M2 to phase-swept M5 with its
+// real CharacterList wire traffic intact: endpoint coverage held, M2 still
+// existed through its other lanes, and both the pinned declaration and the
+// obligations verifier passed. The guard's flaw, stated set-wise, is
+// endpoint-only satisfaction: every routed endpoint can be present while a
+// required (scenario, endpoint) saturation lane is absent. Both states must
+// now refuse by pair.
+#[tokio::test(start_paused = true)]
+async fn full_contract_declaration_refuses_a_relabeled_required_lane() {
+    let reports = full_contract_report_set().await;
+
+    // Bypass one: the audit's relabel — the (M2, CharacterList) lane
+    // becomes an M5 report; nothing else changes.
+    let mut relabeled = reports.clone();
+    relabeled
+        .iter_mut()
+        .find(|report| {
+            report.scenario == ScenarioId::M2
+                && report
+                    .reproduction
+                    .is_some_and(|record| record.endpoint == Endpoint::CharacterList)
+        })
+        .expect("the valid set carries the (M2, CharacterList) lane")
+        .scenario = ScenarioId::M5;
+    // The pre-F11 guard accepted exactly this state: every routed endpoint
+    // is still present in some verdict-eligible report.
+    for endpoint in Endpoint::ALL {
+        assert!(
+            relabeled.iter().any(|report| report
+                .reproduction
+                .is_some_and(|record| record.endpoint == endpoint)),
+            "the bypass must satisfy the endpoint-only requirement to be a bypass"
+        );
+    }
+    assert_eq!(
+        FullContractRun::declare(relabeled),
+        Err(FullContractDeclarationError::MissingScenarioEndpointLane {
+            scenario: ScenarioId::M2,
+            endpoint: Endpoint::CharacterList,
+        })
+    );
+
+    // Bypass two: endpoint-only satisfaction for the other character pair —
+    // the Character endpoint carried by an M9 report instead of its
+    // required M2 saturation lane.
+    let mut swapped = reports;
+    swapped
+        .iter_mut()
+        .find(|report| {
+            report.scenario == ScenarioId::M2
+                && report
+                    .reproduction
+                    .is_some_and(|record| record.endpoint == Endpoint::Character)
+        })
+        .expect("the valid set carries the (M2, Character) lane")
+        .scenario = ScenarioId::M9;
+    for endpoint in Endpoint::ALL {
+        assert!(
+            swapped.iter().any(|report| report
+                .reproduction
+                .is_some_and(|record| record.endpoint == endpoint)),
+            "the bypass must satisfy the endpoint-only requirement to be a bypass"
+        );
+    }
+    assert_eq!(
+        FullContractRun::declare(swapped),
+        Err(FullContractDeclarationError::MissingScenarioEndpointLane {
+            scenario: ScenarioId::M2,
+            endpoint: Endpoint::Character,
+        })
+    );
+}
+
+// The SD-R8-F11 pair-shape audit of the M8 lanes: each profile check binds
+// its endpoint, so the two M8 lanes cannot swap policies — a Known-profile
+// legacy lane plus an Assumed-profile stash lane satisfies a profile-only
+// check while the conditional verdict's evidence lane has silently vanished.
+#[tokio::test(start_paused = true)]
+async fn full_contract_declaration_binds_each_m8_profile_to_its_endpoint() {
+    let mut reports = full_contract_report_set().await;
+    for report in reports.iter_mut().filter(|r| r.scenario == ScenarioId::M8) {
+        let record = report.reproduction.as_mut().unwrap();
+        record.endpoint = match record.endpoint {
+            Endpoint::Stash => Endpoint::LegacyStashIndex,
+            _ => Endpoint::Stash,
+        };
+    }
+    assert_eq!(
+        FullContractRun::declare(reports),
+        Err(FullContractDeclarationError::MissingM8KnownLane)
     );
 }
 

@@ -336,7 +336,8 @@ pub const CLAUSES: &[Clause] = &[
         text: "The M2 saturation shape runs against both character policies \
                — the topology's tightest limits — and the full-contract \
                declaration requires every routed endpoint (scenarios.md, \
-               2026-08-15 SD-R8-F5 amendment)",
+               2026-08-15 SD-R8-F5 amendment) as its exact \
+               (M2, endpoint) saturation lane (SD-R8-F11)",
         coverage: Coverage::Full,
         citations: &[
             Citation {
@@ -352,10 +353,22 @@ pub const CLAUSES: &[Clause] = &[
                 must_assert: "declare refuses a run missing a character \
                               endpoint lane (SD-R8-F5)",
             },
+            Citation {
+                file: "tests/conformance_harness.rs",
+                test_fn: "full_contract_declaration_refuses_a_relabeled_required_lane",
+                must_assert: "declare refuses both SD-R8-F11 bypasses: the \
+                              audit's M2-to-M5 relabel with the CharacterList \
+                              record intact, and endpoint-only satisfaction \
+                              of a required pair",
+            },
         ],
         note: "Character-list is 2/10 s burst and 5/300 s sustained: one \
                mistimed request is a 50% budget error, the regime the F5 \
-               adjudication owes evidence for",
+               adjudication owes evidence for. Honest residual trust surface \
+               (SD-R8-F11): scenario identity remains driver-owned — bound \
+               through each scenario's sole-decider assertion plus the \
+               declaration's required (scenario, endpoint) pairs, never by \
+               the wire, which does not carry scenario identity",
     },
     // ── M3 — degraded HEAD (scenarios.md:205) ────────────────────
     Clause {
@@ -843,8 +856,26 @@ pub const CLAUSES: &[Clause] = &[
                 must_assert: "declare refuses a run whose M8 row lacks either \
                               lane (SD-R8-F4)",
             },
+            Citation {
+                file: "tests/conformance_harness.rs",
+                test_fn: "full_contract_declaration_binds_each_m8_profile_to_its_endpoint",
+                must_assert: "the M8 profile checks bind their endpoints, so \
+                              the two lanes cannot swap policies \
+                              (SD-R8-F11 pair-shape audit)",
+            },
+            Citation {
+                file: DRIVER,
+                test_fn: "f12_driver_has_one_engine_construction_and_one_provenance_path",
+                must_assert: "the profile a record claims flows from the same \
+                              lane value that constructed the engine — one \
+                              construction path, structurally pinned \
+                              (SD-R8-F12)",
+            },
         ],
-        note: "At fragment scale, both φ",
+        note: "At fragment scale, both φ. The record's profile is bound to \
+               the exercised engine by construction (mod lane in the \
+               driver, SD-R8-F12): the M8 profiles are indistinguishable on \
+               the wire, so no judge-side check could replace that binding",
     },
     Clause {
         id: "m8-caller-observes-outcome",
