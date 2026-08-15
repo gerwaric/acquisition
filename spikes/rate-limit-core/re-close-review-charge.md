@@ -8,8 +8,12 @@ and the reviewer's job includes judging whether its prescribed
 approach was *right*, not only whether it was implemented). Read the
 mandated documents in AGENTS.md order first; `status.md` is live
 authority; the packet under review is `scenario-driver-handoff.md`'s
-current four parts; the repair range ends at spike head `1c71763a`
-and ground-truth head `3088d6e4`. Close per `slice-review.md` §5 or
+current four parts. *(Range updated 2026-08-15: the F21/F22 sealing
+repair extends the range — spike head `a4497304` (code `a09ef5ed`),
+ground-truth head `3088d6e4` unchanged. §§1–2 below were verified
+against the F11–F20 range by the previous execution of this charge;
+re-verify only what the sealing commits touched, then run §3 and
+the §3-addendum in full.)* Close per `slice-review.md` §5 or
 record findings and leave the round open. Never contact a live
 service; commit before reverting any mutation you run.
 
@@ -62,6 +66,37 @@ assume the third repair ended the class. Attack it:
   cross-check against observations or construction is a candidate.
   List every one you find, even if you cannot forge a bypass —
   unlisted trust surfaces are how this class survives.
+
+## 3-addendum. Sealing-specific attacks (added 2026-08-15 for the
+F21/F22 repair range; from the repair *report* alone, unexamined)
+
+- **Compile-fail doctests pass on any error.** For each of the
+  five, verify the failure is the intended privacy/constructor
+  error: change the forbidden line to a *legal* equivalent and
+  confirm the snippet then compiles (proving the snippet isn't
+  broken for an unrelated reason), or inspect the rustc error
+  directly. A `compile_fail` green from a typo'd path is a
+  fifth-generation bypass wearing a seal.
+- **`seal_evidence` is new runtime semantics, not just
+  visibility.** Its refusal rules and atomic snapshot define what
+  the judge now sees. Check the snapshot point against what
+  drivers previously handed the judge — the seal must change who
+  can construct evidence, never which evidence a green run judges.
+  Probe its refusal arms: are they reachable, tested, and do they
+  fail closed?
+- **The diff is ~750 lines; sealing should be mostly
+  boilerplate.** Read the non-boilerplate residue of `a09ef5ed`
+  for behavior changes hiding in the refactor — anything that
+  alters judge/declare logic beyond construction control is
+  finding material even if green.
+- **Sweep the sealed types' public surface**: every `pub` item on
+  `RunReport`, `ReproductionRecord`, `RunEvidence`, and the
+  carriage types must be read-only; any setter, `pub` field,
+  `pub(crate)` reachable from a path tests can use, serde/derive
+  or `From`/`Into` that reconstructs, defeats the seal.
+- **Name the in-crate boundary.** Rust privacy does not bind
+  in-crate unit-test modules; they live inside the seal. The
+  packet's trust-surface list must say so, or mint the finding.
 
 ## 4. The packet and the record
 
