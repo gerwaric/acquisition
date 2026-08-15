@@ -102,6 +102,24 @@ falsifiability guards and scale-shape test cited. Registry totals remain
 124/110 and both verdict fills remain suspended: this repair session
 closes nothing and awaits the repeated independent re-close review,
 then the repeated final audit.
+**The repeated re-close review over the F21/F22 sealing range (2026-08-15)
+re-verified the whole sealing repair — the five compile-fail doctests
+each fail with their exact annotated privacy code (legal equivalents and
+the reviewer's original forgery shapes checked), `seal_evidence` changes
+who constructs evidence but not which evidence a green run judges, the
+public surface is read-only, and the full offline matrix, both
+authorities, and all five preserved mutation signatures reproduced — but
+found SD-R8-F23 (medium): the evidence-carriage seal is stated as
+absolute construction privacy ("Only `seal_evidence` can construct";
+"a test cannot filter either vector and rebuild a judge input"), yet
+Rust privacy does not bind the `mock` module's in-crate descendants.
+`mock::model` (a descendant with a live `#[cfg(test)]` module) can write
+a forged `MockEvidence` struct literal directly. It is not a verdict
+bypass — the verdict path runs only across the integration-test crate
+boundary where the seal holds — but the boundary is unnamed (the `b13`
+note mis-states it), which charge §3-addendum pre-committed as a finding.
+Verdict readiness stays suspended pending the F23 repair, a fresh packet,
+re-review, and the repeated final audit.
 `obligation-map.md`
 is the superseded prose ancestor; read its §8 for the audit's
 discrepancy analysis (dated at `e2034807`), never for current
@@ -263,6 +281,34 @@ coverage.
   in both packet and registry note. The session closes nothing: SD-R8
   remains open awaiting repeated independent re-close review and then
   the repeated final audit.
+  **The repeated re-close review over the sealing range ran 2026-08-15
+  and did not close the round: SD-R8-F23 (medium).** The reviewer
+  re-verified everything the sealing commits touched and ran the §3
+  fifth-generation hunt and the §3-addendum in full: the five
+  compile-fail doctests each fail with their exact annotated privacy
+  code (E0616/E0616/E0451/E0451/E0603, legal equivalents and the
+  reviewer's original forgery shapes compiled to confirm), the seal's
+  snapshot judges the same evidence the old accessors handed over, the
+  sealed types' public surface is read-only, the non-boilerplate diff
+  residue is construction control only, and the full offline matrix,
+  both authorities (pinned + 4,096-case declaration; obligations 6/6),
+  and all five preserved mutation signatures reproduced exactly. It then
+  found that the evidence-carriage seal is stated as absolute
+  construction privacy while Rust privacy does not bind the `mock`
+  module's in-crate descendants: `mock::model` (a descendant carrying a
+  live `#[cfg(test)]` module) can construct a forged `MockEvidence`
+  struct literal directly, so the claims "Only `seal_evidence` can
+  construct this type" and "a test cannot filter either vector and
+  rebuild a judge input" (`b13-observation-log`) overstate the mechanism
+  — the residual-trust concern of charge §3 bullet 3, and the exact
+  boundary the §3-addendum required be named or minted. It is not a
+  reproduced verdict bypass (the verdict-eligible report set is produced
+  solely by `scenario_driver.rs` across the integration-test crate
+  boundary, where the seal is absolute, and the conformance types have
+  no in-crate descendant module), so it is medium, not high. Findings and
+  proposed disposition in `result-draft.md` §9; the hand-off is flipped
+  back to owing an F23 repair-range packet. Both verdict fills stay
+  suspended.
 - Every other slice (core, bootstrap, mock, actor, clause registry,
   doc split) is closed; their hand-offs are historical records.
   (Doc split closed 2026-08-13, DS-R1 — `result-draft.md` §9.)
@@ -361,13 +407,16 @@ ratification record is in `result-draft.md` §9. (Both earlier
 ## 4. Blocked
 
 Delivery is blocked on re-closing SD-R8. The F21/F22 sealing repairs
-and fresh four-part packet are present, but this implementing session
-closes nothing. What remains before either delivery PR: the repeated
-independent re-close review, then the repeated
+are present and re-verified, but the repeated re-close review over the
+sealing range found SD-R8-F23 (the seal's in-crate descendant boundary
+is unnamed/mis-stated), so the round stays open. What remains before
+either delivery PR: the F23 repair and fresh four-part packet, another
+repeated independent re-close review, then the repeated
 `final-audit-charge.md` audit over the repaired tree and both migration
 diffs. Both verdict fills stay suspended until then. No Tom decision is
-open: his hybrid decision binds the mock vectors and records assertion
-coverage/pass as named trust surfaces.
+open: F23's proposed disposition follows his standing "record honestly,
+don't pseudo-bind" pattern (naming the boundary, not adding a binding
+Rust privacy cannot provide against a module's own descendants).
 
 ## 5. Next work
 
@@ -456,9 +505,14 @@ Reopened SD-R8 work (audit and re-close-review entries,
      the repeated re-close review ran the same day, verified them,
      and **found SD-R8-F21/F22 — the round stays open**. Now next:
      ~~the F21/F22 repairs and fresh four-part packet~~ — **done
-     2026-08-15** (`a09ef5ed`; packet presented without closure), then
-     another repeated independent re-close review and the repeated
-     final audit.
+     2026-08-15** (`a09ef5ed`; packet presented without closure); the
+     repeated re-close review over the sealing range ran the same day,
+     re-verified the repair, and **found SD-R8-F23 — the round stays
+     open**. Now next: the F23 repair (scope the seal claim to the
+     integration-test crate boundary and name the `mock` module's
+     in-crate descendant modules as inside the seal) and fresh four-part
+     packet, then another repeated independent re-close review and the
+     repeated final audit.
   5. The two delivery PRs (`spike/rate-limit-core` → `redesign`;
      CN docs → `master`). **F6 — and the spike — complete at
      landing.**

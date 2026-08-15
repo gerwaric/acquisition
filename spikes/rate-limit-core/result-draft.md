@@ -3991,3 +3991,119 @@ hoistable to its own repository without surgery.
   asserted their recorded signatures. No temporary source mutation was
   applied or reverted: F21/F22 are enforced by the compile-fail
   programs themselves, not by a runtime mutation experiment.
+
+- 2026-08-15 — **Repeated SD-R8 re-close review over the F21/F22 sealing
+  range found SD-R8-F23; the round, slice, and spike remain open and
+  both verdict fills stay suspended.** The independent reviewer (no
+  prior context; charge `re-close-review-charge.md` re-armed for the
+  sealing range at spike head `a4497304` / code `a09ef5ed`,
+  ground-truth head `3088d6e4`) re-verified everything the sealing
+  commits touched and ran the §3 fifth-generation hunt and the
+  §3-addendum in full.
+
+  **Sealing range re-verified — the repair as specified is real.** The
+  §3-addendum's own method was applied to the compile-fail authority:
+  each of the five `compile_fail` doctests was compiled directly against
+  the library rlib and fails with **exactly** its annotated privacy
+  code — F21 record overwrite `E0616` (`client_buckets` of
+  `ReproductionRecord` private), F22 clone/relabel `E0616`
+  (`reproduction` of `RunReport` private), direct `RunReport` `E0451`
+  (all four fields private), direct `MockEvidence` `E0451` (both fields
+  private), X2 `Actor` `E0603` — and a legal-equivalent rewrite of all
+  five (read accessors instead of field writes, `GateHandle` instead of
+  `Actor`) compiles cleanly, proving no snippet is green from an
+  unrelated error. The reviewer's *exact* original F21/F22 forgery
+  shapes (`evidence.reproduction.as_mut()...client_buckets = ...`;
+  post-judge clone with `reproduction.as_mut()...endpoint = ...`) also
+  fail to compile (`RunEvidence.reproduction` / `RunReport.reproduction`
+  private). `seal_evidence` snapshots by the same ordinal/id sort the
+  superseded `observations()`/`state_changes()` accessors used, so the
+  seal changes who may construct evidence, not which evidence a green run
+  judges; its `PendingObservations` refusal arm is reachable, tested
+  (`sealed_evidence_is_complete_final_and_mock_authentic`), and fails
+  closed (`.unwrap()` panics rather than judging a short vector); the
+  post-seal traffic/state-change refusals are tested and final. The
+  ~750-line diff's non-boilerplate residue is confined to construction
+  control: the judge/declare diffs are the mechanical
+  `evidence.field` → `evidence.field()` rename with no logic change. The
+  sealed types' public surface is read-only (value/`&[]` accessors, no
+  setters, no `pub` fields, `Clone`/`Copy` of immutable data, no
+  reconstructing `From`/`Into`). Offline matrix at `a4497304` /
+  `3088d6e4`, entirely offline: `cargo test --locked` 175/0/3 with
+  doctests 5/5; release 173/0/3; `PROPTEST_CASES=4096` 175/0/3; pinned
+  φ=0 declaration green; explicit ignored 4,096-case declaration 1/1
+  debug 305.73 s and 1/1 release 26.38 s; obligations 6/6 at 124/110
+  totals with `OPEN_UNTESTED` empty; §7.4 release 2/2 in 7.77 s;
+  sanitizer 4/4; all-target clippy with warnings denied, fmt, and
+  `git diff --check` clean. All five preserved mutation signatures are
+  present and green: F5 `MissingEndpointLane { endpoint: CharacterList }`,
+  F9 `ReproductionMismatch { id: 1 }`, F11
+  `MissingScenarioEndpointLane { scenario: M2, endpoint: CharacterList }`,
+  F12/F4 `MissingM8KnownLane`, and the F12 lexical single-path pin. Tom's
+  hybrid decision is honored in the record: coverage/passed are named as
+  test-authorship trust surfaces in `g5-scenario-assertions` and the
+  confession; the observation/state-change vectors are bound in
+  `MockEvidence`.
+
+  **SD-R8-F23 (medium) — the evidence-carriage seal is stated as
+  absolute construction privacy, but Rust privacy does not bind the mock
+  module's in-crate descendants, and that boundary is unnamed (indeed
+  mis-stated) in every trust-surface list.** `MockEvidence`
+  (`src/mock/mod.rs`) has private fields whose enforcement claim is
+  stated three ways as if construction were universally
+  `seal_evidence`-only: the type's own doc comment — "Only
+  [`MockController::seal_evidence`] can construct this type"; the
+  `b13-observation-log` registry note — "a test cannot filter either
+  vector and rebuild a judge input"; and its `must_assert` — "mock-only
+  evidence construction." Rust makes a private field visible to the
+  defining module *and its descendants*. `MockEvidence` is defined in
+  module `mock`; `mock::model` is a descendant (`pub mod model;` in
+  `src/mock/mod.rs`) and carries a live `#[cfg(test)]` module
+  (`src/mock/model.rs:551`). Code there — like any present or future
+  child module of `mock` — can write the struct literal
+  `MockEvidence { observations, state_changes }` directly, including a
+  filtered/forged carriage, with no call to `seal_evidence`. The
+  descendant-visibility rule was confirmed on a standalone minimal crate
+  (a `model` submodule constructing an ancestor's private-field struct
+  compiles and runs); the external-crate refusal is exactly what the
+  `E0451` doctest pins. So the enforcement claim is scoped to the
+  integration-test crate boundary, not to "a test" in general, and the
+  `b13` note claims more binding than the code performs — the residual-
+  trust concern of charge §3 bullet 3.
+
+  This is **not a reproduced verdict bypass**: the verdict-eligible
+  report set is produced solely by `tests/scenario_driver.rs`
+  (`run_full_contract_case` → `FullContractRun::declare`), an external
+  crate where the seal is absolute; no in-crate unit test feeds `declare`
+  or a verdict slot, and the conformance types `RunReport` /
+  `ReproductionRecord` / `RunEvidence` have no in-crate descendant module
+  at all (nothing under `conformance`), so they are sealed even in-crate.
+  The finding is that an unlisted (here, actively mis-described) trust
+  surface is exactly how this class has survived four generations — the
+  charge §3-addendum pre-committed it: "Rust privacy does not bind
+  in-crate unit-test modules; they live inside the seal. The packet's
+  trust-surface list must say so, or mint the finding." It does not say
+  so; F23 is minted.
+
+  Proposed disposition (evidence-preserving, no verdict change; Tom's
+  "record honestly, don't pseudo-bind" pattern, since Rust privacy
+  cannot lock out a module's own descendants): scope the seal claim to
+  the integration-test crate boundary and name the in-crate boundary as
+  a residual trust surface. Correct the `MockEvidence` doc comment and
+  the `b13-observation-log` note/`must_assert` to say the private fields
+  bar construction across the library/integration-test crate boundary —
+  where the verdict-bearing driver runs — while in-crate descendant
+  modules of `mock` (e.g. `mock::model`'s unit tests) live inside the
+  seal, compensated by the verdict path residing entirely across that
+  boundary and by no in-crate test reaching `declare`. Add the boundary
+  to the coverage confession beside the profile-choice and
+  coverage/passed surfaces. No code binding is owed (none is possible
+  against in-crate descendants); the belt lexical pins and the
+  compile-fail doctests are unaffected.
+
+  All probes were read-only or run in a scratch directory; no repository
+  source was mutated, so nothing was committed or reverted. No live
+  service was contacted. The verdict fills are not restored; the repeated
+  final audit does not start. SD-R8 stays open awaiting the F23 repair, a
+  fresh four-part packet, another repeated independent re-close review,
+  and then the repeated `final-audit-charge.md` audit.

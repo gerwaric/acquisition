@@ -1,6 +1,33 @@
 # Scenario-driver and safety-closure hand-off
 
-Status: **open — the F21/F22 repair packet is presented 2026-08-15
+Status: **open — the 2026-08-15 repeated re-close review over the
+F21/F22 sealing range found SD-R8-F23; this file requires an F23
+repair-range four-part update before re-review.** The review
+re-verified the whole sealing repair — the five compile-fail doctests
+each fail with their exact annotated privacy code (legal equivalents
+and the reviewer's original forgery shapes compiled to confirm),
+`seal_evidence` judges the same evidence the old accessors handed over,
+the sealed public surface is read-only, and the full offline matrix,
+both authorities, and all five preserved mutation signatures reproduced
+— but found that the seal's construction claim is scoped only to the
+integration-test crate boundary: Rust privacy does not bind the `mock`
+module's in-crate descendants, so `mock::model` (a descendant with a
+live `#[cfg(test)]` module) can construct a forged `MockEvidence`
+directly. The type's doc comment ("Only `seal_evidence` can construct
+this type") and the `b13-observation-log` note ("a test cannot filter
+either vector and rebuild a judge input") overstate the mechanism, and
+that boundary is named nowhere. It is not a verdict bypass (the
+verdict path runs only across the integration-test boundary, where the
+seal holds), but per charge §3-addendum an unnamed in-crate boundary is
+the finding. Findings, evidence, and proposed disposition are in
+`result-draft.md` §9; live state is `status.md`. The repair session
+must scope the seal claim to the crate boundary, name the in-crate
+descendant boundary as a residual trust surface (doc comment, `b13`
+note/`must_assert`, and coverage confession), and update the silences,
+seam map/invariant walk, coverage confession, and judgment calls; this
+review session does not author its packet for it.
+
+Prior status: **open — the F21/F22 repair packet is presented 2026-08-15
 and awaits the repeated independent re-close review.** Commit
 `a09ef5ed` seals reproduction records, reports, and mock-authentic
 evidence with Rust privacy across the integration-test crate boundary;
