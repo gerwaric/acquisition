@@ -16,7 +16,8 @@ const MAX_JSON_DEPTH: usize = 16;
 /// Sized to admit every committed fixture with headroom — the canonical
 /// capture is 5,415 nodes and the supplemental VPN capture 15,804 — while
 /// still binding well below what MAX_FIXTURE_BYTES of minimal JSON could
-/// hold (~300k nodes). The previous 10,000 cap sat below the committed VPN
+/// hold (~1.05 million values, including the root, for `[0,0,...]`). The
+/// previous 10,000 cap sat below the committed VPN
 /// fixture, so the declared "next fixture refuses" consequence would have
 /// fired on a legitimate input already in the tree (SD-R5-F12).
 const MAX_JSON_ITEMS: usize = 32_768;
@@ -272,9 +273,12 @@ fn section_7_4_violating_band_edges_are_pinned_for_all_twenty_bands() {
     let mut previous_end = None;
     for band in VIOLATING_BANDS {
         assert!(
-            band.start_phase_ms <= band.end_phase_ms
-                && previous_end.is_none_or(|end| end + 1 < band.start_phase_ms),
-            "bands must be ascending and disjoint with clean gaps between them"
+            band.start_phase_ms <= band.end_phase_ms,
+            "band has an inverted phase range: {band:?}"
+        );
+        assert!(
+            previous_end.is_none_or(|end| end + 1 < band.start_phase_ms),
+            "bands must be ascending and disjoint with a clean gap: previous_end={previous_end:?}, band={band:?}"
         );
         previous_end = Some(band.end_phase_ms);
         total += band.end_phase_ms - band.start_phase_ms + 1;
@@ -282,21 +286,16 @@ fn section_7_4_violating_band_edges_are_pinned_for_all_twenty_bands() {
         for phase_ms in [band.start_phase_ms - 1, band.end_phase_ms + 1] {
             // Between-band neighbors double as the next band's outside edge;
             // re-checking them is cheaper than deduplication is legible.
-            if VIOLATING_BANDS
-                .iter()
-                .any(|other| (other.start_phase_ms..=other.end_phase_ms).contains(&phase_ms))
-            {
-                continue;
-            }
-            assert!(
-                first_overflow(phase_ms, &seeds, &replies).is_none(),
+            assert_eq!(
+                initiating_overflows(phase_ms, &seeds, &replies),
+                Vec::new(),
                 "the phase immediately outside a band must replay cleanly: phi={phase_ms}"
             );
         }
         for phase_ms in [band.start_phase_ms, band.end_phase_ms] {
             assert_eq!(
-                first_overflow(phase_ms, &seeds, &replies),
-                Some(band_overflow(band)),
+                initiating_overflows(phase_ms, &seeds, &replies),
+                vec![band_overflow(band)],
                 "the band-edge counterexample changed at phi={phase_ms}"
             );
         }
@@ -322,20 +321,40 @@ fn section_7_4_exhaustive_enumeration_matches_the_band_table() {
         .filter(|record| record.kind == "reply")
         .collect();
 
-    let mut violating_phases = 0_u64;
+    let mut actual = Vec::new();
     for phase_ms in 0..PHASE_CYCLE_MS {
-        let expected = VIOLATING_BANDS
-            .iter()
-            .find(|band| (band.start_phase_ms..=band.end_phase_ms).contains(&phase_ms))
-            .map(|band| band_overflow(*band));
-        violating_phases += u64::from(expected.is_some());
-        assert_eq!(
-            first_overflow(phase_ms, &seeds, &replies),
-            expected,
-            "the §7.4 violating set changed at phi={phase_ms}"
+        actual.extend(
+            initiating_overflows(phase_ms, &seeds, &replies)
+                .into_iter()
+                .map(|overflow| (phase_ms, overflow)),
         );
     }
-    assert_eq!(violating_phases, VIOLATING_PHASE_TOTAL);
+    let expected: Vec<(u64, CounterOverflow)> = VIOLATING_BANDS
+        .iter()
+        .flat_map(|band| {
+            (band.start_phase_ms..=band.end_phase_ms)
+                .map(|phase_ms| (phase_ms, band_overflow(*band)))
+        })
+        .collect();
+
+    assert_eq!(
+        actual.len(),
+        usize::try_from(VIOLATING_PHASE_TOTAL).expect("the fixed phase total fits usize"),
+        "the discovered overflow count must be measured from the replay, not the band table"
+    );
+    let actual_set: BTreeSet<_> = actual.iter().cloned().collect();
+    let expected_set: BTreeSet<_> = expected.iter().cloned().collect();
+    assert_eq!(
+        actual.len(),
+        actual_set.len(),
+        "the replay produced duplicate (phase, initiating overflow) pairs"
+    );
+    let unexpected: Vec<_> = actual_set.difference(&expected_set).cloned().collect();
+    let missing: Vec<_> = expected_set.difference(&actual_set).cloned().collect();
+    assert!(
+        unexpected.is_empty() && missing.is_empty(),
+        "the complete §7.4 violating set changed: unexpected={unexpected:?}, missing={missing:?}"
+    );
 }
 
 #[test]
@@ -675,7 +694,7 @@ fn has_recorded_ceiling(records: &[ReplayRecord], expected: u32) -> bool {
     })
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 struct CounterOverflow {
     reply_index: usize,
     policy: String,
@@ -685,16 +704,16 @@ struct CounterOverflow {
     max_hits: u32,
 }
 
-/// Replays the trace at one phase and returns the *initiating* overflow, if
-/// any. The replay stops at the first overflow deliberately: once that
-/// request produces the modeled 429, replaying the fixture's later
-/// observed-200 traffic would only measure the expected restriction cascade,
-/// not the initiating mismatch.
-fn first_overflow(
+/// Replays the trace at one phase and returns every window overflow on the
+/// *initiating reply*. The replay stops after that reply deliberately: once it
+/// produces the modeled 429, replaying the fixture's later observed-200
+/// traffic would only measure the expected restriction cascade, not the
+/// initiating mismatch.
+fn initiating_overflows(
     phase_ms: u64,
     seeds: &[BootSeed],
     replies: &[&ReplayRecord],
-) -> Option<CounterOverflow> {
+) -> Vec<CounterOverflow> {
     let mut model = CounterModel::new(phase_ms);
     for seed in seeds {
         model.insert_policy(seed.definition.clone()).unwrap();
@@ -710,12 +729,12 @@ fn first_overflow(
         let judgment = model
             .judge(&record.policy, at, reply_index as u64 + 1, true)
             .unwrap();
-        let overflow = judgment
+        let overflows: Vec<CounterOverflow> = judgment
             .windows
             .iter()
             .zip(&record.limits)
             .enumerate()
-            .find(|(_, (window, limit))| window.current_hits > limit.max_hits)
+            .filter(|(_, (window, limit))| window.current_hits > limit.max_hits)
             .map(|(window_index, (window, limit))| CounterOverflow {
                 reply_index,
                 policy: record.policy.clone(),
@@ -723,17 +742,18 @@ fn first_overflow(
                 window_index,
                 current_hits: window.current_hits,
                 max_hits: limit.max_hits,
-            });
+            })
+            .collect();
         assert_eq!(
             judgment.organic_violation,
-            overflow.is_some(),
+            !overflows.is_empty(),
             "no pre-existing restriction may precede the initiating overflow at phi={phase_ms}, reply={reply_index}"
         );
-        if overflow.is_some() {
-            return overflow;
+        if !overflows.is_empty() {
+            return overflows;
         }
     }
-    None
+    Vec::new()
 }
 
 fn parse_limit_triplets(raw: &str) -> Vec<LimitTriplet> {
@@ -916,9 +936,6 @@ impl<'a> JsonParser<'a> {
             return Ok(Json::Array(array));
         }
         loop {
-            if array.len() == MAX_JSON_ITEMS {
-                return Err("JSON array exceeds test-local item bound".to_owned());
-            }
             array.push(self.value(depth)?);
             self.whitespace();
             if self.consume(b']') {
