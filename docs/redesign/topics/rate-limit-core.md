@@ -22,7 +22,10 @@ history. **[Measured]** A verdict described as measured is
 drawn from the recorded evidence rather than an external authority.
 
 **[External]** An `External` statement names its URL and retrieval
-date at the point of use.
+date at the point of use; where the source is private correspondence
+(the GGG support emails behind N12 and N14), no public URL exists, so
+the statement names the correspondence and the `network-ground-truth.md`
+entry that carries it instead.
 
 ## Question and gate definition
 
@@ -38,22 +41,34 @@ one-request serialization.
 
 ## Verdicts
 
-**[Measured against model] Unconditional — yes, within the offline
-spike scope for the four OAuth policies at `Known(5s/60s)` (N12).**
-All four were exercised: the declared 4,096-case extended-contract run
-covered M1–M13, both M8 provenance lanes, and the SD-R8-F5
-character-policy lanes, covering every routed N23 endpoint. C1–C5 and
-X1–X2 are green, the SHELL prerequisite is Full, and the independent
-registry verifies every prerequisite clause Full. U1–U5, the accepted
-future-parser limitation, and the ratified O-series carriage below are
-part of the verdict's scope.
+**Unconditional — yes, within the offline spike scope for the four
+OAuth policies at `Known(5s/60s)`.** **[Measured against model]** The
+offline outcome: the declared 4,096-case extended-contract run covered
+M1–M13, both M8 provenance lanes, and the SD-R8-F5 character-policy
+lanes — every routed N23 endpoint — with gates G1–G6 green as
+applicable; C1–C5 and X1–X2 are green and the SHELL prerequisite is
+Full. **[Measured]** The independently edited obligations registry
+records every prerequisite clause Full and its structural verifier
+passes; the semantic accuracy of the recorded coverage is
+prose-reviewed, not machine-proven. **[External — private
+correspondence: GGG support to Tom by email, as of the email date;
+carried as N12 in `network-ground-truth.md`]** The `Known(5s/60s)`
+bucket resolutions themselves are a premise from that correspondence —
+the offline runs exercise them but cannot measure the live server's
+resolutions. U1–U5, the accepted future-parser limitation, and the
+ratified O-series carriage below are part of the verdict's scope.
 
-**[Measured against model] Conditional — yes for
-`backend-item-request-limit`, conditional on `Assumed(60s/60s)` being
-no smaller than the server's actual bucket resolution.** N14/N21 provide
-no upper bound, so this is not an unconditional claim. The same declared
-run includes the shipped Assumed lane, the same prerequisite registry set
-is Full, and the same scope carriage applies.
+**Conditional — yes for `backend-item-request-limit`, conditional on
+`Assumed(60s/60s)` being no smaller than the server's actual bucket
+resolution.** **[Measured against model]** The same declared run
+includes the shipped Assumed lane and the same registry basis applies.
+**[External — private correspondence (the N14 ask-GGG channel, GGG
+email) and Tom's direct observation (N21), both carried in
+`network-ground-truth.md`]** The premise that no upper bound is known
+for the legacy bucket resolution comes from those lanes: the ask-us
+channel has not answered for the legacy policy and N21's observations
+do not bound it. That external gap is exactly why this claim is
+conditional rather than unconditional.
 
 **[Measured]** The accepted future-parser limitation is that the spike
 cannot force an upstream allocation cap in a future HTTP parser; it is
@@ -96,10 +111,14 @@ into the scoped conclusion like U1–U4.
 
 ### O-series carriage
 
-**[Measured scope] What these verdicts do and do not cover.** Every test
-in this spike ran against an in-process mock server on simulated time;
-no real network traffic was ever sent. Both verdicts therefore carry the
-following exclusions as part of their meaning, alongside U1–U5:
+**[Measured scope] What these verdicts do and do not cover.** Every
+mock-judged wire test — the M-series, which both verdicts are grounded
+in — ran against an in-process mock server on simulated time; the
+remaining evidence lanes (the C-series properties, the parser suite,
+and the X-series fault-injection and source-structure tests) exercise
+the code directly. No test anywhere sent real network traffic. Both
+verdicts therefore carry the following exclusions as part of their
+meaning, alongside U1–U5:
 
 - **[Measured scope — O1, no real network plumbing.]** No sockets, no TLS
   handshakes, no connection reuse, and no HTTP/1.1-versus-2 differences.
@@ -117,10 +136,12 @@ following exclusions as part of their meaning, alongside U1–U5:
   effects of such traffic, but the real sharing semantics are out of
   scope.
 - **[Measured scope — O5, perfect clocks.]** The mock's `Date` header
-  always agrees with its own clock. Skew between a server's clock and its
-  stated time was not tested, and the C1 property tests show the timing
-  arithmetic is sensitive to skew, so this exclusion is flagged for
-  re-entry rather than waved off.
+  always agrees with its own clock. Skew between a server's clock and
+  its stated time remains untested — the spike has no server-clock
+  input, so no skew-sensitivity evidence exists and the conditional
+  re-entry trigger has not fired. The exclusion stands with its
+  trigger armed rather than waved off (corrected per Tom's SD-R8-F14
+  acceptance, 2026-08-15).
 - **[Measured scope — O6, well-formed headers only on the wire.]** The
   mock always emits canonical lowercase headers. Adversarial header
   casing and ordering are covered at the parser by C2's generated inputs,
@@ -141,16 +162,32 @@ validation.
 ## Evidence basis
 
 **[Measured]** Verdict eligibility requires two agreeing authorities:
-the run's own full-contract declaration and the independently edited,
-machine-verified obligations registry. A fragment report is never
-verdict-eligible.
+the run's own full-contract declaration and the independently edited
+obligations registry, whose verifier is structural — it machine-checks
+registry structure, declared coverage labels, citation arity, cited
+test-function existence, and the open-set match, while the semantic
+accuracy of each recorded coverage class is prose-reviewed. A fragment
+report is never verdict-eligible.
 
 **[Measured]** Both the pinned run and the 4,096-case generated-phase
 extended-contract run declared successfully after the SD-R8-F4 and
 SD-R8-F5 repairs. The extended run produced 16 reports per case and its
-declaration required every N23 endpoint. **[Measured]** The independent
-registry totals were 110 Full, no Partial, one accepted Untested
-limitation, and 13 Excluded.
+declaration required every N23 endpoint. **[Measured]** The registry
+records 110 Full, no Partial, one accepted Untested limitation, and 13
+Excluded, with its structural verifier green.
+
+**[Measured]** Every scenario report was judged against the six
+pass/fail gates of `scenarios.md` §6, and all six were green wherever
+armed: G1 (zero client-caused violations, with unavoidable exposure
+bounded and harness-attributed), G2 (neither layer-1 ceiling ever
+tripped, armed in every mock-judged scenario), G3 (bounded
+per-dispatch over-delay against the harness's independent padded-safe
+oracle, at the finalized tolerance **ε = 500 ms** simulated), G4
+(M2-shape scenario duration within the finalized **1.05×** multiplier
+of the harness-computed padded minimum), G5 (every scenario's own
+assertions), and G6 (deterministic reproduction records). The ε and
+multiplier are the acceptance thresholds "honors" is measured
+against; both were finalized by Tom on 2026-08-13.
 
 **[Measured]** The mock verdicts are measured against the model; the
 sanitized capture replay grounds the model in the observed lane.
@@ -181,12 +218,23 @@ not a claim that such policies are impossible.
 **[Inferred]** N31 records that N11–N13 do not specify the exact bucket
 quantization boundary semantics and that the mock uses the
 most-adversarial consistent reading: a timestamp rounds up to the bucket
-end while the history entry itself is not quantized.
+end while the history entry itself is not quantized, buckets are
+**half-open** (an arrival exactly on a grid point takes the full
+following bucket), and expiry is **exclusive** (a hit whose adversarial
+expiry equals an arrival instant is no longer counted at that arrival)
+— the two conventions Tom's 2026-08-15 B3 amendment pinned. All of
+this is an explicit model choice, not a claim about the server's
+actual boundary semantics.
 
 **[Measured]** N32 records the structural CN6 comparison: reprioritizing
 is cheap in the spike actor's single owned deque because request identity
 and positional removal already exist, whereas the superseded C++
 coroutine/facade shape lacked per-entry cancellation identity.
+**[Measured]** The dispatch mechanism, stated exactly: ordinary GET
+dispatch reads only the queue front, while probe writer selection
+(`Actor::schedule` via `pending_probe()`) scans the whole deque for a
+queued unknown endpoint — which is how the actor already dispatches
+out of arrival order under writer preference.
 **[Measured]** Its tripwire is the single-deque property: if the actor
 fans out into per-policy queues, cross-lane priority becomes a design
 decision and N32 must be revisited. **[Measured]** N32 preserves its
@@ -197,18 +245,26 @@ the premises that made it true.
 the spike result; `docs/design/network-ground-truth.md` on `master` is
 the citation authority, and `redesign` receives them on its next sync.
 
-## Reusable acceptance suite
+## Reusable foundation
 
 **[Measured]** The reusable artifact is the self-contained
-`spikes/rate-limit-core/` package: the counter engine and delivery shim
-in `src/mock/`, the M1–M13 scenario contract and driver, the G1–G6 judge
-in `src/conformance.rs`, the full-contract declaration machinery, the
-C1–C5/X1–X2 focused tests, and the machine-checked obligations registry
-in `src/obligations.rs` with its verifier.
+`spikes/rate-limit-core/` package: the counter engine and its
+in-process trait-impl delivery shim in `src/mock/`, the M1–M13 scenario
+contract and driver, the G1–G6 judge in `src/conformance.rs`, the
+full-contract declaration machinery, the C1–C5/X1–X2 focused tests,
+and the obligations registry in `src/obligations.rs` with its
+structural verifier.
 
-**[Measured]** The mock plus the M-series are the acceptance suite any
-future limiter must pass, including the C++ client through a standalone
-delivery shim. **[Measured]** Because the greenfield package is contained
+**[Measured]** What this delivers is a **reusable foundation** — the
+independent counter engine plus the scenario contract — not a ready
+cross-client acceptance suite: the current driver imports and spawns
+the spike's Rust actor directly and runs on Tokio paused time against
+the in-process mock. Wrapping the same engine in a standalone HTTP
+server and writing a client-neutral driver are future adapter work
+(`scenarios.md` §7.1's "delivery-shim job" framing); if ADR-0003 takes
+the rewrite path, that shim is built there against real requirements
+(claim narrowed per Tom's SD-R8-F16 decision, 2026-08-15).
+**[Measured]** Because the greenfield package is contained
 under `spikes/rate-limit-core/`, it can be hoisted to its own repository
 without surgery.
 
