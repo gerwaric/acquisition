@@ -2532,3 +2532,41 @@ outlives the spike branch; record what exists and where.⟩
   service was contacted. The four-part packet
   (`scenario-driver-handoff.md`) is presented for independent
   review; the slice stays open on `status.md` §5 item 5.
+
+- 2026-08-15 — **round seven closed (SD-R7): independent review of
+  the §7.4 gate implementation found no findings against it.** The
+  reviewer (the spec's author — a declared conflict, mitigated by
+  the flagged deviation cutting *against* the spec) validated the
+  implementation clause by clause against the ratified
+  `s7-4-replacement-gate.md`: preconditions 1–9 present and correct
+  (residue-zero migration verified; the superseded test deleted
+  with zero dangling references); `HALO_BANDS` equals the spec's
+  §5 table entry for entry; Φ\* derived arithmetically with
+  overlap/partition asserts; the 98-phase census re-derived
+  independently (18 + 24 + 56, the stride arithmetic checked by
+  hand); the companion re-derives the full classification and pins
+  the 25..57 envelope; oracles read only the fixture and the mock —
+  no Rust-core scheduling code anywhere; registry diff is exactly
+  the `s7-4-replay-gate` discharge plus the two anchor corrections
+  (anchors verified against current line numbers); totals 102 Full /
+  7 Partial (exactly the seven full-contract clauses) / 1 / 13.
+  Matrix reproduced entirely offline: 167/0/2 debug, 165/0/2
+  release, 167/0/2 at 4,096 cases; both ignored tests green in
+  release (7.64 s); clippy `-D warnings`, fmt, `git diff --check`,
+  obligations, sanitizer 4/4 all clean; active gate 0.28 s debug.
+  All seven mutation signatures reproduced verbatim and reverted,
+  including both flagged items: (1) the weaken-mutation deviation
+  is **confirmed and adjudicated a spec erratum** — under the
+  weakening the reviewer verified zero C2 understatements at all
+  60,000 phases and the exact 30,399-phase companion
+  misclassification, with the anti-echo failure at φ=0 proving the
+  weakened model is a perfect 766-component echo of the recorded
+  server there; the spec's §3 now carries a dated erratum marker
+  (the implementation's record-don't-tune handling is endorsed, and
+  the anti-echo anchor is thereby demonstrated load-bearing);
+  (2) the precondition-5 stash-list bucket-cutoff doc finding is
+  accepted as recorded. The C2-at-halo-edges reading and the other
+  packet silences are accepted as conservative readings of the
+  spec. No verdict slot was filled; no live service was contacted.
+  The slice stays open on `status.md` §5 item 5 alone — the
+  full-contract run.

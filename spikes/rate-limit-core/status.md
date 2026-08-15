@@ -69,14 +69,17 @@ coverage.
   mutation checks (exact claimed signatures); and found no
   findings. The closure entry is in `result-draft.md` §9. No
   verdict slot was filled.
-  **The §7.4 replacement-gate packet is presented** (2026-08-15):
-  §5 item 4 was implemented the same day its spec was ratified, and
-  its four-part packet in `scenario-driver-handoff.md` awaits an
-  independent reviewer — the implementing session does not close
-  its own round. The slice stays open on §5 items 4–5 (item 4
-  pending review, item 5 pending implementation);
-  `scenario-driver-handoff.md` remains the live four-part packet
-  for that work.
+  **Round seven is closed** (SD-R7, 2026-08-15): an independent
+  review validated the §7.4 replacement-gate implementation against
+  the ratified spec clause by clause, reproduced the full
+  verification matrix and all seven mutation signatures, confirmed
+  the flagged weaken-mutation deviation and adjudicated it a spec
+  erratum (corrected by a dated marker in the spec's §3), and
+  accepted the precondition-5 doc finding as recorded. No findings
+  against the implementation; closure entry in `result-draft.md`
+  §9. The slice stays open on §5 item 5 only — the full-contract
+  run; `scenario-driver-handoff.md` remains the live packet file
+  for it.
 - Every other slice (core, bootstrap, mock, actor, clause registry,
   doc split) is closed; their hand-offs are historical records.
   (Doc split closed 2026-08-13, DS-R1 — `result-draft.md` §9.)
@@ -106,8 +109,7 @@ ratification record is in `result-draft.md` §9. (Both earlier
 
 ## 4. Blocked
 
-None. §5 item 4's implementation is done and awaits its independent
-review round (any fresh reviewer can take the packet); item 5 can
+None. Only §5 item 5 (the full-contract run) remains, and it can
 proceed. No Tom decision or live-service input blocks anything.
 
 ## 5. Next work
@@ -128,23 +130,17 @@ work.
 3. ~~**M11a named binding evidence**~~ — **done 2026-08-14**
    (`tests/m11_ceiling_sweep.rs`; `m11-compliant-never-trips` Full —
    `result-draft.md` §9 changelog).
-4. The feedback-consistent §7.4 replacement calibration gate.
-   **Spec ratified 2026-08-15** (`s7-4-replacement-gate.md` — now
-   contract; drafted with two adversarial fresh-context reviews,
-   probe measurements, and a blind witness audit that hand-verified
-   the first halo edge outside the shared machinery — §9
-   changelog). **Implemented 2026-08-15, green** (active gate +
-   ignored exhaustive companion in `tests/capture_replay.rs`;
-   `s7-4-replay-gate` Full per the spec's discharge line; the
-   superseded open-loop test deleted per the spec's §4 after its
-   residue-zero assert migrated — §9 changelog, code commit
-   `fdacd206`). **Awaiting the independent implementation-review
-   round** — `scenario-driver-handoff.md` is the live four-part
-   packet, which flags one spec-expectation deviation (the weaken
-   mutation's kill signature) and one recorded doc finding (the
-   precondition-5 stash-list bucket-cutoff divergence) for the
-   reviewer. The band-edge, exhaustive-enumeration, and 43/43
-   witness diagnostics remain load-bearing, retained unchanged.
+4. ~~The feedback-consistent §7.4 replacement calibration gate~~ —
+   **done 2026-08-15**: spec ratified (`s7-4-replacement-gate.md`,
+   contract), implemented green the same day (code `fdacd206`;
+   `s7-4-replay-gate` Full; superseded open-loop test deleted after
+   its residue-zero assert migrated), and **review closed (SD-R7)**
+   with no findings against the implementation — the flagged weaken
+   deviation adjudicated a spec erratum and corrected by a dated
+   marker in the spec's §3, the precondition-5 doc finding accepted
+   as recorded. §9 changelog. The band-edge,
+   exhaustive-enumeration, and 43/43 witness diagnostics remain
+   load-bearing, retained unchanged.
 5. Full-contract run last. It finishes the fragment-scale-only
    clauses `m6-g1-post-announcement`,
    `m6-queue-drains-new-pace`, `m7-no-client-violation`,

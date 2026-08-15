@@ -354,6 +354,21 @@ recorded):
   failure.
 - Weaken the model (expire hits one bucket early) → C2
   understatement failure at a consistent phase.
+
+  *[Erratum, 2026-08-15 (SD-R7 review, validated by reproduction):
+  the predicted C2 signature does not occur on this fixture — under
+  that exact weakening there are zero understatements at any of the
+  60,000 phases, because the weakened model collapses to a perfect
+  766-component echo of the recorded server at φ=0. The mutation is
+  killed — the contractual point — by the anti-echo anchor at φ=0
+  and by 30,399 misclassified phases in the companion. The spec
+  author's prediction was wrong; the implementation recorded the
+  measured signature rather than tuning asserts to force the
+  predicted one, which is the correct behavior. Incidentally, the
+  φ=0 echo is an empirical observation that the real server's
+  quantization at its actual alignment matches the non-adversarial
+  floor-rounding model exactly across this capture — noted as
+  context only, claiming nothing.]*
 - Strengthen the model (hold hits one bucket longer) → a consistent
   edge produces a violation or spurious borderline.
 - Corrupt one recorded state in memory after load → precondition or

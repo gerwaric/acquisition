@@ -1,7 +1,14 @@
 # Scenario-driver and safety-closure hand-off
 
-Status: **open — §7.4 replacement-gate packet presented for
-independent review, 2026-08-15.** The current packet implements
+Status: **open — §7.4 replacement-gate packet review closed
+(SD-R7, 2026-08-15): an independent review validated the gate
+against the ratified spec clause by clause, reproduced the full
+verification matrix and all seven mutation signatures (including
+the flagged weaken-mutation deviation, confirmed and adjudicated a
+spec erratum — corrected by a dated marker in the spec's §3), and
+accepted the precondition-5 doc finding as recorded; no findings
+against the implementation. The slice stays open on `status.md` §5
+item 5 only.** The reviewed packet implements
 `status.md` §5 item 4 — the feedback-consistent §7.4 replacement
 calibration gate per the ratified `s7-4-replacement-gate.md` §3/§4
 (code commit `fdacd206`) — and flags one spec-expectation deviation
