@@ -281,6 +281,22 @@ a model or fixture change that moves either fails loudly and may be
 re-pinned only with adjudicated provenance (§1's stated limit on
 what this buys).
 
+**Pinned quantization conventions** (2026-08-15 blind audit, §5/§7):
+B3's prose underdetermines two arithmetic choices the tables depend
+on, and the implementation must pin both explicitly: **half-open
+buckets** (an arrival exactly on a grid point takes the full
+following bucket) and **exclusive expiry** (a hit whose adversarial
+expiry equals an arrival instant is not counted at that arrival) —
+the readings the mock's `CounterModel` implements. The band edges
+are convention-sensitive by construction: the audited first halo
+edge (φ=2,298 vs 2,297) is decided by exactly the expiry
+convention's 1 ms. This underdetermination is a **doc finding to
+mint at implementation**, and a clarifying amendment to the B3 note
+is proposed for adoption alongside this spec (Tom's, as the
+contract owner). N13 safety is indifferent to the choice — the
+client's 1 s buffer dwarfs the 1 ms slop — so this is a
+model-definition precision issue, not a safety one.
+
 **Active gate test** (ordinary CI; 98 phase replays — 18 consistent
 edges + 24 stride interiors + 56 halo edges — measured well under
 0.1 s release; state the debug time when it lands):
@@ -440,6 +456,18 @@ independently re-derived the starred items with its own probe.
   exactly 1)** — the measurement that, with the production-code
   reading, retired that draft's argument in favor of §2's
   classification premise. Kept as the record of why.
+- **Blind witness audit (2026-08-15).** A machinery-forbidden
+  session (fixture + B3 prose only; no `src/mock/`, no test code,
+  no spec) hand-derived the first halo edge: at φ=2,298, reply 47
+  (`character-request-limit`), burst count **5 = limit** against
+  recorded **4** under every prose-consistent reading — the
+  spurious borderline confirmed independently; at φ=2,297 the count
+  is **4** under the implementation's exclusive-expiry reading (5
+  under the inclusive reading — the 1 ms edge *is* the convention
+  boundary); sustained count **14**, equal to the recorded state
+  exactly. This breaks the shared-machinery circle at one witness:
+  every other number in this section was measured through the
+  committed loader/model path, and this one was not.
 
 ## 6. What Tom adjudicates
 
@@ -497,3 +525,16 @@ convention claim withdrawn (1), the entailment attribution fixed
 stash-list bucket-cutoff divergence recorded (5), the stride
 rationale replaced (6), P1 extended with the gate and hold channels
 (7), the §2.1 code account corrected (8), and P3 added (9).
+
+**Round three — blind witness audit (2026-08-15).** Both prior
+reviews and every drafting probe ran through the committed
+loader/seeding/model machinery, so a bug there would have fooled
+all of them identically. To break that circle before adjudication,
+a fresh session was given only the fixture and B3's prose —
+forbidden the mock source, the tests, and this spec — and asked to
+hand-derive the first halo edge without being told any expected
+value. Result: exact agreement with the machinery (§5), plus the
+discovery that B3's prose underdetermines the expiry-instant and
+bucket-boundary conventions, and that the band edges sit exactly
+where that underdetermination decides the answer — now a pinned
+convention in §3 and a doc finding for implementation.

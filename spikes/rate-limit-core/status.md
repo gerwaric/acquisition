@@ -127,8 +127,10 @@ work.
    `result-draft.md` §9 changelog).
 4. The feedback-consistent §7.4 replacement calibration gate.
    **Specified 2026-08-14** (`s7-4-replacement-gate.md`, drafted with
-   two adversarial fresh-context reviews and probe measurements —
-   §9 changelog); now awaiting Tom's adjudication (§3), then
+   two adversarial fresh-context reviews, probe measurements, and a
+   2026-08-15 blind witness audit that hand-verified the first halo
+   edge outside the shared machinery — §9 changelog); now awaiting
+   Tom's adjudication (§3), then
    implementation and its review round. The active band-edge,
    exhaustive band enumeration, and 43/43 witness diagnostics remain
    load-bearing; the superseded open-loop every-phase assertion

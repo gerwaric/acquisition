@@ -2375,3 +2375,30 @@ outlives the spike branch; record what exists and where.⟩
   finding) are incorporated. Adjudication asks are the spec's §6;
   implementation is blocked on them. No code changed; no live
   service was contacted.
+
+- 2026-08-15 — **blind witness audit closes the shared-machinery
+  circle at one halo edge.** Every prior measurement (drafting
+  probes and both adversarial reviews) ran through the committed
+  loader/seeding/`CounterModel` path, so a bug there would have
+  fooled all of them identically. A machinery-forbidden session
+  (inputs: the canonical fixture and B3's prose in `scenarios.md`;
+  forbidden: `src/mock/`, `tests/`, the gate spec, this file) was
+  asked to hand-derive the first halo edge with no expected values
+  disclosed. Result: at φ=2,298, reply 47
+  (`character-request-limit`), independent arithmetic gives burst
+  5 = limit against recorded 4 under every prose-consistent reading
+  (the spurious borderline confirmed); at φ=2,297 it gives 4 under
+  the exclusive-expiry reading the mock implements — exact
+  agreement with the machinery, and the 1 ms band edge is precisely
+  where B3's prose underdetermines the answer. **Candidate doc
+  finding minted for the implementation round:** B3 does not fix
+  expiry-instant inclusivity (a hit expiring exactly at an arrival
+  instant) or bucket-boundary membership; the implementation pins
+  the exclusive-expiry and half-open-bucket readings the
+  `CounterModel` embodies, the band tables are sensitive to the
+  former by ±1 ms at edges, and a clarifying B3 amendment is
+  proposed for adoption alongside the gate spec (N13 safety is
+  indifferent — the 1 s buffer dwarfs the slop). The spec's §3/§5/§7
+  record the audit; hesitation 1 of the 2026-08-15 adjudication
+  discussion is closed without adding an implementation-review
+  rider. No code changed; no live service was contacted.
