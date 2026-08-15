@@ -141,17 +141,10 @@ coverage.
 
 ## 3. Open decisions (Tom)
 
-Three contract-touching dispositions from the 2026-08-15 external
+Two contract-touching dispositions from the 2026-08-15 external
 audit await Tom (findings in `result-draft.md` §9; each changes
 what the result claims, so none may be settled in-session):
 
-- **SD-R8-F5 — verdict scope.** The unconditional verdict claims
-  all four OAuth policies; the evidence exercises only the
-  stash-list and stash policies. Choose: narrow the verdict
-  statement to the exercised policies, or extend the driver to
-  exercise `character-list-request-limit` and
-  `character-request-limit` (materially different limits) and
-  rerun the declared authorities.
 - **SD-R8-F6 — charter deliverables.** Complete or explicitly
   renounce each: the distilled result doc landing in
   `docs/redesign/topics/` on `redesign` with the register row
@@ -164,6 +157,13 @@ what the result claims, so none may be settled in-session):
   no auth/OAuth flow, no real Cloudflare rules, no forum regime).
   The U5 half is a mechanical §7 repair in the reopened round —
   U5's own text already mandates carriage "like U1–U4".
+
+Decided 2026-08-15: **SD-R8-F5 — extend, don't narrow** (Tom).
+Coverage extends to the two remaining Known-profile policies
+(`character-list-request-limit`, `character-request-limit`) so the
+four-policy claim is earned; the declaration guard must grow to
+require the new lanes (F4 principle). Implementation is round
+work (§5); the decision record is in `result-draft.md` §9.
 
 Closed earlier the same day: Tom adjudicated SD-R8-F2 on
 2026-08-15: **G3's eligibility is
@@ -200,12 +200,14 @@ ratification record is in `result-draft.md` §9. (Both earlier
 
 ## 4. Blocked
 
-Refilling the suspended verdict slots is blocked on Tom's F5/F6/F7
-dispositions alone (§3). The F4 repair and the F7 U5 line landed
-2026-08-15 and both declared authorities reran green over the
-repaired guard (§9 changelog). Once Tom's dispositions land, any
-evidence work they require runs, the authorities rerun once more,
-and the slots refill only if they truthfully agree.
+Refilling the suspended verdict slots is blocked on: Tom's F6 and
+F7-O-series dispositions (§3), and the F5 character-policy
+extension (decided, unblocked implementation work — §5). The F4
+repair and the F7 U5 line landed 2026-08-15 and both declared
+authorities reran green over the repaired guard (§9 changelog).
+Once the remaining dispositions and the extension land, the
+authorities rerun over the extended contract and the slots refill
+only if they truthfully agree.
 
 ## 5. Next work
 
@@ -228,12 +230,18 @@ Reopened SD-R8 work (audit entry, `result-draft.md` §9):
 - ~~**F7 U5 repair**~~ — **done 2026-08-15**: U5 carried in
   `result-draft.md` §7 alongside U1–U4, per its own carriage
   mandate. The O-series half stays with Tom.
-- **Awaiting Tom (§3):** F5 narrow-or-extend, F6 deliverables,
-  F7's O-series carriage wording.
-- **Then:** run any evidence work Tom's dispositions require,
-  rerun both declared authorities, refill the verdict slots only
-  if they truthfully agree, and present the packet for SD-R8
-  re-close review.
+- **F5 extension (decided 2026-08-15, unblocked):** wire-level,
+  mock-judged evidence over `character-list-request-limit` and
+  `character-request-limit`, feeding the full-contract
+  declaration; extend the declaration guard to require the new
+  lanes (F4 principle) and pin their absence with negative tests.
+  Independent oracle arithmetic per lane, per the standing G3
+  padded-safe adjudication.
+- **Awaiting Tom (§3):** F6 deliverables, F7's O-series carriage
+  wording.
+- **Then:** rerun both declared authorities over the extended
+  contract, refill the verdict slots only if they truthfully
+  agree, and present the packet for SD-R8 re-close review.
 
 1. ~~**M1 generated-φ mock-side residue sweep**~~ — **done
    2026-08-14** (`tests/m1_residue_sweep.rs`; `m1-g1-sweep` Full —

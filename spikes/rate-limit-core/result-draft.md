@@ -3023,3 +3023,21 @@ outlives the spike branch; record what exists and where.⟩
   verdict slots remain suspended: refilling still awaits Tom's F5,
   F6, and F7-O-series dispositions (`status.md` §3). No live
   service was contacted.
+
+- 2026-08-15 — **Tom adjudicated SD-R8-F5: extend the evidence to
+  the two character policies.** Decision (Tom): extend coverage to
+  the two remaining Known-profile policies rather than narrow the
+  verdict's four-policy claim. Consequence: the reopened round owes
+  wire-level, mock-judged evidence over
+  `character-list-request-limit` (2 hits/10 s burst — the
+  topology's tightest limit) and `character-request-limit`
+  (5 hits/10 s burst), feeding the full-contract declaration so
+  the four-policy claim is earned rather than asserted; per the
+  F4 principle, the declaration guard must extend to require
+  whatever lanes the verdict's claim rests on, so the new
+  coverage cannot silently vanish later. The implementation shape
+  (which scenario forms run against the character policies, and
+  their independent oracle arithmetic) is round work, presented
+  in the packet at re-close. Verdict slots stay suspended until
+  F6 and the F7 O-series carriage are also disposed and both
+  authorities rerun over the extended contract.
