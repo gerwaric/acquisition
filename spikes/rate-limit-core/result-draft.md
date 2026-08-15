@@ -103,7 +103,7 @@ list (see `status.md` §1).
 | M8 | 429 recovery and escalation | phase-swept | G1, G2, G5, G6 | partial — concurrent delayed originals serialize to one confirmation in flight; organic Retry-After is captured and honored; escalation/malformed matrix remains pinned by focused core/actor tests; only full-contract follow-on G1 remains | 2026-08-14: `transition_timing` and `actor_safety` targets green. |
 | M9 | Phantom race at saturation | phase-swept | G1, G2, G5, G6 + characterization | partial — forced φ=0/1 race at 14/15: the B12-scripted 2 s reservation-to-receipt window admits a mock-owned phantom, the raced 16th hit draws an organic 429 attributed as §2 race exposure through the public `ExposureAllowance` seam (proven load-bearing: the same evidence without the allowance fails G1), and recovery completes per M8's asserts; the headroom record stays U5-excluded | 2026-08-14: `transition_timing` target green; M9/B13 registry clauses Full. |
 | M10 | Agent-loop stress | phase-swept | G1, G2, G3, G6 | partial — actor/judge driver runs M10 at its stated scale: 300 enqueues, 30 spread queued cancellations, one proven-dispatched cancellation, 66 simulated minutes at φ=0/1. It non-blockingly polls each cancellation at Tom's 25ms simulated-time bound, then proves the dispatched response reconciles; it also checks drain, fuse quiet, in-flight ≤ 2, and the spacing floor. The fuse false-positive property — "never trips on any floor-compliant trace", headroom included — is **C3-owned** (see the C3 row); this row supplies the integration instance (the trace the actor emits under caller pressure is floor-compliant, with `fuse_quiet` observed alongside) and X1 the true positive: C3 ⊗ M10 ⊗ X1 discharge the clause (§9 round-four entry, 2026-08-12). G3 uses an independent half-open-interval permit oracle. Remaining: G3's epsilon cannot be finalized until the oracle models N13 padding (doc finding 12c). Reprioritization is no longer required of this row: Tom amended M10's stimulus list 2026-08-12 | 2026-08-12: `cargo test --locked --test scenario_driver m1_m13_run_against_the_actor_and_the_judge` green. |
-| M11 | Layer-1 ceiling + Cloudflare terminal | independent | G2, G5 | partial — actor/judge driver covers injected Cloudflare terminal/halt; compliant-client ceiling sweep remains pending | 2026-08-12: `cargo test --locked --test scenario_driver m1_m13_run_against_the_actor_and_the_judge` green. |
+| M11 | Layer-1 ceiling + Cloudflare terminal | independent | G2, G5 | partial — actor/judge driver covers injected Cloudflare terminal/halt (M11b); M11a's near-ceiling compliant sweep drives 301 floor-paced dispatches under a synthetic high-limit policy to the compliant maxima — exactly 4 per rolling second and 240 per rolling minute against the 20/1,000 ceilings — with zero trips, under both bucket profiles | 2026-08-14: `scenario_driver` and `m11_ceiling_sweep` targets green; `m11-compliant-never-trips` Full. |
 | M12 | 4xx-tripwire obligations | independent | G5 | partial — injected 401/generic 4xx dispositions plus both actual probe and ordinary tripwire feeds are pinned; internally seeded threshold composition proves shared latch/drain/publication without weakening D5 | 2026-08-14: actor unit and driver targets green; M12/C4 registry clauses Full. |
 | M13 | Gate structure on the wire | independent | G2 + gate-definition assertions | partial — actor/judge driver covers two unknown endpoints, forced HEAD delay, no HEAD overlap, and in-flight cap; FIFO/writer-preference cross-product remains pinned by focused actor tests and awaits its scenario assertion | 2026-08-12: `cargo test --locked --test scenario_driver m1_m13_run_against_the_actor_and_the_judge` green; prior focused evidence retained below. |
 
@@ -2235,3 +2235,34 @@ outlives the spike branch; record what exists and where.⟩
   clauses flipped to Full; totals now 100 Full / 9 Partial /
   1 Untested / 13 Excluded. No verdict slot was filled; no live
   service was contacted.
+
+- 2026-08-14 — **M11a near-ceiling compliant sweep landed** (residual
+  item 3 of `status.md` §5), discharging `m11-compliant-never-trips`
+  — the 2026-08-13 amendment's named binding evidence for G2's
+  property. New target `tests/m11_ceiling_sweep.rs`: because every
+  N23 policy caps the wire far below the D5 floor rate, the sweep
+  uses B7's scriptable-synthetic-policy channel (a
+  1,000/10 s + 10,000/60 s RulePair) so the 250 ms floor is the
+  binding constraint, then drives 300 queued submissions through the
+  public actor — the compliant maximum wire pressure, the closest a
+  correct client can get to layer 1. The mock judges all 301
+  dispatches with G2 armed; the peak rolling occupancies are pinned
+  exactly — 4 of 20 in the rolling second, 240 of 1,000 in the
+  rolling minute (the charter's "250 ms ⇒ ≤ 240 req/min" made
+  executable, with the 5× headroom ordering checked at compile
+  time) — and no arrival trips either ceiling. Run under both bucket
+  profiles per the profile-lane ratification (the synthetic policy is
+  generic; identical wire shape across profiles demonstrates
+  invariance rather than arguing it). Wire facts reach the judge as
+  the sole G5 decider (RE-2 pattern) behind a falsifiability guard
+  that also rejects peaks *above* the compliant maxima; the G3 oracle
+  is floor-only arithmetic over the mock's own dispatch log.
+  Mutation check: shrinking the synthetic burst limit to 10 makes
+  policy pacing dominate and the run fails on both axes — G5 (peak
+  sustained falls to 41; near-ceiling reachability lost) and G3 (the
+  floor-only oracle flags the unmodeled policy waits). Registry:
+  `m11-compliant-never-trips` Full; totals now 101 Full / 8 Partial /
+  1 Untested / 13 Excluded — the remaining Partial set is exactly
+  `s7-4-replay-gate` plus the seven fragment-scale clauses the
+  full-contract run owns. No verdict slot was filled; no live service
+  was contacted.

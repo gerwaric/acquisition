@@ -1202,18 +1202,30 @@ pub const CLAUSES: &[Clause] = &[
         text: "Compliant client never trips either ceiling; G2 owns the \
                property, M11a's sweep is its named binding evidence \
                (2026-08-13 amendment) (scenarios.md:333, :369)",
-        coverage: Coverage::Partial,
-        citations: &[Citation {
-            file: DRIVER,
-            test_fn: DRIVER_FN,
-            must_assert: "G2 judged green in every fragment run, including \
-                          M10's 66-minute run at both φ",
-        }],
-        note: "Re-owned M11→G2 at the 2026-08-13 ballot pass, applying the \
-               decisions-pass amendment (scenarios.md:369). Substantial \
-               standing evidence via G2 in every judged run; delta: M11a's \
-               dedicated near-ceiling sweep, the amendment's named binding \
-               evidence (the composition pattern of G3's M2/M10)",
+        coverage: Coverage::Full,
+        citations: &[
+            Citation {
+                file: "tests/m11_ceiling_sweep.rs",
+                test_fn: "m11a_near_ceiling_compliant_sweep_never_trips_either_layer1_ceiling",
+                must_assert: "301 floor-paced dispatches under a synthetic \
+                              high-limit policy peak at exactly 4 per rolling \
+                              second and 240 per rolling minute — the \
+                              compliant maxima against the 20/1,000 B10 \
+                              ceilings — with zero layer-1 trips, judged \
+                              with G2 armed under both bucket profiles",
+            },
+            Citation {
+                file: DRIVER,
+                test_fn: DRIVER_FN,
+                must_assert: "G2 judged green in every fragment run, including \
+                              M10's 66-minute run at both φ",
+            },
+        ],
+        note: "Re-owned M11→G2 at the 2026-08-13 ballot pass \
+               (scenarios.md:369). M11a's dedicated near-ceiling sweep — the \
+               amendment's named binding evidence — landed 2026-08-14; \
+               mutation-checked (a policy-paced run loses the near-ceiling \
+               peaks and fails G5)",
     },
     Clause {
         id: "m11-cloudflare-terminal",
