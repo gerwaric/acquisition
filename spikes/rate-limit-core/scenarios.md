@@ -755,6 +755,17 @@ Notes on the load-bearing rows:
   assertion load-bearing: a retry at `Retry-After` alone *can*
   violate in the mock, so waiting `Retry-After + bucket + buffer`
   is tested, not decorative.
+
+  > **Amendment (Tom), 2026-08-15 (with the §7.4 gate adoption)** —
+  > two quantization conventions the note above leaves open are
+  > pinned as the model's readings, surfaced by the gate spec's
+  > blind witness audit: buckets are **half-open** (an arrival
+  > exactly on a grid point takes the full following bucket), and
+  > expiry is **exclusive** (a hit whose adversarial expiry equals
+  > an arrival instant is not counted at that arrival). The §7.4
+  > band tables are sensitive to the expiry convention by ±1 ms at
+  > their edges; N13 safety is indifferent — the 1 s buffer dwarfs
+  > the slop.
 - **B10, the ceiling rules (amended 2026-08-09, veto-point
   review — the burst rule is Tom's).** Two rules with two jobs.
   The per-minute rule, 1000 / rolling 60 s, is the executable
@@ -846,6 +857,19 @@ over φ:
   > feedback-consistent; its exact executable construction is open work
   > and must be specified before implementation. Every-phase safety
   > remains binding in the closed-loop C1/M-series tests.
+
+  > **Amendment (Tom), 2026-08-15 — replacement gate adopted.** The
+  > replacement calibration gate is specified in
+  > `s7-4-replacement-gate.md` (ratified in full 2026-08-15): the
+  > capture refutes phases two ways — the SD-R5-F2 bands by
+  > disposition, a pinned borderline halo by state classification —
+  > and on the remaining consistent bands the gate asserts
+  > disposition agreement, pessimism, and no spurious borderline at
+  > every band edge and at a stride interior sample, with an ignored
+  > exhaustive companion over all 60,000 phases required in review
+  > evidence. Saturation agreement at consistent phases is an
+  > entailed corollary; the diagnostic bullet below remains correct
+  > for unknown-φ matching.
 - **Diagnostic, not a gate:** at the capture's saturation points
   the mock's counters should agree with the recorded `15/15` and
   `30/30` states (N25/N26 grounding). Exact per-response state

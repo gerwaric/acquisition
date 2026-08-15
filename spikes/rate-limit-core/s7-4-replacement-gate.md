@@ -1,6 +1,14 @@
 # §7.4 replacement calibration gate — specification
 
-Status: **proposed — awaiting Tom's adjudication** (`status.md` §3).
+Status: **adopted — ratified in full by Tom, 2026-08-15.** All five
+§6 asks were ratified, with two amendments folded in at
+ratification: the retrospective P1 anchor and the future-capture
+re-derivation rule (both in §2.3/§4 below). The ratification and
+its consequences are recorded in `result-draft.md` §9; the §7.4
+adoption marker and the B3 convention amendment are applied in
+`scenarios.md`. **This document is now contract for the gate's
+implementation.**
+
 Drafted 2026-08-14 by the SD-R6 review session at Tom's direction,
 deliberately relaxing the session firewall (his call, same day).
 Compensating controls: two independent adversarial fresh-context
@@ -126,7 +134,15 @@ layer's timing decisions. No claim is made about body-driven demand.
   here so the enumeration is exhaustive. Grounded in §2.1's code
   reading (twice adversarially checked), but ratified as
   *exhaustive* by Tom (the code's author) — the gate does not and
-  cannot test this premise, and it is load-bearing.
+  cannot test this premise, and it is load-bearing. **P1 is
+  anchored retrospectively** (amendment, ratification 2026-08-15):
+  it describes the client *as of the capture date* (the 2026-08-14
+  repository state that produced the fixture) — a frozen fact of
+  the fixture's provenance. Later changes to `src/ratelimit/`
+  cannot reopen it for this capture; P1 needs the captured client
+  to be feedback-frugal, not correct, so field bugs in that client
+  threaten nothing here unless they create a new feedback→timing
+  channel.
 - **P2 (single-actor capture).** No third-party traffic hit the
   account's counters during the capture. Supporting evidence — the
   recorded states never exceed the model's pure client-count at any
@@ -394,6 +410,15 @@ clauses still await the declared full-contract run.
   `b12-scripted-delay`'s note updates its cross-reference; no new
   clause is minted. The precondition-5 divergence enters
   `result-draft.md` as a doc finding at implementation.
+- **Future captures** (amendment, ratification 2026-08-15): P1–P3
+  and C3 are properties of *this capture's client*. A future
+  capture from a different client — including the spike's Rust
+  actor once it becomes the reference implementation — re-derives
+  its own P1 and its own consistency conditions before joining
+  §7.4. The Rust client's surface includes ledger reconciliation,
+  so its conditions will differ from C1–C3; the §5 ledger-floor
+  measurement is a preview of that analysis, not a substitute for
+  it.
 - **Out of scope:** closed-loop every-phase client safety (C1 and
   the M-series own it); the full-contract run; the supplemental
   fixture; body-driven demand (§2.2); any live-service contact.
@@ -470,6 +495,11 @@ independently re-derived the starred items with its own probe.
   committed loader/model path, and this one was not.
 
 ## 6. What Tom adjudicates
+
+**Ratified in full, 2026-08-15** — all five items below, with the
+retrospective-P1 and future-capture amendments folded in at
+ratification. The list is preserved as the record of what was
+signed.
 
 1. Ratify **P1** as the *exhaustive* schedule-relevant feedback
    surface of the production client (you wrote it; the gate cannot

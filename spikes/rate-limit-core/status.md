@@ -77,16 +77,13 @@ coverage.
 
 ## 3. Open decisions (Tom)
 
-- **Adjudicate the proposed §7.4 replacement-gate spec**
-  (`s7-4-replacement-gate.md` §6, presented 2026-08-14): ratify
-  premises P1/P2/P3, approve the C1–C3 consistency definition and
-  the strict halo treatment, accept the stated anti-strictness
-  reduction, approve the superseded-test deletion and §7.4 marker
-  text, and confirm the discharge line. Until adjudicated, the spec
-  is a proposal, not contract; implementation must not start.
-
-Both earlier pending sign-offs were approved 2026-08-14; wording
-and consequences are recorded in `result-draft.md` §9.
+None. Tom ratified the §7.4 replacement-gate spec in full on
+2026-08-15 — all five §6 asks, with the retrospective-P1 and
+future-capture amendments folded in at ratification.
+`s7-4-replacement-gate.md` is now contract; the adoption marker and
+the B3 convention amendment are applied in `scenarios.md`; the
+ratification record is in `result-draft.md` §9. (Both earlier
+2026-08-14 sign-offs remain recorded there as well.)
 
 - §7.4 is adjudicated as a frozen-contract expectation error: a
   feedback-dependent captured dispatch trace is not required to stay
@@ -126,11 +123,11 @@ work.
    (`tests/m11_ceiling_sweep.rs`; `m11-compliant-never-trips` Full —
    `result-draft.md` §9 changelog).
 4. The feedback-consistent §7.4 replacement calibration gate.
-   **Specified 2026-08-14** (`s7-4-replacement-gate.md`, drafted with
-   two adversarial fresh-context reviews, probe measurements, and a
-   2026-08-15 blind witness audit that hand-verified the first halo
-   edge outside the shared machinery — §9 changelog); now awaiting
-   Tom's adjudication (§3), then
+   **Spec ratified 2026-08-15** (`s7-4-replacement-gate.md` — now
+   contract; drafted with two adversarial fresh-context reviews,
+   probe measurements, and a blind witness audit that hand-verified
+   the first halo edge outside the shared machinery — §9
+   changelog); next is
    implementation and its review round. The active band-edge,
    exhaustive band enumeration, and 43/43 witness diagnostics remain
    load-bearing; the superseded open-loop every-phase assertion

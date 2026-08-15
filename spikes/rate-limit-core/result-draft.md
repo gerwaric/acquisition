@@ -2402,3 +2402,28 @@ outlives the spike branch; record what exists and where.⟩
   record the audit; hesitation 1 of the 2026-08-15 adjudication
   discussion is closed without adding an implementation-review
   rider. No code changed; no live service was contacted.
+
+- 2026-08-15 — **Tom ratified the §7.4 replacement-gate spec in
+  full.** All five §6 asks: P1/P2/P3 ratified (P1 as the exhaustive
+  schedule-relevant feedback surface of the capture-date client),
+  the C1–C3 consistency definition with the strict halo treatment
+  approved, the anti-strictness reduction to non-emptiness plus pin
+  discipline accepted, the superseded-test deletion (contingent on
+  the residue-assert migration) and both `scenarios.md` amendments
+  approved, and the discharge line confirmed (green gate ⇒
+  `s7-4-replay-gate` Full, nothing else). Two amendments were
+  folded in at ratification, both arising from Tom's 2026-08-15
+  review comments: (a) **retrospective P1 anchoring** — P1
+  describes the client as of the capture date, a frozen provenance
+  fact that later `src/ratelimit/` changes cannot reopen, and
+  needs that client feedback-frugal, not correct; (b) the
+  **future-capture rule** — a capture from a different client
+  (including the Rust actor once it is the reference
+  implementation) re-derives its own P1 and consistency conditions
+  before joining §7.4. Consequences: `s7-4-replacement-gate.md` is
+  contract; the §7.4 adoption marker and the B3
+  convention amendment (half-open buckets, exclusive expiry — the
+  2026-08-15 audit's doc finding, now resolved at contract level)
+  are applied in `scenarios.md`; implementation of the gate is
+  unblocked as `status.md` §5 item 4. No verdict slot changes; no
+  live service was contacted.
