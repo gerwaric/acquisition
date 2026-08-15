@@ -1,21 +1,23 @@
 # Scenario-driver and safety-closure hand-off
 
-Status: **open — the 2026-08-15 repeated re-close review found
-SD-R8-F21/F22; this file requires an F21/F22 repair-range four-part
-update before re-review.** The review verified all ten F11–F20 repairs
-and reproduced the full matrix and all five mutation signatures, but
-the run-owned-label class has a fourth generation: F21 re-expresses the
-F12 split profile outside `mod lane` by mutating the `Copy` record's
-`pub` field after construction, and F22 forges the (M2, CharacterList)
-pair at declaration time from a post-judge cloned report with zero
-CharacterList wire traffic — both against passing authorities. The
-packet's "unrepresentable outside this module" and
-pair-is-the-guarded-fact claims do not survive them. Findings,
-evidence, and proposed dispositions are in `result-draft.md` §9; live
-state is `status.md`. The repair session must update the silences, seam
-map/invariant walk, coverage confession (including the review's
-enumerated unbound labels), and judgment calls; this review session
-does not author its packet for it.
+Status: **open — the F21/F22 repair packet is presented 2026-08-15
+and awaits the repeated independent re-close review.** Commit
+`a09ef5ed` seals reproduction records, reports, and mock-authentic
+evidence with Rust privacy across the integration-test crate boundary;
+the exact F21/F22 forgeries and direct report construction are
+compile-fail pins. Tom's hybrid decision is carried below: observation
+and state-change vectors are bound, while assertion coverage/pass are
+named test-authorship trust surfaces with their compensating controls.
+The repair session closes nothing, contacts no live service, and does
+not restore either verdict fill. Live state is `status.md`.
+
+Prior status: **open — the 2026-08-15 repeated re-close review found
+SD-R8-F21/F22 and required this repair-range packet.** The review
+verified all ten F11–F20 repairs and reproduced the full matrix and all
+five mutation signatures, but F21 re-expressed the F12 split by
+post-construction record mutation and F22 forged a required pair from a
+post-judge cloned report. Findings and dispositions are in
+`result-draft.md` §9.
 
 Prior status: **open — the F11–F20 repair packet (dated 2026-08-15 additions
 in each section below) is presented and awaits the repeated independent
@@ -195,6 +197,14 @@ repairs:
 | F15's sweep says "every sentence"; the record's dated markers also carry the old "verifies … Full" wording, and dated text is never rewritten. | Live claim sentences are corrected in place; one dated §1 marker states how to read the older dated wording. | A reader of the historical markers meets the clarifying marker in the same section before any verdict text. |
 | The declaration-check order after adding the pair requirement is unspecified, but three refusal signatures are already pinned by prior reviews. | Pair check runs last — after eligibility, scenario, M8-lane, and endpoint checks. | The F4/F5 pinned signatures (`MissingM8KnownLane`, `MissingEndpointLane`) are preserved verbatim; only states the old guard accepted reach the new pair refusal. |
 | F19 names the conventions to carry but not where they live in N31. | Transcribed into N31's own body with dated attribution to B3's ratified amendment — no new N-number, staying in the model-choice lane. | The repeated audit's CN5↔N31 comparison reads one entry; the ±1 ms §7.4 edge sensitivity and N13's indifference are stated with it. |
+
+(F21/F22 repair packet, 2026-08-15) — silences and boundaries:
+
+| Silence or boundary | Conservative reading | Next-call consequence |
+|---|---|---|
+| The earlier “unrepresentable” claim never named an enforcement mechanism. | The mechanism is Rust privacy across the library/integration-test crate boundary. `ReproductionRecord`, `RunEvidence`, `RunReport`, and `MockEvidence` fields are private; only read accessors cross the boundary, and only `judge` constructs a report. The lexical lane pin remains a belt, never the claim-bearer. | F21's record overwrite, F22's clone-and-endpoint overwrite, and direct `RunReport` construction fail to compile. A future public field or report constructor makes a compile-fail pin unexpectedly compile and fails doctests. |
+| “Atomic mock carriage” did not state what happens if a request has handed off but has not produced an observation. | `seal_evidence` refuses `PendingObservations` until handoff and observation counts agree, then snapshots observations and state changes under one lock and permanently refuses new traffic or logged state changes. Repeated seals return the same value. | A seal during an arrival delay refuses rather than omitting an in-progress observation; after a successful seal the evidence vectors cannot grow behind the judge's back. |
+| Tom's hybrid decision binds mock facts but intentionally does not pseudo-bind a test's claims about its own scenario. | Bind observations and state changes in mock-only `MockEvidence`. Record `ScenarioAssertion.coverage` and `ScenarioAssertion.passed` as named test-authorship trust surfaces, compensated by each scenario's falsifiability guards and `full_contract_scale_reaches_every_fragment_closure_shape`. | A future packet cannot describe coverage/pass as independently derived or sealed; changing either claim requires re-review of its scenario guard and scale-shape reachability. |
 
 
 
@@ -382,6 +392,31 @@ walk for the F4/F5/F9 repairs:
   text; the migration-package charge carries Tom's own F16 amendment
   with attribution; the ground-truth branch still touches only
   `network-ground-truth.md`.
+
+(F21/F22 repair packet, 2026-08-15) — seams and invariant walk:
+
+- **Mock → evidence → judge:** only `MockController::seal_evidence`
+  constructs `MockEvidence`. Its private observation/state-change
+  vectors move intact into private `RunEvidence.mock`; the judge sees
+  read-only slices. Integration tests can inspect or clone the complete
+  carriage but cannot filter and reconstruct it.
+- **Lane/conformance → judge → declaration:** `Lane::evidence` remains
+  the sole authority-run construction path. Conformance constructs the
+  private `ReproductionRecord`; `judge` alone constructs private-field
+  `RunReport`; `declare` consumes those sealed reports. Cloning is safe
+  because no writable field or setter crosses the crate boundary.
+- **F12 provenance:** engine profile and record profile still originate
+  in the same private `Lane` value. The source-count pin guards the
+  pre-construction path; crate privacy guards the post-construction
+  value. The former is explicitly only a belt on the latter.
+- **Six invariants:** the repair changes conformance artifacts, the
+  offline mock, tests, and registry notes; it does not change client
+  core or actor behavior. (1) no token/entry state changes; (2)
+  reservation identity is untouched; (3) pessimism and reconciliation
+  are untouched; (4) `try_reserve` remains the sole scheduling
+  authority; (5) response entry points are untouched; (6) client
+  notifications are untouched. Mock sealing is test-harness finality,
+  not a second scheduler or client state.
 
 
 
@@ -606,6 +641,37 @@ the F12 structural source pin.
   prose — the standing confession, now stated accurately everywhere
   per F15 rather than overstated.
 
+(F21/F22 repair packet, 2026-08-15) — coverage confession:
+
+- Registry totals remain **124 clauses: 110 Full, no Partial, one
+  accepted Untested limitation, and 13 Excluded**. No clause was
+  minted. `m8-both-lanes`, `m2-character-policy-lanes`,
+  `g5-scenario-assertions`, and `b13-observation-log` received only
+  citation/note corrections on obligations they already own.
+- Bound by crate privacy: reproduction fields from construction
+  through declaration; judge-produced report fields; and the complete
+  mock observation/state-change carriage. Exact F21/F22 and direct
+  report-construction compile-fail doctests are enforcement pins, not
+  lexical or judge-time substitutes.
+- **Named trust surfaces:** `ScenarioAssertion.coverage` and
+  `ScenarioAssertion.passed` remain authored by the scenario test.
+  RE-2 deliberately prevents the judge from re-deriving those claims.
+  The owning `g5-scenario-assertions` note cites the per-scenario
+  falsifiability guards and
+  `full_contract_scale_reaches_every_fragment_closure_shape` as
+  compensating controls; they expose contradictory or unreachable
+  claims but do not make test authorship unforgeable.
+- Scenario identity remains a separate named driver-owned surface as
+  previously confessed: the wire does not carry an M-row id. Required
+  pairs and typed sole-decider assertions check the claims that depend
+  on it; other scenario/endpoint choices are not silently promoted to
+  wire facts.
+- Negative conformance fixtures intentionally construct pre-judge
+  synthetic reproduction/assertion claims to exercise refusal paths.
+  They now obtain observations and state changes only from an actual
+  sealed mock and can no longer fabricate a post-judge report. Only the
+  dedicated driver produces verdict-authority report sets.
+
 
 
 - The canonical wired median (81 ms across 383 samples) replaces the
@@ -798,6 +864,31 @@ the F12 structural source pin.
   the lane definition and cites the carrying N-entries at point of
   use. A different session might have minted a "private" lane; that
   seemed like vocabulary invention beyond the charter.
+
+(F21/F22 repair packet, 2026-08-15) — judgment calls:
+
+- **Keep `Clone`; remove mutability.** A cloned sealed value carries the
+  same facts. Removing `Clone` would complicate declaration tests while
+  failing to name the actual defect; private fields and no setters make
+  clone-then-modify impossible.
+- **Return a seal error for incomplete observation carriage.** Waiting
+  inside the mock would need new coordination and panicking would hide a
+  harness ordering defect. `PendingObservations { handoffs,
+  observations }` makes incompleteness explicit before sealing.
+- **Reuse `SweepConfiguration` at the conformance seam.** Seed, phase,
+  and profile already form the declared sweep key; carrying them
+  together keeps the private record constructor small without exposing
+  record fields or adding a public record constructor.
+- **Do not pseudo-bind assertion coverage/pass.** Tom selected the
+  honest trust-surface record because the test is the source of those
+  scenario facts. A second in-process derivation would be another
+  test-authored label and would overstate protection against test
+  rewrites.
+- **Rebuild negative fixtures before judging.** The F5/F9/F11/F12
+  refusal cases now use real sealed mock inputs and judge-produced
+  reports; none mutates a report after judging. This preserves the
+  recorded runtime signatures while making the former forge technique
+  unavailable.
 
 ## 5. Verification presented with this packet
 
@@ -999,3 +1090,38 @@ repairing session does not close SD-R8 — the packet awaits the
 repeated independent re-close review, then the repeated
 `final-audit-charge.md` audit over the repaired tree and both
 migration diffs.
+
+(F21/F22 repair packet, 2026-08-15) — verification presented with
+this packet, entirely offline, with implementation committed first as
+`a09ef5ed`:
+
+- `cargo test --locked`: 175 passed / 0 failed / 3 ignored.
+- `cargo test --locked --release`: 173 / 0 / 3 (the two debug-only
+  drop-bomb tests are absent).
+- `PROPTEST_CASES=4096 cargo test --locked`: 175 / 0 / 3.
+- Compile-fail authority: doctests 5/5. The four new pins cover the
+  F21 record overwrite, F22 post-judge clone/endpoint overwrite,
+  direct `RunReport` construction, and direct `MockEvidence`
+  construction; X2's existing outside-actor privacy pin remains green.
+- Pinned φ=0 full-contract declaration: 1/1 over all sixteen reports.
+  Explicit debug 4,096-case declared run: 1/1 in 307.55 s. The same
+  explicit authority also passed release 1/1 in 26.41 s.
+- Obligations: 6/6, reporting 124 clauses — 110 Full / 0 Partial /
+  1 accepted Untested / 13 Excluded, `OPEN_UNTESTED` empty. Both
+  ignored §7.4 release tests: 2/2 in 7.76 s. Sanitizer: 4/4.
+  All-target clippy with warnings denied, fmt, and `git diff --check`
+  are clean.
+- Preserved executable refusals compile and pass their exact asserts:
+  F5 `MissingEndpointLane { endpoint: CharacterList }`; F9
+  `ReproductionMismatch { id: 1 }`; F11
+  `MissingScenarioEndpointLane { scenario: M2, endpoint:
+  CharacterList }`; F12/F4 `MissingM8KnownLane`.
+
+No temporary source mutation was applied or reverted in this repair.
+The F21/F22 reviewer programs are now the compile-fail tests themselves;
+using a runtime mutation would weaken the required enforcement claim.
+The earlier runtime programs remain ordinary negative tests, so their
+refusal signatures were rerun without editing source. No live service
+was contacted. Both verdict fills remain suspended; this session closes
+nothing and hands the packet to the repeated independent re-close
+review, followed by the repeated final audit.

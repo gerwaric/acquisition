@@ -3922,3 +3922,72 @@ hoistable to its own repository without surgery.
   across the integration-test crate boundary, under which all four
   generations of forgery fail to compile, pinnable by compile-fail
   tests. `f21-f22-repair-charge.md` collects the assignment.
+
+- 2026-08-15 — **F21/F22 repair session: judged artifacts and mock
+  evidence are sealed at the Rust crate boundary; Tom's hybrid trust
+  decision is recorded; the round remains open.** Implementation commit
+  `a09ef5ed` makes every `ReproductionRecord` field private, makes every
+  `RunReport` field private with read-only accessors and no constructor,
+  and leaves `judge` as the sole report constructor. `RunEvidence` also
+  has private fields and constructs reproduction records only inside the
+  conformance seam. Consequently the reviewer's F21 overwrite-after-
+  evidence and F22 post-judge clone/endpoint overwrite do not reach a
+  runtime check: they fail Rust privacy at integration-test compilation.
+  Direct `RunReport` construction fails for the same reason. All three
+  exact shapes are pinned as `compile_fail` doctests with their privacy
+  diagnostics; the existing lexical F12 source pin remains only a belt
+  over the driver's pre-construction path, never the enforcement claim.
+
+  Tom's **bind** branch is `MockEvidence`: only the mock module can
+  construct its private observation and state-change vectors, and
+  `RunEvidence` accepts the vectors only in that carriage. Sealing holds
+  the mock lock for both snapshots, refuses
+  `PendingObservations { handoffs, observations }` if a dispatched
+  request has not produced its observation, and after success refuses
+  new traffic or logged state changes; repeated seals return equivalent
+  evidence. `sealed_evidence_is_complete_final_and_mock_authentic` pins
+  each of those properties. This makes the evidence reaching the judge
+  mock-authentic by construction rather than by a lexical or judge-time
+  completeness check.
+
+  Tom's **record** branch is explicit in the fresh coverage confession
+  and the owning `g5-scenario-assertions` registry note:
+  `ScenarioAssertion.coverage` and `ScenarioAssertion.passed` are named
+  test-authorship trust surfaces. Their cited compensating controls are
+  the per-scenario falsifiability guards and
+  `full_contract_scale_reaches_every_fragment_closure_shape`; neither is
+  described as an in-process binding. `b13-observation-log` records the
+  mock carriage binding; `m8-both-lanes` records F21 privacy and the
+  lexical belt distinction; `m2-character-policy-lanes` records the
+  judge-only sealed report boundary. Registry totals remain 124 clauses
+  — 110 Full / 0 Partial / 1 accepted Untested / 13 Excluded — and no
+  clause was minted.
+
+  The conformance negative fixtures were rebuilt from real sealed mock
+  evidence and judge-produced reports instead of mutable post-judge
+  literals. The earlier runtime refusals therefore remain executable:
+  F5 `MissingEndpointLane { endpoint: CharacterList }`; F9
+  `ReproductionMismatch { id: 1 }`; F11
+  `MissingScenarioEndpointLane { scenario: M2, endpoint:
+  CharacterList }`; and F12/F4 `MissingM8KnownLane`. No temporary source
+  mutation was needed or reverted: the exact F21/F22 programs are the
+  compile-fail tests, and the earlier refusal programs remain ordinary
+  executable negative tests. The fresh four-part repair packet is in
+  `scenario-driver-handoff.md`. No live service was contacted, neither
+  verdict fill is restored, and this session closes neither SD-R8 nor
+  the scenario-driver slice; repeated independent re-close review is
+  next, followed by the repeated final audit.
+
+  Verification on the committed implementation, entirely offline:
+  `cargo test --locked` 175 passed / 0 failed / 3 ignored; release 173
+  / 0 / 3; `PROPTEST_CASES=4096 cargo test --locked` 175 / 0 / 3;
+  compile-fail doctests 5/5 (four repair pins plus the existing X2
+  pin); pinned φ=0 declaration 1/1; explicit debug 4,096-case
+  full-contract declaration 1/1 in 307.55 s and release companion 1/1
+  in 26.41 s; obligations 6/6 at unchanged 124/110 totals and empty
+  `OPEN_UNTESTED`; both ignored §7.4 release tests 2/2 in 7.76 s;
+  sanitizer 4/4; all-target clippy with warnings denied, fmt, and diff
+  checks clean. The F5/F9/F11/F12 ordinary negative tests compiled and
+  asserted their recorded signatures. No temporary source mutation was
+  applied or reverted: F21/F22 are enforced by the compile-fail
+  programs themselves, not by a runtime mutation experiment.

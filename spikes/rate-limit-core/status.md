@@ -73,9 +73,8 @@ The registry totals remain accurate; verdict readiness is suspended.
 declaration requires the named (M2, endpoint) saturation pairs and
 binds each M8 profile check to its endpoint, and the driver's engine
 construction and record provenance flow from one structurally pinned
-lane source (`mod lane`), so the audit's split-profile state is
-unrepresentable outside that module. Both audit bypasses are pinned as
-negative tests, both authorities reran green over the repaired guards
+lane source (`mod lane`). Both audit bypasses were pinned as negative
+tests, and both authorities reran green over the repaired guards
 (pinned declaration; 4,096-case declared run in 306.83 s; obligations
 6/6 at unchanged 124/110 totals), and all five mutation signatures —
 the preserved F5/F9 pins and the new F11/F12 refusals — are recorded
@@ -88,6 +87,21 @@ and the (M2, CharacterList) pair satisfied by a post-judge cloned
 report with zero CharacterList wire traffic. Verdict readiness stays
 suspended pending the F21/F22 repairs, a fresh packet, re-review, and
 the repeated final audit.
+**The F21/F22 repairs landed 2026-08-15** (`a09ef5ed`) under Tom's
+hybrid decision. Rust privacy across the library/integration-test crate
+boundary now seals `ReproductionRecord`, judge-only `RunReport`, and
+the mock-only observation/state-change carriage. The exact F21 record
+overwrite, F22 post-judge clone/endpoint overwrite, and direct report
+construction are compile-fail doctests; the existing lexical lane pin
+is retained only as a belt. `seal_evidence` refuses incomplete
+handoff/observation carriage, snapshots both vectors atomically, and
+prevents later mock traffic or logged state changes. Assertion coverage
+and assertion-passed remain named test-authorship trust surfaces in the
+packet and `g5-scenario-assertions`, with the per-scenario
+falsifiability guards and scale-shape test cited. Registry totals remain
+124/110 and both verdict fills remain suspended: this repair session
+closes nothing and awaits the repeated independent re-close review,
+then the repeated final audit.
 `obligation-map.md`
 is the superseded prose ancestor; read its §8 for the audit's
 discrepancy analysis (dated at `e2034807`), never for current
@@ -241,6 +255,14 @@ coverage.
   dispositions in `result-draft.md` §9; the hand-off is flipped back
   to owing an F21/F22 repair-range packet. Both verdict fills stay
   suspended.
+  **The F21/F22 repair session completed 2026-08-15** at `a09ef5ed`.
+  The fresh four-part packet is presented in
+  `scenario-driver-handoff.md`; compile-time privacy, not a lexical or
+  judge-time substitute, is the enforcement boundary. Tom's two named
+  assertion trust surfaces and their compensating controls are carried
+  in both packet and registry note. The session closes nothing: SD-R8
+  remains open awaiting repeated independent re-close review and then
+  the repeated final audit.
 - Every other slice (core, bootstrap, mock, actor, clause registry,
   doc split) is closed; their hand-offs are historical records.
   (Doc split closed 2026-08-13, DS-R1 — `result-draft.md` §9.)
@@ -338,18 +360,14 @@ ratification record is in `result-draft.md` §9. (Both earlier
 
 ## 4. Blocked
 
-Delivery is blocked on re-closing SD-R8. The F11–F20 repairs landed
-and were verified, but the repeated re-close review found
-SD-R8-F21/F22 (§2) and left the round open. What remains before
-either delivery PR: repair F21/F22 (sealing the judged artifacts per
-the §9 proposed dispositions, or an alternative Tom prefers), a fresh
-four-part packet, another repeated independent re-close review, then
-the repeated `final-audit-charge.md` audit over the repaired tree and
-both migration diffs. Both verdict fills stay suspended until then.
-One choice is flagged for Tom in the §9 entry: whether the three
-enumerated unbound labels (assertion coverage, assertion-passed
-carriage, observation-vector carriage) are bound or recorded as named
-trust surfaces.
+Delivery is blocked on re-closing SD-R8. The F21/F22 sealing repairs
+and fresh four-part packet are present, but this implementing session
+closes nothing. What remains before either delivery PR: the repeated
+independent re-close review, then the repeated
+`final-audit-charge.md` audit over the repaired tree and both migration
+diffs. Both verdict fills stay suspended until then. No Tom decision is
+open: his hybrid decision binds the mock vectors and records assertion
+coverage/pass as named trust surfaces.
 
 ## 5. Next work
 
@@ -437,10 +455,10 @@ Reopened SD-R8 work (audit and re-close-review entries,
      **F11–F20 repairs done 2026-08-15** (the three bullets above);
      the repeated re-close review ran the same day, verified them,
      and **found SD-R8-F21/F22 — the round stays open**. Now next:
-     the F21/F22 repairs (seal the judged artifacts per the §9
-     proposed dispositions), a fresh four-part packet, another
-     repeated independent re-close review, then the repeated final
-     audit.
+     ~~the F21/F22 repairs and fresh four-part packet~~ — **done
+     2026-08-15** (`a09ef5ed`; packet presented without closure), then
+     another repeated independent re-close review and the repeated
+     final audit.
   5. The two delivery PRs (`spike/rate-limit-core` → `redesign`;
      CN docs → `master`). **F6 — and the spike — complete at
      landing.**
