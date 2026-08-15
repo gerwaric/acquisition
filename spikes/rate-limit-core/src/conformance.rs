@@ -3,7 +3,7 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use crate::mock::model::MAX_REQUESTS_PER_RUN;
-use crate::mock::{Endpoint, MockStateChange, Observation};
+use crate::mock::{Endpoint, MockEvidence, MockStateChange, Observation};
 
 pub const G3_EPSILON_MS: u64 = 500;
 pub const MAX_SWEEP_CONFIGURATIONS: usize = 256;
@@ -274,16 +274,48 @@ impl SweepPlan {
     }
 }
 
+/// Sealed reproduction provenance carried from evidence construction through
+/// judging and declaration.
+///
+/// SD-R8-F21's exact overwrite-after-evidence forgery is a compile error
+/// across the integration-test crate boundary:
+///
+/// ```compile_fail,E0616
+/// use rate_limit_core::conformance::{RunEvidence, SHIPPED_ASSUMED_PROFILE};
+///
+/// fn forge(evidence: &RunEvidence) {
+///     let mut record = evidence.reproduction().unwrap();
+///     record.client_buckets = SHIPPED_ASSUMED_PROFILE;
+/// }
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ReproductionRecord {
-    pub seed: u64,
-    pub phase_ms: u64,
-    pub client_buckets: ClientBucketProfile,
+    seed: u64,
+    phase_ms: u64,
+    client_buckets: ClientBucketProfile,
     /// The lane's routed endpoint — run-owned provenance, like
     /// `client_buckets`. The full-contract declaration keys its
     /// policy-coverage requirement to this field (SD-R8-F5): the verdict
     /// claims every N23 policy, so the declaration must see every endpoint.
-    pub endpoint: Endpoint,
+    endpoint: Endpoint,
+}
+
+impl ReproductionRecord {
+    pub fn seed(self) -> u64 {
+        self.seed
+    }
+
+    pub fn phase_ms(self) -> u64 {
+        self.phase_ms
+    }
+
+    pub fn client_buckets(self) -> ClientBucketProfile {
+        self.client_buckets
+    }
+
+    pub fn endpoint(self) -> Endpoint {
+        self.endpoint
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -411,12 +443,70 @@ impl ExposureAllowance {
 
 #[derive(Debug, Clone)]
 pub struct RunEvidence {
-    pub scenario: ScenarioId,
-    pub reproduction: Option<ReproductionRecord>,
-    pub observations: Vec<Observation>,
-    pub state_changes: Vec<MockStateChange>,
-    pub unavoidable_exposure: Option<ExposureAllowance>,
-    pub assertions: Vec<ScenarioAssertion>,
+    scenario: ScenarioId,
+    reproduction: Option<ReproductionRecord>,
+    mock: MockEvidence,
+    unavoidable_exposure: Option<ExposureAllowance>,
+    assertions: Vec<ScenarioAssertion>,
+}
+
+impl RunEvidence {
+    pub fn phase_swept(
+        scenario: ScenarioId,
+        sweep: SweepConfiguration,
+        endpoint: Endpoint,
+        mock: MockEvidence,
+        unavoidable_exposure: Option<ExposureAllowance>,
+        assertions: Vec<ScenarioAssertion>,
+    ) -> Self {
+        Self {
+            scenario,
+            reproduction: Some(ReproductionRecord {
+                seed: sweep.seed,
+                phase_ms: sweep.phase_ms,
+                client_buckets: sweep.client_buckets,
+                endpoint,
+            }),
+            mock,
+            unavoidable_exposure,
+            assertions,
+        }
+    }
+
+    pub fn phase_independent(
+        scenario: ScenarioId,
+        mock: MockEvidence,
+        unavoidable_exposure: Option<ExposureAllowance>,
+        assertions: Vec<ScenarioAssertion>,
+    ) -> Self {
+        Self {
+            scenario,
+            reproduction: None,
+            mock,
+            unavoidable_exposure,
+            assertions,
+        }
+    }
+
+    pub fn scenario(&self) -> ScenarioId {
+        self.scenario
+    }
+
+    pub fn reproduction(&self) -> Option<ReproductionRecord> {
+        self.reproduction
+    }
+
+    pub fn observations(&self) -> &[Observation] {
+        self.mock.observations()
+    }
+
+    pub fn state_changes(&self) -> &[MockStateChange] {
+        self.mock.state_changes()
+    }
+
+    pub fn assertions(&self) -> &[ScenarioAssertion] {
+        &self.assertions
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -481,16 +571,60 @@ pub struct GateResult {
     pub failures: Vec<String>,
 }
 
+/// A report sealed at the judge boundary. Only [`judge`] constructs one;
+/// callers get read accessors and may clone the immutable value.
+///
+/// SD-R8-F22's post-judge clone-and-relabel forgery cannot compile:
+///
+/// ```compile_fail,E0616
+/// use rate_limit_core::conformance::RunReport;
+/// use rate_limit_core::mock::Endpoint;
+///
+/// fn forge(report: &RunReport) {
+///     let mut forged = report.clone();
+///     forged.reproduction.as_mut().unwrap().endpoint = Endpoint::CharacterList;
+/// }
+/// ```
+///
+/// Nor can integration-test code bypass the judge by constructing a report
+/// directly:
+///
+/// ```compile_fail,E0451
+/// use rate_limit_core::conformance::{ContractCoverage, RunReport, ScenarioId};
+///
+/// let _forged = RunReport {
+///     scenario: ScenarioId::M2,
+///     reproduction: None,
+///     contract_coverage: ContractCoverage::FullContract,
+///     gates: Vec::new(),
+/// };
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RunReport {
-    pub scenario: ScenarioId,
-    pub reproduction: Option<ReproductionRecord>,
+    scenario: ScenarioId,
+    reproduction: Option<ReproductionRecord>,
     /// `Fragment` if *any* assertion in the evidence was a fragment.
-    pub contract_coverage: ContractCoverage,
-    pub gates: Vec<GateResult>,
+    contract_coverage: ContractCoverage,
+    gates: Vec<GateResult>,
 }
 
 impl RunReport {
+    pub fn scenario(&self) -> ScenarioId {
+        self.scenario
+    }
+
+    pub fn reproduction(&self) -> Option<ReproductionRecord> {
+        self.reproduction
+    }
+
+    pub fn contract_coverage(&self) -> ContractCoverage {
+        self.contract_coverage
+    }
+
+    pub fn gates(&self) -> &[GateResult] {
+        &self.gates
+    }
+
     pub fn passed(&self) -> bool {
         self.gates
             .iter()
@@ -659,10 +793,13 @@ pub fn judge(
     evidence: &RunEvidence,
     oracle: &impl ScenarioOracle,
 ) -> Result<RunReport, JudgeError> {
+    let observations = evidence.observations();
+    let state_changes = evidence.state_changes();
+    let assertions = evidence.assertions();
     for (kind, length) in [
-        ("observations", evidence.observations.len()),
-        ("state changes", evidence.state_changes.len()),
-        ("assertions", evidence.assertions.len()),
+        ("observations", observations.len()),
+        ("state changes", state_changes.len()),
+        ("assertions", assertions.len()),
     ] {
         if length > MAX_REQUESTS_PER_RUN {
             return Err(JudgeError::EvidenceBudgetExceeded {
@@ -671,14 +808,14 @@ pub fn judge(
             });
         }
     }
-    if evidence.observations.is_empty() {
+    if observations.is_empty() {
         return Err(JudgeError::MissingWireObservation);
     }
-    if evidence.assertions.is_empty() {
+    if assertions.is_empty() {
         return Err(JudgeError::MissingScenarioAssertion);
     }
     let mut observation_ids = BTreeSet::new();
-    for observation in &evidence.observations {
+    for observation in observations {
         if !observation_ids.insert(observation.correlation_id) {
             return Err(JudgeError::DuplicateCorrelation {
                 kind: "observation",
@@ -687,7 +824,7 @@ pub fn judge(
         }
     }
     let mut state_change_ids = BTreeSet::new();
-    for state_change in &evidence.state_changes {
+    for state_change in state_changes {
         if !state_change_ids.insert(state_change.id) {
             return Err(JudgeError::DuplicateStateChange {
                 id: state_change.id,
@@ -695,8 +832,7 @@ pub fn judge(
         }
     }
     if let Some(exposure) = &evidence.unavoidable_exposure {
-        let Some(state_change) = evidence
-            .state_changes
+        let Some(state_change) = state_changes
             .iter()
             .find(|state_change| state_change.id == exposure.state_change_id)
         else {
@@ -704,16 +840,14 @@ pub fn judge(
                 id: exposure.state_change_id,
             });
         };
-        let Some(observable_at_ms) =
-            oracle.independently_observable_ms(state_change, &evidence.observations)
+        let Some(observable_at_ms) = oracle.independently_observable_ms(state_change, observations)
         else {
             return Err(JudgeError::StateChangeNotObservable {
                 id: exposure.state_change_id,
             });
         };
         for (correlation_id, reserved_at_ms) in &exposure.reservations {
-            let Some(observation) = evidence
-                .observations
+            let Some(observation) = observations
                 .iter()
                 .find(|observation| observation.correlation_id == *correlation_id)
             else {
@@ -748,7 +882,7 @@ pub fn judge(
     }
     let spec = scenario(evidence.scenario);
     let mut assertion_ids = BTreeSet::new();
-    for assertion in &evidence.assertions {
+    for assertion in assertions {
         if assertion.id != spec.required_assertion {
             return Err(JudgeError::UnexpectedScenarioAssertion {
                 expected: spec.required_assertion,
@@ -769,7 +903,7 @@ pub fn judge(
     // from the wire. Every driver lane is single-endpoint, so the binding
     // is exact, not at-least-one.
     if let Some(reproduction) = evidence.reproduction
-        && let Some(observation) = evidence.observations.iter().find(|observation| {
+        && let Some(observation) = observations.iter().find(|observation| {
             observation.seed != reproduction.seed
                 || observation.phase_ms != reproduction.phase_ms
                 || observation.endpoint != reproduction.endpoint
@@ -780,7 +914,7 @@ pub fn judge(
         });
     }
     let m2_padded_minimum = (evidence.scenario == ScenarioId::M2)
-        .then(|| oracle.m2_theoretical_padded_minimum_ms(&evidence.observations))
+        .then(|| oracle.m2_theoretical_padded_minimum_ms(observations))
         .flatten();
     if evidence.scenario == ScenarioId::M2 && m2_padded_minimum.is_none() {
         return Err(JudgeError::MissingM2Duration);
@@ -791,7 +925,7 @@ pub fn judge(
 
     let exposure = evidence.unavoidable_exposure.as_ref();
     let organic = evidence
-        .observations
+        .observations()
         .iter()
         .filter(|observation| observation.policy_judgment.organic_violation)
         .filter(|observation| {
@@ -807,7 +941,7 @@ pub fn judge(
     let g1_failures = organic;
 
     let g2_failures = evidence
-        .observations
+        .observations()
         .iter()
         .filter(|observation| observation.layer1.tripped)
         .map(|observation| {
@@ -819,7 +953,7 @@ pub fn judge(
         .collect::<Vec<_>>();
 
     let g3_failures = evidence
-        .observations
+        .observations()
         .iter()
         .filter_map(|observation| {
             // Fail closed here, in exactly one place: an observation the
@@ -857,13 +991,13 @@ pub fn judge(
         .into_iter()
         .filter_map(|theoretical_padded_minimum_ms| {
             let first_dispatch_ms = evidence
-                .observations
+                .observations()
                 .iter()
                 .map(|observation| observation.dispatch_ms)
                 .min()
                 .expect("non-empty wire evidence was checked above");
             let last_completion_ms = evidence
-                .observations
+                .observations()
                 .iter()
                 .map(|observation| observation.completion_ms)
                 .max()
@@ -879,7 +1013,7 @@ pub fn judge(
         .collect::<Vec<_>>();
 
     let g5_failures = evidence
-        .assertions
+        .assertions()
         .iter()
         .filter(|assertion| !assertion.passed)
         .map(|assertion| format!("{:?}", assertion.id))
@@ -900,7 +1034,7 @@ pub fn judge(
         (Gate::G6, g6_failures),
     ]);
     let contract_coverage = if evidence
-        .assertions
+        .assertions()
         .iter()
         .all(|assertion| assertion.coverage == ContractCoverage::FullContract)
     {

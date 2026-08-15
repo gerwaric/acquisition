@@ -94,6 +94,15 @@ pub enum MockStateChangeError {
     Model(ModelError),
     Noop,
     BudgetExceeded { limit: usize },
+    EvidenceSealed,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum MockEvidenceSealError {
+    PendingObservations {
+        handoffs: usize,
+        observations: usize,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -318,6 +327,37 @@ pub struct MockStateChange {
     pub kind: MockStateChangeKind,
 }
 
+/// Immutable, mock-authentic evidence handed to the conformance judge.
+///
+/// Only [`MockController::seal_evidence`] can construct this type. Sealing
+/// snapshots both vectors atomically and prevents later mock traffic or state
+/// changes, so integration-test code can inspect or clone the complete
+/// carriage but cannot filter it and then rebuild a judge input.
+///
+/// ```compile_fail,E0451
+/// use rate_limit_core::mock::MockEvidence;
+///
+/// let _forged = MockEvidence {
+///     observations: Vec::new(),
+///     state_changes: Vec::new(),
+/// };
+/// ```
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MockEvidence {
+    observations: Vec<Observation>,
+    state_changes: Vec<MockStateChange>,
+}
+
+impl MockEvidence {
+    pub fn observations(&self) -> &[Observation] {
+        &self.observations
+    }
+
+    pub fn state_changes(&self) -> &[MockStateChange] {
+        &self.state_changes
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MockStateChangeKind {
     PhantomInjection {
@@ -357,6 +397,7 @@ struct MockState {
     dispatch_budget: usize,
     dispatches: usize,
     exhausted: bool,
+    evidence_sealed: bool,
     model: CounterModel,
     routes: HashMap<Endpoint, String>,
     scripts: HashMap<u64, ExchangeScript>,
@@ -401,6 +442,7 @@ impl MockService {
             dispatch_budget: config.dispatch_budget,
             dispatches: 0,
             exhausted: false,
+            evidence_sealed: false,
             model,
             routes: config.routes.into_iter().collect(),
             scripts: HashMap::new(),
@@ -441,6 +483,11 @@ impl MockService {
 
         let (ordinal, dispatch, script) = {
             let mut state = self.state.lock().await;
+            if state.evidence_sealed {
+                return Err(TransportError::MockHarness(
+                    "mock evidence has already been sealed".to_owned(),
+                ));
+            }
             if state.exhausted || state.dispatches == state.dispatch_budget {
                 state.exhausted = true;
                 return Err(TransportError::MockHarness(format!(
@@ -667,6 +714,9 @@ impl MockController {
             return Err(MockStateChangeError::Noop);
         }
         let mut state = self.state.lock().await;
+        if state.evidence_sealed {
+            return Err(MockStateChangeError::EvidenceSealed);
+        }
         ensure_state_change_capacity(&state)?;
         let now = self.now();
         state
@@ -689,6 +739,9 @@ impl MockController {
     ) -> Result<MockStateChange, MockStateChangeError> {
         let policy = definition.name().to_owned();
         let mut state = self.state.lock().await;
+        if state.evidence_sealed {
+            return Err(MockStateChangeError::EvidenceSealed);
+        }
         ensure_state_change_capacity(&state)?;
         state
             .model
@@ -710,6 +763,9 @@ impl MockController {
     ) -> Result<MockStateChange, MockStateChangeError> {
         let new_policy = definition.name().to_owned();
         let mut state = self.state.lock().await;
+        if state.evidence_sealed {
+            return Err(MockStateChangeError::EvidenceSealed);
+        }
         ensure_state_change_capacity(&state)?;
         state
             .model
@@ -746,6 +802,29 @@ impl MockController {
         let mut observations = self.state.lock().await.observations.clone();
         observations.sort_by_key(|observation| observation.ordinal);
         observations
+    }
+
+    /// Atomically seals and returns the complete observation/state-change
+    /// carriage for one judge call. Repeated calls return equivalent sealed
+    /// snapshots; after the first call, the mock refuses new traffic and
+    /// state changes so completeness cannot drift behind the judge's back.
+    pub async fn seal_evidence(&self) -> Result<MockEvidence, MockEvidenceSealError> {
+        let mut state = self.state.lock().await;
+        if state.handoffs.len() != state.observations.len() {
+            return Err(MockEvidenceSealError::PendingObservations {
+                handoffs: state.handoffs.len(),
+                observations: state.observations.len(),
+            });
+        }
+        state.evidence_sealed = true;
+        let mut observations = state.observations.clone();
+        observations.sort_by_key(|observation| observation.ordinal);
+        let mut state_changes = state.state_changes.clone();
+        state_changes.sort_by_key(|state_change| state_change.id);
+        Ok(MockEvidence {
+            observations,
+            state_changes,
+        })
     }
 }
 

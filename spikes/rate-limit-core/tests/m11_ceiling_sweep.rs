@@ -282,20 +282,16 @@ async fn m11a_near_ceiling_compliant_sweep_never_trips_either_layer1_ceiling() {
             eligible_ms.insert(observation.correlation_id, eligible);
             prior_dispatch = Some(observation.dispatch_ms);
         }
-        let evidence = RunEvidence {
-            scenario: ScenarioId::M11,
-            // Phase-independent row: no reproduction record is required and
-            // none is claimed (G6's swept mandate does not apply).
-            reproduction: None,
-            observations: observations.clone(),
-            state_changes: controller.state_changes().await,
-            unavoidable_exposure: None,
-            assertions: vec![ScenarioAssertion {
+        let evidence = RunEvidence::phase_independent(
+            ScenarioId::M11,
+            controller.seal_evidence().await.unwrap(),
+            None,
+            vec![ScenarioAssertion {
                 id: ScenarioAssertionId::M11Layer1,
                 coverage: ContractCoverage::Fragment,
                 passed: facts.passed(),
             }],
-        };
+        );
         let report = judge(&evidence, &CeilingOracle { eligible_ms }).expect("structural evidence");
         assert!(report.passed(), "profile {profile:?}: {facts:?} {report:?}");
         assert!(

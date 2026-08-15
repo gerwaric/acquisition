@@ -2,12 +2,12 @@ use http::Method;
 use rate_limit_core::conformance::{
     AuthorizedExclusion, AuthorizedExclusionKind, ClientBucketProfile, ContractCoverage,
     ExposureAllowance, ExposureError, FullContractDeclarationError, FullContractRun, Gate,
-    JudgeError, OAUTH_KNOWN_PROFILE, ReproductionRecord, RunEvidence, SCENARIOS,
-    SHIPPED_ASSUMED_PROFILE, ScenarioAssertion, ScenarioAssertionId, ScenarioId, ScenarioOracle,
-    SweepConfiguration, SweepKind, SweepPlan, SweepPlanError, judge, scenario,
+    JudgeError, OAUTH_KNOWN_PROFILE, RunEvidence, RunReport, SCENARIOS, SHIPPED_ASSUMED_PROFILE,
+    ScenarioAssertion, ScenarioAssertionId, ScenarioId, ScenarioOracle, SweepConfiguration,
+    SweepKind, SweepPlan, SweepPlanError, judge, scenario,
 };
 use rate_limit_core::mock::{
-    Endpoint, MockConfig, MockService, MockStateChange, MockStateChangeKind, request,
+    Endpoint, ExchangeScript, MockConfig, MockEvidence, MockService, MockStateChange, request,
 };
 use rate_limit_core::transport::Transport;
 
@@ -70,13 +70,20 @@ fn sweep_plan_structurally_requires_the_shipped_assumed_60s_default() {
     assert_eq!(plan.configurations()[1].client_buckets.sustained_ms, 60_000);
 }
 
-async fn one_observation() -> rate_limit_core::mock::Observation {
-    let (service, controller) = MockService::new(MockConfig::n23(77, 321)).unwrap();
+async fn mock_evidence(
+    scenario: ScenarioId,
+    endpoint: Endpoint,
+    seed: u64,
+    phase_ms: u64,
+) -> MockEvidence {
+    let (service, controller) = MockService::new(MockConfig::n23(seed, phase_ms)).unwrap();
     service
-        .send(request(Method::HEAD, Endpoint::Stash, 1).unwrap())
+        .send(request(Method::HEAD, endpoint, 1).unwrap())
         .await
         .unwrap();
-    controller.observations().await.remove(0)
+    let evidence = controller.seal_evidence().await.unwrap();
+    assert_eq!(evidence.observations().len(), 1, "{scenario:?} fixture");
+    evidence
 }
 
 #[derive(Default)]
@@ -117,52 +124,71 @@ impl ScenarioOracle for TestOracle {
     }
 }
 
-fn base_evidence(observation: rate_limit_core::mock::Observation) -> RunEvidence {
-    RunEvidence {
-        scenario: ScenarioId::M1,
-        reproduction: Some(ReproductionRecord {
-            seed: observation.seed,
-            phase_ms: observation.phase_ms,
-            client_buckets: SHIPPED_ASSUMED_PROFILE,
-            endpoint: Endpoint::Stash,
-        }),
-        observations: vec![observation],
-        state_changes: Vec::new(),
-        unavoidable_exposure: None,
-        assertions: vec![ScenarioAssertion {
-            id: ScenarioAssertionId::M1BootSequence,
-            coverage: ContractCoverage::FullContract,
-            passed: true,
-        }],
-    }
-}
-
-fn phantom_change(id: u64, occurred_ms: u64) -> MockStateChange {
-    MockStateChange {
-        id,
-        occurred_ms,
-        kind: MockStateChangeKind::PhantomInjection {
-            policy: "stash-request-limit".to_owned(),
-            count: 1,
-        },
+fn evidence_for(
+    mock: MockEvidence,
+    scenario_id: ScenarioId,
+    profile: ClientBucketProfile,
+    endpoint: Endpoint,
+    coverage: ContractCoverage,
+    passed: bool,
+    exposure: Option<ExposureAllowance>,
+) -> RunEvidence {
+    let spec = scenario(scenario_id);
+    let assertions = vec![ScenarioAssertion {
+        id: spec.required_assertion,
+        coverage,
+        passed,
+    }];
+    match spec.sweep {
+        SweepKind::PhaseSwept => {
+            let observation = mock.observations().first().expect("wire observation");
+            RunEvidence::phase_swept(
+                scenario_id,
+                SweepConfiguration {
+                    seed: observation.seed,
+                    phase_ms: observation.phase_ms,
+                    client_buckets: profile,
+                },
+                endpoint,
+                mock,
+                exposure,
+                assertions,
+            )
+        }
+        SweepKind::PhaseIndependent => {
+            RunEvidence::phase_independent(scenario_id, mock, exposure, assertions)
+        }
     }
 }
 
 #[tokio::test(start_paused = true)]
 async fn all_global_gates_are_armed_and_judged_from_wire_evidence() {
-    let evidence = base_evidence(one_observation().await);
+    let evidence = evidence_for(
+        mock_evidence(ScenarioId::M1, Endpoint::Stash, 77, 321).await,
+        ScenarioId::M1,
+        SHIPPED_ASSUMED_PROFILE,
+        Endpoint::Stash,
+        ContractCoverage::FullContract,
+        true,
+        None,
+    );
     let report = judge(&evidence, &TestOracle::default()).unwrap();
     assert!(report.passed());
-    assert_eq!(report.gates.len(), 6);
+    assert_eq!(report.gates().len(), 6);
     for gate in [Gate::G1, Gate::G2, Gate::G3, Gate::G4, Gate::G5, Gate::G6] {
         assert!(report.gate(gate).passed, "reachability: judged {gate:?}");
     }
     assert!(!report.gate(Gate::G4).applicable);
 
-    let mut violation = evidence.clone();
-    violation.observations[0].policy_judgment.organic_violation = true;
-    violation.observations[0].layer1.tripped = true;
-    violation.assertions[0].passed = false;
+    let violation = evidence_for(
+        mock_evidence(ScenarioId::M1, Endpoint::Stash, 78, 321).await,
+        ScenarioId::M1,
+        SHIPPED_ASSUMED_PROFILE,
+        Endpoint::Stash,
+        ContractCoverage::FullContract,
+        false,
+        None,
+    );
     let report = judge(
         &violation,
         &TestOracle {
@@ -171,8 +197,6 @@ async fn all_global_gates_are_armed_and_judged_from_wire_evidence() {
         },
     )
     .unwrap();
-    assert!(!report.gate(Gate::G1).passed);
-    assert!(!report.gate(Gate::G2).passed);
     assert!(!report.gate(Gate::G3).passed);
     assert!(!report.gate(Gate::G5).passed);
 }
@@ -182,25 +206,48 @@ async fn a_fragment_run_is_judged_but_is_never_verdict_eligible() {
     // Both branches assert, so this cannot pass vacuously: a fragment and a
     // full-contract run differ *only* in coverage, and the pass/verdict
     // answers must diverge.
-    let full = base_evidence(one_observation().await);
+    let full = evidence_for(
+        mock_evidence(ScenarioId::M1, Endpoint::Stash, 77, 321).await,
+        ScenarioId::M1,
+        SHIPPED_ASSUMED_PROFILE,
+        Endpoint::Stash,
+        ContractCoverage::FullContract,
+        true,
+        None,
+    );
     let report = judge(&full, &TestOracle::default()).unwrap();
     assert!(report.passed());
-    assert_eq!(report.contract_coverage, ContractCoverage::FullContract);
+    assert_eq!(report.contract_coverage(), ContractCoverage::FullContract);
     assert!(report.verdict_eligible());
 
-    let mut fragment = full.clone();
-    fragment.assertions[0].coverage = ContractCoverage::Fragment;
+    let fragment = evidence_for(
+        mock_evidence(ScenarioId::M1, Endpoint::Stash, 78, 321).await,
+        ScenarioId::M1,
+        SHIPPED_ASSUMED_PROFILE,
+        Endpoint::Stash,
+        ContractCoverage::Fragment,
+        true,
+        None,
+    );
     let report = judge(&fragment, &TestOracle::default()).unwrap();
     assert!(
         report.passed(),
         "a fragment is still judged on its own terms"
     );
-    assert_eq!(report.contract_coverage, ContractCoverage::Fragment);
+    assert_eq!(report.contract_coverage(), ContractCoverage::Fragment);
     assert!(!report.verdict_eligible());
 
     // G5 still has teeth under Fragment coverage: partial is not exempt.
-    fragment.assertions[0].passed = false;
-    let report = judge(&fragment, &TestOracle::default()).unwrap();
+    let failing_fragment = evidence_for(
+        mock_evidence(ScenarioId::M1, Endpoint::Stash, 79, 321).await,
+        ScenarioId::M1,
+        SHIPPED_ASSUMED_PROFILE,
+        Endpoint::Stash,
+        ContractCoverage::Fragment,
+        false,
+        None,
+    );
+    let report = judge(&failing_fragment, &TestOracle::default()).unwrap();
     assert!(!report.gate(Gate::G5).passed);
     assert!(!report.verdict_eligible());
 }
@@ -209,33 +256,69 @@ async fn a_fragment_run_is_judged_but_is_never_verdict_eligible() {
 /// like the real driver's: one row per scenario, M8's legacy Assumed lane on
 /// its endpoint, and the StashList plus SD-R8-F5 character-policy M2 lanes
 /// the endpoint and pair requirements watch.
-async fn full_contract_report_set() -> Vec<rate_limit_core::conformance::RunReport> {
-    let mut evidence = base_evidence(one_observation().await);
-    evidence.reproduction.as_mut().unwrap().client_buckets = OAUTH_KNOWN_PROFILE;
-    let template = judge(&evidence, &TestOracle::default()).unwrap();
-    let mut reports = ScenarioId::ALL
-        .into_iter()
-        .map(|scenario| {
-            let mut report = template.clone();
-            report.scenario = scenario;
-            report
-        })
-        .collect::<Vec<_>>();
-    let mut assumed = template.clone();
-    assumed.scenario = ScenarioId::M8;
-    let record = assumed.reproduction.as_mut().unwrap();
-    record.client_buckets = SHIPPED_ASSUMED_PROFILE;
-    record.endpoint = Endpoint::LegacyStashIndex;
-    reports.push(assumed);
-    for endpoint in [
-        Endpoint::StashList,
-        Endpoint::CharacterList,
-        Endpoint::Character,
-    ] {
-        let mut lane = template.clone();
-        lane.scenario = ScenarioId::M2;
-        lane.reproduction.as_mut().unwrap().endpoint = endpoint;
-        reports.push(lane);
+async fn report_for(
+    scenario_id: ScenarioId,
+    endpoint: Endpoint,
+    profile: ClientBucketProfile,
+    coverage: ContractCoverage,
+    seed: u64,
+) -> RunReport {
+    let evidence = evidence_for(
+        mock_evidence(scenario_id, endpoint, seed, 321).await,
+        scenario_id,
+        profile,
+        endpoint,
+        coverage,
+        true,
+        None,
+    );
+    let oracle = TestOracle {
+        m2_padded_minimum_ms: (scenario_id == ScenarioId::M2).then_some(1_000),
+        ..TestOracle::default()
+    };
+    judge(&evidence, &oracle).unwrap()
+}
+
+async fn full_contract_report_set() -> Vec<RunReport> {
+    let mut reports = Vec::new();
+    for (index, scenario_id) in ScenarioId::ALL.into_iter().enumerate() {
+        let endpoint = if scenario_id == ScenarioId::M8 {
+            Endpoint::Stash
+        } else {
+            Endpoint::StashList
+        };
+        reports.push(
+            report_for(
+                scenario_id,
+                endpoint,
+                OAUTH_KNOWN_PROFILE,
+                ContractCoverage::FullContract,
+                100 + index as u64,
+            )
+            .await,
+        );
+    }
+    reports.push(
+        report_for(
+            ScenarioId::M8,
+            Endpoint::LegacyStashIndex,
+            SHIPPED_ASSUMED_PROFILE,
+            ContractCoverage::FullContract,
+            208,
+        )
+        .await,
+    );
+    for (seed, endpoint) in [(209, Endpoint::CharacterList), (210, Endpoint::Character)] {
+        reports.push(
+            report_for(
+                ScenarioId::M2,
+                endpoint,
+                OAUTH_KNOWN_PROFILE,
+                ContractCoverage::FullContract,
+                seed,
+            )
+            .await,
+        );
     }
     reports
 }
@@ -245,11 +328,11 @@ async fn full_contract_declaration_requires_every_m_row_and_both_m8_lanes() {
     let mut reports = full_contract_report_set().await;
 
     let declaration = FullContractRun::declare(reports.clone()).unwrap();
-    assert_eq!(declaration.reports().len(), ScenarioId::ALL.len() + 4);
+    assert_eq!(declaration.reports().len(), ScenarioId::ALL.len() + 3);
 
     let missing_m13 = reports
         .iter()
-        .filter(|report| report.scenario != ScenarioId::M13)
+        .filter(|report| report.scenario() != ScenarioId::M13)
         .cloned()
         .collect();
     assert_eq!(
@@ -265,10 +348,10 @@ async fn full_contract_declaration_requires_every_m_row_and_both_m8_lanes() {
     let m8_assumed_lane_only = reports
         .iter()
         .filter(|report| {
-            !(report.scenario == ScenarioId::M8
+            !(report.scenario() == ScenarioId::M8
                 && report
-                    .reproduction
-                    .is_some_and(|record| record.client_buckets == OAUTH_KNOWN_PROFILE))
+                    .reproduction()
+                    .is_some_and(|record| record.client_buckets() == OAUTH_KNOWN_PROFILE))
         })
         .cloned()
         .collect();
@@ -281,8 +364,8 @@ async fn full_contract_declaration_requires_every_m_row_and_both_m8_lanes() {
         .iter()
         .filter(|report| {
             report
-                .reproduction
-                .is_some_and(|record| record.client_buckets == OAUTH_KNOWN_PROFILE)
+                .reproduction()
+                .is_none_or(|record| record.client_buckets() == OAUTH_KNOWN_PROFILE)
         })
         .cloned()
         .collect();
@@ -298,8 +381,8 @@ async fn full_contract_declaration_requires_every_m_row_and_both_m8_lanes() {
         .iter()
         .filter(|report| {
             report
-                .reproduction
-                .is_none_or(|record| record.endpoint != Endpoint::CharacterList)
+                .reproduction()
+                .is_none_or(|record| record.endpoint() != Endpoint::CharacterList)
         })
         .cloned()
         .collect();
@@ -310,7 +393,17 @@ async fn full_contract_declaration_requires_every_m_row_and_both_m8_lanes() {
         })
     );
 
-    reports[0].contract_coverage = ContractCoverage::Fragment;
+    reports.retain(|report| report.scenario() != ScenarioId::M1);
+    reports.push(
+        report_for(
+            ScenarioId::M1,
+            Endpoint::StashList,
+            OAUTH_KNOWN_PROFILE,
+            ContractCoverage::Fragment,
+            999,
+        )
+        .await,
+    );
     assert_eq!(
         FullContractRun::declare(reports),
         Err(FullContractDeclarationError::ReportNotVerdictEligible {
@@ -331,26 +424,36 @@ async fn full_contract_declaration_requires_every_m_row_and_both_m8_lanes() {
 async fn full_contract_declaration_refuses_a_relabeled_required_lane() {
     let reports = full_contract_report_set().await;
 
-    // Bypass one: the audit's relabel — the (M2, CharacterList) lane
-    // becomes an M5 report; nothing else changes.
-    let mut relabeled = reports.clone();
-    relabeled
-        .iter_mut()
-        .find(|report| {
-            report.scenario == ScenarioId::M2
+    // Bypass one: construct the audit's relabel before judging — real
+    // CharacterList wire traffic and an M5 assertion, but no M2 saturation
+    // report for that endpoint. Sealed reports cannot be relabeled later.
+    let mut relabeled = reports
+        .iter()
+        .filter(|report| {
+            !(report.scenario() == ScenarioId::M2
                 && report
-                    .reproduction
-                    .is_some_and(|record| record.endpoint == Endpoint::CharacterList)
+                    .reproduction()
+                    .is_some_and(|record| record.endpoint() == Endpoint::CharacterList))
         })
-        .expect("the valid set carries the (M2, CharacterList) lane")
-        .scenario = ScenarioId::M5;
+        .cloned()
+        .collect::<Vec<_>>();
+    relabeled.push(
+        report_for(
+            ScenarioId::M5,
+            Endpoint::CharacterList,
+            OAUTH_KNOWN_PROFILE,
+            ContractCoverage::FullContract,
+            809,
+        )
+        .await,
+    );
     // The pre-F11 guard accepted exactly this state: every routed endpoint
     // is still present in some verdict-eligible report.
     for endpoint in Endpoint::ALL {
         assert!(
             relabeled.iter().any(|report| report
-                .reproduction
-                .is_some_and(|record| record.endpoint == endpoint)),
+                .reproduction()
+                .is_some_and(|record| record.endpoint() == endpoint)),
             "the bypass must satisfy the endpoint-only requirement to be a bypass"
         );
     }
@@ -365,22 +468,30 @@ async fn full_contract_declaration_refuses_a_relabeled_required_lane() {
     // Bypass two: endpoint-only satisfaction for the other character pair —
     // the Character endpoint carried by an M9 report instead of its
     // required M2 saturation lane.
-    let mut swapped = reports;
-    swapped
-        .iter_mut()
-        .find(|report| {
-            report.scenario == ScenarioId::M2
+    let mut swapped = reports
+        .into_iter()
+        .filter(|report| {
+            !(report.scenario() == ScenarioId::M2
                 && report
-                    .reproduction
-                    .is_some_and(|record| record.endpoint == Endpoint::Character)
+                    .reproduction()
+                    .is_some_and(|record| record.endpoint() == Endpoint::Character))
         })
-        .expect("the valid set carries the (M2, Character) lane")
-        .scenario = ScenarioId::M9;
+        .collect::<Vec<_>>();
+    swapped.push(
+        report_for(
+            ScenarioId::M9,
+            Endpoint::Character,
+            OAUTH_KNOWN_PROFILE,
+            ContractCoverage::FullContract,
+            810,
+        )
+        .await,
+    );
     for endpoint in Endpoint::ALL {
         assert!(
             swapped.iter().any(|report| report
-                .reproduction
-                .is_some_and(|record| record.endpoint == endpoint)),
+                .reproduction()
+                .is_some_and(|record| record.endpoint() == endpoint)),
             "the bypass must satisfy the endpoint-only requirement to be a bypass"
         );
     }
@@ -399,14 +510,31 @@ async fn full_contract_declaration_refuses_a_relabeled_required_lane() {
 // check while the conditional verdict's evidence lane has silently vanished.
 #[tokio::test(start_paused = true)]
 async fn full_contract_declaration_binds_each_m8_profile_to_its_endpoint() {
-    let mut reports = full_contract_report_set().await;
-    for report in reports.iter_mut().filter(|r| r.scenario == ScenarioId::M8) {
-        let record = report.reproduction.as_mut().unwrap();
-        record.endpoint = match record.endpoint {
-            Endpoint::Stash => Endpoint::LegacyStashIndex,
-            _ => Endpoint::Stash,
-        };
-    }
+    let mut reports = full_contract_report_set()
+        .await
+        .into_iter()
+        .filter(|report| report.scenario() != ScenarioId::M8)
+        .collect::<Vec<_>>();
+    reports.push(
+        report_for(
+            ScenarioId::M8,
+            Endpoint::LegacyStashIndex,
+            OAUTH_KNOWN_PROFILE,
+            ContractCoverage::FullContract,
+            811,
+        )
+        .await,
+    );
+    reports.push(
+        report_for(
+            ScenarioId::M8,
+            Endpoint::Stash,
+            SHIPPED_ASSUMED_PROFILE,
+            ContractCoverage::FullContract,
+            812,
+        )
+        .await,
+    );
     assert_eq!(
         FullContractRun::declare(reports),
         Err(FullContractDeclarationError::MissingM8KnownLane)
@@ -420,8 +548,15 @@ async fn g5_rejects_unauthorized_refusal_when_wire_safety_is_green() {
     // assertion is the independent evidence that the expected continuation
     // never happened; G1/G2 staying green must not launder that refusal into
     // a pass (scenarios.md G5 unauthorized-refusal clause).
-    let mut evidence = base_evidence(one_observation().await);
-    evidence.assertions[0].passed = false;
+    let evidence = evidence_for(
+        mock_evidence(ScenarioId::M1, Endpoint::Stash, 77, 321).await,
+        ScenarioId::M1,
+        SHIPPED_ASSUMED_PROFILE,
+        Endpoint::Stash,
+        ContractCoverage::FullContract,
+        false,
+        None,
+    );
     let report = judge(&evidence, &TestOracle::default()).unwrap();
 
     assert!(report.gate(Gate::G1).passed);
@@ -441,7 +576,15 @@ async fn g5_rejects_unauthorized_refusal_when_wire_safety_is_green() {
 // have made every observation trivially eligible with nothing failing.
 #[tokio::test(start_paused = true)]
 async fn g3_fails_closed_when_the_oracle_has_no_eligibility_entry() {
-    let evidence = base_evidence(one_observation().await);
+    let evidence = evidence_for(
+        mock_evidence(ScenarioId::M1, Endpoint::Stash, 77, 321).await,
+        ScenarioId::M1,
+        SHIPPED_ASSUMED_PROFILE,
+        Endpoint::Stash,
+        ContractCoverage::FullContract,
+        true,
+        None,
+    );
     let oracle = TestOracle {
         withhold_eligibility: true,
         ..TestOracle::default()
@@ -459,8 +602,21 @@ async fn g3_fails_closed_when_the_oracle_has_no_eligibility_entry() {
 
 #[tokio::test(start_paused = true)]
 async fn g3_exclusions_require_script_owned_bounded_intervals() {
-    let mut evidence = base_evidence(one_observation().await);
-    evidence.observations[0].dispatch_ms = 1_000;
+    let (service, controller) = MockService::new(MockConfig::n23(77, 321)).unwrap();
+    tokio::time::advance(std::time::Duration::from_millis(1_000)).await;
+    service
+        .send(request(Method::HEAD, Endpoint::Stash, 1).unwrap())
+        .await
+        .unwrap();
+    let evidence = evidence_for(
+        controller.seal_evidence().await.unwrap(),
+        ScenarioId::M1,
+        SHIPPED_ASSUMED_PROFILE,
+        Endpoint::Stash,
+        ContractCoverage::FullContract,
+        true,
+        None,
+    );
     let oracle = TestOracle {
         exclusions: vec![AuthorizedExclusion {
             kind: AuthorizedExclusionKind::Probe,
@@ -488,75 +644,133 @@ async fn g3_exclusions_require_script_owned_bounded_intervals() {
 
 #[tokio::test(start_paused = true)]
 async fn g1_unavoidable_exposure_is_pre_observation_only_and_capped() {
-    let first = one_observation().await;
-    let mut second = first.clone();
-    second.correlation_id = 2;
-    let mut third = first.clone();
-    third.correlation_id = 3;
-    let mut evidence = base_evidence(first);
-    evidence.observations.push(second);
-    evidence.observations.push(third);
-    for observation in &mut evidence.observations {
-        observation.policy_judgment.organic_violation = true;
-        observation.dispatch_ms = 12;
-        observation.arrival_ms = 12;
+    let (service, controller) = MockService::new(MockConfig::n23(77, 321)).unwrap();
+    let change = controller
+        .inject_phantoms("stash-request-limit", 15)
+        .await
+        .unwrap();
+    for correlation in 1..=3 {
+        service
+            .send(request(Method::GET, Endpoint::Stash, correlation).unwrap())
+            .await
+            .unwrap();
     }
-    evidence.state_changes = vec![phantom_change(7, 9)];
-    evidence.unavoidable_exposure =
-        Some(ExposureAllowance::for_state_change(7, [(1, 10), (2, 11)], 2).unwrap());
+    let evidence = evidence_for(
+        controller.seal_evidence().await.unwrap(),
+        ScenarioId::M1,
+        SHIPPED_ASSUMED_PROFILE,
+        Endpoint::Stash,
+        ContractCoverage::FullContract,
+        true,
+        Some(ExposureAllowance::for_state_change(change.id, [(1, 0), (2, 0)], 2).unwrap()),
+    );
 
     let oracle = TestOracle {
-        observable_ms: Some(12),
+        observable_ms: Some(1),
         ..TestOracle::default()
     };
     let report = judge(&evidence, &oracle).unwrap();
     assert!(!report.gate(Gate::G1).passed);
     assert!(report.gate(Gate::G1).failures[0].contains("correlation 3"));
     assert_eq!(
-        ExposureAllowance::for_state_change(7, [(1, 10), (2, 11), (3, 11)], 2),
+        ExposureAllowance::for_state_change(change.id, [(1, 0), (2, 0), (3, 0)], 2),
         Err(ExposureError::TooManyPreObservableReservations { maximum: 2 })
     );
 }
 
 #[tokio::test(start_paused = true)]
 async fn g4_uses_independent_integer_arithmetic_at_the_exact_boundary() {
-    let observation = one_observation().await;
-    let mut evidence = base_evidence(observation);
-    evidence.scenario = ScenarioId::M2;
-    evidence.observations[0].completion_ms = 1_050;
     let oracle = TestOracle {
         m2_padded_minimum_ms: Some(1_000),
         ..TestOracle::default()
     };
-    evidence.assertions[0].id = ScenarioAssertionId::M2Saturation;
+    let evidence_at = |delay_ms| async move {
+        let (service, controller) = MockService::new(MockConfig::n23(77, 321)).unwrap();
+        controller
+            .script(
+                1,
+                ExchangeScript {
+                    response_delay: std::time::Duration::from_millis(delay_ms),
+                    ..ExchangeScript::default()
+                },
+            )
+            .await
+            .unwrap();
+        service
+            .send(request(Method::HEAD, Endpoint::Stash, 1).unwrap())
+            .await
+            .unwrap();
+        evidence_for(
+            controller.seal_evidence().await.unwrap(),
+            ScenarioId::M2,
+            SHIPPED_ASSUMED_PROFILE,
+            Endpoint::Stash,
+            ContractCoverage::FullContract,
+            true,
+            None,
+        )
+    };
+    let evidence = evidence_at(1_050).await;
     let report = judge(&evidence, &oracle).unwrap();
     assert!(report.gate(Gate::G4).applicable);
     assert!(report.gate(Gate::G4).passed);
-    evidence.observations[0].completion_ms = 1_051;
+    let evidence = evidence_at(1_051).await;
     assert!(!judge(&evidence, &oracle).unwrap().gate(Gate::G4).passed);
 }
 
 #[tokio::test(start_paused = true)]
 async fn evidence_cannot_pass_vacuously() {
-    let observation = one_observation().await;
-    let mut evidence = base_evidence(observation);
-    evidence.observations.clear();
+    let (_service, controller) = MockService::new(MockConfig::n23(77, 321)).unwrap();
+    let evidence = RunEvidence::phase_swept(
+        ScenarioId::M1,
+        SweepConfiguration {
+            seed: 77,
+            phase_ms: 321,
+            client_buckets: SHIPPED_ASSUMED_PROFILE,
+        },
+        Endpoint::Stash,
+        controller.seal_evidence().await.unwrap(),
+        None,
+        vec![ScenarioAssertion {
+            id: ScenarioAssertionId::M1BootSequence,
+            coverage: ContractCoverage::FullContract,
+            passed: true,
+        }],
+    );
     assert_eq!(
         judge(&evidence, &TestOracle::default()),
         Err(JudgeError::MissingWireObservation)
     );
 
-    let observation = one_observation().await;
-    let mut evidence = base_evidence(observation);
-    evidence.assertions.clear();
+    let mock = mock_evidence(ScenarioId::M1, Endpoint::Stash, 78, 321).await;
+    let evidence = RunEvidence::phase_swept(
+        ScenarioId::M1,
+        SweepConfiguration {
+            seed: 78,
+            phase_ms: 321,
+            client_buckets: SHIPPED_ASSUMED_PROFILE,
+        },
+        Endpoint::Stash,
+        mock,
+        None,
+        Vec::new(),
+    );
     assert_eq!(
         judge(&evidence, &TestOracle::default()),
         Err(JudgeError::MissingScenarioAssertion)
     );
 
-    let observation = one_observation().await;
-    let mut evidence = base_evidence(observation);
-    evidence.reproduction = None;
+    let mock = mock_evidence(ScenarioId::M1, Endpoint::Stash, 79, 321).await;
+    let evidence = RunEvidence::phase_independent(
+        ScenarioId::M1,
+        mock,
+        None,
+        vec![ScenarioAssertion {
+            id: ScenarioAssertionId::M1BootSequence,
+            coverage: ContractCoverage::FullContract,
+            passed: true,
+        }],
+    );
     assert_eq!(
         judge(&evidence, &TestOracle::default()),
         Err(JudgeError::MissingReproductionRecord)
@@ -565,20 +779,23 @@ async fn evidence_cannot_pass_vacuously() {
 
 #[tokio::test(start_paused = true)]
 async fn correlation_and_reproduction_seams_are_structural() {
-    let observation = one_observation().await;
-    let mut evidence = base_evidence(observation.clone());
-    evidence.observations.push(observation);
-    assert_eq!(
-        judge(&evidence, &TestOracle::default()),
-        Err(JudgeError::DuplicateCorrelation {
-            kind: "observation",
-            id: 1,
-        })
+    let mock = mock_evidence(ScenarioId::M1, Endpoint::Stash, 77, 321).await;
+    let evidence = RunEvidence::phase_swept(
+        ScenarioId::M1,
+        SweepConfiguration {
+            seed: 77,
+            phase_ms: 322,
+            client_buckets: SHIPPED_ASSUMED_PROFILE,
+        },
+        Endpoint::Stash,
+        mock,
+        None,
+        vec![ScenarioAssertion {
+            id: ScenarioAssertionId::M1BootSequence,
+            coverage: ContractCoverage::FullContract,
+            passed: true,
+        }],
     );
-
-    let observation = one_observation().await;
-    let mut evidence = base_evidence(observation);
-    evidence.reproduction.as_mut().unwrap().phase_ms += 1;
     assert_eq!(
         judge(&evidence, &TestOracle::default()),
         Err(JudgeError::ReproductionMismatch { id: 1 })
@@ -587,17 +804,45 @@ async fn correlation_and_reproduction_seams_are_structural() {
     // SD-R8-F9's exact seam: a record relabeled to an endpoint the wire
     // never carried must be refused, or the declaration's endpoint
     // coverage rests on run-owned provenance instead of mock facts.
-    let observation = one_observation().await;
-    let mut evidence = base_evidence(observation);
-    evidence.reproduction.as_mut().unwrap().endpoint = Endpoint::CharacterList;
+    let mock = mock_evidence(ScenarioId::M1, Endpoint::Stash, 78, 321).await;
+    let evidence = RunEvidence::phase_swept(
+        ScenarioId::M1,
+        SweepConfiguration {
+            seed: 78,
+            phase_ms: 321,
+            client_buckets: SHIPPED_ASSUMED_PROFILE,
+        },
+        Endpoint::CharacterList,
+        mock,
+        None,
+        vec![ScenarioAssertion {
+            id: ScenarioAssertionId::M1BootSequence,
+            coverage: ContractCoverage::FullContract,
+            passed: true,
+        }],
+    );
     assert_eq!(
         judge(&evidence, &TestOracle::default()),
         Err(JudgeError::ReproductionMismatch { id: 1 })
     );
 
-    let observation = one_observation().await;
-    let mut evidence = base_evidence(observation);
-    evidence.assertions[0].id = ScenarioAssertionId::M2Saturation;
+    let mock = mock_evidence(ScenarioId::M1, Endpoint::Stash, 79, 321).await;
+    let evidence = RunEvidence::phase_swept(
+        ScenarioId::M1,
+        SweepConfiguration {
+            seed: 79,
+            phase_ms: 321,
+            client_buckets: SHIPPED_ASSUMED_PROFILE,
+        },
+        Endpoint::Stash,
+        mock,
+        None,
+        vec![ScenarioAssertion {
+            id: ScenarioAssertionId::M2Saturation,
+            coverage: ContractCoverage::FullContract,
+            passed: true,
+        }],
+    );
     assert_eq!(
         judge(&evidence, &TestOracle::default()),
         Err(JudgeError::UnexpectedScenarioAssertion {
@@ -606,9 +851,24 @@ async fn correlation_and_reproduction_seams_are_structural() {
         })
     );
 
-    let observation = one_observation().await;
-    let mut evidence = base_evidence(observation);
-    evidence.assertions.push(evidence.assertions[0].clone());
+    let mock = mock_evidence(ScenarioId::M1, Endpoint::Stash, 80, 321).await;
+    let assertion = ScenarioAssertion {
+        id: ScenarioAssertionId::M1BootSequence,
+        coverage: ContractCoverage::FullContract,
+        passed: true,
+    };
+    let evidence = RunEvidence::phase_swept(
+        ScenarioId::M1,
+        SweepConfiguration {
+            seed: 80,
+            phase_ms: 321,
+            client_buckets: SHIPPED_ASSUMED_PROFILE,
+        },
+        Endpoint::Stash,
+        mock,
+        None,
+        vec![assertion.clone(), assertion],
+    );
     assert_eq!(
         judge(&evidence, &TestOracle::default()),
         Err(JudgeError::DuplicateScenarioAssertion {
@@ -616,30 +876,61 @@ async fn correlation_and_reproduction_seams_are_structural() {
         })
     );
 
-    let observation = one_observation().await;
-    let mut evidence = base_evidence(observation);
-    evidence.unavoidable_exposure =
-        Some(ExposureAllowance::for_state_change(7, [(2, 0)], 1).unwrap());
+    let evidence = evidence_for(
+        mock_evidence(ScenarioId::M1, Endpoint::Stash, 81, 321).await,
+        ScenarioId::M1,
+        SHIPPED_ASSUMED_PROFILE,
+        Endpoint::Stash,
+        ContractCoverage::FullContract,
+        true,
+        Some(ExposureAllowance::for_state_change(7, [(2, 0)], 1).unwrap()),
+    );
     assert_eq!(
         judge(&evidence, &TestOracle::default()),
         Err(JudgeError::ExposureWithoutStateChange { id: 7 })
     );
 
-    let observation = one_observation().await;
-    let mut evidence = base_evidence(observation);
-    evidence.state_changes = vec![phantom_change(7, 0)];
-    evidence.unavoidable_exposure =
-        Some(ExposureAllowance::for_state_change(7, [(2, 0)], 1).unwrap());
+    let (service, controller) = MockService::new(MockConfig::n23(82, 321)).unwrap();
+    let change = controller
+        .inject_phantoms("stash-request-limit", 1)
+        .await
+        .unwrap();
+    service
+        .send(request(Method::HEAD, Endpoint::Stash, 1).unwrap())
+        .await
+        .unwrap();
+    let evidence = evidence_for(
+        controller.seal_evidence().await.unwrap(),
+        ScenarioId::M1,
+        SHIPPED_ASSUMED_PROFILE,
+        Endpoint::Stash,
+        ContractCoverage::FullContract,
+        true,
+        Some(ExposureAllowance::for_state_change(change.id, [(2, 0)], 1).unwrap()),
+    );
     assert_eq!(
         judge(&evidence, &TestOracle::default()),
         Err(JudgeError::ExposureWithoutObservation { id: 2 })
     );
 
-    let observation = one_observation().await;
-    let mut evidence = base_evidence(observation);
-    evidence.state_changes = vec![phantom_change(7, 0)];
-    evidence.unavoidable_exposure =
-        Some(ExposureAllowance::for_state_change(7, [(1, 1)], 1).unwrap());
+    let (service, controller) = MockService::new(MockConfig::n23(83, 321)).unwrap();
+    let change = controller
+        .inject_phantoms("stash-request-limit", 1)
+        .await
+        .unwrap();
+    service
+        .send(request(Method::HEAD, Endpoint::Stash, 1).unwrap())
+        .await
+        .unwrap();
+    let evidence = evidence_for(
+        controller.seal_evidence().await.unwrap(),
+        ScenarioId::M1,
+        SHIPPED_ASSUMED_PROFILE,
+        Endpoint::Stash,
+        ContractCoverage::FullContract,
+        true,
+        Some(ExposureAllowance::for_state_change(change.id, [(1, 1)], 1).unwrap()),
+    );
     assert_eq!(
         judge(
             &evidence,
@@ -651,61 +942,87 @@ async fn correlation_and_reproduction_seams_are_structural() {
         Err(JudgeError::ExposureAfterTransportHandoff { id: 1 })
     );
 
-    let observation = one_observation().await;
-    let mut evidence = base_evidence(observation);
-    evidence.state_changes = vec![phantom_change(7, 1)];
-    evidence.observations[0].dispatch_ms = 20;
-    evidence.observations[0].arrival_ms = 20;
-    evidence.unavoidable_exposure =
-        Some(ExposureAllowance::for_state_change(7, [(1, 12)], 1).unwrap());
+    let (service, controller) = MockService::new(MockConfig::n23(84, 321)).unwrap();
+    let change = controller
+        .inject_phantoms("stash-request-limit", 1)
+        .await
+        .unwrap();
+    service
+        .send(request(Method::HEAD, Endpoint::Stash, 1).unwrap())
+        .await
+        .unwrap();
+    let evidence = evidence_for(
+        controller.seal_evidence().await.unwrap(),
+        ScenarioId::M1,
+        SHIPPED_ASSUMED_PROFILE,
+        Endpoint::Stash,
+        ContractCoverage::FullContract,
+        true,
+        Some(ExposureAllowance::for_state_change(change.id, [(1, 0)], 1).unwrap()),
+    );
     assert_eq!(
         judge(
             &evidence,
             &TestOracle {
-                observable_ms: Some(12),
+                observable_ms: Some(0),
                 ..TestOracle::default()
             }
         ),
         Err(JudgeError::ExposureAfterStateChangeObservable {
             id: 1,
-            state_change_id: 7,
+            state_change_id: change.id,
         })
     );
 
-    let observation = one_observation().await;
-    let mut evidence = base_evidence(observation);
-    evidence.observations[0].dispatch_ms = 20;
-    evidence.observations[0].arrival_ms = 20;
-    evidence.state_changes = vec![MockStateChange {
-        id: 7,
-        occurred_ms: 1,
-        kind: MockStateChangeKind::PhantomInjection {
-            policy: "character-request-limit".to_owned(),
-            count: 1,
-        },
-    }];
-    evidence.unavoidable_exposure =
-        Some(ExposureAllowance::for_state_change(7, [(1, 1)], 1).unwrap());
+    let (service, controller) = MockService::new(MockConfig::n23(85, 321)).unwrap();
+    let change = controller
+        .inject_phantoms("character-request-limit", 1)
+        .await
+        .unwrap();
+    service
+        .send(request(Method::HEAD, Endpoint::Stash, 1).unwrap())
+        .await
+        .unwrap();
+    let evidence = evidence_for(
+        controller.seal_evidence().await.unwrap(),
+        ScenarioId::M1,
+        SHIPPED_ASSUMED_PROFILE,
+        Endpoint::Stash,
+        ContractCoverage::FullContract,
+        true,
+        Some(ExposureAllowance::for_state_change(change.id, [(1, 0)], 1).unwrap()),
+    );
     assert_eq!(
         judge(&evidence, &TestOracle::default()),
         Err(JudgeError::ExposureUnrelatedStateChange {
             id: 1,
-            state_change_id: 7,
+            state_change_id: change.id,
         })
     );
 
-    let observation = one_observation().await;
-    let mut evidence = base_evidence(observation);
-    evidence.observations[0].dispatch_ms = 20;
-    evidence.observations[0].arrival_ms = 20;
-    evidence.state_changes = vec![phantom_change(7, 21)];
-    evidence.unavoidable_exposure =
-        Some(ExposureAllowance::for_state_change(7, [(1, 1)], 1).unwrap());
+    let (service, controller) = MockService::new(MockConfig::n23(86, 321)).unwrap();
+    service
+        .send(request(Method::HEAD, Endpoint::Stash, 1).unwrap())
+        .await
+        .unwrap();
+    let change = controller
+        .inject_phantoms("stash-request-limit", 1)
+        .await
+        .unwrap();
+    let evidence = evidence_for(
+        controller.seal_evidence().await.unwrap(),
+        ScenarioId::M1,
+        SHIPPED_ASSUMED_PROFILE,
+        Endpoint::Stash,
+        ContractCoverage::FullContract,
+        true,
+        Some(ExposureAllowance::for_state_change(change.id, [(1, 0)], 1).unwrap()),
+    );
     assert_eq!(
         judge(&evidence, &TestOracle::default()),
         Err(JudgeError::ExposureStateChangeAfterArrival {
             id: 1,
-            state_change_id: 7,
+            state_change_id: change.id,
         })
     );
 

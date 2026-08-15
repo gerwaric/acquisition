@@ -4,9 +4,8 @@ use std::time::Duration;
 use http::Method;
 use rate_limit_core::actor::{GateHandle, RequestTicket, spawn, with_correlation_header};
 use rate_limit_core::conformance::{
-    ContractCoverage, D5_IN_FLIGHT_CAP, ExposureAllowance, Gate, OAUTH_KNOWN_PROFILE,
-    ReproductionRecord, RunEvidence, ScenarioAssertion, ScenarioAssertionId, ScenarioId,
-    ScenarioOracle, judge,
+    ContractCoverage, D5_IN_FLIGHT_CAP, ExposureAllowance, Gate, OAUTH_KNOWN_PROFILE, RunEvidence,
+    ScenarioAssertion, ScenarioAssertionId, ScenarioId, ScenarioOracle, SweepConfiguration, judge,
 };
 use rate_limit_core::core::{BucketModel, EndpointLabel, PolicyEngine, Resolution};
 use rate_limit_core::mock::model::{PolicyDefinition, RuleDefinition, WindowDefinition};
@@ -433,17 +432,16 @@ async fn m6_forced_preannouncement_original_recovers_at_the_shrunk_pace() {
             eligible_ms,
             observable_ms: BTreeMap::from([(shrink.id, announcement.completion_ms)]),
         };
-        let evidence = RunEvidence {
-            scenario: ScenarioId::M6,
-            reproduction: Some(ReproductionRecord {
+        let evidence = RunEvidence::phase_swept(
+            ScenarioId::M6,
+            SweepConfiguration {
                 seed: 606,
                 phase_ms,
                 client_buckets: OAUTH_KNOWN_PROFILE,
-                endpoint: Endpoint::StashList,
-            }),
-            observations,
-            state_changes: controller.state_changes().await,
-            unavoidable_exposure: Some(
+            },
+            Endpoint::StashList,
+            controller.seal_evidence().await.unwrap(),
+            Some(
                 ExposureAllowance::for_state_change(
                     shrink.id,
                     [(organic.correlation_id, organic.dispatch_ms)],
@@ -451,12 +449,12 @@ async fn m6_forced_preannouncement_original_recovers_at_the_shrunk_pace() {
                 )
                 .expect("one pre-observation companion fits the transition exposure bound"),
             ),
-            assertions: vec![ScenarioAssertion {
+            vec![ScenarioAssertion {
                 id: ScenarioAssertionId::M6Shrink,
                 coverage: ContractCoverage::Fragment,
                 passed: fragment_passed,
             }],
-        };
+        );
         let report = judge(&evidence, &oracle).expect("the exposure evidence is structural");
         assert!(report.passed(), "phase {phase_ms}: {report:?}");
         assert!(report.gate(Gate::G1).passed);
@@ -702,21 +700,26 @@ async fn m9_forced_phantom_race_at_saturation_recovers_per_m8() {
             eligible_ms,
             observable_ms: BTreeMap::from([(phantom.id, raced.completion_ms)]),
         };
-        let evidence = RunEvidence {
-            scenario: ScenarioId::M9,
-            reproduction: Some(ReproductionRecord {
+        let mock_evidence = controller.seal_evidence().await.unwrap();
+        let assertions = vec![ScenarioAssertion {
+            id: ScenarioAssertionId::M9PhantomRace,
+            coverage: ContractCoverage::Fragment,
+            passed: facts.passed(),
+        }];
+        let evidence = RunEvidence::phase_swept(
+            ScenarioId::M9,
+            SweepConfiguration {
                 seed: 909,
                 phase_ms,
                 client_buckets: OAUTH_KNOWN_PROFILE,
-                // This lane submits to Stash (stash-request-limit phantoms),
-                // unlike the file's other lanes; the judge binds this label
-                // to the wire (SD-R8-F9) and caught the earlier StashList
-                // mislabel here.
-                endpoint: Endpoint::Stash,
-            }),
-            observations,
-            state_changes: controller.state_changes().await,
-            unavoidable_exposure: Some(
+            },
+            // This lane submits to Stash (stash-request-limit phantoms),
+            // unlike the file's other lanes; the judge binds this label
+            // to the wire (SD-R8-F9) and caught the earlier StashList
+            // mislabel here.
+            Endpoint::Stash,
+            mock_evidence.clone(),
+            Some(
                 ExposureAllowance::for_state_change(
                     phantom.id,
                     [(raced.correlation_id, raced.dispatch_ms)],
@@ -724,12 +727,8 @@ async fn m9_forced_phantom_race_at_saturation_recovers_per_m8() {
                 )
                 .expect("one in-flight racer fits the §2 race exposure bound"),
             ),
-            assertions: vec![ScenarioAssertion {
-                id: ScenarioAssertionId::M9PhantomRace,
-                coverage: ContractCoverage::Fragment,
-                passed: facts.passed(),
-            }],
-        };
+            assertions.clone(),
+        );
         let report = judge(&evidence, &oracle).expect("the race exposure evidence is structural");
         assert!(report.passed(), "phase {phase_ms}: {facts:?} {report:?}");
         assert!(report.gate(Gate::G1).passed);
@@ -741,10 +740,18 @@ async fn m9_forced_phantom_race_at_saturation_recovers_per_m8() {
         // Attribution teeth: the identical evidence without the allowance
         // must fail G1 on the raced correlation — the organic violation is
         // real and only the attributed race exposure forgives it.
-        let unattributed = RunEvidence {
-            unavoidable_exposure: None,
-            ..evidence
-        };
+        let unattributed = RunEvidence::phase_swept(
+            ScenarioId::M9,
+            SweepConfiguration {
+                seed: 909,
+                phase_ms,
+                client_buckets: OAUTH_KNOWN_PROFILE,
+            },
+            Endpoint::Stash,
+            mock_evidence,
+            None,
+            assertions,
+        );
         let unforgiven =
             judge(&unattributed, &oracle).expect("the unattributed evidence stays structural");
         assert!(

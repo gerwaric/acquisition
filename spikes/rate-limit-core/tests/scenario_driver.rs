@@ -33,22 +33,24 @@ use rate_limit_core::mock::{
 /// unbound to the engine actually exercised. Per the recorded repair
 /// approach (`result-draft.md` §9: by construction, not by check), the
 /// engine the actor runs and the provenance the reproduction record claims
-/// now flow from one `Lane` value: the fields are private to this module,
+/// now flow from one `Lane` value: the lane fields are private,
 /// `Lane::start` is the driver's only engine-construction and spawn path,
-/// and `Lane::evidence` is the only place a `ReproductionRecord` is built —
-/// all three pinned structurally by
+/// and `Lane::evidence` is the only evidence-construction path — all three
+/// pinned structurally by
 /// `f12_driver_has_one_engine_construction_and_one_provenance_path`.
-/// A split profile is unrepresentable outside this module; editing the
-/// module itself remains the recorded residual trust surface (the wire
-/// cannot distinguish the M8 profiles, so no judge-side check can replace
-/// this construction binding).
+/// After that path runs, Rust privacy in the library crate makes both the
+/// evidence and its reproduction record immutable to this integration-test
+/// crate; the lexical pin remains a belt on the pre-construction path, not
+/// the privacy claim-bearer. Editing the lane's initial profile choice
+/// remains a recorded test-authorship surface because the wire cannot
+/// distinguish the M8 profiles.
 mod lane {
     use std::time::Duration;
 
     use rate_limit_core::actor::{GateHandle, spawn};
     use rate_limit_core::conformance::{
-        ClientBucketProfile, ContractCoverage, ReproductionRecord, RunEvidence,
-        SHIPPED_ASSUMED_PROFILE, ScenarioAssertion, ScenarioId, SweepKind, scenario,
+        ClientBucketProfile, ContractCoverage, RunEvidence, SHIPPED_ASSUMED_PROFILE,
+        ScenarioAssertion, ScenarioId, SweepConfiguration, SweepKind, scenario,
     };
     use rate_limit_core::core::{BucketModel, PolicyEngine, Resolution};
     use rate_limit_core::mock::{Endpoint, MockConfig, MockController, MockService};
@@ -94,10 +96,10 @@ mod lane {
             &self.controller
         }
 
-        /// The driver's sole reproduction-record constructor. Seed and phase
-        /// are read from the wire (and the judge binds them, with the
-        /// endpoint, to every observation — SD-R8-F9); the profile can only
-        /// be the one `start` built the engine from (SD-R8-F12).
+        /// The driver's sole evidence-construction path. Seed and phase are
+        /// read from the sealed mock carriage (and the judge binds them, with
+        /// the endpoint, to every observation — SD-R8-F9); the profile can
+        /// only be the one `start` built the engine from (SD-R8-F12).
         pub async fn evidence(
             &self,
             id: ScenarioId,
@@ -105,34 +107,29 @@ mod lane {
             assertion_passed: bool,
         ) -> RunEvidence {
             let spec = scenario(id);
-            RunEvidence {
-                scenario: id,
-                reproduction: (spec.sweep == SweepKind::PhaseSwept).then_some(ReproductionRecord {
-                    seed: self
-                        .controller
-                        .observations()
-                        .await
-                        .first()
-                        .expect("wire run")
-                        .seed,
-                    endpoint: self.endpoint,
-                    phase_ms: self
-                        .controller
-                        .observations()
-                        .await
-                        .first()
-                        .expect("wire run")
-                        .phase_ms,
-                    client_buckets: self.profile,
-                }),
-                observations: self.controller.observations().await,
-                state_changes: self.controller.state_changes().await,
-                unavoidable_exposure: None,
-                assertions: vec![ScenarioAssertion {
-                    id: spec.required_assertion,
-                    coverage,
-                    passed: assertion_passed,
-                }],
+            let mock = self.controller.seal_evidence().await.unwrap();
+            let first = mock.observations().first().expect("wire run");
+            let assertions = vec![ScenarioAssertion {
+                id: spec.required_assertion,
+                coverage,
+                passed: assertion_passed,
+            }];
+            match spec.sweep {
+                SweepKind::PhaseSwept => RunEvidence::phase_swept(
+                    id,
+                    SweepConfiguration {
+                        seed: first.seed,
+                        phase_ms: first.phase_ms,
+                        client_buckets: self.profile,
+                    },
+                    self.endpoint,
+                    mock,
+                    None,
+                    assertions,
+                ),
+                SweepKind::PhaseIndependent => {
+                    RunEvidence::phase_independent(id, mock, None, assertions)
+                }
             }
         }
     }
@@ -790,7 +787,7 @@ async fn run_m1_m13(phase_ms: u64, coverage: ContractCoverage) -> Vec<RunReport>
             ScenarioId::M2 | ScenarioId::M6 | ScenarioId::M7 | ScenarioId::M10 => Some(
                 PolicyDebt::for_policy(
                     &controller,
-                    &evidence.observations.first().expect("wire run").policy,
+                    &evidence.observations().first().expect("wire run").policy,
                 )
                 .await,
             ),
@@ -798,14 +795,14 @@ async fn run_m1_m13(phase_ms: u64, coverage: ContractCoverage) -> Vec<RunReport>
         };
         let mut oracle = independently_scripted_oracle(
             id,
-            &evidence.observations,
-            &evidence.state_changes,
+            evidence.observations(),
+            evidence.state_changes(),
             debt.as_ref(),
             &submitted_ms,
         );
         if id == ScenarioId::M2 {
             let definition = controller
-                .definition(&evidence.observations.first().expect("wire run").policy)
+                .definition(&evidence.observations().first().expect("wire run").policy)
                 .await
                 .expect("M2 policy is configured by the scenario");
             oracle.m2_minimum_ms = Some(m2_theoretical_padded_minimum_ms(
@@ -838,7 +835,7 @@ async fn run_m1_m13(phase_ms: u64, coverage: ContractCoverage) -> Vec<RunReport>
         ContractCoverage::FullContract => assert!(
             reports
                 .iter()
-                .all(|report| report.contract_coverage == ContractCoverage::FullContract)
+                .all(|report| report.contract_coverage() == ContractCoverage::FullContract)
         ),
     }
 
@@ -897,8 +894,8 @@ async fn run_m8_oauth_lane(phase_ms: u64, coverage: ContractCoverage) -> RunRepo
         &evidence,
         &independently_scripted_oracle(
             ScenarioId::M8,
-            &evidence.observations,
-            &evidence.state_changes,
+            evidence.observations(),
+            evidence.state_changes(),
             None,
             &submitted_ms,
         ),
@@ -954,7 +951,7 @@ async fn run_character_policy_lane(
         .evidence(ScenarioId::M2, coverage, assertion_passed)
         .await;
     let policy = evidence
-        .observations
+        .observations()
         .first()
         .expect("wire run")
         .policy
@@ -962,8 +959,8 @@ async fn run_character_policy_lane(
     let debt = PolicyDebt::for_policy(&controller, &policy).await;
     let mut oracle = independently_scripted_oracle(
         ScenarioId::M2,
-        &evidence.observations,
-        &evidence.state_changes,
+        evidence.observations(),
+        evidence.state_changes(),
         Some(&debt),
         &submitted_ms,
     );
@@ -1172,9 +1169,10 @@ fn full_contract_scale_reaches_every_fragment_closure_shape() {
 
 /// SD-R8-F12's structural pin, in the X2 single-send-path pattern: the
 /// driver has exactly one engine-construction path, one actor spawn, and one
-/// reproduction-record constructor, all inside `mod lane`, whose provenance
-/// fields are private. A future second path — the shape the audit's
-/// split-profile mutation needed — fails here by count. concat! keeps every
+/// evidence-construction path, all inside `mod lane`. A future second path —
+/// the shape the audit's split-profile mutation needed — fails here by
+/// count. The sealed library types supply the actual post-construction Rust
+/// privacy boundary; this lexical test is only its belt. concat! keeps every
 /// needle out of this test's own literals (the SD-R5-F5 vacuity lesson);
 /// this is a lexical spike pin, not a Rust parser, so a rename requires
 /// re-deriving the needles deliberately.
@@ -1197,9 +1195,9 @@ fn f12_driver_has_one_engine_construction_and_one_provenance_path() {
         "Lane::start must remain the unique lane constructor"
     );
     assert_eq!(
-        source.matches(concat!("ReproductionRecord", " {")).count(),
+        source.matches(concat!("seal_", "evidence()")).count(),
         1,
-        "reproduction provenance must be built only by Lane::evidence"
+        "mock evidence must be sealed only by Lane::evidence"
     );
     // The provenance fields are private to `mod lane`: present as private
     // declarations, never as `pub` fields a caller could overwrite after

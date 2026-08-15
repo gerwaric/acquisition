@@ -364,11 +364,13 @@ pub const CLAUSES: &[Clause] = &[
         ],
         note: "Character-list is 2/10 s burst and 5/300 s sustained: one \
                mistimed request is a 50% budget error, the regime the F5 \
-               adjudication owes evidence for. Honest residual trust surface \
-               (SD-R8-F11): scenario identity remains driver-owned — bound \
-               through each scenario's sole-decider assertion plus the \
-               declaration's required (scenario, endpoint) pairs, never by \
-               the wire, which does not carry scenario identity",
+               adjudication owes evidence for. RunReport is judge-only and \
+               immutable across the integration-test crate boundary, so a \
+               judged pair cannot be relabeled (SD-R8-F22). Honest residual \
+               trust surface (SD-R8-F11): scenario identity remains \
+               driver-owned — checked through each scenario's sole-decider \
+               assertion plus the declaration's required (scenario, endpoint) \
+               pairs, never by the wire, which does not carry scenario identity",
     },
     // ── M3 — degraded HEAD (scenarios.md:205) ────────────────────
     Clause {
@@ -873,9 +875,13 @@ pub const CLAUSES: &[Clause] = &[
             },
         ],
         note: "At fragment scale, both φ. The record's profile is bound to \
-               the exercised engine by construction (mod lane in the \
-               driver, SD-R8-F12): the M8 profiles are indistinguishable on \
-               the wire, so no judge-side check could replace that binding",
+               the exercised engine by the driver's one lane construction \
+               path (SD-R8-F12), then ReproductionRecord and RunEvidence \
+               privacy makes overwrite-after-evidence fail to compile \
+               (SD-R8-F21). The lexical lane pin remains a belt, not the \
+               enforcement mechanism. The M8 profiles are indistinguishable \
+               on the wire, so the lane's initial profile choice is a named \
+               test-authorship surface, not a judge-side inference",
     },
     Clause {
         id: "m8-caller-observes-outcome",
@@ -2244,15 +2250,27 @@ pub const CLAUSES: &[Clause] = &[
                               constants",
             },
             Citation {
+                file: DRIVER,
+                test_fn: "full_contract_scale_reaches_every_fragment_closure_shape",
+                must_assert: "the full-contract scale reaches every closure \
+                              shape whose fragment run supplies a \
+                              scenario-authored coverage/pass claim",
+            },
+            Citation {
                 file: "tests/conformance_harness.rs",
                 test_fn: "g5_rejects_unauthorized_refusal_when_wire_safety_is_green",
                 must_assert: "G1 and G2 remain green while an independent \
                               unauthorized-refusal assertion alone fails G5",
             },
         ],
-        note: "Judge at src/conformance.rs (G5 section); the dedicated teeth \
-               test proves the refusal condition cannot hide behind a wire \
-               safety failure",
+        note: "ScenarioAssertion.coverage and ScenarioAssertion.passed are \
+               named test-authorship trust surfaces: RE-2 deliberately keeps \
+               the judge from re-deriving the scenario's own claim. Their \
+               compensating controls are the per-scenario falsifiability \
+               guards in the driver and \
+               full_contract_scale_reaches_every_fragment_closure_shape; the \
+               dedicated teeth test also proves an unauthorized refusal \
+               cannot hide behind a wire safety failure",
     },
     Clause {
         id: "g6-reproduction-records",
@@ -2635,8 +2653,18 @@ pub const CLAUSES: &[Clause] = &[
                 test_fn: "b1_b4_b5_b7_b13_b14_full_protocol_and_n23_topology",
                 must_assert: "observation log carries the protocol crossing",
             },
+            Citation {
+                file: "tests/mock_fidelity.rs",
+                test_fn: "sealed_evidence_is_complete_final_and_mock_authentic",
+                must_assert: "mock-only evidence construction snapshots both \
+                              vectors atomically, refuses pending observations, \
+                              and prevents later traffic or state changes",
+            },
         ],
-        note: "",
+        note: "Observation and state-change vectors reach the judge only in \
+               MockEvidence, whose private fields are constructed by the mock \
+               module. Sealing is final, so a test cannot filter either vector \
+               and rebuild a judge input (SD-R8-F21/F22 hybrid binding)",
     },
     Clause {
         id: "b14-zero-skew-date",

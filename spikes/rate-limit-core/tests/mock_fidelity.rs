@@ -11,8 +11,8 @@ use rate_limit_core::mock::model::{
 };
 use rate_limit_core::mock::{
     Endpoint, ExchangeScript, MAX_MOCK_HEADER_VALUE_BYTES, MAX_RAW_RESPONSE_BODY_BYTES,
-    MAX_RAW_RESPONSE_HEADERS, MockConfig, MockConfigError, MockStateChangeError,
-    MockStateChangeKind, ResponseOverride, StimulusKind, request,
+    MAX_RAW_RESPONSE_HEADERS, MockConfig, MockConfigError, MockEvidenceSealError,
+    MockStateChangeError, MockStateChangeKind, ResponseOverride, StimulusKind, request,
 };
 use rate_limit_core::transport::{Transport, TransportError};
 
@@ -117,6 +117,58 @@ async fn b14_date_uses_the_scripted_response_completion_instant() {
     assert_eq!(observation.arrival_ms, 0);
     assert_eq!(observation.completion_ms, 2_000);
     assert_eq!(date, UNIX_EPOCH + Duration::from_secs(2));
+}
+
+#[tokio::test(start_paused = true)]
+async fn sealed_evidence_is_complete_final_and_mock_authentic() {
+    let (service, controller) =
+        rate_limit_core::mock::MockService::new(MockConfig::n23(0x5ea1, 19)).unwrap();
+    controller
+        .script(
+            1,
+            ExchangeScript {
+                arrival_delay: Duration::from_secs(1),
+                ..ExchangeScript::default()
+            },
+        )
+        .await
+        .unwrap();
+
+    let pending = tokio::spawn({
+        let service = service.clone();
+        async move {
+            service
+                .send(request(Method::HEAD, Endpoint::Stash, 1).unwrap())
+                .await
+        }
+    });
+    tokio::task::yield_now().await;
+    assert_eq!(
+        controller.seal_evidence().await,
+        Err(MockEvidenceSealError::PendingObservations {
+            handoffs: 1,
+            observations: 0,
+        })
+    );
+
+    tokio::time::advance(Duration::from_secs(1)).await;
+    pending.await.unwrap().unwrap();
+    let evidence = controller.seal_evidence().await.unwrap();
+    assert_eq!(evidence.observations().len(), 1);
+    assert!(evidence.state_changes().is_empty());
+    assert_eq!(controller.seal_evidence().await.unwrap(), evidence);
+
+    assert!(matches!(
+        service
+            .send(request(Method::HEAD, Endpoint::Stash, 2).unwrap())
+            .await,
+        Err(TransportError::MockHarness(message))
+            if message == "mock evidence has already been sealed"
+    ));
+    assert_eq!(
+        controller.inject_phantoms("stash-request-limit", 1).await,
+        Err(MockStateChangeError::EvidenceSealed)
+    );
 }
 
 proptest! {

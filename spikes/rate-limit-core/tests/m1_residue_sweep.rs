@@ -24,8 +24,8 @@ use http::Method;
 use proptest::prelude::*;
 use rate_limit_core::actor::{spawn, with_correlation_header};
 use rate_limit_core::conformance::{
-    ContractCoverage, Gate, OAUTH_KNOWN_PROFILE, ReproductionRecord, RunEvidence,
-    ScenarioAssertion, ScenarioAssertionId, ScenarioId, ScenarioOracle, judge,
+    ContractCoverage, Gate, OAUTH_KNOWN_PROFILE, RunEvidence, ScenarioAssertion,
+    ScenarioAssertionId, ScenarioId, ScenarioOracle, SweepConfiguration, judge,
 };
 use rate_limit_core::core::{BucketModel, EndpointLabel, PolicyEngine, Resolution};
 use rate_limit_core::mock::{
@@ -284,23 +284,22 @@ async fn run_case_paused(residue: u32, phase_ms: u64) {
             },
         ),
     ]);
-    let evidence = RunEvidence {
-        scenario: ScenarioId::M1,
-        reproduction: Some(ReproductionRecord {
+    let evidence = RunEvidence::phase_swept(
+        ScenarioId::M1,
+        SweepConfiguration {
             seed,
             phase_ms,
             client_buckets: OAUTH_KNOWN_PROFILE,
-            endpoint: Endpoint::StashList,
-        }),
-        observations: observations.clone(),
-        state_changes: controller.state_changes().await,
-        unavoidable_exposure: None,
-        assertions: vec![ScenarioAssertion {
+        },
+        Endpoint::StashList,
+        controller.seal_evidence().await.unwrap(),
+        None,
+        vec![ScenarioAssertion {
             id: ScenarioAssertionId::M1BootSequence,
             coverage: ContractCoverage::Fragment,
             passed: facts.passed(),
         }],
-    };
+    );
     let report = judge(&evidence, &SweepOracle { eligible_ms }).expect("structural evidence");
     assert!(
         report.passed(),
