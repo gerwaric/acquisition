@@ -1,11 +1,13 @@
 # Scenario-driver and safety-closure hand-off
 
-Status: **open — round-five findings SD-R5-F2..F15 and residuals
-RE-1..RE-9 repaired (2026-08-14); awaiting independent re-review.**
-Do not close this slice from the implementing or
-repairing session. Rounds one–four and their findings remain in
+Status: **open — round five closed (SD-R5, 2026-08-14): the
+independent re-review validated all twenty-four repairs
+(SD-R5-F2..F15, RE-1..RE-9) with no new findings; the slice stays
+open on the residual work in `status.md` §5.**
+Rounds one–four and their findings remain in
 `result-draft.md` §9; the round-five dispositions are its 2026-08-14
-repair entry. F14–F16 are fixed in this packet; no run declares
+repair entries, and the re-review closure is the entry after them.
+F14–F16 are fixed in this packet; no run declares
 `FullContract`, and no verdict slot was filled.
 
 ## 1. Silences taken

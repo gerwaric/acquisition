@@ -51,16 +51,16 @@ coverage.
 ## 2. Slice and review state
 
 - **Open: scenario-driver slice** (M1–M13 driver/judge integration).
-  The round-five independent review returned findings SD-R5-F2
-  through SD-R5-F15; the 2026-08-14 repair session validated all
-  fifteen (none invalid) and fixed them — dispositions,
-  commits, and doc findings in `result-draft.md` §9's 2026-08-14
-  repair entry. The residual RE-1..RE-9 re-review sweep was also
-  validated and repaired on 2026-08-14; its dispositions and matrix
-  are in the next §9 entry. **The round is not closed**: the repaired
-  packet awaits independent re-review, and no verdict slot was filled.
-  `scenario-driver-handoff.md` remains the live four-part review
-  packet, updated in place by the repair.
+  **Round five is closed** (SD-R5, 2026-08-14): an independent
+  re-review validated all twenty-four repairs — SD-R5-F2..F15 and
+  RE-1..RE-9 — against code, tests, and docs, reproduced the full
+  verification matrix, and found no new findings; dispositions live
+  in `result-draft.md` §9's 2026-08-14 repair entries and the
+  re-review closure entry. No verdict slot was filled — every
+  driver/focused report remains `ContractCoverage::Fragment`. The
+  slice itself stays open on the residual work in §5;
+  `scenario-driver-handoff.md` remains the live four-part packet for
+  that work.
 - Every other slice (core, bootstrap, mock, actor, clause registry,
   doc split) is closed; their hand-offs are historical records.
   (Doc split closed 2026-08-13, DS-R1 — `result-draft.md` §9.)
@@ -85,36 +85,31 @@ wording and consequences are recorded in `result-draft.md` §9.
 
 ## 4. Blocked
 
-None. The slice can undergo independent review and all remaining work
-in §5 can proceed. §7.4 calibration closure still requires the
-replacement gate, but no Tom decision or live-service input blocks it.
+None. All remaining work in §5 can proceed. §7.4 calibration closure
+still requires the replacement gate, but no Tom decision or
+live-service input blocks it.
 
 ## 5. Next work
 
 The 2026-08-13 ballot remains closed; this is the exact residual
-set after the implementation swarm.
+set after the round-five close (SD-R5, 2026-08-14 re-review).
 
-1. Independent re-review of the repaired round-five packet, including
-   the RE-1..RE-9 residual sweep
-   (`scenario-driver-handoff.md` plus the 2026-08-14 repair entry);
-   do not flip its status or close the slice from the implementing
-   or repairing session.
-2. **M1 generated-φ mock-side residue sweep** — the exact Partial
+1. **M1 generated-φ mock-side residue sweep** — the exact Partial
    delta for `m1-g1-sweep` after RE-9 corrected C1's core-side mirror
    over-classification.
-3. **Ballot G** — build the forced M9 phantom race at 14/15. It
+2. **Ballot G** — build the forced M9 phantom race at 14/15. It
    discharges `m9-recovery-survives-race`,
    `m9-race-exposure-attribution`, and the last scripted arm of
    `b12-scripted-delay`.
-4. **M11a named binding evidence** — near-ceiling compliant sweep
+3. **M11a named binding evidence** — near-ceiling compliant sweep
    for `m11-compliant-never-trips`.
-5. Specify, review, implement, and run the feedback-consistent §7.4
+4. Specify, review, implement, and run the feedback-consistent §7.4
    replacement calibration gate authorized in §3. The active band-edge,
    exhaustive band enumeration, and 43/43 witness diagnostics remain
    load-bearing; the superseded open-loop every-phase assertion remains
    only as a finding reproduction until that replacement removes or
    recasts it deliberately.
-6. Full-contract run last. It finishes the fragment-scale-only
+5. Full-contract run last. It finishes the fragment-scale-only
    clauses `m6-g1-post-announcement`,
    `m6-queue-drains-new-pace`, `m7-no-client-violation`,
    `m8-no-follow-on-violation`, `g1-zero-client-violations`,

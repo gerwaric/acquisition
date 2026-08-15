@@ -2084,6 +2084,10 @@ outlives the spike branch; record what exists and where.⟩
   record. No live service was contacted; no verdict slot was filled;
   the round and slice remain open for independent re-review.
 
+  *[Marker, 2026-08-14 (SD-R5 close): the re-review has since run and
+  closed round five — see this changelog's final entry. The slice
+  remains open; the dated text above is preserved.]*
+
 - 2026-08-14 — **Tom approved both `status.md` §3 sign-offs.**
 
   **§7.4 adjudication:**
@@ -2121,3 +2125,55 @@ outlives the spike branch; record what exists and where.⟩
   without a bound-profile run. This ratification is test-evidence
   bookkeeping and does not change `bootstrap-seeding.md`'s one global
   positional runtime default.
+
+- 2026-08-14 — **round five closed (SD-R5): independent re-review of
+  the repaired packet found no new findings.** A fresh session read
+  the mandated documents in `AGENTS.md` order and validated every
+  round-five disposition against code, tests, and docs — all fifteen
+  SD-R5-F2..F15 repairs and all nine RE-1..RE-9 residual repairs
+  confirmed as described, none overstated. Spot-verified in source:
+  the 20-band `VIOLATING_BANDS` table with its 40-edge/clean-neighbor
+  pins and 1,052-phase accounting (F2/RE-1); `SweepPlan::new`'s
+  load-bearing shipped-Assumed guard feeding the driver's seeds (F3);
+  the focused transition lanes' `Known` engines with profile-invariant
+  bounds (F4); the concat!-split receiver-keyed X2 pin (F5); the
+  judge-owned `Option<u64>` G3 fail-closed branch and its exposing
+  test (F6); the M6 fragment's single wire-fact decider reaching
+  `judge` plus its four-way falsifiability guard (F7/RE-2); the
+  anchored B12 median assertion (F8); the `schedule()`-driven
+  `start_ordinary` trip test asserting both loss modes with the named
+  ten-grant rollback proof (F9/RE-9); the registry's `m1-g1-sweep`
+  conservative Partial and `s7-4-replay-gate` slot encoding Tom's
+  adjudication verbatim (F10/F11/RE-9); the n/n+1 parser-bound pins
+  at the single `bounded_parse` seam with the 32,768-item derivation
+  (F12/RE-5); the 43/43 diagnostic's pinned-as-current-behavior
+  provenance (F13); the named contract-arithmetic constants and
+  dual `D5_IN_FLIGHT_CAP` tripwire (F14/RE-6); the discriminated
+  refusal causes, E0603 compile-fail, and stated doc silences
+  (F15/RE-7); the marked pre-repair matrix (RE-3); the
+  registry-cited X1/G3/D5 regression tests (RE-4); and the net-zero
+  CMake branch delta with Tom's working-tree bump preserved (RE-8,
+  re-verified by `git diff` across the repair series). Registry
+  totals recomputed independently from source: 123 = 96 Full /
+  13 Partial / 1 Untested / 13 Excluded, `OPEN_UNTESTED` empty.
+  Re-run verification matrix, entirely offline: `cargo test --locked`
+  160 passed / 0 failed / 2 ignored; `--release` 158 / 0 / 2;
+  `PROPTEST_CASES=4096` 160 / 0 / 2; all-target clippy with warnings
+  denied, fmt check, `git diff --check`, obligations 6/6, and the
+  Python sanitizer suite 4/4 all clean. Explicit release run of the
+  ignored pair: the exhaustive enumeration passed all 60,000 phases
+  in 6.92 s; the superseded open-loop gate failed as expected at
+  φ=7,454, reply 110, `stash-request-limit` sustained 31/30,
+  restriction 301 s, with its full reproduction record. One
+  non-blocking review note, recorded here rather than as a finding:
+  the `client_buckets` half of a `ReproductionRecord` is
+  producer-declared and cannot be cross-checked by the
+  client-independent judge (the mock never observes the client's
+  bucket profile; seed and φ are cross-checked via
+  `ReproductionMismatch`) — inherent to the judging interface, worth
+  knowing when future full-contract runs cite reproduction records
+  as profile evidence. Closure acts per `slice-review.md` §5:
+  `status.md` §2/§4/§5 brought current, the hand-off status line
+  flipped to name the closed round, and this entry. The slice
+  remains open on `status.md` §5's residual set; no verdict slot
+  was filled; no live service was contacted.
