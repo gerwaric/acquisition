@@ -94,6 +94,30 @@ explicit O-series carriage). Refilling awaits Tom's F5/F6/F7
 dispositions, the F4 repair, and a rerun of both authorities —
 `status.md` is live state.]*
 
+*[Status update, 2026-08-15, same day: the F4 repair and the F5
+character-policy extension have landed and both authorities reran
+green over the extended contract (§9). The suspension now rests on
+the F7 O-series carriage wording alone — the proposed paragraph
+below — after which the verdicts refill citing the already-rerun
+authorities.]*
+
+**Proposed O-series carriage (SD-R8-F7) — awaiting Tom's sign-off;
+becomes part of both verdict statements when ratified:**
+
+> Both verdicts carry the O-series exclusions of `scenarios.md`
+> §7.3 verbatim as scope, alongside U1–U5: no real sockets, TLS,
+> connection reuse, or HTTP framing (O1); no stochastic transit
+> latency (O2); no payload handling beyond B10's Cloudflare
+> signature (O3); no multi-account or multi-IP scope semantics
+> (O4); no server `Date`-header skew (O5); no adversarial header
+> case or ordering beyond C2's parser domain (O6); **no
+> authentication of any kind — no tokens, no POESESSID, no OAuth
+> flow** (O7); and no server-side 4xx restriction behavior, no
+> real Cloudflare rules, no forum regime, and no unlimited
+> endpoints (O8). Every gate result is measured against the
+> modeled mock under these exclusions; nothing in either verdict
+> is live-service validation.
+
 ## §2. How to read the evidence
 
 Two orthogonal lane taxonomies apply:
@@ -3070,3 +3094,45 @@ outlives the spike branch; record what exists and where.⟩
   noted for the record: Tom judges the ADR direction as
   near-certain toward the rewrite path, which the `redesign`
   target serves either way.
+
+- 2026-08-15 — **SD-R8-F5 extension landed: the character-policy
+  lanes run and the declaration requires every endpoint.** Commit
+  `7a2d49e5` implements Tom's F5 adjudication. Two additional
+  full-contract lanes run the M2 saturation shape against
+  `Endpoint::CharacterList` and `Endpoint::Character` — the N23
+  topology's tightest policies (2/10 s + 5/300 s; 5/10 s) — at
+  both coverage levels and both swept phases, twelve requests per
+  lane, reusing the policy-generic machinery whole (PolicyDebt
+  padded-safe G3 oracle, runtime-derived G4 minimum, G1–G4
+  armed). Each lane's assertion pins the independently declared
+  policy name against every wire observation, so a routing
+  mistake toward a looser policy cannot pass vacuously; the
+  scale-pin test requires the queue to cross the character burst
+  window twice and exceed character-list's sustained limit. The
+  guard grows with the claim (F4 principle):
+  `ReproductionRecord` carries the lane's routed endpoint and
+  `FullContractRun::declare` refuses any run missing an N23
+  endpoint (`MissingEndpointLane`); the negative declaration
+  test pins the exact F5 state — both M8 lanes present, a
+  character lane dropped, previously clean, now refused. The
+  registry mints `m2-character-policy-lanes` (124 clauses; 110
+  Full / 0 Partial / 1 accepted Untested / 13 Excluded) and the
+  dated contract amendment is appended to `scenarios.md`.
+
+  Independent arithmetic check: the hand-derived padded greedy
+  fingerprints — 720,581 ms for character-list's twelve requests
+  (two complete 5-hit/300 s sustained waves) and 30,581 ms for
+  character (two complete 5-hit burst windows) — were computed
+  before running and matched the runtime-derived G4 minimum
+  exactly on first execution. End-to-end mutation, run from the
+  committed tree and reverted with `git checkout --`: deleting
+  the CharacterList lane push made the pinned declaration fail
+  with exactly `MissingEndpointLane { endpoint: CharacterList }`.
+  Restored-tree matrix, entirely offline: debug 172/0/3; release
+  170/0/3; the declared 4,096-case full-contract run green in
+  26.89 s over all sixteen reports per case; obligations 6/6;
+  clippy `-D warnings`, fmt, `git diff --check` clean. **Both
+  declared authorities have therefore rerun green over the
+  extended contract.** The verdict slots remain suspended on the
+  F7 O-series carriage wording alone; the F6 gate's migration
+  package and reviews follow. No live service was contacted.

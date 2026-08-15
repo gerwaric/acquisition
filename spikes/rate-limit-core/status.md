@@ -12,11 +12,12 @@ per fact, pointers instead of copies.
 ## 1. Coverage truth
 
 Coverage is **machine-checked**, not prose. The authority is
-`src/obligations.rs` — `CLAUSES` (123 entries as of 2026-08-14, the
-§7.4 gate clause minted per SD-R5-F11; lineage from
-`obligation-map.md`'s 125 rows is recorded in `registry-handoff.md`
-and the §9 changelog) — verified by `tests/obligations.rs`; run it
-with
+`src/obligations.rs` — `CLAUSES` (124 entries as of 2026-08-15:
+the §7.4 gate clause minted per SD-R5-F11, and
+`m2-character-policy-lanes` minted per the SD-R8-F5 extension;
+lineage from `obligation-map.md`'s 125 rows is recorded in
+`registry-handoff.md` and the §9 changelog) — verified by
+`tests/obligations.rs`; run it with
 
 ```
 cargo test --locked --test obligations
@@ -33,7 +34,7 @@ The open-untested list is the `OPEN_UNTESTED` constant in
 `src/obligations.rs` — **not** any prose table. As of 2026-08-14 it
 is empty: the implementation swarm discharged all 13 previously
 open Untested ids.
-Registry totals are 109 Full, no Partial, one accepted Untested
+Registry totals are 110 Full, no Partial, one accepted Untested
 limitation (`x2-parser-cap-limitation`), and 13 Excluded. The seven
 former fragment-scale clauses §5 item 5 names flipped to Full on
 2026-08-15 after the declared 4,096-case run and are cited to that
@@ -144,11 +145,13 @@ coverage.
 One disposition still awaits Tom:
 
 - **SD-R8-F7 (O-series half) — verdict scope carriage wording.**
-  The verdict statement will explicitly carry O1–O8 (no
-  sockets/TLS, no auth/OAuth flow, no real Cloudflare rules, no
-  forum regime); the concrete wording is drafted in-session and
-  awaits Tom's sign-off (it changes the result statement). The
-  U5 half was repaired 2026-08-15.
+  The concrete paragraph is drafted and placed in
+  `result-draft.md` §1 (marked "Proposed … awaiting Tom's
+  sign-off"); ratifying it makes it part of both verdict
+  statements. It is the **only** item still gating the verdict
+  refill: F4/F5 landed and both authorities reran green over the
+  extended contract, so on sign-off the verdicts refill citing
+  those runs. The U5 half was repaired 2026-08-15.
 
 Decided 2026-08-15: **SD-R8-F6 — complete via gated hoist; the
 spike ends with a PR** (Tom; full record in `result-draft.md`
@@ -204,14 +207,14 @@ ratification record is in `result-draft.md` §9. (Both earlier
 
 ## 4. Blocked
 
-Refilling the suspended verdict slots is blocked on: Tom's F6 and
-F7-O-series dispositions (§3), and the F5 character-policy
-extension (decided, unblocked implementation work — §5). The F4
-repair and the F7 U5 line landed 2026-08-15 and both declared
-authorities reran green over the repaired guard (§9 changelog).
-Once the remaining dispositions and the extension land, the
-authorities rerun over the extended contract and the slots refill
-only if they truthfully agree.
+Refilling the suspended verdict slots is blocked on Tom's F7
+O-series wording sign-off alone (§3). Everything else has landed:
+the F4 guard repair, the F7 U5 line, and the F5 character-policy
+extension, with both declared authorities green over the extended
+contract (§9 changelog). After the refill, the F6 gate governs the
+rest of the spike's end: migration package drafted → SD-R8
+re-close review → final external adversarial audit (re-close
+packet + both migration diffs) → the two delivery PRs.
 
 ## 5. Next work
 
@@ -234,18 +237,22 @@ Reopened SD-R8 work (audit entry, `result-draft.md` §9):
 - ~~**F7 U5 repair**~~ — **done 2026-08-15**: U5 carried in
   `result-draft.md` §7 alongside U1–U4, per its own carriage
   mandate. The O-series half stays with Tom.
-- **F5 extension (decided 2026-08-15, unblocked):** wire-level,
-  mock-judged evidence over `character-list-request-limit` and
-  `character-request-limit`, feeding the full-contract
-  declaration; extend the declaration guard to require the new
-  lanes (F4 principle) and pin their absence with negative tests.
-  Independent oracle arithmetic per lane, per the standing G3
-  padded-safe adjudication.
-- **Awaiting Tom (§3):** F6 deliverables, F7's O-series carriage
-  wording.
-- **Then:** rerun both declared authorities over the extended
-  contract, refill the verdict slots only if they truthfully
-  agree, and present the packet for SD-R8 re-close review.
+- ~~**F5 extension**~~ — **done 2026-08-15** (`7a2d49e5`): both
+  character-policy lanes run at every coverage level and both φ;
+  the declaration requires every N23 endpoint
+  (`MissingEndpointLane`, negative test + end-to-end mutation);
+  hand-derived G4 fingerprints matched on first run; registry
+  minted `m2-character-policy-lanes`; both authorities green
+  over the extended contract (§9 changelog).
+- **Awaiting Tom (§3):** the F7 O-series carriage wording
+  (drafted in `result-draft.md` §1) — the last gate on the
+  verdict refill.
+- **Then, per the F6 gate:** refill the verdicts citing the
+  rerun authorities; draft the migration package (topic doc,
+  register row, §8 record, dated `AGENTS.md` note, and the
+  CN1–CN6 master ground-truth diff); SD-R8 re-close review; the
+  final external adversarial audit (`final-audit-charge.md`
+  holds the standing charge); then the two delivery PRs.
 
 1. ~~**M1 generated-φ mock-side residue sweep**~~ — **done
    2026-08-14** (`tests/m1_residue_sweep.rs`; `m1-g1-sweep` Full —
