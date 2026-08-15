@@ -56,6 +56,16 @@ Rules for the `Assumed` variant:
   is the burst limit, second is sustained (Q4 hypothesis; what the
   validation-run instrument gives measured-lane support for).
 
+> **Ratification (Tom, 2026-08-14).** Test-evidence lanes follow the
+> evidence they bind: OAuth scenario evidence uses `Known(5s/60s)`;
+> explicitly legacy evidence uses `Assumed(60s/60s)`; and the shipped
+> Assumed default remains structurally represented. Generic focused
+> tests may use the shipped default only where their asserted behavior
+> is demonstrably profile-invariant. A future burst-resolution-sensitive
+> claim must run under its bound profile. This is test-lane bookkeeping,
+> not runtime policy-name selection; `bootstrap-seeding.md`'s one global
+> positional default remains the production-shaped design.
+
 ## §2. Verdict vocabulary (finding 2)
 
 "Zero violations" is ambiguous when scenarios deliberately inject
@@ -824,6 +834,18 @@ over φ:
   is a **finding to adjudicate** (mock arithmetic bug vs. the
   adversarial model exceeding what N13's padding covers) — never
   something to tune away silently.
+
+  > **Superseded by Tom's 2026-08-14 adjudication.** The every-phase
+  > requirement above is an expectation error for this *fixed-dispatch*
+  > replay: the captured schedule depends on server counter feedback,
+  > so changing the hypothetical server phase while replaying the
+  > original sends open-loop can manufacture a send the client would
+  > have suppressed after different state headers. Preserve B3, both
+  > fixtures, and the exhaustive 20-band / 1,052-phase counterexample
+  > as a diagnostic. The replacement calibration gate must be
+  > feedback-consistent; its exact executable construction is open work
+  > and must be specified before implementation. Every-phase safety
+  > remains binding in the closed-loop C1/M-series tests.
 - **Diagnostic, not a gate:** at the capture's saturation points
   the mock's counters should agree with the recorded `15/15` and
   `30/30` states (N25/N26 grounding). Exact per-response state

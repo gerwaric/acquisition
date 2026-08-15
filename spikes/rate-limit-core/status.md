@@ -35,13 +35,15 @@ is empty: the implementation swarm discharged all 13 previously
 open Untested ids.
 Registry totals are 96 Full, 13 Partial, one accepted Untested
 limitation (`x2-parser-cap-limitation`), and 13 Excluded. The
-Partial set now includes `s7-4-replay-gate`, the failing §7.4 gate's
+Partial set now includes `s7-4-replay-gate`, §7.4 calibration's
 machine-checked slot (SD-R5-F11), and `m1-g1-sweep`, whose missing
 delta is a generated-φ mock-side residue sweep (RE-9). The replay
-slot's delta is §3 decision 1's adjudication plus the green rerun.
+slot's delta is a precisely specified feedback-consistent replacement
+gate plus its green run; Tom's adjudication is recorded in
+`result-draft.md` §9.
 Empty `OPEN_UNTESTED` does not
-imply verdict readiness; the Partial set and the failed §7.4 replay
-gate are itemized in §5. `obligation-map.md`
+imply verdict readiness; the Partial set and §7.4 replacement gate
+work are itemized in §5. `obligation-map.md`
 is the superseded prose ancestor; read its §8 for the audit's
 discrepancy analysis (dated at `e2034807`), never for current
 coverage.
@@ -65,49 +67,27 @@ coverage.
 
 ## 3. Open decisions (Tom)
 
-1. **§7.4 adversarial-replay adjudication.** The canonical replay's
-   required every-phase zero-violation gate fails for **1,052 of the
-   60,000 phases, in 20 disjoint bands** (φ=7,454–7,466 first,
-   φ=25,854–25,944 last; two clusters, initiating replies 110–119
-   and 125–134, all on `stash-request-limit`'s sustained
-   30-hits/300 s window at 31/30 under the 60 s adversarial
-   bucket). The earlier "exactly φ=7,454–7,466" record (CR-R1-F1)
-   came from a first-failure abort of the asserting gate and is
-   amended by SD-R5-F2: the full enumeration is pinned as
-   `VIOLATING_BANDS` in `tests/capture_replay.rs`, verified by the
-   active band-edge test and the ignored exhaustive enumeration.
-   This is a systematic B3-model-vs-recorded-server mismatch across
-   1.75% of phase space and 20 initiating records — at counted
-   reply 110 (fixture record 114) the server itself recorded
-   `6:300:0` where the model computes 31 — not a knife-edge
-   coincidence at one band. Band-one arithmetic is unchanged: 25
-   earlier hits remain active until 727,454 ms and six new hits
-   arrive one millisecond before expiry; phase 0 still matches all
-   43 recorded saturation components. Decide whether this is a
-   frozen-contract expectation error or requires a separately
-   authorized model/fixture disposition. The implementation must
-   not tune the gate away or amend the frozen scope silently.
+None. Tom approved both pending sign-offs on 2026-08-14; the exact
+wording and consequences are recorded in `result-draft.md` §9.
 
-2. **Profile-lane assignment ratification (non-blocking).** Which
-   client bucket profile each test lane runs under is a doc silence
-   the frozen docs support both ways (SD-R5-F3/F4). The repair
-   session's conservative reading, now uniform in the driver and the
-   focused transition lanes: OAuth-endpoint lanes run
-   `Known(5s/60s)`, explicitly legacy lanes run `Assumed(60s/60s)`,
-   and the shipped-Assumed default is structurally unlosable
-   (`SweepPlan::new` on the driver's path). The remaining
-   `actor_safety`/`actor_shell` focused targets still build Assumed
-   engines over OAuth endpoints; their asserted bounds are
-   profile-invariant (the shared 60 s sustained resolution governs
-   every one), so they were left unchanged rather than churned ahead
-   of your statement. Ratify or correct the assignment; recorded as
-   a doc finding in the 2026-08-14 repair entry.
+- §7.4 is adjudicated as a frozen-contract expectation error: a
+  feedback-dependent captured dispatch trace is not required to stay
+  safe when replayed open-loop under counterfactual server phases.
+  B3, both fixtures, and the exhaustive counterexample diagnostic stay
+  unchanged. A feedback-consistent replacement calibration gate is
+  open implementation work; every-phase safety remains in the
+  closed-loop C1/M-series tests.
+- Profile lanes are ratified: OAuth-bound scenario evidence uses
+  `Known(5s/60s)`; explicit legacy evidence uses
+  `Assumed(60s/60s)`; the shipped Assumed default remains
+  structurally represented. Generic focused tests may use the shipped
+  default only for demonstrably profile-invariant assertions.
 
 ## 4. Blocked
 
-The slice can undergo independent review, and the remaining test
-work in §5 can proceed. §7.4 calibration closure and any final
-verdict are blocked on decision 1. No live-service input is needed.
+None. The slice can undergo independent review and all remaining work
+in §5 can proceed. §7.4 calibration closure still requires the
+replacement gate, but no Tom decision or live-service input blocks it.
 
 ## 5. Next work
 
@@ -128,11 +108,12 @@ set after the implementation swarm.
    `b12-scripted-delay`.
 4. **M11a named binding evidence** — near-ceiling compliant sweep
    for `m11-compliant-never-trips`.
-5. Resolve §3 decision 1, then rerun the exhaustive canonical gate.
-   The active band-edge and 43/43 diagnostic tests remain load-bearing.
-   Of the two ignored replay tests, the collect-first exhaustive band
-   enumeration remains expected to pass and the untuned canonical gate
-   remains expected to fail until adjudication.
+5. Specify, review, implement, and run the feedback-consistent §7.4
+   replacement calibration gate authorized in §3. The active band-edge,
+   exhaustive band enumeration, and 43/43 witness diagnostics remain
+   load-bearing; the superseded open-loop every-phase assertion remains
+   only as a finding reproduction until that replacement removes or
+   recasts it deliberately.
 6. Full-contract run last. It finishes the fragment-scale-only
    clauses `m6-g1-post-announcement`,
    `m6-queue-drains-new-pace`, `m7-no-client-violation`,

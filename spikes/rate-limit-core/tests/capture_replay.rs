@@ -67,7 +67,7 @@ struct SaturationDiagnostic {
 }
 
 #[test]
-#[ignore = "§7.4 finding (CR-R1-F1 as amended by SD-R5-F2): the canonical trace violates B3 at 1,052 phases in 20 bands, phi=7,454..25,944 — see VIOLATING_BANDS; adjudication required"]
+#[ignore = "superseded §7.4 open-loop assertion retained as the CR-R1-F1/SD-R5-F2 finding reproduction; not the replacement calibration gate"]
 fn section_7_4_canonical_capture_replay_is_compliant_for_every_server_phase() {
     let records = canonical_records();
     let seeds = boot_seeds(&records);
@@ -424,13 +424,13 @@ fn b12_supplemental_vpn_median_is_148_ms() {
 
 /// Pinned as current behavior, not a §7.4 gate: scenarios.md §7.4 makes
 /// saturation-state agreement a *diagnostic* ("mismatches inform, they don't
-/// fail"), and this test does not substitute for the zero-violation gate
-/// (status.md §3 / the registry's b12 note both say so). The equalities are a
-/// pin of the model's current φ=0 agreement — 43 of 43 recorded saturation
-/// components — kept because silently losing agreement is exactly what the
-/// diagnostic exists to surface. A deliberate model refinement that changes
-/// the agreement updates this pin with provenance rather than tuning around
-/// it (SD-R5-F13).
+/// fail"), and this test does not substitute for the feedback-consistent
+/// replacement gate (status.md §3 / the registry's b12 note both say so). The
+/// equalities are a pin of the model's current φ=0 agreement — 43 of 43
+/// recorded saturation components — kept because silently losing agreement is
+/// exactly what the diagnostic exists to surface. A deliberate model
+/// refinement that changes the agreement updates this pin with provenance
+/// rather than tuning around it (SD-R5-F13).
 #[test]
 fn section_7_4_saturation_diagnostic_has_a_43_of_43_witness_phase() {
     let records = canonical_records();

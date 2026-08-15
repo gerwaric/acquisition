@@ -840,8 +840,10 @@ observed lane:
   once at t₀ (canonical residue is zero); they are excluded from the
   383 ordinary replay arrivals. The bounded parser caps input at
   2 MiB, 32,768 JSON items, depth 16, and 4 KiB strings.
-- Gate — zero violations at every φ: **finding, awaiting Tom's
-  adjudication.** The violating set is 1,052 phases in 20 disjoint
+- Calibration gate: **Tom adjudicated the fixed-dispatch every-φ
+  requirement as a frozen-contract expectation error on 2026-08-14.**
+  The violating set
+  remains 1,052 phases in 20 disjoint
   bands, φ=7,454–7,466 through 25,854–25,944 (initiating replies
   110–119 and 125–134, every band `stash-request-limit` sustained
   31/30) — SD-R5-F2's 2026-08-14 amendment of CR-R1-F1, whose
@@ -851,11 +853,14 @@ observed lane:
   arithmetic is unchanged: counted reply 110 (fixture record 114)
   dispatches at t=727,453 ms, one millisecond before 25 earlier hits
   expire, where the server recorded `6:300:0`. `CounterModel` and
-  independent arithmetic agree; the ignored exhaustive gate is
-  retained and not tuned away.
+  independent arithmetic agree. B3 and both fixtures remain
+  unchanged; the fixed-trace failure and exhaustive band set are
+  retained as diagnostics. A precisely specified feedback-consistent
+  replacement gate and its green run are still owed.
 - Diagnostic — saturation-state agreement (15/15, 30/30; N25/N26):
   phase 0 matches all 43/43 recorded saturation components,
-  including 15/15 and 30/30. This does not waive the failed gate.
+  including 15/15 and 30/30. This is evidence for the replacement
+  calibration design, not a gate by itself.
 - B12 delay re-anchor: canonical median `sent→received` is 81 ms
   across 383 samples; `DEFAULT_SERVICE_DELAY` is now 81 ms, replacing
   the 50 ms placeholder.
@@ -2078,3 +2083,41 @@ outlives the spike branch; record what exists and where.⟩
   sustained 31/30 with restriction 301 s and a full reproduction
   record. No live service was contacted; no verdict slot was filled;
   the round and slice remain open for independent re-review.
+
+- 2026-08-14 — **Tom approved both `status.md` §3 sign-offs.**
+
+  **§7.4 adjudication:**
+
+  > I adjudicate CR-R1-F1/SD-R5-F2 as a §7.4 frozen-contract
+  > expectation error. A recorded feedback-dependent dispatch trace is
+  > not required to remain safe when replayed open-loop under
+  > counterfactual server phases. Preserve B3, both fixtures, and the
+  > exhaustive counterexample diagnostic. Replace the every-phase
+  > fixed-trace gate with feedback-consistent calibration; retain
+  > every-phase safety requirements in the closed-loop C1/M-series
+  > tests.
+
+  Consequence: no model or fixture changed, and the 20-band / 1,052-
+  phase set remains pinned. The old ignored assertion is now a finding
+  reproduction, not the calibration gate. `s7-4-replay-gate` remains
+  Partial until the feedback-consistent replacement is precisely
+  specified, implemented, independently reviewed, and run green. No
+  verdict slot was filled.
+
+  **Profile-lane ratification:**
+
+  > I ratify the test-evidence profile assignment: OAuth-bound scenario
+  > evidence uses Known(5s/60s); explicitly legacy evidence uses
+  > Assumed(60s/60s); and the shipped Assumed default remains
+  > structurally represented. Generic focused tests may use the shipped
+  > default only where their asserted behavior is demonstrably
+  > profile-invariant. Any future burst-resolution-sensitive claim must
+  > run under its bound profile.
+
+  Consequence: the repaired driver and transition-lane assignments are
+  accepted. `actor_safety` and `actor_shell` may retain their shipped-
+  Assumed engines for their current profile-invariant assertions; that
+  evidence cannot be extended to a profile-sensitive burst claim
+  without a bound-profile run. This ratification is test-evidence
+  bookkeeping and does not change `bootstrap-seeding.md`'s one global
+  positional runtime default.

@@ -17,7 +17,7 @@ repair entry. F14–F16 are fixed in this packet; no run declares
 | Public actor traffic cannot reach the C3/C4 trip thresholds while D5 is intact. | Use the established internal `SafetyCounters` fault-injection seam, but finish through the real probe/ordinary feed, latch, drain, and watch-publication methods. | The next response-feed deletion fails a focused test. D5 is not weakened to manufacture an impossible public trace: its cap is at most 4 dispatches/s and 240/minute, plus at most two already-held completions, versus 11/s and 500/minute. |
 | X2's spike-scope structure pin does not prescribe a reflection mechanism. | Collapse probe and ordinary sends into one private actor method, pin the single call site from source, and add a compile-fail example for outside `Actor` access. | A second `Transport::send` path or public actor owner fails structurally; a future production HTTP integration still owes its own pin. |
 | The canonical fixture is finite but §7.4 does not bound parser resources. | Bound input at 2 MiB, 32,768 JSON items, depth 16, and 4 KiB strings — recalibrated by SD-R5-F12 (the original 10,000-item cap sat below the committed 15,804-item VPN fixture), every bound pinned at n/n+1, and the byte cap enforced at the single `bounded_parse` seam (it bounds parser work; `include_str!` embedding is bounded by §4 review, not at runtime). | An oversized or excessively nested next fixture refuses before allocation/recursion can grow without limit, and the supplemental VPN fixture parses (its median is now test-grounded). |
-| §7.4 requires zero violations for every server phase but does not say what to do when the adversarial model exceeds the recorded behavior. | Keep the canonical every-phase gate, pin the full violating band set independently (20 bands / 1,052 phases, SD-R5-F2 — the original single-band record was a first-failure artifact), and open a Tom decision. Do not tune the model, fixture, or phase set. | The canonical gate stays ignored with a known-finding reason and fails at the recorded boundary until adjudication; the separately ignored collect-first band enumeration passes and reports any set movement only after its full sweep. |
+| §7.4's fixed-dispatch every-phase replay changes hypothetical server feedback without letting the captured client schedule react. | Tom adjudicated this as a frozen-contract expectation error on 2026-08-14. Preserve B3, both fixtures, and the complete 20-band / 1,052-phase counterexample diagnostic; replace the gate with feedback-consistent calibration. | The superseded assertion remains a finding reproduction until the replacement gate is precisely specified and implemented. Closed-loop C1/M-series every-phase safety is unchanged. |
 
 Existing phase semantics still apply: `phase_ms` is the upcoming
 boundary, and φ=0/1 are the two boundary-distance extremes. Focused
@@ -28,7 +28,8 @@ divides the 60,000 ms cycle.
 The residual sweep exposed no new specification silence. RE-2, RE-6,
 and RE-7 are already specified by G5, N19, and M3 respectively; RE-1
 and RE-9 correct evidence collection/classification without changing
-the frozen §7.4 gate or its known finding.
+the recorded §7.4 counterexample. Tom's later adjudication changes the
+gate expectation, not those repairs or their evidence.
 
 ## 2. Seam map and invariant walk
 
@@ -124,7 +125,8 @@ Exact remaining ballot/closure items:
    `b12-scripted-delay`.
 3. M11a near-ceiling compliant sweep:
    `m11-compliant-never-trips`.
-4. Tom's §7.4 adjudication, then the exhaustive every-phase gate.
+4. The feedback-consistent §7.4 replacement calibration gate; retain
+   the exhaustive fixed-trace counterexample as a diagnostic.
 5. A declared full-contract run for the seven fragment-scale clauses:
    `m6-g1-post-announcement`, `m6-queue-drains-new-pace`,
    `m7-no-client-violation`, `m8-no-follow-on-violation`,
@@ -163,9 +165,10 @@ coincidence.
 - The actual C3/C4 feed methods are load-bearing even though the
   pre-threshold counter state is injected internally. This preserves
   the safety contract instead of weakening D5 for test reachability.
-- The ignored exhaustive replay gate is retained as an executable
-  statement of the frozen contract. The active exact-boundary test
-  prevents its finding from disappearing from ordinary CI.
+- The superseded ignored every-phase assertion is retained temporarily
+  as a reproduction of the adjudicated expectation error. The active
+  exact-boundary test and exhaustive enumeration keep the counterexample
+  from disappearing while the replacement calibration gate is designed.
 - The OAuth/Assumed profile correction is recorded as SD-R5-F1
   because it was an evidence-validity defect found during integration,
   not a silent cleanup.
@@ -174,10 +177,9 @@ coincidence.
   bound is profile-invariant because the shared 60 s sustained
   resolution governs each one, verified by rerun. The remaining
   Assumed-engined focused targets (`actor_safety`, `actor_shell`) are
-  deliberately unchanged pending Tom's profile-lane ratification
-  (status.md §3 decision 2): their bounds are equally
-  profile-invariant, and churning them ahead of the statement risks
-  encoding another silent convention.
+  deliberately unchanged under Tom's 2026-08-14 profile-lane
+  ratification: their bounds are profile-invariant, and generic focused
+  tests may retain the shipped default only on that condition.
 - (Repair session, 2026-08-14:) the supplemental VPN median (148 ms)
   is now test-grounded rather than prose-only, which is also what
   exposed the parser item-cap miscalibration (SD-R5-F12).
@@ -199,7 +201,7 @@ false M6 wire fact reached G5/M6Shrink.
 
 The two ignored replay tests are reported separately: the collect-first
 exhaustive band enumeration passed all 60,000 phases in 6.76 s, while
-the untuned canonical every-phase gate failed as expected at φ=7,454,
-reply 110, sustained 31/30 with restriction 301 s. No command in this
-slice contacts a live service; no report declares `FullContract`, and
-no verdict slot was filled.
+the now-superseded open-loop assertion reproduced the finding at
+φ=7,454, reply 110, sustained 31/30 with restriction 301 s. No command
+in this slice contacts a live service; no report declares
+`FullContract`, and no verdict slot was filled.
