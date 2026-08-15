@@ -1,23 +1,26 @@
 # Scenario-driver and safety-closure hand-off
 
-Status: **open — residual-items packet review closed (SD-R6,
-2026-08-14): an independent review validated all three items,
-reproduced the verification matrix and mutation checks, and found
-no findings; the slice stays open on `status.md` §5 items 4–5.**
-This packet implements
-the first three residual items of the round-five close: the M1
-generated-φ mock-side residue sweep (`m1-g1-sweep`), Ballot G's
-forced M9 phantom race at 14/15 (`m9-recovery-survives-race`,
-`m9-race-exposure-attribution`, the last `b12-scripted-delay` arm),
-and M11a's near-ceiling compliant sweep
-(`m11-compliant-never-trips`). Per-item evidence and mutation checks
-are the three 2026-08-14 post-closure entries in `result-draft.md`
-§9. Rounds one–five and their findings remain in `result-draft.md`
-§9; the SD-R5 re-review closure entry precedes this packet's
-entries. No run declares `FullContract`, and no verdict slot was
-filled. The remaining residual work is `status.md` §5 items 4–5 (the
-feedback-consistent §7.4 replacement gate and the full-contract
-run); neither is part of this packet.
+Status: **open — §7.4 replacement-gate packet presented for
+independent review, 2026-08-15.** The current packet implements
+`status.md` §5 item 4 — the feedback-consistent §7.4 replacement
+calibration gate per the ratified `s7-4-replacement-gate.md` §3/§4
+(code commit `fdacd206`) — and flags one spec-expectation deviation
+(the weaken mutation's kill signature) and one recorded doc finding
+(the precondition-5 stash-list bucket-cutoff divergence) for the
+reviewer. Its additions are marked "(§7.4 gate packet, 2026-08-15)"
+in each section below; its evidence entry is the 2026-08-15
+implementation entry in `result-draft.md` §9. The implementing
+session does not close its own round. No run declares
+`FullContract`, and no verdict slot was filled. The slice stays
+open on `status.md` §5 item 5 (the full-contract run) after this
+packet's review.
+
+Prior state of this file: the residual-items packet below (M1
+residue sweep, Ballot G's M9 race, M11a near-ceiling sweep) closed
+independent review 2026-08-14 (SD-R6 — no findings; closure entry
+in `result-draft.md` §9). Rounds one–five and their findings also
+remain in `result-draft.md` §9. Dated text from those packets is
+preserved below, not rewritten.
 
 ## 1. Silences taken
 
@@ -50,6 +53,17 @@ and B12 fully specify the race construction, and the phantom is
 injected 1 ms after the transport hand-off — provably after the
 client committed, still inside the scripted
 reservation-to-receipt window §2 names.
+
+(§7.4 gate packet, 2026-08-15) — silences taken against the
+ratified spec:
+
+| Silence or boundary | Conservative reading | Next-call consequence |
+|---|---|---|
+| Spec §3 gives the interior stride (991 ms) and the sample census (24) but not the exact sampling rule. | Interiors at band.start + k·991 for k ≥ 1, strictly inside the band (φ < end); edges asserted separately; the 98-phase census is itself asserted. | The two narrow bands — (6,966–7,204) and (36,549–37,297) — get no interior point, matching the spec's "two narrow bands" statement; a future re-reading of the rule that changes the sample set fails the census assert instead of drifting silently. |
+| Spec §3 item 3 asserts only violation-free + ≥1 spurious borderline at halo edges, but §1 says pessimism is asserted "at every quantified phase, at every component". | C2 and the 766-component anchor are asserted at halo edges too (measured to hold there; the conservative direction for a calibration pin). | A future model change that understates only inside the halo fails the gate rather than hiding behind the halo's expected C3 witnesses. Flagged as a reading, not spec text — trivially removable if the reviewer reads §3 item 3 as exhaustive. |
+| Precondition 4 says "recounted, not a bare literal" without naming the counting path. | The 43 is summed from the loaded records by the same `saturation_components` helper the diagnostics use; the pin is the assert against 43. | A fixture or loader change that moves the recorded saturation census fails the precondition before any phase replays. |
+| Precondition 6 says "one distinct limit string per policy" — string or parse? | Verbatim header strings (`limits_raw`, added to the loader), compared per policy across all 387 records. | A re-serialized but semantically equal limit header fails the precondition — stricter than parse equality, which is the conservative side for a stability pin. |
+| The spec's active-gate description says "state the debug time when it lands" but sets no bound. | Measured and recorded (0.25 s debug, under 0.1 s release); no bound asserted in code. | None — the numbers live in the §9 entry and this packet; CI cost stays negligible. |
 
 ## 2. Seam map and invariant walk
 
@@ -109,16 +123,49 @@ reservation-to-receipt window §2 names.
   the watch channel's changed state; fuse publication asserts Halted
   only after the actor mutates its terminal latch.
 
+(§7.4 gate packet, 2026-08-15) — seams this packet touches:
+
+- **Mock model (mock slice's state):** the gate consumes only the
+  public `CounterModel` loader/seeding/judgment path the existing
+  replay tests already own — `seeded_model` is shared by the gate,
+  the band-edge test, and the 43/43 pin, so all §7.4 deciders replay
+  through one seam. No production (Rust-core) scheduling code
+  appears in any oracle; per the ratified spec, feedback-consistency
+  is defined against the *captured C++ client's* semantics, and
+  nothing in the gate reads the Rust core at all.
+- **`bucket_end` conventions:** the gate's band tables are sensitive
+  to the model's half-open-bucket and exclusive-expiry readings,
+  pinned at contract level by Tom's 2026-08-15 B3 amendment; the
+  mutation-2/3 checks demonstrated the gate fails loudly in both
+  convention directions.
+- **Clause registry (registry slice's state):** `s7-4-replay-gate`
+  flipped Partial→Full as the spec's discharge line directs — a
+  deliberate coverage-state diff verified by the obligations suite;
+  two stale `scenarios.md` anchors corrected in the touched clauses
+  (`s7-4-replay-gate`, `b12-scripted-delay`); no new clause, no
+  owner change.
+- **Cross-slice invariants:** this packet adds test code and
+  registry rows only; no engine, actor, or mock *code* changed, so
+  the six AGENTS.md invariants are untouched by construction — in
+  order: (1) no history/episode state is created or held by the
+  gate (wedge-free trivially); (2) reservation identity is never
+  exercised (no reservations exist in a replay); (3) pessimism
+  direction is *asserted*, not mutated — C2 is the gate's own
+  condition; (4) `try_reserve` authority is untouched (the replay
+  drives recorded arrivals, grants nothing); (5) entry-point
+  invariant untouched (no `on_response`/`on_probe_response` calls);
+  (6) notifications untouched (no watch channel in the replay
+  path).
+
 ## 3. Coverage confession
 
-The registry is the coverage authority. After the residual-items
-packet it contains 123 clauses: 101 Full, 8 Partial, one accepted
-Untested limitation, and 13 Excluded; `OPEN_UNTESTED` is empty and
+The registry is the coverage authority. After the §7.4 gate packet
+it contains 123 clauses: 102 Full, 7 Partial, one accepted Untested
+limitation, and 13 Excluded; `OPEN_UNTESTED` is empty and
 `cargo test --locked --test obligations` verifies the structure. The
-remaining Partial set is exactly `s7-4-replay-gate` (the §7.4
-feedback-consistent replacement gate, minted per SD-R5-F11) plus the
-seven fragment-scale clauses only the declared full-contract run can
-finish.
+remaining Partial set is exactly the seven fragment-scale clauses
+only the declared full-contract run can finish (`s7-4-replay-gate`
+flipped to Full 2026-08-15 per the ratified spec's discharge line).
 
 New or strengthened evidence:
 
@@ -159,6 +206,39 @@ New or strengthened evidence:
   wrong-policy phantom → organic-429 assertion; shrunk synthetic
   limit → G5 and G3 together).
 
+- (§7.4 gate packet, 2026-08-15:) the replacement calibration gate —
+  spec-§3 integrity preconditions 1–9 asserted phase-independently
+  (residue-zero migrated from the deleted superseded test); the
+  pinned 28-band HALO table; Φ\* derived arithmetically as the
+  complement of V ∪ HALO with the exact
+  29,601 + 29,347 + 1,052 = 60,000 partition; C1/C2/C3 with the
+  766-component and anti-echo anchors at 18 consistent edges + 24
+  stride interiors; violation-free ≥1-spurious replays at all 56
+  halo edges; and the ignored exhaustive companion re-deriving the
+  full three-way classification and pinning the strict-overstatement
+  envelope at 25..57 of 766 (green release run in §5's matrix).
+
+**What this packet's tests deliberately do not cover:**
+
+- Interior phases beyond the 24 stride samples are the companion's
+  job, and the companion is `#[ignore]` — ordinary CI does not run
+  it; the green release run recorded in §5 is review evidence, not a
+  standing CI guarantee.
+- C3 stays strict per Tom's ratified §6 item 2 decision: phases
+  whose spurious borderline is masked at policy level (73% of edge
+  witnesses) or pad-compatible (54%) are excluded from Φ\* even
+  though their counterfactual schedule may have matched the
+  recording — conservative for a calibration filter, and a real
+  reduction in the anti-strictness half (non-emptiness plus pin
+  discipline is all that remains, spec §1).
+- The `sent_ms` arrival convention is retained with its
+  stated-approximation argument; no sweep-scale alternative-
+  convention measurement exists (spec §4 withdrew that claim), and
+  this packet adds none.
+- The gate is mock calibration against the observed lane — never
+  client-safety evidence; closed-loop every-phase safety stays with
+  C1 and the M-series.
+
 Every scenario-driver and focused transition report remains
 `ContractCoverage::Fragment` and explicitly fails
 `verdict_eligible()`. Two-phase tests are boundary checks, not an
@@ -167,10 +247,13 @@ thresholds reachable under intact D5; the internal trip tests are
 deliberate fault-injection composition evidence.
 
 Exact remaining ballot/closure items (items 1–3 of the round-five
-residual set are discharged by this packet):
+residual set were discharged by the residual-items packet; item 1
+below is discharged by the §7.4 gate packet, pending its review):
 
-1. The feedback-consistent §7.4 replacement calibration gate; retain
-   the exhaustive fixed-trace counterexample as a diagnostic.
+1. ~~The feedback-consistent §7.4 replacement calibration gate;
+   retain the exhaustive fixed-trace counterexample as a
+   diagnostic.~~ — **implemented 2026-08-15** (this packet; the
+   band-edge test and enumeration are retained unchanged).
 2. A declared full-contract run for the seven fragment-scale clauses:
    `m6-g1-post-announcement`, `m6-queue-drains-new-pace`,
    `m7-no-client-violation`, `m8-no-follow-on-violation`,
@@ -195,6 +278,14 @@ matches all 43 recorded saturation components, including 15/15 and
 is confined to one rule shape, but it is a systematic
 model-vs-recorded-server disagreement, not a narrow single-band
 coincidence.
+
+*[Marker, 2026-08-15 (§7.4 gate packet): "not green" above describes
+the superseded open-loop every-phase expectation, adjudicated an
+error 2026-08-14 and whose test the adopted spec's §4 deleted. Under
+the ratified replacement gate the calibration IS green: the 1,052
+violating phases and the 29,347-phase borderline halo are the pinned
+refuted sets, and the gate holds on the 29,601-phase derived
+consistent set. Dated text preserved, not rewritten.]*
 
 ## 4. Judgment calls
 
@@ -251,6 +342,42 @@ coincidence.
     ceiling-headroom ordering is a compile-time assertion. The
     sweep runs under both bucket profiles instead of arguing
     profile invariance for a generic synthetic policy.
+- (§7.4 gate packet, 2026-08-15:)
+  - **The weaken-mutation deviation, flagged for the reviewer.** The
+    spec's §3 predicts "expire hits one bucket early → C2
+    understatement failure at a consistent phase". Measured: under
+    that exact weakening (dropping `bucket_end`'s +1 bucket) *zero*
+    C2 understatements occur at any of the 60,000 phases — the
+    weakened model collapses toward a recording echo, so the
+    mutation is killed by the **anti-echo anchor at φ=0** and, in
+    the companion, by 30,399 misclassified phases. The gate kills
+    the mutation; the spec's predicted signature does not occur on
+    this fixture. Recorded rather than reordering asserts to force
+    the predicted arm; the deviation is also in the §9 entry. A
+    different reasonable session might have called this a spec
+    erratum needing Tom — this one treats it as a measurement the
+    review round adjudicates, since the mutation's *kill* (the
+    contractual point) is intact.
+  - Asserting C2 and the 766-component anchor at halo edges (spec
+    §3 item 3 names only violation-free + ≥1 spurious) — the §1
+    "every quantified phase" reading; trivially removable if the
+    reviewer reads item 3 as exhaustive.
+  - Interior sampling rule and verbatim `limits_raw` comparison as
+    stated in §1's silence rows.
+  - The corrupt-state mutation (spec: "corrupt one recorded state in
+    memory after load") was instantiated as `records[50].states[1]
+    += 1` — a mid-trace sustained-window bump chosen to land in the
+    C2 arm rather than trivially in a precondition; the spec allows
+    either ("precondition or C2/C3 failure").
+  - Precondition 9 (layer-1) replays arrivals once through a φ=0
+    model: `record_layer1_arrival` never reads φ, so one pass is the
+    phase-independent assertion the spec asks for, and the per-phase
+    replays keep their existing inline layer-1 assert as
+    defense-in-depth.
+  - `GATE_SAMPLED_PHASES = 98` is asserted even though it is
+    derivable, so a future table or stride change that silently
+    shrinks the sample set fails the census rather than passing
+    thinner.
 
 ## 5. Verification presented with this packet
 
@@ -276,3 +403,30 @@ reproduced the adjudicated finding at φ=7,454, reply 110, sustained
 31/30 with restriction 301 s. No command in this slice contacts a
 live service; no report declares `FullContract`, and no verdict slot
 was filled.
+
+(§7.4 gate packet, 2026-08-15) — verification matrix, entirely
+offline: `cargo test --locked` — 167 passed / 0 failed / 2 ignored;
+`cargo test --locked --release` — 165 / 0 / 2 (the two debug-only
+drop-bomb tests are absent); `PROPTEST_CASES=4096 cargo test
+--locked` — 167 / 0 / 2; **both ignored replay tests green in
+release** — the exhaustive band enumeration and the new exhaustive
+classification companion (7.61 s alone; 7.7 s together), the
+companion being the spec-mandated review evidence and the
+re-derivation of every §5 number (tables, partition, 25..57
+envelope); active gate 0.25 s debug / under 0.1 s release with its
+98-phase census asserted; all-target clippy with warnings denied,
+fmt check, `git diff --check`, obligations suite, and the Python
+sanitizer suite 4/4 — all clean. Mutation checks run and reverted
+(signatures verbatim in the 2026-08-15 §9 implementation entry):
+HALO edge −1 → "the HALO table drifted" 29,348 ≠ 29,347; V edge −1 →
+refuted-table overlap at φ=7,453; V edge +1 (inward) → V width sum
+1,051 ≠ 1,052; weakened model → anti-echo anchor at φ=0 (the
+recorded deviation above); strengthened model → C1 violation at
+φ=0, reply 24, `stash-request-limit` burst 16/15; corrupted
+recorded state → C2 at φ=0, reply 46, `character-request-limit`
+sustained, model 13 vs recorded 14; echo mutation → anti-echo
+anchor at φ=0. The superseded open-loop test is deleted by this
+packet (spec §4; residue-zero assert migrated into the gate's
+preconditions), so its finding-reproduction line above is now
+historical. No command in this packet contacts a live service; no
+report declares `FullContract`; no verdict slot was filled.

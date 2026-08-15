@@ -854,9 +854,46 @@ observed lane:
   dispatches at t=727,453 ms, one millisecond before 25 earlier hits
   expire, where the server recorded `6:300:0`. `CounterModel` and
   independent arithmetic agree. B3 and both fixtures remain
-  unchanged; the fixed-trace failure and exhaustive band set are
-  retained as diagnostics. A precisely specified feedback-consistent
-  replacement gate and its green run are still owed.
+  unchanged; the band table and exhaustive enumeration are retained
+  as diagnostics. The replacement gate was specified
+  (`s7-4-replacement-gate.md`, ratified in full 2026-08-15) and
+  implemented green the same day — next bullet.
+- Replacement calibration gate (implemented 2026-08-15, green): the
+  capture refutes phases two ways — the SD-R5-F2 bands by
+  disposition (1,052 phases, 20 bands) and a pinned borderline halo
+  by state classification (29,347 phases, 28 bands; `HALO_BANDS` in
+  `tests/capture_replay.rs`) — and the consistent set Φ\* is derived
+  arithmetically as the complement (29,601 phases, 9 bands; the
+  partition 29,601 + 29,347 + 1,052 = 60,000 is asserted). The
+  active gate
+  (`section_7_4_replacement_gate_holds_on_the_derived_consistent_set`,
+  ordinary CI, 98 phase replays, 0.25 s debug / under 0.1 s release)
+  asserts the spec's §3 integrity preconditions 1–9 (including the
+  residue-zero assert migrated from the superseded test) and, per
+  sampled phase, C1/C2/C3 with the 766-component and anti-echo
+  anchors at consistent samples and violation-free
+  ≥1-spurious-borderline replays at halo edges. The ignored
+  exhaustive companion re-derives the three-way classification of
+  all 60,000 phases from the replay alone — the spec's §5 numbers
+  re-derived, never trusted — asserts C2 at every phase, and pins
+  the strict-overstatement envelope over Φ\* at 25..57 of 766
+  (green in release, 7.6 s). The superseded open-loop every-phase
+  test is deleted (spec §4); the band-edge test, exhaustive
+  enumeration, and φ=0 43/43 diagnostic are retained unchanged.
+  `s7-4-replay-gate` is Full per the spec's discharge line; no
+  verdict slot is filled.
+- **Doc finding (spec §3 precondition 5, recorded at
+  implementation):** B3 buckets `stash-list-request-limit`'s
+  sustained 60 s window at 60 s per §1's positional Known(5s/60s)
+  rule, while the captured production client's bucket rule is a
+  75 s period *cutoff* — both of that policy's periods sit below
+  it, so the client pads its 60 s window with a 5 s bucket (66 s
+  total wait). The mock is therefore more adversarial than the
+  captured client on that policy. The divergence is latent in this
+  capture (no V or halo witness lands on stash-list — second
+  adversarial review, measured) and is recorded here rather than
+  silently absorbed; neither `scenarios.md` §1/B3 nor the bucket
+  table states it.
 - Diagnostic — saturation-state agreement (15/15, 30/30; N25/N26):
   phase 0 matches all 43/43 recorded saturation components,
   including 15/15 and 30/30. This is evidence for the replacement
@@ -2427,3 +2464,71 @@ outlives the spike branch; record what exists and where.⟩
   are applied in `scenarios.md`; implementation of the gate is
   unblocked as `status.md` §5 item 4. No verdict slot changes; no
   live service was contacted.
+
+- 2026-08-15 — **§7.4 replacement calibration gate implemented;
+  superseded open-loop test deleted; `s7-4-replay-gate` Full**
+  (`status.md` §5 item 4, per the ratified
+  `s7-4-replacement-gate.md` §3/§4; code commit `fdacd206`).
+  What landed, in `tests/capture_replay.rs`: the §3
+  capture-integrity preconditions 1–9 asserted phase-independently
+  (`assert_capture_integrity` — precondition 2's residue-zero and
+  one-seed-per-policy asserts migrated from the superseded test,
+  whose deletion the spec made contingent on that migration; new
+  loader fields `date_ms` and `limits_raw` serve the `Date` bound
+  and verbatim limit stability); the pinned `HALO_BANDS` table (28
+  bands, 29,347 phases); Φ\* derived arithmetically as the
+  complement of V ∪ HALO (9 bands, 29,601 phases — no third
+  hand-maintained table) with the exact partition assert; the
+  active gate over 98 sampled phases (18 consistent edges, 24
+  stride-991 interiors — the two narrow bands get none, census
+  pinned — and 56 halo edges) asserting C1/C2/C3, the
+  766-component anchor, and the anti-echo anchor per the spec;
+  and the ignored exhaustive companion, which re-derives the
+  classification of every phase in [0, 60,000) from the replay
+  alone (matching the tables exactly), asserts C2 everywhere
+  (refuted phases up to their initiating reply), and pins the
+  strict-overstatement envelope over Φ\* at 25..57 of 766 — the
+  spec's §5 numbers are thereby re-derived by the implementation,
+  not copied. Timings: active gate 0.25 s debug / under 0.1 s
+  release; companion 7.61 s release (both ignored replay tests
+  together: 7.7 s). Registry: `s7-4-replay-gate` flips to Full per
+  the spec's discharge line (active gate primary; companion,
+  band-edge test, and the φ=0 43/43 pin supporting); its stale
+  `scenarios.md:820` anchor corrected (adoption marker `:861`,
+  diagnostic bullet `:873`) and `b12-scripted-delay`'s stale
+  `:684` anchor and cross-reference note updated while touched; no
+  new clause. Totals now 102 Full / 7 Partial (exactly the seven
+  fragment-scale clauses) / 1 accepted Untested / 13 Excluded.
+  Verification matrix, entirely offline: `cargo test --locked`
+  167/0 failed/2 ignored; `--release` 165/0/2;
+  `PROPTEST_CASES=4096` 167/0/2; both ignored replay tests green
+  in release; all-target clippy `-D warnings` clean; fmt clean;
+  `git diff --check` clean; obligations suite green; Python
+  sanitizer suite 4/4. Mutation checks, run and reverted:
+  (1a) HALO edge 2,298→2,297 → partition failure "the HALO table
+  drifted: 29,348 vs 29,347"; (1b) V edge 7,454→7,453 → "the
+  refuted tables overlap at the V band starting phi=7453
+  (cursor=7454)"; (1c) V edge 7,454→7,455 inward → V width sum
+  1,051 ≠ 1,052; (2) weakened model (bucket_end drops its +1
+  bucket) → **anti-echo anchor fails at consistent edge φ=0**, and
+  the companion under the same mutation misclassifies 30,399
+  phases with *zero* C2 understatements at any phase — the spec's
+  predicted "C2 understatement failure at a consistent phase"
+  signature does not occur on this fixture (the weakened model
+  collapses to a recording echo at φ=0); the mutation is killed,
+  but **the deviation from the spec's §3 predicted signature is
+  recorded here for the review round**, not tuned away;
+  (3) strengthened model (+2 buckets) → C1 violation at consistent
+  edge φ=0, reply 24, `stash-request-limit` burst 16/15;
+  (4) corrupt `records[50].states[1] += 1` after load → C2 at
+  consistent edge φ=0, reply 46, `character-request-limit`
+  sustained, model 13 vs recorded 14; (5) echo mutation (model
+  judgment := recorded state verbatim) → anti-echo anchor fails at
+  φ=0, the first sampled phase (by construction it fails at every
+  consistent sample, and halo edges lose their spurious witness).
+  The spec-§3-precondition-5 stash-list bucket-cutoff divergence is
+  recorded as a doc finding in §5. Every replay report remains
+  outside the verdict path; no verdict slot is filled; no live
+  service was contacted. The four-part packet
+  (`scenario-driver-handoff.md`) is presented for independent
+  review; the slice stays open on `status.md` §5 item 5.

@@ -33,17 +33,17 @@ The open-untested list is the `OPEN_UNTESTED` constant in
 `src/obligations.rs` — **not** any prose table. As of 2026-08-14 it
 is empty: the implementation swarm discharged all 13 previously
 open Untested ids.
-Registry totals are 101 Full, 8 Partial, one accepted Untested
+Registry totals are 102 Full, 7 Partial, one accepted Untested
 limitation (`x2-parser-cap-limitation`), and 13 Excluded. The
-Partial set includes `s7-4-replay-gate`, §7.4 calibration's
-machine-checked slot (SD-R5-F11), whose delta is a precisely
-specified feedback-consistent replacement gate plus its green run;
-Tom's adjudication is recorded in `result-draft.md` §9.
-(`m1-g1-sweep` flipped to Full on 2026-08-14: the generated-φ
-mock-side residue sweep landed — §9 changelog.)
+Partial set is now exactly the seven fragment-scale clauses §5
+item 5 names. (`s7-4-replay-gate` flipped to Full on 2026-08-15:
+the replacement calibration gate landed green per the ratified
+spec's discharge line — §9 changelog. `m1-g1-sweep` flipped to
+Full on 2026-08-14: the generated-φ mock-side residue sweep
+landed — §9 changelog.)
 Empty `OPEN_UNTESTED` does not
-imply verdict readiness; the Partial set and §7.4 replacement gate
-work are itemized in §5. `obligation-map.md`
+imply verdict readiness; the remaining Partial set is itemized in
+§5. `obligation-map.md`
 is the superseded prose ancestor; read its §8 for the audit's
 discrepancy analysis (dated at `e2034807`), never for current
 coverage.
@@ -68,7 +68,13 @@ coverage.
   registry; reproduced the full verification matrix and all four
   mutation checks (exact claimed signatures); and found no
   findings. The closure entry is in `result-draft.md` §9. No
-  verdict slot was filled. The slice stays open on §5 items 4–5;
+  verdict slot was filled.
+  **The §7.4 replacement-gate packet is presented** (2026-08-15):
+  §5 item 4 was implemented the same day its spec was ratified, and
+  its four-part packet in `scenario-driver-handoff.md` awaits an
+  independent reviewer — the implementing session does not close
+  its own round. The slice stays open on §5 items 4–5 (item 4
+  pending review, item 5 pending implementation);
   `scenario-driver-handoff.md` remains the live four-part packet
   for that work.
 - Every other slice (core, bootstrap, mock, actor, clause registry,
@@ -100,9 +106,9 @@ ratification record is in `result-draft.md` §9. (Both earlier
 
 ## 4. Blocked
 
-None. All remaining work in §5 can proceed. §7.4 calibration closure
-still requires the replacement gate, but no Tom decision or
-live-service input blocks it.
+None. §5 item 4's implementation is done and awaits its independent
+review round (any fresh reviewer can take the packet); item 5 can
+proceed. No Tom decision or live-service input blocks anything.
 
 ## 5. Next work
 
@@ -127,12 +133,18 @@ work.
    contract; drafted with two adversarial fresh-context reviews,
    probe measurements, and a blind witness audit that hand-verified
    the first halo edge outside the shared machinery — §9
-   changelog); next is
-   implementation and its review round. The active band-edge,
-   exhaustive band enumeration, and 43/43 witness diagnostics remain
-   load-bearing; the superseded open-loop every-phase assertion
-   remains only as a finding reproduction until the adopted
-   replacement deletes it per the spec's §4.
+   changelog). **Implemented 2026-08-15, green** (active gate +
+   ignored exhaustive companion in `tests/capture_replay.rs`;
+   `s7-4-replay-gate` Full per the spec's discharge line; the
+   superseded open-loop test deleted per the spec's §4 after its
+   residue-zero assert migrated — §9 changelog, code commit
+   `fdacd206`). **Awaiting the independent implementation-review
+   round** — `scenario-driver-handoff.md` is the live four-part
+   packet, which flags one spec-expectation deviation (the weaken
+   mutation's kill signature) and one recorded doc finding (the
+   precondition-5 stash-list bucket-cutoff divergence) for the
+   reviewer. The band-edge, exhaustive-enumeration, and 43/43
+   witness diagnostics remain load-bearing, retained unchanged.
 5. Full-contract run last. It finishes the fragment-scale-only
    clauses `m6-g1-post-announcement`,
    `m6-queue-drains-new-pace`, `m7-no-client-violation`,
