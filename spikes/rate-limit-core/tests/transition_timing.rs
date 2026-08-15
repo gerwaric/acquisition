@@ -64,6 +64,63 @@ fn engine() -> PolicyEngine {
     ))
 }
 
+#[derive(Debug, Clone, Copy)]
+struct M6FragmentFacts {
+    organic_violation: bool,
+    organic_violation_count: usize,
+    recovered_dispatch_ms: u64,
+    recovery_bound_ms: u64,
+    recovered_violation: bool,
+}
+
+impl M6FragmentFacts {
+    fn passed(self) -> bool {
+        self.organic_violation
+            && self.organic_violation_count == 1
+            && self.recovered_dispatch_ms >= self.recovery_bound_ms
+            && !self.recovered_violation
+    }
+}
+
+// RE-2 reachability guard: every wire fact carried by the M6 scenario
+// assertion can make G5 false. The integration test below hands this result
+// directly to `judge`; no duplicate panic-assert may dominate that call.
+#[test]
+fn m6_fragment_verdict_is_not_constant_true() {
+    let passing = M6FragmentFacts {
+        organic_violation: true,
+        organic_violation_count: 1,
+        recovered_dispatch_ms: 200,
+        recovery_bound_ms: 200,
+        recovered_violation: false,
+    };
+    assert!(passing.passed());
+
+    for failing in [
+        M6FragmentFacts {
+            organic_violation: false,
+            ..passing
+        },
+        M6FragmentFacts {
+            organic_violation_count: 2,
+            ..passing
+        },
+        M6FragmentFacts {
+            recovered_dispatch_ms: 199,
+            ..passing
+        },
+        M6FragmentFacts {
+            recovered_violation: true,
+            ..passing
+        },
+    ] {
+        assert!(
+            !failing.passed(),
+            "wire fact must reach G5 false: {failing:?}"
+        );
+    }
+}
+
 fn wire_request(endpoint: Endpoint) -> rate_limit_core::transport::WireRequest {
     with_correlation_header(
         request(Method::GET, endpoint, 0).expect("fixed mock request is valid"),
@@ -317,7 +374,6 @@ async fn m6_forced_preannouncement_original_recovers_at_the_shrunk_pace() {
         let transition_observations = controller.observations().await;
         let announcement = by_correlation(&transition_observations, 3);
         let organic = by_correlation(&transition_observations, 4);
-        assert!(organic.policy_judgment.organic_violation);
         assert_eq!(
             organic.response_status,
             Some(http::StatusCode::TOO_MANY_REQUESTS)
@@ -330,15 +386,6 @@ async fn m6_forced_preannouncement_original_recovers_at_the_shrunk_pace() {
             organic.arrival_ms > announcement.completion_ms,
             "phase {phase_ms}: the bounded exposure must land after the shrink is observable"
         );
-        assert_eq!(
-            transition_observations
-                .iter()
-                .filter(|observation| observation.policy_judgment.organic_violation)
-                .count(),
-            1,
-            "phase {phase_ms}: exposure is bounded to the one stale companion"
-        );
-
         wait_for_handoffs(&controller, 5, Duration::from_secs(500), phase_ms).await;
         wait_for_observations(&controller, 5, Duration::from_secs(1), phase_ms).await;
         advance(Duration::from_millis(100)).await;
@@ -353,26 +400,20 @@ async fn m6_forced_preannouncement_original_recovers_at_the_shrunk_pace() {
             * 1_000;
         let recovery_bound_ms =
             organic.completion_ms + retry_after_ms + APPLICABLE_BUCKET_AND_BUFFER_MS;
-        assert!(
-            recovered.dispatch_ms >= recovery_bound_ms,
-            "phase {phase_ms}: recovery must wait Retry-After + 60s bucket + 1s buffer"
-        );
-        assert!(
-            !recovered.policy_judgment.organic_violation,
-            "phase {phase_ms}: recovery may not create a follow-on violation"
-        );
-
-        // The scenario assertion handed to the judge is *measured* from the
-        // same wire facts the raw asserts above use, never declared
-        // (SD-R5-F7): G5 must carry scenario information for this arm.
-        let fragment_passed = organic.policy_judgment.organic_violation
-            && observations
+        // RE-2: this is the sole decider for the four M6 scenario facts. A
+        // broken fact reaches G5 and the report below; it is not intercepted
+        // by a duplicate panic-assert first.
+        let fragment_passed = M6FragmentFacts {
+            organic_violation: organic.policy_judgment.organic_violation,
+            organic_violation_count: observations
                 .iter()
                 .filter(|observation| observation.policy_judgment.organic_violation)
-                .count()
-                == 1
-            && recovered.dispatch_ms >= recovery_bound_ms
-            && !recovered.policy_judgment.organic_violation;
+                .count(),
+            recovered_dispatch_ms: recovered.dispatch_ms,
+            recovery_bound_ms,
+            recovered_violation: recovered.policy_judgment.organic_violation,
+        }
+        .passed();
 
         // Exercise the public attribution seam rather than merely declaring
         // correlation 4 exceptional. Eligibility is separately scripted and

@@ -211,7 +211,7 @@ async fn degraded_probe_cools_one_endpoint_while_another_policy_keeps_flowing() 
     assert!(matches!(
         failed.await,
         Err(GateError::SetupFailed {
-            cause: RefusalCause::PolicyObservation(_),
+            cause: RefusalCause::PolicyObservation(PolicyParseError::MissingHeader { .. }),
             ..
         })
     ));
@@ -238,7 +238,7 @@ async fn degraded_probe_cools_one_endpoint_while_another_policy_keeps_flowing() 
     assert!(matches!(
         cooled.await,
         Err(GateError::SetupFailed {
-            cause: RefusalCause::PolicyObservation(_),
+            cause: RefusalCause::PolicyObservation(PolicyParseError::MissingHeader { .. }),
             ..
         })
     ));

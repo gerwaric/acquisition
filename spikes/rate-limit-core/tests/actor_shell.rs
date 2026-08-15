@@ -8,6 +8,11 @@ use rate_limit_core::mock::{
     request,
 };
 
+/// N19's applicable bucket is the largest configured policy resolution
+/// (60 s in this lane) plus the core's fixed one-second buffer. This is
+/// scenario arithmetic, independent of the engine under test (RE-6).
+const APPLICABLE_BUCKET_AND_BUFFER_MS: u64 = 60_000 + 1_000;
+
 fn engine() -> PolicyEngine {
     PolicyEngine::new(BucketModel::new(
         Resolution::Assumed(Duration::from_secs(60)),
@@ -439,7 +444,7 @@ async fn m8_429_requeues_through_the_core_not_before_deadline() {
     assert!(ticket.await.unwrap().status().is_success());
     let handoffs = controller.handoffs().await;
     assert_eq!(handoffs.len(), 3);
-    assert!(handoffs[2].dispatch_ms >= handoffs[1].dispatch_ms + 61_000);
+    assert!(handoffs[2].dispatch_ms >= handoffs[1].dispatch_ms + APPLICABLE_BUCKET_AND_BUFFER_MS);
 }
 
 #[tokio::test(start_paused = true)]
