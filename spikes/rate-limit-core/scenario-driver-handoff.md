@@ -1,6 +1,23 @@
 # Scenario-driver and safety-closure hand-off
 
-Status: **open — the F11–F20 repair packet (dated 2026-08-15 additions
+Status: **open — the 2026-08-15 repeated re-close review found
+SD-R8-F21/F22; this file requires an F21/F22 repair-range four-part
+update before re-review.** The review verified all ten F11–F20 repairs
+and reproduced the full matrix and all five mutation signatures, but
+the run-owned-label class has a fourth generation: F21 re-expresses the
+F12 split profile outside `mod lane` by mutating the `Copy` record's
+`pub` field after construction, and F22 forges the (M2, CharacterList)
+pair at declaration time from a post-judge cloned report with zero
+CharacterList wire traffic — both against passing authorities. The
+packet's "unrepresentable outside this module" and
+pair-is-the-guarded-fact claims do not survive them. Findings,
+evidence, and proposed dispositions are in `result-draft.md` §9; live
+state is `status.md`. The repair session must update the silences, seam
+map/invariant walk, coverage confession (including the review's
+enumerated unbound labels), and judgment calls; this review session
+does not author its packet for it.
+
+Prior status: **open — the F11–F20 repair packet (dated 2026-08-15 additions
 in each section below) is presented and awaits the repeated independent
 re-close review.** All ten final-audit findings are repaired per their
 `result-draft.md` §9 dispositions and Tom's F14/F16 decisions: the

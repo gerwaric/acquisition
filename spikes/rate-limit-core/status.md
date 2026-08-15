@@ -79,8 +79,15 @@ negative tests, both authorities reran green over the repaired guards
 (pinned declaration; 4,096-case declared run in 306.83 s; obligations
 6/6 at unchanged 124/110 totals), and all five mutation signatures —
 the preserved F5/F9 pins and the new F11/F12 refusals — are recorded
-in `result-draft.md` §9. Verdict readiness stays suspended pending the
-repeated re-close review and the repeated final audit.
+in `result-draft.md` §9. **The repeated re-close review (2026-08-15)
+verified all ten repairs and reproduced the matrix and all five
+signatures, but found SD-R8-F21/F22: the two authorities still agree
+in two forged states** — the F12 split profile re-expressed outside
+`mod lane` by post-construction mutation of the record's `pub` field,
+and the (M2, CharacterList) pair satisfied by a post-judge cloned
+report with zero CharacterList wire traffic. Verdict readiness stays
+suspended pending the F21/F22 repairs, a fresh packet, re-review, and
+the repeated final audit.
 `obligation-map.md`
 is the superseded prose ancestor; read its §8 for the audit's
 discrepancy analysis (dated at `e2034807`), never for current
@@ -217,11 +224,36 @@ coverage.
   repeated independent re-close review, then the repeated
   `final-audit-charge.md` audit over the repaired tree and both
   migration diffs.
+  **The repeated re-close review ran 2026-08-15 and did not close the
+  round: SD-R8-F21/F22.** It verified all ten F11–F20 repairs item by
+  item (wording repairs re-derived from evidence; F19 against B3's
+  ratified conventions; F20 against the actor source), reproduced the
+  full offline matrix, both authorities, and all five mutation
+  signatures exactly — and then falsified the repair's central claim:
+  the F12 split-profile state is representable outside `mod lane`
+  (post-construction field mutation on the `Copy` record; F21, high),
+  and the F11 pair requirement is forgeable at declaration time by a
+  post-judge cloned report while zero CharacterList wire traffic
+  exists (F22, high). In both experiments the pinned declaration and
+  obligations passed. Three further unbound run-owned labels are
+  enumerated in the review entry (assertion coverage, assertion-passed
+  carriage, observation-vector carriage). Findings and proposed
+  dispositions in `result-draft.md` §9; the hand-off is flipped back
+  to owing an F21/F22 repair-range packet. Both verdict fills stay
+  suspended.
 - Every other slice (core, bootstrap, mock, actor, clause registry,
   doc split) is closed; their hand-offs are historical records.
   (Doc split closed 2026-08-13, DS-R1 — `result-draft.md` §9.)
 
 ## 3. Open decisions (Tom)
+
+One from the repeated re-close review (2026-08-15, SD-R8-F21/F22
+entry, `result-draft.md` §9): whether the three enumerated unbound
+run-owned labels — assertion coverage, assertion-passed carriage,
+observation-vector carriage — are **bound** by the F21/F22 repair or
+**recorded** as named trust surfaces in the confession and registry
+notes. The F21/F22 sealing repairs themselves have proposed
+dispositions and need no contract decision.
 
 None from the final audit remain open. Tom decided both routed
 findings on 2026-08-15 (records in `result-draft.md` §9):
@@ -300,13 +332,18 @@ ratification record is in `result-draft.md` §9. (Both earlier
 
 ## 4. Blocked
 
-Delivery is blocked on re-closing SD-R8. The F11–F20 repairs, authority
-reruns, and the fresh four-part hand-off are done (§2); the amended
-migration drafts are not yet accepted. What remains before either
-delivery PR: the repeated independent re-close review over the repair
-packet, then the repeated `final-audit-charge.md` audit over the
-repaired tree and both migration diffs. Both verdict fills stay
-suspended until then. No decision currently waits on Tom.
+Delivery is blocked on re-closing SD-R8. The F11–F20 repairs landed
+and were verified, but the repeated re-close review found
+SD-R8-F21/F22 (§2) and left the round open. What remains before
+either delivery PR: repair F21/F22 (sealing the judged artifacts per
+the §9 proposed dispositions, or an alternative Tom prefers), a fresh
+four-part packet, another repeated independent re-close review, then
+the repeated `final-audit-charge.md` audit over the repaired tree and
+both migration diffs. Both verdict fills stay suspended until then.
+One choice is flagged for Tom in the §9 entry: whether the three
+enumerated unbound labels (assertion coverage, assertion-passed
+carriage, observation-vector carriage) are bound or recorded as named
+trust surfaces.
 
 ## 5. Next work
 
@@ -391,10 +428,13 @@ Reopened SD-R8 work (audit and re-close-review entries,
      reopened SD-R8 with F11–F20; package not deliverable.**
   4. Repair and independently re-close the reopened round, then repeat
      `final-audit-charge.md` over the repaired tree and both diffs.
-     **Repairs done 2026-08-15** (the three bullets above); the
-     repeated independent re-close review over the fresh
-     `scenario-driver-handoff.md` packet is now the next step, then
-     the repeated final audit.
+     **F11–F20 repairs done 2026-08-15** (the three bullets above);
+     the repeated re-close review ran the same day, verified them,
+     and **found SD-R8-F21/F22 — the round stays open**. Now next:
+     the F21/F22 repairs (seal the judged artifacts per the §9
+     proposed dispositions), a fresh four-part packet, another
+     repeated independent re-close review, then the repeated final
+     audit.
   5. The two delivery PRs (`spike/rate-limit-core` → `redesign`;
      CN docs → `master`). **F6 — and the spike — complete at
      landing.**

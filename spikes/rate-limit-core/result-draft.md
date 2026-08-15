@@ -168,6 +168,18 @@ with all five mutation signatures recorded. Both verdict fills remain
 re-close review and the repeated final audit. `status.md` is live
 state.]*
 
+*[Repeated re-close review marker, 2026-08-15, same day: **the
+repeated SD-R8 re-close review found SD-R8-F21/F22 and did not close
+the round.** The F11–F20 repairs verified item by item and all five
+mutation signatures reproduced exactly, but the F4→F9→F11/F12 class
+has a fourth generation: the F12 split-profile state is re-expressible
+outside `mod lane` by post-construction field mutation, and a
+post-judge cloned report forges the (M2, CharacterList) pair with zero
+CharacterList wire traffic — in both experiments the pinned
+declaration and the obligations verifier passed. Both verdict fills
+remain suspended. Findings, evidence, and proposed dispositions are in
+§9; `status.md` is live state.]*
+
 **O-series carriage (SD-R8-F7) — ratified by Tom, 2026-08-15; part
 of both verdict statements:**
 
@@ -3755,3 +3767,132 @@ hoistable to its own repository without surgery.
   this session closes nothing: next are the repeated independent
   re-close review, then the repeated `final-audit-charge.md` audit
   over the repaired tree and both migration diffs.
+
+- 2026-08-15 — **Repeated SD-R8 re-close review found SD-R8-F21/F22;
+  the round, slice, and spike remain open and both verdict fills stay
+  suspended.** The independent reviewer (no prior context; charge
+  `re-close-review-charge.md`) verified all ten F11–F20 repairs
+  item by item against `f11-f20-repair-charge.md`, the diffs
+  (`f3865ef9`, `23ecbd0d`, `58cfdb67`, `39a86163`; `3088d6e4` on
+  `rate-limit-core-ground-truth`), and the §9 entries. Every wording
+  repair was re-derived from the evidence record, not accepted as
+  softened: the F13 instrument restriction matches the actual test-lane
+  split; the F14 O5 correction is true in all three locations and cites
+  Tom's acceptance; the F15 records-plus-structural-verifier wording
+  matches what `tests/obligations.rs` checks; the F16 narrowing is
+  applied in §8, the topic, and the migration-package charge with Tom's
+  attribution and struck text; the F17 labels match N12/N14's
+  [GGG-EMAIL] and N21's [TOM] lanes in the ground-truth doc; the F18
+  carriage names G1–G6 with ε = 500 ms and 1.05×. F19 was checked
+  against B3's ratified amendment in `scenarios.md` §7.2 (both
+  conventions carried verbatim in meaning, model-choice lane kept);
+  F20 was checked against `src/actor.rs` itself — `Actor::schedule`
+  consults `pending_probe()`, which scans the whole deque, before the
+  front-only ordinary loop — not against the topic's summary. Both
+  migration diffs remain scope-clean (ground truth touches only
+  `network-ground-truth.md`; the spike branch outside `spikes/` touches
+  only the topic doc and register row). The full offline matrix was
+  reproduced and all five committed mutation signatures reproduced
+  exactly (below). The repairs as specified are real. The review then
+  executed the charge's fourth-generation hunt and found the class
+  alive:
+
+  **SD-R8-F21 (high) — the F12 split-profile state is representable
+  outside `mod lane` by post-construction field mutation; both
+  authorities pass.** The repair's claim — "the audit's split-profile
+  state is unrepresentable outside that module" (`status.md` §1, the §9
+  repair entry, the packet, and the module doc: "Expressing the split
+  now requires either a second construction path … or editing `mod
+  lane` itself") — is false as stated. `ReproductionRecord` is a `Copy`
+  struct with `pub` fields; the construction binding confines only
+  construction, not the value. Review experiment, two lines in
+  `run_m8_oauth_lane`, outside `mod lane`, no new
+  `ReproductionRecord` literal, no second construction path: the
+  `Lane::start` profile changed to `SHIPPED_ASSUMED_PROFILE` (the actor
+  genuinely runs the Assumed engine) and, after `Lane::evidence`,
+  `evidence.reproduction.as_mut().unwrap().client_buckets =
+  OAUTH_KNOWN_PROFILE`. Result: the F12 structural pin **passed**, the
+  pinned full-contract declaration **passed**, and obligations passed
+  **6/6** — the exact state the final audit forged for F12, re-expressed
+  against the landed repair. Reverted cleanly. Proposed disposition,
+  per the recorded class rule (unrepresentable over detected): make the
+  judged artifact's provenance write-once — seal
+  `ReproductionRecord`/its provenance fields against mutation after
+  construction (private fields with a constructor the lane path owns,
+  or an equivalent crate-side seal), pin this mutation's signature, and
+  correct every "unrepresentable outside the module" sentence to name
+  the true residual surface if any part of it survives; rerun both
+  authorities.
+
+  **SD-R8-F22 (high) — judge bindings do not travel with the report:
+  a post-judge cloned `RunReport` forges any required lane at
+  declaration time.** `judge` binds seed, phase, and endpoint to the
+  wire at judging time (F9) and `declare` requires the (scenario,
+  endpoint) pairs (F11), but `RunReport` and its embedded record are
+  freely clonable, mutable `pub` data, and `declare` consumes whatever
+  vector it is handed. Review experiment in `run_full_contract_case`:
+  the CharacterList lane call deleted — zero CharacterList wire traffic
+  anywhere in the run — and replaced by a clone of the judged
+  (M2, StashList) report with `reproduction.endpoint` overwritten to
+  `CharacterList` after judging. Result: the pinned declaration
+  **passed** (both the SD-R8-F5 endpoint requirement and the SD-R8-F11
+  pair requirement satisfied by the forgery) and obligations passed
+  **6/6** — the F5/F9/F11 forged agreement, resurrected with the
+  topology's tightest policy unexercised, exactly the claim the verdict
+  rests on. Reverted cleanly. Proposed disposition: make post-judge
+  forgery unrepresentable — `RunReport` (and the record it carries)
+  becomes a sealed type constructible only by `judge`, with private
+  fields and read accessors, so `FullContractRun::declare` can consume
+  only judge-produced artifacts; the harness's negative-pin fixtures
+  move to pre-judge synthetic evidence (most already are); pin this
+  forgery's acceptance state as a refused negative test; rerun both
+  authorities.
+
+  **Run-owned trust surfaces enumerated** (charge §3: listed even where
+  no bypass was written, because unlisted surfaces are how this class
+  survives). Bound: `reproduction.seed/phase_ms/endpoint` (judge, at
+  judging time only — see F22); `unavoidable_exposure` (judge
+  cross-checks against observations, state changes, and the oracle).
+  Bound by construction only: `reproduction.client_buckets` (see F21).
+  Bound nominally: `scenario` (sole-decider assertion id plus the pair
+  table; recorded in `m2-character-policy-lanes`). **Not bound and not
+  currently listed in any confession or registry note:** (a)
+  `ScenarioAssertion.coverage` — the FullContract/Fragment label is
+  driver-claimed per lane and nothing machine-checks that a
+  FullContract-labeled assertion covers its scenario's whole
+  `scenarios.md` contract; (b) `ScenarioAssertion.passed` — the G5 fact
+  is driver-computed arithmetic (the designed sole-decider seam, but
+  its carriage is unpinned); (c) the observation and state-change
+  vectors themselves — the driver carries `controller.observations()`
+  to the judge and nothing pins that the vector is complete
+  (a filtered carriage would suppress G1 evidence). Proposed
+  disposition: the repair session records (a)–(c) as named trust
+  surfaces in the coverage confession and the relevant registry notes —
+  or binds them — whichever the class rule and Tom prefer; they are
+  listed here so the next audit does not have to rediscover them.
+
+  Restored-tree verification, entirely offline, at `ae9eb85b` (spike)
+  and `3088d6e4` (ground truth): `cargo test --locked` 175 passed /
+  0 failed / 3 ignored; release 173 / 0 / 3; `PROPTEST_CASES=4096
+  cargo test --locked` 175 / 0 / 3; pinned φ=0 declaration 1/1;
+  explicit ignored 4,096-case full-contract declaration 1/1 green in
+  307.16 s; obligations 6/6 at 124 clauses — 110 Full / 0 Partial /
+  1 accepted Untested / 13 Excluded, `OPEN_UNTESTED` empty; both
+  ignored §7.4 release tests 2/2 in 7.71 s; sanitizer 4/4; all-target
+  clippy with warnings denied, fmt, and `git diff --check` clean; both
+  migration diff scopes verified. All five committed mutation
+  signatures reproduced from committed code and reverted with
+  `git checkout --`, exact: (1) the F11 M2→M5 relabel refused
+  `MissingScenarioEndpointLane { scenario: M2, endpoint:
+  CharacterList }` with obligations 6/6; (2) the F12 second
+  construction path failed the structural pin — "the driver must have
+  exactly one engine-construction path — left: 2, right: 1"; (3) the
+  `Lane::start` profile flip refused `MissingM8KnownLane`; (4) the
+  deleted CharacterList lane refused
+  `MissingEndpointLane { endpoint: CharacterList }`; (5) Character
+  wire under the CharacterList-labeled lane (seed 809) failed at the
+  judge with `ReproductionMismatch { id: 1 }` before any declaration.
+  The working tree was clean before this entry was written. No live
+  service was contacted. The verdict fills are not restored; the
+  repeated final audit does not start until F21/F22 are repaired and
+  SD-R8 re-closes over a fresh packet.
