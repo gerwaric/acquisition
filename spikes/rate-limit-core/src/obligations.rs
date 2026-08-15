@@ -2372,7 +2372,7 @@ pub const CLAUSES: &[Clause] = &[
         id: "b12-scripted-delay",
         owner: "B12",
         text: "Deterministic scripted delay; canonical 81 ms default; \
-               M5/M8/M9/M13 explicit timing scripts (scenarios.md:684)",
+               M5/M8/M9/M13 explicit timing scripts (scenarios.md:726)",
         coverage: Coverage::Full,
         citations: &[
             Citation {
@@ -2413,33 +2413,52 @@ pub const CLAUSES: &[Clause] = &[
         note: "Mechanism, canonical default, and all four required timing \
                scripts (M5, M8, M9, M13) are pinned; the M9 arm landed \
                2026-08-14 (Ballot G). The separate §7.4 fixed-trace mismatch \
-               was adjudicated as an expectation error (see s7-4-replay-gate); \
-               its active diagnostic does not substitute for the \
-               feedback-consistent replacement gate",
+               was adjudicated as an expectation error and the \
+               feedback-consistent replacement gate landed 2026-08-15 \
+               (see s7-4-replay-gate)",
     },
     Clause {
         id: "s7-4-replay-gate",
         owner: "§7.4",
-        text: "Canonical capture calibration must be feedback-consistent; \
-               preserve B3, both fixtures, and the fixed-trace exhaustive \
-               counterexample diagnostic (scenarios.md:820)",
-        coverage: Coverage::Partial,
+        text: "Feedback-consistent replacement calibration gate per \
+               s7-4-replacement-gate.md (ratified 2026-08-15; adoption \
+               marker scenarios.md:861); preserve B3, both fixtures, and \
+               the fixed-trace counterexample diagnostic (scenarios.md:873)",
+        coverage: Coverage::Full,
         citations: &[
             Citation {
                 file: "tests/capture_replay.rs",
-                test_fn: "section_7_4_canonical_capture_replay_is_compliant_for_every_server_phase",
-                must_assert: "reproduces the superseded open-loop \
-                              every-phase expectation's failure at the \
-                              CR-R1-F1/SD-R5-F2 boundary; diagnostic, not \
-                              the replacement gate",
+                test_fn: "section_7_4_replacement_gate_holds_on_the_derived_consistent_set",
+                must_assert: "the spec-§3 capture-integrity preconditions \
+                              (incl. the residue-zero assert migrated from \
+                              the deleted open-loop test), the exact \
+                              V/HALO/derived-consistent partition \
+                              (29,601 + 29,347 + 1,052 = 60,000), and \
+                              C1+C2+C3 with the 766-component and anti-echo \
+                              anchors at all 18 consistent edges and 24 \
+                              stride interiors, plus violation-free \
+                              at-least-one-spurious-borderline replays at \
+                              all 56 halo edges",
+            },
+            Citation {
+                file: "tests/capture_replay.rs",
+                test_fn: "section_7_4_exhaustive_phase_classification_matches_the_pinned_tables",
+                must_assert: "every phase in [0, 60,000) re-derives from the \
+                              replay alone to exactly the pinned three-way \
+                              classification; C2 holds at every phase; the \
+                              strict-overstatement envelope over the \
+                              consistent set is pinned at 25..57 of 766 \
+                              (ignored: exhaustive; a green release run is \
+                              part of the review evidence)",
             },
             Citation {
                 file: "tests/capture_replay.rs",
                 test_fn: "section_7_4_violating_band_edges_are_pinned_for_all_twenty_bands",
-                must_assert: "all 40 band edges produce exactly the recorded \
-                              initiating overflow and their outside \
-                              neighbors replay cleanly; band widths sum to \
-                              1,052",
+                must_assert: "disposition-refuted edges (the gate's sole \
+                              decider for them): all 40 band edges produce \
+                              exactly the recorded initiating overflow and \
+                              their outside neighbors replay cleanly; band \
+                              widths sum to 1,052",
             },
             Citation {
                 file: "tests/capture_replay.rs",
@@ -2454,17 +2473,20 @@ pub const CLAUSES: &[Clause] = &[
                 file: "tests/capture_replay.rs",
                 test_fn: "section_7_4_saturation_diagnostic_has_a_43_of_43_witness_phase",
                 must_assert: "phase zero retains all 43 recorded saturation \
-                              agreements while remaining explicitly \
-                              diagnostic rather than a gate",
+                              agreements (supporting: an entailed corollary \
+                              of C1+C2 at the first consistent band's lower \
+                              edge, kept as the unknown-phi diagnostic)",
             },
         ],
-        note: "SD-R5-F11 minted the slot for §7.4 calibration. Tom's \
-               2026-08-14 adjudication classifies the fixed-dispatch \
-               every-phase requirement as an expectation error without \
-               changing B3 or the fixtures. Partial delta: precisely specify, \
-               implement, review, and pass the feedback-consistent replacement \
-               gate; the band table, exhaustive enumeration, historical \
-               failure reproduction, and 43/43 witness are diagnostics",
+        note: "SD-R5-F11 minted the slot; Tom's 2026-08-14 adjudication \
+               rejected the open-loop every-phase expectation; the \
+               replacement gate was specified, ratified in full 2026-08-15, \
+               and implemented the same day (green, incl. the release \
+               companion run). The superseded open-loop test is deleted per \
+               the spec's §4, its residue-zero assert migrated into the \
+               gate's preconditions. HALO and VIOLATING_BANDS are pins under \
+               the SD-R5-F13 provenance rule. This discharge fills no \
+               verdict slot",
     },
     Clause {
         id: "b13-observation-log",

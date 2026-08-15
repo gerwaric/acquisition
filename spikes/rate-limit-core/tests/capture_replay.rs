@@ -32,7 +32,13 @@ struct ReplayRecord {
     policy: String,
     sent_ms: Option<u64>,
     received_ms: u64,
+    /// Rebased server `Date` header; may be negative (the fixture rebases to
+    /// t₀ = first record, and the server clock sat behind the client's).
+    date_ms: i64,
     status: u64,
+    /// The verbatim limit-header string, kept so the gate's limit-stability
+    /// precondition compares what crossed the wire, not a parse of it.
+    limits_raw: String,
     limits: Vec<LimitTriplet>,
     states: Vec<StateTriplet>,
 }
@@ -58,26 +64,339 @@ struct BootSeed {
     residue: usize,
 }
 
+/// One contiguous run of classification-refuted phases — the borderline halo
+/// (`s7-4-replacement-gate.md` §3): the replay is violation-free but at least
+/// one component reads model == limit where the server recorded below it, the
+/// one boundary the captured client's code reacts to.
 #[derive(Debug, Clone, Copy)]
-struct SaturationDiagnostic {
-    observed_components: usize,
-    minimum_agreements: usize,
-    maximum_agreements: usize,
-    best_phase_ms: u64,
+struct PhaseBand {
+    start_phase_ms: u64,
+    end_phase_ms: u64,
 }
 
-#[test]
-#[ignore = "superseded §7.4 open-loop assertion retained as the CR-R1-F1/SD-R5-F2 finding reproduction; not the replacement calibration gate"]
-fn section_7_4_canonical_capture_replay_is_compliant_for_every_server_phase() {
-    let records = canonical_records();
-    let seeds = boot_seeds(&records);
+const fn halo(start_phase_ms: u64, end_phase_ms: u64) -> PhaseBand {
+    PhaseBand {
+        start_phase_ms,
+        end_phase_ms,
+    }
+}
+
+/// The pinned classification-refuted set (`s7-4-replacement-gate.md` §3/§5):
+/// 28 bands, 29,347 phases. Like `VIOLATING_BANDS` this is a pin — a model or
+/// fixture change that moves it fails loudly and may be re-pinned only with
+/// adjudicated provenance (the SD-R5-F13 rule). Re-derived at implementation
+/// (2026-08-15) by `section_7_4_exhaustive_phase_classification_matches_the_pinned_tables`,
+/// which recomputes the classification of every phase from the replay alone.
+const HALO_BANDS: [PhaseBand; 28] = [
+    halo(2_298, 2_471),
+    halo(6_955, 6_965),
+    halo(7_205, 7_453),
+    halo(7_467, 7_704),
+    halo(7_718, 7_954),
+    halo(7_968, 8_204),
+    halo(8_218, 8_453),
+    halo(8_469, 8_703),
+    halo(8_720, 8_954),
+    halo(8_971, 9_204),
+    halo(9_222, 9_454),
+    halo(9_472, 9_704),
+    halo(9_722, 23_601),
+    halo(23_692, 23_852),
+    halo(23_942, 24_102),
+    halo(24_193, 24_351),
+    halo(24_442, 24_602),
+    halo(24_693, 24_852),
+    halo(24_943, 25_102),
+    halo(25_194, 25_353),
+    halo(25_445, 25_603),
+    halo(25_694, 25_853),
+    halo(25_945, 36_548),
+    halo(37_298, 37_471),
+    halo(42_298, 42_471),
+    halo(47_298, 47_471),
+    halo(52_298, 52_471),
+    halo(57_298, 57_471),
+];
+
+const HALO_PHASE_TOTAL: u64 = 29_347;
+const CONSISTENT_PHASE_TOTAL: u64 = 29_601;
+const CONSISTENT_BAND_COUNT: usize = 9;
+/// Interior-sample stride inside consistent bands. Deliberately coprime to
+/// the 5,000 ms bucket so successive samples spread across 5 s bucket
+/// residues instead of repeating one (the spec's stated rationale — a smoke
+/// sample against table drift; interior *coverage* belongs to the exhaustive
+/// companion).
+const INTERIOR_STRIDE_MS: u64 = 991;
+/// 383 counted replies × 2 windows: the non-vacuity anchor for every
+/// full-trace phase replay.
+const GATE_COMPONENT_COUNT: usize = 766;
+/// 18 consistent edges + 24 stride interiors + 56 halo edges.
+const GATE_SAMPLED_PHASES: usize = 98;
+
+/// One component-level witness for a gate condition
+/// (`s7-4-replacement-gate.md` §2.4): the model's count against the recorded
+/// state at one window of one counted reply.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ComponentWitness {
+    reply_index: usize,
+    policy: String,
+    sent_ms: u64,
+    window_index: usize,
+    model_hits: u32,
+    recorded_hits: u32,
+    max_hits: u32,
+}
+
+/// Full-trace consistency measurement at one phase (spec §2.4). C1 is the
+/// absence of an initiating violation — the replay stops there, exactly as
+/// `initiating_overflows` does, because later traffic would only measure the
+/// modeled restriction cascade. C2/C3 witnesses and the strict-overstatement
+/// count cover every component compared up to that point.
+#[derive(Debug)]
+struct PhaseConsistency {
+    initiating_violation: Vec<CounterOverflow>,
+    components: usize,
+    /// C2 failures: model < recorded (pessimism broken).
+    understatements: Vec<ComponentWitness>,
+    /// C3 failures: model == limit where the server recorded below it.
+    spurious_borderlines: Vec<ComponentWitness>,
+    /// Components with model strictly above recorded — the anti-echo pool:
+    /// a mock that returns the recording verbatim has zero of these.
+    strict_overstatements: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PhaseClass {
+    Consistent,
+    ClassificationRefuted,
+    DispositionRefuted,
+}
+
+fn seeded_model(phase_ms: u64, seeds: &[BootSeed]) -> CounterModel {
+    let mut model = CounterModel::new(phase_ms);
+    for seed in seeds {
+        model
+            .insert_policy(seed.definition.clone())
+            .expect("boot HEAD policies are unique");
+        model
+            .preload(&seed.policy, ServerTime::from_millis(0), seed.residue)
+            .expect("boot HEAD residue is within the bounded capture budget");
+    }
+    model
+}
+
+fn replay_consistency(
+    phase_ms: u64,
+    seeds: &[BootSeed],
+    replies: &[&ReplayRecord],
+) -> PhaseConsistency {
+    let mut model = seeded_model(phase_ms, seeds);
+    let mut report = PhaseConsistency {
+        initiating_violation: Vec::new(),
+        components: 0,
+        understatements: Vec::new(),
+        spurious_borderlines: Vec::new(),
+        strict_overstatements: 0,
+    };
+
+    for (reply_index, record) in replies.iter().enumerate() {
+        let sent_ms = record.sent_ms.expect("reply records carry sent_ms");
+        let at = ServerTime::from_millis(sent_ms);
+        assert!(!model.record_layer1_arrival(at).tripped);
+        let judgment = model
+            .judge(
+                &record.policy,
+                at,
+                u64::try_from(reply_index + 1).expect("fixture cardinality is bounded"),
+                true,
+            )
+            .expect("fixture policy was initialized by its boot HEAD");
+
+        let mut overflows = Vec::new();
+        for (window_index, ((window, state), limit)) in judgment
+            .windows
+            .iter()
+            .zip(&record.states)
+            .zip(&record.limits)
+            .enumerate()
+        {
+            report.components += 1;
+            let witness = ComponentWitness {
+                reply_index,
+                policy: record.policy.clone(),
+                sent_ms,
+                window_index,
+                model_hits: window.current_hits,
+                recorded_hits: state.current_hits,
+                max_hits: limit.max_hits,
+            };
+            if window.current_hits < state.current_hits {
+                report.understatements.push(witness.clone());
+            }
+            if window.current_hits > state.current_hits {
+                report.strict_overstatements += 1;
+            }
+            if window.current_hits == limit.max_hits && state.current_hits < limit.max_hits {
+                report.spurious_borderlines.push(witness);
+            }
+            if window.current_hits > limit.max_hits {
+                overflows.push(CounterOverflow {
+                    reply_index,
+                    policy: record.policy.clone(),
+                    sent_ms,
+                    window_index,
+                    current_hits: window.current_hits,
+                    max_hits: limit.max_hits,
+                });
+            }
+        }
+        assert_eq!(
+            judgment.organic_violation,
+            !overflows.is_empty(),
+            "no pre-existing restriction may precede the initiating overflow at phi={phase_ms}, reply={reply_index}"
+        );
+        if !overflows.is_empty() {
+            report.initiating_violation = overflows;
+            break;
+        }
+    }
+    report
+}
+
+fn classify(report: &PhaseConsistency) -> PhaseClass {
+    if !report.initiating_violation.is_empty() {
+        PhaseClass::DispositionRefuted
+    } else if !report.spurious_borderlines.is_empty() {
+        PhaseClass::ClassificationRefuted
+    } else {
+        PhaseClass::Consistent
+    }
+}
+
+/// Φ\* derived arithmetically as the complement of V ∪ HALO over the phase
+/// cycle (spec §3: no third hand-maintained table), asserting along the way
+/// that the two refuted tables are ascending and disjoint.
+fn derived_consistent_bands() -> Vec<PhaseBand> {
+    let mut refuted: Vec<(u64, u64, &'static str)> = VIOLATING_BANDS
+        .iter()
+        .map(|band| (band.start_phase_ms, band.end_phase_ms, "V"))
+        .chain(
+            HALO_BANDS
+                .iter()
+                .map(|band| (band.start_phase_ms, band.end_phase_ms, "HALO")),
+        )
+        .collect();
+    refuted.sort_unstable();
+
+    let mut consistent = Vec::new();
+    let mut cursor = 0_u64;
+    for (start, end, table) in refuted {
+        assert!(
+            start <= end,
+            "{table} band has an inverted range: {start}..{end}"
+        );
+        assert!(
+            end < PHASE_CYCLE_MS,
+            "{table} band exceeds the phase cycle: {start}..{end}"
+        );
+        assert!(
+            cursor <= start,
+            "the refuted tables overlap at the {table} band starting phi={start} (cursor={cursor})"
+        );
+        if cursor < start {
+            consistent.push(PhaseBand {
+                start_phase_ms: cursor,
+                end_phase_ms: start - 1,
+            });
+        }
+        cursor = end + 1;
+    }
+    if cursor < PHASE_CYCLE_MS {
+        consistent.push(PhaseBand {
+            start_phase_ms: cursor,
+            end_phase_ms: PHASE_CYCLE_MS - 1,
+        });
+    }
+    consistent
+}
+
+fn band_width(band: PhaseBand) -> u64 {
+    band.end_phase_ms - band.start_phase_ms + 1
+}
+
+/// Asserts the exact V/HALO/Φ\* partition of the phase cycle
+/// (29,601 + 29,347 + 1,052 = 60,000).
+fn assert_phase_partition(consistent: &[PhaseBand]) {
+    let violating_total: u64 = VIOLATING_BANDS
+        .iter()
+        .map(|band| band.end_phase_ms - band.start_phase_ms + 1)
+        .sum();
+    let halo_total: u64 = HALO_BANDS.iter().map(|band| band_width(*band)).sum();
+    let consistent_total: u64 = consistent.iter().map(|band| band_width(*band)).sum();
+    assert_eq!(violating_total, VIOLATING_PHASE_TOTAL);
+    assert_eq!(halo_total, HALO_PHASE_TOTAL, "the HALO table drifted");
+    assert_eq!(
+        consistent_total, CONSISTENT_PHASE_TOTAL,
+        "the derived consistent set drifted"
+    );
+    assert_eq!(
+        consistent.len(),
+        CONSISTENT_BAND_COUNT,
+        "the derived consistent set changed band count: {consistent:?}"
+    );
+    assert_eq!(
+        violating_total + halo_total + consistent_total,
+        PHASE_CYCLE_MS,
+        "V, HALO, and the derived consistent set must tile the phase cycle exactly"
+    );
+}
+
+/// Interior smoke samples for one consistent band: start + k·stride for
+/// k ≥ 1, strictly inside the band (both edges are asserted separately).
+/// Two narrow bands yield no interior point by design; interior coverage is
+/// the exhaustive companion's job.
+fn interior_stride_phases(band: PhaseBand) -> Vec<u64> {
+    (1..)
+        .map(|step| band.start_phase_ms + step * INTERIOR_STRIDE_MS)
+        .take_while(|phase_ms| *phase_ms < band.end_phase_ms)
+        .collect()
+}
+
+/// The §3 capture-integrity preconditions of `s7-4-replacement-gate.md`,
+/// asserted phase-independently. Precondition 2 (zero boot residue) and the
+/// one-seed-per-policy assert migrated here from the superseded open-loop
+/// every-phase test, whose deletion was contingent on exactly this migration
+/// (spec §4). Precondition 8 (positional index correspondence) is pinned by
+/// the loader's per-record period-equality check plus precondition 5 here.
+fn assert_capture_integrity(records: &[ReplayRecord], seeds: &[BootSeed]) {
     let replies: Vec<&ReplayRecord> = records
         .iter()
         .filter(|record| record.kind == "reply")
         .collect();
+    let heads: Vec<&ReplayRecord> = records
+        .iter()
+        .filter(|record| record.kind == "head")
+        .collect();
 
-    assert_eq!(seeds.len(), 4, "the capture has one boot HEAD per policy");
+    // Precondition 1: 383 counted replies, every status 200; 4 boot HEADs,
+    // status 204, one per endpoint.
     assert_eq!(replies.len(), 383, "canonical counted replay cardinality");
+    assert!(replies.iter().all(|record| record.status == 200));
+    assert_eq!(heads.len(), 4, "the capture has one boot HEAD per policy");
+    assert!(heads.iter().all(|record| record.status == 204));
+    assert_eq!(
+        heads
+            .iter()
+            .map(|record| record.endpoint.as_str())
+            .collect::<BTreeSet<_>>()
+            .len(),
+        heads.len(),
+        "one initialization HEAD per touched endpoint"
+    );
+
+    // Precondition 2 (migrated from the superseded test): boot residue is
+    // zero, seeded exactly once per policy.
+    assert_eq!(seeds.len(), 4);
     assert_eq!(
         seeds
             .iter()
@@ -92,97 +411,272 @@ fn section_7_4_canonical_capture_replay_is_compliant_for_every_server_phase() {
         "the canonical wired capture booted with zero residue; initialization still runs once"
     );
 
-    let mut minimum_agreements = usize::MAX;
-    let mut maximum_agreements = 0;
-    let mut best_phase_ms = 0;
-    let observed_saturation_components = replies
-        .iter()
-        .map(|record| saturation_components(record))
-        .sum::<usize>();
-
-    for phase_ms in 0..PHASE_CYCLE_MS {
-        let mut model = CounterModel::new(phase_ms);
-        for seed in &seeds {
-            model
-                .insert_policy(seed.definition.clone())
-                .expect("boot HEAD policies are unique");
-            model
-                .preload(&seed.policy, ServerTime::from_millis(0), seed.residue)
-                .expect("boot HEAD residue is within the bounded capture budget");
-        }
-
-        let mut saturation_agreements = 0;
-        for (index, record) in replies.iter().enumerate() {
-            let sent_ms = record.sent_ms.expect("reply records carry sent_ms");
-            let at = ServerTime::from_millis(sent_ms);
-            let layer1 = model.record_layer1_arrival(at);
+    // Precondition 3: no recorded component exceeds its limit; no recorded
+    // restriction is active anywhere in the capture.
+    for (index, record) in records.iter().enumerate() {
+        for (state, limit) in record.states.iter().zip(&record.limits) {
             assert!(
-                !layer1.tripped,
-                "§7.4/B10 violation at phase {phase_ms}, reply {index}, t={sent_ms}ms"
+                state.current_hits <= limit.max_hits,
+                "record {index} recorded an over-limit state: {}/{}",
+                state.current_hits,
+                limit.max_hits
             );
-
-            let judgment = model
-                .judge(
-                    &record.policy,
-                    at,
-                    u64::try_from(index + 1).expect("fixture cardinality is bounded"),
-                    true,
-                )
-                .expect("fixture policy was initialized by its boot HEAD");
-            assert!(
-                !judgment.organic_violation,
-                "§7.4/B2 violation at phase {phase_ms}, reply {index}, policy {}, t={sent_ms}ms: {:?}",
-                record.policy, judgment.windows
+            assert_eq!(
+                state.restriction_active_seconds, 0,
+                "record {index} recorded an active restriction"
             );
-
-            for ((window, state), limit) in judgment
-                .windows
-                .iter()
-                .zip(&record.states)
-                .zip(&record.limits)
-            {
-                if state.current_hits == limit.max_hits && window.current_hits == state.current_hits
-                {
-                    saturation_agreements += 1;
-                }
-            }
         }
-
-        if saturation_agreements > maximum_agreements {
-            maximum_agreements = saturation_agreements;
-            best_phase_ms = phase_ms;
-        }
-        minimum_agreements = minimum_agreements.min(saturation_agreements);
     }
 
-    let diagnostic = SaturationDiagnostic {
-        observed_components: observed_saturation_components,
-        minimum_agreements,
-        maximum_agreements,
-        best_phase_ms,
-    };
+    // Precondition 4: exactly 43 recorded-saturated components, recounted
+    // from the records, including at least one 15/15 and one 30/30.
     assert_eq!(
-        diagnostic.observed_components, 43,
+        replies
+            .iter()
+            .map(|record| saturation_components(record))
+            .sum::<usize>(),
+        43,
         "canonical capture must retain its recorded saturation points"
     );
     assert!(
-        has_recorded_ceiling(&records, 15),
-        "N25/N26 diagnostic must include a recorded 15/15 state"
+        has_recorded_ceiling(records, 15),
+        "the capture must include a recorded 15/15 state"
     );
     assert!(
-        has_recorded_ceiling(&records, 30),
-        "N25/N26 diagnostic must include a recorded 30/30 state"
+        has_recorded_ceiling(records, 30),
+        "the capture must include a recorded 30/30 state"
+    );
+
+    // Precondition 5: RulePair ordering — first limit period strictly
+    // shorter — pins the positional zip against KNOWN_BUCKETS_MS. The
+    // stash-list bucket-cutoff divergence this deliberately scopes (client
+    // pads that policy's 60 s window with a 5 s bucket, the mock with 60 s)
+    // is the recorded doc finding in result-draft.md §5, latent in this
+    // capture.
+    for (index, record) in records.iter().enumerate() {
+        assert!(
+            record.limits[0].period_seconds < record.limits[1].period_seconds,
+            "record {index} breaks RulePair period ordering"
+        );
+    }
+
+    // Precondition 6: limit stability — one distinct limit string per policy
+    // across the whole capture, compared verbatim.
+    let mut limit_strings: BTreeMap<&str, BTreeSet<&str>> = BTreeMap::new();
+    for record in records {
+        limit_strings
+            .entry(record.policy.as_str())
+            .or_default()
+            .insert(record.limits_raw.as_str());
+    }
+    for (policy, strings) in &limit_strings {
+        assert_eq!(
+            strings.len(),
+            1,
+            "policy {policy} changed its limit string mid-capture: {strings:?}"
+        );
+    }
+
+    // Precondition 7: the server `Date` never exceeds the receipt instant —
+    // what makes P1(d) schedule-inert in both worlds (mock Date is
+    // zero-skew by B14 construction).
+    for (index, record) in records.iter().enumerate() {
+        assert!(
+            record.date_ms <= i64::try_from(record.received_ms).expect("received_ms fits i64"),
+            "record {index} has date_ms {} after received_ms {}",
+            record.date_ms,
+            record.received_ms
+        );
+    }
+
+    // Precondition 9: no arrival trips a B10 ceiling. Phase-independent (the
+    // rolling ceilings never read φ), so asserted once here rather than per
+    // quantified phase; kept as a regression check.
+    let mut layer1_model = CounterModel::new(0);
+    for (index, record) in replies.iter().enumerate() {
+        let sent_ms = record.sent_ms.expect("reply records carry sent_ms");
+        assert!(
+            !layer1_model
+                .record_layer1_arrival(ServerTime::from_millis(sent_ms))
+                .tripped,
+            "B10 ceiling tripped by the recorded arrivals at reply {index}, t={sent_ms}ms"
+        );
+    }
+}
+
+fn assert_consistent_phase(
+    kind: &str,
+    phase_ms: u64,
+    seeds: &[BootSeed],
+    replies: &[&ReplayRecord],
+) {
+    let report = replay_consistency(phase_ms, seeds, replies);
+    assert!(
+        report.initiating_violation.is_empty(),
+        "C1 failed at consistent {kind} phi={phase_ms}: {:?}",
+        report.initiating_violation
+    );
+    assert_eq!(
+        report.components, GATE_COMPONENT_COUNT,
+        "non-vacuity anchor at consistent {kind} phi={phase_ms}"
     );
     assert!(
-        diagnostic.maximum_agreements <= diagnostic.observed_components,
-        "diagnostic agreement cannot exceed observed saturation components"
+        report.understatements.is_empty(),
+        "C2 failed at consistent {kind} phi={phase_ms}: {:?}",
+        report.understatements
     );
-    eprintln!(
-        "§7.4 saturation diagnostic: {}/{} best agreement at phi={}ms; minimum agreement across phases={}",
-        diagnostic.maximum_agreements,
-        diagnostic.observed_components,
-        diagnostic.best_phase_ms,
-        diagnostic.minimum_agreements
+    assert!(
+        report.spurious_borderlines.is_empty(),
+        "C3 failed at consistent {kind} phi={phase_ms}: {:?}",
+        report.spurious_borderlines
+    );
+    assert!(
+        report.strict_overstatements >= 1,
+        "anti-echo anchor failed at consistent {kind} phi={phase_ms}: no component strictly above its recorded state"
+    );
+}
+
+fn assert_halo_edge(phase_ms: u64, seeds: &[BootSeed], replies: &[&ReplayRecord]) {
+    let report = replay_consistency(phase_ms, seeds, replies);
+    assert!(
+        report.initiating_violation.is_empty(),
+        "halo edge phi={phase_ms} must replay violation-free (a violation belongs to V): {:?}",
+        report.initiating_violation
+    );
+    assert_eq!(
+        report.components, GATE_COMPONENT_COUNT,
+        "non-vacuity anchor at halo edge phi={phase_ms}"
+    );
+    assert!(
+        report.understatements.is_empty(),
+        "C2 failed at halo edge phi={phase_ms}: {:?}",
+        report.understatements
+    );
+    assert!(
+        !report.spurious_borderlines.is_empty(),
+        "halo edge phi={phase_ms} produced no spurious-borderline component; the HALO table has drifted"
+    );
+}
+
+/// The §7.4 replacement calibration gate (`s7-4-replacement-gate.md` §3,
+/// ratified 2026-08-15): capture-integrity preconditions, the exact
+/// V/HALO/Φ\* partition, and — at all 9 consistent-band edges plus a
+/// 991 ms-stride interior smoke sample, and at all 56 halo edges — the
+/// feedback-consistency conditions C1 (disposition agreement), C2
+/// (pessimism), and C3 (no spurious borderline), with the 766-component
+/// non-vacuity anchor and the anti-echo anchor at every consistent sample.
+/// Disposition-refuted edges are owned by the retained band-edge test — no
+/// duplicate decider. This gate calibrates the mock's counter model against
+/// the observed lane; it is never client-safety evidence (closed-loop
+/// every-phase safety lives in C1/M-series).
+#[test]
+fn section_7_4_replacement_gate_holds_on_the_derived_consistent_set() {
+    let records = canonical_records();
+    let seeds = boot_seeds(&records);
+    let replies: Vec<&ReplayRecord> = records
+        .iter()
+        .filter(|record| record.kind == "reply")
+        .collect();
+
+    assert_capture_integrity(&records, &seeds);
+    let consistent = derived_consistent_bands();
+    assert_phase_partition(&consistent);
+
+    let mut sampled = 0_usize;
+    for band in &consistent {
+        for phase_ms in [band.start_phase_ms, band.end_phase_ms] {
+            assert_consistent_phase("edge", phase_ms, &seeds, &replies);
+            sampled += 1;
+        }
+        for phase_ms in interior_stride_phases(*band) {
+            assert_consistent_phase("interior", phase_ms, &seeds, &replies);
+            sampled += 1;
+        }
+    }
+    for band in HALO_BANDS {
+        for phase_ms in [band.start_phase_ms, band.end_phase_ms] {
+            assert_halo_edge(phase_ms, &seeds, &replies);
+            sampled += 1;
+        }
+    }
+    assert_eq!(
+        sampled, GATE_SAMPLED_PHASES,
+        "the gate's sampled-phase census changed"
+    );
+}
+
+/// Exhaustive companion (spec §3): every phase classifies as exactly one of
+/// consistent / classification-refuted / disposition-refuted, matching the
+/// pinned tables — the classification is recomputed from the replay alone,
+/// so the tables are re-derived, never trusted — and the strict-
+/// overstatement envelope over Φ\* is pinned exactly. A green release run of
+/// this test is part of the slice's review evidence, exactly as the band
+/// enumeration was for SD-R5-F2.
+#[test]
+#[ignore = "exhaustive 60,000-phase classification (~seconds in release, minutes in debug); a green release run is required review evidence for the §7.4 gate"]
+fn section_7_4_exhaustive_phase_classification_matches_the_pinned_tables() {
+    let records = canonical_records();
+    let seeds = boot_seeds(&records);
+    let replies: Vec<&ReplayRecord> = records
+        .iter()
+        .filter(|record| record.kind == "reply")
+        .collect();
+
+    let consistent = derived_consistent_bands();
+    assert_phase_partition(&consistent);
+    let expected_class = |phase_ms: u64| {
+        if VIOLATING_BANDS
+            .iter()
+            .any(|band| (band.start_phase_ms..=band.end_phase_ms).contains(&phase_ms))
+        {
+            PhaseClass::DispositionRefuted
+        } else if HALO_BANDS
+            .iter()
+            .any(|band| (band.start_phase_ms..=band.end_phase_ms).contains(&phase_ms))
+        {
+            PhaseClass::ClassificationRefuted
+        } else {
+            PhaseClass::Consistent
+        }
+    };
+
+    let mut mismatches: Vec<(u64, PhaseClass, PhaseClass)> = Vec::new();
+    let mut envelope_min = usize::MAX;
+    let mut envelope_max = 0_usize;
+    for phase_ms in 0..PHASE_CYCLE_MS {
+        let report = replay_consistency(phase_ms, &seeds, &replies);
+        // C2 is asserted at every phase; refuted phases are measured up to
+        // their initiating reply, matching the spec's §5 measurement.
+        assert!(
+            report.understatements.is_empty(),
+            "C2 understatement at phi={phase_ms}: {:?}",
+            report.understatements.first()
+        );
+        let actual = classify(&report);
+        let expected = expected_class(phase_ms);
+        if actual != expected {
+            mismatches.push((phase_ms, expected, actual));
+        }
+        if actual == PhaseClass::Consistent && expected == PhaseClass::Consistent {
+            assert_eq!(
+                report.components, GATE_COMPONENT_COUNT,
+                "non-vacuity anchor at phi={phase_ms}"
+            );
+            envelope_min = envelope_min.min(report.strict_overstatements);
+            envelope_max = envelope_max.max(report.strict_overstatements);
+        }
+    }
+
+    assert!(
+        mismatches.is_empty(),
+        "{} phases classify against the pinned tables; first eight (phi, expected, actual): {:?}",
+        mismatches.len(),
+        &mismatches[..mismatches.len().min(8)]
+    );
+    assert_eq!(
+        (envelope_min, envelope_max),
+        (25, 57),
+        "the strict-overstatement envelope over the consistent set moved (min, max of 766)"
     );
 }
 
@@ -439,13 +933,7 @@ fn section_7_4_saturation_diagnostic_has_a_43_of_43_witness_phase() {
         .iter()
         .filter(|record| record.kind == "reply")
         .collect();
-    let mut model = CounterModel::new(0);
-    for seed in &seeds {
-        model.insert_policy(seed.definition.clone()).unwrap();
-        model
-            .preload(&seed.policy, ServerTime::from_millis(0), seed.residue)
-            .unwrap();
-    }
+    let mut model = seeded_model(0, &seeds);
 
     let mut observed_components = 0;
     let mut agreements = 0;
@@ -591,7 +1079,9 @@ fn canonical_records() -> Vec<ReplayRecord> {
             policy,
             sent_ms: record.optional_number("sent_ms").map(nonnegative_millis),
             received_ms: nonnegative_millis(record.number("received_ms")),
+            date_ms: record.number("date_ms"),
             status: u64::try_from(record.number("status")).expect("status is nonnegative"),
+            limits_raw: headers.string(&rule_key).to_owned(),
             limits,
             states,
         });
@@ -714,13 +1204,7 @@ fn initiating_overflows(
     seeds: &[BootSeed],
     replies: &[&ReplayRecord],
 ) -> Vec<CounterOverflow> {
-    let mut model = CounterModel::new(phase_ms);
-    for seed in seeds {
-        model.insert_policy(seed.definition.clone()).unwrap();
-        model
-            .preload(&seed.policy, ServerTime::from_millis(0), seed.residue)
-            .unwrap();
-    }
+    let mut model = seeded_model(phase_ms, seeds);
 
     for (reply_index, record) in replies.iter().enumerate() {
         let sent_ms = record.sent_ms.unwrap();
