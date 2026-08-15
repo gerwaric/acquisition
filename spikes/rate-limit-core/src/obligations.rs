@@ -147,7 +147,7 @@ pub const CLAUSES: &[Clause] = &[
         id: "m1-g1-sweep",
         owner: "M1",
         text: "G1 across the residue × φ sweep (M1 → G1) (scenarios.md:170)",
-        coverage: Coverage::Full,
+        coverage: Coverage::Partial,
         citations: &[
             Citation {
                 file: DRIVER,
@@ -161,10 +161,11 @@ pub const CLAUSES: &[Clause] = &[
                               (the §3 sweep property C1 owns)",
             },
         ],
-        note: "SD-R5-F10: the generated-φ sweep property is C1's \
-               (scenarios.md §3, lesson 4 ownership), co-cited here; the \
-               driver contributes the wire-level residue boundary set at the \
-               two boundary-distance phases",
+        note: "RE-9 corrects SD-R5-F10's over-classification: C1 is the \
+               core-side generated-φ mirror and never judges mock-side G1. \
+               The driver covers residues 0/1/9/10 only at the two \
+               boundary-distance phases; delta: no generated-φ mock-side \
+               residue sweep",
     },
     Clause {
         id: "m1-probe-429-seeding",
@@ -649,6 +650,13 @@ pub const CLAUSES: &[Clause] = &[
                 must_assert: "G1 passes from the observable shrink while only \
                               the pre-announcement handoff is excluded",
             },
+            Citation {
+                file: "tests/transition_timing.rs",
+                test_fn: "m6_fragment_verdict_is_not_constant_true",
+                must_assert: "each of the four wire-derived M6 fragment facts \
+                              can make the scenario assertion false instead \
+                              of being panic-asserted before judge",
+            },
         ],
         note: "Focused transition evidence is stronger than the driver arm; \
                the full-contract scale run remains the closure delta",
@@ -1008,11 +1016,19 @@ pub const CLAUSES: &[Clause] = &[
         owner: "M10",
         text: "In-flight ≤ 2 (scenarios.md:294)",
         coverage: Coverage::Full,
-        citations: &[Citation {
-            file: DRIVER,
-            test_fn: DRIVER_FN,
-            must_assert: "M10 `capped` flag",
-        }],
+        citations: &[
+            Citation {
+                file: DRIVER,
+                test_fn: DRIVER_FN,
+                must_assert: "M10 `capped` flag",
+            },
+            Citation {
+                file: "tests/conformance_harness.rs",
+                test_fn: "d5_in_flight_cap_restatements_agree",
+                must_assert: "the actor and independent judge restatements of \
+                              D5's cap remain equal",
+            },
+        ],
         note: "",
     },
     Clause {
@@ -1366,6 +1382,12 @@ pub const CLAUSES: &[Clause] = &[
                 file: DRIVER,
                 test_fn: DRIVER_FN,
                 must_assert: "M13 + M10 arms: in_flight_at_arrival <= 2",
+            },
+            Citation {
+                file: "tests/conformance_harness.rs",
+                test_fn: "d5_in_flight_cap_restatements_agree",
+                must_assert: "the actor and independent judge restatements of \
+                              D5's cap remain equal",
             },
         ],
         note: "",
@@ -1822,12 +1844,21 @@ pub const CLAUSES: &[Clause] = &[
         text: "On trip — pending deque errored back, Halted published \
                (scenarios.md:436)",
         coverage: Coverage::Full,
-        citations: &[Citation {
-            file: "src/actor.rs",
-            test_fn: "c3_x1_trip_is_latched_and_drains_and_publishes",
-            must_assert: "fuse trip errors the pending deque, publishes \
-                          Halted, and remains latched on a later dispatch",
-        }],
+        citations: &[
+            Citation {
+                file: "src/actor.rs",
+                test_fn: "c3_x1_trip_is_latched_and_drains_and_publishes",
+                must_assert: "fuse trip errors the pending deque, publishes \
+                              Halted, and remains latched on a later dispatch",
+            },
+            Citation {
+                file: "src/actor.rs",
+                test_fn: "fuse_trip_inside_start_ordinary_rolls_back_and_resolves_the_popped_caller",
+                must_assert: "a trip inside schedule resolves the popped \
+                              caller as Halted, publishes Halted, and rolls \
+                              back the undispatched reservation",
+            },
+        ],
         note: "Composes the X1/C3 injected trip with the actor's actual \
                drain and watch-publication path",
     },
@@ -1989,6 +2020,13 @@ pub const CLAUSES: &[Clause] = &[
                 test_fn: "g3_exclusions_require_script_owned_bounded_intervals",
                 must_assert: "exclusions must be script-owned bounded \
                               intervals",
+            },
+            Citation {
+                file: "tests/conformance_harness.rs",
+                test_fn: "g3_fails_closed_when_the_oracle_has_no_eligibility_entry",
+                must_assert: "a missing eligibility entry produces the exact \
+                              G3 failure and cannot pass or become \
+                              verdict-eligible",
             },
         ],
         note: "ε = 500 ms final (2026-08-13, scenarios.md:562): an \
@@ -2352,9 +2390,11 @@ pub const CLAUSES: &[Clause] = &[
             Citation {
                 file: "tests/capture_replay.rs",
                 test_fn: "section_7_4_exhaustive_enumeration_matches_the_band_table",
-                must_assert: "no violating phase exists outside \
-                              VIOLATING_BANDS (ignored: exhaustive; run \
-                              explicitly)",
+                must_assert: "collects the complete actual (phase, initiating \
+                              window overflow) set before comparing it with \
+                              VIOLATING_BANDS, including every overflowing \
+                              window on the initiating reply (ignored: \
+                              exhaustive; run explicitly)",
             },
         ],
         note: "SD-R5-F11: minted so the spike's one failing contract gate is \
