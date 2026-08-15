@@ -243,11 +243,12 @@ Reopened SD-R8 work (audit entry, `result-draft.md` §9):
   part of both verdict statements, verdicts refilled (§3, §9
   changelog).
 - **Remaining, per the F6 gate (delivery, not evidence):**
-  1. Draft the migration package — the distilled topic doc for
-     `docs/redesign/topics/`, the register-row flip, the §8
-     reusable-artifact record, the dated `AGENTS.md` hoist note
-     (spike-branch commits), and the CN1–CN6 transcription diff
-     on a branch off `master`.
+  1. Draft the migration package —
+     **`migration-package-charge.md` is the self-contained task
+     spec** (topic doc, register-row flip, §8 record, dated
+     `AGENTS.md` hoist note as spike-branch commits; CN1–CN6
+     transcription diff on a branch off `master`). Drafts only:
+     no PRs until steps 2–3 pass.
   2. SD-R8 re-close review over the reopened-range packet.
   3. The final external adversarial audit —
      `final-audit-charge.md` holds the standing charge; its
