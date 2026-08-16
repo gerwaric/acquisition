@@ -552,6 +552,49 @@ are retired or the spike is hoisted into its own repository, carry this
 contrast with N32 so the old warning cannot outlive the shape that made
 it true.
 
+**N33. The OAuth token endpoint is rate-limited under its own
+IP-scoped policy; the authorize page is browser-only.** [OBS —
+Confirmed], August 16, 2026: one deliberate `invalid_grant` POST,
+then a full real login cycle (browser authorize → code exchange → one
+refresh), using the client's registered parameters (client_id
+`acquisition`, PKCE S256, versioned User-Agent, loopback
+`/auth/path-of-exile` callback). Findings:
+
+- `POST /oauth/token` answers with the standard header set: policy
+  `token-request-limit`, rules `Ip`, limits `60:30:30` (one triplet —
+  no initial/sustained pair). No Account or Client rule: token
+  requests are counted per IP, before authentication.
+- Both grant types share the one counter: the authorization_code
+  exchange reported state `1:30:0` and the refresh_token grant
+  immediately after reported `2:30:0`. The standalone `invalid_grant`
+  probe reported `1:30:0` on its HTTP 400 — error responses carry the
+  full header set and count against the limit (consistent with N25's
+  post-increment behavior; note a 400 here also spends the separate
+  invalid-request budget, N27).
+- All token-endpoint responses came via Cloudflare (`server:
+  cloudflare`, `cf-ray` present), so layer-1 concerns (N2/N3) apply
+  to token traffic too.
+- Access tokens: `expires_in` 36000 (10 hours). Refresh tokens
+  **rotate on every refresh grant** — a new refresh token is returned
+  and must be persisted each time. (Whether the superseded token
+  remains valid was not probed.)
+- The granted scope string can come back reordered relative to the
+  request (`account:leagues account:characters account:stashes`) —
+  compare scopes as a set, not a string.
+- `GET /oauth/authorize` from a non-browser client (correct UA,
+  single request, not retried) returns a Cloudflare 403 with no
+  rate-limit headers, while the same URL in a real browser proceeds
+  normally. Whatever rate-limit regime the authorize page has is
+  unobservable headlessly and irrelevant to the client, which only
+  ever opens that URL in the user's browser.
+
+Consequence for Appendix A's bypass list: the current client's
+oauth/token bypass is benign only because token traffic is rare (a
+handful of requests per 10-hour token lifetime), not because the
+endpoint is unlimited. A design that owns token traffic should track
+`token-request-limit` like any other policy — the headers parse
+identically.
+
 ## Open questions
 
 - **Q1. HEAD sanction verbatim. RESOLVED July 18, 2026** — Tom
@@ -711,7 +754,8 @@ endpoint label, managers deduplicated by policy name):
 All with a 10s transfer timeout and a versioned `User-Agent`.
 
 **Bypassing the rate limiter entirely:** league list (login), OAuth
-authorize/token, forum-shop GET/POST (`edit-thread`, 300s timeout,
+authorize/token (but see N33 — the token endpoint does carry a
+rate-limit policy), forum-shop GET/POST (`edit-thread`, 300s timeout,
 rate limiting detected by scraping "You must wait (\d+) seconds." from
 HTML), RePoE static files, GitHub release check, poecdn images, imgur
 upload, Sentry.
