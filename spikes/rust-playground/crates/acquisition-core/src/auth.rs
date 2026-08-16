@@ -107,6 +107,8 @@ async fn token_request(
 const KEYRING_SERVICE: &str = "acquisition-playground";
 const KEYRING_USER: &str = "oauth";
 
+// Ad-hoc code signatures change on rebuild; if macOS ever prompts on reads of
+// items created by an older build, the fix is signing the binary consistently.
 fn entry() -> Result<keyring::Entry, String> {
     if std::env::var_os("ACQ_NO_KEYRING").is_some() {
         return Err("disabled by ACQ_NO_KEYRING".into());

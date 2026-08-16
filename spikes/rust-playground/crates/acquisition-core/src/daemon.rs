@@ -24,6 +24,8 @@ use crate::{auth, mockggg};
 const IDLE_SHUTDOWN: Duration = Duration::from_secs(60);
 const IDLE_POLL: Duration = Duration::from_secs(5);
 
+// Must stay short: Unix socket paths cap out around 104 bytes (SUN_LEN),
+// which deep per-user runtime dirs can exceed.
 pub fn socket_path() -> PathBuf {
     if let Ok(p) = std::env::var("ACQ_SOCKET") {
         return PathBuf::from(p);
@@ -111,6 +113,7 @@ pub struct Daemon {
 }
 
 impl Daemon {
+    // Takes the shared lock for the uptime stamp — never call while holding it.
     fn log(&self, msg: &str) {
         let uptime = self.shared.lock().unwrap().started.elapsed().as_secs();
         let mut f = self.log.lock().unwrap();
