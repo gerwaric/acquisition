@@ -177,6 +177,47 @@ touched, then run this addendum in full)
   locations this repair touched, for any statement the needle,
   compiler, or a named reviewer step does not enforce.
 
+## 3-addendum-4. F25-range checks (added 2026-08-15 by the F25
+repair session — a declared interest, like the F23 addendum: this
+addendum was written by the session whose work it scopes; treat it
+as a floor, not a ceiling, and question anything its framing would
+excuse. Code `3f777095`; Tom's decision record — wording-only,
+single-sourced, vector-pin strengthening declined — is in
+`result-draft.md` §9. Prior ranges stand as verified by earlier
+executions; re-verify only what the F25 commits touched, then run
+this addendum in full.)
+
+- **Single-sourcing is the repair — verify the generator is gone.**
+  The pin's own comment must be the only place the detection class
+  is stated; the type doc comment, the `b13-observation-log` note
+  and `must_assert`, the packet, and `status.md` must point rather
+  than paraphrase. Any restatement of the mechanism in shape-class
+  words in a touched location is the eighth generation of the
+  class — mint it. (The F25 review predicted an F26 if the repair
+  landed as "better paraphrases"; check that prediction against
+  what actually landed.)
+- **The normative statement itself, exactly true both directions.**
+  Re-derive the pin comment's detection class from the code: the
+  walk reads `.rs` files under `src/` and nothing else; the
+  confessed evasion families (out-of-scan source text, macro
+  assembly, pin-editing, token-free instance mutation) must be
+  consistent with the F25 demonstration (`47885eab`) — the
+  corrected text must predict that experiment. Overcorrection —
+  understating what the needle does catch in scanned files — is a
+  finding.
+- **Nothing mechanical moved.** The needle, walk, and pinned
+  per-file counts must be byte-identical to `6fc96d80`'s; the
+  `must_assert` must state only what the cited test asserts;
+  obligations totals unchanged at 124/110. No new mutation was owed
+  for a prose-only repair — but verify that claim by diffing the
+  pin's code, not by accepting it.
+- **The declined strengthening is a decision, not an omission.** It
+  must be recorded as Tom's, with his rationale, in the §9 record,
+  the packet, and `status.md` §3; a silent absence is a finding.
+- **Markers annotate.** Every falsified F24-era sentence carries a
+  dated marker beside preserved text; a marker that rewrites is a
+  finding.
+
 ## 4. The packet and the record
 
 Four parts current at the repaired totals; §9 entries complete;
