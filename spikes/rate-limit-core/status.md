@@ -163,7 +163,11 @@ token they cannot avoid writing, and every carrying location — pin
 comment, type doc comment, `b13-observation-log` note and
 `must_assert`, packet confession, and this file — scopes the belt's
 claim to exactly what the needle sees: detection of token-bearing
-shapes, never a binding, with field mutation on an obtained instance
+shapes *[falsified same day by SD-R8-F25: the needle reads only
+`.rs` files under `src/`, so a token-bearing construction outside
+that scan set is silent; the F25 wording repair is owed — see
+below]*, never
+a binding, with field mutation on an obtained instance
 named as the shape no lexical pin can see, resting on the named
 trust surface and its compensating control alone. The reviewer's
 rename-import forgery was reproduced against the strengthened pin
@@ -173,6 +177,30 @@ and now fails loud (`dc7a3d97`/`a1d66cbc`; signature in
 preserved mutation signatures and compile-fail doctests hold. Both
 verdict fills remain suspended awaiting the repeated re-close review
 and the repeated final audit.
+**The repeated re-close review over the F24 range ran 2026-08-15 and
+did not close the round: SD-R8-F25 (low).** It re-verified everything
+the F24 commits touched (per-file token counts recounted
+independently at 6/4/2/0 over nine `.rs` files; boundary matching
+confirmed against `MockEvidenceSealError`; the recorded rename-import
+mutation reproduced verbatim, left: 3, right: 0 naming `model.rs`,
+and the import token alone trips the pin at left: 1; compensating
+controls re-derived from the tree; all falsification markers
+annotate), reran the full offline matrix, both authorities, and all
+five preserved signatures, and ran the §3-addendum-3
+seventh-generation hunt — which found the strengthened pin's carried
+claims outrunning its scan scope: the needle reads only `.rs` files
+under `src/`, so an ordinary-spelling construction forgery whose
+source text lives outside that set (a `#[path]` descendant module at
+the crate root) compiles and passes while the pin and the whole
+suite stay green, falsifying "must avoid the type name entirely" /
+"any ordinary spelling fails the pin" / "all construction/aliasing
+spellings" / "detects exactly token-bearing shapes", and misdrawing
+the confessed evasion family's boundary (location, not extension).
+Not a verdict bypass: the named trust surface and its primary
+compensating control are accurate and re-verified. Finding,
+demonstration commits, and proposed wording-scope disposition are in
+`result-draft.md` §9; the hand-off is flipped back to owing an F25
+repair-range packet. Both verdict fills stay suspended.
 `obligation-map.md`
 is the superseded prose ancestor; read its §8 for the audit's
 discrepancy analysis (dated at `e2034807`), never for current
@@ -397,6 +425,26 @@ coverage.
   forgery now fails the pin loud (reproduced, committed, reverted).
   The session closes nothing: SD-R8 remains open awaiting repeated
   independent re-close review and then the repeated final audit.
+  **The repeated re-close review over the F24 range ran 2026-08-15 and
+  did not close the round: SD-R8-F25 (low).** It re-verified everything
+  the F24 commits touched (independent token recount at the pinned
+  6/4/2/0 over nine `.rs` files; the recorded mutation signature and
+  an import-alone variant both reproduced; compensating controls
+  re-derived from the tree; all falsification markers annotate),
+  reran the full offline matrix, both authorities, and all five
+  preserved signatures, and ran the §3-addendum-3 seventh-generation
+  hunt — which found a token-bearing, ordinary-spelling construction
+  forgery outside the pin's scan set (a `#[path]` descendant module
+  at the crate root; the needle reads only `.rs` files under `src/`)
+  that compiles and passes while the pin and the whole suite stay
+  green, falsifying the universal spelling claims in the packet, the
+  type doc comment, and this file, and misdrawing the confessed
+  evasion family's boundary (location, not extension). Not a verdict
+  bypass: the named trust surface and its primary compensating
+  control are accurate and re-verified. Finding, demonstration
+  commits, and proposed wording-scope disposition are in
+  `result-draft.md` §9; the hand-off is flipped back to owing an F25
+  repair-range packet. Both verdict fills stay suspended.
 - Every other slice (core, bootstrap, mock, actor, clause registry,
   doc split) is closed; their hand-offs are historical records.
   (Doc split closed 2026-08-13, DS-R1 — `result-draft.md` §9.)
@@ -494,16 +542,19 @@ ratification record is in `result-draft.md` §9. (Both earlier
 
 ## 4. Blocked
 
-Delivery is blocked on re-closing SD-R8. The F21/F22 sealing repairs
-and the F23 scope repair are present and re-verified; the F24 repair
-is present (`6fc96d80`): the belt pin is strengthened to a
-bare-token-per-file needle and its carried claims are scoped to
-exactly what the needle sees, with field mutation on an obtained
-instance named as the remaining undetectable shape. What remains
-before either delivery PR: another repeated independent re-close
-review over the F24 range, then the repeated `final-audit-charge.md`
-audit over the repaired tree and both migration diffs. Both verdict
-fills stay suspended until then. No Tom decision is open.
+Delivery is blocked on re-closing SD-R8. The F21/F22 sealing repairs,
+the F23 scope repair, and the F24 strengthening are present and
+re-verified, but the F24-range re-close review found SD-R8-F25 (low):
+the strengthened pin's carried claims outrun its scan scope — the
+needle reads only `.rs` files under `src/`, and the summary locations
+claim it sees every construction/aliasing spelling. What remains
+before either delivery PR: the F25 wording repair (state the
+detection class extensionally and correct the evasion family's
+boundary; §9 disposition), a fresh four-part packet, another repeated
+independent re-close review, then the repeated
+`final-audit-charge.md` audit over the repaired tree and both
+migration diffs. Both verdict fills stay suspended until then. No Tom
+decision is open.
 
 ## 5. Next work
 
@@ -605,9 +656,14 @@ Reopened SD-R8 work (audit and re-close-review entries,
      the belt pin's claims to the plainly spelled literal and name the
      needle-free evasions; §9 disposition) and fresh four-part
      packet~~ — **done 2026-08-15** (`6fc96d80`, strengthening taken
-     per the analyst note; packet presented without closure). Now
-     next: another repeated independent re-close review over the F24
-     range, then the repeated final audit.
+     per the analyst note; packet presented without closure); the
+     repeated re-close review over the F24 range ran the same day,
+     re-verified the repair, and **found SD-R8-F25 — the round stays
+     open**. Now next: the F25 wording repair (state the pin's
+     detection class extensionally — bare tokens in `.rs` files under
+     `src/` — and correct the evasion family's boundary; §9
+     disposition) and fresh four-part packet, then another repeated
+     independent re-close review, then the repeated final audit.
   5. The two delivery PRs (`spike/rate-limit-core` → `redesign`;
      CN docs → `master`). **F6 — and the spike — complete at
      landing.**

@@ -1,6 +1,33 @@
 # Scenario-driver and safety-closure hand-off
 
-Status: **open — the F24 repair packet is presented 2026-08-15 and
+Status: **open — the 2026-08-15 repeated re-close review over the F24
+range found SD-R8-F25; this file requires an F25 repair-range four-part
+update before re-review.** The review re-verified everything the F24
+commits touched — the pinned per-file token counts were recounted
+independently (6/4/2/0 over nine `.rs` files, boundary matching
+confirmed against `MockEvidenceSealError`), the recorded rename-import
+mutation reproduced verbatim with its exact signature (left: 3,
+right: 0 naming `model.rs`) and the import token alone trips the pin
+(left: 1), the compensating controls were re-derived from the tree and
+hold, all falsification markers annotate rather than rewrite, and the
+full offline matrix, both authorities, and all five preserved mutation
+signatures reproduced — but found that the strengthened pin's carried
+claims outrun its scan scope: the needle reads only `.rs` files under
+`src/`, so an ordinary-spelling construction forgery whose source text
+lives outside that set (a `#[path]` descendant module at the crate
+root) compiles and passes while the pin and the whole suite stay
+green, falsifying "a future needle-free construction spelling must
+avoid the type name entirely", "any ordinary spelling fails the pin in
+CI naming the file", "all construction/aliasing spellings", and
+"detects exactly token-bearing shapes", and misdrawing the confessed
+evasion family's boundary ("non-`.rs`" — location, not extension, is
+the boundary). It is a wording-scope defect (low), not a verdict
+bypass: the named trust surface and its primary compensating control
+are accurate and re-verified. Finding, demonstration commits, and
+proposed disposition are in `result-draft.md` §9; live state is
+`status.md`. Both verdict fills stay suspended.
+
+Prior status: **open — the F24 repair packet is presented 2026-08-15 and
 awaits the repeated independent re-close review.** Commit `6fc96d80`
 executes the SD-R8-F24 disposition with the optional strengthening
 taken per the analyst note: the belt pin counts bare `MockEvidence`

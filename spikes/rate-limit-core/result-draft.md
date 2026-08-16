@@ -4438,3 +4438,171 @@ hoistable to its own repository without surgery.
   verdict fill is restored, and this session closes neither SD-R8 nor
   the scenario-driver slice; the repeated independent re-close review
   is next, followed by the repeated `final-audit-charge.md` audit.
+
+- 2026-08-15 — **Repeated SD-R8 re-close review over the F24 range found
+  SD-R8-F25; the round, slice, and spike remain open and both verdict
+  fills stay suspended.** The independent reviewer (charge
+  `re-close-review-charge.md` re-armed for the F24 range at charge head
+  `a4f91e2e`; code `6fc96d80`, restored tree `a1d66cbc` verified
+  code-identical by diff; packet `4ffd73ab`; ground-truth head
+  `3088d6e4` unchanged) re-verified what the F24 commits touched and
+  ran §3-addendum-3 in full, honoring the standing authorship caution:
+  every factual claim was re-derived from the tree, not accepted from
+  the repair.
+
+  **F24 range re-verified — the repair as specified is real.** Every
+  touched claim location was re-derived from the code: the pin comment
+  states the mechanism precisely (bare identifier-boundary tokens,
+  checked against pinned per-file counts, walk guard ≥9 files); the
+  `MockEvidence` doc comment retains the across-boundary seal claim at
+  full strength (no overcorrection); the `b13-observation-log` note
+  uses the safe "detects only" direction; the belt citation's
+  `must_assert` states only what the cited test asserts, at the same
+  "in src/" shorthand precision the F23-range review accepted. All
+  five dated falsification markers (status.md §1, the F23 §9 repair
+  entry, and the three packet locations) annotate preserved text
+  rather than rewriting it. The per-file token counts were recounted
+  independently (a separate boundary-matched counter, not the pin's):
+  exactly 6 in `mock/mod.rs`, 4 in `conformance.rs` (the judge-side
+  import and the three `RunEvidence` carriage sites, confirmed at
+  their lines), 2 in `obligations.rs`, 0 elsewhere, over exactly nine
+  `.rs` files with no non-`.rs` file present in `src/`.
+  Identifier-boundary matching is confirmed structurally and
+  empirically: `mock/mod.rs` carries three `MockEvidenceSealError`
+  occurrences that a raw substring count would add (9, not 6), and
+  the pin passes at 6. The recorded non-vacuity wrinkle is real and
+  matches the commits: this review's own first filter-grep
+  (`grep MockEvidence | grep -v MockEvidenceSealError`) reproduced
+  the hand-count miss exactly — it drops line 826, `seal_evidence`'s
+  return type on the same line as its error type, seeing 5 sites
+  where the needle sees 6. The recorded mutation was reproduced
+  byte-for-byte (patch of `dc7a3d97` verified identical to the
+  reviewer's original `14d4be27`; re-applied as `b9338d18`, reverted
+  `ea425f7a`): the forged unit test compiles and passes while the
+  strengthened pin fails with exactly "unpinned bare MockEvidence
+  token in …/src/mock/model.rs — left: 3, right: 0", and the claimed
+  decomposition (two probe-comment mentions plus the import's one)
+  is confirmed in the probe text. The import token alone trips the
+  pin, as claimed: a second mutation (`723578f4`, reverted
+  `0dd34a40`) adding only the rename import fails it "left: 1,
+  right: 0" naming `model.rs`. Compensating controls re-derived
+  independently: exactly two `#[cfg(test)]` modules exist in `src/`
+  (`mock/model.rs:551` — `bucket_end` arithmetic only — and
+  `actor.rs:890` — core/header/transport imports only); neither
+  references `conformance::judge`, `declare`, or any sealed type
+  (`model.rs`'s own `judge` at line 414 is the mock counter's
+  arrival judgment, not the conformance judge); `conformance`
+  declares no descendant module. The obtained-instance family
+  (whole-instance swap and pointer games included) is read as
+  covered by the named shape: the registry note's "forge or mutate
+  the carriage" spans it.
+
+  Matrix on the restored tree, entirely offline: `cargo test
+  --locked` 176 passed / 0 failed / 3 ignored with doctests 5/5;
+  release 174 / 0 / 3 with doctests 5/5; `PROPTEST_CASES=4096`
+  176 / 0 / 3; the five compile-fail doctests unchanged and green;
+  pinned φ=0 declaration 1/1 by exact name; explicit debug
+  4,096-case declared run 1/1 in 306.18 s and release companion 1/1
+  in 26.28 s; obligations 6/6 at 124 clauses — 110 Full / 0 Partial /
+  1 accepted Untested / 13 Excluded, `OPEN_UNTESTED` empty; both
+  ignored §7.4 release tests 2/2 in 7.76 s; Python sanitizer suite
+  4/4; all-target clippy with warnings denied, fmt, and
+  `git diff --check` clean. All five preserved mutation signatures
+  rerun by exact name (green) with their variants confirmed in test
+  source.
+
+  **Seventh-generation hunt.** One claim family failed it:
+
+  **SD-R8-F25 (low) — the strengthened pin's carried claims outrun its
+  scan scope.** The needle counts tokens in `.rs` files under `src/`
+  — nothing else. The carrying locations assert a universal over
+  spellings: "a future needle-free construction spelling must avoid
+  the type name entirely" and "any ordinary spelling fails the pin in
+  CI naming the file" (packet F24 silence row), "what the token
+  needle sees (all construction/aliasing spellings)" (packet F24
+  second silence row), "detects exactly token-bearing shapes"
+  (`MockEvidence` doc comment), and "scopes the belt's claim to
+  exactly what the needle sees: detection of token-bearing shapes"
+  (packet status header; `status.md` §1 and §4). Falsified by
+  experiment (committed `47885eab`, reverted `351bfab6`): a
+  `#[cfg(test)]` descendant module of `mock::model` whose source
+  file lives at the crate root — a `#[path]` module declaration in
+  `model.rs` naming `../../forged_carriage_probe.rs`, adding no
+  token to any `src/` file — constructs
+  `MockEvidence` with the **plain type name** (`use
+  crate::mock::MockEvidence;` then an ordinary struct literal),
+  compiles, and passes as an in-crate unit test while the
+  strengthened pin and the whole `mock_fidelity` suite stay green:
+  the token is ordinary, bare, and unavoidable — and sits in a file
+  the walker never reads. The confessed evasion list also misdraws
+  the family boundary: "an `include!` of a non-`.rs` file" implies
+  extension is the boundary, when the scan set is ".rs files under
+  `src/`" — a plain `.rs` file outside `src/` (the demonstration),
+  an `include!` of any out-of-tree file, or build-script-generated
+  code all evade identically. The packet's second F24 silence row
+  additionally frames field mutation as "the one shape [the needle]
+  structurally cannot [see]" and its consequence column claims "no
+  location claims more detection than the needle performs" — a
+  meta-claim this finding falsifies. The demonstration also
+  contradicts the F24 silence row's own parenthetical, which lists
+  the include!-family under "must avoid the type name entirely":
+  those shapes do not avoid the name; they relocate it outside the
+  scan.
+
+  Low, not medium, deliberately — the F24 rationale carries over
+  unchanged: the residual trust surface (in-crate descendants live
+  inside the seal) is named accurately in every carrying location,
+  the load-bearing compensating control (the verdict path resides
+  entirely across the crate boundary; no in-crate test reaches
+  `judge` or `declare`) was independently re-verified and holds —
+  the probe module is itself `#[cfg(test)]` and touches neither —
+  and the belt is explicitly not the claim-bearer anywhere. Minted
+  nonetheless: it is the seventh generation of exactly the class the
+  charge names, the second consecutive generation produced *by a
+  wording repair*, and §3-addendum-3's own framing would have
+  excused it ("a genuine miss must avoid the identifier entirely" —
+  written by the analyst whose declared-interest note invites
+  exactly this question). A repair that summarizes the mechanism in
+  shape-class words keeps minting this class; the disposition below
+  states the mechanism extensionally instead.
+
+  Proposed disposition (evidence-preserving, the F23/F24 pattern; no
+  verdict change): in every carrying location, state the detection
+  class extensionally — bare identifier-boundary tokens of the type
+  name **in `.rs` files under `src/`** — and scope every consequence
+  claim to that set: the rename-import and `Self`-in-new-impl shapes
+  are caught *because their token lands in a scanned file*; a
+  construction whose source text lives outside the scan set
+  (`#[path]` modules, `include!` of any unscanned file, generated
+  code) is silent regardless of spelling and rests on the named
+  trust surface, exactly as field mutation does; replace "must avoid
+  the type name entirely" / "any ordinary spelling fails the pin" /
+  "all construction/aliasing spellings" / "detects exactly
+  token-bearing shapes" accordingly, and correct the confessed
+  evasion list's family boundary. Optional strengthening the repair
+  session may weigh, with the F24 lesson applied: also pin the
+  smuggling *vectors* lexically — bare `include!` and `#[path`
+  occurrences per `src/` file (pinned zero today) — which would make
+  the demonstrated shape loud; it remains detection (macro assembly,
+  field mutation, and editing the pin itself still evade), so the
+  wording stays modest either way and must not mint an eighth
+  generation.
+
+  One observation, not minted: the pin comment in
+  `tests/mock_fidelity.rs` is the most accurate carrying location —
+  "it detects exactly one thing: bare tokens of the type name in
+  `src/` … checked against pinned per-file counts" — and needs only
+  the family-boundary correction above; the defect concentrates in
+  the summary locations (packet rows, doc comment, `status.md`),
+  which compressed the mechanism into shape-class claims the pin
+  comment itself does not make.
+
+  Three mutations were run, each committed before being reverted per
+  the charge (`b9338d18`/`ea425f7a`; `723578f4`/`0dd34a40`;
+  `47885eab`/`351bfab6`); the restored tree is green (the full
+  matrix above ran after the final revert). No live service was
+  contacted. The verdict fills are not restored; the repeated final
+  audit does not start. SD-R8 stays open awaiting the F25 wording
+  repair, a fresh four-part packet, another repeated independent
+  re-close review, and then the repeated `final-audit-charge.md`
+  audit.
