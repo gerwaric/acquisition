@@ -10,7 +10,7 @@ Acquisition is a Path of Exile inventory-management tool being rewritten from C+
 
 This list of invariants came from an external chat session. We should check these against what was learned during the networking redesign as well as during the rate-limit-core spike. The goal is to have as few as possible, and have each invariant be as simple as possible--e.g. if an invariant is enforced within the rate limiter, it may not need to be exposed here unless there's a good reason.
 
-1. **All GGG API traffic goes through the daemon's single job queue and token bucket. No exceptions.** If a code path to GGG exists that bypasses the queue, that is a critical bug regardless of how reasonable it looks locally.
+1. **Every request to GGG goes through the daemon's single rate-limit choke point — API, OAuth token, everything** (the token endpoint has its own rate-limit policy: ground-truth N33). A code path that bypasses it is a critical bug regardless of how reasonable it looks locally.
 2. **Rate-limit headers from GGG (`X-Rate-Limit-*`) are the source of truth.** Local token-bucket state is a prediction; headers correct it.
 3. **Cloudflare 403s (identified via `cf-ray` / `server: cloudflare` headers) trigger circuit-breaker behavior and Ray ID logging.** Never retry through a Cloudflare block.
 4. **The user-agent string stays continuous with the existing registration** ("Acquisition 1.0, same registration, new capabilities" framing with GGG).
