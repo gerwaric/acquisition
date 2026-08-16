@@ -338,12 +338,10 @@ pub struct MockStateChange {
 /// in-crate boundary is a named residual trust surface, compensated by the
 /// verdict path residing entirely across the crate boundary — no in-crate
 /// test reaches `judge` or `declare`. The lexical belt pin in
-/// `tests/mock_fidelity.rs` is detection, not a binding, and detects
-/// exactly token-bearing shapes (SD-R8-F24 scope): constructing or
-/// aliasing this type requires writing its name, which the pin counts per
-/// `src/` file against pinned expectations; field mutation on an obtained
-/// instance needs no token under any spelling, is undetectable by the pin,
-/// and rests on the named trust surface alone.
+/// `tests/mock_fidelity.rs` is detection, not a binding; its detection
+/// class and confessed evasions are stated once, in the pin's own
+/// comment — the single normative statement (SD-R8-F25) — and every
+/// shape outside that class rests on the named trust surface alone.
 /// Sealing snapshots both vectors atomically and prevents later mock
 /// traffic or state changes, so across the crate boundary a test can
 /// inspect or clone the complete carriage but cannot filter it and then

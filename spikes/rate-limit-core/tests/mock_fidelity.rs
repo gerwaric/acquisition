@@ -172,24 +172,34 @@ async fn sealed_evidence_is_complete_final_and_mock_authentic() {
 }
 
 /// SD-R8-F23's lexical belt, in the X2/F12 pattern, strengthened per the
-/// SD-R8-F24 disposition: Rust privacy cannot bar `MockEvidence`
-/// construction from the `mock` module's own in-crate descendants — their
-/// `#[cfg(test)]` modules live inside the seal — so that boundary is a
-/// named residual trust surface (the type's doc comment and the
-/// `b13-observation-log` registry note carry it). This test is detection,
-/// not a binding, and it detects exactly one thing: bare tokens of the
-/// type name in `src/` (identifier-boundary matched, so
-/// `MockEvidenceSealError` never counts), checked against pinned per-file
-/// counts. Constructing or aliasing the type requires writing its name
-/// somewhere, so the token needle catches the F24 rename-import and
-/// `Self`-in-new-inherent-impl shapes the earlier brace-shape needle
-/// missed. What it cannot see: **field mutation on an obtained instance
-/// needs no token under any spelling and is undetectable by construction**
-/// — that shape rests solely on the named trust surface — and an
-/// `include!` of a non-`.rs` file, a macro that assembles the identifier,
-/// or editing this pin itself also evade it. concat! keeps the needle out
-/// of this test's own literals (the SD-R5-F5 vacuity lesson); this is a
-/// lexical spike pin, not a Rust parser.
+/// SD-R8-F24 disposition and re-scoped per SD-R8-F25: Rust privacy cannot
+/// bar `MockEvidence` construction from the `mock` module's own in-crate
+/// descendants — their `#[cfg(test)]` modules live inside the seal — so
+/// that boundary is a named residual trust surface (the type's doc
+/// comment and the `b13-observation-log` registry note carry it). This
+/// test is detection, not a binding.
+///
+/// **This comment is the single normative statement of what the pin
+/// detects** (SD-R8-F25: paraphrases of this scope in other locations
+/// kept outrunning the mechanism — two generations in a row — so the
+/// other carrying locations now point here instead of restating it).
+/// The detection class, exactly: bare identifier-boundary tokens of the
+/// type name in `.rs` files under `src/` — precisely the files the walk
+/// below reads — checked against pinned per-file counts, with
+/// `MockEvidenceSealError` never counting. A token in a scanned file is
+/// caught; that is how the F24 rename-import and
+/// `Self`-in-new-inherent-impl shapes fail loud. Nothing else is
+/// detected. Source text outside the scanned set carries the token
+/// invisibly — an `include!` of any unscanned file, a `#[path]` module
+/// whose file lives outside `src/` (the SD-R8-F25 demonstration), or
+/// generated code — the boundary is the scanned set's location and
+/// extension, not spelling. A macro can assemble the identifier, the pin
+/// itself can be edited, and field mutation on an obtained instance
+/// needs no token under any spelling. Every shape the walk cannot see
+/// rests on the named trust surface and its compensating control alone.
+/// concat! keeps the needle out of this test's own literals (the
+/// SD-R5-F5 vacuity lesson); this is a lexical spike pin, not a Rust
+/// parser.
 #[test]
 fn f23_f24_mock_evidence_bare_tokens_in_src_are_pinned() {
     fn rust_sources(dir: &std::path::Path, files: &mut Vec<std::path::PathBuf>) {

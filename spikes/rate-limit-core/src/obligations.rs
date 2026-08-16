@@ -2664,8 +2664,8 @@ pub const CLAUSES: &[Clause] = &[
                 file: "tests/mock_fidelity.rs",
                 test_fn: "f23_f24_mock_evidence_bare_tokens_in_src_are_pinned",
                 must_assert: "lexical belt (detection, not a binding): \
-                              bare MockEvidence tokens appear in src/ only \
-                              at the pinned per-file counts",
+                              bare MockEvidence tokens appear in src/ .rs \
+                              files only at the pinned per-file counts",
             },
         ],
         note: "Observation and state-change vectors reach the judge only in \
@@ -2679,11 +2679,11 @@ pub const CLAUSES: &[Clause] = &[
                carriage (SD-R8-F23, named residual trust surface), \
                compensated by the verdict path residing entirely across \
                the crate boundary (no in-crate test reaches judge or \
-               declare). The f23 lexical belt citation detects only \
-               token-bearing in-crate shapes — construction or aliasing \
-               must write the type name (SD-R8-F24 scope); field mutation \
-               on an obtained instance needs no token, is undetectable by \
-               construction, and rests on the named surface alone",
+               declare). The f23 lexical belt citation is detection, not \
+               a binding; its detection class and confessed evasions are \
+               stated once, in the pin's own comment — the single \
+               normative statement (SD-R8-F25) — and every shape outside \
+               that class rests on the named surface alone",
     },
     Clause {
         id: "b14-zero-skew-date",
