@@ -1,6 +1,27 @@
 # Scenario-driver and safety-closure hand-off
 
-Status: **open — the 2026-08-15 repeated re-close review over the F23
+Status: **open — the F24 repair packet is presented 2026-08-15 and
+awaits the repeated independent re-close review.** Commit `6fc96d80`
+executes the SD-R8-F24 disposition with the optional strengthening
+taken per the analyst note: the belt pin counts bare `MockEvidence`
+tokens per `src/` file (identifier-boundary matched) against pinned
+per-file counts, so the rename-import and `Self`-in-new-impl forgeries
+the review named are now caught at the token they cannot avoid
+writing, and every carrying location — pin comment, type doc comment,
+`b13-observation-log` note and `must_assert`, this packet, and
+`status.md` — scopes the belt's claim to exactly what the needle sees:
+detection of token-bearing shapes, never a binding, with **field
+mutation on an obtained instance named as the shape no lexical pin can
+see**, resting on the named trust surface alone. The reviewer's
+rename-import forgery was reproduced against the strengthened pin and
+now fails loud (committed `dc7a3d97`, reverted `a1d66cbc`; signature
+in §5 and `result-draft.md` §9). No enforcement mechanism changed: the
+five compile-fail doctests and all five preserved mutation signatures
+are unaffected. The repair session closes nothing, contacts no live
+service, and does not restore either verdict fill. Live state is
+`status.md`.
+
+Prior status: **open — the 2026-08-15 repeated re-close review over the F23
 range found SD-R8-F24; this file requires an F24 repair-range four-part
 update before re-review.** The review re-verified everything the F23
 commits touched — the scoped seal claim is exactly true in all three
@@ -30,6 +51,8 @@ packet's coverage confession, with the compensating controls stated
 (the verdict path resides entirely across the crate boundary; no
 in-crate test reaches `judge` or `declare`). A lexical belt pin in
 the X2/F12 pattern makes in-crate descendant construction loud
+*[falsified same day by SD-R8-F24: only the brace-shaped spelling was
+loud; superseded by the F24 packet above]*
 without claiming a binding Rust privacy cannot provide. No
 enforcement mechanism changed: the five compile-fail doctests and
 all five preserved mutation signatures are unaffected. The repair
@@ -274,7 +297,14 @@ repairs:
 | Silence or boundary | Conservative reading | Next-call consequence |
 |---|---|---|
 | "Only `seal_evidence` can construct" left the enforcement boundary unstated; charge §3-addendum required the in-crate boundary be named or minted (it was minted as SD-R8-F23). | State the mechanism exactly where the claim is carried: private fields bar construction across the library/integration-test crate boundary; the `mock` module's in-crate descendants (today `mock::model`, with a live `#[cfg(test)]` module) live inside the seal. The claim is corrected in all three carrying locations — doc comment, `b13-observation-log` note/`must_assert`, and this confession — rather than defended. | A reader of any carrying location meets the same scoped statement with the compensating controls; no location claims more binding than the compiler performs. |
-| The F23 disposition scopes the claim and names the boundary but does not say how future in-crate drift becomes visible. | Add detection in the established X2/F12 belt pattern: a lexical pin over `src/` text that fails on any `MockEvidence` literal-shaped occurrence beyond the four pinned `mock/mod.rs` sites (declaration, impl header, the compile-fail forgery, `seal_evidence`'s construction). Every carrying location says detection, never binding — per the disposition's "no pseudo-binding". | A future in-crate descendant test forging the literal fails the belt pin in ordinary CI and must re-derive the pin deliberately; editing the pinned file or the pin itself remains the confessed lexical evasion, as with X2/F12. |
+| The F23 disposition scopes the claim and names the boundary but does not say how future in-crate drift becomes visible. | Add detection in the established X2/F12 belt pattern: a lexical pin over `src/` text that fails on any `MockEvidence` literal-shaped occurrence beyond the four pinned `mock/mod.rs` sites (declaration, impl header, the compile-fail forgery, `seal_evidence`'s construction). Every carrying location says detection, never binding — per the disposition's "no pseudo-binding". | A future in-crate descendant test forging the literal fails the belt pin in ordinary CI and must re-derive the pin deliberately; editing the pinned file or the pin itself remains the confessed lexical evasion, as with X2/F12. *(Falsified same day by SD-R8-F24: needle-free forgeries were silent to the brace-shape needle; superseded by the F24 addition below.)* |
+
+(F24 repair packet, 2026-08-15) — silences and boundaries:
+
+| Silence or boundary | Conservative reading | Next-call consequence |
+|---|---|---|
+| The F24 disposition offers a choice: wording-only repair, or the optional token-count strengthening. Neither is mandated; the analyst note recommends taking the strengthening with one shape staying named. | Take it: the pin counts bare `MockEvidence` tokens per `src/` file, identifier-boundary matched (`MockEvidenceSealError` never counts), against pinned per-file counts (6 in `mock/mod.rs`, 4 in `conformance.rs`, 2 in `obligations.rs`, 0 elsewhere). Constructing or aliasing the type must write its name, so the review's rename-import and `Self`-in-new-impl shapes are caught at the token they cannot avoid. Claims in every carrying location are scoped to exactly that mechanism — even strengthened, the pin is detection, never a binding. | A future needle-free construction spelling must avoid the type name entirely (an `include!` of a non-`.rs` file, a macro assembling the identifier, or editing the pin itself — all confessed in the pin comment); any ordinary spelling fails the pin in CI naming the file. |
+| A lexical pin cannot see every forgery shape: the review's third shape, field mutation on an obtained instance, filters the sealed vectors in place without writing the type name — no token exists under any spelling. | Do not claim it: **field mutation on an obtained instance is named in every carrying location as the remaining undetectable shape**, undetectable by construction, not by pin weakness — it rests solely on the named in-crate trust surface and its compensating control (the verdict path resides entirely across the crate boundary; no in-crate test reaches `judge` or `declare`). | A reader of any carrying location meets the same two-part statement: what the token needle sees (all construction/aliasing spellings) and the one shape it structurally cannot (instance mutation); no location claims more detection than the needle performs. |
 
 
 
@@ -508,13 +538,49 @@ walk for the F4/F5/F9 repairs:
   descendant module at all; the verdict-eligible report set is
   produced only by `tests/scenario_driver.rs` across the crate
   boundary. The belt pin keeps the `MockEvidence` half of that sweep
-  loud in CI; the remainder is this session's recorded grep, repeated
-  by the next reviewer.
+  loud in CI *[falsified same day by SD-R8-F24: only the brace-shaped
+  spelling was loud; superseded by the strengthened token pin in the
+  F24 addition below]*; the remainder is this session's recorded grep,
+  repeated by the next reviewer.
 - **Registry seam:** `b13-observation-log` keeps its owner, coverage,
   and existing citations; the corrected `must_assert` now states only
   what `sealed_evidence_is_complete_final_and_mock_authentic` itself
   asserts, and the belt citation is added. Totals are unchanged;
   obligations reruns 6/6.
+
+(F24 repair packet, 2026-08-15) — seams and invariant walk:
+
+- **One test strengthened plus prose scope corrections:** the repair
+  replaces the belt pin's needle (brace shape → bare token per file,
+  identifier-boundary matched) and re-scopes the claim prose in the
+  pin comment, the type doc comment, the `b13-observation-log`
+  note/`must_assert`, this packet, and `status.md`. No engine, actor,
+  mock, conformance, judge, or declaration code changed — the
+  compile-fail doctests and `seal_evidence`'s runtime semantics are
+  byte-identical — so the six cross-slice invariants are untouched by
+  construction, exactly as in the F23 repair.
+- **The pin/registry seam moved with the rename:** the citation's
+  `test_fn` follows the pin's rename to
+  `f23_f24_mock_evidence_bare_tokens_in_src_are_pinned`; the
+  structural verifier's cited-test-fn-exists check re-verified it
+  (obligations 6/6). The corrected `must_assert` states only what the
+  test asserts: bare tokens appear in `src/` only at the pinned
+  per-file counts.
+- **The pinned counts were derived from the tree, then checked by the
+  pin itself:** deriving them surfaced one site this session's own
+  grep had missed (`seal_evidence`'s return type on the same line as
+  its error type) — the boundary-matched needle saw it and the first
+  pin run failed until the count was corrected to the tree's truth.
+  The count comments in the pin name every site.
+- **Compensating controls re-stated for the F24 range:** the
+  verdict-eligible report set is produced only by
+  `tests/scenario_driver.rs` (defining parenthetical, carried per the
+  F24 review's unminted observation: the reports feeding
+  `run_full_contract_case` → `FullContractRun::declare`;
+  `tests/conformance_harness.rs` also asserts a `verdict_eligible()`
+  report as a positive control, likewise across the crate boundary),
+  and no in-crate test reaches `judge` or `declare`. Both re-derived
+  by the F24 review from the tree and unchanged by this repair.
 
 
 
@@ -795,6 +861,31 @@ the F12 structural source pin.
   minted; only `b13-observation-log` changed (scoped note, corrected
   `must_assert`, belt citation).
 
+(F24 repair packet, 2026-08-15) — coverage confession:
+
+- **The belt pin's scope, stated exactly (SD-R8-F24):** the pin
+  detects bare `MockEvidence` tokens in `src/` beyond the pinned
+  per-file counts — every construction or aliasing spelling must
+  write the type name, so the F24 rename-import and
+  `Self`-in-new-inherent-impl shapes now fail it loud. It detects
+  nothing else. **Field mutation on an obtained instance is the
+  remaining undetectable shape**: a descendant `#[cfg(test)]` module
+  can filter the sealed vectors in place without writing any token,
+  under any spelling, so no lexical pin can see it. That shape is
+  covered only by the named in-crate trust surface and its
+  compensating control (the verdict path resides entirely across the
+  crate boundary; no in-crate test reaches `judge` or `declare`).
+  The pin's other confessed evasions: an `include!` of a non-`.rs`
+  file, a macro that assembles the identifier, and editing the pin
+  itself. Strengthened or not, the belt is detection, never a
+  binding, and is nowhere the claim-bearer.
+- The named in-crate boundary itself (SD-R8-F23) and every other
+  previously named surface are unchanged by this repair.
+- Registry totals remain **124 clauses: 110 Full, no Partial, one
+  accepted Untested limitation, and 13 Excluded**; no clause was
+  minted; only `b13-observation-log` changed again (F24-scoped note,
+  test-faithful `must_assert`, renamed belt citation).
+
 
 
 - The canonical wired median (81 ms across 383 samples) replaces the
@@ -1019,9 +1110,10 @@ the F12 structural source pin.
   binding (none is possible against a module's own descendants) and a
   different session might have landed only the wording repairs. The
   established X2/F12 belt pattern makes silent drift loud at
-  near-zero cost; every carrying location says "detection, not a
-  binding" so the record cannot be read as the pseudo-binding the
-  disposition forbids.
+  near-zero cost *[falsified same day by SD-R8-F24: only brace-shaped
+  drift was loud; see the F24 additions]*; every carrying location
+  says "detection, not a binding" so the record cannot be read as the
+  pseudo-binding the disposition forbids.
 - **Pin all four literal-shaped sites, not construction sites only.**
   The needle also matches the type's declaration and impl header;
   pinning exact per-file counts (4 in `mock/mod.rs`, 0 elsewhere in
@@ -1043,6 +1135,40 @@ the F12 structural source pin.
   pin fails naming `model.rs` — then both are reverted. Recording the
   demonstration keeps the pin from being a green test nobody has seen
   fail.
+
+(F24 repair packet, 2026-08-15) — judgment calls:
+
+- **Took the optional strengthening rather than wording-only.** The
+  disposition left it to this session's judgment; the analyst note's
+  token analysis shows the bare-token needle catches two of the
+  review's three needle-free shapes at the token they cannot avoid
+  writing, at no new claim risk once the third is named as
+  undetectable. A wording-only repair would have left the rename
+  import silent for the cost of one sentence; the stronger needle
+  plus modest wording is strictly more honest per claim-word.
+- **Identifier-boundary matching instead of raw substring count.**
+  A raw count of the type name would also count every
+  `MockEvidenceSealError` occurrence, coupling the pin to an
+  unrelated type's usage; boundary matching pins exactly the
+  claim-relevant token. The cost is a dozen lines of matching logic
+  in the pin — still lexical, still not a parser, stated in its
+  comment.
+- **Renamed the pin (`f23_f24_…_bare_tokens_…`) rather than keeping
+  the literal-sites name.** The old name described the brace-shape
+  mechanism; a test whose name says "literal sites" while it counts
+  tokens would be a small new instance of the claims-outrun-mechanism
+  class. The registry citation moved with it; the structural verifier
+  checks the cited fn exists.
+- **Reproduced the reviewer's forgery byte-for-byte
+  (cherry-pick of `14d4be27`) rather than writing a fresh one.** The
+  claim under repair is "that exact forgery is now loud"; a fresh
+  variant would demonstrate a weaker claim. The probe's own comment
+  tokens contribute to the failure count (left: 3), and the import
+  token alone would fail the pin regardless.
+- **The F23 dated additions above carry falsification markers instead
+  of edits.** The incomplete evasion confession is history; the
+  marker points here, per the record's dated-marker pattern, so no
+  dated block silently changes meaning after the fact.
 
 ## 5. Verification presented with this packet
 
@@ -1322,3 +1448,53 @@ the pin is green again. No live service was contacted. Both verdict
 fills remain suspended; this session closes nothing and hands the
 packet to the repeated independent re-close review, then the repeated
 `final-audit-charge.md` audit.
+
+(F24 repair packet, 2026-08-15) — verification presented with this
+packet, entirely offline, with the repair committed first as
+`6fc96d80` and the matrix run on the restored tree (`a1d66cbc`,
+code-identical to the committed repair):
+
+- `cargo test --locked`: 176 passed / 0 failed / 3 ignored,
+  doctests 5/5 (same counts as the F23 packet: one pin was
+  strengthened in place, none added).
+- `cargo test --locked --release`: 174 / 0 / 3, doctests 5/5.
+- `PROPTEST_CASES=4096 cargo test --locked`: 176 / 0 / 3.
+- Compile-fail authority: doctests 5/5, unchanged by this repair.
+- Pinned φ=0 full-contract declaration: 1/1. Explicit debug
+  4,096-case declared run: 1/1 in 306.77 s; release companion 1/1 in
+  26.49 s.
+- Obligations: 6/6, reporting 124 clauses — 110 Full / 0 Partial /
+  1 accepted Untested / 13 Excluded, `OPEN_UNTESTED` empty. Both
+  ignored §7.4 release tests: 2/2 in 7.75 s. Sanitizer: 4/4.
+  All-target clippy with warnings denied, fmt, and `git diff --check`
+  are clean.
+- Preserved signatures, rerun by exact name (1/1 each) with variants
+  confirmed in test source: F5
+  `MissingEndpointLane { endpoint: CharacterList }` and F12/F4
+  `MissingM8KnownLane`
+  (`full_contract_declaration_requires_every_m_row_and_both_m8_lanes`,
+  `full_contract_declaration_binds_each_m8_profile_to_its_endpoint`),
+  F11 `MissingScenarioEndpointLane { scenario: M2, endpoint:
+  CharacterList }`
+  (`full_contract_declaration_refuses_a_relabeled_required_lane`), F9
+  `ReproductionMismatch { id: 1 }`
+  (`correlation_and_reproduction_seams_are_structural`), and the F12
+  lexical single-path pin
+  (`f12_driver_has_one_engine_construction_and_one_provenance_path`).
+
+One mutation was run against the committed repair, committed before
+reverting per the charge (`dc7a3d97`, reverted `a1d66cbc`): the F24
+reviewer's rename-import forgery, reproduced byte-for-byte by
+cherry-picking `14d4be27` (`use crate::mock::MockEvidence as
+SealedCarriage;` then a `SealedCarriage` literal in `mock::model`'s
+`#[cfg(test)]` module). The forgery **still compiles and its unit test
+still passes** — detection, not a binding, exactly as every carrying
+location now says — but the strengthened pin **fails loud** with
+exactly "unpinned bare MockEvidence token in …/src/mock/model.rs —
+left: 3, right: 0" (the probe comment's two mentions plus the rename
+import's one; the import token alone exceeds the pinned 0). What was
+silent to the brace-shape needle is loud to the token needle. On the
+restored tree the pin is green again. No live service was contacted.
+Both verdict fills remain suspended; this session closes nothing and
+hands the packet to the repeated independent re-close review, then the
+repeated `final-audit-charge.md` audit.

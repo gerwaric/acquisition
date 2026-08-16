@@ -127,7 +127,9 @@ in the doc comment, the `b13-observation-log` note/`must_assert`, and
 the packet confession, with the compensating controls stated (the
 verdict path resides entirely across the crate boundary; no in-crate
 test reaches `judge` or `declare`); a lexical belt pin — detection,
-not a binding — makes in-crate forgery loud, and the post-commit
+not a binding — makes in-crate forgery loud *[falsified same day by
+SD-R8-F24: only the brace-shaped spelling was loud; corrected by the
+F24 repair below]*, and the post-commit
 mutation demonstrated both the forgery compiling in `mock::model` and
 the pin catching it. No enforcement mechanism changed; both
 authorities reran green (pinned + 4,096-case declaration; obligations
@@ -151,6 +153,26 @@ the named trust surface and its primary compensating control are
 accurate and re-verified. Verdict readiness stays suspended pending
 the F24 wording repair, a fresh packet, re-review, and the repeated
 final audit.**
+**The F24 repair landed 2026-08-15** (`6fc96d80`), taking the
+disposition's optional strengthening per the analyst note: the belt
+pin counts bare `MockEvidence` tokens per `src/` file
+(identifier-boundary matched) against pinned per-file counts instead
+of the brace-shaped literal, so the rename-import and
+`Self`-in-new-impl forgeries the F24 review named are caught at the
+token they cannot avoid writing, and every carrying location — pin
+comment, type doc comment, `b13-observation-log` note and
+`must_assert`, packet confession, and this file — scopes the belt's
+claim to exactly what the needle sees: detection of token-bearing
+shapes, never a binding, with field mutation on an obtained instance
+named as the shape no lexical pin can see, resting on the named
+trust surface and its compensating control alone. The reviewer's
+rename-import forgery was reproduced against the strengthened pin
+and now fails loud (`dc7a3d97`/`a1d66cbc`; signature in
+`result-draft.md` §9); both authorities reran green (pinned +
+4,096-case declaration; obligations 6/6 at 124/110) and all five
+preserved mutation signatures and compile-fail doctests hold. Both
+verdict fills remain suspended awaiting the repeated re-close review
+and the repeated final audit.
 `obligation-map.md`
 is the superseded prose ancestor; read its §8 for the audit's
 discrepancy analysis (dated at `e2034807`), never for current
@@ -366,6 +388,15 @@ coverage.
   wording-scope disposition are in `result-draft.md` §9; the hand-off
   is flipped back to owing an F24 repair-range packet. Both verdict
   fills stay suspended.
+  **The F24 repair session completed 2026-08-15** at `6fc96d80`. The
+  fresh four-part packet is presented in `scenario-driver-handoff.md`;
+  the optional strengthening was taken per the analyst note — a
+  bare-token-per-file pin — with every carried claim scoped to the
+  token mechanism and field mutation on an obtained instance named as
+  the remaining undetectable shape. The reviewer's rename-import
+  forgery now fails the pin loud (reproduced, committed, reverted).
+  The session closes nothing: SD-R8 remains open awaiting repeated
+  independent re-close review and then the repeated final audit.
 - Every other slice (core, bootstrap, mock, actor, clause registry,
   doc split) is closed; their hand-offs are historical records.
   (Doc split closed 2026-08-13, DS-R1 — `result-draft.md` §9.)
@@ -464,19 +495,15 @@ ratification record is in `result-draft.md` §9. (Both earlier
 ## 4. Blocked
 
 Delivery is blocked on re-closing SD-R8. The F21/F22 sealing repairs
-are present and re-verified; the F23 repair is present and re-verified
-(`1b483191`), but the repeated re-close review over the F23 range
-found SD-R8-F24 (low): the belt pin's carried claims outrun its
-lexical mechanism (needle-free descendant forgeries are silent to it),
-so the round stays open. What remains before either delivery PR: the
-F24 wording repair and fresh four-part packet, another repeated
-independent re-close review, then the repeated `final-audit-charge.md`
+and the F23 scope repair are present and re-verified; the F24 repair
+is present (`6fc96d80`): the belt pin is strengthened to a
+bare-token-per-file needle and its carried claims are scoped to
+exactly what the needle sees, with field mutation on an obtained
+instance named as the remaining undetectable shape. What remains
+before either delivery PR: another repeated independent re-close
+review over the F24 range, then the repeated `final-audit-charge.md`
 audit over the repaired tree and both migration diffs. Both verdict
-fills stay suspended until then. No Tom decision is open: F24's
-proposed disposition follows the same "record honestly, don't
-pseudo-bind" pattern (scope the belt's claims to what the needle sees
-and name the needle-free evasions; an optional stronger token-count
-needle is the repair session's judgment call).
+fills stay suspended until then. No Tom decision is open.
 
 ## 5. Next work
 
@@ -574,11 +601,13 @@ Reopened SD-R8 work (audit and re-close-review entries,
      packet~~ — **done 2026-08-15** (`1b483191`; packet presented
      without closure); the repeated re-close review over the F23 range
      ran the same day, re-verified the repair, and **found SD-R8-F24 —
-     the round stays open**. Now next: the F24 wording repair (scope
+     the round stays open**. Then: ~~the F24 wording repair (scope
      the belt pin's claims to the plainly spelled literal and name the
-     needle-free evasions; §9 disposition) and fresh four-part packet,
-     then another repeated independent re-close review and the
-     repeated final audit.
+     needle-free evasions; §9 disposition) and fresh four-part
+     packet~~ — **done 2026-08-15** (`6fc96d80`, strengthening taken
+     per the analyst note; packet presented without closure). Now
+     next: another repeated independent re-close review over the F24
+     range, then the repeated final audit.
   5. The two delivery PRs (`spike/rate-limit-core` → `redesign`;
      CN docs → `master`). **F6 — and the spike — complete at
      landing.**
