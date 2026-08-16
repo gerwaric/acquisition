@@ -550,10 +550,6 @@ fn bucket_end(at_ms: u64, bucket_ms: u64, phase_ms: u64) -> u64 {
 
 #[cfg(test)]
 mod tests {
-    // REVIEW MUTATION (SD-R8 re-close, F24 range): import token alone.
-    #[allow(unused_imports)]
-    use crate::mock::MockEvidence as SealedCarriageAlias;
-
     use super::*;
 
     #[test]
