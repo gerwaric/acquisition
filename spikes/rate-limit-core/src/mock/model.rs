@@ -552,21 +552,6 @@ fn bucket_end(at_ms: u64, bucket_ms: u64, phase_ms: u64) -> u64 {
 mod tests {
     use super::*;
 
-    // REVIEW MUTATION (SD-R8 re-close, F23 range): reproduces the repair's
-    // recorded mutation — a forged MockEvidence struct literal in a mock
-    // descendant's cfg(test) module compiles and runs (the F23 fact), while
-    // the belt pin fails naming this file. Committed for the record, then
-    // reverted.
-    #[test]
-    fn review_mutation_f23_forged_literal_compiles_in_descendant() {
-        let forged = crate::mock::MockEvidence {
-            observations: Vec::new(),
-            state_changes: Vec::new(),
-        };
-        assert!(forged.observations().is_empty());
-        assert!(forged.state_changes().is_empty());
-    }
-
     #[test]
     fn bucket_boundaries_use_the_adversarial_new_bucket_reading() {
         assert_eq!(bucket_end(999, 1_000, 0), 1_000);
