@@ -478,7 +478,24 @@ coverage.
 
 ## 3. Open decisions (Tom)
 
-None open. Tom decided the SD-R8-F25 disposition on 2026-08-15
+None open. Tom decided the **terminal-gate structure** on
+2026-08-15 (record in `result-draft.md` §9): the remaining
+repeated re-close review and the repeated final audit are **merged
+into one terminal review** (`terminal-review-charge.md`), run by a
+single fresh no-context session, with a **materiality threshold**:
+a finding blocks delivery only if it (a) forges or invalidates a
+verdict authority, or (b) makes a delivered claim false; findings
+below that bar are recorded once in an accepted-residuals register
+entry carrying Tom's name and do not reopen the round. Rationale
+accepted with the decision: the last authority-touching finding
+was F22, three rounds back; F23/F24/F25 were claim-calibration at
+falling severity; the spike informs a near-decided ADR and
+delivers a foundation whose next real test is use on the redesign
+branch, which the unbounded ratchet was blocking. The
+named-trust-surface honesty discipline is unchanged — the bound is
+on review depth, not on truthfulness.
+
+Also decided the SD-R8-F25 disposition on 2026-08-15
 (record in `result-draft.md` §9): **wording-only repair with
 single-sourcing; the optional vector-pin strengthening declined** —
 the belt makes accidental drift loud, out-of-scan smuggling is
@@ -698,9 +715,14 @@ Reopened SD-R8 work (audit and re-close-review entries,
      `src/` — and correct the evasion family's boundary; §9
      disposition) and fresh four-part packet~~ — **done 2026-08-15**
      (`3f777095`, single-sourced per Tom's decision, strengthening
-     declined; packet presented without closure). Now next: another
-     repeated independent re-close review over the F25 range, then
-     the repeated final audit.
+     declined; packet presented without closure). Now next, **per
+     Tom's 2026-08-15 terminal-gate decision (§3)**: the single
+     merged **terminal review** (`terminal-review-charge.md` — F25
+     delta + the whole delivery object, under the materiality
+     threshold; a fresh no-context session). It replaces both the
+     repeated re-close review and the repeated final audit;
+     `re-close-review-charge.md` is superseded, retained as dated
+     history.
   5. The two delivery PRs (`spike/rate-limit-core` → `redesign`;
      CN docs → `master`). **F6 — and the spike — complete at
      landing.**

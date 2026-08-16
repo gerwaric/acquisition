@@ -4707,3 +4707,28 @@ hoistable to its own repository without surgery.
   closes neither SD-R8 nor the scenario-driver slice; the repeated
   independent re-close review is next, followed by the repeated
   `final-audit-charge.md` audit.
+
+- 2026-08-15 — **Tom decided the terminal-gate structure: the
+  remaining review steps are merged and bounded.** Decision, given
+  in-session on the analyst's proportionality analysis: the
+  repeated re-close review and the repeated final audit are merged
+  into **one terminal review** (`terminal-review-charge.md`), run
+  by a single fresh no-context session, under a **materiality
+  threshold** — a finding blocks delivery only if it (a) forges or
+  invalidates a verdict authority or (b) makes a delivered claim
+  false; findings below the bar are recorded once in an
+  accepted-residuals entry carrying Tom's name and do not reopen
+  the round, and named trust surfaces are not re-litigated.
+  Rationale recorded with the decision: the last authority-touching
+  finding was F22, three rounds back; F23/F24/F25 were
+  claim-calibration at monotonically falling severity; the spike
+  informs a near-decided ADR and delivers a foundation whose next
+  real test is use on the redesign branch — the unbounded ratchet's
+  dominant remaining cost was blocking that use. The threshold
+  bounds review depth, not truthfulness: the named-trust-surface
+  discipline and the two-authorities rule are unchanged, and the
+  accepted-residuals mechanism follows the register's existing
+  accepted-limitation precedent. `re-close-review-charge.md`'s
+  §3-addendum-4 scope is absorbed into the terminal charge's
+  Scope 1; that charge is superseded by this decision and retained
+  as dated history.

@@ -1,6 +1,13 @@
 # Review charge: repeated SD-R8 re-close over the F11–F20 repairs
 
-Status: **open — charge for the independent re-close reviewer**
+Status: **superseded 2026-08-15 by Tom's terminal-gate decision —
+do not execute.** The remaining review runs under
+`terminal-review-charge.md` (merged re-close + final audit, with
+the materiality threshold); this file's §3-addendum-4 scope is
+absorbed there as Scope 1. Retained as dated history of the
+executed rounds.
+
+Prior status: **open — charge for the independent re-close reviewer**
 (drafted 2026-08-15 by the analyst session that wrote
 `f11-f20-repair-charge.md`; that authorship is a declared interest —
 this charge encodes what that session knows about the defect class,
