@@ -104,7 +104,18 @@ F21/F22 repair range; from the repair *report* alone, unexamined)
   packet's trust-surface list must say so, or mint the finding.
 
 ## 3-addendum-2. F23-range checks (added 2026-08-15 for the F23
-repair range; from the repair report alone, unexamined)
+repair range)
+
+*(Authorship note, added by the analyst session: unlike the
+sections above, this addendum was written by the **F23 repair
+session itself** — a declared interest. Treat it as a floor, not a
+ceiling: it may encode the implementer's own blind spots as the
+review's scope. Two sharpenings from the analyst: (1) re-derive the
+compensating-control factual claims independently — that neither
+`#[cfg(test)]` module in `src/` references `judge`, `declare`, or
+any sealed type, and that `conformance` truly has no descendant
+module — rather than accepting the repair's verification of them;
+(2) anything the addendum's own framing would excuse, question.)*
 
 - **The scoped claim must be exactly true.** Re-derive the corrected
   statements in the `MockEvidence` doc comment, the
