@@ -171,6 +171,53 @@ async fn sealed_evidence_is_complete_final_and_mock_authentic() {
     );
 }
 
+/// SD-R8-F23's lexical belt, in the X2/F12 pattern: Rust privacy cannot bar
+/// `MockEvidence` construction from the `mock` module's own in-crate
+/// descendants — their `#[cfg(test)]` modules live inside the seal — so that
+/// boundary is a named residual trust surface (the type's doc comment and
+/// the `b13-observation-log` registry note carry it). This test is
+/// detection, not a binding: it fails on any `MockEvidence` literal-shaped
+/// text in `src/` beyond the four known sites in `src/mock/mod.rs`
+/// (declaration, impl header, the compile-fail doctest forgery, and
+/// `seal_evidence`'s own construction), so an in-crate forgery must
+/// re-derive this pin deliberately. concat! keeps the needle out of this
+/// test's own literals (the SD-R5-F5 vacuity lesson); this is a lexical
+/// spike pin, not a Rust parser.
+#[test]
+fn f23_mock_evidence_literal_sites_in_src_are_pinned() {
+    fn rust_sources(dir: &std::path::Path, files: &mut Vec<std::path::PathBuf>) {
+        for entry in std::fs::read_dir(dir).unwrap() {
+            let path = entry.unwrap().path();
+            if path.is_dir() {
+                rust_sources(&path, files);
+            } else if path.extension().is_some_and(|extension| extension == "rs") {
+                files.push(path);
+            }
+        }
+    }
+
+    let src = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+    let mut files = Vec::new();
+    rust_sources(&src, &mut files);
+    assert!(
+        files.len() >= 9,
+        "the src/ walk must see the whole library, saw {}",
+        files.len()
+    );
+
+    let needle = concat!("MockEvidence", " {");
+    for path in files {
+        let source = std::fs::read_to_string(&path).unwrap();
+        let expected = if path.ends_with("mock/mod.rs") { 4 } else { 0 };
+        assert_eq!(
+            source.matches(needle).count(),
+            expected,
+            "unpinned MockEvidence literal-shaped text in {}",
+            path.display()
+        );
+    }
+}
+
 proptest! {
     // B3: the test oracle is independent arithmetic in this test module. It
     // never calls mock::model::bucket_end or any production-core helper, and

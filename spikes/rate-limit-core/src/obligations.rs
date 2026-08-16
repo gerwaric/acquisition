@@ -2656,15 +2656,32 @@ pub const CLAUSES: &[Clause] = &[
             Citation {
                 file: "tests/mock_fidelity.rs",
                 test_fn: "sealed_evidence_is_complete_final_and_mock_authentic",
-                must_assert: "mock-only evidence construction snapshots both \
-                              vectors atomically, refuses pending observations, \
-                              and prevents later traffic or state changes",
+                must_assert: "sealing snapshots both vectors atomically, \
+                              refuses pending observations, and prevents \
+                              later traffic or state changes",
+            },
+            Citation {
+                file: "tests/mock_fidelity.rs",
+                test_fn: "f23_mock_evidence_literal_sites_in_src_are_pinned",
+                must_assert: "lexical belt (detection, not a binding): \
+                              MockEvidence literal-shaped text appears in \
+                              src/ only at the four pinned mock/mod.rs \
+                              sites, so an in-crate descendant forgery must \
+                              re-derive the pin deliberately",
             },
         ],
         note: "Observation and state-change vectors reach the judge only in \
-               MockEvidence, whose private fields are constructed by the mock \
-               module. Sealing is final, so a test cannot filter either vector \
-               and rebuild a judge input (SD-R8-F21/F22 hybrid binding)",
+               MockEvidence, whose private fields bar construction across \
+               the library/integration-test crate boundary — where the \
+               verdict-bearing driver runs, sealing is final and a test \
+               cannot filter either vector and rebuild a judge input \
+               (SD-R8-F21/F22 hybrid binding). Rust privacy does not bind \
+               the mock module's in-crate descendants: their cfg(test) \
+               modules live inside the seal and could forge the literal \
+               (SD-R8-F23, named residual trust surface), compensated by \
+               the verdict path residing entirely across the crate boundary \
+               (no in-crate test reaches judge or declare) and detected, \
+               not bound, by the f23 lexical belt citation",
     },
     Clause {
         id: "b14-zero-skew-date",

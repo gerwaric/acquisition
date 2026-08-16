@@ -329,10 +329,20 @@ pub struct MockStateChange {
 
 /// Immutable, mock-authentic evidence handed to the conformance judge.
 ///
-/// Only [`MockController::seal_evidence`] can construct this type. Sealing
-/// snapshots both vectors atomically and prevents later mock traffic or state
-/// changes, so integration-test code can inspect or clone the complete
-/// carriage but cannot filter it and then rebuild a judge input.
+/// The private fields bar construction across the library/integration-test
+/// crate boundary — where the verdict-bearing scenario driver runs — so
+/// there only [`MockController::seal_evidence`] can construct this type.
+/// Rust privacy does not bind this module's in-crate descendants
+/// (SD-R8-F23): a `#[cfg(test)]` module in a child of `mock` (today
+/// `mock::model` carries one) could write the struct literal directly. That
+/// in-crate boundary is a named residual trust surface, compensated by the
+/// verdict path residing entirely across the crate boundary — no in-crate
+/// test reaches `judge` or `declare` — and made loud by the lexical belt
+/// pin in `tests/mock_fidelity.rs`, which is detection, not a binding.
+/// Sealing snapshots both vectors atomically and prevents later mock
+/// traffic or state changes, so across the crate boundary a test can
+/// inspect or clone the complete carriage but cannot filter it and then
+/// rebuild a judge input.
 ///
 /// ```compile_fail,E0451
 /// use rate_limit_core::mock::MockEvidence;
