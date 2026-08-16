@@ -165,8 +165,7 @@ comment, type doc comment, `b13-observation-log` note and
 claim to exactly what the needle sees: detection of token-bearing
 shapes *[falsified same day by SD-R8-F25: the needle reads only
 `.rs` files under `src/`, so a token-bearing construction outside
-that scan set is silent; the F25 wording repair is owed — see
-below]*, never
+that scan set is silent; corrected by the F25 repair below]*, never
 a binding, with field mutation on an obtained instance
 named as the shape no lexical pin can see, resting on the named
 trust surface and its compensating control alone. The reviewer's
@@ -201,6 +200,24 @@ compensating control are accurate and re-verified. Finding,
 demonstration commits, and proposed wording-scope disposition are in
 `result-draft.md` §9; the hand-off is flipped back to owing an F25
 repair-range packet. Both verdict fills stay suspended.
+**The F25 repair landed 2026-08-15** (`3f777095`) under Tom's
+decision: wording-only with single-sourcing, the optional vector-pin
+strengthening declined (the belt makes accidental drift loud;
+out-of-scan smuggling is deliberate-act territory the named trust
+surface already concedes; decision record in `result-draft.md` §9).
+The pin's own comment is now the single normative statement of the
+detection class — bare identifier-boundary tokens of the type name
+in `.rs` files under `src/`, the files the walk reads, against
+pinned per-file counts — and of the confessed evasion families,
+drawn by the scan set's boundary; the type doc comment, the
+`b13-observation-log` note and `must_assert`, the packet, and this
+file point to it instead of paraphrasing, removing the
+paraphrase-drift generator behind F24 and F25. Nothing mechanical
+moved (needle, walk, and counts byte-identical to `6fc96d80`'s);
+both authorities reran green and all five preserved mutation
+signatures and compile-fail doctests hold. Both verdict fills
+remain suspended awaiting the repeated re-close review and the
+repeated final audit.
 `obligation-map.md`
 is the superseded prose ancestor; read its §8 for the audit's
 discrepancy analysis (dated at `e2034807`), never for current
@@ -445,13 +462,32 @@ coverage.
   commits, and proposed wording-scope disposition are in
   `result-draft.md` §9; the hand-off is flipped back to owing an F25
   repair-range packet. Both verdict fills stay suspended.
+  **The F25 repair session completed 2026-08-15** at `3f777095`,
+  executing the reviewer's recommendation as approved by Tom the
+  same day: wording-only, single-sourced to the pin's own comment,
+  vector-pin strengthening declined. The fresh four-part packet is
+  presented in `scenario-driver-handoff.md`; nothing mechanical
+  moved, so no new mutation was owed — the F25 demonstration
+  (`47885eab`, in history) is the experiment the corrected text now
+  predicts. The session closes nothing: SD-R8 remains open awaiting
+  repeated independent re-close review and then the repeated final
+  audit.
 - Every other slice (core, bootstrap, mock, actor, clause registry,
   doc split) is closed; their hand-offs are historical records.
   (Doc split closed 2026-08-13, DS-R1 — `result-draft.md` §9.)
 
 ## 3. Open decisions (Tom)
 
-None open. Tom decided the F21/F22 follow-on on 2026-08-15
+None open. Tom decided the SD-R8-F25 disposition on 2026-08-15
+(record in `result-draft.md` §9): **wording-only repair with
+single-sourcing; the optional vector-pin strengthening declined** —
+the belt makes accidental drift loud, out-of-scan smuggling is
+deliberate-act territory the named trust surface already concedes,
+the chance of an in-crate forgery is priced as incredibly low, and
+the spike is not hardening a zero-trust system. Executed the same
+day (`3f777095`; §1, §2).
+
+Earlier: Tom decided the F21/F22 follow-on on 2026-08-15
 (record in `result-draft.md` §9): **hybrid** — the observation
 vector (and the state-change carriage, same class) is **bound** by
 sealing: mock-module-only construction, so the evidence reaching
@@ -544,14 +580,12 @@ ratification record is in `result-draft.md` §9. (Both earlier
 
 Delivery is blocked on re-closing SD-R8. The F21/F22 sealing repairs,
 the F23 scope repair, and the F24 strengthening are present and
-re-verified, but the F24-range re-close review found SD-R8-F25 (low):
-the strengthened pin's carried claims outrun its scan scope — the
-needle reads only `.rs` files under `src/`, and the summary locations
-claim it sees every construction/aliasing spelling. What remains
-before either delivery PR: the F25 wording repair (state the
-detection class extensionally and correct the evasion family's
-boundary; §9 disposition), a fresh four-part packet, another repeated
-independent re-close review, then the repeated
+re-verified; the F25 repair is present (`3f777095`): the pin's own
+comment is the single normative statement of the detection class
+(bare tokens in `.rs` files under `src/`), every other carrying
+location points to it, and the vector-pin strengthening was declined
+by Tom. What remains before either delivery PR: another repeated
+independent re-close review over the F25 range, then the repeated
 `final-audit-charge.md` audit over the repaired tree and both
 migration diffs. Both verdict fills stay suspended until then. No Tom
 decision is open.
@@ -659,11 +693,14 @@ Reopened SD-R8 work (audit and re-close-review entries,
      per the analyst note; packet presented without closure); the
      repeated re-close review over the F24 range ran the same day,
      re-verified the repair, and **found SD-R8-F25 — the round stays
-     open**. Now next: the F25 wording repair (state the pin's
+     open**. Then: ~~the F25 wording repair (state the pin's
      detection class extensionally — bare tokens in `.rs` files under
      `src/` — and correct the evasion family's boundary; §9
-     disposition) and fresh four-part packet, then another repeated
-     independent re-close review, then the repeated final audit.
+     disposition) and fresh four-part packet~~ — **done 2026-08-15**
+     (`3f777095`, single-sourced per Tom's decision, strengthening
+     declined; packet presented without closure). Now next: another
+     repeated independent re-close review over the F25 range, then
+     the repeated final audit.
   5. The two delivery PRs (`spike/rate-limit-core` → `redesign`;
      CN docs → `master`). **F6 — and the spike — complete at
      landing.**

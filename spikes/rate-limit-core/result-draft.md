@@ -4606,3 +4606,104 @@ hoistable to its own repository without surgery.
   repair, a fresh four-part packet, another repeated independent
   re-close review, and then the repeated `final-audit-charge.md`
   audit.
+
+- 2026-08-15 — **Tom's SD-R8-F25 decision: wording-only repair with
+  single-sourcing; the optional vector-pin strengthening is
+  declined.** Tom read the F25 review entry and the reviewer's
+  recommendation and approved it as written, adding his own
+  grounds: the chance of an in-crate forgery is incredibly low, and
+  the spike is not hardening a zero-trust system. The decided
+  shape: (1) the pin's own comment in `tests/mock_fidelity.rs`
+  becomes the single normative statement of the detection class —
+  stated extensionally as bare identifier-boundary tokens of the
+  type name in `.rs` files under `src/`, with the evasion families
+  drawn by the scan set's boundary — and every other carrying
+  location points to it instead of paraphrasing, removing the
+  paraphrase-drift generator that produced both F24 and F25;
+  (2) the `include!`/`#[path` vector pin offered as optional
+  strengthening is **not taken**: the belt's purpose is making
+  accidental drift loud, nobody accidentally writes `#[path]`
+  smuggling, the shapes the vector pin would catch are deliberate
+  evasions the named trust surface already concedes, and every
+  prior strengthening minted the next generation. Implementation
+  latitude to the repair session; no other contract decision. Tom
+  granted the repair session permission to execute directly.
+
+- 2026-08-15 — **F25 repair session: the belt pin's scope is
+  single-sourced to the pin's own comment and every carrying location
+  points there; the vector-pin strengthening is declined per Tom's
+  decision; the round remains open.** Repair commit `3f777095`
+  executes the SD-R8-F25 proposed disposition as amended by the F25
+  reviewer's recommendation and approved by Tom the same day
+  (decision entry above):
+
+  - The pin's doc comment in `tests/mock_fidelity.rs` is now the
+    **single normative statement** of the detection class, stated
+    extensionally: bare identifier-boundary tokens of the type name
+    in `.rs` files under `src/` — precisely the files the walk
+    reads — checked against pinned per-file counts, with the
+    confessed evasion families drawn by the scan set's boundary
+    (location and extension, not spelling): out-of-scan source text
+    (an `include!` of any unscanned file, a `#[path]` module whose
+    file lives outside `src/` — the F25 demonstration — or generated
+    code), macro assembly, editing the pin itself, and token-free
+    field mutation on an obtained instance. Every shape the walk
+    cannot see rests on the named trust surface and its compensating
+    control alone.
+  - The `MockEvidence` doc comment and the `b13-observation-log`
+    note now **point to the pin comment instead of paraphrasing it**
+    — paraphrase drift across the carrying locations produced both
+    F24 and F25, and removing the paraphrases removes the generator.
+    The `must_assert` gains the `.rs`-files qualifier
+    (§3-addendum-2 bullet-4 standard: it states exactly what the
+    cited test asserts). The packet and `status.md` carry the same
+    pointer form.
+  - The optional `include!`/`#[path` vector-pin strengthening is
+    **declined, as Tom's recorded decision**: the belt's purpose is
+    making accidental drift loud; out-of-scan smuggling is
+    deliberate-act territory the named trust surface already
+    concedes; the chance of an in-crate forgery is priced as
+    incredibly low; the spike is not hardening a zero-trust system;
+    and every prior strengthening minted the next generation.
+  - Every falsified F24-era sentence carries a dated falsification
+    marker beside preserved text: the packet's F24 status header,
+    both F24 silence-row consequence cells, the F24 coverage
+    confession, the F24 "no new claim risk" judgment call, and
+    `status.md`'s F24 paragraph (the review's "repair owed" marker
+    tail updated to point at this repair).
+
+  No mechanism changed and no mutation was owed or run: the needle,
+  walk, and pinned per-file counts (6/4/2/0) are byte-identical to
+  `6fc96d80`'s, and the F25 demonstration (`47885eab`, reverted
+  `351bfab6`, in history) is the experiment the corrected text now
+  predicts. The pin itself guards the edited carrying locations —
+  the doc-comment and registry wording changes could not alter any
+  file's token count without failing it.
+
+  Verification on the committed repair (`3f777095`), entirely
+  offline: `cargo test --locked` 176 passed / 0 failed / 3 ignored
+  with doctests 5/5; release 174 / 0 / 3 with doctests 5/5;
+  `PROPTEST_CASES=4096` 176 / 0 / 3; the five compile-fail doctests
+  unchanged and green; pinned φ=0 declaration 1/1 by exact name;
+  explicit debug 4,096-case declared run 1/1 in 305.75 s and release
+  companion 1/1 in 26.36 s; obligations 6/6 at unchanged 124/110
+  totals with `OPEN_UNTESTED` empty; both ignored §7.4 release tests
+  2/2 in 7.78 s; sanitizer 4/4; all-target clippy with warnings
+  denied, fmt, and `git diff --check` clean. All five preserved
+  mutation signatures rerun by exact name (green) with their
+  variants confirmed in test source.
+
+  Registry totals remain 124 clauses — 110 Full / 0 Partial / 1
+  accepted Untested / 13 Excluded — and no clause was minted; only
+  `b13-observation-log` changed again (pointer-form note,
+  `.rs`-files qualifier in the `must_assert`). The fresh four-part
+  repair packet is in `scenario-driver-handoff.md`;
+  `re-close-review-charge.md` is re-armed for the F25 range
+  (§3-addendum-4: verify the single-sourcing generator-removal, the
+  normative statement's exactness both directions, that nothing
+  mechanical moved, that the declined strengthening is recorded as
+  Tom's decision, and that markers annotate). No live service was
+  contacted, neither verdict fill is restored, and this session
+  closes neither SD-R8 nor the scenario-driver slice; the repeated
+  independent re-close review is next, followed by the repeated
+  `final-audit-charge.md` audit.

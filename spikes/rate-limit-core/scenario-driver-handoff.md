@@ -1,6 +1,28 @@
 # Scenario-driver and safety-closure hand-off
 
-Status: **open — the 2026-08-15 repeated re-close review over the F24
+Status: **open — the F25 repair packet is presented 2026-08-15 and
+awaits the repeated independent re-close review.** Commit `3f777095`
+executes the SD-R8-F25 disposition as amended by the F25 reviewer's
+recommendation and approved by Tom the same day (decision record in
+`result-draft.md` §9): wording-only, single-sourced — the pin's own
+comment in `tests/mock_fidelity.rs` is now the single normative
+statement of the detection class (bare identifier-boundary tokens of
+the type name in `.rs` files under `src/`, the files the walk reads,
+against pinned per-file counts) and of the confessed evasion
+families, drawn by the scan set's boundary; the type doc comment, the
+`b13-observation-log` note and `must_assert`, this packet, and
+`status.md` point to it instead of paraphrasing. The optional
+`include!`/`#[path]` vector-pin strengthening was **declined by Tom**:
+the belt makes accidental drift loud, and out-of-scan smuggling is
+deliberate-act territory the named trust surface already concedes.
+Nothing mechanical moved — needle, walk, and pinned counts are
+byte-identical to `6fc96d80`'s — so no new mutation was owed; the F25
+demonstration (`47885eab`, in history) is the experiment the
+corrected text now predicts. The repair session closes nothing,
+contacts no live service, and does not restore either verdict fill.
+Live state is `status.md`.
+
+Prior status: **open — the 2026-08-15 repeated re-close review over the F24
 range found SD-R8-F25; this file requires an F25 repair-range four-part
 update before re-review.** The review re-verified everything the F24
 commits touched — the pinned per-file token counts were recounted
@@ -37,7 +59,10 @@ the review named are now caught at the token they cannot avoid
 writing, and every carrying location — pin comment, type doc comment,
 `b13-observation-log` note and `must_assert`, this packet, and
 `status.md` — scopes the belt's claim to exactly what the needle sees:
-detection of token-bearing shapes, never a binding, with **field
+detection of token-bearing shapes *[falsified same day by SD-R8-F25:
+the needle reads only `.rs` files under `src/`, so a token-bearing
+construction outside that scan set is silent; superseded by the F25
+packet above]*, never a binding, with **field
 mutation on an obtained instance named as the shape no lexical pin can
 see**, resting on the named trust surface alone. The reviewer's
 rename-import forgery was reproduced against the strengthened pin and
@@ -330,8 +355,14 @@ repairs:
 
 | Silence or boundary | Conservative reading | Next-call consequence |
 |---|---|---|
-| The F24 disposition offers a choice: wording-only repair, or the optional token-count strengthening. Neither is mandated; the analyst note recommends taking the strengthening with one shape staying named. | Take it: the pin counts bare `MockEvidence` tokens per `src/` file, identifier-boundary matched (`MockEvidenceSealError` never counts), against pinned per-file counts (6 in `mock/mod.rs`, 4 in `conformance.rs`, 2 in `obligations.rs`, 0 elsewhere). Constructing or aliasing the type must write its name, so the review's rename-import and `Self`-in-new-impl shapes are caught at the token they cannot avoid. Claims in every carrying location are scoped to exactly that mechanism — even strengthened, the pin is detection, never a binding. | A future needle-free construction spelling must avoid the type name entirely (an `include!` of a non-`.rs` file, a macro assembling the identifier, or editing the pin itself — all confessed in the pin comment); any ordinary spelling fails the pin in CI naming the file. |
-| A lexical pin cannot see every forgery shape: the review's third shape, field mutation on an obtained instance, filters the sealed vectors in place without writing the type name — no token exists under any spelling. | Do not claim it: **field mutation on an obtained instance is named in every carrying location as the remaining undetectable shape**, undetectable by construction, not by pin weakness — it rests solely on the named in-crate trust surface and its compensating control (the verdict path resides entirely across the crate boundary; no in-crate test reaches `judge` or `declare`). | A reader of any carrying location meets the same two-part statement: what the token needle sees (all construction/aliasing spellings) and the one shape it structurally cannot (instance mutation); no location claims more detection than the needle performs. |
+| The F24 disposition offers a choice: wording-only repair, or the optional token-count strengthening. Neither is mandated; the analyst note recommends taking the strengthening with one shape staying named. | Take it: the pin counts bare `MockEvidence` tokens per `src/` file, identifier-boundary matched (`MockEvidenceSealError` never counts), against pinned per-file counts (6 in `mock/mod.rs`, 4 in `conformance.rs`, 2 in `obligations.rs`, 0 elsewhere). Constructing or aliasing the type must write its name, so the review's rename-import and `Self`-in-new-impl shapes are caught at the token they cannot avoid. Claims in every carrying location are scoped to exactly that mechanism — even strengthened, the pin is detection, never a binding. | A future needle-free construction spelling must avoid the type name entirely (an `include!` of a non-`.rs` file, a macro assembling the identifier, or editing the pin itself — all confessed in the pin comment); any ordinary spelling fails the pin in CI naming the file. *(Falsified same day by SD-R8-F25: an ordinary spelling whose source text lies outside the `src/` `.rs` scan set — e.g. a `#[path]` descendant module at the crate root — does not fail the pin, and the include!-family boundary is location, not extension; superseded by the F25 addition below.)* |
+| A lexical pin cannot see every forgery shape: the review's third shape, field mutation on an obtained instance, filters the sealed vectors in place without writing the type name — no token exists under any spelling. | Do not claim it: **field mutation on an obtained instance is named in every carrying location as the remaining undetectable shape**, undetectable by construction, not by pin weakness — it rests solely on the named in-crate trust surface and its compensating control (the verdict path resides entirely across the crate boundary; no in-crate test reaches `judge` or `declare`). | A reader of any carrying location meets the same two-part statement: what the token needle sees (all construction/aliasing spellings) and the one shape it structurally cannot (instance mutation); no location claims more detection than the needle performs. *(Falsified same day by SD-R8-F25: the needle sees construction/aliasing spellings only in scanned files, and the summary locations did claim more detection than it performs; superseded by the F25 addition below.)* |
+
+(F25 repair packet, 2026-08-15) — silences and boundaries:
+
+| Silence or boundary | Conservative reading | Next-call consequence |
+|---|---|---|
+| The F25 disposition (reviewer's recommendation, approved by Tom 2026-08-15 — decision record in `result-draft.md` §9) prescribes wording-only repair with single-sourcing and declines the optional `include!`/`#[path]` vector-pin strengthening: the belt exists to make accidental drift loud, out-of-scan smuggling is deliberate-act territory the named trust surface already concedes, and the spike is not hardening a zero-trust system. | The pin's own comment in `tests/mock_fidelity.rs` becomes the **single normative statement** of the detection class, stated extensionally — bare identifier-boundary tokens of the type name in `.rs` files under `src/`, precisely the files the walk reads — with the evasion families drawn by the scan set's boundary (location and extension, not spelling): out-of-scan source text (the F25 demonstration), macro assembly, editing the pin, token-free instance mutation. The type doc comment, the `b13-observation-log` note, this packet, and `status.md` point to that statement instead of paraphrasing it. | Paraphrase drift was the F24/F25 generator — each fresh restatement of the mechanism was a fresh chance to quantify universally. With one normative statement and pointers elsewhere, there is no paraphrase left to outrun the mechanism; a future edit that reintroduces a shape-class summary anywhere else is the next reviewer's finding by construction. |
 
 
 
@@ -608,6 +639,36 @@ walk for the F4/F5/F9 repairs:
   report as a positive control, likewise across the crate boundary),
   and no in-crate test reaches `judge` or `declare`. Both re-derived
   by the F24 review from the tree and unchanged by this repair.
+
+(F25 repair packet, 2026-08-15) — seams and invariant walk:
+
+- **Prose-only; nothing mechanical moved.** The repair touches three
+  comment/string surfaces (the pin's doc comment in
+  `tests/mock_fidelity.rs`, the type doc comment in `mock/mod.rs`,
+  and `b13-observation-log`'s note and `must_assert`) plus this
+  packet and `status.md`. The needle, the walk, and the pinned
+  per-file counts (6/4/2/0) are byte-identical to `6fc96d80`'s; no
+  engine, actor, mock, conformance, judge, or declaration code
+  changed, so the six cross-slice invariants are untouched by
+  construction, exactly as in the F23 and F24 repairs.
+- **The pin guards its own carrying locations:** the doc-comment and
+  registry edits could not change any file's token count without
+  failing the pin — the edited `mock/mod.rs` prose and the
+  `b13-observation-log` strings still carry exactly the pinned
+  tokens (6 and 2), verified by the green pin on the committed
+  repair.
+- **Registry seam:** `b13-observation-log` keeps its owner, coverage,
+  and citations; only the note's belt sentence (now a pointer to the
+  pin comment) and the `must_assert`'s `.rs`-files qualifier
+  changed; the `must_assert` remains strictly test-faithful.
+  Totals unchanged; obligations reruns 6/6.
+- **The F25 demonstration remains the falsifying evidence and the
+  corrected text predicts it:** `47885eab` (reverted `351bfab6`)
+  constructs the sealed type with the plain name in a `#[path]`
+  descendant module at the crate root; the pin comment's corrected
+  evasion statement ("source text outside the scanned set carries
+  the token invisibly") names exactly that family. No new mutation
+  was owed or run — nothing mechanical changed.
 
 
 
@@ -905,13 +966,45 @@ the F12 structural source pin.
   The pin's other confessed evasions: an `include!` of a non-`.rs`
   file, a macro that assembles the identifier, and editing the pin
   itself. Strengthened or not, the belt is detection, never a
-  binding, and is nowhere the claim-bearer.
+  binding, and is nowhere the claim-bearer. *[Falsified in part same
+  day by SD-R8-F25: the needle sees a construction or aliasing
+  spelling only when its token lands in a `.rs` file under `src/`,
+  the "remaining undetectable shape" is not singular, and the
+  confessed evasion family's boundary is location, not extension;
+  superseded by the F25 addition below.]*
 - The named in-crate boundary itself (SD-R8-F23) and every other
   previously named surface are unchanged by this repair.
 - Registry totals remain **124 clauses: 110 Full, no Partial, one
   accepted Untested limitation, and 13 Excluded**; no clause was
   minted; only `b13-observation-log` changed again (F24-scoped note,
   test-faithful `must_assert`, renamed belt citation).
+
+(F25 repair packet, 2026-08-15) — coverage confession:
+
+- **The belt pin's scope now lives in one place.** The pin's own
+  comment in `tests/mock_fidelity.rs` is the single normative
+  statement of the detection class and its confessed evasions
+  (SD-R8-F25 single-sourcing); this confession, the type doc
+  comment, the `b13-observation-log` note, and `status.md` point
+  there rather than restating it. In pointer form: the pin detects
+  bare identifier-boundary tokens of the type name in `.rs` files
+  under `src/` against pinned per-file counts, and nothing else;
+  everything the walk cannot see — out-of-scan source text, macro
+  assembly, an edited pin, token-free instance mutation — rests on
+  the named in-crate trust surface and its compensating control
+  (the verdict path resides entirely across the crate boundary; no
+  in-crate test reaches `judge` or `declare`).
+- **The declined strengthening is a Tom decision, not an omission:**
+  the `include!`/`#[path]` vector pin was weighed and declined
+  2026-08-15 (record in `result-draft.md` §9) — the belt's job is
+  accidental-drift detection, and the shapes the vector pin would
+  catch are deliberate evasions the trust surface already concedes.
+- The named in-crate boundary itself (SD-R8-F23) and every other
+  previously named surface are unchanged by this repair.
+- Registry totals remain **124 clauses: 110 Full, no Partial, one
+  accepted Untested limitation, and 13 Excluded**; no clause was
+  minted; only `b13-observation-log` changed again (pointer-form
+  note, `.rs`-files qualifier in the `must_assert`).
 
 
 
@@ -1170,7 +1263,9 @@ the F12 structural source pin.
   token analysis shows the bare-token needle catches two of the
   review's three needle-free shapes at the token they cannot avoid
   writing, at no new claim risk once the third is named as
-  undetectable. A wording-only repair would have left the rename
+  undetectable *[the risk materialized same day as SD-R8-F25: the
+  strengthened claims still outran the scan scope — see the F25
+  additions]*. A wording-only repair would have left the rename
   import silent for the cost of one sentence; the stronger needle
   plus modest wording is strictly more honest per claim-word.
 - **Identifier-boundary matching instead of raw substring count.**
@@ -1196,6 +1291,35 @@ the F12 structural source pin.
   of edits.** The incomplete evasion confession is history; the
   marker points here, per the record's dated-marker pattern, so no
   dated block silently changes meaning after the fact.
+
+(F25 repair packet, 2026-08-15) — judgment calls:
+
+- **Declined the optional vector-pin strengthening — with Tom's
+  approval, not this session's judgment alone.** The F25 review's
+  disposition offered pinning `include!`/`#[path` tokens at zero to
+  make the demonstrated smuggling shape loud. Declined per the
+  reviewer's own recommendation, approved by Tom (decision record in
+  `result-draft.md` §9): the belt's purpose is making *accidental*
+  drift loud, nobody accidentally writes `#[path]` smuggling, the
+  shapes the vector pin would catch are deliberate evasions already
+  conceded to the named trust surface, and every prior strengthening
+  minted the next generation. A different session might have taken
+  it; this one judged its detection value near zero for the belt's
+  actual job and its claim-surface cost real.
+- **Single-sourcing over better paraphrasing.** The F24 and F25
+  findings were both minted against wording repairs — paraphrase
+  drift across five carrying locations was the generator. A repair
+  that wrote five better paraphrases would leave five surfaces for
+  an F26; one normative statement plus pointers leaves none. The
+  cost: readers of the doc comment or registry note must follow the
+  pointer for the full scope. Judged worth it after two consecutive
+  generations.
+- **No new mutation for a prose-only repair.** The F23/F24 repairs
+  demonstrated their mechanism changes by mutation; this repair
+  changes no mechanism (needle, walk, and counts byte-identical),
+  and the F25 demonstration (`47885eab`, in history) is already the
+  experiment the corrected text must and does predict. Running a
+  fresh mutation would demonstrate nothing new.
 
 ## 5. Verification presented with this packet
 
@@ -1525,3 +1649,42 @@ restored tree the pin is green again. No live service was contacted.
 Both verdict fills remain suspended; this session closes nothing and
 hands the packet to the repeated independent re-close review, then the
 repeated `final-audit-charge.md` audit.
+
+(F25 repair packet, 2026-08-15) — verification presented with this
+packet, entirely offline, with the repair committed first as
+`3f777095` and the matrix run on that committed tree:
+
+- `cargo test --locked`: 176 passed / 0 failed / 3 ignored,
+  doctests 5/5 (same counts as the F24 packet: prose-only, no test
+  added or removed).
+- `cargo test --locked --release`: 174 / 0 / 3, doctests 5/5.
+- `PROPTEST_CASES=4096 cargo test --locked`: 176 / 0 / 3.
+- Compile-fail authority: doctests 5/5, unchanged by this repair.
+- Pinned φ=0 full-contract declaration: 1/1 by exact name. Explicit
+  debug 4,096-case declared run: 1/1 in 305.75 s; release companion
+  1/1 in 26.36 s.
+- Obligations: 6/6, reporting 124 clauses — 110 Full / 0 Partial /
+  1 accepted Untested / 13 Excluded, `OPEN_UNTESTED` empty. Both
+  ignored §7.4 release tests: 2/2 in 7.78 s. Sanitizer: 4/4.
+  All-target clippy with warnings denied, fmt, and `git diff --check`
+  are clean.
+- Preserved signatures, rerun by exact name (green) with variants
+  confirmed in test source: F5
+  `MissingEndpointLane { endpoint: CharacterList }` and F12/F4
+  `MissingM8KnownLane`, F11 `MissingScenarioEndpointLane { scenario:
+  M2, endpoint: CharacterList }`, F9
+  `ReproductionMismatch { id: 1 }`, and the F12 lexical single-path
+  pin.
+- The strengthened belt pin itself: green on the committed repair —
+  its own pinned counts (6/4/2/0) guard the edited carrying
+  locations, so the doc-comment and registry wording changes are
+  verified token-neutral by the pin they describe.
+
+No mutation was run for this packet: nothing mechanical changed
+(the needle, walk, and pinned counts are byte-identical to
+`6fc96d80`'s — verifiable by diff), and the F25 demonstration
+(`47885eab`, reverted `351bfab6`, in history) is the experiment the
+corrected wording must and does predict. No live service was
+contacted. Both verdict fills remain suspended; this session closes
+nothing and hands the packet to the repeated independent re-close
+review, then the repeated `final-audit-charge.md` audit.
