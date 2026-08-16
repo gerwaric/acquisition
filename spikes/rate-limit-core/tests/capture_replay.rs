@@ -1,0 +1,1552 @@
+use std::collections::{BTreeMap, BTreeSet};
+
+use rate_limit_core::mock::DEFAULT_SERVICE_DELAY;
+use rate_limit_core::mock::model::{
+    CounterModel, PolicyDefinition, RuleDefinition, ServerTime, WindowDefinition,
+};
+
+const CANONICAL_CAPTURE: &str = include_str!("../fixtures/capture-20260814-wired.json");
+const SUPPLEMENTAL_VPN_CAPTURE: &str = include_str!("../fixtures/capture-20260813-vpn.json");
+/// `include_str!` has already embedded the bytes by the time this runs, so
+/// this cap bounds the *parser's* work on the next fixture, not the binary's
+/// size — the embedding bound is the §4 review of what gets committed
+/// (SD-R5-F12). Enforced inside `bounded_parse` so no loader can skip it.
+const MAX_FIXTURE_BYTES: usize = 2 * 1024 * 1024;
+const MAX_JSON_DEPTH: usize = 16;
+/// Sized to admit every committed fixture with headroom — the canonical
+/// capture is 5,415 nodes and the supplemental VPN capture 15,804 — while
+/// still binding well below what MAX_FIXTURE_BYTES of minimal JSON could
+/// hold (~1.05 million values, including the root, for `[0,0,...]`). The
+/// previous 10,000 cap sat below the committed VPN
+/// fixture, so the declared "next fixture refuses" consequence would have
+/// fired on a legitimate input already in the tree (SD-R5-F12).
+const MAX_JSON_ITEMS: usize = 32_768;
+const MAX_JSON_STRING_BYTES: usize = 4_096;
+const PHASE_CYCLE_MS: u64 = 60_000;
+const KNOWN_BUCKETS_MS: [u64; 2] = [5_000, 60_000];
+
+#[derive(Debug, Clone)]
+struct ReplayRecord {
+    kind: String,
+    endpoint: String,
+    policy: String,
+    sent_ms: Option<u64>,
+    received_ms: u64,
+    /// Rebased server `Date` header; may be negative (the fixture rebases to
+    /// t₀ = first record, and the server clock sat behind the client's).
+    date_ms: i64,
+    status: u64,
+    /// The verbatim limit-header string, kept so the gate's limit-stability
+    /// precondition compares what crossed the wire, not a parse of it.
+    limits_raw: String,
+    limits: Vec<LimitTriplet>,
+    states: Vec<StateTriplet>,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct LimitTriplet {
+    max_hits: u32,
+    period_seconds: u64,
+    restriction_seconds: u64,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct StateTriplet {
+    current_hits: u32,
+    period_seconds: u64,
+    restriction_active_seconds: u64,
+}
+
+#[derive(Debug, Clone)]
+struct BootSeed {
+    policy: String,
+    definition: PolicyDefinition,
+    residue: usize,
+}
+
+/// One contiguous run of classification-refuted phases — the borderline halo
+/// (`s7-4-replacement-gate.md` §3): the replay is violation-free but at least
+/// one component reads model == limit where the server recorded below it, the
+/// one boundary the captured client's code reacts to.
+#[derive(Debug, Clone, Copy)]
+struct PhaseBand {
+    start_phase_ms: u64,
+    end_phase_ms: u64,
+}
+
+const fn halo(start_phase_ms: u64, end_phase_ms: u64) -> PhaseBand {
+    PhaseBand {
+        start_phase_ms,
+        end_phase_ms,
+    }
+}
+
+/// The pinned classification-refuted set (`s7-4-replacement-gate.md` §3/§5):
+/// 28 bands, 29,347 phases. Like `VIOLATING_BANDS` this is a pin — a model or
+/// fixture change that moves it fails loudly and may be re-pinned only with
+/// adjudicated provenance (the SD-R5-F13 rule). Re-derived at implementation
+/// (2026-08-15) by `section_7_4_exhaustive_phase_classification_matches_the_pinned_tables`,
+/// which recomputes the classification of every phase from the replay alone.
+const HALO_BANDS: [PhaseBand; 28] = [
+    halo(2_298, 2_471),
+    halo(6_955, 6_965),
+    halo(7_205, 7_453),
+    halo(7_467, 7_704),
+    halo(7_718, 7_954),
+    halo(7_968, 8_204),
+    halo(8_218, 8_453),
+    halo(8_469, 8_703),
+    halo(8_720, 8_954),
+    halo(8_971, 9_204),
+    halo(9_222, 9_454),
+    halo(9_472, 9_704),
+    halo(9_722, 23_601),
+    halo(23_692, 23_852),
+    halo(23_942, 24_102),
+    halo(24_193, 24_351),
+    halo(24_442, 24_602),
+    halo(24_693, 24_852),
+    halo(24_943, 25_102),
+    halo(25_194, 25_353),
+    halo(25_445, 25_603),
+    halo(25_694, 25_853),
+    halo(25_945, 36_548),
+    halo(37_298, 37_471),
+    halo(42_298, 42_471),
+    halo(47_298, 47_471),
+    halo(52_298, 52_471),
+    halo(57_298, 57_471),
+];
+
+const HALO_PHASE_TOTAL: u64 = 29_347;
+const CONSISTENT_PHASE_TOTAL: u64 = 29_601;
+const CONSISTENT_BAND_COUNT: usize = 9;
+/// Interior-sample stride inside consistent bands. Deliberately coprime to
+/// the 5,000 ms bucket so successive samples spread across 5 s bucket
+/// residues instead of repeating one (the spec's stated rationale — a smoke
+/// sample against table drift; interior *coverage* belongs to the exhaustive
+/// companion).
+const INTERIOR_STRIDE_MS: u64 = 991;
+/// 383 counted replies × 2 windows: the non-vacuity anchor for every
+/// full-trace phase replay.
+const GATE_COMPONENT_COUNT: usize = 766;
+/// 18 consistent edges + 24 stride interiors + 56 halo edges.
+const GATE_SAMPLED_PHASES: usize = 98;
+
+/// One component-level witness for a gate condition
+/// (`s7-4-replacement-gate.md` §2.4): the model's count against the recorded
+/// state at one window of one counted reply.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ComponentWitness {
+    reply_index: usize,
+    policy: String,
+    sent_ms: u64,
+    window_index: usize,
+    model_hits: u32,
+    recorded_hits: u32,
+    max_hits: u32,
+}
+
+/// Full-trace consistency measurement at one phase (spec §2.4). C1 is the
+/// absence of an initiating violation — the replay stops there, exactly as
+/// `initiating_overflows` does, because later traffic would only measure the
+/// modeled restriction cascade. C2/C3 witnesses and the strict-overstatement
+/// count cover every component compared up to that point.
+#[derive(Debug)]
+struct PhaseConsistency {
+    /// C1 failures as full component witnesses, so the failure message
+    /// carries the recorded count alongside model and limit (SD-R7-F2).
+    initiating_violation: Vec<ComponentWitness>,
+    components: usize,
+    /// C2 failures: model < recorded (pessimism broken).
+    understatements: Vec<ComponentWitness>,
+    /// C3 failures: model == limit where the server recorded below it.
+    spurious_borderlines: Vec<ComponentWitness>,
+    /// Components with model strictly above recorded — the anti-echo pool:
+    /// a mock that returns the recording verbatim has zero of these.
+    strict_overstatements: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PhaseClass {
+    Consistent,
+    ClassificationRefuted,
+    DispositionRefuted,
+}
+
+fn seeded_model(phase_ms: u64, seeds: &[BootSeed]) -> CounterModel {
+    let mut model = CounterModel::new(phase_ms);
+    for seed in seeds {
+        model
+            .insert_policy(seed.definition.clone())
+            .expect("boot HEAD policies are unique");
+        model
+            .preload(&seed.policy, ServerTime::from_millis(0), seed.residue)
+            .expect("boot HEAD residue is within the bounded capture budget");
+    }
+    model
+}
+
+fn replay_consistency(
+    phase_ms: u64,
+    seeds: &[BootSeed],
+    replies: &[&ReplayRecord],
+) -> PhaseConsistency {
+    let mut model = seeded_model(phase_ms, seeds);
+    let mut report = PhaseConsistency {
+        initiating_violation: Vec::new(),
+        components: 0,
+        understatements: Vec::new(),
+        spurious_borderlines: Vec::new(),
+        strict_overstatements: 0,
+    };
+
+    for (reply_index, record) in replies.iter().enumerate() {
+        let sent_ms = record.sent_ms.expect("reply records carry sent_ms");
+        let at = ServerTime::from_millis(sent_ms);
+        assert!(!model.record_layer1_arrival(at).tripped);
+        let judgment = model
+            .judge(
+                &record.policy,
+                at,
+                u64::try_from(reply_index + 1).expect("fixture cardinality is bounded"),
+                true,
+            )
+            .expect("fixture policy was initialized by its boot HEAD");
+
+        let mut overflows = Vec::new();
+        for (window_index, ((window, state), limit)) in judgment
+            .windows
+            .iter()
+            .zip(&record.states)
+            .zip(&record.limits)
+            .enumerate()
+        {
+            report.components += 1;
+            let witness = ComponentWitness {
+                reply_index,
+                policy: record.policy.clone(),
+                sent_ms,
+                window_index,
+                model_hits: window.current_hits,
+                recorded_hits: state.current_hits,
+                max_hits: limit.max_hits,
+            };
+            if window.current_hits < state.current_hits {
+                report.understatements.push(witness.clone());
+            }
+            if window.current_hits > state.current_hits {
+                report.strict_overstatements += 1;
+            }
+            if window.current_hits == limit.max_hits && state.current_hits < limit.max_hits {
+                report.spurious_borderlines.push(witness.clone());
+            }
+            if window.current_hits > limit.max_hits {
+                overflows.push(witness);
+            }
+        }
+        assert_eq!(
+            judgment.organic_violation,
+            !overflows.is_empty(),
+            "no pre-existing restriction may precede the initiating overflow at phi={phase_ms}, reply={reply_index}"
+        );
+        if !overflows.is_empty() {
+            report.initiating_violation = overflows;
+            break;
+        }
+    }
+    report
+}
+
+fn classify(report: &PhaseConsistency) -> PhaseClass {
+    if !report.initiating_violation.is_empty() {
+        PhaseClass::DispositionRefuted
+    } else if !report.spurious_borderlines.is_empty() {
+        PhaseClass::ClassificationRefuted
+    } else {
+        PhaseClass::Consistent
+    }
+}
+
+/// Φ\* derived arithmetically as the complement of V ∪ HALO over the phase
+/// cycle (spec §3: no third hand-maintained table), asserting along the way
+/// that the two refuted tables are ascending and disjoint.
+fn derived_consistent_bands() -> Vec<PhaseBand> {
+    let mut refuted: Vec<(u64, u64, &'static str)> = VIOLATING_BANDS
+        .iter()
+        .map(|band| (band.start_phase_ms, band.end_phase_ms, "V"))
+        .chain(
+            HALO_BANDS
+                .iter()
+                .map(|band| (band.start_phase_ms, band.end_phase_ms, "HALO")),
+        )
+        .collect();
+    refuted.sort_unstable();
+
+    let mut consistent = Vec::new();
+    let mut cursor = 0_u64;
+    for (start, end, table) in refuted {
+        assert!(
+            start <= end,
+            "{table} band has an inverted range: {start}..{end}"
+        );
+        assert!(
+            end < PHASE_CYCLE_MS,
+            "{table} band exceeds the phase cycle: {start}..{end}"
+        );
+        assert!(
+            cursor <= start,
+            "the refuted tables overlap at the {table} band starting phi={start} (cursor={cursor})"
+        );
+        if cursor < start {
+            consistent.push(PhaseBand {
+                start_phase_ms: cursor,
+                end_phase_ms: start - 1,
+            });
+        }
+        cursor = end + 1;
+    }
+    if cursor < PHASE_CYCLE_MS {
+        consistent.push(PhaseBand {
+            start_phase_ms: cursor,
+            end_phase_ms: PHASE_CYCLE_MS - 1,
+        });
+    }
+    consistent
+}
+
+fn band_width(band: PhaseBand) -> u64 {
+    band.end_phase_ms - band.start_phase_ms + 1
+}
+
+/// Asserts the exact V/HALO/Φ\* partition of the phase cycle
+/// (29,601 + 29,347 + 1,052 = 60,000).
+fn assert_phase_partition(consistent: &[PhaseBand]) {
+    let violating_total: u64 = VIOLATING_BANDS
+        .iter()
+        .map(|band| band.end_phase_ms - band.start_phase_ms + 1)
+        .sum();
+    let halo_total: u64 = HALO_BANDS.iter().map(|band| band_width(*band)).sum();
+    let consistent_total: u64 = consistent.iter().map(|band| band_width(*band)).sum();
+    assert_eq!(violating_total, VIOLATING_PHASE_TOTAL);
+    assert_eq!(halo_total, HALO_PHASE_TOTAL, "the HALO table drifted");
+    assert_eq!(
+        consistent_total, CONSISTENT_PHASE_TOTAL,
+        "the derived consistent set drifted"
+    );
+    assert_eq!(
+        consistent.len(),
+        CONSISTENT_BAND_COUNT,
+        "the derived consistent set changed band count: {consistent:?}"
+    );
+    assert_eq!(
+        violating_total + halo_total + consistent_total,
+        PHASE_CYCLE_MS,
+        "V, HALO, and the derived consistent set must tile the phase cycle exactly"
+    );
+}
+
+/// Interior smoke samples for one consistent band: start + k·stride for
+/// k ≥ 1, strictly inside the band (both edges are asserted separately).
+/// Two narrow bands yield no interior point by design; interior coverage is
+/// the exhaustive companion's job.
+fn interior_stride_phases(band: PhaseBand) -> Vec<u64> {
+    (1..)
+        .map(|step| band.start_phase_ms + step * INTERIOR_STRIDE_MS)
+        .take_while(|phase_ms| *phase_ms < band.end_phase_ms)
+        .collect()
+}
+
+/// The §3 capture-integrity preconditions of `s7-4-replacement-gate.md`,
+/// asserted phase-independently. Precondition 2 (zero boot residue) and the
+/// one-seed-per-policy assert migrated here from the superseded open-loop
+/// every-phase test, whose deletion was contingent on exactly this migration
+/// (spec §4). Precondition 8 (positional index correspondence) is pinned by
+/// the loader's per-record period-equality check plus precondition 5 here.
+fn assert_capture_integrity(records: &[ReplayRecord], seeds: &[BootSeed]) {
+    let replies: Vec<&ReplayRecord> = records
+        .iter()
+        .filter(|record| record.kind == "reply")
+        .collect();
+    let heads: Vec<&ReplayRecord> = records
+        .iter()
+        .filter(|record| record.kind == "head")
+        .collect();
+
+    // Precondition 1: 383 counted replies, every status 200; 4 boot HEADs,
+    // status 204, one per endpoint.
+    assert_eq!(replies.len(), 383, "canonical counted replay cardinality");
+    assert!(replies.iter().all(|record| record.status == 200));
+    assert_eq!(heads.len(), 4, "the capture has one boot HEAD per policy");
+    assert!(heads.iter().all(|record| record.status == 204));
+    assert_eq!(
+        heads
+            .iter()
+            .map(|record| record.endpoint.as_str())
+            .collect::<BTreeSet<_>>()
+            .len(),
+        heads.len(),
+        "one initialization HEAD per touched endpoint"
+    );
+
+    // Precondition 2 (migrated from the superseded test): boot residue is
+    // zero, seeded exactly once per policy.
+    assert_eq!(seeds.len(), 4);
+    assert_eq!(
+        seeds
+            .iter()
+            .map(|seed| seed.policy.as_str())
+            .collect::<BTreeSet<_>>()
+            .len(),
+        seeds.len(),
+        "boot residue must be seeded exactly once per policy"
+    );
+    assert!(
+        seeds.iter().all(|seed| seed.residue == 0),
+        "the canonical wired capture booted with zero residue; initialization still runs once"
+    );
+
+    // Precondition 3: no recorded component exceeds its limit; no recorded
+    // restriction is active anywhere in the capture.
+    for (index, record) in records.iter().enumerate() {
+        for (state, limit) in record.states.iter().zip(&record.limits) {
+            assert!(
+                state.current_hits <= limit.max_hits,
+                "record {index} recorded an over-limit state: {}/{}",
+                state.current_hits,
+                limit.max_hits
+            );
+            assert_eq!(
+                state.restriction_active_seconds, 0,
+                "record {index} recorded an active restriction"
+            );
+        }
+    }
+
+    // Precondition 4: exactly 43 recorded-saturated components, recounted
+    // from the records, including at least one 15/15 and one 30/30.
+    assert_eq!(
+        replies
+            .iter()
+            .map(|record| saturation_components(record))
+            .sum::<usize>(),
+        43,
+        "canonical capture must retain its recorded saturation points"
+    );
+    assert!(
+        has_recorded_ceiling(records, 15),
+        "the capture must include a recorded 15/15 state"
+    );
+    assert!(
+        has_recorded_ceiling(records, 30),
+        "the capture must include a recorded 30/30 state"
+    );
+
+    // Precondition 5: RulePair ordering — first limit period strictly
+    // shorter — pins the positional zip against KNOWN_BUCKETS_MS. The
+    // stash-list bucket-cutoff divergence this deliberately scopes (client
+    // pads that policy's 60 s window with a 5 s bucket, the mock with 60 s)
+    // is the recorded doc finding in result-draft.md §5, latent in this
+    // capture.
+    for (index, record) in records.iter().enumerate() {
+        assert!(
+            record.limits[0].period_seconds < record.limits[1].period_seconds,
+            "record {index} breaks RulePair period ordering"
+        );
+    }
+
+    // Precondition 6: limit stability — one distinct limit string per policy
+    // across the whole capture, compared verbatim.
+    let mut limit_strings: BTreeMap<&str, BTreeSet<&str>> = BTreeMap::new();
+    for record in records {
+        limit_strings
+            .entry(record.policy.as_str())
+            .or_default()
+            .insert(record.limits_raw.as_str());
+    }
+    for (policy, strings) in &limit_strings {
+        assert_eq!(
+            strings.len(),
+            1,
+            "policy {policy} changed its limit string mid-capture: {strings:?}"
+        );
+    }
+
+    // Precondition 7: the server `Date` never exceeds the receipt instant —
+    // what makes P1(d) schedule-inert in both worlds (mock Date is
+    // zero-skew by B14 construction).
+    for (index, record) in records.iter().enumerate() {
+        assert!(
+            record.date_ms <= i64::try_from(record.received_ms).expect("received_ms fits i64"),
+            "record {index} has date_ms {} after received_ms {}",
+            record.date_ms,
+            record.received_ms
+        );
+    }
+
+    // Precondition 9: no arrival trips a B10 ceiling. Phase-independent (the
+    // rolling ceilings never read φ), so asserted once here rather than per
+    // quantified phase; kept as a regression check.
+    let mut layer1_model = CounterModel::new(0);
+    for (index, record) in replies.iter().enumerate() {
+        let sent_ms = record.sent_ms.expect("reply records carry sent_ms");
+        assert!(
+            !layer1_model
+                .record_layer1_arrival(ServerTime::from_millis(sent_ms))
+                .tripped,
+            "B10 ceiling tripped by the recorded arrivals at reply {index}, t={sent_ms}ms"
+        );
+    }
+}
+
+fn assert_consistent_phase(
+    kind: &str,
+    phase_ms: u64,
+    seeds: &[BootSeed],
+    replies: &[&ReplayRecord],
+) {
+    let report = replay_consistency(phase_ms, seeds, replies);
+    assert!(
+        report.initiating_violation.is_empty(),
+        "C1 failed at consistent {kind} phi={phase_ms}: {:?}",
+        report.initiating_violation
+    );
+    assert_eq!(
+        report.components, GATE_COMPONENT_COUNT,
+        "non-vacuity anchor at consistent {kind} phi={phase_ms}"
+    );
+    assert!(
+        report.understatements.is_empty(),
+        "C2 failed at consistent {kind} phi={phase_ms}: {:?}",
+        report.understatements
+    );
+    assert!(
+        report.spurious_borderlines.is_empty(),
+        "C3 failed at consistent {kind} phi={phase_ms}: {:?}",
+        report.spurious_borderlines
+    );
+    // Aggregate condition: this failure is the absence of any qualifying
+    // component, so no per-component witness exists; the phase-only message
+    // is the accepted disposition (Tom, SD-R7 re-close, 2026-08-15).
+    assert!(
+        report.strict_overstatements >= 1,
+        "anti-echo anchor failed at consistent {kind} phi={phase_ms}: no component strictly above its recorded state"
+    );
+}
+
+fn assert_halo_edge(phase_ms: u64, seeds: &[BootSeed], replies: &[&ReplayRecord]) {
+    let report = replay_consistency(phase_ms, seeds, replies);
+    assert!(
+        report.initiating_violation.is_empty(),
+        "halo edge phi={phase_ms} must replay violation-free (a violation belongs to V): {:?}",
+        report.initiating_violation
+    );
+    assert_eq!(
+        report.components, GATE_COMPONENT_COUNT,
+        "non-vacuity anchor at halo edge phi={phase_ms}"
+    );
+    assert!(
+        report.understatements.is_empty(),
+        "C2 failed at halo edge phi={phase_ms}: {:?}",
+        report.understatements
+    );
+    assert!(
+        !report.spurious_borderlines.is_empty(),
+        "halo edge phi={phase_ms} produced no spurious-borderline component; the HALO table has drifted"
+    );
+}
+
+/// The §7.4 replacement calibration gate (`s7-4-replacement-gate.md` §3,
+/// ratified 2026-08-15): capture-integrity preconditions, the exact
+/// V/HALO/Φ\* partition, and — at all 9 consistent-band edges plus a
+/// 991 ms-stride interior smoke sample, and at all 56 halo edges — the
+/// feedback-consistency conditions C1 (disposition agreement), C2
+/// (pessimism), and C3 (no spurious borderline), with the 766-component
+/// non-vacuity anchor and the anti-echo anchor at every consistent sample.
+/// Disposition-refuted edges are owned by the retained band-edge test — no
+/// duplicate decider. This gate calibrates the mock's counter model against
+/// the observed lane; it is never client-safety evidence (closed-loop
+/// every-phase safety lives in C1/M-series).
+#[test]
+fn section_7_4_replacement_gate_holds_on_the_derived_consistent_set() {
+    let records = canonical_records();
+    let seeds = boot_seeds(&records);
+    let replies: Vec<&ReplayRecord> = records
+        .iter()
+        .filter(|record| record.kind == "reply")
+        .collect();
+
+    assert_capture_integrity(&records, &seeds);
+    let consistent = derived_consistent_bands();
+    assert_phase_partition(&consistent);
+
+    let mut sampled = 0_usize;
+    for band in &consistent {
+        for phase_ms in [band.start_phase_ms, band.end_phase_ms] {
+            assert_consistent_phase("edge", phase_ms, &seeds, &replies);
+            sampled += 1;
+        }
+        for phase_ms in interior_stride_phases(*band) {
+            assert_consistent_phase("interior", phase_ms, &seeds, &replies);
+            sampled += 1;
+        }
+    }
+    for band in HALO_BANDS {
+        for phase_ms in [band.start_phase_ms, band.end_phase_ms] {
+            assert_halo_edge(phase_ms, &seeds, &replies);
+            sampled += 1;
+        }
+    }
+    assert_eq!(
+        sampled, GATE_SAMPLED_PHASES,
+        "the gate's sampled-phase census changed"
+    );
+}
+
+/// Exhaustive companion (spec §3): every phase classifies as exactly one of
+/// consistent / classification-refuted / disposition-refuted, matching the
+/// pinned tables — the classification is recomputed from the replay alone,
+/// so the tables are re-derived, never trusted — and the strict-
+/// overstatement envelope over Φ\* is pinned exactly. A green release run of
+/// this test is part of the slice's review evidence, exactly as the band
+/// enumeration was for SD-R5-F2.
+#[test]
+#[ignore = "exhaustive 60,000-phase classification (~seconds in release, minutes in debug); a green release run is required review evidence for the §7.4 gate"]
+fn section_7_4_exhaustive_phase_classification_matches_the_pinned_tables() {
+    let records = canonical_records();
+    let seeds = boot_seeds(&records);
+    let replies: Vec<&ReplayRecord> = records
+        .iter()
+        .filter(|record| record.kind == "reply")
+        .collect();
+
+    let consistent = derived_consistent_bands();
+    assert_phase_partition(&consistent);
+    let expected_class = |phase_ms: u64| {
+        if VIOLATING_BANDS
+            .iter()
+            .any(|band| (band.start_phase_ms..=band.end_phase_ms).contains(&phase_ms))
+        {
+            PhaseClass::DispositionRefuted
+        } else if HALO_BANDS
+            .iter()
+            .any(|band| (band.start_phase_ms..=band.end_phase_ms).contains(&phase_ms))
+        {
+            PhaseClass::ClassificationRefuted
+        } else {
+            PhaseClass::Consistent
+        }
+    };
+
+    let mut mismatches: Vec<(u64, PhaseClass, PhaseClass)> = Vec::new();
+    let mut envelope_min = usize::MAX;
+    let mut envelope_max = 0_usize;
+    for phase_ms in 0..PHASE_CYCLE_MS {
+        let report = replay_consistency(phase_ms, &seeds, &replies);
+        // C2 is asserted at every phase; refuted phases are measured up to
+        // their initiating reply, matching the spec's §5 measurement.
+        assert!(
+            report.understatements.is_empty(),
+            "C2 understatement at phi={phase_ms}: {:?}",
+            report.understatements.first()
+        );
+        let actual = classify(&report);
+        let expected = expected_class(phase_ms);
+        if actual != expected {
+            mismatches.push((phase_ms, expected, actual));
+        }
+        if actual == PhaseClass::Consistent && expected == PhaseClass::Consistent {
+            assert_eq!(
+                report.components, GATE_COMPONENT_COUNT,
+                "non-vacuity anchor at phi={phase_ms}"
+            );
+            envelope_min = envelope_min.min(report.strict_overstatements);
+            envelope_max = envelope_max.max(report.strict_overstatements);
+        }
+    }
+
+    assert!(
+        mismatches.is_empty(),
+        "{} phases classify against the pinned tables; first eight (phi, expected, actual): {:?}",
+        mismatches.len(),
+        &mismatches[..mismatches.len().min(8)]
+    );
+    assert_eq!(
+        (envelope_min, envelope_max),
+        (25, 57),
+        "the strict-overstatement envelope over the consistent set moved (min, max of 766)"
+    );
+}
+
+/// One contiguous run of violating phases and the reply that initiates the
+/// overflow at every phase inside it. All twenty bands share the rest of the
+/// counterexample shape (`band_overflow`): `stash-request-limit`, sustained
+/// window (index 1), 31/30 under the 60 s adversarial bucket — at counted
+/// reply 110 the server itself recorded `6:300:0` where the model computes 31.
+#[derive(Debug, Clone, Copy)]
+struct ViolatingBand {
+    start_phase_ms: u64,
+    end_phase_ms: u64,
+    first_reply_index: usize,
+    sent_ms: u64,
+}
+
+/// The complete §7.4 violating set (CR-R1-F1 as amended by SD-R5-F2): 1,052
+/// phases in 20 disjoint bands across two clusters (initiating replies
+/// 110–119 at t≈727–730 s and 125–134 at t≈743–746 s). The originally
+/// recorded run aborted at the first violating phase, so only band one was
+/// known; `section_7_4_exhaustive_enumeration_matches_the_band_table` proves
+/// no violating phase exists outside this table.
+const VIOLATING_BANDS: [ViolatingBand; 20] = [
+    band(7_454, 7_466, 110, 727_453),
+    band(7_705, 7_717, 111, 727_704),
+    band(7_955, 7_967, 112, 727_954),
+    band(8_205, 8_217, 113, 728_204),
+    band(8_454, 8_468, 114, 728_453),
+    band(8_704, 8_719, 115, 728_703),
+    band(8_955, 8_970, 116, 728_954),
+    band(9_205, 9_221, 117, 729_204),
+    band(9_455, 9_471, 118, 729_454),
+    band(9_705, 9_721, 119, 729_704),
+    band(23_602, 23_691, 125, 743_601),
+    band(23_853, 23_941, 126, 743_852),
+    band(24_103, 24_192, 127, 744_102),
+    band(24_352, 24_441, 128, 744_351),
+    band(24_603, 24_692, 129, 744_602),
+    band(24_853, 24_942, 130, 744_852),
+    band(25_103, 25_193, 131, 745_102),
+    band(25_354, 25_444, 132, 745_353),
+    band(25_604, 25_693, 133, 745_603),
+    band(25_854, 25_944, 134, 745_853),
+];
+
+const VIOLATING_PHASE_TOTAL: u64 = 1_052;
+
+const fn band(
+    start_phase_ms: u64,
+    end_phase_ms: u64,
+    first_reply_index: usize,
+    sent_ms: u64,
+) -> ViolatingBand {
+    ViolatingBand {
+        start_phase_ms,
+        end_phase_ms,
+        first_reply_index,
+        sent_ms,
+    }
+}
+
+fn band_overflow(band: ViolatingBand) -> CounterOverflow {
+    CounterOverflow {
+        reply_index: band.first_reply_index,
+        policy: "stash-request-limit".to_owned(),
+        sent_ms: band.sent_ms,
+        window_index: 1,
+        current_hits: 31,
+        max_hits: 30,
+    }
+}
+
+/// Pins every band's edges: both edge phases produce the band's initiating
+/// overflow, and the phases immediately outside replay cleanly. Interior
+/// phases are covered by the exhaustive enumeration below. This test encodes
+/// the full SD-R5-F2 band table; the previously recorded "exactly
+/// φ=7,454–7,466" claim fails it at band two's start.
+#[test]
+fn section_7_4_violating_band_edges_are_pinned_for_all_twenty_bands() {
+    let records = canonical_records();
+    let seeds = boot_seeds(&records);
+    let replies: Vec<&ReplayRecord> = records
+        .iter()
+        .filter(|record| record.kind == "reply")
+        .collect();
+
+    let mut total = 0;
+    let mut previous_end = None;
+    for band in VIOLATING_BANDS {
+        assert!(
+            band.start_phase_ms <= band.end_phase_ms,
+            "band has an inverted phase range: {band:?}"
+        );
+        assert!(
+            previous_end.is_none_or(|end| end + 1 < band.start_phase_ms),
+            "bands must be ascending and disjoint with a clean gap: previous_end={previous_end:?}, band={band:?}"
+        );
+        previous_end = Some(band.end_phase_ms);
+        total += band.end_phase_ms - band.start_phase_ms + 1;
+
+        for phase_ms in [band.start_phase_ms - 1, band.end_phase_ms + 1] {
+            // Between-band neighbors double as the next band's outside edge;
+            // re-checking them is cheaper than deduplication is legible.
+            assert_eq!(
+                initiating_overflows(phase_ms, &seeds, &replies),
+                Vec::new(),
+                "the phase immediately outside a band must replay cleanly: phi={phase_ms}"
+            );
+        }
+        for phase_ms in [band.start_phase_ms, band.end_phase_ms] {
+            assert_eq!(
+                initiating_overflows(phase_ms, &seeds, &replies),
+                vec![band_overflow(band)],
+                "the band-edge counterexample changed at phi={phase_ms}"
+            );
+        }
+    }
+    assert_eq!(
+        total, VIOLATING_PHASE_TOTAL,
+        "the band table must account for every recorded violating phase"
+    );
+}
+
+/// Exhaustive collect-instead-of-assert enumeration of all 60,000 phases,
+/// asserting the violating set is exactly the band table — the run the
+/// aborting gate could not perform (SD-R5-F2). It passes today; it exists so
+/// any model or fixture change that moves the violating set fails loudly
+/// against the recorded finding rather than shifting it silently.
+#[test]
+#[ignore = "exhaustive 60,000-phase enumeration (~7 s release, minutes in debug); ordinary CI is covered by the band-edge test"]
+fn section_7_4_exhaustive_enumeration_matches_the_band_table() {
+    let records = canonical_records();
+    let seeds = boot_seeds(&records);
+    let replies: Vec<&ReplayRecord> = records
+        .iter()
+        .filter(|record| record.kind == "reply")
+        .collect();
+
+    let mut actual = Vec::new();
+    for phase_ms in 0..PHASE_CYCLE_MS {
+        actual.extend(
+            initiating_overflows(phase_ms, &seeds, &replies)
+                .into_iter()
+                .map(|overflow| (phase_ms, overflow)),
+        );
+    }
+    let expected: Vec<(u64, CounterOverflow)> = VIOLATING_BANDS
+        .iter()
+        .flat_map(|band| {
+            (band.start_phase_ms..=band.end_phase_ms)
+                .map(|phase_ms| (phase_ms, band_overflow(*band)))
+        })
+        .collect();
+
+    assert_eq!(
+        actual.len(),
+        usize::try_from(VIOLATING_PHASE_TOTAL).expect("the fixed phase total fits usize"),
+        "the discovered overflow count must be measured from the replay, not the band table"
+    );
+    let actual_set: BTreeSet<_> = actual.iter().cloned().collect();
+    let expected_set: BTreeSet<_> = expected.iter().cloned().collect();
+    assert_eq!(
+        actual.len(),
+        actual_set.len(),
+        "the replay produced duplicate (phase, initiating overflow) pairs"
+    );
+    let unexpected: Vec<_> = actual_set.difference(&expected_set).cloned().collect();
+    let missing: Vec<_> = expected_set.difference(&actual_set).cloned().collect();
+    assert!(
+        unexpected.is_empty() && missing.is_empty(),
+        "the complete §7.4 violating set changed: unexpected={unexpected:?}, missing={missing:?}"
+    );
+}
+
+#[test]
+fn b12_canonical_sent_to_received_median_is_81_ms() {
+    let records = canonical_records();
+    let mut latencies: Vec<u64> = records
+        .iter()
+        .filter(|record| record.kind == "reply")
+        .map(|record| {
+            record
+                .received_ms
+                .checked_sub(record.sent_ms.expect("reply records carry sent_ms"))
+                .expect("received_ms must not precede sent_ms")
+        })
+        .collect();
+    latencies.sort_unstable();
+
+    assert_eq!(latencies.len(), 383, "canonical latency sample count");
+    let median_ms = latencies[latencies.len() / 2];
+    assert_eq!(median_ms, 81);
+    // The B12 anchor is an assertion, not two coincidentally equal literals
+    // (SD-R5-F8): a re-capture that moves the median fails here until the
+    // mock default is deliberately re-anchored.
+    assert_eq!(
+        u64::try_from(DEFAULT_SERVICE_DELAY.as_millis()).expect("service delay fits u64"),
+        median_ms,
+        "DEFAULT_SERVICE_DELAY must equal the canonical fixture's computed median"
+    );
+}
+
+// Grounds the supplemental VPN comparison recorded in result-draft.md §5
+// (148 ms median), which previously no code read — and exercises the parser
+// caps on the largest committed fixture (15,804 nodes), the input the old
+// 10,000-item cap would have refused (SD-R5-F12's exposing case).
+#[test]
+fn b12_supplemental_vpn_median_is_148_ms() {
+    let root = bounded_parse(SUPPLEMENTAL_VPN_CAPTURE)
+        .expect("the committed VPN fixture must stay within the parser caps");
+    let root = root.object("root");
+    let provenance = root
+        .get("provenance")
+        .expect("fixture carries provenance")
+        .object("provenance");
+    assert_eq!(provenance.string("capture_date"), "2026-08-13");
+    assert_eq!(provenance.number("sanitizer_version"), 2);
+
+    let records = root
+        .get("records")
+        .expect("fixture carries records")
+        .array("records");
+    assert_eq!(records.len(), 1_129, "supplemental fixture cardinality");
+
+    let mut latencies: Vec<u64> = records
+        .iter()
+        .map(|record| record.object("record"))
+        .filter(|record| record.string("kind") == "reply")
+        .map(|record| {
+            nonnegative_millis(record.number("received_ms"))
+                .checked_sub(nonnegative_millis(record.number("sent_ms")))
+                .expect("received_ms must not precede sent_ms")
+        })
+        .collect();
+    latencies.sort_unstable();
+    assert_eq!(latencies.len(), 1_125, "supplemental latency sample count");
+    assert_eq!(latencies[latencies.len() / 2], 148);
+}
+
+/// Pinned as current behavior, not a §7.4 gate: scenarios.md §7.4 makes
+/// saturation-state agreement a *diagnostic* ("mismatches inform, they don't
+/// fail"), and this test does not substitute for the feedback-consistent
+/// replacement gate (status.md §3 / the registry's b12 note both say so). The
+/// equalities are a pin of the model's current φ=0 agreement — 43 of 43
+/// recorded saturation components — kept because silently losing agreement is
+/// exactly what the diagnostic exists to surface. A deliberate model
+/// refinement that changes the agreement updates this pin with provenance
+/// rather than tuning around it (SD-R5-F13).
+#[test]
+fn section_7_4_saturation_diagnostic_has_a_43_of_43_witness_phase() {
+    let records = canonical_records();
+    let seeds = boot_seeds(&records);
+    let replies: Vec<&ReplayRecord> = records
+        .iter()
+        .filter(|record| record.kind == "reply")
+        .collect();
+    let mut model = seeded_model(0, &seeds);
+
+    let mut observed_components = 0;
+    let mut agreements = 0;
+    for (index, record) in replies.iter().enumerate() {
+        let sent_ms = record.sent_ms.unwrap();
+        let at = ServerTime::from_millis(sent_ms);
+        assert!(
+            !model.record_layer1_arrival(at).tripped,
+            "§7.4 diagnostic run: B10 trip at phi=0, reply {index}, t={sent_ms}ms"
+        );
+        let judgment = model
+            .judge(&record.policy, at, index as u64 + 1, true)
+            .unwrap();
+        assert!(
+            !judgment.organic_violation,
+            "§7.4 diagnostic run: organic violation at phi=0, reply {index}, policy {}, t={sent_ms}ms: {:?}",
+            record.policy, judgment.windows
+        );
+        for ((window, state), limit) in judgment
+            .windows
+            .iter()
+            .zip(&record.states)
+            .zip(&record.limits)
+        {
+            if state.current_hits == limit.max_hits {
+                observed_components += 1;
+                agreements += usize::from(window.current_hits == state.current_hits);
+            }
+        }
+    }
+
+    assert_eq!(
+        observed_components, 43,
+        "§7.4 diagnostic pin (phi=0): recorded saturation components changed"
+    );
+    assert_eq!(
+        agreements, observed_components,
+        "§7.4 diagnostic pin (phi=0): model/recorded saturation agreement dropped below 43/43"
+    );
+}
+
+// SD-R5-F12: every parser bound pinned at n and n+1, per the slice hardening
+// rule that a bound without its boundary tests is a claim, not a defense.
+#[test]
+fn parser_bounds_are_pinned_at_their_exact_boundaries() {
+    // Byte cap, enforced at the single bounded_parse seam. `input.len()` is
+    // the whole check, so a boundary probe needs real bytes.
+    let payload = format!("[{}1]", "1,".repeat(100));
+    let exact = format!("{payload}{}", " ".repeat(MAX_FIXTURE_BYTES - payload.len()));
+    assert!(bounded_parse(&exact).is_ok());
+    let over = format!("{exact} ");
+    assert_eq!(
+        bounded_parse(&over).unwrap_err(),
+        format!("fixture exceeds the test-local {MAX_FIXTURE_BYTES}-byte parse bound")
+    );
+
+    // Depth: N nested arrays parse while N+1 refuse before further recursion.
+    let nested = |depth: usize| format!("{}1{}", "[".repeat(depth), "]".repeat(depth));
+    assert!(bounded_parse(&nested(MAX_JSON_DEPTH)).is_ok());
+    assert_eq!(
+        bounded_parse(&nested(MAX_JSON_DEPTH + 1)).unwrap_err(),
+        "JSON nesting exceeds test-local bound"
+    );
+
+    // Item count: the root array is itself a value, so MAX_JSON_ITEMS - 1
+    // elements is the largest admissible flat array.
+    let flat = |elements: usize| format!("[{}1]", "1,".repeat(elements.saturating_sub(1)));
+    assert!(bounded_parse(&flat(MAX_JSON_ITEMS - 1)).is_ok());
+    assert_eq!(
+        bounded_parse(&flat(MAX_JSON_ITEMS)).unwrap_err(),
+        "JSON value count exceeds test-local bound"
+    );
+
+    // String bytes: refusal fires before the string grows past the cap plus
+    // one pushed character.
+    let stringy = |bytes: usize| format!("\"{}\"", "a".repeat(bytes));
+    assert!(bounded_parse(&stringy(MAX_JSON_STRING_BYTES)).is_ok());
+    assert_eq!(
+        bounded_parse(&stringy(MAX_JSON_STRING_BYTES + 1)).unwrap_err(),
+        "JSON string exceeds test-local byte bound"
+    );
+}
+
+/// The single entry to the bounded parser: every fixture loader goes through
+/// the byte cap here, so no loader can reach `JsonParser` without it.
+fn bounded_parse(input: &str) -> Result<Json, String> {
+    if input.len() > MAX_FIXTURE_BYTES {
+        return Err(format!(
+            "fixture exceeds the test-local {MAX_FIXTURE_BYTES}-byte parse bound"
+        ));
+    }
+    JsonParser::new(input).parse()
+}
+
+fn canonical_records() -> Vec<ReplayRecord> {
+    let root = bounded_parse(CANONICAL_CAPTURE).expect("canonical fixture is bounded valid JSON");
+    let root = root.object("root");
+    let provenance = root
+        .get("provenance")
+        .expect("fixture carries provenance")
+        .object("provenance");
+    assert_eq!(provenance.string("capture_date"), "2026-08-14");
+    assert_eq!(provenance.number("capture_schema_version"), 1);
+    assert_eq!(provenance.number("sanitizer_version"), 2);
+
+    let raw_records = root
+        .get("records")
+        .expect("fixture carries records")
+        .array("records");
+    assert_eq!(raw_records.len(), 387, "canonical fixture cardinality");
+
+    let mut records = Vec::with_capacity(raw_records.len());
+    for (index, raw_record) in raw_records.iter().enumerate() {
+        let record = raw_record.object("record");
+        let kind = record.string("kind").to_owned();
+        assert!(kind == "head" || kind == "reply", "record {index} kind");
+        let headers = record
+            .get("headers")
+            .expect("record carries headers")
+            .object("headers");
+        let policy = headers.string("x-rate-limit-policy").to_owned();
+        if let Some(top_level_policy) = record.optional_string("policy") {
+            assert_eq!(top_level_policy, policy, "record {index} policy identity");
+        }
+        let rules = headers.string("x-rate-limit-rules");
+        assert_eq!(rules, "Account", "canonical OAuth rule shape");
+        let rule_key = format!("x-rate-limit-{}", rules.to_ascii_lowercase());
+        let state_key = format!("{rule_key}-state");
+        let limits = parse_limit_triplets(headers.string(&rule_key));
+        let states = parse_state_triplets(headers.string(&state_key));
+        assert_eq!(limits.len(), states.len(), "record {index} window arity");
+        assert_eq!(limits.len(), 2, "record {index} RulePair shape");
+        for (limit, state) in limits.iter().zip(&states) {
+            assert_eq!(
+                limit.period_seconds, state.period_seconds,
+                "record {index} state/limit period"
+            );
+        }
+
+        records.push(ReplayRecord {
+            kind,
+            endpoint: record.string("endpoint").to_owned(),
+            policy,
+            sent_ms: record.optional_number("sent_ms").map(nonnegative_millis),
+            received_ms: nonnegative_millis(record.number("received_ms")),
+            date_ms: record.number("date_ms"),
+            status: u64::try_from(record.number("status")).expect("status is nonnegative"),
+            limits_raw: headers.string(&rule_key).to_owned(),
+            limits,
+            states,
+        });
+    }
+
+    let heads = records.iter().filter(|record| record.kind == "head");
+    assert_eq!(heads.clone().count(), 4);
+    assert!(heads.clone().all(|record| record.sent_ms.is_none()));
+    assert!(heads.clone().all(|record| record.status == 204));
+    assert_eq!(
+        heads
+            .map(|record| record.endpoint.as_str())
+            .collect::<BTreeSet<_>>()
+            .len(),
+        4,
+        "one initialization HEAD per touched endpoint"
+    );
+    let replies: Vec<_> = records
+        .iter()
+        .filter(|record| record.kind == "reply")
+        .collect();
+    assert!(replies.iter().all(|record| record.status == 200));
+    assert!(
+        replies
+            .windows(2)
+            .all(|pair| pair[0].sent_ms <= pair[1].sent_ms)
+    );
+    records
+}
+
+fn boot_seeds(records: &[ReplayRecord]) -> Vec<BootSeed> {
+    records
+        .iter()
+        .filter(|record| record.kind == "head")
+        .map(|record| {
+            let windows = record
+                .limits
+                .iter()
+                .zip(KNOWN_BUCKETS_MS)
+                .map(|(limit, bucket_ms)| {
+                    assert_eq!(
+                        PHASE_CYCLE_MS % bucket_ms,
+                        0,
+                        "the exhaustive scalar phase cycle must cover this bucket"
+                    );
+                    WindowDefinition::new(
+                        limit.max_hits,
+                        limit.period_seconds * 1_000,
+                        limit.restriction_seconds * 1_000,
+                        bucket_ms,
+                    )
+                    .expect("capture limits fit the mock's structural bounds")
+                })
+                .collect();
+            let definition = PolicyDefinition::new(
+                record.policy.clone(),
+                vec![
+                    RuleDefinition::new("Account", windows)
+                        .expect("capture rule fits the mock's structural bounds"),
+                ],
+            )
+            .expect("capture policy fits the mock's structural bounds");
+            assert!(
+                record
+                    .states
+                    .iter()
+                    .all(|state| state.restriction_active_seconds == 0),
+                "canonical boot HEAD has no active restriction"
+            );
+            BootSeed {
+                policy: record.policy.clone(),
+                definition,
+                residue: record
+                    .states
+                    .iter()
+                    .map(|state| state.current_hits as usize)
+                    .max()
+                    .expect("RulePair state is nonempty"),
+            }
+        })
+        .collect()
+}
+
+fn saturation_components(record: &ReplayRecord) -> usize {
+    record
+        .states
+        .iter()
+        .zip(&record.limits)
+        .filter(|(state, limit)| state.current_hits == limit.max_hits)
+        .count()
+}
+
+fn has_recorded_ceiling(records: &[ReplayRecord], expected: u32) -> bool {
+    records.iter().any(|record| {
+        record
+            .states
+            .iter()
+            .zip(&record.limits)
+            .any(|(state, limit)| state.current_hits == expected && limit.max_hits == expected)
+    })
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+struct CounterOverflow {
+    reply_index: usize,
+    policy: String,
+    sent_ms: u64,
+    window_index: usize,
+    current_hits: u32,
+    max_hits: u32,
+}
+
+/// Replays the trace at one phase and returns every window overflow on the
+/// *initiating reply*. The replay stops after that reply deliberately: once it
+/// produces the modeled 429, replaying the fixture's later observed-200
+/// traffic would only measure the expected restriction cascade, not the
+/// initiating mismatch.
+fn initiating_overflows(
+    phase_ms: u64,
+    seeds: &[BootSeed],
+    replies: &[&ReplayRecord],
+) -> Vec<CounterOverflow> {
+    let mut model = seeded_model(phase_ms, seeds);
+
+    for (reply_index, record) in replies.iter().enumerate() {
+        let sent_ms = record.sent_ms.unwrap();
+        let at = ServerTime::from_millis(sent_ms);
+        assert!(!model.record_layer1_arrival(at).tripped);
+        let judgment = model
+            .judge(&record.policy, at, reply_index as u64 + 1, true)
+            .unwrap();
+        let overflows: Vec<CounterOverflow> = judgment
+            .windows
+            .iter()
+            .zip(&record.limits)
+            .enumerate()
+            .filter(|(_, (window, limit))| window.current_hits > limit.max_hits)
+            .map(|(window_index, (window, limit))| CounterOverflow {
+                reply_index,
+                policy: record.policy.clone(),
+                sent_ms,
+                window_index,
+                current_hits: window.current_hits,
+                max_hits: limit.max_hits,
+            })
+            .collect();
+        assert_eq!(
+            judgment.organic_violation,
+            !overflows.is_empty(),
+            "no pre-existing restriction may precede the initiating overflow at phi={phase_ms}, reply={reply_index}"
+        );
+        if !overflows.is_empty() {
+            return overflows;
+        }
+    }
+    Vec::new()
+}
+
+fn parse_limit_triplets(raw: &str) -> Vec<LimitTriplet> {
+    raw.split(',')
+        .map(|triplet| {
+            let fields = parse_triplet(triplet);
+            LimitTriplet {
+                max_hits: u32::try_from(fields[0]).expect("max_hits fits u32"),
+                period_seconds: fields[1],
+                restriction_seconds: fields[2],
+            }
+        })
+        .collect()
+}
+
+fn parse_state_triplets(raw: &str) -> Vec<StateTriplet> {
+    raw.split(',')
+        .map(|triplet| {
+            let fields = parse_triplet(triplet);
+            StateTriplet {
+                current_hits: u32::try_from(fields[0]).expect("current_hits fits u32"),
+                period_seconds: fields[1],
+                restriction_active_seconds: fields[2],
+            }
+        })
+        .collect()
+}
+
+fn parse_triplet(raw: &str) -> [u64; 3] {
+    let fields: Vec<u64> = raw
+        .split(':')
+        .map(|field| {
+            field
+                .parse()
+                .expect("capture triplets contain decimal u64 fields")
+        })
+        .collect();
+    fields
+        .try_into()
+        .expect("capture limit/state values are triplets")
+}
+
+fn nonnegative_millis(value: i64) -> u64 {
+    u64::try_from(value).expect("relative client timing must be nonnegative")
+}
+
+#[derive(Debug)]
+enum Json {
+    Object(BTreeMap<String, Json>),
+    Array(Vec<Json>),
+    String(String),
+    Number(i64),
+    Bool,
+    Null,
+}
+
+impl Json {
+    fn object(&self, label: &str) -> &BTreeMap<String, Json> {
+        match self {
+            Self::Object(value) => value,
+            _ => panic!("{label} must be a JSON object"),
+        }
+    }
+
+    fn array(&self, label: &str) -> &[Json] {
+        match self {
+            Self::Array(value) => value,
+            _ => panic!("{label} must be a JSON array"),
+        }
+    }
+}
+
+trait JsonObjectExt {
+    fn string(&self, key: &str) -> &str;
+    fn optional_string(&self, key: &str) -> Option<&str>;
+    fn number(&self, key: &str) -> i64;
+    fn optional_number(&self, key: &str) -> Option<i64>;
+}
+
+impl JsonObjectExt for BTreeMap<String, Json> {
+    fn string(&self, key: &str) -> &str {
+        self.optional_string(key)
+            .unwrap_or_else(|| panic!("{key} must be a JSON string"))
+    }
+
+    fn optional_string(&self, key: &str) -> Option<&str> {
+        match self.get(key) {
+            Some(Json::String(value)) => Some(value),
+            None => None,
+            _ => panic!("{key} must be a JSON string when present"),
+        }
+    }
+
+    fn number(&self, key: &str) -> i64 {
+        self.optional_number(key)
+            .unwrap_or_else(|| panic!("{key} must be a JSON integer"))
+    }
+
+    fn optional_number(&self, key: &str) -> Option<i64> {
+        match self.get(key) {
+            Some(Json::Number(value)) => Some(*value),
+            None => None,
+            _ => panic!("{key} must be a JSON integer when present"),
+        }
+    }
+}
+
+struct JsonParser<'a> {
+    input: &'a [u8],
+    position: usize,
+    items: usize,
+}
+
+impl<'a> JsonParser<'a> {
+    fn new(input: &'a str) -> Self {
+        Self {
+            input: input.as_bytes(),
+            position: 0,
+            items: 0,
+        }
+    }
+
+    fn parse(mut self) -> Result<Json, String> {
+        let value = self.value(0)?;
+        self.whitespace();
+        if self.position != self.input.len() {
+            return Err(format!("trailing JSON at byte {}", self.position));
+        }
+        Ok(value)
+    }
+
+    fn value(&mut self, depth: usize) -> Result<Json, String> {
+        if depth > MAX_JSON_DEPTH {
+            return Err("JSON nesting exceeds test-local bound".to_owned());
+        }
+        self.bump_item()?;
+        self.whitespace();
+        match self.peek() {
+            Some(b'{') => self.object(depth + 1),
+            Some(b'[') => self.array(depth + 1),
+            Some(b'"') => self.string().map(Json::String),
+            Some(b'-' | b'0'..=b'9') => self.number().map(Json::Number),
+            Some(b't') => self.literal(b"true", Json::Bool),
+            Some(b'f') => self.literal(b"false", Json::Bool),
+            Some(b'n') => self.literal(b"null", Json::Null),
+            _ => Err(format!("unexpected JSON token at byte {}", self.position)),
+        }
+    }
+
+    fn object(&mut self, depth: usize) -> Result<Json, String> {
+        self.expect(b'{')?;
+        let mut object = BTreeMap::new();
+        self.whitespace();
+        if self.consume(b'}') {
+            return Ok(Json::Object(object));
+        }
+        loop {
+            self.whitespace();
+            let key = self.string()?;
+            self.whitespace();
+            self.expect(b':')?;
+            let value = self.value(depth)?;
+            if object.insert(key, value).is_some() {
+                return Err("duplicate JSON object key".to_owned());
+            }
+            self.whitespace();
+            if self.consume(b'}') {
+                break;
+            }
+            self.expect(b',')?;
+        }
+        Ok(Json::Object(object))
+    }
+
+    fn array(&mut self, depth: usize) -> Result<Json, String> {
+        self.expect(b'[')?;
+        let mut array = Vec::new();
+        self.whitespace();
+        if self.consume(b']') {
+            return Ok(Json::Array(array));
+        }
+        loop {
+            array.push(self.value(depth)?);
+            self.whitespace();
+            if self.consume(b']') {
+                break;
+            }
+            self.expect(b',')?;
+        }
+        Ok(Json::Array(array))
+    }
+
+    fn string(&mut self) -> Result<String, String> {
+        self.expect(b'"')?;
+        let mut value = String::new();
+        loop {
+            let byte = self
+                .next()
+                .ok_or_else(|| "unterminated JSON string".to_owned())?;
+            match byte {
+                b'"' => break,
+                b'\\' => {
+                    let escaped = self
+                        .next()
+                        .ok_or_else(|| "unterminated JSON escape".to_owned())?;
+                    let character = match escaped {
+                        b'"' => '"',
+                        b'\\' => '\\',
+                        b'/' => '/',
+                        b'b' => '\u{0008}',
+                        b'f' => '\u{000c}',
+                        b'n' => '\n',
+                        b'r' => '\r',
+                        b't' => '\t',
+                        b'u' => {
+                            let mut codepoint = 0_u32;
+                            for _ in 0..4 {
+                                codepoint = codepoint * 16
+                                    + self
+                                        .next()
+                                        .and_then(|digit| (digit as char).to_digit(16))
+                                        .ok_or_else(|| "invalid JSON unicode escape".to_owned())?;
+                            }
+                            char::from_u32(codepoint)
+                                .ok_or_else(|| "invalid JSON unicode scalar".to_owned())?
+                        }
+                        _ => return Err("invalid JSON escape".to_owned()),
+                    };
+                    value.push(character);
+                }
+                0x00..=0x1f => return Err("control byte in JSON string".to_owned()),
+                ascii if ascii.is_ascii() => value.push(char::from(ascii)),
+                _ => return Err("fixture JSON strings must be ASCII".to_owned()),
+            }
+            if value.len() > MAX_JSON_STRING_BYTES {
+                return Err("JSON string exceeds test-local byte bound".to_owned());
+            }
+        }
+        Ok(value)
+    }
+
+    fn number(&mut self) -> Result<i64, String> {
+        let start = self.position;
+        self.consume(b'-');
+        let digits = self.position;
+        while matches!(self.peek(), Some(b'0'..=b'9')) {
+            self.position += 1;
+        }
+        if self.position == digits {
+            return Err("JSON integer has no digits".to_owned());
+        }
+        if matches!(self.peek(), Some(b'.' | b'e' | b'E')) {
+            return Err("fixture JSON numbers must be integers".to_owned());
+        }
+        std::str::from_utf8(&self.input[start..self.position])
+            .map_err(|_| "JSON integer is not UTF-8".to_owned())?
+            .parse()
+            .map_err(|_| "JSON integer exceeds i64".to_owned())
+    }
+
+    fn literal(&mut self, literal: &[u8], value: Json) -> Result<Json, String> {
+        if self.input.get(self.position..self.position + literal.len()) == Some(literal) {
+            self.position += literal.len();
+            Ok(value)
+        } else {
+            Err(format!("invalid JSON literal at byte {}", self.position))
+        }
+    }
+
+    fn bump_item(&mut self) -> Result<(), String> {
+        if self.items == MAX_JSON_ITEMS {
+            return Err("JSON value count exceeds test-local bound".to_owned());
+        }
+        self.items += 1;
+        Ok(())
+    }
+
+    fn whitespace(&mut self) {
+        while matches!(self.peek(), Some(b' ' | b'\n' | b'\r' | b'\t')) {
+            self.position += 1;
+        }
+    }
+
+    fn expect(&mut self, expected: u8) -> Result<(), String> {
+        if self.consume(expected) {
+            Ok(())
+        } else {
+            Err(format!(
+                "expected {:?} at byte {}",
+                char::from(expected),
+                self.position
+            ))
+        }
+    }
+
+    fn consume(&mut self, expected: u8) -> bool {
+        if self.peek() == Some(expected) {
+            self.position += 1;
+            true
+        } else {
+            false
+        }
+    }
+
+    fn peek(&self) -> Option<u8> {
+        self.input.get(self.position).copied()
+    }
+
+    fn next(&mut self) -> Option<u8> {
+        let byte = self.peek()?;
+        self.position += 1;
+        Some(byte)
+    }
+}

@@ -1,0 +1,415 @@
+use std::time::Duration;
+
+use proptest::prelude::*;
+use rate_limit_core::core::{
+    BucketModel, Policy, PolicyEngine, PolicyName, ReserveOutcome, Resolution, Rule, RulePair,
+    SimInstant, Window,
+};
+
+#[derive(Clone, Debug)]
+struct RuleCase {
+    burst_hits: u32,
+    sustained_hits: u32,
+    burst_period_ms: u64,
+    sustained_period_ms: u64,
+    burst_restriction_ms: u64,
+    sustained_restriction_ms: u64,
+    burst_resolution_ms: u64,
+    sustained_resolution_ms: u64,
+    burst_assumed: bool,
+    sustained_assumed: bool,
+}
+
+impl RuleCase {
+    fn rule(&self) -> Rule {
+        let pair = RulePair::new(
+            Window::new(
+                self.burst_hits,
+                Duration::from_millis(self.burst_period_ms),
+                Duration::from_millis(self.burst_restriction_ms),
+            ),
+            Window::new(
+                self.sustained_hits,
+                Duration::from_millis(self.sustained_period_ms),
+                Duration::from_millis(self.sustained_restriction_ms),
+            ),
+        )
+        .expect("generated sustained periods are strictly greater");
+        Rule::new(
+            pair,
+            BucketModel::new(
+                resolution(self.burst_assumed, self.burst_resolution_ms),
+                resolution(self.sustained_assumed, self.sustained_resolution_ms),
+            ),
+        )
+    }
+}
+
+fn resolution(assumed: bool, millis: u64) -> Resolution {
+    let duration = Duration::from_millis(millis);
+    if assumed {
+        Resolution::Assumed(duration)
+    } else {
+        Resolution::Known(duration)
+    }
+}
+
+fn rule_cases() -> impl Strategy<Value = Vec<RuleCase>> {
+    prop::collection::vec(
+        (
+            (
+                // 1..: a zero-hit window answers Blocked and would make
+                // the property vacuous; that boundary has its own pinned
+                // test below.
+                1_u32..8,
+                1_u32..8,
+                1_u64..250,
+                1_u64..250,
+                0_u64..500,
+                0_u64..500,
+                1_u64..80,
+                1_u64..80,
+            ),
+            (any::<bool>(), any::<bool>()),
+        )
+            .prop_map(
+                |(
+                    (
+                        burst_hits,
+                        sustained_hits,
+                        burst_period_ms,
+                        sustained_delta_ms,
+                        burst_restriction_ms,
+                        sustained_restriction_ms,
+                        burst_resolution_ms,
+                        sustained_resolution_ms,
+                    ),
+                    (burst_assumed, sustained_assumed),
+                )| RuleCase {
+                    burst_hits,
+                    sustained_hits,
+                    burst_period_ms,
+                    sustained_period_ms: burst_period_ms + sustained_delta_ms,
+                    burst_restriction_ms,
+                    sustained_restriction_ms,
+                    burst_resolution_ms,
+                    sustained_resolution_ms,
+                    burst_assumed,
+                    sustained_assumed,
+                },
+            ),
+        1..5,
+    )
+}
+
+fn policy_name() -> PolicyName {
+    PolicyName::from("generated-policy")
+}
+
+fn default_buckets() -> BucketModel {
+    BucketModel::new(
+        Resolution::Assumed(Duration::from_secs(60)),
+        Resolution::Assumed(Duration::from_secs(60)),
+    )
+}
+
+fn build_engine(cases: &[RuleCase], history_ms: &[u64]) -> PolicyEngine {
+    let policy = policy_name();
+    let mut engine = PolicyEngine::new(default_buckets());
+    engine
+        .insert_policy(
+            Policy::new(policy.clone(), cases.iter().map(RuleCase::rule).collect())
+                .expect("generated rule sets are non-empty"),
+        )
+        .expect("the test inserts one policy");
+    for &at in history_ms {
+        engine
+            .record_synthetic(&policy, SimInstant::from_millis(at), 1)
+            .expect("the generated policy exists");
+    }
+    engine
+}
+
+// Independent server oracle: roll each hit forward to the end of the server's
+// phase-owned bucket, then apply the rolling-window period. Production never
+// sees `phase` and does not use this rollover calculation.
+fn server_hit_is_active(
+    hit_ms: u64,
+    now_ms: u64,
+    period_ms: u64,
+    resolution_ms: u64,
+    phase_ms: u64,
+) -> bool {
+    if hit_ms > now_ms {
+        return false;
+    }
+    now_ms < server_bucket_end(hit_ms, resolution_ms, phase_ms).saturating_add(period_ms)
+}
+
+fn server_bucket_end(hit_ms: u64, resolution_ms: u64, phase_ms: u64) -> u64 {
+    let phase_ms = phase_ms % resolution_ms;
+    let distance = (phase_ms + resolution_ms - (hit_ms % resolution_ms)) % resolution_ms;
+    hit_ms.saturating_add(if distance == 0 {
+        resolution_ms
+    } else {
+        distance
+    })
+}
+
+fn assert_reserved_is_server_safe(
+    engine: &PolicyEngine,
+    cases: &[RuleCase],
+    now_ms: u64,
+    phase_seeds: &[u64; 8],
+) -> Result<(), TestCaseError> {
+    let policy = engine.policy(&policy_name()).expect("policy exists");
+    let history = policy
+        .history()
+        .entries()
+        .map(|entry| entry.at.as_millis())
+        .collect::<Vec<_>>();
+
+    for (rule_index, case) in cases.iter().enumerate() {
+        for (window_index, (max_hits, period_ms, resolution_ms)) in [
+            (
+                case.burst_hits,
+                case.burst_period_ms,
+                case.burst_resolution_ms,
+            ),
+            (
+                case.sustained_hits,
+                case.sustained_period_ms,
+                case.sustained_resolution_ms,
+            ),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let phase_seed = phase_seeds[rule_index * 2 + window_index];
+            let phase_ms = phase_seed % resolution_ms;
+            let server_hits = history
+                .iter()
+                .filter(|&&hit_ms| {
+                    server_hit_is_active(hit_ms, now_ms, period_ms, resolution_ms, phase_ms)
+                })
+                .count();
+            prop_assert!(
+                server_hits <= max_hits as usize,
+                "reservation exceeded {max_hits} hits for period={period_ms}ms, \
+                 resolution={resolution_ms}ms, phase={phase_ms}ms: history={history:?}"
+            );
+        }
+    }
+    Ok(())
+}
+
+proptest! {
+    // C1 / N13: arbitrary shared histories, multi-rule definitions, explicit
+    // Known/Assumed resolutions, and independently generated server phases.
+    // A Reserved result includes the new send, so <= max_hits proves that send
+    // is safe under the server's independently bucketized windows.
+    //
+    // No generated case passes vacuously (audit, 2026-08-09: the original
+    // Reserved-only body asserted nothing on ~97% of cases): a grant is
+    // oracle-checked at `now`, and a NotBefore answer is re-asked at exactly
+    // that instant, where it must grant — and that grant is oracle-checked
+    // in turn, pinning the scheduling arithmetic as exact rather than merely
+    // sufficient.
+    #[test]
+    fn every_reserved_outcome_is_safe_for_every_server_phase(
+        cases in rule_cases(),
+        history_ms in prop::collection::vec(0_u64..1_000, 0..64),
+        now_ms in 0_u64..1_000,
+        phase_seeds in any::<[u64; 8]>(),
+    ) {
+        let policy = policy_name();
+        let mut engine = build_engine(&cases, &history_ms);
+
+        match engine.try_reserve(&policy, SimInstant::from_millis(now_ms)) {
+            ReserveOutcome::Reserved(token) => {
+                assert_reserved_is_server_safe(&engine, &cases, now_ms, &phase_seeds)?;
+                engine.rollback(token);
+            }
+            ReserveOutcome::NotBefore(at) => {
+                prop_assert!(
+                    at.as_millis() > now_ms,
+                    "NotBefore must name a future instant"
+                );
+                match engine.try_reserve(&policy, at) {
+                    ReserveOutcome::Reserved(token) => {
+                        assert_reserved_is_server_safe(
+                            &engine,
+                            &cases,
+                            at.as_millis(),
+                            &phase_seeds,
+                        )?;
+                        engine.rollback(token);
+                    }
+                    other => prop_assert!(
+                        false,
+                        "re-asking at the answered NotBefore must grant, got {other:?}"
+                    ),
+                }
+            }
+            other => {
+                // Blocked (zero-hit rules are not generated) and Refused
+                // (nothing suspends or halts here) are both unreachable.
+                prop_assert!(false, "unexpected outcome: {other:?}");
+            }
+        }
+    }
+}
+
+// C1 boundary: a zero-hit window can never grant. The parser refuses the
+// shape at the wire (D8: limit hits > 0), so this is engine-level defense in
+// depth for test-constructed policies: the core answers Blocked — "wait for
+// an event, not a clock" — never a sleepable NotBefore time.
+#[test]
+fn zero_max_hits_blocks_forever() {
+    let cases = vec![RuleCase {
+        burst_hits: 0,
+        sustained_hits: 10,
+        burst_period_ms: 100,
+        sustained_period_ms: 1_000,
+        burst_restriction_ms: 0,
+        sustained_restriction_ms: 0,
+        burst_resolution_ms: 10,
+        sustained_resolution_ms: 20,
+        burst_assumed: false,
+        sustained_assumed: true,
+    }];
+    let mut engine = build_engine(&cases, &[]);
+
+    assert!(matches!(
+        engine.try_reserve(&policy_name(), SimInstant::from_millis(0)),
+        ReserveOutcome::Blocked
+    ));
+}
+
+// C1: one shared history is judged by every rule/window, and the scheduling
+// answer is the maximum padded expiry. This also pins mixed Known/Assumed use.
+#[test]
+fn not_before_takes_maximum_across_all_saturated_windows_and_rules() {
+    let cases = vec![
+        RuleCase {
+            burst_hits: 1,
+            sustained_hits: 10,
+            burst_period_ms: 100,
+            sustained_period_ms: 1_000,
+            burst_restriction_ms: 0,
+            sustained_restriction_ms: 0,
+            burst_resolution_ms: 10,
+            sustained_resolution_ms: 20,
+            burst_assumed: false,
+            sustained_assumed: true,
+        },
+        RuleCase {
+            burst_hits: 10,
+            sustained_hits: 1,
+            burst_period_ms: 200,
+            sustained_period_ms: 300,
+            burst_restriction_ms: 0,
+            sustained_restriction_ms: 0,
+            burst_resolution_ms: 30,
+            sustained_resolution_ms: 200,
+            burst_assumed: true,
+            sustained_assumed: false,
+        },
+    ];
+    let policy = policy_name();
+    let mut engine = build_engine(&cases, &[0]);
+
+    assert!(matches!(
+        engine.try_reserve(&policy, SimInstant::from_millis(50)),
+        ReserveOutcome::NotBefore(at) if at == SimInstant::from_millis(500)
+    ));
+    assert!(matches!(
+        engine.try_reserve(&policy, SimInstant::from_millis(499)),
+        ReserveOutcome::NotBefore(at) if at == SimInstant::from_millis(500)
+    ));
+    let token = match engine.try_reserve(&policy, SimInstant::from_millis(500)) {
+        ReserveOutcome::Reserved(token) => token,
+        other => panic!("expected reservation at maximum padded expiry, got {other:?}"),
+    };
+    engine.rollback(token);
+}
+
+// C1: zero headroom means a reservation is granted when exactly one slot is
+// left. When history is already over the limit, only enough oldest entries to
+// recover that one slot need expire.
+#[test]
+fn zero_headroom_uses_the_max_hits_th_newest_entry() {
+    let cases = vec![RuleCase {
+        burst_hits: 3,
+        sustained_hits: 10,
+        burst_period_ms: 100,
+        sustained_period_ms: 1_000,
+        burst_restriction_ms: 0,
+        sustained_restriction_ms: 0,
+        burst_resolution_ms: 5,
+        sustained_resolution_ms: 10,
+        burst_assumed: false,
+        sustained_assumed: true,
+    }];
+    let policy = policy_name();
+    let mut engine = build_engine(&cases, &[0, 10, 20, 30]);
+
+    assert!(matches!(
+        engine.try_reserve(&policy, SimInstant::from_millis(40)),
+        ReserveOutcome::NotBefore(at) if at == SimInstant::from_millis(115)
+    ));
+    let token = match engine.try_reserve(&policy, SimInstant::from_millis(115)) {
+        ReserveOutcome::Reserved(token) => token,
+        other => panic!("expected the zero-headroom slot to be usable, got {other:?}"),
+    };
+    engine.rollback(token);
+}
+
+// C1 / N13 exact boundary cases: the hit lands just before, exactly on, and
+// just after a server bucket rollover. The independent oracle gives different
+// actual expiries, while full-bucket client padding safely covers all three.
+#[test]
+fn rollover_cases_are_safe_just_before_exactly_on_and_just_after() {
+    let phase_ms = 50;
+    let resolution_ms = 100;
+    let period_ms = 100;
+
+    for (hit_ms, expected_server_expiry) in [(249, 350), (250, 450), (251, 450)] {
+        let cases = vec![RuleCase {
+            burst_hits: 1,
+            sustained_hits: 10,
+            burst_period_ms: period_ms,
+            sustained_period_ms: 1_000,
+            burst_restriction_ms: 0,
+            sustained_restriction_ms: 0,
+            burst_resolution_ms: resolution_ms,
+            sustained_resolution_ms: 100,
+            burst_assumed: false,
+            sustained_assumed: true,
+        }];
+        let policy = policy_name();
+        let mut engine = build_engine(&cases, &[hit_ms]);
+        let padded_expiry = hit_ms + period_ms + resolution_ms;
+
+        assert_eq!(
+            server_bucket_end(hit_ms, resolution_ms, phase_ms) + period_ms,
+            expected_server_expiry
+        );
+        assert!(matches!(
+            engine.try_reserve(&policy, SimInstant::from_millis(padded_expiry - 1)),
+            ReserveOutcome::NotBefore(at) if at == SimInstant::from_millis(padded_expiry)
+        ));
+        let token = match engine.try_reserve(&policy, SimInstant::from_millis(padded_expiry)) {
+            ReserveOutcome::Reserved(token) => token,
+            other => panic!("expected rollover-case reservation, got {other:?}"),
+        };
+        assert_reserved_is_server_safe(
+            &engine,
+            &cases,
+            padded_expiry,
+            &[phase_ms, 0, 0, 0, 0, 0, 0, 0],
+        )
+        .expect("explicit rollover reservation is server-safe");
+        engine.rollback(token);
+    }
+}

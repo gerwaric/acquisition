@@ -68,7 +68,7 @@ they become real rows (with branch names) when cut.
 
 | Spike | Question | Status | Result |
 |---|---|---|---|
-| rate-limit-core | Can a Rust client demonstrably honor the N-claims in `network-ground-truth.md` under burst load, as a single serialized gate? | cut: `spike/rate-limit-core` | — |
+| rate-limit-core | Can a Rust client demonstrably honor the N-claims in `network-ground-truth.md` under burst load, as a single serialized gate? | cut: `spike/rate-limit-core`; terminal review passed; delivery-ready | [Yes for four OAuth policies at Known(5s/60s); conditional for backend-item at Assumed(60s/60s)](topics/rate-limit-core.md) |
 | webview-scale | Does Tauri + TanStack Virtual over the windowed query protocol (`topics/migration-order.md`) stay responsive at 1M synthetic items, on both WebView2 (Windows) and WKWebView (macOS)? | candidate | — |
 | credential-custody | Does the existing `acquisition` public-client registration accept the full PKCE flow from a non-Qt implementation (Rust `oauth2` crate, system browser, loopback listener on an arbitrary port, `client_secret` omitted)? The custody-model question was settled by research: `topics/credential-custody.md` §7. | candidate | — |
 | data-migration | Can existing users' datastores (`src/legacy/`) migrate losslessly to a new core's persistence? | candidate | — |

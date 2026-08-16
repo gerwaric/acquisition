@@ -1,0 +1,1696 @@
+# Scenario-driver and safety-closure hand-off
+
+Status: **closed — the merged terminal review passed 2026-08-15 under
+Tom's binding materiality threshold; SD-R8 and the scenario-driver
+slice are closed and both verdict fills are restored.** The terminal
+finding/accepted-residuals record is in `result-draft.md` §9 and live
+state is `status.md`. This file is now a historical packet.
+
+Prior status: **open — the F25 repair packet is presented 2026-08-15 and
+awaits the repeated independent re-close review.** Commit `3f777095`
+executes the SD-R8-F25 disposition as amended by the F25 reviewer's
+recommendation and approved by Tom the same day (decision record in
+`result-draft.md` §9): wording-only, single-sourced — the pin's own
+comment in `tests/mock_fidelity.rs` is now the single normative
+statement of the detection class (bare identifier-boundary tokens of
+the type name in `.rs` files under `src/`, the files the walk reads,
+against pinned per-file counts) and of the confessed evasion
+families, drawn by the scan set's boundary; the type doc comment, the
+`b13-observation-log` note and `must_assert`, this packet, and
+`status.md` point to it instead of paraphrasing. The optional
+`include!`/`#[path]` vector-pin strengthening was **declined by Tom**:
+the belt makes accidental drift loud, and out-of-scan smuggling is
+deliberate-act territory the named trust surface already concedes.
+Nothing mechanical moved — needle, walk, and pinned counts are
+byte-identical to `6fc96d80`'s — so no new mutation was owed; the F25
+demonstration (`47885eab`, in history) is the experiment the
+corrected text now predicts. The repair session closes nothing,
+contacts no live service, and does not restore either verdict fill.
+Live state is `status.md`.
+
+Prior status: **open — the 2026-08-15 repeated re-close review over the F24
+range found SD-R8-F25; this file requires an F25 repair-range four-part
+update before re-review.** The review re-verified everything the F24
+commits touched — the pinned per-file token counts were recounted
+independently (6/4/2/0 over nine `.rs` files, boundary matching
+confirmed against `MockEvidenceSealError`), the recorded rename-import
+mutation reproduced verbatim with its exact signature (left: 3,
+right: 0 naming `model.rs`) and the import token alone trips the pin
+(left: 1), the compensating controls were re-derived from the tree and
+hold, all falsification markers annotate rather than rewrite, and the
+full offline matrix, both authorities, and all five preserved mutation
+signatures reproduced — but found that the strengthened pin's carried
+claims outrun its scan scope: the needle reads only `.rs` files under
+`src/`, so an ordinary-spelling construction forgery whose source text
+lives outside that set (a `#[path]` descendant module at the crate
+root) compiles and passes while the pin and the whole suite stay
+green, falsifying "a future needle-free construction spelling must
+avoid the type name entirely", "any ordinary spelling fails the pin in
+CI naming the file", "all construction/aliasing spellings", and
+"detects exactly token-bearing shapes", and misdrawing the confessed
+evasion family's boundary ("non-`.rs`" — location, not extension, is
+the boundary). It is a wording-scope defect (low), not a verdict
+bypass: the named trust surface and its primary compensating control
+are accurate and re-verified. Finding, demonstration commits, and
+proposed disposition are in `result-draft.md` §9; live state is
+`status.md`. Both verdict fills stay suspended.
+
+Prior status: **open — the F24 repair packet is presented 2026-08-15 and
+awaits the repeated independent re-close review.** Commit `6fc96d80`
+executes the SD-R8-F24 disposition with the optional strengthening
+taken per the analyst note: the belt pin counts bare `MockEvidence`
+tokens per `src/` file (identifier-boundary matched) against pinned
+per-file counts, so the rename-import and `Self`-in-new-impl forgeries
+the review named are now caught at the token they cannot avoid
+writing, and every carrying location — pin comment, type doc comment,
+`b13-observation-log` note and `must_assert`, this packet, and
+`status.md` — scopes the belt's claim to exactly what the needle sees:
+detection of token-bearing shapes *[falsified same day by SD-R8-F25:
+the needle reads only `.rs` files under `src/`, so a token-bearing
+construction outside that scan set is silent; superseded by the F25
+packet above]*, never a binding, with **field
+mutation on an obtained instance named as the shape no lexical pin can
+see**, resting on the named trust surface alone. The reviewer's
+rename-import forgery was reproduced against the strengthened pin and
+now fails loud (committed `dc7a3d97`, reverted `a1d66cbc`; signature
+in §5 and `result-draft.md` §9). No enforcement mechanism changed: the
+five compile-fail doctests and all five preserved mutation signatures
+are unaffected. The repair session closes nothing, contacts no live
+service, and does not restore either verdict fill. Live state is
+`status.md`.
+
+Prior status: **open — the 2026-08-15 repeated re-close review over the F23
+range found SD-R8-F24; this file requires an F24 repair-range four-part
+update before re-review.** The review re-verified everything the F23
+commits touched — the scoped seal claim is exactly true in all three
+carrying locations, the compensating controls were re-derived
+independently from the tree and hold, the recorded belt-pin mutation
+reproduced verbatim, and the full offline matrix, both authorities, and
+all five preserved mutation signatures reproduced — but found that the
+belt pin's carried claims outrun its lexical mechanism: a descendant
+forgery through a rename import compiles and runs while the pin and the
+whole suite stay green, so "an in-crate forgery must re-derive the pin
+deliberately" / "makes in-crate forgery loud" / "detected, not bound"
+overstate, and the confessed evasion list ("editing the pinned file or
+the pin itself") is incomplete. It is a wording-scope defect (low), not
+a verdict bypass: the named trust surface and its primary compensating
+control are accurate and re-verified. Finding and proposed disposition
+are in `result-draft.md` §9; live state is `status.md`. Both verdict
+fills stay suspended.
+
+Prior status: **open — the F23 repair packet is presented 2026-08-15 and
+awaits the repeated independent re-close review.** Commit `1b483191`
+executes the SD-R8-F23 disposition: the evidence-carriage seal claim
+is scoped to the library/integration-test crate boundary — where the
+verdict-bearing driver runs — and the `mock` module's in-crate
+descendants are named as a residual trust surface, in the type's doc
+comment, the `b13-observation-log` note and `must_assert`, and this
+packet's coverage confession, with the compensating controls stated
+(the verdict path resides entirely across the crate boundary; no
+in-crate test reaches `judge` or `declare`). A lexical belt pin in
+the X2/F12 pattern makes in-crate descendant construction loud
+*[falsified same day by SD-R8-F24: only the brace-shaped spelling was
+loud; superseded by the F24 packet above]*
+without claiming a binding Rust privacy cannot provide. No
+enforcement mechanism changed: the five compile-fail doctests and
+all five preserved mutation signatures are unaffected. The repair
+session closes nothing, contacts no live service, and does not
+restore either verdict fill. Live state is `status.md`.
+
+Prior status: **open — the 2026-08-15 repeated re-close review over the
+F21/F22 sealing range found SD-R8-F23; this file requires an F23
+repair-range four-part update before re-review.** The review
+re-verified the whole sealing repair — the five compile-fail doctests
+each fail with their exact annotated privacy code (legal equivalents
+and the reviewer's original forgery shapes compiled to confirm),
+`seal_evidence` judges the same evidence the old accessors handed over,
+the sealed public surface is read-only, and the full offline matrix,
+both authorities, and all five preserved mutation signatures reproduced
+— but found that the seal's construction claim is scoped only to the
+integration-test crate boundary: Rust privacy does not bind the `mock`
+module's in-crate descendants, so `mock::model` (a descendant with a
+live `#[cfg(test)]` module) can construct a forged `MockEvidence`
+directly. The type's doc comment ("Only `seal_evidence` can construct
+this type") and the `b13-observation-log` note ("a test cannot filter
+either vector and rebuild a judge input") overstate the mechanism, and
+that boundary is named nowhere. It is not a verdict bypass (the
+verdict path runs only across the integration-test boundary, where the
+seal holds), but per charge §3-addendum an unnamed in-crate boundary is
+the finding. Findings, evidence, and proposed disposition are in
+`result-draft.md` §9; live state is `status.md`. The repair session
+must scope the seal claim to the crate boundary, name the in-crate
+descendant boundary as a residual trust surface (doc comment, `b13`
+note/`must_assert`, and coverage confession), and update the silences,
+seam map/invariant walk, coverage confession, and judgment calls; this
+review session does not author its packet for it.
+
+Prior status: **open — the F21/F22 repair packet is presented 2026-08-15
+and awaits the repeated independent re-close review.** Commit
+`a09ef5ed` seals reproduction records, reports, and mock-authentic
+evidence with Rust privacy across the integration-test crate boundary;
+the exact F21/F22 forgeries and direct report construction are
+compile-fail pins. Tom's hybrid decision is carried below: observation
+and state-change vectors are bound, while assertion coverage/pass are
+named test-authorship trust surfaces with their compensating controls.
+The repair session closes nothing, contacts no live service, and does
+not restore either verdict fill. Live state is `status.md`.
+
+Prior status: **open — the 2026-08-15 repeated re-close review found
+SD-R8-F21/F22 and required this repair-range packet.** The review
+verified all ten F11–F20 repairs and reproduced the full matrix and all
+five mutation signatures, but F21 re-expressed the F12 split by
+post-construction record mutation and F22 forged a required pair from a
+post-judge cloned report. Findings and dispositions are in
+`result-draft.md` §9.
+
+Prior status: **open — the F11–F20 repair packet (dated 2026-08-15 additions
+in each section below) is presented and awaits the repeated independent
+re-close review.** All ten final-audit findings are repaired per their
+`result-draft.md` §9 dispositions and Tom's F14/F16 decisions: the
+declaration requires named (M2, endpoint) saturation pairs with
+endpoint-bound M8 profile checks (F11), the driver's engine and record
+provenance flow from one structurally pinned lane source (F12), the
+carriage corrections are applied across the record, topic,
+`scenarios.md` §7.3, and the migration-package charge (F13–F18), and
+the N31/N32 transcriptions are corrected on
+`rate-limit-core-ground-truth` (F19/F20). Both authorities and the full
+matrix reran green; five mutation signatures are recorded in §5. The
+repairing session closes nothing; live state is `status.md`.
+
+Prior status: **open — the 2026-08-15 final external audit found
+SD-R8-F11/F12 in the declaration chain and reopened the slice.** F11
+shows the character-policy requirement is endpoint-only rather than
+bound to its required M2 saturation lane. F12 shows M8's bucket-profile
+provenance is a run-owned label unbound to the profile that configured
+the actor. Both bypass mutations passed the pinned declaration and the
+obligations verifier. The repair session owes a fresh four-part packet;
+live dispositions are in `status.md` and `result-draft.md` §9.
+
+Prior status: **closed — the repeated independent SD-R8 re-close review
+accepted the reopened-range four-part packet on 2026-08-15 with no
+new findings.** The reviewer validated F9/F10, reproduced both
+authorities and the exact F4/F5/F9 mutations, and restored both
+verdict fills. Historical record — live state lives in `status.md`.
+
+Prior status: **open — the reopened-range four-part packet (F4/F5/F9
+repairs; dated 2026-08-15 additions in each section below, current
+124/110 totals) is present and awaits the repeated independent
+re-close review.** The F9 endpoint binding is repaired and
+mutation-verified; this packet is the SD-R8-F10 repair.
+
+Prior status: **open — the 2026-08-15 SD-R8 re-close review found
+SD-R8-F9/F10; this file requires a reopened-range four-part update
+before re-review.** F9 is the unbound endpoint-provenance seam:
+`ReproductionRecord.endpoint` can disagree with the wire observations,
+letting the pinned declaration and registry both pass after the
+CharacterList wire lane is replaced by a duplicate Character lane.
+F10 is this packet's own stale state: it still carried the pre-audit
+close, 123/109 totals, and none of the F4/F5 additions in the four
+required sections. Live disposition and the reproduced matrix are in
+`status.md` and `result-draft.md` §9. The implementing/repair session
+must update the silences, seam map/invariant walk, coverage confession,
+and judgment calls; this review session does not manufacture its
+missing hand-off for it.
+
+Prior status: **closed — SD-R8 closed by independent review, 2026-08-15,
+with no findings against the implementation; this closes the
+scenario-driver slice itself.** Historical record — live state
+lives in `status.md`. The reviewer independently re-ran the pinned
+and full 4,096-case declared runs (scale pinned in code), verified
+the registry's 109 Full / 0 Partial / 1 accepted Untested / 13
+Excluded as the agreeing second authority, reproduced all four
+mutation signatures verbatim, and walked the SD-R8-F3 core
+reconciliation change against the pessimism invariant. Closure
+entry in `result-draft.md` §9.
+
+Prior status: **open — SD-R8 final full-contract packet presented
+2026-08-15; the implementing session does not close it.** After Tom's
+F2 adjudication, the harness-only G3 oracle independently restates
+N13 padded-safe time. The pinned φ=0 run and all 4,096 generated
+phases declared `FullContract`; the generated run completed green in
+298.84 s. The independent registry verifies 109 Full / 0 Partial / 1
+accepted Untested / 13 Excluded. G1–G6 and both verdict lanes are
+filled from the agreeing authorities. This four-part packet awaits an
+independent reviewer.
+
+Prior status: **SD-R7 re-closed (2026-08-15) after the external
+audit's reopening; the slice stays open on `status.md` §5 item 5
+(the full-contract run) only.** Tom adjudicated both audit
+findings the same day: F1's erratum ratified (alternate kill
+signature accepted; disclosed silences ratified with it) and F2
+fixed and verified — dispositions in `result-draft.md` §9. The
+reopening record below is preserved as dated text.
+The in-repo SD-R7 close validated the gate against the ratified
+spec, reproduced the matrix and all seven mutation signatures, and
+confirmed the weaken-mutation deviation — but an external
+no-context audit found two findings: **SD-R7-F1** (high) — the
+reviewer, who authored the spec, applied the weaken-mutation
+erratum to ratified contract text without a recorded Tom
+adjudication (AGENTS.md's flag-for-Tom rule; `slice-review.md` §5's
+Tom-named-decision rule); and **SD-R7-F2** (low) — the C1 failure
+path prints `CounterOverflow` (model vs limit) and omits the
+recorded count §3's failure-message requirement names, despite
+having it in hand. The audit independently re-verified the
+measurements, tables, and matrix ("the gate's calibration result
+remains credible") and its verdict is transcribed in
+`result-draft.md` §9. The round re-closes on Tom's F1 adjudication
+plus the F2 fix. The slice stays open on `status.md` §5 item 5
+afterward. The reviewed packet implements
+`status.md` §5 item 4 — the feedback-consistent §7.4 replacement
+calibration gate per the ratified `s7-4-replacement-gate.md` §3/§4
+(code commit `fdacd206`) — and flags one spec-expectation deviation
+(the weaken mutation's kill signature) and one recorded doc finding
+(the precondition-5 stash-list bucket-cutoff divergence) for the
+reviewer. Its additions are marked "(§7.4 gate packet, 2026-08-15)"
+in each section below; its evidence entry is the 2026-08-15
+implementation entry in `result-draft.md` §9. The implementing
+session does not close its own round. No run declares
+`FullContract`, and no verdict slot was filled. The slice stays
+open on `status.md` §5 item 5 (the full-contract run) after this
+packet's review.
+
+Prior state of this file: the residual-items packet below (M1
+residue sweep, Ballot G's M9 race, M11a near-ceiling sweep) closed
+independent review 2026-08-14 (SD-R6 — no findings; closure entry
+in `result-draft.md` §9). Rounds one–five and their findings also
+remain in `result-draft.md` §9. Dated text from those packets is
+preserved below, not rewritten.
+
+## 1. Silences taken
+
+| Silence or boundary | Conservative reading | Next-call consequence |
+|---|---|---|
+| The driver contract does not assign a profile source to hard-coded OAuth scenario endpoints. | OAuth rows use `Known`; only the two explicitly legacy M8/M10 lanes use `Assumed`. | A new hard-coded OAuth row cannot accidentally obtain the more conservative legacy policy. This fixed SD-R5-F1: M2/M6 had silently run under `Assumed`, weakening their claimed binding evidence. |
+| M1's zero-remaining-budget residue does not state how a first GET reaches a permit after boot. | Wait the independently declared 15 s period plus 5 s bucket padding from HEAD completion; never ask production scheduling code for the answer. | A first GET before that boundary fails the residue sweep, and each generated residue/phase branch must reach its assertion. |
+| Public actor traffic cannot reach the C3/C4 trip thresholds while D5 is intact. | Use the established internal `SafetyCounters` fault-injection seam, but finish through the real probe/ordinary feed, latch, drain, and watch-publication methods. | The next response-feed deletion fails a focused test. D5 is not weakened to manufacture an impossible public trace: its cap is at most 4 dispatches/s and 240/minute, plus at most two already-held completions, versus 11/s and 500/minute. |
+| X2's spike-scope structure pin does not prescribe a reflection mechanism. | Collapse probe and ordinary sends into one private actor method, pin the single call site from source, and add a compile-fail example for outside `Actor` access. | A second `Transport::send` path or public actor owner fails structurally; a future production HTTP integration still owes its own pin. |
+| The canonical fixture is finite but §7.4 does not bound parser resources. | Bound input at 2 MiB, 32,768 JSON items, depth 16, and 4 KiB strings — recalibrated by SD-R5-F12 (the original 10,000-item cap sat below the committed 15,804-item VPN fixture), every bound pinned at n/n+1, and the byte cap enforced at the single `bounded_parse` seam (it bounds parser work; `include_str!` embedding is bounded by §4 review, not at runtime). | An oversized or excessively nested next fixture refuses before allocation/recursion can grow without limit, and the supplemental VPN fixture parses (its median is now test-grounded). |
+| §7.4's fixed-dispatch every-phase replay changes hypothetical server feedback without letting the captured client schedule react. | Tom adjudicated this as a frozen-contract expectation error on 2026-08-14. Preserve B3, both fixtures, and the complete 20-band / 1,052-phase counterexample diagnostic; replace the gate with feedback-consistent calibration. | The superseded assertion remains a finding reproduction until the replacement gate is precisely specified and implemented. Closed-loop C1/M-series every-phase safety is unchanged. |
+| M1 says "sweep residue magnitude" but states no upper bound for the generated sweep. | Cap generated residue at 12 — above the burst limit of 10 (so over-limit state headers are exercised) and strictly below the sustained 30 (so the zero-budget wait is always the burst window's 20 s bound). | A future residue ≥ 30 case saturates the sustained window and needs the 120 s bound instead; the sweep's G1 claim is scoped to residues ≤ 12, stated in the registry note. The driver's pinned 0/1/9/10 boundary cases are unchanged. |
+| M11a's "compliant client never trips" names no traffic source that can approach the ceilings: every N23 policy caps the wire far below the D5 floor rate. | Use B7's scriptable-synthetic-policy channel (1,000/10 s + 10,000/60 s) so the 250 ms floor is the binding constraint and the actor reaches its compliant maximum — the closest a correct client can get to layer 1. | The sweep's "never trips" evidence is bound to floor-paced traffic at the compliant maxima (4/s, 240/min, pinned exactly); a floor-*violating* client evading the ceilings remains B13's wire-shape assertion per B10's recorded caveat, not this sweep's claim. |
+| The frozen docs do not specify the exact full-contract scale or what mechanically constitutes a declaration (SD-R8-F1). | Use 4,096 generated cases across all 60,000 phases with dedicated before/on/after boundary cases; require all M1–M13 rows, both provenance profiles, and exclusively verdict-eligible reports in a run-owned declaration that does not consult the registry. | A missing row/profile or one fragment/failing report refuses declaration; only after declaration may the independent registry authority be considered. |
+| Reconciliation says to compare reported server counts with local in-window history, but does not say whether that local window is raw or N13-padded (SD-R8-F3). | Count local entries through each configured padded window. The server observation still supplies the lower bound, and synthesis remains capped by configured limits. | The next `try_reserve` sees retained N13-padded client hits once, not again as synthetic phantoms; no state understates the server, and entries still age out at the configured horizon. |
+| “Client-independent” and “padded-safe” appeared to conflict in G3 (SD-R8-F2). | Tom's dated amendment resolves the silence: independently restate N13 as `hit + period + bucket` over B13 arrivals and scenario policy definitions; never read client state. ε remains 500 ms. | The next eligibility calculation includes the contractual bucket once; the pinned and generated declarations judge client work conservation without penalizing N13's safety margin. |
+
+Existing phase semantics still apply: `phase_ms` is the upcoming
+boundary, and φ=0/1 are the two boundary-distance extremes. Focused
+transition tests use those two phases only; the canonical replay is
+exhaustive over φ=0..59,999 because every configured 5 s/60 s bucket
+divides the 60,000 ms cycle.
+
+The residual sweep exposed no new specification silence. RE-2, RE-6,
+and RE-7 are already specified by G5, N19, and M3 respectively; RE-1
+and RE-9 correct evidence collection/classification without changing
+the recorded §7.4 counterexample. Tom's later adjudication changes the
+gate expectation, not those repairs or their evidence.
+
+The residual-items packet added the two boundary rows above (M1's
+residue bound, M11a's pressure source). M9 needed none: the scenario
+and B12 fully specify the race construction, and the phantom is
+injected 1 ms after the transport hand-off — provably after the
+client committed, still inside the scripted
+reservation-to-receipt window §2 names.
+
+(§7.4 gate packet, 2026-08-15) — silences taken against the
+ratified spec:
+
+| Silence or boundary | Conservative reading | Next-call consequence |
+|---|---|---|
+| Spec §3 gives the interior stride (991 ms) and the sample census (24) but not the exact sampling rule. | Interiors at band.start + k·991 for k ≥ 1, strictly inside the band (φ < end); edges asserted separately; the 98-phase census is itself asserted. | The two narrow bands — (6,966–7,204) and (36,549–37,297) — get no interior point, matching the spec's "two narrow bands" statement; a future re-reading of the rule that changes the sample set fails the census assert instead of drifting silently. |
+| Spec §3 item 3 asserts only violation-free + ≥1 spurious borderline at halo edges, but §1 says pessimism is asserted "at every quantified phase, at every component". | C2 and the 766-component anchor are asserted at halo edges too (measured to hold there; the conservative direction for a calibration pin). | A future model change that understates only inside the halo fails the gate rather than hiding behind the halo's expected C3 witnesses. Flagged as a reading, not spec text — trivially removable if the reviewer reads §3 item 3 as exhaustive. |
+| Precondition 4 says "recounted, not a bare literal" without naming the counting path. | The 43 is summed from the loaded records by the same `saturation_components` helper the diagnostics use; the pin is the assert against 43. | A fixture or loader change that moves the recorded saturation census fails the precondition before any phase replays. |
+| Precondition 6 says "one distinct limit string per policy" — string or parse? | Verbatim header strings (`limits_raw`, added to the loader), compared per policy across all 387 records. | A re-serialized but semantically equal limit header fails the precondition — stricter than parse equality, which is the conservative side for a stability pin. |
+| The spec's active-gate description says "state the debug time when it lands" but sets no bound. | Measured and recorded (0.25 s debug, under 0.1 s release); no bound asserted in code. | None — the numbers live in the §9 entry and this packet; CI cost stays negligible. |
+
+(SD-R8 reopened-range packet, 2026-08-15) — silences taken across
+the F4/F5/F9 repairs:
+
+| Silence or boundary | Conservative reading | Next-call consequence |
+|---|---|---|
+| The contract mandates M8 in both provenance lanes (`m8-both-lanes`) but did not say how a *declaration* proves that (SD-R8-F4). | Key `declare`'s lane checks to the M8 scenario itself — `MissingM8KnownLane` / `MissingM8AssumedLane` — never to whole-set profile presence, which M10's legacy row and any ordinary row satisfy vacuously. | A driver edit that drops M8's Known lane refuses declaration by name; the audit's exact experiment is the pinned negative case. |
+| Tom's F5 amendment requires character-policy evidence but defines no character-specific scenario shape. | Reuse M2's contract semantics against the character endpoints as extra lanes — no new M-row, no new scenario id; queue 12 pinned above the character burst threshold and character-list's sustained limit; policy facts independently declared, never read from config at assert time. | Adding coverage needs no scenario-table change; dropping a lane refuses declaration (`MissingEndpointLane`); shrinking the queue below the pinned thresholds fails the scale test. |
+| The declaration's endpoint requirement stated no proof obligation binding record labels to the wire (SD-R8-F9's root — the F4 repair introduced `ReproductionRecord.endpoint` as run-owned provenance, the same trust shape F4 itself condemned). | Endpoint is a wire-observable mock fact (`Observation.endpoint`); the judge binds `reproduction.endpoint` to **every** observation with exact equality, valid because every phase-swept lane is single-endpoint. | A relabeled or re-routed lane fails `judge` as `ReproductionMismatch` before any declaration; the two real M9 mislabels the binding immediately caught (driver row and focused race fixture, both labeled StashList over a Stash wire) are the demonstration that the seam was live, not theoretical. |
+
+(F11–F20 repair packet, 2026-08-15) — silences taken across the
+repairs:
+
+| Silence or boundary | Conservative reading | Next-call consequence |
+|---|---|---|
+| The F11 disposition names the two character pairs but says "audit the other required lanes for the same pair-shape"; it does not enumerate the full pair set. | Require (M2, StashList) too — the main M2 row is G4's binding measurement and the same relabel class applies — and bind each M8 profile check to its endpoint (Known on Stash, pinned as current driver behavior; Assumed on the legacy route, contract-derived as its only route). Endpoints of other scenarios stay unbound beyond the F5 endpoint loop: no claim's lane structure names them. | Moving M8's OAuth lane or the main M2 row to another policy refuses declaration until the pair table is re-derived deliberately; a relabel of any named saturation lane refuses as `MissingScenarioEndpointLane`. |
+| "Unrepresentable in the driver" (F12) does not name a privacy boundary — a test file has no crate-privacy seam by default. | A nested `mod lane` with private provenance fields is the boundary; the sole construction/spawn/record paths are pinned lexically (X2 pattern, concat!-split needles), not by a Rust parser. | Expressing the split now requires either a second construction path (fails the structural pin by count, before any declaration) or editing `mod lane` itself — the recorded residual trust surface, which no runtime check can see because the M8 profiles are wire-indistinguishable. |
+| F15's sweep says "every sentence"; the record's dated markers also carry the old "verifies … Full" wording, and dated text is never rewritten. | Live claim sentences are corrected in place; one dated §1 marker states how to read the older dated wording. | A reader of the historical markers meets the clarifying marker in the same section before any verdict text. |
+| The declaration-check order after adding the pair requirement is unspecified, but three refusal signatures are already pinned by prior reviews. | Pair check runs last — after eligibility, scenario, M8-lane, and endpoint checks. | The F4/F5 pinned signatures (`MissingM8KnownLane`, `MissingEndpointLane`) are preserved verbatim; only states the old guard accepted reach the new pair refusal. |
+| F19 names the conventions to carry but not where they live in N31. | Transcribed into N31's own body with dated attribution to B3's ratified amendment — no new N-number, staying in the model-choice lane. | The repeated audit's CN5↔N31 comparison reads one entry; the ±1 ms §7.4 edge sensitivity and N13's indifference are stated with it. |
+
+(F21/F22 repair packet, 2026-08-15) — silences and boundaries:
+
+| Silence or boundary | Conservative reading | Next-call consequence |
+|---|---|---|
+| The earlier “unrepresentable” claim never named an enforcement mechanism. | The mechanism is Rust privacy across the library/integration-test crate boundary. `ReproductionRecord`, `RunEvidence`, `RunReport`, and `MockEvidence` fields are private; only read accessors cross the boundary, and only `judge` constructs a report. The lexical lane pin remains a belt, never the claim-bearer. | F21's record overwrite, F22's clone-and-endpoint overwrite, and direct `RunReport` construction fail to compile. A future public field or report constructor makes a compile-fail pin unexpectedly compile and fails doctests. |
+| “Atomic mock carriage” did not state what happens if a request has handed off but has not produced an observation. | `seal_evidence` refuses `PendingObservations` until handoff and observation counts agree, then snapshots observations and state changes under one lock and permanently refuses new traffic or logged state changes. Repeated seals return the same value. | A seal during an arrival delay refuses rather than omitting an in-progress observation; after a successful seal the evidence vectors cannot grow behind the judge's back. |
+| Tom's hybrid decision binds mock facts but intentionally does not pseudo-bind a test's claims about its own scenario. | Bind observations and state changes in mock-only `MockEvidence`. Record `ScenarioAssertion.coverage` and `ScenarioAssertion.passed` as named test-authorship trust surfaces, compensated by each scenario's falsifiability guards and `full_contract_scale_reaches_every_fragment_closure_shape`. | A future packet cannot describe coverage/pass as independently derived or sealed; changing either claim requires re-review of its scenario guard and scale-shape reachability. |
+
+(F23 repair packet, 2026-08-15) — silences and boundaries:
+
+| Silence or boundary | Conservative reading | Next-call consequence |
+|---|---|---|
+| "Only `seal_evidence` can construct" left the enforcement boundary unstated; charge §3-addendum required the in-crate boundary be named or minted (it was minted as SD-R8-F23). | State the mechanism exactly where the claim is carried: private fields bar construction across the library/integration-test crate boundary; the `mock` module's in-crate descendants (today `mock::model`, with a live `#[cfg(test)]` module) live inside the seal. The claim is corrected in all three carrying locations — doc comment, `b13-observation-log` note/`must_assert`, and this confession — rather than defended. | A reader of any carrying location meets the same scoped statement with the compensating controls; no location claims more binding than the compiler performs. |
+| The F23 disposition scopes the claim and names the boundary but does not say how future in-crate drift becomes visible. | Add detection in the established X2/F12 belt pattern: a lexical pin over `src/` text that fails on any `MockEvidence` literal-shaped occurrence beyond the four pinned `mock/mod.rs` sites (declaration, impl header, the compile-fail forgery, `seal_evidence`'s construction). Every carrying location says detection, never binding — per the disposition's "no pseudo-binding". | A future in-crate descendant test forging the literal fails the belt pin in ordinary CI and must re-derive the pin deliberately; editing the pinned file or the pin itself remains the confessed lexical evasion, as with X2/F12. *(Falsified same day by SD-R8-F24: needle-free forgeries were silent to the brace-shape needle; superseded by the F24 addition below.)* |
+
+(F24 repair packet, 2026-08-15) — silences and boundaries:
+
+| Silence or boundary | Conservative reading | Next-call consequence |
+|---|---|---|
+| The F24 disposition offers a choice: wording-only repair, or the optional token-count strengthening. Neither is mandated; the analyst note recommends taking the strengthening with one shape staying named. | Take it: the pin counts bare `MockEvidence` tokens per `src/` file, identifier-boundary matched (`MockEvidenceSealError` never counts), against pinned per-file counts (6 in `mock/mod.rs`, 4 in `conformance.rs`, 2 in `obligations.rs`, 0 elsewhere). Constructing or aliasing the type must write its name, so the review's rename-import and `Self`-in-new-impl shapes are caught at the token they cannot avoid. Claims in every carrying location are scoped to exactly that mechanism — even strengthened, the pin is detection, never a binding. | A future needle-free construction spelling must avoid the type name entirely (an `include!` of a non-`.rs` file, a macro assembling the identifier, or editing the pin itself — all confessed in the pin comment); any ordinary spelling fails the pin in CI naming the file. *(Falsified same day by SD-R8-F25: an ordinary spelling whose source text lies outside the `src/` `.rs` scan set — e.g. a `#[path]` descendant module at the crate root — does not fail the pin, and the include!-family boundary is location, not extension; superseded by the F25 addition below.)* |
+| A lexical pin cannot see every forgery shape: the review's third shape, field mutation on an obtained instance, filters the sealed vectors in place without writing the type name — no token exists under any spelling. | Do not claim it: **field mutation on an obtained instance is named in every carrying location as the remaining undetectable shape**, undetectable by construction, not by pin weakness — it rests solely on the named in-crate trust surface and its compensating control (the verdict path resides entirely across the crate boundary; no in-crate test reaches `judge` or `declare`). | A reader of any carrying location meets the same two-part statement: what the token needle sees (all construction/aliasing spellings) and the one shape it structurally cannot (instance mutation); no location claims more detection than the needle performs. *(Falsified same day by SD-R8-F25: the needle sees construction/aliasing spellings only in scanned files, and the summary locations did claim more detection than it performs; superseded by the F25 addition below.)* |
+
+(F25 repair packet, 2026-08-15) — silences and boundaries:
+
+| Silence or boundary | Conservative reading | Next-call consequence |
+|---|---|---|
+| The F25 disposition (reviewer's recommendation, approved by Tom 2026-08-15 — decision record in `result-draft.md` §9) prescribes wording-only repair with single-sourcing and declines the optional `include!`/`#[path]` vector-pin strengthening: the belt exists to make accidental drift loud, out-of-scan smuggling is deliberate-act territory the named trust surface already concedes, and the spike is not hardening a zero-trust system. | The pin's own comment in `tests/mock_fidelity.rs` becomes the **single normative statement** of the detection class, stated extensionally — bare identifier-boundary tokens of the type name in `.rs` files under `src/`, precisely the files the walk reads — with the evasion families drawn by the scan set's boundary (location and extension, not spelling): out-of-scan source text (the F25 demonstration), macro assembly, editing the pin, token-free instance mutation. The type doc comment, the `b13-observation-log` note, this packet, and `status.md` point to that statement instead of paraphrasing it. | Paraphrase drift was the F24/F25 generator — each fresh restatement of the mechanism was a fresh chance to quantify universally. With one normative statement and pointers elsewhere, there is no paraphrase left to outrun the mechanism; a future edit that reintroduces a shape-class summary anywhere else is the next reviewer's finding by construction. |
+
+
+
+- The public driver submits only through `GateHandle`. Mock
+  observations and watch state feed independent scenario oracles and
+  `conformance::judge`; no oracle calls production scheduling code.
+- F14 is structural now: both M8 lanes call one helper that requires
+  exactly two GETs, the OAuth report repeats the non-verdict guard,
+  and the D5 check uses `conformance::D5_IN_FLIGHT_CAP`.
+- F15 is structural now: HEAD pacing uses `MIN_SEND_SPACING_MS`; M2's
+  G4 minimum is derived from the policy definition, queue depth, D5
+  floor, N13 periods/buckets, and the canonical service delay.
+- F16 fails closed structurally (hardened for SD-R5-F6): the oracle
+  trait returns `Option<u64>` and the judge itself scores a missing
+  eligibility entry as a G3 failure — the fail-closed branch lives in
+  one place, is documented on the trait, and
+  `g3_fails_closed_when_the_oracle_has_no_eligibility_entry` fails if
+  it is lost. The per-implementation `u64::MAX` sentinel is gone.
+- RE-1 makes replay collection structural: every phase and every
+  overflowing window on its initiating reply is accumulated before one
+  set comparison. A two-separated-band mutation completes the 60,000-
+  phase sweep and reports both discrepancies.
+- RE-2 makes the M6 fragment verdict the sole decider for its four wire
+  facts. A deliberately false fact reaches the judge as
+  `G5 failed: ["M6Shrink"]`; no duplicate raw assertion intercepts it.
+- The three residual-item tests follow the same sole-decider pattern:
+  each carries a facts struct with its own falsifiability guard, and
+  the facts reach `conformance::judge` as the scenario assertion.
+  All three consume only public seams — `GateHandle`, the mock
+  controller, and the judge — with independently restated contract
+  arithmetic (D5 floor, N13 padding, N19 recovery bound, B10
+  ceilings); no oracle reads the engine or actor constants.
+- M9's race exposure exercises the public §2 attribution seam for the
+  first time in an integration run: `ExposureAllowance` binds the
+  raced reservation to the phantom `MockStateChange` (cap 1, the
+  in-flight set at injection), the observable instant is
+  independently scripted as the raced response's completion, and the
+  identical evidence without the allowance is asserted to fail G1 —
+  the allowance is load-bearing, not decorative.
+- **No permanent wedge:** dropped dispatched tickets reconcile in a
+  detached task; M5/M6 transition queues eventually drain; M8 sibling
+  callers resume after the sole confirmation; fuse/C4 trips drain all
+  queued callers and latch terminal state.
+- **One send, one entry:** reservation identity remains core-owned;
+  the actor now has one `start_transport` method and exactly one
+  `Transport::send` call site for probe and ordinary requests.
+- **Pessimism direction:** zero-budget residue waits for the full
+  independent window; M5/M6 preserve stale/pre-announcement facts;
+  dropped dispatched work reconciles instead of rolling back.
+- **Single scheduling authority:** all wire sends still originate in
+  actor dispatch after `try_reserve`; timing tests delay transport
+  arrival but never manufacture a second permit source.
+- **Entry-point invariant:** probe tests finish through
+  `finish_probe`; ordinary and organic-429 tests finish through
+  `finish_ordinary`. No test swaps response entry points.
+- **Truthful notifications:** D4 cooldown and both C4 feed paths assert
+  the watch channel's changed state; fuse publication asserts Halted
+  only after the actor mutates its terminal latch.
+
+(§7.4 gate packet, 2026-08-15) — seams this packet touches:
+
+- **Mock model (mock slice's state):** the gate consumes only the
+  public `CounterModel` loader/seeding/judgment path the existing
+  replay tests already own — `seeded_model` is shared by the gate,
+  the band-edge test, and the 43/43 pin, so all §7.4 deciders replay
+  through one seam. No production (Rust-core) scheduling code
+  appears in any oracle; per the ratified spec, feedback-consistency
+  is defined against the *captured C++ client's* semantics, and
+  nothing in the gate reads the Rust core at all.
+- **`bucket_end` conventions:** the gate's band tables are sensitive
+  to the model's half-open-bucket and exclusive-expiry readings,
+  pinned at contract level by Tom's 2026-08-15 B3 amendment; the
+  mutation-2/3 checks demonstrated the gate fails loudly in both
+  convention directions.
+- **Clause registry (registry slice's state):** `s7-4-replay-gate`
+  flipped Partial→Full as the spec's discharge line directs — a
+  deliberate coverage-state diff verified by the obligations suite;
+  two stale `scenarios.md` anchors corrected in the touched clauses
+  (`s7-4-replay-gate`, `b12-scripted-delay`); no new clause, no
+  owner change.
+- **Cross-slice invariants:** this packet adds test code and
+  registry rows only; no engine, actor, or mock *code* changed, so
+  the six AGENTS.md invariants are untouched by construction — in
+  order: (1) no history/episode state is created or held by the
+  gate (wedge-free trivially); (2) reservation identity is never
+  exercised (no reservations exist in a replay); (3) pessimism
+  direction is *asserted*, not mutated — C2 is the gate's own
+  condition; (4) `try_reserve` authority is untouched (the replay
+  drives recorded arrivals, grants nothing); (5) entry-point
+  invariant untouched (no `on_response`/`on_probe_response` calls);
+  (6) notifications untouched (no watch channel in the replay
+  path).
+
+(SD-R8 full-contract packet, 2026-08-15) — seams and invariant walk:
+
+- **Run declaration ↔ registry:** `FullContractRun::declare` checks
+  only the run's reports (all M rows, both profiles, eligibility).
+  It cannot read or mutate `src/obligations.rs`; the registry remains
+  the genuinely independent second authority. In the final attempt,
+  every generated case declares and the separately updated registry
+  has no Partial clause, so the authorities agree without circularity.
+- **Driver ↔ actor ↔ mock ↔ judge:** full-scale M6/M7/M8 stimuli use
+  the same public `GateHandle`, in-process mock observations, and
+  independent conformance oracles as the fragment driver. Queue and
+  burst constants are structurally pinned, including two complete
+  shrunk M6 windows. `try_reserve` remains the only permit source.
+- **Reconciliation ↔ padded history:** the only production-state
+  change is at the existing response reconciler. It counts the
+  client's already-pessimistic history using configured resolutions;
+  the wire-derived reported count is still capped before synthesis.
+  The six invariants hold: (1) no new permanent state — entries age
+  out at the padded horizon; (2) reservation ids and consumption are
+  unchanged; (3) reported counts can add debt but never remove it,
+  while own retained hits are no longer double-counted; (4)
+  `try_reserve` remains sole scheduling authority; (5) ordinary and
+  probe entry-point result types are unchanged and share only the
+  reconciler; (6) eliminating spurious synthesis eliminates a
+  spurious `StateChanged`, while real synthesis still emits it iff
+  state mutates.
+- **G3 contract seam:** only the harness oracle changed after Tom's
+  adjudication. It consumes B13 arrival instants and mock-owned policy
+  definitions, then performs its own `hit + period + bucket`
+  arithmetic. It does not read actor/core state, call production
+  scheduling code, or alter the mock. Client, mock, actor, and gate
+  machinery diffs are zero in the continuation commit.
+
+(SD-R8 reopened-range packet, 2026-08-15) — seams and invariant
+walk for the F4/F5/F9 repairs:
+
+- **Coverage chain is now mock-fact-anchored end to end:** the mock
+  records the endpoint on every observation (unchanged mock code —
+  the field predates this range) → the judge binds each reproduction
+  record to those observations (F9, one added comparison) → the
+  declaration requires every N23 endpoint and both M8 lanes from
+  bound records (F4/F5). No link in the chain reads run-owned prose
+  alone anymore; that was F9's defect.
+- **Character lanes consume only public seams:** `GateHandle`, the
+  mock controller, and `conformance::judge`, with the policy-generic
+  `PolicyDebt` padded-safe oracle and the runtime-derived G4 minimum
+  the main M2 row already used. Each lane pins its independently
+  declared policy name against every wire observation (the vacuity
+  guard against routing toward a looser policy).
+- **Diff scope of the whole range:** conformance judge/declaration,
+  driver tests, harness tests, and the registry. No engine, actor,
+  or mock production code changed, so the six cross-slice invariants
+  are untouched by construction — in order: (1) no new token or
+  entry state exists anywhere in the range; (2) reservation identity
+  is never exercised by declaration machinery; (3) pessimism
+  direction is unchanged (no reconciliation or scheduling change);
+  (4) `try_reserve` remains the sole scheduling authority (the new
+  lanes submit through the same public gate); (5) entry-point
+  invariant untouched (no `on_response`/`on_probe_response`
+  change); (6) notifications untouched (no watch-channel change).
+
+(F11–F20 repair packet, 2026-08-15) — seams and invariant walk:
+
+- **Declaration ↔ driver lanes:** the pair requirement and the
+  endpoint-bound M8 checks read the same judge-bound reproduction
+  records the F9 repair anchored to the wire; scenario identity is the
+  one non-wire fact in the pair, bound through each scenario's
+  sole-decider assertion plus the pair table (the recorded residual
+  trust surface). Check order preserves both previously pinned refusal
+  signatures — the pair check runs last.
+- **`mod lane` ↔ judge:** the lane supplies exactly the label set the
+  judge already binds (seed/phase/endpoint per F9); what the lane adds
+  is the construction binding for the profile, the one field the wire
+  cannot corroborate. `Lane::evidence` reads seed/phase from the wire
+  observations, endpoint and profile from the private fields set at
+  engine construction.
+- **Diff scope of the whole repair range:** conformance declaration
+  machinery, the driver and harness tests, registry citations/notes on
+  two existing clauses, and documents. **No client core, actor, or
+  mock production code changed**, so the six cross-slice invariants
+  are untouched by construction — in order: (1) no token or entry
+  state is created anywhere in the range; (2) reservation identity is
+  never exercised by declaration machinery; (3) pessimism direction is
+  unchanged (no reconciliation or scheduling change); (4)
+  `try_reserve` remains the sole scheduling authority (the refactored
+  lanes submit through the same public gate); (5) the entry-point
+  invariant is untouched (no `on_response`/`on_probe_response`
+  change); (6) notifications are untouched (no watch-channel change).
+- **Document seams:** the ratified §1 O-series block is edited only
+  per the F13/F14 dispositions, with a dated repair marker and Tom's
+  F14 acceptance cited; `scenarios.md` §7.3's cell keeps its struck
+  text; the migration-package charge carries Tom's own F16 amendment
+  with attribution; the ground-truth branch still touches only
+  `network-ground-truth.md`.
+
+(F21/F22 repair packet, 2026-08-15) — seams and invariant walk:
+
+- **Mock → evidence → judge:** only `MockController::seal_evidence`
+  constructs `MockEvidence`. Its private observation/state-change
+  vectors move intact into private `RunEvidence.mock`; the judge sees
+  read-only slices. Integration tests can inspect or clone the complete
+  carriage but cannot filter and reconstruct it.
+- **Lane/conformance → judge → declaration:** `Lane::evidence` remains
+  the sole authority-run construction path. Conformance constructs the
+  private `ReproductionRecord`; `judge` alone constructs private-field
+  `RunReport`; `declare` consumes those sealed reports. Cloning is safe
+  because no writable field or setter crosses the crate boundary.
+- **F12 provenance:** engine profile and record profile still originate
+  in the same private `Lane` value. The source-count pin guards the
+  pre-construction path; crate privacy guards the post-construction
+  value. The former is explicitly only a belt on the latter.
+- **Six invariants:** the repair changes conformance artifacts, the
+  offline mock, tests, and registry notes; it does not change client
+  core or actor behavior. (1) no token/entry state changes; (2)
+  reservation identity is untouched; (3) pessimism and reconciliation
+  are untouched; (4) `try_reserve` remains the sole scheduling
+  authority; (5) response entry points are untouched; (6) client
+  notifications are untouched. Mock sealing is test-harness finality,
+  not a second scheduler or client state.
+
+(F23 repair packet, 2026-08-15) — seams and invariant walk:
+
+- **Prose scope correction plus one read-only test:** the repair edits
+  the `MockEvidence` doc comment, the `b13-observation-log`
+  note/`must_assert`/citations, and this packet, and adds one lexical
+  test that reads `src/` text at run time. No engine, actor, mock,
+  conformance, judge, or declaration code changed — the compile-fail
+  doctests and `seal_evidence`'s runtime semantics are byte-identical
+  — so the six cross-slice invariants are untouched by construction:
+  (1) no token/entry state changes; (2) reservation identity is
+  untouched; (3) pessimism and reconciliation are untouched; (4)
+  `try_reserve` remains the sole scheduling authority; (5) response
+  entry points are untouched; (6) notifications are untouched.
+- **Compensating controls verified against the tree, not asserted:**
+  the two `#[cfg(test)]` modules in `src/` (`mock::model`, `actor`)
+  reference none of `judge`, `declare`, `RunEvidence`, `RunReport`,
+  `ReproductionRecord`, or `MockEvidence`; `conformance` has no
+  descendant module at all; the verdict-eligible report set is
+  produced only by `tests/scenario_driver.rs` across the crate
+  boundary. The belt pin keeps the `MockEvidence` half of that sweep
+  loud in CI *[falsified same day by SD-R8-F24: only the brace-shaped
+  spelling was loud; superseded by the strengthened token pin in the
+  F24 addition below]*; the remainder is this session's recorded grep,
+  repeated by the next reviewer.
+- **Registry seam:** `b13-observation-log` keeps its owner, coverage,
+  and existing citations; the corrected `must_assert` now states only
+  what `sealed_evidence_is_complete_final_and_mock_authentic` itself
+  asserts, and the belt citation is added. Totals are unchanged;
+  obligations reruns 6/6.
+
+(F24 repair packet, 2026-08-15) — seams and invariant walk:
+
+- **One test strengthened plus prose scope corrections:** the repair
+  replaces the belt pin's needle (brace shape → bare token per file,
+  identifier-boundary matched) and re-scopes the claim prose in the
+  pin comment, the type doc comment, the `b13-observation-log`
+  note/`must_assert`, this packet, and `status.md`. No engine, actor,
+  mock, conformance, judge, or declaration code changed — the
+  compile-fail doctests and `seal_evidence`'s runtime semantics are
+  byte-identical — so the six cross-slice invariants are untouched by
+  construction, exactly as in the F23 repair.
+- **The pin/registry seam moved with the rename:** the citation's
+  `test_fn` follows the pin's rename to
+  `f23_f24_mock_evidence_bare_tokens_in_src_are_pinned`; the
+  structural verifier's cited-test-fn-exists check re-verified it
+  (obligations 6/6). The corrected `must_assert` states only what the
+  test asserts: bare tokens appear in `src/` only at the pinned
+  per-file counts.
+- **The pinned counts were derived from the tree, then checked by the
+  pin itself:** deriving them surfaced one site this session's own
+  grep had missed (`seal_evidence`'s return type on the same line as
+  its error type) — the boundary-matched needle saw it and the first
+  pin run failed until the count was corrected to the tree's truth.
+  The count comments in the pin name every site.
+- **Compensating controls re-stated for the F24 range:** the
+  verdict-eligible report set is produced only by
+  `tests/scenario_driver.rs` (defining parenthetical, carried per the
+  F24 review's unminted observation: the reports feeding
+  `run_full_contract_case` → `FullContractRun::declare`;
+  `tests/conformance_harness.rs` also asserts a `verdict_eligible()`
+  report as a positive control, likewise across the crate boundary),
+  and no in-crate test reaches `judge` or `declare`. Both re-derived
+  by the F24 review from the tree and unchanged by this repair.
+
+(F25 repair packet, 2026-08-15) — seams and invariant walk:
+
+- **Prose-only; nothing mechanical moved.** The repair touches three
+  comment/string surfaces (the pin's doc comment in
+  `tests/mock_fidelity.rs`, the type doc comment in `mock/mod.rs`,
+  and `b13-observation-log`'s note and `must_assert`) plus this
+  packet and `status.md`. The needle, the walk, and the pinned
+  per-file counts (6/4/2/0) are byte-identical to `6fc96d80`'s; no
+  engine, actor, mock, conformance, judge, or declaration code
+  changed, so the six cross-slice invariants are untouched by
+  construction, exactly as in the F23 and F24 repairs.
+- **The pin guards its own carrying locations:** the doc-comment and
+  registry edits could not change any file's token count without
+  failing the pin — the edited `mock/mod.rs` prose and the
+  `b13-observation-log` strings still carry exactly the pinned
+  tokens (6 and 2), verified by the green pin on the committed
+  repair.
+- **Registry seam:** `b13-observation-log` keeps its owner, coverage,
+  and citations; only the note's belt sentence (now a pointer to the
+  pin comment) and the `must_assert`'s `.rs`-files qualifier
+  changed; the `must_assert` remains strictly test-faithful.
+  Totals unchanged; obligations reruns 6/6.
+- **The F25 demonstration remains the falsifying evidence and the
+  corrected text predicts it:** `47885eab` (reverted `351bfab6`)
+  constructs the sealed type with the plain name in a `#[path]`
+  descendant module at the crate root; the pin comment's corrected
+  evasion statement ("source text outside the scanned set carries
+  the token invisibly") names exactly that family. No new mutation
+  was owed or run — nothing mechanical changed.
+
+
+
+The registry is the coverage authority. After the final SD-R8 run it
+contains 123 clauses: 109 Full, no Partial, one accepted Untested
+limitation, and 13 Excluded; `OPEN_UNTESTED` is empty and
+`cargo test --locked --test obligations` verifies the structure. The
+seven former fragment-scale clauses cite the declared run directly;
+the accepted parser limitation is explicitly outside the verdict
+prerequisite list.
+
+Historical first attempt: SD-R8 added full-scale reachability and
+declaration machinery but did not change the totals. At pinned φ=0, all M rows executed;
+M1–M5 and M7–M13 (including M8's second profile lane) produced green
+FullContract-labeled reports. M6 produced a non-eligible report:
+G1/G2/G4/G5/G6 green, G3 false twice by 725 ms. Because
+`FullContractRun::declare` refused that report, no completed run
+existed, no one-report subset was verdict evidence, and all seven ids
+remained Partial. The generated 4,096-case phase sweep was blocked by
+the same deterministic contract conflict. Registry verification is
+6/6 with `OPEN_UNTESTED` empty.
+
+Final attempt after F2: the pinned φ=0 report set declared, then the
+4,096-case generated-phase test declared every case in 298.84 s.
+Every M row and both M8 provenance lanes passed G1–G6 as applicable.
+The registry independently promoted exactly
+`m6-g1-post-announcement`, `m6-queue-drains-new-pace`,
+`m7-no-client-violation`, `m8-no-follow-on-violation`,
+`g1-zero-client-violations`, `g2-ceilings-never-tripped`, and
+`g3-over-delay-bounded`; obligations remains 6/6. No Partial clause
+remains.
+
+New or strengthened evidence:
+
+- F14–F16; M1 residues 0/1/9/10 at φ=0/1; M2 burst and sustained
+  stalls with runtime-derived G4; G5 unauthorized-refusal teeth.
+- Probe-429 actor seeding and first-GET confirmation; per-endpoint D4
+  cooldown/re-entry and unaffected-policy flow; D4 watch publication.
+- Organic-429 Retry-After wire capture and honoring; dropped
+  dispatched-ticket reconciliation.
+- M5 stale-window exposure, M6 pre-announcement exposure, and M8
+  concurrent-original serialization at φ=0/1.
+- C3 latch/drain/publication, both C4 response feeds, X1 trip
+  composition, and X2 one-send-path structure.
+- The `start_ordinary` trip branch — the one path holding a popped
+  caller and a granted reservation in neither collection — resolves
+  its caller and rolls its reservation back (SD-R5-F9;
+  mutation-checked for both loss modes).
+- The same `start_ordinary` regression, the missing-G3 fail-closed
+  regression, and the D5 declaration-consistency regression are now
+  registry-cited, so deleting any of the three fails the coverage
+  authority (RE-4).
+- Canonical 383-dispatch replay, 81 ms B12 median, and the 43/43
+  saturation diagnostic.
+- (Residual-items packet, 2026-08-14:) the M1 generated-φ mock-side
+  residue sweep — residue 0..=12 × φ over the 60,000 ms cycle with
+  the three §3 rollover phases pinned, sustained-window residue count
+  as the per-case non-vacuity anchor, zero-budget branch reachability
+  asserted around the coarse advance, green at 4,096 generated
+  cases; the forced M9 race at 14/15 — the mock's burst judgment
+  pins 14 residue + 1 phantom + 1 client = 16 over 15, both race
+  inequalities asserted, M8's recovery asserts carried, exposure
+  attributed through the public seam with a no-allowance G1-failure
+  teeth check; and the M11a near-ceiling sweep — 301 floor-paced
+  dispatches peaking at exactly 4/20 per rolling second and
+  240/1,000 per rolling minute under both bucket profiles, zero
+  trips, G2 armed. Each was mutation-checked (broken residue anchor
+  → G5; weakened zero-budget oracle → 19,875 ms G3 lateness;
+  wrong-policy phantom → organic-429 assertion; shrunk synthetic
+  limit → G5 and G3 together).
+
+- (§7.4 gate packet, 2026-08-15:) the replacement calibration gate —
+  spec-§3 integrity preconditions 1–9 asserted phase-independently
+  (residue-zero migrated from the deleted superseded test); the
+  pinned 28-band HALO table; Φ\* derived arithmetically as the
+  complement of V ∪ HALO with the exact
+  29,601 + 29,347 + 1,052 = 60,000 partition; C1/C2/C3 with the
+  766-component and anti-echo anchors at 18 consistent edges + 24
+  stride interiors; violation-free ≥1-spurious replays at all 56
+  halo edges; and the ignored exhaustive companion re-deriving the
+  full three-way classification and pinning the strict-overstatement
+  envelope at 25..57 of 766 (green release run in §5's matrix).
+
+**What this packet's tests deliberately do not cover:**
+
+- Interior phases beyond the 24 stride samples are the companion's
+  job, and the companion is `#[ignore]` — ordinary CI does not run
+  it; the green release run recorded in §5 is review evidence, not a
+  standing CI guarantee.
+- C3 stays strict per Tom's ratified §6 item 2 decision: phases
+  whose spurious borderline is masked at policy level (73% of edge
+  witnesses) or pad-compatible (54%) are excluded from Φ\* even
+  though their counterfactual schedule may have matched the
+  recording — conservative for a calibration filter, and a real
+  reduction in the anti-strictness half (non-emptiness plus pin
+  discipline is all that remains, spec §1).
+- The `sent_ms` arrival convention is retained with its
+  stated-approximation argument; no sweep-scale alternative-
+  convention measurement exists (spec §4 withdrew that claim), and
+  this packet adds none.
+- The gate is mock calibration against the observed lane — never
+  client-safety evidence; closed-loop every-phase safety stays with
+  C1 and the M-series.
+
+(SD-R8 reopened-range packet, 2026-08-15) — coverage after the
+F4/F5/F9 repairs. **The registry now contains 124 clauses: 110
+Full, no Partial, one accepted Untested limitation, and 13
+Excluded** — this corrects the stale 123/109 totals above, which
+described the pre-audit close (SD-R8-F10). The addition is
+`m2-character-policy-lanes` (owner M2), citing the lane driver and
+the declaration's negative test. New or strengthened evidence:
+
+- The M8-keyed declaration lanes (F4): negative declare test pins
+  the audit's exact missing-Known-lane state; `m8-both-lanes` now
+  cites the guard as well as the driver's happy path.
+- The character-policy lanes (F5): the M2 saturation shape against
+  both character endpoints at both coverage levels and both φ,
+  G1–G4 armed, hand-derived G4 fingerprints (720,581 ms
+  character-list crossing two full sustained waves; 30,581 ms
+  character crossing two burst windows) matched by the runtime
+  arithmetic; every N23 endpoint required by `declare`
+  (`MissingEndpointLane`).
+- The endpoint binding (F9): `ReproductionMismatch` on any
+  label/wire disagreement, pinned in the structural seam test and
+  demonstrated end-to-end by the review's own mutation, now
+  refused.
+
+**What the character lanes deliberately do not cover:** they reuse
+M2's saturation semantics only — no 429/recovery, phantom,
+rename/shrink, or cancellation stimuli run against the character
+policies (those behaviors are policy-generic and evidenced on the
+other policies); the claim the lanes earn is the four-policy scope
+of G1–G4 saturation conduct, not a per-policy repeat of the whole
+M-series. The endpoint binding is exact single-endpoint equality; a
+future phase-swept lane that legitimately spans endpoints will need
+a deliberate relaxation (the judge comment states this). The
+registry's `must_assert` semantic accuracy remains reviewed prose —
+that standing confession is unchanged by this range.
+
+Every ordinary scenario-driver and focused transition report remains
+`ContractCoverage::Fragment` and explicitly fails
+`verdict_eligible()`. Only the dedicated SD-R8 pinned/generated
+producer labels reports FullContract, and its run-owned constructor
+guards the declaration. Two-phase fragment tests remain boundary
+checks, not an exhaustive property claim. Public actor tests cannot
+make fuse thresholds reachable under intact D5; the internal trip
+tests are deliberate fault-injection composition evidence.
+
+Exact remaining ballot/closure items (items 1–3 of the round-five
+residual set were discharged by the residual-items packet; item 1
+below is discharged by the §7.4 gate packet, pending its review):
+
+1. ~~The feedback-consistent §7.4 replacement calibration gate;
+   retain the exhaustive fixed-trace counterexample as a
+   diagnostic.~~ — **implemented 2026-08-15** (this packet; the
+   band-edge test and enumeration are retained unchanged).
+2. ~~A declared full-contract run for the seven fragment-scale
+   clauses~~ — **green after Tom's SD-R8-F2 adjudication; awaiting
+   independent review**:
+   `m6-g1-post-announcement`, `m6-queue-drains-new-pace`,
+   `m7-no-client-violation`, `m8-no-follow-on-violation`,
+   `g1-zero-client-violations`, `g2-ceilings-never-tripped`, and
+   `g3-over-delay-bounded`.
+
+The canonical replay is not green. The violating set is **1,052
+phases in 20 disjoint bands** (φ=7,454–7,466 through 25,854–25,944;
+initiating replies 110–119 and 125–134), every band initiating on
+`stash-request-limit`'s sustained 30/300 s window at 31/30 —
+SD-R5-F2's amendment of CR-R1-F1, whose "exactly φ=7,454..7,466" came
+from the asserting gate's first-failure abort. The full band table is
+`VIOLATING_BANDS` in `tests/capture_replay.rs`, pinned by the active
+band-edge test and the ignored exhaustive enumeration. Band-one
+arithmetic is unchanged: at φ=7,454, 25 hits from
+367,466..385,944 ms round to bucket end 427,454 and remain active
+until 727,454; six new hits reach 31 one millisecond earlier; at that
+reply the server recorded `6:300:0`. The production `CounterModel`
+and independent arithmetic agree. The phase-0 diagnostic still
+matches all 43 recorded saturation components, including 15/15 and
+30/30. The trace replays cleanly at 98.25% of phases and the mismatch
+is confined to one rule shape, but it is a systematic
+model-vs-recorded-server disagreement, not a narrow single-band
+coincidence.
+
+*[Marker, 2026-08-15 (§7.4 gate packet): "not green" above describes
+the superseded open-loop every-phase expectation, adjudicated an
+error 2026-08-14 and whose test the adopted spec's §4 deleted. Under
+the ratified replacement gate the calibration IS green: the 1,052
+violating phases and the 29,347-phase borderline halo are the pinned
+refuted sets, and the gate holds on the 29,601-phase derived
+consistent set. Dated text preserved, not rewritten.]*
+
+(F11–F20 repair packet, 2026-08-15) — coverage after the repairs. The
+registry still contains **124 clauses: 110 Full, no Partial, one
+accepted Untested limitation, and 13 Excluded** — totals unchanged; no
+new clause was minted. F11/F12 are carried as added citations and
+honest notes on the existing `m2-character-policy-lanes` and
+`m8-both-lanes` clauses. New evidence: the two declaration bypass pins
+(each asserting the pre-F11 acceptance condition still holds before
+refusing, so neither can go vacuous), the M8 endpoint-binding pin, and
+the F12 structural source pin.
+
+**What this packet's tests deliberately do not cover:**
+
+- The pair table names only the three M2 saturation lanes; the M8
+  pairs live in the endpoint-bound profile checks. Every other
+  scenario's endpoint is unbound beyond the F5 endpoint loop — their
+  identities are not part of any verdict's lane structure, and binding
+  them would pin incidental driver choices as contract.
+- Scenario identity remains driver-owned (the registry note): a driver
+  edit that relabels a lane *and* swaps its typed assertion is refused
+  only where a required pair names that lane. The wire cannot carry
+  scenario identity; this is recorded, not solved.
+- The F12 binding is a construction guarantee plus a lexical pin, not
+  a parser: editing `mod lane` itself forges undetectably at runtime
+  (the M8 profiles are wire-indistinguishable), and a renamed needle
+  requires re-deriving the pin deliberately.
+- The corrected carriage sentences (F13–F18) are prose; nothing
+  machine-checks that the topic keeps matching the record. The
+  repeated final audit's sentence-by-sentence re-derivation is the
+  covering control.
+- The registry's `must_assert` semantic accuracy remains reviewed
+  prose — the standing confession, now stated accurately everywhere
+  per F15 rather than overstated.
+
+(F21/F22 repair packet, 2026-08-15) — coverage confession:
+
+- Registry totals remain **124 clauses: 110 Full, no Partial, one
+  accepted Untested limitation, and 13 Excluded**. No clause was
+  minted. `m8-both-lanes`, `m2-character-policy-lanes`,
+  `g5-scenario-assertions`, and `b13-observation-log` received only
+  citation/note corrections on obligations they already own.
+- Bound by crate privacy: reproduction fields from construction
+  through declaration; judge-produced report fields; and the complete
+  mock observation/state-change carriage. Exact F21/F22 and direct
+  report-construction compile-fail doctests are enforcement pins, not
+  lexical or judge-time substitutes.
+- **Named trust surfaces:** `ScenarioAssertion.coverage` and
+  `ScenarioAssertion.passed` remain authored by the scenario test.
+  RE-2 deliberately prevents the judge from re-deriving those claims.
+  The owning `g5-scenario-assertions` note cites the per-scenario
+  falsifiability guards and
+  `full_contract_scale_reaches_every_fragment_closure_shape` as
+  compensating controls; they expose contradictory or unreachable
+  claims but do not make test authorship unforgeable.
+- Scenario identity remains a separate named driver-owned surface as
+  previously confessed: the wire does not carry an M-row id. Required
+  pairs and typed sole-decider assertions check the claims that depend
+  on it; other scenario/endpoint choices are not silently promoted to
+  wire facts.
+- Negative conformance fixtures intentionally construct pre-judge
+  synthetic reproduction/assertion claims to exercise refusal paths.
+  They now obtain observations and state changes only from an actual
+  sealed mock and can no longer fabricate a post-judge report. Only the
+  dedicated driver produces verdict-authority report sets.
+
+(F23 repair packet, 2026-08-15) — coverage confession:
+
+- **Named boundary (SD-R8-F23), beside the existing surfaces:**
+  in-crate descendants of `mock` live inside the evidence seal. Rust
+  privacy bars `MockEvidence` construction only across the
+  library/integration-test crate boundary, where the verdict-bearing
+  driver runs; `mock::model` — a descendant with a live `#[cfg(test)]`
+  module — could write a forged struct literal directly. Compensating
+  controls: the verdict path resides entirely across the crate
+  boundary (no in-crate test reaches `judge` or `declare`, and the
+  conformance types have no in-crate descendant module at all), and
+  the lexical belt pin fails on any `MockEvidence` literal-shaped
+  text in `src/` beyond the four pinned `mock/mod.rs` sites. The belt
+  is detection, not a binding: like the X2/F12 pins it is lexical,
+  and editing the pinned file or the pin itself evades it.
+- The previously named surfaces are unchanged: assertion
+  coverage/passed (test authorship; compensated by the falsifiability
+  guards and the scale-shape test), scenario identity (driver-owned),
+  the profile choice inside `mod lane`, and the registry's
+  reviewed-prose `must_assert` accuracy.
+- Registry totals remain **124 clauses: 110 Full, no Partial, one
+  accepted Untested limitation, and 13 Excluded**; no clause was
+  minted; only `b13-observation-log` changed (scoped note, corrected
+  `must_assert`, belt citation).
+
+(F24 repair packet, 2026-08-15) — coverage confession:
+
+- **The belt pin's scope, stated exactly (SD-R8-F24):** the pin
+  detects bare `MockEvidence` tokens in `src/` beyond the pinned
+  per-file counts — every construction or aliasing spelling must
+  write the type name, so the F24 rename-import and
+  `Self`-in-new-inherent-impl shapes now fail it loud. It detects
+  nothing else. **Field mutation on an obtained instance is the
+  remaining undetectable shape**: a descendant `#[cfg(test)]` module
+  can filter the sealed vectors in place without writing any token,
+  under any spelling, so no lexical pin can see it. That shape is
+  covered only by the named in-crate trust surface and its
+  compensating control (the verdict path resides entirely across the
+  crate boundary; no in-crate test reaches `judge` or `declare`).
+  The pin's other confessed evasions: an `include!` of a non-`.rs`
+  file, a macro that assembles the identifier, and editing the pin
+  itself. Strengthened or not, the belt is detection, never a
+  binding, and is nowhere the claim-bearer. *[Falsified in part same
+  day by SD-R8-F25: the needle sees a construction or aliasing
+  spelling only when its token lands in a `.rs` file under `src/`,
+  the "remaining undetectable shape" is not singular, and the
+  confessed evasion family's boundary is location, not extension;
+  superseded by the F25 addition below.]*
+- The named in-crate boundary itself (SD-R8-F23) and every other
+  previously named surface are unchanged by this repair.
+- Registry totals remain **124 clauses: 110 Full, no Partial, one
+  accepted Untested limitation, and 13 Excluded**; no clause was
+  minted; only `b13-observation-log` changed again (F24-scoped note,
+  test-faithful `must_assert`, renamed belt citation).
+
+(F25 repair packet, 2026-08-15) — coverage confession:
+
+- **The belt pin's scope now lives in one place.** The pin's own
+  comment in `tests/mock_fidelity.rs` is the single normative
+  statement of the detection class and its confessed evasions
+  (SD-R8-F25 single-sourcing); this confession, the type doc
+  comment, the `b13-observation-log` note, and `status.md` point
+  there rather than restating it. In pointer form: the pin detects
+  bare identifier-boundary tokens of the type name in `.rs` files
+  under `src/` against pinned per-file counts, and nothing else;
+  everything the walk cannot see — out-of-scan source text, macro
+  assembly, an edited pin, token-free instance mutation — rests on
+  the named in-crate trust surface and its compensating control
+  (the verdict path resides entirely across the crate boundary; no
+  in-crate test reaches `judge` or `declare`).
+- **The declined strengthening is a Tom decision, not an omission:**
+  the `include!`/`#[path]` vector pin was weighed and declined
+  2026-08-15 (record in `result-draft.md` §9) — the belt's job is
+  accidental-drift detection, and the shapes the vector pin would
+  catch are deliberate evasions the trust surface already concedes.
+- The named in-crate boundary itself (SD-R8-F23) and every other
+  previously named surface are unchanged by this repair.
+- Registry totals remain **124 clauses: 110 Full, no Partial, one
+  accepted Untested limitation, and 13 Excluded**; no clause was
+  minted; only `b13-observation-log` changed again (pointer-form
+  note, `.rs`-files qualifier in the `must_assert`).
+
+
+
+- The canonical wired median (81 ms across 383 samples) replaces the
+  50 ms placeholder. The supplemental VPN median remains 148 ms; it
+  is evidence of condition sensitivity, not the default.
+- The M2 minimum includes the 81 ms service delay because the runtime
+  bound measures caller-observed completion, not transport handoff.
+- M5/M6/M8 timing tests are separate focused integration targets so
+  their forced interleavings remain legible; they strengthen clause
+  evidence without pretending to be full-contract scenario runs.
+- The actual C3/C4 feed methods are load-bearing even though the
+  pre-threshold counter state is injected internally. This preserves
+  the safety contract instead of weakening D5 for test reachability.
+- The superseded ignored every-phase assertion is retained temporarily
+  as a reproduction of the adjudicated expectation error. The active
+  exact-boundary test and exhaustive enumeration keep the counterexample
+  from disappearing while the replacement calibration gate is designed.
+- The OAuth/Assumed profile correction is recorded as SD-R5-F1
+  because it was an evidence-validity defect found during integration,
+  not a silent cleanup.
+- (Repair session, 2026-08-14:) the focused M5/M6/M8 transition lanes
+  now run under the Known profile too (SD-R5-F4) — every asserted
+  bound is profile-invariant because the shared 60 s sustained
+  resolution governs each one, verified by rerun. The remaining
+  Assumed-engined focused targets (`actor_safety`, `actor_shell`) are
+  deliberately unchanged under Tom's 2026-08-14 profile-lane
+  ratification: their bounds are profile-invariant, and generic focused
+  tests may retain the shipped default only on that condition.
+- (Repair session, 2026-08-14:) the supplemental VPN median (148 ms)
+  is now test-grounded rather than prose-only, which is also what
+  exposed the parser item-cap miscalibration (SD-R5-F12).
+- (Residual sweep, 2026-08-14:) `m1-g1-sweep` is Partial. C1's
+  generated-φ property is the core-side mirror and never judges a
+  mock-side boot-residue run; the exact delta is a generated-φ
+  mock-side residue sweep. This is conservative evidence accounting,
+  not a contract or verdict change (RE-9).
+- (Residual-items packet, 2026-08-14:) that delta is now discharged
+  and `m1-g1-sweep` is Full; C1's citation is retained as supporting
+  mirror evidence only. Packet-specific judgment calls:
+  - The M1 sweep crosses the 20 s zero-budget wait with 500 ms
+    coarse steps bracketed by observation-count asserts (no dispatch
+    can occur inside the coarse region, proven per case), keeping
+    the 4,096-case run under one second without loosening G3's
+    25 ms fine-step floor where lateness is actually measured.
+  - The M9 phantom is injected 1 ms after the transport hand-off
+    rather than between reservation and hand-off: it is then
+    provably unobservable to the committed send, while still inside
+    §2's reservation-to-receipt window; the exposure cap is 1, the
+    in-flight set at injection time.
+  - M11a pins its peaks *exactly* (4 and 240) rather than as upper
+    bounds, so both a slower client (lost reachability) and a
+    floor-violating one (excess pressure) fail the fact; the 5×
+    ceiling-headroom ordering is a compile-time assertion. The
+    sweep runs under both bucket profiles instead of arguing
+    profile invariance for a generic synthetic policy.
+- (§7.4 gate packet, 2026-08-15:)
+  - **The weaken-mutation deviation, flagged for the reviewer.** The
+    spec's §3 predicts "expire hits one bucket early → C2
+    understatement failure at a consistent phase". Measured: under
+    that exact weakening (dropping `bucket_end`'s +1 bucket) *zero*
+    C2 understatements occur at any of the 60,000 phases — the
+    weakened model collapses toward a recording echo, so the
+    mutation is killed by the **anti-echo anchor at φ=0** and, in
+    the companion, by 30,399 misclassified phases. The gate kills
+    the mutation; the spec's predicted signature does not occur on
+    this fixture. Recorded rather than reordering asserts to force
+    the predicted arm; the deviation is also in the §9 entry. A
+    different reasonable session might have called this a spec
+    erratum needing Tom — this one treats it as a measurement the
+    review round adjudicates, since the mutation's *kill* (the
+    contractual point) is intact.
+  - Asserting C2 and the 766-component anchor at halo edges (spec
+    §3 item 3 names only violation-free + ≥1 spurious) — the §1
+    "every quantified phase" reading; trivially removable if the
+    reviewer reads item 3 as exhaustive.
+  - Interior sampling rule and verbatim `limits_raw` comparison as
+    stated in §1's silence rows.
+  - The corrupt-state mutation (spec: "corrupt one recorded state in
+    memory after load") was instantiated as `records[50].states[1]
+    += 1` — a mid-trace sustained-window bump chosen to land in the
+    C2 arm rather than trivially in a precondition; the spec allows
+    either ("precondition or C2/C3 failure").
+  - Precondition 9 (layer-1) replays arrivals once through a φ=0
+    model: `record_layer1_arrival` never reads φ, so one pass is the
+    phase-independent assertion the spec asks for, and the per-phase
+    replays keep their existing inline layer-1 assert as
+    defense-in-depth.
+  - `GATE_SAMPLED_PHASES = 98` is asserted even though it is
+    derivable, so a future table or stride change that silently
+    shrinks the sample set fails the census rather than passing
+    thinner.
+
+(SD-R8 full-contract packet, 2026-08-15):
+
+- 4,096 cases is the conservative existing property-test scale; the
+  phase strategy spans the full 60,000 ms common cycle and explicitly
+  weights before/on/after 5 s and 60 s boundaries. The run producer,
+  not `FullContractRun`, owns this reachability claim so the declaration
+  cannot manufacture scale from a small report set.
+- M6/M7/M8 use 12/12/12 queued follow-on requests, with M7's eight-hit
+  phantom burst. These are the smallest round-number shapes chosen
+  above the relevant one-window thresholds; runtime assertions make
+  loss of the intended scale fail.
+- Reconciliation reads “local in-window” in client terms: its window
+  includes configured N13 padding. Using raw server periods there made
+  the client re-synthesize its own retained entries and broke both
+  performance and truthfulness.
+- After Tom's adjudication, the G3 oracle changed and ε did not. The
+  implementation is deliberately smaller than the decision surface:
+  replace phase-dependent raw `bucket_end + period` with independently
+  derived `hit + period + bucket`; preserve every client, mock, actor,
+  and judge mechanism.
+- The full generated run remains `#[ignore]` because its 298.84 s cost
+  is review evidence, not ordinary CI cost. The pinned declaration is
+  active in the normal suite so a regression cannot silently restore
+  the old blocker.
+- **Proposed result statement for Tom/reviewer:** “The Rust actor/core
+  demonstrably honors the modeled N-claims as one serialized gate in
+  the offline calibrated harness for all four OAuth policies under
+  Known 5 s/60 s bucket resolutions. It does so conditionally for
+  `backend-item-request-limit`, assuming 60 s/60 s is no smaller than
+  the server's actual bucket resolution. The conclusion carries U1–U5
+  and the accepted future-parser limitation; it is not live-service
+  validation.”
+
+(SD-R8 reopened-range packet, 2026-08-15) — judgment calls:
+
+- **Strict every-observation endpoint equality, not at-least-one.**
+  Every current phase-swept lane is single-endpoint, so exact
+  binding is available and conservative — and it immediately caught
+  two real mislabels (the driver M9 row and the focused M9 race
+  fixture, both StashList labels over Stash wires), which
+  at-least-one semantics would also have caught here but exactness
+  leaves no room for a mixed-wire lane to smuggle one labeled
+  observation. The cost is explicit: a future legitimately
+  multi-endpoint phase-swept lane must relax the check
+  deliberately.
+- **`MissingEndpointLane` requires every `Endpoint::ALL` member**,
+  not only the two character endpoints: the verdict claims the
+  whole N23 topology, and a guard that lists only the two newest
+  lanes would re-create the F4 shape for the older ones.
+- **Lane queue depth 12 at both coverage levels** (unlike the M8
+  OAuth lane's fragment count of 1): the lanes arm G4, whose 1.05×
+  bound at a one-request span would be fragile against the fixed
+  service delay; uniform depth keeps fragment lanes meaningful and
+  identical to full-contract up to the coverage flag, mirroring the
+  main M2 row.
+- **The G4 fingerprints were hand-derived before first run**
+  (720,581 / 30,581 ms) and pinned as literals; they matched the
+  runtime-derived minimum exactly, which is independent evidence
+  the greedy arithmetic and the lane construction agree.
+- **The M9 row correction is part of the F9 repair, not a separate
+  finding**: the row label was wrong before the binding existed,
+  harmless to coverage (StashList presence was over-supplied) but
+  exactly the class of unbound label F9 condemns; it is fixed with
+  a comment at the row.
+
+(F11–F20 repair packet, 2026-08-15) — judgment calls:
+
+- **(M2, StashList) is in the pair table although the charge named
+  only the character pairs.** The "audit the other required lanes"
+  instruction was read as: any lane a claim's structure requires gets
+  the pair shape. The main M2 row is G4's binding measurement; leaving
+  it endpoint-only would preserve the F11 class for the stash-list
+  policy. A different session might have pinned only the two named
+  pairs.
+- **M8's pair shape was implemented by binding the existing
+  `MissingM8KnownLane`/`MissingM8AssumedLane` checks to endpoints
+  rather than adding M8 rows to the pair table.** This keeps the
+  pinned F4 signature meaning "the required Known lane (Stash) is
+  missing" — broadened conservatively to include a wrong-endpoint
+  Known lane — instead of introducing a second refusal for an
+  overlapping condition that could never fire.
+- **No new registry clause was minted.** The F11/F12 guards defend
+  existing obligations (`m2-character-policy-lanes`, `m8-both-lanes`),
+  so they land as citations and notes; minting would have changed the
+  totals without a new obligation existing.
+- **The F12 mutation is recorded in two forms** because the audit's
+  exact edit is no longer expressible: the faithful end-to-end replay
+  (a second Assumed engine behind Known-claimed provenance) fails the
+  structural pin before any declaration, and the closest in-lane edit
+  (flipping `Lane::start`'s profile) flips both facts together and
+  refuses `MissingM8KnownLane`. Recording only one would either
+  understate the unrepresentability or hide that the flip case is
+  refused by the F4 guard, not by F12's machinery.
+- **F17's private-correspondence labeling extends the External lane's
+  definition instead of inventing a new lane.** The charter's lane
+  vocabulary is measured/estimated/inferred/external; N12/N14 are
+  external facts without URLs, so the topic states that explicitly at
+  the lane definition and cites the carrying N-entries at point of
+  use. A different session might have minted a "private" lane; that
+  seemed like vocabulary invention beyond the charter.
+
+(F21/F22 repair packet, 2026-08-15) — judgment calls:
+
+- **Keep `Clone`; remove mutability.** A cloned sealed value carries the
+  same facts. Removing `Clone` would complicate declaration tests while
+  failing to name the actual defect; private fields and no setters make
+  clone-then-modify impossible.
+- **Return a seal error for incomplete observation carriage.** Waiting
+  inside the mock would need new coordination and panicking would hide a
+  harness ordering defect. `PendingObservations { handoffs,
+  observations }` makes incompleteness explicit before sealing.
+- **Reuse `SweepConfiguration` at the conformance seam.** Seed, phase,
+  and profile already form the declared sweep key; carrying them
+  together keeps the private record constructor small without exposing
+  record fields or adding a public record constructor.
+- **Do not pseudo-bind assertion coverage/pass.** Tom selected the
+  honest trust-surface record because the test is the source of those
+  scenario facts. A second in-process derivation would be another
+  test-authored label and would overstate protection against test
+  rewrites.
+- **Rebuild negative fixtures before judging.** The F5/F9/F11/F12
+  refusal cases now use real sealed mock inputs and judge-produced
+  reports; none mutates a report after judging. This preserves the
+  recorded runtime signatures while making the former forge technique
+  unavailable.
+
+(F23 repair packet, 2026-08-15) — judgment calls:
+
+- **A belt pin rather than prose alone.** The disposition owes no code
+  binding (none is possible against a module's own descendants) and a
+  different session might have landed only the wording repairs. The
+  established X2/F12 belt pattern makes silent drift loud at
+  near-zero cost *[falsified same day by SD-R8-F24: only brace-shaped
+  drift was loud; see the F24 additions]*; every carrying location
+  says "detection, not a binding" so the record cannot be read as the
+  pseudo-binding the disposition forbids.
+- **Pin all four literal-shaped sites, not construction sites only.**
+  The needle also matches the type's declaration and impl header;
+  pinning exact per-file counts (4 in `mock/mod.rs`, 0 elsewhere in
+  `src/`) is simpler and stricter than distinguishing construction
+  lexically, at the cost that a legitimate new occurrence of the
+  literal shape requires re-deriving the pin — stated in the pin's
+  own comment.
+- **The corrected `must_assert` shrank to the cited test's own
+  assertions.** "Mock-only evidence construction" was the record's
+  claim, not the integration test's; the construction-scope statement
+  moved to the clause note at its correct scope. A different session
+  might have kept a scoped construction phrase in the `must_assert`;
+  this one kept the registry's test-facing field strictly
+  test-faithful.
+- **The belt demonstrates F23's fact in-tree as its non-vacuity
+  check.** The post-commit mutation forges the literal inside
+  `mock::model`'s `#[cfg(test)]` module: the forgery compiles and
+  runs (the descendant visibility the finding claims), and the belt
+  pin fails naming `model.rs` — then both are reverted. Recording the
+  demonstration keeps the pin from being a green test nobody has seen
+  fail.
+
+(F24 repair packet, 2026-08-15) — judgment calls:
+
+- **Took the optional strengthening rather than wording-only.** The
+  disposition left it to this session's judgment; the analyst note's
+  token analysis shows the bare-token needle catches two of the
+  review's three needle-free shapes at the token they cannot avoid
+  writing, at no new claim risk once the third is named as
+  undetectable *[the risk materialized same day as SD-R8-F25: the
+  strengthened claims still outran the scan scope — see the F25
+  additions]*. A wording-only repair would have left the rename
+  import silent for the cost of one sentence; the stronger needle
+  plus modest wording is strictly more honest per claim-word.
+- **Identifier-boundary matching instead of raw substring count.**
+  A raw count of the type name would also count every
+  `MockEvidenceSealError` occurrence, coupling the pin to an
+  unrelated type's usage; boundary matching pins exactly the
+  claim-relevant token. The cost is a dozen lines of matching logic
+  in the pin — still lexical, still not a parser, stated in its
+  comment.
+- **Renamed the pin (`f23_f24_…_bare_tokens_…`) rather than keeping
+  the literal-sites name.** The old name described the brace-shape
+  mechanism; a test whose name says "literal sites" while it counts
+  tokens would be a small new instance of the claims-outrun-mechanism
+  class. The registry citation moved with it; the structural verifier
+  checks the cited fn exists.
+- **Reproduced the reviewer's forgery byte-for-byte
+  (cherry-pick of `14d4be27`) rather than writing a fresh one.** The
+  claim under repair is "that exact forgery is now loud"; a fresh
+  variant would demonstrate a weaker claim. The probe's own comment
+  tokens contribute to the failure count (left: 3), and the import
+  token alone would fail the pin regardless.
+- **The F23 dated additions above carry falsification markers instead
+  of edits.** The incomplete evasion confession is history; the
+  marker points here, per the record's dated-marker pattern, so no
+  dated block silently changes meaning after the fact.
+
+(F25 repair packet, 2026-08-15) — judgment calls:
+
+- **Declined the optional vector-pin strengthening — with Tom's
+  approval, not this session's judgment alone.** The F25 review's
+  disposition offered pinning `include!`/`#[path` tokens at zero to
+  make the demonstrated smuggling shape loud. Declined per the
+  reviewer's own recommendation, approved by Tom (decision record in
+  `result-draft.md` §9): the belt's purpose is making *accidental*
+  drift loud, nobody accidentally writes `#[path]` smuggling, the
+  shapes the vector pin would catch are deliberate evasions already
+  conceded to the named trust surface, and every prior strengthening
+  minted the next generation. A different session might have taken
+  it; this one judged its detection value near zero for the belt's
+  actual job and its claim-surface cost real.
+- **Single-sourcing over better paraphrasing.** The F24 and F25
+  findings were both minted against wording repairs — paraphrase
+  drift across five carrying locations was the generator. A repair
+  that wrote five better paraphrases would leave five surfaces for
+  an F26; one normative statement plus pointers leaves none. The
+  cost: readers of the doc comment or registry note must follow the
+  pointer for the full scope. Judged worth it after two consecutive
+  generations.
+- **No new mutation for a prose-only repair.** The F23/F24 repairs
+  demonstrated their mechanism changes by mutation; this repair
+  changes no mechanism (needle, walk, and counts byte-identical),
+  and the F25 demonstration (`47885eab`, in history) is already the
+  experiment the corrected text must and does predict. Running a
+  fresh mutation would demonstrate nothing new.
+
+## 5. Verification presented with this packet
+
+Residual-items matrix, entirely offline: `cargo test --locked` — 166
+passed / 0 failed / 2 ignored; `cargo test --locked --release` —
+164 / 0 / 2 (the two debug-only drop-bomb tests are absent);
+`PROPTEST_CASES=4096 cargo test --locked` — 166 / 0 / 2 (37.6 s
+total; the new M1 sweep contributes under one second at 4,096
+generated cases); all-target clippy with warnings denied, fmt check,
+`git diff --check`, obligations 6/6, and the Python sanitizer suite
+4/4 clean. Mutation checks run and reverted for this packet: a broken
+M1 residue anchor reached the judge as `G5 failed: ["M1BootSequence"]`;
+a weakened M1 zero-budget oracle entry reached G3 as 19,875 ms
+measured lateness (real slack 19 ms against ε=500 ms); an M9 phantom
+injected on the wrong policy failed the organic-429 assertion; a
+shrunk M11a synthetic burst limit failed on both axes (G5 peak loss
+and G3 unmodeled policy waits).
+
+The two ignored replay tests are reported separately, unchanged by
+this packet: the collect-first exhaustive band enumeration passed all
+60,000 phases in 6.78 s, while the superseded open-loop assertion
+reproduced the adjudicated finding at φ=7,454, reply 110, sustained
+31/30 with restriction 301 s. No command in this slice contacts a
+live service; no report declares `FullContract`, and no verdict slot
+was filled.
+
+(§7.4 gate packet, 2026-08-15) — verification matrix, entirely
+offline: `cargo test --locked` — 167 passed / 0 failed / 2 ignored;
+`cargo test --locked --release` — 165 / 0 / 2 (the two debug-only
+drop-bomb tests are absent); `PROPTEST_CASES=4096 cargo test
+--locked` — 167 / 0 / 2; **both ignored replay tests green in
+release** — the exhaustive band enumeration and the new exhaustive
+classification companion (7.61 s alone; 7.7 s together), the
+companion being the spec-mandated review evidence and the
+re-derivation of every §5 number (tables, partition, 25..57
+envelope); active gate 0.25 s debug / under 0.1 s release with its
+98-phase census asserted; all-target clippy with warnings denied,
+fmt check, `git diff --check`, obligations suite, and the Python
+sanitizer suite 4/4 — all clean. Mutation checks run and reverted
+(signatures verbatim in the 2026-08-15 §9 implementation entry):
+HALO edge −1 → "the HALO table drifted" 29,348 ≠ 29,347; V edge −1 →
+refuted-table overlap at φ=7,453; V edge +1 (inward) → V width sum
+1,051 ≠ 1,052; weakened model → anti-echo anchor at φ=0 (the
+recorded deviation above); strengthened model → C1 violation at
+φ=0, reply 24, `stash-request-limit` burst 16/15; corrupted
+recorded state → C2 at φ=0, reply 46, `character-request-limit`
+sustained, model 13 vs recorded 14; echo mutation → anti-echo
+anchor at φ=0. The superseded open-loop test is deleted by this
+packet (spec §4; residue-zero assert migrated into the gate's
+preconditions), so its finding-reproduction line above is now
+historical. No command in this packet contacts a live service; no
+report declares `FullContract`; no verdict slot was filled.
+
+(SD-R8 full-contract packet, 2026-08-15) — final matrix, entirely
+offline: `cargo test --locked` — 170 passed / 0 failed / 4 ignored;
+`cargo test --locked --release` — 168 / 0 / 4 (two debug-only drop-
+bomb tests absent); `PROPTEST_CASES=4096 cargo test --locked` — 170 /
+0 / 4; all-target clippy with warnings denied, fmt, and
+`git diff --check` clean; obligations 6/6; sanitizer 4/4; both ignored
+§7.4 release tests 2/2 green in 7.70 s. The full-contract scale-shape
+test is green on the restored tree. The explicitly ignored pinned
+full-contract attempt is the expected blocker reproduction, not a
+green matrix member: all 14 reports are present, M6 G3 fails by 725 ms
+at correlations 9 and 14, and declaration refuses M6.
+
+Mutation checks were run from committed implementation and reverted
+with `git checkout --`: (1) raw-period rather than padded-window
+reconciliation → focused regression `left: 2, right: 0`; (2) remove
+the declaration eligibility guard → fragment refusal returns
+`Ok(FullContractRun { ... M1 Fragment ... })` instead of
+`Err(ReportNotVerdictEligible { scenario: M1 })`; (3) reduce M6's
+post-shrink queue 12→10 → `M6 must cross two complete five-hit
+new-pace windows`. The lint-only local-binding adjustment was committed
+before mutation 3 was repeated; its signature was unchanged. No live
+service was contacted. No run declared `FullContract`, no registry row
+was promoted, no gate/verdict slot was filled, and this implementing
+session does not close SD-R8.
+
+(SD-R8 continuation after Tom's F2 adjudication, 2026-08-15) —
+final verification, entirely offline:
+
+- Pinned φ=0 declaration: green, 14/14 reports, 0.07 s focused.
+- Full generated-phase declaration: green, 4,096/4,096 cases,
+  298.84 s; every case passed the run-owned declaration.
+- `cargo test --locked`: 171 passed / 0 failed / 3 ignored.
+- `cargo test --locked --release`: 169 / 0 / 3 (two debug-only
+  drop-bomb tests absent).
+- `PROPTEST_CASES=4096 cargo test --locked`: 171 / 0 / 3.
+- Obligations: 6/6, independently reporting 109 Full / 0 Partial /
+  1 accepted Untested / 13 Excluded; `OPEN_UNTESTED` empty.
+- All-target clippy with warnings denied, fmt, and
+  `git diff --check`: clean. Sanitizer: 4/4. Both ignored §7.4
+  release tests: 2/2 green in 7.72 s.
+
+Oracle mutation, run from committed `68100590` and reverted with
+`git checkout --`: removing N13's bucket term made
+`g3_oracle_pins_its_independent_padded_safe_arithmetic` fail
+`left: 17015, right: 22015`. The pinned declaration then failed
+`ReportNotVerdictEligible { scenario: M2 }`: M2 correlations
+12/22 exceeded G3 by exactly 5,000 ms and correlation 32 by 60,000
+ms; the same run also restored M6's 725 ms bucket-complement failures
+and M10's 60,000 ms failures. On the restored tree, the focused
+scenario-driver target and both declaration runs are green.
+
+Diff-scope audit: the continuation changes the scenario-driver oracle
+and its registry citation/coverage only. No client core, mock, actor,
+judge/gate machinery, or network boundary changed. No live service was
+contacted. Both verdict authorities agree and the evidence slots are
+filled, but this implementing session does not close SD-R8.
+
+(SD-R8 reopened-range packet, 2026-08-15) — verification presented
+with this packet, entirely offline, on the tree at the F9 repair
+commit:
+
+- `cargo test --locked`: 172 passed / 0 failed / 3 ignored.
+- `cargo test --locked --release`: 170 / 0 / 3.
+- `PROPTEST_CASES=4096 cargo test --locked`: 172 / 0 / 3.
+- Pinned φ=0 declaration: green over all sixteen reports (13 rows,
+  M8's OAuth lane, both character lanes).
+- Declared 4,096-case full-contract run: green in 26.81 s under
+  the endpoint binding.
+- Obligations: 6/6, independently reporting 110 Full / 0 Partial /
+  1 accepted Untested / 13 Excluded; `OPEN_UNTESTED` empty.
+- Both ignored §7.4 release tests: 2/2 green in 7.76 s. Sanitizer:
+  4/4. All-target clippy with warnings denied, fmt, and
+  `git diff --check`: clean.
+
+Mutation checks, each run from committed code and reverted with
+`git checkout --` (or a clean scripted revert), signatures exact:
+
+1. F4: `run_m8_oauth_lane` profile flipped to Assumed → pinned
+   declaration refuses `MissingM8KnownLane`.
+2. F5: the CharacterList lane push deleted → pinned declaration
+   refuses `MissingEndpointLane { endpoint: CharacterList }`.
+3. F9 (the review's own mutation, repeated post-repair): the
+   CharacterList wire lane replaced by a second Character lane
+   with the CharacterList reproduction label retained for seed
+   809 → the lane's judge call fails
+   `ReproductionMismatch { id: 1 }` before any declaration is
+   reached — the exact state that previously passed both
+   authorities.
+
+No live service was contacted. The verdict fills remain suspended
+per the re-close review; this repairing session does not re-close
+SD-R8 — the packet awaits the repeated independent re-close
+review.
+
+(F11–F20 repair packet, 2026-08-15) — verification presented with
+this packet, entirely offline, on the tree at the repair commits
+(`f3865ef9` F12, `23ecbd0d` F11, `58cfdb67`/`39a86163` carriage,
+`3088d6e4` on `rate-limit-core-ground-truth`):
+
+- `cargo test --locked`: 175 passed / 0 failed / 3 ignored (the
+  three new pins: both F11 bypass tests and the F12 structural
+  source pin; the M8 endpoint-binding pin shares one of those
+  test files).
+- `cargo test --locked --release`: 173 / 0 / 3.
+- `PROPTEST_CASES=4096 cargo test --locked`: 175 / 0 / 3.
+- Pinned φ=0 declaration: green over all sixteen reports under the
+  repaired guards.
+- Explicit 4,096-case full-contract declaration: green in 306.83 s.
+- Obligations: 6/6, reporting 124 clauses — 110 Full / 0 Partial /
+  1 accepted Untested / 13 Excluded (totals unchanged by design).
+- Both ignored §7.4 release tests: 2/2 green in 7.79 s. Sanitizer:
+  4/4. All-target clippy with warnings denied, fmt, and
+  `git diff --check`: clean.
+- Migration diff checks: `rate-limit-core-ground-truth` vs `master`
+  touches only `docs/design/network-ground-truth.md`; the spike
+  branch outside `spikes/` touches only
+  `docs/redesign/topics/rate-limit-core.md` and
+  `docs/redesign/README.md`.
+
+Mutation checks, each run from committed code and reverted with
+`git checkout --`, signatures exact:
+
+1. F11's audit experiment end to end (the CharacterList lane
+   relabeled M2→M5 in the driver, real wire traffic intact): the
+   pinned declaration refuses
+   `MissingScenarioEndpointLane { scenario: M2, endpoint:
+   CharacterList }`; obligations stays 6/6, so the forged agreement
+   is broken by the declaration authority.
+2. F12's audit experiment end to end (a second Assumed-profile
+   engine behind Known-claimed lane provenance): requires a second
+   engine-construction path and fails the structural pin before any
+   declaration — `assertion 'left == right' failed: the driver must
+   have exactly one engine-construction path — left: 2, right: 1`.
+3. F12's closest in-lane expression (`Lane::start` profile flipped
+   to Assumed): both facts flip together and the pinned declaration
+   refuses `MissingM8KnownLane` — the preserved F4 signature.
+4. F5's pinned mutation re-run (CharacterList lane deleted): still
+   exactly `MissingEndpointLane { endpoint: CharacterList }`.
+5. F9's pinned mutation re-run (Character wire under a
+   CharacterList-labeled lane, seed 809): still exactly
+   `ReproductionMismatch { id: 1 }`, at the judge, before any
+   declaration.
+
+No live service was contacted. No verdict slot was refilled; this
+repairing session does not close SD-R8 — the packet awaits the
+repeated independent re-close review, then the repeated
+`final-audit-charge.md` audit over the repaired tree and both
+migration diffs.
+
+(F21/F22 repair packet, 2026-08-15) — verification presented with
+this packet, entirely offline, with implementation committed first as
+`a09ef5ed`:
+
+- `cargo test --locked`: 175 passed / 0 failed / 3 ignored.
+- `cargo test --locked --release`: 173 / 0 / 3 (the two debug-only
+  drop-bomb tests are absent).
+- `PROPTEST_CASES=4096 cargo test --locked`: 175 / 0 / 3.
+- Compile-fail authority: doctests 5/5. The four new pins cover the
+  F21 record overwrite, F22 post-judge clone/endpoint overwrite,
+  direct `RunReport` construction, and direct `MockEvidence`
+  construction; X2's existing outside-actor privacy pin remains green.
+- Pinned φ=0 full-contract declaration: 1/1 over all sixteen reports.
+  Explicit debug 4,096-case declared run: 1/1 in 307.55 s. The same
+  explicit authority also passed release 1/1 in 26.41 s.
+- Obligations: 6/6, reporting 124 clauses — 110 Full / 0 Partial /
+  1 accepted Untested / 13 Excluded, `OPEN_UNTESTED` empty. Both
+  ignored §7.4 release tests: 2/2 in 7.76 s. Sanitizer: 4/4.
+  All-target clippy with warnings denied, fmt, and `git diff --check`
+  are clean.
+- Preserved executable refusals compile and pass their exact asserts:
+  F5 `MissingEndpointLane { endpoint: CharacterList }`; F9
+  `ReproductionMismatch { id: 1 }`; F11
+  `MissingScenarioEndpointLane { scenario: M2, endpoint:
+  CharacterList }`; F12/F4 `MissingM8KnownLane`.
+
+No temporary source mutation was applied or reverted in this repair.
+The F21/F22 reviewer programs are now the compile-fail tests themselves;
+using a runtime mutation would weaken the required enforcement claim.
+The earlier runtime programs remain ordinary negative tests, so their
+refusal signatures were rerun without editing source. No live service
+was contacted. Both verdict fills remain suspended; this session closes
+nothing and hands the packet to the repeated independent re-close
+review, followed by the repeated final audit.
+
+(F23 repair packet, 2026-08-15) — verification presented with this
+packet, entirely offline, with the repair committed first as
+`1b483191`:
+
+- `cargo test --locked`: 176 passed / 0 failed / 3 ignored (one more
+  than the sealing packet: the new belt pin), doctests 5/5.
+- `cargo test --locked --release`: 174 / 0 / 3 (the two debug-only
+  drop-bomb tests are absent).
+- `PROPTEST_CASES=4096 cargo test --locked`: 176 / 0 / 3.
+- Compile-fail authority: doctests 5/5, unchanged by this repair.
+- Pinned φ=0 full-contract declaration: 1/1 over all sixteen reports.
+  Explicit debug 4,096-case declared run: 1/1 in 306.40 s; release
+  companion 1/1 in 26.35 s.
+- Obligations: 6/6, reporting 124 clauses — 110 Full / 0 Partial /
+  1 accepted Untested / 13 Excluded, `OPEN_UNTESTED` empty. Both
+  ignored §7.4 release tests: 2/2 in 7.79 s. Sanitizer: 4/4.
+  All-target clippy with warnings denied, fmt, and `git diff --check`
+  are clean.
+- Preserved signatures, rerun by name and green: F5
+  `MissingEndpointLane { endpoint: CharacterList }` and F12/F4
+  `MissingM8KnownLane`
+  (`full_contract_declaration_requires_every_m_row_and_both_m8_lanes`,
+  `full_contract_declaration_binds_each_m8_profile_to_its_endpoint`),
+  F11 `MissingScenarioEndpointLane { scenario: M2, endpoint:
+  CharacterList }`
+  (`full_contract_declaration_refuses_a_relabeled_required_lane`), F9
+  `ReproductionMismatch { id: 1 }`
+  (`correlation_and_reproduction_seams_are_structural`), and the F12
+  lexical single-path pin
+  (`f12_driver_has_one_engine_construction_and_one_provenance_path`).
+
+One mutation was run from the committed repair and reverted with
+`git checkout --`: a forged `MockEvidence` struct literal added to
+`mock::model`'s `#[cfg(test)]` module **compiled and passed as a unit
+test** — the SD-R8-F23 descendant-visibility fact, demonstrated
+in-tree rather than only on the reviewer's standalone crate — while
+the belt pin failed with exactly "unpinned MockEvidence literal-shaped
+text in …/src/mock/model.rs — left: 1, right: 0". On the restored tree
+the pin is green again. No live service was contacted. Both verdict
+fills remain suspended; this session closes nothing and hands the
+packet to the repeated independent re-close review, then the repeated
+`final-audit-charge.md` audit.
+
+(F24 repair packet, 2026-08-15) — verification presented with this
+packet, entirely offline, with the repair committed first as
+`6fc96d80` and the matrix run on the restored tree (`a1d66cbc`,
+code-identical to the committed repair):
+
+- `cargo test --locked`: 176 passed / 0 failed / 3 ignored,
+  doctests 5/5 (same counts as the F23 packet: one pin was
+  strengthened in place, none added).
+- `cargo test --locked --release`: 174 / 0 / 3, doctests 5/5.
+- `PROPTEST_CASES=4096 cargo test --locked`: 176 / 0 / 3.
+- Compile-fail authority: doctests 5/5, unchanged by this repair.
+- Pinned φ=0 full-contract declaration: 1/1. Explicit debug
+  4,096-case declared run: 1/1 in 306.77 s; release companion 1/1 in
+  26.49 s.
+- Obligations: 6/6, reporting 124 clauses — 110 Full / 0 Partial /
+  1 accepted Untested / 13 Excluded, `OPEN_UNTESTED` empty. Both
+  ignored §7.4 release tests: 2/2 in 7.75 s. Sanitizer: 4/4.
+  All-target clippy with warnings denied, fmt, and `git diff --check`
+  are clean.
+- Preserved signatures, rerun by exact name (1/1 each) with variants
+  confirmed in test source: F5
+  `MissingEndpointLane { endpoint: CharacterList }` and F12/F4
+  `MissingM8KnownLane`
+  (`full_contract_declaration_requires_every_m_row_and_both_m8_lanes`,
+  `full_contract_declaration_binds_each_m8_profile_to_its_endpoint`),
+  F11 `MissingScenarioEndpointLane { scenario: M2, endpoint:
+  CharacterList }`
+  (`full_contract_declaration_refuses_a_relabeled_required_lane`), F9
+  `ReproductionMismatch { id: 1 }`
+  (`correlation_and_reproduction_seams_are_structural`), and the F12
+  lexical single-path pin
+  (`f12_driver_has_one_engine_construction_and_one_provenance_path`).
+
+One mutation was run against the committed repair, committed before
+reverting per the charge (`dc7a3d97`, reverted `a1d66cbc`): the F24
+reviewer's rename-import forgery, reproduced byte-for-byte by
+cherry-picking `14d4be27` (`use crate::mock::MockEvidence as
+SealedCarriage;` then a `SealedCarriage` literal in `mock::model`'s
+`#[cfg(test)]` module). The forgery **still compiles and its unit test
+still passes** — detection, not a binding, exactly as every carrying
+location now says — but the strengthened pin **fails loud** with
+exactly "unpinned bare MockEvidence token in …/src/mock/model.rs —
+left: 3, right: 0" (the probe comment's two mentions plus the rename
+import's one; the import token alone exceeds the pinned 0). What was
+silent to the brace-shape needle is loud to the token needle. On the
+restored tree the pin is green again. No live service was contacted.
+Both verdict fills remain suspended; this session closes nothing and
+hands the packet to the repeated independent re-close review, then the
+repeated `final-audit-charge.md` audit.
+
+(F25 repair packet, 2026-08-15) — verification presented with this
+packet, entirely offline, with the repair committed first as
+`3f777095` and the matrix run on that committed tree:
+
+- `cargo test --locked`: 176 passed / 0 failed / 3 ignored,
+  doctests 5/5 (same counts as the F24 packet: prose-only, no test
+  added or removed).
+- `cargo test --locked --release`: 174 / 0 / 3, doctests 5/5.
+- `PROPTEST_CASES=4096 cargo test --locked`: 176 / 0 / 3.
+- Compile-fail authority: doctests 5/5, unchanged by this repair.
+- Pinned φ=0 full-contract declaration: 1/1 by exact name. Explicit
+  debug 4,096-case declared run: 1/1 in 305.75 s; release companion
+  1/1 in 26.36 s.
+- Obligations: 6/6, reporting 124 clauses — 110 Full / 0 Partial /
+  1 accepted Untested / 13 Excluded, `OPEN_UNTESTED` empty. Both
+  ignored §7.4 release tests: 2/2 in 7.78 s. Sanitizer: 4/4.
+  All-target clippy with warnings denied, fmt, and `git diff --check`
+  are clean.
+- Preserved signatures, rerun by exact name (green) with variants
+  confirmed in test source: F5
+  `MissingEndpointLane { endpoint: CharacterList }` and F12/F4
+  `MissingM8KnownLane`, F11 `MissingScenarioEndpointLane { scenario:
+  M2, endpoint: CharacterList }`, F9
+  `ReproductionMismatch { id: 1 }`, and the F12 lexical single-path
+  pin.
+- The strengthened belt pin itself: green on the committed repair —
+  its own pinned counts (6/4/2/0) guard the edited carrying
+  locations, so the doc-comment and registry wording changes are
+  verified token-neutral by the pin they describe.
+
+No mutation was run for this packet: nothing mechanical changed
+(the needle, walk, and pinned counts are byte-identical to
+`6fc96d80`'s — verifiable by diff), and the F25 demonstration
+(`47885eab`, reverted `351bfab6`, in history) is the experiment the
+corrected wording must and does predict. No live service was
+contacted. Both verdict fills remain suspended; this session closes
+nothing and hands the packet to the repeated independent re-close
+review, then the repeated `final-audit-charge.md` audit.
