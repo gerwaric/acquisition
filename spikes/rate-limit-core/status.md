@@ -134,6 +134,23 @@ authorities reran green (pinned + 4,096-case declaration; obligations
 6/6 at 124/110) and all five preserved mutation signatures and
 compile-fail doctests hold. Both verdict fills remain suspended
 awaiting the repeated re-close review and the repeated final audit.
+**The repeated re-close review over the F23 range (2026-08-15)
+re-verified the whole F23 repair — the scoped seal claim is exactly
+true, the compensating controls were re-derived independently from the
+tree and hold, the recorded belt-pin mutation reproduced verbatim, and
+the full offline matrix, both authorities, and all five preserved
+signatures reproduced — but found SD-R8-F24 (low): the belt pin's
+carried claims outrun its lexical mechanism. The pin detects only the
+plainly spelled `MockEvidence`-before-brace literal; a descendant
+forgery through a rename import compiles and runs while the pin and
+the whole suite stay green, so "an in-crate forgery must re-derive the
+pin deliberately", the "makes in-crate forgery loud" sentence earlier
+in this section, and the b13 note's "detected, not bound" overstate,
+and the confessed evasion list is incomplete. Not a verdict bypass:
+the named trust surface and its primary compensating control are
+accurate and re-verified. Verdict readiness stays suspended pending
+the F24 wording repair, a fresh packet, re-review, and the repeated
+final audit.**
 `obligation-map.md`
 is the superseded prose ancestor; read its §8 for the audit's
 discrepancy analysis (dated at `e2034807`), never for current
@@ -332,6 +349,23 @@ coverage.
   claiming a binding. The session closes nothing: SD-R8 remains open
   awaiting repeated independent re-close review and then the repeated
   final audit.
+  **The repeated re-close review over the F23 range ran 2026-08-15 and
+  did not close the round: SD-R8-F24 (low).** It re-verified everything
+  the F23 commits touched (scoped claim re-derived from the code;
+  compensating controls re-derived independently — exactly two
+  `#[cfg(test)]` modules in `src/`, neither reaching `judge`,
+  `declare`, or a sealed type; `conformance` descendant-free; recorded
+  mutation reproduced verbatim), reran the full offline matrix, both
+  authorities, and all five preserved signatures, and ran the
+  §3-addendum-2 sixth-generation hunt — which found the belt pin's
+  carried claims outrunning the lexical mechanism: a needle-free
+  descendant forgery (rename import) compiles and passes while the pin
+  stays green, falsifying "must re-derive the pin deliberately" /
+  "makes in-crate forgery loud" / "detected, not bound" and the
+  confessed evasion list. Finding, demonstration commits, and proposed
+  wording-scope disposition are in `result-draft.md` §9; the hand-off
+  is flipped back to owing an F24 repair-range packet. Both verdict
+  fills stay suspended.
 - Every other slice (core, bootstrap, mock, actor, clause registry,
   doc split) is closed; their hand-offs are historical records.
   (Doc split closed 2026-08-13, DS-R1 — `result-draft.md` §9.)
@@ -430,17 +464,19 @@ ratification record is in `result-draft.md` §9. (Both earlier
 ## 4. Blocked
 
 Delivery is blocked on re-closing SD-R8. The F21/F22 sealing repairs
-are present and re-verified; the F23 repair is present and verified
-(`1b483191`): the seal claim is scoped to the crate boundary, the
-in-crate descendant boundary is named in all three carrying locations,
-and the belt pin is in CI. What remains before either delivery PR:
-another repeated independent re-close review over the F23 range, then
-the repeated `final-audit-charge.md` audit over the repaired tree and
-both migration diffs. Both verdict fills stay suspended until then. No
-Tom decision is open: the executed disposition followed his standing
-"record honestly, don't pseudo-bind" pattern (naming the boundary, not
-adding a binding Rust privacy cannot provide against a module's own
-descendants).
+are present and re-verified; the F23 repair is present and re-verified
+(`1b483191`), but the repeated re-close review over the F23 range
+found SD-R8-F24 (low): the belt pin's carried claims outrun its
+lexical mechanism (needle-free descendant forgeries are silent to it),
+so the round stays open. What remains before either delivery PR: the
+F24 wording repair and fresh four-part packet, another repeated
+independent re-close review, then the repeated `final-audit-charge.md`
+audit over the repaired tree and both migration diffs. Both verdict
+fills stay suspended until then. No Tom decision is open: F24's
+proposed disposition follows the same "record honestly, don't
+pseudo-bind" pattern (scope the belt's claims to what the needle sees
+and name the needle-free evasions; an optional stronger token-count
+needle is the repair session's judgment call).
 
 ## 5. Next work
 
@@ -536,8 +572,13 @@ Reopened SD-R8 work (audit and re-close-review entries,
      integration-test crate boundary and name the `mock` module's
      in-crate descendant modules as inside the seal) and fresh four-part
      packet~~ — **done 2026-08-15** (`1b483191`; packet presented
-     without closure). Now next: another repeated independent re-close
-     review over the F23 range, then the repeated final audit.
+     without closure); the repeated re-close review over the F23 range
+     ran the same day, re-verified the repair, and **found SD-R8-F24 —
+     the round stays open**. Now next: the F24 wording repair (scope
+     the belt pin's claims to the plainly spelled literal and name the
+     needle-free evasions; §9 disposition) and fresh four-part packet,
+     then another repeated independent re-close review and the
+     repeated final audit.
   5. The two delivery PRs (`spike/rate-limit-core` → `redesign`;
      CN docs → `master`). **F6 — and the spike — complete at
      landing.**

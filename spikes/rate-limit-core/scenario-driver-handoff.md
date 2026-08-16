@@ -1,6 +1,25 @@
 # Scenario-driver and safety-closure hand-off
 
-Status: **open — the F23 repair packet is presented 2026-08-15 and
+Status: **open — the 2026-08-15 repeated re-close review over the F23
+range found SD-R8-F24; this file requires an F24 repair-range four-part
+update before re-review.** The review re-verified everything the F23
+commits touched — the scoped seal claim is exactly true in all three
+carrying locations, the compensating controls were re-derived
+independently from the tree and hold, the recorded belt-pin mutation
+reproduced verbatim, and the full offline matrix, both authorities, and
+all five preserved mutation signatures reproduced — but found that the
+belt pin's carried claims outrun its lexical mechanism: a descendant
+forgery through a rename import compiles and runs while the pin and the
+whole suite stay green, so "an in-crate forgery must re-derive the pin
+deliberately" / "makes in-crate forgery loud" / "detected, not bound"
+overstate, and the confessed evasion list ("editing the pinned file or
+the pin itself") is incomplete. It is a wording-scope defect (low), not
+a verdict bypass: the named trust surface and its primary compensating
+control are accurate and re-verified. Finding and proposed disposition
+are in `result-draft.md` §9; live state is `status.md`. Both verdict
+fills stay suspended.
+
+Prior status: **open — the F23 repair packet is presented 2026-08-15 and
 awaits the repeated independent re-close review.** Commit `1b483191`
 executes the SD-R8-F23 disposition: the evidence-carriage seal claim
 is scoped to the library/integration-test crate boundary — where the

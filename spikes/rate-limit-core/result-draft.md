@@ -4186,3 +4186,146 @@ hoistable to its own repository without surgery.
   verdict fill is restored, and this session closes neither SD-R8 nor
   the scenario-driver slice; the repeated independent re-close review
   is next, followed by the repeated `final-audit-charge.md` audit.
+
+- 2026-08-15 — **Repeated SD-R8 re-close review over the F23 range found
+  SD-R8-F24; the round, slice, and spike remain open and both verdict
+  fills stay suspended.** The independent reviewer (charge
+  `re-close-review-charge.md` re-armed for the F23 range at code
+  `1b483191`, packet `a76e6d04`, charge head `493878c9`; ground-truth
+  head `3088d6e4` unchanged) re-verified what the F23 commits touched
+  and ran §3-addendum-2 in full, honoring its authorship note: every
+  compensating-control factual claim was re-derived from the tree, not
+  accepted from the repair.
+
+  **F23 range re-verified — the repair as specified is real.** The
+  scoped seal claim is exactly true in all three carrying locations:
+  the private fields do bar construction across the
+  library/integration-test crate boundary (the byte-identical
+  `MockEvidence` `E0451` doctest still fails for its annotated code —
+  doctests 5/5 — and the sealed public surface remains read-only), and
+  Rust privacy does not bind the `mock` module's in-crate descendants —
+  the repair's recorded mutation reproduced verbatim (committed
+  `ce3fbca1`, reverted `e6d188e3`): a forged `MockEvidence` struct
+  literal in `mock::model`'s `#[cfg(test)]` module compiled and passed
+  as a unit test while the belt pin failed with exactly "unpinned
+  MockEvidence literal-shaped text in …/src/mock/model.rs — left: 1,
+  right: 0". The named descendant set is complete and phrased to absorb
+  future children (`pub mod model;` is `mock`'s only child; the doc
+  names "a `#[cfg(test)]` module in a child of `mock`" generically). No
+  overcorrection: the across-boundary absoluteness is restated, not
+  weakened. Compensating controls re-derived independently: exactly two
+  `#[cfg(test)]` modules exist in `src/` (`mock/model.rs:551`,
+  `actor.rs:890`); the model tests exercise only `bucket_end`
+  arithmetic and the actor tests import only core/header/transport —
+  neither references `judge`, `declare`, or any sealed type;
+  `conformance` declares no descendant module; in `src/`, `RunReport`
+  is literal-constructed only inside `judge` (`conformance.rs:1045`)
+  and `ReproductionRecord` only at the `RunEvidence` construction seam
+  (`conformance.rs:464`). The corrected sealed-evidence `must_assert`
+  is test-faithful: the cited test asserts the
+  `PendingObservations { handoffs: 1, observations: 0 }` refusal, both
+  vectors' contents at seal, repeat-seal equality, and the post-seal
+  traffic and state-change refusals. The belt pin's four
+  `mock/mod.rs` sites are what it says (doctest forgery, declaration,
+  impl header, `seal_evidence`'s construction) and its ≥9-file walk
+  guard sees the whole library.
+
+  Matrix at `493878c9`, entirely offline: `cargo test --locked` 176/0/3
+  with doctests 5/5; release 174/0/3 with doctests 5/5; pinned φ=0
+  declaration green in-suite; explicit 4,096-case declared run 1/1
+  debug in 314.53 s and 1/1 release in 26.44 s; obligations 6/6 with
+  totals independently recounted from source (124 clauses — 110 Full /
+  0 Partial / 1 accepted Untested / 13 Excluded, `OPEN_UNTESTED`
+  empty); both ignored §7.4 release tests 2/2 in 8.18 s; Python
+  sanitizer suite 4/4; all-target clippy with warnings denied, fmt, and
+  `git diff --check` clean. All five preserved mutation signatures are
+  green by name with their exact variants confirmed in test source.
+  Not rerun: the `PROPTEST_CASES=4096` full property sweep — the F23
+  delta (doc/registry prose plus one filesystem-reading test) cannot
+  alter property outcomes, and the declared-run authority itself was
+  rerun in both profiles.
+
+  **Sixth-generation hunt.** The compile-fail doctests' prose is scoped
+  to the crate boundary; the X2 and F12 pin comments state their
+  lexical limits in the limitation direction (X2 names both the rename
+  false-negative and the comment false-positive; F12 says "a rename
+  requires re-deriving the needles deliberately" — a maintenance
+  confession — and names the sealed types as the actual claim-bearer);
+  the F11 and g5 trust-surface notes are honest; `RunReport`'s "Only
+  [`judge`] constructs one" was re-derived true of the tree with
+  `conformance` descendant-free. One claim failed the hunt:
+
+  **SD-R8-F24 (low) — the belt pin's carried claims outrun its lexical
+  mechanism.** The pin detects exactly one spelling: the type name
+  immediately before a brace (`"MockEvidence {"`). The carrying
+  locations assert a universal consequence: "an in-crate forgery must
+  re-derive this pin deliberately" (pin doc comment and the f23
+  citation's `must_assert`), "made loud by the lexical belt pin"
+  (`MockEvidence` doc comment), "detected, not bound, by the f23
+  lexical belt citation" (`b13-observation-log` note), "makes in-crate
+  descendant construction loud" / "makes in-crate forgery loud"
+  (packet status header; `status.md` §1), and the repair entry's
+  "confesses the lexical evasions (editing the pinned file or the pin
+  itself)". Falsified by experiment (committed `14d4be27`, reverted
+  `ad60af3e`): a descendant forgery through a rename import —
+  `use crate::mock::MockEvidence as SealedCarriage;` then
+  `SealedCarriage { observations: …, state_changes: … }` in
+  `mock::model`'s `#[cfg(test)]` module — compiles and passes while
+  the belt pin and the whole `mock_fidelity` suite stay green. The
+  forgery edits neither the pinned file nor the pin, so the confessed
+  evasion list is incomplete. Two further needle-free shapes exist
+  analytically: a `Self { … }` literal inside a new inherent
+  `impl MockEvidence` block in a descendant file, and direct field
+  access on an obtained instance (a descendant can filter the sealed
+  vectors in place — fields are visible there, so no construction is
+  needed at all). The f23 citation's `must_assert` is additionally a
+  §3-addendum-2 bullet-4 fidelity defect: its "so an in-crate
+  descendant forgery must re-derive the pin deliberately" is a
+  consequence the cited test does not assert — the same standard the
+  F23 repair applied to the neighboring sealed-evidence citation.
+
+  Low, not medium, deliberately: unlike F23, the residual trust
+  surface itself (in-crate descendants live inside the seal) is named
+  accurately in every carrying location, and the load-bearing
+  compensating control — the verdict path resides entirely across the
+  crate boundary; no in-crate test reaches `judge` or `declare` — was
+  independently re-verified and holds. The falsified sentences concern
+  only how loud a hypothetical in-crate forgery would be, and the belt
+  is explicitly not the claim-bearer anywhere. Minted nonetheless
+  because it is the sixth generation of exactly the class the charge
+  names — a claim about an enforcement mechanism that outruns the
+  mechanism — and §3-addendum-2 pre-committed unnamed evasions as
+  finding material.
+
+  Proposed disposition (evidence-preserving, the F23 pattern; no
+  verdict change): correct the belt's claims in every carrying
+  location to what the needle sees — the plainly spelled literal — and
+  name the needle-free shapes (renamed import, `Self`-literal in a new
+  inherent impl, direct field mutation) in the pin's confession;
+  replace "must re-derive the pin deliberately" and "makes … loud"
+  with claims scoped to the plain spelling. Optional strengthening the
+  repair session may weigh: count the bare token `MockEvidence` per
+  `src/` file instead of the brace shape — constructing or aliasing
+  the type requires writing its name, so a token-count pin would catch
+  the rename and `Self`-impl shapes — but it remains detection (an
+  `include!` of a non-`.rs` file, among others, still evades), so the
+  wording stays modest either way.
+
+  One observation, not minted: the packet seam-map's "the
+  verdict-eligible report set is produced only by
+  `tests/scenario_driver.rs`" is true in the sense the F23 finding
+  entry defined (the reports feeding `run_full_contract_case` →
+  `FullContractRun::declare`) but false under the bare predicate
+  reading — `conformance_harness.rs:221` asserts a `verdict_eligible()`
+  report as a positive control. Both readings leave the compensating
+  control intact (that harness is also across the crate boundary);
+  recommend the defining parenthetical travel with the phrase when the
+  packet is next revised.
+
+  Two mutations were run, each committed before being reverted per the
+  charge (`ce3fbca1`/`e6d188e3`; `14d4be27`/`ad60af3e`); the restored
+  tree is green. No live service was contacted. The verdict fills are
+  not restored; the repeated final audit does not start. SD-R8 stays
+  open awaiting the F24 wording repair, a fresh four-part packet,
+  another repeated independent re-close review, and then the repeated
+  `final-audit-charge.md` audit.
