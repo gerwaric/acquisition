@@ -1,6 +1,6 @@
 # Acquisition (Rust rewrite) — Agent Context
 
-This doc is working memory for coding agents and a place for developers to inspect and tweak things, not a spec or requirements document. It records what's settled, what's open, and what must never happen. Grows and changes structure as needed. Terse on purpose. Current state only: superseded content is edited or deleted in place — git holds the history.
+This doc is working memory for coding agents and a place for developers to inspect and tweak things, not a spec or requirements document. It records what's settled, what's open, and what must never happen. Grows and changes structure as needed. Terse on purpose. Current state only: superseded content is edited or deleted in place — git holds the history. Facts about GGG live in `docs/design/network-ground-truth.md` and are cited here by number, not restated. Where code exists, code is the source of truth for implemented shape — this doc holds boundaries, properties, and open questions, never a parallel description of what the code already says.
 
 ## Orientation (3 sentences)
 
@@ -41,19 +41,7 @@ None of these interfaces are locked down more than anything else in this documen
 
 ### Daemon job protocol
 
-```
-submit(kind, params, priority) -> job_id
-status(job_id)                 -> state, progress, eta
-result(job_id)                 -> payload | error
-cancel(job_id)                 -> ack        # waiting: dequeue; running: abort
-                                             # current request, keep partials
-set_priority(job_id, p)        -> ack
-list()                         -> job table  # id, kind, state, priority,
-                                             # submitted_by, eta
-subscribe()                    -> event stream (job-state-changed, ...)
-```
-
-Job states: `waiting -> running -> done | failed | cancelled`.
+The live definition is `crates/acquisition-core/src/protocol.rs` (request/response/event enums, job states). Its boundary properties are the decision lines above; the verb list is internals.
 
 ETA is computed from limiter state + queue depth ahead of the job — the daemon can predict, because it sees everything.
 
