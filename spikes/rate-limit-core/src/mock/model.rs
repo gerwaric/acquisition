@@ -550,6 +550,10 @@ fn bucket_end(at_ms: u64, bucket_ms: u64, phase_ms: u64) -> u64 {
 
 #[cfg(test)]
 mod tests {
+    // TERMINAL REVIEW MUTATION: the import token alone must trip the belt pin.
+    #[allow(unused_imports)]
+    use crate::mock::MockEvidence as SealedCarriageAlias;
+
     use super::*;
 
     #[test]
