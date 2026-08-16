@@ -120,6 +120,20 @@ boundary where the seal holds — but the boundary is unnamed (the `b13`
 note mis-states it), which charge §3-addendum pre-committed as a finding.
 Verdict readiness stays suspended pending the F23 repair, a fresh packet,
 re-review, and the repeated final audit.
+**The F23 repair landed 2026-08-15** (`1b483191`): the seal claim is
+scoped to the library/integration-test crate boundary and the `mock`
+module's in-crate descendants are named as a residual trust surface
+in the doc comment, the `b13-observation-log` note/`must_assert`, and
+the packet confession, with the compensating controls stated (the
+verdict path resides entirely across the crate boundary; no in-crate
+test reaches `judge` or `declare`); a lexical belt pin — detection,
+not a binding — makes in-crate forgery loud, and the post-commit
+mutation demonstrated both the forgery compiling in `mock::model` and
+the pin catching it. No enforcement mechanism changed; both
+authorities reran green (pinned + 4,096-case declaration; obligations
+6/6 at 124/110) and all five preserved mutation signatures and
+compile-fail doctests hold. Both verdict fills remain suspended
+awaiting the repeated re-close review and the repeated final audit.
 `obligation-map.md`
 is the superseded prose ancestor; read its §8 for the audit's
 discrepancy analysis (dated at `e2034807`), never for current
@@ -309,6 +323,15 @@ coverage.
   proposed disposition in `result-draft.md` §9; the hand-off is flipped
   back to owing an F23 repair-range packet. Both verdict fills stay
   suspended.
+  **The F23 repair session completed 2026-08-15** at `1b483191`. The
+  fresh four-part packet is presented in `scenario-driver-handoff.md`;
+  the seal claim is scoped honestly rather than re-armored — naming
+  the in-crate descendant boundary in every carrying location, per
+  Tom's standing "record honestly, don't pseudo-bind" pattern — and a
+  lexical belt pin makes descendant construction loud without
+  claiming a binding. The session closes nothing: SD-R8 remains open
+  awaiting repeated independent re-close review and then the repeated
+  final audit.
 - Every other slice (core, bootstrap, mock, actor, clause registry,
   doc split) is closed; their hand-offs are historical records.
   (Doc split closed 2026-08-13, DS-R1 — `result-draft.md` §9.)
@@ -407,16 +430,17 @@ ratification record is in `result-draft.md` §9. (Both earlier
 ## 4. Blocked
 
 Delivery is blocked on re-closing SD-R8. The F21/F22 sealing repairs
-are present and re-verified, but the repeated re-close review over the
-sealing range found SD-R8-F23 (the seal's in-crate descendant boundary
-is unnamed/mis-stated), so the round stays open. What remains before
-either delivery PR: the F23 repair and fresh four-part packet, another
-repeated independent re-close review, then the repeated
-`final-audit-charge.md` audit over the repaired tree and both migration
-diffs. Both verdict fills stay suspended until then. No Tom decision is
-open: F23's proposed disposition follows his standing "record honestly,
-don't pseudo-bind" pattern (naming the boundary, not adding a binding
-Rust privacy cannot provide against a module's own descendants).
+are present and re-verified; the F23 repair is present and verified
+(`1b483191`): the seal claim is scoped to the crate boundary, the
+in-crate descendant boundary is named in all three carrying locations,
+and the belt pin is in CI. What remains before either delivery PR:
+another repeated independent re-close review over the F23 range, then
+the repeated `final-audit-charge.md` audit over the repaired tree and
+both migration diffs. Both verdict fills stay suspended until then. No
+Tom decision is open: the executed disposition followed his standing
+"record honestly, don't pseudo-bind" pattern (naming the boundary, not
+adding a binding Rust privacy cannot provide against a module's own
+descendants).
 
 ## 5. Next work
 
@@ -508,11 +532,12 @@ Reopened SD-R8 work (audit and re-close-review entries,
      2026-08-15** (`a09ef5ed`; packet presented without closure); the
      repeated re-close review over the sealing range ran the same day,
      re-verified the repair, and **found SD-R8-F23 — the round stays
-     open**. Now next: the F23 repair (scope the seal claim to the
+     open**. Then: ~~the F23 repair (scope the seal claim to the
      integration-test crate boundary and name the `mock` module's
      in-crate descendant modules as inside the seal) and fresh four-part
-     packet, then another repeated independent re-close review and the
-     repeated final audit.
+     packet~~ — **done 2026-08-15** (`1b483191`; packet presented
+     without closure). Now next: another repeated independent re-close
+     review over the F23 range, then the repeated final audit.
   5. The two delivery PRs (`spike/rate-limit-core` → `redesign`;
      CN docs → `master`). **F6 — and the spike — complete at
      landing.**

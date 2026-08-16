@@ -4107,3 +4107,82 @@ hoistable to its own repository without surgery.
   final audit does not start. SD-R8 stays open awaiting the F23 repair, a
   fresh four-part packet, another repeated independent re-close review,
   and then the repeated `final-audit-charge.md` audit.
+
+- 2026-08-15 — **F23 repair session: the evidence seal's claim is scoped
+  to the library/integration-test crate boundary and the in-crate
+  descendant surface is named; the round remains open.** Repair commit
+  `1b483191` executes the SD-R8-F23 proposed disposition
+  (evidence-preserving, no verdict change; Tom's standing "record
+  honestly, don't pseudo-bind" pattern, since Rust privacy cannot lock
+  out a module's own descendants) in all three carrying locations:
+
+  - The `MockEvidence` doc comment now states that the private fields
+    bar construction across the library/integration-test crate boundary
+    — where the verdict-bearing scenario driver runs — and that Rust
+    privacy does not bind the `mock` module's in-crate descendants
+    (`mock::model` today, with its live `#[cfg(test)]` module), naming
+    that boundary a residual trust surface with its compensating
+    controls: the verdict path resides entirely across the crate
+    boundary, and no in-crate test reaches `judge` or `declare`.
+  - The `b13-observation-log` note carries the same scoped statement
+    and the named surface; the sealed-evidence citation's `must_assert`
+    no longer claims "mock-only evidence construction" the cited
+    integration test cannot see — it states only the sealing facts the
+    test asserts (atomic snapshot, `PendingObservations` refusal,
+    post-seal finality).
+  - The packet's coverage confession names the boundary beside the
+    profile-choice and coverage/passed surfaces
+    (`scenario-driver-handoff.md`, F23 additions in all four parts).
+
+  No code binding is owed (none is possible against in-crate
+  descendants), and none was invented. One small pin was judged
+  worthwhile in the established X2/F12 belt pattern — detection, never
+  a binding: `f23_mock_evidence_literal_sites_in_src_are_pinned`
+  (`tests/mock_fidelity.rs`, cited by `b13-observation-log`) fails on
+  any `MockEvidence` literal-shaped text in `src/` beyond the four
+  pinned `mock/mod.rs` sites (declaration, impl header, the
+  compile-fail doctest forgery, `seal_evidence`'s construction). Every
+  carrying location says detection, not binding, and confesses the
+  lexical evasions (editing the pinned file or the pin itself). The
+  compensating-control claims were verified against the tree before
+  being committed: the two `#[cfg(test)]` modules in `src/`
+  (`mock::model`, `actor`) reference none of `judge`, `declare`, or
+  the sealed conformance/evidence types, and `conformance` has no
+  descendant module.
+
+  Verification on the committed repair, entirely offline:
+  `cargo test --locked` 176 passed / 0 failed / 3 ignored (one more
+  than the sealing packet: the belt pin) with doctests 5/5; release
+  174 / 0 / 3; `PROPTEST_CASES=4096` 176 / 0 / 3; the five
+  compile-fail doctests unchanged and green; pinned φ=0 declaration
+  1/1; explicit debug 4,096-case declaration 1/1 in 306.40 s and
+  release companion 1/1 in 26.35 s; obligations 6/6 at unchanged
+  124/110 totals with `OPEN_UNTESTED` empty; both ignored §7.4 release
+  tests 2/2 in 7.79 s; sanitizer 4/4; all-target clippy with warnings
+  denied, fmt, and `git diff --check` clean. All five preserved
+  mutation signatures rerun by name and green: F5
+  `MissingEndpointLane { endpoint: CharacterList }`, F9
+  `ReproductionMismatch { id: 1 }`, F11
+  `MissingScenarioEndpointLane { scenario: M2, endpoint:
+  CharacterList }`, F12/F4 `MissingM8KnownLane`, and the F12 lexical
+  single-path pin. One mutation was run from the committed repair and
+  reverted with `git checkout --`: a forged `MockEvidence` struct
+  literal added to `mock::model`'s `#[cfg(test)]` module compiled and
+  passed as a unit test — demonstrating the F23 descendant-visibility
+  fact in this crate, not only on the reviewer's standalone one —
+  while the belt pin failed with exactly "unpinned MockEvidence
+  literal-shaped text in …/src/mock/model.rs — left: 1, right: 0"; the
+  restored tree is green.
+
+  Registry totals remain 124 clauses — 110 Full / 0 Partial / 1
+  accepted Untested / 13 Excluded — and no clause was minted; only
+  `b13-observation-log` changed (scoped note, corrected `must_assert`,
+  belt citation). The fresh four-part repair packet is in
+  `scenario-driver-handoff.md`; `re-close-review-charge.md` is
+  re-armed for the F23 range (§3-addendum-2: verify the scoped claim
+  is exactly true, reproduce the belt's non-vacuity mutation, hunt the
+  sixth generation of overstated-mechanism claims, and check
+  `must_assert` fidelity). No live service was contacted, neither
+  verdict fill is restored, and this session closes neither SD-R8 nor
+  the scenario-driver slice; the repeated independent re-close review
+  is next, followed by the repeated `final-audit-charge.md` audit.

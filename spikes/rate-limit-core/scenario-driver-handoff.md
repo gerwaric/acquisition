@@ -1,6 +1,23 @@
 # Scenario-driver and safety-closure hand-off
 
-Status: **open — the 2026-08-15 repeated re-close review over the
+Status: **open — the F23 repair packet is presented 2026-08-15 and
+awaits the repeated independent re-close review.** Commit `1b483191`
+executes the SD-R8-F23 disposition: the evidence-carriage seal claim
+is scoped to the library/integration-test crate boundary — where the
+verdict-bearing driver runs — and the `mock` module's in-crate
+descendants are named as a residual trust surface, in the type's doc
+comment, the `b13-observation-log` note and `must_assert`, and this
+packet's coverage confession, with the compensating controls stated
+(the verdict path resides entirely across the crate boundary; no
+in-crate test reaches `judge` or `declare`). A lexical belt pin in
+the X2/F12 pattern makes in-crate descendant construction loud
+without claiming a binding Rust privacy cannot provide. No
+enforcement mechanism changed: the five compile-fail doctests and
+all five preserved mutation signatures are unaffected. The repair
+session closes nothing, contacts no live service, and does not
+restore either verdict fill. Live state is `status.md`.
+
+Prior status: **open — the 2026-08-15 repeated re-close review over the
 F21/F22 sealing range found SD-R8-F23; this file requires an F23
 repair-range four-part update before re-review.** The review
 re-verified the whole sealing repair — the five compile-fail doctests
@@ -233,6 +250,13 @@ repairs:
 | “Atomic mock carriage” did not state what happens if a request has handed off but has not produced an observation. | `seal_evidence` refuses `PendingObservations` until handoff and observation counts agree, then snapshots observations and state changes under one lock and permanently refuses new traffic or logged state changes. Repeated seals return the same value. | A seal during an arrival delay refuses rather than omitting an in-progress observation; after a successful seal the evidence vectors cannot grow behind the judge's back. |
 | Tom's hybrid decision binds mock facts but intentionally does not pseudo-bind a test's claims about its own scenario. | Bind observations and state changes in mock-only `MockEvidence`. Record `ScenarioAssertion.coverage` and `ScenarioAssertion.passed` as named test-authorship trust surfaces, compensated by each scenario's falsifiability guards and `full_contract_scale_reaches_every_fragment_closure_shape`. | A future packet cannot describe coverage/pass as independently derived or sealed; changing either claim requires re-review of its scenario guard and scale-shape reachability. |
 
+(F23 repair packet, 2026-08-15) — silences and boundaries:
+
+| Silence or boundary | Conservative reading | Next-call consequence |
+|---|---|---|
+| "Only `seal_evidence` can construct" left the enforcement boundary unstated; charge §3-addendum required the in-crate boundary be named or minted (it was minted as SD-R8-F23). | State the mechanism exactly where the claim is carried: private fields bar construction across the library/integration-test crate boundary; the `mock` module's in-crate descendants (today `mock::model`, with a live `#[cfg(test)]` module) live inside the seal. The claim is corrected in all three carrying locations — doc comment, `b13-observation-log` note/`must_assert`, and this confession — rather than defended. | A reader of any carrying location meets the same scoped statement with the compensating controls; no location claims more binding than the compiler performs. |
+| The F23 disposition scopes the claim and names the boundary but does not say how future in-crate drift becomes visible. | Add detection in the established X2/F12 belt pattern: a lexical pin over `src/` text that fails on any `MockEvidence` literal-shaped occurrence beyond the four pinned `mock/mod.rs` sites (declaration, impl header, the compile-fail forgery, `seal_evidence`'s construction). Every carrying location says detection, never binding — per the disposition's "no pseudo-binding". | A future in-crate descendant test forging the literal fails the belt pin in ordinary CI and must re-derive the pin deliberately; editing the pinned file or the pin itself remains the confessed lexical evasion, as with X2/F12. |
+
 
 
 - The public driver submits only through `GateHandle`. Mock
@@ -444,6 +468,34 @@ walk for the F4/F5/F9 repairs:
   authority; (5) response entry points are untouched; (6) client
   notifications are untouched. Mock sealing is test-harness finality,
   not a second scheduler or client state.
+
+(F23 repair packet, 2026-08-15) — seams and invariant walk:
+
+- **Prose scope correction plus one read-only test:** the repair edits
+  the `MockEvidence` doc comment, the `b13-observation-log`
+  note/`must_assert`/citations, and this packet, and adds one lexical
+  test that reads `src/` text at run time. No engine, actor, mock,
+  conformance, judge, or declaration code changed — the compile-fail
+  doctests and `seal_evidence`'s runtime semantics are byte-identical
+  — so the six cross-slice invariants are untouched by construction:
+  (1) no token/entry state changes; (2) reservation identity is
+  untouched; (3) pessimism and reconciliation are untouched; (4)
+  `try_reserve` remains the sole scheduling authority; (5) response
+  entry points are untouched; (6) notifications are untouched.
+- **Compensating controls verified against the tree, not asserted:**
+  the two `#[cfg(test)]` modules in `src/` (`mock::model`, `actor`)
+  reference none of `judge`, `declare`, `RunEvidence`, `RunReport`,
+  `ReproductionRecord`, or `MockEvidence`; `conformance` has no
+  descendant module at all; the verdict-eligible report set is
+  produced only by `tests/scenario_driver.rs` across the crate
+  boundary. The belt pin keeps the `MockEvidence` half of that sweep
+  loud in CI; the remainder is this session's recorded grep, repeated
+  by the next reviewer.
+- **Registry seam:** `b13-observation-log` keeps its owner, coverage,
+  and existing citations; the corrected `must_assert` now states only
+  what `sealed_evidence_is_complete_final_and_mock_authentic` itself
+  asserts, and the belt citation is added. Totals are unchanged;
+  obligations reruns 6/6.
 
 
 
@@ -699,6 +751,31 @@ the F12 structural source pin.
   sealed mock and can no longer fabricate a post-judge report. Only the
   dedicated driver produces verdict-authority report sets.
 
+(F23 repair packet, 2026-08-15) — coverage confession:
+
+- **Named boundary (SD-R8-F23), beside the existing surfaces:**
+  in-crate descendants of `mock` live inside the evidence seal. Rust
+  privacy bars `MockEvidence` construction only across the
+  library/integration-test crate boundary, where the verdict-bearing
+  driver runs; `mock::model` — a descendant with a live `#[cfg(test)]`
+  module — could write a forged struct literal directly. Compensating
+  controls: the verdict path resides entirely across the crate
+  boundary (no in-crate test reaches `judge` or `declare`, and the
+  conformance types have no in-crate descendant module at all), and
+  the lexical belt pin fails on any `MockEvidence` literal-shaped
+  text in `src/` beyond the four pinned `mock/mod.rs` sites. The belt
+  is detection, not a binding: like the X2/F12 pins it is lexical,
+  and editing the pinned file or the pin itself evades it.
+- The previously named surfaces are unchanged: assertion
+  coverage/passed (test authorship; compensated by the falsifiability
+  guards and the scale-shape test), scenario identity (driver-owned),
+  the profile choice inside `mod lane`, and the registry's
+  reviewed-prose `must_assert` accuracy.
+- Registry totals remain **124 clauses: 110 Full, no Partial, one
+  accepted Untested limitation, and 13 Excluded**; no clause was
+  minted; only `b13-observation-log` changed (scoped note, corrected
+  `must_assert`, belt citation).
+
 
 
 - The canonical wired median (81 ms across 383 samples) replaces the
@@ -916,6 +993,37 @@ the F12 structural source pin.
   reports; none mutates a report after judging. This preserves the
   recorded runtime signatures while making the former forge technique
   unavailable.
+
+(F23 repair packet, 2026-08-15) — judgment calls:
+
+- **A belt pin rather than prose alone.** The disposition owes no code
+  binding (none is possible against a module's own descendants) and a
+  different session might have landed only the wording repairs. The
+  established X2/F12 belt pattern makes silent drift loud at
+  near-zero cost; every carrying location says "detection, not a
+  binding" so the record cannot be read as the pseudo-binding the
+  disposition forbids.
+- **Pin all four literal-shaped sites, not construction sites only.**
+  The needle also matches the type's declaration and impl header;
+  pinning exact per-file counts (4 in `mock/mod.rs`, 0 elsewhere in
+  `src/`) is simpler and stricter than distinguishing construction
+  lexically, at the cost that a legitimate new occurrence of the
+  literal shape requires re-deriving the pin — stated in the pin's
+  own comment.
+- **The corrected `must_assert` shrank to the cited test's own
+  assertions.** "Mock-only evidence construction" was the record's
+  claim, not the integration test's; the construction-scope statement
+  moved to the clause note at its correct scope. A different session
+  might have kept a scoped construction phrase in the `must_assert`;
+  this one kept the registry's test-facing field strictly
+  test-faithful.
+- **The belt demonstrates F23's fact in-tree as its non-vacuity
+  check.** The post-commit mutation forges the literal inside
+  `mock::model`'s `#[cfg(test)]` module: the forgery compiles and
+  runs (the descendant visibility the finding claims), and the belt
+  pin fails naming `model.rs` — then both are reverted. Recording the
+  demonstration keeps the pin from being a green test nobody has seen
+  fail.
 
 ## 5. Verification presented with this packet
 
@@ -1152,3 +1260,46 @@ refusal signatures were rerun without editing source. No live service
 was contacted. Both verdict fills remain suspended; this session closes
 nothing and hands the packet to the repeated independent re-close
 review, followed by the repeated final audit.
+
+(F23 repair packet, 2026-08-15) — verification presented with this
+packet, entirely offline, with the repair committed first as
+`1b483191`:
+
+- `cargo test --locked`: 176 passed / 0 failed / 3 ignored (one more
+  than the sealing packet: the new belt pin), doctests 5/5.
+- `cargo test --locked --release`: 174 / 0 / 3 (the two debug-only
+  drop-bomb tests are absent).
+- `PROPTEST_CASES=4096 cargo test --locked`: 176 / 0 / 3.
+- Compile-fail authority: doctests 5/5, unchanged by this repair.
+- Pinned φ=0 full-contract declaration: 1/1 over all sixteen reports.
+  Explicit debug 4,096-case declared run: 1/1 in 306.40 s; release
+  companion 1/1 in 26.35 s.
+- Obligations: 6/6, reporting 124 clauses — 110 Full / 0 Partial /
+  1 accepted Untested / 13 Excluded, `OPEN_UNTESTED` empty. Both
+  ignored §7.4 release tests: 2/2 in 7.79 s. Sanitizer: 4/4.
+  All-target clippy with warnings denied, fmt, and `git diff --check`
+  are clean.
+- Preserved signatures, rerun by name and green: F5
+  `MissingEndpointLane { endpoint: CharacterList }` and F12/F4
+  `MissingM8KnownLane`
+  (`full_contract_declaration_requires_every_m_row_and_both_m8_lanes`,
+  `full_contract_declaration_binds_each_m8_profile_to_its_endpoint`),
+  F11 `MissingScenarioEndpointLane { scenario: M2, endpoint:
+  CharacterList }`
+  (`full_contract_declaration_refuses_a_relabeled_required_lane`), F9
+  `ReproductionMismatch { id: 1 }`
+  (`correlation_and_reproduction_seams_are_structural`), and the F12
+  lexical single-path pin
+  (`f12_driver_has_one_engine_construction_and_one_provenance_path`).
+
+One mutation was run from the committed repair and reverted with
+`git checkout --`: a forged `MockEvidence` struct literal added to
+`mock::model`'s `#[cfg(test)]` module **compiled and passed as a unit
+test** — the SD-R8-F23 descendant-visibility fact, demonstrated
+in-tree rather than only on the reviewer's standalone crate — while
+the belt pin failed with exactly "unpinned MockEvidence literal-shaped
+text in …/src/mock/model.rs — left: 1, right: 0". On the restored tree
+the pin is green again. No live service was contacted. Both verdict
+fills remain suspended; this session closes nothing and hands the
+packet to the repeated independent re-close review, then the repeated
+`final-audit-charge.md` audit.
