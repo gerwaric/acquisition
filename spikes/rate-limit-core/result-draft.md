@@ -180,6 +180,19 @@ declaration and the obligations verifier passed. Both verdict fills
 remain suspended. Findings, evidence, and proposed dispositions are in
 §9; `status.md` is live state.]*
 
+*[Terminal refill, 2026-08-15, same day: **the merged terminal review
+passed under Tom's binding materiality threshold.** It found no defect
+that forges or invalidates either verdict authority and no false
+delivered claim; the accepted-residuals entry is explicitly empty.
+The F25 single-sourcing repair, both authorities, the sealed evidence
+boundary, the full offline matrix, both migration scopes, and every
+verdict/topic/N27–N32 claim were independently checked. The suspension
+is lifted: both verdict slots above and the §3 gate fills are restored.
+SD-R8 and the scenario-driver slice are closed. The spike is
+delivery-ready under F6; the two PRs proceed on Tom's go, and the spike
+completes at landing. Full terminal record: §9; live state:
+`status.md`.]*
+
 **O-series carriage (SD-R8-F7) — ratified by Tom, 2026-08-15; part
 of both verdict statements:**
 
@@ -4732,3 +4745,78 @@ hoistable to its own repository without surgery.
   §3-addendum-4 scope is absorbed into the terminal charge's
   Scope 1; that charge is superseded by this decision and retained
   as dated history.
+
+- 2026-08-15 — **The merged terminal review passed under Tom's binding
+  materiality threshold; no SD-R8-F26+ finding was minted.** The fresh
+  reviewer read the mandated record in `AGENTS.md` order and treated
+  `status.md` as live authority. The F25 range, both verdict authorities,
+  the whole delivery object, and both migration diffs were reviewed.
+  A defect would have blocked only if it forged or invalidated the
+  run-owned `FullContract` declaration chain or its registry agreement,
+  or made a filled-verdict, consumer-topic, or N27–N32 claim false. None
+  did.
+
+  **Accepted residuals (Tom's decision): none.** The reviewer found no
+  below-threshold wording, detection-scope, in-crate-only, or style
+  residual to record. The already named in-crate trust surfaces were not
+  re-litigated. This explicit empty entry satisfies the terminal charge;
+  it does not manufacture a concern merely to populate the register.
+
+  **F25 delta and mutation:** commit `3f777095` is exactly the decided
+  wording-only, single-sourcing repair. The belt-pin comment is the one
+  normative statement of its mechanism and limits: identifier-boundary
+  `MockEvidence` tokens in the `.rs` files below `src/` that the walk
+  reads, compared with pinned per-file counts; out-of-scan source,
+  generated spelling/editing the pin, and token-free instance mutation
+  remain confessed outside it. The historical pairs
+  `723578f4`/`0dd34a40` and `47885eab`/`351bfab6` behave exactly as the
+  corrected wording predicts. The reviewer added only a rename import
+  in scanned `src/mock/model.rs`, committed it as `5773a0c0`, and the
+  exact pin failed naming that file at `left: 1`, `right: 0`. The mutation
+  was then reverted in committed `f19f4c7c`; the post-revert tree is
+  byte-identical to the review start through that pair and the focused
+  pin is green 1/1.
+
+  **Two authorities and carriage:** the pinned declaration passed 1/1;
+  the explicit debug 4,096-case M1–M13 declared run passed 1/1 in
+  306.08 s; obligations passed 6/6 at 124 clauses — 110 Full / 0 Partial
+  / 1 accepted Untested / 13 Excluded, `OPEN_UNTESTED` empty. Source
+  inspection confirmed `FullContractRun::declare` is run-owned and
+  registry-independent: it requires verdict eligibility, all M rows,
+  both M8 provenance lanes, every endpoint, and the named M2 endpoint
+  pairs directly from judged reports. `ReproductionRecord` and
+  `RunReport` are sealed/read-only across the library/integration-test
+  boundary and judge-owned; `MockEvidence` reaches that boundary only
+  through the atomic final `seal_evidence` snapshot. The five privacy
+  compile-fail doctests remained green.
+
+  **Full offline matrix:** debug `cargo test --locked` passed 176 / 0 /
+  3 ignored with doctests 5/5; release passed 174 / 0 / 3 with doctests
+  5/5; `PROPTEST_CASES=4096` passed 176 / 0 / 3; the ignored §7.4 release
+  pair passed 2/2 in 8.81 s; sanitizer passed 4/4; all-target clippy with
+  warnings denied and `cargo fmt --all --check` passed. The full pin and
+  obligations checks above, `git diff --check`, spike-versus-`redesign`
+  diff check, and ground-truth-versus-`master` diff check were clean.
+  Everything ran locally and offline; no live service was contacted.
+
+  **Delivered claims and migration boundaries:** both verdict paragraphs
+  carry the four OAuth policies at `Known(5s/60s)`, the conditional
+  backend-item lane at `Assumed(60s/60s)`, U1–U5, O1–O8, and finalized G1–G6
+  including ε = 500 ms and 1.05× exactly as the evidence supports. The
+  consumer topic says reusable foundation, not a completed cross-client
+  shim. N27–N32 were re-derived from their repository provenance: N27's
+  official claim remains bounded; N28–N30 remain incident/observation
+  scoped; N31 carries B3's half-open and exclusive-expiry model choice;
+  N32 distinguishes front-only ordinary dispatch from the whole-deque
+  probe-writer scan. The ground-truth branch scope is exactly one modified
+  file, `docs/design/network-ground-truth.md`, relative to `master`; the
+  delivery-object scope outside the spike directory is exactly the added
+  topic and modified redesign register relative to `origin/redesign`.
+
+  **Three-act close:** this entry is the terminal finding and accepted-
+  residuals register; `status.md` records the live terminal result; and
+  `scenario-driver-handoff.md` is flipped to closed historical status.
+  Both verdict fills are restored, SD-R8 and the scenario-driver slice are
+  closed, and the spike is delivery-ready under the F6 gate. The two PRs
+  (`spike/rate-limit-core` → `redesign`; ground-truth → `master`) proceed
+  on Tom's go. F6 and the spike complete at landing, not readiness.

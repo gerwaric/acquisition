@@ -1,8 +1,10 @@
 # Terminal review charge: merged re-close + final audit
 
-Status: **open — charge for the single terminal reviewer** (drafted
+Status: **executed — terminal review passed 2026-08-15 with no blocking
+finding and no accepted residual under Tom's recorded materiality
+threshold** (`status.md` §2 / `result-draft.md` §9). Drafted
 2026-08-15 by the analyst session under Tom's recorded terminal-gate
-decision, `status.md` §3 / `result-draft.md` §9). This gate replaces
+decision. This gate replaced
 both the repeated re-close review and the repeated
 `final-audit-charge.md` audit. You are a fresh no-context session by
 design; the repository is the only channel. Read the mandated

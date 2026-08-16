@@ -1,10 +1,10 @@
 # Rate-limit core spike
 
-Status: migration-package draft reopened by the final external audit
-(SD-R8-F11–F20, 2026-08-15); the F11–F20 repairs were applied the same
-day (`result-draft.md` §9 on the spike branch). Not accepted for
-delivery — acceptance awaits the repeated independent SD-R8 re-close
-review and the repeated final external audit.
+Status: terminal review passed 2026-08-15 under Tom's binding
+materiality threshold; SD-R8 and the scenario-driver slice are closed,
+both verdict fills are restored, and the package is delivery-ready.
+The two F6 PRs proceed on Tom's go; the spike completes at landing
+(`result-draft.md` §9 on the spike branch).
 
 Provenance: **[Measured]** Distilled 2026-08-15 from
 `spikes/rate-limit-core/result-draft.md` on branch

@@ -218,6 +218,15 @@ both authorities reran green and all five preserved mutation
 signatures and compile-fail doctests hold. Both verdict fills
 remain suspended awaiting the repeated re-close review and the
 repeated final audit.
+**The merged terminal review passed 2026-08-15 under Tom's binding
+materiality threshold.** The F25 single-sourcing delta matches its
+disposition, its current import-token refusal was reproduced in the
+committed/reverted pair `5773a0c0`/`f19f4c7c`, both verdict authorities
+agree, and the whole delivery object — including both migration diffs
+and N27–N32 — supports every delivered claim. No SD-R8-F26+ finding was
+minted, and the accepted-residuals register is empty: the reviewer found
+no below-threshold residual to accept under Tom's decision. Both verdict
+fills are restored; SD-R8 and the scenario-driver slice are closed.
 `obligation-map.md`
 is the superseded prose ancestor; read its §8 for the audit's
 discrepancy analysis (dated at `e2034807`), never for current
@@ -225,10 +234,10 @@ coverage.
 
 ## 2. Slice and review state
 
-- **Open: scenario-driver slice** (M1–M13 driver/judge
-  integration; closed with SD-R8 on 2026-08-15, then **reopened
-  the same day by the external no-context audit of the closure**
-  — the round history follows).
+- **Closed: scenario-driver slice** (M1–M13 driver/judge
+  integration; terminal review passed 2026-08-15 under Tom's
+  materiality threshold; SD-R8 is closed and both verdict fills are
+  restored. The round history follows).
   **Round five is closed** (SD-R5, 2026-08-14): an independent
   re-review validated all twenty-four repairs — SD-R5-F2..F15 and
   RE-1..RE-9 — against code, tests, and docs, reproduced the full
@@ -472,6 +481,18 @@ coverage.
   predicts. The session closes nothing: SD-R8 remains open awaiting
   repeated independent re-close review and then the repeated final
   audit.
+  **The merged terminal review passed 2026-08-15 with no blocking
+  finding and no accepted residual.** It independently verified the
+  F25 delta and current refusal, both declaration authorities and the
+  sealed evidence boundary, every delivered verdict/topic/N27–N32
+  claim, the full offline matrix, and the two migration scopes. The
+  accepted-residuals entry in `result-draft.md` §9 is explicitly empty
+  under Tom's decision. This is the three-act close: that §9 entry is
+  the finding register, this live state records the terminal result,
+  and `scenario-driver-handoff.md` is flipped to closed historical
+  status. SD-R8 and the slice are closed; both verdict fills are
+  restored. The spike is delivery-ready under F6 and completes only at
+  landing.
 - Every other slice (core, bootstrap, mock, actor, clause registry,
   doc split) is closed; their hand-offs are historical records.
   (Doc split closed 2026-08-13, DS-R1 — `result-draft.md` §9.)
@@ -595,27 +616,21 @@ ratification record is in `result-draft.md` §9. (Both earlier
 
 ## 4. Blocked
 
-Delivery is blocked on re-closing SD-R8. The F21/F22 sealing repairs,
-the F23 scope repair, and the F24 strengthening are present and
-re-verified; the F25 repair is present (`3f777095`): the pin's own
-comment is the single normative statement of the detection class
-(bare tokens in `.rs` files under `src/`), every other carrying
-location points to it, and the vector-pin strengthening was declined
-by Tom. What remains before either delivery PR: another repeated
-independent re-close review over the F25 range, then the repeated
-`final-audit-charge.md` audit over the repaired tree and both
-migration diffs. Both verdict fills stay suspended until then. No Tom
-decision is open.
+No evidence or review blocker remains. The merged terminal review
+passed with no blocking finding and no accepted residual; SD-R8 and the
+scenario-driver slice are closed, both verdict fills are restored, and
+the spike is delivery-ready. The two F6 delivery PRs proceed on Tom's
+go. F6 and the spike complete at landing, not readiness. No Tom decision
+is open.
 
 ## 5. Next work
 
 The 2026-08-13 ballot remains closed; items 1–4 below stand done
-as recorded (SD-R6; SD-R7 re-close). Item 5's SD-R8 closure was
-**reopened by the 2026-08-15 external audit**; the reopened work
-list follows the historical items. What follows the spike — Tom's
-reading of the verdicts and the feed into `docs/adr/0003` — stays
-outside this file's scope, and is farther off than the closure
-claimed: the spike is not concluded.
+as recorded (SD-R6; SD-R7 re-close). Item 5's SD-R8 review work is
+closed by the merged terminal review; the reopened-work chain below is
+retained as history. What follows the spike — Tom's reading of the
+verdicts and the feed into `docs/adr/0003` — stays outside this file's
+scope. The spike is delivery-ready and concludes at F6 landing.
 
 Reopened SD-R8 work (audit and re-close-review entries,
 `result-draft.md` §9):
@@ -688,8 +703,10 @@ Reopened SD-R8 work (audit and re-close-review entries,
      restored (`result-draft.md` §9).
   3. ~~**Final external adversarial audit**~~ — **ran 2026-08-15 and
      reopened SD-R8 with F11–F20; package not deliverable.**
-  4. Repair and independently re-close the reopened round, then repeat
-     `final-audit-charge.md` over the repaired tree and both diffs.
+  4. ~~Repair and independently re-close the reopened round, then repeat
+     `final-audit-charge.md` over the repaired tree and both diffs~~ —
+     **done 2026-08-15 by the merged terminal review**. The historical
+     repair/review chain follows.
      **F11–F20 repairs done 2026-08-15** (the three bullets above);
      the repeated re-close review ran the same day, verified them,
      and **found SD-R8-F21/F22 — the round stays open**. Now next:
@@ -715,13 +732,12 @@ Reopened SD-R8 work (audit and re-close-review entries,
      `src/` — and correct the evasion family's boundary; §9
      disposition) and fresh four-part packet~~ — **done 2026-08-15**
      (`3f777095`, single-sourced per Tom's decision, strengthening
-     declined; packet presented without closure). Now next, **per
-     Tom's 2026-08-15 terminal-gate decision (§3)**: the single
-     merged **terminal review** (`terminal-review-charge.md` — F25
-     delta + the whole delivery object, under the materiality
-     threshold; a fresh no-context session). It replaces both the
-     repeated re-close review and the repeated final audit;
-     `re-close-review-charge.md` is superseded, retained as dated
+     declined; packet presented without closure). The single merged
+     **terminal review** then passed under Tom's 2026-08-15 materiality
+     threshold: no SD-R8-F26+ blocker and no accepted residual; SD-R8
+     and the slice closed and both verdict fills were restored. It
+     replaced both the repeated re-close review and the repeated final
+     audit; `re-close-review-charge.md` is superseded, retained as dated
      history.
   5. The two delivery PRs (`spike/rate-limit-core` → `redesign`;
      CN docs → `master`). **F6 — and the spike — complete at

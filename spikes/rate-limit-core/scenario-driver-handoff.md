@@ -1,6 +1,12 @@
 # Scenario-driver and safety-closure hand-off
 
-Status: **open — the F25 repair packet is presented 2026-08-15 and
+Status: **closed — the merged terminal review passed 2026-08-15 under
+Tom's binding materiality threshold; SD-R8 and the scenario-driver
+slice are closed and both verdict fills are restored.** The terminal
+finding/accepted-residuals record is in `result-draft.md` §9 and live
+state is `status.md`. This file is now a historical packet.
+
+Prior status: **open — the F25 repair packet is presented 2026-08-15 and
 awaits the repeated independent re-close review.** Commit `3f777095`
 executes the SD-R8-F25 disposition as amended by the F25 reviewer's
 recommendation and approved by Tom the same day (decision record in
