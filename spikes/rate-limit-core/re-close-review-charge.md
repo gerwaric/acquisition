@@ -13,7 +13,12 @@ repair extends the range — spike head `a4497304` (code `a09ef5ed`),
 ground-truth head `3088d6e4` unchanged. §§1–2 below were verified
 against the F11–F20 range by the previous execution of this charge;
 re-verify only what the sealing commits touched, then run §3 and
-the §3-addendum in full.)* Close per `slice-review.md` §5 or
+the §3-addendum in full.)* *(Range updated again 2026-08-15: the F23
+repair extends the range — code `1b483191`, ground-truth head
+`3088d6e4` unchanged. The sealing range was verified in full by the
+previous execution of this charge, which minted SD-R8-F23; re-verify
+only what the F23 commits touched, then run the §3-addendum-2 below
+in full.)* Close per `slice-review.md` §5 or
 record findings and leave the round open. Never contact a live
 service; commit before reverting any mutation you run.
 
@@ -97,6 +102,35 @@ F21/F22 repair range; from the repair *report* alone, unexamined)
 - **Name the in-crate boundary.** Rust privacy does not bind
   in-crate unit-test modules; they live inside the seal. The
   packet's trust-surface list must say so, or mint the finding.
+
+## 3-addendum-2. F23-range checks (added 2026-08-15 for the F23
+repair range; from the repair report alone, unexamined)
+
+- **The scoped claim must be exactly true.** Re-derive the corrected
+  statements in the `MockEvidence` doc comment, the
+  `b13-observation-log` note/`must_assert`, and the packet confession
+  from the code: confirm Rust privacy binds exactly the
+  library/integration-test crate boundary and nothing more, that the
+  named descendant set is complete (`mock::model` today; any new
+  child of `mock` joins it), and that no location claims more binding
+  than the compiler performs. An overcorrected claim — understating
+  what the seal does enforce — is also a finding.
+- **The belt pin is detection and must be non-vacuous.** Verify the
+  four pinned `mock/mod.rs` sites are what the pin says they are;
+  reproduce the repair's recorded mutation (a forged `MockEvidence`
+  literal in `mock::model`'s `#[cfg(test)]` module compiles and runs,
+  demonstrating F23's fact in-tree, while the pin fails naming
+  `model.rs`); probe evasions the pin's confession does not already
+  name, and check nothing describes the pin as a binding.
+- **Hunt the sixth generation.** The class is now "a claim about an
+  enforcement mechanism that outruns the mechanism." Sweep the
+  remaining enforcement claims — the compile-fail doctests' prose,
+  the X2 and F12 pin comments, every trust-surface list — for any
+  statement a compiler, test, or named reviewer step does not
+  actually enforce. Unlisted or overstated surfaces are how this
+  class has survived five generations.
+- **Corrected `must_assert` fidelity.** Every `must_assert` the
+  repair touched must state only what its cited test asserts.
 
 ## 4. The packet and the record
 
