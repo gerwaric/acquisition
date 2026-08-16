@@ -171,20 +171,27 @@ async fn sealed_evidence_is_complete_final_and_mock_authentic() {
     );
 }
 
-/// SD-R8-F23's lexical belt, in the X2/F12 pattern: Rust privacy cannot bar
-/// `MockEvidence` construction from the `mock` module's own in-crate
-/// descendants — their `#[cfg(test)]` modules live inside the seal — so that
-/// boundary is a named residual trust surface (the type's doc comment and
-/// the `b13-observation-log` registry note carry it). This test is
-/// detection, not a binding: it fails on any `MockEvidence` literal-shaped
-/// text in `src/` beyond the four known sites in `src/mock/mod.rs`
-/// (declaration, impl header, the compile-fail doctest forgery, and
-/// `seal_evidence`'s own construction), so an in-crate forgery must
-/// re-derive this pin deliberately. concat! keeps the needle out of this
-/// test's own literals (the SD-R5-F5 vacuity lesson); this is a lexical
-/// spike pin, not a Rust parser.
+/// SD-R8-F23's lexical belt, in the X2/F12 pattern, strengthened per the
+/// SD-R8-F24 disposition: Rust privacy cannot bar `MockEvidence`
+/// construction from the `mock` module's own in-crate descendants — their
+/// `#[cfg(test)]` modules live inside the seal — so that boundary is a
+/// named residual trust surface (the type's doc comment and the
+/// `b13-observation-log` registry note carry it). This test is detection,
+/// not a binding, and it detects exactly one thing: bare tokens of the
+/// type name in `src/` (identifier-boundary matched, so
+/// `MockEvidenceSealError` never counts), checked against pinned per-file
+/// counts. Constructing or aliasing the type requires writing its name
+/// somewhere, so the token needle catches the F24 rename-import and
+/// `Self`-in-new-inherent-impl shapes the earlier brace-shape needle
+/// missed. What it cannot see: **field mutation on an obtained instance
+/// needs no token under any spelling and is undetectable by construction**
+/// — that shape rests solely on the named trust surface — and an
+/// `include!` of a non-`.rs` file, a macro that assembles the identifier,
+/// or editing this pin itself also evade it. concat! keeps the needle out
+/// of this test's own literals (the SD-R5-F5 vacuity lesson); this is a
+/// lexical spike pin, not a Rust parser.
 #[test]
-fn f23_mock_evidence_literal_sites_in_src_are_pinned() {
+fn f23_f24_mock_evidence_bare_tokens_in_src_are_pinned() {
     fn rust_sources(dir: &std::path::Path, files: &mut Vec<std::path::PathBuf>) {
         for entry in std::fs::read_dir(dir).unwrap() {
             let path = entry.unwrap().path();
@@ -196,6 +203,19 @@ fn f23_mock_evidence_literal_sites_in_src_are_pinned() {
         }
     }
 
+    fn bare_token_count(source: &str, needle: &str) -> usize {
+        let bytes = source.as_bytes();
+        let is_ident = |byte: u8| byte.is_ascii_alphanumeric() || byte == b'_';
+        source
+            .match_indices(needle)
+            .filter(|(start, matched)| {
+                let end = start + matched.len();
+                (*start == 0 || !is_ident(bytes[start - 1]))
+                    && (end == bytes.len() || !is_ident(bytes[end]))
+            })
+            .count()
+    }
+
     let src = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
     let mut files = Vec::new();
     rust_sources(&src, &mut files);
@@ -205,14 +225,28 @@ fn f23_mock_evidence_literal_sites_in_src_are_pinned() {
         files.len()
     );
 
-    let needle = concat!("MockEvidence", " {");
+    let needle = concat!("Mock", "Evidence");
     for path in files {
         let source = std::fs::read_to_string(&path).unwrap();
-        let expected = if path.ends_with("mock/mod.rs") { 4 } else { 0 };
+        let expected = if path.ends_with("mock/mod.rs") {
+            // Declaration, impl header, the compile-fail doctest's `use`
+            // and forged literal, and `seal_evidence`'s return type and
+            // construction.
+            6
+        } else if path.ends_with("conformance.rs") {
+            // The judge-side import and the three RunEvidence carriage
+            // sites.
+            4
+        } else if path.ends_with("obligations.rs") {
+            // b13-observation-log's note and its belt citation.
+            2
+        } else {
+            0
+        };
         assert_eq!(
-            source.matches(needle).count(),
+            bare_token_count(&source, needle),
             expected,
-            "unpinned MockEvidence literal-shaped text in {}",
+            "unpinned bare MockEvidence token in {}",
             path.display()
         );
     }
