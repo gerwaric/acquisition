@@ -4329,3 +4329,20 @@ hoistable to its own repository without surgery.
   open awaiting the F24 wording repair, a fresh four-part packet,
   another repeated independent re-close review, and then the repeated
   `final-audit-charge.md` audit.
+
+- 2026-08-15 — **analyst note on the F24 disposition's optional
+  strengthening: take it, with one shape staying named.** Token
+  analysis of the reviewer's three needle-free forgeries under a
+  bare-token-per-file pin (the proposed strengthening): the
+  rename-import shape carries the token `MockEvidence` in its `use`
+  statement, so a bare-token needle catches it at the import; the
+  `Self`-literal shape requires `impl MockEvidence`, token present,
+  caught; **direct field mutation on an obtained instance requires
+  no token under any spelling** and remains needle-free under any
+  lexical pin — it must stay a *named* evasion. Recommended repair
+  wording: the pin "detects any appearance of the type name in
+  `src/` beyond the allowlisted sites; field mutation on an
+  obtained instance is undetectable by construction and is covered
+  only by the named trust surface." Claims scoped to exactly that;
+  detection, never binding. Implementation latitude per the
+  reviewer's disposition; no contract decision needed.
