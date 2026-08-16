@@ -548,6 +548,13 @@ fn bucket_end(at_ms: u64, bucket_ms: u64, phase_ms: u64) -> u64 {
     phase.saturating_add(bucket_index.saturating_add(1).saturating_mul(bucket_ms))
 }
 
+// REVIEW MUTATION (SD-R8 re-close, F24 range): hunt probe. This module's
+// source file lives outside src/, so the bare-token pin never scans it,
+// while the module itself is an in-crate descendant of `mock`.
+#[cfg(test)]
+#[path = "../../forged_carriage_probe.rs"]
+mod forged_carriage_probe;
+
 #[cfg(test)]
 mod tests {
     use super::*;
