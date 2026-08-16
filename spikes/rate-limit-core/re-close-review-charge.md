@@ -143,6 +143,40 @@ module — rather than accepting the repair's verification of them;
 - **Corrected `must_assert` fidelity.** Every `must_assert` the
   repair touched must state only what its cited test asserts.
 
+## 3-addendum-3. F24-range checks (added 2026-08-15 by the analyst
+session for the F24 repair range — code `6fc96d80`, mutation pair
+`dc7a3d97`/`a1d66cbc`, packet `4ffd73ab`; prior ranges stand as
+verified by earlier executions; re-verify only what these commits
+touched, then run this addendum in full)
+
+- **Scoped claims, exactly true, both directions.** Re-derive every
+  touched claim location (pin comment, `MockEvidence` doc comment,
+  `b13-observation-log` note, the belt citation's `must_assert`,
+  packet confession, and the dated falsification markers) from the
+  code. Overcorrection is a finding; a falsification marker that
+  rewrites rather than annotates dated text is a finding.
+- **The bare-token pin, independently.** Recount the per-file
+  tokens against the tree yourself (claimed: 6 `mock/mod.rs`,
+  4 `conformance.rs`, 2 `obligations.rs`, 0 elsewhere) — the
+  repair's own hand count was wrong once (recorded as the
+  non-vacuity wrinkle; verify that record matches the commits).
+  Confirm identifier-boundary matching (`MockEvidenceSealError`
+  must not count). Reproduce the cherry-picked forgery's exact
+  signature (`left: 3, right: 0` naming `model.rs`) and confirm
+  the import token alone trips it.
+- **The named-evasion set.** Field mutation on an obtained
+  instance, `include!`, macro-assembled identifiers, editing the
+  pin. Hunt for a needle-free shape outside that set — note that
+  struct-update syntax, wildcard-import literals, and type-alias
+  paths all still require the bare token somewhere in the file, so
+  a genuine miss must avoid the identifier entirely; the
+  obtained-instance family (`mem::swap` and pointer games included)
+  is the known token-free territory and must be read as covered by
+  the named shape or minted.
+- **Seventh-generation sweep**, proportionate: only the claim
+  locations this repair touched, for any statement the needle,
+  compiler, or a named reviewer step does not enforce.
+
 ## 4. The packet and the record
 
 Four parts current at the repaired totals; §9 entries complete;
