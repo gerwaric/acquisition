@@ -1,0 +1,125 @@
+//! Client side of the daemon protocol: connect, lazy-spawn, version handshake.
+
+use std::time::Duration;
+
+use anyhow::{Context, Result, bail};
+use acquisition_core::VERSION;
+use acquisition_core::daemon::socket_path;
+use acquisition_core::job::JobInfo;
+use acquisition_core::protocol::{Request, Response};
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, Lines};
+use tokio::net::UnixStream;
+use tokio::net::unix::{OwnedReadHalf, OwnedWriteHalf};
+
+pub struct Client {
+    lines: Lines<BufReader<OwnedReadHalf>>,
+    write: OwnedWriteHalf,
+}
+
+impl Client {
+    /// Connect to the daemon, spawning one if needed (`spawn = true`) and
+    /// replacing it if the version handshake mismatches.
+    pub async fn connect(spawn: bool) -> Result<Client> {
+        let mut respawned = false;
+        let mut spawned = false;
+        for _attempt in 0..100 {
+            match UnixStream::connect(socket_path()).await {
+                Ok(stream) => {
+                    let mut client = Client::from_stream(stream);
+                    let hello = client.request(&Request::Hello {
+                        client_version: VERSION.to_string(),
+                    })
+                    .await?;
+                    let Response::Hello { daemon_version, pid } = hello else {
+                        bail!("unexpected handshake response: {hello:?}");
+                    };
+                    if daemon_version == VERSION {
+                        return Ok(client);
+                    }
+                    if respawned {
+                        bail!(
+                            "daemon (pid {pid}) still reports version {daemon_version} after respawn; wanted {VERSION}"
+                        );
+                    }
+                    // Stale daemon from an older build: kill and respawn.
+                    let _ = client.request(&Request::DaemonStop).await;
+                    respawned = true;
+                    spawned = false;
+                    tokio::time::sleep(Duration::from_millis(200)).await;
+                }
+                Err(_) if spawn => {
+                    if !spawned {
+                        spawn_daemon()?;
+                        spawned = true;
+                    }
+                    tokio::time::sleep(Duration::from_millis(50)).await;
+                }
+                Err(e) => {
+                    return Err(e).context("daemon is not running (it spawns on demand for job commands)");
+                }
+            }
+        }
+        bail!("could not reach daemon at {} after 5s", socket_path().display())
+    }
+
+    fn from_stream(stream: UnixStream) -> Client {
+        let (read, write) = stream.into_split();
+        Client {
+            lines: BufReader::new(read).lines(),
+            write,
+        }
+    }
+
+    /// Send a request and return the next non-event response. Events arriving
+    /// in between (on subscribed connections) are dropped here; use `recv` in
+    /// event-driven flows instead.
+    pub async fn request(&mut self, req: &Request) -> Result<Response> {
+        let mut line = serde_json::to_string(req)?;
+        line.push('\n');
+        self.write.write_all(line.as_bytes()).await?;
+        loop {
+            match self.recv().await? {
+                Response::Event { .. } => continue,
+                other => return Ok(other),
+            }
+        }
+    }
+
+    pub async fn recv(&mut self) -> Result<Response> {
+        let line = self
+            .lines
+            .next_line()
+            .await?
+            .context("daemon closed the connection")?;
+        Ok(serde_json::from_str(&line)?)
+    }
+
+    /// `request` variants that unwrap the expected response shape.
+    pub async fn expect_ack(&mut self, req: &Request) -> Result<()> {
+        match self.request(req).await? {
+            Response::Ack => Ok(()),
+            Response::Error { message } => bail!("{message}"),
+            other => bail!("unexpected response: {other:?}"),
+        }
+    }
+
+    pub async fn status(&mut self, id: u64) -> Result<JobInfo> {
+        match self.request(&Request::Status { id }).await? {
+            Response::Status { job } => Ok(job),
+            Response::Error { message } => bail!("{message}"),
+            other => bail!("unexpected response: {other:?}"),
+        }
+    }
+}
+
+fn spawn_daemon() -> Result<()> {
+    let exe = std::env::current_exe()?;
+    std::process::Command::new(exe)
+        .args(["daemon", "run"])
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .context("failed to spawn daemon")?;
+    Ok(())
+}

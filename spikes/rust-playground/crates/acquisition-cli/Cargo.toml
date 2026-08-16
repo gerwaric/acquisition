@@ -1,0 +1,15 @@
+[package]
+name = "acquisition-cli"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "acq"
+path = "src/main.rs"
+
+[dependencies]
+acquisition-core = { path = "../acquisition-core" }
+tokio.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true
+clap.workspace = true
