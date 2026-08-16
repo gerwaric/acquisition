@@ -552,6 +552,24 @@ fn bucket_end(at_ms: u64, bucket_ms: u64, phase_ms: u64) -> u64 {
 mod tests {
     use super::*;
 
+    // REVIEW MUTATION (SD-R8 re-close, F23 range): evasion probe for the
+    // belt pin's own claims. This forgery constructs MockEvidence in a
+    // descendant cfg(test) module through a rename import, so the file
+    // contains no "MockEvidence"-followed-by-brace text: the belt pin must
+    // stay green while the forgery compiles and runs — falsifying "an
+    // in-crate forgery must re-derive the pin deliberately" if it does.
+    // Committed for the record, then reverted.
+    #[test]
+    fn review_mutation_f24_probe_needle_free_forgery_is_silent() {
+        use crate::mock::MockEvidence as SealedCarriage;
+        let forged = SealedCarriage {
+            observations: Vec::new(),
+            state_changes: Vec::new(),
+        };
+        assert!(forged.observations().is_empty());
+        assert!(forged.state_changes().is_empty());
+    }
+
     #[test]
     fn bucket_boundaries_use_the_adversarial_new_bucket_reading() {
         assert_eq!(bucket_end(999, 1_000, 0), 1_000);
