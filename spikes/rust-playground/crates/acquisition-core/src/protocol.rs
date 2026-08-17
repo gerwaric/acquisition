@@ -95,6 +95,7 @@ pub enum Response {
         jobs_waiting: usize,
         jobs_running: usize,
         tokens_available: u32,
+        oauth_tokens_available: u32,
     },
     Stopping,
     Error {

@@ -18,7 +18,7 @@ use tokio::sync::{Notify, broadcast};
 use crate::VERSION;
 use crate::job::{JobId, JobInfo, JobState, Outcome, Priority};
 use crate::protocol::{Request, Response};
-use crate::ratelimit::TokenBucket;
+use crate::ratelimit::{ChokePoint, Endpoint};
 use crate::{auth, mockggg};
 
 const IDLE_SHUTDOWN: Duration = Duration::from_secs(60);
@@ -59,7 +59,6 @@ struct AuthSession {
 struct Shared {
     jobs: HashMap<JobId, Entry>,
     next_id: JobId,
-    bucket: TokenBucket,
     auth: AuthSession,
     connections: usize,
     last_activity: Instant,
@@ -79,8 +78,8 @@ impl Shared {
     }
 
     /// Snapshot with eta filled in for waiting jobs. The daemon can predict
-    /// because it sees the whole queue and the token bucket.
-    fn snapshot(&mut self, id: JobId) -> Option<JobInfo> {
+    /// because it sees the whole queue and the limiter.
+    fn snapshot(&self, choke: &ChokePoint, id: JobId) -> Option<JobInfo> {
         let queue = self.queue_order();
         let entry = self.jobs.get(&id)?;
         let mut info = entry.info.clone();
@@ -88,17 +87,17 @@ impl Shared {
             let ahead = queue.iter().position(|&q| q == id).unwrap_or(0);
             // Only token-consuming jobs ahead of us actually delay dispatch,
             // but counting them all keeps this honest enough for a playground.
-            Some(self.bucket.eta_for(ahead as u32).as_secs())
+            Some(choke.eta_for(Endpoint::Api, ahead as u32).as_secs())
         } else {
             None
         };
         Some(info)
     }
 
-    fn list(&mut self) -> Vec<JobInfo> {
+    fn list(&self, choke: &ChokePoint) -> Vec<JobInfo> {
         let mut ids: Vec<JobId> = self.jobs.keys().copied().collect();
         ids.sort();
-        ids.into_iter().filter_map(|id| self.snapshot(id)).collect()
+        ids.into_iter().filter_map(|id| self.snapshot(choke, id)).collect()
     }
 }
 
@@ -107,7 +106,9 @@ pub struct Daemon {
     events: broadcast::Sender<JobInfo>,
     work: Notify,
     log: Mutex<std::fs::File>,
-    http: reqwest::Client,
+    /// The single rate-limit choke point (CONTEXT invariant 1). It owns the
+    /// HTTP client, so all outbound requests — OAuth included — pay a token.
+    choke: ChokePoint,
     /// Base URL of the in-process mock OAuth provider (never GGG).
     provider_url: String,
 }
@@ -226,14 +227,16 @@ impl Daemon {
         if needs_token {
             loop {
                 let wait = {
-                    let mut s = self.shared.lock().unwrap();
+                    let s = self.shared.lock().unwrap();
                     // A reprioritization may have put another job at the head
                     // of the queue; bail so the worker re-picks.
                     if s.queue_order().first() != Some(&id) {
                         return;
                     }
                     match s.jobs.get(&id) {
-                        Some(e) if e.info.state == JobState::Waiting => s.bucket.try_take().err(),
+                        Some(e) if e.info.state == JobState::Waiting => {
+                            self.choke.try_take(Endpoint::Api).err()
+                        }
                         _ => return, // cancelled out from under us
                     }
                 };
@@ -367,7 +370,7 @@ impl Daemon {
             match callback {
                 Ok(Ok(code)) => {
                     match auth::exchange_code(
-                        &daemon.http,
+                        &daemon.choke,
                         &daemon.provider_url,
                         &code,
                         &verifier,
@@ -427,7 +430,9 @@ impl Daemon {
                 None => return Err("not logged in — run `acq auth`".into()),
             }
         };
-        let tokens = auth::refresh(&self.http, &self.provider_url, &refresh_token)
+        // May wait on the token endpoint's limiter; the shared lock is not
+        // held here, so a limited refresh delays only its own caller.
+        let tokens = auth::refresh(&self.choke, &self.provider_url, &refresh_token)
             .await
             .map_err(|e| format!("token refresh failed: {e}"))?;
         self.log("access token refreshed");
@@ -517,7 +522,7 @@ impl Daemon {
             Request::Submit { kind, params, priority, submitted_by } => Response::Submitted {
                 id: self.submit(kind, params, priority, submitted_by),
             },
-            Request::Status { id } => match self.shared.lock().unwrap().snapshot(id) {
+            Request::Status { id } => match self.shared.lock().unwrap().snapshot(&self.choke, id) {
                 Some(job) => Response::Status { job },
                 None => Response::Error { message: format!("no job {id}") },
             },
@@ -545,7 +550,7 @@ impl Daemon {
                 Err(message) => Response::Error { message },
             },
             Request::List => Response::Jobs {
-                jobs: self.shared.lock().unwrap().list(),
+                jobs: self.shared.lock().unwrap().list(&self.choke),
             },
             Request::Subscribe => {
                 *events = Some(self.events.subscribe());
@@ -576,7 +581,7 @@ impl Daemon {
                 Response::Ack
             }
             Request::DaemonStatus => {
-                let mut s = self.shared.lock().unwrap();
+                let s = self.shared.lock().unwrap();
                 let (waiting, running) = s.jobs.values().fold((0, 0), |(w, r), e| {
                     match e.info.state {
                         JobState::Waiting => (w + 1, r),
@@ -591,7 +596,8 @@ impl Daemon {
                     connections: s.connections,
                     jobs_waiting: waiting,
                     jobs_running: running,
-                    tokens_available: s.bucket.available(),
+                    tokens_available: self.choke.available(Endpoint::Api),
+                    oauth_tokens_available: self.choke.available(Endpoint::OauthToken),
                 }
             }
             Request::DaemonStop => Response::Stopping,
@@ -708,7 +714,6 @@ pub async fn run() -> Result<()> {
         shared: Mutex::new(Shared {
             jobs: HashMap::new(),
             next_id: 1,
-            bucket: TokenBucket::playground_default(),
             auth: session,
             connections: 0,
             last_activity: Instant::now(),
@@ -717,7 +722,7 @@ pub async fn run() -> Result<()> {
         events: broadcast::channel(256).0,
         work: Notify::new(),
         log: Mutex::new(log),
-        http: reqwest::Client::new(),
+        choke: ChokePoint::playground_default(),
         provider_url,
     });
 

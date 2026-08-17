@@ -11,6 +11,8 @@ use rand::RngCore as _;
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
 
+use crate::ratelimit::{ChokePoint, Endpoint};
+
 pub const CLIENT_ID: &str = "acquisition-playground";
 
 pub fn random_token(prefix: &str) -> String {
@@ -42,14 +44,14 @@ pub struct TokenResponse {
 }
 
 pub async fn exchange_code(
-    http: &reqwest::Client,
+    choke: &ChokePoint,
     provider_base: &str,
     code: &str,
     verifier: &str,
     redirect_uri: &str,
 ) -> Result<TokenResponse, String> {
     token_request(
-        http,
+        choke,
         provider_base,
         &[
             ("grant_type", "authorization_code"),
@@ -63,12 +65,12 @@ pub async fn exchange_code(
 }
 
 pub async fn refresh(
-    http: &reqwest::Client,
+    choke: &ChokePoint,
     provider_base: &str,
     refresh_token: &str,
 ) -> Result<TokenResponse, String> {
     token_request(
-        http,
+        choke,
         provider_base,
         &[
             ("grant_type", "refresh_token"),
@@ -80,16 +82,13 @@ pub async fn refresh(
 }
 
 async fn token_request(
-    http: &reqwest::Client,
+    choke: &ChokePoint,
     provider_base: &str,
     params: &[(&str, &str)],
 ) -> Result<TokenResponse, String> {
-    let response = http
-        .post(format!("{provider_base}/token"))
-        .form(params)
-        .send()
-        .await
-        .map_err(|e| e.to_string())?;
+    let response = choke
+        .post_form(Endpoint::OauthToken, &format!("{provider_base}/token"), params)
+        .await?;
     let status = response.status();
     if !status.is_success() {
         let body = response.text().await.unwrap_or_default();

@@ -1,9 +1,9 @@
 //! Playground core for the Acquisition Rust rewrite.
 //!
 //! IMPORTANT: nothing in this workspace talks to GGG. Job kinds are fakes
-//! (`sleep`, `fetch`) and the rate limiter is a simulated token bucket, so we
-//! can exercise queueing, ETAs, and long-wait ergonomics with zero risk to the
-//! OAuth registration.
+//! (`sleep`, `fetch`, `profile`) and the rate limiter is a set of simulated
+//! token buckets, so we can exercise queueing, ETAs, and long-wait ergonomics
+//! with zero risk to the OAuth registration.
 
 pub mod auth;
 pub mod daemon;

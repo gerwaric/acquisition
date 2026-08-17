@@ -233,11 +233,12 @@ async fn main() -> Result<()> {
                     jobs_waiting,
                     jobs_running,
                     tokens_available,
+                    oauth_tokens_available,
                 } = status
                 {
                     println!("daemon {version} pid {pid}, up {uptime_seconds}s");
                     println!(
-                        "connections: {connections}  waiting: {jobs_waiting}  running: {jobs_running}  tokens: {tokens_available}"
+                        "connections: {connections}  waiting: {jobs_waiting}  running: {jobs_running}  tokens: {tokens_available} api / {oauth_tokens_available} oauth"
                     );
                     println!("socket: {}", daemon::socket_path().display());
                     println!("log:    {}", daemon::log_path().display());

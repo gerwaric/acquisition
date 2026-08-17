@@ -1,11 +1,25 @@
-//! Fake token bucket standing in for the real GGG-header-driven limiter.
+//! The rate-limit choke point and the fake token buckets behind it.
 //!
-//! The real thing will be a policy layer parsing `X-Rate-Limit-*` headers with
-//! an enforcement mechanism underneath (see CONTEXT.md). This exists so the
-//! daemon has something to wait on and predict ETAs from. Deliberately tight
-//! (small burst, slow refill) so queueing is visible within seconds of play.
+//! `ChokePoint` is CONTEXT invariant 1 made structural: it privately owns the
+//! workspace's only `reqwest::Client`, so nothing can send an HTTP request
+//! without acquiring from the right endpoint's limiter first. Endpoints have
+//! separate policies (the OAuth token endpoint has its own: ground-truth N33).
+//!
+//! The buckets stand in for the real GGG-header-driven limiter, which will be
+//! a policy layer parsing `X-Rate-Limit-*` headers with an enforcement
+//! mechanism underneath (see CONTEXT.md). Deliberately tight (small burst,
+//! slow refill) so queueing is visible within seconds of play.
 
+use std::sync::Mutex;
 use std::time::{Duration, Instant};
+
+/// Which endpoint policy a request falls under. Every outbound request names
+/// one; there is no "unlimited" variant on purpose.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Endpoint {
+    Api,
+    OauthToken,
+}
 
 pub struct TokenBucket {
     capacity: u32,
@@ -74,6 +88,79 @@ impl TokenBucket {
     }
 }
 
+struct Buckets {
+    api: TokenBucket,
+    oauth_token: TokenBucket,
+}
+
+impl Buckets {
+    fn get(&mut self, endpoint: Endpoint) -> &mut TokenBucket {
+        match endpoint {
+            Endpoint::Api => &mut self.api,
+            Endpoint::OauthToken => &mut self.oauth_token,
+        }
+    }
+}
+
+pub struct ChokePoint {
+    // Private on purpose: this is the only reqwest client in the workspace,
+    // so every HTTP request must come through a method that takes a token.
+    http: reqwest::Client,
+    buckets: Mutex<Buckets>,
+}
+
+impl ChokePoint {
+    /// Playground policies: API keeps the classic burst-of-5 bucket; the
+    /// token endpoint gets its own, tight enough that spamming `auth check`
+    /// makes the wait visible.
+    pub fn playground_default() -> Self {
+        ChokePoint {
+            http: reqwest::Client::new(),
+            buckets: Mutex::new(Buckets {
+                api: TokenBucket::playground_default(),
+                oauth_token: TokenBucket::new(2, Duration::from_secs(5)),
+            }),
+        }
+    }
+
+    /// Take a token now, or report how long until the next one exists.
+    /// Callers that need cancellation-aware waiting (the job worker) loop on
+    /// this; plain requests use `post_form`, which waits internally.
+    pub fn try_take(&self, endpoint: Endpoint) -> Result<(), Duration> {
+        self.buckets.lock().unwrap().get(endpoint).try_take()
+    }
+
+    pub fn eta_for(&self, endpoint: Endpoint, n: u32) -> Duration {
+        self.buckets.lock().unwrap().get(endpoint).eta_for(n)
+    }
+
+    pub fn available(&self, endpoint: Endpoint) -> u32 {
+        self.buckets.lock().unwrap().get(endpoint).available()
+    }
+
+    /// The one way to send a form POST: waits for the endpoint's limiter,
+    /// then sends. The bucket lock is never held across an await.
+    pub async fn post_form(
+        &self,
+        endpoint: Endpoint,
+        url: &str,
+        params: &[(&str, &str)],
+    ) -> Result<reqwest::Response, String> {
+        loop {
+            match self.try_take(endpoint) {
+                Ok(()) => break,
+                Err(wait) => tokio::time::sleep(wait.max(Duration::from_millis(50))).await,
+            }
+        }
+        self.http
+            .post(url)
+            .form(params)
+            .send()
+            .await
+            .map_err(|e| e.to_string())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -85,6 +172,13 @@ mod tests {
         assert!(b.try_take().is_ok());
         let wait = b.try_take().unwrap_err();
         assert!(wait > Duration::from_secs(9));
+    }
+
+    #[test]
+    fn endpoints_have_independent_buckets() {
+        let choke = ChokePoint::playground_default();
+        while choke.try_take(Endpoint::OauthToken).is_ok() {}
+        assert!(choke.try_take(Endpoint::Api).is_ok());
     }
 
     #[test]

@@ -4,9 +4,11 @@ Throwaway code for the daemon/CLI architecture in [CONTEXT.md](CONTEXT.md);
 it exercises that doc's decisions with fake workloads. **Nothing here talks
 to GGG** — no code path in this workspace reaches a non-loopback host. Job
 kinds are fakes (`sleep`, `fetch`, `profile`), OAuth runs against an
-in-process localhost provider (`mockggg.rs`), and the rate limiter is a
-simulated token bucket, deliberately tight so queueing is visible within
-seconds of play.
+in-process localhost provider (`mockggg.rs`), and the rate limiter is a pair
+of simulated token buckets (API and OAuth token endpoint), deliberately tight
+so queueing is visible within seconds of play. All HTTP goes through the
+choke point structurally: the only `reqwest::Client` in the workspace lives
+inside `ChokePoint`, so even token exchange/refresh pays a limiter token.
 
 ## Layout
 
@@ -47,10 +49,6 @@ tokens live 60 seconds, so silent refresh is exercised constantly.
 
 ## Known gaps
 
-- **Auth bypasses the rate-limit choke point.** `exchange_code`/`refresh` call
-  reqwest directly instead of acquiring from the limiter — a violation of
-  CONTEXT invariant 1, harmless only because the peer is the localhost mock.
-  Standing next task.
 - **Lazy spawn hides daemon startup errors.** The spawned daemon's stderr goes
   to null, so a failed bind looks like "could not reach daemon after 5s" —
   check the daemon log.
