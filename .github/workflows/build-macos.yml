@@ -40,6 +40,19 @@ jobs:
         echo "version=$version"
         echo "version=$version" >> "$GITHUB_OUTPUT"
 
+    # The dSYM is produced by dsymutil in a POST_BUILD step in CMakeLists.txt.
+    # Uploading before macdeployqt is fine: install_name_tool rewrites load
+    # commands but leaves LC_UUID, which is what Sentry matches on.
+    - name: Upload debug symbols to Sentry
+      uses: ./.github/actions/sentry-symbols
+      with:
+        paths: >-
+          build/acquisition_${{ steps.version.outputs.version }}.dSYM
+          build/acquisition.app/Contents/MacOS/acquisition
+        org: ${{ vars.SENTRY_ORG }}
+        project: acquisition
+        auth-token: ${{ secrets.SENTRY_AUTH_TOKEN }}
+
     - name: Package DMG
       run: |
         $QT_ROOT_DIR/bin/macdeployqt \

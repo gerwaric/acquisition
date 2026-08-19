@@ -46,6 +46,14 @@ jobs:
     - name: Test
       run: ctest --test-dir build --output-on-failure
 
+    - name: Upload debug symbols to Sentry
+      uses: ./.github/actions/sentry-symbols
+      with:
+        paths: build/acquisition.pdb build/acquisition.exe
+        org: ${{ vars.SENTRY_ORG }}
+        project: acquisition
+        auth-token: ${{ secrets.SENTRY_AUTH_TOKEN }}
+
     - name: Prepare deployment
       run: |
         $deploy = "build\deploy"
