@@ -18,7 +18,7 @@ project(acquisition
 include(CTest)
 
 # Use this to define pre-releases
-set(app_version_suffix "-beta.1")
+set(app_version_suffix "")
 
 # Variables used in version_defines.h and platforn-specific files and properties.
 set(app_name            "${CMAKE_PROJECT_NAME}")
