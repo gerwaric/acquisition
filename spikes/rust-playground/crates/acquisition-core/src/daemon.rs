@@ -21,12 +21,14 @@ use crate::VERSION;
 use crate::job::{JobId, JobInfo, JobState, Outcome, Priority};
 use crate::protocol::{ErrorRecord, Request, Response};
 use crate::provider::{CALLBACK_PATH, Provider, SCOPES, ggg_mode};
-use crate::ratelimit::{ChokePoint, Paid};
+use crate::ratelimit::{ChokePoint, EndpointState, Paid, endpoint_key};
 use crate::{auth, mockggg};
 
 const IDLE_SHUTDOWN: Duration = Duration::from_secs(60);
 const IDLE_POLL: Duration = Duration::from_secs(5);
 const ERROR_HISTORY: usize = 50;
+/// Probes outrank everything: every job on that endpoint is waiting on one.
+const PROBE_PRIORITY: Priority = u8::MAX;
 
 // Must stay short: Unix socket paths cap out around 104 bytes (SUN_LEN),
 // which deep per-user runtime dirs can exceed.
@@ -169,6 +171,30 @@ impl Daemon {
         }
     }
 
+    /// Whether an endpoint needs the bearer token. The mock's `/fetch` is
+    /// open; everything on the real API is not.
+    fn needs_auth(&self, url: &str) -> bool {
+        !(endpoint_key(url) == "/fetch" && !self.provider.is_real())
+    }
+
+    /// Make sure a probe for `url` is queued or running; submit one if not.
+    /// One probe per endpoint per daemon lifetime in the normal case — the
+    /// sanctioned "one HEAD at startup" (N16), sent lazily on first use.
+    fn ensure_probe(&self, url: &str) {
+        let pending = {
+            let s = self.shared.lock().unwrap();
+            s.jobs.values().any(|e| {
+                e.info.kind == "probe"
+                    && !e.info.state.is_terminal()
+                    && e.params.get("url").and_then(Value::as_str) == Some(url)
+            })
+        };
+        if !pending {
+            self.log(&format!("endpoint {} unknown; probing first", endpoint_key(url)));
+            self.submit("probe".into(), json!({ "url": url }), PROBE_PRIORITY, "daemon".into());
+        }
+    }
+
     fn submit(&self, kind: String, params: Value, priority: Priority, submitted_by: String) -> JobId {
         let info = {
             let mut s = self.shared.lock().unwrap();
@@ -264,6 +290,28 @@ impl Daemon {
             }
         };
 
+        // An endpoint we've never heard from gets a probe first (N16, N24);
+        // a degraded one (N20) fails its jobs cleanly until the cooldown ends.
+        if let Some(url) = &url {
+            match self.choke.endpoint_state(url) {
+                EndpointState::Unknown => {
+                    self.ensure_probe(url);
+                    return; // the worker re-picks; the probe outranks us
+                }
+                EndpointState::Degraded { until, reason } => {
+                    let left = until.saturating_duration_since(Instant::now()).as_secs();
+                    let error = format!(
+                        "endpoint {} is degraded for another {left}s: {reason}",
+                        endpoint_key(url)
+                    );
+                    self.note_error(&format!("job {id}: {error}"));
+                    self.start_and_finish(id, Outcome::Failure { error });
+                    return;
+                }
+                EndpointState::Policy(_) | EndpointState::Policyless => {}
+            }
+        }
+
         // Rate-limit wait happens while the job is still `waiting`, in short
         // slices so cancellation and reprioritization stay responsive. The
         // receipt is handed to `execute`, which spends it on the actual send.
@@ -311,6 +359,10 @@ impl Daemon {
         if let Outcome::Failure { error } = &outcome {
             self.note_error(&format!("job {id} ({kind}): {error}"));
         }
+        self.finish(id, outcome);
+    }
+
+    fn finish(&self, id: JobId, outcome: Outcome) {
         let info = {
             let mut s = self.shared.lock().unwrap();
             let Some(entry) = s.jobs.get_mut(&id) else { return };
@@ -323,6 +375,22 @@ impl Daemon {
             entry.info.clone()
         };
         self.emit(info);
+    }
+
+    /// For jobs that fail before they ever run: pass through `running` so
+    /// subscribers see the same state sequence as every other job.
+    fn start_and_finish(&self, id: JobId, outcome: Outcome) {
+        let info = {
+            let mut s = self.shared.lock().unwrap();
+            let Some(entry) = s.jobs.get_mut(&id) else { return };
+            if entry.info.state != JobState::Waiting {
+                return;
+            }
+            entry.info.state = JobState::Running;
+            entry.info.clone()
+        };
+        self.emit(info);
+        self.finish(id, outcome);
     }
 
     async fn execute(&self, id: JobId, kind: &str, params: Value, paid: Option<Paid>) -> Outcome {
@@ -410,8 +478,56 @@ impl Daemon {
                     }),
                 }
             }
+            // The HEAD probe (N16): discovers an endpoint's policy and the
+            // account's current counters before the first real send, without
+            // counting against the policy (N24). Submitted by the daemon
+            // itself; visible like any other job so it can be inspected.
+            "probe" => {
+                let Some(url) = params.get("url").and_then(Value::as_str).map(str::to_string) else {
+                    return Outcome::Failure { error: "probe needs a url".into() };
+                };
+                let bearer = if self.needs_auth(&url) {
+                    match self.valid_access_token(false).await {
+                        Ok((token, _)) => Some(token),
+                        Err(error) => {
+                            // Close the endpoint too, or the waiting job would
+                            // just ask for another probe; login reopens it.
+                            self.choke.degrade(&url, &error);
+                            return Outcome::Failure { error };
+                        }
+                    }
+                } else {
+                    None
+                };
+                let paid = loop {
+                    match self.choke.try_take(&url) {
+                        Ok(p) => break p,
+                        Err(wait) => tokio::time::sleep(wait.min(Duration::from_secs(1))).await,
+                    }
+                    if self.cancelled(id) {
+                        return Outcome::Cancelled;
+                    }
+                };
+                match self.choke.head(paid, &url, bearer.as_deref()).await {
+                    Ok((status, policy, headers)) => {
+                        let name = policy.as_ref().map(|p| p.name.clone()).unwrap_or_default();
+                        self.log(&format!("HEAD {} -> {status} | policy {name} | {headers}", endpoint_key(&url)));
+                        Outcome::Success {
+                            payload: json!({
+                                "endpoint": endpoint_key(&url),
+                                "status": status.as_u16(),
+                                "policy": name,
+                                "rate_limit": headers,
+                            }),
+                        }
+                    }
+                    Err(error) => Outcome::Failure {
+                        error: format!("HEAD {}: {error}", endpoint_key(&url)),
+                    },
+                }
+            }
             other => Outcome::Failure {
-                error: format!("unknown job kind '{other}' (kinds: sleep, fetch, profile, characters)"),
+                error: format!("unknown job kind '{other}' (kinds: sleep, fetch, profile, characters, probe)"),
             },
         }
     }
@@ -498,6 +614,9 @@ impl Daemon {
                         Ok(tokens) => {
                             let user = tokens.username.clone();
                             daemon.install_tokens(tokens);
+                            // A probe that failed for lack of a session would
+                            // succeed now; don't make the user sit out the cooldown.
+                            daemon.choke.forget_degraded();
                             daemon.log(&format!("logged in as {user}"));
                         }
                         Err(e) => daemon.note_error(&format!("token exchange failed: {e}")),
@@ -741,6 +860,7 @@ impl Daemon {
                     keyring: s.auth.keyring.clone(),
                     policies: self.choke.policy_statuses(),
                     policyless_endpoints: self.choke.policyless_endpoints(),
+                    degraded_endpoints: self.choke.degraded_endpoints(),
                     jobs: s.list(self),
                     sends: self.choke.recent_sends(),
                     errors: s

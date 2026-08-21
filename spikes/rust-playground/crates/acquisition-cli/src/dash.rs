@@ -9,7 +9,7 @@ use std::time::Duration;
 
 use acquisition_core::job::{JobInfo, JobState};
 use acquisition_core::protocol::{ErrorRecord, Request, Response};
-use acquisition_core::ratelimit::{PolicyStatus, SendRecord};
+use acquisition_core::ratelimit::{DegradedEndpoint, PolicyStatus, SendRecord};
 use anyhow::{Result, bail};
 use ratatui::Frame;
 use ratatui::crossterm::event::{self, Event, KeyCode, KeyEventKind, KeyModifiers};
@@ -49,6 +49,7 @@ struct Snap {
     keyring: String,
     policies: Vec<PolicyStatus>,
     policyless_endpoints: Vec<String>,
+    degraded_endpoints: Vec<DegradedEndpoint>,
     jobs: Vec<JobInfo>,
     sends: Vec<SendRecord>,
     errors: Vec<ErrorRecord>,
@@ -132,6 +133,7 @@ async fn fetch(client: &mut Client) -> Result<Snap> {
             keyring,
             policies,
             policyless_endpoints,
+            degraded_endpoints,
             jobs,
             sends,
             errors,
@@ -147,6 +149,7 @@ async fn fetch(client: &mut Client) -> Result<Snap> {
             keyring,
             policies,
             policyless_endpoints,
+            degraded_endpoints,
             jobs,
             sends,
             errors,
@@ -160,7 +163,9 @@ fn draw(f: &mut Frame, s: &Snap, app: &mut App) {
     app.selected = app.selected.min(s.policies.len().saturating_sub(1));
     // One summary line per policy, plus one for policyless endpoints (or a
     // placeholder when nothing has been learned yet).
-    let summary_lines = s.policies.len().max(1) as u16 + u16::from(!s.policyless_endpoints.is_empty());
+    let summary_lines = s.policies.len().max(1) as u16
+        + u16::from(!s.policyless_endpoints.is_empty())
+        + s.degraded_endpoints.len() as u16;
     let policies_height = if app.expanded && !s.policies.is_empty() {
         2 + summary_lines + 1 + DETAIL_ROWS
     } else {
@@ -287,6 +292,12 @@ fn draw_policies(f: &mut Frame, area: Rect, s: &Snap, app: &mut App) {
         summary.push(Line::from(vec![
             Span::styled("  no policy reported: ", Style::new().dark_gray()),
             Span::styled(s.policyless_endpoints.join(", "), Style::new().dark_gray().italic()),
+        ]));
+    }
+    for d in &s.degraded_endpoints {
+        summary.push(Line::from(vec![
+            Span::styled(format!("  DEGRADED {} ({}s left): ", d.endpoint, d.seconds_left as u64), Style::new().red().bold()),
+            Span::styled(d.reason.clone(), Style::new().red()),
         ]));
     }
 
@@ -449,9 +460,10 @@ fn draw_jobs(f: &mut Frame, area: Rect, jobs: &[JobInfo]) {
                 (JobState::Waiting, _) => "next".to_string(),
                 _ => String::new(),
             };
+            let kind_style = if j.kind == "probe" { Style::new().dark_gray() } else { Style::new() };
             Row::new(vec![
                 Cell::from(j.id.to_string()),
-                Cell::from(j.kind.clone()),
+                Cell::from(j.kind.clone()).style(kind_style),
                 Cell::from(j.state.to_string()).style(state_style),
                 Cell::from(j.priority.to_string()),
                 Cell::from(j.submitted_by.clone()),

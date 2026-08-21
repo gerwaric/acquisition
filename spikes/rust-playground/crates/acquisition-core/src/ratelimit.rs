@@ -11,10 +11,15 @@
 //! workspace's only `reqwest::Client`, so nothing can send a request without
 //! first asking the limiter, and every response is observed by it.
 //!
-//! Not yet built (each a separate baby step): HEAD-at-boot discovery of
-//! server-side residue (N16, N24); 429 recovery beyond "don't send again
-//! before Retry-After" (P-A); an explicit cross-policy burst bound (P-B) —
-//! today the single worker keeps at most one API request in flight.
+//! Endpoints are discovered by a HEAD probe before their first real send
+//! (N16's sanctioned pattern; N24: HEADs report the policy without counting),
+//! so server-side residue and other tools' hits are known before we add to
+//! them. A degraded probe (N20) puts the endpoint in a cooldown.
+//!
+//! Not yet built (each a separate baby step): 429 recovery beyond "don't
+//! send again before Retry-After" (P-A); an explicit cross-policy burst
+//! bound (P-B) — today the single worker keeps at most one request in flight,
+//! which also keeps probes strictly serialized (N18).
 
 use std::collections::{HashMap, VecDeque};
 use std::sync::Mutex;
@@ -124,6 +129,31 @@ fn triplets(s: &str) -> Vec<(u64, u64, u64)> {
 // ---- the limiter ----------------------------------------------------------
 
 const HISTORY_CAP: usize = 256;
+/// How long an endpoint whose probe came back degraded (N20) stays closed
+/// before another probe is tried. Login clears it early.
+pub const PROBE_COOLDOWN: Duration = Duration::from_secs(60);
+
+/// What the limiter knows about one endpoint (URL path).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum EndpointState {
+    /// Never heard from: needs a probe before the first real send.
+    Unknown,
+    /// Governed by the named policy.
+    Policy(String),
+    /// Answers without any rate-limit headers (the OAuth token endpoint).
+    Policyless,
+    /// The probe failed or came back without a policy (N20); closed until
+    /// `until`, then probed again.
+    Degraded { until: Instant, reason: String },
+}
+
+/// A degraded endpoint, for the dashboard.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DegradedEndpoint {
+    pub endpoint: String,
+    pub seconds_left: f64,
+    pub reason: String,
+}
 
 /// What the limiter remembers about one named policy.
 struct PolicyState {
@@ -140,10 +170,9 @@ struct PolicyState {
 #[derive(Default)]
 pub struct Limiter {
     policies: HashMap<String, PolicyState>,
-    /// Endpoint key (URL path) → policy name, learned from the first
-    /// response. `None` once we've seen the endpoint answer without any
-    /// policy header (e.g. the OAuth token endpoint).
-    endpoints: HashMap<String, Option<String>>,
+    /// Endpoint key (URL path) → what we know, learned from probes and
+    /// responses. Absent means `Unknown`.
+    endpoints: HashMap<String, EndpointState>,
 }
 
 impl Limiter {
@@ -186,6 +215,53 @@ impl Limiter {
         t.saturating_duration_since(now)
     }
 
+    /// What the limiter knows about `endpoint` right now; an expired
+    /// cooldown reads as `Unknown` (time to probe again).
+    pub fn endpoint_state(&self, endpoint: &str, now: Instant) -> EndpointState {
+        match self.endpoints.get(endpoint) {
+            None => EndpointState::Unknown,
+            Some(EndpointState::Degraded { until, .. }) if *until <= now => EndpointState::Unknown,
+            Some(state) => state.clone(),
+        }
+    }
+
+    /// Record a probe's outcome: `Ok(Some(policy))` teaches the policy
+    /// without counting a hit (N24); `Ok(None)` (2xx but no policy header —
+    /// the N20 regression shape) and `Err` both close the endpoint for
+    /// `PROBE_COOLDOWN`.
+    pub fn observe_probe(
+        &mut self,
+        endpoint: &str,
+        outcome: Result<Option<Policy>, String>,
+        raw: serde_json::Value,
+        now: Instant,
+    ) {
+        let reason = match outcome {
+            Ok(Some(policy)) if policy.rules.iter().any(|r| !r.limits.is_empty()) => {
+                self.observe(endpoint, Some(policy), raw, false, now);
+                return;
+            }
+            // The Dec-2023 regression: policy name present, everything else
+            // missing (N20). Unpaced would be the worst possible reading.
+            Ok(Some(policy)) => format!(
+                "probe returned policy '{}' with no rule definitions (N20 shape)",
+                policy.name
+            ),
+            Ok(None) => "probe answered without X-Rate-Limit-Policy (N20 shape)".to_string(),
+            Err(e) => format!("probe failed: {e}"),
+        };
+        self.endpoints.insert(
+            endpoint.to_string(),
+            EndpointState::Degraded { until: now + PROBE_COOLDOWN, reason },
+        );
+    }
+
+    /// Forget every degraded endpoint (login changed what a probe would
+    /// see, so don't make the user sit out the cooldown).
+    pub fn forget_degraded(&mut self) {
+        self.endpoints.retain(|_, st| !matches!(st, EndpointState::Degraded { .. }));
+    }
+
     /// Record a response. `counted` is false for requests the server does
     /// not count against the policy (HEAD probes, N24). A 429 is recorded
     /// as counted — over-estimating the wait is the safe direction.
@@ -198,10 +274,16 @@ impl Limiter {
         now: Instant,
     ) {
         let Some(policy) = policy else {
-            self.endpoints.entry(endpoint.to_string()).or_insert(None);
+            // No headers at all. Only an endpoint we know nothing about
+            // becomes policyless; a known policy is never erased by one
+            // header-less reply (an error page, say).
+            self.endpoints
+                .entry(endpoint.to_string())
+                .or_insert(EndpointState::Policyless);
             return;
         };
-        self.endpoints.insert(endpoint.to_string(), Some(policy.name.clone()));
+        self.endpoints
+            .insert(endpoint.to_string(), EndpointState::Policy(policy.name.clone()));
         let state = self.policies.entry(policy.name.clone()).or_insert_with(|| PolicyState {
             policy: policy.clone(),
             history: VecDeque::new(),
@@ -221,7 +303,10 @@ impl Limiter {
     }
 
     fn policy_for(&self, endpoint: &str) -> Option<&PolicyState> {
-        self.endpoints.get(endpoint)?.as_ref().and_then(|name| self.policies.get(name))
+        match self.endpoints.get(endpoint)? {
+            EndpointState::Policy(name) => self.policies.get(name),
+            _ => None,
+        }
     }
 
     pub fn statuses(&self, now: Instant) -> Vec<PolicyStatus> {
@@ -234,7 +319,7 @@ impl Limiter {
                     let mut e: Vec<String> = self
                         .endpoints
                         .iter()
-                        .filter(|(_, p)| p.as_deref() == Some(name))
+                        .filter(|(_, st)| matches!(st, EndpointState::Policy(p) if p == name))
                         .map(|(k, _)| k.clone())
                         .collect();
                     e.sort();
@@ -303,10 +388,27 @@ impl Limiter {
         let mut v: Vec<String> = self
             .endpoints
             .iter()
-            .filter(|(_, p)| p.is_none())
+            .filter(|(_, st)| **st == EndpointState::Policyless)
             .map(|(k, _)| k.clone())
             .collect();
         v.sort();
+        v
+    }
+
+    pub fn degraded_endpoints(&self, now: Instant) -> Vec<DegradedEndpoint> {
+        let mut v: Vec<DegradedEndpoint> = self
+            .endpoints
+            .iter()
+            .filter_map(|(k, st)| match st {
+                EndpointState::Degraded { until, reason } if *until > now => Some(DegradedEndpoint {
+                    endpoint: k.clone(),
+                    seconds_left: until.saturating_duration_since(now).as_secs_f64(),
+                    reason: reason.clone(),
+                }),
+                _ => None,
+            })
+            .collect();
+        v.sort_by(|a, b| a.endpoint.cmp(&b.endpoint));
         v
     }
 }
@@ -513,6 +615,69 @@ impl ChokePoint {
         self.limiter.lock().unwrap().is_live(Instant::now())
     }
 
+    pub fn endpoint_state(&self, url: &str) -> EndpointState {
+        self.limiter.lock().unwrap().endpoint_state(&endpoint_key(url), Instant::now())
+    }
+
+    pub fn degraded_endpoints(&self) -> Vec<DegradedEndpoint> {
+        self.limiter.lock().unwrap().degraded_endpoints(Instant::now())
+    }
+
+    pub fn forget_degraded(&self) {
+        self.limiter.lock().unwrap().forget_degraded();
+    }
+
+    /// Close an endpoint without a probe round-trip (e.g. no session to
+    /// probe with). Same cooldown as a failed probe.
+    pub fn degrade(&self, url: &str, reason: &str) {
+        self.limiter.lock().unwrap().observe_probe(
+            &endpoint_key(url),
+            Err(reason.to_string()),
+            serde_json::Value::Null,
+            Instant::now(),
+        );
+    }
+
+    /// The HEAD probe (N16). Not counted by the server (N24); teaches the
+    /// limiter the endpoint's policy, or degrades the endpoint (N20).
+    /// Returns the raw rate headers on success for the probe job's payload.
+    pub async fn head(
+        &self,
+        paid: Paid,
+        url: &str,
+        bearer: Option<&str>,
+    ) -> Result<(reqwest::StatusCode, Option<Policy>, serde_json::Value), String> {
+        let mut req = self.http.head(url);
+        if let Some(token) = bearer {
+            req = req.bearer_auth(token);
+        }
+        let result = req.send().await.map_err(|e| e.to_string());
+        let outcome = match &result {
+            Ok(r) if r.status().is_success() => Ok(Policy::from_headers(r.headers())),
+            Ok(r) => Err(format!("HEAD returned {}", r.status())),
+            Err(e) => Err(format!("HEAD failed: {e}")),
+        };
+        let raw = result
+            .as_ref()
+            .map(|r| rate_limit_snapshot(r.headers()))
+            .unwrap_or(serde_json::Value::Null);
+        self.limiter
+            .lock()
+            .unwrap()
+            .observe_probe(&paid.endpoint, outcome.clone(), raw.clone(), Instant::now());
+        self.record(&paid.endpoint, "HEAD", url, &result);
+        // The limiter decided whether that was good enough; report what it
+        // concluded so the probe job's outcome matches the endpoint state.
+        match self.limiter.lock().unwrap().endpoint_state(&paid.endpoint, Instant::now()) {
+            EndpointState::Policy(_) => {
+                let Ok(Some(policy)) = outcome else { unreachable!("policy state implies a parsed policy") };
+                Ok((result.unwrap().status(), Some(policy), raw))
+            }
+            EndpointState::Degraded { reason, .. } => Err(format!("{reason}; endpoint closed for a cooldown")),
+            other => Err(format!("unexpected endpoint state after probe: {other:?}")),
+        }
+    }
+
     /// Recent sends, newest first.
     pub fn recent_sends(&self) -> Vec<SendRecord> {
         let sends = self.sends.lock().unwrap();
@@ -540,10 +705,6 @@ impl ChokePoint {
         result: &Result<reqwest::Response, String>,
         counted: bool,
     ) {
-        let (outcome, ok) = match result {
-            Ok(r) => (r.status().to_string(), r.status().is_success()),
-            Err(e) => (format!("error: {e}"), false),
-        };
         if let Ok(r) = result {
             let policy = Policy::from_headers(r.headers());
             let raw = rate_limit_snapshot(r.headers());
@@ -552,6 +713,20 @@ impl ChokePoint {
                 .unwrap()
                 .observe(endpoint, policy, raw, counted, Instant::now());
         }
+        self.record(endpoint, method, url, result);
+    }
+
+    fn record(
+        &self,
+        endpoint: &str,
+        method: &'static str,
+        url: &str,
+        result: &Result<reqwest::Response, String>,
+    ) {
+        let (outcome, ok) = match result {
+            Ok(r) => (r.status().to_string(), r.status().is_success()),
+            Err(e) => (format!("error: {e}"), false),
+        };
         let mut sends = self.sends.lock().unwrap();
         if sends.len() >= SEND_HISTORY {
             sends.pop_front();
@@ -956,6 +1131,47 @@ mod tests {
         assert_wait("one ahead", l.eta_for("/character", 1, now), 12.0);
         // Two ahead: two hits at +12 fill the window → +12 + 10 + 5 + 1 = 28s.
         assert_wait("two ahead", l.eta_for("/character", 2, now), 28.0);
+    }
+
+    #[test]
+    fn probes_teach_without_counting_and_degrade_on_n20_shapes() {
+        let now = far_future();
+        let mut l = Limiter::new();
+        assert_eq!(l.endpoint_state("/character", now), EndpointState::Unknown);
+
+        // A good probe: policy learned, nothing counted, state respected.
+        l.observe_probe("/character", Ok(parse(&with_state(CHAR_LIST, "2:10:0,2:300:0"))), serde_json::Value::Null, now);
+        assert_eq!(l.endpoint_state("/character", now), EndpointState::Policy("character-list-request-limit".into()));
+        assert_eq!(l.statuses(now)[0].history_len, 0);
+        // Server says 2/2 from hits we never made → assume recent → 16s.
+        assert_wait("residue via probe", l.wait_for("/character", now), 16.0);
+
+        // N20 shapes: 2xx but no policy header, or (the Dec-2023 regression)
+        // a policy name with no rule definitions → degraded for the cooldown.
+        l.observe_probe("/stash", Ok(None), serde_json::Value::Null, now);
+        assert!(matches!(l.endpoint_state("/stash", now), EndpointState::Degraded { .. }));
+        l.observe_probe("/stash/x", Ok(parse(&[("x-rate-limit-policy", "stash-request-limit")])), serde_json::Value::Null, now);
+        assert!(matches!(l.endpoint_state("/stash/x", now), EndpointState::Degraded { .. }));
+        assert_eq!(l.degraded_endpoints(now).len(), 2);
+        assert_eq!(l.endpoint_state("/stash", now + PROBE_COOLDOWN), EndpointState::Unknown);
+
+        // Transport/HTTP failure degrades too; login clears it.
+        l.observe_probe("/fetch", Err("HEAD returned 401".into()), serde_json::Value::Null, now);
+        assert!(matches!(l.endpoint_state("/fetch", now), EndpointState::Degraded { .. }));
+        l.forget_degraded();
+        assert_eq!(l.endpoint_state("/fetch", now), EndpointState::Unknown);
+        assert_eq!(l.endpoint_state("/character", now), EndpointState::Policy("character-list-request-limit".into()));
+    }
+
+    #[test]
+    fn a_headerless_reply_never_erases_a_known_policy() {
+        let now = far_future();
+        let mut l = Limiter::new();
+        l.observe("/character", parse(&with_state(CHAR_LIST, "1:10:0,1:300:0")), serde_json::Value::Null, true, now);
+        l.observe("/character", None, serde_json::Value::Null, true, now);
+        assert_eq!(l.endpoint_state("/character", now), EndpointState::Policy("character-list-request-limit".into()));
+        l.observe("/token", None, serde_json::Value::Null, true, now);
+        assert_eq!(l.endpoint_state("/token", now), EndpointState::Policyless);
     }
 
     #[test]

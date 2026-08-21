@@ -179,6 +179,13 @@ async fn handle(
                 .expect("policy for path")
                 .request(req.method == "GET", Instant::now());
             if req.method == "HEAD" {
+                // ACQ_MOCK_DEGRADED_HEAD=1 reproduces the Dec-2023 regression
+                // (N20): policy name present, every other header missing.
+                let extra = if std::env::var_os("ACQ_MOCK_DEGRADED_HEAD").is_some() {
+                    extra.lines().filter(|l| l.starts_with("X-Rate-Limit-Policy")).map(|l| format!("{l}\r\n")).collect()
+                } else {
+                    extra
+                };
                 respond_with(&mut stream, "204 No Content", "application/json", &extra, "").await;
                 return;
             }

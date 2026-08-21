@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::job::{JobId, JobInfo, Outcome, Priority};
-use crate::ratelimit::{PolicyStatus, SendRecord};
+use crate::ratelimit::{DegradedEndpoint, PolicyStatus, SendRecord};
 
 /// A recent daemon-side error (job failures, auth/keyring trouble), for the
 /// dashboard. Everything in here is also in the daemon log.
@@ -132,6 +132,8 @@ pub enum Response {
         policies: Vec<PolicyStatus>,
         /// Endpoints that answered without any X-Rate-Limit headers.
         policyless_endpoints: Vec<String>,
+        /// Endpoints closed by a failed/degraded probe (N20), with cooldown.
+        degraded_endpoints: Vec<DegradedEndpoint>,
         jobs: Vec<JobInfo>,
         /// Newest first.
         sends: Vec<SendRecord>,

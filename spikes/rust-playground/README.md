@@ -38,6 +38,8 @@ acq auth status                              # session, token expiry, keyring he
 acq auth check                               # preflight: proves the session via a forced token round-trip
 acq submit profile                           # auth-required job; refreshes the access token silently
 acq characters                               # auth-required; GET /character against the mock
+                                             # (first use of an endpoint queues a visible `probe`
+                                             #  job: one HEAD that learns the policy + current counters)
 acq auth logout                              # drops session + keyring entry
 acq submit sleep --params '{"seconds": 5}'   # blocks with progress; daemon lazy-spawns
 acq demo                                     # burst of 8 fetch jobs against the mock's 5-per-10s policy; watch ETAs
@@ -67,9 +69,11 @@ existing "acquisition" registration — same client id, callback path
 (`/auth/path-of-exile` on a random loopback port), scopes, and user-agent as
 the shipped C++ app. Refresh tokens live in a keyring entry separate from the
 mock's, so a mock token can never be sent to GGG. The limiter is the same
-code in both modes and starts empty: the first request to an endpoint goes
-out blind and its response teaches the policy (HEAD-at-boot discovery of
-server-side residue is the next step — see Known gaps). Nothing retries on
+code in both modes and starts empty: the first job on an endpoint queues a
+`probe` (a HEAD, which GGG doesn't count) that teaches the policy and the
+account's current counters — including hits made by other tools — before
+anything real is sent. A probe that fails or comes back without rule
+definitions closes the endpoint for 60s (login reopens it). Nothing retries on
 failure: a 429 or a Cloudflare-shaped 403/503 fails the job with the
 evidence, and the limiter holds that policy until `Retry-After` plus the
 timing bucket.
@@ -88,12 +92,10 @@ tokens live 60 seconds, so silent refresh is exercised constantly.
 
 ## Known gaps
 
-- **No HEAD-at-boot.** Counters are server-side and persist across restarts
-  (N24) and are shared with other tools on the account (N23), so a fresh
-  daemon's first request on a policy goes out blind; the sanctioned fix is
-  one serialized HEAD per policy at startup (N16, N18, N20). Once a response
-  arrives, hits the limiter can't account for are assumed to be recent
-  (`window_frees_at`), so the blind first send is the only exposure.
+- **Probes are serialized only by construction.** N18 (at most one HEAD in
+  flight, ever) holds because there is one worker; it isn't pinned.
+- **`ACQ_MOCK_DEGRADED_HEAD=1`** makes the mock reproduce the Dec-2023
+  regression (N20) so the degraded path can be exercised.
 - **429s are not recovered from.** The job fails with the evidence and the
   policy is held for `Retry-After` + bucket; nothing reschedules (P-A).
 - **The burst bound is implicit.** One worker, one request in flight —
