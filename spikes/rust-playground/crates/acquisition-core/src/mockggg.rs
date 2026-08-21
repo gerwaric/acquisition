@@ -5,8 +5,9 @@
 //! for real without a single packet leaving the machine. The HTTP handling is
 //! deliberately minimal; this is scaffolding, not a web server.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
 use anyhow::Result;
 use serde_json::json;
@@ -23,21 +24,102 @@ struct PendingCode {
     redirect_uri: String,
 }
 
+/// A server-side rate-limit policy, simulated truthfully enough to test the
+/// limiter against: real sliding windows, real restrictions, real 429s with
+/// `Retry-After`, state headers that are post-increment and 1:1 (N25), and
+/// HEADs that report but don't count (N24). Not simulated: the server's
+/// timing-bucket quantization (N11–N12) — the limiter pads for it anyway.
+struct MockPolicy {
+    name: &'static str,
+    /// `(max_hits, period, restriction)` per window, initial first (N23).
+    windows: &'static [(u32, u64, u64)],
+    hits: VecDeque<Instant>,
+    restricted_until: Option<Instant>,
+}
+
+impl MockPolicy {
+    fn new(name: &'static str, windows: &'static [(u32, u64, u64)]) -> Self {
+        MockPolicy { name, windows, hits: VecDeque::new(), restricted_until: None }
+    }
+
+    fn hits_within(&self, period: u64, now: Instant) -> u32 {
+        self.hits.iter().filter(|&&h| now.duration_since(h) < Duration::from_secs(period)).count() as u32
+    }
+
+    /// Apply one request. Returns `(ok, extra response headers)`; when
+    /// `!ok` the caller answers 429. `counts` is false for HEAD.
+    fn request(&mut self, counts: bool, now: Instant) -> (bool, String) {
+        let longest = self.windows.iter().map(|w| w.1).max().unwrap_or(0);
+        while self.hits.front().is_some_and(|&h| now.duration_since(h) >= Duration::from_secs(longest)) {
+            self.hits.pop_front();
+        }
+        if self.restricted_until.is_some_and(|t| t <= now) {
+            self.restricted_until = None;
+        }
+        let mut ok = true;
+        if self.restricted_until.is_some() {
+            ok = false;
+        } else if counts {
+            // The request that would exceed a window is rejected and starts
+            // that window's restriction.
+            if let Some(w) = self.windows.iter().find(|w| self.hits_within(w.1, now) >= w.0) {
+                self.restricted_until = Some(now + Duration::from_secs(w.2));
+                ok = false;
+            } else {
+                self.hits.push_back(now);
+            }
+        }
+        let limits: Vec<String> = self.windows.iter().map(|w| format!("{}:{}:{}", w.0, w.1, w.2)).collect();
+        let restricted_for = self
+            .restricted_until
+            .map(|t| t.saturating_duration_since(now).as_secs_f64().ceil() as u64)
+            .unwrap_or(0);
+        let state: Vec<String> = self
+            .windows
+            .iter()
+            .map(|w| format!("{}:{}:{}", self.hits_within(w.1, now), w.1, restricted_for))
+            .collect();
+        let mut headers = format!(
+            "X-Rate-Limit-Policy: {}\r\nX-Rate-Limit-Rules: Account\r\nX-Rate-Limit-Account: {}\r\nX-Rate-Limit-Account-State: {}\r\n",
+            self.name,
+            limits.join(","),
+            state.join(","),
+        );
+        if !ok {
+            headers.push_str(&format!("Retry-After: {restricted_for}\r\n"));
+        }
+        (ok, headers)
+    }
+}
+
+type Policies = Arc<Mutex<HashMap<&'static str, MockPolicy>>>;
+
 /// Start the provider on an ephemeral port; returns its base URL.
 pub async fn start() -> Result<String> {
     let listener = TcpListener::bind("127.0.0.1:0").await?;
     let base = format!("http://127.0.0.1:{}", listener.local_addr()?.port());
     let codes: Arc<Mutex<HashMap<String, PendingCode>>> = Arc::default();
+    // Real policy shapes from the first capture (N23): /character is the
+    // real character-list policy; /fetch borrows character-request-limit's
+    // shape under a mock name so the limiter sees two independent policies.
+    let policies: Policies = Arc::new(Mutex::new(HashMap::from([
+        ("/character", MockPolicy::new("character-list-request-limit", &[(2, 10, 60), (5, 300, 300)])),
+        ("/fetch", MockPolicy::new("mock-fetch-request-limit", &[(5, 10, 60), (30, 300, 300)])),
+    ])));
     tokio::spawn(async move {
         loop {
             let Ok((stream, _)) = listener.accept().await else { break };
-            tokio::spawn(handle(stream, codes.clone()));
+            tokio::spawn(handle(stream, codes.clone(), policies.clone()));
         }
     });
     Ok(base)
 }
 
-async fn handle(mut stream: TcpStream, codes: Arc<Mutex<HashMap<String, PendingCode>>>) {
+async fn handle(
+    mut stream: TcpStream,
+    codes: Arc<Mutex<HashMap<String, PendingCode>>>,
+    policies: Policies,
+) {
     let Some(req) = read_request(&mut stream).await else { return };
     match (req.method.as_str(), req.path.as_str()) {
         ("GET", "/authorize") => {
@@ -77,33 +159,52 @@ async fn handle(mut stream: TcpStream, codes: Arc<Mutex<HashMap<String, PendingC
             );
             let _ = stream.write_all(head.as_bytes()).await;
         }
-        // Fake data endpoint mirroring GGG's `GET /character`, so real and
-        // mock modes run the identical job code path. Sends made-up
-        // X-Rate-Limit headers to exercise the snapshot/logging plumbing.
-        ("GET", "/character") => {
+        // Fake data endpoints mirroring GGG's `GET /character` (same job code
+        // path in mock and real mode) plus `/fetch`, each behind its own
+        // truthfully simulated rate-limit policy.
+        ("GET" | "HEAD", "/character" | "/fetch") => {
             let authed = req
                 .headers
                 .get("authorization")
                 .is_some_and(|v| v.starts_with("Bearer "));
-            if !authed {
+            if req.path == "/character" && !authed {
                 respond(&mut stream, "401 Unauthorized", "application/json",
                         &json!({ "error": "no bearer token" }).to_string()).await;
                 return;
             }
-            let body = json!({
-                "characters": [
-                    { "id": "fake0001", "name": "StashHoarder", "realm": "pc",
-                      "class": "Scion", "league": "Standard", "level": 97 },
-                    { "id": "fake0002", "name": "MuleQuadTab", "realm": "pc",
-                      "class": "Witch", "league": "Standard", "level": 12 },
-                ],
-            })
-            .to_string();
-            let extra = "X-Rate-Limit-Policy: mock-character-list\r\n\
-                         X-Rate-Limit-Rules: Account\r\n\
-                         X-Rate-Limit-Account: 2:10:60,5:300:300\r\n\
-                         X-Rate-Limit-Account-State: 1:10:0,1:300:0\r\n";
-            respond_with(&mut stream, "200 OK", "application/json", extra, &body).await;
+            let (ok, extra) = policies
+                .lock()
+                .unwrap()
+                .get_mut(req.path.as_str())
+                .expect("policy for path")
+                .request(req.method == "GET", Instant::now());
+            if req.method == "HEAD" {
+                respond_with(&mut stream, "204 No Content", "application/json", &extra, "").await;
+                return;
+            }
+            if !ok {
+                respond_with(&mut stream, "429 Too Many Requests", "application/json", &extra,
+                             &json!({ "error": "rate limited" }).to_string()).await;
+                return;
+            }
+            let body = if req.path == "/character" {
+                json!({
+                    "characters": [
+                        { "id": "fake0001", "name": "StashHoarder", "realm": "pc",
+                          "class": "Scion", "league": "Standard", "level": 97 },
+                        { "id": "fake0002", "name": "MuleQuadTab", "realm": "pc",
+                          "class": "Witch", "league": "Standard", "level": 12 },
+                    ],
+                })
+            } else {
+                json!({
+                    "items": [
+                        { "name": "Headhunter", "type": "Leather Belt" },
+                        { "name": "Tabula Rasa", "type": "Simple Robe" },
+                    ],
+                })
+            };
+            respond_with(&mut stream, "200 OK", "application/json", &extra, &body.to_string()).await;
         }
         ("POST", "/token") => {
             let form: HashMap<String, String> =

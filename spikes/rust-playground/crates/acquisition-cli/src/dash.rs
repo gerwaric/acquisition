@@ -9,26 +9,26 @@ use std::time::Duration;
 
 use acquisition_core::job::{JobInfo, JobState};
 use acquisition_core::protocol::{ErrorRecord, Request, Response};
-use acquisition_core::ratelimit::{BucketStatus, SendRecord};
+use acquisition_core::ratelimit::{PolicyStatus, SendRecord};
 use anyhow::{Result, bail};
 use ratatui::Frame;
 use ratatui::crossterm::event::{self, Event, KeyCode, KeyEventKind, KeyModifiers};
-use ratatui::layout::{Constraint, Layout};
-use ratatui::style::{Color, Style, Stylize as _};
+use ratatui::layout::{Constraint, Layout, Rect};
+use ratatui::style::{Style, Stylize as _};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Cell, Paragraph, Row, Table, Wrap};
 
 use crate::client::Client;
 
 const POLL: Duration = Duration::from_millis(250);
-/// Rows of policy detail visible at once when a rate limit is expanded;
-/// longer detail scrolls with ↑/↓.
-const DETAIL_ROWS: u16 = 10;
+/// Rows of policy detail visible at once when a policy is expanded; longer
+/// detail scrolls with ↑/↓.
+const DETAIL_ROWS: u16 = 12;
 
 /// UI-only state; everything rendered comes fresh from the daemon each poll.
 #[derive(Default)]
 struct App {
-    /// Which rate limit policy ←/→ has selected.
+    /// Which rate-limit policy ←/→ has selected.
     selected: usize,
     /// Whether the selected policy's detail pane is open.
     expanded: bool,
@@ -47,7 +47,8 @@ struct Snap {
     username: Option<String>,
     access_expires_in_seconds: Option<u64>,
     keyring: String,
-    buckets: Vec<BucketStatus>,
+    policies: Vec<PolicyStatus>,
+    policyless_endpoints: Vec<String>,
     jobs: Vec<JobInfo>,
     sends: Vec<SendRecord>,
     errors: Vec<ErrorRecord>,
@@ -89,12 +90,12 @@ async fn event_loop(terminal: &mut ratatui::DefaultTerminal, client: &mut Client
                         app.scroll = 0;
                     }
                     KeyCode::Left | KeyCode::Char('h') | KeyCode::BackTab => {
-                        let n = snap.buckets.len().max(1);
+                        let n = snap.policies.len().max(1);
                         app.selected = (app.selected + n - 1) % n;
                         app.scroll = 0;
                     }
                     KeyCode::Right | KeyCode::Char('l') | KeyCode::Tab => {
-                        app.selected = (app.selected + 1) % snap.buckets.len().max(1);
+                        app.selected = (app.selected + 1) % snap.policies.len().max(1);
                         app.scroll = 0;
                     }
                     KeyCode::Up | KeyCode::Char('k') if app.expanded => {
@@ -129,7 +130,8 @@ async fn fetch(client: &mut Client) -> Result<Snap> {
             username,
             access_expires_in_seconds,
             keyring,
-            buckets,
+            policies,
+            policyless_endpoints,
             jobs,
             sends,
             errors,
@@ -143,7 +145,8 @@ async fn fetch(client: &mut Client) -> Result<Snap> {
             username,
             access_expires_in_seconds,
             keyring,
-            buckets,
+            policies,
+            policyless_endpoints,
             jobs,
             sends,
             errors,
@@ -154,15 +157,18 @@ async fn fetch(client: &mut Client) -> Result<Snap> {
 }
 
 fn draw(f: &mut Frame, s: &Snap, app: &mut App) {
-    app.selected = app.selected.min(s.buckets.len().saturating_sub(1));
-    let buckets_height = if app.expanded {
-        2 + s.buckets.len() as u16 + 1 + DETAIL_ROWS
+    app.selected = app.selected.min(s.policies.len().saturating_sub(1));
+    // One summary line per policy, plus one for policyless endpoints (or a
+    // placeholder when nothing has been learned yet).
+    let summary_lines = s.policies.len().max(1) as u16 + u16::from(!s.policyless_endpoints.is_empty());
+    let policies_height = if app.expanded && !s.policies.is_empty() {
+        2 + summary_lines + 1 + DETAIL_ROWS
     } else {
-        2 + s.buckets.len() as u16
+        2 + summary_lines
     };
-    let [header, buckets, jobs, bottom, footer] = Layout::vertical([
+    let [header, policies, jobs, bottom, footer] = Layout::vertical([
         Constraint::Length(3),
-        Constraint::Length(buckets_height),
+        Constraint::Length(policies_height),
         Constraint::Min(6),
         Constraint::Length(9),
         Constraint::Length(1),
@@ -172,7 +178,7 @@ fn draw(f: &mut Frame, s: &Snap, app: &mut App) {
         Layout::horizontal([Constraint::Percentage(55), Constraint::Percentage(45)]).areas(bottom);
 
     draw_header(f, header, s);
-    draw_buckets(f, buckets, s, app);
+    draw_policies(f, policies, s, app);
     draw_jobs(f, jobs, &s.jobs);
     draw_sends(f, sends, &s.sends);
     draw_errors(f, errors, &s.errors);
@@ -185,7 +191,7 @@ fn draw(f: &mut Frame, s: &Snap, app: &mut App) {
     f.render_widget(Line::from(hints).dark_gray(), footer);
 }
 
-fn draw_header(f: &mut Frame, area: ratatui::layout::Rect, s: &Snap) {
+fn draw_header(f: &mut Frame, area: Rect, s: &Snap) {
     let provider = if s.provider == "ggg" {
         Span::styled("GGG (REAL)", Style::new().red().bold())
     } else {
@@ -221,55 +227,74 @@ fn draw_header(f: &mut Frame, area: ratatui::layout::Rect, s: &Snap) {
     f.render_widget(Paragraph::new(Line::from(spans)).block(block), area);
 }
 
-fn draw_buckets(f: &mut Frame, area: ratatui::layout::Rect, s: &Snap, app: &mut App) {
-    const BAR: usize = 14;
-    let buckets = &s.buckets;
-    let summary: Vec<Line> = buckets
+/// `hits/max·Ns` for one window, red when saturated, yellow when one away.
+fn window_span(w: &acquisition_core::ratelimit::WindowStatus) -> Span<'static> {
+    let style = if w.restricted_secs > 0 || w.hits >= w.max_hits {
+        Style::new().red().bold()
+    } else if w.hits + 1 >= w.max_hits {
+        Style::new().yellow()
+    } else {
+        Style::new().green()
+    };
+    Span::styled(format!("{}/{}·{}s", w.hits, w.max_hits, w.period_secs), style)
+}
+
+fn next_span(p: &PolicyStatus) -> Span<'static> {
+    if p.next_safe_in_seconds > 0.0 {
+        Span::styled(format!("next in {:.1}s", p.next_safe_in_seconds), Style::new().red().bold())
+    } else {
+        Span::styled("ready", Style::new().green())
+    }
+}
+
+fn draw_policies(f: &mut Frame, area: Rect, s: &Snap, app: &mut App) {
+    let name_width = s.policies.iter().map(|p| p.policy.len()).max().unwrap_or(0).max(8);
+    let mut summary: Vec<Line> = s
+        .policies
         .iter()
         .enumerate()
-        .map(|(i, b)| {
-            let filled = ((b.available as f64 / b.capacity.max(1) as f64) * BAR as f64).round()
-                as usize;
-            let filled = filled.min(BAR);
-            let color = match b.available {
-                0 => Color::Red,
-                a if a * 2 <= b.capacity => Color::Yellow,
-                _ => Color::Green,
-            };
-            let bar = format!("{}{}", "█".repeat(filled), "░".repeat(BAR - filled));
-            let next = if b.available > 0 {
-                Span::styled("ready", Style::new().green())
-            } else {
-                Span::styled(
-                    format!("next in {:.1}s", b.next_token_seconds),
-                    Style::new().red().bold(),
-                )
-            };
+        .map(|(i, p)| {
             let selected = i == app.selected;
-            let name_style = if selected {
-                Style::new().bold()
-            } else {
-                Style::new()
-            };
-            Line::from(vec![
+            let mut spans = vec![
                 Span::styled(if selected { "▶ " } else { "  " }, Style::new().cyan()),
-                Span::styled(format!("{:<12} ", b.endpoint), name_style),
-                Span::styled(bar, Style::new().fg(color)),
-                Span::raw(format!(" {}/{} ", b.available, b.capacity)),
                 Span::styled(
-                    format!("· 1 token per {:.0}s · ", b.refill_every_seconds),
-                    Style::new().dark_gray(),
+                    format!("{:<name_width$}  ", p.policy),
+                    if selected { Style::new().bold() } else { Style::new() },
                 ),
-                next,
-            ])
+            ];
+            for rule in &p.rules {
+                spans.push(Span::styled(format!("{} ", rule.name.to_lowercase()), Style::new().dark_gray()));
+                for (i, w) in rule.windows.iter().enumerate() {
+                    if i > 0 {
+                        spans.push(Span::raw(" "));
+                    }
+                    spans.push(window_span(w));
+                }
+                spans.push(Span::raw("  "));
+            }
+            spans.push(Span::raw("· "));
+            spans.push(next_span(p));
+            Line::from(spans)
         })
         .collect();
+    if s.policies.is_empty() {
+        summary.push(Line::from(Span::styled(
+            "  no policies learned yet — the first response from each endpoint teaches the limiter",
+            Style::new().dark_gray().italic(),
+        )));
+    }
+    if !s.policyless_endpoints.is_empty() {
+        summary.push(Line::from(vec![
+            Span::styled("  no policy reported: ", Style::new().dark_gray()),
+            Span::styled(s.policyless_endpoints.join(", "), Style::new().dark_gray().italic()),
+        ]));
+    }
 
-    let block = Block::bordered().title(" rate limits ");
+    let block = Block::bordered().title(" rate limits (header-driven) ");
     let inner = block.inner(area);
     f.render_widget(block, area);
 
-    if !app.expanded {
+    if !app.expanded || s.policies.is_empty() {
         f.render_widget(Paragraph::new(summary), inner);
         return;
     }
@@ -282,10 +307,11 @@ fn draw_buckets(f: &mut Frame, area: ratatui::layout::Rect, s: &Snap, app: &mut 
     .areas(inner);
     f.render_widget(Paragraph::new(summary), summary_area);
 
-    let detail = policy_detail(&buckets[app.selected], &s.sends);
+    let p = &s.policies[app.selected];
+    let detail = policy_detail(p, &s.sends);
     let max_scroll = (detail.len() as u16).saturating_sub(detail_area.height);
     app.scroll = app.scroll.min(max_scroll);
-    let mut sep_label = format!("─ {} ", buckets[app.selected].endpoint);
+    let mut sep_label = format!("─ {} ", p.policy);
     if max_scroll > 0 {
         sep_label.push_str(&format!("(↑/↓ scroll, {}/{}) ", app.scroll + 1, max_scroll + 1));
     }
@@ -297,142 +323,94 @@ fn draw_buckets(f: &mut Frame, area: ratatui::layout::Rect, s: &Snap, app: &mut 
     f.render_widget(Paragraph::new(detail).scroll((app.scroll, 0)), detail_area);
 }
 
-/// Everything known about one policy: the simulated bucket, grant history,
-/// the provider's own X-Rate-Limit statement, and that endpoint's sends.
-fn policy_detail(b: &BucketStatus, sends: &[SendRecord]) -> Vec<Line<'static>> {
+/// Everything known about one policy: what the server said, how the
+/// limiter reads it, and the sends that taught it.
+fn policy_detail(p: &PolicyStatus, sends: &[SendRecord]) -> Vec<Line<'static>> {
     let label = Style::new().dark_gray();
     let mut lines = vec![
         Line::from(vec![
-            Span::styled("simulated bucket   ", label),
-            Span::raw(format!(
-                "capacity {} · 1 token per {:.0}s",
-                b.capacity, b.refill_every_seconds
-            )),
+            Span::styled("endpoints          ", label),
+            Span::raw(p.endpoints.join(", ")),
         ]),
         Line::from(vec![
-            Span::styled("now                ", label),
-            Span::raw(format!("{} available · next token ", b.available)),
-            if b.next_token_seconds > 0.0 {
-                Span::styled(format!("in {:.1}s", b.next_token_seconds), Style::new().red())
-            } else {
-                Span::styled("ready", Style::new().green())
-            },
-            Span::raw(if b.full_in_seconds > 0.0 {
-                format!(" · full again in {:.1}s", b.full_in_seconds)
-            } else {
-                " · bucket full".to_string()
-            }),
-        ]),
-        Line::from(vec![
-            Span::styled("granted            ", label),
+            Span::styled("next safe send     ", label),
+            next_span(p),
             Span::raw(format!(
-                "{} total · {} in last 60s · last grant {}",
-                b.spent_total,
-                b.spent_last_60s,
-                b.last_grant_seconds_ago
-                    .map(|s| format!("{} ago", fmt_ago(s)))
-                    .unwrap_or_else(|| "never".to_string()),
+                " · last response {} ago · {} counted responses remembered",
+                fmt_ago(p.last_observed_seconds_ago),
+                p.history_len
             )),
         ]),
-        Line::from(""),
     ];
-
-    match &b.observed {
-        None => lines.push(Line::from(Span::styled(
-            "no X-Rate-Limit headers observed on this endpoint yet",
-            Style::new().dark_gray().italic(),
-        ))),
-        Some(obs) => {
-            lines.push(Line::from(vec![
-                Span::styled("observed headers   ", label),
-                Span::raw(format!("(from a response {} ago)", fmt_ago(obs.seconds_ago))),
-            ]));
-            lines.extend(parsed_rules(&obs.headers));
-            let headers = obs.headers.as_object().cloned().unwrap_or_default();
-            for (name, value) in &headers {
-                lines.push(Line::from(vec![
-                    Span::styled(format!("  {name}: "), Style::new().dark_gray()),
-                    Span::raw(value.as_str().unwrap_or_default().to_string()),
-                ]));
+    if let Some(ra) = p.retry_after_secs {
+        lines.push(Line::from(Span::styled(
+            format!("retry-after        {ra}s on the last response — the server said WAIT (limiter adds the bucket, N19)"),
+            Style::new().red().bold(),
+        )));
+    }
+    lines.push(Line::from(""));
+    for rule in &p.rules {
+        lines.push(Line::from(vec![
+            Span::styled("rule               ", label),
+            Span::styled(rule.name.clone(), Style::new().bold()),
+        ]));
+        for (i, w) in rule.windows.iter().enumerate() {
+            let kind = if i == 0 { "initial  " } else { "sustained" };
+            let mut spans = vec![
+                Span::styled(format!("  {kind}  "), label),
+                window_span(w),
+                Span::raw(format!(
+                    "  (max {} per {}s, violation restricts {}s; padded by {}s bucket + 1s)",
+                    w.max_hits, w.period_secs, w.restriction_secs, w.bucket_secs
+                )),
+            ];
+            if w.restricted_secs > 0 {
+                spans.push(Span::styled(
+                    format!("  RESTRICTED for {}s", w.restricted_secs),
+                    Style::new().red().bold(),
+                ));
             }
+            lines.push(Line::from(spans));
         }
+    }
+    lines.push(Line::from(""));
+    lines.push(Line::from(Span::styled("raw headers (last response)", label)));
+    let headers = p.headers.as_object().cloned().unwrap_or_default();
+    for (name, value) in &headers {
+        lines.push(Line::from(vec![
+            Span::styled(format!("  {name}: "), label),
+            Span::raw(value.as_str().unwrap_or_default().to_string()),
+        ]));
     }
 
     lines.push(Line::from(""));
-    let mine: Vec<&SendRecord> = sends.iter().filter(|r| r.endpoint == b.endpoint).collect();
+    let mine: Vec<&SendRecord> = sends.iter().filter(|r| p.endpoints.contains(&r.endpoint)).collect();
     if mine.is_empty() {
         lines.push(Line::from(Span::styled(
-            "no requests sent on this endpoint yet",
+            "no requests sent under this policy yet",
             Style::new().dark_gray().italic(),
         )));
     } else {
         lines.push(Line::from(Span::styled(
-            format!("sends on this endpoint ({}, newest first)", mine.len()),
+            format!("sends under this policy ({}, newest first)", mine.len()),
             label,
         )));
-        for r in mine.iter().take(20) {
+        for r in mine.iter().take(30) {
             lines.push(Line::from(vec![
-                Span::styled(format!("  {:>5}  ", fmt_ago(r.seconds_ago)), Style::new().dark_gray()),
+                Span::styled(format!("  {:>5}  ", fmt_ago(r.seconds_ago)), label),
                 Span::raw(format!("{} ", r.method)),
                 Span::styled(
                     r.outcome.clone(),
                     if r.ok { Style::new().green() } else { Style::new().red() },
                 ),
-                Span::styled(format!("  {}", r.url), Style::new().dark_gray()),
+                Span::styled(format!("  {}", r.url), label),
             ]));
         }
     }
     lines
 }
 
-/// Human-readable reading of GGG's rule headers: for each rule named in
-/// `x-rate-limit-rules`, pair `x-rate-limit-<rule>` (max:window:timeout) with
-/// `x-rate-limit-<rule>-state` (current:window:restricted-for).
-fn parsed_rules(headers: &serde_json::Value) -> Vec<Line<'static>> {
-    let get = |key: &str| headers.get(key).and_then(|v| v.as_str()).unwrap_or("");
-    let mut lines = Vec::new();
-    for rule in get("x-rate-limit-rules").split(',').filter(|r| !r.is_empty()) {
-        let rule = rule.trim().to_lowercase();
-        let limits: Vec<&str> = get(&format!("x-rate-limit-{rule}")).split(',').collect();
-        let states: Vec<&str> = get(&format!("x-rate-limit-{rule}-state")).split(',').collect();
-        let mut spans = vec![Span::styled(format!("  rule '{rule}':  "), Style::new().dark_gray())];
-        for (i, limit) in limits.iter().enumerate() {
-            let l: Vec<&str> = limit.split(':').collect();
-            let s: Vec<&str> = states.get(i).map(|s| s.split(':').collect()).unwrap_or_default();
-            let (Some(max), Some(window)) = (l.first(), l.get(1)) else { continue };
-            let current = s.first().copied().unwrap_or("?");
-            let over = match (current.parse::<u64>(), max.parse::<u64>()) {
-                (Ok(c), Ok(m)) => c >= m,
-                _ => false,
-            };
-            if i > 0 {
-                spans.push(Span::raw(" · "));
-            }
-            spans.push(Span::styled(
-                format!("{current}/{max} in {window}s window"),
-                if over { Style::new().red().bold() } else { Style::new() },
-            ));
-            if let Some(restricted) = s.get(2)
-                && restricted.parse::<u64>().unwrap_or(0) > 0
-            {
-                spans.push(Span::styled(
-                    format!(" RESTRICTED {restricted}s"),
-                    Style::new().red().bold(),
-                ));
-            }
-        }
-        lines.push(Line::from(spans));
-    }
-    if let Some(retry) = headers.get("retry-after").and_then(|v| v.as_str()) {
-        lines.push(Line::from(Span::styled(
-            format!("  retry-after: {retry}s — the provider says WAIT"),
-            Style::new().red().bold(),
-        )));
-    }
-    lines
-}
-
-fn draw_jobs(f: &mut Frame, area: ratatui::layout::Rect, jobs: &[JobInfo]) {
+fn draw_jobs(f: &mut Frame, area: Rect, jobs: &[JobInfo]) {
     let (mut waiting, mut running, mut done, mut failed, mut cancelled) = (0, 0, 0, 0, 0);
     for j in jobs {
         match j.state {
@@ -497,7 +475,7 @@ fn draw_jobs(f: &mut Frame, area: ratatui::layout::Rect, jobs: &[JobInfo]) {
     f.render_widget(table, area);
 }
 
-fn draw_sends(f: &mut Frame, area: ratatui::layout::Rect, sends: &[SendRecord]) {
+fn draw_sends(f: &mut Frame, area: Rect, sends: &[SendRecord]) {
     let title = format!(" http sends ({}, newest first) ", sends.len());
     let rows: Vec<Row> = sends
         .iter()
@@ -521,7 +499,7 @@ fn draw_sends(f: &mut Frame, area: ratatui::layout::Rect, sends: &[SendRecord]) 
         rows,
         [
             Constraint::Length(7),
-            Constraint::Length(11),
+            Constraint::Length(12),
             Constraint::Length(4),
             Constraint::Length(16),
             Constraint::Min(16),
@@ -535,7 +513,7 @@ fn draw_sends(f: &mut Frame, area: ratatui::layout::Rect, sends: &[SendRecord]) 
     f.render_widget(table, area);
 }
 
-fn draw_errors(f: &mut Frame, area: ratatui::layout::Rect, errors: &[ErrorRecord]) {
+fn draw_errors(f: &mut Frame, area: Rect, errors: &[ErrorRecord]) {
     let title = format!(" errors ({}, newest first) ", errors.len());
     let lines: Vec<Line> = if errors.is_empty() {
         vec![Line::from(Span::styled("no errors", Style::new().green().dim()))]

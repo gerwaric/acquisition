@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::job::{JobId, JobInfo, Outcome, Priority};
-use crate::ratelimit::{BucketStatus, SendRecord};
+use crate::ratelimit::{PolicyStatus, SendRecord};
 
 /// A recent daemon-side error (job failures, auth/keyring trouble), for the
 /// dashboard. Everything in here is also in the daemon log.
@@ -60,7 +60,7 @@ pub enum Request {
     DaemonStatus,
     DaemonStop,
     /// Everything the live dashboard renders, in one round-trip: daemon
-    /// vitals, auth state, limiter buckets, jobs, HTTP sends, recent errors.
+    /// vitals, auth state, limiter policies, jobs, HTTP sends, recent errors.
     Dashboard,
 }
 
@@ -114,8 +114,8 @@ pub enum Response {
         connections: usize,
         jobs_waiting: usize,
         jobs_running: usize,
-        tokens_available: u32,
-        oauth_tokens_available: u32,
+        /// Rate-limit policies learned from responses so far.
+        policies_known: usize,
     },
     Stopping,
     Dashboard {
@@ -128,7 +128,10 @@ pub enum Response {
         username: Option<String>,
         access_expires_in_seconds: Option<u64>,
         keyring: String,
-        buckets: Vec<BucketStatus>,
+        /// Sorted by policy name.
+        policies: Vec<PolicyStatus>,
+        /// Endpoints that answered without any X-Rate-Limit headers.
+        policyless_endpoints: Vec<String>,
         jobs: Vec<JobInfo>,
         /// Newest first.
         sends: Vec<SendRecord>,

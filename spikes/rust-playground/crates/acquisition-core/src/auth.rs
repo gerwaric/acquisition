@@ -11,7 +11,7 @@ use serde::Deserialize;
 use sha2::{Digest, Sha256};
 
 use crate::provider::{Provider, SCOPES};
-use crate::ratelimit::{ChokePoint, Endpoint};
+use crate::ratelimit::ChokePoint;
 
 pub fn random_token(prefix: &str) -> String {
     let mut bytes = [0u8; 24];
@@ -89,7 +89,7 @@ async fn token_request(
     params: &[(&str, &str)],
 ) -> Result<TokenResponse, String> {
     let response = choke
-        .post_form(Endpoint::OauthToken, &provider.token_url, params)
+        .post_form(&provider.token_url, params)
         .await?;
     let status = response.status();
     if !status.is_success() {

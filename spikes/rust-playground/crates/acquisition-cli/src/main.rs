@@ -164,7 +164,7 @@ async fn main() -> Result<()> {
                 ids.push(id);
             }
             println!("submitted {count} fetch jobs: {ids:?}");
-            println!("(bucket allows a burst of 5, then one every 3s — watch the ETAs)\n");
+            println!("(mock policy: 5 per 10s, then 30 per 300s — watch the ETAs)\n");
             watch_table_until_done(&mut client, &ids).await
         }
         Cmd::Dash => dash::run(cli.json).await,
@@ -249,13 +249,12 @@ async fn main() -> Result<()> {
                     connections,
                     jobs_waiting,
                     jobs_running,
-                    tokens_available,
-                    oauth_tokens_available,
+                    policies_known,
                 } = status
                 {
                     println!("daemon {version} pid {pid}, up {uptime_seconds}s, provider {provider}");
                     println!(
-                        "connections: {connections}  waiting: {jobs_waiting}  running: {jobs_running}  tokens: {tokens_available} api / {oauth_tokens_available} oauth"
+                        "connections: {connections}  waiting: {jobs_waiting}  running: {jobs_running}  rate-limit policies learned: {policies_known}"
                     );
                     println!("socket: {}", daemon::socket_path().display());
                     println!("log:    {}", daemon::log_path().display());

@@ -21,7 +21,7 @@ use crate::VERSION;
 use crate::job::{JobId, JobInfo, JobState, Outcome, Priority};
 use crate::protocol::{ErrorRecord, Request, Response};
 use crate::provider::{CALLBACK_PATH, Provider, SCOPES, ggg_mode};
-use crate::ratelimit::{ChokePoint, Endpoint, Paid, rate_limit_snapshot};
+use crate::ratelimit::{ChokePoint, Paid};
 use crate::{auth, mockggg};
 
 const IDLE_SHUTDOWN: Duration = Duration::from_secs(60);
@@ -86,25 +86,37 @@ impl Shared {
 
     /// Snapshot with eta filled in for waiting jobs. The daemon can predict
     /// because it sees the whole queue and the limiter.
-    fn snapshot(&self, choke: &ChokePoint, id: JobId) -> Option<JobInfo> {
+    fn snapshot(&self, daemon: &Daemon, id: JobId) -> Option<JobInfo> {
         let queue = self.queue_order();
         let entry = self.jobs.get(&id)?;
         let mut info = entry.info.clone();
         info.eta_seconds = if info.state == JobState::Waiting {
-            let ahead = queue.iter().position(|&q| q == id).unwrap_or(0);
-            // Only token-consuming jobs ahead of us actually delay dispatch,
-            // but counting them all keeps this honest enough for a playground.
-            Some(choke.eta_for(Endpoint::Api, ahead as u32).as_secs())
+            match daemon.endpoint_url(&info.kind) {
+                Some(url) => {
+                    // Only same-endpoint jobs ahead of us compete for the
+                    // same policy; counting them is what the estimate needs.
+                    let ahead = queue
+                        .iter()
+                        .take_while(|&&q| q != id)
+                        .filter(|q| {
+                            self.jobs.get(q).and_then(|e| daemon.endpoint_url(&e.info.kind))
+                                == Some(url.clone())
+                        })
+                        .count();
+                    Some(daemon.choke.eta_for(&url, ahead as u32).as_secs())
+                }
+                None => Some(0),
+            }
         } else {
             None
         };
         Some(info)
     }
 
-    fn list(&self, choke: &ChokePoint) -> Vec<JobInfo> {
+    fn list(&self, daemon: &Daemon) -> Vec<JobInfo> {
         let mut ids: Vec<JobId> = self.jobs.keys().copied().collect();
         ids.sort();
-        ids.into_iter().filter_map(|id| self.snapshot(choke, id)).collect()
+        ids.into_iter().filter_map(|id| self.snapshot(daemon, id)).collect()
     }
 }
 
@@ -114,7 +126,8 @@ pub struct Daemon {
     work: Notify,
     log: Mutex<std::fs::File>,
     /// The single rate-limit choke point (CONTEXT invariant 1). It owns the
-    /// HTTP client, so all outbound requests — OAuth included — pay a token.
+    /// HTTP client, so all outbound requests — OAuth included — consult the
+    /// header-driven limiter and feed their responses back to it.
     choke: ChokePoint,
     /// The in-process mock by default; real GGG only when the daemon was
     /// started with ACQ_GGG=1.
@@ -144,6 +157,16 @@ impl Daemon {
             s.errors.push_back((Instant::now(), msg.to_string()));
         }
         self.log(msg);
+    }
+
+    /// The URL a job kind sends to, if it sends at all. `fetch` is a fake
+    /// data endpoint that exists only on the mock.
+    fn endpoint_url(&self, kind: &str) -> Option<String> {
+        match kind {
+            "characters" => Some(format!("{}/character", self.provider.api_base)),
+            "fetch" if !self.provider.is_real() => Some(format!("{}/fetch", self.provider.api_base)),
+            _ => None,
+        }
     }
 
     fn submit(&self, kind: String, params: Value, priority: Priority, submitted_by: String) -> JobId {
@@ -233,12 +256,10 @@ impl Daemon {
     }
 
     async fn process(&self, id: JobId) {
-        let needs_token = {
+        let url = {
             let s = self.shared.lock().unwrap();
             match s.jobs.get(&id) {
-                // Everything that is (or stands in for) API traffic consumes
-                // a token.
-                Some(e) => matches!(e.info.kind.as_str(), "fetch" | "profile" | "characters"),
+                Some(e) => self.endpoint_url(&e.info.kind),
                 None => return,
             }
         };
@@ -247,7 +268,7 @@ impl Daemon {
         // slices so cancellation and reprioritization stay responsive. The
         // receipt is handed to `execute`, which spends it on the actual send.
         let mut paid: Option<Paid> = None;
-        if needs_token {
+        if let Some(url) = &url {
             loop {
                 let step = {
                     let s = self.shared.lock().unwrap();
@@ -258,7 +279,7 @@ impl Daemon {
                     }
                     match s.jobs.get(&id) {
                         Some(e) if e.info.state == JobState::Waiting => {
-                            self.choke.try_take(Endpoint::Api)
+                            self.choke.try_take(url)
                         }
                         _ => return, // cancelled out from under us
                     }
@@ -312,33 +333,14 @@ impl Daemon {
             // never fought through (invariants 2 and 3 are read-only so far:
             // headers are logged and returned, not yet fed to the limiter).
             "characters" => {
-                let paid = paid.expect("characters is a token-consuming kind");
+                let paid = paid.expect("characters is a network kind");
                 let (token, username) = match self.valid_access_token(false).await {
                     Ok(pair) => pair,
                     Err(error) => return Outcome::Failure { error },
                 };
                 let url = format!("{}/character", self.provider.api_base);
-                let response = match self.choke.get_bearer(paid, &url, &token).await {
-                    Ok(r) => r,
-                    Err(e) => return Outcome::Failure { error: format!("GET {url} failed: {e}") },
-                };
-                let status = response.status();
-                let rate = rate_limit_snapshot(response.headers());
-                self.log(&format!("GET /character -> {status} | rate headers: {rate}"));
-                let body = response.text().await.unwrap_or_default();
-                if !status.is_success() {
-                    let hint = match status.as_u16() {
-                        429 => " — rate limited; NOT retrying (mind Retry-After before trying again)",
-                        403 | 503 => " — possibly a Cloudflare block; do NOT retry (invariant 3)",
-                        _ => "",
-                    };
-                    let body: String = body.chars().take(300).collect();
-                    return Outcome::Failure {
-                        error: format!("GET /character returned {status}{hint}; rate headers {rate}; body: {body}"),
-                    };
-                }
-                match serde_json::from_str::<Value>(&body) {
-                    Ok(v) => Outcome::Success {
+                match self.api_get(paid, &url, Some(&token)).await {
+                    Ok((v, rate)) => Outcome::Success {
                         payload: json!({
                             "provider": self.provider.name,
                             "username": username,
@@ -346,9 +348,7 @@ impl Daemon {
                             "rate_limit": rate,
                         }),
                     },
-                    Err(e) => Outcome::Failure {
-                        error: format!("bad JSON from /character: {e}"),
-                    },
+                    Err(error) => Outcome::Failure { error },
                 }
             }
             "sleep" => {
@@ -365,21 +365,25 @@ impl Daemon {
                 }
             }
             "fetch" => {
-                // Simulated network time. Never a real request: the playground
-                // has no GGG code paths at all, by design.
-                tokio::time::sleep(Duration::from_millis(400)).await;
-                if self.cancelled(id) {
-                    return Outcome::Cancelled;
-                }
-                Outcome::Success {
-                    payload: json!({
-                        "note": "fake data — playground never talks to GGG",
-                        "params": params,
-                        "items": [
-                            { "name": "Headhunter", "type": "Leather Belt" },
-                            { "name": "Tabula Rasa", "type": "Simple Robe" },
-                        ],
-                    }),
+                // A real request to the mock's fake data endpoint, so the
+                // limiter learns a second policy from real headers. Never
+                // sent to GGG: real mode has no such endpoint.
+                let Some(paid) = paid else {
+                    return Outcome::Failure {
+                        error: "fetch is a mock-only kind; real mode has no fake data endpoint".into(),
+                    };
+                };
+                let url = format!("{}/fetch", self.provider.api_base);
+                match self.api_get(paid, &url, None).await {
+                    Ok((v, rate)) => Outcome::Success {
+                        payload: json!({
+                            "note": "fake data from the in-process mock",
+                            "params": params,
+                            "items": v.get("items").cloned().unwrap_or(v),
+                            "rate_limit": rate,
+                        }),
+                    },
+                    Err(error) => Outcome::Failure { error },
                 }
             }
             "profile" => {
@@ -410,6 +414,40 @@ impl Daemon {
                 error: format!("unknown job kind '{other}' (kinds: sleep, fetch, profile, characters)"),
             },
         }
+    }
+
+    /// One rate-limited GET: sends with the receipt, logs the rate headers,
+    /// and turns non-2xx into a failure with the evidence. No retries on
+    /// anything — a 429 or a Cloudflare-shaped block is reported, never
+    /// fought through (invariant 3; 429 recovery is a later step).
+    async fn api_get(
+        &self,
+        paid: Paid,
+        url: &str,
+        bearer: Option<&str>,
+    ) -> Result<(Value, Value), String> {
+        let response = match bearer {
+            Some(token) => self.choke.get_bearer(paid, url, token).await,
+            None => self.choke.get(paid, url).await,
+        }
+        .map_err(|e| format!("GET {url} failed: {e}"))?;
+        let status = response.status();
+        let rate = crate::ratelimit::rate_limit_snapshot(response.headers());
+        let path = crate::ratelimit::endpoint_key(url);
+        self.log(&format!("GET {path} -> {status} | rate headers: {rate}"));
+        let body = response.text().await.unwrap_or_default();
+        if !status.is_success() {
+            let hint = match status.as_u16() {
+                429 => " — rate limited; NOT retrying (the limiter now holds this policy until Retry-After + bucket)",
+                403 | 503 => " — possibly a Cloudflare block; do NOT retry (invariant 3)",
+                _ => "",
+            };
+            let body: String = body.chars().take(300).collect();
+            return Err(format!("GET {path} returned {status}{hint}; rate headers {rate}; body: {body}"));
+        }
+        serde_json::from_str::<Value>(&body)
+            .map(|v| (v, rate))
+            .map_err(|e| format!("bad JSON from {path}: {e}"))
     }
 
     // ---- auth -----------------------------------------------------------
@@ -607,7 +645,7 @@ impl Daemon {
             Request::Submit { kind, params, priority, submitted_by } => Response::Submitted {
                 id: self.submit(kind, params, priority, submitted_by),
             },
-            Request::Status { id } => match self.shared.lock().unwrap().snapshot(&self.choke, id) {
+            Request::Status { id } => match self.shared.lock().unwrap().snapshot(self, id) {
                 Some(job) => Response::Status { job },
                 None => Response::Error { message: format!("no job {id}") },
             },
@@ -635,7 +673,7 @@ impl Daemon {
                 Err(message) => Response::Error { message },
             },
             Request::List => Response::Jobs {
-                jobs: self.shared.lock().unwrap().list(&self.choke),
+                jobs: self.shared.lock().unwrap().list(self),
             },
             Request::Subscribe => {
                 *events = Some(self.events.subscribe());
@@ -682,8 +720,7 @@ impl Daemon {
                     connections: s.connections,
                     jobs_waiting: waiting,
                     jobs_running: running,
-                    tokens_available: self.choke.available(Endpoint::Api),
-                    oauth_tokens_available: self.choke.available(Endpoint::OauthToken),
+                    policies_known: self.choke.policy_statuses().len(),
                 }
             }
             Request::DaemonStop => Response::Stopping,
@@ -702,8 +739,9 @@ impl Daemon {
                         .access_expires_at
                         .map(|t| t.saturating_duration_since(Instant::now()).as_secs()),
                     keyring: s.auth.keyring.clone(),
-                    buckets: self.choke.bucket_statuses(),
-                    jobs: s.list(&self.choke),
+                    policies: self.choke.policy_statuses(),
+                    policyless_endpoints: self.choke.policyless_endpoints(),
+                    jobs: s.list(self),
                     sends: self.choke.recent_sends(),
                     errors: s
                         .errors
@@ -812,12 +850,13 @@ pub async fn run() -> Result<()> {
 
     // Real GGG only on explicit opt-in; the default remains the in-process
     // mock, and in real mode the mock is never even started.
-    let (provider, choke) = if ggg_mode() {
-        (Provider::ggg(), ChokePoint::ggg_conservative())
+    let provider = if ggg_mode() {
+        Provider::ggg()
     } else {
-        let base = mockggg::start().await?;
-        (Provider::mock(&base), ChokePoint::playground_default())
+        Provider::mock(&mockggg::start().await?)
     };
+    // Same limiter in both modes: empty until responses teach it policies.
+    let choke = ChokePoint::new();
 
     // A session in the keyring survives daemon restarts; the first
     // auth-required job will refresh its way to a live access token.
