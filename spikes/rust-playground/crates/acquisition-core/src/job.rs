@@ -51,6 +51,9 @@ pub struct JobInfo {
     /// substashes). A parent finishes when its last descendant does.
     #[serde(default)]
     pub parent: Option<JobId>,
+    /// Times this job has been put back in the queue after a 429.
+    #[serde(default)]
+    pub retries: u32,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

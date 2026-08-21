@@ -38,6 +38,10 @@ const PROBE_PRIORITY: Priority = u8::MAX;
 /// responses arrive before the next decision) and at most one probe in
 /// flight, ever (N18).
 pub const MAX_IN_FLIGHT: usize = 2;
+/// How many times a job is re-queued after a 429 before it fails for good
+/// (ground truth P-A: violations are structural, so recovery is required;
+/// N10: frequent violations get the application revoked, so it is bounded).
+pub const MAX_429_RETRIES: u32 = 2;
 
 // Must stay short: Unix socket paths cap out around 104 bytes (SUN_LEN),
 // which deep per-user runtime dirs can exceed.
@@ -50,6 +54,19 @@ pub fn socket_path() -> PathBuf {
 
 pub fn log_path() -> PathBuf {
     socket_path().with_extension("log")
+}
+
+/// What a network call can fail with; 429 is its own arm so the job can
+/// be re-queued rather than failed.
+enum ApiError {
+    RateLimited(String),
+    Other(String),
+}
+
+/// What `execute` hands back to `process`.
+enum Exec {
+    Done(Outcome),
+    RateLimited(String),
 }
 
 struct Entry {
@@ -286,6 +303,7 @@ impl Daemon {
                 submitted_by,
                 eta_seconds: None,
                 parent,
+                retries: 0,
             };
             s.jobs.insert(
                 id,
@@ -490,7 +508,40 @@ impl Daemon {
         let kind = info.kind.clone();
         self.emit(info);
 
-        let outcome = self.execute(id, &kind, params, paid).await;
+        let outcome = match self.execute(id, &kind, params, paid).await {
+            Exec::Done(outcome) => outcome,
+            Exec::RateLimited(evidence) => {
+                // P-A: a 429 is recovered from, not surfaced — unless it keeps
+                // happening. The limiter already holds the policy for
+                // Retry-After + bucket (N19); putting the job back to waiting
+                // (it keeps its place: order is priority, then id) makes it
+                // go out after that hold, with the ETA visible meanwhile.
+                let requeued = {
+                    let mut s = self.shared.lock().unwrap();
+                    let Some(entry) = s.jobs.get_mut(&id) else { return };
+                    if entry.info.retries < MAX_429_RETRIES && !entry.cancel_requested {
+                        entry.info.retries += 1;
+                        entry.info.state = JobState::Waiting;
+                        Some(entry.info.clone())
+                    } else {
+                        None
+                    }
+                };
+                match requeued {
+                    Some(info) => {
+                        self.note_error(&format!(
+                            "job {id} ({kind}): rate limited (429), re-queued behind the limiter's hold (retry {}/{MAX_429_RETRIES}): {evidence}",
+                            info.retries
+                        ));
+                        self.emit(info);
+                        return; // slot released; the dispatcher re-picks after the hold
+                    }
+                    None => Outcome::Failure {
+                        error: format!("rate limited (429) {MAX_429_RETRIES} times; giving up (N10): {evidence}"),
+                    },
+                }
+            }
+        };
         if let Outcome::Failure { error } = &outcome {
             self.note_error(&format!("job {id} ({kind}): {error}"));
         }
@@ -588,8 +639,24 @@ impl Daemon {
         self.finish(id, outcome);
     }
 
-    async fn execute(&self, id: JobId, kind: &str, params: Value, paid: Option<Paid>) -> Outcome {
-        match kind {
+    async fn execute(&self, id: JobId, kind: &str, params: Value, paid: Option<Paid>) -> Exec {
+        // Network kinds bubble a 429 up as `Exec::RateLimited`; everything
+        // else is an ordinary outcome.
+        match self.execute_inner(id, kind, params, paid).await {
+            Ok(outcome) => Exec::Done(outcome),
+            Err(ApiError::RateLimited(evidence)) => Exec::RateLimited(evidence),
+            Err(ApiError::Other(error)) => Exec::Done(Outcome::Failure { error }),
+        }
+    }
+
+    async fn execute_inner(
+        &self,
+        id: JobId,
+        kind: &str,
+        params: Value,
+        paid: Option<Paid>,
+    ) -> Result<Outcome, ApiError> {
+        Ok(match kind {
             // The one real API call: GET {api_base}/character. Same code in
             // both modes; only the provider's base URL differs. No retries on
             // any failure — a 429 or a Cloudflare-shaped block is reported,
@@ -599,19 +666,17 @@ impl Daemon {
                 let paid = paid.expect("characters is a network kind");
                 let (token, username) = match self.valid_access_token(false).await {
                     Ok(pair) => pair,
-                    Err(error) => return Outcome::Failure { error },
+                    Err(error) => return Ok(Outcome::Failure { error }),
                 };
                 let url = format!("{}/character", self.provider.api_base);
-                match self.api_get(paid, &url, Some(&token)).await {
-                    Ok((v, rate)) => Outcome::Success {
-                        payload: json!({
-                            "provider": self.provider.name,
-                            "username": username,
-                            "characters": v.get("characters").cloned().unwrap_or(v),
-                            "rate_limit": rate,
-                        }),
-                    },
-                    Err(error) => Outcome::Failure { error },
+                let (v, rate) = self.api_get(paid, &url, Some(&token)).await?;
+                Outcome::Success {
+                    payload: json!({
+                        "provider": self.provider.name,
+                        "username": username,
+                        "characters": v.get("characters").cloned().unwrap_or(v),
+                        "rate_limit": rate,
+                    }),
                 }
             }
             // The stash list: one request under stash-list-request-limit, the
@@ -620,36 +685,31 @@ impl Daemon {
                 let paid = paid.expect("stashes is a network kind");
                 let (token, username) = match self.valid_access_token(false).await {
                     Ok(pair) => pair,
-                    Err(error) => return Outcome::Failure { error },
+                    Err(error) => return Ok(Outcome::Failure { error }),
                 };
                 let league = params.get("league").and_then(Value::as_str).unwrap_or("Standard").to_string();
                 let url = format!("{}/stash/{league}", self.provider.api_base);
-                match self.api_get(paid, &url, Some(&token)).await {
-                    Ok((v, rate)) => Outcome::Success {
-                        payload: json!({
-                            "provider": self.provider.name,
-                            "username": username,
-                            "league": league,
-                            "stashes": v.get("stashes").cloned().unwrap_or(v),
-                            "rate_limit": rate,
-                        }),
-                    },
-                    Err(error) => Outcome::Failure { error },
+                let (v, rate) = self.api_get(paid, &url, Some(&token)).await?;
+                Outcome::Success {
+                    payload: json!({
+                        "provider": self.provider.name,
+                        "username": username,
+                        "league": league,
+                        "stashes": v.get("stashes").cloned().unwrap_or(v),
+                        "rate_limit": rate,
+                    }),
                 }
             }
             "stash" => {
                 let paid = paid.expect("stash is a network kind");
                 let (token, _) = match self.valid_access_token(false).await {
                     Ok(pair) => pair,
-                    Err(error) => return Outcome::Failure { error },
+                    Err(error) => return Ok(Outcome::Failure { error }),
                 };
                 let Some((_, url)) = self.route_for("stash", &params) else {
-                    return Outcome::Failure { error: "stash needs an id".into() };
+                    return Ok(Outcome::Failure { error: "stash needs an id".into() });
                 };
-                let (v, rate) = match self.api_get(paid, &url, Some(&token)).await {
-                    Ok(pair) => pair,
-                    Err(error) => return Outcome::Failure { error },
-                };
+                let (v, rate) = self.api_get(paid, &url, Some(&token)).await?;
                 let stash = v.get("stash").cloned().unwrap_or(v);
                 // Map/unique tabs carry their substashes as stubs; following
                 // them is opt-in per tab (--deep) because one map tab can
@@ -690,7 +750,7 @@ impl Daemon {
                 let paid = paid.expect("refresh is a network kind");
                 let (token, _) = match self.valid_access_token(false).await {
                     Ok(pair) => pair,
-                    Err(error) => return Outcome::Failure { error },
+                    Err(error) => return Ok(Outcome::Failure { error }),
                 };
                 let league = params.get("league").and_then(Value::as_str).unwrap_or("Standard").to_string();
                 let deep = params.get("deep").and_then(Value::as_bool).unwrap_or(false);
@@ -701,13 +761,10 @@ impl Daemon {
                     .map(|a| a.iter().filter_map(Value::as_str).map(str::to_string).collect())
                     .unwrap_or_default();
                 if !all && wanted.is_empty() {
-                    return Outcome::Failure { error: "refresh needs --all or --tabs <id,...>".into() };
+                    return Ok(Outcome::Failure { error: "refresh needs --all or --tabs <id,...>".into() });
                 }
                 let url = format!("{}/stash/{league}", self.provider.api_base);
-                let (v, rate) = match self.api_get(paid, &url, Some(&token)).await {
-                    Ok(pair) => pair,
-                    Err(error) => return Outcome::Failure { error },
-                };
+                let (v, rate) = self.api_get(paid, &url, Some(&token)).await?;
                 let listed = v.get("stashes").and_then(Value::as_array).cloned().unwrap_or_default();
                 // Flatten: top-level tabs plus folder children; skip folders.
                 let mut tabs: Vec<(String, String, String)> = Vec::new();
@@ -755,7 +812,7 @@ impl Daemon {
                 let deadline = Instant::now() + Duration::from_secs_f64(seconds);
                 while Instant::now() < deadline {
                     if self.cancelled(id) {
-                        return Outcome::Cancelled;
+                        return Ok(Outcome::Cancelled);
                     }
                     tokio::time::sleep(Duration::from_millis(200)).await;
                 }
@@ -768,21 +825,19 @@ impl Daemon {
                 // limiter learns a second policy from real headers. Never
                 // sent to GGG: real mode has no such endpoint.
                 let Some(paid) = paid else {
-                    return Outcome::Failure {
+                    return Ok(Outcome::Failure {
                         error: "fetch is a mock-only kind; real mode has no fake data endpoint".into(),
-                    };
+                    });
                 };
                 let url = format!("{}/fetch", self.provider.api_base);
-                match self.api_get(paid, &url, None).await {
-                    Ok((v, rate)) => Outcome::Success {
-                        payload: json!({
-                            "note": "fake data from the in-process mock",
-                            "params": params,
-                            "items": v.get("items").cloned().unwrap_or(v),
-                            "rate_limit": rate,
-                        }),
-                    },
-                    Err(error) => Outcome::Failure { error },
+                let (v, rate) = self.api_get(paid, &url, None).await?;
+                Outcome::Success {
+                    payload: json!({
+                        "note": "fake data from the in-process mock",
+                        "params": params,
+                        "items": v.get("items").cloned().unwrap_or(v),
+                        "rate_limit": rate,
+                    }),
                 }
             }
             "profile" => {
@@ -790,11 +845,11 @@ impl Daemon {
                 // silent refresh through the daemon-owned session.
                 let (token, username) = match self.valid_access_token(false).await {
                     Ok(pair) => pair,
-                    Err(error) => return Outcome::Failure { error },
+                    Err(error) => return Ok(Outcome::Failure { error }),
                 };
                 tokio::time::sleep(Duration::from_millis(300)).await;
                 if self.cancelled(id) {
-                    return Outcome::Cancelled;
+                    return Ok(Outcome::Cancelled);
                 }
                 Outcome::Success {
                     payload: json!({
@@ -818,7 +873,7 @@ impl Daemon {
                     params.get("route").and_then(Value::as_str).map(str::to_string),
                     params.get("url").and_then(Value::as_str).map(str::to_string),
                 ) else {
-                    return Outcome::Failure { error: "probe needs a route and a url".into() };
+                    return Ok(Outcome::Failure { error: "probe needs a route and a url".into() });
                 };
                 let bearer = if self.needs_auth(&route) {
                     match self.valid_access_token(false).await {
@@ -827,7 +882,7 @@ impl Daemon {
                             // Close the endpoint too, or the waiting job would
                             // just ask for another probe; login reopens it.
                             self.choke.degrade(&route, &error);
-                            return Outcome::Failure { error };
+                            return Ok(Outcome::Failure { error });
                         }
                     }
                 } else {
@@ -839,7 +894,7 @@ impl Daemon {
                         Err(wait) => tokio::time::sleep(wait.min(Duration::from_secs(1))).await,
                     }
                     if self.cancelled(id) {
-                        return Outcome::Cancelled;
+                        return Ok(Outcome::Cancelled);
                     }
                 };
                 match self.choke.head(paid, &url, bearer.as_deref()).await {
@@ -864,41 +919,41 @@ impl Daemon {
             other => Outcome::Failure {
                 error: format!("unknown job kind '{other}' (kinds: sleep, fetch, profile, characters, stashes, stash, refresh, probe)"),
             },
-        }
+        })
     }
 
     /// One rate-limited GET: sends with the receipt, logs the rate headers,
-    /// and turns non-2xx into a failure with the evidence. No retries on
-    /// anything — a 429 or a Cloudflare-shaped block is reported, never
-    /// fought through (invariant 3; 429 recovery is a later step).
+    /// and turns non-2xx into a typed error. A 429 is distinguishable so the
+    /// caller can re-queue the job behind the limiter's hold (P-A); a
+    /// Cloudflare-shaped 403/503 is never retried (invariant 3).
     async fn api_get(
         &self,
         paid: Paid,
         url: &str,
         bearer: Option<&str>,
-    ) -> Result<(Value, Value), String> {
+    ) -> Result<(Value, Value), ApiError> {
         let response = match bearer {
             Some(token) => self.choke.get_bearer(paid, url, token).await,
             None => self.choke.get(paid, url).await,
         }
-        .map_err(|e| format!("GET {url} failed: {e}"))?;
+        .map_err(|e| ApiError::Other(format!("GET {url} failed: {e}")))?;
         let status = response.status();
         let rate = crate::ratelimit::rate_limit_snapshot(response.headers());
         let path = url_path(url);
         self.log(&format!("GET {path} -> {status} | rate headers: {rate}"));
         let body = response.text().await.unwrap_or_default();
         if !status.is_success() {
-            let hint = match status.as_u16() {
-                429 => " — rate limited; NOT retrying (the limiter now holds this policy until Retry-After + bucket)",
-                403 | 503 => " — possibly a Cloudflare block; do NOT retry (invariant 3)",
-                _ => "",
-            };
             let body: String = body.chars().take(300).collect();
-            return Err(format!("GET {path} returned {status}{hint}; rate headers {rate}; body: {body}"));
+            let evidence = format!("GET {path} returned {status}; rate headers {rate}; body: {body}");
+            return Err(match status.as_u16() {
+                429 => ApiError::RateLimited(evidence),
+                403 | 503 => ApiError::Other(format!("{evidence} — possibly a Cloudflare block; NOT retrying (invariant 3)")),
+                _ => ApiError::Other(evidence),
+            });
         }
         serde_json::from_str::<Value>(&body)
             .map(|v| (v, rate))
-            .map_err(|e| format!("bad JSON from {path}: {e}"))
+            .map_err(|e| ApiError::Other(format!("bad JSON from {path}: {e}")))
     }
 
     // ---- auth -----------------------------------------------------------

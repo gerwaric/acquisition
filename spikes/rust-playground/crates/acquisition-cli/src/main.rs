@@ -448,6 +448,9 @@ async fn block_on_job(client: &mut Client, id: u64, json: bool) -> Result<()> {
         let job = client.status(id).await?;
         if !json {
             let line = match (job.state, job.eta_seconds) {
+                (JobState::Waiting, Some(eta)) if eta > 0 && job.retries > 0 => {
+                    format!("job {id}: got a 429, retry {} in ~{eta}s...", job.retries)
+                }
                 (JobState::Waiting, Some(eta)) if eta > 0 => {
                     format!("job {id}: rate limited, starting in ~{eta}s...")
                 }
@@ -509,7 +512,7 @@ fn print_table(jobs: &[JobInfo]) {
             job.id,
             job.parent.map(|p| p.to_string()).unwrap_or_default(),
             job.kind,
-            job.state.to_string(),
+            if job.retries > 0 { format!("{} ↻{}", job.state, job.retries) } else { job.state.to_string() },
             job.priority,
             job.submitted_by,
             eta

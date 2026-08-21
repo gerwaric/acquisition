@@ -16,7 +16,8 @@ provider (see below). All HTTP goes through the choke point structurally:
 the only `reqwest::Client` in the workspace lives inside `ChokePoint`, so
 even token exchange/refresh consults the limiter and feeds its response
 back, and sending without asking requires a `Paid` receipt only the limiter
-can mint.
+can mint. A 429 re-queues the job behind the limiter's hold (shown as `↻n`
+in job tables); a Cloudflare-shaped 403/503 is never retried.
 
 ## Layout
 
@@ -102,9 +103,11 @@ tokens live 60 seconds, so silent refresh is exercised constantly.
 
 - **`ACQ_MOCK_DEGRADED_HEAD=1`** makes the mock reproduce the Dec-2023
   regression (N20) so the degraded path can be exercised.
-- **429s are not recovered from.** The job fails with the evidence and the
-  policy is held for `Retry-After` + bucket; nothing reschedules (P-A). A
-  refresh with one failed tab therefore fails as a whole (with the ids).
+- **429 recovery is bounded but untested at the bound.** A 429'd job goes
+  back to `waiting` behind the limiter's hold (`Retry-After` + bucket) and
+  keeps its queue place; after `MAX_429_RETRIES` (2) it fails with the
+  evidence. The give-up path has only been reasoned about, not reproduced
+  (each hold on the mock is ~2 minutes).
 - **Refresh has no delta/selection smarts.** `--all` fetches every listed
   tab; the real API's `metadata.items` counts on substash stubs (free) are
   the obvious lever for skipping, not used yet.

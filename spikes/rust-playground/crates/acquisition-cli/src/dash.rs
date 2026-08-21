@@ -479,7 +479,8 @@ fn draw_jobs(f: &mut Frame, area: Rect, jobs: &[JobInfo]) {
             Row::new(vec![
                 Cell::from(j.id.to_string()),
                 Cell::from(kind).style(kind_style),
-                Cell::from(j.state.to_string()).style(state_style),
+                Cell::from(if j.retries > 0 { format!("{} ↻{}", j.state, j.retries) } else { j.state.to_string() })
+                    .style(state_style),
                 Cell::from(j.priority.to_string()),
                 Cell::from(j.submitted_by.clone()),
                 Cell::from(eta),
