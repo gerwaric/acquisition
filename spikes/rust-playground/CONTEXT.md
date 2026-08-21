@@ -36,6 +36,7 @@ Short one-liners with rationale, optimized for agents to reason from. Kept curre
 - **Limiter state is keyed by policy name and learned only from headers.** No local token counting; waits are computed from the last `X-Rate-Limit-*` state plus response arrival times, padded by the server's timing bucket. Bucket classification is positional (first window initial/5s, later windows sustained/60s — ground truth Q4 hypothesis). Rationale: same-name policies share counters across endpoints (N6), so endpoint-keyed state would be a migration later; positional classification is conservative on every observed policy shape.
 - **Endpoint discovery is a visible `probe` job: one HEAD per endpoint per daemon lifetime, queued by the daemon before the first real send.** Rationale: N16's sanctioned pattern is one HEAD at startup; doing it lazily per endpoint sends the same count and nothing for endpoints never used. Visible rather than internal because everything that touches GGG is a job, and HEAD has regressed server-side before (N20) — the probe's headers need to be inspectable.
 - **The burst bound is a named constant in the dispatcher (`MAX_IN_FLIGHT = 2`), with one-in-flight-per-policy and one-probe-ever on top.** Rationale: P-B — policies count independently, Cloudflare watches bursts across all of them, compliant traffic is slow anyway, so a small explicit cap costs nothing; per-policy serialization is what the limiter's lookback assumes; one probe ever is N18.
+- **Work that needs many requests is a parent job that submits child jobs; a parent finishes when its last descendant does, gives up its in-flight slot while waiting, and cancels its descendants when cancelled.** Rationale: the queue, dispatcher, priorities, ETAs, and events already work per job, so children get all of it for free; a job-internal loop would need its own scheduler and hide the requests from every tool. Observed API shapes (2026-08-20): folder children are in the stash list; map/unique substashes only appear on fetching the tab (one map tab listed 234); substash stubs carry `metadata.items` counts. Following substashes is opt-in per tab.
 - **Rate limiter spec will be expressed as test tables, not prose.** `docs/design/network-ground-truth.md` (the claims registry; it indexes the deeper spike evidence) is the input; "given these headers, wait N seconds" tests are the permanent, enforced spec.
 
 ## Interfaces (boundaries are specified; internals are not)
@@ -64,7 +65,6 @@ Default CLI mode is blocking-with-progress ("rate limited, retrying in 4m37s..."
 ## Open topics
 
 - Ctrl-C semantics in blocking CLI mode: cancel the job, or leave it running in the daemon?
-- Multi-request job cancellation and/or requests that spawn substash requests?
 - Priority levels: how many, and named or numeric? (Interactive GUI > CLI > background/MCP is the intuition.)
 - MCP server: in-process with the daemon, or a fourth thin client?
 

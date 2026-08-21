@@ -45,8 +45,12 @@ pub struct JobInfo {
     pub priority: Priority,
     pub submitted_by: String,
     /// Predicted seconds until this job starts running. Only meaningful for
-    /// waiting jobs; computed from token-bucket state + queue depth ahead.
+    /// waiting jobs; computed from limiter state + same-route queue depth.
     pub eta_seconds: Option<u64>,
+    /// The job that submitted this one (a refresh's tabs, a deep tab's
+    /// substashes). A parent finishes when its last descendant does.
+    #[serde(default)]
+    pub parent: Option<JobId>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

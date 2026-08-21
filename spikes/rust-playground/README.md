@@ -44,6 +44,9 @@ acq characters                               # auth-required; GET /character aga
                                              # (first use of a route queues a visible `probe` job:
                                              #  one HEAD that learns the policy + current counters)
 acq stashes --league Standard                # GET /stash/{league}: a second policy, runs in parallel
+acq stash <id> [--sub <id>] [--deep]         # one tab; --deep follows a map/unique tab's substashes as child jobs
+acq refresh --tabs a,b,c | --all [--deep]    # list, then one `stash` child per tab; parent finishes last
+acq cancel <parent-id>                       # cascades to every descendant still waiting
 acq auth logout                              # drops session + keyring entry
 acq submit sleep --params '{"seconds": 5}'   # blocks with progress; daemon lazy-spawns
 acq demo                                     # burst of 8 fetch jobs against the mock's 5-per-10s policy; watch ETAs
@@ -100,7 +103,11 @@ tokens live 60 seconds, so silent refresh is exercised constantly.
 - **`ACQ_MOCK_DEGRADED_HEAD=1`** makes the mock reproduce the Dec-2023
   regression (N20) so the degraded path can be exercised.
 - **429s are not recovered from.** The job fails with the evidence and the
-  policy is held for `Retry-After` + bucket; nothing reschedules (P-A).
+  policy is held for `Retry-After` + bucket; nothing reschedules (P-A). A
+  refresh with one failed tab therefore fails as a whole (with the ids).
+- **Refresh has no delta/selection smarts.** `--all` fetches every listed
+  tab; the real API's `metadata.items` counts on substash stubs (free) are
+  the obvious lever for skipping, not used yet.
 - **The mock does not simulate timing-bucket quantization** (N11–N12); the
   limiter pads for it regardless.
 - **The mock reports an active restriction on every window of the rule,**

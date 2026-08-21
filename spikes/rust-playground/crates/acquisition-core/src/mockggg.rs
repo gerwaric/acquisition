@@ -94,6 +94,100 @@ impl MockPolicy {
 
 type Policies = Arc<Mutex<HashMap<&'static str, MockPolicy>>>;
 
+/// The mock account's stash tree, shaped like the real API answered on
+/// 2026-08-20: folders carry their children in the *list*; map/unique tabs
+/// reveal substash stubs (with `metadata.items` counts and `parent`) only
+/// when fetched; substashes carry the items. `(id, name, type, items,
+/// parent)`; folders and map/unique parents have no items of their own.
+const MOCK_TABS: &[(&str, &str, &str, usize, Option<&str>)] = &[
+    ("cur1", "Currency", "CurrencyStash", 3, None),
+    ("dump", "Dump", "PremiumStash", 5, None),
+    ("fold", "Old leagues", "Folder", 0, None),
+    ("old1", "Old 1", "PremiumStash", 2, Some("fold")),
+    ("old2", "Old 2", "QuadStash", 2, Some("fold")),
+    ("uniq", "Uniques", "UniqueStash", 0, None),
+    ("u001", "", "UniqueStash", 2, Some("uniq")),
+    ("u002", "", "UniqueStash", 3, Some("uniq")),
+    ("u003", "", "UniqueStash", 4, Some("uniq")),
+    ("maps", "Maps", "MapStash", 0, None),
+    ("m001", "", "MapStash", 1, Some("maps")),
+    ("m002", "", "MapStash", 2, Some("maps")),
+    ("m003", "", "MapStash", 3, Some("maps")),
+    ("m004", "", "MapStash", 4, Some("maps")),
+    ("mape", "Maps (empty)", "MapStash", 0, None),
+];
+
+fn mock_tab(id: &str) -> Option<&'static (&'static str, &'static str, &'static str, usize, Option<&'static str>)> {
+    MOCK_TABS.iter().find(|t| t.0 == id)
+}
+
+fn mock_items(tab: &str, n: usize) -> Vec<serde_json::Value> {
+    (0..n)
+        .map(|i| json!({
+            "id": format!("{tab}-item{i}"), "name": "", "typeLine": format!("Fake Item {i}"),
+            "baseType": format!("Fake Item {i}"), "w": 1, "h": 1, "x": i, "y": 0,
+            "inventoryId": "Stash1", "league": "Standard", "frameType": 0, "identified": true,
+        }))
+        .collect()
+}
+
+/// Substash stubs as the real API lists them on a fetched map/unique tab.
+fn mock_children_stubs(parent: &str) -> Vec<serde_json::Value> {
+    MOCK_TABS
+        .iter()
+        .filter(|t| t.4 == Some(parent) && t.3 > 0)
+        .map(|t| {
+            let mut md = json!({ "items": t.3 });
+            if t.2 == "MapStash" {
+                md["map"] = json!({ "index": 0, "name": format!("Map (Tier {})", t.3), "section": format!("tier{}", t.3) });
+            }
+            json!({ "id": t.0, "name": t.1, "type": t.2, "parent": parent, "metadata": md })
+        })
+        .collect()
+}
+
+/// The stash list: top-level tabs, folders with nested children, no items.
+fn mock_stash_list(league: &str) -> serde_json::Value {
+    let top: Vec<serde_json::Value> = MOCK_TABS
+        .iter()
+        .enumerate()
+        .filter(|(_, t)| t.4.is_none())
+        .map(|(i, t)| {
+            let mut v = json!({ "id": t.0, "name": t.1, "type": t.2, "index": i, "metadata": { "colour": "7c5436" }, "league": league });
+            if t.2 == "Folder" {
+                v["children"] = json!(MOCK_TABS
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, c)| c.4 == Some(t.0))
+                    .map(|(j, c)| json!({ "id": c.0, "name": c.1, "type": c.2, "index": j, "folder": t.0, "metadata": { "colour": "7c5436", "folder": true } }))
+                    .collect::<Vec<_>>());
+            }
+            v
+        })
+        .collect();
+    json!({ "stashes": top })
+}
+
+/// One fetched tab or substash.
+fn mock_stash(id: &str, sub: Option<&str>) -> Option<serde_json::Value> {
+    let t = mock_tab(sub.unwrap_or(id))?;
+    if sub.is_some() && t.4 != Some(id) {
+        return None; // a substash is only reachable under its own parent
+    }
+    let mut v = json!({ "id": t.0, "name": t.1, "type": t.2, "index": 0, "metadata": { "colour": "7c5436" }, "items": mock_items(t.0, t.3) });
+    if let Some(p) = t.4 {
+        v["parent"] = json!(p);
+        v["metadata"]["items"] = json!(t.3);
+    }
+    if matches!(t.2, "MapStash" | "UniqueStash") && t.4.is_none() {
+        let stubs = mock_children_stubs(t.0);
+        if !stubs.is_empty() {
+            v["children"] = json!(stubs);
+        }
+    }
+    Some(json!({ "stash": v }))
+}
+
 /// Start the provider on an ephemeral port; returns its base URL.
 pub async fn start() -> Result<String> {
     let listener = TcpListener::bind("127.0.0.1:0").await?;
@@ -105,6 +199,7 @@ pub async fn start() -> Result<String> {
     let policies: Policies = Arc::new(Mutex::new(HashMap::from([
         ("/character", MockPolicy::new("character-list-request-limit", &[(2, 10, 60), (5, 300, 300)])),
         ("/stash", MockPolicy::new("stash-list-request-limit", &[(10, 15, 60), (30, 60, 300)])),
+        ("/stash/tab", MockPolicy::new("stash-request-limit", &[(15, 10, 60), (30, 300, 300)])),
         ("/fetch", MockPolicy::new("mock-fetch-request-limit", &[(5, 10, 60), (30, 300, 300)])),
     ])));
     tokio::spawn(async move {
@@ -164,8 +259,14 @@ async fn handle(
         // path in mock and real mode) plus `/fetch`, each behind its own
         // truthfully simulated rate-limit policy.
         ("GET" | "HEAD", path) if path == "/character" || path == "/fetch" || path.starts_with("/stash/") => {
-            // `/stash/{league}` — every league shares the one stash-list policy.
-            let policy_key = if path.starts_with("/stash/") { "/stash" } else { path };
+            // `/stash/{league}` is the list; `/stash/{league}/{id}[/{sub}]` is
+            // one tab, under its own policy (N7).
+            let stash_parts: Vec<&str> = path.trim_start_matches("/stash/").split('/').collect();
+            let policy_key = if path.starts_with("/stash/") {
+                if stash_parts.len() >= 2 { "/stash/tab" } else { "/stash" }
+            } else {
+                path
+            };
             let authed = req
                 .headers
                 .get("authorization")
@@ -197,15 +298,17 @@ async fn handle(
                              &json!({ "error": "rate limited" }).to_string()).await;
                 return;
             }
-            let body = if policy_key == "/stash" {
-                let league = req.path.trim_start_matches("/stash/");
-                json!({
-                    "stashes": [
-                        { "id": "fakestash01", "name": "Currency", "type": "CurrencyStash", "index": 0, "league": league },
-                        { "id": "fakestash02", "name": "Maps", "type": "MapStash", "index": 1, "league": league },
-                        { "id": "fakestash03", "name": "Dump", "type": "PremiumStash", "index": 2, "league": league },
-                    ],
-                })
+            let body = if policy_key == "/stash/tab" {
+                match mock_stash(stash_parts[1], stash_parts.get(2).copied()) {
+                    Some(v) => v,
+                    None => {
+                        respond(&mut stream, "404 Not Found", "application/json",
+                                &json!({ "error": "no such stash" }).to_string()).await;
+                        return;
+                    }
+                }
+            } else if policy_key == "/stash" {
+                mock_stash_list(stash_parts[0])
             } else if req.path == "/character" {
                 json!({
                     "characters": [

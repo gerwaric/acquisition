@@ -472,9 +472,13 @@ fn draw_jobs(f: &mut Frame, area: Rect, jobs: &[JobInfo]) {
                 _ => String::new(),
             };
             let kind_style = if j.kind == "probe" { Style::new().dark_gray() } else { Style::new() };
+            let kind = match j.parent {
+                Some(p) => format!("└{p} {}", j.kind),
+                None => j.kind.clone(),
+            };
             Row::new(vec![
                 Cell::from(j.id.to_string()),
-                Cell::from(j.kind.clone()).style(kind_style),
+                Cell::from(kind).style(kind_style),
                 Cell::from(j.state.to_string()).style(state_style),
                 Cell::from(j.priority.to_string()),
                 Cell::from(j.submitted_by.clone()),
@@ -486,7 +490,7 @@ fn draw_jobs(f: &mut Frame, area: Rect, jobs: &[JobInfo]) {
         rows,
         [
             Constraint::Length(5),
-            Constraint::Length(10),
+            Constraint::Length(14),
             Constraint::Length(10),
             Constraint::Length(4),
             Constraint::Min(12),

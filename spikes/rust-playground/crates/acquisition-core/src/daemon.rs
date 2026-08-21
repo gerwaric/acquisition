@@ -57,6 +57,9 @@ struct Entry {
     params: Value,
     outcome: Option<Outcome>,
     cancel_requested: bool,
+    /// A parent's own result, held back until its descendants finish. Set
+    /// means "running, waiting on children, not holding a slot".
+    deferred: Option<Outcome>,
 }
 
 #[derive(Default)]
@@ -185,6 +188,21 @@ impl Daemon {
                 let league = params.get("league").and_then(Value::as_str).unwrap_or("Standard");
                 Some(("stash-list".into(), format!("{base}/stash/{league}")))
             }
+            // One tab, or one substash of a map/unique tab: same route, same
+            // policy (stash-request-limit), one probe for all of them.
+            "stash" => {
+                let league = params.get("league").and_then(Value::as_str).unwrap_or("Standard");
+                let id = params.get("id").and_then(Value::as_str)?;
+                let url = match params.get("sub").and_then(Value::as_str) {
+                    Some(sub) => format!("{base}/stash/{league}/{id}/{sub}"),
+                    None => format!("{base}/stash/{league}/{id}"),
+                };
+                Some(("stash".into(), url))
+            }
+            "refresh" => {
+                let league = params.get("league").and_then(Value::as_str).unwrap_or("Standard");
+                Some(("stash-list".into(), format!("{base}/stash/{league}")))
+            }
             "fetch" if !self.provider.is_real() => Some(("fetch".into(), format!("{base}/fetch"))),
             _ => None,
         }
@@ -234,6 +252,27 @@ impl Daemon {
     }
 
     fn submit(&self, kind: String, params: Value, priority: Priority, submitted_by: String) -> JobId {
+        self.submit_with_parent(kind, params, priority, submitted_by, None)
+    }
+
+    /// A child inherits its parent's priority and submitter.
+    fn submit_child(&self, parent: JobId, kind: &str, params: Value) -> Option<JobId> {
+        let (priority, by) = {
+            let s = self.shared.lock().unwrap();
+            let p = s.jobs.get(&parent)?;
+            (p.info.priority, p.info.submitted_by.clone())
+        };
+        Some(self.submit_with_parent(kind.into(), params, priority, by, Some(parent)))
+    }
+
+    fn submit_with_parent(
+        &self,
+        kind: String,
+        params: Value,
+        priority: Priority,
+        submitted_by: String,
+        parent: Option<JobId>,
+    ) -> JobId {
         let info = {
             let mut s = self.shared.lock().unwrap();
             s.last_activity = Instant::now();
@@ -246,6 +285,7 @@ impl Daemon {
                 priority,
                 submitted_by,
                 eta_seconds: None,
+                parent,
             };
             s.jobs.insert(
                 id,
@@ -254,6 +294,7 @@ impl Daemon {
                     params,
                     outcome: None,
                     cancel_requested: false,
+                    deferred: None,
                 },
             );
             info
@@ -265,25 +306,46 @@ impl Daemon {
     }
 
     fn cancel(&self, id: JobId) -> Result<(), String> {
-        let emit = {
+        // Cancelling a parent cancels everything under it: waiting
+        // descendants immediately, running ones at their next slice.
+        let mut emits = Vec::new();
+        {
             let mut s = self.shared.lock().unwrap();
-            let entry = s.jobs.get_mut(&id).ok_or_else(|| format!("no job {id}"))?;
-            match entry.info.state {
-                JobState::Waiting => {
-                    entry.info.state = JobState::Cancelled;
-                    entry.outcome = Some(Outcome::Cancelled);
-                    Some(entry.info.clone())
-                }
-                JobState::Running => {
-                    // The worker notices between execution slices and keeps
-                    // any partial results (there are none in the playground).
-                    entry.cancel_requested = true;
-                    None
-                }
-                state => return Err(format!("job {id} already {state}")),
+            let entry = s.jobs.get(&id).ok_or_else(|| format!("no job {id}"))?;
+            if entry.info.state.is_terminal() {
+                return Err(format!("job {id} already {}", entry.info.state));
             }
-        };
-        if let Some(info) = emit {
+            let mut targets = vec![id];
+            let mut i = 0;
+            while i < targets.len() {
+                let p = targets[i];
+                targets.extend(
+                    s.jobs.values().filter(|e| e.info.parent == Some(p)).map(|e| e.info.id),
+                );
+                i += 1;
+            }
+            for t in targets {
+                let entry = s.jobs.get_mut(&t).unwrap();
+                match entry.info.state {
+                    JobState::Waiting => {
+                        entry.info.state = JobState::Cancelled;
+                        entry.outcome = Some(Outcome::Cancelled);
+                        emits.push(entry.info.clone());
+                    }
+                    // A parent waiting on children isn't on any worker;
+                    // cancel it outright.
+                    JobState::Running if entry.deferred.is_some() => {
+                        entry.deferred = None;
+                        entry.info.state = JobState::Cancelled;
+                        entry.outcome = Some(Outcome::Cancelled);
+                        emits.push(entry.info.clone());
+                    }
+                    JobState::Running => entry.cancel_requested = true,
+                    _ => {}
+                }
+            }
+        }
+        for info in emits {
             self.emit(info);
         }
         Ok(())
@@ -432,7 +494,63 @@ impl Daemon {
         if let Outcome::Failure { error } = &outcome {
             self.note_error(&format!("job {id} ({kind}): {error}"));
         }
-        self.finish(id, outcome);
+        // A job that spawned children holds its own result until they're
+        // all done. It gives its slot back (we return) so children can run.
+        let has_children = {
+            let mut s = self.shared.lock().unwrap();
+            let spawned = s.jobs.values().any(|e| e.info.parent == Some(id));
+            if spawned && let Some(entry) = s.jobs.get_mut(&id) && entry.info.state == JobState::Running {
+                entry.deferred = Some(outcome.clone());
+            }
+            spawned
+        };
+        if has_children {
+            self.maybe_finish_parent(id);
+        } else {
+            self.finish(id, outcome);
+        }
+    }
+
+    /// If `pid` is waiting on children and none are left running, finish it
+    /// with its held-back result plus a summary of what the children did.
+    fn maybe_finish_parent(&self, pid: JobId) {
+        let final_outcome = {
+            let mut s = self.shared.lock().unwrap();
+            let Some(parent) = s.jobs.get(&pid) else { return };
+            if parent.deferred.is_none() {
+                return;
+            }
+            let children: Vec<&Entry> = s.jobs.values().filter(|e| e.info.parent == Some(pid)).collect();
+            if children.iter().any(|e| !e.info.state.is_terminal()) {
+                return;
+            }
+            let (mut done, mut failed, mut cancelled) = (0, 0, 0);
+            let mut failed_ids = Vec::new();
+            for c in &children {
+                match c.info.state {
+                    JobState::Done => done += 1,
+                    JobState::Failed => {
+                        failed += 1;
+                        failed_ids.push(c.info.id);
+                    }
+                    _ => cancelled += 1,
+                }
+            }
+            let total = children.len();
+            let summary = json!({ "done": done, "failed": failed, "cancelled": cancelled, "failed_ids": failed_ids });
+            let deferred = s.jobs.get_mut(&pid).unwrap().deferred.take().unwrap();
+            match deferred {
+                Outcome::Success { mut payload } if failed == 0 => {
+                    payload["children"] = summary;
+                    Outcome::Success { payload }
+                }
+                Outcome::Success { .. } => Outcome::Failure {
+                    error: format!("{failed} of {total} child jobs failed: {failed_ids:?} (acq result <id> for each)"),
+                },
+                other => other,
+            }
+        };
+        self.finish(pid, final_outcome);
     }
 
     fn finish(&self, id: JobId, outcome: Outcome) {
@@ -447,7 +565,11 @@ impl Daemon {
             entry.outcome = Some(outcome);
             entry.info.clone()
         };
+        let parent = info.parent;
         self.emit(info);
+        if let Some(pid) = parent {
+            self.maybe_finish_parent(pid);
+        }
     }
 
     /// For jobs that fail before they ever run: pass through `running` so
@@ -513,6 +635,119 @@ impl Daemon {
                         }),
                     },
                     Err(error) => Outcome::Failure { error },
+                }
+            }
+            "stash" => {
+                let paid = paid.expect("stash is a network kind");
+                let (token, _) = match self.valid_access_token(false).await {
+                    Ok(pair) => pair,
+                    Err(error) => return Outcome::Failure { error },
+                };
+                let Some((_, url)) = self.route_for("stash", &params) else {
+                    return Outcome::Failure { error: "stash needs an id".into() };
+                };
+                let (v, rate) = match self.api_get(paid, &url, Some(&token)).await {
+                    Ok(pair) => pair,
+                    Err(error) => return Outcome::Failure { error },
+                };
+                let stash = v.get("stash").cloned().unwrap_or(v);
+                // Map/unique tabs carry their substashes as stubs; following
+                // them is opt-in per tab (--deep) because one map tab can
+                // hold hundreds. Each substash becomes a child job.
+                let deep = params.get("deep").and_then(Value::as_bool).unwrap_or(false);
+                let children = stash.get("children").and_then(Value::as_array).cloned().unwrap_or_default();
+                let mut submitted = Vec::new();
+                if deep {
+                    let league = params.get("league").cloned().unwrap_or(json!("Standard"));
+                    let tab = params.get("id").cloned().unwrap_or(Value::Null);
+                    for child in &children {
+                        if let Some(sub) = child.get("id").and_then(Value::as_str)
+                            && let Some(cid) = self.submit_child(
+                                id,
+                                "stash",
+                                json!({ "league": league, "id": tab, "sub": sub, "deep": false }),
+                            )
+                        {
+                            submitted.push(cid);
+                        }
+                    }
+                }
+                Outcome::Success {
+                    payload: json!({
+                        "provider": self.provider.name,
+                        "stash": stash,
+                        "substashes_listed": children.len(),
+                        "substash_jobs": submitted,
+                        "rate_limit": rate,
+                    }),
+                }
+            }
+            // A refresh: one stash-list request, then one `stash` child per
+            // selected tab. Folder children come straight from the list
+            // (folders themselves are never fetched); map/unique substashes
+            // only if `deep`. Selection is explicit — there is no default.
+            "refresh" => {
+                let paid = paid.expect("refresh is a network kind");
+                let (token, _) = match self.valid_access_token(false).await {
+                    Ok(pair) => pair,
+                    Err(error) => return Outcome::Failure { error },
+                };
+                let league = params.get("league").and_then(Value::as_str).unwrap_or("Standard").to_string();
+                let deep = params.get("deep").and_then(Value::as_bool).unwrap_or(false);
+                let all = params.get("all").and_then(Value::as_bool).unwrap_or(false);
+                let wanted: Vec<String> = params
+                    .get("tabs")
+                    .and_then(Value::as_array)
+                    .map(|a| a.iter().filter_map(Value::as_str).map(str::to_string).collect())
+                    .unwrap_or_default();
+                if !all && wanted.is_empty() {
+                    return Outcome::Failure { error: "refresh needs --all or --tabs <id,...>".into() };
+                }
+                let url = format!("{}/stash/{league}", self.provider.api_base);
+                let (v, rate) = match self.api_get(paid, &url, Some(&token)).await {
+                    Ok(pair) => pair,
+                    Err(error) => return Outcome::Failure { error },
+                };
+                let listed = v.get("stashes").and_then(Value::as_array).cloned().unwrap_or_default();
+                // Flatten: top-level tabs plus folder children; skip folders.
+                let mut tabs: Vec<(String, String, String)> = Vec::new();
+                for t in &listed {
+                    let ty = t.get("type").and_then(Value::as_str).unwrap_or("");
+                    if ty == "Folder" {
+                        for c in t.get("children").and_then(Value::as_array).into_iter().flatten() {
+                            if let Some(cid) = c.get("id").and_then(Value::as_str) {
+                                tabs.push((cid.into(), c.get("name").and_then(Value::as_str).unwrap_or("").into(), c.get("type").and_then(Value::as_str).unwrap_or("").into()));
+                            }
+                        }
+                    } else if let Some(tid) = t.get("id").and_then(Value::as_str) {
+                        tabs.push((tid.into(), t.get("name").and_then(Value::as_str).unwrap_or("").into(), ty.into()));
+                    }
+                }
+                let selected: Vec<&(String, String, String)> =
+                    tabs.iter().filter(|(tid, _, _)| all || wanted.contains(tid)).collect();
+                let unknown: Vec<&String> = wanted.iter().filter(|w| !tabs.iter().any(|(tid, _, _)| tid == *w)).collect();
+                let mut submitted = Vec::new();
+                for (tid, _, ty) in &selected {
+                    let follow = deep && matches!(ty.as_str(), "MapStash" | "UniqueStash");
+                    if let Some(cid) = self.submit_child(
+                        id,
+                        "stash",
+                        json!({ "league": league, "id": tid, "deep": follow }),
+                    ) {
+                        submitted.push(cid);
+                    }
+                }
+                Outcome::Success {
+                    payload: json!({
+                        "provider": self.provider.name,
+                        "league": league,
+                        "tabs_listed": tabs.len(),
+                        "tabs_selected": selected.iter().map(|(i, n, t)| json!({ "id": i, "name": n, "type": t })).collect::<Vec<_>>(),
+                        "unknown_tab_ids": unknown,
+                        "deep": deep,
+                        "tab_jobs": submitted,
+                        "rate_limit": rate,
+                    }),
                 }
             }
             "sleep" => {
@@ -627,7 +862,7 @@ impl Daemon {
                 }
             }
             other => Outcome::Failure {
-                error: format!("unknown job kind '{other}' (kinds: sleep, fetch, profile, characters, stashes, probe)"),
+                error: format!("unknown job kind '{other}' (kinds: sleep, fetch, profile, characters, stashes, stash, refresh, probe)"),
             },
         }
     }

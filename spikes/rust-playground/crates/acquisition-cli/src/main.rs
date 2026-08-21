@@ -39,12 +39,39 @@ enum Cmd {
     },
     /// List characters on the logged-in account.
     Characters,
-    /// List stash tabs for a league (the second real API call).
+    /// List stash tabs for a league.
     Stashes {
         #[arg(long, default_value = "Standard")]
         league: String,
     },
-    /// Submit a job (kinds: sleep, fetch, profile, characters, stashes).
+    /// Fetch one stash tab (or one substash of a map/unique tab).
+    Stash {
+        id: String,
+        #[arg(long)]
+        sub: Option<String>,
+        /// Follow a map/unique tab's substashes as child jobs. Opt-in per
+        /// tab: one map tab can hold hundreds.
+        #[arg(long)]
+        deep: bool,
+        #[arg(long, default_value = "Standard")]
+        league: String,
+    },
+    /// Refresh tabs: one stash-list request, then one `stash` child job per
+    /// selected tab. Selection is explicit — there is no default.
+    Refresh {
+        /// Every tab in the league (folder children included, folders not).
+        #[arg(long, conflicts_with = "tabs")]
+        all: bool,
+        /// Comma-separated tab ids.
+        #[arg(long, value_delimiter = ',')]
+        tabs: Vec<String>,
+        /// Also follow map/unique substashes (per tab, as child jobs).
+        #[arg(long)]
+        deep: bool,
+        #[arg(long, default_value = "Standard")]
+        league: String,
+    },
+    /// Submit a job (kinds: sleep, fetch, profile, characters, stashes, stash, refresh).
     Submit {
         kind: String,
         /// JSON params, e.g. '{"seconds": 5}'.
@@ -143,6 +170,19 @@ async fn main() -> Result<()> {
         Cmd::Stashes { league } => {
             let mut client = Client::connect(true).await?;
             let id = submit(&mut client, "stashes".into(), json!({ "league": league }), 0).await?;
+            block_on_job(&mut client, id, cli.json).await
+        }
+        Cmd::Stash { id, sub, deep, league } => {
+            let mut client = Client::connect(true).await?;
+            let id = submit(&mut client, "stash".into(), json!({ "league": league, "id": id, "sub": sub, "deep": deep }), 0).await?;
+            block_on_job(&mut client, id, cli.json).await
+        }
+        Cmd::Refresh { all, tabs, deep, league } => {
+            if !all && tabs.is_empty() {
+                bail!("refresh needs --all or --tabs <id,...>");
+            }
+            let mut client = Client::connect(true).await?;
+            let id = submit(&mut client, "refresh".into(), json!({ "league": league, "all": all, "tabs": tabs, "deep": deep }), 0).await?;
             block_on_job(&mut client, id, cli.json).await
         }
         Cmd::Submit { kind, params, priority, detach } => {
@@ -456,8 +496,8 @@ fn print_table(jobs: &[JobInfo]) {
         return;
     }
     println!(
-        "{:>4}  {:<8}  {:<10}  {:>4}  {:<12}  {}",
-        "id", "kind", "state", "prio", "by", "eta"
+        "{:>4}  {:>6}  {:<10}  {:<10}  {:>4}  {:<12}  {}",
+        "id", "parent", "kind", "state", "prio", "by", "eta"
     );
     for job in jobs {
         let eta = job
@@ -465,8 +505,9 @@ fn print_table(jobs: &[JobInfo]) {
             .map(|s| format!("~{s}s"))
             .unwrap_or_default();
         println!(
-            "{:>4}  {:<8}  {:<10}  {:>4}  {:<12}  {}",
+            "{:>4}  {:>6}  {:<10}  {:<10}  {:>4}  {:<12}  {}",
             job.id,
+            job.parent.map(|p| p.to_string()).unwrap_or_default(),
             job.kind,
             job.state.to_string(),
             job.priority,
