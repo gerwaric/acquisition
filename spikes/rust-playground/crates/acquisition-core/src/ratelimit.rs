@@ -443,16 +443,19 @@ fn window_frees_at(
 /// The earliest instant the next request under this policy may be sent,
 /// or `None` if it may go now. The pacing rule, per window of each rule:
 ///
-/// - restriction active (`restricted-for > 0`): last response + restricted
-///   + bucket + buffer;
-/// - window saturated (`hits >= max`): the oldest hit still in the window
-///   + period + bucket + buffer (N25: post-increment, 1:1; N13: full bucket
-///   on top) — see `window_frees_at` for how hits we didn't make (other
-///   tools on the account, N23; residue from before this daemon started,
-///   N24) are accounted for;
-/// - 429 with Retry-After (N19): last response + Retry-After + the bucket
-///   of the saturated window (the larger one if none is identifiable) +
-///   buffer.
+///
+/// - restriction active (`restricted-for > 0`): last response, plus the
+///   restriction, bucket and buffer;
+///
+/// - window saturated (`hits >= max`): the oldest hit still in the window,
+///   plus period, bucket and buffer (N25: post-increment, 1:1; N13: full
+///   bucket on top) — see `window_frees_at` for how hits we didn't make
+///   (other tools on the account, N23; residue from before this daemon
+///   started, N24) are accounted for;
+///
+/// - 429 with Retry-After (N19): last response, plus Retry-After, the
+///   bucket of the saturated window (the larger one if none is
+///   identifiable) and buffer.
 ///
 /// The result is the max over everything that applies.
 fn next_safe_send(s: &PolicyState) -> Option<Instant> {

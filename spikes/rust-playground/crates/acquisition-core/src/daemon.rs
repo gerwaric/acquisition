@@ -174,7 +174,7 @@ impl Daemon {
     /// Whether an endpoint needs the bearer token. The mock's `/fetch` is
     /// open; everything on the real API is not.
     fn needs_auth(&self, url: &str) -> bool {
-        !(endpoint_key(url) == "/fetch" && !self.provider.is_real())
+        self.provider.is_real() || endpoint_key(url) != "/fetch"
     }
 
     /// Make sure a probe for `url` is queued or running; submit one if not.
