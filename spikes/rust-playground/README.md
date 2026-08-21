@@ -12,21 +12,29 @@ name, plus when counted responses arrived) and pads every wait by GGG's
 server-side timing bucket. Its spec is the test table at the bottom of
 `ratelimit.rs`, each row citing `docs/design/network-ground-truth.md` by
 claim number. Starting the daemon with `ACQ_GGG=1` opts into the real
-provider (see below). All HTTP goes through the choke point structurally:
-the only `reqwest::Client` in the workspace lives inside `ChokePoint`, so
-even token exchange/refresh consults the limiter and feeds its response
-back, and sending without asking requires a `Paid` receipt only the limiter
-can mint. A 429 re-queues the job behind the limiter's hold (shown as `↻n`
-in job tables); a Cloudflare-shaped 403/503 is never retried.
+provider (see below). All daemon-owned HTTP reaches one structural choke
+point: the only `reqwest::Client` in the workspace lives inside
+`ChokePoint`, and token exchange/refresh feed their responses back into the
+limiter. The current `Paid` receipt and dispatcher cap are not yet an
+actual-request, send-lifetime gate; that gap is described below. A 429
+re-queues the job behind the limiter's hold (shown as `↻n` in job tables),
+bounded by `MAX_429_RETRIES`; a Cloudflare-shaped 403/503 is never retried.
 
 ## Layout
 
 - `crates/acquisition-core` — protocol types, job model, header-driven rate
   limiter + choke point, the mock provider, and the daemon itself (priority
-  queue + dispatcher + Unix-socket server + idle watchdog). The dispatcher
-  is where the burst bound lives (`MAX_IN_FLIGHT`, ground truth P-B): at
-  most 2 requests in flight overall, at most one per policy, at most one
-  probe ever (N18).
+  queue + dispatcher + Unix-socket server + idle watchdog). Today the
+  dispatcher has `MAX_IN_FLIGHT = 2`, at most one selected job per policy,
+  and at most one probe job (N18), but this bounds job tasks rather than
+  actual HTTP: pacing/auth waits occupy slots, while OAuth requests have no
+  independent send permit and can overlap the accounted jobs. The settled
+  P-B/N33 target is one common gate inside the choke point,
+  held for the lifetime of every daemon-owned API, HEAD, code-exchange, and
+  refresh request. Token traffic serializes under `oauth-token` before its
+  policy is learned and `token-request-limit` afterward. Authentication
+  finishes before an API request takes its final permit; browser authorize
+  stays outside because the user's browser owns that navigation.
 - `crates/acquisition-cli` — the `acq` binary. Thin: clap parsing, a small
   protocol client, output formatting. The daemon is reached via the hidden-ish
   `acq daemon run` subcommand, which is what lazy spawn execs.
@@ -82,10 +90,11 @@ code in both modes and starts empty: the first job on an endpoint queues a
 `probe` (a HEAD, which GGG doesn't count) that teaches the policy and the
 account's current counters — including hits made by other tools — before
 anything real is sent. A probe that fails or comes back without rule
-definitions closes the endpoint for 60s (login reopens it). Nothing retries on
-failure: a 429 or a Cloudflare-shaped 403/503 fails the job with the
-evidence, and the limiter holds that policy until `Retry-After` plus the
-timing bucket.
+definitions closes the endpoint for 60s (login reopens it). Nothing retries
+on a Cloudflare-shaped 403/503. A 429 re-queues behind the policy hold and
+retries at most `MAX_429_RETRIES` times; after that it fails with the
+accumulated evidence. The limiter holds the policy until `Retry-After` plus
+the timing bucket.
 
 ## Lifecycle & knobs
 
@@ -101,6 +110,15 @@ tokens live 60 seconds, so silent refresh is exercised constantly.
 
 ## Known gaps
 
+- **The global burst bound is not yet an actual HTTP gate.** `MAX_IN_FLIGHT`
+  counts selected job tasks, including rate/auth waits, while OAuth requests
+  have no independent permit; `Paid` is evidence of an earlier check rather
+  than a reservation.
+  The settled replacement is the common send-lifetime choke-point gate
+  described above, including the serialized N33 token policy. For N33's
+  one-window `60:30:30` rule, use conservative 60s bucket padding until its
+  hidden resolution is confirmed through N14; the paired API-policy
+  first=5s/later=60s hypothesis does not classify it.
 - **`ACQ_MOCK_DEGRADED_HEAD=1`** makes the mock reproduce the Dec-2023
   regression (N20) so the degraded path can be exercised.
 - **429 recovery is bounded but untested at the bound.** A 429'd job goes
