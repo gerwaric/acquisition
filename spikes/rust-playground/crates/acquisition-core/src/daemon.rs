@@ -768,6 +768,10 @@ impl Daemon {
                     .any(|e| !e.info.state.is_terminal());
                 s.connections == 0 && !live_jobs && s.last_activity.elapsed() >= IDLE_SHUTDOWN
             };
+            // Limiter history inside a policy window is worth more than a
+            // clean exit: a daemon respawned a minute later would otherwise
+            // have to assume the worst about every hit it can't see.
+            let idle = idle && !self.choke.is_live();
             if idle {
                 self.log("idle timeout; exiting");
                 let _ = std::fs::remove_file(socket_path());

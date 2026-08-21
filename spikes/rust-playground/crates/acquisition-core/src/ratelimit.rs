@@ -176,10 +176,8 @@ impl Limiter {
                 for (i, w) in rule.limits.iter().enumerate() {
                     let period = Duration::from_secs(w.period_secs);
                     let in_window = history.iter().filter(|&&h| t.duration_since(h) < period).count();
-                    if in_window >= w.max_hits as usize
-                        && let Some(&oldest) = history.get(history.len() - w.max_hits as usize)
-                    {
-                        next = next.max(oldest + period + bucket_for(i) + BUFFER);
+                    if in_window >= w.max_hits as usize {
+                        next = next.max(window_frees_at(&history, t, w.max_hits, period, bucket_for(i)));
                     }
                 }
             }
@@ -279,6 +277,27 @@ impl Limiter {
         out
     }
 
+    /// Whether any policy still carries state worth keeping: a pending wait,
+    /// or counted hits inside its longest window. The daemon declines to
+    /// idle-exit while this is true, so a quick restart doesn't throw away
+    /// the history that lets it wait less than a full period (N24).
+    pub fn is_live(&self, now: Instant) -> bool {
+        self.policies.values().any(|s| {
+            if next_safe_send(s).is_some_and(|t| t > now) {
+                return true;
+            }
+            let longest = s
+                .policy
+                .rules
+                .iter()
+                .flat_map(|r| r.limits.iter())
+                .map(|w| Duration::from_secs(w.period_secs))
+                .max()
+                .unwrap_or(Duration::ZERO);
+            s.history.back().is_some_and(|&h| now.saturating_duration_since(h) < longest)
+        })
+    }
+
     /// Endpoints that have answered without any policy header.
     pub fn policyless_endpoints(&self) -> Vec<String> {
         let mut v: Vec<String> = self
@@ -292,17 +311,43 @@ impl Limiter {
     }
 }
 
+/// When a saturated window frees up, given what we know. Only our hits that
+/// are still inside the window (as of `as_of`, the moment the server
+/// reported the count) are *known*; the rules are account-scoped (N23), so
+/// other tools' hits can be in the server's count without being in our
+/// history. Unknown hits are assumed to be the most recent — the window
+/// can't free before its oldest hit ages out, and the oldest hit we can
+/// name is the latest that oldest hit could possibly be. With no known
+/// in-window hits, assume everything just happened.
+fn window_frees_at(
+    history: &VecDeque<Instant>,
+    as_of: Instant,
+    max_hits: u32,
+    period: Duration,
+    bucket: Duration,
+) -> Instant {
+    let known: Vec<Instant> = history
+        .iter()
+        .copied()
+        .filter(|&h| as_of.saturating_duration_since(h) < period)
+        .collect();
+    let oldest = match known.len().checked_sub(max_hits as usize) {
+        Some(idx) => known[idx],
+        None => known.first().copied().unwrap_or(as_of),
+    };
+    oldest + period + bucket + BUFFER
+}
+
 /// The earliest instant the next request under this policy may be sent,
 /// or `None` if it may go now. The pacing rule, per window of each rule:
 ///
 /// - restriction active (`restricted-for > 0`): last response + restricted
 ///   + bucket + buffer;
-/// - window saturated (`hits >= max`): the response that consumed the
-///   oldest still-counted hit (`history[len - max]`) + period + bucket +
-///   buffer (N25: post-increment, 1:1; N13: full bucket on top). If history
-///   is shorter than `max` — hits carried over from before this daemon
-///   started (N24: counters are server-side and persist) — assume they all
-///   just happened: last response + period + bucket + buffer;
+/// - window saturated (`hits >= max`): the oldest hit still in the window
+///   + period + bucket + buffer (N25: post-increment, 1:1; N13: full bucket
+///   on top) — see `window_frees_at` for how hits we didn't make (other
+///   tools on the account, N23; residue from before this daemon started,
+///   N24) are accounted for;
 /// - 429 with Retry-After (N19): last response + Retry-After + the bucket
 ///   of the saturated window (the larger one if none is identifiable) +
 ///   buffer.
@@ -321,14 +366,13 @@ fn next_safe_send(s: &PolicyState) -> Option<Instant> {
                 bump(s.last_response + Duration::from_secs(st.restricted_secs) + bucket + BUFFER);
                 saturated_bucket = Some(saturated_bucket.map_or(bucket, |b| b.max(bucket)));
             } else if st.hits >= limit.max_hits {
-                let oldest = s
-                    .history
-                    .len()
-                    .checked_sub(limit.max_hits as usize)
-                    .and_then(|idx| s.history.get(idx))
-                    .copied()
-                    .unwrap_or(s.last_response);
-                bump(oldest + Duration::from_secs(limit.period_secs) + bucket + BUFFER);
+                bump(window_frees_at(
+                    &s.history,
+                    s.last_response,
+                    limit.max_hits,
+                    Duration::from_secs(limit.period_secs),
+                    bucket,
+                ));
                 saturated_bucket = Some(saturated_bucket.map_or(bucket, |b| b.max(bucket)));
             }
         }
@@ -463,6 +507,10 @@ impl ChokePoint {
 
     pub fn policyless_endpoints(&self) -> Vec<String> {
         self.limiter.lock().unwrap().policyless_endpoints()
+    }
+
+    pub fn is_live(&self) -> bool {
+        self.limiter.lock().unwrap().is_live(Instant::now())
     }
 
     /// Recent sends, newest first.
@@ -758,6 +806,15 @@ mod tests {
                 expect_wait: 10.0 + 5.0 + 1.0,
             },
             Row {
+                name: "shared account: server says 2/2, our in-window history has 1",
+                claims: "N23 rules are account-scoped — another tool's hit is in the count but not our history; the unknown hit is assumed recent, so the window frees from our known one: 0 + 10 + 5 + 1",
+                headers: with_state(CHAR_LIST, "2:10:0,2:300:0").leak(),
+                // Our older hit aged out of the 10s window long ago; the
+                // positional lookback would have landed on it and said "go".
+                history: &[303.0, 0.0],
+                expect_wait: 10.0 + 5.0 + 1.0,
+            },
+            Row {
                 name: "restriction active",
                 claims: "restricted-for 30s from the last response + initial bucket + 1s",
                 headers: with_state(CHAR_LIST, "2:10:30,2:300:0").leak(),
@@ -838,6 +895,32 @@ mod tests {
         l.observe("/character", p, serde_json::Value::Null, false, now);
         assert_eq!(l.statuses(now)[0].history_len, 0);
         assert_eq!(l.wait_for("/character", now), Duration::ZERO);
+    }
+
+    #[test]
+    fn n23_shared_account_with_no_known_in_window_hits() {
+        // Our hits are all older than the window; a HEAD at `now` (N24:
+        // uncounted) reports the window saturated by someone else. Nothing
+        // we know explains the count → assume it all just happened.
+        let now = far_future();
+        let mut l = Limiter::new();
+        let p = parse(&with_state(CHAR_LIST, "2:10:0,2:300:0"));
+        l.observe("/character", p.clone(), serde_json::Value::Null, true, now - Duration::from_secs(30));
+        l.observe("/character", p.clone(), serde_json::Value::Null, true, now - Duration::from_secs(25));
+        l.observe("/character", p, serde_json::Value::Null, false, now);
+        assert_wait("all unknown", l.wait_for("/character", now), 10.0 + 5.0 + 1.0);
+    }
+
+    #[test]
+    fn is_live_while_history_is_inside_a_window() {
+        let now = far_future();
+        let mut l = Limiter::new();
+        assert!(!l.is_live(now));
+        l.observe("/character", parse(&with_state(CHAR_LIST, "1:10:0,1:300:0")), serde_json::Value::Null, true, now);
+        assert!(l.is_live(now));
+        // Longest window is 300s: still live at +299s, not at +301s.
+        assert!(l.is_live(now + Duration::from_secs(299)));
+        assert!(!l.is_live(now + Duration::from_secs(301)));
     }
 
     #[test]

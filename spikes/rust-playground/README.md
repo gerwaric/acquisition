@@ -76,7 +76,10 @@ timing bucket.
 
 ## Lifecycle & knobs
 
-The daemon exits on its own after 60s with no connections and no live jobs.
+The daemon exits on its own after 60s with no connections and no live jobs —
+unless the limiter still holds history inside a policy window (up to 300s),
+in which case it stays up so a quick respawn doesn't have to assume the worst
+about hits it can no longer see.
 Its log is next to the socket (`acq daemon status` prints both paths).
 `ACQ_SOCKET=<path>` overrides the socket location for parallel testing — keep
 it short (Unix socket paths cap out around 104 bytes). `ACQ_NO_KEYRING=1`
@@ -86,10 +89,11 @@ tokens live 60 seconds, so silent refresh is exercised constantly.
 ## Known gaps
 
 - **No HEAD-at-boot.** Counters are server-side and persist across restarts
-  (N24), so a fresh daemon's first request on a policy goes out blind; the
-  sanctioned fix is one serialized HEAD per policy at startup (N16, N18,
-  N20). Until then the limiter treats a saturated state with a too-short
-  local history conservatively.
+  (N24) and are shared with other tools on the account (N23), so a fresh
+  daemon's first request on a policy goes out blind; the sanctioned fix is
+  one serialized HEAD per policy at startup (N16, N18, N20). Once a response
+  arrives, hits the limiter can't account for are assumed to be recent
+  (`window_frees_at`), so the blind first send is the only exposure.
 - **429s are not recovered from.** The job fails with the evidence and the
   policy is held for `Retry-After` + bucket; nothing reschedules (P-A).
 - **The burst bound is implicit.** One worker, one request in flight —
