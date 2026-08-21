@@ -3,7 +3,7 @@
 //! Lifecycle follows the gpg-agent model: clients spawn it on demand, it exits
 //! on its own after a stretch with no connections and no live jobs.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::io::Write as _;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -21,14 +21,23 @@ use crate::VERSION;
 use crate::job::{JobId, JobInfo, JobState, Outcome, Priority};
 use crate::protocol::{ErrorRecord, Request, Response};
 use crate::provider::{CALLBACK_PATH, Provider, SCOPES, ggg_mode};
-use crate::ratelimit::{ChokePoint, EndpointState, Paid, endpoint_key};
+use crate::ratelimit::{ChokePoint, EndpointState, Paid, url_path};
 use crate::{auth, mockggg};
 
 const IDLE_SHUTDOWN: Duration = Duration::from_secs(60);
 const IDLE_POLL: Duration = Duration::from_secs(5);
 const ERROR_HISTORY: usize = 50;
-/// Probes outrank everything: every job on that endpoint is waiting on one.
+/// Probes outrank everything: every job on that route is waiting on one.
 const PROBE_PRIORITY: Priority = u8::MAX;
+/// The global burst bound (ground truth P-B). Policies count independently
+/// (N6, N7), so the header layer alone would let one request per policy go
+/// out at the same instant; Cloudflare in front of it watches bursts across
+/// everything (N1, N2) and compliant traffic is slow anyway (N4), so a small
+/// cap costs nothing and keeps that layer invisible. On top of this cap: at
+/// most one request in flight per policy (the limiter's lookback assumes
+/// responses arrive before the next decision) and at most one probe in
+/// flight, ever (N18).
+pub const MAX_IN_FLIGHT: usize = 2;
 
 // Must stay short: Unix socket paths cap out around 104 bytes (SUN_LEN),
 // which deep per-user runtime dirs can exceed.
@@ -72,6 +81,8 @@ struct Shared {
     /// Recent errors for the dashboard, newest last (bounded ring). Every
     /// entry is also in the log; this is the structured, queryable subset.
     errors: VecDeque<(Instant, String)>,
+    /// Jobs holding an in-flight slot → the key they serialize on.
+    in_flight: HashMap<JobId, String>,
 }
 
 impl Shared {
@@ -93,19 +104,21 @@ impl Shared {
         let entry = self.jobs.get(&id)?;
         let mut info = entry.info.clone();
         info.eta_seconds = if info.state == JobState::Waiting {
-            match daemon.endpoint_url(&info.kind) {
-                Some(url) => {
-                    // Only same-endpoint jobs ahead of us compete for the
-                    // same policy; counting them is what the estimate needs.
+            match daemon.route_for(&info.kind, &entry.params) {
+                Some((route, _)) => {
+                    // Only same-route jobs ahead of us compete for the same
+                    // policy; counting them is what the estimate needs.
                     let ahead = queue
                         .iter()
                         .take_while(|&&q| q != id)
                         .filter(|q| {
-                            self.jobs.get(q).and_then(|e| daemon.endpoint_url(&e.info.kind))
-                                == Some(url.clone())
+                            self.jobs
+                                .get(q)
+                                .and_then(|e| daemon.route_for(&e.info.kind, &e.params))
+                                .is_some_and(|(r, _)| r == route)
                         })
                         .count();
-                    Some(daemon.choke.eta_for(&url, ahead as u32).as_secs())
+                    Some(daemon.choke.eta_for(&route, ahead as u32).as_secs())
                 }
                 None => Some(0),
             }
@@ -161,37 +174,62 @@ impl Daemon {
         self.log(msg);
     }
 
-    /// The URL a job kind sends to, if it sends at all. `fetch` is a fake
-    /// data endpoint that exists only on the mock.
-    fn endpoint_url(&self, kind: &str) -> Option<String> {
+    /// The route label and URL a job sends on, if it sends at all. Routes,
+    /// not URLs, key the limiter: every league shares `stash-list`. `fetch`
+    /// is a fake data endpoint that exists only on the mock.
+    fn route_for(&self, kind: &str, params: &Value) -> Option<(String, String)> {
+        let base = &self.provider.api_base;
         match kind {
-            "characters" => Some(format!("{}/character", self.provider.api_base)),
-            "fetch" if !self.provider.is_real() => Some(format!("{}/fetch", self.provider.api_base)),
+            "characters" => Some(("character-list".into(), format!("{base}/character"))),
+            "stashes" => {
+                let league = params.get("league").and_then(Value::as_str).unwrap_or("Standard");
+                Some(("stash-list".into(), format!("{base}/stash/{league}")))
+            }
+            "fetch" if !self.provider.is_real() => Some(("fetch".into(), format!("{base}/fetch"))),
             _ => None,
         }
     }
 
-    /// Whether an endpoint needs the bearer token. The mock's `/fetch` is
-    /// open; everything on the real API is not.
-    fn needs_auth(&self, url: &str) -> bool {
-        self.provider.is_real() || endpoint_key(url) != "/fetch"
+    /// Whether a route needs the bearer token. The mock's `fetch` is open;
+    /// everything on the real API is not.
+    fn needs_auth(&self, route: &str) -> bool {
+        self.provider.is_real() || route != "fetch"
     }
 
-    /// Make sure a probe for `url` is queued or running; submit one if not.
-    /// One probe per endpoint per daemon lifetime in the normal case — the
+    /// What a job must not overlap with: probes with each other (N18),
+    /// network jobs with anything under the same policy, everything else
+    /// only with itself.
+    fn serial_key(&self, e: &Entry) -> String {
+        if e.info.kind == "probe" {
+            return "probe".into();
+        }
+        match self.route_for(&e.info.kind, &e.params) {
+            Some((route, _)) => self.choke.serial_key(&route),
+            None => format!("solo:{}", e.info.id),
+        }
+    }
+
+    fn probe_pending(s: &Shared, route: &str) -> bool {
+        s.jobs.values().any(|e| {
+            e.info.kind == "probe"
+                && !e.info.state.is_terminal()
+                && e.params.get("route").and_then(Value::as_str) == Some(route)
+        })
+    }
+
+    /// Make sure a probe for `route` is queued or running; submit one if not.
+    /// One probe per route per daemon lifetime in the normal case — the
     /// sanctioned "one HEAD at startup" (N16), sent lazily on first use.
-    fn ensure_probe(&self, url: &str) {
-        let pending = {
-            let s = self.shared.lock().unwrap();
-            s.jobs.values().any(|e| {
-                e.info.kind == "probe"
-                    && !e.info.state.is_terminal()
-                    && e.params.get("url").and_then(Value::as_str) == Some(url)
-            })
-        };
+    fn ensure_probe(&self, route: &str, url: &str) {
+        let pending = Self::probe_pending(&self.shared.lock().unwrap(), route);
         if !pending {
-            self.log(&format!("endpoint {} unknown; probing first", endpoint_key(url)));
-            self.submit("probe".into(), json!({ "url": url }), PROBE_PRIORITY, "daemon".into());
+            self.log(&format!("route {route} unknown; probing {} first", url_path(url)));
+            self.submit(
+                "probe".into(),
+                json!({ "route": route, "url": url }),
+                PROBE_PRIORITY,
+                "daemon".into(),
+            );
         }
     }
 
@@ -266,44 +304,76 @@ impl Daemon {
         s.jobs.get(&id).map(|e| e.cancel_requested).unwrap_or(true)
     }
 
-    // ---- worker ---------------------------------------------------------
+    // ---- dispatcher -----------------------------------------------------
 
-    async fn worker(self: Arc<Self>) {
+    /// Hands out in-flight slots under the P-B rules and runs each picked
+    /// job on its own task. Woken by submits, completions, and reprioritization.
+    async fn dispatcher(self: Arc<Self>) {
         loop {
-            let next = {
-                let s = self.shared.lock().unwrap();
-                s.queue_order().first().copied()
-            };
-            match next {
-                Some(id) => self.process(id).await,
-                None => self.work.notified().await,
+            let picks = self.pick_runnable();
+            for id in picks {
+                tokio::spawn(self.clone().run_slot(id));
             }
+            self.work.notified().await;
         }
     }
 
+    /// Waiting jobs, in dispatch order, that can take a slot right now.
+    fn pick_runnable(&self) -> Vec<JobId> {
+        let mut s = self.shared.lock().unwrap();
+        let mut busy: HashSet<String> = s.in_flight.values().cloned().collect();
+        let mut picks = Vec::new();
+        for id in s.queue_order() {
+            if s.in_flight.len() + picks.len() >= MAX_IN_FLIGHT {
+                break;
+            }
+            let entry = &s.jobs[&id];
+            // A job whose route is still being probed has nothing to do yet.
+            if let Some((route, _)) = self.route_for(&entry.info.kind, &entry.params)
+                && self.choke.endpoint_state(&route) == EndpointState::Unknown
+                && Self::probe_pending(&s, &route)
+            {
+                continue;
+            }
+            let key = self.serial_key(entry);
+            if busy.contains(&key) {
+                continue;
+            }
+            busy.insert(key.clone());
+            picks.push((id, key));
+        }
+        for (id, key) in &picks {
+            s.in_flight.insert(*id, key.clone());
+        }
+        picks.into_iter().map(|(id, _)| id).collect()
+    }
+
+    async fn run_slot(self: Arc<Self>, id: JobId) {
+        self.process(id).await;
+        self.shared.lock().unwrap().in_flight.remove(&id);
+        self.work.notify_one();
+    }
+
     async fn process(&self, id: JobId) {
-        let url = {
+        let route = {
             let s = self.shared.lock().unwrap();
             match s.jobs.get(&id) {
-                Some(e) => self.endpoint_url(&e.info.kind),
+                Some(e) => self.route_for(&e.info.kind, &e.params),
                 None => return,
             }
         };
 
-        // An endpoint we've never heard from gets a probe first (N16, N24);
-        // a degraded one (N20) fails its jobs cleanly until the cooldown ends.
-        if let Some(url) = &url {
-            match self.choke.endpoint_state(url) {
+        // A route we've never heard from gets a probe first (N16, N24); a
+        // degraded one (N20) fails its jobs cleanly until the cooldown ends.
+        if let Some((route, url)) = &route {
+            match self.choke.endpoint_state(route) {
                 EndpointState::Unknown => {
-                    self.ensure_probe(url);
-                    return; // the worker re-picks; the probe outranks us
+                    self.ensure_probe(route, url);
+                    return; // slot released; the probe outranks us
                 }
                 EndpointState::Degraded { until, reason } => {
                     let left = until.saturating_duration_since(Instant::now()).as_secs();
-                    let error = format!(
-                        "endpoint {} is degraded for another {left}s: {reason}",
-                        endpoint_key(url)
-                    );
+                    let error = format!("route {route} is degraded for another {left}s: {reason}");
                     self.note_error(&format!("job {id}: {error}"));
                     self.start_and_finish(id, Outcome::Failure { error });
                     return;
@@ -316,21 +386,24 @@ impl Daemon {
         // slices so cancellation and reprioritization stay responsive. The
         // receipt is handed to `execute`, which spends it on the actual send.
         let mut paid: Option<Paid> = None;
-        if let Some(url) = &url {
+        if let Some((route, _)) = &route {
             loop {
                 let step = {
                     let s = self.shared.lock().unwrap();
-                    // A reprioritization may have put another job at the head
-                    // of the queue; bail so the worker re-picks.
-                    if s.queue_order().first() != Some(&id) {
+                    let Some(me) = s.jobs.get(&id) else { return };
+                    if me.info.state != JobState::Waiting {
+                        return; // cancelled out from under us
+                    }
+                    // A higher-priority job on the same key may have arrived;
+                    // give the slot back so the dispatcher picks it instead.
+                    let my_key = self.serial_key(me);
+                    let outranked = s.queue_order().into_iter().take_while(|&q| q != id).any(|q| {
+                        s.jobs.get(&q).is_some_and(|e| self.serial_key(e) == my_key)
+                    });
+                    if outranked {
                         return;
                     }
-                    match s.jobs.get(&id) {
-                        Some(e) if e.info.state == JobState::Waiting => {
-                            self.choke.try_take(url)
-                        }
-                        _ => return, // cancelled out from under us
-                    }
+                    self.choke.try_take(route)
                 };
                 match step {
                     Ok(receipt) => {
@@ -419,6 +492,29 @@ impl Daemon {
                     Err(error) => Outcome::Failure { error },
                 }
             }
+            // The stash list: one request under stash-list-request-limit, the
+            // second real policy. Tab contents are a later step.
+            "stashes" => {
+                let paid = paid.expect("stashes is a network kind");
+                let (token, username) = match self.valid_access_token(false).await {
+                    Ok(pair) => pair,
+                    Err(error) => return Outcome::Failure { error },
+                };
+                let league = params.get("league").and_then(Value::as_str).unwrap_or("Standard").to_string();
+                let url = format!("{}/stash/{league}", self.provider.api_base);
+                match self.api_get(paid, &url, Some(&token)).await {
+                    Ok((v, rate)) => Outcome::Success {
+                        payload: json!({
+                            "provider": self.provider.name,
+                            "username": username,
+                            "league": league,
+                            "stashes": v.get("stashes").cloned().unwrap_or(v),
+                            "rate_limit": rate,
+                        }),
+                    },
+                    Err(error) => Outcome::Failure { error },
+                }
+            }
             "sleep" => {
                 let seconds = params.get("seconds").and_then(Value::as_f64).unwrap_or(3.0);
                 let deadline = Instant::now() + Duration::from_secs_f64(seconds);
@@ -483,16 +579,19 @@ impl Daemon {
             // counting against the policy (N24). Submitted by the daemon
             // itself; visible like any other job so it can be inspected.
             "probe" => {
-                let Some(url) = params.get("url").and_then(Value::as_str).map(str::to_string) else {
-                    return Outcome::Failure { error: "probe needs a url".into() };
+                let (Some(route), Some(url)) = (
+                    params.get("route").and_then(Value::as_str).map(str::to_string),
+                    params.get("url").and_then(Value::as_str).map(str::to_string),
+                ) else {
+                    return Outcome::Failure { error: "probe needs a route and a url".into() };
                 };
-                let bearer = if self.needs_auth(&url) {
+                let bearer = if self.needs_auth(&route) {
                     match self.valid_access_token(false).await {
                         Ok((token, _)) => Some(token),
                         Err(error) => {
                             // Close the endpoint too, or the waiting job would
                             // just ask for another probe; login reopens it.
-                            self.choke.degrade(&url, &error);
+                            self.choke.degrade(&route, &error);
                             return Outcome::Failure { error };
                         }
                     }
@@ -500,7 +599,7 @@ impl Daemon {
                     None
                 };
                 let paid = loop {
-                    match self.choke.try_take(&url) {
+                    match self.choke.try_take(&route) {
                         Ok(p) => break p,
                         Err(wait) => tokio::time::sleep(wait.min(Duration::from_secs(1))).await,
                     }
@@ -511,10 +610,11 @@ impl Daemon {
                 match self.choke.head(paid, &url, bearer.as_deref()).await {
                     Ok((status, policy, headers)) => {
                         let name = policy.as_ref().map(|p| p.name.clone()).unwrap_or_default();
-                        self.log(&format!("HEAD {} -> {status} | policy {name} | {headers}", endpoint_key(&url)));
+                        self.log(&format!("HEAD {} -> {status} | policy {name} | {headers}", url_path(&url)));
                         Outcome::Success {
                             payload: json!({
-                                "endpoint": endpoint_key(&url),
+                                "route": route,
+                                "endpoint": url_path(&url),
                                 "status": status.as_u16(),
                                 "policy": name,
                                 "rate_limit": headers,
@@ -522,12 +622,12 @@ impl Daemon {
                         }
                     }
                     Err(error) => Outcome::Failure {
-                        error: format!("HEAD {}: {error}", endpoint_key(&url)),
+                        error: format!("HEAD {}: {error}", url_path(&url)),
                     },
                 }
             }
             other => Outcome::Failure {
-                error: format!("unknown job kind '{other}' (kinds: sleep, fetch, profile, characters, probe)"),
+                error: format!("unknown job kind '{other}' (kinds: sleep, fetch, profile, characters, stashes, probe)"),
             },
         }
     }
@@ -549,7 +649,7 @@ impl Daemon {
         .map_err(|e| format!("GET {url} failed: {e}"))?;
         let status = response.status();
         let rate = crate::ratelimit::rate_limit_snapshot(response.headers());
-        let path = crate::ratelimit::endpoint_key(url);
+        let path = url_path(url);
         self.log(&format!("GET {path} -> {status} | rate headers: {rate}"));
         let body = response.text().await.unwrap_or_default();
         if !status.is_success() {
@@ -840,6 +940,8 @@ impl Daemon {
                     jobs_waiting: waiting,
                     jobs_running: running,
                     policies_known: self.choke.policy_statuses().len(),
+                    in_flight: s.in_flight.len(),
+                    max_in_flight: MAX_IN_FLIGHT,
                 }
             }
             Request::DaemonStop => Response::Stopping,
@@ -858,6 +960,8 @@ impl Daemon {
                         .access_expires_at
                         .map(|t| t.saturating_duration_since(Instant::now()).as_secs()),
                     keyring: s.auth.keyring.clone(),
+                    in_flight: s.in_flight.len(),
+                    max_in_flight: MAX_IN_FLIGHT,
                     policies: self.choke.policy_statuses(),
                     policyless_endpoints: self.choke.policyless_endpoints(),
                     degraded_endpoints: self.choke.degraded_endpoints(),
@@ -1004,6 +1108,7 @@ pub async fn run() -> Result<()> {
             last_activity: Instant::now(),
             started: Instant::now(),
             errors: VecDeque::new(),
+            in_flight: HashMap::new(),
         }),
         events: broadcast::channel(256).0,
         work: Notify::new(),
@@ -1032,7 +1137,7 @@ pub async fn run() -> Result<()> {
         username.as_deref().unwrap_or("none"),
     ));
 
-    tokio::spawn(daemon.clone().worker());
+    tokio::spawn(daemon.clone().dispatcher());
     tokio::spawn(daemon.clone().idle_watchdog());
 
     loop {

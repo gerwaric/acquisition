@@ -89,7 +89,7 @@ async fn token_request(
     params: &[(&str, &str)],
 ) -> Result<TokenResponse, String> {
     let response = choke
-        .post_form(&provider.token_url, params)
+        .post_form("oauth-token", &provider.token_url, params)
         .await?;
     let status = response.status();
     if !status.is_success() {

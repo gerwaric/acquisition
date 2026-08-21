@@ -104,6 +104,7 @@ pub async fn start() -> Result<String> {
     // shape under a mock name so the limiter sees two independent policies.
     let policies: Policies = Arc::new(Mutex::new(HashMap::from([
         ("/character", MockPolicy::new("character-list-request-limit", &[(2, 10, 60), (5, 300, 300)])),
+        ("/stash", MockPolicy::new("stash-list-request-limit", &[(10, 15, 60), (30, 60, 300)])),
         ("/fetch", MockPolicy::new("mock-fetch-request-limit", &[(5, 10, 60), (30, 300, 300)])),
     ])));
     tokio::spawn(async move {
@@ -162,12 +163,14 @@ async fn handle(
         // Fake data endpoints mirroring GGG's `GET /character` (same job code
         // path in mock and real mode) plus `/fetch`, each behind its own
         // truthfully simulated rate-limit policy.
-        ("GET" | "HEAD", "/character" | "/fetch") => {
+        ("GET" | "HEAD", path) if path == "/character" || path == "/fetch" || path.starts_with("/stash/") => {
+            // `/stash/{league}` — every league shares the one stash-list policy.
+            let policy_key = if path.starts_with("/stash/") { "/stash" } else { path };
             let authed = req
                 .headers
                 .get("authorization")
                 .is_some_and(|v| v.starts_with("Bearer "));
-            if req.path == "/character" && !authed {
+            if policy_key != "/fetch" && !authed {
                 respond(&mut stream, "401 Unauthorized", "application/json",
                         &json!({ "error": "no bearer token" }).to_string()).await;
                 return;
@@ -175,7 +178,7 @@ async fn handle(
             let (ok, extra) = policies
                 .lock()
                 .unwrap()
-                .get_mut(req.path.as_str())
+                .get_mut(policy_key)
                 .expect("policy for path")
                 .request(req.method == "GET", Instant::now());
             if req.method == "HEAD" {
@@ -194,7 +197,16 @@ async fn handle(
                              &json!({ "error": "rate limited" }).to_string()).await;
                 return;
             }
-            let body = if req.path == "/character" {
+            let body = if policy_key == "/stash" {
+                let league = req.path.trim_start_matches("/stash/");
+                json!({
+                    "stashes": [
+                        { "id": "fakestash01", "name": "Currency", "type": "CurrencyStash", "index": 0, "league": league },
+                        { "id": "fakestash02", "name": "Maps", "type": "MapStash", "index": 1, "league": league },
+                        { "id": "fakestash03", "name": "Dump", "type": "PremiumStash", "index": 2, "league": league },
+                    ],
+                })
+            } else if req.path == "/character" {
                 json!({
                     "characters": [
                         { "id": "fake0001", "name": "StashHoarder", "realm": "pc",

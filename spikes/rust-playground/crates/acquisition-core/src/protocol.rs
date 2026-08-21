@@ -116,6 +116,8 @@ pub enum Response {
         jobs_running: usize,
         /// Rate-limit policies learned from responses so far.
         policies_known: usize,
+        in_flight: usize,
+        max_in_flight: usize,
     },
     Stopping,
     Dashboard {
@@ -128,6 +130,9 @@ pub enum Response {
         username: Option<String>,
         access_expires_in_seconds: Option<u64>,
         keyring: String,
+        /// Requests currently holding a slot, and the burst bound (P-B).
+        in_flight: usize,
+        max_in_flight: usize,
         /// Sorted by policy name.
         policies: Vec<PolicyStatus>,
         /// Endpoints that answered without any X-Rate-Limit headers.

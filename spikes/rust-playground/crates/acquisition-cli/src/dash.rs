@@ -47,6 +47,8 @@ struct Snap {
     username: Option<String>,
     access_expires_in_seconds: Option<u64>,
     keyring: String,
+    in_flight: usize,
+    max_in_flight: usize,
     policies: Vec<PolicyStatus>,
     policyless_endpoints: Vec<String>,
     degraded_endpoints: Vec<DegradedEndpoint>,
@@ -131,6 +133,8 @@ async fn fetch(client: &mut Client) -> Result<Snap> {
             username,
             access_expires_in_seconds,
             keyring,
+            in_flight,
+            max_in_flight,
             policies,
             policyless_endpoints,
             degraded_endpoints,
@@ -147,6 +151,8 @@ async fn fetch(client: &mut Client) -> Result<Snap> {
             username,
             access_expires_in_seconds,
             keyring,
+            in_flight,
+            max_in_flight,
             policies,
             policyless_endpoints,
             degraded_endpoints,
@@ -301,7 +307,12 @@ fn draw_policies(f: &mut Frame, area: Rect, s: &Snap, app: &mut App) {
         ]));
     }
 
-    let block = Block::bordered().title(" rate limits (header-driven) ");
+    let in_flight_style = if s.in_flight >= s.max_in_flight { Style::new().yellow() } else { Style::new() };
+    let block = Block::bordered().title(Line::from(vec![
+        Span::raw(" rate limits (header-driven) · in flight "),
+        Span::styled(format!("{}/{}", s.in_flight, s.max_in_flight), in_flight_style),
+        Span::raw(" "),
+    ]));
     let inner = block.inner(area);
     f.render_widget(block, area);
 
@@ -340,7 +351,7 @@ fn policy_detail(p: &PolicyStatus, sends: &[SendRecord]) -> Vec<Line<'static>> {
     let label = Style::new().dark_gray();
     let mut lines = vec![
         Line::from(vec![
-            Span::styled("endpoints          ", label),
+            Span::styled("routes             ", label),
             Span::raw(p.endpoints.join(", ")),
         ]),
         Line::from(vec![
@@ -517,7 +528,7 @@ fn draw_sends(f: &mut Frame, area: Rect, sends: &[SendRecord]) {
             Constraint::Min(16),
         ],
     )
-    .header(Row::new(vec!["age", "endpoint", "", "outcome", "url"]).dark_gray())
+    .header(Row::new(vec!["age", "route", "", "outcome", "url"]).dark_gray())
     .block(Block::bordered().title(title));
     if empty {
         table = table.footer(Row::new(vec![Cell::from("nothing sent yet").dark_gray()]));

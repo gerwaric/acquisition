@@ -21,8 +21,11 @@ can mint.
 ## Layout
 
 - `crates/acquisition-core` — protocol types, job model, header-driven rate
-  limiter + choke point, the mock provider, and the daemon itself (queue +
-  single worker + Unix-socket server + idle watchdog).
+  limiter + choke point, the mock provider, and the daemon itself (priority
+  queue + dispatcher + Unix-socket server + idle watchdog). The dispatcher
+  is where the burst bound lives (`MAX_IN_FLIGHT`, ground truth P-B): at
+  most 2 requests in flight overall, at most one per policy, at most one
+  probe ever (N18).
 - `crates/acquisition-cli` — the `acq` binary. Thin: clap parsing, a small
   protocol client, output formatting. The daemon is reached via the hidden-ish
   `acq daemon run` subcommand, which is what lazy spawn execs.
@@ -38,8 +41,9 @@ acq auth status                              # session, token expiry, keyring he
 acq auth check                               # preflight: proves the session via a forced token round-trip
 acq submit profile                           # auth-required job; refreshes the access token silently
 acq characters                               # auth-required; GET /character against the mock
-                                             # (first use of an endpoint queues a visible `probe`
-                                             #  job: one HEAD that learns the policy + current counters)
+                                             # (first use of a route queues a visible `probe` job:
+                                             #  one HEAD that learns the policy + current counters)
+acq stashes --league Standard                # GET /stash/{league}: a second policy, runs in parallel
 acq auth logout                              # drops session + keyring entry
 acq submit sleep --params '{"seconds": 5}'   # blocks with progress; daemon lazy-spawns
 acq demo                                     # burst of 8 fetch jobs against the mock's 5-per-10s policy; watch ETAs
@@ -59,7 +63,8 @@ acq daemon status                            # debugging only
 
 ```sh
 ACQ_GGG=1 acq auth          # real OAuth against pathofexile.com in your browser
-ACQ_GGG=1 acq characters    # GET api.pathofexile.com/character — the one real API call
+ACQ_GGG=1 acq characters    # GET api.pathofexile.com/character
+ACQ_GGG=1 acq stashes       # GET api.pathofexile.com/stash/Standard
 ```
 
 `ACQ_GGG=1` on any command selects the real provider; the CLI kills and
@@ -92,14 +97,10 @@ tokens live 60 seconds, so silent refresh is exercised constantly.
 
 ## Known gaps
 
-- **Probes are serialized only by construction.** N18 (at most one HEAD in
-  flight, ever) holds because there is one worker; it isn't pinned.
 - **`ACQ_MOCK_DEGRADED_HEAD=1`** makes the mock reproduce the Dec-2023
   regression (N20) so the degraded path can be exercised.
 - **429s are not recovered from.** The job fails with the evidence and the
   policy is held for `Retry-After` + bucket; nothing reschedules (P-A).
-- **The burst bound is implicit.** One worker, one request in flight —
-  P-B is satisfied by construction, not by an explicit cap.
 - **The mock does not simulate timing-bucket quantization** (N11–N12); the
   limiter pads for it regardless.
 - **The mock reports an active restriction on every window of the rule,**

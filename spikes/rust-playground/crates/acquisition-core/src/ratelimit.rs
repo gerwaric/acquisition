@@ -535,17 +535,19 @@ pub struct SendRecord {
 
 // ---- the choke point ------------------------------------------------------
 
-/// Receipt proving the limiter was consulted for this endpoint and said go.
+/// Receipt proving the limiter was consulted for this route and said go.
 /// Send methods that don't wait internally require one, and only `try_take`
 /// mints them, so asking the limiter stays structural.
 pub struct Paid {
-    endpoint: String,
+    route: String,
 }
 
-/// The limiter keys endpoints by URL path, so mock and real GGG share keys
-/// (`/character` is `/character` on both hosts) and policy names learned on
-/// one are meaningful on the other.
-pub fn endpoint_key(url: &str) -> String {
+/// Callers name the *route* they're sending on (`character-list`,
+/// `stash-list`, …), not the URL: one route covers every league/id variant
+/// of a path, so it gets one probe and one policy, and a per-tab route can
+/// never turn into a probe per tab (the shape of the 2024 incident, N2).
+/// The URL path, for logs.
+pub fn url_path(url: &str) -> String {
     url::Url::parse(url)
         .map(|u| u.path().to_string())
         .unwrap_or_else(|_| url.to_string())
@@ -593,17 +595,26 @@ impl ChokePoint {
         }
     }
 
-    /// Ask to send to `url` now, or learn how long to wait. Callers that
+    /// Ask to send on `route` now, or learn how long to wait. Callers that
     /// need cancellation-aware waiting (the job worker) loop on this; plain
     /// requests use `post_form`, which waits internally.
-    pub fn try_take(&self, url: &str) -> Result<Paid, Duration> {
-        let endpoint = endpoint_key(url);
-        let wait = self.limiter.lock().unwrap().wait_for(&endpoint, Instant::now());
-        if wait.is_zero() { Ok(Paid { endpoint }) } else { Err(wait) }
+    pub fn try_take(&self, route: &str) -> Result<Paid, Duration> {
+        let wait = self.limiter.lock().unwrap().wait_for(route, Instant::now());
+        if wait.is_zero() { Ok(Paid { route: route.to_string() }) } else { Err(wait) }
     }
 
-    pub fn eta_for(&self, url: &str, ahead: u32) -> Duration {
-        self.limiter.lock().unwrap().eta_for(&endpoint_key(url), ahead, Instant::now())
+    pub fn eta_for(&self, route: &str, ahead: u32) -> Duration {
+        self.limiter.lock().unwrap().eta_for(route, ahead, Instant::now())
+    }
+
+    /// The key under which in-flight requests on `route` must be
+    /// serialized: its policy name once known (same-name policies share
+    /// counters across routes, N6), else the route itself.
+    pub fn serial_key(&self, route: &str) -> String {
+        match self.limiter.lock().unwrap().endpoint_state(route, Instant::now()) {
+            EndpointState::Policy(name) => name,
+            _ => route.to_string(),
+        }
     }
 
     pub fn policy_statuses(&self) -> Vec<PolicyStatus> {
@@ -618,8 +629,8 @@ impl ChokePoint {
         self.limiter.lock().unwrap().is_live(Instant::now())
     }
 
-    pub fn endpoint_state(&self, url: &str) -> EndpointState {
-        self.limiter.lock().unwrap().endpoint_state(&endpoint_key(url), Instant::now())
+    pub fn endpoint_state(&self, route: &str) -> EndpointState {
+        self.limiter.lock().unwrap().endpoint_state(route, Instant::now())
     }
 
     pub fn degraded_endpoints(&self) -> Vec<DegradedEndpoint> {
@@ -632,9 +643,9 @@ impl ChokePoint {
 
     /// Close an endpoint without a probe round-trip (e.g. no session to
     /// probe with). Same cooldown as a failed probe.
-    pub fn degrade(&self, url: &str, reason: &str) {
+    pub fn degrade(&self, route: &str, reason: &str) {
         self.limiter.lock().unwrap().observe_probe(
-            &endpoint_key(url),
+            route,
             Err(reason.to_string()),
             serde_json::Value::Null,
             Instant::now(),
@@ -667,11 +678,11 @@ impl ChokePoint {
         self.limiter
             .lock()
             .unwrap()
-            .observe_probe(&paid.endpoint, outcome.clone(), raw.clone(), Instant::now());
-        self.record(&paid.endpoint, "HEAD", url, &result);
+            .observe_probe(&paid.route, outcome.clone(), raw.clone(), Instant::now());
+        self.record(&paid.route, "HEAD", url, &result);
         // The limiter decided whether that was good enough; report what it
         // concluded so the probe job's outcome matches the endpoint state.
-        match self.limiter.lock().unwrap().endpoint_state(&paid.endpoint, Instant::now()) {
+        match self.limiter.lock().unwrap().endpoint_state(&paid.route, Instant::now()) {
             EndpointState::Policy(_) => {
                 let Ok(Some(policy)) = outcome else { unreachable!("policy state implies a parsed policy") };
                 Ok((result.unwrap().status(), Some(policy), raw))
@@ -748,11 +759,12 @@ impl ChokePoint {
     /// The limiter lock is never held across an await.
     pub async fn post_form(
         &self,
+        route: &str,
         url: &str,
         params: &[(&str, &str)],
     ) -> Result<reqwest::Response, String> {
         let paid = loop {
-            match self.try_take(url) {
+            match self.try_take(route) {
                 Ok(paid) => break paid,
                 Err(wait) => tokio::time::sleep(wait.max(Duration::from_millis(50))).await,
             }
@@ -764,7 +776,7 @@ impl ChokePoint {
             .send()
             .await
             .map_err(|e| e.to_string());
-        self.observe(&paid.endpoint, "POST", url, &result, true);
+        self.observe(&paid.route, "POST", url, &result, true);
         result
     }
 
@@ -784,14 +796,14 @@ impl ChokePoint {
             .send()
             .await
             .map_err(|e| e.to_string());
-        self.observe(&paid.endpoint, "GET", url, &result, true);
+        self.observe(&paid.route, "GET", url, &result, true);
         result
     }
 
     /// Unauthenticated GET (mock-only fake data endpoints).
     pub async fn get(&self, paid: Paid, url: &str) -> Result<reqwest::Response, String> {
         let result = self.http.get(url).send().await.map_err(|e| e.to_string());
-        self.observe(&paid.endpoint, "GET", url, &result, true);
+        self.observe(&paid.route, "GET", url, &result, true);
         result
     }
 }
@@ -1178,8 +1190,8 @@ mod tests {
     }
 
     #[test]
-    fn endpoint_keys_are_paths() {
-        assert_eq!(endpoint_key("https://api.pathofexile.com/character"), "/character");
-        assert_eq!(endpoint_key("http://127.0.0.1:5555/character"), "/character");
+    fn url_path_strips_host() {
+        assert_eq!(url_path("https://api.pathofexile.com/stash/Standard"), "/stash/Standard");
+        assert_eq!(url_path("http://127.0.0.1:5555/character"), "/character");
     }
 }

@@ -37,9 +37,14 @@ enum Cmd {
         #[arg(long)]
         no_browser: bool,
     },
-    /// List characters on the logged-in account (the one real API call).
+    /// List characters on the logged-in account.
     Characters,
-    /// Submit a job (kinds: sleep, fetch, profile, characters).
+    /// List stash tabs for a league (the second real API call).
+    Stashes {
+        #[arg(long, default_value = "Standard")]
+        league: String,
+    },
+    /// Submit a job (kinds: sleep, fetch, profile, characters, stashes).
     Submit {
         kind: String,
         /// JSON params, e.g. '{"seconds": 5}'.
@@ -133,6 +138,11 @@ async fn main() -> Result<()> {
         Cmd::Characters => {
             let mut client = Client::connect(true).await?;
             let id = submit(&mut client, "characters".into(), json!({}), 0).await?;
+            block_on_job(&mut client, id, cli.json).await
+        }
+        Cmd::Stashes { league } => {
+            let mut client = Client::connect(true).await?;
+            let id = submit(&mut client, "stashes".into(), json!({ "league": league }), 0).await?;
             block_on_job(&mut client, id, cli.json).await
         }
         Cmd::Submit { kind, params, priority, detach } => {
@@ -250,11 +260,13 @@ async fn main() -> Result<()> {
                     jobs_waiting,
                     jobs_running,
                     policies_known,
+                    in_flight,
+                    max_in_flight,
                 } = status
                 {
                     println!("daemon {version} pid {pid}, up {uptime_seconds}s, provider {provider}");
                     println!(
-                        "connections: {connections}  waiting: {jobs_waiting}  running: {jobs_running}  rate-limit policies learned: {policies_known}"
+                        "connections: {connections}  waiting: {jobs_waiting}  running: {jobs_running}  in flight: {in_flight}/{max_in_flight}  policies learned: {policies_known}"
                     );
                     println!("socket: {}", daemon::socket_path().display());
                     println!("log:    {}", daemon::log_path().display());
