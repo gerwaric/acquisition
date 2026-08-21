@@ -41,13 +41,13 @@ async fn handle(mut stream: TcpStream, codes: Arc<Mutex<HashMap<String, PendingC
     let Some(req) = read_request(&mut stream).await else { return };
     match (req.method.as_str(), req.path.as_str()) {
         ("GET", "/authorize") => {
+            let client_id = req.query.get("client_id").cloned().unwrap_or_default();
             let page = format!(
                 "<h1>Fake GGG OAuth</h1>\
                  <p>This is the playground's mock provider — no real accounts here.</p>\
                  <p>Pretend you just logged in as <b>{USERNAME}</b>.</p>\
-                 <p><a href=\"/approve?{}\">Authorize {}</a></p>",
+                 <p><a href=\"/approve?{}\">Authorize {client_id}</a></p>",
                 req.raw_query,
-                auth::CLIENT_ID,
             );
             respond(&mut stream, "200 OK", "text/html", &page).await;
         }
@@ -76,6 +76,34 @@ async fn handle(mut stream: TcpStream, codes: Arc<Mutex<HashMap<String, PendingC
                 "HTTP/1.1 302 Found\r\nLocation: {location}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
             );
             let _ = stream.write_all(head.as_bytes()).await;
+        }
+        // Fake data endpoint mirroring GGG's `GET /character`, so real and
+        // mock modes run the identical job code path. Sends made-up
+        // X-Rate-Limit headers to exercise the snapshot/logging plumbing.
+        ("GET", "/character") => {
+            let authed = req
+                .headers
+                .get("authorization")
+                .is_some_and(|v| v.starts_with("Bearer "));
+            if !authed {
+                respond(&mut stream, "401 Unauthorized", "application/json",
+                        &json!({ "error": "no bearer token" }).to_string()).await;
+                return;
+            }
+            let body = json!({
+                "characters": [
+                    { "id": "fake0001", "name": "StashHoarder", "realm": "pc",
+                      "class": "Scion", "league": "Standard", "level": 97 },
+                    { "id": "fake0002", "name": "MuleQuadTab", "realm": "pc",
+                      "class": "Witch", "league": "Standard", "level": 12 },
+                ],
+            })
+            .to_string();
+            let extra = "X-Rate-Limit-Policy: mock-character-list\r\n\
+                         X-Rate-Limit-Rules: Account\r\n\
+                         X-Rate-Limit-Account: 2:10:60,5:300:300\r\n\
+                         X-Rate-Limit-Account-State: 1:10:0,1:300:0\r\n";
+            respond_with(&mut stream, "200 OK", "application/json", extra, &body).await;
         }
         ("POST", "/token") => {
             let form: HashMap<String, String> =
@@ -145,6 +173,8 @@ pub struct HttpRequest {
     pub path: String,
     pub raw_query: String,
     pub query: HashMap<String, String>,
+    /// Lowercased header names.
+    pub headers: HashMap<String, String>,
     pub body: String,
 }
 
@@ -169,10 +199,13 @@ pub async fn read_request(stream: &mut TcpStream) -> Option<HttpRequest> {
     let mut parts = lines.next()?.split_whitespace();
     let method = parts.next()?.to_string();
     let target = parts.next()?.to_string();
-    let content_length = lines
+    let headers: HashMap<String, String> = lines
         .filter_map(|l| l.split_once(':'))
-        .find(|(k, _)| k.eq_ignore_ascii_case("content-length"))
-        .and_then(|(_, v)| v.trim().parse::<usize>().ok())
+        .map(|(k, v)| (k.to_ascii_lowercase(), v.trim().to_string()))
+        .collect();
+    let content_length = headers
+        .get("content-length")
+        .and_then(|v| v.parse::<usize>().ok())
         .unwrap_or(0);
     let mut body = buf[header_end + 4..].to_vec();
     while body.len() < content_length {
@@ -188,12 +221,23 @@ pub async fn read_request(stream: &mut TcpStream) -> Option<HttpRequest> {
         None => (target, String::new()),
     };
     let query = url::form_urlencoded::parse(raw_query.as_bytes()).into_owned().collect();
-    Some(HttpRequest { method, path, raw_query, query, body: String::from_utf8_lossy(&body).into_owned() })
+    Some(HttpRequest { method, path, raw_query, query, headers, body: String::from_utf8_lossy(&body).into_owned() })
 }
 
 pub async fn respond(stream: &mut TcpStream, status: &str, content_type: &str, body: &str) {
+    respond_with(stream, status, content_type, "", body).await;
+}
+
+/// `extra_headers` must be zero or more full "Name: value\r\n" lines.
+pub async fn respond_with(
+    stream: &mut TcpStream,
+    status: &str,
+    content_type: &str,
+    extra_headers: &str,
+    body: &str,
+) {
     let response = format!(
-        "HTTP/1.1 {status}\r\nContent-Type: {content_type}; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+        "HTTP/1.1 {status}\r\nContent-Type: {content_type}; charset=utf-8\r\n{extra_headers}Content-Length: {}\r\nConnection: close\r\n\r\n{body}",
         body.len()
     );
     let _ = stream.write_all(response.as_bytes()).await;

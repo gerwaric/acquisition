@@ -1,9 +1,8 @@
 //! OAuth client mechanics: PKCE, token exchange/refresh, keyring storage.
 //!
-//! The flow is real (authorization code + PKCE, loopback redirect, refresh
-//! rotation, OS keyring) but always points at the localhost mock provider —
-//! never GGG. Swapping in real endpoints later is a config change here, not a
-//! redesign.
+//! The flow is authorization code + PKCE with a loopback redirect, refresh
+//! rotation, and OS keyring storage. Which provider it points at — the
+//! localhost mock or real GGG — is entirely the `Provider` passed in.
 
 use base64::Engine as _;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
@@ -11,9 +10,8 @@ use rand::RngCore as _;
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
 
+use crate::provider::{Provider, SCOPES};
 use crate::ratelimit::{ChokePoint, Endpoint};
-
-pub const CLIENT_ID: &str = "acquisition-playground";
 
 pub fn random_token(prefix: &str) -> String {
     let mut bytes = [0u8; 24];
@@ -45,20 +43,24 @@ pub struct TokenResponse {
 
 pub async fn exchange_code(
     choke: &ChokePoint,
-    provider_base: &str,
+    provider: &Provider,
     code: &str,
     verifier: &str,
     redirect_uri: &str,
 ) -> Result<TokenResponse, String> {
+    // GGG's public-client docs include `scope` in the exchange; no secret is
+    // ever sent (and must not be — an empty client_secret is a server error).
+    let scope = SCOPES.join(" ");
     token_request(
         choke,
-        provider_base,
+        provider,
         &[
             ("grant_type", "authorization_code"),
-            ("client_id", CLIENT_ID),
+            ("client_id", provider.client_id),
             ("code", code),
             ("code_verifier", verifier),
             ("redirect_uri", redirect_uri),
+            ("scope", &scope),
         ],
     )
     .await
@@ -66,15 +68,15 @@ pub async fn exchange_code(
 
 pub async fn refresh(
     choke: &ChokePoint,
-    provider_base: &str,
+    provider: &Provider,
     refresh_token: &str,
 ) -> Result<TokenResponse, String> {
     token_request(
         choke,
-        provider_base,
+        provider,
         &[
             ("grant_type", "refresh_token"),
-            ("client_id", CLIENT_ID),
+            ("client_id", provider.client_id),
             ("refresh_token", refresh_token),
         ],
     )
@@ -83,16 +85,20 @@ pub async fn refresh(
 
 async fn token_request(
     choke: &ChokePoint,
-    provider_base: &str,
+    provider: &Provider,
     params: &[(&str, &str)],
 ) -> Result<TokenResponse, String> {
     let response = choke
-        .post_form(Endpoint::OauthToken, &format!("{provider_base}/token"), params)
+        .post_form(Endpoint::OauthToken, &provider.token_url, params)
         .await?;
     let status = response.status();
     if !status.is_success() {
+        let rate = crate::ratelimit::rate_limit_snapshot(response.headers());
         let body = response.text().await.unwrap_or_default();
-        return Err(format!("provider returned {status}: {body}"));
+        let body: String = body.chars().take(300).collect();
+        return Err(format!(
+            "token endpoint returned {status} (rate headers {rate}): {body}"
+        ));
     }
     response.json::<TokenResponse>().await.map_err(|e| e.to_string())
 }
@@ -101,31 +107,31 @@ async fn token_request(
 //
 // Refresh tokens live in the OS keyring (invariant 5) — one JSON secret so
 // username survives daemon restarts too. `ACQ_NO_KEYRING=1` degrades to
-// in-memory-only sessions (still never plaintext on disk).
+// in-memory-only sessions (still never plaintext on disk). The service name
+// comes from the provider, so mock and real sessions can never cross.
 
-const KEYRING_SERVICE: &str = "acquisition-playground";
 const KEYRING_USER: &str = "oauth";
 
 // Ad-hoc code signatures change on rebuild; if macOS ever prompts on reads of
 // items created by an older build, the fix is signing the binary consistently.
-fn entry() -> Result<keyring::Entry, String> {
+fn entry(service: &str) -> Result<keyring::Entry, String> {
     if std::env::var_os("ACQ_NO_KEYRING").is_some() {
         return Err("disabled by ACQ_NO_KEYRING".into());
     }
-    keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER).map_err(|e| e.to_string())
+    keyring::Entry::new(service, KEYRING_USER).map_err(|e| e.to_string())
 }
 
-pub fn keyring_save(refresh_token: &str, username: &str) -> Result<(), String> {
+pub fn keyring_save(service: &str, refresh_token: &str, username: &str) -> Result<(), String> {
     let secret = serde_json::json!({
         "refresh_token": refresh_token,
         "username": username,
     });
-    entry()?.set_password(&secret.to_string()).map_err(|e| e.to_string())
+    entry(service)?.set_password(&secret.to_string()).map_err(|e| e.to_string())
 }
 
 /// Ok(None) means the keyring works but holds no session.
-pub fn keyring_load() -> Result<Option<(String, String)>, String> {
-    match entry()?.get_password() {
+pub fn keyring_load(service: &str) -> Result<Option<(String, String)>, String> {
+    match entry(service)?.get_password() {
         Ok(secret) => {
             let v: serde_json::Value =
                 serde_json::from_str(&secret).map_err(|e| format!("corrupt secret: {e}"))?;
@@ -139,8 +145,8 @@ pub fn keyring_load() -> Result<Option<(String, String)>, String> {
     }
 }
 
-pub fn keyring_clear() -> Result<(), String> {
-    match entry()?.delete_credential() {
+pub fn keyring_clear(service: &str) -> Result<(), String> {
+    match entry(service)?.delete_credential() {
         Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
         Err(e) => Err(e.to_string()),
     }

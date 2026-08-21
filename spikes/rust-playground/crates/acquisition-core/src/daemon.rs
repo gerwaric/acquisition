@@ -15,14 +15,18 @@ use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::{TcpListener, UnixListener, UnixStream};
 use tokio::sync::{Notify, broadcast};
 
+use std::collections::VecDeque;
+
 use crate::VERSION;
 use crate::job::{JobId, JobInfo, JobState, Outcome, Priority};
-use crate::protocol::{Request, Response};
-use crate::ratelimit::{ChokePoint, Endpoint};
+use crate::protocol::{ErrorRecord, Request, Response};
+use crate::provider::{CALLBACK_PATH, Provider, SCOPES, ggg_mode};
+use crate::ratelimit::{ChokePoint, Endpoint, Paid, rate_limit_snapshot};
 use crate::{auth, mockggg};
 
 const IDLE_SHUTDOWN: Duration = Duration::from_secs(60);
 const IDLE_POLL: Duration = Duration::from_secs(5);
+const ERROR_HISTORY: usize = 50;
 
 // Must stay short: Unix socket paths cap out around 104 bytes (SUN_LEN),
 // which deep per-user runtime dirs can exceed.
@@ -63,6 +67,9 @@ struct Shared {
     connections: usize,
     last_activity: Instant,
     started: Instant,
+    /// Recent errors for the dashboard, newest last (bounded ring). Every
+    /// entry is also in the log; this is the structured, queryable subset.
+    errors: VecDeque<(Instant, String)>,
 }
 
 impl Shared {
@@ -109,8 +116,9 @@ pub struct Daemon {
     /// The single rate-limit choke point (CONTEXT invariant 1). It owns the
     /// HTTP client, so all outbound requests — OAuth included — pay a token.
     choke: ChokePoint,
-    /// Base URL of the in-process mock OAuth provider (never GGG).
-    provider_url: String,
+    /// The in-process mock by default; real GGG only when the daemon was
+    /// started with ACQ_GGG=1.
+    provider: Provider,
 }
 
 impl Daemon {
@@ -124,6 +132,18 @@ impl Daemon {
     fn emit(&self, info: JobInfo) {
         self.log(&format!("job {} -> {}", info.id, info.state));
         let _ = self.events.send(info);
+    }
+
+    /// Log an error and keep it in the dashboard's recent-errors ring.
+    fn note_error(&self, msg: &str) {
+        {
+            let mut s = self.shared.lock().unwrap();
+            if s.errors.len() >= ERROR_HISTORY {
+                s.errors.pop_front();
+            }
+            s.errors.push_back((Instant::now(), msg.to_string()));
+        }
+        self.log(msg);
     }
 
     fn submit(&self, kind: String, params: Value, priority: Priority, submitted_by: String) -> JobId {
@@ -216,17 +236,20 @@ impl Daemon {
         let needs_token = {
             let s = self.shared.lock().unwrap();
             match s.jobs.get(&id) {
-                // Everything that would be real API traffic consumes a token.
-                Some(e) => matches!(e.info.kind.as_str(), "fetch" | "profile"),
+                // Everything that is (or stands in for) API traffic consumes
+                // a token.
+                Some(e) => matches!(e.info.kind.as_str(), "fetch" | "profile" | "characters"),
                 None => return,
             }
         };
 
         // Rate-limit wait happens while the job is still `waiting`, in short
-        // slices so cancellation and reprioritization stay responsive.
+        // slices so cancellation and reprioritization stay responsive. The
+        // receipt is handed to `execute`, which spends it on the actual send.
+        let mut paid: Option<Paid> = None;
         if needs_token {
             loop {
-                let wait = {
+                let step = {
                     let s = self.shared.lock().unwrap();
                     // A reprioritization may have put another job at the head
                     // of the queue; bail so the worker re-picks.
@@ -235,14 +258,17 @@ impl Daemon {
                     }
                     match s.jobs.get(&id) {
                         Some(e) if e.info.state == JobState::Waiting => {
-                            self.choke.try_take(Endpoint::Api).err()
+                            self.choke.try_take(Endpoint::Api)
                         }
                         _ => return, // cancelled out from under us
                     }
                 };
-                match wait {
-                    None => break,
-                    Some(d) => tokio::time::sleep(d.min(Duration::from_secs(1))).await,
+                match step {
+                    Ok(receipt) => {
+                        paid = Some(receipt);
+                        break;
+                    }
+                    Err(d) => tokio::time::sleep(d.min(Duration::from_secs(1))).await,
                 }
             }
         }
@@ -260,7 +286,10 @@ impl Daemon {
         let kind = info.kind.clone();
         self.emit(info);
 
-        let outcome = self.execute(id, &kind, params).await;
+        let outcome = self.execute(id, &kind, params, paid).await;
+        if let Outcome::Failure { error } = &outcome {
+            self.note_error(&format!("job {id} ({kind}): {error}"));
+        }
         let info = {
             let mut s = self.shared.lock().unwrap();
             let Some(entry) = s.jobs.get_mut(&id) else { return };
@@ -275,8 +304,53 @@ impl Daemon {
         self.emit(info);
     }
 
-    async fn execute(&self, id: JobId, kind: &str, params: Value) -> Outcome {
+    async fn execute(&self, id: JobId, kind: &str, params: Value, paid: Option<Paid>) -> Outcome {
         match kind {
+            // The one real API call: GET {api_base}/character. Same code in
+            // both modes; only the provider's base URL differs. No retries on
+            // any failure — a 429 or a Cloudflare-shaped block is reported,
+            // never fought through (invariants 2 and 3 are read-only so far:
+            // headers are logged and returned, not yet fed to the limiter).
+            "characters" => {
+                let paid = paid.expect("characters is a token-consuming kind");
+                let (token, username) = match self.valid_access_token(false).await {
+                    Ok(pair) => pair,
+                    Err(error) => return Outcome::Failure { error },
+                };
+                let url = format!("{}/character", self.provider.api_base);
+                let response = match self.choke.get_bearer(paid, &url, &token).await {
+                    Ok(r) => r,
+                    Err(e) => return Outcome::Failure { error: format!("GET {url} failed: {e}") },
+                };
+                let status = response.status();
+                let rate = rate_limit_snapshot(response.headers());
+                self.log(&format!("GET /character -> {status} | rate headers: {rate}"));
+                let body = response.text().await.unwrap_or_default();
+                if !status.is_success() {
+                    let hint = match status.as_u16() {
+                        429 => " — rate limited; NOT retrying (mind Retry-After before trying again)",
+                        403 | 503 => " — possibly a Cloudflare block; do NOT retry (invariant 3)",
+                        _ => "",
+                    };
+                    let body: String = body.chars().take(300).collect();
+                    return Outcome::Failure {
+                        error: format!("GET /character returned {status}{hint}; rate headers {rate}; body: {body}"),
+                    };
+                }
+                match serde_json::from_str::<Value>(&body) {
+                    Ok(v) => Outcome::Success {
+                        payload: json!({
+                            "provider": self.provider.name,
+                            "username": username,
+                            "characters": v.get("characters").cloned().unwrap_or(v),
+                            "rate_limit": rate,
+                        }),
+                    },
+                    Err(e) => Outcome::Failure {
+                        error: format!("bad JSON from /character: {e}"),
+                    },
+                }
+            }
             "sleep" => {
                 let seconds = params.get("seconds").and_then(Value::as_f64).unwrap_or(3.0);
                 let deadline = Instant::now() + Duration::from_secs_f64(seconds);
@@ -333,7 +407,7 @@ impl Daemon {
                 }
             }
             other => Outcome::Failure {
-                error: format!("unknown job kind '{other}' (playground kinds: sleep, fetch, profile)"),
+                error: format!("unknown job kind '{other}' (kinds: sleep, fetch, profile, characters)"),
             },
         }
     }
@@ -348,17 +422,22 @@ impl Daemon {
             .await
             .map_err(|e| format!("could not bind loopback listener: {e}"))?;
         let port = listener.local_addr().map_err(|e| e.to_string())?.port();
-        let redirect_uri = format!("http://127.0.0.1:{port}/callback");
+        // The registered callback path; GGG accepts any loopback port.
+        let redirect_uri = format!("http://127.0.0.1:{port}{CALLBACK_PATH}");
         let (verifier, challenge) = auth::pkce_pair();
         let state = auth::random_token("st");
-        let authorize_url = format!(
-            "{}/authorize?response_type=code&client_id={}&redirect_uri={}&state={}&code_challenge={}&code_challenge_method=S256&scope=account:profile",
-            self.provider_url,
-            auth::CLIENT_ID,
-            mockggg::urlencode(&redirect_uri),
-            state,
-            challenge,
-        );
+        let mut authorize_url =
+            url::Url::parse(&self.provider.authorize_url).map_err(|e| e.to_string())?;
+        authorize_url
+            .query_pairs_mut()
+            .append_pair("response_type", "code")
+            .append_pair("client_id", self.provider.client_id)
+            .append_pair("redirect_uri", &redirect_uri)
+            .append_pair("state", &state)
+            .append_pair("code_challenge", &challenge)
+            .append_pair("code_challenge_method", "S256")
+            .append_pair("scope", &SCOPES.join(" "));
+        let authorize_url = authorize_url.to_string();
         self.shared.lock().unwrap().auth.pending = true;
         self.log(&format!("auth flow started (callback on port {port})"));
 
@@ -371,7 +450,7 @@ impl Daemon {
                 Ok(Ok(code)) => {
                     match auth::exchange_code(
                         &daemon.choke,
-                        &daemon.provider_url,
+                        &daemon.provider,
                         &code,
                         &verifier,
                         &redirect_uri,
@@ -383,11 +462,11 @@ impl Daemon {
                             daemon.install_tokens(tokens);
                             daemon.log(&format!("logged in as {user}"));
                         }
-                        Err(e) => daemon.log(&format!("token exchange failed: {e}")),
+                        Err(e) => daemon.note_error(&format!("token exchange failed: {e}")),
                     }
                 }
-                Ok(Err(e)) => daemon.log(&format!("auth callback failed: {e}")),
-                Err(_) => daemon.log("auth flow timed out after 300s"),
+                Ok(Err(e)) => daemon.note_error(&format!("auth callback failed: {e}")),
+                Err(_) => daemon.note_error("auth flow timed out after 300s"),
             }
             daemon.shared.lock().unwrap().auth.pending = false;
         });
@@ -397,10 +476,14 @@ impl Daemon {
     /// Store fresh tokens in memory and mirror the refresh token (which the
     /// provider rotates on every grant) into the keyring.
     fn install_tokens(&self, tokens: auth::TokenResponse) {
-        let keyring = match auth::keyring_save(&tokens.refresh_token, &tokens.username) {
+        let keyring = match auth::keyring_save(
+            self.provider.keyring_service,
+            &tokens.refresh_token,
+            &tokens.username,
+        ) {
             Ok(()) => "ok".to_string(),
             Err(e) => {
-                self.log(&format!("keyring save failed: {e} (session is in-memory only)"));
+                self.note_error(&format!("keyring save failed: {e} (session is in-memory only)"));
                 format!("unavailable: {e}")
             }
         };
@@ -432,7 +515,7 @@ impl Daemon {
         };
         // May wait on the token endpoint's limiter; the shared lock is not
         // held here, so a limited refresh delays only its own caller.
-        let tokens = auth::refresh(&self.choke, &self.provider_url, &refresh_token)
+        let tokens = auth::refresh(&self.choke, &self.provider, &refresh_token)
             .await
             .map_err(|e| format!("token refresh failed: {e}"))?;
         self.log("access token refreshed");
@@ -452,6 +535,7 @@ impl Daemon {
                 .access_expires_at
                 .map(|t| t.saturating_duration_since(Instant::now()).as_secs()),
             keyring: s.auth.keyring.clone(),
+            provider: self.provider.name.to_string(),
         }
     }
 
@@ -517,6 +601,7 @@ impl Daemon {
                 Response::Hello {
                     daemon_version: VERSION.to_string(),
                     pid: std::process::id(),
+                    provider: self.provider.name.to_string(),
                 }
             }
             Request::Submit { kind, params, priority, submitted_by } => Response::Submitted {
@@ -564,7 +649,7 @@ impl Daemon {
             Request::AuthCheck => match self.valid_access_token(true).await {
                 Ok(_) => self.auth_status(),
                 Err(message) => {
-                    self.log(&format!("auth check failed: {message}"));
+                    self.note_error(&format!("auth check failed: {message}"));
                     Response::Error { message }
                 }
             },
@@ -574,7 +659,7 @@ impl Daemon {
                     let keyring = std::mem::take(&mut s.auth.keyring);
                     s.auth = AuthSession { keyring, ..AuthSession::default() };
                 }
-                if let Err(e) = auth::keyring_clear() {
+                if let Err(e) = auth::keyring_clear(self.provider.keyring_service) {
                     self.log(&format!("keyring clear failed: {e}"));
                 }
                 self.log("logged out");
@@ -592,6 +677,7 @@ impl Daemon {
                 Response::DaemonStatus {
                     pid: std::process::id(),
                     version: VERSION.to_string(),
+                    provider: self.provider.name.to_string(),
                     uptime_seconds: s.started.elapsed().as_secs(),
                     connections: s.connections,
                     jobs_waiting: waiting,
@@ -601,6 +687,35 @@ impl Daemon {
                 }
             }
             Request::DaemonStop => Response::Stopping,
+            Request::Dashboard => {
+                let s = self.shared.lock().unwrap();
+                Response::Dashboard {
+                    pid: std::process::id(),
+                    version: VERSION.to_string(),
+                    provider: self.provider.name.to_string(),
+                    uptime_seconds: s.started.elapsed().as_secs(),
+                    connections: s.connections,
+                    logged_in: s.auth.refresh_token.is_some(),
+                    username: s.auth.username.clone(),
+                    access_expires_in_seconds: s
+                        .auth
+                        .access_expires_at
+                        .map(|t| t.saturating_duration_since(Instant::now()).as_secs()),
+                    keyring: s.auth.keyring.clone(),
+                    buckets: self.choke.bucket_statuses(),
+                    jobs: s.list(&self.choke),
+                    sends: self.choke.recent_sends(),
+                    errors: s
+                        .errors
+                        .iter()
+                        .rev()
+                        .map(|(at, message)| ErrorRecord {
+                            seconds_ago: at.elapsed().as_secs_f64(),
+                            message: message.clone(),
+                        })
+                        .collect(),
+                }
+            }
         }
     }
 
@@ -630,7 +745,7 @@ async fn wait_callback(listener: TcpListener, expected_state: &str) -> Result<St
     loop {
         let (mut stream, _) = listener.accept().await.map_err(|e| e.to_string())?;
         let Some(req) = mockggg::read_request(&mut stream).await else { continue };
-        if req.method != "GET" || req.path != "/callback" {
+        if req.method != "GET" || req.path != CALLBACK_PATH {
             mockggg::respond(&mut stream, "404 Not Found", "text/plain", "not found").await;
             continue;
         }
@@ -695,12 +810,19 @@ pub async fn run() -> Result<()> {
         .append(true)
         .open(log_path())?;
 
-    let provider_url = mockggg::start().await?;
+    // Real GGG only on explicit opt-in; the default remains the in-process
+    // mock, and in real mode the mock is never even started.
+    let (provider, choke) = if ggg_mode() {
+        (Provider::ggg(), ChokePoint::ggg_conservative())
+    } else {
+        let base = mockggg::start().await?;
+        (Provider::mock(&base), ChokePoint::playground_default())
+    };
 
     // A session in the keyring survives daemon restarts; the first
     // auth-required job will refresh its way to a live access token.
     let mut session = AuthSession::default();
-    match auth::keyring_load() {
+    match auth::keyring_load(provider.keyring_service) {
         Ok(Some((refresh_token, username))) => {
             session.refresh_token = Some(refresh_token);
             session.username = Some(username);
@@ -718,12 +840,13 @@ pub async fn run() -> Result<()> {
             connections: 0,
             last_activity: Instant::now(),
             started: Instant::now(),
+            errors: VecDeque::new(),
         }),
         events: broadcast::channel(256).0,
         work: Notify::new(),
         log: Mutex::new(log),
-        choke: ChokePoint::playground_default(),
-        provider_url,
+        choke,
+        provider,
     });
 
     daemon.log(&format!(
@@ -736,10 +859,13 @@ pub async fn run() -> Result<()> {
         let s = daemon.shared.lock().unwrap();
         (s.auth.keyring.clone(), s.auth.username.clone())
     };
+    let provider_desc = if daemon.provider.is_real() {
+        "ggg (REAL GGG — requests leave this machine)".to_string()
+    } else {
+        format!("mock at {}", daemon.provider.api_base)
+    };
     daemon.log(&format!(
-        "mock oauth provider at {} | keyring: {} | session: {}",
-        daemon.provider_url,
-        keyring,
+        "provider: {provider_desc} | keyring: {keyring} | session: {}",
         username.as_deref().unwrap_or("none"),
     ));
 

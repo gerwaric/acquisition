@@ -8,8 +8,8 @@ tokio.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 anyhow.workspace = true
-# No TLS on purpose: the only HTTP peer is the localhost mock provider.
-reqwest = { version = "0.12", default-features = false, features = ["json"] }
+# TLS is required by real-GGG mode (ACQ_GGG=1); the mock peer stays loopback.
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 keyring = { version = "3", features = ["apple-native", "windows-native"] }
 sha2 = "0.10"
 base64 = "0.22"

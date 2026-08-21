@@ -18,8 +18,10 @@ pub struct Client {
 
 impl Client {
     /// Connect to the daemon, spawning one if needed (`spawn = true`) and
-    /// replacing it if the version handshake mismatches.
+    /// replacing it if the handshake reports a version or provider mismatch
+    /// (a mock-mode daemon can't serve an ACQ_GGG=1 client, or vice versa).
     pub async fn connect(spawn: bool) -> Result<Client> {
+        let want_provider = if acquisition_core::provider::ggg_mode() { "ggg" } else { "mock" };
         let mut respawned = false;
         let mut spawned = false;
         for _attempt in 0..100 {
@@ -30,18 +32,18 @@ impl Client {
                         client_version: VERSION.to_string(),
                     })
                     .await?;
-                    let Response::Hello { daemon_version, pid } = hello else {
+                    let Response::Hello { daemon_version, pid, provider } = hello else {
                         bail!("unexpected handshake response: {hello:?}");
                     };
-                    if daemon_version == VERSION {
+                    if daemon_version == VERSION && provider == want_provider {
                         return Ok(client);
                     }
                     if respawned {
                         bail!(
-                            "daemon (pid {pid}) still reports version {daemon_version} after respawn; wanted {VERSION}"
+                            "daemon (pid {pid}) still reports version {daemon_version} / provider {provider} after respawn; wanted {VERSION} / {want_provider}"
                         );
                     }
-                    // Stale daemon from an older build: kill and respawn.
+                    // Stale daemon (older build, or wrong mode): kill and respawn.
                     let _ = client.request(&Request::DaemonStop).await;
                     respawned = true;
                     spawned = false;

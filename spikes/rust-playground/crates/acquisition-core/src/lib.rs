@@ -1,15 +1,17 @@
 //! Playground core for the Acquisition Rust rewrite.
 //!
-//! IMPORTANT: nothing in this workspace talks to GGG. Job kinds are fakes
-//! (`sleep`, `fetch`, `profile`) and the rate limiter is a set of simulated
-//! token buckets, so we can exercise queueing, ETAs, and long-wait ergonomics
-//! with zero risk to the OAuth registration.
+//! By default nothing here talks to GGG: job kinds are fakes and OAuth runs
+//! against the in-process mock provider. Starting the daemon with `ACQ_GGG=1`
+//! opts into the real provider — real OAuth against the existing
+//! "acquisition" registration and a real `GET /character` — behind the same
+//! single rate-limit choke point, with deliberately conservative buckets.
 
 pub mod auth;
 pub mod daemon;
 pub mod job;
 pub mod mockggg;
 pub mod protocol;
+pub mod provider;
 pub mod ratelimit;
 
 /// Shared version used for the client/daemon handshake. Both binaries link

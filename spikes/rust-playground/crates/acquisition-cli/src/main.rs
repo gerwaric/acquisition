@@ -1,4 +1,5 @@
 mod client;
+mod dash;
 
 use std::io::Write as _;
 use std::time::Duration;
@@ -13,7 +14,11 @@ use serde_json::json;
 use client::Client;
 
 #[derive(Parser)]
-#[command(name = "acq", version, about = "Acquisition playground CLI (never talks to GGG)")]
+#[command(
+    name = "acq",
+    version,
+    about = "Acquisition playground CLI (mock provider by default; ACQ_GGG=1 talks to real GGG)"
+)]
 struct Cli {
     /// Emit structured JSON instead of human-readable output.
     #[arg(long, global = true)]
@@ -24,7 +29,7 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Cmd {
-    /// Log in via OAuth (against the playground's fake provider, never GGG).
+    /// Log in via OAuth (mock provider, or real GGG with ACQ_GGG=1).
     Auth {
         #[command(subcommand)]
         cmd: Option<AuthCmd>,
@@ -32,7 +37,9 @@ enum Cmd {
         #[arg(long)]
         no_browser: bool,
     },
-    /// Submit a job (playground kinds: sleep, fetch).
+    /// List characters on the logged-in account (the one real API call).
+    Characters,
+    /// Submit a job (kinds: sleep, fetch, profile, characters).
     Submit {
         kind: String,
         /// JSON params, e.g. '{"seconds": 5}'.
@@ -50,6 +57,9 @@ enum Cmd {
         #[arg(long, default_value_t = 8)]
         count: u32,
     },
+    /// Live dashboard (TUI): rate limiter state, job queue, HTTP sends,
+    /// recent errors. With --json, prints one snapshot and exits.
+    Dash,
     /// List jobs the daemon knows about.
     Jobs {
         /// Stay subscribed and print job-state-changed events as they happen.
@@ -120,6 +130,11 @@ async fn main() -> Result<()> {
                 Ok(())
             }
         },
+        Cmd::Characters => {
+            let mut client = Client::connect(true).await?;
+            let id = submit(&mut client, "characters".into(), json!({}), 0).await?;
+            block_on_job(&mut client, id, cli.json).await
+        }
         Cmd::Submit { kind, params, priority, detach } => {
             let params: serde_json::Value = serde_json::from_str(&params)?;
             let mut client = Client::connect(true).await?;
@@ -152,6 +167,7 @@ async fn main() -> Result<()> {
             println!("(bucket allows a burst of 5, then one every 3s — watch the ETAs)\n");
             watch_table_until_done(&mut client, &ids).await
         }
+        Cmd::Dash => dash::run(cli.json).await,
         Cmd::Jobs { watch } => {
             let mut client = Client::connect(false).await?;
             let jobs = list(&mut client).await?;
@@ -228,6 +244,7 @@ async fn main() -> Result<()> {
                 } else if let Response::DaemonStatus {
                     pid,
                     version,
+                    provider,
                     uptime_seconds,
                     connections,
                     jobs_waiting,
@@ -236,7 +253,7 @@ async fn main() -> Result<()> {
                     oauth_tokens_available,
                 } = status
                 {
-                    println!("daemon {version} pid {pid}, up {uptime_seconds}s");
+                    println!("daemon {version} pid {pid}, up {uptime_seconds}s, provider {provider}");
                     println!(
                         "connections: {connections}  waiting: {jobs_waiting}  running: {jobs_running}  tokens: {tokens_available} api / {oauth_tokens_available} oauth"
                     );
@@ -305,14 +322,23 @@ async fn login(no_browser: bool, json: bool) -> Result<()> {
 }
 
 fn print_auth(status: &Response, json: bool) -> Result<()> {
-    let Response::Auth { logged_in, pending, username, access_expires_in_seconds, keyring } =
-        status
+    let Response::Auth {
+        logged_in,
+        pending,
+        username,
+        access_expires_in_seconds,
+        keyring,
+        provider,
+    } = status
     else {
         bail!("unexpected response: {status:?}");
     };
     if json {
         println!("{}", serde_json::to_string_pretty(status)?);
         return Ok(());
+    }
+    if provider == "ggg" {
+        println!("provider: real GGG");
     }
     match (logged_in, pending) {
         (_, true) => println!("login in progress (waiting on the browser)"),

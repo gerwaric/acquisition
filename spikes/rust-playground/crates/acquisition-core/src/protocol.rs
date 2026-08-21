@@ -8,6 +8,15 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::job::{JobId, JobInfo, Outcome, Priority};
+use crate::ratelimit::{BucketStatus, SendRecord};
+
+/// A recent daemon-side error (job failures, auth/keyring trouble), for the
+/// dashboard. Everything in here is also in the daemon log.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ErrorRecord {
+    pub seconds_ago: f64,
+    pub message: String,
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "req", rename_all = "snake_case")]
@@ -50,6 +59,9 @@ pub enum Request {
     AuthLogout,
     DaemonStatus,
     DaemonStop,
+    /// Everything the live dashboard renders, in one round-trip: daemon
+    /// vitals, auth state, limiter buckets, jobs, HTTP sends, recent errors.
+    Dashboard,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -58,6 +70,10 @@ pub enum Response {
     Hello {
         daemon_version: String,
         pid: u32,
+        /// "mock" or "ggg"; clients respawn a daemon running the wrong mode.
+        /// Defaulted so a pre-provider daemon parses as a mismatch, not an error.
+        #[serde(default)]
+        provider: String,
     },
     Submitted {
         id: JobId,
@@ -86,10 +102,14 @@ pub enum Response {
         /// "ok" or an error description; sessions still work in-memory when
         /// the keyring is unavailable.
         keyring: String,
+        #[serde(default)]
+        provider: String,
     },
     DaemonStatus {
         pid: u32,
         version: String,
+        #[serde(default)]
+        provider: String,
         uptime_seconds: u64,
         connections: usize,
         jobs_waiting: usize,
@@ -98,6 +118,23 @@ pub enum Response {
         oauth_tokens_available: u32,
     },
     Stopping,
+    Dashboard {
+        pid: u32,
+        version: String,
+        provider: String,
+        uptime_seconds: u64,
+        connections: usize,
+        logged_in: bool,
+        username: Option<String>,
+        access_expires_in_seconds: Option<u64>,
+        keyring: String,
+        buckets: Vec<BucketStatus>,
+        jobs: Vec<JobInfo>,
+        /// Newest first.
+        sends: Vec<SendRecord>,
+        /// Newest first.
+        errors: Vec<ErrorRecord>,
+    },
     Error {
         message: String,
     },
