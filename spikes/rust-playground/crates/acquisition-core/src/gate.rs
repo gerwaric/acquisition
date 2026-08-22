@@ -57,6 +57,12 @@ impl SendGate {
         }
     }
 
+    /// Live actual-send reservations and the Cloudflare-facing bound.
+    pub(crate) fn occupancy(&self) -> (usize, usize) {
+        let state = self.inner.state.lock().unwrap();
+        (state.active.len(), MAX_ACTUAL_SENDS)
+    }
+
     /// Acquire one ordinary actual-send slot under `policy`.
     ///
     /// At most one permit for a policy can be live. Waiters are considered in

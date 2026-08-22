@@ -15,8 +15,7 @@ claim number. Starting the daemon with `ACQ_GGG=1` opts into the real
 provider (see below). All daemon-owned HTTP reaches one structural choke
 point: the only `reqwest::Client` in the workspace lives inside
 `ChokePoint`, and token exchange/refresh feed their responses back into the
-limiter. The current `Paid` receipt and dispatcher cap are not yet an
-actual-request, send-lifetime gate; that gap is described below. A 429
+limiter. Its common gate owns the actual-request, send-lifetime bound. A 429
 re-queues the job behind the limiter's hold (shown as `↻n` in job tables),
 bounded by `MAX_429_RETRIES`; a Cloudflare-shaped 403/503 is never retried.
 
@@ -26,12 +25,10 @@ bounded by `MAX_429_RETRIES`; a Cloudflare-shaped 403/503 is never retried.
   boundaries, and session handoff protocol for the in-progress network cleanup.
 - `crates/acquisition-core` — protocol types, job model, header-driven rate
   limiter + choke point, the mock provider, and the daemon itself (priority
-  queue + dispatcher + Unix-socket server + idle watchdog). Today the
-  dispatcher has `MAX_IN_FLIGHT = 2`, at most one selected job per policy,
-  and at most one probe job (N18), but this bounds job tasks rather than
-  actual HTTP: pacing/auth waits occupy slots, while OAuth requests have no
-  independent send permit and can overlap the accounted jobs. The settled
-  P-B/N33 target is one common gate inside the choke point,
+  queue + dispatcher + Unix-socket server + idle watchdog). The dispatcher
+  keeps at most one active job task per scheduling key to preserve priority
+  and FIFO, with no global job-task cap; pacing/auth waits do not block
+  independent keys. The P-B/N33 bound is one common gate inside the choke point,
   held for the lifetime of every daemon-owned API, HEAD, code-exchange, and
   refresh request. Token traffic serializes under `oauth-token` before its
   policy is learned and `token-request-limit` afterward. Authentication
@@ -112,15 +109,6 @@ tokens live 60 seconds, so silent refresh is exercised constantly.
 
 ## Known gaps
 
-- **The global burst bound is not yet an actual HTTP gate.** `MAX_IN_FLIGHT`
-  counts selected job tasks, including rate/auth waits, while OAuth requests
-  have no independent permit; `Paid` is evidence of an earlier check rather
-  than a reservation.
-  The settled replacement is the common send-lifetime choke-point gate
-  described above, including the serialized N33 token policy. For N33's
-  one-window `60:30:30` rule, use conservative 60s bucket padding until its
-  hidden resolution is confirmed through N14; the paired API-policy
-  first=5s/later=60s hypothesis does not classify it.
 - **`ACQ_MOCK_DEGRADED_HEAD=1`** makes the mock reproduce the Dec-2023
   regression (N20) so the degraded path can be exercised.
 - **Refresh has no delta/selection smarts.** `--all` fetches every listed

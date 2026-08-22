@@ -29,15 +29,6 @@ const IDLE_POLL: Duration = Duration::from_secs(5);
 const ERROR_HISTORY: usize = 50;
 /// Probes outrank everything: every job on that route is waiting on one.
 const PROBE_PRIORITY: Priority = u8::MAX;
-/// The global burst bound (ground truth P-B). Policies count independently
-/// (N6, N7), so the header layer alone would let one request per policy go
-/// out at the same instant; Cloudflare in front of it watches bursts across
-/// everything (N1, N2) and compliant traffic is slow anyway (N4), so a small
-/// cap costs nothing and keeps that layer invisible. On top of this cap: at
-/// most one request in flight per policy (the limiter's lookback assumes
-/// responses arrive before the next decision) and at most one probe in
-/// flight, ever (N18).
-pub const MAX_IN_FLIGHT: usize = 2;
 /// How many times a job is re-queued after a 429 before it fails for good
 /// (ground truth P-A: violations are structural, so recovery is required;
 /// N10: frequent violations get the application revoked, so it is bounded).
@@ -81,7 +72,7 @@ struct Entry {
     outcome: Option<Outcome>,
     cancel_requested: bool,
     /// A parent's own result, held back until its descendants finish. Set
-    /// means "running, waiting on children, not holding a slot".
+    /// means "running, waiting on children, with no active dispatcher task".
     deferred: Option<Outcome>,
 }
 
@@ -144,8 +135,12 @@ struct Shared {
     /// Recent errors for the dashboard, newest last (bounded ring). Every
     /// entry is also in the log; this is the structured, queryable subset.
     errors: VecDeque<(Instant, String)>,
-    /// Jobs holding an in-flight slot → the key they serialize on.
-    in_flight: HashMap<JobId, String>,
+    /// Jobs with an active dispatcher task → their scheduling key.
+    ///
+    /// This is ordering ownership, not HTTP capacity: N4's send gate owns the
+    /// actual-send bound. One active task per key keeps same-policy priority
+    /// and FIFO stable without letting auth or pacing waits block other keys.
+    active_jobs: HashMap<JobId, String>,
 }
 
 impl Shared {
@@ -510,27 +505,25 @@ impl Daemon {
 
     // ---- dispatcher -----------------------------------------------------
 
-    /// Hands out in-flight slots under the P-B rules and runs each picked
-    /// job on its own task. Woken by submits, completions, and reprioritization.
+    /// Starts at most one task per scheduling key. N4's gate, not this
+    /// dispatcher, owns actual-send capacity. Woken by submits, completions,
+    /// and reprioritization.
     async fn dispatcher(self: Arc<Self>) {
         loop {
             let picks = self.pick_runnable();
             for id in picks {
-                tokio::spawn(self.clone().run_slot(id));
+                tokio::spawn(self.clone().run_active(id));
             }
             self.work.notified().await;
         }
     }
 
-    /// Waiting jobs, in dispatch order, that can take a slot right now.
+    /// Waiting jobs, in dispatch order, that can start a task right now.
     fn pick_runnable(&self) -> Vec<JobId> {
         let mut s = self.shared.lock().unwrap();
-        let mut busy: HashSet<String> = s.in_flight.values().cloned().collect();
+        let mut busy: HashSet<String> = s.active_jobs.values().cloned().collect();
         let mut picks = Vec::new();
         for id in s.queue_order() {
-            if s.in_flight.len() + picks.len() >= MAX_IN_FLIGHT {
-                break;
-            }
             let entry = &s.jobs[&id];
             // A job whose route is still being probed has nothing to do yet.
             if let Some((route, _)) = self.route_for(&entry.info.kind, &entry.params)
@@ -547,14 +540,14 @@ impl Daemon {
             picks.push((id, key));
         }
         for (id, key) in &picks {
-            s.in_flight.insert(*id, key.clone());
+            s.active_jobs.insert(*id, key.clone());
         }
         picks.into_iter().map(|(id, _)| id).collect()
     }
 
-    async fn run_slot(self: Arc<Self>, id: JobId) {
+    async fn run_active(self: Arc<Self>, id: JobId) {
         self.process(id).await;
-        self.shared.lock().unwrap().in_flight.remove(&id);
+        self.shared.lock().unwrap().active_jobs.remove(&id);
         self.work.notify_one();
     }
 
@@ -573,7 +566,7 @@ impl Daemon {
             match self.choke.endpoint_state(route) {
                 EndpointState::Unknown => {
                     self.ensure_probe(route, url);
-                    return; // slot released; the probe outranks us
+                    return; // scheduling key released; the probe outranks us
                 }
                 EndpointState::Degraded { until, reason } => {
                     let left = until.saturating_duration_since(self.choke.now()).as_secs();
@@ -599,7 +592,7 @@ impl Daemon {
                         return; // cancelled out from under us
                     }
                     // A higher-priority job on the same key may have arrived;
-                    // give the slot back so the dispatcher picks it instead.
+                    // give the key back so the dispatcher picks it instead.
                     let my_key = self.serial_key(me);
                     let outranked = s
                         .queue_order()
@@ -662,7 +655,7 @@ impl Daemon {
                             info.retries
                         ));
                         self.emit(info);
-                        return; // slot released; the dispatcher re-picks after the hold
+                        return; // scheduling key released; re-pick after the hold
                     }
                     None => Outcome::Failure {
                         error: format!(
@@ -676,7 +669,7 @@ impl Daemon {
             self.note_error(&format!("job {id} ({kind}): {error}"));
         }
         // A job that spawned children holds its own result until they're
-        // all done. It gives its slot back (we return) so children can run.
+        // all done. It gives its scheduling key back so children can run.
         let has_children = {
             let mut s = self.shared.lock().unwrap();
             let spawned = s.jobs.values().any(|e| e.info.parent == Some(id));
@@ -1571,6 +1564,7 @@ impl Daemon {
             }
             Request::DaemonStatus => {
                 let s = self.shared.lock().unwrap();
+                let (in_flight, max_in_flight) = self.choke.actual_send_occupancy();
                 let (waiting, running) =
                     s.jobs
                         .values()
@@ -1588,13 +1582,14 @@ impl Daemon {
                     jobs_waiting: waiting,
                     jobs_running: running,
                     policies_known: self.choke.policy_statuses().len(),
-                    in_flight: s.in_flight.len(),
-                    max_in_flight: MAX_IN_FLIGHT,
+                    in_flight,
+                    max_in_flight,
                 }
             }
             Request::DaemonStop => Response::Stopping,
             Request::Dashboard => {
                 let s = self.shared.lock().unwrap();
+                let (in_flight, max_in_flight) = self.choke.actual_send_occupancy();
                 Response::Dashboard {
                     pid: std::process::id(),
                     version: VERSION.to_string(),
@@ -1608,8 +1603,8 @@ impl Daemon {
                         .access_expires_at
                         .map(|t| t.saturating_duration_since(Instant::now()).as_secs()),
                     keyring: s.auth.keyring.clone(),
-                    in_flight: s.in_flight.len(),
-                    max_in_flight: MAX_IN_FLIGHT,
+                    in_flight,
+                    max_in_flight,
                     policies: self.choke.policy_statuses(),
                     policyless_endpoints: self.choke.policyless_endpoints(),
                     degraded_endpoints: self.choke.degraded_endpoints(),
@@ -1812,7 +1807,7 @@ pub async fn run() -> Result<()> {
             last_activity: Instant::now(),
             started: Instant::now(),
             errors: VecDeque::new(),
-            in_flight: HashMap::new(),
+            active_jobs: HashMap::new(),
         }),
         events: broadcast::channel(256).0,
         work: Notify::new(),
@@ -2036,7 +2031,7 @@ mod auth_session_tests {
                 last_activity: Instant::now(),
                 started: Instant::now(),
                 errors: VecDeque::new(),
-                in_flight: HashMap::new(),
+                active_jobs: HashMap::new(),
             }),
             events: broadcast::channel(16).0,
             work: Notify::new(),
@@ -2557,7 +2552,8 @@ mod dispatcher_tests {
     use crate::ratelimit::Clock;
     use std::future::Future;
     use std::pin::Pin;
-    use std::sync::atomic::{AtomicU64, Ordering};
+    use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+    use tokio::sync::{Semaphore, oneshot};
 
     struct ManualClock {
         now: Mutex<Instant>,
@@ -2591,6 +2587,72 @@ mod dispatcher_tests {
                 }
                 tokio::task::yield_now().await;
             })
+        }
+    }
+
+    struct BlockingClock {
+        now: Mutex<Instant>,
+        sleepers: AtomicUsize,
+        releases: Semaphore,
+    }
+
+    impl BlockingClock {
+        fn new() -> Self {
+            BlockingClock {
+                now: Mutex::new(Instant::now()),
+                sleepers: AtomicUsize::new(0),
+                releases: Semaphore::new(0),
+            }
+        }
+
+        async fn wait_for_sleepers(&self, expected: usize) {
+            tokio::time::timeout(Duration::from_secs(1), async {
+                while self.sleepers.load(Ordering::SeqCst) < expected {
+                    tokio::task::yield_now().await;
+                }
+            })
+            .await
+            .expect("dispatcher jobs reached their limiter waits");
+        }
+
+        fn release(&self, count: usize) {
+            self.releases.add_permits(count);
+        }
+    }
+
+    impl Clock for BlockingClock {
+        fn now(&self) -> Instant {
+            *self.now.lock().unwrap()
+        }
+
+        fn sleep(&self, duration: Duration) -> Pin<Box<dyn Future<Output = ()> + Send + '_>> {
+            Box::pin(async move {
+                self.sleepers.fetch_add(1, Ordering::SeqCst);
+                self.releases
+                    .acquire()
+                    .await
+                    .expect("test clock remains open")
+                    .forget();
+                let mut now = self.now.lock().unwrap();
+                *now = now.checked_add(duration).expect("bounded test deadline");
+            })
+        }
+    }
+
+    struct NoopCredentialStore;
+
+    impl CredentialStore for NoopCredentialStore {
+        fn save(
+            &self,
+            _service: &str,
+            _refresh_token: &str,
+            _username: &str,
+        ) -> Result<(), String> {
+            Ok(())
+        }
+
+        fn clear(&self, _service: &str) -> Result<(), String> {
+            Ok(())
         }
     }
 
@@ -2658,9 +2720,72 @@ mod dispatcher_tests {
         (base, requests, task)
     }
 
+    async fn saturated_probe_server() -> (String, tokio::task::JoinHandle<()>) {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let base = format!("http://{}", listener.local_addr().unwrap());
+        let task = tokio::spawn(async move {
+            for (path, policy) in [
+                ("/character", "character-test-policy"),
+                ("/stash/Standard", "stash-list-test-policy"),
+            ] {
+                let (mut stream, _) = listener.accept().await.unwrap();
+                let request = mockggg::read_request(&mut stream).await.unwrap();
+                assert_eq!(request.method, "HEAD");
+                assert_eq!(request.path, path);
+                let headers = format!(
+                    "X-Rate-Limit-Policy: {policy}\r\nX-Rate-Limit-Rules: Account\r\nX-Rate-Limit-Account: 1:1:60\r\nX-Rate-Limit-Account-State: 1:1:0\r\n"
+                );
+                mockggg::respond_with(
+                    &mut stream,
+                    "204 No Content",
+                    "application/json",
+                    &headers,
+                    "",
+                )
+                .await;
+            }
+        });
+        (base, task)
+    }
+
+    async fn delayed_token_server() -> (
+        String,
+        oneshot::Receiver<()>,
+        oneshot::Sender<()>,
+        tokio::task::JoinHandle<()>,
+    ) {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let base = format!("http://{}", listener.local_addr().unwrap());
+        let (arrived_tx, arrived_rx) = oneshot::channel();
+        let (release_tx, release_rx) = oneshot::channel();
+        let task = tokio::spawn(async move {
+            let (mut stream, _) = listener.accept().await.unwrap();
+            let request = mockggg::read_request(&mut stream).await.unwrap();
+            assert_eq!(request.method, "POST");
+            assert_eq!(request.path, "/token");
+            arrived_tx.send(()).unwrap();
+            release_rx.await.unwrap();
+            let body = json!({
+                "access_token": "at-new",
+                "refresh_token": "rt-rotated",
+                "expires_in": 3600,
+                "username": "test-user",
+            })
+            .to_string();
+            let headers = concat!(
+                "X-Rate-Limit-Policy: token-request-limit\r\n",
+                "X-Rate-Limit-Rules: Ip\r\n",
+                "X-Rate-Limit-Ip: 60:30:30\r\n",
+                "X-Rate-Limit-Ip-State: 1:30:0\r\n",
+            );
+            mockggg::respond_with(&mut stream, "200 OK", "application/json", headers, &body).await;
+        });
+        (base, arrived_rx, release_tx, task)
+    }
+
     static TEST_LOG_ID: AtomicU64 = AtomicU64::new(1);
 
-    fn test_daemon(base: &str, clock: Arc<ManualClock>) -> (Arc<Daemon>, PathBuf) {
+    fn test_daemon(base: &str, clock: Arc<dyn Clock>) -> (Arc<Daemon>, PathBuf) {
         let log_path = std::env::temp_dir().join(format!(
             "acquisition-n1-dispatcher-{}-{}.log",
             std::process::id(),
@@ -2681,7 +2806,7 @@ mod dispatcher_tests {
                 last_activity: Instant::now(),
                 started: Instant::now(),
                 errors: VecDeque::new(),
-                in_flight: HashMap::new(),
+                active_jobs: HashMap::new(),
             }),
             events: broadcast::channel(256).0,
             work: Notify::new(),
@@ -2734,6 +2859,120 @@ mod dispatcher_tests {
 
     fn finish_harness(dispatcher: tokio::task::JoinHandle<()>, log_path: &PathBuf) {
         dispatcher.abort();
+        let _ = std::fs::remove_file(log_path);
+    }
+
+    #[tokio::test]
+    async fn dispatcher_auth_waits_do_not_cap_independent_job_progress() {
+        let (base, arrived, release, server) = delayed_token_server().await;
+        let clock = Arc::new(ManualClock::new());
+        let (mut daemon, log_path) = test_daemon(&base, clock);
+        Arc::get_mut(&mut daemon).unwrap().credential_store = Arc::new(NoopCredentialStore);
+        {
+            let mut shared = daemon.shared.lock().unwrap();
+            shared.auth.refresh_token = Some("rt-old".into());
+            shared.auth.username = Some("old-user".into());
+        }
+        let dispatcher = tokio::spawn(daemon.clone().dispatcher());
+        let first = daemon.submit("profile".into(), json!({}), 0, "test".into());
+        let second = daemon.submit("profile".into(), json!({}), 0, "test".into());
+
+        arrived.await.unwrap();
+        tokio::time::timeout(Duration::from_secs(1), async {
+            loop {
+                let waiters = daemon
+                    .shared
+                    .lock()
+                    .unwrap()
+                    .auth
+                    .refresh_flight
+                    .as_ref()
+                    .map_or(0, |flight| flight.result.receiver_count());
+                if waiters == 1 {
+                    break;
+                }
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("second job joined the refresh owner");
+
+        let independent =
+            daemon.submit("sleep".into(), json!({ "seconds": 0.0 }), 0, "test".into());
+        let (info, _) = wait_terminal(&daemon, independent).await;
+        assert_eq!(info.state, JobState::Done);
+
+        release.send(()).unwrap();
+        assert_eq!(wait_terminal(&daemon, first).await.0.state, JobState::Done);
+        assert_eq!(wait_terminal(&daemon, second).await.0.state, JobState::Done);
+        server.await.unwrap();
+        finish_harness(dispatcher, &log_path);
+    }
+
+    #[tokio::test]
+    async fn dispatcher_rate_waits_do_not_cap_independent_job_progress() {
+        let (base, server) = saturated_probe_server().await;
+        let clock = Arc::new(BlockingClock::new());
+        let (daemon, log_path) = test_daemon(&base, clock.clone());
+        daemon
+            .choke
+            .head("character-list", &format!("{base}/character"), None)
+            .await
+            .unwrap();
+        daemon
+            .choke
+            .head("stash-list", &format!("{base}/stash/Standard"), None)
+            .await
+            .unwrap();
+        server.await.unwrap();
+
+        let dispatcher = tokio::spawn(daemon.clone().dispatcher());
+        let characters = daemon.submit("characters".into(), json!({}), 0, "test".into());
+        let stashes = daemon.submit(
+            "stashes".into(),
+            json!({ "league": "Standard" }),
+            0,
+            "test".into(),
+        );
+        clock.wait_for_sleepers(2).await;
+
+        let independent =
+            daemon.submit("sleep".into(), json!({ "seconds": 0.0 }), 0, "test".into());
+        let (info, _) = wait_terminal(&daemon, independent).await;
+        assert_eq!(info.state, JobState::Done);
+
+        // The dispatcher pre-waits in one-second cancellation slices.
+        clock.release(20);
+        assert_eq!(
+            wait_terminal(&daemon, characters).await.0.state,
+            JobState::Failed
+        );
+        assert_eq!(
+            wait_terminal(&daemon, stashes).await.0.state,
+            JobState::Failed
+        );
+        finish_harness(dispatcher, &log_path);
+    }
+
+    #[test]
+    fn dispatcher_preserves_priority_within_a_scheduling_key() {
+        let clock = Arc::new(ManualClock::new());
+        let (daemon, log_path) = test_daemon("http://127.0.0.1:1", clock);
+        let low = daemon.submit("fetch".into(), json!({}), 1, "test".into());
+        let high = daemon.submit("fetch".into(), json!({}), 9, "test".into());
+
+        assert_eq!(daemon.pick_runnable(), vec![high]);
+        assert_eq!(
+            daemon
+                .shared
+                .lock()
+                .unwrap()
+                .active_jobs
+                .get(&high)
+                .map(String::as_str),
+            Some("fetch")
+        );
+        assert!(!daemon.shared.lock().unwrap().active_jobs.contains_key(&low));
         let _ = std::fs::remove_file(log_path);
     }
 

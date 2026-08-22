@@ -1306,6 +1306,11 @@ impl ChokePoint {
         self.limiter.lock().unwrap().statuses(self.now())
     }
 
+    /// Requests holding N4's live send gate and its global bound.
+    pub fn actual_send_occupancy(&self) -> (usize, usize) {
+        self.gate.occupancy()
+    }
+
     pub fn policyless_endpoints(&self) -> Vec<String> {
         self.limiter.lock().unwrap().policyless_endpoints()
     }
