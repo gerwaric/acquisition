@@ -24,8 +24,8 @@ review-only session.
 - Date recorded: 2026-08-22.
 - Branch: `spikes/rust-playground`.
 - Frozen gate-contract baseline: `1e17e812`.
-- Current implementation tip: `32e591c7dc0f9cdbd8e0a958fb277d9444df9608`.
-- Active package: none; N2, N3, and N4 are accepted, and N5 is the next
+- Current implementation tip: `cca89516ae22610fca84a1338bcfc720ce356364`.
+- Active package: none; N2, N3, N4, and N5 are accepted, and N6 is the next
   unblocked package.
 - Accepted N1 review range:
   `1e17e812..412c840e155b01f626560fcb097393d6a24b797c`.
@@ -70,8 +70,14 @@ review-only session.
   returned `accepted` with no new findings.
 - `N4-R1` is resolved. No unresolved N4 findings and no required N4 work
   remain.
-- N5 is unblocked. Start N5 next and keep it strictly within dispatcher
-  cleanup.
+- Accepted N5 implementation range:
+  `f6b1e6cb87753a00fc67144b5753923b5b1aa49e..cca89516ae22610fca84a1338bcfc720ce356364`.
+- N5 implementation commit:
+  `cca89516ae22610fca84a1338bcfc720ce356364`.
+- N5 review verdict: `accepted`; the independent review found no findings,
+  assigned no `N5-R` IDs, and found no unresolved or required N5 work.
+- N6 is unblocked. Start N6 next and keep it strictly within integration
+  stress testing and final frozen-design reconciliation.
 
 ## Package ledger
 
@@ -87,7 +93,7 @@ dependents.
 | N2 | OAuth refresh singleflight and session generations | H0 | accepted | `a74341263676b4bdb5ebade23ef862ea0a0e4127..0a47efecdb78de1202e29c8fe7faaa4d39e66372` |
 | N3 | Send-lifetime gate primitive and fairness semantics | H0 | accepted | `7f205d846ecab73c119532416f1a132010562b4c..510ea498a7f4fc9d75d04893eba6243768577fef` |
 | N4 | Gate integration in `ChokePoint`; remove `Paid` | N2, N3 | accepted | `bd9732d14c1940b2306ec7bae044ff73f70e0911f..32e591c7dc0f9cdbd8e0a958fb277d9444df9608` |
-| N5 | Dispatcher cleanup and removal of job-task head-of-line blocking | N4 | planned | — |
+| N5 | Dispatcher cleanup and removal of job-task head-of-line blocking | N4 | accepted | `f6b1e6cb87753a00fc67144b5753923b5b1aa49e..cca89516ae22610fca84a1338bcfc720ce356364` |
 | N6 | Integration stress tests and final frozen-design reconciliation | N5 | planned | — |
 
 N2 and N3 may be built in either order after H0. Keep them as separate commits
@@ -293,6 +299,41 @@ Stop treating jobs waiting on auth or rate limits as HTTP in-flight work.
 Remove the resulting cross-policy head-of-line blocking while preserving job
 priority, cancellation, route-probe behavior, and the actual-send bounds now
 owned by N4's gate.
+
+Implementation commit:
+
+- `cca89516ae22610fca84a1338bcfc720ce356364` — removes the dispatcher's
+  global job-task cap while retaining one active task per scheduling key, and
+  reports daemon and dashboard in-flight work from N4's live actual-send gate.
+
+Review verdict: `accepted` for exact implementation range
+`f6b1e6cb87753a00fc67144b5753923b5b1aa49e..cca89516ae22610fca84a1338bcfc720ce356364`.
+The independent review found no findings, assigned no `N5-R` IDs, and found no
+unresolved or required N5 work.
+
+The accepted review confirmed that dispatcher job tasks have no global cap;
+jobs waiting on authentication or rate limits do not block independent
+scheduling keys; and the remaining one-active-task-per-key ownership is
+ordering machinery rather than HTTP capacity. It found no duplicate task
+selection, lost dispatcher wakeups, priority inversions within a scheduling
+key, premature scheduling-key release, stale key ownership, or task growth
+beyond the intended one-active-task-per-key shape.
+
+Job priority and equal-priority FIFO, cancellation, visible route probes,
+strict one-probe-at-a-time behavior, bounded 429 recovery, retry exhaustion,
+requeue identity, and no retries through 403/503 Cloudflare-shaped failures
+remain preserved. Accepted N2 OAuth refresh ownership, generations, rotation,
+abandonment, registration, scopes, callback, user-agent, and keyring behavior;
+accepted N3 gate cap, per-policy serialization, permit lifetime, HEAD
+exclusivity, writer preference, FIFO, and cancellation safety; and accepted N4
+choke-point gate ownership, authentication-before-final-admission,
+token-policy mapping, and conservative N33 timing-bucket behavior all remain
+preserved. Daemon status and dashboard in-flight reporting now reflect N4's
+live actual-send gate.
+
+No scope expansion into gate semantics, limiter behavior, OAuth production
+code, response classification, observation, retry policy, or N6 integration
+work was found.
 
 ### N6 — integration and reconciliation
 
@@ -570,6 +611,50 @@ recorded:
   warnings`: passed.
 - `cargo fmt --all -- --check`: passed.
 
+### N5 accepted-review validation
+
+Independent review of exact implementation range
+`f6b1e6cb87753a00fc67144b5753923b5b1aa49e..cca89516ae22610fca84a1338bcfc720ce356364`
+recorded:
+
+- Package ID and role: N5 independent review.
+- Verdict: `accepted`; no findings were reported, no `N5-R` IDs were
+  assigned, and no unresolved or required N5 work remains.
+- Dispatcher job tasks have no global cap; jobs waiting on authentication or
+  rate limits do not block independent scheduling keys; the remaining
+  one-active-task-per-key ownership is ordering machinery rather than HTTP
+  capacity.
+- No duplicate task selection, lost dispatcher wakeups, priority inversions
+  within a scheduling key, premature scheduling-key release, stale key
+  ownership, or task growth beyond the intended one-active-task-per-key shape
+  was found.
+- Job priority and equal-priority FIFO, cancellation, visible route probes,
+  strict one-probe-at-a-time behavior, bounded 429 recovery, retry exhaustion,
+  requeue identity, and no retries through 403/503 Cloudflare-shaped failures
+  remain preserved.
+- Accepted N2 OAuth refresh ownership, generations, rotation, abandonment,
+  registration, scopes, callback, user-agent, and keyring behavior remain
+  preserved.
+- Accepted N3 gate cap, per-policy serialization, permit lifetime, HEAD
+  exclusivity, writer preference, FIFO, and cancellation safety remain
+  preserved.
+- Accepted N4 choke-point gate ownership,
+  authentication-before-final-admission, token-policy mapping, and
+  conservative N33 timing-bucket behavior remain preserved.
+- Daemon status and dashboard in-flight reporting reflect N4's live
+  actual-send gate.
+- No scope expansion into gate semantics, limiter behavior, OAuth production
+  code, response classification, observation, retry policy, or N6 integration
+  work was found.
+- `cargo test --workspace --all-targets`: passed, 67 core tests and 0 CLI
+  tests, with 0 failures.
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings`:
+  passed.
+- `cargo clippy -p acquisition-core --all-targets --all-features -- -D
+  warnings`: passed.
+- `cargo fmt --all -- --check`: passed.
+- `git diff --check` for the reviewed range: passed.
+
 ## Session protocol
 
 Each session owns exactly one role and package:
@@ -612,43 +697,53 @@ core crate's strict Clippy check remains an additional semantic-package gate.
 
 ## Next action and exact kickoff prompt
 
-The single next action is an N5 dispatcher-cleanup build session. Use this
+The single next action is an N6 integration-and-reconciliation build session. Use this
 prompt verbatim:
 
 ```text
 Read AGENTS.md, CONTEXT.md, README.md, NETWORK-CLEANUP.md, and the frozen
-network design documents referenced there before editing. This is an N5
-build-only session. Start from the current clean spikes/rust-playground branch
-tip, which must contain the coordination commit recording N2 as accepted and
-unchanged, and N3 as accepted for exact implementation range
-7f205d846ecab73c119532416f1a132010562b4c..510ea498a7f4fc9d75d04893eba6243768577fef,
-and N4 as accepted for combined exact implementation range
-bd9732d14c1940b2306ec7bae044ff73f70e0911f..32e591c7dc0f9cdbd8e0a958fb277d9444df9608,
-with no unresolved N2–N4 work. Record the exact starting hash before editing;
+network design documents referenced there before editing. This is an N6
+integration-and-reconciliation build-only session. Start from the current
+clean spikes/rust-playground branch tip, which must contain the coordination
+commit recording N2, N3, and N4 as accepted and unchanged, and N5 as accepted
+for exact implementation range
+f6b1e6cb87753a00fc67144b5753923b5b1aa49e..cca89516ae22610fca84a1338bcfc720ce356364,
+with no unresolved N2–N5 work. Record the exact starting hash before editing;
 if the worktree is not clean or that ledger state is absent, stop and report
 the mismatch.
 
-Implement and test only N5: remove dispatcher job-task head-of-line blocking
-now that the actual-send gate is owned by N4. Jobs waiting on authentication
-or rate limits must no longer consume the dispatcher capacity that represents
-HTTP progress. Preserve job priority, cancellation, route-probe behavior,
-bounded 429 recovery, and all accepted N2–N4 behavior, including OAuth refresh
-ownership and registration/scopes/callback/user-agent/keyring behavior, N3's
-gate semantics, and N4's choke-point gate ownership and token-policy mapping.
+Implement and test only N6: add integration stress coverage for mixed API
+policies, HEAD probes, token refresh, cancellation, 429s, and rotated tokens.
+Then compare the implementation line by line with the frozen design's strict
+parsing, response classifications, permit lifetime, HEAD exclusivity, and
+writer-preference rules. Record any intentional divergence in the
+authoritative design or findings register, not only in NETWORK-CLEANUP.md.
 
-Keep N5 strictly within its frozen dispatcher-cleanup package definition. Do
-not redesign the gate, limiter, OAuth flow, response classification or
-observation, probe semantics, or retry policy; do not begin N6 integration
-work, edit frozen design documents, or contact GGG.
+Preserve all accepted N2–N5 behavior: OAuth refresh ownership, generations,
+rotation, abandonment, registration, scopes, callback, user-agent, and
+keyring behavior; the gate cap, per-policy serialization, live permit
+lifetime, HEAD exclusivity, writer preference, FIFO, and cancellation safety;
+choke-point ownership, authentication-before-final-admission, token-policy
+mapping, conservative N33 timing-bucket behavior, and actual-send reporting;
+and dispatcher priority, equal-priority FIFO, one-active-task-per-key
+ordering, route probes, cancellation, bounded retry/requeue behavior, and
+independent-key progress.
+
+Keep N6 strictly within its frozen integration-stress and final-reconciliation
+package definition. Do not redesign the gate, limiter, OAuth flow, response
+classification or observation, probe semantics, retry policy, dispatcher, or
+job model; do not contact GGG. If the line-by-line comparison exposes a real
+conflict that cannot be reconciled within N6 without redesign, record it with
+stable evidence and stop rather than expanding scope.
 
 Run cargo test --workspace --all-targets; cargo clippy --workspace
 --all-targets --all-features -- -D warnings; cargo clippy -p acquisition-core
 --all-targets --all-features -- -D warnings; and cargo fmt --all -- --check.
-Record exact outcomes. Commit only N5 with an N5-labeled message. Do not mark
-N5 accepted. Return the exact starting and ending hashes, clean worktree state,
+Record exact outcomes. Commit only N6 with an N6-labeled message. Do not mark
+N6 accepted. Return the exact starting and ending hashes, clean worktree state,
 scope completed, checks, unresolved findings, and the single next action: an
-independent N5 review of the exact coordination-tip-to-N5-tip range.
+independent N6 review of the exact coordination-tip-to-N6-tip range.
 ```
 
-Only an independent N5 review with no required work remaining may mark N5
-accepted. N5 must remain a separate package and review from N4 and N6.
+Only an independent N6 review with no required work remaining may mark N6
+accepted. N6 must remain a separate package and review from N5.
