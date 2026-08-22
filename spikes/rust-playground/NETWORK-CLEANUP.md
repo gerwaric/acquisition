@@ -25,10 +25,9 @@ review-only session.
 - Branch: `spikes/rust-playground`.
 - Frozen gate-contract baseline: `1e17e812`.
 - Current accepted implementation tip:
-  `cca89516ae22610fca84a1338bcfc720ce356364`.
-- Active package: N6 is built but not accepted. The N6 review returned the
-  single Low test-gap finding N6-R1; the fix is in the commit containing this
-  record and awaits independent fix-only review.
+  `29a2214be210097bfba1ac85cc3d78da2683d941`.
+- Active package: none. N6 is accepted; the independent N6-R1 fix-only review
+  found N6-R1 resolved, no new findings, and no remaining required N6 work.
 - Accepted N1 review range:
   `1e17e812..412c840e155b01f626560fcb097393d6a24b797c`.
 - N1 fix commit: `412c840e155b01f626560fcb097393d6a24b797c`
@@ -78,11 +77,17 @@ review-only session.
   `cca89516ae22610fca84a1338bcfc720ce356364`.
 - N5 review verdict: `accepted`; the independent review found no findings,
   assigned no `N5-R` IDs, and found no unresolved or required N5 work.
-- N6 build started from exact coordination tip
-  `cffbf8b614efdbb4f36d5a846c76a67ea71b847e`; N6-R1 fixes the review's
-  single test gap from exact N6 build tip
-  `248f03bca7a78d7483dae89ccbc15cd947a25343` and awaits independent
-  fix-only review.
+- Accepted N6 implementation range:
+  `cffbf8b614efdbb4f36d5a846c76a67ea71b847e..29a2214be210097bfba1ac85cc3d78da2683d941`.
+- N6 build commit:
+  `248f03bca7a78d7483dae89ccbc15cd947a25343`.
+- N6-R1 fix commit:
+  `29a2214be210097bfba1ac85cc3d78da2683d941`.
+- N6 review verdict: the original independent review opened the single Low
+  test-gap finding `N6-R1`; independent fix-only review of exact range
+  `248f03bca7a78d7483dae89ccbc15cd947a25343..29a2214be210097bfba1ac85cc3d78da2683d941`
+  returned `accepted`, found `N6-R1` resolved, reported no new findings, and
+  found no remaining required N6 work.
 
 ## Package ledger
 
@@ -99,7 +104,7 @@ dependents.
 | N3 | Send-lifetime gate primitive and fairness semantics | H0 | accepted | `7f205d846ecab73c119532416f1a132010562b4c..510ea498a7f4fc9d75d04893eba6243768577fef` |
 | N4 | Gate integration in `ChokePoint`; remove `Paid` | N2, N3 | accepted | `bd9732d14c1940b2306ec7bae044ff73f70e0911f..32e591c7dc0f9cdbd8e0a958fb277d9444df9608` |
 | N5 | Dispatcher cleanup and removal of job-task head-of-line blocking | N4 | accepted | `f6b1e6cb87753a00fc67144b5753923b5b1aa49e..cca89516ae22610fca84a1338bcfc720ce356364` |
-| N6 | Integration stress tests and final frozen-design reconciliation | N5 | built | `cffbf8b614efdbb4f36d5a846c76a67ea71b847e..N6-R1 fix tip` |
+| N6 | Integration stress tests and final frozen-design reconciliation | N5 | accepted | `cffbf8b614efdbb4f36d5a846c76a67ea71b847e..29a2214be210097bfba1ac85cc3d78da2683d941` |
 
 N2 and N3 may be built in either order after H0. Keep them as separate commits
 and review them separately. N4 is the first package allowed to depend on both.
@@ -418,8 +423,8 @@ Build validation:
 - `git diff --check`: passed before commit.
 
 The original build session opened no findings. The independent N6 review later
-opened N6-R1; its fix-session result is recorded below. N6 remains built and
-not accepted.
+opened N6-R1; its fix-session and accepted fix-only review results are recorded
+below. At the original-review checkpoint, N6 remained built and not accepted.
 
 Fix-session result (not an acceptance verdict):
 
@@ -447,6 +452,27 @@ Fix-session result (not an acceptance verdict):
   Clippy commands, format check, and diff check all completed with no failures
   or warnings. Exact commands are recorded in the N6-R1 entry below.
 
+Accepted fix-only review result:
+
+- Exact independently reviewed range:
+  `248f03bca7a78d7483dae89ccbc15cd947a25343..29a2214be210097bfba1ac85cc3d78da2683d941`.
+- Verdict: `accepted`; `N6-R1` is resolved, no new findings were reported, and
+  no unresolved or required N6 work remains.
+- Accepted N2–N5 behavior remains preserved, including OAuth refresh ownership
+  and generations, send-lifetime gate semantics, choke-point ownership and
+  token-policy timing, dispatcher ordering and independent-key progress,
+  response observation/classification, bounded recovery, probes, cancellation,
+  registration, and keyring behavior.
+- No production scope expansion occurred. Production gate, limiter, OAuth,
+  response classification/observation, probe, retry, dispatcher, cancellation,
+  and job-model behavior remain unchanged. No frozen design or ground-truth
+  claim changed.
+- Review validation passed: `cargo test --workspace --all-targets` (69 core
+  tests, 0 CLI tests, 0 failures); both required strict Clippy commands;
+  `cargo fmt --all -- --check`; and `git diff --check`.
+- N6 is accepted at
+  `29a2214be210097bfba1ac85cc3d78da2683d941`.
+
 ## Review register
 
 | Finding | Severity | Package | Summary | Status | Fix commit |
@@ -456,7 +482,7 @@ Fix-session result (not an acceptance verdict):
 | N1-R3 | Low | N1 | Bounded retry/probe behavior lacks coverage through the real dispatcher lifecycle | resolved | `412c840e155b01f626560fcb097393d6a24b797c` |
 | N2-R1 | High | N2 | Abandoned refresh owner permanently strands waiters | resolved | `0a47efecdb78de1202e29c8fe7faaa4d39e66372` |
 | N4-R1 | Low | N4 | ETA simulation bypasses the token policy's conservative timing-bucket selection | resolved | `32e591c7dc0f9cdbd8e0a958fb277d9444df9608` |
-| N6-R1 | Low | N6 | N6 integration stress did not exercise refresh singleflight | resolved; awaiting fix-only review | commit containing this record |
+| N6-R1 | Low | N6 | N6 integration stress did not exercise refresh singleflight | resolved | `29a2214be210097bfba1ac85cc3d78da2683d941` |
 
 For every finding, retain the concrete scenario, exact file and line references,
 affected invariant/design rule/ground-truth claim, classification (confirmed
@@ -505,9 +531,31 @@ tests. Preserve sound behavior explicitly in the review handoff.
   69 core tests and 0 CLI tests, with 0 failures; `cargo clippy --workspace
   --all-targets --all-features -- -D warnings` passed; `cargo clippy -p
   acquisition-core --all-targets --all-features -- -D warnings` passed;
-  `cargo fmt --all -- --check` passed; and `git diff --check` passed. N6 stays
-  built and not accepted until independent review of the exact N6-R1 fix
-  range.
+  `cargo fmt --all -- --check` passed; and `git diff --check` passed. At the
+  fix-session checkpoint, N6 stayed built and not accepted pending independent
+  review of the exact N6-R1 fix range.
+
+### N6 accepted-review validation
+
+Independent fix-only review of exact range
+`248f03bca7a78d7483dae89ccbc15cd947a25343..29a2214be210097bfba1ac85cc3d78da2683d941`
+recorded:
+
+- Verdict: `accepted`; `N6-R1` is resolved, no new findings were reported, and
+  no unresolved or required N6 work remains.
+- The original N6 build at
+  `248f03bca7a78d7483dae89ccbc15cd947a25343` and the N6-R1 fix at
+  `29a2214be210097bfba1ac85cc3d78da2683d941` remain separate, exact history.
+- Accepted N2–N5 behavior remains preserved. No production scope expansion or
+  new finding occurred.
+- `cargo test --workspace --all-targets`: passed, 69 core tests and 0 CLI
+  tests, with 0 failures.
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings`:
+  passed.
+- `cargo clippy -p acquisition-core --all-targets --all-features -- -D
+  warnings`: passed.
+- `cargo fmt --all -- --check`: passed.
+- `git diff --check`: passed.
 
 ### N1-R1 — numeric values can panic deadline arithmetic
 
@@ -832,71 +880,24 @@ available. Do not stack new semantic work on a package whose review is pending.
 
 ## Quality-gate baseline
 
-Recorded at accepted N4 tip `32e591c7dc0f9cdbd8e0a958fb277d9444df9608`
+Recorded at accepted N6 tip `29a2214be210097bfba1ac85cc3d78da2683d941`
 on 2026-08-22:
 
-- `cargo test --workspace --all-targets`: passed, 64 core tests and 0 CLI
+- `cargo test --workspace --all-targets`: passed, 69 core tests and 0 CLI
   tests, with 0 failures.
 - `cargo clippy --workspace --all-targets --all-features -- -D warnings`:
   passed.
 - `cargo clippy -p acquisition-core --all-targets --all-features -- -D
   warnings`: passed.
 - `cargo fmt --all -- --check`: passed.
+- `git diff --check`: passed.
 
 All three workspace gates must remain green for every later package; the
 core crate's strict Clippy check remains an additional semantic-package gate.
 
-## Next action and exact kickoff prompt
+## Next action
 
-The single next action is an independent N6-R1 fix-only review. The reviewer
-must replace `<fix-tip>` below with the exact ending hash returned by this fix
-session and review that immutable range; the fix commit cannot contain its own
-hash. Use this prompt verbatim after substitution:
-
-```text
-Read AGENTS.md, CONTEXT.md, README.md, NETWORK-CLEANUP.md, and the frozen
-network design documents referenced there before reviewing. This is an
-independent N6-R1 fix-only review session. Review exact range
-248f03bca7a78d7483dae89ccbc15cd947a25343..<fix-tip>. Verify that the branch
-tip is exactly <fix-tip>, the worktree is clean, the base is the recorded N6
-build tip, N6-R1 is the only finding addressed, and N6 is built but not
-accepted. If any prerequisite differs, stop and report the mismatch. Do not
-edit or commit.
-
-Review only N6-R1. Verify that authenticated routes are established before
-expiry; a controlled localhost token response holds one refresh owner while
-at least two different-policy API callers demonstrably join the same flight;
-exactly one token POST occurs; every caller resumes successfully; and the
-rotated refresh token replaces rt-old and is persisted exactly once. Verify
-the mixed-policy, four visible HEAD-probe, queued-cancellation, five successful
-fetch, and bounded three-attempt 429-exhaustion coverage remains intact.
-
-Preserve all accepted N2–N5 behavior: OAuth refresh ownership, generations,
-rotation, abandonment, registration, scopes, callback, user-agent, and
-keyring behavior; the gate cap, per-policy serialization, live permit
-lifetime, HEAD exclusivity, writer preference, FIFO, and cancellation safety;
-choke-point ownership, authentication-before-final-admission, token-policy
-mapping, conservative N33 timing-bucket behavior, and actual-send reporting;
-and dispatcher priority, equal-priority FIFO, one-active-task-per-key
-ordering, route probes, cancellation, bounded retry/requeue behavior, and
-independent-key progress.
-
-Reject scope expansion into production gate, limiter, OAuth, response
-classification/observation, probe, retry, dispatcher, cancellation, or
-job-model behavior. Verify synchronization is deterministic and all HTTP stays
-on localhost. Report any new findings with stable N6-R IDs, severity, exact
-file/symbol evidence, violated authority, smallest fix direction, and required
-tests. Do not mark N6 accepted in the repository from this review-only
-session.
-
-Run cargo test --workspace --all-targets; cargo clippy --workspace
---all-targets --all-features -- -D warnings; cargo clippy -p acquisition-core
---all-targets --all-features -- -D warnings; and cargo fmt --all -- --check.
-Record exact outcomes. Return the exact reviewed base and tip, clean worktree
-state, verdict on N6-R1, findings, preserved behavior, checks, and the single
-next action: coordination if N6-R1 is resolved with no new findings, or another
-N6 fix-only session if changes are requested.
-```
-
-Only an independent N6 review with no required work remaining may mark N6
-accepted. N6 must remain a separate package and review from N5.
+The single next action is owner planning to choose and define the next spike
+goal outside this completed N0–N6 network cleanup. No N7 or further network
+cleanup package is authorized by this ledger; design and package boundaries
+must be recorded before new implementation begins.
