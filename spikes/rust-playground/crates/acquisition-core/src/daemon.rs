@@ -89,6 +89,7 @@ type AccessTokenResult = Result<(String, String), String>;
 
 const SESSION_CHANGED_DURING_REFRESH: &str =
     "authentication session changed while token refresh was in progress";
+const REFRESH_OWNER_ABANDONED: &str = "token refresh owner was abandoned before producing a result";
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 struct AuthGenerations {
@@ -212,6 +213,46 @@ pub struct Daemon {
     /// started with ACQ_GGG=1.
     provider: Provider,
     credential_store: Arc<dyn CredentialStore>,
+}
+
+struct RefreshOwnerGuard<'a> {
+    daemon: &'a Daemon,
+    id: u64,
+    generations: AuthGenerations,
+    result: Option<watch::Sender<Option<AccessTokenResult>>>,
+}
+
+impl RefreshOwnerGuard<'_> {
+    fn finish(mut self, refresh: Result<auth::TokenResponse, String>) -> AccessTokenResult {
+        let result = self.result.as_ref().expect("refresh owner result exists");
+        let outcome = self
+            .daemon
+            .finish_refresh(self.id, self.generations, refresh, result);
+        self.result = None;
+        outcome
+    }
+}
+
+impl Drop for RefreshOwnerGuard<'_> {
+    fn drop(&mut self) {
+        let Some(result) = self.result.take() else {
+            return;
+        };
+        if result.borrow().is_some() {
+            return;
+        }
+        {
+            let mut s = self.daemon.shared.lock().unwrap();
+            let owns_current_flight = s.auth.generations == self.generations
+                && s.auth.refresh_flight.as_ref().is_some_and(|flight| {
+                    flight.id == self.id && flight.generations == self.generations
+                });
+            if owns_current_flight {
+                s.auth.refresh_flight = None;
+            }
+        }
+        result.send_replace(Some(Err(REFRESH_OWNER_ABANDONED.into())));
+    }
 }
 
 trait CredentialStore: Send + Sync {
@@ -1314,12 +1355,18 @@ impl Daemon {
                 refresh_token,
                 result,
             } => {
+                let owner = RefreshOwnerGuard {
+                    daemon: self,
+                    id,
+                    generations,
+                    result: Some(result),
+                };
                 // May wait on the token endpoint's limiter; the shared lock is
                 // not held here, so every concurrent caller can join this owner.
                 let refresh = auth::refresh(&self.choke, &self.provider, &refresh_token)
                     .await
                     .map_err(|e| format!("token refresh failed: {e}"));
-                self.finish_refresh(id, generations, refresh, result)
+                owner.finish(refresh)
             }
         }
     }
@@ -1329,7 +1376,7 @@ impl Daemon {
         id: u64,
         generations: AuthGenerations,
         refresh: Result<auth::TokenResponse, String>,
-        sender: watch::Sender<Option<AccessTokenResult>>,
+        sender: &watch::Sender<Option<AccessTokenResult>>,
     ) -> AccessTokenResult {
         let mut warning = None;
         let outcome = {
@@ -1711,7 +1758,7 @@ async fn wait_for_refresh(
             return outcome;
         }
         if result.changed().await.is_err() {
-            return Err("token refresh owner ended without a result".into());
+            return Err(REFRESH_OWNER_ABANDONED.into());
         }
     }
 }
@@ -1879,6 +1926,70 @@ mod auth_session_tests {
         }
     }
 
+    struct AbandonThenSuccessTokenResponses {
+        base: String,
+        first_arrived: oneshot::Receiver<()>,
+        release_first: oneshot::Sender<()>,
+        requests: Arc<Mutex<Vec<String>>>,
+        server: tokio::task::JoinHandle<()>,
+    }
+
+    async fn abandon_then_success_token_responses(
+        success_body: String,
+    ) -> AbandonThenSuccessTokenResponses {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let base = format!("http://{}", listener.local_addr().unwrap());
+        let (first_arrived_tx, first_arrived) = oneshot::channel();
+        let (release_first, release_first_rx) = oneshot::channel();
+        let requests = Arc::new(Mutex::new(Vec::new()));
+        let captured = requests.clone();
+        let server = tokio::spawn(async move {
+            let headers = concat!(
+                "X-Rate-Limit-Policy: token-request-limit\r\n",
+                "X-Rate-Limit-Rules: Ip\r\n",
+                "X-Rate-Limit-Ip: 60:30:30\r\n",
+                "X-Rate-Limit-Ip-State: 1:30:0\r\n",
+            );
+
+            let (mut first, _) = listener.accept().await.unwrap();
+            let request = mockggg::read_request(&mut first).await.unwrap();
+            assert_eq!(request.method, "POST");
+            assert_eq!(request.path, "/token");
+            captured.lock().unwrap().push(request.body);
+            first_arrived_tx.send(()).unwrap();
+            release_first_rx.await.unwrap();
+            mockggg::respond_with(
+                &mut first,
+                "200 OK",
+                "application/json",
+                headers,
+                &success_body,
+            )
+            .await;
+
+            let (mut second, _) = listener.accept().await.unwrap();
+            let request = mockggg::read_request(&mut second).await.unwrap();
+            assert_eq!(request.method, "POST");
+            assert_eq!(request.path, "/token");
+            captured.lock().unwrap().push(request.body);
+            mockggg::respond_with(
+                &mut second,
+                "200 OK",
+                "application/json",
+                headers,
+                &success_body,
+            )
+            .await;
+        });
+        AbandonThenSuccessTokenResponses {
+            base,
+            first_arrived,
+            release_first,
+            requests,
+            server,
+        }
+    }
+
     fn tokens(access_token: &str, refresh_token: &str, username: &str) -> auth::TokenResponse {
         auth::TokenResponse {
             access_token: access_token.into(),
@@ -1951,6 +2062,27 @@ mod auth_session_tests {
         let _ = std::fs::remove_file(path);
     }
 
+    async fn wait_for_refresh_waiters(daemon: &Daemon, expected: usize) {
+        tokio::time::timeout(Duration::from_secs(1), async {
+            loop {
+                let receivers = daemon
+                    .shared
+                    .lock()
+                    .unwrap()
+                    .auth
+                    .refresh_flight
+                    .as_ref()
+                    .map_or(0, |flight| flight.result.receiver_count());
+                if receivers == expected {
+                    return;
+                }
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("refresh waiters joined the flight");
+    }
+
     #[tokio::test]
     async fn concurrent_expiry_has_one_refresh_owner_and_shared_waiter_result() {
         let delayed = delayed_token_response(
@@ -1974,6 +2106,113 @@ mod auth_session_tests {
         assert_eq!(waiter_result, owner_result);
         assert_eq!(store.saves.lock().unwrap().len(), 1);
         delayed.server.await.unwrap();
+        remove_test_log(&log_path);
+    }
+
+    #[tokio::test]
+    async fn abandoned_refresh_owner_completes_all_waiters_and_allows_retry() {
+        let responses = abandon_then_success_token_responses(token_body(
+            "at-retried",
+            "rt-retried",
+            "retry-user",
+        ))
+        .await;
+        let (daemon, store, log_path) = test_daemon(&responses.base);
+        let before = daemon.shared.lock().unwrap().auth.generations;
+
+        let owner_daemon = daemon.clone();
+        let owner = tokio::spawn(async move { owner_daemon.valid_access_token(false).await });
+        responses.first_arrived.await.unwrap();
+
+        let mut waiters = Vec::new();
+        for _ in 0..3 {
+            let waiter_daemon = daemon.clone();
+            waiters.push(tokio::spawn(async move {
+                waiter_daemon.valid_access_token(false).await
+            }));
+        }
+        wait_for_refresh_waiters(&daemon, waiters.len()).await;
+
+        owner.abort();
+        assert!(owner.await.unwrap_err().is_cancelled());
+        let mut waiter_errors = Vec::new();
+        for waiter in waiters {
+            waiter_errors.push(
+                tokio::time::timeout(Duration::from_secs(1), waiter)
+                    .await
+                    .expect("abandoned refresh waiter completed")
+                    .unwrap()
+                    .unwrap_err(),
+            );
+        }
+        assert_eq!(waiter_errors, vec![REFRESH_OWNER_ABANDONED; 3]);
+        {
+            let s = daemon.shared.lock().unwrap();
+            assert!(s.auth.refresh_flight.is_none());
+            assert_eq!(s.auth.generations, before);
+            assert_eq!(s.auth.refresh_token.as_deref(), Some("rt-old"));
+            assert_eq!(s.auth.access_token.as_deref(), Some("at-expired"));
+        }
+        assert!(store.saves.lock().unwrap().is_empty());
+
+        responses.release_first.send(()).unwrap();
+        let retry = tokio::time::timeout(Duration::from_secs(2), daemon.valid_access_token(false))
+            .await
+            .expect("retry after owner abandonment completed")
+            .unwrap();
+        assert_eq!(retry, ("at-retried".into(), "retry-user".into()));
+        responses.server.await.unwrap();
+        let requests = responses.requests.lock().unwrap();
+        assert_eq!(requests.len(), 2);
+        assert!(
+            requests
+                .iter()
+                .all(|body| body.contains("refresh_token=rt-old"))
+        );
+        assert_eq!(store.saves.lock().unwrap().len(), 1);
+        remove_test_log(&log_path);
+    }
+
+    #[tokio::test]
+    async fn abandoned_refresh_owner_without_waiters_allows_retry() {
+        let responses = abandon_then_success_token_responses(token_body(
+            "at-retried",
+            "rt-retried",
+            "retry-user",
+        ))
+        .await;
+        let (daemon, store, log_path) = test_daemon(&responses.base);
+        let before = daemon.shared.lock().unwrap().auth.generations;
+
+        let owner_daemon = daemon.clone();
+        let owner = tokio::spawn(async move { owner_daemon.valid_access_token(false).await });
+        responses.first_arrived.await.unwrap();
+        owner.abort();
+        assert!(owner.await.unwrap_err().is_cancelled());
+        {
+            let s = daemon.shared.lock().unwrap();
+            assert!(s.auth.refresh_flight.is_none());
+            assert_eq!(s.auth.generations, before);
+            assert_eq!(s.auth.refresh_token.as_deref(), Some("rt-old"));
+            assert_eq!(s.auth.access_token.as_deref(), Some("at-expired"));
+        }
+        assert!(store.saves.lock().unwrap().is_empty());
+
+        responses.release_first.send(()).unwrap();
+        let retry = tokio::time::timeout(Duration::from_secs(2), daemon.valid_access_token(false))
+            .await
+            .expect("retry after owner abandonment completed")
+            .unwrap();
+        assert_eq!(retry, ("at-retried".into(), "retry-user".into()));
+        responses.server.await.unwrap();
+        let requests = responses.requests.lock().unwrap();
+        assert_eq!(requests.len(), 2);
+        assert!(
+            requests
+                .iter()
+                .all(|body| body.contains("refresh_token=rt-old"))
+        );
+        assert_eq!(store.saves.lock().unwrap().len(), 1);
         remove_test_log(&log_path);
     }
 
