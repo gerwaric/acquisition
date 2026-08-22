@@ -21,12 +21,12 @@ review-only session.
 
 ## Current checkpoint
 
-- Date recorded: 2026-08-21.
+- Date recorded: 2026-08-22.
 - Branch: `spikes/rust-playground`.
 - Frozen gate-contract baseline: `1e17e812`.
-- Current implementation tip: `510ea498a7f4fc9d75d04893eba6243768577fef`.
-- Active package: none; N2 and N3 are accepted, and N4 is the next unblocked
-  package.
+- Current implementation tip: `32e591c7dc0f9cdbd8e0a958fb277d9444df9608`.
+- Active package: none; N2, N3, and N4 are accepted, and N5 is the next
+  unblocked package.
 - Accepted N1 review range:
   `1e17e812..412c840e155b01f626560fcb097393d6a24b797c`.
 - N1 fix commit: `412c840e155b01f626560fcb097393d6a24b797c`
@@ -56,7 +56,22 @@ review-only session.
   `510ea498a7f4fc9d75d04893eba6243768577fef`.
 - N3 review verdict: `accepted`; the independent review found no findings and
   no unresolved N3 work remains.
-- N4 is unblocked. Start N4 next and keep it strictly separate from N5.
+- Accepted N4 implementation range:
+  `bd9732d14c1940b2306ec7bae044ff73f70e0911f..32e591c7dc0f9cdbd8e0a958fb277d9444df9608`.
+- Original N4 implementation commit:
+  `4d443b07a3a612dc420af8c4c1e3b0f82dd8211f`.
+- N4-R1 fix commit:
+  `32e591c7dc0f9cdbd8e0a958fb277d9444df9608`.
+- N4 review verdict: initial review of
+  `bd9732d14c1940b2306ec7bae044ff73f70e0911f..4d443b07a3a612dc420af8c4c1e3b0f82dd8211f`
+  returned `changes-requested` with the single Low finding `N4-R1`; fix-only
+  re-review of
+  `4d443b07a3a612dc420af8c4c1e3b0f82dd8211f..32e591c7dc0f9cdbd8e0a958fb277d9444df9608`
+  returned `accepted` with no new findings.
+- `N4-R1` is resolved. No unresolved N4 findings and no required N4 work
+  remain.
+- N5 is unblocked. Start N5 next and keep it strictly within dispatcher
+  cleanup.
 
 ## Package ledger
 
@@ -71,7 +86,7 @@ dependents.
 | H0 | Workspace formatting and strict-Clippy baseline | N1 | accepted | `694fb10c8a59ed54147ce3431a3962683ee5e4e6..f1fcb24e3a03b7d9e5d4faa9bbcee3cf244c61a7` |
 | N2 | OAuth refresh singleflight and session generations | H0 | accepted | `a74341263676b4bdb5ebade23ef862ea0a0e4127..0a47efecdb78de1202e29c8fe7faaa4d39e66372` |
 | N3 | Send-lifetime gate primitive and fairness semantics | H0 | accepted | `7f205d846ecab73c119532416f1a132010562b4c..510ea498a7f4fc9d75d04893eba6243768577fef` |
-| N4 | Gate integration in `ChokePoint`; remove `Paid` | N2, N3 | planned | — |
+| N4 | Gate integration in `ChokePoint`; remove `Paid` | N2, N3 | accepted | `bd9732d14c1940b2306ec7bae044ff73f70e0911f..32e591c7dc0f9cdbd8e0a958fb277d9444df9608` |
 | N5 | Dispatcher cleanup and removal of job-task head-of-line blocking | N4 | planned | — |
 | N6 | Integration stress tests and final frozen-design reconciliation | N5 | planned | — |
 
@@ -239,6 +254,39 @@ limiter check/permit. Hold the permit for the complete send lifetime, and make
 it impossible to call the transport with a stale `Paid`-style receipt. Token
 requests use the N33 policy mapping recorded in N0.
 
+Implementation commits:
+
+- `4d443b07a3a612dc420af8c4c1e3b0f82dd8211f` — integrates the common
+  send-lifetime gate at `ChokePoint` for API GET, HEAD probe, OAuth code
+  exchange, and OAuth refresh, and removes `Paid`.
+- `32e591c7dc0f9cdbd8e0a958fb277d9444df9608` — resolves `N4-R1` by
+  making `Limiter::eta_for` use the same policy-aware timing-bucket selection
+  as admission and status reporting.
+
+Review verdict: `accepted` for the combined exact implementation range
+`bd9732d14c1940b2306ec7bae044ff73f70e0911f..32e591c7dc0f9cdbd8e0a958fb277d9444df9608`.
+The initial independent review of exact range
+`bd9732d14c1940b2306ec7bae044ff73f70e0911f..4d443b07a3a612dc420af8c4c1e3b0f82dd8211f`
+returned `changes-requested` with the single Low finding `N4-R1`. The fix-only
+independent re-review of exact range
+`4d443b07a3a612dc420af8c4c1e3b0f82dd8211f..32e591c7dc0f9cdbd8e0a958fb277d9444df9608`
+returned `accepted` with no new findings and no unresolved N4 work.
+
+The accepted re-review verified the corrected ETA cases:
+
+- `eta_for("oauth-token", 59, now)` returns 91 seconds after one counted
+  response under `token-request-limit`.
+- A non-token single-window policy returns 36 seconds for the corresponding
+  case.
+- Paired API-policy ETA behavior remains unchanged.
+
+The accepted N4 range preserves accepted N2 refresh ownership and OAuth
+behavior; N3 gate semantics; response classification and observation; bounded
+429 recovery; dispatcher behavior; OAuth registration, scopes, callback,
+user-agent, and keyring behavior; and the completed N4 gate integration. No N5
+dispatcher cleanup is included. `N4-R1` is resolved; no new findings and no
+unresolved or required N4 work remain.
+
 ### N5 — dispatcher cleanup
 
 Stop treating jobs waiting on auth or rate limits as HTTP in-flight work.
@@ -262,6 +310,7 @@ authoritative design or findings register, not only here.
 | N1-R2 | Medium | N1 | Clean-2xx classification and send recording occur before body transfer completion | resolved | `412c840e155b01f626560fcb097393d6a24b797c` |
 | N1-R3 | Low | N1 | Bounded retry/probe behavior lacks coverage through the real dispatcher lifecycle | resolved | `412c840e155b01f626560fcb097393d6a24b797c` |
 | N2-R1 | High | N2 | Abandoned refresh owner permanently strands waiters | resolved | `0a47efecdb78de1202e29c8fe7faaa4d39e66372` |
+| N4-R1 | Low | N4 | ETA simulation bypasses the token policy's conservative timing-bucket selection | resolved | `32e591c7dc0f9cdbd8e0a958fb277d9444df9608` |
 
 For every finding, retain the concrete scenario, exact file and line references,
 affected invariant/design rule/ground-truth claim, classification (confirmed
@@ -471,6 +520,56 @@ recorded:
   warnings`: passed.
 - `cargo fmt --all -- --check`: passed.
 
+### N4-R1 — ETA simulation bypasses policy-aware bucket selection
+
+- **Concrete scenario:** after one counted token response, 59 queued requests
+  make `Limiter::eta_for("oauth-token", 59, now)` saturate N33's single
+  `60:30:30` window. The original N4 implementation selected the generic
+  index-zero 5-second bucket and returned 36 seconds, while admission and
+  status reporting selected the token policy's conservative 60-second bucket
+  and required 91 seconds. The displayed ETA could therefore understate the
+  actual token-policy wait by 55 seconds.
+- **Implementation references at
+  `4d443b07a3a612dc420af8c4c1e3b0f82dd8211f`:** ETA simulation in
+  `crates/acquisition-core/src/ratelimit.rs:536–555` called `bucket_for(i)`
+  directly instead of the policy-aware selector used by admission and status
+  reporting.
+- **Fix references at
+  `32e591c7dc0f9cdbd8e0a958fb277d9444df9608`:**
+  `crates/acquisition-core/src/ratelimit.rs:536–556` selects the bucket with
+  `bucket_for_policy`; deterministic regression coverage is at
+  `crates/acquisition-core/src/ratelimit.rs:2391–2422`.
+- **Authority:** N0's conservative 60-second padding for N33's single-window
+  `token-request-limit`, the frozen policy-aware timing rule, and N4's
+  requirement that gate integration preserve limiter behavior.
+- **Classification:** Low-severity confirmed bug in ETA reporting; admission
+  remained conservative and actual sends were not under-paced.
+- **Resolution:** `Limiter::eta_for` now uses the same policy-aware
+  timing-bucket selection as admission and status reporting. The re-review
+  verified 91 seconds for the token case, 36 seconds for a non-token
+  single-window policy, and unchanged paired API-policy behavior.
+
+### N4 accepted-review validation
+
+Independent review and fix-only re-review of exact combined range
+`bd9732d14c1940b2306ec7bae044ff73f70e0911f..32e591c7dc0f9cdbd8e0a958fb277d9444df9608`
+recorded:
+
+- Initial verdict: `changes-requested` for exact range
+  `bd9732d14c1940b2306ec7bae044ff73f70e0911f..4d443b07a3a612dc420af8c4c1e3b0f82dd8211f`,
+  with the single Low finding `N4-R1`.
+- Fix-only verdict: `accepted` for exact range
+  `4d443b07a3a612dc420af8c4c1e3b0f82dd8211f..32e591c7dc0f9cdbd8e0a958fb277d9444df9608`;
+  `N4-R1` is resolved, no new findings were reported, and no unresolved or
+  required N4 work remains.
+- `cargo test --workspace --all-targets`: passed, 64 core tests and 0 CLI
+  tests, with 0 failures.
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings`:
+  passed.
+- `cargo clippy -p acquisition-core --all-targets --all-features -- -D
+  warnings`: passed.
+- `cargo fmt --all -- --check`: passed.
+
 ## Session protocol
 
 Each session owns exactly one role and package:
@@ -497,10 +596,10 @@ available. Do not stack new semantic work on a package whose review is pending.
 
 ## Quality-gate baseline
 
-Recorded at accepted N3 tip `510ea498a7f4fc9d75d04893eba6243768577fef`
-on 2026-08-21:
+Recorded at accepted N4 tip `32e591c7dc0f9cdbd8e0a958fb277d9444df9608`
+on 2026-08-22:
 
-- `cargo test --workspace --all-targets`: passed, 57 core tests and 0 CLI
+- `cargo test --workspace --all-targets`: passed, 64 core tests and 0 CLI
   tests, with 0 failures.
 - `cargo clippy --workspace --all-targets --all-features -- -D warnings`:
   passed.
@@ -513,41 +612,43 @@ core crate's strict Clippy check remains an additional semantic-package gate.
 
 ## Next action and exact kickoff prompt
 
-The single next action is an N4 choke-point integration build session. Use this
+The single next action is an N5 dispatcher-cleanup build session. Use this
 prompt verbatim:
 
 ```text
 Read AGENTS.md, CONTEXT.md, README.md, NETWORK-CLEANUP.md, and the frozen
-network design documents referenced there before editing. This is an N4
+network design documents referenced there before editing. This is an N5
 build-only session. Start from the current clean spikes/rust-playground branch
 tip, which must contain the coordination commit recording N2 as accepted and
 unchanged, and N3 as accepted for exact implementation range
 7f205d846ecab73c119532416f1a132010562b4c..510ea498a7f4fc9d75d04893eba6243768577fef,
-with no findings or unresolved N3 work. Record the exact starting hash before
-editing; if the worktree is not clean or that ledger state is absent, stop and
-report the mismatch.
+and N4 as accepted for combined exact implementation range
+bd9732d14c1940b2306ec7bae044ff73f70e0911f..32e591c7dc0f9cdbd8e0a958fb277d9444df9608,
+with no unresolved N2–N4 work. Record the exact starting hash before editing;
+if the worktree is not clean or that ledger state is absent, stop and report
+the mismatch.
 
-Implement and test only N4: integrate the common gate at `ChokePoint` for
-every daemon-owned GGG request, including API GET, HEAD, OAuth code exchange,
-and OAuth refresh. Authenticate before an API request's final limiter check
-and permit acquisition. Hold each permit through complete response/body
-consumption. Use the frozen token-policy mapping: serialize token traffic under
-stable route key `oauth-token` before discovery and learned policy name
-`token-request-limit` afterward, with no HEAD probe to the token endpoint.
-Remove the stale `Paid`-style proof only as part of this integration.
+Implement and test only N5: remove dispatcher job-task head-of-line blocking
+now that the actual-send gate is owned by N4. Jobs waiting on authentication
+or rate limits must no longer consume the dispatcher capacity that represents
+HTTP progress. Preserve job priority, cancellation, route-probe behavior,
+bounded 429 recovery, and all accepted N2–N4 behavior, including OAuth refresh
+ownership and registration/scopes/callback/user-agent/keyring behavior, N3's
+gate semantics, and N4's choke-point gate ownership and token-policy mapping.
 
-Keep N4 strictly separate from N5. Preserve N2 refresh ownership and OAuth
-behavior, N3's gate semantics, dispatcher semantics, and all frozen design
-documents. Do not implement dispatcher cleanup or contact GGG.
+Keep N5 strictly within its frozen dispatcher-cleanup package definition. Do
+not redesign the gate, limiter, OAuth flow, response classification or
+observation, probe semantics, or retry policy; do not begin N6 integration
+work, edit frozen design documents, or contact GGG.
 
 Run cargo test --workspace --all-targets; cargo clippy --workspace
 --all-targets --all-features -- -D warnings; cargo clippy -p acquisition-core
 --all-targets --all-features -- -D warnings; and cargo fmt --all -- --check.
-Record exact outcomes. Commit only N4 with an N4-labeled message. Do not mark
-N4 accepted. Return the exact starting and ending hashes, clean worktree state,
+Record exact outcomes. Commit only N5 with an N5-labeled message. Do not mark
+N5 accepted. Return the exact starting and ending hashes, clean worktree state,
 scope completed, checks, unresolved findings, and the single next action: an
-independent N4 review of the exact coordination-tip-to-N4-tip range.
+independent N5 review of the exact coordination-tip-to-N5-tip range.
 ```
 
-Only an independent N4 review with no required work remaining may mark N4
-accepted. N4 must remain a separate package and review from N2, N3, and N5.
+Only an independent N5 review with no required work remaining may mark N5
+accepted. N5 must remain a separate package and review from N4 and N6.
