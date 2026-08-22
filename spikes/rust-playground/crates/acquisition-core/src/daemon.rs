@@ -21,9 +21,7 @@ use crate::VERSION;
 use crate::job::{JobId, JobInfo, JobState, Outcome, Priority};
 use crate::protocol::{ErrorRecord, Request, Response};
 use crate::provider::{CALLBACK_PATH, Provider, SCOPES, ggg_mode};
-use crate::ratelimit::{
-    ChokePoint, EndpointState, Paid, RetryAfter, SendError, retry_after_from_headers, url_path,
-};
+use crate::ratelimit::{ChokePoint, EndpointState, Paid, RetryAfter, SendError, url_path};
 use crate::{auth, mockggg};
 
 const IDLE_SHUTDOWN: Duration = Duration::from_secs(60);
@@ -483,7 +481,7 @@ impl Daemon {
                     return; // slot released; the probe outranks us
                 }
                 EndpointState::Degraded { until, reason } => {
-                    let left = until.saturating_duration_since(Instant::now()).as_secs();
+                    let left = until.saturating_duration_since(self.choke.now()).as_secs();
                     let error = format!("route {route} is degraded for another {left}s: {reason}");
                     self.note_error(&format!("job {id}: {error}"));
                     self.start_and_finish(id, Outcome::Failure { error });
@@ -523,7 +521,7 @@ impl Daemon {
                         paid = Some(receipt);
                         break;
                     }
-                    Err(d) => tokio::time::sleep(d.min(Duration::from_secs(1))).await,
+                    Err(d) => self.choke.sleep(d.min(Duration::from_secs(1))).await,
                 }
             }
         }
@@ -998,7 +996,7 @@ impl Daemon {
                 let paid = loop {
                     match self.choke.try_take(&route) {
                         Ok(p) => break p,
-                        Err(wait) => tokio::time::sleep(wait.min(Duration::from_secs(1))).await,
+                        Err(wait) => self.choke.sleep(wait.min(Duration::from_secs(1))).await,
                     }
                     if self.cancelled(id) {
                         return Ok(Outcome::Cancelled);
@@ -1055,13 +1053,12 @@ impl Daemon {
             )),
             SendError::Transport(error) => ApiError::Other(format!("GET {url} failed: {error}")),
         })?;
-        let status = response.status();
-        let rate = crate::ratelimit::rate_limit_snapshot(response.headers());
-        let retry_after = retry_after_from_headers(response.headers());
+        let status = response.status;
+        let rate = response.rate;
+        let retry_after = response.retry_after;
         let path = url_path(url);
         self.log(&format!("GET {path} -> {status} | rate headers: {rate}"));
-        let body = response.text().await.map_err(|error| error.to_string());
-        classify_api_body(status, &retry_after, &path, rate, body)
+        classify_api_body(status, &retry_after, &path, rate, response.body)
     }
 
     // ---- auth -----------------------------------------------------------
@@ -1706,5 +1703,374 @@ mod response_tests {
             panic!("JSON failure used the wrong error kind")
         };
         assert!(message.contains("bad JSON"));
+    }
+}
+
+#[cfg(test)]
+mod dispatcher_tests {
+    use super::*;
+    use crate::ratelimit::Clock;
+    use std::future::Future;
+    use std::pin::Pin;
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    struct ManualClock {
+        now: Mutex<Instant>,
+        slept: Mutex<Duration>,
+    }
+
+    impl ManualClock {
+        fn new() -> Self {
+            ManualClock {
+                now: Mutex::new(Instant::now()),
+                slept: Mutex::new(Duration::ZERO),
+            }
+        }
+
+        fn slept(&self) -> Duration {
+            *self.slept.lock().unwrap()
+        }
+    }
+
+    impl Clock for ManualClock {
+        fn now(&self) -> Instant {
+            *self.now.lock().unwrap()
+        }
+
+        fn sleep(&self, duration: Duration) -> Pin<Box<dyn Future<Output = ()> + Send + '_>> {
+            Box::pin(async move {
+                {
+                    let mut now = self.now.lock().unwrap();
+                    *now = now.checked_add(duration).expect("bounded test deadline");
+                    *self.slept.lock().unwrap() += duration;
+                }
+                tokio::task::yield_now().await;
+            })
+        }
+    }
+
+    struct ScriptedResponse {
+        method: &'static str,
+        status: &'static str,
+        headers: String,
+        body: String,
+    }
+
+    impl ScriptedResponse {
+        fn full(
+            method: &'static str,
+            status: &'static str,
+            retry_after: Option<u64>,
+            body: &str,
+        ) -> Self {
+            let retry_after = retry_after
+                .map(|seconds| format!("Retry-After: {seconds}\r\n"))
+                .unwrap_or_default();
+            ScriptedResponse {
+                method,
+                status,
+                headers: format!(
+                    "X-Rate-Limit-Policy: dispatcher-test-policy\r\nX-Rate-Limit-Rules: Account\r\nX-Rate-Limit-Account: 100:1:60\r\nX-Rate-Limit-Account-State: 0:1:0\r\n{retry_after}"
+                ),
+                body: body.into(),
+            }
+        }
+
+        fn malformed_head_429() -> Self {
+            ScriptedResponse {
+                method: "HEAD",
+                status: "429 Too Many Requests",
+                headers: "X-Rate-Limit-Policy: dispatcher-test-policy\r\nRetry-After: 0\r\n".into(),
+                body: String::new(),
+            }
+        }
+    }
+
+    async fn scripted_server(
+        responses: Vec<ScriptedResponse>,
+    ) -> (String, Arc<Mutex<Vec<String>>>, tokio::task::JoinHandle<()>) {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let base = format!("http://{}", listener.local_addr().unwrap());
+        let requests = Arc::new(Mutex::new(Vec::new()));
+        let captured = requests.clone();
+        let task = tokio::spawn(async move {
+            for response in responses {
+                let (mut stream, _) = listener.accept().await.unwrap();
+                let request = mockggg::read_request(&mut stream).await.unwrap();
+                assert_eq!(request.method, response.method);
+                assert_eq!(request.path, "/fetch");
+                captured.lock().unwrap().push(request.method);
+                mockggg::respond_with(
+                    &mut stream,
+                    response.status,
+                    "application/json",
+                    &response.headers,
+                    &response.body,
+                )
+                .await;
+            }
+        });
+        (base, requests, task)
+    }
+
+    static TEST_LOG_ID: AtomicU64 = AtomicU64::new(1);
+
+    fn test_daemon(base: &str, clock: Arc<ManualClock>) -> (Arc<Daemon>, PathBuf) {
+        let log_path = std::env::temp_dir().join(format!(
+            "acquisition-n1-dispatcher-{}-{}.log",
+            std::process::id(),
+            TEST_LOG_ID.fetch_add(1, Ordering::Relaxed)
+        ));
+        let log = std::fs::OpenOptions::new()
+            .create(true)
+            .truncate(true)
+            .write(true)
+            .open(&log_path)
+            .unwrap();
+        let daemon = Arc::new(Daemon {
+            shared: Mutex::new(Shared {
+                jobs: HashMap::new(),
+                next_id: 1,
+                auth: AuthSession::default(),
+                connections: 0,
+                last_activity: Instant::now(),
+                started: Instant::now(),
+                errors: VecDeque::new(),
+                in_flight: HashMap::new(),
+            }),
+            events: broadcast::channel(256).0,
+            work: Notify::new(),
+            log: Mutex::new(log),
+            choke: ChokePoint::with_clock(clock),
+            provider: Provider::mock(base),
+        });
+        (daemon, log_path)
+    }
+
+    async fn wait_terminal(daemon: &Daemon, id: JobId) -> (JobInfo, Outcome) {
+        tokio::time::timeout(Duration::from_secs(3), async {
+            loop {
+                if let Some(done) = {
+                    let shared = daemon.shared.lock().unwrap();
+                    shared.jobs.get(&id).and_then(|entry| {
+                        entry
+                            .info
+                            .state
+                            .is_terminal()
+                            .then(|| (entry.info.clone(), entry.outcome.clone().unwrap()))
+                    })
+                } {
+                    return done;
+                }
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("dispatcher completed the scripted job")
+    }
+
+    fn fetch_payload_marker(outcome: &Outcome) -> &str {
+        let Outcome::Success { payload } = outcome else {
+            panic!("expected successful fetch, got {outcome:?}")
+        };
+        payload["items"][0].as_str().unwrap()
+    }
+
+    fn terminal_event_count(receiver: &mut broadcast::Receiver<JobInfo>, id: JobId) -> usize {
+        let mut count = 0;
+        while let Ok(info) = receiver.try_recv() {
+            if info.id == id && info.state.is_terminal() {
+                count += 1;
+            }
+        }
+        count
+    }
+
+    fn finish_harness(dispatcher: tokio::task::JoinHandle<()>, log_path: &PathBuf) {
+        dispatcher.abort();
+        let _ = std::fs::remove_file(log_path);
+    }
+
+    #[tokio::test]
+    async fn dispatcher_retries_429_429_success_exactly_three_times_and_completes_once() {
+        let responses = vec![
+            ScriptedResponse::full("HEAD", "204 No Content", None, ""),
+            ScriptedResponse::full("GET", "429 Too Many Requests", Some(0), "{}"),
+            ScriptedResponse::full("GET", "429 Too Many Requests", Some(0), "{}"),
+            ScriptedResponse::full("GET", "200 OK", None, r#"{"items":["done"]}"#),
+        ];
+        let (base, requests, server) = scripted_server(responses).await;
+        let clock = Arc::new(ManualClock::new());
+        let (daemon, log_path) = test_daemon(&base, clock);
+        let mut events = daemon.events.subscribe();
+        let dispatcher = tokio::spawn(daemon.clone().dispatcher());
+        let id = daemon.submit("fetch".into(), json!({}), 0, "test".into());
+
+        let (info, outcome) = wait_terminal(&daemon, id).await;
+        assert_eq!(info.state, JobState::Done);
+        assert_eq!(info.retries, MAX_429_RETRIES);
+        assert_eq!(fetch_payload_marker(&outcome), "done");
+        assert_eq!(
+            requests.lock().unwrap().as_slice(),
+            ["HEAD", "GET", "GET", "GET"]
+        );
+        assert_eq!(terminal_event_count(&mut events, id), 1);
+        server.await.unwrap();
+        finish_harness(dispatcher, &log_path);
+    }
+
+    #[tokio::test]
+    async fn dispatcher_exhausts_on_third_429_without_a_fourth_send_or_final_sleep() {
+        let responses = vec![
+            ScriptedResponse::full("HEAD", "204 No Content", None, ""),
+            ScriptedResponse::full("GET", "429 Too Many Requests", Some(0), "{}"),
+            ScriptedResponse::full("GET", "429 Too Many Requests", Some(0), "{}"),
+            ScriptedResponse::full("GET", "429 Too Many Requests", Some(0), "{}"),
+        ];
+        let (base, requests, server) = scripted_server(responses).await;
+        let clock = Arc::new(ManualClock::new());
+        let (daemon, log_path) = test_daemon(&base, clock.clone());
+        let dispatcher = tokio::spawn(daemon.clone().dispatcher());
+        let id = daemon.submit("fetch".into(), json!({}), 0, "test".into());
+
+        let (info, outcome) = wait_terminal(&daemon, id).await;
+        assert_eq!(info.state, JobState::Failed);
+        let Outcome::Failure { error } = outcome else {
+            panic!("exhausted job did not fail")
+        };
+        assert!(error.contains("giving up"));
+        assert_eq!(requests.lock().unwrap().len(), 4, "HEAD plus three GETs");
+        assert_eq!(
+            clock.slept(),
+            2 * (crate::ratelimit::RETRY_BUCKET_PAD + crate::ratelimit::BUFFER),
+            "only the two retryable attempts may sleep"
+        );
+        server.await.unwrap();
+        finish_harness(dispatcher, &log_path);
+    }
+
+    #[tokio::test]
+    async fn dispatcher_requeue_preserves_fifo_job_identity() {
+        let responses = vec![
+            ScriptedResponse::full("HEAD", "204 No Content", None, ""),
+            ScriptedResponse::full("GET", "429 Too Many Requests", Some(0), "{}"),
+            ScriptedResponse::full("GET", "200 OK", None, r#"{"items":["first"]}"#),
+            ScriptedResponse::full("GET", "200 OK", None, r#"{"items":["second"]}"#),
+        ];
+        let (base, requests, server) = scripted_server(responses).await;
+        let clock = Arc::new(ManualClock::new());
+        let (daemon, log_path) = test_daemon(&base, clock);
+        let dispatcher = tokio::spawn(daemon.clone().dispatcher());
+        let first = daemon.submit("fetch".into(), json!({}), 0, "test".into());
+        let second = daemon.submit("fetch".into(), json!({}), 0, "test".into());
+
+        let (_, first_outcome) = wait_terminal(&daemon, first).await;
+        let (_, second_outcome) = wait_terminal(&daemon, second).await;
+        assert_eq!(fetch_payload_marker(&first_outcome), "first");
+        assert_eq!(fetch_payload_marker(&second_outcome), "second");
+        assert_eq!(requests.lock().unwrap().len(), 4);
+        server.await.unwrap();
+        finish_harness(dispatcher, &log_path);
+    }
+
+    #[tokio::test]
+    async fn dispatcher_never_retries_403_or_503() {
+        for status in ["403 Forbidden", "503 Service Unavailable"] {
+            let responses = vec![
+                ScriptedResponse::full("HEAD", "204 No Content", None, ""),
+                ScriptedResponse::full("GET", status, None, "{}"),
+            ];
+            let (base, requests, server) = scripted_server(responses).await;
+            let clock = Arc::new(ManualClock::new());
+            let (daemon, log_path) = test_daemon(&base, clock.clone());
+            let dispatcher = tokio::spawn(daemon.clone().dispatcher());
+            let id = daemon.submit("fetch".into(), json!({}), 0, "test".into());
+
+            let (info, outcome) = wait_terminal(&daemon, id).await;
+            assert_eq!(info.state, JobState::Failed);
+            assert_eq!(info.retries, 0);
+            let Outcome::Failure { error } = outcome else {
+                panic!("{status} did not fail")
+            };
+            assert!(error.contains("NOT retrying"));
+            assert_eq!(requests.lock().unwrap().as_slice(), ["HEAD", "GET"]);
+            assert_eq!(clock.slept(), Duration::ZERO);
+            server.await.unwrap();
+            finish_harness(dispatcher, &log_path);
+        }
+    }
+
+    #[tokio::test]
+    async fn full_acceptable_head_429_establishes_under_hold_without_job_retry() {
+        let responses = vec![
+            ScriptedResponse::full("HEAD", "429 Too Many Requests", Some(0), ""),
+            ScriptedResponse::full("GET", "200 OK", None, r#"{"items":["after-probe"]}"#),
+        ];
+        let (base, requests, server) = scripted_server(responses).await;
+        let clock = Arc::new(ManualClock::new());
+        let (daemon, log_path) = test_daemon(&base, clock.clone());
+        let dispatcher = tokio::spawn(daemon.clone().dispatcher());
+        let id = daemon.submit("fetch".into(), json!({}), 0, "test".into());
+
+        let (info, outcome) = wait_terminal(&daemon, id).await;
+        assert_eq!(info.state, JobState::Done);
+        assert_eq!(info.retries, 0);
+        assert_eq!(fetch_payload_marker(&outcome), "after-probe");
+        let probe = daemon
+            .shared
+            .lock()
+            .unwrap()
+            .jobs
+            .values()
+            .find(|entry| entry.info.kind == "probe")
+            .unwrap()
+            .info
+            .clone();
+        assert_eq!(probe.state, JobState::Done);
+        assert_eq!(probe.retries, 0);
+        assert_eq!(requests.lock().unwrap().as_slice(), ["HEAD", "GET"]);
+        assert_eq!(
+            clock.slept(),
+            crate::ratelimit::RETRY_BUCKET_PAD + crate::ratelimit::BUFFER
+        );
+        server.await.unwrap();
+        finish_harness(dispatcher, &log_path);
+    }
+
+    #[tokio::test]
+    async fn malformed_or_unacceptable_head_429_fails_under_cooldown() {
+        for head in [
+            ScriptedResponse::malformed_head_429(),
+            ScriptedResponse::full("HEAD", "429 Too Many Requests", None, ""),
+        ] {
+            let (base, requests, server) = scripted_server(vec![head]).await;
+            let clock = Arc::new(ManualClock::new());
+            let (daemon, log_path) = test_daemon(&base, clock);
+            let dispatcher = tokio::spawn(daemon.clone().dispatcher());
+            let id = daemon.submit("fetch".into(), json!({}), 0, "test".into());
+
+            let (info, _) = wait_terminal(&daemon, id).await;
+            assert_eq!(info.state, JobState::Failed);
+            assert_eq!(info.retries, 0);
+            assert!(matches!(
+                daemon.choke.endpoint_state("fetch"),
+                EndpointState::Degraded { .. }
+            ));
+            assert_eq!(requests.lock().unwrap().as_slice(), ["HEAD"]);
+            let probe = daemon
+                .shared
+                .lock()
+                .unwrap()
+                .jobs
+                .values()
+                .find(|entry| entry.info.kind == "probe")
+                .unwrap()
+                .info
+                .clone();
+            assert_eq!(probe.state, JobState::Failed);
+            assert_eq!(probe.retries, 0);
+            server.await.unwrap();
+            finish_harness(dispatcher, &log_path);
+        }
     }
 }

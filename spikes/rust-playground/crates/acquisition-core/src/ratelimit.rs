@@ -21,7 +21,9 @@
 
 use std::collections::{HashMap, VecDeque};
 use std::fmt;
-use std::sync::Mutex;
+use std::future::Future;
+use std::pin::Pin;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use serde::{Deserialize, Serialize};
@@ -39,6 +41,15 @@ pub const RETRY_BUCKET_PAD: Duration = Duration::from_secs(60);
 /// Product policy: longer server-requested pauses are contained as terminal
 /// failures rather than silently parking work for an unobserved duration.
 pub const RETRY_AFTER_CAP_SECS: u64 = 900;
+/// Operational ceiling for any policy/state window period. The largest
+/// observed period is 1,800s (N23); a full day leaves ample dynamic-policy
+/// headroom while containing values that cannot represent a useful daemon
+/// pacing decision (D8/N9).
+pub const MAX_POLICY_PERIOD_SECS: u64 = 24 * 60 * 60;
+/// Operational ceiling for declared and active restriction durations. The
+/// largest observed restriction is 600s (N23); as with periods, a full day
+/// contains unexpected input without narrowing any known policy.
+pub const MAX_POLICY_RESTRICTION_SECS: u64 = 24 * 60 * 60;
 
 /// Which timing bucket applies to the `index`-th window of a rule.
 /// Positional classification (Q4, Tom's hypothesis): the first window is
@@ -343,7 +354,11 @@ fn parse_limits(header: &str, raw: &str) -> Result<Vec<Window>, PolicyParseError
                     header: header.to_string(),
                     raw: triplet.to_string(),
                 })?;
-            if max_hits == 0 || period_secs == 0 {
+            if max_hits == 0
+                || period_secs == 0
+                || period_secs > MAX_POLICY_PERIOD_SECS
+                || restriction_secs > MAX_POLICY_RESTRICTION_SECS
+            {
                 return Err(PolicyParseError::OutOfRangeTriplet {
                     header: header.to_string(),
                     raw: triplet.to_string(),
@@ -366,7 +381,10 @@ fn parse_state(header: &str, raw: &str) -> Result<Vec<WindowState>, PolicyParseE
                 header: header.to_string(),
                 raw: triplet.to_string(),
             })?;
-            if period_secs == 0 {
+            if period_secs == 0
+                || period_secs > MAX_POLICY_PERIOD_SECS
+                || restricted_secs > MAX_POLICY_RESTRICTION_SECS
+            {
                 return Err(PolicyParseError::OutOfRangeTriplet {
                     header: header.to_string(),
                     raw: triplet.to_string(),
@@ -506,7 +524,7 @@ impl Limiter {
             return Duration::ZERO;
         };
         let mut history = state.history.clone();
-        let mut t = now + self.wait_for(endpoint, now);
+        let mut t = now.checked_add(self.wait_for(endpoint, now)).unwrap_or(now);
         for _ in 0..ahead {
             history.push_back(t);
             let mut next = t;
@@ -517,14 +535,11 @@ impl Limiter {
                         .iter()
                         .filter(|&&h| t.duration_since(h) < period)
                         .count();
-                    if in_window >= w.max_hits as usize {
-                        next = next.max(window_frees_at(
-                            &history,
-                            t,
-                            w.max_hits,
-                            period,
-                            bucket_for(i),
-                        ));
+                    if in_window >= w.max_hits as usize
+                        && let Some(deadline) =
+                            window_frees_at(&history, t, w.max_hits, period, bucket_for(i))
+                    {
+                        next = next.max(deadline);
                     }
                 }
             }
@@ -563,7 +578,7 @@ impl Limiter {
         self.endpoints.insert(
             endpoint.to_string(),
             EndpointState::Degraded {
-                until: now + PROBE_COOLDOWN,
+                until: now.checked_add(PROBE_COOLDOWN).unwrap_or(now),
                 reason,
             },
         );
@@ -613,7 +628,7 @@ impl Limiter {
         self.endpoints.insert(
             endpoint.to_string(),
             EndpointState::Degraded {
-                until: now + cooldown,
+                until: now.checked_add(cooldown).unwrap_or(now),
                 reason,
             },
         );
@@ -735,7 +750,12 @@ impl Limiter {
         let Some(seconds) = retry_after.seconds() else {
             return;
         };
-        let until = now + Duration::from_secs(seconds) + RETRY_BUCKET_PAD + BUFFER;
+        let Some(until) = checked_deadline(
+            now,
+            [Duration::from_secs(seconds), RETRY_BUCKET_PAD, BUFFER],
+        ) else {
+            return;
+        };
         self.retry_holds
             .entry(endpoint.to_string())
             .and_modify(|(old_until, old_seconds)| {
@@ -898,13 +918,22 @@ fn push_history(history: &mut VecDeque<Instant>, now: Instant) {
 /// can't free before its oldest hit ages out, and the oldest hit we can
 /// name is the latest that oldest hit could possibly be. With no known
 /// in-window hits, assume everything just happened.
+fn checked_deadline(
+    base: Instant,
+    durations: impl IntoIterator<Item = Duration>,
+) -> Option<Instant> {
+    durations
+        .into_iter()
+        .try_fold(base, |deadline, duration| deadline.checked_add(duration))
+}
+
 fn window_frees_at(
     history: &VecDeque<Instant>,
     as_of: Instant,
     max_hits: u32,
     period: Duration,
     bucket: Duration,
-) -> Instant {
+) -> Option<Instant> {
     let known: Vec<Instant> = history
         .iter()
         .copied()
@@ -914,7 +943,7 @@ fn window_frees_at(
         Some(idx) => known[idx],
         None => known.first().copied().unwrap_or(as_of),
     };
-    oldest + period + bucket + BUFFER
+    checked_deadline(oldest, [period, bucket, BUFFER])
 }
 
 /// The earliest instant the next request under this policy may be sent,
@@ -946,15 +975,22 @@ fn next_safe_send(s: &PolicyState) -> Option<Instant> {
                 continue;
             };
             if st.restricted_secs > 0 {
-                bump(s.last_response + Duration::from_secs(st.restricted_secs) + bucket + BUFFER);
-            } else if st.hits >= limit.max_hits {
-                bump(window_frees_at(
+                if let Some(deadline) = checked_deadline(
+                    s.last_response,
+                    [Duration::from_secs(st.restricted_secs), bucket, BUFFER],
+                ) {
+                    bump(deadline);
+                }
+            } else if st.hits >= limit.max_hits
+                && let Some(deadline) = window_frees_at(
                     &s.history,
                     s.last_response,
                     limit.max_hits,
                     Duration::from_secs(limit.period_secs),
                     bucket,
-                ));
+                )
+            {
+                bump(deadline);
             }
         }
     }
@@ -1018,6 +1054,17 @@ pub struct Paid {
 pub enum SendError {
     Transport(String),
     Protocol(PolicyObservationError),
+}
+
+/// A landed exchange after its body transfer has resolved. Non-2xx statuses
+/// retain their status precedence even when `body` is a transfer failure;
+/// clean 2xx transfer failures are returned as `SendError::Transport` before
+/// callers can inspect this package (D3/D8).
+pub struct CompletedResponse {
+    pub status: reqwest::StatusCode,
+    pub rate: serde_json::Value,
+    pub retry_after: RetryAfter,
+    pub body: Result<String, String>,
 }
 
 impl fmt::Display for SendError {
@@ -1089,6 +1136,24 @@ struct SentAt {
 
 const SEND_HISTORY: usize = 100;
 
+pub(crate) trait Clock: Send + Sync {
+    fn now(&self) -> Instant;
+
+    fn sleep(&self, duration: Duration) -> Pin<Box<dyn Future<Output = ()> + Send + '_>>;
+}
+
+struct SystemClock;
+
+impl Clock for SystemClock {
+    fn now(&self) -> Instant {
+        Instant::now()
+    }
+
+    fn sleep(&self, duration: Duration) -> Pin<Box<dyn Future<Output = ()> + Send + '_>> {
+        Box::pin(tokio::time::sleep(duration))
+    }
+}
+
 pub struct ChokePoint {
     // Private on purpose: this is the only reqwest client in the workspace,
     // so every HTTP request must come through a method that consults the
@@ -1096,6 +1161,7 @@ pub struct ChokePoint {
     http: reqwest::Client,
     limiter: Mutex<Limiter>,
     sends: Mutex<VecDeque<SentAt>>,
+    clock: Arc<dyn Clock>,
 }
 
 impl Default for ChokePoint {
@@ -1117,14 +1183,36 @@ impl ChokePoint {
                 .expect("reqwest client builds"),
             limiter: Mutex::new(Limiter::new()),
             sends: Mutex::new(VecDeque::new()),
+            clock: Arc::new(SystemClock),
         }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn with_clock(clock: Arc<dyn Clock>) -> Self {
+        ChokePoint {
+            http: reqwest::Client::builder()
+                .user_agent(crate::provider::USER_AGENT)
+                .build()
+                .expect("reqwest client builds"),
+            limiter: Mutex::new(Limiter::new()),
+            sends: Mutex::new(VecDeque::new()),
+            clock,
+        }
+    }
+
+    pub(crate) fn now(&self) -> Instant {
+        self.clock.now()
+    }
+
+    pub(crate) async fn sleep(&self, duration: Duration) {
+        self.clock.sleep(duration).await;
     }
 
     /// Ask to send on `route` now, or learn how long to wait. Callers that
     /// need cancellation-aware waiting (the job worker) loop on this; plain
     /// requests use `post_form`, which waits internally.
     pub fn try_take(&self, route: &str) -> Result<Paid, Duration> {
-        let wait = self.limiter.lock().unwrap().wait_for(route, Instant::now());
+        let wait = self.limiter.lock().unwrap().wait_for(route, self.now());
         if wait.is_zero() {
             Ok(Paid {
                 route: route.to_string(),
@@ -1138,7 +1226,7 @@ impl ChokePoint {
         self.limiter
             .lock()
             .unwrap()
-            .eta_for(route, ahead, Instant::now())
+            .eta_for(route, ahead, self.now())
     }
 
     /// The key under which in-flight requests on `route` must be
@@ -1149,7 +1237,7 @@ impl ChokePoint {
             .limiter
             .lock()
             .unwrap()
-            .endpoint_state(route, Instant::now())
+            .endpoint_state(route, self.now())
         {
             EndpointState::Policy(name) => name,
             _ => route.to_string(),
@@ -1157,7 +1245,7 @@ impl ChokePoint {
     }
 
     pub fn policy_statuses(&self) -> Vec<PolicyStatus> {
-        self.limiter.lock().unwrap().statuses(Instant::now())
+        self.limiter.lock().unwrap().statuses(self.now())
     }
 
     pub fn policyless_endpoints(&self) -> Vec<String> {
@@ -1165,21 +1253,18 @@ impl ChokePoint {
     }
 
     pub fn is_live(&self) -> bool {
-        self.limiter.lock().unwrap().is_live(Instant::now())
+        self.limiter.lock().unwrap().is_live(self.now())
     }
 
     pub fn endpoint_state(&self, route: &str) -> EndpointState {
         self.limiter
             .lock()
             .unwrap()
-            .endpoint_state(route, Instant::now())
+            .endpoint_state(route, self.now())
     }
 
     pub fn degraded_endpoints(&self) -> Vec<DegradedEndpoint> {
-        self.limiter
-            .lock()
-            .unwrap()
-            .degraded_endpoints(Instant::now())
+        self.limiter.lock().unwrap().degraded_endpoints(self.now())
     }
 
     pub fn forget_degraded(&self) {
@@ -1193,7 +1278,7 @@ impl ChokePoint {
             route,
             Err(reason.to_string()),
             serde_json::Value::Null,
-            Instant::now(),
+            self.now(),
         );
     }
 
@@ -1230,7 +1315,7 @@ impl ChokePoint {
             .as_ref()
             .map(|r| rate_limit_snapshot(r.headers()))
             .unwrap_or(serde_json::Value::Null);
-        let now = Instant::now();
+        let now = self.now();
         if result
             .as_ref()
             .is_ok_and(|response| response.status().as_u16() == 429)
@@ -1261,7 +1346,7 @@ impl ChokePoint {
             .limiter
             .lock()
             .unwrap()
-            .endpoint_state(&paid.route, Instant::now())
+            .endpoint_state(&paid.route, self.now())
         {
             EndpointState::Policy(_) => {
                 let Ok(policy) = outcome else {
@@ -1283,7 +1368,7 @@ impl ChokePoint {
             .iter()
             .rev()
             .map(|s| SendRecord {
-                seconds_ago: s.at.elapsed().as_secs_f64(),
+                seconds_ago: self.now().saturating_duration_since(s.at).as_secs_f64(),
                 endpoint: s.endpoint.clone(),
                 method: s.method.to_string(),
                 url: s.url.clone(),
@@ -1313,7 +1398,7 @@ impl ChokePoint {
                     raw,
                     counted,
                     status: r.status().as_u16(),
-                    now: Instant::now(),
+                    now: self.now(),
                 },
             );
         }
@@ -1324,14 +1409,14 @@ impl ChokePoint {
     /// headers update pacing on every landed response, while a malformed or
     /// mismatched observation becomes a protocol failure only when the HTTP
     /// response would otherwise be a clean success (D8/R6-3).
-    fn finish_send(
+    async fn finish_send(
         &self,
         endpoint: &str,
         method: &'static str,
         url: &str,
         result: Result<reqwest::Response, String>,
         counted: bool,
-    ) -> Result<reqwest::Response, SendError> {
+    ) -> Result<CompletedResponse, SendError> {
         let retry_after = result.as_ref().map_or(RetryAfter::Missing, |response| {
             retry_after_from_headers(response.headers())
         });
@@ -1340,18 +1425,55 @@ impl ChokePoint {
             .as_ref()
             .ok()
             .map(|response| response.status().as_u16());
-        let classification = classify_response(status, result.is_err(), observation, &retry_after);
+        let rate = result
+            .as_ref()
+            .map(|response| rate_limit_snapshot(response.headers()))
+            .unwrap_or(serde_json::Value::Null);
+        let result = match result {
+            Ok(response) => {
+                let status = response.status();
+                let body = response.text().await.map_err(|error| error.to_string());
+                Ok((status, body))
+            }
+            Err(error) => Err(error),
+        };
+        let classification = classify_response(
+            status,
+            match &result {
+                Ok((_, body)) => body.is_err(),
+                Err(_) => true,
+            },
+            observation,
+            &retry_after,
+        );
         let protocol_failure = match &classification {
             ResponseClassification::Protocol(error) => Some(error.to_string()),
             _ => None,
         };
-        self.record(endpoint, method, url, &result, protocol_failure.as_deref());
+        self.record_completed(endpoint, method, url, &result, protocol_failure.as_deref());
         match (classification, result) {
-            (ResponseClassification::Success, Ok(response))
-            | (ResponseClassification::RateLimited(_), Ok(response))
-            | (ResponseClassification::Http(_), Ok(response)) => Ok(response),
+            (ResponseClassification::Success, Ok((status, Ok(body))))
+            | (ResponseClassification::RateLimited(_), Ok((status, Ok(body))))
+            | (ResponseClassification::Http(_), Ok((status, Ok(body)))) => Ok(CompletedResponse {
+                status,
+                rate,
+                retry_after,
+                body: Ok(body),
+            }),
+            (ResponseClassification::RateLimited(_), Ok((status, Err(error))))
+            | (ResponseClassification::Http(_), Ok((status, Err(error)))) => {
+                Ok(CompletedResponse {
+                    status,
+                    rate,
+                    retry_after,
+                    body: Err(error),
+                })
+            }
             (ResponseClassification::Protocol(error), _) => Err(SendError::Protocol(error)),
             (ResponseClassification::Network, Err(error)) => Err(SendError::Transport(error)),
+            (ResponseClassification::Network, Ok((_, Err(error)))) => {
+                Err(SendError::Transport(error))
+            }
             (classification, result) => {
                 unreachable!(
                     "classification {classification:?} disagrees with transport {result:?}"
@@ -1378,7 +1500,37 @@ impl ChokePoint {
             sends.pop_front();
         }
         sends.push_back(SentAt {
-            at: Instant::now(),
+            at: self.now(),
+            endpoint: endpoint.to_string(),
+            method,
+            url: url.to_string(),
+            outcome,
+            ok,
+        });
+    }
+
+    fn record_completed(
+        &self,
+        endpoint: &str,
+        method: &'static str,
+        url: &str,
+        result: &Result<(reqwest::StatusCode, Result<String, String>), String>,
+        protocol_failure: Option<&str>,
+    ) {
+        let (outcome, ok) = match (result, protocol_failure) {
+            (_, Some(error)) => (format!("protocol failure: {error}"), false),
+            (Ok((status, Err(error))), None) => {
+                (format!("{status}; body transfer failure: {error}"), false)
+            }
+            (Ok((status, Ok(_))), None) => (status.to_string(), status.is_success()),
+            (Err(error), None) => (format!("error: {error}"), false),
+        };
+        let mut sends = self.sends.lock().unwrap();
+        if sends.len() >= SEND_HISTORY {
+            sends.pop_front();
+        }
+        sends.push_back(SentAt {
+            at: self.now(),
             endpoint: endpoint.to_string(),
             method,
             url: url.to_string(),
@@ -1394,11 +1546,11 @@ impl ChokePoint {
         route: &str,
         url: &str,
         params: &[(&str, &str)],
-    ) -> Result<reqwest::Response, SendError> {
+    ) -> Result<CompletedResponse, SendError> {
         let paid = loop {
             match self.try_take(route) {
                 Ok(paid) => break paid,
-                Err(wait) => tokio::time::sleep(wait.max(Duration::from_millis(50))).await,
+                Err(wait) => self.sleep(wait.max(Duration::from_millis(50))).await,
             }
         };
         let result = self
@@ -1409,6 +1561,7 @@ impl ChokePoint {
             .await
             .map_err(|e| e.to_string());
         self.finish_send(&paid.route, "POST", url, result, true)
+            .await
     }
 
     /// Bearer-authenticated GET for callers that already consulted the
@@ -1419,7 +1572,7 @@ impl ChokePoint {
         paid: Paid,
         url: &str,
         bearer: &str,
-    ) -> Result<reqwest::Response, SendError> {
+    ) -> Result<CompletedResponse, SendError> {
         let result = self
             .http
             .get(url)
@@ -1428,12 +1581,14 @@ impl ChokePoint {
             .await
             .map_err(|e| e.to_string());
         self.finish_send(&paid.route, "GET", url, result, true)
+            .await
     }
 
     /// Unauthenticated GET (mock-only fake data endpoints).
-    pub async fn get(&self, paid: Paid, url: &str) -> Result<reqwest::Response, SendError> {
+    pub async fn get(&self, paid: Paid, url: &str) -> Result<CompletedResponse, SendError> {
         let result = self.http.get(url).send().await.map_err(|e| e.to_string());
         self.finish_send(&paid.route, "GET", url, result, true)
+            .await
     }
 }
 
@@ -1460,6 +1615,8 @@ pub fn rate_limit_snapshot(headers: &reqwest::header::HeaderMap) -> serde_json::
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    use tokio::net::TcpListener;
 
     /// A row of the pacing table.
     struct Row {
@@ -1496,12 +1653,56 @@ mod tests {
         })
     }
 
+    fn parse_single_window(
+        limit_period: u64,
+        limit_restriction: u64,
+        state_period: u64,
+        active_restriction: u64,
+    ) -> Result<Policy, PolicyParseError> {
+        let limit = format!("1:{limit_period}:{limit_restriction}");
+        let state = format!("1:{state_period}:{active_restriction}");
+        Policy::parse(|key| match key {
+            "x-rate-limit-policy" => Some("bounded-policy".into()),
+            "x-rate-limit-rules" => Some("Account".into()),
+            "x-rate-limit-account" => Some(limit.clone()),
+            "x-rate-limit-account-state" => Some(state.clone()),
+            _ => None,
+        })
+    }
+
     fn retry(raw: Option<&str>) -> RetryAfter {
         parse_retry_after(|key| {
             (key == "retry-after")
                 .then(|| raw.map(str::to_string))
                 .flatten()
         })
+    }
+
+    async fn serve_one_raw(response: String) -> (String, tokio::task::JoinHandle<()>) {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("http://{}/test", listener.local_addr().unwrap());
+        let task = tokio::spawn(async move {
+            let (mut stream, _) = listener.accept().await.unwrap();
+            let mut request = [0; 4096];
+            let _ = stream.read(&mut request).await.unwrap();
+            stream.write_all(response.as_bytes()).await.unwrap();
+        });
+        (url, task)
+    }
+
+    fn raw_response(status: &str, rate_headers: &str, content_length: usize, body: &str) -> String {
+        format!(
+            "HTTP/1.1 {status}\r\n{rate_headers}Content-Type: application/json\r\nContent-Length: {content_length}\r\nConnection: close\r\n\r\n{body}"
+        )
+    }
+
+    fn full_rate_headers(policy: &str, retry_after: Option<u64>) -> String {
+        let retry_after = retry_after
+            .map(|seconds| format!("Retry-After: {seconds}\r\n"))
+            .unwrap_or_default();
+        format!(
+            "X-Rate-Limit-Policy: {policy}\r\nX-Rate-Limit-Rules: Account\r\nX-Rate-Limit-Account: 2:10:60\r\nX-Rate-Limit-Account-State: 1:10:0\r\n{retry_after}"
+        )
     }
 
     /// Replay a row: feed every history point as a counted response under
@@ -1726,6 +1927,145 @@ mod tests {
         for (name, headers) in cases {
             assert!(parse(headers).is_err(), "{name} unexpectedly parsed");
         }
+    }
+
+    #[test]
+    fn policy_deadline_fields_accept_the_operational_bounds() {
+        let cases = [
+            (
+                "limit period",
+                MAX_POLICY_PERIOD_SECS,
+                0,
+                MAX_POLICY_PERIOD_SECS,
+                0,
+            ),
+            ("limit restriction", 1, MAX_POLICY_RESTRICTION_SECS, 1, 0),
+            (
+                "state period",
+                MAX_POLICY_PERIOD_SECS,
+                0,
+                MAX_POLICY_PERIOD_SECS,
+                0,
+            ),
+            ("active restriction", 1, 0, 1, MAX_POLICY_RESTRICTION_SECS),
+        ];
+        for (name, limit_period, limit_restriction, state_period, active_restriction) in cases {
+            assert!(
+                parse_single_window(
+                    limit_period,
+                    limit_restriction,
+                    state_period,
+                    active_restriction,
+                )
+                .is_ok(),
+                "{name} maximum was rejected"
+            );
+        }
+    }
+
+    #[test]
+    fn policy_deadline_fields_reject_one_above_the_operational_bounds() {
+        let cases = [
+            (
+                "limit period",
+                MAX_POLICY_PERIOD_SECS + 1,
+                0,
+                MAX_POLICY_PERIOD_SECS,
+                0,
+            ),
+            (
+                "limit restriction",
+                1,
+                MAX_POLICY_RESTRICTION_SECS + 1,
+                1,
+                0,
+            ),
+            (
+                "state period",
+                MAX_POLICY_PERIOD_SECS,
+                0,
+                MAX_POLICY_PERIOD_SECS + 1,
+                0,
+            ),
+            (
+                "active restriction",
+                1,
+                0,
+                1,
+                MAX_POLICY_RESTRICTION_SECS + 1,
+            ),
+        ];
+        for (name, limit_period, limit_restriction, state_period, active_restriction) in cases {
+            assert!(
+                matches!(
+                    parse_single_window(
+                        limit_period,
+                        limit_restriction,
+                        state_period,
+                        active_restriction,
+                    ),
+                    Err(PolicyParseError::OutOfRangeTriplet { .. })
+                ),
+                "{name} one-above value did not return PolicyParseError"
+            );
+        }
+    }
+
+    #[test]
+    fn observe_and_wait_for_are_total_at_and_above_deadline_bounds() {
+        let now = Instant::now();
+        let mut limiter = Limiter::new();
+        limiter
+            .observe(
+                "/max-period",
+                parse_single_window(
+                    MAX_POLICY_PERIOD_SECS,
+                    MAX_POLICY_RESTRICTION_SECS,
+                    MAX_POLICY_PERIOD_SECS,
+                    0,
+                ),
+                serde_json::Value::Null,
+                true,
+                now,
+            )
+            .expect("maximum period remains observable");
+        assert!(limiter.wait_for("/max-period", now) > Duration::ZERO);
+
+        limiter
+            .observe(
+                "/max-restriction",
+                parse_single_window(
+                    1,
+                    MAX_POLICY_RESTRICTION_SECS,
+                    1,
+                    MAX_POLICY_RESTRICTION_SECS,
+                ),
+                serde_json::Value::Null,
+                true,
+                now,
+            )
+            .expect("maximum active restriction remains observable");
+        assert!(limiter.wait_for("/max-restriction", now) > Duration::ZERO);
+
+        let rejected = limiter.observe(
+            "/rejected",
+            parse_single_window(
+                MAX_POLICY_PERIOD_SECS + 1,
+                MAX_POLICY_RESTRICTION_SECS + 1,
+                MAX_POLICY_PERIOD_SECS + 1,
+                MAX_POLICY_RESTRICTION_SECS + 1,
+            ),
+            serde_json::Value::Null,
+            true,
+            now,
+        );
+        assert!(matches!(
+            rejected,
+            Err(PolicyObservationError::Parse(
+                PolicyParseError::OutOfRangeTriplet { .. }
+            ))
+        ));
+        assert_eq!(limiter.wait_for("/rejected", now), Duration::ZERO);
     }
 
     #[test]
@@ -2486,6 +2826,111 @@ mod tests {
             classify_response(None, true, Ok(()), &retry_after),
             ResponseClassification::Network
         );
+    }
+
+    #[tokio::test]
+    async fn full_200_with_truncated_body_is_network_after_observing_policy() {
+        let route = "full-truncated";
+        let raw = raw_response(
+            "200 OK",
+            &full_rate_headers("full-truncated-policy", None),
+            100,
+            "{}",
+        );
+        let (url, server) = serve_one_raw(raw).await;
+        let choke = ChokePoint::new();
+        let paid = choke.try_take(route).unwrap();
+
+        let result = choke.get(paid, &url).await;
+        assert!(matches!(result, Err(SendError::Transport(_))));
+        assert_eq!(
+            choke.endpoint_state(route),
+            EndpointState::Policy("full-truncated-policy".into()),
+            "landed Full headers must update policy before body transfer fails"
+        );
+        let send = choke.recent_sends().pop().unwrap();
+        assert!(!send.ok);
+        assert!(send.outcome.contains("body transfer failure"));
+        server.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn malformed_200_with_truncated_body_is_network_and_preserves_policy() {
+        let route = "malformed-truncated";
+        let choke = ChokePoint::new();
+        let established_raw = serde_json::json!({ "source": "established" });
+        choke
+            .limiter
+            .lock()
+            .unwrap()
+            .observe(
+                route,
+                parse(&with_state(CHAR_LIST, "1:10:0,1:300:0")),
+                established_raw.clone(),
+                false,
+                Instant::now(),
+            )
+            .unwrap();
+        let (url, server) = serve_one_raw(raw_response("200 OK", "", 100, "{}")).await;
+        let paid = choke.try_take(route).unwrap();
+
+        let result = choke.get(paid, &url).await;
+        assert!(matches!(result, Err(SendError::Transport(_))));
+        let status = choke.policy_statuses().pop().unwrap();
+        assert_eq!(status.headers, established_raw);
+        assert_eq!(
+            choke.endpoint_state(route),
+            EndpointState::Policy("character-list-request-limit".into())
+        );
+        server.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn complete_malformed_200_is_protocol() {
+        let route = "malformed-complete";
+        let (url, server) = serve_one_raw(raw_response("200 OK", "", 2, "{}")).await;
+        let choke = ChokePoint::new();
+        let paid = choke.try_take(route).unwrap();
+
+        assert!(matches!(
+            choke.get(paid, &url).await,
+            Err(SendError::Protocol(_))
+        ));
+        let send = choke.recent_sends().pop().unwrap();
+        assert!(!send.ok);
+        assert!(send.outcome.contains("protocol failure"));
+        server.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn truncated_429_and_500_keep_status_and_record_transfer_evidence() {
+        for (status_line, status, retry_after) in [
+            ("429 Too Many Requests", 429, Some(0)),
+            ("500 Internal Server Error", 500, None),
+        ] {
+            let route = format!("truncated-{status}");
+            let raw = raw_response(
+                status_line,
+                &full_rate_headers(&format!("policy-{status}"), retry_after),
+                100,
+                "{}",
+            );
+            let (url, server) = serve_one_raw(raw).await;
+            let choke = ChokePoint::new();
+            let paid = choke.try_take(&route).unwrap();
+
+            let response = choke
+                .get(paid, &url)
+                .await
+                .expect("non-2xx status keeps precedence over body failure");
+            assert_eq!(response.status.as_u16(), status);
+            assert!(response.body.is_err());
+            let send = choke.recent_sends().pop().unwrap();
+            assert!(!send.ok);
+            assert!(send.outcome.starts_with(status_line));
+            assert!(send.outcome.contains("body transfer failure"));
+            server.await.unwrap();
+        }
     }
 
     #[test]

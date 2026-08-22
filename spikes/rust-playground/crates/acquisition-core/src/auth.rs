@@ -92,16 +92,21 @@ async fn token_request(
         .post_form("oauth-token", &provider.token_url, params)
         .await
         .map_err(|error| error.to_string())?;
-    let status = response.status();
+    let status = response.status;
     if !status.is_success() {
-        let rate = crate::ratelimit::rate_limit_snapshot(response.headers());
-        let body = response.text().await.unwrap_or_default();
+        let rate = response.rate;
+        let body = response
+            .body
+            .unwrap_or_else(|error| format!("<body read transport failure: {error}>"));
         let body: String = body.chars().take(300).collect();
         return Err(format!(
             "token endpoint returned {status} (rate headers {rate}): {body}"
         ));
     }
-    response.json::<TokenResponse>().await.map_err(|e| e.to_string())
+    let body = response
+        .body
+        .expect("clean 2xx responses have a completed body");
+    serde_json::from_str::<TokenResponse>(&body).map_err(|e| e.to_string())
 }
 
 // ---- keyring ------------------------------------------------------------
@@ -150,5 +155,49 @@ pub fn keyring_clear(service: &str) -> Result<(), String> {
     match entry(service)?.delete_credential() {
         Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
         Err(e) => Err(e.to_string()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ratelimit::EndpointState;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    use tokio::net::TcpListener;
+
+    #[tokio::test]
+    async fn oauth_clean_200_waits_for_body_completion_before_recording_success() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let base = format!("http://{}", listener.local_addr().unwrap());
+        let server = tokio::spawn(async move {
+            let (mut stream, _) = listener.accept().await.unwrap();
+            let mut request = [0; 4096];
+            let _ = stream.read(&mut request).await.unwrap();
+            let response = concat!(
+                "HTTP/1.1 200 OK\r\n",
+                "X-Rate-Limit-Policy: token-request-limit\r\n",
+                "X-Rate-Limit-Rules: Ip\r\n",
+                "X-Rate-Limit-Ip: 60:30:30\r\n",
+                "X-Rate-Limit-Ip-State: 1:30:0\r\n",
+                "Content-Type: application/json\r\n",
+                "Content-Length: 100\r\n",
+                "Connection: close\r\n\r\n",
+                "{}"
+            );
+            stream.write_all(response.as_bytes()).await.unwrap();
+        });
+        let choke = ChokePoint::new();
+        let provider = Provider::mock(&base);
+
+        let error = refresh(&choke, &provider, "rt-test").await.unwrap_err();
+        assert!(!error.contains("expected value"), "{error}");
+        assert_eq!(
+            choke.endpoint_state("oauth-token"),
+            EndpointState::Policy("token-request-limit".into())
+        );
+        let send = choke.recent_sends().pop().unwrap();
+        assert!(!send.ok);
+        assert!(send.outcome.contains("body transfer failure"));
+        server.await.unwrap();
     }
 }
