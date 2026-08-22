@@ -24,8 +24,9 @@ review-only session.
 - Date recorded: 2026-08-21.
 - Branch: `spikes/rust-playground`.
 - Frozen gate-contract baseline: `1e17e812`.
-- Current implementation tip: `0a47efecdb78de1202e29c8fe7faaa4d39e66372`.
-- Active package: none; N2 is accepted and N3 is the next unblocked package.
+- Current implementation tip: `510ea498a7f4fc9d75d04893eba6243768577fef`.
+- Active package: none; N2 and N3 are accepted, and N4 is the next unblocked
+  package.
 - Accepted N1 review range:
   `1e17e812..412c840e155b01f626560fcb097393d6a24b797c`.
 - N1 fix commit: `412c840e155b01f626560fcb097393d6a24b797c`
@@ -49,7 +50,13 @@ review-only session.
   returned `accepted` with no findings.
 - `N2-R1` is resolved. No unresolved N2 findings and no required N2 work
   remain.
-- N3 is unblocked. Start N3 next and keep it strictly separate from N2 and N4.
+- Accepted N3 implementation range:
+  `7f205d846ecab73c119532416f1a132010562b4c..510ea498a7f4fc9d75d04893eba6243768577fef`.
+- N3 implementation commit:
+  `510ea498a7f4fc9d75d04893eba6243768577fef`.
+- N3 review verdict: `accepted`; the independent review found no findings and
+  no unresolved N3 work remains.
+- N4 is unblocked. Start N4 next and keep it strictly separate from N5.
 
 ## Package ledger
 
@@ -63,7 +70,7 @@ dependents.
 | N1 | Strict parsing, observation/classification, and 429 recovery | N0 | accepted | `1e17e812..412c840e155b01f626560fcb097393d6a24b797c` |
 | H0 | Workspace formatting and strict-Clippy baseline | N1 | accepted | `694fb10c8a59ed54147ce3431a3962683ee5e4e6..f1fcb24e3a03b7d9e5d4faa9bbcee3cf244c61a7` |
 | N2 | OAuth refresh singleflight and session generations | H0 | accepted | `a74341263676b4bdb5ebade23ef862ea0a0e4127..0a47efecdb78de1202e29c8fe7faaa4d39e66372` |
-| N3 | Send-lifetime gate primitive and fairness semantics | H0 | planned | — |
+| N3 | Send-lifetime gate primitive and fairness semantics | H0 | accepted | `7f205d846ecab73c119532416f1a132010562b4c..510ea498a7f4fc9d75d04893eba6243768577fef` |
 | N4 | Gate integration in `ChokePoint`; remove `Paid` | N2, N3 | planned | — |
 | N5 | Dispatcher cleanup and removal of job-task head-of-line blocking | N4 | planned | — |
 | N6 | Integration stress tests and final frozen-design reconciliation | N5 | planned | — |
@@ -206,6 +213,23 @@ Implement and test the frozen gate semantics independently of HTTP call sites:
 
 Use deterministic concurrency tests for permit lifetime, cancellation, writer
 preference, HEAD exclusivity, and independent-policy progress.
+
+Implementation commit:
+
+- `510ea498a7f4fc9d75d04893eba6243768577fef` — adds the independent
+  send-lifetime gate primitive and exports it from `acquisition-core`.
+
+Review verdict: `accepted` for exact implementation range
+`7f205d846ecab73c119532416f1a132010562b4c..510ea498a7f4fc9d75d04893eba6243768577fef`.
+The independent review found no findings and no unresolved N3 work. It
+confirmed the frozen global cap, per-policy serialization, live-permit
+lifetime, HEAD exclusivity and writer preference, eligible ordinary FIFO,
+independent-policy progress, and cancellation safety. The implementation
+changes only `crates/acquisition-core/src/gate.rs` and
+`crates/acquisition-core/src/lib.rs`; its deterministic tests use no
+wall-clock sleeps or HTTP calls. OAuth refresh ownership, `ChokePoint`
+integration, `Paid`, dispatcher semantics, N4 behavior, and the frozen design
+documents remain unchanged.
 
 ### N4 — choke-point integration
 
@@ -422,6 +446,31 @@ recorded:
   warnings`: passed.
 - `cargo fmt --all -- --check`: passed.
 
+### N3 accepted-review validation
+
+Independent review of exact implementation range
+`7f205d846ecab73c119532416f1a132010562b4c..510ea498a7f4fc9d75d04893eba6243768577fef`
+recorded:
+
+- Package ID and role: N3 independent review.
+- Verdict: `accepted`; no findings were reported, no unresolved findings
+  remain, and no required N3 work remains.
+- The implementation changes only `crates/acquisition-core/src/gate.rs` and
+  `crates/acquisition-core/src/lib.rs`.
+- The primitive satisfies the frozen global cap, per-policy serialization,
+  live-permit lifetime, HEAD exclusivity and writer preference, eligible
+  ordinary FIFO, independent-policy progress, and cancellation-safety rules.
+- The deterministic tests use no wall-clock sleeps or HTTP calls.
+- OAuth refresh ownership, `ChokePoint` integration, `Paid`, dispatcher
+  semantics, N4 behavior, and frozen design documents remain unchanged.
+- `cargo test --workspace --all-targets`: passed, 57 core tests and 0 CLI
+  tests, with 0 failures.
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings`:
+  passed.
+- `cargo clippy -p acquisition-core --all-targets --all-features -- -D
+  warnings`: passed.
+- `cargo fmt --all -- --check`: passed.
+
 ## Session protocol
 
 Each session owns exactly one role and package:
@@ -448,11 +497,11 @@ available. Do not stack new semantic work on a package whose review is pending.
 
 ## Quality-gate baseline
 
-Recorded at accepted N2 tip `0a47efecdb78de1202e29c8fe7faaa4d39e66372`
+Recorded at accepted N3 tip `510ea498a7f4fc9d75d04893eba6243768577fef`
 on 2026-08-21:
 
-- `cargo test --workspace --all-targets`: passed, 51 core tests and 0 CLI
-  tests.
+- `cargo test --workspace --all-targets`: passed, 57 core tests and 0 CLI
+  tests, with 0 failures.
 - `cargo clippy --workspace --all-targets --all-features -- -D warnings`:
   passed.
 - `cargo clippy -p acquisition-core --all-targets --all-features -- -D
@@ -464,40 +513,41 @@ core crate's strict Clippy check remains an additional semantic-package gate.
 
 ## Next action and exact kickoff prompt
 
-The single next action is an N3 gate-primitive build session. Use this
+The single next action is an N4 choke-point integration build session. Use this
 prompt verbatim:
 
 ```text
 Read AGENTS.md, CONTEXT.md, README.md, NETWORK-CLEANUP.md, and the frozen
-network design documents referenced there before editing. This is an N3
+network design documents referenced there before editing. This is an N4
 build-only session. Start from the current clean spikes/rust-playground branch
-tip, which must contain the coordination commit recording N2 as accepted for
-exact combined implementation range
-a74341263676b4bdb5ebade23ef862ea0a0e4127..0a47efecdb78de1202e29c8fe7faaa4d39e66372,
-with N2-R1 resolved and no unresolved N2 work. Record the exact starting hash
-before editing; if the worktree is not clean or that ledger state is absent,
-stop and report the mismatch.
+tip, which must contain the coordination commit recording N2 as accepted and
+unchanged, and N3 as accepted for exact implementation range
+7f205d846ecab73c119532416f1a132010562b4c..510ea498a7f4fc9d75d04893eba6243768577fef,
+with no findings or unresolved N3 work. Record the exact starting hash before
+editing; if the worktree is not clean or that ledger state is absent, stop and
+report the mismatch.
 
-Implement and test only the N3 send-lifetime gate primitive and its frozen
-fairness semantics, independently of HTTP call sites: one global actual-send
-cap, per-policy serialization through response/body completion, globally
-exclusive HEAD permits with writer preference, ordinary-waiter FIFO, and an
-explicit live permit lifetime. Use deterministic concurrency tests for permit
-lifetime, cancellation, writer preference, HEAD exclusivity, and
-independent-policy progress.
+Implement and test only N4: integrate the common gate at `ChokePoint` for
+every daemon-owned GGG request, including API GET, HEAD, OAuth code exchange,
+and OAuth refresh. Authenticate before an API request's final limiter check
+and permit acquisition. Hold each permit through complete response/body
+consumption. Use the frozen token-policy mapping: serialize token traffic under
+stable route key `oauth-token` before discovery and learned policy name
+`token-request-limit` afterward, with no HEAD probe to the token endpoint.
+Remove the stale `Paid`-style proof only as part of this integration.
 
-Keep N3 strictly separate from N2 and N4. Do not change OAuth refresh
-ownership, integrate the gate into ChokePoint, remove `Paid`, alter dispatcher
-semantics, edit frozen design documents, or contact GGG.
+Keep N4 strictly separate from N5. Preserve N2 refresh ownership and OAuth
+behavior, N3's gate semantics, dispatcher semantics, and all frozen design
+documents. Do not implement dispatcher cleanup or contact GGG.
 
 Run cargo test --workspace --all-targets; cargo clippy --workspace
 --all-targets --all-features -- -D warnings; cargo clippy -p acquisition-core
 --all-targets --all-features -- -D warnings; and cargo fmt --all -- --check.
-Record exact outcomes. Commit only N3 with an N3-labeled message. Do not mark
-N3 accepted. Return the exact starting and ending hashes, clean worktree state,
+Record exact outcomes. Commit only N4 with an N4-labeled message. Do not mark
+N4 accepted. Return the exact starting and ending hashes, clean worktree state,
 scope completed, checks, unresolved findings, and the single next action: an
-independent N3 review of the exact coordination-tip-to-N3-tip range.
+independent N4 review of the exact coordination-tip-to-N4-tip range.
 ```
 
-Only an independent N3 review with no required work remaining may mark N3
-accepted. N3 must remain a separate package and review from N2 and N4.
+Only an independent N4 review with no required work remaining may mark N4
+accepted. N4 must remain a separate package and review from N2, N3, and N5.
