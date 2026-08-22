@@ -2,11 +2,11 @@
 
 use std::time::Duration;
 
-use anyhow::{Context, Result, bail};
 use acquisition_core::VERSION;
 use acquisition_core::daemon::socket_path;
 use acquisition_core::job::JobInfo;
 use acquisition_core::protocol::{Request, Response};
+use anyhow::{Context, Result, bail};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, Lines};
 use tokio::net::UnixStream;
 use tokio::net::unix::{OwnedReadHalf, OwnedWriteHalf};
@@ -21,18 +21,28 @@ impl Client {
     /// replacing it if the handshake reports a version or provider mismatch
     /// (a mock-mode daemon can't serve an ACQ_GGG=1 client, or vice versa).
     pub async fn connect(spawn: bool) -> Result<Client> {
-        let want_provider = if acquisition_core::provider::ggg_mode() { "ggg" } else { "mock" };
+        let want_provider = if acquisition_core::provider::ggg_mode() {
+            "ggg"
+        } else {
+            "mock"
+        };
         let mut respawned = false;
         let mut spawned = false;
         for _attempt in 0..100 {
             match UnixStream::connect(socket_path()).await {
                 Ok(stream) => {
                     let mut client = Client::from_stream(stream);
-                    let hello = client.request(&Request::Hello {
-                        client_version: VERSION.to_string(),
-                    })
-                    .await?;
-                    let Response::Hello { daemon_version, pid, provider } = hello else {
+                    let hello = client
+                        .request(&Request::Hello {
+                            client_version: VERSION.to_string(),
+                        })
+                        .await?;
+                    let Response::Hello {
+                        daemon_version,
+                        pid,
+                        provider,
+                    } = hello
+                    else {
                         bail!("unexpected handshake response: {hello:?}");
                     };
                     if daemon_version == VERSION && provider == want_provider {
@@ -57,11 +67,15 @@ impl Client {
                     tokio::time::sleep(Duration::from_millis(50)).await;
                 }
                 Err(e) => {
-                    return Err(e).context("daemon is not running (it spawns on demand for job commands)");
+                    return Err(e)
+                        .context("daemon is not running (it spawns on demand for job commands)");
                 }
             }
         }
-        bail!("could not reach daemon at {} after 5s", socket_path().display())
+        bail!(
+            "could not reach daemon at {} after 5s",
+            socket_path().display()
+        )
     }
 
     fn from_stream(stream: UnixStream) -> Client {

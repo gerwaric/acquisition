@@ -132,7 +132,9 @@ pub fn keyring_save(service: &str, refresh_token: &str, username: &str) -> Resul
         "refresh_token": refresh_token,
         "username": username,
     });
-    entry(service)?.set_password(&secret.to_string()).map_err(|e| e.to_string())
+    entry(service)?
+        .set_password(&secret.to_string())
+        .map_err(|e| e.to_string())
 }
 
 /// Ok(None) means the keyring works but holds no session.

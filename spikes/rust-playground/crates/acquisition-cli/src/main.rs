@@ -4,10 +4,10 @@ mod dash;
 use std::io::Write as _;
 use std::time::Duration;
 
-use anyhow::{Result, bail};
 use acquisition_core::daemon;
 use acquisition_core::job::{JobInfo, JobState, Outcome};
 use acquisition_core::protocol::{Request, Response};
+use anyhow::{Result, bail};
 use clap::{Parser, Subcommand};
 use serde_json::json;
 
@@ -169,23 +169,56 @@ async fn main() -> Result<()> {
         }
         Cmd::Stashes { league } => {
             let mut client = Client::connect(true).await?;
-            let id = submit(&mut client, "stashes".into(), json!({ "league": league }), 0).await?;
+            let id = submit(
+                &mut client,
+                "stashes".into(),
+                json!({ "league": league }),
+                0,
+            )
+            .await?;
             block_on_job(&mut client, id, cli.json).await
         }
-        Cmd::Stash { id, sub, deep, league } => {
+        Cmd::Stash {
+            id,
+            sub,
+            deep,
+            league,
+        } => {
             let mut client = Client::connect(true).await?;
-            let id = submit(&mut client, "stash".into(), json!({ "league": league, "id": id, "sub": sub, "deep": deep }), 0).await?;
+            let id = submit(
+                &mut client,
+                "stash".into(),
+                json!({ "league": league, "id": id, "sub": sub, "deep": deep }),
+                0,
+            )
+            .await?;
             block_on_job(&mut client, id, cli.json).await
         }
-        Cmd::Refresh { all, tabs, deep, league } => {
+        Cmd::Refresh {
+            all,
+            tabs,
+            deep,
+            league,
+        } => {
             if !all && tabs.is_empty() {
                 bail!("refresh needs --all or --tabs <id,...>");
             }
             let mut client = Client::connect(true).await?;
-            let id = submit(&mut client, "refresh".into(), json!({ "league": league, "all": all, "tabs": tabs, "deep": deep }), 0).await?;
+            let id = submit(
+                &mut client,
+                "refresh".into(),
+                json!({ "league": league, "all": all, "tabs": tabs, "deep": deep }),
+                0,
+            )
+            .await?;
             block_on_job(&mut client, id, cli.json).await
         }
-        Cmd::Submit { kind, params, priority, detach } => {
+        Cmd::Submit {
+            kind,
+            params,
+            priority,
+            detach,
+        } => {
             let params: serde_json::Value = serde_json::from_str(&params)?;
             let mut client = Client::connect(true).await?;
             let id = submit(&mut client, kind, params, priority).await?;
@@ -236,10 +269,7 @@ async fn main() -> Result<()> {
                         if cli.json {
                             println!("{}", serde_json::to_string(&job)?);
                         } else {
-                            println!(
-                                "job {:>3}  {:<8} -> {}",
-                                job.id, job.kind, job.state
-                            );
+                            println!("job {:>3}  {:<8} -> {}", job.id, job.kind, job.state);
                         }
                     }
                 }
@@ -304,7 +334,9 @@ async fn main() -> Result<()> {
                     max_in_flight,
                 } = status
                 {
-                    println!("daemon {version} pid {pid}, up {uptime_seconds}s, provider {provider}");
+                    println!(
+                        "daemon {version} pid {pid}, up {uptime_seconds}s, provider {provider}"
+                    );
                     println!(
                         "connections: {connections}  waiting: {jobs_waiting}  running: {jobs_running}  in flight: {in_flight}/{max_in_flight}  policies learned: {policies_known}"
                     );
@@ -349,7 +381,14 @@ async fn login(no_browser: bool, json: bool) -> Result<()> {
     loop {
         tokio::time::sleep(Duration::from_millis(500)).await;
         let status = client.request(&Request::AuthStatus).await?;
-        let Response::Auth { logged_in, pending, ref username, ref keyring, .. } = status else {
+        let Response::Auth {
+            logged_in,
+            pending,
+            ref username,
+            ref keyring,
+            ..
+        } = status
+        else {
             bail!("unexpected response: {status:?}");
         };
         if pending {
@@ -364,7 +403,10 @@ async fn login(no_browser: bool, json: bool) -> Result<()> {
         if json {
             return print_auth(&status, true);
         }
-        println!("logged in as {}", username.as_deref().unwrap_or("<unknown>"));
+        println!(
+            "logged in as {}",
+            username.as_deref().unwrap_or("<unknown>")
+        );
         if keyring != "ok" {
             println!("warning: keyring {keyring}; session will not survive a daemon restart");
         }
@@ -395,7 +437,10 @@ fn print_auth(status: &Response, json: bool) -> Result<()> {
         (_, true) => println!("login in progress (waiting on the browser)"),
         (false, _) => println!("not logged in — run `acq auth`"),
         (true, _) => {
-            println!("logged in as {}", username.as_deref().unwrap_or("<unknown>"));
+            println!(
+                "logged in as {}",
+                username.as_deref().unwrap_or("<unknown>")
+            );
             match access_expires_in_seconds {
                 Some(s) if *s > 0 => println!("access token valid for ~{s}s"),
                 _ => println!("access token expired (will refresh on next use)"),
@@ -407,7 +452,11 @@ fn print_auth(status: &Response, json: bool) -> Result<()> {
 }
 
 fn open_browser(url: &str) -> bool {
-    let opener = if cfg!(target_os = "macos") { "open" } else { "xdg-open" };
+    let opener = if cfg!(target_os = "macos") {
+        "open"
+    } else {
+        "xdg-open"
+    };
     std::process::Command::new(opener)
         .arg(url)
         .stdout(std::process::Stdio::null())
@@ -424,7 +473,12 @@ async fn submit(
 ) -> Result<u64> {
     let submitted_by = format!("cli:{}", std::process::id());
     match client
-        .request(&Request::Submit { kind, params, priority, submitted_by })
+        .request(&Request::Submit {
+            kind,
+            params,
+            priority,
+            submitted_by,
+        })
         .await?
     {
         Response::Submitted { id } => Ok(id),
@@ -512,7 +566,11 @@ fn print_table(jobs: &[JobInfo]) {
             job.id,
             job.parent.map(|p| p.to_string()).unwrap_or_default(),
             job.kind,
-            if job.retries > 0 { format!("{} ↻{}", job.state, job.retries) } else { job.state.to_string() },
+            if job.retries > 0 {
+                format!("{} ↻{}", job.state, job.retries)
+            } else {
+                job.state.to_string()
+            },
             job.priority,
             job.submitted_by,
             eta
@@ -529,10 +587,7 @@ async fn watch_table_until_done(client: &mut Client, ids: &[u64]) -> Result<()> 
         if printed_lines > 0 {
             print!("\x1b[{printed_lines}A");
         }
-        let mine: Vec<JobInfo> = jobs
-            .into_iter()
-            .filter(|j| ids.contains(&j.id))
-            .collect();
+        let mine: Vec<JobInfo> = jobs.into_iter().filter(|j| ids.contains(&j.id)).collect();
         for _ in 0..printed_lines {
             println!("\x1b[2K");
         }

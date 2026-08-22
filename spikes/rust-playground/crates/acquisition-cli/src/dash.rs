@@ -215,7 +215,10 @@ fn draw_header(f: &mut Frame, area: Rect, s: &Snap) {
         };
         vec![
             Span::styled(
-                format!("logged in as {}", s.username.as_deref().unwrap_or("<unknown>")),
+                format!(
+                    "logged in as {}",
+                    s.username.as_deref().unwrap_or("<unknown>")
+                ),
                 Style::new().green(),
             ),
             Span::raw(format!(" · {expiry} · keyring {}", s.keyring)),
@@ -247,19 +250,31 @@ fn window_span(w: &acquisition_core::ratelimit::WindowStatus) -> Span<'static> {
     } else {
         Style::new().green()
     };
-    Span::styled(format!("{}/{}·{}s", w.hits, w.max_hits, w.period_secs), style)
+    Span::styled(
+        format!("{}/{}·{}s", w.hits, w.max_hits, w.period_secs),
+        style,
+    )
 }
 
 fn next_span(p: &PolicyStatus) -> Span<'static> {
     if p.next_safe_in_seconds > 0.0 {
-        Span::styled(format!("next in {:.1}s", p.next_safe_in_seconds), Style::new().red().bold())
+        Span::styled(
+            format!("next in {:.1}s", p.next_safe_in_seconds),
+            Style::new().red().bold(),
+        )
     } else {
         Span::styled("ready", Style::new().green())
     }
 }
 
 fn draw_policies(f: &mut Frame, area: Rect, s: &Snap, app: &mut App) {
-    let name_width = s.policies.iter().map(|p| p.policy.len()).max().unwrap_or(0).max(8);
+    let name_width = s
+        .policies
+        .iter()
+        .map(|p| p.policy.len())
+        .max()
+        .unwrap_or(0)
+        .max(8);
     let mut summary: Vec<Line> = s
         .policies
         .iter()
@@ -270,11 +285,18 @@ fn draw_policies(f: &mut Frame, area: Rect, s: &Snap, app: &mut App) {
                 Span::styled(if selected { "▶ " } else { "  " }, Style::new().cyan()),
                 Span::styled(
                     format!("{:<name_width$}  ", p.policy),
-                    if selected { Style::new().bold() } else { Style::new() },
+                    if selected {
+                        Style::new().bold()
+                    } else {
+                        Style::new()
+                    },
                 ),
             ];
             for rule in &p.rules {
-                spans.push(Span::styled(format!("{} ", rule.name.to_lowercase()), Style::new().dark_gray()));
+                spans.push(Span::styled(
+                    format!("{} ", rule.name.to_lowercase()),
+                    Style::new().dark_gray(),
+                ));
                 for (i, w) in rule.windows.iter().enumerate() {
                     if i > 0 {
                         spans.push(Span::raw(" "));
@@ -297,20 +319,36 @@ fn draw_policies(f: &mut Frame, area: Rect, s: &Snap, app: &mut App) {
     if !s.policyless_endpoints.is_empty() {
         summary.push(Line::from(vec![
             Span::styled("  no policy reported: ", Style::new().dark_gray()),
-            Span::styled(s.policyless_endpoints.join(", "), Style::new().dark_gray().italic()),
+            Span::styled(
+                s.policyless_endpoints.join(", "),
+                Style::new().dark_gray().italic(),
+            ),
         ]));
     }
     for d in &s.degraded_endpoints {
         summary.push(Line::from(vec![
-            Span::styled(format!("  DEGRADED {} ({}s left): ", d.endpoint, d.seconds_left as u64), Style::new().red().bold()),
+            Span::styled(
+                format!(
+                    "  DEGRADED {} ({}s left): ",
+                    d.endpoint, d.seconds_left as u64
+                ),
+                Style::new().red().bold(),
+            ),
             Span::styled(d.reason.clone(), Style::new().red()),
         ]));
     }
 
-    let in_flight_style = if s.in_flight >= s.max_in_flight { Style::new().yellow() } else { Style::new() };
+    let in_flight_style = if s.in_flight >= s.max_in_flight {
+        Style::new().yellow()
+    } else {
+        Style::new()
+    };
     let block = Block::bordered().title(Line::from(vec![
         Span::raw(" rate limits (header-driven) · in flight "),
-        Span::styled(format!("{}/{}", s.in_flight, s.max_in_flight), in_flight_style),
+        Span::styled(
+            format!("{}/{}", s.in_flight, s.max_in_flight),
+            in_flight_style,
+        ),
         Span::raw(" "),
     ]));
     let inner = block.inner(area);
@@ -335,7 +373,11 @@ fn draw_policies(f: &mut Frame, area: Rect, s: &Snap, app: &mut App) {
     app.scroll = app.scroll.min(max_scroll);
     let mut sep_label = format!("─ {} ", p.policy);
     if max_scroll > 0 {
-        sep_label.push_str(&format!("(↑/↓ scroll, {}/{}) ", app.scroll + 1, max_scroll + 1));
+        sep_label.push_str(&format!(
+            "(↑/↓ scroll, {}/{}) ",
+            app.scroll + 1,
+            max_scroll + 1
+        ));
     }
     let pad = (sep.width as usize).saturating_sub(sep_label.chars().count());
     f.render_widget(
@@ -396,7 +438,10 @@ fn policy_detail(p: &PolicyStatus, sends: &[SendRecord]) -> Vec<Line<'static>> {
         }
     }
     lines.push(Line::from(""));
-    lines.push(Line::from(Span::styled("raw headers (last response)", label)));
+    lines.push(Line::from(Span::styled(
+        "raw headers (last response)",
+        label,
+    )));
     let headers = p.headers.as_object().cloned().unwrap_or_default();
     for (name, value) in &headers {
         lines.push(Line::from(vec![
@@ -406,7 +451,10 @@ fn policy_detail(p: &PolicyStatus, sends: &[SendRecord]) -> Vec<Line<'static>> {
     }
 
     lines.push(Line::from(""));
-    let mine: Vec<&SendRecord> = sends.iter().filter(|r| p.endpoints.contains(&r.endpoint)).collect();
+    let mine: Vec<&SendRecord> = sends
+        .iter()
+        .filter(|r| p.endpoints.contains(&r.endpoint))
+        .collect();
     if mine.is_empty() {
         lines.push(Line::from(Span::styled(
             "no requests sent under this policy yet",
@@ -423,7 +471,11 @@ fn policy_detail(p: &PolicyStatus, sends: &[SendRecord]) -> Vec<Line<'static>> {
                 Span::raw(format!("{} ", r.method)),
                 Span::styled(
                     r.outcome.clone(),
-                    if r.ok { Style::new().green() } else { Style::new().red() },
+                    if r.ok {
+                        Style::new().green()
+                    } else {
+                        Style::new().red()
+                    },
                 ),
                 Span::styled(format!("  {}", r.url), label),
             ]));
@@ -471,7 +523,11 @@ fn draw_jobs(f: &mut Frame, area: Rect, jobs: &[JobInfo]) {
                 (JobState::Waiting, _) => "next".to_string(),
                 _ => String::new(),
             };
-            let kind_style = if j.kind == "probe" { Style::new().dark_gray() } else { Style::new() };
+            let kind_style = if j.kind == "probe" {
+                Style::new().dark_gray()
+            } else {
+                Style::new()
+            };
             let kind = match j.parent {
                 Some(p) => format!("└{p} {}", j.kind),
                 None => j.kind.clone(),
@@ -479,8 +535,12 @@ fn draw_jobs(f: &mut Frame, area: Rect, jobs: &[JobInfo]) {
             Row::new(vec![
                 Cell::from(j.id.to_string()),
                 Cell::from(kind).style(kind_style),
-                Cell::from(if j.retries > 0 { format!("{} ↻{}", j.state, j.retries) } else { j.state.to_string() })
-                    .style(state_style),
+                Cell::from(if j.retries > 0 {
+                    format!("{} ↻{}", j.state, j.retries)
+                } else {
+                    j.state.to_string()
+                })
+                .style(state_style),
                 Cell::from(j.priority.to_string()),
                 Cell::from(j.submitted_by.clone()),
                 Cell::from(eta),
@@ -544,13 +604,19 @@ fn draw_sends(f: &mut Frame, area: Rect, sends: &[SendRecord]) {
 fn draw_errors(f: &mut Frame, area: Rect, errors: &[ErrorRecord]) {
     let title = format!(" errors ({}, newest first) ", errors.len());
     let lines: Vec<Line> = if errors.is_empty() {
-        vec![Line::from(Span::styled("no errors", Style::new().green().dim()))]
+        vec![Line::from(Span::styled(
+            "no errors",
+            Style::new().green().dim(),
+        ))]
     } else {
         errors
             .iter()
             .map(|e| {
                 Line::from(vec![
-                    Span::styled(format!("{:>6}  ", fmt_ago(e.seconds_ago)), Style::new().dark_gray()),
+                    Span::styled(
+                        format!("{:>6}  ", fmt_ago(e.seconds_ago)),
+                        Style::new().dark_gray(),
+                    ),
                     Span::styled(e.message.clone(), Style::new().red()),
                 ])
             })
@@ -558,9 +624,18 @@ fn draw_errors(f: &mut Frame, area: Rect, errors: &[ErrorRecord]) {
     };
     let block = Block::bordered().title(Span::styled(
         title,
-        if errors.is_empty() { Style::new() } else { Style::new().red() },
+        if errors.is_empty() {
+            Style::new()
+        } else {
+            Style::new().red()
+        },
     ));
-    f.render_widget(Paragraph::new(lines).wrap(Wrap { trim: false }).block(block), area);
+    f.render_widget(
+        Paragraph::new(lines)
+            .wrap(Wrap { trim: false })
+            .block(block),
+        area,
+    );
 }
 
 fn fmt_secs(s: u64) -> String {
@@ -574,5 +649,9 @@ fn fmt_secs(s: u64) -> String {
 }
 
 fn fmt_ago(s: f64) -> String {
-    if s < 1.0 { "<1s".to_string() } else { fmt_secs(s as u64) }
+    if s < 1.0 {
+        "<1s".to_string()
+    } else {
+        fmt_secs(s as u64)
+    }
 }

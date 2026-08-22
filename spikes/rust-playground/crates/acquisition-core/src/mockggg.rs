@@ -39,18 +39,30 @@ struct MockPolicy {
 
 impl MockPolicy {
     fn new(name: &'static str, windows: &'static [(u32, u64, u64)]) -> Self {
-        MockPolicy { name, windows, hits: VecDeque::new(), restricted_until: None }
+        MockPolicy {
+            name,
+            windows,
+            hits: VecDeque::new(),
+            restricted_until: None,
+        }
     }
 
     fn hits_within(&self, period: u64, now: Instant) -> u32 {
-        self.hits.iter().filter(|&&h| now.duration_since(h) < Duration::from_secs(period)).count() as u32
+        self.hits
+            .iter()
+            .filter(|&&h| now.duration_since(h) < Duration::from_secs(period))
+            .count() as u32
     }
 
     /// Apply one request. Returns `(ok, extra response headers)`; when
     /// `!ok` the caller answers 429. `counts` is false for HEAD.
     fn request(&mut self, counts: bool, now: Instant) -> (bool, String) {
         let longest = self.windows.iter().map(|w| w.1).max().unwrap_or(0);
-        while self.hits.front().is_some_and(|&h| now.duration_since(h) >= Duration::from_secs(longest)) {
+        while self
+            .hits
+            .front()
+            .is_some_and(|&h| now.duration_since(h) >= Duration::from_secs(longest))
+        {
             self.hits.pop_front();
         }
         if self.restricted_until.is_some_and(|t| t <= now) {
@@ -62,14 +74,22 @@ impl MockPolicy {
         } else if counts {
             // The request that would exceed a window is rejected and starts
             // that window's restriction.
-            if let Some(w) = self.windows.iter().find(|w| self.hits_within(w.1, now) >= w.0) {
+            if let Some(w) = self
+                .windows
+                .iter()
+                .find(|w| self.hits_within(w.1, now) >= w.0)
+            {
                 self.restricted_until = Some(now + Duration::from_secs(w.2));
                 ok = false;
             } else {
                 self.hits.push_back(now);
             }
         }
-        let limits: Vec<String> = self.windows.iter().map(|w| format!("{}:{}:{}", w.0, w.1, w.2)).collect();
+        let limits: Vec<String> = self
+            .windows
+            .iter()
+            .map(|w| format!("{}:{}:{}", w.0, w.1, w.2))
+            .collect();
         let restricted_for = self
             .restricted_until
             .map(|t| t.saturating_duration_since(now).as_secs_f64().ceil() as u64)
@@ -117,17 +137,27 @@ const MOCK_TABS: &[(&str, &str, &str, usize, Option<&str>)] = &[
     ("mape", "Maps (empty)", "MapStash", 0, None),
 ];
 
-fn mock_tab(id: &str) -> Option<&'static (&'static str, &'static str, &'static str, usize, Option<&'static str>)> {
+fn mock_tab(
+    id: &str,
+) -> Option<&'static (
+    &'static str,
+    &'static str,
+    &'static str,
+    usize,
+    Option<&'static str>,
+)> {
     MOCK_TABS.iter().find(|t| t.0 == id)
 }
 
 fn mock_items(tab: &str, n: usize) -> Vec<serde_json::Value> {
     (0..n)
-        .map(|i| json!({
-            "id": format!("{tab}-item{i}"), "name": "", "typeLine": format!("Fake Item {i}"),
-            "baseType": format!("Fake Item {i}"), "w": 1, "h": 1, "x": i, "y": 0,
-            "inventoryId": "Stash1", "league": "Standard", "frameType": 0, "identified": true,
-        }))
+        .map(|i| {
+            json!({
+                "id": format!("{tab}-item{i}"), "name": "", "typeLine": format!("Fake Item {i}"),
+                "baseType": format!("Fake Item {i}"), "w": 1, "h": 1, "x": i, "y": 0,
+                "inventoryId": "Stash1", "league": "Standard", "frameType": 0, "identified": true,
+            })
+        })
         .collect()
 }
 
@@ -197,15 +227,35 @@ pub async fn start() -> Result<String> {
     // real character-list policy; /fetch borrows character-request-limit's
     // shape under a mock name so the limiter sees two independent policies.
     let policies: Policies = Arc::new(Mutex::new(HashMap::from([
-        ("/character", MockPolicy::new("character-list-request-limit", &[(2, 10, 60), (5, 300, 300)])),
-        ("/stash", MockPolicy::new("stash-list-request-limit", &[(10, 15, 60), (30, 60, 300)])),
-        ("/stash/tab", MockPolicy::new("stash-request-limit", &[(15, 10, 60), (30, 300, 300)])),
-        ("/fetch", MockPolicy::new("mock-fetch-request-limit", &[(5, 10, 60), (30, 300, 300)])),
-        ("/token", MockPolicy::new("token-request-limit", &[(60, 30, 30)])),
+        (
+            "/character",
+            MockPolicy::new(
+                "character-list-request-limit",
+                &[(2, 10, 60), (5, 300, 300)],
+            ),
+        ),
+        (
+            "/stash",
+            MockPolicy::new("stash-list-request-limit", &[(10, 15, 60), (30, 60, 300)]),
+        ),
+        (
+            "/stash/tab",
+            MockPolicy::new("stash-request-limit", &[(15, 10, 60), (30, 300, 300)]),
+        ),
+        (
+            "/fetch",
+            MockPolicy::new("mock-fetch-request-limit", &[(5, 10, 60), (30, 300, 300)]),
+        ),
+        (
+            "/token",
+            MockPolicy::new("token-request-limit", &[(60, 30, 30)]),
+        ),
     ])));
     tokio::spawn(async move {
         loop {
-            let Ok((stream, _)) = listener.accept().await else { break };
+            let Ok((stream, _)) = listener.accept().await else {
+                break;
+            };
             tokio::spawn(handle(stream, codes.clone(), policies.clone()));
         }
     });
@@ -217,7 +267,9 @@ async fn handle(
     codes: Arc<Mutex<HashMap<String, PendingCode>>>,
     policies: Policies,
 ) {
-    let Some(req) = read_request(&mut stream).await else { return };
+    let Some(req) = read_request(&mut stream).await else {
+        return;
+    };
     match (req.method.as_str(), req.path.as_str()) {
         ("GET", "/authorize") => {
             let client_id = req.query.get("client_id").cloned().unwrap_or_default();
@@ -236,7 +288,13 @@ async fn handle(
                 req.query.get("state"),
                 req.query.get("code_challenge"),
             ) else {
-                respond(&mut stream, "400 Bad Request", "text/plain", "missing params").await;
+                respond(
+                    &mut stream,
+                    "400 Bad Request",
+                    "text/plain",
+                    "missing params",
+                )
+                .await;
                 return;
             };
             let code = auth::random_token("code");
@@ -247,10 +305,7 @@ async fn handle(
                     redirect_uri: redirect_uri.clone(),
                 },
             );
-            let location = format!(
-                "{redirect_uri}?code={code}&state={}",
-                urlencode(state)
-            );
+            let location = format!("{redirect_uri}?code={code}&state={}", urlencode(state));
             let head = format!(
                 "HTTP/1.1 302 Found\r\nLocation: {location}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
             );
@@ -259,12 +314,18 @@ async fn handle(
         // Fake data endpoints mirroring GGG's `GET /character` (same job code
         // path in mock and real mode) plus `/fetch`, each behind its own
         // truthfully simulated rate-limit policy.
-        ("GET" | "HEAD", path) if path == "/character" || path == "/fetch" || path.starts_with("/stash/") => {
+        ("GET" | "HEAD", path)
+            if path == "/character" || path == "/fetch" || path.starts_with("/stash/") =>
+        {
             // `/stash/{league}` is the list; `/stash/{league}/{id}[/{sub}]` is
             // one tab, under its own policy (N7).
             let stash_parts: Vec<&str> = path.trim_start_matches("/stash/").split('/').collect();
             let policy_key = if path.starts_with("/stash/") {
-                if stash_parts.len() >= 2 { "/stash/tab" } else { "/stash" }
+                if stash_parts.len() >= 2 {
+                    "/stash/tab"
+                } else {
+                    "/stash"
+                }
             } else {
                 path
             };
@@ -273,8 +334,13 @@ async fn handle(
                 .get("authorization")
                 .is_some_and(|v| v.starts_with("Bearer "));
             if policy_key != "/fetch" && !authed {
-                respond(&mut stream, "401 Unauthorized", "application/json",
-                        &json!({ "error": "no bearer token" }).to_string()).await;
+                respond(
+                    &mut stream,
+                    "401 Unauthorized",
+                    "application/json",
+                    &json!({ "error": "no bearer token" }).to_string(),
+                )
+                .await;
                 return;
             }
             let (ok, extra) = policies
@@ -287,24 +353,46 @@ async fn handle(
                 // ACQ_MOCK_DEGRADED_HEAD=1 reproduces the Dec-2023 regression
                 // (N20): policy name present, every other header missing.
                 let extra = if std::env::var_os("ACQ_MOCK_DEGRADED_HEAD").is_some() {
-                    extra.lines().filter(|l| l.starts_with("X-Rate-Limit-Policy")).map(|l| format!("{l}\r\n")).collect()
+                    extra
+                        .lines()
+                        .filter(|l| l.starts_with("X-Rate-Limit-Policy"))
+                        .map(|l| format!("{l}\r\n"))
+                        .collect()
                 } else {
                     extra
                 };
-                respond_with(&mut stream, "204 No Content", "application/json", &extra, "").await;
+                respond_with(
+                    &mut stream,
+                    "204 No Content",
+                    "application/json",
+                    &extra,
+                    "",
+                )
+                .await;
                 return;
             }
             if !ok {
-                respond_with(&mut stream, "429 Too Many Requests", "application/json", &extra,
-                             &json!({ "error": "rate limited" }).to_string()).await;
+                respond_with(
+                    &mut stream,
+                    "429 Too Many Requests",
+                    "application/json",
+                    &extra,
+                    &json!({ "error": "rate limited" }).to_string(),
+                )
+                .await;
                 return;
             }
             let body = if policy_key == "/stash/tab" {
                 match mock_stash(stash_parts[1], stash_parts.get(2).copied()) {
                     Some(v) => v,
                     None => {
-                        respond(&mut stream, "404 Not Found", "application/json",
-                                &json!({ "error": "no such stash" }).to_string()).await;
+                        respond(
+                            &mut stream,
+                            "404 Not Found",
+                            "application/json",
+                            &json!({ "error": "no such stash" }).to_string(),
+                        )
+                        .await;
                         return;
                     }
                 }
@@ -327,7 +415,14 @@ async fn handle(
                     ],
                 })
             };
-            respond_with(&mut stream, "200 OK", "application/json", &extra, &body.to_string()).await;
+            respond_with(
+                &mut stream,
+                "200 OK",
+                "application/json",
+                &extra,
+                &body.to_string(),
+            )
+            .await;
         }
         ("POST", "/token") => {
             let (ok, extra) = policies
@@ -347,13 +442,13 @@ async fn handle(
                 .await;
                 return;
             }
-            let form: HashMap<String, String> =
-                url::form_urlencoded::parse(req.body.as_bytes()).into_owned().collect();
+            let form: HashMap<String, String> = url::form_urlencoded::parse(req.body.as_bytes())
+                .into_owned()
+                .collect();
             let reply = token_reply(&form, &codes);
             match reply {
                 Ok(body) => {
-                    respond_with(&mut stream, "200 OK", "application/json", &extra, &body)
-                        .await;
+                    respond_with(&mut stream, "200 OK", "application/json", &extra, &body).await;
                 }
                 Err(msg) => {
                     let body = json!({ "error": msg }).to_string();
@@ -471,8 +566,17 @@ pub async fn read_request(stream: &mut TcpStream) -> Option<HttpRequest> {
         Some((p, q)) => (p.to_string(), q.to_string()),
         None => (target, String::new()),
     };
-    let query = url::form_urlencoded::parse(raw_query.as_bytes()).into_owned().collect();
-    Some(HttpRequest { method, path, raw_query, query, headers, body: String::from_utf8_lossy(&body).into_owned() })
+    let query = url::form_urlencoded::parse(raw_query.as_bytes())
+        .into_owned()
+        .collect();
+    Some(HttpRequest {
+        method,
+        path,
+        raw_query,
+        query,
+        headers,
+        body: String::from_utf8_lossy(&body).into_owned(),
+    })
 }
 
 pub async fn respond(stream: &mut TcpStream, status: &str, content_type: &str, body: &str) {
