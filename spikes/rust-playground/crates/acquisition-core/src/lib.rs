@@ -8,6 +8,8 @@
 
 pub mod auth;
 pub mod daemon;
+#[allow(dead_code, reason = "N3 builds the primitive before N4 integrates it")]
+pub(crate) mod gate;
 pub mod job;
 pub mod mockggg;
 pub mod protocol;
