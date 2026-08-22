@@ -24,14 +24,19 @@ review-only session.
 - Date recorded: 2026-08-21.
 - Branch: `spikes/rust-playground`.
 - Frozen gate-contract baseline: `1e17e812`.
-- Current implementation tip: `412c840e155b01f626560fcb097393d6a24b797c`.
-- Active package: none; N1 is accepted and H0 is the next unblocked package.
+- Current implementation tip: `f1fcb24e3a03b7d9e5d4faa9bbcee3cf244c61a7`.
+- Active package: none; H0 is accepted and N2 is the next unblocked package.
 - Accepted N1 review range:
   `1e17e812..412c840e155b01f626560fcb097393d6a24b797c`.
 - N1 fix commit: `412c840e155b01f626560fcb097393d6a24b797c`
   (`N1-R1` through `N1-R3`).
 - N1 review verdict: `accepted`; no unresolved N1 work remains.
-- Do not start N2 or N3 until H0 is accepted.
+- Accepted H0 review range:
+  `694fb10c8a59ed54147ce3431a3962683ee5e4e6..f1fcb24e3a03b7d9e5d4faa9bbcee3cf244c61a7`.
+- H0 formatting commit: `f1fcb24e3a03b7d9e5d4faa9bbcee3cf244c61a7`.
+- H0 review verdict: `accepted`; the independent review found no findings and
+  no unresolved H0 work remains.
+- N2 and N3 are unblocked. Start N2 next and keep N3 separate.
 
 ## Package ledger
 
@@ -43,7 +48,7 @@ dependents.
 | --- | --- | --- | --- | --- |
 | N0 | Ground truth and OAuth gate decision | — | accepted | through `1e17e812` |
 | N1 | Strict parsing, observation/classification, and 429 recovery | N0 | accepted | `1e17e812..412c840e155b01f626560fcb097393d6a24b797c` |
-| H0 | Workspace formatting and strict-Clippy baseline | N1 | planned | — |
+| H0 | Workspace formatting and strict-Clippy baseline | N1 | accepted | `694fb10c8a59ed54147ce3431a3962683ee5e4e6..f1fcb24e3a03b7d9e5d4faa9bbcee3cf244c61a7` |
 | N2 | OAuth refresh singleflight and session generations | H0 | planned | — |
 | N3 | Send-lifetime gate primitive and fairness semantics | H0 | planned | — |
 | N4 | Gate integration in `ChokePoint`; remove `Paid` | N2, N3 | planned | — |
@@ -104,6 +109,22 @@ This is a deliberately separate, non-semantic package:
 
 Do not mix H0 with N1 review fixes or N2 behavior. Its purpose is to make every
 later handoff's quality-gate result meaningful.
+
+Review verdict: `accepted` for exact range
+`694fb10c8a59ed54147ce3431a3962683ee5e4e6..f1fcb24e3a03b7d9e5d4faa9bbcee3cf244c61a7`.
+The independent review found no findings. The diff changed only `client.rs`,
+`dash.rs`, `main.rs`, `auth.rs`, `job.rs`, and `mockggg.rs`, and was verified
+as the exact mechanical result of `cargo fmt --all`.
+
+Accepted-review validation:
+
+- `cargo test --workspace --all-targets`: passed, 44 core tests and 0 CLI
+  tests.
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings`:
+  passed.
+- `cargo clippy -p acquisition-core --all-targets --all-features -- -D
+  warnings`: passed.
+- `cargo fmt --all -- --check`: passed.
 
 ### N2 — OAuth refresh ownership
 
@@ -308,56 +329,57 @@ available. Do not stack new semantic work on a package whose review is pending.
 
 ## Quality-gate baseline
 
-Recorded at accepted N1 tip `412c840e155b01f626560fcb097393d6a24b797c`
+Recorded at accepted H0 tip `f1fcb24e3a03b7d9e5d4faa9bbcee3cf244c61a7`
 on 2026-08-21:
 
 - `cargo test --workspace --all-targets`: passed, 44 core tests and 0 CLI
   tests.
-- `cargo fmt --all -- --check`: failed only on the known H0 baseline files
-  `client.rs`, `dash.rs`, `main.rs`, `auth.rs`, `job.rs`, and `mockggg.rs`;
-  no new N1 formatting drift was found.
 - `cargo clippy --workspace --all-targets --all-features -- -D warnings`:
   passed.
 - `cargo clippy -p acquisition-core --all-targets --all-features -- -D
   warnings`: passed.
+- `cargo fmt --all -- --check`: passed.
 
-The core crate's strict Clippy check remains the interim semantic-package gate.
-After H0, all three workspace gates must be green for every package.
+All three workspace gates must remain green for every later package; the
+core crate's strict Clippy check remains an additional semantic-package gate.
 
 ## Next action and exact kickoff prompt
 
-The single next action is an H0 mechanical-formatting session. Use this prompt
-verbatim:
+The single next action is an N2 OAuth refresh-ownership build session. Use this
+prompt verbatim:
 
 ```text
 Read AGENTS.md, CONTEXT.md, README.md, NETWORK-CLEANUP.md, and the frozen
-network design documents referenced there before editing. This is an H0
-mechanical-formatting-only session. Start from the current clean
-spikes/rust-playground branch tip, which must contain the coordination commit
-recording N1 as accepted for exact range
-1e17e812..412c840e155b01f626560fcb097393d6a24b797c. Record the exact starting
-hash before editing; if the worktree is not clean or that ledger state is
-absent, stop and report the mismatch.
+network design documents referenced there before editing. This is an N2
+build-only session. Start from the current clean spikes/rust-playground branch
+tip, which must contain the coordination commit recording H0 as accepted for
+exact range
+694fb10c8a59ed54147ce3431a3962683ee5e4e6..f1fcb24e3a03b7d9e5d4faa9bbcee3cf244c61a7
+with no findings. Record the exact starting hash before editing; if the
+worktree is not clean or that ledger state is absent, stop and report the
+mismatch.
 
-Run cargo fmt --all and commit only its mechanical formatting result. The
-known baseline files are client.rs, dash.rs, main.rs, auth.rs, job.rs, and
-mockggg.rs. Review the formatter diff to confirm it contains no semantic
-changes and no files outside the formatter's mechanical result.
+Implement only N2: one refresh owner for concurrent callers, shared waiter
+results, and session/access-token/refresh-token generations that prevent stale
+completion from overwriting logout, re-authentication, or a rotated refresh
+token. Add the required characterization for concurrent expiry, successful
+refresh-token rotation, refresh failure, logout during refresh, and
+re-authentication during refresh. Preserve the existing registration, scopes,
+callback, user-agent, keyring isolation, and no-plaintext-token rules.
 
-Do not change behavior, begin N2 or N3, implement OAuth
-singleflight/session-generation work, implement the send-lifetime gate, alter
-dispatcher semantics, edit the frozen design documents, or contact GGG.
+Do not begin N3, implement the send-lifetime gate, alter dispatcher semantics,
+integrate the gate into ChokePoint, edit frozen design documents, or contact
+GGG. N2 coordinates authentication state but does not claim the global HTTP
+gate.
 
 Run cargo test --workspace --all-targets; cargo clippy --workspace
 --all-targets --all-features -- -D warnings; cargo clippy -p acquisition-core
 --all-targets --all-features -- -D warnings; and cargo fmt --all -- --check.
-Record exact outcomes. Commit only the formatting change with an H0-labeled
-mechanical-formatting commit message. Do not mark H0 accepted. Return the exact
-starting and ending hashes, clean worktree state, formatted files, confirmation
-that the diff was mechanical only, checks, unresolved findings, and the single
-next action: an independent H0 review of the exact coordination-tip-to-H0-tip
-range.
+Record exact outcomes. Commit only N2 with an N2-labeled message. Do not mark
+N2 accepted. Return the exact starting and ending hashes, clean worktree state,
+scope completed, checks, unresolved findings, and the single next action: an
+independent N2 review of the exact coordination-tip-to-N2-tip range.
 ```
 
-Only an independent H0 review with no required work remaining may mark H0
-accepted. N2 and N3 remain blocked until H0 is accepted.
+Only an independent N2 review with no required work remaining may mark N2
+accepted. N3 is unblocked but must remain a separate package and review.
