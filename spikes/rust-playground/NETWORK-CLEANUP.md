@@ -24,12 +24,14 @@ review-only session.
 - Date recorded: 2026-08-21.
 - Branch: `spikes/rust-playground`.
 - Frozen gate-contract baseline: `1e17e812`.
-- Current implementation tip: `7f76e56d`.
-- Active package: N1, changes requested.
-- Exact N1 review range: `1e17e812..7f76e56d`.
-- N1 review verdict: `changes-requested` (`N1-R1` through `N1-R3`).
-- Do not start H0 until N1 is accepted; do not start N2 or N3 until H0 is
-  accepted.
+- Current implementation tip: `412c840e155b01f626560fcb097393d6a24b797c`.
+- Active package: none; N1 is accepted and H0 is the next unblocked package.
+- Accepted N1 review range:
+  `1e17e812..412c840e155b01f626560fcb097393d6a24b797c`.
+- N1 fix commit: `412c840e155b01f626560fcb097393d6a24b797c`
+  (`N1-R1` through `N1-R3`).
+- N1 review verdict: `accepted`; no unresolved N1 work remains.
+- Do not start N2 or N3 until H0 is accepted.
 
 ## Package ledger
 
@@ -40,7 +42,7 @@ dependents.
 | ID | Package | Depends on | Status | Commit or review range |
 | --- | --- | --- | --- | --- |
 | N0 | Ground truth and OAuth gate decision | — | accepted | through `1e17e812` |
-| N1 | Strict parsing, observation/classification, and 429 recovery | N0 | changes-requested | `1e17e812..7f76e56d` |
+| N1 | Strict parsing, observation/classification, and 429 recovery | N0 | accepted | `1e17e812..412c840e155b01f626560fcb097393d6a24b797c` |
 | H0 | Workspace formatting and strict-Clippy baseline | N1 | planned | — |
 | N2 | OAuth refresh singleflight and session generations | H0 | planned | — |
 | N3 | Send-lifetime gate primitive and fairness semantics | H0 | planned | — |
@@ -70,6 +72,8 @@ Implementation commits:
 
 - `f650e83a` — strict total rate-limit parsing and observation hardening.
 - `7f76e56d` — response classification and bounded 429 recovery.
+- `412c840e155b01f626560fcb097393d6a24b797c` — resolves review findings
+  `N1-R1` through `N1-R3`.
 
 Scope:
 
@@ -85,10 +89,11 @@ Scope:
 Non-goals: OAuth refresh coordination, send-lifetime gate ownership,
 dispatcher semantics, and final integration stress behavior.
 
-Review verdict: `changes-requested` for exact implementation range
-`1e17e812..7f76e56d`. The stable findings are `N1-R1` through `N1-R3` in
-the review register below. Fix only those findings, append fix commits, and
-re-review the expanded exact N1 range before proceeding.
+Review verdict: `accepted` for exact implementation range
+`1e17e812..412c840e155b01f626560fcb097393d6a24b797c`. The accepted review
+confirmed that fix commit `412c840e155b01f626560fcb097393d6a24b797c`
+resolves `N1-R1` through `N1-R3`; it found no new findings and no unresolved
+N1 work remains.
 
 ### H0 — mechanical quality baseline
 
@@ -153,9 +158,9 @@ authoritative design or findings register, not only here.
 
 | Finding | Severity | Package | Summary | Status | Fix commit |
 | --- | --- | --- | --- | --- | --- |
-| N1-R1 | High | N1 | Strict parsing accepts values that can overflow deadline arithmetic and panic | open | — |
-| N1-R2 | Medium | N1 | Clean-2xx classification and send recording occur before body transfer completion | open | — |
-| N1-R3 | Low | N1 | Bounded retry/probe behavior lacks coverage through the real dispatcher lifecycle | open | — |
+| N1-R1 | High | N1 | Strict parsing accepts values that can overflow deadline arithmetic and panic | resolved | `412c840e155b01f626560fcb097393d6a24b797c` |
+| N1-R2 | Medium | N1 | Clean-2xx classification and send recording occur before body transfer completion | resolved | `412c840e155b01f626560fcb097393d6a24b797c` |
+| N1-R3 | Low | N1 | Bounded retry/probe behavior lacks coverage through the real dispatcher lifecycle | resolved | `412c840e155b01f626560fcb097393d6a24b797c` |
 
 For every finding, retain the concrete scenario, exact file and line references,
 affected invariant/design rule/ground-truth claim, classification (confirmed
@@ -256,21 +261,26 @@ tests. Preserve sound behavior explicitly in the review handoff.
 - Only a Full acceptable HEAD 429 establishes; other partial or unacceptable
   probes fail under cooldown.
 
-### N1 review validation
+### N1 accepted-review validation
 
-Review of exact range `1e17e812..7f76e56d` recorded:
+Independent review of exact range
+`1e17e812..412c840e155b01f626560fcb097393d6a24b797c` recorded:
 
-- `cargo test --workspace --all-targets`: passed, 30 tests.
+- Verdict: `accepted`; fix commit
+  `412c840e155b01f626560fcb097393d6a24b797c` resolves `N1-R1` through
+  `N1-R3`, with no new findings and no unresolved N1 work.
+- `cargo test --workspace --all-targets`: passed, 44 core tests and 0 CLI
+  tests.
 - `cargo clippy --workspace --all-targets --all-features -- -D warnings`:
   passed.
-- `cargo fmt --all -- --check`: failed with workspace-wide differences in
-  `client.rs`, `dash.rs`, `main.rs`, `auth.rs`, `job.rs`, and `mockggg.rs`.
-- The review worktree remained clean; no code was changed.
+- `cargo clippy -p acquisition-core --all-targets --all-features -- -D
+  warnings`: passed.
+- `cargo fmt --all -- --check`: failed only on the known H0 baseline files:
+  `client.rs`, `dash.rs`, `main.rs`, `auth.rs`, `job.rs`, and `mockggg.rs`;
+  there was no new N1 formatting drift.
 
-The format failure is not a fourth N1 finding: H0 already owns the deliberately
-separate mechanical formatting baseline. Do not sweep unrelated formatting in
-the N1 fix. H0 remains blocked until N1 is accepted, and N2/N3 remain blocked
-until both N1 and H0 are accepted.
+The format failure is not an N1 finding. N1 is accepted, so H0 is unblocked;
+N2 and N3 remain blocked until H0 is accepted.
 
 ## Session protocol
 
@@ -298,12 +308,14 @@ available. Do not stack new semantic work on a package whose review is pending.
 
 ## Quality-gate baseline
 
-Recorded at implementation tip `7f76e56d` on 2026-08-21:
+Recorded at accepted N1 tip `412c840e155b01f626560fcb097393d6a24b797c`
+on 2026-08-21:
 
-- `cargo test --workspace --all-targets`: passed, 30 core tests and 0 CLI
+- `cargo test --workspace --all-targets`: passed, 44 core tests and 0 CLI
   tests.
-- `cargo fmt --all -- --check`: failed on pre-existing workspace-wide
-  formatting drift.
+- `cargo fmt --all -- --check`: failed only on the known H0 baseline files
+  `client.rs`, `dash.rs`, `main.rs`, `auth.rs`, `job.rs`, and `mockggg.rs`;
+  no new N1 formatting drift was found.
 - `cargo clippy --workspace --all-targets --all-features -- -D warnings`:
   passed.
 - `cargo clippy -p acquisition-core --all-targets --all-features -- -D
@@ -314,49 +326,38 @@ After H0, all three workspace gates must be green for every package.
 
 ## Next action and exact kickoff prompt
 
-The single next action is an N1-only fix session. Use this prompt verbatim:
+The single next action is an H0 mechanical-formatting session. Use this prompt
+verbatim:
 
 ```text
 Read AGENTS.md, CONTEXT.md, README.md, NETWORK-CLEANUP.md, and the frozen
-network design documents referenced there before editing. This is an N1
-fix-only session. Start from the current spikes/rust-playground branch tip,
-which must be the clean coordination commit containing the reconciled N1
-review verdict for exact implementation range 1e17e812..7f76e56d. Record the
-exact starting hash before editing; if the worktree is not clean or that
-ledger state is absent, stop and report the mismatch.
+network design documents referenced there before editing. This is an H0
+mechanical-formatting-only session. Start from the current clean
+spikes/rust-playground branch tip, which must contain the coordination commit
+recording N1 as accepted for exact range
+1e17e812..412c840e155b01f626560fcb097393d6a24b797c. Record the exact starting
+hash before editing; if the worktree is not clean or that ledger state is
+absent, stop and report the mismatch.
 
-Address only the three open, stable findings recorded in NETWORK-CLEANUP.md:
+Run cargo fmt --all and commit only its mechanical formatting result. The
+known baseline files are client.rs, dash.rs, main.rs, auth.rs, job.rs, and
+mockggg.rs. Review the formatter diff to confirm it contains no semantic
+changes and no files outside the formatter's mechanical result.
 
-- N1-R1: impose named operational bounds on policy period/restriction fields,
-  use checked deadline arithmetic, and add every boundary/no-panic test listed
-  in the finding.
-- N1-R2: make final clean-2xx classification and send recording wait for body
-  transfer completion across API and OAuth-token responses, while preserving
-  observation of landed headers; add all four real-local-stream scenarios
-  listed in the finding.
-- N1-R3: add daemon-level injected-clock/fake-server coverage through
-  ChokePoint -> api_get -> Exec::RateLimited -> dispatcher requeue for the
-  bounded attempts, immediate exhaustion, FIFO identity, 403/503, and probe
-  cases listed in the finding. This is test coverage of current dispatcher
-  behavior, not a dispatcher redesign.
-
-Preserve every item under “N1 behavior the fix must preserve.” Do not begin
-H0, N2, N3, OAuth singleflight/session-generation work, the send-lifetime gate,
-or dispatcher cleanup. Do not run a workspace formatting sweep or include
-unrelated formatting changes; H0 owns the known pre-existing formatting drift.
-Do not contact GGG or actively probe live limits.
+Do not change behavior, begin N2 or N3, implement OAuth
+singleflight/session-generation work, implement the send-lifetime gate, alter
+dispatcher semantics, edit the frozen design documents, or contact GGG.
 
 Run cargo test --workspace --all-targets; cargo clippy --workspace
 --all-targets --all-features -- -D warnings; cargo clippy -p acquisition-core
 --all-targets --all-features -- -D warnings; and cargo fmt --all -- --check.
-Record exact outcomes, including the known formatter baseline if it remains.
-Commit only the N1 fixes and their tests in one or more N1-labeled commits.
-Do not mark N1 accepted. Return the exact starting and ending hashes, worktree
-state, fix commits mapped to N1-R1/N1-R2/N1-R3, preserved behavior, checks,
-unresolved findings, and the single next action: an independent re-review of
-the expanded exact range from 1e17e812 through the new N1 fix tip.
+Record exact outcomes. Commit only the formatting change with an H0-labeled
+mechanical-formatting commit message. Do not mark H0 accepted. Return the exact
+starting and ending hashes, clean worktree state, formatted files, confirmation
+that the diff was mechanical only, checks, unresolved findings, and the single
+next action: an independent H0 review of the exact coordination-tip-to-H0-tip
+range.
 ```
 
-After the fix, re-review the expanded exact N1 range. Only an independent
-review with no required work remaining may mark N1 accepted and unblock H0.
-N2 and N3 remain blocked until both N1 and H0 are accepted.
+Only an independent H0 review with no required work remaining may mark H0
+accepted. N2 and N3 remain blocked until H0 is accepted.
