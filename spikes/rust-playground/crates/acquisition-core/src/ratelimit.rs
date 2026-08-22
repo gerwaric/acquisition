@@ -545,13 +545,14 @@ impl Limiter {
             for rule in &state.policy.rules {
                 for (i, w) in rule.limits.iter().enumerate() {
                     let period = Duration::from_secs(w.period_secs);
+                    let bucket = bucket_for_policy(&state.policy.name, rule.limits.len(), i);
                     let in_window = history
                         .iter()
                         .filter(|&&h| t.duration_since(h) < period)
                         .count();
                     if in_window >= w.max_hits as usize
                         && let Some(deadline) =
-                            window_frees_at(&history, t, w.max_hits, period, bucket_for(i))
+                            window_frees_at(&history, t, w.max_hits, period, bucket)
                     {
                         next = next.max(deadline);
                     }
@@ -2385,6 +2386,39 @@ mod tests {
         assert_wait("one ahead", l.eta_for("/character", 1, now), 12.0);
         // Two ahead: two hits at +12 fill the window → +12 + 10 + 5 + 1 = 28s.
         assert_wait("two ahead", l.eta_for("/character", 2, now), 28.0);
+    }
+
+    #[test]
+    fn eta_uses_policy_aware_bucket_selection() {
+        let now = far_future();
+        let token_headers = [
+            ("x-rate-limit-policy", "token-request-limit"),
+            ("x-rate-limit-rules", "Ip"),
+            ("x-rate-limit-ip", "60:30:30"),
+            ("x-rate-limit-ip-state", "1:30:0"),
+        ];
+        let generic_headers = [
+            ("x-rate-limit-policy", "generic-single-window"),
+            ("x-rate-limit-rules", "Ip"),
+            ("x-rate-limit-ip", "60:30:30"),
+            ("x-rate-limit-ip-state", "1:30:0"),
+        ];
+
+        let mut limiter = Limiter::new();
+        run(&mut limiter, "oauth-token", &token_headers, &[0.0], now);
+        assert_wait(
+            "N33 token ETA uses the conservative 60s bucket",
+            limiter.eta_for("oauth-token", 59, now),
+            30.0 + 60.0 + 1.0,
+        );
+
+        let mut limiter = Limiter::new();
+        run(&mut limiter, "/generic", &generic_headers, &[0.0], now);
+        assert_wait(
+            "non-token single-window ETA keeps the generic 5s bucket",
+            limiter.eta_for("/generic", 59, now),
+            30.0 + 5.0 + 1.0,
+        );
     }
 
     #[test]
