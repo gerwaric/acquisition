@@ -16,8 +16,9 @@
 //! so server-side residue and other tools' hits are known before we add to
 //! them. A degraded probe (N20) puts the endpoint in a cooldown.
 //!
-//! Not yet built (each a separate baby step): an explicit send-lifetime
-//! cross-policy burst bound (P-B). The dispatcher cap is not that gate.
+//! The send-lifetime gate bounds actual daemon-owned HTTP exchanges across
+//! API GETs, HEAD probes, and OAuth token requests (P-B/N33). The dispatcher
+//! cap remains separate job-scheduling machinery.
 
 use std::collections::{HashMap, VecDeque};
 use std::fmt;
@@ -27,6 +28,8 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use serde::{Deserialize, Serialize};
+
+use crate::gate::{SendGate, SendPermit};
 
 /// Server-side timing bucket for a rule's first (initial) window (N12).
 pub const INITIAL_BUCKET: Duration = Duration::from_secs(5);
@@ -60,6 +63,17 @@ pub fn bucket_for(index: usize) -> Duration {
         INITIAL_BUCKET
     } else {
         SUSTAINED_BUCKET
+    }
+}
+
+/// N33's token policy has one window and therefore cannot be classified by
+/// the paired API-policy positional rule. Until GGG confirms its hidden
+/// resolution, the frozen policy uses the conservative 60-second bucket.
+fn bucket_for_policy(policy: &str, window_count: usize, index: usize) -> Duration {
+    if policy == "token-request-limit" && window_count == 1 {
+        SUSTAINED_BUCKET
+    } else {
+        bucket_for(index)
     }
 }
 
@@ -823,7 +837,12 @@ impl Limiter {
                                     period_secs: w.period_secs,
                                     restriction_secs: w.restriction_secs,
                                     restricted_secs: st.map(|s| s.restricted_secs).unwrap_or(0),
-                                    bucket_secs: bucket_for(i).as_secs(),
+                                    bucket_secs: bucket_for_policy(
+                                        &s.policy.name,
+                                        r.limits.len(),
+                                        i,
+                                    )
+                                    .as_secs(),
                                 }
                             })
                             .collect(),
@@ -970,7 +989,7 @@ fn next_safe_send(s: &PolicyState) -> Option<Instant> {
 
     for rule in &s.policy.rules {
         for (i, limit) in rule.limits.iter().enumerate() {
-            let bucket = bucket_for(i);
+            let bucket = bucket_for_policy(&s.policy.name, rule.limits.len(), i);
             let Some(st) = rule.state.get(i) else {
                 continue;
             };
@@ -1042,13 +1061,6 @@ pub struct SendRecord {
 }
 
 // ---- the choke point ------------------------------------------------------
-
-/// Receipt proving the limiter was consulted for this route and said go.
-/// Send methods that don't wait internally require one, and only `try_take`
-/// mints them, so asking the limiter stays structural.
-pub struct Paid {
-    route: String,
-}
 
 #[derive(Debug)]
 pub enum SendError {
@@ -1160,6 +1172,7 @@ pub struct ChokePoint {
     // limiter and reports the response back to it.
     http: reqwest::Client,
     limiter: Mutex<Limiter>,
+    gate: SendGate,
     sends: Mutex<VecDeque<SentAt>>,
     clock: Arc<dyn Clock>,
 }
@@ -1182,6 +1195,7 @@ impl ChokePoint {
                 .build()
                 .expect("reqwest client builds"),
             limiter: Mutex::new(Limiter::new()),
+            gate: SendGate::new(),
             sends: Mutex::new(VecDeque::new()),
             clock: Arc::new(SystemClock),
         }
@@ -1195,6 +1209,7 @@ impl ChokePoint {
                 .build()
                 .expect("reqwest client builds"),
             limiter: Mutex::new(Limiter::new()),
+            gate: SendGate::new(),
             sends: Mutex::new(VecDeque::new()),
             clock,
         }
@@ -1208,18 +1223,12 @@ impl ChokePoint {
         self.clock.sleep(duration).await;
     }
 
-    /// Ask to send on `route` now, or learn how long to wait. Callers that
-    /// need cancellation-aware waiting (the job worker) loop on this; plain
-    /// requests use `post_form`, which waits internally.
-    pub fn try_take(&self, route: &str) -> Result<Paid, Duration> {
+    /// Ask whether `route` may send now, or learn how long to wait. This is a
+    /// pacing hint for the cancellation-aware dispatcher; every transport
+    /// method repeats the final check under a live gate permit.
+    pub fn check(&self, route: &str) -> Result<(), Duration> {
         let wait = self.limiter.lock().unwrap().wait_for(route, self.now());
-        if wait.is_zero() {
-            Ok(Paid {
-                route: route.to_string(),
-            })
-        } else {
-            Err(wait)
-        }
+        if wait.is_zero() { Ok(()) } else { Err(wait) }
     }
 
     pub fn eta_for(&self, route: &str, ahead: u32) -> Duration {
@@ -1241,6 +1250,54 @@ impl ChokePoint {
         {
             EndpointState::Policy(name) => name,
             _ => route.to_string(),
+        }
+    }
+
+    /// Acquire an ordinary actual-send permit and repeat the limiter check
+    /// immediately before dispatch. The pre-check keeps rate-limit sleeps
+    /// permit-free. Rechecking both the route mapping and limiter state after
+    /// admission closes races with landed responses, including N33's
+    /// `oauth-token` -> `token-request-limit` discovery transition.
+    async fn acquire_send(&self, route: &str) -> SendPermit {
+        loop {
+            if let Err(wait) = self.check(route) {
+                self.sleep(wait.max(Duration::from_millis(50))).await;
+                continue;
+            }
+
+            let serial_key = self.serial_key(route);
+            let permit = self.gate.acquire(serial_key.clone()).await;
+            let mapping_is_current = self.serial_key(route) == serial_key;
+            match (mapping_is_current, self.check(route)) {
+                (true, Ok(())) => return permit,
+                (_, pacing) => {
+                    drop(permit);
+                    if let Err(wait) = pacing {
+                        self.sleep(wait.max(Duration::from_millis(50))).await;
+                    }
+                }
+            }
+        }
+    }
+
+    /// HEAD uses the same permit-free pacing loop, then takes the gate's
+    /// exclusive writer reservation. A final check after admission handles a
+    /// landed response that installed a hold while the probe was queued.
+    async fn acquire_head(&self, route: &str) -> SendPermit {
+        loop {
+            if let Err(wait) = self.check(route) {
+                self.sleep(wait.max(Duration::from_millis(50))).await;
+                continue;
+            }
+
+            let permit = self.gate.acquire_head().await;
+            match self.check(route) {
+                Ok(()) => return permit,
+                Err(wait) => {
+                    drop(permit);
+                    self.sleep(wait.max(Duration::from_millis(50))).await;
+                }
+            }
         }
     }
 
@@ -1287,72 +1344,88 @@ impl ChokePoint {
     /// Returns the raw rate headers on success for the probe job's payload.
     pub async fn head(
         &self,
-        paid: Paid,
+        route: &str,
         url: &str,
         bearer: Option<&str>,
     ) -> Result<(reqwest::StatusCode, Policy, serde_json::Value), String> {
+        let _permit = self.acquire_head(route).await;
         let mut req = self.http.head(url);
         if let Some(token) = bearer {
             req = req.bearer_auth(token);
         }
-        let result = req.send().await.map_err(|e| e.to_string());
-        let policy = result
-            .as_ref()
-            .ok()
-            .map(|response| Policy::from_headers(response.headers()));
-        let retry_after = result.as_ref().map_or(RetryAfter::Missing, |response| {
-            retry_after_from_headers(response.headers())
-        });
-        let outcome: Result<Policy, String> = match &result {
-            Ok(r) if r.status().is_success() || r.status().as_u16() == 429 => policy
+        let sent = req.send().await.map_err(|error| error.to_string());
+        let (policy, retry_after, raw) = sent.as_ref().map_or_else(
+            |_| (None, RetryAfter::Missing, serde_json::Value::Null),
+            |response| {
+                (
+                    Some(Policy::from_headers(response.headers())),
+                    retry_after_from_headers(response.headers()),
+                    rate_limit_snapshot(response.headers()),
+                )
+            },
+        );
+        // A HEAD normally has no body, but draining it keeps the exclusive
+        // permit live through the complete exchange even for a malformed
+        // server response that does carry one.
+        let completed = match sent {
+            Ok(response) => {
+                let status = response.status();
+                let body = response.text().await.map_err(|error| error.to_string());
+                Ok((status, body))
+            }
+            Err(error) => Err(error),
+        };
+        let outcome: Result<Policy, String> = match &completed {
+            Ok((status, _)) if status.as_u16() == 429 => policy
                 .clone()
                 .expect("landed responses have a policy parse result")
                 .map_err(|error| error.to_string()),
-            Ok(r) => Err(format!("HEAD returned {}", r.status())),
-            Err(e) => Err(format!("HEAD failed: {e}")),
+            Ok((status, Ok(_))) if status.is_success() => policy
+                .clone()
+                .expect("landed responses have a policy parse result")
+                .map_err(|error| error.to_string()),
+            Ok((status, Err(error))) if status.is_success() => {
+                Err(format!("HEAD body transfer failed: {error}"))
+            }
+            Ok((status, _)) => Err(format!("HEAD returned {status}")),
+            Err(error) => Err(format!("HEAD failed: {error}")),
         };
-        let raw = result
-            .as_ref()
-            .map(|r| rate_limit_snapshot(r.headers()))
-            .unwrap_or(serde_json::Value::Null);
         let now = self.now();
-        if result
+        if completed
             .as_ref()
-            .is_ok_and(|response| response.status().as_u16() == 429)
+            .is_ok_and(|(status, _)| status.as_u16() == 429)
         {
             let _ = self.limiter.lock().unwrap().observe_probe_429(
-                &paid.route,
+                route,
                 policy.expect("a 429 is a landed response"),
                 &retry_after,
                 raw.clone(),
                 now,
             );
         } else {
-            self.limiter.lock().unwrap().observe_probe(
-                &paid.route,
-                outcome.clone(),
-                raw.clone(),
-                now,
-            );
+            self.limiter
+                .lock()
+                .unwrap()
+                .observe_probe(route, outcome.clone(), raw.clone(), now);
         }
-        let protocol_failure = match (&result, &outcome) {
-            (Ok(response), Err(error)) if response.status().is_success() => Some(error.as_str()),
+        let protocol_failure = match (&completed, &outcome) {
+            (Ok((status, Ok(_))), Err(error)) if status.is_success() => Some(error.as_str()),
             _ => None,
         };
-        self.record(&paid.route, "HEAD", url, &result, protocol_failure);
+        self.record_completed(route, "HEAD", url, &completed, protocol_failure);
         // The limiter decided whether that was good enough; report what it
         // concluded so the probe job's outcome matches the endpoint state.
         match self
             .limiter
             .lock()
             .unwrap()
-            .endpoint_state(&paid.route, self.now())
+            .endpoint_state(route, self.now())
         {
             EndpointState::Policy(_) => {
                 let Ok(policy) = outcome else {
                     unreachable!("policy state implies a parsed policy")
                 };
-                Ok((result.unwrap().status(), policy, raw))
+                Ok((completed.unwrap().0, policy, raw))
             }
             EndpointState::Degraded { reason, .. } => {
                 Err(format!("{reason}; endpoint closed for a cooldown"))
@@ -1390,7 +1463,8 @@ impl ChokePoint {
         if let Ok(r) = result {
             let policy = Policy::from_headers(r.headers());
             let raw = rate_limit_snapshot(r.headers());
-            return self.limiter.lock().unwrap().observe_landed(
+            let mut limiter = self.limiter.lock().unwrap();
+            let observation = limiter.observe_landed(
                 endpoint,
                 LandedObservation {
                     policy,
@@ -1401,6 +1475,13 @@ impl ChokePoint {
                     now: self.now(),
                 },
             );
+            if let EndpointState::Policy(policy) = limiter.endpoint_state(endpoint, self.now()) {
+                // Header discovery happens before body completion. Rekeying
+                // the live permit and queued waiters atomically prevents the
+                // stable route key and learned policy name from overlapping.
+                self.gate.rekey_policy(endpoint, &policy);
+            }
+            return observation;
         }
         Ok(())
     }
@@ -1482,33 +1563,6 @@ impl ChokePoint {
         }
     }
 
-    fn record(
-        &self,
-        endpoint: &str,
-        method: &'static str,
-        url: &str,
-        result: &Result<reqwest::Response, String>,
-        protocol_failure: Option<&str>,
-    ) {
-        let (outcome, ok) = match (result, protocol_failure) {
-            (_, Some(error)) => (format!("protocol failure: {error}"), false),
-            (Ok(r), None) => (r.status().to_string(), r.status().is_success()),
-            (Err(e), None) => (format!("error: {e}"), false),
-        };
-        let mut sends = self.sends.lock().unwrap();
-        if sends.len() >= SEND_HISTORY {
-            sends.pop_front();
-        }
-        sends.push_back(SentAt {
-            at: self.now(),
-            endpoint: endpoint.to_string(),
-            method,
-            url: url.to_string(),
-            outcome,
-            ok,
-        });
-    }
-
     fn record_completed(
         &self,
         endpoint: &str,
@@ -1547,12 +1601,7 @@ impl ChokePoint {
         url: &str,
         params: &[(&str, &str)],
     ) -> Result<CompletedResponse, SendError> {
-        let paid = loop {
-            match self.try_take(route) {
-                Ok(paid) => break paid,
-                Err(wait) => self.sleep(wait.max(Duration::from_millis(50))).await,
-            }
-        };
+        let _permit = self.acquire_send(route).await;
         let result = self
             .http
             .post(url)
@@ -1560,19 +1609,18 @@ impl ChokePoint {
             .send()
             .await
             .map_err(|e| e.to_string());
-        self.finish_send(&paid.route, "POST", url, result, true)
-            .await
+        self.finish_send(route, "POST", url, result, true).await
     }
 
-    /// Bearer-authenticated GET for callers that already consulted the
-    /// limiter (the job worker waits while the job is still cancellable,
-    /// then hands the receipt in here).
+    /// Bearer-authenticated GET. The dispatcher may pre-wait while the job is
+    /// cancellable; this method owns the final limiter check and live permit.
     pub async fn get_bearer(
         &self,
-        paid: Paid,
+        route: &str,
         url: &str,
         bearer: &str,
     ) -> Result<CompletedResponse, SendError> {
+        let _permit = self.acquire_send(route).await;
         let result = self
             .http
             .get(url)
@@ -1580,15 +1628,14 @@ impl ChokePoint {
             .send()
             .await
             .map_err(|e| e.to_string());
-        self.finish_send(&paid.route, "GET", url, result, true)
-            .await
+        self.finish_send(route, "GET", url, result, true).await
     }
 
     /// Unauthenticated GET (mock-only fake data endpoints).
-    pub async fn get(&self, paid: Paid, url: &str) -> Result<CompletedResponse, SendError> {
+    pub async fn get(&self, route: &str, url: &str) -> Result<CompletedResponse, SendError> {
+        let _permit = self.acquire_send(route).await;
         let result = self.http.get(url).send().await.map_err(|e| e.to_string());
-        self.finish_send(&paid.route, "GET", url, result, true)
-            .await
+        self.finish_send(route, "GET", url, result, true).await
     }
 }
 
@@ -1617,6 +1664,7 @@ mod tests {
     use super::*;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     use tokio::net::TcpListener;
+    use tokio::sync::{mpsc, oneshot};
 
     /// A row of the pacing table.
     struct Row {
@@ -2674,6 +2722,33 @@ mod tests {
     }
 
     #[test]
+    fn token_policy_uses_the_frozen_conservative_single_window_bucket() {
+        let now = far_future();
+        let mut limiter = Limiter::new();
+        limiter
+            .observe(
+                "oauth-token",
+                parse(&[
+                    ("x-rate-limit-policy", "token-request-limit"),
+                    ("x-rate-limit-rules", "Ip"),
+                    ("x-rate-limit-ip", "60:30:30"),
+                    ("x-rate-limit-ip-state", "60:30:0"),
+                ]),
+                serde_json::Value::Null,
+                true,
+                now,
+            )
+            .unwrap();
+
+        assert_wait(
+            "N33 single-window token policy",
+            limiter.wait_for("oauth-token", now),
+            30.0 + 60.0 + 1.0,
+        );
+        assert_eq!(limiter.statuses(now)[0].rules[0].windows[0].bucket_secs, 60);
+    }
+
+    #[test]
     fn unacceptable_retry_after_vectors_are_terminal_and_install_no_hold() {
         let cases = [
             retry(None),
@@ -2839,9 +2914,8 @@ mod tests {
         );
         let (url, server) = serve_one_raw(raw).await;
         let choke = ChokePoint::new();
-        let paid = choke.try_take(route).unwrap();
 
-        let result = choke.get(paid, &url).await;
+        let result = choke.get(route, &url).await;
         assert!(matches!(result, Err(SendError::Transport(_))));
         assert_eq!(
             choke.endpoint_state(route),
@@ -2872,9 +2946,8 @@ mod tests {
             )
             .unwrap();
         let (url, server) = serve_one_raw(raw_response("200 OK", "", 100, "{}")).await;
-        let paid = choke.try_take(route).unwrap();
 
-        let result = choke.get(paid, &url).await;
+        let result = choke.get(route, &url).await;
         assert!(matches!(result, Err(SendError::Transport(_))));
         let status = choke.policy_statuses().pop().unwrap();
         assert_eq!(status.headers, established_raw);
@@ -2890,10 +2963,9 @@ mod tests {
         let route = "malformed-complete";
         let (url, server) = serve_one_raw(raw_response("200 OK", "", 2, "{}")).await;
         let choke = ChokePoint::new();
-        let paid = choke.try_take(route).unwrap();
 
         assert!(matches!(
-            choke.get(paid, &url).await,
+            choke.get(route, &url).await,
             Err(SendError::Protocol(_))
         ));
         let send = choke.recent_sends().pop().unwrap();
@@ -2917,10 +2989,9 @@ mod tests {
             );
             let (url, server) = serve_one_raw(raw).await;
             let choke = ChokePoint::new();
-            let paid = choke.try_take(&route).unwrap();
 
             let response = choke
-                .get(paid, &url)
+                .get(&route, &url)
                 .await
                 .expect("non-2xx status keeps precedence over body failure");
             assert_eq!(response.status.as_u16(), status);
@@ -2931,6 +3002,133 @@ mod tests {
             assert!(send.outcome.contains("body transfer failure"));
             server.await.unwrap();
         }
+    }
+
+    #[tokio::test]
+    async fn common_gate_caps_gets_until_response_bodies_complete() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let base = format!("http://{}", listener.local_addr().unwrap());
+        let (arrived_tx, mut arrived_rx) = mpsc::unbounded_channel();
+        let mut release_senders = Vec::new();
+        let mut release_receivers = Vec::new();
+        for _ in 0..3 {
+            let (sender, receiver) = oneshot::channel();
+            release_senders.push(Some(sender));
+            release_receivers.push(receiver);
+        }
+        let server = tokio::spawn(async move {
+            let mut handlers = Vec::new();
+            for (index, release) in release_receivers.into_iter().enumerate() {
+                let (mut stream, _) = listener.accept().await.unwrap();
+                let mut request = [0; 4096];
+                let _ = stream.read(&mut request).await.unwrap();
+                arrived_tx.send(index).unwrap();
+                handlers.push(tokio::spawn(async move {
+                    let headers = full_rate_headers(&format!("body-policy-{index}"), None);
+                    let response = raw_response("200 OK", &headers, 2, "");
+                    stream.write_all(response.as_bytes()).await.unwrap();
+                    release.await.unwrap();
+                    stream.write_all(b"{}").await.unwrap();
+                }));
+            }
+            for handler in handlers {
+                handler.await.unwrap();
+            }
+        });
+
+        let choke = Arc::new(ChokePoint::new());
+        let sends: Vec<_> = (0..3)
+            .map(|index| {
+                let choke = choke.clone();
+                let url = format!("{base}/{index}");
+                tokio::spawn(async move { choke.get(&format!("route-{index}"), &url).await })
+            })
+            .collect();
+
+        let first = arrived_rx.recv().await.unwrap();
+        let second = arrived_rx.recv().await.unwrap();
+        assert!(
+            tokio::time::timeout(Duration::from_millis(50), arrived_rx.recv())
+                .await
+                .is_err(),
+            "a third actual send bypassed the global cap"
+        );
+        release_senders[first].take().unwrap().send(()).unwrap();
+        let third = tokio::time::timeout(Duration::from_secs(1), arrived_rx.recv())
+            .await
+            .expect("a body completion releases the permit")
+            .unwrap();
+        for index in [second, third] {
+            release_senders[index].take().unwrap().send(()).unwrap();
+        }
+        for send in sends {
+            send.await.unwrap().unwrap();
+        }
+        server.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn head_waits_exclusively_for_an_incomplete_get_body() {
+        let get_listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let get_url = format!("http://{}/get", get_listener.local_addr().unwrap());
+        let (get_arrived_tx, get_arrived) = oneshot::channel();
+        let (release_get, release_get_rx) = oneshot::channel();
+        let get_server = tokio::spawn(async move {
+            let (mut stream, _) = get_listener.accept().await.unwrap();
+            let mut request = [0; 4096];
+            let _ = stream.read(&mut request).await.unwrap();
+            let response =
+                raw_response("200 OK", &full_rate_headers("ordinary-policy", None), 2, "");
+            stream.write_all(response.as_bytes()).await.unwrap();
+            get_arrived_tx.send(()).unwrap();
+            release_get_rx.await.unwrap();
+            stream.write_all(b"{}").await.unwrap();
+        });
+
+        let head_listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let head_url = format!("http://{}/head", head_listener.local_addr().unwrap());
+        let (head_arrived_tx, head_arrived) = oneshot::channel();
+        let head_server = tokio::spawn(async move {
+            let (mut stream, _) = head_listener.accept().await.unwrap();
+            let request = crate::mockggg::read_request(&mut stream).await.unwrap();
+            assert_eq!(request.method, "HEAD");
+            head_arrived_tx.send(()).unwrap();
+            let response = raw_response(
+                "204 No Content",
+                &full_rate_headers("head-policy", None),
+                0,
+                "",
+            );
+            stream.write_all(response.as_bytes()).await.unwrap();
+        });
+
+        let choke = Arc::new(ChokePoint::new());
+        let get = {
+            let choke = choke.clone();
+            tokio::spawn(async move { choke.get("ordinary-route", &get_url).await })
+        };
+        get_arrived.await.unwrap();
+        let head = {
+            let choke = choke.clone();
+            tokio::spawn(async move { choke.head("head-route", &head_url, None).await })
+        };
+        let mut head_arrived = Box::pin(head_arrived);
+        assert!(
+            tokio::time::timeout(Duration::from_millis(50), &mut head_arrived)
+                .await
+                .is_err(),
+            "HEAD overlapped an ordinary response body"
+        );
+        release_get.send(()).unwrap();
+        tokio::time::timeout(Duration::from_secs(1), &mut head_arrived)
+            .await
+            .expect("HEAD starts after the ordinary permit drains")
+            .unwrap();
+
+        get.await.unwrap().unwrap();
+        head.await.unwrap().unwrap();
+        get_server.await.unwrap();
+        head_server.await.unwrap();
     }
 
     #[test]

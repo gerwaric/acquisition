@@ -166,6 +166,7 @@ mod tests {
     use crate::ratelimit::EndpointState;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     use tokio::net::TcpListener;
+    use tokio::sync::{mpsc, oneshot};
 
     #[tokio::test]
     async fn oauth_clean_200_waits_for_body_completion_before_recording_success() {
@@ -200,6 +201,103 @@ mod tests {
         let send = choke.recent_sends().pop().unwrap();
         assert!(!send.ok);
         assert!(send.outcome.contains("body transfer failure"));
+        server.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn code_exchange_and_refresh_serialize_across_token_policy_discovery() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let base = format!("http://{}", listener.local_addr().unwrap());
+        let (arrived_tx, mut arrived_rx) = mpsc::unbounded_channel();
+        let (release_first, release_first_rx) = oneshot::channel();
+        let (release_second, release_second_rx) = oneshot::channel();
+        let server = tokio::spawn(async move {
+            let releases = [release_first_rx, release_second_rx];
+            let mut handlers = Vec::new();
+            for (index, release) in releases.into_iter().enumerate() {
+                let (mut stream, _) = listener.accept().await.unwrap();
+                let request = crate::mockggg::read_request(&mut stream).await.unwrap();
+                assert_eq!(request.method, "POST", "token traffic must not HEAD-probe");
+                arrived_tx.send(request.body).unwrap();
+                handlers.push(tokio::spawn(async move {
+                    let body = serde_json::json!({
+                        "access_token": format!("at-{index}"),
+                        "refresh_token": format!("rt-{index}"),
+                        "expires_in": 3600,
+                        "username": "test-user",
+                    })
+                    .to_string();
+                    let headers = format!(
+                        concat!(
+                            "HTTP/1.1 200 OK\r\n",
+                            "X-Rate-Limit-Policy: token-request-limit\r\n",
+                            "X-Rate-Limit-Rules: Ip\r\n",
+                            "X-Rate-Limit-Ip: 60:30:30\r\n",
+                            "X-Rate-Limit-Ip-State: {}:30:0\r\n",
+                            "Content-Type: application/json\r\n",
+                            "Content-Length: {}\r\n",
+                            "Connection: close\r\n\r\n"
+                        ),
+                        index + 1,
+                        body.len(),
+                    );
+                    stream.write_all(headers.as_bytes()).await.unwrap();
+                    release.await.unwrap();
+                    stream.write_all(body.as_bytes()).await.unwrap();
+                }));
+            }
+            for handler in handlers {
+                handler.await.unwrap();
+            }
+        });
+
+        let choke = std::sync::Arc::new(ChokePoint::new());
+        let provider = std::sync::Arc::new(Provider::mock(&base));
+        let exchange = {
+            let choke = choke.clone();
+            let provider = provider.clone();
+            tokio::spawn(async move {
+                exchange_code(&choke, &provider, "code", "verifier", "http://callback").await
+            })
+        };
+        let first = arrived_rx.recv().await.unwrap();
+        assert!(first.contains("grant_type=authorization_code"));
+        tokio::time::timeout(std::time::Duration::from_secs(1), async {
+            while choke.endpoint_state("oauth-token")
+                != EndpointState::Policy("token-request-limit".into())
+            {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("the first response headers discover the token policy");
+
+        let refresh = {
+            let choke = choke.clone();
+            let provider = provider.clone();
+            tokio::spawn(async move { refresh(&choke, &provider, "rt-old").await })
+        };
+        assert!(
+            tokio::time::timeout(std::time::Duration::from_millis(50), arrived_rx.recv())
+                .await
+                .is_err(),
+            "token grants overlapped before policy discovery completed"
+        );
+
+        release_first.send(()).unwrap();
+        exchange.await.unwrap().unwrap();
+        let second = tokio::time::timeout(std::time::Duration::from_secs(1), arrived_rx.recv())
+            .await
+            .expect("refresh proceeds under the learned token policy")
+            .unwrap();
+        assert!(second.contains("grant_type=refresh_token"));
+        release_second.send(()).unwrap();
+        refresh.await.unwrap().unwrap();
+
+        assert_eq!(
+            choke.endpoint_state("oauth-token"),
+            EndpointState::Policy("token-request-limit".into())
+        );
         server.await.unwrap();
     }
 }

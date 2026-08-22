@@ -77,6 +77,35 @@ impl SendGate {
         self.acquire_kind(Kind::Head).await
     }
 
+    /// Atomically replace a pre-discovery route key with its learned policy
+    /// name for both live permits and queued waiters.
+    pub(crate) fn rekey_policy(&self, route: &str, policy: &str) {
+        if route == policy {
+            return;
+        }
+        let mut state = self.inner.state.lock().unwrap();
+        let active = state.active_policies.remove(route);
+        if active {
+            let inserted = state.active_policies.insert(policy.to_string());
+            debug_assert!(inserted, "learned policy must not already be active");
+        }
+        for active in state.active.values_mut() {
+            if let Kind::Ordinary { policy: key } = &mut active.kind
+                && key == route
+            {
+                *key = policy.to_string();
+            }
+        }
+        for waiter in &mut state.waiters {
+            if let Kind::Ordinary { policy: key } = &mut waiter.kind
+                && key == route
+            {
+                *key = policy.to_string();
+            }
+        }
+        state.grant_waiters();
+    }
+
     async fn acquire_kind(&self, kind: Kind) -> SendPermit {
         let (id, ready) = self.inner.enqueue(kind);
         let mut reservation = Reservation {
@@ -90,7 +119,7 @@ impl SendGate {
         reservation.id = None;
 
         SendPermit {
-            reservation: Reservation {
+            _reservation: Reservation {
                 inner: Arc::clone(&self.inner),
                 id: Some(id),
             },
@@ -112,7 +141,7 @@ impl Default for SendGate {
 #[derive(Debug)]
 #[must_use = "dropping the permit releases the actual-send reservation"]
 pub(crate) struct SendPermit {
-    reservation: Reservation,
+    _reservation: Reservation,
 }
 
 #[derive(Debug)]
@@ -253,6 +282,26 @@ mod tests {
         let first_c = ready(first_c.as_mut());
 
         drop((second_a, first_c));
+    }
+
+    #[test]
+    fn policy_discovery_rekeys_live_and_waiting_reservations_atomically() {
+        let gate = SendGate::new();
+        let mut first_route = Box::pin(gate.acquire("oauth-token"));
+        let first_route = ready(first_route.as_mut());
+        let mut second_route = Box::pin(gate.acquire("oauth-token"));
+        pending(second_route.as_mut());
+
+        gate.rekey_policy("oauth-token", "token-request-limit");
+        let mut learned = Box::pin(gate.acquire("token-request-limit"));
+        pending(learned.as_mut());
+
+        drop(first_route);
+        let second_route = ready(second_route.as_mut());
+        pending(learned.as_mut());
+        drop(second_route);
+        let learned = ready(learned.as_mut());
+        drop(learned);
     }
 
     #[test]

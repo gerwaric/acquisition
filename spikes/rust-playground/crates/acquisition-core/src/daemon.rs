@@ -21,7 +21,7 @@ use crate::VERSION;
 use crate::job::{JobId, JobInfo, JobState, Outcome, Priority};
 use crate::protocol::{ErrorRecord, Request, Response};
 use crate::provider::{CALLBACK_PATH, Provider, SCOPES, ggg_mode};
-use crate::ratelimit::{ChokePoint, EndpointState, Paid, RetryAfter, SendError, url_path};
+use crate::ratelimit::{ChokePoint, EndpointState, RetryAfter, SendError, url_path};
 use crate::{auth, mockggg};
 
 const IDLE_SHUTDOWN: Duration = Duration::from_secs(60);
@@ -586,10 +586,10 @@ impl Daemon {
             }
         }
 
-        // Rate-limit wait happens while the job is still `waiting`, in short
-        // slices so cancellation and reprioritization stay responsive. The
-        // receipt is handed to `execute`, which spends it on the actual send.
-        let mut paid: Option<Paid> = None;
+        // Dispatcher pacing remains while the job is still `waiting`, in
+        // short slices so cancellation and reprioritization stay responsive.
+        // This is only a scheduling hint: after authentication, ChokePoint
+        // repeats the final limiter check under the actual-send permit.
         if let Some((route, _)) = &route {
             loop {
                 let step = {
@@ -609,13 +609,10 @@ impl Daemon {
                     if outranked {
                         return;
                     }
-                    self.choke.try_take(route)
+                    self.choke.check(route)
                 };
                 match step {
-                    Ok(receipt) => {
-                        paid = Some(receipt);
-                        break;
-                    }
+                    Ok(()) => break,
                     Err(d) => self.choke.sleep(d.min(Duration::from_secs(1))).await,
                 }
             }
@@ -636,7 +633,8 @@ impl Daemon {
         let kind = info.kind.clone();
         self.emit(info);
 
-        let outcome = match self.execute(id, &kind, params, paid).await {
+        let route = route.map(|(route, _)| route);
+        let outcome = match self.execute(id, &kind, params, route).await {
             Exec::Done(outcome) => outcome,
             Exec::RateLimited(evidence) => {
                 // P-A: a 429 is recovered from, not surfaced — unless it keeps
@@ -786,10 +784,10 @@ impl Daemon {
         self.finish(id, outcome);
     }
 
-    async fn execute(&self, id: JobId, kind: &str, params: Value, paid: Option<Paid>) -> Exec {
+    async fn execute(&self, id: JobId, kind: &str, params: Value, route: Option<String>) -> Exec {
         // Network kinds bubble a 429 up as `Exec::RateLimited`; everything
         // else is an ordinary outcome.
-        match self.execute_inner(id, kind, params, paid).await {
+        match self.execute_inner(id, kind, params, route).await {
             Ok(outcome) => Exec::Done(outcome),
             Err(ApiError::RateLimited(evidence)) => Exec::RateLimited(evidence),
             Err(ApiError::Protocol(error)) => Exec::Done(Outcome::Failure { error }),
@@ -802,7 +800,7 @@ impl Daemon {
         id: JobId,
         kind: &str,
         params: Value,
-        paid: Option<Paid>,
+        route: Option<String>,
     ) -> Result<Outcome, ApiError> {
         Ok(match kind {
             // The one real API call: GET {api_base}/character. Same code in
@@ -811,13 +809,13 @@ impl Daemon {
             // never fought through (invariants 2 and 3 are read-only so far:
             // headers are logged and returned, not yet fed to the limiter).
             "characters" => {
-                let paid = paid.expect("characters is a network kind");
                 let (token, username) = match self.valid_access_token(false).await {
                     Ok(pair) => pair,
                     Err(error) => return Ok(Outcome::Failure { error }),
                 };
                 let url = format!("{}/character", self.provider.api_base);
-                let (v, rate) = self.api_get(paid, &url, Some(&token)).await?;
+                let route = route.as_deref().expect("characters is a network kind");
+                let (v, rate) = self.api_get(route, &url, Some(&token)).await?;
                 Outcome::Success {
                     payload: json!({
                         "provider": self.provider.name,
@@ -830,7 +828,6 @@ impl Daemon {
             // The stash list: one request under stash-list-request-limit, the
             // second real policy. Tab contents are a later step.
             "stashes" => {
-                let paid = paid.expect("stashes is a network kind");
                 let (token, username) = match self.valid_access_token(false).await {
                     Ok(pair) => pair,
                     Err(error) => return Ok(Outcome::Failure { error }),
@@ -841,7 +838,8 @@ impl Daemon {
                     .unwrap_or("Standard")
                     .to_string();
                 let url = format!("{}/stash/{league}", self.provider.api_base);
-                let (v, rate) = self.api_get(paid, &url, Some(&token)).await?;
+                let route = route.as_deref().expect("stashes is a network kind");
+                let (v, rate) = self.api_get(route, &url, Some(&token)).await?;
                 Outcome::Success {
                     payload: json!({
                         "provider": self.provider.name,
@@ -853,7 +851,6 @@ impl Daemon {
                 }
             }
             "stash" => {
-                let paid = paid.expect("stash is a network kind");
                 let (token, _) = match self.valid_access_token(false).await {
                     Ok(pair) => pair,
                     Err(error) => return Ok(Outcome::Failure { error }),
@@ -863,7 +860,8 @@ impl Daemon {
                         error: "stash needs an id".into(),
                     });
                 };
-                let (v, rate) = self.api_get(paid, &url, Some(&token)).await?;
+                let route = route.as_deref().expect("stash is a network kind");
+                let (v, rate) = self.api_get(route, &url, Some(&token)).await?;
                 let stash = v.get("stash").cloned().unwrap_or(v);
                 // Map/unique tabs carry their substashes as stubs; following
                 // them is opt-in per tab (--deep) because one map tab can
@@ -905,7 +903,6 @@ impl Daemon {
             // (folders themselves are never fetched); map/unique substashes
             // only if `deep`. Selection is explicit — there is no default.
             "refresh" => {
-                let paid = paid.expect("refresh is a network kind");
                 let (token, _) = match self.valid_access_token(false).await {
                     Ok(pair) => pair,
                     Err(error) => return Ok(Outcome::Failure { error }),
@@ -933,7 +930,8 @@ impl Daemon {
                     });
                 }
                 let url = format!("{}/stash/{league}", self.provider.api_base);
-                let (v, rate) = self.api_get(paid, &url, Some(&token)).await?;
+                let route = route.as_deref().expect("refresh is a network kind");
+                let (v, rate) = self.api_get(route, &url, Some(&token)).await?;
                 let listed = v
                     .get("stashes")
                     .and_then(Value::as_array)
@@ -1015,14 +1013,15 @@ impl Daemon {
                 // A real request to the mock's fake data endpoint, so the
                 // limiter learns a second policy from real headers. Never
                 // sent to GGG: real mode has no such endpoint.
-                let Some(paid) = paid else {
+                if self.provider.is_real() {
                     return Ok(Outcome::Failure {
                         error: "fetch is a mock-only kind; real mode has no fake data endpoint"
                             .into(),
                     });
-                };
+                }
                 let url = format!("{}/fetch", self.provider.api_base);
-                let (v, rate) = self.api_get(paid, &url, None).await?;
+                let route = route.as_deref().expect("mock fetch is a network kind");
+                let (v, rate) = self.api_get(route, &url, None).await?;
                 Outcome::Success {
                     payload: json!({
                         "note": "fake data from the in-process mock",
@@ -1088,16 +1087,7 @@ impl Daemon {
                 } else {
                     None
                 };
-                let paid = loop {
-                    match self.choke.try_take(&route) {
-                        Ok(p) => break p,
-                        Err(wait) => self.choke.sleep(wait.min(Duration::from_secs(1))).await,
-                    }
-                    if self.cancelled(id) {
-                        return Ok(Outcome::Cancelled);
-                    }
-                };
-                match self.choke.head(paid, &url, bearer.as_deref()).await {
+                match self.choke.head(&route, &url, bearer.as_deref()).await {
                     Ok((status, policy, headers)) => {
                         let name = policy.name;
                         self.log(&format!(
@@ -1133,13 +1123,13 @@ impl Daemon {
     /// Cloudflare-shaped 403/503 is never retried (invariant 3).
     async fn api_get(
         &self,
-        paid: Paid,
+        route: &str,
         url: &str,
         bearer: Option<&str>,
     ) -> Result<(Value, Value), ApiError> {
         let response = match bearer {
-            Some(token) => self.choke.get_bearer(paid, url, token).await,
-            None => self.choke.get(paid, url).await,
+            Some(token) => self.choke.get_bearer(route, url, token).await,
+            None => self.choke.get(route, url).await,
         }
         .map_err(|error| match error {
             SendError::Protocol(error) => ApiError::Protocol(format!(
@@ -2106,6 +2096,108 @@ mod auth_session_tests {
         assert_eq!(waiter_result, owner_result);
         assert_eq!(store.saves.lock().unwrap().len(), 1);
         delayed.server.await.unwrap();
+        remove_test_log(&log_path);
+    }
+
+    #[tokio::test]
+    async fn authentication_completes_before_the_api_send_takes_a_gate_slot() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let base = format!("http://{}", listener.local_addr().unwrap());
+        let (hold_arrived_tx, hold_arrived) = oneshot::channel();
+        let (release_hold, release_hold_rx) = oneshot::channel();
+        let (token_arrived_tx, token_arrived) = oneshot::channel();
+        let server = tokio::spawn(async move {
+            let (mut hold, _) = listener.accept().await.unwrap();
+            let request = mockggg::read_request(&mut hold).await.unwrap();
+            assert_eq!(request.path, "/hold");
+            let headers = concat!(
+                "HTTP/1.1 200 OK\r\n",
+                "X-Rate-Limit-Policy: hold-policy\r\n",
+                "X-Rate-Limit-Rules: Ip\r\n",
+                "X-Rate-Limit-Ip: 60:30:30\r\n",
+                "X-Rate-Limit-Ip-State: 1:30:0\r\n",
+                "Content-Type: application/json\r\n",
+                "Content-Length: 2\r\n",
+                "Connection: close\r\n\r\n",
+            );
+            hold.write_all(headers.as_bytes()).await.unwrap();
+            hold_arrived_tx.send(()).unwrap();
+
+            let (mut token, _) = listener.accept().await.unwrap();
+            let request = mockggg::read_request(&mut token).await.unwrap();
+            assert_eq!(request.method, "POST");
+            assert_eq!(request.path, "/token");
+            token_arrived_tx.send(()).unwrap();
+            let token_headers = concat!(
+                "X-Rate-Limit-Policy: token-request-limit\r\n",
+                "X-Rate-Limit-Rules: Ip\r\n",
+                "X-Rate-Limit-Ip: 60:30:30\r\n",
+                "X-Rate-Limit-Ip-State: 1:30:0\r\n",
+            );
+            mockggg::respond_with(
+                &mut token,
+                "200 OK",
+                "application/json",
+                token_headers,
+                &token_body("at-live", "rt-rotated", "test-user"),
+            )
+            .await;
+
+            let (mut api, _) = listener.accept().await.unwrap();
+            let request = mockggg::read_request(&mut api).await.unwrap();
+            assert_eq!(request.method, "GET");
+            assert_eq!(request.path, "/character");
+            let api_headers = concat!(
+                "X-Rate-Limit-Policy: character-list-request-limit\r\n",
+                "X-Rate-Limit-Rules: Account\r\n",
+                "X-Rate-Limit-Account: 2:10:60,5:300:300\r\n",
+                "X-Rate-Limit-Account-State: 1:10:0,1:300:0\r\n",
+            );
+            mockggg::respond_with(
+                &mut api,
+                "200 OK",
+                "application/json",
+                api_headers,
+                r#"{"characters":[]}"#,
+            )
+            .await;
+
+            release_hold_rx.await.unwrap();
+            hold.write_all(b"{}").await.unwrap();
+        });
+
+        let (daemon, _, log_path) = test_daemon(&base);
+        let hold = {
+            let daemon = daemon.clone();
+            let url = format!("{base}/hold");
+            tokio::spawn(async move { daemon.choke.get("hold-route", &url).await })
+        };
+        hold_arrived.await.unwrap();
+        let api = {
+            let daemon = daemon.clone();
+            tokio::spawn(async move {
+                daemon
+                    .execute_inner(
+                        1,
+                        "characters",
+                        serde_json::Value::Null,
+                        Some("character-list".into()),
+                    )
+                    .await
+            })
+        };
+
+        tokio::time::timeout(Duration::from_secs(1), token_arrived)
+            .await
+            .expect("refresh can use the remaining gate slot before the API send")
+            .unwrap();
+        assert!(matches!(
+            api.await.unwrap().unwrap(),
+            Outcome::Success { .. }
+        ));
+        release_hold.send(()).unwrap();
+        hold.await.unwrap().unwrap();
+        server.await.unwrap();
         remove_test_log(&log_path);
     }
 
