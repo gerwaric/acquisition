@@ -94,8 +94,8 @@ respawn bounded to once per invocation.
 Status: `built` and reviewed. Build range `7be3e7a9..2aa83f4d`; the
 independent read-only review (question: *can any change add a send or
 delay a halt?*) returned `changes-requested` with 4 Medium and 8 Low
-findings, recorded in the L0 review register below and fixed in the
-commit that follows this record. No re-review has been run. No semantic change to gate, limiter, OAuth,
+findings, recorded in the L0 review register below and fixed in
+`d7149374`. No re-review has been run. No semantic change to gate, limiter, OAuth,
 classification, retry, or dispatcher behavior under default settings; the
 rails only refuse or record.
 
