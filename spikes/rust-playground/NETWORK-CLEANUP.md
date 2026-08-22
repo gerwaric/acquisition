@@ -25,9 +25,11 @@ review-only session.
 - Branch: `spikes/rust-playground`.
 - Frozen gate-contract baseline: `1e17e812`.
 - Current implementation tip: `7f76e56d`.
-- Active package: N1, in review.
+- Active package: N1, changes requested.
 - Exact N1 review range: `1e17e812..7f76e56d`.
-- Do not start H0 or N2 until the N1 verdict has been reconciled here.
+- N1 review verdict: `changes-requested` (`N1-R1` through `N1-R3`).
+- Do not start H0 until N1 is accepted; do not start N2 or N3 until H0 is
+  accepted.
 
 ## Package ledger
 
@@ -38,7 +40,7 @@ dependents.
 | ID | Package | Depends on | Status | Commit or review range |
 | --- | --- | --- | --- | --- |
 | N0 | Ground truth and OAuth gate decision | — | accepted | through `1e17e812` |
-| N1 | Strict parsing, observation/classification, and 429 recovery | N0 | reviewing | `1e17e812..7f76e56d` |
+| N1 | Strict parsing, observation/classification, and 429 recovery | N0 | changes-requested | `1e17e812..7f76e56d` |
 | H0 | Workspace formatting and strict-Clippy baseline | N1 | planned | — |
 | N2 | OAuth refresh singleflight and session generations | H0 | planned | — |
 | N3 | Send-lifetime gate primitive and fairness semantics | H0 | planned | — |
@@ -83,9 +85,10 @@ Scope:
 Non-goals: OAuth refresh coordination, send-lifetime gate ownership,
 dispatcher semantics, and final integration stress behavior.
 
-Review verdict: pending. Record findings as `N1-R1`, `N1-R2`, and so on in the
-review register below. If the verdict is `changes-requested`, fix only those
-findings, append fix commits, and re-review the same package before proceeding.
+Review verdict: `changes-requested` for exact implementation range
+`1e17e812..7f76e56d`. The stable findings are `N1-R1` through `N1-R3` in
+the review register below. Fix only those findings, append fix commits, and
+re-review the expanded exact N1 range before proceeding.
 
 ### H0 — mechanical quality baseline
 
@@ -150,12 +153,124 @@ authoritative design or findings register, not only here.
 
 | Finding | Severity | Package | Summary | Status | Fix commit |
 | --- | --- | --- | --- | --- | --- |
-| — | — | N1 | Review in progress | pending | — |
+| N1-R1 | High | N1 | Strict parsing accepts values that can overflow deadline arithmetic and panic | open | — |
+| N1-R2 | Medium | N1 | Clean-2xx classification and send recording occur before body transfer completion | open | — |
+| N1-R3 | Low | N1 | Bounded retry/probe behavior lacks coverage through the real dispatcher lifecycle | open | — |
 
 For every finding, retain the concrete scenario, exact file and line references,
 affected invariant/design rule/ground-truth claim, classification (confirmed
 bug, architectural risk, or test gap), smallest fix direction, and required
 tests. Preserve sound behavior explicitly in the review handoff.
+
+### N1-R1 — numeric values can panic deadline arithmetic
+
+- **Concrete scenario:** a syntactically numeric policy period or active
+  restriction such as `18446744073709551615` parses as `u64`. Once that
+  window is saturated or restricted, `next_safe_send` evaluates
+  `Instant + Duration` and panics on overflow. This violates the total-parser
+  containment guarantee.
+- **Implementation references at `7f76e56d`:** integer parsing in
+  `crates/acquisition-core/src/ratelimit.rs:240`, window parsing at line 337,
+  and deadline arithmetic at line 938.
+- **Authority:** frozen design D8's full-header numeric bounds and never-crash
+  requirement; ground-truth N9; N20's degraded-input containment.
+- **Classification:** confirmed bug. The reviewer reproduced the panic with
+  `Instant::now() + Duration::from_secs(u64::MAX)`.
+- **Smallest fix direction:** define named operational bounds for policy
+  period and restriction fields, reject values above them during parsing, and
+  use checked deadline addition so accepted or retained state cannot panic.
+- **Required tests:** maximum accepted and one-above-bound values for limit
+  period, limit restriction, state period, and active restriction. Rejected
+  values must return `PolicyParseError`, and the paths through `observe` and
+  `wait_for` must not panic.
+
+### N1-R2 — response completion is split across two owners
+
+- **Concrete scenarios:** a malformed-header 200 whose body is truncated is
+  classified `Protocol` before the later transfer failure can take D8
+  precedence. A Full-header 200 whose body is truncated is recorded as a
+  successful `200 OK`; the later body failure becomes `ApiError::Other`
+  instead of `Network`. OAuth token responses have the same split boundary.
+- **Implementation references at `7f76e56d`:** header-time classification in
+  `crates/acquisition-core/src/ratelimit.rs:1327`, premature send recording at
+  line 1363, later body consumption in
+  `crates/acquisition-core/src/daemon.rs:1041`, body-error collapse at
+  `daemon.rs:1422`, and the token path in
+  `crates/acquisition-core/src/auth.rs:91`.
+- **Authority:** frozen design D3 requires bookkeeping and capture of the
+  complete exchange; D8 gives a 2xx-plus-transfer-error `Network` precedence.
+- **Classification:** confirmed bug.
+- **Smallest fix direction:** defer clean-2xx `Protocol` classification and
+  final send recording until body transfer resolves. Carry header observation
+  with the response or consume body bytes inside the choke-point response
+  package. Policy observation must still occur for every landed response.
+- **Required real-local-stream tests:** Full 200 plus truncated body produces
+  `Network` while updating policy; malformed-header 200 plus truncated body
+  produces `Network`, not `Protocol`, and leaves policy unchanged; a complete
+  malformed-header 200 produces `Protocol`; truncated 429 and 500 responses
+  retain status precedence and record body-transfer evidence.
+
+### N1-R3 — recovery is not pinned through dispatcher requeue
+
+- **Concrete scenario:** three consecutive 429s arrive while a younger
+  same-policy job waits. Existing helper and limiter tests would not catch a
+  regression that sends a fourth attempt, sleeps after exhaustion, or moves
+  the requeued job behind the younger job.
+- **Implementation references at `7f76e56d`:** the actual transition in
+  `crates/acquisition-core/src/daemon.rs:548`, helper-only bound coverage at
+  line 1618, direct limiter 429 coverage in
+  `crates/acquisition-core/src/ratelimit.rs:2247`, and direct probe coverage at
+  line 2380.
+- **Authority:** ground-truth P-A, N10, and N27; frozen design D3; bounded
+  attempts, FIFO preservation, and immediate exhausted completion.
+- **Classification:** test gap. Source inspection found the current
+  transitions sound.
+- **Smallest fix direction:** add an injected-clock/fake-server daemon test
+  around the actual `ChokePoint -> api_get -> Exec::RateLimited -> dispatcher
+  requeue` lifecycle. This is coverage of N1 behavior, not authorization to
+  redesign dispatcher semantics.
+- **Required tests:** `429, 429, success` sends exactly three times and
+  completes once; three 429s fail immediately after the third response with
+  no fourth send or exhausted-attempt sleep; the requeued job remains before a
+  younger equal-priority job; 403 and 503 send once and never retry; a Full
+  acceptable HEAD 429 establishes under hold with job retry count zero, while
+  a malformed or unacceptable HEAD 429 fails under cooldown.
+
+### N1 behavior the fix must preserve
+
+- Full parsing requires nonempty policy and rule names, exact triplets,
+  positive limit hits and periods, nonnegative state hits, equal limit/state
+  lengths, and matching periods.
+- `Retry-After` remains independent of Full-policy parsing: 0 and 900 are
+  accepted; missing, negative, nonnumeric, overflow, and values above 900 are
+  terminal.
+- Landed 429s increment violations and counted history before retry
+  classification. Malformed or mismatched observations do not replace an
+  established policy or topology.
+- Same-shape dynamic definitions retain history; ordered rule/period shape
+  changes clear it.
+- Retry holds use the maximum route/policy deadline and include the
+  unconditional 60-second pad plus buffer.
+- Requeueing retains job identity and therefore priority/FIFO position;
+  exhaustion returns without sleeping. 403 and 503 never retry.
+- Only a Full acceptable HEAD 429 establishes; other partial or unacceptable
+  probes fail under cooldown.
+
+### N1 review validation
+
+Review of exact range `1e17e812..7f76e56d` recorded:
+
+- `cargo test --workspace --all-targets`: passed, 30 tests.
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings`:
+  passed.
+- `cargo fmt --all -- --check`: failed with workspace-wide differences in
+  `client.rs`, `dash.rs`, `main.rs`, `auth.rs`, `job.rs`, and `mockggg.rs`.
+- The review worktree remained clean; no code was changed.
+
+The format failure is not a fourth N1 finding: H0 already owns the deliberately
+separate mechanical formatting baseline. Do not sweep unrelated formatting in
+the N1 fix. H0 remains blocked until N1 is accepted, and N2/N3 remain blocked
+until both N1 and H0 are accepted.
 
 ## Session protocol
 
@@ -197,13 +312,51 @@ Recorded at implementation tip `7f76e56d` on 2026-08-21:
 The core crate's strict Clippy check remains the interim semantic-package gate.
 After H0, all three workspace gates must be green for every package.
 
-## Verdict routing
+## Next action and exact kickoff prompt
 
-When the N1 review finishes:
+The single next action is an N1-only fix session. Use this prompt verbatim:
 
-1. Start a fresh coordination session at the current branch tip.
-2. Ask it to read this file and reconcile the complete review report.
-3. If accepted, mark N1 accepted and start H0.
-4. If changes are requested, add stable N1 finding IDs, run an N1-only fix
-   session, and re-review its expanded exact range.
-5. Do not start N2 or N3 until N1 and H0 are accepted.
+```text
+Read AGENTS.md, CONTEXT.md, README.md, NETWORK-CLEANUP.md, and the frozen
+network design documents referenced there before editing. This is an N1
+fix-only session. Start from the current spikes/rust-playground branch tip,
+which must be the clean coordination commit containing the reconciled N1
+review verdict for exact implementation range 1e17e812..7f76e56d. Record the
+exact starting hash before editing; if the worktree is not clean or that
+ledger state is absent, stop and report the mismatch.
+
+Address only the three open, stable findings recorded in NETWORK-CLEANUP.md:
+
+- N1-R1: impose named operational bounds on policy period/restriction fields,
+  use checked deadline arithmetic, and add every boundary/no-panic test listed
+  in the finding.
+- N1-R2: make final clean-2xx classification and send recording wait for body
+  transfer completion across API and OAuth-token responses, while preserving
+  observation of landed headers; add all four real-local-stream scenarios
+  listed in the finding.
+- N1-R3: add daemon-level injected-clock/fake-server coverage through
+  ChokePoint -> api_get -> Exec::RateLimited -> dispatcher requeue for the
+  bounded attempts, immediate exhaustion, FIFO identity, 403/503, and probe
+  cases listed in the finding. This is test coverage of current dispatcher
+  behavior, not a dispatcher redesign.
+
+Preserve every item under “N1 behavior the fix must preserve.” Do not begin
+H0, N2, N3, OAuth singleflight/session-generation work, the send-lifetime gate,
+or dispatcher cleanup. Do not run a workspace formatting sweep or include
+unrelated formatting changes; H0 owns the known pre-existing formatting drift.
+Do not contact GGG or actively probe live limits.
+
+Run cargo test --workspace --all-targets; cargo clippy --workspace
+--all-targets --all-features -- -D warnings; cargo clippy -p acquisition-core
+--all-targets --all-features -- -D warnings; and cargo fmt --all -- --check.
+Record exact outcomes, including the known formatter baseline if it remains.
+Commit only the N1 fixes and their tests in one or more N1-labeled commits.
+Do not mark N1 accepted. Return the exact starting and ending hashes, worktree
+state, fix commits mapped to N1-R1/N1-R2/N1-R3, preserved behavior, checks,
+unresolved findings, and the single next action: an independent re-review of
+the expanded exact range from 1e17e812 through the new N1 fix tip.
+```
+
+After the fix, re-review the expanded exact N1 range. Only an independent
+review with no required work remaining may mark N1 accepted and unblock H0.
+N2 and N3 remain blocked until both N1 and H0 are accepted.
