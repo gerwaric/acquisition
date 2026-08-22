@@ -336,6 +336,7 @@ async fn main() -> Result<()> {
                     in_flight,
                     max_in_flight,
                     rails,
+                    keyring,
                 } = status
                 {
                     println!(
@@ -358,6 +359,9 @@ async fn main() -> Result<()> {
                         println!(
                             "        clear with `acq daemon reset-tripwire` after the post-violation wait"
                         );
+                    }
+                    if keyring != "ok" {
+                        println!("KEYRING: {keyring} — a rotated refresh token may be memory-only");
                     }
                     if let Some(cause) = &rails.refresh_failed {
                         println!("REFRESH DISABLED: {cause}");

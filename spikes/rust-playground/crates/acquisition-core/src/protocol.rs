@@ -124,6 +124,10 @@ pub enum Response {
         /// Live-test rails state (tripwire, ceiling, journal).
         #[serde(default)]
         rails: RailsStatus,
+        /// "ok" or the keyring failure; a failed save after refresh-token
+        /// rotation leaves the session memory-only (LIVE-TESTING.md R7).
+        #[serde(default)]
+        keyring: String,
     },
     Stopping,
     Dashboard {

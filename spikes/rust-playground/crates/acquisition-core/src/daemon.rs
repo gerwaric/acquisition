@@ -1666,6 +1666,7 @@ impl Daemon {
                     in_flight,
                     max_in_flight,
                     rails: self.rails().status(),
+                    keyring: s.auth.keyring.clone(),
                 }
             }
             Request::DaemonStop => Response::Stopping,
