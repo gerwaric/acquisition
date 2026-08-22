@@ -89,6 +89,10 @@ recorded in `docs/redesign/README.md` on the `redesign` branch.
 ## Follow-Up
 
 - Living exploration: `docs/redesign/` on the `redesign` branch.
+- Rust rewrite spike: `spikes/rust-playground/` on the
+  `spikes/rust-playground` branch (daemon + CLI, header-driven rate
+  limiter, OAuth under the existing registration); its `CONTEXT.md`
+  holds the decisions that spike has settled.
 - Control-plane contract input: PR #192 and
   `docs/design/local-control.md` on its branch.
 - Predecessor decisions: ADR 0001 (superseded), ADR 0002 (accepted;
