@@ -91,7 +91,7 @@ respawn bounded to once per invocation.
 
 ## L0 — live-test rails (package)
 
-Status: `built` at `d985dd72` (exact range `7be3e7a9..d985dd72`),
+Status: `built` at `2aa83f4d` (exact range `7be3e7a9..2aa83f4d`),
 awaiting the single independent read-only review of that diff with the
 question *can any change add a send or delay a halt?*; then use. No semantic change to gate, limiter, OAuth,
 classification, retry, or dispatcher behavior under default settings; the
@@ -207,5 +207,5 @@ One row per rung execution. Journal files are copied to
 
 ## Next action
 
-Independent read-only review of `7be3e7a9..d985dd72`; fold findings, then
+Independent read-only review of `7be3e7a9..2aa83f4d`; fold findings, then
 rung 1.
