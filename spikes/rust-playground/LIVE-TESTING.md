@@ -91,9 +91,9 @@ respawn bounded to once per invocation.
 
 ## L0 — live-test rails (package)
 
-Status: `planned`. One build commit, one independent read-only review of
-the exact diff with the single question *can any change add a send or
-delay a halt?*, then use. No semantic change to gate, limiter, OAuth,
+Status: `built` at `d985dd72` (exact range `7be3e7a9..d985dd72`),
+awaiting the single independent read-only review of that diff with the
+question *can any change add a send or delay a halt?*; then use. No semantic change to gate, limiter, OAuth,
 classification, retry, or dispatcher behavior under default settings; the
 rails only refuse or record.
 
@@ -207,5 +207,5 @@ One row per rung execution. Journal files are copied to
 
 ## Next action
 
-Build L0 on a commit from `6c2a8f60`; record its hash here and request the
-single read-only review.
+Independent read-only review of `7be3e7a9..d985dd72`; fold findings, then
+rung 1.
