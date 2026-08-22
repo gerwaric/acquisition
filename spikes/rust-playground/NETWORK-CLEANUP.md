@@ -24,8 +24,8 @@ review-only session.
 - Date recorded: 2026-08-21.
 - Branch: `spikes/rust-playground`.
 - Frozen gate-contract baseline: `1e17e812`.
-- Current implementation tip: `f1fcb24e3a03b7d9e5d4faa9bbcee3cf244c61a7`.
-- Active package: none; H0 is accepted and N2 is the next unblocked package.
+- Current implementation tip: `0a47efecdb78de1202e29c8fe7faaa4d39e66372`.
+- Active package: none; N2 is accepted and N3 is the next unblocked package.
 - Accepted N1 review range:
   `1e17e812..412c840e155b01f626560fcb097393d6a24b797c`.
 - N1 fix commit: `412c840e155b01f626560fcb097393d6a24b797c`
@@ -36,7 +36,20 @@ review-only session.
 - H0 formatting commit: `f1fcb24e3a03b7d9e5d4faa9bbcee3cf244c61a7`.
 - H0 review verdict: `accepted`; the independent review found no findings and
   no unresolved H0 work remains.
-- N2 and N3 are unblocked. Start N2 next and keep N3 separate.
+- Accepted N2 implementation range:
+  `a74341263676b4bdb5ebade23ef862ea0a0e4127..0a47efecdb78de1202e29c8fe7faaa4d39e66372`.
+- N2 implementation commit:
+  `c89ea6780cb8b3d438085ec959a4daf1f22fa7f2`.
+- N2-R1 fix commit:
+  `0a47efecdb78de1202e29c8fe7faaa4d39e66372`.
+- N2 review verdict: initial review of
+  `a74341263676b4bdb5ebade23ef862ea0a0e4127..c89ea6780cb8b3d438085ec959a4daf1f22fa7f2`
+  returned `changes-requested` with `N2-R1`; fix-only re-review of
+  `c89ea6780cb8b3d438085ec959a4daf1f22fa7f2..0a47efecdb78de1202e29c8fe7faaa4d39e66372`
+  returned `accepted` with no findings.
+- `N2-R1` is resolved. No unresolved N2 findings and no required N2 work
+  remain.
+- N3 is unblocked. Start N3 next and keep it strictly separate from N2 and N4.
 
 ## Package ledger
 
@@ -49,7 +62,7 @@ dependents.
 | N0 | Ground truth and OAuth gate decision | — | accepted | through `1e17e812` |
 | N1 | Strict parsing, observation/classification, and 429 recovery | N0 | accepted | `1e17e812..412c840e155b01f626560fcb097393d6a24b797c` |
 | H0 | Workspace formatting and strict-Clippy baseline | N1 | accepted | `694fb10c8a59ed54147ce3431a3962683ee5e4e6..f1fcb24e3a03b7d9e5d4faa9bbcee3cf244c61a7` |
-| N2 | OAuth refresh singleflight and session generations | H0 | planned | — |
+| N2 | OAuth refresh singleflight and session generations | H0 | accepted | `a74341263676b4bdb5ebade23ef862ea0a0e4127..0a47efecdb78de1202e29c8fe7faaa4d39e66372` |
 | N3 | Send-lifetime gate primitive and fairness semantics | H0 | planned | — |
 | N4 | Gate integration in `ChokePoint`; remove `Paid` | N2, N3 | planned | — |
 | N5 | Dispatcher cleanup and removal of job-task head-of-line blocking | N4 | planned | — |
@@ -138,6 +151,48 @@ Required characterization includes concurrent expiry, successful refresh-token
 rotation, refresh failure, logout during refresh, and re-authentication during
 refresh. N2 coordinates auth state but does not yet claim the global HTTP gate.
 
+Implementation commits:
+
+- `c89ea6780cb8b3d438085ec959a4daf1f22fa7f2` — establishes refresh
+  singleflight ownership, shared waiter results, and session/access-token/
+  refresh-token generation rejection.
+- `0a47efecdb78de1202e29c8fe7faaa4d39e66372` — resolves `N2-R1` by making
+  owner abandonment complete waiters and release only the matching flight.
+
+Review verdict: `accepted` for the combined exact implementation range
+`a74341263676b4bdb5ebade23ef862ea0a0e4127..0a47efecdb78de1202e29c8fe7faaa4d39e66372`.
+The initial independent review of exact range
+`a74341263676b4bdb5ebade23ef862ea0a0e4127..c89ea6780cb8b3d438085ec959a4daf1f22fa7f2`
+returned `changes-requested` with the single High finding `N2-R1`. The
+fix-only independent re-review of exact range
+`c89ea6780cb8b3d438085ec959a4daf1f22fa7f2..0a47efecdb78de1202e29c8fe7faaa4d39e66372`
+returned `accepted` with no findings. It confirmed that owner cancellation,
+task abortion, future dropping, and other owner abandonment remove only the
+matching flight by flight ID and captured session/access-token/refresh-token
+generations, publish one stable abandonment result to every waiter, leave an
+unchanged session immediately retryable, and cannot clear or overwrite a newer
+flight, logout, re-authentication, rotated-token state, or an already-published
+normal result.
+
+The accepted review also confirmed preservation of concurrent expiry,
+successful refresh-token rotation, ordinary refresh failure and retry, logout
+during refresh, re-authentication during refresh, overlapping login
+generations, and stale in-memory/keyring-write rejection. Registration,
+scopes, callback, PKCE, user-agent, provider keyring isolation, and the
+no-plaintext-token rules remain unchanged. `N2-R1` is resolved; no unresolved
+N2 findings and no required N2 work remain.
+
+Accepted-review validation at
+`0a47efecdb78de1202e29c8fe7faaa4d39e66372`:
+
+- `cargo test --workspace --all-targets`: passed, 51 core tests and 0 CLI
+  tests.
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings`:
+  passed.
+- `cargo clippy -p acquisition-core --all-targets --all-features -- -D
+  warnings`: passed.
+- `cargo fmt --all -- --check`: passed.
+
 ### N3 — gate primitive
 
 Implement and test the frozen gate semantics independently of HTTP call sites:
@@ -182,6 +237,7 @@ authoritative design or findings register, not only here.
 | N1-R1 | High | N1 | Strict parsing accepts values that can overflow deadline arithmetic and panic | resolved | `412c840e155b01f626560fcb097393d6a24b797c` |
 | N1-R2 | Medium | N1 | Clean-2xx classification and send recording occur before body transfer completion | resolved | `412c840e155b01f626560fcb097393d6a24b797c` |
 | N1-R3 | Low | N1 | Bounded retry/probe behavior lacks coverage through the real dispatcher lifecycle | resolved | `412c840e155b01f626560fcb097393d6a24b797c` |
+| N2-R1 | High | N2 | Abandoned refresh owner permanently strands waiters | resolved | `0a47efecdb78de1202e29c8fe7faaa4d39e66372` |
 
 For every finding, retain the concrete scenario, exact file and line references,
 affected invariant/design rule/ground-truth claim, classification (confirmed
@@ -300,8 +356,71 @@ Independent review of exact range
   `client.rs`, `dash.rs`, `main.rs`, `auth.rs`, `job.rs`, and `mockggg.rs`;
   there was no new N1 formatting drift.
 
-The format failure is not an N1 finding. N1 is accepted, so H0 is unblocked;
-N2 and N3 remain blocked until H0 is accepted.
+The format failure was not an N1 finding. At that review checkpoint N1 was
+accepted, H0 was unblocked, and N2/N3 remained blocked pending H0 acceptance.
+
+### N2-R1 — abandoned refresh owner permanently strands waiters
+
+- **Concrete scenario:** one caller owns a refresh flight and reaches the
+  token endpoint while concurrent callers subscribe as waiters. If the owner
+  task is aborted, its future is dropped, or it is otherwise abandoned before
+  normal result publication, the original implementation drops the only code
+  path that clears the flight and publishes to the watch channel. The waiters
+  remain pending forever and the unchanged session keeps joining the stranded
+  flight, so it cannot retry.
+- **Implementation references at
+  `c89ea6780cb8b3d438085ec959a4daf1f22fa7f2`:** refresh-flight subscription
+  and creation in `crates/acquisition-core/src/daemon.rs:1288`; the unguarded
+  owner await and sole normal call to `finish_refresh` at line 1317; flight
+  removal and result publication only inside `finish_refresh` at lines
+  1327–1356.
+- **Fix references at
+  `0a47efecdb78de1202e29c8fe7faaa4d39e66372`:** the
+  `RefreshOwnerGuard` and its cancellation-safe `Drop` publication at
+  `crates/acquisition-core/src/daemon.rs:218–255`; guard installation and
+  normal disarming at lines 1358–1369; deterministic abandonment coverage at
+  lines 2065–2215.
+- **Authority:** N2's shared-waiter-result and stale-generation contract;
+  frozen design D1/D2's live-waiter completion requirement; ground-truth N33's
+  rotating refresh-token behavior and the repository's no-stale-token and
+  no-plaintext-token invariants.
+- **Classification:** confirmed bug.
+- **Smallest fix direction:** install an owner-lifetime guard before the
+  refresh await. On abandonment, under the shared-state lock, clear only the
+  flight whose ID and captured session/access-token/refresh-token generations
+  still match, then publish one stable abandonment error through that flight's
+  existing result channel. Disarm the guard after a normal result is published
+  so it cannot overwrite it.
+- **Required tests:** prove the owner reached the token endpoint and three
+  waiters joined before aborting it; require every waiter to finish within a
+  timeout with the identical abandonment error; prove the matching flight was
+  removed without changing token state or generations; retry immediately with
+  the unchanged refresh token and succeed. Repeat abandonment with no waiters
+  and prove the next refresh succeeds. Existing generation/rotation tests must
+  continue to prove that abandonment cannot clear or overwrite newer flights,
+  logout, re-authentication, rotated-token state, keyring state, or a normally
+  published result.
+
+### N2 accepted-review validation
+
+Independent review of exact combined range
+`a74341263676b4bdb5ebade23ef862ea0a0e4127..0a47efecdb78de1202e29c8fe7faaa4d39e66372`
+recorded:
+
+- Initial verdict: `changes-requested` for exact range
+  `a74341263676b4bdb5ebade23ef862ea0a0e4127..c89ea6780cb8b3d438085ec959a4daf1f22fa7f2`,
+  with the single finding `N2-R1`.
+- Fix-only verdict: `accepted` for exact range
+  `c89ea6780cb8b3d438085ec959a4daf1f22fa7f2..0a47efecdb78de1202e29c8fe7faaa4d39e66372`;
+  `N2-R1` is resolved, no new findings were reported, and no unresolved or
+  required N2 work remains.
+- `cargo test --workspace --all-targets`: passed, 51 core tests and 0 CLI
+  tests.
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings`:
+  passed.
+- `cargo clippy -p acquisition-core --all-targets --all-features -- -D
+  warnings`: passed.
+- `cargo fmt --all -- --check`: passed.
 
 ## Session protocol
 
@@ -329,10 +448,10 @@ available. Do not stack new semantic work on a package whose review is pending.
 
 ## Quality-gate baseline
 
-Recorded at accepted H0 tip `f1fcb24e3a03b7d9e5d4faa9bbcee3cf244c61a7`
+Recorded at accepted N2 tip `0a47efecdb78de1202e29c8fe7faaa4d39e66372`
 on 2026-08-21:
 
-- `cargo test --workspace --all-targets`: passed, 44 core tests and 0 CLI
+- `cargo test --workspace --all-targets`: passed, 51 core tests and 0 CLI
   tests.
 - `cargo clippy --workspace --all-targets --all-features -- -D warnings`:
   passed.
@@ -345,41 +464,40 @@ core crate's strict Clippy check remains an additional semantic-package gate.
 
 ## Next action and exact kickoff prompt
 
-The single next action is an N2 OAuth refresh-ownership build session. Use this
+The single next action is an N3 gate-primitive build session. Use this
 prompt verbatim:
 
 ```text
 Read AGENTS.md, CONTEXT.md, README.md, NETWORK-CLEANUP.md, and the frozen
-network design documents referenced there before editing. This is an N2
+network design documents referenced there before editing. This is an N3
 build-only session. Start from the current clean spikes/rust-playground branch
-tip, which must contain the coordination commit recording H0 as accepted for
-exact range
-694fb10c8a59ed54147ce3431a3962683ee5e4e6..f1fcb24e3a03b7d9e5d4faa9bbcee3cf244c61a7
-with no findings. Record the exact starting hash before editing; if the
-worktree is not clean or that ledger state is absent, stop and report the
-mismatch.
+tip, which must contain the coordination commit recording N2 as accepted for
+exact combined implementation range
+a74341263676b4bdb5ebade23ef862ea0a0e4127..0a47efecdb78de1202e29c8fe7faaa4d39e66372,
+with N2-R1 resolved and no unresolved N2 work. Record the exact starting hash
+before editing; if the worktree is not clean or that ledger state is absent,
+stop and report the mismatch.
 
-Implement only N2: one refresh owner for concurrent callers, shared waiter
-results, and session/access-token/refresh-token generations that prevent stale
-completion from overwriting logout, re-authentication, or a rotated refresh
-token. Add the required characterization for concurrent expiry, successful
-refresh-token rotation, refresh failure, logout during refresh, and
-re-authentication during refresh. Preserve the existing registration, scopes,
-callback, user-agent, keyring isolation, and no-plaintext-token rules.
+Implement and test only the N3 send-lifetime gate primitive and its frozen
+fairness semantics, independently of HTTP call sites: one global actual-send
+cap, per-policy serialization through response/body completion, globally
+exclusive HEAD permits with writer preference, ordinary-waiter FIFO, and an
+explicit live permit lifetime. Use deterministic concurrency tests for permit
+lifetime, cancellation, writer preference, HEAD exclusivity, and
+independent-policy progress.
 
-Do not begin N3, implement the send-lifetime gate, alter dispatcher semantics,
-integrate the gate into ChokePoint, edit frozen design documents, or contact
-GGG. N2 coordinates authentication state but does not claim the global HTTP
-gate.
+Keep N3 strictly separate from N2 and N4. Do not change OAuth refresh
+ownership, integrate the gate into ChokePoint, remove `Paid`, alter dispatcher
+semantics, edit frozen design documents, or contact GGG.
 
 Run cargo test --workspace --all-targets; cargo clippy --workspace
 --all-targets --all-features -- -D warnings; cargo clippy -p acquisition-core
 --all-targets --all-features -- -D warnings; and cargo fmt --all -- --check.
-Record exact outcomes. Commit only N2 with an N2-labeled message. Do not mark
-N2 accepted. Return the exact starting and ending hashes, clean worktree state,
+Record exact outcomes. Commit only N3 with an N3-labeled message. Do not mark
+N3 accepted. Return the exact starting and ending hashes, clean worktree state,
 scope completed, checks, unresolved findings, and the single next action: an
-independent N2 review of the exact coordination-tip-to-N2-tip range.
+independent N3 review of the exact coordination-tip-to-N3-tip range.
 ```
 
-Only an independent N2 review with no required work remaining may mark N2
-accepted. N3 is unblocked but must remain a separate package and review.
+Only an independent N3 review with no required work remaining may mark N3
+accepted. N3 must remain a separate package and review from N2 and N4.
