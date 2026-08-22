@@ -91,9 +91,11 @@ respawn bounded to once per invocation.
 
 ## L0 — live-test rails (package)
 
-Status: `built` at `2aa83f4d` (exact range `7be3e7a9..2aa83f4d`),
-awaiting the single independent read-only review of that diff with the
-question *can any change add a send or delay a halt?*; then use. No semantic change to gate, limiter, OAuth,
+Status: `built` and reviewed. Build range `7be3e7a9..2aa83f4d`; the
+independent read-only review (question: *can any change add a send or
+delay a halt?*) returned `changes-requested` with 4 Medium and 8 Low
+findings, recorded in the L0 review register below and fixed in the
+commit that follows this record. No re-review has been run. No semantic change to gate, limiter, OAuth,
 classification, retry, or dispatcher behavior under default settings; the
 rails only refuse or record.
 
@@ -162,6 +164,29 @@ the existing suite (including the N6 stress, which contains 429s) passes
 unchanged with rails 1, 2, and 5 off; a tripped daemon sends nothing on a
 queued job. Quality gates from `NETWORK-CLEANUP.md` stay green.
 
+### L0 review register
+
+| ID | Sev | Finding | Resolution |
+| --- | --- | --- | --- |
+| L0-R1 | Medium | Halt checked only on entry to the admission loops; a task parked in a hold sleep or in the gate sent after the trip | re-checked every iteration and after admission; admission sleeps sliced to ≤ 1 s; test `a_send_parked_in_the_gate_is_refused_after_a_trip` |
+| L0-R2 | Medium | Persisted trip / refresh-failed mark enforced by a rails-off daemon (behavior change under default settings) | loaded only when the tripwire is armed; a rails-off daemon neither honors nor deletes the file; test `persisted_trip_is_ignored_without_the_tripwire` |
+| L0-R3 | Medium | `finish_auth_flow` cleared the dead-token mark before its generation check, so a stale callback re-armed a dead token | clear moved after a current flow installs tokens |
+| L0-R4 | Medium | Journal open failure silent while status advertised the path | error kept; status shows `NOT WRITTEN — …`; logged at startup; test `unopenable_journal_is_reported_not_silent` |
+| L0-R5 | Low | Mark set after the flight closed: one-instruction window for a second dead-token POST | mark set before `owner.finish`, only while the flight is still current |
+| L0-R6 | Low | Stale-flight suppression was a string compare | superseded by L0-R5's explicit flight-current check under the lock; no prose compare remains |
+| L0-R7 | Low | Default journal shared by mock and real | keyed by provider |
+| L0-R8 | Low | Env knobs failed open silently | truthy set accepted; misunderstood values logged as `RAILS CONFIG` errors |
+| L0-R9 | Low | `ACQ_MAX_SENDS=0` allowed one send | `halted()` refuses at zero; test `zero_ceiling_refuses_before_the_first_send` |
+| L0-R10 | Low | `reset-tripwire` against a stopped daemon left the persisted trip | the CLI clears the provider's state file directly and says so |
+| L0-R11 | Low | Per-job refusals could evict the trip cause from the error ring | per-job refusal goes to the file log only |
+| L0-R12 | Low | Persisted refresh-failed cause contained the token-endpoint body | persisted cause is `HTTP <status>` plus a fixed reason; the body stays in the log only |
+
+Clean per the review: `note_lost_send` is never less conservative; the
+dead-token mark cannot fire on the code exchange; the fast path precedes
+flight open/join and cannot strand waiters; `process()`'s early return
+mirrors the `Degraded` return; journal contents carry no secret; CLI and
+dash additions send nothing; N0–N6 behavior with rails off is unchanged.
+
 ## Ladder
 
 Each rung has a stop condition; stopping means reading the journal before
@@ -207,5 +232,5 @@ One row per rung execution. Journal files are copied to
 
 ## Next action
 
-Independent read-only review of `7be3e7a9..2aa83f4d`; fold findings, then
-rung 1.
+Owner decides whether the L0-R1…R12 fix commit gets a fix-only re-review
+or goes straight to rung 1.

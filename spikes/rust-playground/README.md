@@ -125,7 +125,12 @@ on the command that spawns it, or `acq daemon stop` first:
   (not persisted).
 - `ACQ_JOURNAL=<path>` — one JSON line per actual send (method, route,
   status, every `X-Rate-Limit-*` header; never a token or body), flushed
-  per line; defaults to `<socket>.sends.jsonl`, `0` disables.
+  per line; defaults to `<socket>.<provider>.sends.jsonl`, `0` disables.
+  A journal that cannot be opened is reported in `daemon status`, not
+  silently dropped.
+- Misunderstood values (`ACQ_TRIPWIRE=maybe`, `ACQ_MAX_SENDS=ten`) are
+  logged at startup as `RAILS CONFIG` errors; the rail stays off. A
+  persisted trip is honored only by a daemon started with the tripwire.
 - The HTTP client has a 10 s connect and 60 s request timeout; a send lost
   in transport is paced as if the server counted it.
 

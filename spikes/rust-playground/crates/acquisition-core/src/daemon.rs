@@ -59,8 +59,8 @@ pub fn log_path() -> PathBuf {
 
 /// Default send-journal location (`ACQ_JOURNAL` overrides; `ACQ_JOURNAL=0`
 /// disables).
-pub fn journal_path() -> PathBuf {
-    socket_path().with_extension("sends.jsonl")
+pub fn journal_path(provider_name: &str) -> PathBuf {
+    socket_path().with_extension(format!("{provider_name}.sends.jsonl"))
 }
 
 /// What a network call can fail with; 429 is its own arm so the job can
@@ -595,7 +595,9 @@ impl Daemon {
             && let Some(cause) = self.rails().halted()
         {
             let error = format!("route {route}: {cause}");
-            self.note_error(&format!("job {id}: {error}"));
+            // File log only: a halted fan-out must not evict the trip cause
+            // from the dashboard's error ring.
+            self.log(&format!("job {id}: {error}"));
             self.start_and_finish(id, Outcome::Failure { error });
             return;
         }
@@ -1272,7 +1274,6 @@ impl Daemon {
     }
 
     fn finish_auth_flow(&self, generation: u64, tokens: auth::TokenResponse) -> bool {
-        self.rails().clear_refresh_failed();
         let warning = {
             let mut s = self.shared.lock().unwrap();
             if s.auth.pending != Some(generation) || s.auth.generations.session != generation {
@@ -1281,6 +1282,9 @@ impl Daemon {
             s.auth.pending = None;
             self.install_tokens_locked(&mut s.auth, tokens)
         };
+        // Only a current flow that installed a new token clears the
+        // refresh-failed mark; a stale callback must not re-arm a dead one.
+        self.rails().clear_refresh_failed();
         if let Some(warning) = warning {
             self.note_error(&warning);
         }
@@ -1408,28 +1412,30 @@ impl Daemon {
                 // not held here, so every concurrent caller can join this owner.
                 let refresh = auth::refresh(&self.choke, &self.provider, &refresh_token).await;
                 self.announce_trip();
-                let rejected = refresh
-                    .as_ref()
-                    .err()
-                    .filter(|error| error.is_rejected_grant())
-                    .map(|error| error.message.clone());
-                let refresh = refresh.map_err(|e| format!("token refresh failed: {e}"));
-                let result = owner.finish(refresh);
-                // Mark only if this flight's result was accepted as current:
-                // a stale flight must not disable a session that
-                // re-authenticated meanwhile.
-                if let Some(cause) = rejected
-                    && result
-                        .as_ref()
-                        .err()
-                        .is_some_and(|e| e != SESSION_CHANGED_DURING_REFRESH)
-                    && self.rails().mark_refresh_failed(&cause)
-                {
-                    self.note_error(&format!(
-                        "LIVE-TEST RAILS: refresh token rejected; further refreshes disabled until `acq auth` ({cause})"
-                    ));
+                // L0 rail 2: mark a rejected grant before the flight is
+                // closed, so no caller can pass the fast path and re-send the
+                // dead token in between; and only while this flight is still
+                // the current one, so a stale flight cannot disable a session
+                // that re-authenticated meanwhile. The persisted cause is the
+                // status plus a fixed reason, never the response body.
+                if let Some(error) = refresh.as_ref().err().filter(|e| e.is_rejected_grant()) {
+                    let current = {
+                        let s = self.shared.lock().unwrap();
+                        s.auth.generations == generations
+                            && s.auth.refresh_flight.as_ref().is_some_and(|f| f.id == id)
+                    };
+                    let cause = format!(
+                        "refresh token rejected with HTTP {}",
+                        error.status.unwrap_or_default()
+                    );
+                    if current && self.rails().mark_refresh_failed(&cause) {
+                        self.note_error(&format!(
+                            "LIVE-TEST RAILS: {cause}; further refreshes disabled until `acq auth` ({error})"
+                        ));
+                    }
                 }
-                result
+                let refresh = refresh.map_err(|e| format!("token refresh failed: {e}"));
+                owner.finish(refresh)
             }
         }
     }
@@ -1876,7 +1882,7 @@ pub async fn run() -> Result<()> {
     let rails = Arc::new(Rails::with_config(RailsConfig::from_env(
         provider.name,
         &path,
-        &journal_path(),
+        &journal_path(provider.name),
     )));
     let choke = ChokePoint::with_rails(rails);
 
@@ -1941,6 +1947,9 @@ pub async fn run() -> Result<()> {
         rails.journal.as_deref().unwrap_or("off"),
         idle_shutdown_from_env().as_secs(),
     ));
+    for warning in daemon.rails().startup_warnings() {
+        daemon.note_error(&format!("RAILS CONFIG: {warning}"));
+    }
 
     tokio::spawn(daemon.clone().dispatcher());
     tokio::spawn(daemon.clone().idle_watchdog());
@@ -3670,7 +3679,7 @@ mod dispatcher_tests {
         let first = daemon.valid_access_token(false).await.unwrap_err();
         assert!(first.contains("400 Bad Request"), "{first}");
         assert_eq!(requests.lock().unwrap().len(), 1);
-        assert!(rails.refresh_failed().unwrap().contains("400 Bad Request"));
+        assert!(rails.refresh_failed().unwrap().contains("HTTP 400"));
 
         let second = daemon.valid_access_token(false).await.unwrap_err();
         assert!(second.contains("disabled by live-test rails"), "{second}");

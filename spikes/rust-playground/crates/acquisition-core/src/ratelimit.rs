@@ -1214,6 +1214,11 @@ pub struct ChokePoint {
 pub const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 pub const REQUEST_TIMEOUT: Duration = Duration::from_secs(60);
 
+/// Longest uninterrupted wait inside the choke point's admission loops, so a
+/// halt that happens while a task is parked in a hold is honored within
+/// about this long rather than at the end of the hold.
+const HALT_POLL: Duration = Duration::from_secs(1);
+
 fn build_client() -> reqwest::Client {
     // The user-agent goes on the client itself so no request — token
     // exchange included — can be sent without it (CONTEXT invariant 4).
@@ -1312,24 +1317,33 @@ impl ChokePoint {
     async fn acquire_send(&self, route: &str) -> Result<SendPermit, SendError> {
         // Rails are consulted before any waiting or permit: a halted daemon
         // neither sleeps toward a send nor occupies gate capacity.
-        if let Some(cause) = self.rails.halted() {
-            return Err(SendError::Halted(cause));
-        }
         loop {
+            // Re-checked every iteration and again after admission: a task
+            // parked in a hold sleep or in the gate must not send after a
+            // trip that happened while it waited.
+            if let Some(cause) = self.rails.halted() {
+                return Err(SendError::Halted(cause));
+            }
             if let Err(wait) = self.check(route) {
-                self.sleep(wait.max(Duration::from_millis(50))).await;
+                self.sleep(wait.clamp(Duration::from_millis(50), HALT_POLL))
+                    .await;
                 continue;
             }
 
             let serial_key = self.serial_key(route);
             let permit = self.gate.acquire(serial_key.clone()).await;
+            if let Some(cause) = self.rails.halted() {
+                drop(permit);
+                return Err(SendError::Halted(cause));
+            }
             let mapping_is_current = self.serial_key(route) == serial_key;
             match (mapping_is_current, self.check(route)) {
                 (true, Ok(())) => return Ok(permit),
                 (_, pacing) => {
                     drop(permit);
                     if let Err(wait) = pacing {
-                        self.sleep(wait.max(Duration::from_millis(50))).await;
+                        self.sleep(wait.clamp(Duration::from_millis(50), HALT_POLL))
+                            .await;
                     }
                 }
             }
@@ -1340,21 +1354,27 @@ impl ChokePoint {
     /// exclusive writer reservation. A final check after admission handles a
     /// landed response that installed a hold while the probe was queued.
     async fn acquire_head(&self, route: &str) -> Result<SendPermit, SendError> {
-        if let Some(cause) = self.rails.halted() {
-            return Err(SendError::Halted(cause));
-        }
         loop {
+            if let Some(cause) = self.rails.halted() {
+                return Err(SendError::Halted(cause));
+            }
             if let Err(wait) = self.check(route) {
-                self.sleep(wait.max(Duration::from_millis(50))).await;
+                self.sleep(wait.clamp(Duration::from_millis(50), HALT_POLL))
+                    .await;
                 continue;
             }
 
             let permit = self.gate.acquire_head().await;
+            if let Some(cause) = self.rails.halted() {
+                drop(permit);
+                return Err(SendError::Halted(cause));
+            }
             match self.check(route) {
                 Ok(()) => return Ok(permit),
                 Err(wait) => {
                     drop(permit);
-                    self.sleep(wait.max(Duration::from_millis(50))).await;
+                    self.sleep(wait.clamp(Duration::from_millis(50), HALT_POLL))
+                        .await;
                 }
             }
         }
@@ -3110,6 +3130,88 @@ mod tests {
             1,
             "refused sends are not recorded as sends"
         );
+    }
+
+    #[tokio::test]
+    async fn a_send_parked_in_the_gate_is_refused_after_a_trip() {
+        use crate::rails::{Rails, RailsConfig, SendReport};
+        // A HEAD holds the exclusive reservation while its response is
+        // delayed; an ordinary GET parks in the gate behind it. The trip
+        // happens while it is parked; it must come out as Halted unsent.
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let base = format!("http://{}", listener.local_addr().unwrap());
+        let (head_arrived_tx, head_arrived) = oneshot::channel();
+        let (release_tx, release) = oneshot::channel();
+        let hits = Arc::new(Mutex::new(Vec::new()));
+        let seen = hits.clone();
+        let server = tokio::spawn(async move {
+            let (mut stream, _) = listener.accept().await.unwrap();
+            let mut request = [0; 4096];
+            let n = stream.read(&mut request).await.unwrap();
+            seen.lock().unwrap().push(
+                String::from_utf8_lossy(&request[..n])
+                    .lines()
+                    .next()
+                    .unwrap()
+                    .to_string(),
+            );
+            head_arrived_tx.send(()).unwrap();
+            release.await.unwrap();
+            let raw = raw_response(
+                "204 No Content",
+                &full_rate_headers("parked-policy", None),
+                0,
+                "",
+            );
+            stream.write_all(raw.as_bytes()).await.unwrap();
+            // No second accept: a GET reaching the server would hang, and the
+            // test's timeout would fail it.
+        });
+        let rails = Arc::new(Rails::with_config(RailsConfig {
+            tripwire: true,
+            ..RailsConfig::default()
+        }));
+        let choke = Arc::new(ChokePoint::with_clock_and_rails(
+            Arc::new(SystemClock),
+            rails.clone(),
+        ));
+
+        let head_choke = choke.clone();
+        let head_url = format!("{base}/probe");
+        let head = tokio::spawn(async move { head_choke.head("parked", &head_url, None).await });
+        head_arrived.await.unwrap();
+
+        let get_choke = choke.clone();
+        let get_url = format!("{base}/data");
+        let get = tokio::spawn(async move { get_choke.get("parked", &get_url).await });
+        tokio::time::sleep(Duration::from_millis(50)).await; // let it park
+        assert!(!get.is_finished(), "the GET must be parked behind the HEAD");
+
+        rails.record(&SendReport {
+            method: "GET",
+            route: "elsewhere",
+            url_path: "/elsewhere",
+            status: Some(429),
+            error: None,
+            ok: false,
+            counted: true,
+            rate: &serde_json::Value::Null,
+        });
+        release_tx.send(()).unwrap();
+        head.await.unwrap().unwrap();
+        let refused = tokio::time::timeout(Duration::from_secs(3), get)
+            .await
+            .expect("parked GET must resolve promptly after the HEAD releases")
+            .unwrap()
+            .err()
+            .expect("halted");
+        assert!(matches!(refused, SendError::Halted(_)), "{refused}");
+        assert_eq!(
+            hits.lock().unwrap().len(),
+            1,
+            "only the HEAD reached the server"
+        );
+        server.await.unwrap();
     }
 
     #[tokio::test]

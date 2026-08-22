@@ -380,7 +380,30 @@ async fn main() -> Result<()> {
                             println!("rails reset");
                         }
                     }
-                    Err(_) => println!("daemon is not running"),
+                    Err(_) => {
+                        // The trip lives on disk; clear it there so the next
+                        // spawned daemon is not still halted.
+                        let provider = if acquisition_core::provider::ggg_mode() {
+                            "ggg"
+                        } else {
+                            "mock"
+                        };
+                        let state =
+                            daemon::socket_path().with_extension(format!("{provider}.rails.json"));
+                        match std::fs::remove_file(&state) {
+                            Ok(()) => println!(
+                                "daemon is not running; cleared persisted rails state {}",
+                                state.display()
+                            ),
+                            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                                println!("daemon is not running and no rails state is persisted")
+                            }
+                            Err(e) => println!(
+                                "daemon is not running; could not clear {}: {e}",
+                                state.display()
+                            ),
+                        }
+                    }
                 }
                 Ok(())
             }

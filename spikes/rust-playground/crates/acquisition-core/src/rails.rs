@@ -36,6 +36,9 @@ pub struct RailsConfig {
     /// Where the tripwire and refresh-failed marks persist. `None` keeps
     /// them in memory only (tests).
     pub state_path: Option<PathBuf>,
+    /// Environment values that were not understood, for the startup log.
+    /// A rail the operator believed armed must not fail open silently.
+    pub warnings: Vec<String>,
 }
 
 impl RailsConfig {
@@ -47,10 +50,28 @@ impl RailsConfig {
         socket_path: &Path,
         default_journal: &Path,
     ) -> RailsConfig {
-        let tripwire = std::env::var("ACQ_TRIPWIRE").is_ok_and(|v| v == "1");
-        let max_sends = std::env::var("ACQ_MAX_SENDS")
-            .ok()
-            .and_then(|v| v.trim().parse::<u64>().ok());
+        let mut warnings = Vec::new();
+        let tripwire = match std::env::var("ACQ_TRIPWIRE") {
+            Ok(v) if matches!(v.trim(), "1" | "true" | "yes" | "on") => true,
+            Ok(v) if matches!(v.trim(), "" | "0" | "false" | "no" | "off") => false,
+            Ok(v) => {
+                warnings.push(format!(
+                    "ACQ_TRIPWIRE={v:?} not understood; tripwire is OFF"
+                ));
+                false
+            }
+            Err(_) => false,
+        };
+        let max_sends = match std::env::var("ACQ_MAX_SENDS") {
+            Ok(v) => match v.trim().parse::<u64>() {
+                Ok(n) => Some(n),
+                Err(_) => {
+                    warnings.push(format!("ACQ_MAX_SENDS={v:?} is not a number; no ceiling"));
+                    None
+                }
+            },
+            Err(_) => None,
+        };
         let journal_path = match std::env::var("ACQ_JOURNAL") {
             Ok(p) if p.trim().is_empty() || p.trim() == "0" => None,
             Ok(p) => Some(PathBuf::from(p)),
@@ -62,6 +83,7 @@ impl RailsConfig {
             max_sends,
             journal_path,
             state_path,
+            warnings,
         }
     }
 }
@@ -118,6 +140,8 @@ pub struct Rails {
     config: RailsConfig,
     state: Mutex<State>,
     journal: Mutex<Option<File>>,
+    /// Why the journal could not be opened, if it could not.
+    journal_error: Option<String>,
 }
 
 impl Rails {
@@ -129,22 +153,43 @@ impl Rails {
 
     pub fn with_config(config: RailsConfig) -> Rails {
         let mut state = State::default();
-        if let Some(path) = &config.state_path
+        // A persisted trip belongs to the tripwire: a daemon started without
+        // it (the post-baseline default) neither honors nor deletes it.
+        if config.tripwire
+            && let Some(path) = &config.state_path
             && let Ok(text) = std::fs::read_to_string(path)
             && let Ok(persisted) = serde_json::from_str::<Persisted>(&text)
         {
             state.tripped = persisted.tripped;
             state.refresh_failed = persisted.refresh_failed;
         }
-        let journal = config
-            .journal_path
-            .as_ref()
-            .and_then(|path| OpenOptions::new().create(true).append(true).open(path).ok());
+        let (journal, journal_error) = match &config.journal_path {
+            None => (None, None),
+            Some(path) => match OpenOptions::new().create(true).append(true).open(path) {
+                Ok(file) => (Some(file), None),
+                Err(error) => (
+                    None,
+                    Some(format!(
+                        "journal {} could not be opened: {error}",
+                        path.display()
+                    )),
+                ),
+            },
+        };
         Rails {
             config,
             state: Mutex::new(state),
             journal: Mutex::new(journal),
+            journal_error,
         }
+    }
+
+    /// Startup diagnostics the daemon should log: misunderstood environment
+    /// values and a journal that is not being written.
+    pub fn startup_warnings(&self) -> Vec<String> {
+        let mut warnings = self.config.warnings.clone();
+        warnings.extend(self.journal_error.clone());
+        warnings
     }
 
     pub fn config(&self) -> &RailsConfig {
@@ -158,6 +203,9 @@ impl Rails {
         s.tripped
             .clone()
             .or_else(|| s.ceiling_tripped.clone())
+            .or_else(|| {
+                (self.config.max_sends == Some(0)).then(|| "ceiling: 0 sends allowed".to_string())
+            })
             .map(|cause| format!("halted by live-test rails: {cause}"))
     }
 
@@ -223,6 +271,8 @@ impl Rails {
     }
 
     /// Active only with the tripwire. Returns whether the mark was set.
+    /// `cause` is persisted to disk: callers pass a status and a fixed
+    /// reason, never a response body (CONTEXT invariant 5).
     pub fn mark_refresh_failed(&self, cause: &str) -> bool {
         if !self.config.tripwire {
             return false;
@@ -252,11 +302,11 @@ impl Rails {
             refresh_failed: s.refresh_failed.clone(),
             sends: s.sends,
             max_sends: self.config.max_sends,
-            journal: self
-                .config
-                .journal_path
-                .as_ref()
-                .map(|p| p.display().to_string()),
+            journal: match (&self.journal_error, &self.config.journal_path) {
+                (Some(error), _) => Some(format!("NOT WRITTEN — {error}")),
+                (None, Some(path)) => Some(path.display().to_string()),
+                (None, None) => None,
+            },
         }
     }
 
@@ -403,6 +453,7 @@ mod tests {
             max_sends: Some(1),
             journal_path: None,
             state_path: Some(path.clone()),
+            warnings: Vec::new(),
         };
         {
             let rails = Rails::with_config(config.clone());
@@ -470,6 +521,52 @@ mod tests {
             assert!(!text.to_lowercase().contains(key), "journal leaked {key}");
         }
         let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn persisted_trip_is_ignored_without_the_tripwire() {
+        let path = std::env::temp_dir().join(format!("acq-rails-off-{}.json", std::process::id()));
+        std::fs::write(
+            &path,
+            r#"{"tripped":"429 on GET /x","refresh_failed":"400"}"#,
+        )
+        .unwrap();
+        let rails = Rails::with_config(RailsConfig {
+            state_path: Some(path.clone()),
+            ..RailsConfig::default()
+        });
+        assert_eq!(rails.halted(), None);
+        assert_eq!(rails.refresh_failed(), None);
+        assert!(
+            path.exists(),
+            "a rails-off daemon does not delete the ladder's state"
+        );
+        let armed = Rails::with_config(RailsConfig {
+            tripwire: true,
+            state_path: Some(path.clone()),
+            ..RailsConfig::default()
+        });
+        assert!(armed.halted().is_some());
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn unopenable_journal_is_reported_not_silent() {
+        let rails = Rails::with_config(RailsConfig {
+            journal_path: Some(PathBuf::from("/nonexistent-dir/acq.jsonl")),
+            ..RailsConfig::default()
+        });
+        assert!(rails.status().journal.unwrap().starts_with("NOT WRITTEN"));
+        assert_eq!(rails.startup_warnings().len(), 1);
+    }
+
+    #[test]
+    fn zero_ceiling_refuses_before_the_first_send() {
+        let rails = Rails::with_config(RailsConfig {
+            max_sends: Some(0),
+            ..RailsConfig::default()
+        });
+        assert!(rails.halted().unwrap().contains("0 sends"));
     }
 
     #[test]
