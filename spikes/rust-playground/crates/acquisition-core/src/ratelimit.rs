@@ -16,10 +16,8 @@
 //! so server-side residue and other tools' hits are known before we add to
 //! them. A degraded probe (N20) puts the endpoint in a cooldown.
 //!
-//! Not yet built (each a separate baby step): 429 recovery beyond "don't
-//! send again before Retry-After" (P-A); an explicit cross-policy burst
-//! bound (P-B) — today the single worker keeps at most one request in flight,
-//! which also keeps probes strictly serialized (N18).
+//! Not yet built (each a separate baby step): an explicit send-lifetime
+//! cross-policy burst bound (P-B). The dispatcher cap is not that gate.
 
 use std::collections::{HashMap, VecDeque};
 use std::fmt;
@@ -35,13 +33,23 @@ pub const SUSTAINED_BUCKET: Duration = Duration::from_secs(60);
 /// Extra margin on top of the bucket (N13 says the full bucket is the safe
 /// margin; the shipped client adds one more second and has been clean).
 pub const BUFFER: Duration = Duration::from_secs(1);
+/// A retry always pays the largest timing bucket GGG has named, independent
+/// of whether the response's policy headers are usable (D3/N19).
+pub const RETRY_BUCKET_PAD: Duration = Duration::from_secs(60);
+/// Product policy: longer server-requested pauses are contained as terminal
+/// failures rather than silently parking work for an unobserved duration.
+pub const RETRY_AFTER_CAP_SECS: u64 = 900;
 
 /// Which timing bucket applies to the `index`-th window of a rule.
 /// Positional classification (Q4, Tom's hypothesis): the first window is
 /// the initial limit, every later one is sustained. A single-window rule is
 /// treated as initial. Conservative on every observed policy shape (N23).
 pub fn bucket_for(index: usize) -> Duration {
-    if index == 0 { INITIAL_BUCKET } else { SUSTAINED_BUCKET }
+    if index == 0 {
+        INITIAL_BUCKET
+    } else {
+        SUSTAINED_BUCKET
+    }
 }
 
 // ---- the header contract (N5) ---------------------------------------------
@@ -75,8 +83,6 @@ pub struct Rule {
 pub struct Policy {
     pub name: String,
     pub rules: Vec<Rule>,
-    /// Present on 429 responses.
-    pub retry_after_secs: Option<u64>,
 }
 
 impl Policy {
@@ -129,22 +135,19 @@ impl Policy {
         if rules.is_empty() {
             return Err(PolicyParseError::EmptyRules);
         }
-        let retry_after_secs = get("retry-after")
-            .map(|raw| {
-                parse_integer(raw.trim()).ok_or(PolicyParseError::InvalidRetryAfter {
-                    raw,
-                })
-            })
-            .transpose()?;
         Ok(Policy {
             name: name.trim().to_string(),
             rules,
-            retry_after_secs,
         })
     }
 
     pub fn from_headers(headers: &reqwest::header::HeaderMap) -> Result<Policy, PolicyParseError> {
-        Policy::parse(|name| headers.get(name).and_then(|v| v.to_str().ok()).map(str::to_string))
+        Policy::parse(|name| {
+            headers
+                .get(name)
+                .and_then(|v| v.to_str().ok())
+                .map(str::to_string)
+        })
     }
 
     /// Ordered rule names and ordered window periods identify which counter
@@ -190,9 +193,6 @@ pub enum PolicyParseError {
         limit: u64,
         state: u64,
     },
-    InvalidRetryAfter {
-        raw: String,
-    },
 }
 
 impl fmt::Display for PolicyParseError {
@@ -225,19 +225,13 @@ impl fmt::Display for PolicyParseError {
                 f,
                 "rule '{rule}' window {index} has limit period {limit} but state period {state}"
             ),
-            PolicyParseError::InvalidRetryAfter { raw } => {
-                write!(f, "invalid Retry-After '{raw}'")
-            }
         }
     }
 }
 
 impl std::error::Error for PolicyParseError {}
 
-fn required(
-    get: &impl Fn(&str) -> Option<String>,
-    name: &str,
-) -> Result<String, PolicyParseError> {
+fn required(get: &impl Fn(&str) -> Option<String>, name: &str) -> Result<String, PolicyParseError> {
     get(name).ok_or_else(|| PolicyParseError::MissingHeader {
         name: name.to_string(),
     })
@@ -248,6 +242,77 @@ fn parse_integer(raw: &str) -> Option<u64> {
         return None;
     }
     raw.parse().ok()
+}
+
+/// `Retry-After` is retry authority, not part of the Full policy grammar.
+/// Keeping this result total and separate lets a malformed policy still
+/// install the conservative hold required for a retryable 429 (D8).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RetryAfter {
+    Acceptable { seconds: u64 },
+    Missing,
+    Malformed { raw: String },
+    Negative { raw: String },
+    OverCap { raw: String },
+}
+
+impl RetryAfter {
+    pub fn seconds(&self) -> Option<u64> {
+        match self {
+            RetryAfter::Acceptable { seconds } => Some(*seconds),
+            RetryAfter::Missing
+            | RetryAfter::Malformed { .. }
+            | RetryAfter::Negative { .. }
+            | RetryAfter::OverCap { .. } => None,
+        }
+    }
+
+    pub fn is_acceptable(&self) -> bool {
+        matches!(self, RetryAfter::Acceptable { .. })
+    }
+}
+
+impl fmt::Display for RetryAfter {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            RetryAfter::Acceptable { seconds } => write!(f, "{seconds}s"),
+            RetryAfter::Missing => write!(f, "missing Retry-After"),
+            RetryAfter::Malformed { raw } => write!(f, "malformed Retry-After '{raw}'"),
+            RetryAfter::Negative { raw } => write!(f, "negative Retry-After '{raw}'"),
+            RetryAfter::OverCap { raw } => write!(
+                f,
+                "Retry-After '{raw}' exceeds the {RETRY_AFTER_CAP_SECS}s product cap"
+            ),
+        }
+    }
+}
+
+pub fn parse_retry_after(get: impl Fn(&str) -> Option<String>) -> RetryAfter {
+    let Some(raw) = get("retry-after") else {
+        return RetryAfter::Missing;
+    };
+    let value = raw.trim();
+    if value.starts_with('-') {
+        return RetryAfter::Negative { raw };
+    }
+    if value.is_empty() || !value.bytes().all(|byte| byte.is_ascii_digit()) {
+        return RetryAfter::Malformed { raw };
+    }
+    match value.parse::<u64>() {
+        Ok(seconds) if seconds <= RETRY_AFTER_CAP_SECS => RetryAfter::Acceptable { seconds },
+        Ok(_) | Err(_) => RetryAfter::OverCap { raw },
+    }
+}
+
+pub fn retry_after_from_headers(headers: &reqwest::header::HeaderMap) -> RetryAfter {
+    parse_retry_after(|name| {
+        headers.get(name).map(|value| {
+            value
+                .to_str()
+                .map(str::to_string)
+                .unwrap_or_else(|_| "<non-utf8>".into())
+        })
+    })
 }
 
 fn parse_triplet(header: &str, raw: &str) -> Result<[u64; 3], PolicyParseError> {
@@ -272,14 +337,12 @@ fn parse_triplet(header: &str, raw: &str) -> Result<[u64; 3], PolicyParseError> 
 fn parse_limits(header: &str, raw: &str) -> Result<Vec<Window>, PolicyParseError> {
     raw.split(',')
         .map(|triplet| {
-            let [max_hits, period_secs, restriction_secs] =
-                parse_triplet(header, triplet)?;
-            let max_hits = u32::try_from(max_hits).map_err(|_| {
-                PolicyParseError::OutOfRangeTriplet {
+            let [max_hits, period_secs, restriction_secs] = parse_triplet(header, triplet)?;
+            let max_hits =
+                u32::try_from(max_hits).map_err(|_| PolicyParseError::OutOfRangeTriplet {
                     header: header.to_string(),
                     raw: triplet.to_string(),
-                }
-            })?;
+                })?;
             if max_hits == 0 || period_secs == 0 {
                 return Err(PolicyParseError::OutOfRangeTriplet {
                     header: header.to_string(),
@@ -298,13 +361,10 @@ fn parse_limits(header: &str, raw: &str) -> Result<Vec<Window>, PolicyParseError
 fn parse_state(header: &str, raw: &str) -> Result<Vec<WindowState>, PolicyParseError> {
     raw.split(',')
         .map(|triplet| {
-            let [hits, period_secs, restricted_secs] =
-                parse_triplet(header, triplet)?;
-            let hits = u32::try_from(hits).map_err(|_| {
-                PolicyParseError::OutOfRangeTriplet {
-                    header: header.to_string(),
-                    raw: triplet.to_string(),
-                }
+            let [hits, period_secs, restricted_secs] = parse_triplet(header, triplet)?;
+            let hits = u32::try_from(hits).map_err(|_| PolicyParseError::OutOfRangeTriplet {
+                header: header.to_string(),
+                raw: triplet.to_string(),
             })?;
             if period_secs == 0 {
                 return Err(PolicyParseError::OutOfRangeTriplet {
@@ -357,10 +417,14 @@ struct PolicyState {
     /// Arrival times of counted responses under this policy, oldest first.
     /// Shared by every endpoint that reports the same policy name (N6).
     history: VecDeque<Instant>,
-    /// When `policy` was observed; the base for restriction/Retry-After.
+    /// When the Full policy was observed; the base for restriction state.
     last_response: Instant,
     /// The raw headers, for the dashboard.
     raw: serde_json::Value,
+    /// A 429 hold is independent of policy validity. It is installed from an
+    /// acceptable Retry-After even when the landed policy set is malformed.
+    retry_hold_until: Option<Instant>,
+    last_retry_after_secs: Option<u64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -389,12 +453,28 @@ impl fmt::Display for PolicyObservationError {
 
 impl std::error::Error for PolicyObservationError {}
 
+struct LandedObservation<'a> {
+    policy: Result<Policy, PolicyParseError>,
+    retry_after: &'a RetryAfter,
+    raw: serde_json::Value,
+    counted: bool,
+    status: u16,
+    now: Instant,
+}
+
 #[derive(Default)]
 pub struct Limiter {
     policies: HashMap<String, PolicyState>,
     /// Endpoint key (URL path) → what we know, learned from probes and
     /// responses. Absent means `Unknown`.
     endpoints: HashMap<String, EndpointState>,
+    /// Every landed 429, including setup failures and stopped/malformed
+    /// responses. Bookkeeping happens before caller classification.
+    violations: u64,
+    /// Route-local fallback holds. A 429 can carry an acceptable Retry-After
+    /// while its policy headers are malformed or the route is not established
+    /// yet; that must still prevent the requeued job from sending early.
+    retry_holds: HashMap<String, (Instant, u64)>,
 }
 
 impl Limiter {
@@ -402,11 +482,16 @@ impl Limiter {
         Limiter::default()
     }
 
-    /// How long to wait before sending to `endpoint`. Zero for endpoints
-    /// whose policy is still unknown — the first response teaches us.
+    /// How long to wait before sending to `endpoint`. An unknown endpoint is
+    /// normally ready, except when a malformed-policy 429 installed its
+    /// route-local Retry-After hold.
     pub fn wait_for(&self, endpoint: &str, now: Instant) -> Duration {
-        self.policy_for(endpoint)
-            .and_then(next_safe_send)
+        let policy = self.policy_for(endpoint).and_then(next_safe_send);
+        let route = self.retry_holds.get(endpoint).map(|(until, _)| *until);
+        policy
+            .into_iter()
+            .chain(route)
+            .max()
             .map(|t| t.saturating_duration_since(now))
             .unwrap_or(Duration::ZERO)
     }
@@ -417,7 +502,9 @@ impl Limiter {
     /// from that history (a prediction of what the server will report —
     /// headers remain the truth for real sends). An estimate, not a promise.
     pub fn eta_for(&self, endpoint: &str, ahead: u32, now: Instant) -> Duration {
-        let Some(state) = self.policy_for(endpoint) else { return Duration::ZERO };
+        let Some(state) = self.policy_for(endpoint) else {
+            return Duration::ZERO;
+        };
         let mut history = state.history.clone();
         let mut t = now + self.wait_for(endpoint, now);
         for _ in 0..ahead {
@@ -426,9 +513,18 @@ impl Limiter {
             for rule in &state.policy.rules {
                 for (i, w) in rule.limits.iter().enumerate() {
                     let period = Duration::from_secs(w.period_secs);
-                    let in_window = history.iter().filter(|&&h| t.duration_since(h) < period).count();
+                    let in_window = history
+                        .iter()
+                        .filter(|&&h| t.duration_since(h) < period)
+                        .count();
                     if in_window >= w.max_hits as usize {
-                        next = next.max(window_frees_at(&history, t, w.max_hits, period, bucket_for(i)));
+                        next = next.max(window_frees_at(
+                            &history,
+                            t,
+                            w.max_hits,
+                            period,
+                            bucket_for(i),
+                        ));
                     }
                 }
             }
@@ -466,20 +562,110 @@ impl Limiter {
         };
         self.endpoints.insert(
             endpoint.to_string(),
-            EndpointState::Degraded { until: now + PROBE_COOLDOWN, reason },
+            EndpointState::Degraded {
+                until: now + PROBE_COOLDOWN,
+                reason,
+            },
+        );
+    }
+
+    /// Frozen D4 behavior for a setup probe that lands as 429. Only a Full
+    /// policy plus acceptable Retry-After establishes the endpoint. The HEAD
+    /// itself consumes no job retry, but it is a counted violation and the
+    /// first ordinary send is held past Retry-After + 60s + 1s.
+    pub fn observe_probe_429(
+        &mut self,
+        endpoint: &str,
+        observation: Result<Policy, PolicyParseError>,
+        retry_after: &RetryAfter,
+        raw: serde_json::Value,
+        now: Instant,
+    ) -> Result<(), String> {
+        self.violations = self.violations.saturating_add(1);
+        match (observation, retry_after) {
+            (Ok(policy), RetryAfter::Acceptable { .. }) => {
+                self.observe_impl(endpoint, Ok(policy), raw, true, now)
+                    .map_err(|error| error.to_string())?;
+                self.install_retry_hold(endpoint, retry_after, now);
+                Ok(())
+            }
+            (Ok(_), retry_after) => {
+                let reason = format!("HEAD returned 429 with {retry_after}");
+                self.degrade_for(endpoint, reason.clone(), PROBE_COOLDOWN, now);
+                Err(reason)
+            }
+            (Err(policy_error), retry_after) => {
+                let cooldown = retry_after
+                    .seconds()
+                    .map(Duration::from_secs)
+                    .unwrap_or(Duration::ZERO)
+                    .max(PROBE_COOLDOWN);
+                let reason = format!(
+                    "HEAD returned 429 with non-Full policy headers ({policy_error}) and {retry_after}"
+                );
+                self.degrade_for(endpoint, reason.clone(), cooldown, now);
+                Err(reason)
+            }
+        }
+    }
+
+    fn degrade_for(&mut self, endpoint: &str, reason: String, cooldown: Duration, now: Instant) {
+        self.endpoints.insert(
+            endpoint.to_string(),
+            EndpointState::Degraded {
+                until: now + cooldown,
+                reason,
+            },
         );
     }
 
     /// Forget every degraded endpoint (login changed what a probe would
     /// see, so don't make the user sit out the cooldown).
     pub fn forget_degraded(&mut self) {
-        self.endpoints.retain(|_, st| !matches!(st, EndpointState::Degraded { .. }));
+        self.endpoints
+            .retain(|_, st| !matches!(st, EndpointState::Degraded { .. }));
     }
 
     /// Record a response. `counted` is false for requests the server does
     /// not count against the policy (HEAD probes, N24). A 429 is recorded
     /// as counted — over-estimating the wait is the safe direction.
     pub fn observe(
+        &mut self,
+        endpoint: &str,
+        observation: Result<Policy, PolicyParseError>,
+        raw: serde_json::Value,
+        counted: bool,
+        now: Instant,
+    ) -> Result<(), PolicyObservationError> {
+        self.observe_impl(endpoint, observation, raw, counted, now)
+    }
+
+    /// Record and reconcile one landed ordinary response. Counted history
+    /// and 429 violations are recorded before policy parsing/classification;
+    /// an acceptable Retry-After then installs its hold regardless of whether
+    /// reconciliation succeeds.
+    fn observe_landed(
+        &mut self,
+        endpoint: &str,
+        landed: LandedObservation<'_>,
+    ) -> Result<(), PolicyObservationError> {
+        if landed.status == 429 {
+            self.violations = self.violations.saturating_add(1);
+        }
+        let reconciled = self.observe_impl(
+            endpoint,
+            landed.policy,
+            landed.raw,
+            landed.counted,
+            landed.now,
+        );
+        if landed.status == 429 {
+            self.install_retry_hold(endpoint, landed.retry_after, landed.now);
+        }
+        reconciled
+    }
+
+    fn observe_impl(
         &mut self,
         endpoint: &str,
         observation: Result<Policy, PolicyParseError>,
@@ -515,14 +701,21 @@ impl Limiter {
         }
 
         let policy_name = policy.name.clone();
-        self.endpoints
-            .insert(endpoint.to_string(), EndpointState::Policy(policy_name.clone()));
-        let state = self.policies.entry(policy_name).or_insert_with(|| PolicyState {
-            policy: policy.clone(),
-            history: VecDeque::new(),
-            last_response: now,
-            raw: serde_json::Value::Null,
-        });
+        self.endpoints.insert(
+            endpoint.to_string(),
+            EndpointState::Policy(policy_name.clone()),
+        );
+        let state = self
+            .policies
+            .entry(policy_name)
+            .or_insert_with(|| PolicyState {
+                policy: policy.clone(),
+                history: VecDeque::new(),
+                last_response: now,
+                raw: serde_json::Value::Null,
+                retry_hold_until: None,
+                last_retry_after_secs: None,
+            });
 
         // A same-name shape transition describes a different counter set
         // (F65): discard incompatible history. Ordinary dynamic limit/state
@@ -536,6 +729,37 @@ impl Limiter {
         state.last_response = now;
         state.raw = raw;
         Ok(())
+    }
+
+    fn install_retry_hold(&mut self, endpoint: &str, retry_after: &RetryAfter, now: Instant) {
+        let Some(seconds) = retry_after.seconds() else {
+            return;
+        };
+        let until = now + Duration::from_secs(seconds) + RETRY_BUCKET_PAD + BUFFER;
+        self.retry_holds
+            .entry(endpoint.to_string())
+            .and_modify(|(old_until, old_seconds)| {
+                if until > *old_until {
+                    *old_until = until;
+                    *old_seconds = seconds;
+                }
+            })
+            .or_insert((until, seconds));
+        let Some(name) = self.endpoints.get(endpoint).and_then(|state| match state {
+            EndpointState::Policy(name) => Some(name.clone()),
+            _ => None,
+        }) else {
+            return;
+        };
+        let Some(state) = self.policies.get_mut(&name) else {
+            return;
+        };
+        state.retry_hold_until = Some(state.retry_hold_until.map_or(until, |old| old.max(until)));
+        state.last_retry_after_secs = Some(seconds);
+    }
+
+    pub fn violation_count(&self) -> u64 {
+        self.violations
     }
 
     fn policy_for(&self, endpoint: &str) -> Option<&PolicyState> {
@@ -588,9 +812,14 @@ impl Limiter {
                 next_safe_in_seconds: next_safe_send(s)
                     .map(|t| t.saturating_duration_since(now).as_secs_f64())
                     .unwrap_or(0.0),
-                last_observed_seconds_ago: now.saturating_duration_since(s.last_response).as_secs_f64(),
+                last_observed_seconds_ago: now
+                    .saturating_duration_since(s.last_response)
+                    .as_secs_f64(),
                 history_len: s.history.len(),
-                retry_after_secs: s.policy.retry_after_secs,
+                retry_after_secs: s
+                    .retry_hold_until
+                    .filter(|until| *until > now)
+                    .and(s.last_retry_after_secs),
                 headers: s.raw.clone(),
             })
             .collect();
@@ -603,20 +832,23 @@ impl Limiter {
     /// idle-exit while this is true, so a quick restart doesn't throw away
     /// the history that lets it wait less than a full period (N24).
     pub fn is_live(&self, now: Instant) -> bool {
-        self.policies.values().any(|s| {
-            if next_safe_send(s).is_some_and(|t| t > now) {
-                return true;
-            }
-            let longest = s
-                .policy
-                .rules
-                .iter()
-                .flat_map(|r| r.limits.iter())
-                .map(|w| Duration::from_secs(w.period_secs))
-                .max()
-                .unwrap_or(Duration::ZERO);
-            s.history.back().is_some_and(|&h| now.saturating_duration_since(h) < longest)
-        })
+        self.retry_holds.values().any(|(until, _)| *until > now)
+            || self.policies.values().any(|s| {
+                if next_safe_send(s).is_some_and(|t| t > now) {
+                    return true;
+                }
+                let longest = s
+                    .policy
+                    .rules
+                    .iter()
+                    .flat_map(|r| r.limits.iter())
+                    .map(|w| Duration::from_secs(w.period_secs))
+                    .max()
+                    .unwrap_or(Duration::ZERO);
+                s.history
+                    .back()
+                    .is_some_and(|&h| now.saturating_duration_since(h) < longest)
+            })
     }
 
     /// Endpoints that have answered without any policy header.
@@ -636,11 +868,13 @@ impl Limiter {
             .endpoints
             .iter()
             .filter_map(|(k, st)| match st {
-                EndpointState::Degraded { until, reason } if *until > now => Some(DegradedEndpoint {
-                    endpoint: k.clone(),
-                    seconds_left: until.saturating_duration_since(now).as_secs_f64(),
-                    reason: reason.clone(),
-                }),
+                EndpointState::Degraded { until, reason } if *until > now => {
+                    Some(DegradedEndpoint {
+                        endpoint: k.clone(),
+                        seconds_left: until.saturating_duration_since(now).as_secs_f64(),
+                        reason: reason.clone(),
+                    })
+                }
                 _ => None,
             })
             .collect();
@@ -696,23 +930,23 @@ fn window_frees_at(
 ///   (other tools on the account, N23; residue from before this daemon
 ///   started, N24) are accounted for;
 ///
-/// - 429 with Retry-After (N19): last response, plus Retry-After, the
-///   bucket of the saturated window (the larger one if none is
-///   identifiable) and buffer.
+/// - an independently parsed acceptable Retry-After (N19): response time,
+///   plus Retry-After, the unconditional 60s pad and buffer. This hold does
+///   not depend on a usable policy observation.
 ///
 /// The result is the max over everything that applies.
 fn next_safe_send(s: &PolicyState) -> Option<Instant> {
-    let mut next: Option<Instant> = None;
+    let mut next = s.retry_hold_until;
     let mut bump = |t: Instant| next = Some(next.map_or(t, |n| n.max(t)));
-    let mut saturated_bucket: Option<Duration> = None;
 
     for rule in &s.policy.rules {
         for (i, limit) in rule.limits.iter().enumerate() {
             let bucket = bucket_for(i);
-            let Some(st) = rule.state.get(i) else { continue };
+            let Some(st) = rule.state.get(i) else {
+                continue;
+            };
             if st.restricted_secs > 0 {
                 bump(s.last_response + Duration::from_secs(st.restricted_secs) + bucket + BUFFER);
-                saturated_bucket = Some(saturated_bucket.map_or(bucket, |b| b.max(bucket)));
             } else if st.hits >= limit.max_hits {
                 bump(window_frees_at(
                     &s.history,
@@ -721,13 +955,8 @@ fn next_safe_send(s: &PolicyState) -> Option<Instant> {
                     Duration::from_secs(limit.period_secs),
                     bucket,
                 ));
-                saturated_bucket = Some(saturated_bucket.map_or(bucket, |b| b.max(bucket)));
             }
         }
-    }
-    if let Some(ra) = s.policy.retry_after_secs {
-        let bucket = saturated_bucket.unwrap_or(SUSTAINED_BUCKET);
-        bump(s.last_response + Duration::from_secs(ra) + bucket + BUFFER);
     }
     next
 }
@@ -804,14 +1033,37 @@ impl fmt::Display for SendError {
 
 impl std::error::Error for SendError {}
 
-fn classify_observation(
-    clean_success: bool,
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum ResponseClassification {
+    Success,
+    RateLimited(RetryAfter),
+    Http(u16),
+    Network,
+    Protocol(PolicyObservationError),
+}
+
+/// D8 precedence in one total function. Observation is already complete when
+/// this runs; it can update pacing but never override status/network outcome.
+fn classify_response(
+    status: Option<u16>,
+    network_error: bool,
     observation: Result<(), PolicyObservationError>,
-) -> Result<(), SendError> {
-    if clean_success {
-        observation.map_err(SendError::Protocol)
-    } else {
-        Ok(())
+    retry_after: &RetryAfter,
+) -> ResponseClassification {
+    if status == Some(429) {
+        return ResponseClassification::RateLimited(retry_after.clone());
+    }
+    if let Some(status) = status
+        && !(200..300).contains(&status)
+    {
+        return ResponseClassification::Http(status);
+    }
+    if network_error {
+        return ResponseClassification::Network;
+    }
+    match observation {
+        Ok(()) => ResponseClassification::Success,
+        Err(error) => ResponseClassification::Protocol(error),
     }
 }
 
@@ -873,18 +1125,32 @@ impl ChokePoint {
     /// requests use `post_form`, which waits internally.
     pub fn try_take(&self, route: &str) -> Result<Paid, Duration> {
         let wait = self.limiter.lock().unwrap().wait_for(route, Instant::now());
-        if wait.is_zero() { Ok(Paid { route: route.to_string() }) } else { Err(wait) }
+        if wait.is_zero() {
+            Ok(Paid {
+                route: route.to_string(),
+            })
+        } else {
+            Err(wait)
+        }
     }
 
     pub fn eta_for(&self, route: &str, ahead: u32) -> Duration {
-        self.limiter.lock().unwrap().eta_for(route, ahead, Instant::now())
+        self.limiter
+            .lock()
+            .unwrap()
+            .eta_for(route, ahead, Instant::now())
     }
 
     /// The key under which in-flight requests on `route` must be
     /// serialized: its policy name once known (same-name policies share
     /// counters across routes, N6), else the route itself.
     pub fn serial_key(&self, route: &str) -> String {
-        match self.limiter.lock().unwrap().endpoint_state(route, Instant::now()) {
+        match self
+            .limiter
+            .lock()
+            .unwrap()
+            .endpoint_state(route, Instant::now())
+        {
             EndpointState::Policy(name) => name,
             _ => route.to_string(),
         }
@@ -903,11 +1169,17 @@ impl ChokePoint {
     }
 
     pub fn endpoint_state(&self, route: &str) -> EndpointState {
-        self.limiter.lock().unwrap().endpoint_state(route, Instant::now())
+        self.limiter
+            .lock()
+            .unwrap()
+            .endpoint_state(route, Instant::now())
     }
 
     pub fn degraded_endpoints(&self) -> Vec<DegradedEndpoint> {
-        self.limiter.lock().unwrap().degraded_endpoints(Instant::now())
+        self.limiter
+            .lock()
+            .unwrap()
+            .degraded_endpoints(Instant::now())
     }
 
     pub fn forget_degraded(&self) {
@@ -939,10 +1211,18 @@ impl ChokePoint {
             req = req.bearer_auth(token);
         }
         let result = req.send().await.map_err(|e| e.to_string());
-        let outcome = match &result {
-            Ok(r) if r.status().is_success() => {
-                Policy::from_headers(r.headers()).map_err(|error| error.to_string())
-            }
+        let policy = result
+            .as_ref()
+            .ok()
+            .map(|response| Policy::from_headers(response.headers()));
+        let retry_after = result.as_ref().map_or(RetryAfter::Missing, |response| {
+            retry_after_from_headers(response.headers())
+        });
+        let outcome: Result<Policy, String> = match &result {
+            Ok(r) if r.status().is_success() || r.status().as_u16() == 429 => policy
+                .clone()
+                .expect("landed responses have a policy parse result")
+                .map_err(|error| error.to_string()),
             Ok(r) => Err(format!("HEAD returned {}", r.status())),
             Err(e) => Err(format!("HEAD failed: {e}")),
         };
@@ -950,10 +1230,26 @@ impl ChokePoint {
             .as_ref()
             .map(|r| rate_limit_snapshot(r.headers()))
             .unwrap_or(serde_json::Value::Null);
-        self.limiter
-            .lock()
-            .unwrap()
-            .observe_probe(&paid.route, outcome.clone(), raw.clone(), Instant::now());
+        let now = Instant::now();
+        if result
+            .as_ref()
+            .is_ok_and(|response| response.status().as_u16() == 429)
+        {
+            let _ = self.limiter.lock().unwrap().observe_probe_429(
+                &paid.route,
+                policy.expect("a 429 is a landed response"),
+                &retry_after,
+                raw.clone(),
+                now,
+            );
+        } else {
+            self.limiter.lock().unwrap().observe_probe(
+                &paid.route,
+                outcome.clone(),
+                raw.clone(),
+                now,
+            );
+        }
         let protocol_failure = match (&result, &outcome) {
             (Ok(response), Err(error)) if response.status().is_success() => Some(error.as_str()),
             _ => None,
@@ -961,14 +1257,21 @@ impl ChokePoint {
         self.record(&paid.route, "HEAD", url, &result, protocol_failure);
         // The limiter decided whether that was good enough; report what it
         // concluded so the probe job's outcome matches the endpoint state.
-        match self.limiter.lock().unwrap().endpoint_state(&paid.route, Instant::now()) {
+        match self
+            .limiter
+            .lock()
+            .unwrap()
+            .endpoint_state(&paid.route, Instant::now())
+        {
             EndpointState::Policy(_) => {
                 let Ok(policy) = outcome else {
                     unreachable!("policy state implies a parsed policy")
                 };
                 Ok((result.unwrap().status(), policy, raw))
             }
-            EndpointState::Degraded { reason, .. } => Err(format!("{reason}; endpoint closed for a cooldown")),
+            EndpointState::Degraded { reason, .. } => {
+                Err(format!("{reason}; endpoint closed for a cooldown"))
+            }
             other => Err(format!("unexpected endpoint state after probe: {other:?}")),
         }
     }
@@ -996,17 +1299,22 @@ impl ChokePoint {
         &self,
         endpoint: &str,
         result: &Result<reqwest::Response, String>,
+        retry_after: &RetryAfter,
         counted: bool,
     ) -> Result<(), PolicyObservationError> {
         if let Ok(r) = result {
             let policy = Policy::from_headers(r.headers());
             let raw = rate_limit_snapshot(r.headers());
-            return self.limiter.lock().unwrap().observe(
+            return self.limiter.lock().unwrap().observe_landed(
                 endpoint,
-                policy,
-                raw,
-                counted,
-                Instant::now(),
+                LandedObservation {
+                    policy,
+                    retry_after,
+                    raw,
+                    counted,
+                    status: r.status().as_u16(),
+                    now: Instant::now(),
+                },
             );
         }
         Ok(())
@@ -1024,20 +1332,31 @@ impl ChokePoint {
         result: Result<reqwest::Response, String>,
         counted: bool,
     ) -> Result<reqwest::Response, SendError> {
-        let observation = self.observe(endpoint, &result, counted);
-        let clean_success = result
+        let retry_after = result.as_ref().map_or(RetryAfter::Missing, |response| {
+            retry_after_from_headers(response.headers())
+        });
+        let observation = self.observe(endpoint, &result, &retry_after, counted);
+        let status = result
             .as_ref()
-            .is_ok_and(|response| response.status().is_success());
-        let classification = classify_observation(clean_success, observation);
-        let protocol_failure = classification.as_ref().err().map(ToString::to_string);
+            .ok()
+            .map(|response| response.status().as_u16());
+        let classification = classify_response(status, result.is_err(), observation, &retry_after);
+        let protocol_failure = match &classification {
+            ResponseClassification::Protocol(error) => Some(error.to_string()),
+            _ => None,
+        };
         self.record(endpoint, method, url, &result, protocol_failure.as_deref());
-        match result {
-            Ok(response) if response.status().is_success() => {
-                classification?;
-                Ok(response)
+        match (classification, result) {
+            (ResponseClassification::Success, Ok(response))
+            | (ResponseClassification::RateLimited(_), Ok(response))
+            | (ResponseClassification::Http(_), Ok(response)) => Ok(response),
+            (ResponseClassification::Protocol(error), _) => Err(SendError::Protocol(error)),
+            (ResponseClassification::Network, Err(error)) => Err(SendError::Transport(error)),
+            (classification, result) => {
+                unreachable!(
+                    "classification {classification:?} disagrees with transport {result:?}"
+                )
             }
-            Ok(response) => Ok(response),
-            Err(error) => Err(SendError::Transport(error)),
         }
     }
 
@@ -1169,12 +1488,31 @@ mod tests {
     }
 
     fn parse(headers: &[(&str, &str)]) -> Result<Policy, PolicyParseError> {
-        Policy::parse(|k| headers.iter().find(|(h, _)| *h == k).map(|(_, v)| v.to_string()))
+        Policy::parse(|k| {
+            headers
+                .iter()
+                .find(|(h, _)| *h == k)
+                .map(|(_, v)| v.to_string())
+        })
+    }
+
+    fn retry(raw: Option<&str>) -> RetryAfter {
+        parse_retry_after(|key| {
+            (key == "retry-after")
+                .then(|| raw.map(str::to_string))
+                .flatten()
+        })
     }
 
     /// Replay a row: feed every history point as a counted response under
     /// the row's policy, then ask for the wait at "now".
-    fn run(limiter: &mut Limiter, endpoint: &str, headers: &[(&str, &str)], history: &[f64], now: Instant) {
+    fn run(
+        limiter: &mut Limiter,
+        endpoint: &str,
+        headers: &[(&str, &str)],
+        history: &[f64],
+        now: Instant,
+    ) {
         let policy = parse(headers);
         for &ago in history {
             let at = now - Duration::from_secs_f64(ago);
@@ -1206,18 +1544,49 @@ mod tests {
         assert_eq!(
             r.limits,
             vec![
-                Window { max_hits: 2, period_secs: 10, restriction_secs: 60 },
-                Window { max_hits: 5, period_secs: 300, restriction_secs: 300 },
+                Window {
+                    max_hits: 2,
+                    period_secs: 10,
+                    restriction_secs: 60
+                },
+                Window {
+                    max_hits: 5,
+                    period_secs: 300,
+                    restriction_secs: 300
+                },
             ]
         );
         assert_eq!(
             r.state,
             vec![
-                WindowState { hits: 1, period_secs: 10, restricted_secs: 0 },
-                WindowState { hits: 1, period_secs: 300, restricted_secs: 0 },
+                WindowState {
+                    hits: 1,
+                    period_secs: 10,
+                    restricted_secs: 0
+                },
+                WindowState {
+                    hits: 1,
+                    period_secs: 300,
+                    restricted_secs: 0
+                },
             ]
         );
-        assert_eq!(p.retry_after_secs, None);
+    }
+
+    #[test]
+    fn retry_after_is_independent_of_full_policy_validity() {
+        let mut headers = with_state(CHAR_LIST, "1:10:0,1:300:0");
+        headers.push(("retry-after", "not-a-number"));
+        assert!(parse(&headers).is_ok(), "Retry-After is not part of Full");
+        assert_eq!(
+            parse_retry_after(|key| headers
+                .iter()
+                .find(|(name, _)| *name == key)
+                .map(|(_, value)| value.to_string())),
+            RetryAfter::Malformed {
+                raw: "not-a-number".into()
+            }
+        );
     }
 
     #[test]
@@ -1252,10 +1621,7 @@ mod tests {
             ),
             (
                 "empty rules",
-                &[
-                    ("x-rate-limit-policy", "p"),
-                    ("x-rate-limit-rules", ""),
-                ],
+                &[("x-rate-limit-policy", "p"), ("x-rate-limit-rules", "")],
             ),
             (
                 "empty rule name",
@@ -1355,16 +1721,6 @@ mod tests {
                     ("x-rate-limit-account-state", "1:11:0"),
                 ],
             ),
-            (
-                "malformed Retry-After",
-                &[
-                    ("x-rate-limit-policy", "p"),
-                    ("x-rate-limit-rules", "Account"),
-                    ("x-rate-limit-account", "2:10:60"),
-                    ("x-rate-limit-account-state", "1:10:0"),
-                    ("retry-after", "soon"),
-                ],
-            ),
         ];
 
         for (name, headers) in cases {
@@ -1451,19 +1807,6 @@ mod tests {
                 expect_wait: 30.0 + 5.0 + 1.0,
             },
             Row {
-                name: "429 with Retry-After",
-                claims: "N19: Retry-After is not enough — add the saturated window's bucket + 1s",
-                headers: &[
-                    ("x-rate-limit-policy", "character-list-request-limit"),
-                    ("x-rate-limit-rules", "Account"),
-                    ("x-rate-limit-account", "2:10:60,5:300:300"),
-                    ("x-rate-limit-account-state", "2:10:60,2:300:0"),
-                    ("retry-after", "60"),
-                ],
-                history: &[8.0, 0.0],
-                expect_wait: 60.0 + 5.0 + 1.0,
-            },
-            Row {
                 name: "N26 observed burst: 15 sends at 0.2s spacing on stash-request-limit",
                 claims: "N26: the long-wait send landed at history[max_hits-1] + period + bucket + buffer",
                 headers: &[
@@ -1484,7 +1827,11 @@ mod tests {
             let mut limiter = Limiter::new();
             run(&mut limiter, "/ep", row.headers, row.history, now);
             let got = limiter.wait_for("/ep", now);
-            assert_wait(&format!("{} [{}]", row.name, row.claims), got, row.expect_wait);
+            assert_wait(
+                &format!("{} [{}]", row.name, row.claims),
+                got,
+                row.expect_wait,
+            );
         }
     }
 
@@ -1493,21 +1840,41 @@ mod tests {
         let now = far_future();
         let mut l = Limiter::new();
         let p = parse(&with_state(CHAR_LIST, "2:10:0,2:300:0"));
-        l.observe("/character", p.clone(), serde_json::Value::Null, true, now - Duration::from_secs(4))
-            .unwrap();
+        l.observe(
+            "/character",
+            p.clone(),
+            serde_json::Value::Null,
+            true,
+            now - Duration::from_secs(4),
+        )
+        .unwrap();
         l.observe("/character/pc", p, serde_json::Value::Null, true, now)
             .unwrap();
         // Both endpoints see the same two-event history: oldest 4s ago.
-        assert_wait("shared", l.wait_for("/character", now), 10.0 + 5.0 + 1.0 - 4.0);
-        assert_wait("shared", l.wait_for("/character/pc", now), 10.0 + 5.0 + 1.0 - 4.0);
+        assert_wait(
+            "shared",
+            l.wait_for("/character", now),
+            10.0 + 5.0 + 1.0 - 4.0,
+        );
+        assert_wait(
+            "shared",
+            l.wait_for("/character/pc", now),
+            10.0 + 5.0 + 1.0 - 4.0,
+        );
     }
 
     #[test]
     fn n6_n7_different_policies_are_independent() {
         let now = far_future();
         let mut l = Limiter::new();
-        l.observe("/character", parse(&with_state(CHAR_LIST, "2:10:0,2:300:0")), serde_json::Value::Null, true, now)
-            .unwrap();
+        l.observe(
+            "/character",
+            parse(&with_state(CHAR_LIST, "2:10:0,2:300:0")),
+            serde_json::Value::Null,
+            true,
+            now,
+        )
+        .unwrap();
         let stash = parse(&[
             ("x-rate-limit-policy", "stash-list-request-limit"),
             ("x-rate-limit-rules", "Account"),
@@ -1539,13 +1906,29 @@ mod tests {
         let now = far_future();
         let mut l = Limiter::new();
         let p = parse(&with_state(CHAR_LIST, "2:10:0,2:300:0"));
-        l.observe("/character", p.clone(), serde_json::Value::Null, true, now - Duration::from_secs(30))
-            .unwrap();
-        l.observe("/character", p.clone(), serde_json::Value::Null, true, now - Duration::from_secs(25))
-            .unwrap();
+        l.observe(
+            "/character",
+            p.clone(),
+            serde_json::Value::Null,
+            true,
+            now - Duration::from_secs(30),
+        )
+        .unwrap();
+        l.observe(
+            "/character",
+            p.clone(),
+            serde_json::Value::Null,
+            true,
+            now - Duration::from_secs(25),
+        )
+        .unwrap();
         l.observe("/character", p, serde_json::Value::Null, false, now)
             .unwrap();
-        assert_wait("all unknown", l.wait_for("/character", now), 10.0 + 5.0 + 1.0);
+        assert_wait(
+            "all unknown",
+            l.wait_for("/character", now),
+            10.0 + 5.0 + 1.0,
+        );
     }
 
     #[test]
@@ -1553,8 +1936,14 @@ mod tests {
         let now = far_future();
         let mut l = Limiter::new();
         assert!(!l.is_live(now));
-        l.observe("/character", parse(&with_state(CHAR_LIST, "1:10:0,1:300:0")), serde_json::Value::Null, true, now)
-            .unwrap();
+        l.observe(
+            "/character",
+            parse(&with_state(CHAR_LIST, "1:10:0,1:300:0")),
+            serde_json::Value::Null,
+            true,
+            now,
+        )
+        .unwrap();
         assert!(l.is_live(now));
         // Longest window is 300s: still live at +299s, not at +301s.
         assert!(l.is_live(now + Duration::from_secs(299)));
@@ -1565,8 +1954,14 @@ mod tests {
     fn n9_new_definition_replaces_old() {
         let now = far_future();
         let mut l = Limiter::new();
-        l.observe("/character", parse(&with_state(CHAR_LIST, "2:10:0,2:300:0")), serde_json::Value::Null, true, now - Duration::from_secs(1))
-            .unwrap();
+        l.observe(
+            "/character",
+            parse(&with_state(CHAR_LIST, "2:10:0,2:300:0")),
+            serde_json::Value::Null,
+            true,
+            now - Duration::from_secs(1),
+        )
+        .unwrap();
         assert!(l.wait_for("/character", now) > Duration::ZERO);
         // GGG loosens the policy: 4 per 10s now, and we've used 2.
         let loosened = parse(&[
@@ -1585,7 +1980,13 @@ mod tests {
         let now = far_future();
         let mut l = Limiter::new();
         // 2 per 10s, both used: this instant and 4s ago.
-        run(&mut l, "/character", &with_state(CHAR_LIST, "2:10:0,2:300:0"), &[4.0, 0.0], now);
+        run(
+            &mut l,
+            "/character",
+            &with_state(CHAR_LIST, "2:10:0,2:300:0"),
+            &[4.0, 0.0],
+            now,
+        );
         // Head of queue: 10 + 5 + 1 - 4 = 12s.
         assert_wait("head", l.eta_for("/character", 0, now), 12.0);
         // One ahead: the head lands at +12s. By then the hit at `now` is
@@ -1607,12 +2008,14 @@ mod tests {
         // A good probe: policy learned, nothing counted, state respected.
         l.observe_probe(
             "/character",
-            parse(&with_state(CHAR_LIST, "2:10:0,2:300:0"))
-                .map_err(|error| error.to_string()),
+            parse(&with_state(CHAR_LIST, "2:10:0,2:300:0")).map_err(|error| error.to_string()),
             serde_json::Value::Null,
             now,
         );
-        assert_eq!(l.endpoint_state("/character", now), EndpointState::Policy("character-list-request-limit".into()));
+        assert_eq!(
+            l.endpoint_state("/character", now),
+            EndpointState::Policy("character-list-request-limit".into())
+        );
         assert_eq!(l.statuses(now)[0].history_len, 0);
         // Server says 2/2 from hits we never made → assume recent → 16s.
         assert_wait("residue via probe", l.wait_for("/character", now), 16.0);
@@ -1625,7 +2028,10 @@ mod tests {
             serde_json::Value::Null,
             now,
         );
-        assert!(matches!(l.endpoint_state("/stash", now), EndpointState::Degraded { .. }));
+        assert!(matches!(
+            l.endpoint_state("/stash", now),
+            EndpointState::Degraded { .. }
+        ));
         l.observe_probe(
             "/stash/x",
             parse(&[("x-rate-limit-policy", "stash-request-limit")])
@@ -1633,16 +2039,33 @@ mod tests {
             serde_json::Value::Null,
             now,
         );
-        assert!(matches!(l.endpoint_state("/stash/x", now), EndpointState::Degraded { .. }));
+        assert!(matches!(
+            l.endpoint_state("/stash/x", now),
+            EndpointState::Degraded { .. }
+        ));
         assert_eq!(l.degraded_endpoints(now).len(), 2);
-        assert_eq!(l.endpoint_state("/stash", now + PROBE_COOLDOWN), EndpointState::Unknown);
+        assert_eq!(
+            l.endpoint_state("/stash", now + PROBE_COOLDOWN),
+            EndpointState::Unknown
+        );
 
         // Transport/HTTP failure degrades too; login clears it.
-        l.observe_probe("/fetch", Err("HEAD returned 401".into()), serde_json::Value::Null, now);
-        assert!(matches!(l.endpoint_state("/fetch", now), EndpointState::Degraded { .. }));
+        l.observe_probe(
+            "/fetch",
+            Err("HEAD returned 401".into()),
+            serde_json::Value::Null,
+            now,
+        );
+        assert!(matches!(
+            l.endpoint_state("/fetch", now),
+            EndpointState::Degraded { .. }
+        ));
         l.forget_degraded();
         assert_eq!(l.endpoint_state("/fetch", now), EndpointState::Unknown);
-        assert_eq!(l.endpoint_state("/character", now), EndpointState::Policy("character-list-request-limit".into()));
+        assert_eq!(
+            l.endpoint_state("/character", now),
+            EndpointState::Policy("character-list-request-limit".into())
+        );
     }
 
     #[test]
@@ -1650,8 +2073,14 @@ mod tests {
         let now = far_future();
         let mut l = Limiter::new();
         let raw = serde_json::json!({ "source": "established" });
-        l.observe("/character", parse(&with_state(CHAR_LIST, "1:10:0,1:300:0")), raw.clone(), true, now)
-            .unwrap();
+        l.observe(
+            "/character",
+            parse(&with_state(CHAR_LIST, "1:10:0,1:300:0")),
+            raw.clone(),
+            true,
+            now,
+        )
+        .unwrap();
         let original = l
             .policies
             .get("character-list-request-limit")
@@ -1660,11 +2089,11 @@ mod tests {
             .clone();
         let result = l.observe("/character", parse(&[]), serde_json::Value::Null, true, now);
         assert!(matches!(result, Err(PolicyObservationError::Parse(_))));
-        assert_eq!(l.endpoint_state("/character", now), EndpointState::Policy("character-list-request-limit".into()));
-        let state = l
-            .policies
-            .get("character-list-request-limit")
-            .unwrap();
+        assert_eq!(
+            l.endpoint_state("/character", now),
+            EndpointState::Policy("character-list-request-limit".into())
+        );
+        let state = l.policies.get("character-list-request-limit").unwrap();
         assert_eq!(state.policy, original);
         assert_eq!(state.raw, raw);
         assert_eq!(state.history.len(), 2);
@@ -1722,7 +2151,11 @@ mod tests {
             .unwrap();
         assert_eq!(state.policy, original);
         assert_eq!(state.raw, serde_json::json!({ "source": "established" }));
-        assert_eq!(state.history.len(), 2, "the landed response was still counted");
+        assert_eq!(
+            state.history.len(),
+            2,
+            "the landed response was still counted"
+        );
     }
 
     #[test]
@@ -1790,26 +2223,277 @@ mod tests {
     }
 
     #[test]
-    fn malformed_clean_2xx_is_a_protocol_failure() {
+    fn retry_after_product_vectors_are_total_and_capped() {
+        let cases = [
+            (None, RetryAfter::Missing),
+            (Some("0"), RetryAfter::Acceptable { seconds: 0 }),
+            (Some(" 900 "), RetryAfter::Acceptable { seconds: 900 }),
+            (Some("soon"), RetryAfter::Malformed { raw: "soon".into() }),
+            (Some("-1"), RetryAfter::Negative { raw: "-1".into() }),
+            (Some("901"), RetryAfter::OverCap { raw: "901".into() }),
+            (
+                Some("18446744073709551616"),
+                RetryAfter::OverCap {
+                    raw: "18446744073709551616".into(),
+                },
+            ),
+        ];
+        for (raw, expected) in cases {
+            assert_eq!(retry(raw), expected, "Retry-After vector {raw:?}");
+        }
+    }
+
+    #[test]
+    fn retryable_429_records_before_classification_and_holds_despite_bad_policy() {
+        let now = far_future();
+        let mut limiter = Limiter::new();
+        let raw = serde_json::json!({ "source": "established" });
+        limiter
+            .observe(
+                "/character",
+                parse(&with_state(CHAR_LIST, "1:10:0,1:300:0")),
+                raw.clone(),
+                true,
+                now - Duration::from_secs(1),
+            )
+            .unwrap();
+        let original = limiter
+            .policies
+            .get("character-list-request-limit")
+            .unwrap()
+            .policy
+            .clone();
+        let retry_after = retry(Some("2"));
+
+        let observation = limiter.observe_landed(
+            "/character",
+            LandedObservation {
+                policy: parse(&[]),
+                retry_after: &retry_after,
+                raw: serde_json::json!({ "source": "malformed-429" }),
+                counted: true,
+                status: 429,
+                now,
+            },
+        );
+        assert!(matches!(
+            classify_response(Some(429), false, observation, &retry_after),
+            ResponseClassification::RateLimited(RetryAfter::Acceptable { seconds: 2 })
+        ));
+
+        let state = limiter
+            .policies
+            .get("character-list-request-limit")
+            .unwrap();
+        assert_eq!(state.history.len(), 2, "the counted 429 is retained");
+        assert_eq!(limiter.violation_count(), 1);
+        assert_eq!(
+            state.policy, original,
+            "non-Full headers cannot update policy"
+        );
+        assert_eq!(
+            state.raw, raw,
+            "non-Full headers cannot replace observation"
+        );
+        assert_wait(
+            "malformed-policy 429 hold",
+            limiter.wait_for("/character", now),
+            2.0 + 60.0 + 1.0,
+        );
+    }
+
+    #[test]
+    fn retryable_429_holds_an_unknown_route_when_policy_headers_are_bad() {
+        let now = far_future();
+        let mut limiter = Limiter::new();
+        let retry_after = retry(Some("2"));
+        let observation = limiter.observe_landed(
+            "oauth-token",
+            LandedObservation {
+                policy: parse(&[]),
+                retry_after: &retry_after,
+                raw: serde_json::Value::Null,
+                counted: true,
+                status: 429,
+                now,
+            },
+        );
+
+        assert!(observation.is_err());
+        assert_eq!(
+            limiter.endpoint_state("oauth-token", now),
+            EndpointState::Unknown
+        );
+        assert_wait(
+            "unknown-route malformed-policy 429 hold",
+            limiter.wait_for("oauth-token", now),
+            2.0 + 60.0 + 1.0,
+        );
+        assert_eq!(limiter.violation_count(), 1);
+        assert!(limiter.is_live(now));
+    }
+
+    #[test]
+    fn unacceptable_retry_after_vectors_are_terminal_and_install_no_hold() {
+        let cases = [
+            retry(None),
+            retry(Some("soon")),
+            retry(Some("-1")),
+            retry(Some("901")),
+        ];
+        for retry_after in cases {
+            let now = far_future();
+            let mut limiter = Limiter::new();
+            limiter
+                .observe(
+                    "/character",
+                    parse(&with_state(CHAR_LIST, "0:10:0,0:300:0")),
+                    serde_json::Value::Null,
+                    false,
+                    now,
+                )
+                .unwrap();
+            let observation = limiter.observe_landed(
+                "/character",
+                LandedObservation {
+                    policy: parse(&[]),
+                    retry_after: &retry_after,
+                    raw: serde_json::Value::Null,
+                    counted: true,
+                    status: 429,
+                    now,
+                },
+            );
+            let classification = classify_response(Some(429), false, observation, &retry_after);
+            assert_eq!(
+                classification,
+                ResponseClassification::RateLimited(retry_after.clone())
+            );
+            assert!(!retry_after.is_acceptable());
+            assert_eq!(limiter.wait_for("/character", now), Duration::ZERO);
+            assert_eq!(limiter.statuses(now)[0].history_len, 1);
+            assert_eq!(limiter.violation_count(), 1);
+        }
+    }
+
+    #[test]
+    fn full_head_429_establishes_and_holds_without_a_get_attempt() {
+        let now = far_future();
+        let mut limiter = Limiter::new();
+        let retry_after = retry(Some("0"));
+        limiter
+            .observe_probe_429(
+                "/character",
+                parse(&with_state(CHAR_LIST, "0:10:0,0:300:0")),
+                &retry_after,
+                serde_json::json!({ "retry-after": "0" }),
+                now,
+            )
+            .unwrap();
+
+        assert_eq!(
+            limiter.endpoint_state("/character", now),
+            EndpointState::Policy("character-list-request-limit".into())
+        );
+        assert_eq!(limiter.violation_count(), 1);
+        assert_eq!(limiter.statuses(now)[0].history_len, 1);
+        assert_wait(
+            "Full HEAD 429",
+            limiter.wait_for("/character", now),
+            60.0 + 1.0,
+        );
+    }
+
+    #[test]
+    fn every_unacceptable_full_head_429_is_a_setup_failure() {
+        let cases = [
+            retry(None),
+            retry(Some("soon")),
+            retry(Some("-1")),
+            retry(Some("901")),
+        ];
+        for retry_after in cases {
+            let now = far_future();
+            let mut limiter = Limiter::new();
+            let result = limiter.observe_probe_429(
+                "/character",
+                parse(&with_state(CHAR_LIST, "0:10:0,0:300:0")),
+                &retry_after,
+                serde_json::Value::Null,
+                now,
+            );
+            assert!(result.is_err(), "{retry_after} unexpectedly established");
+            assert!(matches!(
+                limiter.endpoint_state("/character", now),
+                EndpointState::Degraded { .. }
+            ));
+            assert!(limiter.statuses(now).is_empty());
+            assert_eq!(limiter.violation_count(), 1);
+        }
+    }
+
+    #[test]
+    fn non_full_head_429_is_setup_failure_even_with_acceptable_retry_after() {
+        let now = far_future();
+        let mut limiter = Limiter::new();
+        let retry_after = retry(Some("120"));
+        assert!(
+            limiter
+                .observe_probe_429(
+                    "/character",
+                    parse(&[]),
+                    &retry_after,
+                    serde_json::Value::Null,
+                    now,
+                )
+                .is_err()
+        );
+        let EndpointState::Degraded { until, .. } = limiter.endpoint_state("/character", now)
+        else {
+            panic!("non-Full HEAD 429 must degrade setup")
+        };
+        assert_eq!(until.duration_since(now), Duration::from_secs(120));
+        assert_eq!(limiter.violation_count(), 1);
+    }
+
+    #[test]
+    fn response_classification_precedence_is_status_network_then_protocol() {
         let malformed = PolicyObservationError::Parse(PolicyParseError::MissingHeader {
             name: "x-rate-limit-policy".into(),
         });
-        let error = classify_observation(true, Err(malformed.clone())).unwrap_err();
-        assert!(matches!(
-            error,
-            SendError::Protocol(PolicyObservationError::Parse(
-                PolicyParseError::MissingHeader { .. }
-            ))
-        ));
-
-        // Observation runs on every landed reply, but status owns the caller
-        // outcome for an HTTP error (D8/R6-3).
-        assert!(classify_observation(false, Err(malformed)).is_ok());
+        let retry_after = retry(Some("3"));
+        assert_eq!(
+            classify_response(Some(429), true, Err(malformed.clone()), &retry_after),
+            ResponseClassification::RateLimited(retry_after.clone())
+        );
+        assert_eq!(
+            classify_response(Some(500), true, Err(malformed.clone()), &retry_after),
+            ResponseClassification::Http(500)
+        );
+        assert_eq!(
+            classify_response(Some(200), true, Err(malformed.clone()), &retry_after),
+            ResponseClassification::Network
+        );
+        assert_eq!(
+            classify_response(Some(200), false, Err(malformed.clone()), &retry_after),
+            ResponseClassification::Protocol(malformed)
+        );
+        assert_eq!(
+            classify_response(Some(204), false, Ok(()), &retry_after),
+            ResponseClassification::Success
+        );
+        assert_eq!(
+            classify_response(None, true, Ok(()), &retry_after),
+            ResponseClassification::Network
+        );
     }
 
     #[test]
     fn url_path_strips_host() {
-        assert_eq!(url_path("https://api.pathofexile.com/stash/Standard"), "/stash/Standard");
+        assert_eq!(
+            url_path("https://api.pathofexile.com/stash/Standard"),
+            "/stash/Standard"
+        );
         assert_eq!(url_path("http://127.0.0.1:5555/character"), "/character");
     }
 }

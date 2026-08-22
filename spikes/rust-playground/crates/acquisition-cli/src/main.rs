@@ -499,8 +499,8 @@ fn print_table(jobs: &[JobInfo]) {
         return;
     }
     println!(
-        "{:>4}  {:>6}  {:<10}  {:<10}  {:>4}  {:<12}  {}",
-        "id", "parent", "kind", "state", "prio", "by", "eta"
+        "{:>4}  {:>6}  {:<10}  {:<10}  {:>4}  {:<12}  eta",
+        "id", "parent", "kind", "state", "prio", "by"
     );
     for job in jobs {
         let eta = job

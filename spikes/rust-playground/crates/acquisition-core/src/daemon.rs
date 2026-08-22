@@ -21,7 +21,9 @@ use crate::VERSION;
 use crate::job::{JobId, JobInfo, JobState, Outcome, Priority};
 use crate::protocol::{ErrorRecord, Request, Response};
 use crate::provider::{CALLBACK_PATH, Provider, SCOPES, ggg_mode};
-use crate::ratelimit::{ChokePoint, EndpointState, Paid, SendError, url_path};
+use crate::ratelimit::{
+    ChokePoint, EndpointState, Paid, RetryAfter, SendError, retry_after_from_headers, url_path,
+};
 use crate::{auth, mockggg};
 
 const IDLE_SHUTDOWN: Duration = Duration::from_secs(60);
@@ -58,6 +60,7 @@ pub fn log_path() -> PathBuf {
 
 /// What a network call can fail with; 429 is its own arm so the job can
 /// be re-queued rather than failed.
+#[derive(Debug)]
 enum ApiError {
     RateLimited(String),
     Protocol(String),
@@ -68,6 +71,10 @@ enum ApiError {
 enum Exec {
     Done(Outcome),
     RateLimited(String),
+}
+
+fn may_requeue_429(retries: u32, cancel_requested: bool) -> bool {
+    retries < MAX_429_RETRIES && !cancel_requested
 }
 
 struct Entry {
@@ -152,7 +159,9 @@ impl Shared {
     fn list(&self, daemon: &Daemon) -> Vec<JobInfo> {
         let mut ids: Vec<JobId> = self.jobs.keys().copied().collect();
         ids.sort();
-        ids.into_iter().filter_map(|id| self.snapshot(daemon, id)).collect()
+        ids.into_iter()
+            .filter_map(|id| self.snapshot(daemon, id))
+            .collect()
     }
 }
 
@@ -203,13 +212,19 @@ impl Daemon {
         match kind {
             "characters" => Some(("character-list".into(), format!("{base}/character"))),
             "stashes" => {
-                let league = params.get("league").and_then(Value::as_str).unwrap_or("Standard");
+                let league = params
+                    .get("league")
+                    .and_then(Value::as_str)
+                    .unwrap_or("Standard");
                 Some(("stash-list".into(), format!("{base}/stash/{league}")))
             }
             // One tab, or one substash of a map/unique tab: same route, same
             // policy (stash-request-limit), one probe for all of them.
             "stash" => {
-                let league = params.get("league").and_then(Value::as_str).unwrap_or("Standard");
+                let league = params
+                    .get("league")
+                    .and_then(Value::as_str)
+                    .unwrap_or("Standard");
                 let id = params.get("id").and_then(Value::as_str)?;
                 let url = match params.get("sub").and_then(Value::as_str) {
                     Some(sub) => format!("{base}/stash/{league}/{id}/{sub}"),
@@ -218,7 +233,10 @@ impl Daemon {
                 Some(("stash".into(), url))
             }
             "refresh" => {
-                let league = params.get("league").and_then(Value::as_str).unwrap_or("Standard");
+                let league = params
+                    .get("league")
+                    .and_then(Value::as_str)
+                    .unwrap_or("Standard");
                 Some(("stash-list".into(), format!("{base}/stash/{league}")))
             }
             "fetch" if !self.provider.is_real() => Some(("fetch".into(), format!("{base}/fetch"))),
@@ -259,7 +277,10 @@ impl Daemon {
     fn ensure_probe(&self, route: &str, url: &str) {
         let pending = Self::probe_pending(&self.shared.lock().unwrap(), route);
         if !pending {
-            self.log(&format!("route {route} unknown; probing {} first", url_path(url)));
+            self.log(&format!(
+                "route {route} unknown; probing {} first",
+                url_path(url)
+            ));
             self.submit(
                 "probe".into(),
                 json!({ "route": route, "url": url }),
@@ -269,7 +290,13 @@ impl Daemon {
         }
     }
 
-    fn submit(&self, kind: String, params: Value, priority: Priority, submitted_by: String) -> JobId {
+    fn submit(
+        &self,
+        kind: String,
+        params: Value,
+        priority: Priority,
+        submitted_by: String,
+    ) -> JobId {
         self.submit_with_parent(kind, params, priority, submitted_by, None)
     }
 
@@ -339,7 +366,10 @@ impl Daemon {
             while i < targets.len() {
                 let p = targets[i];
                 targets.extend(
-                    s.jobs.values().filter(|e| e.info.parent == Some(p)).map(|e| e.info.id),
+                    s.jobs
+                        .values()
+                        .filter(|e| e.info.parent == Some(p))
+                        .map(|e| e.info.id),
                 );
                 i += 1;
             }
@@ -478,9 +508,11 @@ impl Daemon {
                     // A higher-priority job on the same key may have arrived;
                     // give the slot back so the dispatcher picks it instead.
                     let my_key = self.serial_key(me);
-                    let outranked = s.queue_order().into_iter().take_while(|&q| q != id).any(|q| {
-                        s.jobs.get(&q).is_some_and(|e| self.serial_key(e) == my_key)
-                    });
+                    let outranked = s
+                        .queue_order()
+                        .into_iter()
+                        .take_while(|&q| q != id)
+                        .any(|q| s.jobs.get(&q).is_some_and(|e| self.serial_key(e) == my_key));
                     if outranked {
                         return;
                     }
@@ -498,7 +530,9 @@ impl Daemon {
 
         let job = {
             let mut s = self.shared.lock().unwrap();
-            let Some(entry) = s.jobs.get_mut(&id) else { return };
+            let Some(entry) = s.jobs.get_mut(&id) else {
+                return;
+            };
             if entry.info.state != JobState::Waiting {
                 return;
             }
@@ -519,8 +553,10 @@ impl Daemon {
                 // go out after that hold, with the ETA visible meanwhile.
                 let requeued = {
                     let mut s = self.shared.lock().unwrap();
-                    let Some(entry) = s.jobs.get_mut(&id) else { return };
-                    if entry.info.retries < MAX_429_RETRIES && !entry.cancel_requested {
+                    let Some(entry) = s.jobs.get_mut(&id) else {
+                        return;
+                    };
+                    if may_requeue_429(entry.info.retries, entry.cancel_requested) {
                         entry.info.retries += 1;
                         entry.info.state = JobState::Waiting;
                         Some(entry.info.clone())
@@ -538,7 +574,9 @@ impl Daemon {
                         return; // slot released; the dispatcher re-picks after the hold
                     }
                     None => Outcome::Failure {
-                        error: format!("rate limited (429) {MAX_429_RETRIES} times; giving up (N10): {evidence}"),
+                        error: format!(
+                            "rate limited (429) {MAX_429_RETRIES} times; giving up (N10): {evidence}"
+                        ),
                     },
                 }
             }
@@ -551,7 +589,10 @@ impl Daemon {
         let has_children = {
             let mut s = self.shared.lock().unwrap();
             let spawned = s.jobs.values().any(|e| e.info.parent == Some(id));
-            if spawned && let Some(entry) = s.jobs.get_mut(&id) && entry.info.state == JobState::Running {
+            if spawned
+                && let Some(entry) = s.jobs.get_mut(&id)
+                && entry.info.state == JobState::Running
+            {
                 entry.deferred = Some(outcome.clone());
             }
             spawned
@@ -568,11 +609,17 @@ impl Daemon {
     fn maybe_finish_parent(&self, pid: JobId) {
         let final_outcome = {
             let mut s = self.shared.lock().unwrap();
-            let Some(parent) = s.jobs.get(&pid) else { return };
+            let Some(parent) = s.jobs.get(&pid) else {
+                return;
+            };
             if parent.deferred.is_none() {
                 return;
             }
-            let children: Vec<&Entry> = s.jobs.values().filter(|e| e.info.parent == Some(pid)).collect();
+            let children: Vec<&Entry> = s
+                .jobs
+                .values()
+                .filter(|e| e.info.parent == Some(pid))
+                .collect();
             if children.iter().any(|e| !e.info.state.is_terminal()) {
                 return;
             }
@@ -597,7 +644,9 @@ impl Daemon {
                     Outcome::Success { payload }
                 }
                 Outcome::Success { .. } => Outcome::Failure {
-                    error: format!("{failed} of {total} child jobs failed: {failed_ids:?} (acq result <id> for each)"),
+                    error: format!(
+                        "{failed} of {total} child jobs failed: {failed_ids:?} (acq result <id> for each)"
+                    ),
                 },
                 other => other,
             }
@@ -608,7 +657,9 @@ impl Daemon {
     fn finish(&self, id: JobId, outcome: Outcome) {
         let info = {
             let mut s = self.shared.lock().unwrap();
-            let Some(entry) = s.jobs.get_mut(&id) else { return };
+            let Some(entry) = s.jobs.get_mut(&id) else {
+                return;
+            };
             entry.info.state = match &outcome {
                 Outcome::Success { .. } => JobState::Done,
                 Outcome::Failure { .. } => JobState::Failed,
@@ -629,7 +680,9 @@ impl Daemon {
     fn start_and_finish(&self, id: JobId, outcome: Outcome) {
         let info = {
             let mut s = self.shared.lock().unwrap();
-            let Some(entry) = s.jobs.get_mut(&id) else { return };
+            let Some(entry) = s.jobs.get_mut(&id) else {
+                return;
+            };
             if entry.info.state != JobState::Waiting {
                 return;
             }
@@ -689,7 +742,11 @@ impl Daemon {
                     Ok(pair) => pair,
                     Err(error) => return Ok(Outcome::Failure { error }),
                 };
-                let league = params.get("league").and_then(Value::as_str).unwrap_or("Standard").to_string();
+                let league = params
+                    .get("league")
+                    .and_then(Value::as_str)
+                    .unwrap_or("Standard")
+                    .to_string();
                 let url = format!("{}/stash/{league}", self.provider.api_base);
                 let (v, rate) = self.api_get(paid, &url, Some(&token)).await?;
                 Outcome::Success {
@@ -709,7 +766,9 @@ impl Daemon {
                     Err(error) => return Ok(Outcome::Failure { error }),
                 };
                 let Some((_, url)) = self.route_for("stash", &params) else {
-                    return Ok(Outcome::Failure { error: "stash needs an id".into() });
+                    return Ok(Outcome::Failure {
+                        error: "stash needs an id".into(),
+                    });
                 };
                 let (v, rate) = self.api_get(paid, &url, Some(&token)).await?;
                 let stash = v.get("stash").cloned().unwrap_or(v);
@@ -717,7 +776,11 @@ impl Daemon {
                 // them is opt-in per tab (--deep) because one map tab can
                 // hold hundreds. Each substash becomes a child job.
                 let deep = params.get("deep").and_then(Value::as_bool).unwrap_or(false);
-                let children = stash.get("children").and_then(Value::as_array).cloned().unwrap_or_default();
+                let children = stash
+                    .get("children")
+                    .and_then(Value::as_array)
+                    .cloned()
+                    .unwrap_or_default();
                 let mut submitted = Vec::new();
                 if deep {
                     let league = params.get("league").cloned().unwrap_or(json!("Standard"));
@@ -754,37 +817,70 @@ impl Daemon {
                     Ok(pair) => pair,
                     Err(error) => return Ok(Outcome::Failure { error }),
                 };
-                let league = params.get("league").and_then(Value::as_str).unwrap_or("Standard").to_string();
+                let league = params
+                    .get("league")
+                    .and_then(Value::as_str)
+                    .unwrap_or("Standard")
+                    .to_string();
                 let deep = params.get("deep").and_then(Value::as_bool).unwrap_or(false);
                 let all = params.get("all").and_then(Value::as_bool).unwrap_or(false);
                 let wanted: Vec<String> = params
                     .get("tabs")
                     .and_then(Value::as_array)
-                    .map(|a| a.iter().filter_map(Value::as_str).map(str::to_string).collect())
+                    .map(|a| {
+                        a.iter()
+                            .filter_map(Value::as_str)
+                            .map(str::to_string)
+                            .collect()
+                    })
                     .unwrap_or_default();
                 if !all && wanted.is_empty() {
-                    return Ok(Outcome::Failure { error: "refresh needs --all or --tabs <id,...>".into() });
+                    return Ok(Outcome::Failure {
+                        error: "refresh needs --all or --tabs <id,...>".into(),
+                    });
                 }
                 let url = format!("{}/stash/{league}", self.provider.api_base);
                 let (v, rate) = self.api_get(paid, &url, Some(&token)).await?;
-                let listed = v.get("stashes").and_then(Value::as_array).cloned().unwrap_or_default();
+                let listed = v
+                    .get("stashes")
+                    .and_then(Value::as_array)
+                    .cloned()
+                    .unwrap_or_default();
                 // Flatten: top-level tabs plus folder children; skip folders.
                 let mut tabs: Vec<(String, String, String)> = Vec::new();
                 for t in &listed {
                     let ty = t.get("type").and_then(Value::as_str).unwrap_or("");
                     if ty == "Folder" {
-                        for c in t.get("children").and_then(Value::as_array).into_iter().flatten() {
+                        for c in t
+                            .get("children")
+                            .and_then(Value::as_array)
+                            .into_iter()
+                            .flatten()
+                        {
                             if let Some(cid) = c.get("id").and_then(Value::as_str) {
-                                tabs.push((cid.into(), c.get("name").and_then(Value::as_str).unwrap_or("").into(), c.get("type").and_then(Value::as_str).unwrap_or("").into()));
+                                tabs.push((
+                                    cid.into(),
+                                    c.get("name").and_then(Value::as_str).unwrap_or("").into(),
+                                    c.get("type").and_then(Value::as_str).unwrap_or("").into(),
+                                ));
                             }
                         }
                     } else if let Some(tid) = t.get("id").and_then(Value::as_str) {
-                        tabs.push((tid.into(), t.get("name").and_then(Value::as_str).unwrap_or("").into(), ty.into()));
+                        tabs.push((
+                            tid.into(),
+                            t.get("name").and_then(Value::as_str).unwrap_or("").into(),
+                            ty.into(),
+                        ));
                     }
                 }
-                let selected: Vec<&(String, String, String)> =
-                    tabs.iter().filter(|(tid, _, _)| all || wanted.contains(tid)).collect();
-                let unknown: Vec<&String> = wanted.iter().filter(|w| !tabs.iter().any(|(tid, _, _)| tid == *w)).collect();
+                let selected: Vec<&(String, String, String)> = tabs
+                    .iter()
+                    .filter(|(tid, _, _)| all || wanted.contains(tid))
+                    .collect();
+                let unknown: Vec<&String> = wanted
+                    .iter()
+                    .filter(|w| !tabs.iter().any(|(tid, _, _)| tid == *w))
+                    .collect();
                 let mut submitted = Vec::new();
                 for (tid, _, ty) in &selected {
                     let follow = deep && matches!(ty.as_str(), "MapStash" | "UniqueStash");
@@ -828,7 +924,8 @@ impl Daemon {
                 // sent to GGG: real mode has no such endpoint.
                 let Some(paid) = paid else {
                     return Ok(Outcome::Failure {
-                        error: "fetch is a mock-only kind; real mode has no fake data endpoint".into(),
+                        error: "fetch is a mock-only kind; real mode has no fake data endpoint"
+                            .into(),
                     });
                 };
                 let url = format!("{}/fetch", self.provider.api_base);
@@ -872,10 +969,18 @@ impl Daemon {
             // itself; visible like any other job so it can be inspected.
             "probe" => {
                 let (Some(route), Some(url)) = (
-                    params.get("route").and_then(Value::as_str).map(str::to_string),
-                    params.get("url").and_then(Value::as_str).map(str::to_string),
+                    params
+                        .get("route")
+                        .and_then(Value::as_str)
+                        .map(str::to_string),
+                    params
+                        .get("url")
+                        .and_then(Value::as_str)
+                        .map(str::to_string),
                 ) else {
-                    return Ok(Outcome::Failure { error: "probe needs a route and a url".into() });
+                    return Ok(Outcome::Failure {
+                        error: "probe needs a route and a url".into(),
+                    });
                 };
                 let bearer = if self.needs_auth(&route) {
                     match self.valid_access_token(false).await {
@@ -902,7 +1007,10 @@ impl Daemon {
                 match self.choke.head(paid, &url, bearer.as_deref()).await {
                     Ok((status, policy, headers)) => {
                         let name = policy.name;
-                        self.log(&format!("HEAD {} -> {status} | policy {name} | {headers}", url_path(&url)));
+                        self.log(&format!(
+                            "HEAD {} -> {status} | policy {name} | {headers}",
+                            url_path(&url)
+                        ));
                         Outcome::Success {
                             payload: json!({
                                 "route": route,
@@ -919,7 +1027,9 @@ impl Daemon {
                 }
             }
             other => Outcome::Failure {
-                error: format!("unknown job kind '{other}' (kinds: sleep, fetch, profile, characters, stashes, stash, refresh, probe)"),
+                error: format!(
+                    "unknown job kind '{other}' (kinds: sleep, fetch, profile, characters, stashes, stash, refresh, probe)"
+                ),
             },
         })
     }
@@ -947,21 +1057,11 @@ impl Daemon {
         })?;
         let status = response.status();
         let rate = crate::ratelimit::rate_limit_snapshot(response.headers());
+        let retry_after = retry_after_from_headers(response.headers());
         let path = url_path(url);
         self.log(&format!("GET {path} -> {status} | rate headers: {rate}"));
-        let body = response.text().await.unwrap_or_default();
-        if !status.is_success() {
-            let body: String = body.chars().take(300).collect();
-            let evidence = format!("GET {path} returned {status}; rate headers {rate}; body: {body}");
-            return Err(match status.as_u16() {
-                429 => ApiError::RateLimited(evidence),
-                403 | 503 => ApiError::Other(format!("{evidence} — possibly a Cloudflare block; NOT retrying (invariant 3)")),
-                _ => ApiError::Other(evidence),
-            });
-        }
-        serde_json::from_str::<Value>(&body)
-            .map(|v| (v, rate))
-            .map_err(|e| ApiError::Other(format!("bad JSON from {path}: {e}")))
+        let body = response.text().await.map_err(|error| error.to_string());
+        classify_api_body(status, &retry_after, &path, rate, body)
     }
 
     // ---- auth -----------------------------------------------------------
@@ -1038,7 +1138,9 @@ impl Daemon {
         ) {
             Ok(()) => "ok".to_string(),
             Err(e) => {
-                self.note_error(&format!("keyring save failed: {e} (session is in-memory only)"));
+                self.note_error(&format!(
+                    "keyring save failed: {e} (session is in-memory only)"
+                ));
                 format!("unavailable: {e}")
             }
         };
@@ -1058,7 +1160,8 @@ impl Daemon {
         let refresh_token = {
             let s = self.shared.lock().unwrap();
             if !force_refresh
-                && let (Some(token), Some(expires)) = (&s.auth.access_token, s.auth.access_expires_at)
+                && let (Some(token), Some(expires)) =
+                    (&s.auth.access_token, s.auth.access_expires_at)
                 && expires.saturating_duration_since(Instant::now()) > Duration::from_secs(5)
             {
                 return Ok((token.clone(), s.auth.username.clone().unwrap_or_default()));
@@ -1159,23 +1262,35 @@ impl Daemon {
                     provider: self.provider.name.to_string(),
                 }
             }
-            Request::Submit { kind, params, priority, submitted_by } => Response::Submitted {
+            Request::Submit {
+                kind,
+                params,
+                priority,
+                submitted_by,
+            } => Response::Submitted {
                 id: self.submit(kind, params, priority, submitted_by),
             },
             Request::Status { id } => match self.shared.lock().unwrap().snapshot(self, id) {
                 Some(job) => Response::Status { job },
-                None => Response::Error { message: format!("no job {id}") },
+                None => Response::Error {
+                    message: format!("no job {id}"),
+                },
             },
             Request::Result { id } => {
                 let s = self.shared.lock().unwrap();
                 match s.jobs.get(&id) {
                     Some(e) => match &e.outcome {
-                        Some(outcome) => Response::Result { id, outcome: outcome.clone() },
+                        Some(outcome) => Response::Result {
+                            id,
+                            outcome: outcome.clone(),
+                        },
                         None => Response::Error {
                             message: format!("job {id} is still {}", e.info.state),
                         },
                     },
-                    None => Response::Error { message: format!("no job {id}") },
+                    None => Response::Error {
+                        message: format!("no job {id}"),
+                    },
                 }
             }
             Request::Cancel { id } => match self.cancel(id) {
@@ -1212,7 +1327,10 @@ impl Daemon {
                 {
                     let mut s = self.shared.lock().unwrap();
                     let keyring = std::mem::take(&mut s.auth.keyring);
-                    s.auth = AuthSession { keyring, ..AuthSession::default() };
+                    s.auth = AuthSession {
+                        keyring,
+                        ..AuthSession::default()
+                    };
                 }
                 if let Err(e) = auth::keyring_clear(self.provider.keyring_service) {
                     self.log(&format!("keyring clear failed: {e}"));
@@ -1222,13 +1340,14 @@ impl Daemon {
             }
             Request::DaemonStatus => {
                 let s = self.shared.lock().unwrap();
-                let (waiting, running) = s.jobs.values().fold((0, 0), |(w, r), e| {
-                    match e.info.state {
-                        JobState::Waiting => (w + 1, r),
-                        JobState::Running => (w, r + 1),
-                        _ => (w, r),
-                    }
-                });
+                let (waiting, running) =
+                    s.jobs
+                        .values()
+                        .fold((0, 0), |(w, r), e| match e.info.state {
+                            JobState::Waiting => (w + 1, r),
+                            JobState::Running => (w, r + 1),
+                            _ => (w, r),
+                        });
                 Response::DaemonStatus {
                     pid: std::process::id(),
                     version: VERSION.to_string(),
@@ -1284,10 +1403,7 @@ impl Daemon {
             tokio::time::sleep(IDLE_POLL).await;
             let idle = {
                 let s = self.shared.lock().unwrap();
-                let live_jobs = s
-                    .jobs
-                    .values()
-                    .any(|e| !e.info.state.is_terminal());
+                let live_jobs = s.jobs.values().any(|e| !e.info.state.is_terminal());
                 s.connections == 0 && !live_jobs && s.last_activity.elapsed() >= IDLE_SHUTDOWN
             };
             // Limiter history inside a policy window is worth more than a
@@ -1303,12 +1419,52 @@ impl Daemon {
     }
 }
 
+fn classify_api_body(
+    status: reqwest::StatusCode,
+    retry_after: &RetryAfter,
+    path: &str,
+    rate: Value,
+    body: Result<String, String>,
+) -> Result<(Value, Value), ApiError> {
+    // Status owns non-2xx outcomes even if reading the error body also failed
+    // (D8). The body error remains in the evidence rather than becoming fake
+    // empty content.
+    if !status.is_success() {
+        let body = match body {
+            Ok(body) => body.chars().take(300).collect(),
+            Err(error) => format!("<body read transport failure: {error}>"),
+        };
+        let evidence = format!("GET {path} returned {status}; rate headers {rate}; body: {body}");
+        return Err(match status.as_u16() {
+            429 if retry_after.is_acceptable() => ApiError::RateLimited(evidence),
+            429 => ApiError::Other(format!(
+                "terminal rate limit: {evidence}; {retry_after}; NOT retrying"
+            )),
+            403 | 503 => ApiError::Other(format!(
+                "{evidence} — possibly a Cloudflare block; NOT retrying (invariant 3)"
+            )),
+            _ => ApiError::Other(evidence),
+        });
+    }
+
+    let body = body.map_err(|error| {
+        ApiError::Other(format!(
+            "GET {path} body read transport failure after {status}: {error}"
+        ))
+    })?;
+    serde_json::from_str::<Value>(&body)
+        .map(|value| (value, rate))
+        .map_err(|error| ApiError::Other(format!("bad JSON from {path}: {error}")))
+}
+
 /// Wait for the browser to hit the loopback redirect with an auth code.
 /// Ignores stray requests (favicons etc.) until `/callback` arrives.
 async fn wait_callback(listener: TcpListener, expected_state: &str) -> Result<String, String> {
     loop {
         let (mut stream, _) = listener.accept().await.map_err(|e| e.to_string())?;
-        let Some(req) = mockggg::read_request(&mut stream).await else { continue };
+        let Some(req) = mockggg::read_request(&mut stream).await else {
+            continue;
+        };
         if req.method != "GET" || req.path != CALLBACK_PATH {
             mockggg::respond(&mut stream, "404 Not Found", "text/plain", "not found").await;
             continue;
@@ -1325,7 +1481,13 @@ async fn wait_callback(listener: TcpListener, expected_state: &str) -> Result<St
                 return Ok(code.clone());
             }
             _ => {
-                mockggg::respond(&mut stream, "400 Bad Request", "text/plain", "state mismatch").await;
+                mockggg::respond(
+                    &mut stream,
+                    "400 Bad Request",
+                    "text/plain",
+                    "state mismatch",
+                )
+                .await;
                 return Err("callback state mismatch".into());
             }
         }
@@ -1441,5 +1603,108 @@ pub async fn run() -> Result<()> {
     loop {
         let (stream, _addr) = listener.accept().await?;
         tokio::spawn(daemon.clone().handle_conn(stream));
+    }
+}
+
+#[cfg(test)]
+mod response_tests {
+    use super::*;
+
+    fn rate() -> Value {
+        serde_json::json!({ "retry-after": "1" })
+    }
+
+    #[test]
+    fn bounded_429_requeue_keeps_the_existing_two_retry_contract() {
+        assert!(may_requeue_429(0, false));
+        assert!(may_requeue_429(1, false));
+        assert!(!may_requeue_429(2, false));
+        assert!(!may_requeue_429(0, true));
+    }
+
+    #[test]
+    fn acceptable_429_is_the_only_body_outcome_that_requeues() {
+        let error = classify_api_body(
+            reqwest::StatusCode::TOO_MANY_REQUESTS,
+            &RetryAfter::Acceptable { seconds: 1 },
+            "/character",
+            rate(),
+            Ok("slow down".into()),
+        )
+        .unwrap_err();
+        assert!(matches!(error, ApiError::RateLimited(_)));
+
+        let terminal = [
+            RetryAfter::Missing,
+            RetryAfter::Malformed { raw: "soon".into() },
+            RetryAfter::Negative { raw: "-1".into() },
+            RetryAfter::OverCap { raw: "901".into() },
+        ];
+        for retry_after in terminal {
+            let error = classify_api_body(
+                reqwest::StatusCode::TOO_MANY_REQUESTS,
+                &retry_after,
+                "/character",
+                rate(),
+                Ok("slow down".into()),
+            )
+            .unwrap_err();
+            let ApiError::Other(message) = error else {
+                panic!("{retry_after} entered the retryable arm")
+            };
+            assert!(message.contains("terminal rate limit"));
+            assert!(message.contains("NOT retrying"));
+        }
+    }
+
+    #[test]
+    fn body_read_transport_failure_is_not_recast_as_bad_json() {
+        let error = classify_api_body(
+            reqwest::StatusCode::OK,
+            &RetryAfter::Missing,
+            "/character",
+            Value::Null,
+            Err("connection closed before message completed".into()),
+        )
+        .unwrap_err();
+        let ApiError::Other(message) = error else {
+            panic!("body transport failure used the wrong error kind")
+        };
+        assert!(message.contains("body read transport failure"));
+        assert!(message.contains("connection closed before message completed"));
+        assert!(!message.contains("bad JSON"));
+    }
+
+    #[test]
+    fn http_status_keeps_precedence_over_error_body_transport_failure() {
+        let error = classify_api_body(
+            reqwest::StatusCode::INTERNAL_SERVER_ERROR,
+            &RetryAfter::Missing,
+            "/character",
+            Value::Null,
+            Err("body reset".into()),
+        )
+        .unwrap_err();
+        let ApiError::Other(message) = error else {
+            panic!("HTTP failure used the wrong error kind")
+        };
+        assert!(message.contains("returned 500 Internal Server Error"));
+        assert!(message.contains("body read transport failure: body reset"));
+    }
+
+    #[test]
+    fn malformed_success_body_remains_a_json_failure() {
+        let error = classify_api_body(
+            reqwest::StatusCode::OK,
+            &RetryAfter::Missing,
+            "/character",
+            Value::Null,
+            Ok("not json".into()),
+        )
+        .unwrap_err();
+        let ApiError::Other(message) = error else {
+            panic!("JSON failure used the wrong error kind")
+        };
+        assert!(message.contains("bad JSON"));
     }
 }

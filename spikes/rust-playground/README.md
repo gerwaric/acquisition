@@ -121,11 +121,6 @@ tokens live 60 seconds, so silent refresh is exercised constantly.
   first=5s/later=60s hypothesis does not classify it.
 - **`ACQ_MOCK_DEGRADED_HEAD=1`** makes the mock reproduce the Dec-2023
   regression (N20) so the degraded path can be exercised.
-- **429 recovery is bounded but untested at the bound.** A 429'd job goes
-  back to `waiting` behind the limiter's hold (`Retry-After` + bucket) and
-  keeps its queue place; after `MAX_429_RETRIES` (2) it fails with the
-  evidence. The give-up path has only been reasoned about, not reproduced
-  (each hold on the mock is ~2 minutes).
 - **Refresh has no delta/selection smarts.** `--all` fetches every listed
   tab; the real API's `metadata.items` counts on substash stubs (free) are
   the obvious lever for skipping, not used yet.
