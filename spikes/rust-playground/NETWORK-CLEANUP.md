@@ -24,9 +24,10 @@ review-only session.
 - Date recorded: 2026-08-22.
 - Branch: `spikes/rust-playground`.
 - Frozen gate-contract baseline: `1e17e812`.
-- Current implementation tip: `cca89516ae22610fca84a1338bcfc720ce356364`.
-- Active package: none; N2, N3, N4, and N5 are accepted, and N6 is the next
-  unblocked package.
+- Current accepted implementation tip:
+  `cca89516ae22610fca84a1338bcfc720ce356364`.
+- Active package: N6 is built in the commit containing this record and awaits
+  independent review; it is not accepted.
 - Accepted N1 review range:
   `1e17e812..412c840e155b01f626560fcb097393d6a24b797c`.
 - N1 fix commit: `412c840e155b01f626560fcb097393d6a24b797c`
@@ -76,8 +77,9 @@ review-only session.
   `cca89516ae22610fca84a1338bcfc720ce356364`.
 - N5 review verdict: `accepted`; the independent review found no findings,
   assigned no `N5-R` IDs, and found no unresolved or required N5 work.
-- N6 is unblocked. Start N6 next and keep it strictly within integration
-  stress testing and final frozen-design reconciliation.
+- N6 build started from exact coordination tip
+  `cffbf8b614efdbb4f36d5a846c76a67ea71b847e`; its single next action is an
+  independent review of that exact base through the N6 build tip.
 
 ## Package ledger
 
@@ -94,7 +96,7 @@ dependents.
 | N3 | Send-lifetime gate primitive and fairness semantics | H0 | accepted | `7f205d846ecab73c119532416f1a132010562b4c..510ea498a7f4fc9d75d04893eba6243768577fef` |
 | N4 | Gate integration in `ChokePoint`; remove `Paid` | N2, N3 | accepted | `bd9732d14c1940b2306ec7bae044ff73f70e0911f..32e591c7dc0f9cdbd8e0a958fb277d9444df9608` |
 | N5 | Dispatcher cleanup and removal of job-task head-of-line blocking | N4 | accepted | `f6b1e6cb87753a00fc67144b5753923b5b1aa49e..cca89516ae22610fca84a1338bcfc720ce356364` |
-| N6 | Integration stress tests and final frozen-design reconciliation | N5 | planned | — |
+| N6 | Integration stress tests and final frozen-design reconciliation | N5 | built | `cffbf8b614efdbb4f36d5a846c76a67ea71b847e..N6 build tip` |
 
 N2 and N3 may be built in either order after H0. Keep them as separate commits
 and review them separately. N4 is the first package allowed to depend on both.
@@ -342,6 +344,76 @@ rotated tokens. Then compare the implementation line by line with the frozen
 design's strict parsing, classifications, permit lifetime, HEAD exclusivity,
 and writer-preference rules. Record any intentional divergence in the
 authoritative design or findings register, not only here.
+
+Build-session result (not an acceptance verdict):
+
+- Exact starting coordination tip:
+  `cffbf8b614efdbb4f36d5a846c76a67ea71b847e`.
+- `n6_integration_stress_mixes_policies_refresh_rotation_cancellation_and_429s`
+  exercises the real dispatcher, auth session, choke point, gate, limiter, and
+  localhost mock together. It covers three authenticated API policies plus the
+  mock fetch policy, four visible one-per-route HEAD probes, a singleflight
+  token refresh, persisted refresh-token rotation, a queued cancellation, five
+  successful burst sends, and one bounded three-attempt 429 exhaustion. It
+  also proves the API jobs and independent policies complete while the
+  saturated mock policy fails within its bound.
+- `waiting_head_has_writer_preference_over_later_mixed_policy_send` holds two
+  different-policy response bodies under the cap, cancels a third gate waiter,
+  queues a HEAD, and then queues a later ordinary send. The HEAD starts only
+  after both live bodies finish, the later ordinary send cannot bypass the
+  waiting or live HEAD, and it resumes after the HEAD completes.
+- No production gate, limiter, OAuth, response classification/observation,
+  probe, retry, dispatcher, or job-model behavior changed. The only production
+  source edit removes a stale comment that described observation as not yet
+  implemented.
+
+Frozen-design reconciliation, checked line by line against D3/D4/D5/D8:
+
+- **Strict parsing:** `Policy::parse`, `parse_triplet`, `parse_limits`, and
+  `parse_state` require the complete coherent header set, nonempty names and
+  rule/window lists, exact numeric triplets, positive limit hits/periods,
+  nonnegative state hits, equal window counts, and matching periods. N1-R1's
+  accepted operational deadline bounds and checked arithmetic strengthen the
+  total-parser containment rule without weakening the frozen grammar.
+- **Response classification:** `classify_response` implements the frozen
+  precedence exactly: 429, other non-2xx, transport (including truncated 2xx),
+  then clean-2xx protocol validity. `finish_send` observes every landed header
+  set before classification, consumes the body before final classification and
+  send recording, and keeps non-2xx status precedence over body-transfer
+  evidence.
+- **Permit lifetime:** `post_form`, `get_bearer`, `get`, and `head` acquire a
+  live permit immediately before dispatch and retain it through response-body
+  completion. Retry/requeue waits occur only after the transport method has
+  returned and released that permit.
+- **HEAD exclusivity:** `acquire_head` takes the gate's exclusive reservation;
+  `head` retains it while draining the complete exchange. No ordinary or other
+  HEAD send can overlap it.
+- **Writer preference:** once a HEAD waiter is present, `grant_waiters` issues
+  no new ordinary reservation; it waits for every active ordinary permit to
+  drain, grants the HEAD, and resumes ordinary traffic only after the HEAD
+  reservation is released. The new HTTP-level stress pin covers this full
+  path, including a cancelled ordinary waiter.
+- No conflict requiring redesign was found. The intentional Rust-specific
+  adaptations are recorded in authoritative `CONTEXT.md`: N33 token traffic
+  is inside the Rust common gate although frozen C++ D5 predates N33; ordinary
+  FIFO is among eligible policies; and the C++ gate's 250 ms spacing rule is
+  not part of the accepted Rust N0–N5 contract. N6 does not amend either
+  design.
+
+Build validation:
+
+- `cargo test --workspace --all-targets`: passed, 69 core tests and 0 CLI
+  tests, with 0 failures.
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings`:
+  passed.
+- `cargo clippy -p acquisition-core --all-targets --all-features -- -D
+  warnings`: passed.
+- `cargo fmt --all -- --check`: passed.
+- `git diff --check`: passed before commit.
+
+No new findings were opened and no unresolved N2–N6 build findings remain.
+This is a build result only; only the independent N6 review may mark N6
+accepted.
 
 ## Review register
 
@@ -697,27 +769,27 @@ core crate's strict Clippy check remains an additional semantic-package gate.
 
 ## Next action and exact kickoff prompt
 
-The single next action is an N6 integration-and-reconciliation build session. Use this
-prompt verbatim:
+The single next action is an independent N6 review. The reviewer must replace
+`<N6-tip>` below with the exact ending hash returned by this build session and
+review that immutable range; the build commit cannot contain its own hash.
+Use this prompt verbatim after substitution:
 
 ```text
 Read AGENTS.md, CONTEXT.md, README.md, NETWORK-CLEANUP.md, and the frozen
-network design documents referenced there before editing. This is an N6
-integration-and-reconciliation build-only session. Start from the current
-clean spikes/rust-playground branch tip, which must contain the coordination
-commit recording N2, N3, and N4 as accepted and unchanged, and N5 as accepted
-for exact implementation range
-f6b1e6cb87753a00fc67144b5753923b5b1aa49e..cca89516ae22610fca84a1338bcfc720ce356364,
-with no unresolved N2–N5 work. Record the exact starting hash before editing;
-if the worktree is not clean or that ledger state is absent, stop and report
-the mismatch.
+network design documents referenced there before reviewing. This is an
+independent N6 review-only session. Review exact range
+cffbf8b614efdbb4f36d5a846c76a67ea71b847e..<N6-tip>. Verify that the branch
+tip is exactly <N6-tip>, the worktree is clean, the base is the recorded N5
+coordination tip, and N6 is built but not accepted. If any prerequisite
+differs, stop and report the mismatch. Do not edit or commit.
 
-Implement and test only N6: add integration stress coverage for mixed API
-policies, HEAD probes, token refresh, cancellation, 429s, and rotated tokens.
-Then compare the implementation line by line with the frozen design's strict
-parsing, response classifications, permit lifetime, HEAD exclusivity, and
-writer-preference rules. Record any intentional divergence in the
-authoritative design or findings register, not only in NETWORK-CLEANUP.md.
+Review only N6: independently validate the integration stress coverage for
+mixed API policies, HEAD probes, token refresh, cancellation, 429s, and
+rotated tokens. Compare the implementation line by line with the frozen
+design's strict parsing, response classifications, permit lifetime, HEAD
+exclusivity, and writer-preference rules. Verify every intentional divergence
+is recorded in an authoritative design or findings register, not only in
+NETWORK-CLEANUP.md.
 
 Preserve all accepted N2–N5 behavior: OAuth refresh ownership, generations,
 rotation, abandonment, registration, scopes, callback, user-agent, and
@@ -729,20 +801,21 @@ and dispatcher priority, equal-priority FIFO, one-active-task-per-key
 ordering, route probes, cancellation, bounded retry/requeue behavior, and
 independent-key progress.
 
-Keep N6 strictly within its frozen integration-stress and final-reconciliation
-package definition. Do not redesign the gate, limiter, OAuth flow, response
-classification or observation, probe semantics, retry policy, dispatcher, or
-job model; do not contact GGG. If the line-by-line comparison exposes a real
-conflict that cannot be reconciled within N6 without redesign, record it with
-stable evidence and stop rather than expanding scope.
+Reject scope expansion into gate, limiter, OAuth, response classification or
+observation, probe, retry, dispatcher, or job-model redesign. Verify no GGG
+contact occurred. Report findings with stable N6-R IDs, severity, exact
+file/symbol evidence, violated authority, smallest fix direction, and required
+tests. If no required work remains, return `accepted`; otherwise return
+`changes-requested`. Do not mark N6 accepted in the repository from this
+review-only session.
 
 Run cargo test --workspace --all-targets; cargo clippy --workspace
 --all-targets --all-features -- -D warnings; cargo clippy -p acquisition-core
 --all-targets --all-features -- -D warnings; and cargo fmt --all -- --check.
-Record exact outcomes. Commit only N6 with an N6-labeled message. Do not mark
-N6 accepted. Return the exact starting and ending hashes, clean worktree state,
-scope completed, checks, unresolved findings, and the single next action: an
-independent N6 review of the exact coordination-tip-to-N6-tip range.
+Record exact outcomes. Return the exact reviewed base and tip, clean worktree
+state, verdict, findings, preserved behavior, checks, and the single next
+action: coordination if accepted, or an N6 fix-only session if
+changes-requested.
 ```
 
 Only an independent N6 review with no required work remaining may mark N6

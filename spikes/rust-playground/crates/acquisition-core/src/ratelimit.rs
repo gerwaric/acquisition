@@ -3170,6 +3170,156 @@ mod tests {
         head_server.await.unwrap();
     }
 
+    #[tokio::test]
+    async fn waiting_head_has_writer_preference_over_later_mixed_policy_send() {
+        async fn held_get(
+            policy: &'static str,
+        ) -> (
+            String,
+            oneshot::Receiver<()>,
+            oneshot::Sender<()>,
+            tokio::task::JoinHandle<()>,
+        ) {
+            let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let url = format!("http://{}/get", listener.local_addr().unwrap());
+            let (arrived_tx, arrived) = oneshot::channel();
+            let (release, release_rx) = oneshot::channel();
+            let server = tokio::spawn(async move {
+                let (mut stream, _) = listener.accept().await.unwrap();
+                let request = crate::mockggg::read_request(&mut stream).await.unwrap();
+                assert_eq!(request.method, "GET");
+                let response = raw_response("200 OK", &full_rate_headers(policy, None), 2, "");
+                stream.write_all(response.as_bytes()).await.unwrap();
+                arrived_tx.send(()).unwrap();
+                release_rx.await.unwrap();
+                stream.write_all(b"{}").await.unwrap();
+            });
+            (url, arrived, release, server)
+        }
+
+        let (first_url, first_arrived, release_first, first_server) =
+            held_get("writer-first-policy").await;
+        let (second_url, second_arrived, release_second, second_server) =
+            held_get("writer-second-policy").await;
+        let choke = Arc::new(ChokePoint::new());
+        let first = {
+            let choke = choke.clone();
+            tokio::spawn(async move { choke.get("writer-first-route", &first_url).await })
+        };
+        let second = {
+            let choke = choke.clone();
+            tokio::spawn(async move { choke.get("writer-second-route", &second_url).await })
+        };
+        first_arrived.await.unwrap();
+        second_arrived.await.unwrap();
+
+        let canceled_listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let canceled_url = format!("http://{}/get", canceled_listener.local_addr().unwrap());
+        let canceled = {
+            let choke = choke.clone();
+            tokio::spawn(async move { choke.get("writer-canceled-route", &canceled_url).await })
+        };
+        let mut canceled_accept = Box::pin(canceled_listener.accept());
+        assert!(
+            tokio::time::timeout(Duration::from_millis(50), &mut canceled_accept)
+                .await
+                .is_err(),
+            "ordinary send bypassed the full gate before cancellation"
+        );
+        canceled.abort();
+        match canceled.await {
+            Err(error) => assert!(error.is_cancelled()),
+            Ok(_) => panic!("canceled gate waiter completed normally"),
+        }
+        drop(canceled_accept);
+
+        let head_listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let head_url = format!("http://{}/head", head_listener.local_addr().unwrap());
+        let (head_arrived_tx, head_arrived) = oneshot::channel();
+        let (release_head, release_head_rx) = oneshot::channel();
+        let head_server = tokio::spawn(async move {
+            let (mut stream, _) = head_listener.accept().await.unwrap();
+            let request = crate::mockggg::read_request(&mut stream).await.unwrap();
+            assert_eq!(request.method, "HEAD");
+            head_arrived_tx.send(()).unwrap();
+            release_head_rx.await.unwrap();
+            let response = raw_response(
+                "204 No Content",
+                &full_rate_headers("writer-head-policy", None),
+                0,
+                "",
+            );
+            stream.write_all(response.as_bytes()).await.unwrap();
+        });
+        let head = {
+            let choke = choke.clone();
+            tokio::spawn(async move { choke.head("writer-head-route", &head_url, None).await })
+        };
+        let mut head_arrived = Box::pin(head_arrived);
+        assert!(
+            tokio::time::timeout(Duration::from_millis(50), &mut head_arrived)
+                .await
+                .is_err(),
+            "HEAD overlapped the two live ordinary bodies"
+        );
+
+        let (later_url, later_arrived, release_later, later_server) =
+            held_get("writer-later-policy").await;
+        let later = {
+            let choke = choke.clone();
+            tokio::spawn(async move { choke.get("writer-later-route", &later_url).await })
+        };
+        let mut later_arrived = Box::pin(later_arrived);
+        assert!(
+            tokio::time::timeout(Duration::from_millis(50), &mut later_arrived)
+                .await
+                .is_err(),
+            "later ordinary send bypassed the full gate"
+        );
+
+        release_first.send(()).unwrap();
+        assert!(
+            tokio::time::timeout(Duration::from_millis(50), &mut head_arrived)
+                .await
+                .is_err(),
+            "exclusive HEAD started before every ordinary permit drained"
+        );
+        assert!(
+            tokio::time::timeout(Duration::from_millis(50), &mut later_arrived)
+                .await
+                .is_err(),
+            "later ordinary send bypassed a waiting HEAD writer"
+        );
+
+        release_second.send(()).unwrap();
+        tokio::time::timeout(Duration::from_secs(1), &mut head_arrived)
+            .await
+            .expect("HEAD starts when the last ordinary body completes")
+            .unwrap();
+        assert!(
+            tokio::time::timeout(Duration::from_millis(50), &mut later_arrived)
+                .await
+                .is_err(),
+            "later ordinary send overlapped the live HEAD writer"
+        );
+
+        release_head.send(()).unwrap();
+        head.await.unwrap().unwrap();
+        tokio::time::timeout(Duration::from_secs(1), &mut later_arrived)
+            .await
+            .expect("ordinary send resumes after the HEAD writer completes")
+            .unwrap();
+        release_later.send(()).unwrap();
+
+        first.await.unwrap().unwrap();
+        second.await.unwrap().unwrap();
+        later.await.unwrap().unwrap();
+        first_server.await.unwrap();
+        second_server.await.unwrap();
+        head_server.await.unwrap();
+        later_server.await.unwrap();
+    }
+
     #[test]
     fn url_path_strips_host() {
         assert_eq!(

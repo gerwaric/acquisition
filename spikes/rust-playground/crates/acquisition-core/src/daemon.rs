@@ -797,10 +797,10 @@ impl Daemon {
     ) -> Result<Outcome, ApiError> {
         Ok(match kind {
             // The one real API call: GET {api_base}/character. Same code in
-            // both modes; only the provider's base URL differs. No retries on
-            // any failure — a 429 or a Cloudflare-shaped block is reported,
-            // never fought through (invariants 2 and 3 are read-only so far:
-            // headers are logged and returned, not yet fed to the limiter).
+            // both modes; only the provider's base URL differs. The choke
+            // point classifies and observes every response; the dispatcher
+            // requeues only acceptable 429s, while Cloudflare-shaped blocks
+            // are never retried.
             "characters" => {
                 let (token, username) = match self.valid_access_token(false).await {
                     Ok(pair) => pair,
@@ -2656,6 +2656,26 @@ mod dispatcher_tests {
         }
     }
 
+    #[derive(Default)]
+    struct RecordingCredentialStore {
+        saves: Mutex<Vec<(String, String, String)>>,
+    }
+
+    impl CredentialStore for RecordingCredentialStore {
+        fn save(&self, service: &str, refresh_token: &str, username: &str) -> Result<(), String> {
+            self.saves.lock().unwrap().push((
+                service.to_string(),
+                refresh_token.to_string(),
+                username.to_string(),
+            ));
+            Ok(())
+        }
+
+        fn clear(&self, _service: &str) -> Result<(), String> {
+            Ok(())
+        }
+    }
+
     struct ScriptedResponse {
         method: &'static str,
         status: &'static str,
@@ -2951,6 +2971,146 @@ mod dispatcher_tests {
             wait_terminal(&daemon, stashes).await.0.state,
             JobState::Failed
         );
+        finish_harness(dispatcher, &log_path);
+    }
+
+    #[tokio::test]
+    async fn n6_integration_stress_mixes_policies_refresh_rotation_cancellation_and_429s() {
+        let base = mockggg::start().await.unwrap();
+        let clock = Arc::new(ManualClock::new());
+        let (mut daemon, log_path) = test_daemon(&base, clock);
+        let credential_store = Arc::new(RecordingCredentialStore::default());
+        Arc::get_mut(&mut daemon).unwrap().credential_store = credential_store.clone();
+        {
+            let mut shared = daemon.shared.lock().unwrap();
+            shared.auth.refresh_token = Some("rt-old".into());
+            shared.auth.username = Some("old-user".into());
+            shared.auth.access_token = Some("at-expired".into());
+            shared.auth.access_expires_at = Some(Instant::now());
+        }
+
+        let characters = daemon.submit("characters".into(), json!({}), 0, "test".into());
+        let stashes = daemon.submit(
+            "stashes".into(),
+            json!({ "league": "Standard" }),
+            0,
+            "test".into(),
+        );
+        let stash = daemon.submit(
+            "stash".into(),
+            json!({ "league": "Standard", "id": "cur1" }),
+            0,
+            "test".into(),
+        );
+        let fetches: Vec<_> = (0..7)
+            .map(|sequence| {
+                daemon.submit(
+                    "fetch".into(),
+                    json!({ "sequence": sequence }),
+                    0,
+                    "test".into(),
+                )
+            })
+            .collect();
+        let cancelled = *fetches.last().unwrap();
+        daemon.cancel(cancelled).unwrap();
+
+        let dispatcher = tokio::spawn(daemon.clone().dispatcher());
+        for id in [characters, stashes, stash] {
+            let (info, outcome) = wait_terminal(&daemon, id).await;
+            assert_eq!(info.state, JobState::Done, "API job {id}: {outcome:?}");
+        }
+
+        let mut done = 0;
+        let mut failed = 0;
+        let mut cancelled_count = 0;
+        for id in fetches {
+            let (info, outcome) = wait_terminal(&daemon, id).await;
+            match info.state {
+                JobState::Done => done += 1,
+                JobState::Failed => {
+                    failed += 1;
+                    assert_eq!(info.retries, MAX_429_RETRIES);
+                    let Outcome::Failure { error } = outcome else {
+                        panic!("failed fetch {id} had non-failure outcome")
+                    };
+                    assert!(error.contains("giving up"));
+                }
+                JobState::Cancelled => cancelled_count += 1,
+                state => panic!("fetch {id} stopped in nonterminal state {state}"),
+            }
+        }
+        assert_eq!((done, failed, cancelled_count), (5, 1, 1));
+
+        let (refresh_token, access_token, refresh_flight) = {
+            let shared = daemon.shared.lock().unwrap();
+            (
+                shared.auth.refresh_token.clone().unwrap(),
+                shared.auth.access_token.clone().unwrap(),
+                shared.auth.refresh_flight.is_some(),
+            )
+        };
+        assert!(refresh_token.starts_with("rt-"));
+        assert_ne!(refresh_token, "rt-old");
+        assert!(access_token.starts_with("at-"));
+        assert!(!refresh_flight);
+        let saves = credential_store.saves.lock().unwrap();
+        assert_eq!(saves.len(), 1, "concurrent auth demand must singleflight");
+        assert_eq!(saves[0].0, "acquisition-playground");
+        assert_eq!(saves[0].1, refresh_token);
+        drop(saves);
+
+        let jobs = daemon.shared.lock().unwrap();
+        let probes: Vec<_> = jobs
+            .jobs
+            .values()
+            .filter(|entry| entry.info.kind == "probe")
+            .collect();
+        assert_eq!(probes.len(), 4, "one probe per exercised API route");
+        assert!(
+            probes
+                .iter()
+                .all(|entry| entry.info.state == JobState::Done)
+        );
+        drop(jobs);
+
+        let sends = daemon.choke.recent_sends();
+        assert_eq!(sends.iter().filter(|send| send.method == "HEAD").count(), 4);
+        assert_eq!(
+            sends
+                .iter()
+                .filter(|send| send.method == "POST" && send.endpoint == "oauth-token")
+                .count(),
+            1
+        );
+        assert_eq!(
+            sends
+                .iter()
+                .filter(|send| send.method == "GET" && send.endpoint == "fetch")
+                .count(),
+            8,
+            "five successes plus the exhausted job's three 429 attempts"
+        );
+        assert_eq!(daemon.choke.actual_send_occupancy(), (0, 2));
+
+        let mut policies: Vec<_> = daemon
+            .choke
+            .policy_statuses()
+            .into_iter()
+            .map(|status| status.policy)
+            .collect();
+        policies.sort();
+        assert_eq!(
+            policies,
+            [
+                "character-list-request-limit",
+                "mock-fetch-request-limit",
+                "stash-list-request-limit",
+                "stash-request-limit",
+                "token-request-limit",
+            ]
+        );
+
         finish_harness(dispatcher, &log_path);
     }
 
