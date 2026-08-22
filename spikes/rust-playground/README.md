@@ -21,8 +21,9 @@ bounded by `MAX_429_RETRIES`; a Cloudflare-shaped 403/503 is never retried.
 
 ## Layout
 
-- [`NETWORK-CLEANUP.md`](NETWORK-CLEANUP.md) — the package ledger, exact review
-  boundaries, and session handoff protocol for the in-progress network cleanup.
+- [`NETWORK-CLEANUP.md`](NETWORK-CLEANUP.md) — closed record of the N0–N6
+  network cleanup: accepted ranges, findings, and the quality-gate baseline
+  every later change keeps green.
 - `crates/acquisition-core` — protocol types, job model, header-driven rate
   limiter + choke point, the mock provider, and the daemon itself (priority
   queue + dispatcher + Unix-socket server + idle watchdog). The dispatcher

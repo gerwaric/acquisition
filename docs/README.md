@@ -64,6 +64,14 @@ when this map and a header disagree, the header wins.
   Exploration lives on the `redesign` branch in `docs/redesign/`;
   until the ADR is accepted, the frozen specs above remain full
   authority and `master` work continues normally.
+- `../spikes/rust-playground/` (branch `spikes/rust-playground`) — the
+  Rust daemon/CLI spike feeding ADR 0003: `CONTEXT.md` is its agent
+  working memory (invariants, decisions, open topics) and its
+  `README.md` explains the mock-by-default and `ACQ_GGG=1` modes.
+  The spike's network cleanup (N0–N6) closed August 22, 2026;
+  `NETWORK-CLEANUP.md` is the short closed record. Ground-truth
+  claims the spike established (N31–N33) live in
+  `design/network-ground-truth.md`, not in the spike.
 - `cleanup/findings.md` — project-wide register of design/correctness
   findings (F1, F2, …): open findings, standing constraints, and a
   resolved ledger. The `cleanup/` path is historical — the register
