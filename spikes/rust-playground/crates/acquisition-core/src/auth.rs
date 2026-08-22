@@ -33,6 +33,36 @@ pub fn pkce_pair() -> (String, String) {
     (verifier, challenge)
 }
 
+/// A failed token request, keeping the HTTP status (when one landed) so
+/// the daemon can tell a rejected grant from a network blip (L0 rail 2).
+#[derive(Debug, Clone)]
+pub struct TokenError {
+    pub status: Option<u16>,
+    pub message: String,
+}
+
+impl std::fmt::Display for TokenError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.message)
+    }
+}
+
+impl TokenError {
+    fn transport(message: String) -> TokenError {
+        TokenError {
+            status: None,
+            message,
+        }
+    }
+
+    /// A grant the provider rejected outright: 4xx other than 429. 5xx,
+    /// 429, and transport failures are not (they may be transient).
+    pub fn is_rejected_grant(&self) -> bool {
+        self.status
+            .is_some_and(|status| (400..500).contains(&status) && status != 429)
+    }
+}
+
 #[derive(Debug, Deserialize)]
 pub struct TokenResponse {
     pub access_token: String,
@@ -47,7 +77,7 @@ pub async fn exchange_code(
     code: &str,
     verifier: &str,
     redirect_uri: &str,
-) -> Result<TokenResponse, String> {
+) -> Result<TokenResponse, TokenError> {
     // GGG's public-client docs include `scope` in the exchange; no secret is
     // ever sent (and must not be — an empty client_secret is a server error).
     let scope = SCOPES.join(" ");
@@ -70,7 +100,7 @@ pub async fn refresh(
     choke: &ChokePoint,
     provider: &Provider,
     refresh_token: &str,
-) -> Result<TokenResponse, String> {
+) -> Result<TokenResponse, TokenError> {
     token_request(
         choke,
         provider,
@@ -87,11 +117,11 @@ async fn token_request(
     choke: &ChokePoint,
     provider: &Provider,
     params: &[(&str, &str)],
-) -> Result<TokenResponse, String> {
+) -> Result<TokenResponse, TokenError> {
     let response = choke
         .post_form("oauth-token", &provider.token_url, params)
         .await
-        .map_err(|error| error.to_string())?;
+        .map_err(|error| TokenError::transport(error.to_string()))?;
     let status = response.status;
     if !status.is_success() {
         let rate = response.rate;
@@ -99,14 +129,18 @@ async fn token_request(
             .body
             .unwrap_or_else(|error| format!("<body read transport failure: {error}>"));
         let body: String = body.chars().take(300).collect();
-        return Err(format!(
-            "token endpoint returned {status} (rate headers {rate}): {body}"
-        ));
+        return Err(TokenError {
+            status: Some(status.as_u16()),
+            message: format!("token endpoint returned {status} (rate headers {rate}): {body}"),
+        });
     }
     let body = response
         .body
         .expect("clean 2xx responses have a completed body");
-    serde_json::from_str::<TokenResponse>(&body).map_err(|e| e.to_string())
+    serde_json::from_str::<TokenResponse>(&body).map_err(|e| TokenError {
+        status: Some(status.as_u16()),
+        message: e.to_string(),
+    })
 }
 
 // ---- keyring ------------------------------------------------------------
@@ -193,7 +227,7 @@ mod tests {
         let provider = Provider::mock(&base);
 
         let error = refresh(&choke, &provider, "rt-test").await.unwrap_err();
-        assert!(!error.contains("expected value"), "{error}");
+        assert!(!error.message.contains("expected value"), "{error}");
         assert_eq!(
             choke.endpoint_state("oauth-token"),
             EndpointState::Policy("token-request-limit".into())

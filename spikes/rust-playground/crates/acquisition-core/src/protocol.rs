@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::job::{JobId, JobInfo, Outcome, Priority};
+use crate::rails::RailsStatus;
 use crate::ratelimit::{DegradedEndpoint, PolicyStatus, SendRecord};
 
 /// A recent daemon-side error (job failures, auth/keyring trouble), for the
@@ -59,6 +60,8 @@ pub enum Request {
     AuthLogout,
     DaemonStatus,
     DaemonStop,
+    /// Clear the live-test rails' tripwire and ceiling halt (`LIVE-TESTING.md`).
+    ResetTripwire,
     /// Everything the live dashboard renders, in one round-trip: daemon
     /// vitals, auth state, limiter policies, jobs, HTTP sends, recent errors.
     Dashboard,
@@ -118,6 +121,9 @@ pub enum Response {
         policies_known: usize,
         in_flight: usize,
         max_in_flight: usize,
+        /// Live-test rails state (tripwire, ceiling, journal).
+        #[serde(default)]
+        rails: RailsStatus,
     },
     Stopping,
     Dashboard {
@@ -142,6 +148,8 @@ pub enum Response {
         jobs: Vec<JobInfo>,
         /// Newest first.
         sends: Vec<SendRecord>,
+        #[serde(default)]
+        rails: RailsStatus,
         /// Newest first.
         errors: Vec<ErrorRecord>,
     },

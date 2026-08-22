@@ -9,6 +9,7 @@ use std::time::Duration;
 
 use acquisition_core::job::{JobInfo, JobState};
 use acquisition_core::protocol::{ErrorRecord, Request, Response};
+use acquisition_core::rails::RailsStatus;
 use acquisition_core::ratelimit::{DegradedEndpoint, PolicyStatus, SendRecord};
 use anyhow::{Result, bail};
 use ratatui::Frame;
@@ -54,6 +55,7 @@ struct Snap {
     degraded_endpoints: Vec<DegradedEndpoint>,
     jobs: Vec<JobInfo>,
     sends: Vec<SendRecord>,
+    rails: RailsStatus,
     errors: Vec<ErrorRecord>,
 }
 
@@ -140,6 +142,7 @@ async fn fetch(client: &mut Client) -> Result<Snap> {
             degraded_endpoints,
             jobs,
             sends,
+            rails,
             errors,
         } => Ok(Snap {
             pid,
@@ -158,6 +161,7 @@ async fn fetch(client: &mut Client) -> Result<Snap> {
             degraded_endpoints,
             jobs,
             sends,
+            rails,
             errors,
         }),
         Response::Error { message } => bail!("{message}"),
@@ -324,6 +328,34 @@ fn draw_policies(f: &mut Frame, area: Rect, s: &Snap, app: &mut App) {
                 Style::new().dark_gray().italic(),
             ),
         ]));
+    }
+    if let Some(cause) = &s.rails.halted {
+        summary.push(Line::from(vec![
+            Span::styled("  RAILS HALTED: ", Style::new().red().bold()),
+            Span::styled(cause.clone(), Style::new().red()),
+            Span::styled("  (acq daemon reset-tripwire)", Style::new().dark_gray()),
+        ]));
+    }
+    if let Some(cause) = &s.rails.refresh_failed {
+        summary.push(Line::from(vec![
+            Span::styled("  REFRESH DISABLED: ", Style::new().red().bold()),
+            Span::styled(cause.clone(), Style::new().red()),
+        ]));
+    }
+    if s.rails.tripwire_enabled || s.rails.max_sends.is_some() {
+        summary.push(Line::from(Span::styled(
+            format!(
+                "  rails: tripwire {} · sends {}{}",
+                if s.rails.tripwire_enabled {
+                    "ON"
+                } else {
+                    "off"
+                },
+                s.rails.sends,
+                s.rails.max_sends.map_or(String::new(), |m| format!("/{m}")),
+            ),
+            Style::new().dark_gray(),
+        )));
     }
     for d in &s.degraded_endpoints {
         summary.push(Line::from(vec![

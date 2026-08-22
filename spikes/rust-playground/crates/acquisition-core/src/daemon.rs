@@ -21,10 +21,20 @@ use crate::VERSION;
 use crate::job::{JobId, JobInfo, JobState, Outcome, Priority};
 use crate::protocol::{ErrorRecord, Request, Response};
 use crate::provider::{CALLBACK_PATH, Provider, SCOPES, ggg_mode};
+use crate::rails::{Rails, RailsConfig};
 use crate::ratelimit::{ChokePoint, EndpointState, RetryAfter, SendError, url_path};
 use crate::{auth, mockggg};
 
 const IDLE_SHUTDOWN: Duration = Duration::from_secs(60);
+
+/// `ACQ_IDLE_SHUTDOWN=<secs>` overrides the idle exit (L0 rail 8) so a
+/// live-test rung or soak runs on one daemon instead of a respawn cycle.
+fn idle_shutdown_from_env() -> Duration {
+    std::env::var("ACQ_IDLE_SHUTDOWN")
+        .ok()
+        .and_then(|v| v.trim().parse::<u64>().ok())
+        .map_or(IDLE_SHUTDOWN, Duration::from_secs)
+}
 const IDLE_POLL: Duration = Duration::from_secs(5);
 const ERROR_HISTORY: usize = 50;
 /// Probes outrank everything: every job on that route is waiting on one.
@@ -45,6 +55,12 @@ pub fn socket_path() -> PathBuf {
 
 pub fn log_path() -> PathBuf {
     socket_path().with_extension("log")
+}
+
+/// Default send-journal location (`ACQ_JOURNAL` overrides; `ACQ_JOURNAL=0`
+/// disables).
+pub fn journal_path() -> PathBuf {
+    socket_path().with_extension("sends.jsonl")
 }
 
 /// What a network call can fail with; 429 is its own arm so the job can
@@ -290,6 +306,19 @@ impl Daemon {
             s.errors.push_back((Instant::now(), msg.to_string()));
         }
         self.log(msg);
+    }
+
+    fn rails(&self) -> &Arc<Rails> {
+        self.choke.rails()
+    }
+
+    /// Log a rails trip once, the first time any send path notices it.
+    fn announce_trip(&self) {
+        if let Some(cause) = self.rails().take_unannounced_trip() {
+            self.note_error(&format!(
+                "LIVE-TEST RAILS TRIPPED: {cause} — sends refused until `acq daemon reset-tripwire`"
+            ));
+        }
     }
 
     /// The route label and URL a job sends on, if it sends at all. Routes,
@@ -559,6 +588,17 @@ impl Daemon {
                 None => return,
             }
         };
+
+        // L0 rail 1: a halted daemon fails network jobs immediately — no
+        // probe, no pacing wait behind a hold, no permit — with the cause.
+        if let Some((route, _)) = &route
+            && let Some(cause) = self.rails().halted()
+        {
+            let error = format!("route {route}: {cause}");
+            self.note_error(&format!("job {id}: {error}"));
+            self.start_and_finish(id, Outcome::Failure { error });
+            return;
+        }
 
         // A route we've never heard from gets a probe first (N16, N24); a
         // degraded one (N20) fails its jobs cleanly until the cooldown ends.
@@ -1026,7 +1066,13 @@ impl Daemon {
             }
             "profile" => {
                 // The auth-required kind: exercises access-token expiry and
-                // silent refresh through the daemon-owned session.
+                // silent refresh through the daemon-owned session. Fake data,
+                // so in real mode it must not cost a token POST (L0 rail 6).
+                if self.provider.is_real() {
+                    return Ok(Outcome::Failure {
+                        error: "profile is a mock-only job kind; not run against real GGG".into(),
+                    });
+                }
                 let (token, username) = match self.valid_access_token(false).await {
                     Ok(pair) => pair,
                     Err(error) => return Ok(Outcome::Failure { error }),
@@ -1080,7 +1126,9 @@ impl Daemon {
                 } else {
                     None
                 };
-                match self.choke.head(&route, &url, bearer.as_deref()).await {
+                let probed = self.choke.head(&route, &url, bearer.as_deref()).await;
+                self.announce_trip();
+                match probed {
                     Ok((status, policy, headers)) => {
                         let name = policy.name;
                         self.log(&format!(
@@ -1130,7 +1178,11 @@ impl Daemon {
                 url_path(url)
             )),
             SendError::Transport(error) => ApiError::Other(format!("GET {url} failed: {error}")),
+            SendError::Halted(cause) => {
+                ApiError::Other(format!("GET {} refused: {cause}", url_path(url)))
+            }
         })?;
+        self.announce_trip();
         let status = response.status;
         let rate = response.rate;
         let retry_after = response.retry_after;
@@ -1220,6 +1272,7 @@ impl Daemon {
     }
 
     fn finish_auth_flow(&self, generation: u64, tokens: auth::TokenResponse) -> bool {
+        self.rails().clear_refresh_failed();
         let warning = {
             let mut s = self.shared.lock().unwrap();
             if s.auth.pending != Some(generation) || s.auth.generations.session != generation {
@@ -1308,6 +1361,13 @@ impl Daemon {
                 Some(rt) => rt.clone(),
                 None => return Err("not logged in — run `acq auth`".into()),
             };
+            // L0 rail 2: a grant the provider already rejected is not sent
+            // again until login or logout replaces it.
+            if let Some(cause) = self.rails().refresh_failed() {
+                return Err(format!(
+                    "token refresh disabled by live-test rails after a rejected grant ({cause}); run `acq auth`"
+                ));
+            }
             let generations = s.auth.generations;
             if let Some(flight) = &s.auth.refresh_flight
                 && flight.generations == generations
@@ -1346,10 +1406,30 @@ impl Daemon {
                 };
                 // May wait on the token endpoint's limiter; the shared lock is
                 // not held here, so every concurrent caller can join this owner.
-                let refresh = auth::refresh(&self.choke, &self.provider, &refresh_token)
-                    .await
-                    .map_err(|e| format!("token refresh failed: {e}"));
-                owner.finish(refresh)
+                let refresh = auth::refresh(&self.choke, &self.provider, &refresh_token).await;
+                self.announce_trip();
+                let rejected = refresh
+                    .as_ref()
+                    .err()
+                    .filter(|error| error.is_rejected_grant())
+                    .map(|error| error.message.clone());
+                let refresh = refresh.map_err(|e| format!("token refresh failed: {e}"));
+                let result = owner.finish(refresh);
+                // Mark only if this flight's result was accepted as current:
+                // a stale flight must not disable a session that
+                // re-authenticated meanwhile.
+                if let Some(cause) = rejected
+                    && result
+                        .as_ref()
+                        .err()
+                        .is_some_and(|e| e != SESSION_CHANGED_DURING_REFRESH)
+                    && self.rails().mark_refresh_failed(&cause)
+                {
+                    self.note_error(&format!(
+                        "LIVE-TEST RAILS: refresh token rejected; further refreshes disabled until `acq auth` ({cause})"
+                    ));
+                }
+                result
             }
         }
     }
@@ -1394,6 +1474,7 @@ impl Daemon {
     }
 
     fn logout(&self) -> Result<(), String> {
+        self.rails().clear_refresh_failed();
         let result = {
             let mut s = self.shared.lock().unwrap();
             let keyring = std::mem::take(&mut s.auth.keyring);
@@ -1584,9 +1665,15 @@ impl Daemon {
                     policies_known: self.choke.policy_statuses().len(),
                     in_flight,
                     max_in_flight,
+                    rails: self.rails().status(),
                 }
             }
             Request::DaemonStop => Response::Stopping,
+            Request::ResetTripwire => {
+                self.rails().reset_tripwire();
+                self.log("live-test rails reset by request");
+                Response::Ack
+            }
             Request::Dashboard => {
                 let s = self.shared.lock().unwrap();
                 let (in_flight, max_in_flight) = self.choke.actual_send_occupancy();
@@ -1610,6 +1697,7 @@ impl Daemon {
                     degraded_endpoints: self.choke.degraded_endpoints(),
                     jobs: s.list(self),
                     sends: self.choke.recent_sends(),
+                    rails: self.rails().status(),
                     errors: s
                         .errors
                         .iter()
@@ -1625,12 +1713,13 @@ impl Daemon {
     }
 
     async fn idle_watchdog(self: Arc<Self>) {
+        let idle_shutdown = idle_shutdown_from_env();
         loop {
             tokio::time::sleep(IDLE_POLL).await;
             let idle = {
                 let s = self.shared.lock().unwrap();
                 let live_jobs = s.jobs.values().any(|e| !e.info.state.is_terminal());
-                s.connections == 0 && !live_jobs && s.last_activity.elapsed() >= IDLE_SHUTDOWN
+                s.connections == 0 && !live_jobs && s.last_activity.elapsed() >= idle_shutdown
             };
             // Limiter history inside a policy window is worth more than a
             // clean exit: a daemon respawned a minute later would otherwise
@@ -1783,7 +1872,12 @@ pub async fn run() -> Result<()> {
         Provider::mock(&mockggg::start().await?)
     };
     // Same limiter in both modes: empty until responses teach it policies.
-    let choke = ChokePoint::new();
+    let rails = Arc::new(Rails::with_config(RailsConfig::from_env(
+        provider.name,
+        &path,
+        &journal_path(),
+    )));
+    let choke = ChokePoint::with_rails(rails);
 
     // A session in the keyring survives daemon restarts; the first
     // auth-required job will refresh its way to a live access token.
@@ -1835,6 +1929,16 @@ pub async fn run() -> Result<()> {
     daemon.log(&format!(
         "provider: {provider_desc} | keyring: {keyring} | session: {}",
         username.as_deref().unwrap_or("none"),
+    ));
+    let rails = daemon.rails().status();
+    daemon.log(&format!(
+        "rails: tripwire {} | halted: {} | refresh-failed: {} | ceiling: {} | journal: {} | idle exit after {}s",
+        if rails.tripwire_enabled { "ON" } else { "off" },
+        rails.halted.as_deref().unwrap_or("no"),
+        rails.refresh_failed.as_deref().unwrap_or("no"),
+        rails.max_sends.map_or("none".to_string(), |n| n.to_string()),
+        rails.journal.as_deref().unwrap_or("off"),
+        idle_shutdown_from_env().as_secs(),
     ));
 
     tokio::spawn(daemon.clone().dispatcher());
@@ -2829,6 +2933,14 @@ mod dispatcher_tests {
     static TEST_LOG_ID: AtomicU64 = AtomicU64::new(1);
 
     fn test_daemon(base: &str, clock: Arc<dyn Clock>) -> (Arc<Daemon>, PathBuf) {
+        test_daemon_with(Provider::mock(base), clock, Arc::new(Rails::disabled()))
+    }
+
+    fn test_daemon_with(
+        provider: Provider,
+        clock: Arc<dyn Clock>,
+        rails: Arc<Rails>,
+    ) -> (Arc<Daemon>, PathBuf) {
         let log_path = std::env::temp_dir().join(format!(
             "acquisition-n1-dispatcher-{}-{}.log",
             std::process::id(),
@@ -2854,8 +2966,8 @@ mod dispatcher_tests {
             events: broadcast::channel(256).0,
             work: Notify::new(),
             log: Mutex::new(log),
-            choke: ChokePoint::with_clock(clock),
-            provider: Provider::mock(base),
+            choke: ChokePoint::with_clock_and_rails(clock, rails),
+            provider,
             credential_store: Arc::new(OsCredentialStore),
         });
         (daemon, log_path)
@@ -3385,5 +3497,267 @@ mod dispatcher_tests {
             server.await.unwrap();
             finish_harness(dispatcher, &log_path);
         }
+    }
+
+    // ---- L0 live-test rails (LIVE-TESTING.md) ------------------------------
+
+    fn tripwire_rails() -> Arc<Rails> {
+        Arc::new(Rails::with_config(RailsConfig {
+            tripwire: true,
+            ..RailsConfig::default()
+        }))
+    }
+
+    #[tokio::test]
+    async fn tripped_daemon_fails_queued_jobs_without_sending_until_reset() {
+        // HEAD establishes, the first GET lands a 429 (tripping), and after
+        // the reset one more GET succeeds. Nothing else may reach the server.
+        let responses = vec![
+            ScriptedResponse::full("HEAD", "204 No Content", None, ""),
+            ScriptedResponse::full("GET", "429 Too Many Requests", Some(0), "{}"),
+            ScriptedResponse::full("GET", "200 OK", None, r#"{"ok":true}"#),
+        ];
+        let (base, requests, server) = scripted_server(responses).await;
+        let clock = Arc::new(ManualClock::new());
+        let rails = tripwire_rails();
+        let (daemon, log_path) =
+            test_daemon_with(Provider::mock(&base), clock.clone(), rails.clone());
+        let dispatcher = tokio::spawn(daemon.clone().dispatcher());
+
+        let first = daemon.submit("fetch".into(), json!({}), 0, "test".into());
+        let (info, outcome) = wait_terminal(&daemon, first).await;
+        assert_eq!(info.state, JobState::Failed);
+        let Outcome::Failure { error } = outcome else {
+            panic!("tripped job did not fail")
+        };
+        assert!(error.contains("halted by live-test rails"), "{error}");
+        assert!(
+            rails.halted().unwrap().contains("429 on GET /fetch"),
+            "{:?}",
+            rails.halted()
+        );
+        assert_eq!(
+            requests.lock().unwrap().as_slice(),
+            ["HEAD", "GET"],
+            "the 429 tripped before any retry"
+        );
+        assert_eq!(
+            clock.slept(),
+            Duration::ZERO,
+            "a requeued job fails at its next attempt instead of waiting behind the hold"
+        );
+
+        let second = daemon.submit("fetch".into(), json!({}), 0, "test".into());
+        let (info, _) = wait_terminal(&daemon, second).await;
+        assert_eq!(info.state, JobState::Failed);
+        assert_eq!(
+            requests.lock().unwrap().len(),
+            2,
+            "a tripped daemon sends nothing"
+        );
+        let logged = {
+            let s = daemon.shared.lock().unwrap();
+            s.errors
+                .iter()
+                .any(|(_, m)| m.contains("LIVE-TEST RAILS TRIPPED"))
+        };
+        assert!(logged, "the trip is announced once in the error ring");
+
+        rails.reset_tripwire();
+        // The limiter's own hold from the 429 still applies after the reset.
+        let third = daemon.submit("fetch".into(), json!({}), 0, "test".into());
+        let (info, _) = wait_terminal(&daemon, third).await;
+        assert_eq!(info.state, JobState::Done);
+        assert_eq!(requests.lock().unwrap().as_slice(), ["HEAD", "GET", "GET"]);
+        server.await.unwrap();
+        finish_harness(dispatcher, &log_path);
+    }
+
+    #[tokio::test]
+    async fn ceiling_halts_after_n_sends_and_does_not_persist() {
+        let responses = vec![
+            ScriptedResponse::full("HEAD", "204 No Content", None, ""),
+            ScriptedResponse::full("GET", "200 OK", None, r#"{"ok":true}"#),
+        ];
+        let (base, requests, server) = scripted_server(responses).await;
+        let clock = Arc::new(ManualClock::new());
+        let rails = Arc::new(Rails::with_config(RailsConfig {
+            max_sends: Some(2),
+            ..RailsConfig::default()
+        }));
+        let (daemon, log_path) = test_daemon_with(Provider::mock(&base), clock, rails.clone());
+        let dispatcher = tokio::spawn(daemon.clone().dispatcher());
+
+        let first = daemon.submit("fetch".into(), json!({}), 0, "test".into());
+        let (info, _) = wait_terminal(&daemon, first).await;
+        assert_eq!(
+            info.state,
+            JobState::Done,
+            "HEAD + GET reach the ceiling exactly"
+        );
+        assert!(rails.halted().unwrap().contains("ceiling: 2 of 2"));
+
+        let second = daemon.submit("fetch".into(), json!({}), 0, "test".into());
+        let (info, outcome) = wait_terminal(&daemon, second).await;
+        assert_eq!(info.state, JobState::Failed);
+        let Outcome::Failure { error } = outcome else {
+            panic!("ceiling job did not fail")
+        };
+        assert!(error.contains("ceiling"), "{error}");
+        assert_eq!(requests.lock().unwrap().len(), 2);
+        assert_eq!(rails.status().sends, 2);
+        server.await.unwrap();
+        finish_harness(dispatcher, &log_path);
+    }
+
+    async fn token_server_answering(
+        statuses: Vec<&'static str>,
+    ) -> (String, Arc<Mutex<Vec<String>>>, tokio::task::JoinHandle<()>) {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let base = format!("http://{}", listener.local_addr().unwrap());
+        let requests = Arc::new(Mutex::new(Vec::new()));
+        let captured = requests.clone();
+        let task = tokio::spawn(async move {
+            for status in statuses {
+                let (mut stream, _) = listener.accept().await.unwrap();
+                let request = mockggg::read_request(&mut stream).await.unwrap();
+                assert_eq!(request.path, "/token");
+                captured.lock().unwrap().push(request.body.clone());
+                let headers = concat!(
+                    "X-Rate-Limit-Policy: token-request-limit\r\n",
+                    "X-Rate-Limit-Rules: Ip\r\n",
+                    "X-Rate-Limit-Ip: 60:30:30\r\n",
+                    "X-Rate-Limit-Ip-State: 1:30:0\r\n",
+                );
+                let body = if status.starts_with("200") {
+                    json!({
+                        "access_token": "at-new",
+                        "refresh_token": "rt-rotated",
+                        "expires_in": 3600,
+                        "username": "test-user",
+                    })
+                    .to_string()
+                } else {
+                    r#"{"error":"invalid_grant"}"#.to_string()
+                };
+                mockggg::respond_with(&mut stream, status, "application/json", headers, &body)
+                    .await;
+            }
+        });
+        (base, requests, task)
+    }
+
+    /// Session in memory and the OS keyring swapped out: these tests must
+    /// never touch the real keychain (slow, and may prompt).
+    fn logged_in(daemon: &mut Arc<Daemon>) {
+        Arc::get_mut(daemon).unwrap().credential_store =
+            Arc::new(RecordingCredentialStore::default());
+        let mut s = daemon.shared.lock().unwrap();
+        s.auth.refresh_token = Some("rt-old".into());
+        s.auth.username = Some("test-user".into());
+        s.auth.keyring = "ok".into();
+    }
+
+    #[tokio::test]
+    async fn rejected_refresh_grant_disables_further_refreshes_until_login_or_logout() {
+        let (base, requests, server) = token_server_answering(vec!["400 Bad Request"]).await;
+        let clock = Arc::new(ManualClock::new());
+        let rails = tripwire_rails();
+        let (mut daemon, log_path) = test_daemon_with(Provider::mock(&base), clock, rails.clone());
+        logged_in(&mut daemon);
+
+        let first = daemon.valid_access_token(false).await.unwrap_err();
+        assert!(first.contains("400 Bad Request"), "{first}");
+        assert_eq!(requests.lock().unwrap().len(), 1);
+        assert!(rails.refresh_failed().unwrap().contains("400 Bad Request"));
+
+        let second = daemon.valid_access_token(false).await.unwrap_err();
+        assert!(second.contains("disabled by live-test rails"), "{second}");
+        assert_eq!(
+            requests.lock().unwrap().len(),
+            1,
+            "the dead token is not re-sent"
+        );
+        {
+            let s = daemon.shared.lock().unwrap();
+            assert_eq!(
+                s.auth.refresh_token.as_deref(),
+                Some("rt-old"),
+                "nothing is deleted"
+            );
+            assert!(s.auth.refresh_flight.is_none());
+        }
+
+        daemon.logout().unwrap_or(());
+        assert_eq!(rails.refresh_failed(), None, "logout clears the mark");
+        server.await.unwrap();
+        let _ = std::fs::remove_file(&log_path);
+    }
+
+    #[tokio::test]
+    async fn transient_refresh_failures_do_not_mark_the_session() {
+        let (base, requests, server) =
+            token_server_answering(vec!["503 Service Unavailable", "200 OK"]).await;
+        let clock = Arc::new(ManualClock::new());
+        let rails = tripwire_rails();
+        let (mut daemon, log_path) = test_daemon_with(Provider::mock(&base), clock, rails.clone());
+        logged_in(&mut daemon);
+
+        let first = daemon.valid_access_token(false).await.unwrap_err();
+        assert!(first.contains("503"), "{first}");
+        assert_eq!(rails.refresh_failed(), None, "5xx is not a rejected grant");
+        // The tripwire did trip on the 503 (Cloudflare shape); clear it so
+        // the retry can show the refresh path itself is untouched.
+        assert!(rails.halted().unwrap().contains("503"));
+        rails.reset_tripwire();
+
+        let (token, user) = daemon.valid_access_token(false).await.unwrap();
+        assert_eq!((token.as_str(), user.as_str()), ("at-new", "test-user"));
+        assert_eq!(requests.lock().unwrap().len(), 2);
+        server.await.unwrap();
+        let _ = std::fs::remove_file(&log_path);
+    }
+
+    #[tokio::test]
+    async fn halted_daemon_refuses_refresh_before_any_send() {
+        let (base, requests, server) = token_server_answering(vec![]).await;
+        let clock = Arc::new(ManualClock::new());
+        let rails = tripwire_rails();
+        rails.record(&crate::rails::SendReport {
+            method: "GET",
+            route: "character-list",
+            url_path: "/character",
+            status: Some(429),
+            error: None,
+            ok: false,
+            counted: true,
+            rate: &Value::Null,
+        });
+        let (mut daemon, log_path) = test_daemon_with(Provider::mock(&base), clock, rails);
+        logged_in(&mut daemon);
+        let error = daemon.valid_access_token(false).await.unwrap_err();
+        assert!(error.contains("halted by live-test rails"), "{error}");
+        assert!(requests.lock().unwrap().is_empty());
+        server.abort();
+        let _ = std::fs::remove_file(&log_path);
+    }
+
+    #[tokio::test]
+    async fn profile_is_refused_in_real_mode_without_a_token_request() {
+        // Real provider, but no session: even if the refusal were missing
+        // the job could not send. The assertion is on the refusal message.
+        let clock = Arc::new(ManualClock::new());
+        let (daemon, log_path) =
+            test_daemon_with(Provider::ggg(), clock, Arc::new(Rails::disabled()));
+        let outcome = daemon
+            .execute_inner(1, "profile", json!({}), None)
+            .await
+            .unwrap();
+        let Outcome::Failure { error } = outcome else {
+            panic!("profile ran in real mode")
+        };
+        assert!(error.contains("mock-only"), "{error}");
+        assert!(daemon.choke.recent_sends().is_empty());
+        let _ = std::fs::remove_file(&log_path);
     }
 }

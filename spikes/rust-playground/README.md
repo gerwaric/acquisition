@@ -110,6 +110,26 @@ Its log is next to the socket (`acq daemon status` prints both paths).
 it short (Unix socket paths cap out around 104 bytes). `ACQ_NO_KEYRING=1`
 degrades sessions to in-memory only (never plaintext on disk). Mock access
 tokens live 60 seconds, so silent refresh is exercised constantly.
+`ACQ_IDLE_SHUTDOWN=<secs>` overrides the idle exit.
+
+Live-test rails (`LIVE-TESTING.md`), read by the daemon at start — set them
+on the command that spawns it, or `acq daemon stop` first:
+
+- `ACQ_TRIPWIRE=1` — the first landed 429 (any route, HEAD and token
+  included) or any 403/503 halts every later send until
+  `acq daemon reset-tripwire`; persisted per provider across restarts. With
+  it, a refresh token the provider rejects (4xx other than 429) is never
+  re-sent until `acq auth` or logout. Off by default; never on in mock mode
+  by accident.
+- `ACQ_MAX_SENDS=<n>` — halt after `n` real sends this daemon lifetime
+  (not persisted).
+- `ACQ_JOURNAL=<path>` — one JSON line per actual send (method, route,
+  status, every `X-Rate-Limit-*` header; never a token or body), flushed
+  per line; defaults to `<socket>.sends.jsonl`, `0` disables.
+- The HTTP client has a 10 s connect and 60 s request timeout; a send lost
+  in transport is paced as if the server counted it.
+
+`acq daemon status` prints the rails state; `acq dash` shows a halt in red.
 
 ## Known gaps
 

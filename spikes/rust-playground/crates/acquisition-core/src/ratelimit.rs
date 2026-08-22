@@ -30,6 +30,7 @@ use std::time::{Duration, Instant};
 use serde::{Deserialize, Serialize};
 
 use crate::gate::{SendGate, SendPermit};
+use crate::rails::{Rails, SendReport};
 
 /// Server-side timing bucket for a rule's first (initial) window (N12).
 pub const INITIAL_BUCKET: Duration = Duration::from_secs(5);
@@ -797,6 +798,30 @@ impl Limiter {
         self.violations
     }
 
+    /// A counted send whose response never arrived: assume the server
+    /// counted it (the safe direction) by appending one history hit under
+    /// the endpoint's established policy. No-op without a policy.
+    ///
+    /// Pacing reads the last reported window state (invariant 2: local state
+    /// is a prediction, headers correct it), so the prediction is advanced
+    /// here: one more hit in every window of every rule, and one history
+    /// point, as of `now`. The next landed response replaces it.
+    pub fn note_lost_send(&mut self, endpoint: &str, now: Instant) {
+        let established = match self.endpoints.get(endpoint) {
+            Some(EndpointState::Policy(name)) => name.clone(),
+            _ => return,
+        };
+        if let Some(state) = self.policies.get_mut(&established) {
+            push_history(&mut state.history, now);
+            for rule in &mut state.policy.rules {
+                for window in &mut rule.state {
+                    window.hits = window.hits.saturating_add(1);
+                }
+            }
+            state.last_response = now;
+        }
+    }
+
     fn policy_for(&self, endpoint: &str) -> Option<&PolicyState> {
         match self.endpoints.get(endpoint)? {
             EndpointState::Policy(name) => self.policies.get(name),
@@ -1067,6 +1092,9 @@ pub struct SendRecord {
 pub enum SendError {
     Transport(String),
     Protocol(PolicyObservationError),
+    /// Refused before any permit by the live-test rails (tripwire or
+    /// ceiling); nothing was sent.
+    Halted(String),
 }
 
 /// A landed exchange after its body transfer has resolved. Non-2xx statuses
@@ -1084,6 +1112,7 @@ impl fmt::Display for SendError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             SendError::Transport(error) => write!(f, "{error}"),
+            SendError::Halted(cause) => write!(f, "{cause}"),
             SendError::Protocol(error) => {
                 write!(f, "rate-limit protocol failure: {error}")
             }
@@ -1176,6 +1205,24 @@ pub struct ChokePoint {
     gate: SendGate,
     sends: Mutex<VecDeque<SentAt>>,
     clock: Arc<dyn Clock>,
+    rails: Arc<Rails>,
+}
+
+/// Connect and whole-request (headers + body) timeouts on the one client
+/// (L0 rail 3): a hung send must fail as a transport error instead of
+/// holding its permit and scheduling key forever.
+pub const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
+pub const REQUEST_TIMEOUT: Duration = Duration::from_secs(60);
+
+fn build_client() -> reqwest::Client {
+    // The user-agent goes on the client itself so no request — token
+    // exchange included — can be sent without it (CONTEXT invariant 4).
+    reqwest::Client::builder()
+        .user_agent(crate::provider::USER_AGENT)
+        .connect_timeout(CONNECT_TIMEOUT)
+        .timeout(REQUEST_TIMEOUT)
+        .build()
+        .expect("reqwest client builds")
 }
 
 impl Default for ChokePoint {
@@ -1186,34 +1233,37 @@ impl Default for ChokePoint {
 
 impl ChokePoint {
     /// Same construction in mock and real mode: the limiter starts empty and
-    /// learns policies from responses.
+    /// learns policies from responses. Rails are disabled; the daemon uses
+    /// `with_rails`.
     pub fn new() -> Self {
+        ChokePoint::with_rails(Arc::new(Rails::disabled()))
+    }
+
+    pub fn with_rails(rails: Arc<Rails>) -> Self {
         ChokePoint {
-            // The user-agent goes on the client itself so no request — token
-            // exchange included — can be sent without it (CONTEXT invariant 4).
-            http: reqwest::Client::builder()
-                .user_agent(crate::provider::USER_AGENT)
-                .build()
-                .expect("reqwest client builds"),
+            http: build_client(),
             limiter: Mutex::new(Limiter::new()),
             gate: SendGate::new(),
             sends: Mutex::new(VecDeque::new()),
             clock: Arc::new(SystemClock),
+            rails,
         }
     }
 
     #[cfg(test)]
-    pub(crate) fn with_clock(clock: Arc<dyn Clock>) -> Self {
+    pub(crate) fn with_clock_and_rails(clock: Arc<dyn Clock>, rails: Arc<Rails>) -> Self {
         ChokePoint {
-            http: reqwest::Client::builder()
-                .user_agent(crate::provider::USER_AGENT)
-                .build()
-                .expect("reqwest client builds"),
+            http: build_client(),
             limiter: Mutex::new(Limiter::new()),
             gate: SendGate::new(),
             sends: Mutex::new(VecDeque::new()),
             clock,
+            rails,
         }
+    }
+
+    pub fn rails(&self) -> &Arc<Rails> {
+        &self.rails
     }
 
     pub(crate) fn now(&self) -> Instant {
@@ -1259,7 +1309,12 @@ impl ChokePoint {
     /// permit-free. Rechecking both the route mapping and limiter state after
     /// admission closes races with landed responses, including N33's
     /// `oauth-token` -> `token-request-limit` discovery transition.
-    async fn acquire_send(&self, route: &str) -> SendPermit {
+    async fn acquire_send(&self, route: &str) -> Result<SendPermit, SendError> {
+        // Rails are consulted before any waiting or permit: a halted daemon
+        // neither sleeps toward a send nor occupies gate capacity.
+        if let Some(cause) = self.rails.halted() {
+            return Err(SendError::Halted(cause));
+        }
         loop {
             if let Err(wait) = self.check(route) {
                 self.sleep(wait.max(Duration::from_millis(50))).await;
@@ -1270,7 +1325,7 @@ impl ChokePoint {
             let permit = self.gate.acquire(serial_key.clone()).await;
             let mapping_is_current = self.serial_key(route) == serial_key;
             match (mapping_is_current, self.check(route)) {
-                (true, Ok(())) => return permit,
+                (true, Ok(())) => return Ok(permit),
                 (_, pacing) => {
                     drop(permit);
                     if let Err(wait) = pacing {
@@ -1284,7 +1339,10 @@ impl ChokePoint {
     /// HEAD uses the same permit-free pacing loop, then takes the gate's
     /// exclusive writer reservation. A final check after admission handles a
     /// landed response that installed a hold while the probe was queued.
-    async fn acquire_head(&self, route: &str) -> SendPermit {
+    async fn acquire_head(&self, route: &str) -> Result<SendPermit, SendError> {
+        if let Some(cause) = self.rails.halted() {
+            return Err(SendError::Halted(cause));
+        }
         loop {
             if let Err(wait) = self.check(route) {
                 self.sleep(wait.max(Duration::from_millis(50))).await;
@@ -1293,7 +1351,7 @@ impl ChokePoint {
 
             let permit = self.gate.acquire_head().await;
             match self.check(route) {
-                Ok(()) => return permit,
+                Ok(()) => return Ok(permit),
                 Err(wait) => {
                     drop(permit);
                     self.sleep(wait.max(Duration::from_millis(50))).await;
@@ -1354,7 +1412,10 @@ impl ChokePoint {
         url: &str,
         bearer: Option<&str>,
     ) -> Result<(reqwest::StatusCode, Policy, serde_json::Value), String> {
-        let _permit = self.acquire_head(route).await;
+        let _permit = self
+            .acquire_head(route)
+            .await
+            .map_err(|error| error.to_string())?;
         let mut req = self.http.head(url);
         if let Some(token) = bearer {
             req = req.bearer_auth(token);
@@ -1418,7 +1479,15 @@ impl ChokePoint {
             (Ok((status, Ok(_))), Err(error)) if status.is_success() => Some(error.as_str()),
             _ => None,
         };
-        self.record_completed(route, "HEAD", url, &completed, protocol_failure);
+        self.record_completed(
+            route,
+            "HEAD",
+            url,
+            &completed,
+            protocol_failure,
+            &raw,
+            false,
+        );
         // The limiter decided whether that was good enough; report what it
         // concluded so the probe job's outcome matches the endpoint state.
         match self
@@ -1508,6 +1577,15 @@ impl ChokePoint {
             retry_after_from_headers(response.headers())
         });
         let observation = self.observe(endpoint, &result, &retry_after, counted);
+        if counted && result.is_err() {
+            // L0 rail 3: a request that failed in transport may still have
+            // been counted server-side (a timeout after the server answered
+            // is the obvious case). Pace the next send as if it was.
+            self.limiter
+                .lock()
+                .unwrap()
+                .note_lost_send(endpoint, self.now());
+        }
         let status = result
             .as_ref()
             .ok()
@@ -1537,7 +1615,15 @@ impl ChokePoint {
             ResponseClassification::Protocol(error) => Some(error.to_string()),
             _ => None,
         };
-        self.record_completed(endpoint, method, url, &result, protocol_failure.as_deref());
+        self.record_completed(
+            endpoint,
+            method,
+            url,
+            &result,
+            protocol_failure.as_deref(),
+            &rate,
+            counted,
+        );
         match (classification, result) {
             (ResponseClassification::Success, Ok((status, Ok(body))))
             | (ResponseClassification::RateLimited(_), Ok((status, Ok(body))))
@@ -1569,6 +1655,9 @@ impl ChokePoint {
         }
     }
 
+    /// Every completed exchange — landed or not — passes through here: the
+    /// dashboard ring and the rails (journal, ceiling, tripwire).
+    #[allow(clippy::too_many_arguments)]
     fn record_completed(
         &self,
         endpoint: &str,
@@ -1576,6 +1665,8 @@ impl ChokePoint {
         url: &str,
         result: &Result<(reqwest::StatusCode, Result<String, String>), String>,
         protocol_failure: Option<&str>,
+        rate: &serde_json::Value,
+        counted: bool,
     ) {
         let (outcome, ok) = match (result, protocol_failure) {
             (_, Some(error)) => (format!("protocol failure: {error}"), false),
@@ -1585,6 +1676,18 @@ impl ChokePoint {
             (Ok((status, Ok(_))), None) => (status.to_string(), status.is_success()),
             (Err(error), None) => (format!("error: {error}"), false),
         };
+        let path = url_path(url);
+        let transport_error = result.as_ref().err().map(String::as_str);
+        self.rails.record(&SendReport {
+            method,
+            route: endpoint,
+            url_path: &path,
+            status: result.as_ref().ok().map(|(status, _)| status.as_u16()),
+            error: transport_error.or(protocol_failure),
+            ok,
+            counted,
+            rate,
+        });
         let mut sends = self.sends.lock().unwrap();
         if sends.len() >= SEND_HISTORY {
             sends.pop_front();
@@ -1607,7 +1710,7 @@ impl ChokePoint {
         url: &str,
         params: &[(&str, &str)],
     ) -> Result<CompletedResponse, SendError> {
-        let _permit = self.acquire_send(route).await;
+        let _permit = self.acquire_send(route).await?;
         let result = self
             .http
             .post(url)
@@ -1626,7 +1729,7 @@ impl ChokePoint {
         url: &str,
         bearer: &str,
     ) -> Result<CompletedResponse, SendError> {
-        let _permit = self.acquire_send(route).await;
+        let _permit = self.acquire_send(route).await?;
         let result = self
             .http
             .get(url)
@@ -1639,7 +1742,7 @@ impl ChokePoint {
 
     /// Unauthenticated GET (mock-only fake data endpoints).
     pub async fn get(&self, route: &str, url: &str) -> Result<CompletedResponse, SendError> {
-        let _permit = self.acquire_send(route).await;
+        let _permit = self.acquire_send(route).await?;
         let result = self.http.get(url).send().await.map_err(|e| e.to_string());
         self.finish_send(route, "GET", url, result, true).await
     }
@@ -2965,6 +3068,114 @@ mod tests {
         assert!(!send.ok);
         assert!(send.outcome.contains("body transfer failure"));
         server.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn tripwire_halts_the_next_send_before_any_permit() {
+        use crate::rails::{Rails, RailsConfig};
+        let route = "tripwire-route";
+        let raw = raw_response(
+            "429 Too Many Requests",
+            &full_rate_headers("tripwire-policy", Some(0)),
+            2,
+            "{}",
+        );
+        let (url, server) = serve_one_raw(raw).await;
+        let rails = Arc::new(Rails::with_config(RailsConfig {
+            tripwire: true,
+            ..RailsConfig::default()
+        }));
+        let choke = ChokePoint::with_clock_and_rails(Arc::new(SystemClock), rails.clone());
+
+        let landed = choke.get(route, &url).await.unwrap();
+        assert_eq!(landed.status.as_u16(), 429);
+        server.await.unwrap();
+        assert!(rails.halted().unwrap().contains("429 on GET /test"));
+
+        // No listener behind this URL: a send would fail as a transport
+        // error, so a `Halted` result proves nothing was attempted.
+        let unreachable = "http://127.0.0.1:9/never";
+        let refused = choke.get(route, unreachable).await.err().expect("halted");
+        assert!(matches!(refused, SendError::Halted(_)), "{refused}");
+        let head = choke.head(route, unreachable, None).await.unwrap_err();
+        assert!(head.contains("halted by live-test rails"), "{head}");
+        let post = choke
+            .post_form("oauth-token", unreachable, &[("a", "b")])
+            .await
+            .err()
+            .expect("halted");
+        assert!(matches!(post, SendError::Halted(_)), "{post}");
+        assert_eq!(
+            choke.recent_sends().len(),
+            1,
+            "refused sends are not recorded as sends"
+        );
+    }
+
+    #[tokio::test]
+    async fn transport_failure_on_an_established_policy_paces_as_if_counted() {
+        let route = "lost-send";
+        let choke = ChokePoint::new();
+        // 2 per 10 s with one hit already reported: one more counted send
+        // saturates the window.
+        choke
+            .limiter
+            .lock()
+            .unwrap()
+            .observe(
+                route,
+                parse(&[
+                    ("x-rate-limit-policy", "lost-send-policy"),
+                    ("x-rate-limit-rules", "account"),
+                    ("x-rate-limit-account", "2:10:60"),
+                    ("x-rate-limit-account-state", "1:10:0"),
+                ]),
+                serde_json::Value::Null,
+                false,
+                choke.now(),
+            )
+            .unwrap();
+        assert!(choke.check(route).is_ok());
+
+        let refused = choke
+            .get(route, "http://127.0.0.1:9/lost")
+            .await
+            .err()
+            .expect("transport failure");
+        assert!(matches!(refused, SendError::Transport(_)), "{refused}");
+        let wait = choke.check(route).unwrap_err();
+        assert!(
+            wait > Duration::from_secs(5),
+            "the lost send is assumed counted; window must be saturated, got {wait:?}"
+        );
+
+        // A HEAD that fails in transport is not counted and adds nothing.
+        let head_choke = ChokePoint::new();
+        head_choke
+            .limiter
+            .lock()
+            .unwrap()
+            .observe(
+                route,
+                parse(&[
+                    ("x-rate-limit-policy", "lost-send-policy"),
+                    ("x-rate-limit-rules", "account"),
+                    ("x-rate-limit-account", "2:10:60"),
+                    ("x-rate-limit-account-state", "1:10:0"),
+                ]),
+                serde_json::Value::Null,
+                false,
+                head_choke.now(),
+            )
+            .unwrap();
+        let _ = head_choke
+            .head(route, "http://127.0.0.1:9/lost", None)
+            .await;
+        assert_ne!(
+            head_choke.endpoint_state(route),
+            EndpointState::Policy("lost-send-policy".into()),
+            "a failed HEAD degrades the route as before"
+        );
     }
 
     #[tokio::test]

@@ -128,6 +128,9 @@ enum AuthCmd {
 enum DaemonCmd {
     Status,
     Stop,
+    /// Clear the live-test rails' tripwire/ceiling halt (see LIVE-TESTING.md).
+    /// Observe the post-violation rule before using this.
+    ResetTripwire,
     /// Run the daemon in the foreground (what lazy-spawn execs).
     Run,
 }
@@ -332,6 +335,7 @@ async fn main() -> Result<()> {
                     policies_known,
                     in_flight,
                     max_in_flight,
+                    rails,
                 } = status
                 {
                     println!(
@@ -342,6 +346,37 @@ async fn main() -> Result<()> {
                     );
                     println!("socket: {}", daemon::socket_path().display());
                     println!("log:    {}", daemon::log_path().display());
+                    println!(
+                        "rails:  tripwire {} · sends {}{} · journal {}",
+                        if rails.tripwire_enabled { "ON" } else { "off" },
+                        rails.sends,
+                        rails.max_sends.map_or(String::new(), |m| format!("/{m}")),
+                        rails.journal.as_deref().unwrap_or("off"),
+                    );
+                    if let Some(cause) = &rails.halted {
+                        println!("HALTED: {cause}");
+                        println!(
+                            "        clear with `acq daemon reset-tripwire` after the post-violation wait"
+                        );
+                    }
+                    if let Some(cause) = &rails.refresh_failed {
+                        println!("REFRESH DISABLED: {cause}");
+                        println!("        re-login with `acq auth`");
+                    }
+                }
+                Ok(())
+            }
+            DaemonCmd::ResetTripwire => {
+                match Client::connect(false).await {
+                    Ok(mut client) => {
+                        let resp = client.request(&Request::ResetTripwire).await?;
+                        if cli.json {
+                            println!("{}", serde_json::to_string_pretty(&resp)?);
+                        } else {
+                            println!("rails reset");
+                        }
+                    }
+                    Err(_) => println!("daemon is not running"),
                 }
                 Ok(())
             }

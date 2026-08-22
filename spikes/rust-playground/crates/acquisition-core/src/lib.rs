@@ -13,6 +13,7 @@ pub mod job;
 pub mod mockggg;
 pub mod protocol;
 pub mod provider;
+pub mod rails;
 pub mod ratelimit;
 
 /// Shared version used for the client/daemon handshake. Both binaries link
