@@ -13,7 +13,7 @@ use anyhow::Result;
 use serde_json::{Value, json};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::{TcpListener, UnixListener, UnixStream};
-use tokio::sync::{Notify, broadcast};
+use tokio::sync::{Notify, broadcast, watch};
 
 use std::collections::VecDeque;
 
@@ -85,16 +85,52 @@ struct Entry {
     deferred: Option<Outcome>,
 }
 
+type AccessTokenResult = Result<(String, String), String>;
+
+const SESSION_CHANGED_DURING_REFRESH: &str =
+    "authentication session changed while token refresh was in progress";
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+struct AuthGenerations {
+    session: u64,
+    access_token: u64,
+    refresh_token: u64,
+}
+
+struct RefreshFlight {
+    id: u64,
+    generations: AuthGenerations,
+    result: watch::Sender<Option<AccessTokenResult>>,
+}
+
 #[derive(Default)]
 struct AuthSession {
     access_token: Option<String>,
     access_expires_at: Option<Instant>,
     refresh_token: Option<String>,
     username: Option<String>,
-    /// A login flow is waiting on the browser.
-    pending: bool,
+    /// The session generation of a login flow waiting on the browser.
+    pending: Option<u64>,
     /// "ok" or an error description shown in `auth status`.
     keyring: String,
+    generations: AuthGenerations,
+    refresh_flight: Option<RefreshFlight>,
+    next_refresh_flight: u64,
+}
+
+impl AuthSession {
+    fn advance_session(&mut self) -> u64 {
+        self.generations.session = self.generations.session.wrapping_add(1);
+        self.generations.session
+    }
+
+    fn advance_access_token(&mut self) {
+        self.generations.access_token = self.generations.access_token.wrapping_add(1);
+    }
+
+    fn advance_refresh_token(&mut self) {
+        self.generations.refresh_token = self.generations.refresh_token.wrapping_add(1);
+    }
 }
 
 struct Shared {
@@ -175,6 +211,24 @@ pub struct Daemon {
     /// The in-process mock by default; real GGG only when the daemon was
     /// started with ACQ_GGG=1.
     provider: Provider,
+    credential_store: Arc<dyn CredentialStore>,
+}
+
+trait CredentialStore: Send + Sync {
+    fn save(&self, service: &str, refresh_token: &str, username: &str) -> Result<(), String>;
+    fn clear(&self, service: &str) -> Result<(), String>;
+}
+
+struct OsCredentialStore;
+
+impl CredentialStore for OsCredentialStore {
+    fn save(&self, service: &str, refresh_token: &str, username: &str) -> Result<(), String> {
+        auth::keyring_save(service, refresh_token, username)
+    }
+
+    fn clear(&self, service: &str) -> Result<(), String> {
+        auth::keyring_clear(service)
+    }
 }
 
 impl Daemon {
@@ -1087,7 +1141,7 @@ impl Daemon {
             .append_pair("code_challenge_method", "S256")
             .append_pair("scope", &SCOPES.join(" "));
         let authorize_url = authorize_url.to_string();
-        self.shared.lock().unwrap().auth.pending = true;
+        let flow_generation = self.begin_auth_flow();
         self.log(&format!("auth flow started (callback on port {port})"));
 
         let daemon = self.clone();
@@ -1108,45 +1162,98 @@ impl Daemon {
                     {
                         Ok(tokens) => {
                             let user = tokens.username.clone();
-                            daemon.install_tokens(tokens);
-                            // A probe that failed for lack of a session would
-                            // succeed now; don't make the user sit out the cooldown.
-                            daemon.choke.forget_degraded();
-                            daemon.log(&format!("logged in as {user}"));
+                            if daemon.finish_auth_flow(flow_generation, tokens) {
+                                // A probe that failed for lack of a session would
+                                // succeed now; don't make the user sit out the cooldown.
+                                daemon.choke.forget_degraded();
+                                daemon.log(&format!("logged in as {user}"));
+                            } else {
+                                daemon.log("stale auth flow completion ignored");
+                            }
                         }
-                        Err(e) => daemon.note_error(&format!("token exchange failed: {e}")),
+                        Err(e) => daemon.finish_auth_flow_error(
+                            flow_generation,
+                            &format!("token exchange failed: {e}"),
+                        ),
                     }
                 }
-                Ok(Err(e)) => daemon.note_error(&format!("auth callback failed: {e}")),
-                Err(_) => daemon.note_error("auth flow timed out after 300s"),
+                Ok(Err(e)) => daemon
+                    .finish_auth_flow_error(flow_generation, &format!("auth callback failed: {e}")),
+                Err(_) => {
+                    daemon.finish_auth_flow_error(flow_generation, "auth flow timed out after 300s")
+                }
             }
-            daemon.shared.lock().unwrap().auth.pending = false;
         });
         Ok(authorize_url)
     }
 
+    fn begin_auth_flow(&self) -> u64 {
+        let mut s = self.shared.lock().unwrap();
+        let generation = s.auth.advance_session();
+        s.auth.pending = Some(generation);
+        s.auth.refresh_flight = None;
+        generation
+    }
+
+    fn finish_auth_flow(&self, generation: u64, tokens: auth::TokenResponse) -> bool {
+        let warning = {
+            let mut s = self.shared.lock().unwrap();
+            if s.auth.pending != Some(generation) || s.auth.generations.session != generation {
+                return false;
+            }
+            s.auth.pending = None;
+            self.install_tokens_locked(&mut s.auth, tokens)
+        };
+        if let Some(warning) = warning {
+            self.note_error(&warning);
+        }
+        true
+    }
+
+    fn finish_auth_flow_error(&self, generation: u64, error: &str) {
+        let current = {
+            let mut s = self.shared.lock().unwrap();
+            if s.auth.pending == Some(generation) && s.auth.generations.session == generation {
+                s.auth.pending = None;
+                true
+            } else {
+                false
+            }
+        };
+        if current {
+            self.note_error(error);
+        }
+    }
+
     /// Store fresh tokens in memory and mirror the refresh token (which the
-    /// provider rotates on every grant) into the keyring.
-    fn install_tokens(&self, tokens: auth::TokenResponse) {
-        let keyring = match auth::keyring_save(
+    /// provider rotates on every grant) into the keyring. The caller holds
+    /// the auth-state lock so keyring mutation is ordered with logout and
+    /// re-authentication.
+    fn install_tokens_locked(
+        &self,
+        session: &mut AuthSession,
+        tokens: auth::TokenResponse,
+    ) -> Option<String> {
+        let (keyring, warning) = match self.credential_store.save(
             self.provider.keyring_service,
             &tokens.refresh_token,
             &tokens.username,
         ) {
-            Ok(()) => "ok".to_string(),
+            Ok(()) => ("ok".to_string(), None),
             Err(e) => {
-                self.note_error(&format!(
-                    "keyring save failed: {e} (session is in-memory only)"
-                ));
-                format!("unavailable: {e}")
+                let warning = format!("keyring save failed: {e} (session is in-memory only)");
+                (format!("unavailable: {e}"), Some(warning))
             }
         };
-        let mut s = self.shared.lock().unwrap();
-        s.auth.access_token = Some(tokens.access_token);
-        s.auth.access_expires_at = Some(Instant::now() + Duration::from_secs(tokens.expires_in));
-        s.auth.refresh_token = Some(tokens.refresh_token);
-        s.auth.username = Some(tokens.username);
-        s.auth.keyring = keyring;
+        session.access_token = Some(tokens.access_token);
+        session.access_expires_at = Some(Instant::now() + Duration::from_secs(tokens.expires_in));
+        session.refresh_token = Some(tokens.refresh_token);
+        session.username = Some(tokens.username);
+        session.keyring = keyring;
+        session.advance_access_token();
+        session.advance_refresh_token();
+        session.refresh_flight = None;
+        warning
     }
 
     /// Current access token, refreshing through the provider if it is
@@ -1154,8 +1261,18 @@ impl Daemon {
     /// `force_refresh` skips the cached token so the provider round-trip is
     /// guaranteed — that's what makes `auth check` an actual proof.
     async fn valid_access_token(&self, force_refresh: bool) -> Result<(String, String), String> {
-        let refresh_token = {
-            let s = self.shared.lock().unwrap();
+        enum Decision {
+            Owner {
+                id: u64,
+                generations: AuthGenerations,
+                refresh_token: String,
+                result: watch::Sender<Option<AccessTokenResult>>,
+            },
+            Waiter(watch::Receiver<Option<AccessTokenResult>>),
+        }
+
+        let decision = {
+            let mut s = self.shared.lock().unwrap();
             if !force_refresh
                 && let (Some(token), Some(expires)) =
                     (&s.auth.access_token, s.auth.access_expires_at)
@@ -1163,27 +1280,116 @@ impl Daemon {
             {
                 return Ok((token.clone(), s.auth.username.clone().unwrap_or_default()));
             }
-            match &s.auth.refresh_token {
+            let refresh_token = match &s.auth.refresh_token {
                 Some(rt) => rt.clone(),
                 None => return Err("not logged in — run `acq auth`".into()),
+            };
+            let generations = s.auth.generations;
+            if let Some(flight) = &s.auth.refresh_flight
+                && flight.generations == generations
+            {
+                Decision::Waiter(flight.result.subscribe())
+            } else {
+                let id = s.auth.next_refresh_flight;
+                s.auth.next_refresh_flight = s.auth.next_refresh_flight.wrapping_add(1);
+                let (result, _) = watch::channel(None);
+                s.auth.refresh_flight = Some(RefreshFlight {
+                    id,
+                    generations,
+                    result: result.clone(),
+                });
+                Decision::Owner {
+                    id,
+                    generations,
+                    refresh_token,
+                    result,
+                }
             }
         };
-        // May wait on the token endpoint's limiter; the shared lock is not
-        // held here, so a limited refresh delays only its own caller.
-        let tokens = auth::refresh(&self.choke, &self.provider, &refresh_token)
-            .await
-            .map_err(|e| format!("token refresh failed: {e}"))?;
-        self.log("access token refreshed");
-        let result = (tokens.access_token.clone(), tokens.username.clone());
-        self.install_tokens(tokens);
-        Ok(result)
+        match decision {
+            Decision::Waiter(result) => wait_for_refresh(result).await,
+            Decision::Owner {
+                id,
+                generations,
+                refresh_token,
+                result,
+            } => {
+                // May wait on the token endpoint's limiter; the shared lock is
+                // not held here, so every concurrent caller can join this owner.
+                let refresh = auth::refresh(&self.choke, &self.provider, &refresh_token)
+                    .await
+                    .map_err(|e| format!("token refresh failed: {e}"));
+                self.finish_refresh(id, generations, refresh, result)
+            }
+        }
+    }
+
+    fn finish_refresh(
+        &self,
+        id: u64,
+        generations: AuthGenerations,
+        refresh: Result<auth::TokenResponse, String>,
+        sender: watch::Sender<Option<AccessTokenResult>>,
+    ) -> AccessTokenResult {
+        let mut warning = None;
+        let outcome = {
+            let mut s = self.shared.lock().unwrap();
+            let owns_current_flight = s
+                .auth
+                .refresh_flight
+                .as_ref()
+                .is_some_and(|flight| flight.id == id && flight.generations == generations);
+            if !owns_current_flight || s.auth.generations != generations {
+                Err(SESSION_CHANGED_DURING_REFRESH.into())
+            } else {
+                s.auth.refresh_flight = None;
+                match refresh {
+                    Ok(tokens) => {
+                        let result = (tokens.access_token.clone(), tokens.username.clone());
+                        warning = self.install_tokens_locked(&mut s.auth, tokens);
+                        Ok(result)
+                    }
+                    Err(error) => Err(error),
+                }
+            }
+        };
+        sender.send_replace(Some(outcome.clone()));
+        if outcome.is_ok() {
+            self.log("access token refreshed");
+        }
+        if let Some(warning) = warning {
+            self.note_error(&warning);
+        }
+        outcome
+    }
+
+    fn logout(&self) -> Result<(), String> {
+        let result = {
+            let mut s = self.shared.lock().unwrap();
+            let keyring = std::mem::take(&mut s.auth.keyring);
+            let mut generations = s.auth.generations;
+            generations.session = generations.session.wrapping_add(1);
+            generations.access_token = generations.access_token.wrapping_add(1);
+            generations.refresh_token = generations.refresh_token.wrapping_add(1);
+            let clear = self.credential_store.clear(self.provider.keyring_service);
+            let next_refresh_flight = s.auth.next_refresh_flight;
+            s.auth = AuthSession {
+                keyring,
+                generations,
+                next_refresh_flight,
+                ..AuthSession::default()
+            };
+            clear
+        };
+        self.log("logged out");
+        result
     }
 
     fn auth_status(&self) -> Response {
         let s = self.shared.lock().unwrap();
         Response::Auth {
             logged_in: s.auth.refresh_token.is_some(),
-            pending: s.auth.pending,
+            pending: s.auth.pending.is_some(),
             username: s.auth.username.clone(),
             access_expires_in_seconds: s
                 .auth
@@ -1321,18 +1527,9 @@ impl Daemon {
                 }
             },
             Request::AuthLogout => {
-                {
-                    let mut s = self.shared.lock().unwrap();
-                    let keyring = std::mem::take(&mut s.auth.keyring);
-                    s.auth = AuthSession {
-                        keyring,
-                        ..AuthSession::default()
-                    };
-                }
-                if let Err(e) = auth::keyring_clear(self.provider.keyring_service) {
+                if let Err(e) = self.logout() {
                     self.log(&format!("keyring clear failed: {e}"));
                 }
-                self.log("logged out");
                 Response::Ack
             }
             Request::DaemonStatus => {
@@ -1506,6 +1703,19 @@ async fn recv_event(rx: &mut Option<broadcast::Receiver<JobInfo>>) -> JobInfo {
     }
 }
 
+async fn wait_for_refresh(
+    mut result: watch::Receiver<Option<AccessTokenResult>>,
+) -> AccessTokenResult {
+    loop {
+        if let Some(outcome) = result.borrow().clone() {
+            return outcome;
+        }
+        if result.changed().await.is_err() {
+            return Err("token refresh owner ended without a result".into());
+        }
+    }
+}
+
 async fn write_line(
     write: &mut tokio::net::unix::OwnedWriteHalf,
     response: &Response,
@@ -1572,6 +1782,7 @@ pub async fn run() -> Result<()> {
         log: Mutex::new(log),
         choke,
         provider,
+        credential_store: Arc::new(OsCredentialStore),
     });
 
     daemon.log(&format!(
@@ -1600,6 +1811,309 @@ pub async fn run() -> Result<()> {
     loop {
         let (stream, _addr) = listener.accept().await?;
         tokio::spawn(daemon.clone().handle_conn(stream));
+    }
+}
+
+#[cfg(test)]
+mod auth_session_tests {
+    use super::*;
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use tokio::sync::oneshot;
+
+    #[derive(Default)]
+    struct MemoryCredentialStore {
+        saves: Mutex<Vec<(String, String, String)>>,
+        cleared: AtomicBool,
+    }
+
+    impl CredentialStore for MemoryCredentialStore {
+        fn save(&self, service: &str, refresh_token: &str, username: &str) -> Result<(), String> {
+            self.saves.lock().unwrap().push((
+                service.to_string(),
+                refresh_token.to_string(),
+                username.to_string(),
+            ));
+            Ok(())
+        }
+
+        fn clear(&self, _service: &str) -> Result<(), String> {
+            self.cleared.store(true, Ordering::SeqCst);
+            Ok(())
+        }
+    }
+
+    struct DelayedTokenResponse {
+        base: String,
+        arrived: oneshot::Receiver<()>,
+        release: oneshot::Sender<()>,
+        server: tokio::task::JoinHandle<()>,
+    }
+
+    async fn delayed_token_response(status: &'static str, body: String) -> DelayedTokenResponse {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let base = format!("http://{}", listener.local_addr().unwrap());
+        let (arrived_tx, arrived) = oneshot::channel();
+        let (release, release_rx) = oneshot::channel();
+        let server = tokio::spawn(async move {
+            let (mut stream, _) = listener.accept().await.unwrap();
+            let request = mockggg::read_request(&mut stream).await.unwrap();
+            assert_eq!(request.method, "POST");
+            assert_eq!(request.path, "/token");
+            assert!(request.body.contains("grant_type=refresh_token"));
+            assert!(request.body.contains("refresh_token=rt-old"));
+            arrived_tx.send(()).unwrap();
+            release_rx.await.unwrap();
+            let headers = concat!(
+                "X-Rate-Limit-Policy: token-request-limit\r\n",
+                "X-Rate-Limit-Rules: Ip\r\n",
+                "X-Rate-Limit-Ip: 60:30:30\r\n",
+                "X-Rate-Limit-Ip-State: 1:30:0\r\n",
+            );
+            mockggg::respond_with(&mut stream, status, "application/json", headers, &body).await;
+        });
+        DelayedTokenResponse {
+            base,
+            arrived,
+            release,
+            server,
+        }
+    }
+
+    fn tokens(access_token: &str, refresh_token: &str, username: &str) -> auth::TokenResponse {
+        auth::TokenResponse {
+            access_token: access_token.into(),
+            refresh_token: refresh_token.into(),
+            expires_in: 3600,
+            username: username.into(),
+        }
+    }
+
+    fn token_body(access_token: &str, refresh_token: &str, username: &str) -> String {
+        json!({
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "expires_in": 3600,
+            "username": username,
+        })
+        .to_string()
+    }
+
+    static AUTH_TEST_LOG_ID: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+
+    fn test_daemon(base: &str) -> (Arc<Daemon>, Arc<MemoryCredentialStore>, PathBuf) {
+        let log_path = std::env::temp_dir().join(format!(
+            "acquisition-n2-auth-{}-{}.log",
+            std::process::id(),
+            AUTH_TEST_LOG_ID.fetch_add(1, Ordering::Relaxed)
+        ));
+        let log = std::fs::OpenOptions::new()
+            .create(true)
+            .truncate(true)
+            .write(true)
+            .open(&log_path)
+            .unwrap();
+        let credential_store = Arc::new(MemoryCredentialStore::default());
+        let daemon = Arc::new(Daemon {
+            shared: Mutex::new(Shared {
+                jobs: HashMap::new(),
+                next_id: 1,
+                auth: AuthSession {
+                    access_token: Some("at-expired".into()),
+                    access_expires_at: Some(Instant::now()),
+                    refresh_token: Some("rt-old".into()),
+                    username: Some("old-user".into()),
+                    keyring: "ok".into(),
+                    generations: AuthGenerations {
+                        session: 7,
+                        access_token: 11,
+                        refresh_token: 13,
+                    },
+                    next_refresh_flight: 1,
+                    ..AuthSession::default()
+                },
+                connections: 0,
+                last_activity: Instant::now(),
+                started: Instant::now(),
+                errors: VecDeque::new(),
+                in_flight: HashMap::new(),
+            }),
+            events: broadcast::channel(16).0,
+            work: Notify::new(),
+            log: Mutex::new(log),
+            choke: ChokePoint::new(),
+            provider: Provider::mock(base),
+            credential_store: credential_store.clone(),
+        });
+        (daemon, credential_store, log_path)
+    }
+
+    fn remove_test_log(path: &PathBuf) {
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[tokio::test]
+    async fn concurrent_expiry_has_one_refresh_owner_and_shared_waiter_result() {
+        let delayed = delayed_token_response(
+            "200 OK",
+            token_body("at-rotated", "rt-rotated", "shared-user"),
+        )
+        .await;
+        let (daemon, store, log_path) = test_daemon(&delayed.base);
+
+        let owner_daemon = daemon.clone();
+        let owner = tokio::spawn(async move { owner_daemon.valid_access_token(false).await });
+        delayed.arrived.await.unwrap();
+        let waiter_daemon = daemon.clone();
+        let waiter = tokio::spawn(async move { waiter_daemon.valid_access_token(false).await });
+        tokio::task::yield_now().await;
+        delayed.release.send(()).unwrap();
+
+        let owner_result = owner.await.unwrap().unwrap();
+        let waiter_result = waiter.await.unwrap().unwrap();
+        assert_eq!(owner_result, ("at-rotated".into(), "shared-user".into()));
+        assert_eq!(waiter_result, owner_result);
+        assert_eq!(store.saves.lock().unwrap().len(), 1);
+        delayed.server.await.unwrap();
+        remove_test_log(&log_path);
+    }
+
+    #[tokio::test]
+    async fn successful_refresh_rotation_advances_token_generations_and_persists_new_token() {
+        let delayed = delayed_token_response(
+            "200 OK",
+            token_body("at-rotated", "rt-rotated", "rotated-user"),
+        )
+        .await;
+        let (daemon, store, log_path) = test_daemon(&delayed.base);
+        let before = daemon.shared.lock().unwrap().auth.generations;
+
+        let refresh_daemon = daemon.clone();
+        let refresh = tokio::spawn(async move { refresh_daemon.valid_access_token(false).await });
+        delayed.arrived.await.unwrap();
+        delayed.release.send(()).unwrap();
+        assert_eq!(
+            refresh.await.unwrap().unwrap(),
+            ("at-rotated".into(), "rotated-user".into())
+        );
+
+        {
+            let s = daemon.shared.lock().unwrap();
+            assert_eq!(s.auth.refresh_token.as_deref(), Some("rt-rotated"));
+            assert_eq!(s.auth.access_token.as_deref(), Some("at-rotated"));
+            assert_eq!(s.auth.generations.session, before.session);
+            assert_ne!(s.auth.generations.access_token, before.access_token);
+            assert_ne!(s.auth.generations.refresh_token, before.refresh_token);
+        }
+        assert_eq!(
+            store.saves.lock().unwrap().as_slice(),
+            [(
+                "acquisition-playground".into(),
+                "rt-rotated".into(),
+                "rotated-user".into()
+            )]
+        );
+        delayed.server.await.unwrap();
+        remove_test_log(&log_path);
+    }
+
+    #[tokio::test]
+    async fn refresh_failure_is_shared_and_leaves_token_state_unchanged() {
+        let delayed =
+            delayed_token_response("400 Bad Request", r#"{"error":"invalid_grant"}"#.into()).await;
+        let (daemon, store, log_path) = test_daemon(&delayed.base);
+        let before = daemon.shared.lock().unwrap().auth.generations;
+
+        let owner_daemon = daemon.clone();
+        let owner = tokio::spawn(async move { owner_daemon.valid_access_token(false).await });
+        delayed.arrived.await.unwrap();
+        let waiter_daemon = daemon.clone();
+        let waiter = tokio::spawn(async move { waiter_daemon.valid_access_token(false).await });
+        tokio::task::yield_now().await;
+        delayed.release.send(()).unwrap();
+
+        let owner_error = owner.await.unwrap().unwrap_err();
+        let waiter_error = waiter.await.unwrap().unwrap_err();
+        assert_eq!(waiter_error, owner_error);
+        assert!(owner_error.contains("400 Bad Request"));
+        {
+            let s = daemon.shared.lock().unwrap();
+            assert_eq!(s.auth.generations, before);
+            assert_eq!(s.auth.refresh_token.as_deref(), Some("rt-old"));
+            assert_eq!(s.auth.access_token.as_deref(), Some("at-expired"));
+            assert!(s.auth.refresh_flight.is_none());
+        }
+        assert!(store.saves.lock().unwrap().is_empty());
+        delayed.server.await.unwrap();
+        remove_test_log(&log_path);
+    }
+
+    #[tokio::test]
+    async fn logout_during_refresh_rejects_stale_completion_in_memory_and_keyring() {
+        let delayed =
+            delayed_token_response("200 OK", token_body("at-stale", "rt-stale", "stale-user"))
+                .await;
+        let (daemon, store, log_path) = test_daemon(&delayed.base);
+
+        let refresh_daemon = daemon.clone();
+        let refresh = tokio::spawn(async move { refresh_daemon.valid_access_token(false).await });
+        delayed.arrived.await.unwrap();
+        daemon.logout().unwrap();
+        delayed.release.send(()).unwrap();
+
+        assert_eq!(
+            refresh.await.unwrap().unwrap_err(),
+            SESSION_CHANGED_DURING_REFRESH
+        );
+        {
+            let s = daemon.shared.lock().unwrap();
+            assert!(s.auth.access_token.is_none());
+            assert!(s.auth.refresh_token.is_none());
+            assert!(s.auth.username.is_none());
+        }
+        assert!(store.cleared.load(Ordering::SeqCst));
+        assert!(store.saves.lock().unwrap().is_empty());
+        delayed.server.await.unwrap();
+        remove_test_log(&log_path);
+    }
+
+    #[tokio::test]
+    async fn reauthentication_during_refresh_keeps_new_session_and_rejects_old_completion() {
+        let delayed =
+            delayed_token_response("200 OK", token_body("at-stale", "rt-stale", "stale-user"))
+                .await;
+        let (daemon, store, log_path) = test_daemon(&delayed.base);
+
+        let refresh_daemon = daemon.clone();
+        let refresh = tokio::spawn(async move { refresh_daemon.valid_access_token(false).await });
+        delayed.arrived.await.unwrap();
+        let flow_generation = daemon.begin_auth_flow();
+        assert!(daemon.finish_auth_flow(
+            flow_generation,
+            tokens("at-reauth", "rt-reauth", "reauth-user")
+        ));
+        delayed.release.send(()).unwrap();
+
+        assert_eq!(
+            refresh.await.unwrap().unwrap_err(),
+            SESSION_CHANGED_DURING_REFRESH
+        );
+        {
+            let s = daemon.shared.lock().unwrap();
+            assert_eq!(s.auth.access_token.as_deref(), Some("at-reauth"));
+            assert_eq!(s.auth.refresh_token.as_deref(), Some("rt-reauth"));
+            assert_eq!(s.auth.username.as_deref(), Some("reauth-user"));
+            assert_eq!(s.auth.generations.session, flow_generation);
+        }
+        assert_eq!(
+            store.saves.lock().unwrap().as_slice(),
+            [(
+                "acquisition-playground".into(),
+                "rt-reauth".into(),
+                "reauth-user".into()
+            )]
+        );
+        delayed.server.await.unwrap();
+        remove_test_log(&log_path);
     }
 }
 
@@ -1843,6 +2357,7 @@ mod dispatcher_tests {
             log: Mutex::new(log),
             choke: ChokePoint::with_clock(clock),
             provider: Provider::mock(base),
+            credential_store: Arc::new(OsCredentialStore),
         });
         (daemon, log_path)
     }
