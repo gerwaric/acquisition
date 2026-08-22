@@ -201,6 +201,7 @@ pub async fn start() -> Result<String> {
         ("/stash", MockPolicy::new("stash-list-request-limit", &[(10, 15, 60), (30, 60, 300)])),
         ("/stash/tab", MockPolicy::new("stash-request-limit", &[(15, 10, 60), (30, 300, 300)])),
         ("/fetch", MockPolicy::new("mock-fetch-request-limit", &[(5, 10, 60), (30, 300, 300)])),
+        ("/token", MockPolicy::new("token-request-limit", &[(60, 30, 30)])),
     ])));
     tokio::spawn(async move {
         loop {
@@ -329,14 +330,41 @@ async fn handle(
             respond_with(&mut stream, "200 OK", "application/json", &extra, &body.to_string()).await;
         }
         ("POST", "/token") => {
+            let (ok, extra) = policies
+                .lock()
+                .unwrap()
+                .get_mut("/token")
+                .expect("token policy")
+                .request(true, Instant::now());
+            if !ok {
+                respond_with(
+                    &mut stream,
+                    "429 Too Many Requests",
+                    "application/json",
+                    &extra,
+                    &json!({ "error": "rate limited" }).to_string(),
+                )
+                .await;
+                return;
+            }
             let form: HashMap<String, String> =
                 url::form_urlencoded::parse(req.body.as_bytes()).into_owned().collect();
             let reply = token_reply(&form, &codes);
             match reply {
-                Ok(body) => respond(&mut stream, "200 OK", "application/json", &body).await,
+                Ok(body) => {
+                    respond_with(&mut stream, "200 OK", "application/json", &extra, &body)
+                        .await;
+                }
                 Err(msg) => {
                     let body = json!({ "error": msg }).to_string();
-                    respond(&mut stream, "400 Bad Request", "application/json", &body).await;
+                    respond_with(
+                        &mut stream,
+                        "400 Bad Request",
+                        "application/json",
+                        &extra,
+                        &body,
+                    )
+                    .await;
                 }
             }
         }

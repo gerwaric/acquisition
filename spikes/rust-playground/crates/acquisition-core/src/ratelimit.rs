@@ -22,6 +22,7 @@
 //! which also keeps probes strictly serialized (N18).
 
 use std::collections::{HashMap, VecDeque};
+use std::fmt;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
@@ -79,49 +80,243 @@ pub struct Policy {
 }
 
 impl Policy {
-    /// Parse from any header lookup (case-insensitive names expected from
-    /// the caller). `None` when the response carries no policy at all.
-    /// Never panics on partial header sets (N20's lesson): a missing or
-    /// malformed rule header yields an empty rule, which imposes no wait.
-    pub fn parse(get: impl Fn(&str) -> Option<String>) -> Option<Policy> {
-        let name = get("x-rate-limit-policy")?;
-        let rules = get("x-rate-limit-rules")
-            .unwrap_or_default()
-            .split(',')
-            .map(str::trim)
-            .filter(|r| !r.is_empty())
-            .map(|rule| {
-                let key = rule.to_ascii_lowercase();
-                let limits = get(&format!("x-rate-limit-{key}"))
-                    .map(|v| triplets(&v))
-                    .unwrap_or_default()
-                    .into_iter()
-                    .map(|(a, b, c)| Window { max_hits: a as u32, period_secs: b, restriction_secs: c })
-                    .collect();
-                let state = get(&format!("x-rate-limit-{key}-state"))
-                    .map(|v| triplets(&v))
-                    .unwrap_or_default()
-                    .into_iter()
-                    .map(|(a, b, c)| WindowState { hits: a as u32, period_secs: b, restricted_secs: c })
-                    .collect();
-                Rule { name: rule.to_string(), limits, state }
+    /// Parse one Full N5 header set. Every malformed or partial input is a
+    /// value-level error: callers never receive a policy that can only pace
+    /// part of the server's counter shape (D8/N20).
+    pub fn parse(get: impl Fn(&str) -> Option<String>) -> Result<Policy, PolicyParseError> {
+        let name = required(&get, "x-rate-limit-policy")?;
+        if name.trim().is_empty() {
+            return Err(PolicyParseError::EmptyPolicyName);
+        }
+        let names = required(&get, "x-rate-limit-rules")?;
+        if names.trim().is_empty() {
+            return Err(PolicyParseError::EmptyRules);
+        }
+        let mut rules = Vec::new();
+        for raw_rule in names.split(',') {
+            let rule = raw_rule.trim();
+            if rule.is_empty() {
+                return Err(PolicyParseError::EmptyRuleName);
+            }
+            let key = rule.to_ascii_lowercase();
+            let limit_header = format!("x-rate-limit-{key}");
+            let state_header = format!("x-rate-limit-{key}-state");
+            let limits = parse_limits(&limit_header, &required(&get, &limit_header)?)?;
+            let state = parse_state(&state_header, &required(&get, &state_header)?)?;
+            if limits.len() != state.len() {
+                return Err(PolicyParseError::WindowCountMismatch {
+                    rule: rule.to_string(),
+                    limits: limits.len(),
+                    state: state.len(),
+                });
+            }
+            for (index, (limit, status)) in limits.iter().zip(&state).enumerate() {
+                if limit.period_secs != status.period_secs {
+                    return Err(PolicyParseError::PeriodMismatch {
+                        rule: rule.to_string(),
+                        index,
+                        limit: limit.period_secs,
+                        state: status.period_secs,
+                    });
+                }
+            }
+            rules.push(Rule {
+                name: rule.to_string(),
+                limits,
+                state,
+            });
+        }
+        if rules.is_empty() {
+            return Err(PolicyParseError::EmptyRules);
+        }
+        let retry_after_secs = get("retry-after")
+            .map(|raw| {
+                parse_integer(raw.trim()).ok_or(PolicyParseError::InvalidRetryAfter {
+                    raw,
+                })
             })
-            .collect();
-        let retry_after_secs = get("retry-after").and_then(|v| v.trim().parse().ok());
-        Some(Policy { name, rules, retry_after_secs })
+            .transpose()?;
+        Ok(Policy {
+            name: name.trim().to_string(),
+            rules,
+            retry_after_secs,
+        })
     }
 
-    pub fn from_headers(headers: &reqwest::header::HeaderMap) -> Option<Policy> {
+    pub fn from_headers(headers: &reqwest::header::HeaderMap) -> Result<Policy, PolicyParseError> {
         Policy::parse(|name| headers.get(name).and_then(|v| v.to_str().ok()).map(str::to_string))
+    }
+
+    /// Ordered rule names and ordered window periods identify which counter
+    /// set a policy's local history describes (F65). Limit values may change
+    /// dynamically within that shape without invalidating the history.
+    fn has_same_shape(&self, other: &Policy) -> bool {
+        self.rules.len() == other.rules.len()
+            && self.rules.iter().zip(&other.rules).all(|(left, right)| {
+                left.name == right.name
+                    && left
+                        .limits
+                        .iter()
+                        .map(|w| w.period_secs)
+                        .eq(right.limits.iter().map(|w| w.period_secs))
+            })
     }
 }
 
-/// "a:b:c,d:e:f" → [(a,b,c),(d,e,f)]; malformed triplets are skipped.
-fn triplets(s: &str) -> Vec<(u64, u64, u64)> {
-    s.split(',')
-        .filter_map(|t| {
-            let mut it = t.trim().split(':').map(|n| n.trim().parse::<u64>().ok());
-            Some((it.next()??, it.next()??, it.next()??))
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PolicyParseError {
+    MissingHeader {
+        name: String,
+    },
+    EmptyPolicyName,
+    EmptyRules,
+    EmptyRuleName,
+    MalformedTriplet {
+        header: String,
+        raw: String,
+    },
+    OutOfRangeTriplet {
+        header: String,
+        raw: String,
+    },
+    WindowCountMismatch {
+        rule: String,
+        limits: usize,
+        state: usize,
+    },
+    PeriodMismatch {
+        rule: String,
+        index: usize,
+        limit: u64,
+        state: u64,
+    },
+    InvalidRetryAfter {
+        raw: String,
+    },
+}
+
+impl fmt::Display for PolicyParseError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            PolicyParseError::MissingHeader { name } => write!(f, "missing {name}"),
+            PolicyParseError::EmptyPolicyName => write!(f, "empty X-Rate-Limit-Policy"),
+            PolicyParseError::EmptyRules => write!(f, "empty X-Rate-Limit-Rules"),
+            PolicyParseError::EmptyRuleName => write!(f, "empty rule name"),
+            PolicyParseError::MalformedTriplet { header, raw } => {
+                write!(f, "malformed {header} triplet '{raw}'")
+            }
+            PolicyParseError::OutOfRangeTriplet { header, raw } => {
+                write!(f, "out-of-range {header} triplet '{raw}'")
+            }
+            PolicyParseError::WindowCountMismatch {
+                rule,
+                limits,
+                state,
+            } => write!(
+                f,
+                "rule '{rule}' has {limits} limit windows but {state} state windows"
+            ),
+            PolicyParseError::PeriodMismatch {
+                rule,
+                index,
+                limit,
+                state,
+            } => write!(
+                f,
+                "rule '{rule}' window {index} has limit period {limit} but state period {state}"
+            ),
+            PolicyParseError::InvalidRetryAfter { raw } => {
+                write!(f, "invalid Retry-After '{raw}'")
+            }
+        }
+    }
+}
+
+impl std::error::Error for PolicyParseError {}
+
+fn required(
+    get: &impl Fn(&str) -> Option<String>,
+    name: &str,
+) -> Result<String, PolicyParseError> {
+    get(name).ok_or_else(|| PolicyParseError::MissingHeader {
+        name: name.to_string(),
+    })
+}
+
+fn parse_integer(raw: &str) -> Option<u64> {
+    if raw.is_empty() || !raw.bytes().all(|byte| byte.is_ascii_digit()) {
+        return None;
+    }
+    raw.parse().ok()
+}
+
+fn parse_triplet(header: &str, raw: &str) -> Result<[u64; 3], PolicyParseError> {
+    let mut fields = raw.trim().split(':');
+    let parsed = [fields.next(), fields.next(), fields.next()];
+    if fields.next().is_some() || parsed.iter().any(Option::is_none) {
+        return Err(PolicyParseError::MalformedTriplet {
+            header: header.to_string(),
+            raw: raw.to_string(),
+        });
+    }
+    let parsed = parsed.map(|field| field.and_then(|value| parse_integer(value.trim())));
+    let [Some(first), Some(second), Some(third)] = parsed else {
+        return Err(PolicyParseError::MalformedTriplet {
+            header: header.to_string(),
+            raw: raw.to_string(),
+        });
+    };
+    Ok([first, second, third])
+}
+
+fn parse_limits(header: &str, raw: &str) -> Result<Vec<Window>, PolicyParseError> {
+    raw.split(',')
+        .map(|triplet| {
+            let [max_hits, period_secs, restriction_secs] =
+                parse_triplet(header, triplet)?;
+            let max_hits = u32::try_from(max_hits).map_err(|_| {
+                PolicyParseError::OutOfRangeTriplet {
+                    header: header.to_string(),
+                    raw: triplet.to_string(),
+                }
+            })?;
+            if max_hits == 0 || period_secs == 0 {
+                return Err(PolicyParseError::OutOfRangeTriplet {
+                    header: header.to_string(),
+                    raw: triplet.to_string(),
+                });
+            }
+            Ok(Window {
+                max_hits,
+                period_secs,
+                restriction_secs,
+            })
+        })
+        .collect()
+}
+
+fn parse_state(header: &str, raw: &str) -> Result<Vec<WindowState>, PolicyParseError> {
+    raw.split(',')
+        .map(|triplet| {
+            let [hits, period_secs, restricted_secs] =
+                parse_triplet(header, triplet)?;
+            let hits = u32::try_from(hits).map_err(|_| {
+                PolicyParseError::OutOfRangeTriplet {
+                    header: header.to_string(),
+                    raw: triplet.to_string(),
+                }
+            })?;
+            if period_secs == 0 {
+                return Err(PolicyParseError::OutOfRangeTriplet {
+                    header: header.to_string(),
+                    raw: triplet.to_string(),
+                });
+            }
+            Ok(WindowState {
+                hits,
+                period_secs,
+                restricted_secs,
+            })
         })
         .collect()
 }
@@ -140,7 +335,8 @@ pub enum EndpointState {
     Unknown,
     /// Governed by the named policy.
     Policy(String),
-    /// Answers without any rate-limit headers (the OAuth token endpoint).
+    /// Legacy dashboard state from before N33 established that the OAuth
+    /// token endpoint has a policy. Strict observation never creates it.
     Policyless,
     /// The probe failed or came back without a policy (N20); closed until
     /// `until`, then probed again.
@@ -166,6 +362,32 @@ struct PolicyState {
     /// The raw headers, for the dashboard.
     raw: serde_json::Value,
 }
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PolicyObservationError {
+    Parse(PolicyParseError),
+    PolicyMismatch {
+        established: String,
+        observed: String,
+    },
+}
+
+impl fmt::Display for PolicyObservationError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            PolicyObservationError::Parse(error) => write!(f, "{error}"),
+            PolicyObservationError::PolicyMismatch {
+                established,
+                observed,
+            } => write!(
+                f,
+                "endpoint is established under policy '{established}' but response reported '{observed}'"
+            ),
+        }
+    }
+}
+
+impl std::error::Error for PolicyObservationError {}
 
 #[derive(Default)]
 pub struct Limiter {
@@ -225,29 +447,21 @@ impl Limiter {
         }
     }
 
-    /// Record a probe's outcome: `Ok(Some(policy))` teaches the policy
-    /// without counting a hit (N24); `Ok(None)` (2xx but no policy header —
-    /// the N20 regression shape) and `Err` both close the endpoint for
-    /// `PROBE_COOLDOWN`.
+    /// Record a probe's outcome: a Full policy teaches the policy without
+    /// counting a hit (N24); every partial/malformed set and transport/HTTP
+    /// failure closes the endpoint for `PROBE_COOLDOWN` (N20/D8).
     pub fn observe_probe(
         &mut self,
         endpoint: &str,
-        outcome: Result<Option<Policy>, String>,
+        outcome: Result<Policy, String>,
         raw: serde_json::Value,
         now: Instant,
     ) {
         let reason = match outcome {
-            Ok(Some(policy)) if policy.rules.iter().any(|r| !r.limits.is_empty()) => {
-                self.observe(endpoint, Some(policy), raw, false, now);
-                return;
-            }
-            // The Dec-2023 regression: policy name present, everything else
-            // missing (N20). Unpaced would be the worst possible reading.
-            Ok(Some(policy)) => format!(
-                "probe returned policy '{}' with no rule definitions (N20 shape)",
-                policy.name
-            ),
-            Ok(None) => "probe answered without X-Rate-Limit-Policy (N20 shape)".to_string(),
+            Ok(policy) => match self.observe(endpoint, Ok(policy), raw, false, now) {
+                Ok(()) => return,
+                Err(error) => format!("probe observation failed: {error}"),
+            },
             Err(e) => format!("probe failed: {e}"),
         };
         self.endpoints.insert(
@@ -268,38 +482,60 @@ impl Limiter {
     pub fn observe(
         &mut self,
         endpoint: &str,
-        policy: Option<Policy>,
+        observation: Result<Policy, PolicyParseError>,
         raw: serde_json::Value,
         counted: bool,
         now: Instant,
-    ) {
-        let Some(policy) = policy else {
-            // No headers at all. Only an endpoint we know nothing about
-            // becomes policyless; a known policy is never erased by one
-            // header-less reply (an error page, say).
-            self.endpoints
-                .entry(endpoint.to_string())
-                .or_insert(EndpointState::Policyless);
-            return;
+    ) -> Result<(), PolicyObservationError> {
+        let established = match self.endpoints.get(endpoint) {
+            Some(EndpointState::Policy(name)) => Some(name.clone()),
+            _ => None,
         };
+
+        // The exchange was counted even when its headers are malformed or
+        // name a different policy. Attribute that fact to the policy under
+        // which the request was admitted, before attempting reconciliation
+        // (N25/D8).
+        if counted
+            && let Some(state) = established
+                .as_ref()
+                .and_then(|name| self.policies.get_mut(name))
+        {
+            push_history(&mut state.history, now);
+        }
+
+        let policy = observation.map_err(PolicyObservationError::Parse)?;
+        if let Some(name) = &established
+            && *name != policy.name
+        {
+            return Err(PolicyObservationError::PolicyMismatch {
+                established: name.clone(),
+                observed: policy.name,
+            });
+        }
+
+        let policy_name = policy.name.clone();
         self.endpoints
-            .insert(endpoint.to_string(), EndpointState::Policy(policy.name.clone()));
-        let state = self.policies.entry(policy.name.clone()).or_insert_with(|| PolicyState {
+            .insert(endpoint.to_string(), EndpointState::Policy(policy_name.clone()));
+        let state = self.policies.entry(policy_name).or_insert_with(|| PolicyState {
             policy: policy.clone(),
             history: VecDeque::new(),
             last_response: now,
             raw: serde_json::Value::Null,
         });
-        // Definitions are dynamic (N9): the latest response wins outright.
+
+        // A same-name shape transition describes a different counter set
+        // (F65): discard incompatible history. Ordinary dynamic limit/state
+        // changes within the established shape retain it (N9).
+        if !state.policy.has_same_shape(&policy) {
+            state.history.clear();
+        } else if counted && established.is_none() {
+            push_history(&mut state.history, now);
+        }
         state.policy = policy;
         state.last_response = now;
         state.raw = raw;
-        if counted {
-            if state.history.len() >= HISTORY_CAP {
-                state.history.pop_front();
-            }
-            state.history.push_back(now);
-        }
+        Ok(())
     }
 
     fn policy_for(&self, endpoint: &str) -> Option<&PolicyState> {
@@ -411,6 +647,13 @@ impl Limiter {
         v.sort_by(|a, b| a.endpoint.cmp(&b.endpoint));
         v
     }
+}
+
+fn push_history(history: &mut VecDeque<Instant>, now: Instant) {
+    if history.len() >= HISTORY_CAP {
+        history.pop_front();
+    }
+    history.push_back(now);
 }
 
 /// When a saturated window frees up, given what we know. Only our hits that
@@ -542,6 +785,36 @@ pub struct Paid {
     route: String,
 }
 
+#[derive(Debug)]
+pub enum SendError {
+    Transport(String),
+    Protocol(PolicyObservationError),
+}
+
+impl fmt::Display for SendError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            SendError::Transport(error) => write!(f, "{error}"),
+            SendError::Protocol(error) => {
+                write!(f, "rate-limit protocol failure: {error}")
+            }
+        }
+    }
+}
+
+impl std::error::Error for SendError {}
+
+fn classify_observation(
+    clean_success: bool,
+    observation: Result<(), PolicyObservationError>,
+) -> Result<(), SendError> {
+    if clean_success {
+        observation.map_err(SendError::Protocol)
+    } else {
+        Ok(())
+    }
+}
+
 /// Callers name the *route* they're sending on (`character-list`,
 /// `stash-list`, …), not the URL: one route covers every league/id variant
 /// of a path, so it gets one probe and one policy, and a per-tab route can
@@ -660,14 +933,16 @@ impl ChokePoint {
         paid: Paid,
         url: &str,
         bearer: Option<&str>,
-    ) -> Result<(reqwest::StatusCode, Option<Policy>, serde_json::Value), String> {
+    ) -> Result<(reqwest::StatusCode, Policy, serde_json::Value), String> {
         let mut req = self.http.head(url);
         if let Some(token) = bearer {
             req = req.bearer_auth(token);
         }
         let result = req.send().await.map_err(|e| e.to_string());
         let outcome = match &result {
-            Ok(r) if r.status().is_success() => Ok(Policy::from_headers(r.headers())),
+            Ok(r) if r.status().is_success() => {
+                Policy::from_headers(r.headers()).map_err(|error| error.to_string())
+            }
             Ok(r) => Err(format!("HEAD returned {}", r.status())),
             Err(e) => Err(format!("HEAD failed: {e}")),
         };
@@ -679,13 +954,19 @@ impl ChokePoint {
             .lock()
             .unwrap()
             .observe_probe(&paid.route, outcome.clone(), raw.clone(), Instant::now());
-        self.record(&paid.route, "HEAD", url, &result);
+        let protocol_failure = match (&result, &outcome) {
+            (Ok(response), Err(error)) if response.status().is_success() => Some(error.as_str()),
+            _ => None,
+        };
+        self.record(&paid.route, "HEAD", url, &result, protocol_failure);
         // The limiter decided whether that was good enough; report what it
         // concluded so the probe job's outcome matches the endpoint state.
         match self.limiter.lock().unwrap().endpoint_state(&paid.route, Instant::now()) {
             EndpointState::Policy(_) => {
-                let Ok(Some(policy)) = outcome else { unreachable!("policy state implies a parsed policy") };
-                Ok((result.unwrap().status(), Some(policy), raw))
+                let Ok(policy) = outcome else {
+                    unreachable!("policy state implies a parsed policy")
+                };
+                Ok((result.unwrap().status(), policy, raw))
             }
             EndpointState::Degraded { reason, .. } => Err(format!("{reason}; endpoint closed for a cooldown")),
             other => Err(format!("unexpected endpoint state after probe: {other:?}")),
@@ -714,20 +995,50 @@ impl ChokePoint {
     fn observe(
         &self,
         endpoint: &str,
-        method: &'static str,
-        url: &str,
         result: &Result<reqwest::Response, String>,
         counted: bool,
-    ) {
+    ) -> Result<(), PolicyObservationError> {
         if let Ok(r) = result {
             let policy = Policy::from_headers(r.headers());
             let raw = rate_limit_snapshot(r.headers());
-            self.limiter
-                .lock()
-                .unwrap()
-                .observe(endpoint, policy, raw, counted, Instant::now());
+            return self.limiter.lock().unwrap().observe(
+                endpoint,
+                policy,
+                raw,
+                counted,
+                Instant::now(),
+            );
         }
-        self.record(endpoint, method, url, result);
+        Ok(())
+    }
+
+    /// Observation is independent of status classification. Full matching
+    /// headers update pacing on every landed response, while a malformed or
+    /// mismatched observation becomes a protocol failure only when the HTTP
+    /// response would otherwise be a clean success (D8/R6-3).
+    fn finish_send(
+        &self,
+        endpoint: &str,
+        method: &'static str,
+        url: &str,
+        result: Result<reqwest::Response, String>,
+        counted: bool,
+    ) -> Result<reqwest::Response, SendError> {
+        let observation = self.observe(endpoint, &result, counted);
+        let clean_success = result
+            .as_ref()
+            .is_ok_and(|response| response.status().is_success());
+        let classification = classify_observation(clean_success, observation);
+        let protocol_failure = classification.as_ref().err().map(ToString::to_string);
+        self.record(endpoint, method, url, &result, protocol_failure.as_deref());
+        match result {
+            Ok(response) if response.status().is_success() => {
+                classification?;
+                Ok(response)
+            }
+            Ok(response) => Ok(response),
+            Err(error) => Err(SendError::Transport(error)),
+        }
     }
 
     fn record(
@@ -736,10 +1047,12 @@ impl ChokePoint {
         method: &'static str,
         url: &str,
         result: &Result<reqwest::Response, String>,
+        protocol_failure: Option<&str>,
     ) {
-        let (outcome, ok) = match result {
-            Ok(r) => (r.status().to_string(), r.status().is_success()),
-            Err(e) => (format!("error: {e}"), false),
+        let (outcome, ok) = match (result, protocol_failure) {
+            (_, Some(error)) => (format!("protocol failure: {error}"), false),
+            (Ok(r), None) => (r.status().to_string(), r.status().is_success()),
+            (Err(e), None) => (format!("error: {e}"), false),
         };
         let mut sends = self.sends.lock().unwrap();
         if sends.len() >= SEND_HISTORY {
@@ -762,7 +1075,7 @@ impl ChokePoint {
         route: &str,
         url: &str,
         params: &[(&str, &str)],
-    ) -> Result<reqwest::Response, String> {
+    ) -> Result<reqwest::Response, SendError> {
         let paid = loop {
             match self.try_take(route) {
                 Ok(paid) => break paid,
@@ -776,8 +1089,7 @@ impl ChokePoint {
             .send()
             .await
             .map_err(|e| e.to_string());
-        self.observe(&paid.route, "POST", url, &result, true);
-        result
+        self.finish_send(&paid.route, "POST", url, result, true)
     }
 
     /// Bearer-authenticated GET for callers that already consulted the
@@ -788,7 +1100,7 @@ impl ChokePoint {
         paid: Paid,
         url: &str,
         bearer: &str,
-    ) -> Result<reqwest::Response, String> {
+    ) -> Result<reqwest::Response, SendError> {
         let result = self
             .http
             .get(url)
@@ -796,15 +1108,13 @@ impl ChokePoint {
             .send()
             .await
             .map_err(|e| e.to_string());
-        self.observe(&paid.route, "GET", url, &result, true);
-        result
+        self.finish_send(&paid.route, "GET", url, result, true)
     }
 
     /// Unauthenticated GET (mock-only fake data endpoints).
-    pub async fn get(&self, paid: Paid, url: &str) -> Result<reqwest::Response, String> {
+    pub async fn get(&self, paid: Paid, url: &str) -> Result<reqwest::Response, SendError> {
         let result = self.http.get(url).send().await.map_err(|e| e.to_string());
-        self.observe(&paid.route, "GET", url, &result, true);
-        result
+        self.finish_send(&paid.route, "GET", url, result, true)
     }
 }
 
@@ -858,7 +1168,7 @@ mod tests {
         v
     }
 
-    fn parse(headers: &[(&str, &str)]) -> Option<Policy> {
+    fn parse(headers: &[(&str, &str)]) -> Result<Policy, PolicyParseError> {
         Policy::parse(|k| headers.iter().find(|(h, _)| *h == k).map(|(_, v)| v.to_string()))
     }
 
@@ -868,7 +1178,9 @@ mod tests {
         let policy = parse(headers);
         for &ago in history {
             let at = now - Duration::from_secs_f64(ago);
-            limiter.observe(endpoint, policy.clone(), serde_json::Value::Null, true, at);
+            limiter
+                .observe(endpoint, policy.clone(), serde_json::Value::Null, true, at)
+                .expect("table rows carry Full matching policies");
         }
     }
 
@@ -909,28 +1221,155 @@ mod tests {
     }
 
     #[test]
-    fn n20_partial_headers_never_panic() {
-        // Dec-2023-shaped reply: policy name only (N16/N20).
-        let p = parse(&[("x-rate-limit-policy", "character-request-limit")]).expect("policy");
-        assert!(p.rules.is_empty());
-        // Rules named but definitions missing/malformed.
-        let p = parse(&[
-            ("x-rate-limit-policy", "p"),
-            ("x-rate-limit-rules", "Account,Ip"),
-            ("x-rate-limit-account", "garbage,1:2"),
+    fn full_policy_accepts_observed_one_and_three_window_shapes() {
+        let token = parse(&[
+            ("x-rate-limit-policy", "token-request-limit"),
+            ("x-rate-limit-rules", "Ip"),
+            ("x-rate-limit-ip", "60:30:30"),
+            ("x-rate-limit-ip-state", "2:30:0"),
         ])
-        .expect("policy");
-        assert_eq!(p.rules.len(), 2);
-        assert!(p.rules[0].limits.is_empty());
-        assert!(p.rules[1].limits.is_empty());
-        let mut l = Limiter::new();
-        let now = far_future();
-        l.observe("/x", Some(p), serde_json::Value::Null, true, now);
-        assert_eq!(l.wait_for("/x", now), Duration::ZERO);
-        // No policy header at all → endpoint is known policyless, no wait.
-        l.observe("/token", None, serde_json::Value::Null, true, now);
-        assert_eq!(l.wait_for("/token", now), Duration::ZERO);
-        assert_eq!(l.policyless_endpoints(), vec!["/token".to_string()]);
+        .unwrap();
+        assert_eq!(token.rules[0].limits.len(), 1, "N33");
+
+        let trade = parse(&[
+            ("x-rate-limit-policy", "trade-policy"),
+            ("x-rate-limit-rules", "Ip"),
+            ("x-rate-limit-ip", "5:1:10,20:10:60,100:60:300"),
+            ("x-rate-limit-ip-state", "1:1:0,1:10:0,1:60:0"),
+        ])
+        .unwrap();
+        assert_eq!(trade.rules[0].limits.len(), 3, "N30");
+    }
+
+    #[test]
+    fn d8_full_header_grammar_rejects_every_partial_or_malformed_shape() {
+        let cases: &[(&str, &[(&str, &str)])] = &[
+            ("missing policy", &[]),
+            ("empty policy", &[("x-rate-limit-policy", "  ")]),
+            (
+                "missing rules",
+                &[("x-rate-limit-policy", "character-request-limit")],
+            ),
+            (
+                "empty rules",
+                &[
+                    ("x-rate-limit-policy", "p"),
+                    ("x-rate-limit-rules", ""),
+                ],
+            ),
+            (
+                "empty rule name",
+                &[
+                    ("x-rate-limit-policy", "p"),
+                    ("x-rate-limit-rules", "Account,"),
+                    ("x-rate-limit-account", "2:10:60"),
+                    ("x-rate-limit-account-state", "1:10:0"),
+                ],
+            ),
+            (
+                "missing rule state",
+                &[
+                    ("x-rate-limit-policy", "p"),
+                    ("x-rate-limit-rules", "Account"),
+                    ("x-rate-limit-account", "2:10:60"),
+                ],
+            ),
+            (
+                "short triplet",
+                &[
+                    ("x-rate-limit-policy", "p"),
+                    ("x-rate-limit-rules", "Account"),
+                    ("x-rate-limit-account", "2:10"),
+                    ("x-rate-limit-account-state", "1:10:0"),
+                ],
+            ),
+            (
+                "long triplet",
+                &[
+                    ("x-rate-limit-policy", "p"),
+                    ("x-rate-limit-rules", "Account"),
+                    ("x-rate-limit-account", "2:10:60:9"),
+                    ("x-rate-limit-account-state", "1:10:0"),
+                ],
+            ),
+            (
+                "non-numeric triplet",
+                &[
+                    ("x-rate-limit-policy", "p"),
+                    ("x-rate-limit-rules", "Account"),
+                    ("x-rate-limit-account", "two:10:60"),
+                    ("x-rate-limit-account-state", "1:10:0"),
+                ],
+            ),
+            (
+                "zero limit hits",
+                &[
+                    ("x-rate-limit-policy", "p"),
+                    ("x-rate-limit-rules", "Account"),
+                    ("x-rate-limit-account", "0:10:60"),
+                    ("x-rate-limit-account-state", "0:10:0"),
+                ],
+            ),
+            (
+                "zero limit period",
+                &[
+                    ("x-rate-limit-policy", "p"),
+                    ("x-rate-limit-rules", "Account"),
+                    ("x-rate-limit-account", "2:0:60"),
+                    ("x-rate-limit-account-state", "1:0:0"),
+                ],
+            ),
+            (
+                "zero state period",
+                &[
+                    ("x-rate-limit-policy", "p"),
+                    ("x-rate-limit-rules", "Account"),
+                    ("x-rate-limit-account", "2:10:60"),
+                    ("x-rate-limit-account-state", "1:0:0"),
+                ],
+            ),
+            (
+                "hit count outside u32",
+                &[
+                    ("x-rate-limit-policy", "p"),
+                    ("x-rate-limit-rules", "Account"),
+                    ("x-rate-limit-account", "4294967296:10:60"),
+                    ("x-rate-limit-account-state", "1:10:0"),
+                ],
+            ),
+            (
+                "window-count mismatch",
+                &[
+                    ("x-rate-limit-policy", "p"),
+                    ("x-rate-limit-rules", "Account"),
+                    ("x-rate-limit-account", "2:10:60,5:300:300"),
+                    ("x-rate-limit-account-state", "1:10:0"),
+                ],
+            ),
+            (
+                "period mismatch",
+                &[
+                    ("x-rate-limit-policy", "p"),
+                    ("x-rate-limit-rules", "Account"),
+                    ("x-rate-limit-account", "2:10:60"),
+                    ("x-rate-limit-account-state", "1:11:0"),
+                ],
+            ),
+            (
+                "malformed Retry-After",
+                &[
+                    ("x-rate-limit-policy", "p"),
+                    ("x-rate-limit-rules", "Account"),
+                    ("x-rate-limit-account", "2:10:60"),
+                    ("x-rate-limit-account-state", "1:10:0"),
+                    ("retry-after", "soon"),
+                ],
+            ),
+        ];
+
+        for (name, headers) in cases {
+            assert!(parse(headers).is_err(), "{name} unexpectedly parsed");
+        }
     }
 
     #[test]
@@ -1054,8 +1493,10 @@ mod tests {
         let now = far_future();
         let mut l = Limiter::new();
         let p = parse(&with_state(CHAR_LIST, "2:10:0,2:300:0"));
-        l.observe("/character", p.clone(), serde_json::Value::Null, true, now - Duration::from_secs(4));
-        l.observe("/character/pc", p, serde_json::Value::Null, true, now);
+        l.observe("/character", p.clone(), serde_json::Value::Null, true, now - Duration::from_secs(4))
+            .unwrap();
+        l.observe("/character/pc", p, serde_json::Value::Null, true, now)
+            .unwrap();
         // Both endpoints see the same two-event history: oldest 4s ago.
         assert_wait("shared", l.wait_for("/character", now), 10.0 + 5.0 + 1.0 - 4.0);
         assert_wait("shared", l.wait_for("/character/pc", now), 10.0 + 5.0 + 1.0 - 4.0);
@@ -1065,14 +1506,16 @@ mod tests {
     fn n6_n7_different_policies_are_independent() {
         let now = far_future();
         let mut l = Limiter::new();
-        l.observe("/character", parse(&with_state(CHAR_LIST, "2:10:0,2:300:0")), serde_json::Value::Null, true, now);
+        l.observe("/character", parse(&with_state(CHAR_LIST, "2:10:0,2:300:0")), serde_json::Value::Null, true, now)
+            .unwrap();
         let stash = parse(&[
             ("x-rate-limit-policy", "stash-list-request-limit"),
             ("x-rate-limit-rules", "Account"),
             ("x-rate-limit-account", "10:15:60,30:60:300"),
             ("x-rate-limit-account-state", "1:15:0,1:60:0"),
         ]);
-        l.observe("/stash/Standard", stash, serde_json::Value::Null, true, now);
+        l.observe("/stash/Standard", stash, serde_json::Value::Null, true, now)
+            .unwrap();
         assert!(l.wait_for("/character", now) > Duration::ZERO);
         assert_eq!(l.wait_for("/stash/Standard", now), Duration::ZERO);
     }
@@ -1082,7 +1525,8 @@ mod tests {
         let now = far_future();
         let mut l = Limiter::new();
         let p = parse(&with_state(CHAR_LIST, "0:10:0,0:300:0"));
-        l.observe("/character", p, serde_json::Value::Null, false, now);
+        l.observe("/character", p, serde_json::Value::Null, false, now)
+            .unwrap();
         assert_eq!(l.statuses(now)[0].history_len, 0);
         assert_eq!(l.wait_for("/character", now), Duration::ZERO);
     }
@@ -1095,9 +1539,12 @@ mod tests {
         let now = far_future();
         let mut l = Limiter::new();
         let p = parse(&with_state(CHAR_LIST, "2:10:0,2:300:0"));
-        l.observe("/character", p.clone(), serde_json::Value::Null, true, now - Duration::from_secs(30));
-        l.observe("/character", p.clone(), serde_json::Value::Null, true, now - Duration::from_secs(25));
-        l.observe("/character", p, serde_json::Value::Null, false, now);
+        l.observe("/character", p.clone(), serde_json::Value::Null, true, now - Duration::from_secs(30))
+            .unwrap();
+        l.observe("/character", p.clone(), serde_json::Value::Null, true, now - Duration::from_secs(25))
+            .unwrap();
+        l.observe("/character", p, serde_json::Value::Null, false, now)
+            .unwrap();
         assert_wait("all unknown", l.wait_for("/character", now), 10.0 + 5.0 + 1.0);
     }
 
@@ -1106,7 +1553,8 @@ mod tests {
         let now = far_future();
         let mut l = Limiter::new();
         assert!(!l.is_live(now));
-        l.observe("/character", parse(&with_state(CHAR_LIST, "1:10:0,1:300:0")), serde_json::Value::Null, true, now);
+        l.observe("/character", parse(&with_state(CHAR_LIST, "1:10:0,1:300:0")), serde_json::Value::Null, true, now)
+            .unwrap();
         assert!(l.is_live(now));
         // Longest window is 300s: still live at +299s, not at +301s.
         assert!(l.is_live(now + Duration::from_secs(299)));
@@ -1117,7 +1565,8 @@ mod tests {
     fn n9_new_definition_replaces_old() {
         let now = far_future();
         let mut l = Limiter::new();
-        l.observe("/character", parse(&with_state(CHAR_LIST, "2:10:0,2:300:0")), serde_json::Value::Null, true, now - Duration::from_secs(1));
+        l.observe("/character", parse(&with_state(CHAR_LIST, "2:10:0,2:300:0")), serde_json::Value::Null, true, now - Duration::from_secs(1))
+            .unwrap();
         assert!(l.wait_for("/character", now) > Duration::ZERO);
         // GGG loosens the policy: 4 per 10s now, and we've used 2.
         let loosened = parse(&[
@@ -1126,7 +1575,8 @@ mod tests {
             ("x-rate-limit-account", "4:10:60,5:300:300"),
             ("x-rate-limit-account-state", "2:10:0,2:300:0"),
         ]);
-        l.observe("/character", loosened, serde_json::Value::Null, true, now);
+        l.observe("/character", loosened, serde_json::Value::Null, true, now)
+            .unwrap();
         assert_eq!(l.wait_for("/character", now), Duration::ZERO);
     }
 
@@ -1155,7 +1605,13 @@ mod tests {
         assert_eq!(l.endpoint_state("/character", now), EndpointState::Unknown);
 
         // A good probe: policy learned, nothing counted, state respected.
-        l.observe_probe("/character", Ok(parse(&with_state(CHAR_LIST, "2:10:0,2:300:0"))), serde_json::Value::Null, now);
+        l.observe_probe(
+            "/character",
+            parse(&with_state(CHAR_LIST, "2:10:0,2:300:0"))
+                .map_err(|error| error.to_string()),
+            serde_json::Value::Null,
+            now,
+        );
         assert_eq!(l.endpoint_state("/character", now), EndpointState::Policy("character-list-request-limit".into()));
         assert_eq!(l.statuses(now)[0].history_len, 0);
         // Server says 2/2 from hits we never made → assume recent → 16s.
@@ -1163,9 +1619,20 @@ mod tests {
 
         // N20 shapes: 2xx but no policy header, or (the Dec-2023 regression)
         // a policy name with no rule definitions → degraded for the cooldown.
-        l.observe_probe("/stash", Ok(None), serde_json::Value::Null, now);
+        l.observe_probe(
+            "/stash",
+            parse(&[]).map_err(|error| error.to_string()),
+            serde_json::Value::Null,
+            now,
+        );
         assert!(matches!(l.endpoint_state("/stash", now), EndpointState::Degraded { .. }));
-        l.observe_probe("/stash/x", Ok(parse(&[("x-rate-limit-policy", "stash-request-limit")])), serde_json::Value::Null, now);
+        l.observe_probe(
+            "/stash/x",
+            parse(&[("x-rate-limit-policy", "stash-request-limit")])
+                .map_err(|error| error.to_string()),
+            serde_json::Value::Null,
+            now,
+        );
         assert!(matches!(l.endpoint_state("/stash/x", now), EndpointState::Degraded { .. }));
         assert_eq!(l.degraded_endpoints(now).len(), 2);
         assert_eq!(l.endpoint_state("/stash", now + PROBE_COOLDOWN), EndpointState::Unknown);
@@ -1179,14 +1646,165 @@ mod tests {
     }
 
     #[test]
-    fn a_headerless_reply_never_erases_a_known_policy() {
+    fn malformed_observation_never_erases_a_known_policy() {
         let now = far_future();
         let mut l = Limiter::new();
-        l.observe("/character", parse(&with_state(CHAR_LIST, "1:10:0,1:300:0")), serde_json::Value::Null, true, now);
-        l.observe("/character", None, serde_json::Value::Null, true, now);
+        let raw = serde_json::json!({ "source": "established" });
+        l.observe("/character", parse(&with_state(CHAR_LIST, "1:10:0,1:300:0")), raw.clone(), true, now)
+            .unwrap();
+        let original = l
+            .policies
+            .get("character-list-request-limit")
+            .unwrap()
+            .policy
+            .clone();
+        let result = l.observe("/character", parse(&[]), serde_json::Value::Null, true, now);
+        assert!(matches!(result, Err(PolicyObservationError::Parse(_))));
         assert_eq!(l.endpoint_state("/character", now), EndpointState::Policy("character-list-request-limit".into()));
-        l.observe("/token", None, serde_json::Value::Null, true, now);
-        assert_eq!(l.endpoint_state("/token", now), EndpointState::Policyless);
+        let state = l
+            .policies
+            .get("character-list-request-limit")
+            .unwrap();
+        assert_eq!(state.policy, original);
+        assert_eq!(state.raw, raw);
+        assert_eq!(state.history.len(), 2);
+
+        let result = l.observe("/token", parse(&[]), serde_json::Value::Null, true, now);
+        assert!(matches!(result, Err(PolicyObservationError::Parse(_))));
+        assert_eq!(l.endpoint_state("/token", now), EndpointState::Unknown);
+    }
+
+    #[test]
+    fn mismatched_steady_state_observation_preserves_policy_and_topology() {
+        let now = far_future();
+        let mut limiter = Limiter::new();
+        limiter
+            .observe(
+                "/character",
+                parse(&with_state(CHAR_LIST, "1:10:0,1:300:0")),
+                serde_json::json!({ "source": "established" }),
+                true,
+                now - Duration::from_secs(1),
+            )
+            .unwrap();
+        let original = limiter
+            .policies
+            .get("character-list-request-limit")
+            .unwrap()
+            .policy
+            .clone();
+
+        let mismatch = parse(&[
+            ("x-rate-limit-policy", "renamed-policy"),
+            ("x-rate-limit-rules", "Account"),
+            ("x-rate-limit-account", "2:10:60,5:300:300"),
+            ("x-rate-limit-account-state", "2:10:0,2:300:0"),
+        ]);
+        assert!(matches!(
+            limiter.observe(
+                "/character",
+                mismatch,
+                serde_json::json!({ "source": "mismatch" }),
+                true,
+                now,
+            ),
+            Err(PolicyObservationError::PolicyMismatch { .. })
+        ));
+
+        assert_eq!(
+            limiter.endpoint_state("/character", now),
+            EndpointState::Policy("character-list-request-limit".into())
+        );
+        assert_eq!(limiter.policies.len(), 1);
+        let state = limiter
+            .policies
+            .get("character-list-request-limit")
+            .unwrap();
+        assert_eq!(state.policy, original);
+        assert_eq!(state.raw, serde_json::json!({ "source": "established" }));
+        assert_eq!(state.history.len(), 2, "the landed response was still counted");
+    }
+
+    #[test]
+    fn policy_shape_changes_clear_history_but_value_changes_retain_it() {
+        let now = far_future();
+        let mut limiter = Limiter::new();
+        limiter
+            .observe(
+                "/character",
+                parse(&with_state(CHAR_LIST, "1:10:0,1:300:0")),
+                serde_json::Value::Null,
+                true,
+                now - Duration::from_secs(2),
+            )
+            .unwrap();
+
+        // Same ordered rule names and periods: N9's dynamic values replace
+        // the definition without throwing away compatible hit history.
+        limiter
+            .observe(
+                "/character",
+                parse(&[
+                    ("x-rate-limit-policy", "character-list-request-limit"),
+                    ("x-rate-limit-rules", "Account"),
+                    ("x-rate-limit-account", "4:10:90,8:300:600"),
+                    ("x-rate-limit-account-state", "2:10:0,2:300:0"),
+                ]),
+                serde_json::Value::Null,
+                true,
+                now - Duration::from_secs(1),
+            )
+            .unwrap();
+        assert_eq!(limiter.statuses(now)[0].history_len, 2);
+
+        // A period change identifies a different counter shape. The just-
+        // landed event was admitted under the old shape too, so none of the
+        // old history is carried into the replacement (F65).
+        limiter
+            .observe(
+                "/character",
+                parse(&[
+                    ("x-rate-limit-policy", "character-list-request-limit"),
+                    ("x-rate-limit-rules", "Account"),
+                    ("x-rate-limit-account", "4:20:90,8:300:600"),
+                    ("x-rate-limit-account-state", "1:20:0,1:300:0"),
+                ]),
+                serde_json::Value::Null,
+                true,
+                now,
+            )
+            .unwrap();
+        assert_eq!(limiter.statuses(now)[0].history_len, 0);
+
+        let account_only = parse(&with_state(CHAR_LIST, "1:10:0,1:300:0")).unwrap();
+        let account_and_ip = parse(&[
+            ("x-rate-limit-policy", "character-list-request-limit"),
+            ("x-rate-limit-rules", "Account,Ip"),
+            ("x-rate-limit-account", "2:10:60,5:300:300"),
+            ("x-rate-limit-account-state", "1:10:0,1:300:0"),
+            ("x-rate-limit-ip", "4:10:60,10:300:300"),
+            ("x-rate-limit-ip-state", "1:10:0,1:300:0"),
+        ])
+        .unwrap();
+        assert!(!account_only.has_same_shape(&account_and_ip));
+    }
+
+    #[test]
+    fn malformed_clean_2xx_is_a_protocol_failure() {
+        let malformed = PolicyObservationError::Parse(PolicyParseError::MissingHeader {
+            name: "x-rate-limit-policy".into(),
+        });
+        let error = classify_observation(true, Err(malformed.clone())).unwrap_err();
+        assert!(matches!(
+            error,
+            SendError::Protocol(PolicyObservationError::Parse(
+                PolicyParseError::MissingHeader { .. }
+            ))
+        ));
+
+        // Observation runs on every landed reply, but status owns the caller
+        // outcome for an HTTP error (D8/R6-3).
+        assert!(classify_observation(false, Err(malformed)).is_ok());
     }
 
     #[test]

@@ -90,7 +90,8 @@ async fn token_request(
 ) -> Result<TokenResponse, String> {
     let response = choke
         .post_form("oauth-token", &provider.token_url, params)
-        .await?;
+        .await
+        .map_err(|error| error.to_string())?;
     let status = response.status();
     if !status.is_success() {
         let rate = crate::ratelimit::rate_limit_snapshot(response.headers());

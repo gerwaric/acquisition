@@ -21,7 +21,7 @@ use crate::VERSION;
 use crate::job::{JobId, JobInfo, JobState, Outcome, Priority};
 use crate::protocol::{ErrorRecord, Request, Response};
 use crate::provider::{CALLBACK_PATH, Provider, SCOPES, ggg_mode};
-use crate::ratelimit::{ChokePoint, EndpointState, Paid, url_path};
+use crate::ratelimit::{ChokePoint, EndpointState, Paid, SendError, url_path};
 use crate::{auth, mockggg};
 
 const IDLE_SHUTDOWN: Duration = Duration::from_secs(60);
@@ -60,6 +60,7 @@ pub fn log_path() -> PathBuf {
 /// be re-queued rather than failed.
 enum ApiError {
     RateLimited(String),
+    Protocol(String),
     Other(String),
 }
 
@@ -645,6 +646,7 @@ impl Daemon {
         match self.execute_inner(id, kind, params, paid).await {
             Ok(outcome) => Exec::Done(outcome),
             Err(ApiError::RateLimited(evidence)) => Exec::RateLimited(evidence),
+            Err(ApiError::Protocol(error)) => Exec::Done(Outcome::Failure { error }),
             Err(ApiError::Other(error)) => Exec::Done(Outcome::Failure { error }),
         }
     }
@@ -899,7 +901,7 @@ impl Daemon {
                 };
                 match self.choke.head(paid, &url, bearer.as_deref()).await {
                     Ok((status, policy, headers)) => {
-                        let name = policy.as_ref().map(|p| p.name.clone()).unwrap_or_default();
+                        let name = policy.name;
                         self.log(&format!("HEAD {} -> {status} | policy {name} | {headers}", url_path(&url)));
                         Outcome::Success {
                             payload: json!({
@@ -936,7 +938,13 @@ impl Daemon {
             Some(token) => self.choke.get_bearer(paid, url, token).await,
             None => self.choke.get(paid, url).await,
         }
-        .map_err(|e| ApiError::Other(format!("GET {url} failed: {e}")))?;
+        .map_err(|error| match error {
+            SendError::Protocol(error) => ApiError::Protocol(format!(
+                "GET {}: rate-limit protocol failure: {error}",
+                url_path(url)
+            )),
+            SendError::Transport(error) => ApiError::Other(format!("GET {url} failed: {error}")),
+        })?;
         let status = response.status();
         let rate = crate::ratelimit::rate_limit_snapshot(response.headers());
         let path = url_path(url);
