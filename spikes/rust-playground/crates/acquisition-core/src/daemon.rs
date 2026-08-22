@@ -2783,6 +2783,8 @@ mod dispatcher_tests {
             let request = mockggg::read_request(&mut stream).await.unwrap();
             assert_eq!(request.method, "POST");
             assert_eq!(request.path, "/token");
+            assert!(request.body.contains("grant_type=refresh_token"));
+            assert!(request.body.contains("refresh_token=rt-old"));
             arrived_tx.send(()).unwrap();
             release_rx.await.unwrap();
             let body = json!({
@@ -2801,6 +2803,27 @@ mod dispatcher_tests {
             mockggg::respond_with(&mut stream, "200 OK", "application/json", headers, &body).await;
         });
         (base, arrived_rx, release_tx, task)
+    }
+
+    async fn wait_for_refresh_waiters(daemon: &Daemon, expected_at_least: usize) {
+        tokio::time::timeout(Duration::from_secs(1), async {
+            loop {
+                let receivers = daemon
+                    .shared
+                    .lock()
+                    .unwrap()
+                    .auth
+                    .refresh_flight
+                    .as_ref()
+                    .map_or(0, |flight| flight.result.receiver_count());
+                if receivers >= expected_at_least {
+                    return;
+                }
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("concurrent API callers joined the refresh flight");
     }
 
     static TEST_LOG_ID: AtomicU64 = AtomicU64::new(1);
@@ -2976,19 +2999,56 @@ mod dispatcher_tests {
 
     #[tokio::test]
     async fn n6_integration_stress_mixes_policies_refresh_rotation_cancellation_and_429s() {
-        let base = mockggg::start().await.unwrap();
+        let api_base = mockggg::start().await.unwrap();
+        let (token_base, token_arrived, release_token, token_server) = delayed_token_server().await;
         let clock = Arc::new(ManualClock::new());
-        let (mut daemon, log_path) = test_daemon(&base, clock);
+        let (mut daemon, log_path) = test_daemon(&api_base, clock);
         let credential_store = Arc::new(RecordingCredentialStore::default());
-        Arc::get_mut(&mut daemon).unwrap().credential_store = credential_store.clone();
+        let daemon_mut = Arc::get_mut(&mut daemon).unwrap();
+        daemon_mut.credential_store = credential_store.clone();
+        daemon_mut.provider.token_url = format!("{token_base}/token");
         {
             let mut shared = daemon.shared.lock().unwrap();
             shared.auth.refresh_token = Some("rt-old".into());
             shared.auth.username = Some("old-user".into());
-            shared.auth.access_token = Some("at-expired".into());
+            shared.auth.access_token = Some("at-established".into());
+            shared.auth.access_expires_at = Some(Instant::now() + Duration::from_secs(3600));
+        }
+
+        let dispatcher = tokio::spawn(daemon.clone().dispatcher());
+
+        // Establish every authenticated route before expiry so the refresh
+        // phase is not serialized behind the one-at-a-time probe key.
+        let established_routes = [
+            daemon.submit("characters".into(), json!({}), 0, "test".into()),
+            daemon.submit(
+                "stashes".into(),
+                json!({ "league": "Standard" }),
+                0,
+                "test".into(),
+            ),
+            daemon.submit(
+                "stash".into(),
+                json!({ "league": "Standard", "id": "cur1" }),
+                0,
+                "test".into(),
+            ),
+        ];
+        for id in established_routes {
+            let (info, outcome) = wait_terminal(&daemon, id).await;
+            assert_eq!(
+                info.state,
+                JobState::Done,
+                "route-establishment job {id}: {outcome:?}"
+            );
+        }
+        {
+            let mut shared = daemon.shared.lock().unwrap();
             shared.auth.access_expires_at = Some(Instant::now());
         }
 
+        // These jobs now have different learned scheduling keys, so all three
+        // can enter valid_access_token while the localhost token body is held.
         let characters = daemon.submit("characters".into(), json!({}), 0, "test".into());
         let stashes = daemon.submit(
             "stashes".into(),
@@ -3015,11 +3075,19 @@ mod dispatcher_tests {
         let cancelled = *fetches.last().unwrap();
         daemon.cancel(cancelled).unwrap();
 
-        let dispatcher = tokio::spawn(daemon.clone().dispatcher());
+        token_arrived.await.unwrap();
+        wait_for_refresh_waiters(&daemon, 2).await;
+        release_token.send(()).unwrap();
+
         for id in [characters, stashes, stash] {
             let (info, outcome) = wait_terminal(&daemon, id).await;
-            assert_eq!(info.state, JobState::Done, "API job {id}: {outcome:?}");
+            assert_eq!(
+                info.state,
+                JobState::Done,
+                "shared-refresh API caller {id}: {outcome:?}"
+            );
         }
+        token_server.await.unwrap();
 
         let mut done = 0;
         let mut failed = 0;
@@ -3050,14 +3118,14 @@ mod dispatcher_tests {
                 shared.auth.refresh_flight.is_some(),
             )
         };
-        assert!(refresh_token.starts_with("rt-"));
-        assert_ne!(refresh_token, "rt-old");
-        assert!(access_token.starts_with("at-"));
+        assert_eq!(refresh_token, "rt-rotated");
+        assert_eq!(access_token, "at-new");
         assert!(!refresh_flight);
         let saves = credential_store.saves.lock().unwrap();
-        assert_eq!(saves.len(), 1, "concurrent auth demand must singleflight");
+        assert_eq!(saves.len(), 1, "rotated refresh token persisted once");
         assert_eq!(saves[0].0, "acquisition-playground");
-        assert_eq!(saves[0].1, refresh_token);
+        assert_eq!(saves[0].1, "rt-rotated");
+        assert_eq!(saves[0].2, "test-user");
         drop(saves);
 
         let jobs = daemon.shared.lock().unwrap();

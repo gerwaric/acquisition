@@ -26,8 +26,9 @@ review-only session.
 - Frozen gate-contract baseline: `1e17e812`.
 - Current accepted implementation tip:
   `cca89516ae22610fca84a1338bcfc720ce356364`.
-- Active package: N6 is built in the commit containing this record and awaits
-  independent review; it is not accepted.
+- Active package: N6 is built but not accepted. The N6 review returned the
+  single Low test-gap finding N6-R1; the fix is in the commit containing this
+  record and awaits independent fix-only review.
 - Accepted N1 review range:
   `1e17e812..412c840e155b01f626560fcb097393d6a24b797c`.
 - N1 fix commit: `412c840e155b01f626560fcb097393d6a24b797c`
@@ -78,8 +79,10 @@ review-only session.
 - N5 review verdict: `accepted`; the independent review found no findings,
   assigned no `N5-R` IDs, and found no unresolved or required N5 work.
 - N6 build started from exact coordination tip
-  `cffbf8b614efdbb4f36d5a846c76a67ea71b847e`; its single next action is an
-  independent review of that exact base through the N6 build tip.
+  `cffbf8b614efdbb4f36d5a846c76a67ea71b847e`; N6-R1 fixes the review's
+  single test gap from exact N6 build tip
+  `248f03bca7a78d7483dae89ccbc15cd947a25343` and awaits independent
+  fix-only review.
 
 ## Package ledger
 
@@ -96,7 +99,7 @@ dependents.
 | N3 | Send-lifetime gate primitive and fairness semantics | H0 | accepted | `7f205d846ecab73c119532416f1a132010562b4c..510ea498a7f4fc9d75d04893eba6243768577fef` |
 | N4 | Gate integration in `ChokePoint`; remove `Paid` | N2, N3 | accepted | `bd9732d14c1940b2306ec7bae044ff73f70e0911f..32e591c7dc0f9cdbd8e0a958fb277d9444df9608` |
 | N5 | Dispatcher cleanup and removal of job-task head-of-line blocking | N4 | accepted | `f6b1e6cb87753a00fc67144b5753923b5b1aa49e..cca89516ae22610fca84a1338bcfc720ce356364` |
-| N6 | Integration stress tests and final frozen-design reconciliation | N5 | built | `cffbf8b614efdbb4f36d5a846c76a67ea71b847e..N6 build tip` |
+| N6 | Integration stress tests and final frozen-design reconciliation | N5 | built | `cffbf8b614efdbb4f36d5a846c76a67ea71b847e..N6-R1 fix tip` |
 
 N2 and N3 may be built in either order after H0. Keep them as separate commits
 and review them separately. N4 is the first package allowed to depend on both.
@@ -352,11 +355,14 @@ Build-session result (not an acceptance verdict):
 - `n6_integration_stress_mixes_policies_refresh_rotation_cancellation_and_429s`
   exercises the real dispatcher, auth session, choke point, gate, limiter, and
   localhost mock together. It covers three authenticated API policies plus the
-  mock fetch policy, four visible one-per-route HEAD probes, a singleflight
-  token refresh, persisted refresh-token rotation, a queued cancellation, five
-  successful burst sends, and one bounded three-attempt 429 exhaustion. It
-  also proves the API jobs and independent policies complete while the
-  saturated mock policy fails within its bound.
+  mock fetch policy, four visible one-per-route HEAD probes, one token refresh,
+  persisted refresh-token rotation, a queued cancellation, five successful
+  burst sends, and one bounded three-attempt 429 exhaustion. As originally
+  built at `248f03bca7a78d7483dae89ccbc15cd947a25343`, the test did not prove
+  refresh singleflight: the shared `probe` scheduling key serialized route
+  establishment, and the immediate mock token response completed before two
+  authenticated callers could join. That incorrect singleflight claim is
+  replaced by the N6-R1 fix-session result below.
 - `waiting_head_has_writer_preference_over_later_mixed_policy_send` holds two
   different-policy response bodies under the cap, cancels a third gate waiter,
   queues a HEAD, and then queues a later ordinary send. The HEAD starts only
@@ -411,9 +417,35 @@ Build validation:
 - `cargo fmt --all -- --check`: passed.
 - `git diff --check`: passed before commit.
 
-No new findings were opened and no unresolved N2–N6 build findings remain.
-This is a build result only; only the independent N6 review may mark N6
-accepted.
+The original build session opened no findings. The independent N6 review later
+opened N6-R1; its fix-session result is recorded below. N6 remains built and
+not accepted.
+
+Fix-session result (not an acceptance verdict):
+
+- Finding: N6-R1 (Low test gap), fixed in the commit containing this record.
+- Exact starting N6 build tip:
+  `248f03bca7a78d7483dae89ccbc15cd947a25343`.
+- The integration test first completes authenticated calls on the character
+  list, stash list, and stash routes, proving their visible HEAD probes and
+  learned different-policy scheduling keys are established before expiry.
+  It then expires the access token and submits one caller on each route.
+- Only the token URL is redirected to a controlled localhost listener. The
+  listener proves one refresh owner reaches `POST /token` with `rt-old` and
+  holds the response. An explicit refresh-flight barrier observes at least two
+  subscribed waiter receivers before releasing the rotated-token response.
+- All three API callers then complete successfully from the shared result;
+  exactly one token POST is recorded; `rt-rotated` replaces `rt-old`;
+  `at-new` is installed; and the recording credential store contains exactly
+  one save of `rt-rotated` for `test-user`.
+- The same test retains four visible one-per-route HEAD probes, the queued
+  cancellation, five successful mock fetches, and one exhausted mock fetch
+  with exactly three 429 attempts. All HTTP remains on localhost.
+- No production gate, limiter, OAuth, response classification/observation,
+  probe, retry, dispatcher, cancellation, or job-model behavior changed.
+- Required validation passed: 69 core tests and 0 CLI tests, both strict
+  Clippy commands, format check, and diff check all completed with no failures
+  or warnings. Exact commands are recorded in the N6-R1 entry below.
 
 ## Review register
 
@@ -424,11 +456,58 @@ accepted.
 | N1-R3 | Low | N1 | Bounded retry/probe behavior lacks coverage through the real dispatcher lifecycle | resolved | `412c840e155b01f626560fcb097393d6a24b797c` |
 | N2-R1 | High | N2 | Abandoned refresh owner permanently strands waiters | resolved | `0a47efecdb78de1202e29c8fe7faaa4d39e66372` |
 | N4-R1 | Low | N4 | ETA simulation bypasses the token policy's conservative timing-bucket selection | resolved | `32e591c7dc0f9cdbd8e0a958fb277d9444df9608` |
+| N6-R1 | Low | N6 | N6 integration stress did not exercise refresh singleflight | resolved; awaiting fix-only review | commit containing this record |
 
 For every finding, retain the concrete scenario, exact file and line references,
 affected invariant/design rule/ground-truth claim, classification (confirmed
 bug, architectural risk, or test gap), smallest fix direction, and required
 tests. Preserve sound behavior explicitly in the review handoff.
+
+### N6-R1 — integration stress did not exercise refresh singleflight
+
+- **Concrete scenario:** at N6 build tip
+  `248f03bca7a78d7483dae89ccbc15cd947a25343`,
+  `n6_integration_stress_mixes_policies_refresh_rotation_cancellation_and_429s`
+  submitted three authenticated routes while all were unknown. Their probe
+  jobs shared the single `probe` scheduling key. The first route to finish its
+  HEAD then owned an immediate mock refresh and completed it before the other
+  authenticated jobs could enter `valid_access_token`. The one-POST and
+  one-keyring-save assertions therefore proved one refresh and rotation, not
+  concurrent ownership or shared waiter completion.
+- **Implementation references at `248f03bca7a78d7483dae89ccbc15cd947a25343`:**
+  the integration test at `crates/acquisition-core/src/daemon.rs:2978`;
+  shared probe scheduling in `Daemon::serial_key` at line 343; refresh
+  subscription and ownership in `Daemon::valid_access_token` at line 1287.
+- **Authority:** N6's required integrated token-refresh stress coverage; N2's
+  accepted one-owner/shared-waiter-result contract; frozen D1/D2's requirement
+  that live waiters finish with a result; ground-truth N33's shared token
+  policy and rotating refresh-token behavior.
+- **Classification:** test gap. Source and accepted N2 unit coverage remained
+  sound; the N6 integration arrangement did not reach the concurrency it
+  claimed.
+- **Smallest fix direction:** establish the authenticated routes before token
+  expiry, then hold a test-only localhost token response while different-policy
+  API jobs enter `valid_access_token`; use refresh-flight receiver state as an
+  explicit barrier before releasing the response. Do not alter production
+  refresh, gate, limiter, probe, retry, dispatcher, cancellation, or job-model
+  behavior.
+- **Required test:** in the N6 integration stress test, prove one owner reaches
+  localhost `/token`, at least two callers have joined the same flight before
+  release, exactly one POST occurs, every caller succeeds from the shared
+  result, and the rotated refresh token replaces `rt-old` and is persisted
+  exactly once. Preserve the mixed-policy, visible-HEAD, queued-cancellation,
+  five-successful-fetch, and bounded-three-attempt-429 assertions.
+- **Fix references:** test-only localhost token control at
+  `crates/acquisition-core/src/daemon.rs:2771`, the explicit refresh-waiter
+  barrier at line 2808, and the repaired integration scenario at line 3001;
+  the production implementation is unchanged.
+- **Fix-session validation:** `cargo test --workspace --all-targets` passed,
+  69 core tests and 0 CLI tests, with 0 failures; `cargo clippy --workspace
+  --all-targets --all-features -- -D warnings` passed; `cargo clippy -p
+  acquisition-core --all-targets --all-features -- -D warnings` passed;
+  `cargo fmt --all -- --check` passed; and `git diff --check` passed. N6 stays
+  built and not accepted until independent review of the exact N6-R1 fix
+  range.
 
 ### N1-R1 — numeric values can panic deadline arithmetic
 
@@ -769,27 +848,28 @@ core crate's strict Clippy check remains an additional semantic-package gate.
 
 ## Next action and exact kickoff prompt
 
-The single next action is an independent N6 review. The reviewer must replace
-`<N6-tip>` below with the exact ending hash returned by this build session and
-review that immutable range; the build commit cannot contain its own hash.
-Use this prompt verbatim after substitution:
+The single next action is an independent N6-R1 fix-only review. The reviewer
+must replace `<fix-tip>` below with the exact ending hash returned by this fix
+session and review that immutable range; the fix commit cannot contain its own
+hash. Use this prompt verbatim after substitution:
 
 ```text
 Read AGENTS.md, CONTEXT.md, README.md, NETWORK-CLEANUP.md, and the frozen
 network design documents referenced there before reviewing. This is an
-independent N6 review-only session. Review exact range
-cffbf8b614efdbb4f36d5a846c76a67ea71b847e..<N6-tip>. Verify that the branch
-tip is exactly <N6-tip>, the worktree is clean, the base is the recorded N5
-coordination tip, and N6 is built but not accepted. If any prerequisite
-differs, stop and report the mismatch. Do not edit or commit.
+independent N6-R1 fix-only review session. Review exact range
+248f03bca7a78d7483dae89ccbc15cd947a25343..<fix-tip>. Verify that the branch
+tip is exactly <fix-tip>, the worktree is clean, the base is the recorded N6
+build tip, N6-R1 is the only finding addressed, and N6 is built but not
+accepted. If any prerequisite differs, stop and report the mismatch. Do not
+edit or commit.
 
-Review only N6: independently validate the integration stress coverage for
-mixed API policies, HEAD probes, token refresh, cancellation, 429s, and
-rotated tokens. Compare the implementation line by line with the frozen
-design's strict parsing, response classifications, permit lifetime, HEAD
-exclusivity, and writer-preference rules. Verify every intentional divergence
-is recorded in an authoritative design or findings register, not only in
-NETWORK-CLEANUP.md.
+Review only N6-R1. Verify that authenticated routes are established before
+expiry; a controlled localhost token response holds one refresh owner while
+at least two different-policy API callers demonstrably join the same flight;
+exactly one token POST occurs; every caller resumes successfully; and the
+rotated refresh token replaces rt-old and is persisted exactly once. Verify
+the mixed-policy, four visible HEAD-probe, queued-cancellation, five successful
+fetch, and bounded three-attempt 429-exhaustion coverage remains intact.
 
 Preserve all accepted N2–N5 behavior: OAuth refresh ownership, generations,
 rotation, abandonment, registration, scopes, callback, user-agent, and
@@ -801,21 +881,21 @@ and dispatcher priority, equal-priority FIFO, one-active-task-per-key
 ordering, route probes, cancellation, bounded retry/requeue behavior, and
 independent-key progress.
 
-Reject scope expansion into gate, limiter, OAuth, response classification or
-observation, probe, retry, dispatcher, or job-model redesign. Verify no GGG
-contact occurred. Report findings with stable N6-R IDs, severity, exact
+Reject scope expansion into production gate, limiter, OAuth, response
+classification/observation, probe, retry, dispatcher, cancellation, or
+job-model behavior. Verify synchronization is deterministic and all HTTP stays
+on localhost. Report any new findings with stable N6-R IDs, severity, exact
 file/symbol evidence, violated authority, smallest fix direction, and required
-tests. If no required work remains, return `accepted`; otherwise return
-`changes-requested`. Do not mark N6 accepted in the repository from this
-review-only session.
+tests. Do not mark N6 accepted in the repository from this review-only
+session.
 
 Run cargo test --workspace --all-targets; cargo clippy --workspace
 --all-targets --all-features -- -D warnings; cargo clippy -p acquisition-core
 --all-targets --all-features -- -D warnings; and cargo fmt --all -- --check.
 Record exact outcomes. Return the exact reviewed base and tip, clean worktree
-state, verdict, findings, preserved behavior, checks, and the single next
-action: coordination if accepted, or an N6 fix-only session if
-changes-requested.
+state, verdict on N6-R1, findings, preserved behavior, checks, and the single
+next action: coordination if N6-R1 is resolved with no new findings, or another
+N6 fix-only session if changes are requested.
 ```
 
 Only an independent N6 review with no required work remaining may mark N6
