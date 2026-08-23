@@ -229,6 +229,18 @@ Rung 8 is the baseline. Anything the rungs teach about GGG goes into
 `docs/design/network-ground-truth.md` as numbered claims and is promoted
 to master promptly; this file records only runs.
 
+## Deferred: rung 9 — timing-bucket measurement (owner decision 2026-08-23)
+
+Not part of the baseline. Measuring N11–N12's bucket values means sending
+deliberately inside the limiter's padding at a window edge; each early
+guess is a counted 429 against N10's unknown threshold (Q8). If run, it is
+its own rung after the soak: `character-list-request-limit` (2 per 10 s),
+a hard cap of a handful of violations total, tripwire reset between
+attempts under the 360 s rule, every attempt in the ledger. The
+zero-violation alternative is asking GGG through N14's channel. Rung 7b's
+single data point: after a 10 s + 5 s hold the window read fully clear,
+bounding the initial bucket at ≤ 5 s.
+
 ## Run ledger
 
 One row per rung execution. Journal files are copied to
