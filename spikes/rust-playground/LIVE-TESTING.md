@@ -244,7 +244,8 @@ One row per rung execution. Journal files are copied to
 | 2026-08-22 | 6 | `92e74f93` | pass | 1/2/4 | 0 | fresh daemon, 3 tabs; both routes probed; stash HEAD reported `0:10:0,1:300:0` — rung 5's hit from 15 s earlier on a previous daemon, learned before the first send; final `3:10:0,4:300:0` = prior + 3; drift 0; 600 ms end to end; `runs/2026-08-22-r6/` |
 | 2026-08-22 | 7 | `92e74f93` | pass (pacing not exercised) | 1/2/11 | 0 | fresh daemon, 10 tabs in 1.4 s; probe taught `4:300`; final `10:10:0,14:300:0` = prior + 10, drift 0; zero 429. 10 < 15-per-10 s, so the limiter never had to hold — rungs 1–7 prove reading, not waiting; `runs/2026-08-22-r7/` |
 | 2026-08-22 | 7b | `92e74f93` | pass (pacing engaged) | 1/2/19 | 0 | fresh daemon, 18 tabs; 15 children in 1.4 s filled `stash-request-limit`'s 10 s window (`15:10:0`); the limiter held **14.75 s** (period + 5 s bucket) before the 16th, which the server answered `1:10:0` — window fully cleared; remaining 3 at full speed; final `3:10:0,18:300:0`; zero 429; ceiling 24; `runs/2026-08-22-r7b/` |
-| 2026-08-22 | 8 | `92e74f93` | **running** since 2026-08-23T00:26:41Z | 1/1/1 at start | 0 | one daemon (pid 14352, `ACQ_IDLE_SHUTDOWN=604800`, ceiling 200); cron runs `tools/soak-run.sh` every 10 min; evaluate with `tools/soak-check.sh <start>`; first iteration `1:10:0,1:300:0` |
+| 2026-08-22 | 8 (first start) | `92e74f93` | stopped after 3 runs | 1/1/1 + 2 GET | 0 | pid 14352, 00:26–01:30 UTC; stopped to pick up the R8 sleep fix; all runs success |
+| 2026-08-23 | 8 | `529bdd92` | **running** since 2026-08-23T01:30:14Z | 1/1/1 at start | 0 | one daemon (pid 17066, `ACQ_IDLE_SHUTDOWN=604800`, ceiling 200, 401 trips); cron `tools/soak-run.sh` every 10 min; probe on restart reported `1:300` (the 01:30:00 cron GET); evaluate with `tools/soak-check.sh 2026-08-23T01:30:14Z`; laptop sleep is allowed |
 
 ## Review history
 
