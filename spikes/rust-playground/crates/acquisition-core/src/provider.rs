@@ -5,8 +5,10 @@
 //! shipped C++ app — CONTEXT invariant 4). Everything else in the daemon is
 //! provider-agnostic; this struct is the whole difference.
 
-/// Matches the shipped app: APP_NAME "/" APP_VERSION " (contact: " EMAIL ")".
-pub const USER_AGENT: &str = "acquisition/0.18.0 (contact: gerwaric@gmail.com)";
+/// Same shape as the shipped app (APP_NAME "/" APP_VERSION " (contact: " EMAIL ")")
+/// and the same registration, but a distinct version so anything GGG sees from
+/// live testing is attributable to this spike, not to a shipped release.
+pub const USER_AGENT: &str = "acquisition/1.0.0-alpha.1 (contact: gerwaric@gmail.com)";
 
 /// Same scope set the C++ app requests; the characters call needs only
 /// `account:characters`, but granting identically keeps the registration story
