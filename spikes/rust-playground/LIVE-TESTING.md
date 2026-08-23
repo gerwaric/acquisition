@@ -217,6 +217,7 @@ One row per rung execution. Journal files are copied to
 
 | Date | Rung | Daemon tip | Result | Sends (POST/HEAD/GET) | Violations | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
+| 2026-08-22 | 1 | `92e74f93` | pass | 1/0/0 | 0 | code exchange 200; `token-request-limit` Ip `60:30:30`, state `1:30:0` (N33 confirmed for the `authorization_code` grant); access token 36000 s; keyring ok; `runs/2026-08-22-r1/` |
 
 ## Review history
 
