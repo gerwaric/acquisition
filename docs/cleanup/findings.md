@@ -185,7 +185,7 @@ only by `LoginDialog`. Fix shape: surface refresh failure to the UI
 and add an `oauth_rejected` de-arming path symmetric with the
 POESESSID one.
 
-### F78. `_DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR` was defined for only one target — Confirmed; fix landed, Windows verification pending
+### F78. `_DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR` was defined for only one target — Confirmed; fix landed and verified on Windows
 
 Found August 22, 2026, from a Sentry crash on 0.18.3
 (`acquisition.sentry.io/issues/7687078638`, two events, one Windows 10
@@ -222,12 +222,22 @@ Fix: the macro is now a global `add_compile_definitions()` in
 `CMakeLists.txt`, placed ahead of the `FetchContent` block so the
 fetched dependencies get it too, and removed from the per-target list.
 
-**Verification is still owed.** The reproduction is Windows-only and
-needs an old CRT; Linux configure/build/`ctest` (39/39) only proves
-nothing regressed. Confirm on a Windows build before treating this as
-closed.
+Verified on Windows (August 22, 2026, MSVC 14.51 / Qt 6.11.1, fresh
+Release tree): every one of the 55 compiled targets — app, core,
+filters, all tests, spdlog, QCoro, QXlsx, sentry, crashpad — carries
+the macro in its generated project, and none is without it;
+`dumpbin /imports acquisition.exe` shows `_Mtx_init_in_situ` imported
+from MSVCP140.dll, i.e. the runtime-initialized constructor that an old
+CRT understands rather than the constexpr zero-init; `ctest` 39/39; the
+app launches and runs past `logging::init`. Not reproduced against an
+actual 14.28 `msvcp140.dll` — the workstation has a current CRT — so
+the closing evidence is the import, not a crash-then-no-crash.
 
-Not fixed here, and still open:
+Not fixed here, and left open by decision (Tom, August 22, 2026): the
+stray-DLL check below exists because users once copied CRT DLLs into
+the Acquisition folder themselves, so it is guarding a real historical
+failure mode and should not be removed to make room for app-local
+deployment.
 
 - `installer.iss` leaves the redistributable an unchecked-able Task,
   so a user can still decline it. With the macro global this is no
