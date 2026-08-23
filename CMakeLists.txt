@@ -9,7 +9,7 @@ cmake_minimum_required(VERSION 3.24)
 # tags on github are prefixed with a 'v'.
 
 project(acquisition
-    VERSION 0.18.3
+    VERSION 0.18.4
     DESCRIPTION "Stash and forum shop management for Path of Exile (TM)"
     HOMEPAGE_URL "https://github.com/gerwaric/acquisition"
     LANGUAGES CXX
@@ -121,6 +121,36 @@ else()
     message(WARNING "Unrecognized compiler '${CMAKE_CXX_COMPILER_ID}': the coroutine "
         "compiler floors (see BUILD.md) cannot be checked.")
 endif()
+
+#------------------------------------------------------
+# MSVC runtime compatibility
+#------------------------------------------------------
+
+# MSVC 14.38 (VS 2022 17.8) made std::mutex's constructor constexpr, which
+# leaves the mutex's storage zero-initialized instead of set up by
+# _Mtx_init_in_situ. An older msvcp140.dll on the user's machine does not
+# understand that representation, and its mtx_do_lock dereferences a null
+# handle: an access violation reading 0x0 on the process's very first lock.
+# Acquisition hit this in the wild on 0.18.3 (a Windows 10 box whose system
+# CRT dated from February 2021), crashing inside spdlog's registry mutex
+# before logging::init() had returned.
+#
+# _DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR restores the old non-constexpr
+# constructor, so the binary works against any 14.x runtime rather than
+# requiring users to have a current redistributable.
+#
+# This MUST be global, and MUST stay ahead of the FetchContent block below.
+# std::mutex's constructor is inline, so a mutex inside an inline function or
+# a header-only library (spdlog's registry singleton, for one) is emitted as a
+# COMDAT by every translation unit that uses it. Defining the macro for only
+# some targets makes those definitions disagree and the linker keeps whichever
+# one it likes - an ODR violation that reintroduces exactly this crash. The
+# fetched dependencies are compiled into the same binaries, so they need it
+# too; add_compile_definitions() applies to C as well as C++, which is what
+# sentry-native and crashpad want.
+add_compile_definitions(
+    $<$<OR:$<C_COMPILER_ID:MSVC>,$<CXX_COMPILER_ID:MSVC>>:_DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR>
+)
 
 #------------------------------------------------------
 # Sanitizers (test/CI only)
@@ -696,7 +726,6 @@ if(WIN32)
     target_compile_options(acquisition_core PRIVATE
         $<$<CXX_COMPILER_ID:MSVC>:/W4>
         $<$<CXX_COMPILER_ID:MSVC>:/EHsc>
-        $<$<CXX_COMPILER_ID:MSVC>:/D_DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR>
         $<$<AND:$<CXX_COMPILER_ID:MSVC>,$<NOT:$<CONFIG:Debug>>>:/Zi>
     )
     target_link_options(acquisition PRIVATE
