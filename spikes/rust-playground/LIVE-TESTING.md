@@ -207,6 +207,13 @@ rung in the run ledger.
 | 7b | `acq refresh --tabs …` (18 tabs, > 15-per-10 s) | 1/2/19; the limiter holds before the 16th child; zero 429 | 24 | any 429; no hold observed |
 | 8 | soak: one daemon with `ACQ_IDLE_SHUTDOWN` ≥ 1 day; `acq characters` every 10 min by cron for several days | 1 POST per ~10 h, 1 HEAD per route per daemon lifetime, 1 GET per run; stable headers | 200 per lifetime | any trip; more than one HEAD per route per day; any keyring warning |
 
+Rung 8 mechanics: `tools/soak-run.sh` is the cron body (sets the rails
+env itself so a respawned daemon keeps them, runs one `acq characters`,
+appends one line to `runs/soak/runs.log`); `tools/soak-check.sh <start-ts>`
+evaluates the stop conditions from the journal, the run log, and daemon
+status. Do not rebuild `target/debug/acq` while the soak daemon runs
+without `acq daemon stop` first — the version handshake would not notice.
+
 Rung 8 is the baseline. Anything the rungs teach about GGG goes into
 `docs/design/network-ground-truth.md` as numbered claims and is promoted
 to master promptly; this file records only runs.
@@ -226,6 +233,7 @@ One row per rung execution. Journal files are copied to
 | 2026-08-22 | 6 | `92e74f93` | pass | 1/2/4 | 0 | fresh daemon, 3 tabs; both routes probed; stash HEAD reported `0:10:0,1:300:0` — rung 5's hit from 15 s earlier on a previous daemon, learned before the first send; final `3:10:0,4:300:0` = prior + 3; drift 0; 600 ms end to end; `runs/2026-08-22-r6/` |
 | 2026-08-22 | 7 | `92e74f93` | pass (pacing not exercised) | 1/2/11 | 0 | fresh daemon, 10 tabs in 1.4 s; probe taught `4:300`; final `10:10:0,14:300:0` = prior + 10, drift 0; zero 429. 10 < 15-per-10 s, so the limiter never had to hold — rungs 1–7 prove reading, not waiting; `runs/2026-08-22-r7/` |
 | 2026-08-22 | 7b | `92e74f93` | pass (pacing engaged) | 1/2/19 | 0 | fresh daemon, 18 tabs; 15 children in 1.4 s filled `stash-request-limit`'s 10 s window (`15:10:0`); the limiter held **14.75 s** (period + 5 s bucket) before the 16th, which the server answered `1:10:0` — window fully cleared; remaining 3 at full speed; final `3:10:0,18:300:0`; zero 429; ceiling 24; `runs/2026-08-22-r7b/` |
+| 2026-08-22 | 8 | `92e74f93` | **running** since 2026-08-23T00:26:41Z | 1/1/1 at start | 0 | one daemon (pid 14352, `ACQ_IDLE_SHUTDOWN=604800`, ceiling 200); cron runs `tools/soak-run.sh` every 10 min; evaluate with `tools/soak-check.sh <start>`; first iteration `1:10:0,1:300:0` |
 
 ## Review history
 
