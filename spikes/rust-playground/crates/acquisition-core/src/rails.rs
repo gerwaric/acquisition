@@ -5,7 +5,7 @@
 //! permit and reports every completed exchange to them afterward.
 //!
 //! - **Tripwire** (`ACQ_TRIPWIRE=1`, ladder-only): the first landed 429 on
-//!   any route — HEAD and token included — or any 403/503 halts every later
+//!   any route — HEAD and token included — or any 401/403/503 halts every later
 //!   send until an explicit `reset_tripwire`. Persisted per provider so a
 //!   respawned daemon stays tripped.
 //! - **Dead-token stop** (with the tripwire): a 4xx other than 429 on a
@@ -227,6 +227,13 @@ impl Rails {
                     "{status} on {} {} — possibly a Cloudflare block",
                     report.method, report.url_path
                 )),
+                // An unauthorized request repeating on a timer (a token the
+                // daemon wrongly believes valid) is not a violation, but it
+                // is traffic GGG should never see twice.
+                Some(401) => Some(format!(
+                    "401 on {} {} — token rejected",
+                    report.method, report.url_path
+                )),
                 _ => None,
             };
             if let Some(cause) = cause {
@@ -417,6 +424,8 @@ mod tests {
         rails.reset_tripwire();
         assert_eq!(rails.halted(), None);
         assert!(rails.record(&report(Some(503))).is_some());
+        rails.reset_tripwire();
+        assert!(rails.record(&report(Some(401))).unwrap().contains("401"));
     }
 
     #[test]

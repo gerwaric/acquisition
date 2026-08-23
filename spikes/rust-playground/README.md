@@ -116,7 +116,7 @@ Live-test rails (`LIVE-TESTING.md`), read by the daemon at start — set them
 on the command that spawns it, or `acq daemon stop` first:
 
 - `ACQ_TRIPWIRE=1` — the first landed 429 (any route, HEAD and token
-  included) or any 403/503 halts every later send until
+  included) or any 401/403/503 halts every later send until
   `acq daemon reset-tripwire`; persisted per provider across restarts. With
   it, a refresh token the provider rejects (4xx other than 429) is never
   re-sent until `acq auth` or logout. Off by default; never on in mock mode

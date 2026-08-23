@@ -7,7 +7,7 @@ use std::collections::{HashMap, HashSet};
 use std::io::Write as _;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime};
 
 use anyhow::Result;
 use serde_json::{Value, json};
@@ -114,7 +114,10 @@ struct RefreshFlight {
 #[derive(Default)]
 struct AuthSession {
     access_token: Option<String>,
-    access_expires_at: Option<Instant>,
+    /// Wall-clock, not `Instant`: on macOS a monotonic clock does not advance
+    /// while the machine sleeps, so an `Instant` deadline would wake believing
+    /// an expired token still has hours left and send 401s until it caught up.
+    access_expires_at: Option<SystemTime>,
     refresh_token: Option<String>,
     username: Option<String>,
     /// The session generation of a login flow waiting on the browser.
@@ -1327,7 +1330,8 @@ impl Daemon {
             }
         };
         session.access_token = Some(tokens.access_token);
-        session.access_expires_at = Some(Instant::now() + Duration::from_secs(tokens.expires_in));
+        session.access_expires_at =
+            Some(SystemTime::now() + Duration::from_secs(tokens.expires_in));
         session.refresh_token = Some(tokens.refresh_token);
         session.username = Some(tokens.username);
         session.keyring = keyring;
@@ -1357,7 +1361,9 @@ impl Daemon {
             if !force_refresh
                 && let (Some(token), Some(expires)) =
                     (&s.auth.access_token, s.auth.access_expires_at)
-                && expires.saturating_duration_since(Instant::now()) > Duration::from_secs(5)
+                && expires
+                    .duration_since(SystemTime::now())
+                    .is_ok_and(|left| left > Duration::from_secs(5))
             {
                 return Ok((token.clone(), s.auth.username.clone().unwrap_or_default()));
             }
@@ -1508,10 +1514,11 @@ impl Daemon {
             logged_in: s.auth.refresh_token.is_some(),
             pending: s.auth.pending.is_some(),
             username: s.auth.username.clone(),
-            access_expires_in_seconds: s
-                .auth
-                .access_expires_at
-                .map(|t| t.saturating_duration_since(Instant::now()).as_secs()),
+            access_expires_in_seconds: s.auth.access_expires_at.map(|t| {
+                t.duration_since(SystemTime::now())
+                    .unwrap_or_default()
+                    .as_secs()
+            }),
             keyring: s.auth.keyring.clone(),
             provider: self.provider.name.to_string(),
         }
@@ -1692,10 +1699,11 @@ impl Daemon {
                     connections: s.connections,
                     logged_in: s.auth.refresh_token.is_some(),
                     username: s.auth.username.clone(),
-                    access_expires_in_seconds: s
-                        .auth
-                        .access_expires_at
-                        .map(|t| t.saturating_duration_since(Instant::now()).as_secs()),
+                    access_expires_in_seconds: s.auth.access_expires_at.map(|t| {
+                        t.duration_since(SystemTime::now())
+                            .unwrap_or_default()
+                            .as_secs()
+                    }),
                     keyring: s.auth.keyring.clone(),
                     in_flight,
                     max_in_flight,
@@ -2129,7 +2137,7 @@ mod auth_session_tests {
                 next_id: 1,
                 auth: AuthSession {
                     access_token: Some("at-expired".into()),
-                    access_expires_at: Some(Instant::now()),
+                    access_expires_at: Some(SystemTime::now()),
                     refresh_token: Some("rt-old".into()),
                     username: Some("old-user".into()),
                     keyring: "ok".into(),
@@ -3134,7 +3142,7 @@ mod dispatcher_tests {
             shared.auth.refresh_token = Some("rt-old".into());
             shared.auth.username = Some("old-user".into());
             shared.auth.access_token = Some("at-established".into());
-            shared.auth.access_expires_at = Some(Instant::now() + Duration::from_secs(3600));
+            shared.auth.access_expires_at = Some(SystemTime::now() + Duration::from_secs(3600));
         }
 
         let dispatcher = tokio::spawn(daemon.clone().dispatcher());
@@ -3166,7 +3174,7 @@ mod dispatcher_tests {
         }
         {
             let mut shared = daemon.shared.lock().unwrap();
-            shared.auth.access_expires_at = Some(Instant::now());
+            shared.auth.access_expires_at = Some(SystemTime::now());
         }
 
         // These jobs now have different learned scheduling keys, so all three

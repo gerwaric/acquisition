@@ -80,6 +80,16 @@ gaps between "correct" and "safe to run unattended against GGG"):
   needed for correctness; wanted as the backstop for the bug nobody
   imagined, during the ladder only.
 - **R6 — `profile` reaches the real token endpoint.** See the table.
+- **R8 — access-token expiry was tracked on a monotonic clock** (found
+  2026-08-23 while planning the soak, before any live occurrence). On macOS
+  `Instant` does not advance during sleep, so a daemon waking after a long
+  sleep believed an expired token still valid and would have sent a GET
+  every 10 min answered 401 — not a violation, but a timed stream of
+  unauthorized requests — until the frozen clock caught up. Fixed in the
+  commit recorded in the rung-8 ledger row: expiry is wall-clock
+  (`SystemTime`), and 401 trips the tripwire. The limiter's windows still
+  use `Instant`; after a sleep that errs toward waiting longer (safe), by
+  at most one window length.
 - **R7 — a keyring save failure after rotation is a warning, not a stop.**
   The rotated refresh token is then memory-only; the next idle exit
   silently logs the account out. (`daemon.rs` `install_tokens_locked`.)
@@ -108,7 +118,8 @@ than CONTEXT.md's accepted 429-recovery decision intends.
 1. **Tripwire (R2).** Opt-in via `ACQ_TRIPWIRE=1` (the ladder sets it;
    never on in mock mode by default, since the mock and the existing suite
    produce 429s deliberately). Trips on the first counted violation — any
-   landed 429 on any route, including HEAD and token — and on any 403/503.
+   landed 429 on any route, including HEAD and token — and on any
+   401/403/503 (401 added 2026-08-23: see R8).
    A HEAD 429 is a designed-recoverable case under frozen D4; tripping on it
    is a deliberate ladder-time tightening, not a contradiction. While
    tripped, every `ChokePoint` transport method fails fast before acquiring
