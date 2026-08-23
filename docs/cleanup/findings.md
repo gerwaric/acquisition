@@ -185,6 +185,61 @@ only by `LoginDialog`. Fix shape: surface refresh failure to the UI
 and add an `oauth_rejected` de-arming path symmetric with the
 POESESSID one.
 
+### F78. `_DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR` was defined for only one target — Confirmed; fix landed, Windows verification pending
+
+Found August 22, 2026, from a Sentry crash on 0.18.3
+(`acquisition.sentry.io/issues/7687078638`, two events, one Windows 10
+19044 machine). `EXCEPTION_ACCESS_VIOLATION_READ / 0x0` inside
+`mtx_do_lock` (MSVCP140.dll), reached from `main` ->
+`logging::init` (`src/util/logging.cpp:78`) ->
+`spdlog::set_default_logger` -> `registry::set_default_logger`
+(`registry-inl.h`) -> `std::lock_guard`. The process died on its very
+first `std::mutex` lock, before `logging::init` returned.
+
+Mechanism: MSVC 14.38 (VS 2022 17.8) made `std::mutex`'s constructor
+`constexpr`, so the mutex's storage is constant-initialized to zero
+instead of being set up by `_Mtx_init_in_situ`. An older
+`msvcp140.dll` does not understand that representation and its
+`mtx_do_lock` dereferences a null handle. The crash event's debug
+images confirm it: `acquisition.exe` built 2026-08-20 against a
+`C:\Windows\SYSTEM32\MSVCP140.dll` built 2021-02-11 (~14.28, the
+VS 2019 redistributable). The bundled `vc_redist.x64.exe` had never
+run or had failed; `installer.iss` makes it an optional Task.
+
+`_DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR` was already in the build, but
+as a `PRIVATE` `target_compile_options` entry on `acquisition_core`
+alone. `src/main.cpp` (the `acquisition` target), `acquisition_filters`,
+every test target, and all fetched dependencies compiled without it.
+`std::mutex`'s constructor is inline, so a mutex inside an inline
+function or a header-only library — spdlog's `registry` singleton is
+exactly that — is emitted as a COMDAT by every translation unit that
+uses it. Mixing macro and non-macro TUs makes those definitions
+disagree and the linker keeps one arbitrarily: an ODR violation whose
+observable symptom is this crash. Partial coverage was therefore worse
+than none, because it read as protection.
+
+Fix: the macro is now a global `add_compile_definitions()` in
+`CMakeLists.txt`, placed ahead of the `FetchContent` block so the
+fetched dependencies get it too, and removed from the per-target list.
+
+**Verification is still owed.** The reproduction is Windows-only and
+needs an old CRT; Linux configure/build/`ctest` (39/39) only proves
+nothing regressed. Confirm on a Windows build before treating this as
+closed.
+
+Not fixed here, and still open:
+
+- `installer.iss` leaves the redistributable an unchecked-able Task,
+  so a user can still decline it. With the macro global this is no
+  longer fatal, but it should be forced.
+- `checkMicrosoftRuntime()` runs at `src/main.cpp:164`, *after*
+  `logging::init` at `:134`, so it can never fire for a crash in the
+  CRT's first lock. It also only looks for stray DLLs beside the exe
+  (`src/util/checkmsvc.cpp`) and never checks the system CRT's
+  version, which was the actual fault here.
+- Shipping the CRT DLLs app-local would conflict with that same
+  check, which aborts when it finds `msvcp140.dll` next to the exe.
+
 ## Standing constraints and lessons
 
 Rules distilled from resolved findings that remain binding on future work.
