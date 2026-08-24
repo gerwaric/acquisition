@@ -144,26 +144,80 @@ would have caught mark the boundary of what this approach can protect
 during an internal rewrite. Knowing that boundary before the rewrite is
 worth more than the invariant list itself.
 
+## Experiment 1 — R8 as a scenario (2026-08-24)
+
+The first thing tried, chosen because it touches topics 1, 2, and 3 at
+once on the smallest piece of work. Plain-English version: give the
+daemon a clock the test controls, pretend the laptop slept and then ten
+hours passed, ask for a job, and check the daemon's own send log for a
+rejected token.
+
+**What was built.** `Clock` grew a second face, `wall()`, and a `kind()`.
+One `SystemClock` now drives limiter, token expiry, and journal; the test
+`ManualClock` can `advance()` both faces or `laptop_sleep()` the wall
+alone. The journal stamps lines from that clock and opens each daemon
+lifetime with a header line — `{"event":"open","pid","build","clock"}` —
+where `build` is the git commit stamped into the binary by `build.rs`
+(`<hash>` or `<hash>-dirty`). `soak-check.sh` refuses a journal with a
+`manual` lifetime and prints the `(pid, build)` of each `system` one.
+
+**The invariant** (`expired_token_after_laptop_sleep_is_refreshed_before_any_send`):
+over the journal, not the sequence — no send is answered 401, a `POST
+/token` reached the wire, and every send falls within 60 virtual seconds
+of the scenario start. The server answers by *what was sent* (a stale
+bearer gets 401 on any route), so it encodes no expected order.
+
+**The breaker.** With expiry measured on the monotonic face again, the
+test fails on its first send: `HEAD /character` carrying the stale bearer,
+401 — the same shape the soak saw live at 21:50Z. Restored; 88 pass.
+
+**Three more surprises, from an afternoon's work:**
+
+7. **Topic 2's premise was false when written.** The journal stamped
+   lines with `SystemTime::now()`, so under a manual clock a "within N
+   virtual seconds" assertion would have read a 2 ms test as 2 ms and
+   never failed. Caught by reading the code before building on it; this
+   is exactly the "reads as a check, cannot fail" theme and it was one
+   step from being built.
+8. **An existing test hung once the daemon spoke scenario time.** It
+   marked a token expired with the *machine's* `SystemTime::now()`
+   (2026) while the daemon now compared against the scenario wall
+   (2000): the token looked valid for 26 years and the awaited refresh
+   never came. Tests must speak the daemon's clock. Expect this shape
+   again anywhere a test reaches past the fake for real time.
+9. **The bug-register walk gives about 5 of 13.** R1, R3, R8-env, R9,
+   and clock-R8 have journal invariants; R4 (the journal itself failing),
+   R5 (a race), R6/R7/R10/R11/R12 (config, reporting, persistence) do
+   not. The boundary is clean: **the journal guards the wire; it cannot
+   guard what the daemon reports or persists.** That is the right place
+   for the boundary, because a rewrite is most dangerous on the wire and
+   is allowed to change the reporting side.
+
+**Still open from this experiment:** the idle-shutdown and activity sites
+in `daemon.rs` read `Instant::now()` directly and are not on the clock
+yet; `acq --version` does not print the build stamp (the daemon log's
+first line and the journal header do).
+
 ## Open topics
 
-1. **The clock fork.** Extend `ratelimit.rs`'s `Clock` trait with a
-   wall-clock method so one fake drives limiter and daemon together, or
-   add a separate daemon-level clock that is less invasive but leaves
-   two fakes to keep consistent? R8 is a bug about two clocks
-   disagreeing, which argues for one fake able to make them disagree
-   deliberately — but that touches the limiter's trait and every impl.
+1. **The clock fork — resolved by experiment 1:** one clock, two faces.
+   Remaining: the idle/activity `Instant::now()` sites, when a scenario
+   needs restarts.
 2. **Is the journal sufficient as a contract surface?** It records what
    was sent and when, but not *why* the limiter waited. Does pinning
    pacing need that? Is the CLI's `--json` outcome a necessary second
-   surface for job results and data correctness? Note that the journal
-   is stronger here than it first appears: under a manual clock its
-   timestamps are exact, so "this refresh completes within N virtual
-   seconds" is a deterministic, free-to-run *performance* invariant off
-   a surface that already exists — which covers the degradation half of
-   the goal without new instrumentation.
-3. **Should provenance be a rail** — the daemon refusing to run a binary
-   that does not match its checkout — or is that a process fix rather
-   than a code one?
+   surface for job results and data correctness? Since experiment 1 the
+   journal's timestamps *are* the scenario's, so "this refresh completes
+   within N virtual seconds" is a deterministic, free-to-run
+   *performance* invariant off a surface that already exists — which
+   covers the degradation half of the goal without new instrumentation.
+   (Before experiment 1 this paragraph was wrong; see surprise 7.) A
+   `wait_ms` field — how long the limiter held before the send — would
+   make pacing itself observable without recording reasons.
+3. **Provenance — resolved as process with a code assist:** the binary
+   carries its commit, the journal and log say which one, and
+   `soak-check.sh` refuses what it cannot trust. The daemon does not
+   refuse to run; a script that refuses to *evaluate* is enough.
 4. **What does the live ladder shrink to?** Arguably only what the mock
    cannot answer, which is already written down as README's "Known
    gaps". If so, most future confidence is bought offline and the ladder
@@ -178,9 +232,11 @@ worth more than the invariant list itself.
 
 ## Standing constraints carried from the soak
 
-- Verify the **binary**, not the checkout, before any live run:
-  `strings target/debug/acq | grep 'token rejected'` returns two lines
-  with the R8 fix present, one without.
+- Verify the **binary**, not the checkout, before any live run. Since
+  experiment 1: the daemon's first log line and the journal header carry
+  `build`; it must equal `git rev-parse --short=12 HEAD` with no `-dirty`.
+  (The older check, `strings target/debug/acq | grep 'token rejected'`
+  returning two lines, still works for the R8 fix specifically.)
 - A future soak must derive its ceiling from cadence × intended
   duration; 200 sends at one per 10 min is 33 h, not "several days".
 - Express the HEAD condition per `(pid, route)` — the journal records

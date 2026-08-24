@@ -25,7 +25,7 @@ use std::fmt;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime};
 
 use serde::{Deserialize, Serialize};
 
@@ -1178,17 +1178,36 @@ struct SentAt {
 
 const SEND_HISTORY: usize = 100;
 
+/// The one source of time for the limiter, the daemon's token expiry, and
+/// the send journal. Two faces on purpose: `now` is monotonic and pauses
+/// while the machine sleeps; `wall` is the clock on the wall and does not.
+/// R8 was the daemon measuring token expiry with the wrong face, and a fake
+/// that can move the two apart is how that hazard becomes a cheap test.
 pub(crate) trait Clock: Send + Sync {
     fn now(&self) -> Instant;
 
+    fn wall(&self) -> SystemTime;
+
     fn sleep(&self, duration: Duration) -> Pin<Box<dyn Future<Output = ()> + Send + '_>>;
+
+    /// `"system"` or `"manual"`: written into the journal header so a
+    /// fake-clock journal can never pass for live evidence.
+    fn kind(&self) -> &'static str;
 }
 
-struct SystemClock;
+pub(crate) struct SystemClock;
 
 impl Clock for SystemClock {
     fn now(&self) -> Instant {
         Instant::now()
+    }
+
+    fn wall(&self) -> SystemTime {
+        SystemTime::now()
+    }
+
+    fn kind(&self) -> &'static str {
+        "system"
     }
 
     fn sleep(&self, duration: Duration) -> Pin<Box<dyn Future<Output = ()> + Send + '_>> {
@@ -1255,7 +1274,6 @@ impl ChokePoint {
         }
     }
 
-    #[cfg(test)]
     pub(crate) fn with_clock_and_rails(clock: Arc<dyn Clock>, rails: Arc<Rails>) -> Self {
         ChokePoint {
             http: build_client(),
@@ -1273,6 +1291,10 @@ impl ChokePoint {
 
     pub(crate) fn now(&self) -> Instant {
         self.clock.now()
+    }
+
+    pub(crate) fn wall(&self) -> SystemTime {
+        self.clock.wall()
     }
 
     pub(crate) async fn sleep(&self, duration: Duration) {

@@ -129,6 +129,9 @@ on the command that spawns it, or `acq daemon stop` first:
 - `ACQ_JOURNAL=<path>` — one JSON line per actual send (method, route,
   status, every `X-Rate-Limit-*` header; never a token or body), flushed
   per line; defaults to `<socket>.<provider>.sends.jsonl`, `0` disables.
+  Each daemon lifetime opens with `{"event":"open","pid","build","clock"}`
+  — the git commit the binary was built from and whether time was the
+  system's or a test's manual clock.
   A journal that cannot be opened is reported in `daemon status`, not
   silently dropped.
 - Misunderstood values (`ACQ_TRIPWIRE=maybe`, `ACQ_MAX_SENDS=ten`) are

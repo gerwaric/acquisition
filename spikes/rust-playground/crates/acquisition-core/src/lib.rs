@@ -19,3 +19,9 @@ pub mod ratelimit;
 /// Shared version used for the client/daemon handshake. Both binaries link
 /// this crate, so a rebuilt CLI with a changed core will detect a stale daemon.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+
+/// The git commit this binary was built from (`<short-hash>` or
+/// `<short-hash>-dirty`; `unknown` outside a checkout). Written into the send
+/// journal header and the daemon's startup line: the rails verify behavior,
+/// this is the one place that says *which code* behaved.
+pub const BUILD: &str = env!("ACQ_BUILD");

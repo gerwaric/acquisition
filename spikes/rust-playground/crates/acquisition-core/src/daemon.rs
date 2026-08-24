@@ -22,7 +22,9 @@ use crate::job::{JobId, JobInfo, JobState, Outcome, Priority};
 use crate::protocol::{ErrorRecord, Request, Response};
 use crate::provider::{CALLBACK_PATH, Provider, SCOPES, ggg_mode};
 use crate::rails::{Rails, RailsConfig};
-use crate::ratelimit::{ChokePoint, EndpointState, RetryAfter, SendError, url_path};
+use crate::ratelimit::{
+    ChokePoint, Clock, EndpointState, RetryAfter, SendError, SystemClock, url_path,
+};
 use crate::{auth, mockggg};
 
 const IDLE_SHUTDOWN: Duration = Duration::from_secs(60);
@@ -1331,7 +1333,7 @@ impl Daemon {
         };
         session.access_token = Some(tokens.access_token);
         session.access_expires_at =
-            Some(SystemTime::now() + Duration::from_secs(tokens.expires_in));
+            Some(self.choke.wall() + Duration::from_secs(tokens.expires_in));
         session.refresh_token = Some(tokens.refresh_token);
         session.username = Some(tokens.username);
         session.keyring = keyring;
@@ -1362,7 +1364,7 @@ impl Daemon {
                 && let (Some(token), Some(expires)) =
                     (&s.auth.access_token, s.auth.access_expires_at)
                 && expires
-                    .duration_since(SystemTime::now())
+                    .duration_since(self.choke.wall())
                     .is_ok_and(|left| left > Duration::from_secs(5))
             {
                 return Ok((token.clone(), s.auth.username.clone().unwrap_or_default()));
@@ -1515,7 +1517,7 @@ impl Daemon {
             pending: s.auth.pending.is_some(),
             username: s.auth.username.clone(),
             access_expires_in_seconds: s.auth.access_expires_at.map(|t| {
-                t.duration_since(SystemTime::now())
+                t.duration_since(self.choke.wall())
                     .unwrap_or_default()
                     .as_secs()
             }),
@@ -1700,7 +1702,7 @@ impl Daemon {
                     logged_in: s.auth.refresh_token.is_some(),
                     username: s.auth.username.clone(),
                     access_expires_in_seconds: s.auth.access_expires_at.map(|t| {
-                        t.duration_since(SystemTime::now())
+                        t.duration_since(self.choke.wall())
                             .unwrap_or_default()
                             .as_secs()
                     }),
@@ -1887,12 +1889,12 @@ pub async fn run() -> Result<()> {
         Provider::mock(&mockggg::start().await?)
     };
     // Same limiter in both modes: empty until responses teach it policies.
-    let rails = Arc::new(Rails::with_config(RailsConfig::from_env(
-        provider.name,
-        &path,
-        &journal_path(provider.name),
-    )));
-    let choke = ChokePoint::with_rails(rails);
+    let clock: Arc<dyn Clock> = Arc::new(SystemClock);
+    let rails = Arc::new(Rails::with_config_and_clock(
+        RailsConfig::from_env(provider.name, &path, &journal_path(provider.name)),
+        clock.clone(),
+    ));
+    let choke = ChokePoint::with_clock_and_rails(clock, rails);
 
     // A session in the keyring survives daemon restarts; the first
     // auth-required job will refresh its way to a live access token.
@@ -1927,8 +1929,9 @@ pub async fn run() -> Result<()> {
     });
 
     daemon.log(&format!(
-        "daemon {} listening on {} (pid {})",
+        "daemon {} build {} listening on {} (pid {})",
         VERSION,
+        crate::BUILD,
         path.display(),
         std::process::id()
     ));
@@ -2677,8 +2680,14 @@ mod dispatcher_tests {
     use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
     use tokio::sync::{Semaphore, oneshot};
 
+    /// Wall-clock origin for scenarios: 2000-01-01T00:00:00Z. Deliberately
+    /// synthetic so a journal written under this clock is recognizable as a
+    /// scenario even if someone strips the header line.
+    const MANUAL_WALL_ORIGIN: Duration = Duration::from_secs(946_684_800);
+
     struct ManualClock {
         now: Mutex<Instant>,
+        wall: Mutex<SystemTime>,
         slept: Mutex<Duration>,
     }
 
@@ -2686,12 +2695,26 @@ mod dispatcher_tests {
         fn new() -> Self {
             ManualClock {
                 now: Mutex::new(Instant::now()),
+                wall: Mutex::new(SystemTime::UNIX_EPOCH + MANUAL_WALL_ORIGIN),
                 slept: Mutex::new(Duration::ZERO),
             }
         }
 
         fn slept(&self) -> Duration {
             *self.slept.lock().unwrap()
+        }
+
+        /// Time passes normally: both faces move.
+        fn advance(&self, duration: Duration) {
+            let mut now = self.now.lock().unwrap();
+            *now = now.checked_add(duration).expect("bounded test deadline");
+            *self.wall.lock().unwrap() += duration;
+        }
+
+        /// The lid closes: the wall clock moves, the monotonic clock does
+        /// not. This is the R8 shape.
+        fn laptop_sleep(&self, duration: Duration) {
+            *self.wall.lock().unwrap() += duration;
         }
     }
 
@@ -2700,11 +2723,18 @@ mod dispatcher_tests {
             *self.now.lock().unwrap()
         }
 
+        fn wall(&self) -> SystemTime {
+            *self.wall.lock().unwrap()
+        }
+
+        fn kind(&self) -> &'static str {
+            "manual"
+        }
+
         fn sleep(&self, duration: Duration) -> Pin<Box<dyn Future<Output = ()> + Send + '_>> {
             Box::pin(async move {
                 {
-                    let mut now = self.now.lock().unwrap();
-                    *now = now.checked_add(duration).expect("bounded test deadline");
+                    self.advance(duration);
                     *self.slept.lock().unwrap() += duration;
                 }
                 tokio::task::yield_now().await;
@@ -2714,14 +2744,17 @@ mod dispatcher_tests {
 
     struct BlockingClock {
         now: Mutex<Instant>,
+        origin: Mutex<Instant>,
         sleepers: AtomicUsize,
         releases: Semaphore,
     }
 
     impl BlockingClock {
         fn new() -> Self {
+            let start = Instant::now();
             BlockingClock {
-                now: Mutex::new(Instant::now()),
+                now: Mutex::new(start),
+                origin: Mutex::new(start),
                 sleepers: AtomicUsize::new(0),
                 releases: Semaphore::new(0),
             }
@@ -2745,6 +2778,16 @@ mod dispatcher_tests {
     impl Clock for BlockingClock {
         fn now(&self) -> Instant {
             *self.now.lock().unwrap()
+        }
+
+        fn wall(&self) -> SystemTime {
+            SystemTime::UNIX_EPOCH
+                + MANUAL_WALL_ORIGIN
+                + self.now().duration_since(*self.origin.lock().unwrap())
+        }
+
+        fn kind(&self) -> &'static str {
+            "manual"
         }
 
         fn sleep(&self, duration: Duration) -> Pin<Box<dyn Future<Output = ()> + Send + '_>> {
@@ -2959,6 +3002,15 @@ mod dispatcher_tests {
         clock: Arc<dyn Clock>,
         rails: Arc<Rails>,
     ) -> (Arc<Daemon>, PathBuf) {
+        test_daemon_scenario(provider, clock, rails, Arc::new(OsCredentialStore))
+    }
+
+    fn test_daemon_scenario(
+        provider: Provider,
+        clock: Arc<dyn Clock>,
+        rails: Arc<Rails>,
+        credential_store: Arc<dyn CredentialStore>,
+    ) -> (Arc<Daemon>, PathBuf) {
         let log_path = std::env::temp_dir().join(format!(
             "acquisition-n1-dispatcher-{}-{}.log",
             std::process::id(),
@@ -2986,9 +3038,165 @@ mod dispatcher_tests {
             log: Mutex::new(log),
             choke: ChokePoint::with_clock_and_rails(clock, rails),
             provider,
-            credential_store: Arc::new(OsCredentialStore),
+            credential_store,
         });
         (daemon, log_path)
+    }
+
+    /// A server that answers by *what was sent*, not by position in a
+    /// script: a stale bearer gets 401 on any route, the token endpoint
+    /// rotates to a fresh one, everything else succeeds. Runs until aborted.
+    /// Scenario tests assert invariants over the journal, so the server must
+    /// not encode the expected sequence.
+    async fn bearer_aware_server(
+        stale_bearer: &'static str,
+        fresh_bearer: &'static str,
+    ) -> (String, tokio::task::JoinHandle<()>) {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let base = format!("http://{}", listener.local_addr().unwrap());
+        let task = tokio::spawn(async move {
+            loop {
+                let (mut stream, _) = listener.accept().await.unwrap();
+                let Some(request) = mockggg::read_request(&mut stream).await else {
+                    continue;
+                };
+                let bearer = request
+                    .headers
+                    .get("authorization")
+                    .and_then(|v| v.strip_prefix("Bearer "))
+                    .unwrap_or("");
+                let api_headers = "X-Rate-Limit-Policy: scenario-policy\r\nX-Rate-Limit-Rules: Account\r\nX-Rate-Limit-Account: 100:1:60\r\nX-Rate-Limit-Account-State: 0:1:0\r\n";
+                let (status, headers, body) = if request.path == "/token" {
+                    let body = json!({
+                        "access_token": fresh_bearer,
+                        "refresh_token": "rt-rotated",
+                        "expires_in": 3600,
+                        "username": "scenario-user",
+                    })
+                    .to_string();
+                    (
+                        "200 OK",
+                        "X-Rate-Limit-Policy: token-request-limit\r\nX-Rate-Limit-Rules: Ip\r\nX-Rate-Limit-Ip: 60:30:30\r\nX-Rate-Limit-Ip-State: 1:30:0\r\n",
+                        body,
+                    )
+                } else if bearer == stale_bearer {
+                    (
+                        "401 Unauthorized",
+                        api_headers,
+                        r#"{"error":"expired"}"#.to_string(),
+                    )
+                } else if request.method == "HEAD" {
+                    ("204 No Content", api_headers, String::new())
+                } else {
+                    ("200 OK", api_headers, r#"{"characters":[]}"#.to_string())
+                };
+                mockggg::respond_with(&mut stream, status, "application/json", headers, &body)
+                    .await;
+            }
+        });
+        (base, task)
+    }
+
+    fn read_journal(path: &PathBuf) -> Vec<Value> {
+        std::fs::read_to_string(path)
+            .expect("journal was written")
+            .lines()
+            .map(|l| serde_json::from_str(l).expect("journal line is JSON"))
+            .collect()
+    }
+
+    /// Seconds since midnight from a journal `ts`; enough to reason about a
+    /// scenario that starts the day at the manual wall origin.
+    fn ts_seconds(line: &Value) -> u64 {
+        let ts = line["ts"].as_str().expect("ts is a string");
+        assert!(ts.starts_with("2000-01-01T"), "manual-clock stamp: {ts}");
+        let hms: Vec<u64> = ts[11..19].split(':').map(|p| p.parse().unwrap()).collect();
+        hms[0] * 3600 + hms[1] * 60 + hms[2]
+    }
+
+    /// R8 as a scenario (TESTING-NOTES, "the experiment"). The token was
+    /// issued for 3600 s; the lid closed for 1800 s and then 2000 s passed
+    /// normally. On the wall it is 3800 s later and the token is dead; on a
+    /// stopwatch only 2000 s have passed and it looks fine. The invariant is
+    /// over the journal, not the sequence: no send is answered 401, the
+    /// refresh happened on the wire, and the whole job finished within a
+    /// minute of virtual time.
+    ///
+    /// Breaker (verified 2026-08-24): measure expiry from `self.choke.now()`
+    /// instead of `wall()` in `install_tokens_locked` / `valid_access_token`
+    /// and this fails on the 401 assertion.
+    #[tokio::test]
+    async fn expired_token_after_laptop_sleep_is_refreshed_before_any_send() {
+        let (base, server) = bearer_aware_server("at-old", "at-new").await;
+        let clock = Arc::new(ManualClock::new());
+        let journal = std::env::temp_dir().join(format!(
+            "acquisition-r8-{}-{}.jsonl",
+            std::process::id(),
+            TEST_LOG_ID.fetch_add(1, Ordering::Relaxed)
+        ));
+        let _ = std::fs::remove_file(&journal);
+        let rails = Arc::new(Rails::with_config_and_clock(
+            RailsConfig {
+                journal_path: Some(journal.clone()),
+                ..RailsConfig::default()
+            },
+            clock.clone(),
+        ));
+        let (daemon, log_path) = test_daemon_scenario(
+            Provider::mock(&base),
+            clock.clone(),
+            rails,
+            Arc::new(NoopCredentialStore),
+        );
+        {
+            let mut s = daemon.shared.lock().unwrap();
+            daemon.install_tokens_locked(
+                &mut s.auth,
+                auth::TokenResponse {
+                    access_token: "at-old".into(),
+                    refresh_token: "rt-old".into(),
+                    expires_in: 3600,
+                    username: "scenario-user".into(),
+                },
+            );
+        }
+        clock.laptop_sleep(Duration::from_secs(1800));
+        clock.advance(Duration::from_secs(2000));
+        let scenario_start = 3800;
+
+        let dispatcher = tokio::spawn(daemon.clone().dispatcher());
+        let id = daemon.submit("characters".into(), json!({}), 0, "test".into());
+        let (info, _) = wait_terminal(&daemon, id).await;
+        server.abort();
+        finish_harness(dispatcher, &log_path);
+
+        let lines = read_journal(&journal);
+        let _ = std::fs::remove_file(&journal);
+        let header = &lines[0];
+        assert_eq!(header["event"], "open");
+        assert_eq!(header["clock"], "manual");
+        assert_eq!(header["build"], crate::BUILD);
+        assert_eq!(header["ts"], "2000-01-01T00:00:00.000Z");
+        let sends = &lines[1..];
+
+        assert!(
+            sends.iter().all(|l| l["status"] != 401),
+            "no send may be answered 401: {sends:?}"
+        );
+        assert_eq!(info.state, JobState::Done, "{sends:?}");
+        assert!(
+            sends
+                .iter()
+                .any(|l| l["method"] == "POST" && l["path"] == "/token"),
+            "the refresh must reach the wire: {sends:?}"
+        );
+        for line in sends {
+            let at = ts_seconds(line);
+            assert!(
+                (scenario_start..scenario_start + 60).contains(&at),
+                "send outside the scenario's minute: {line}"
+            );
+        }
     }
 
     async fn wait_terminal(daemon: &Daemon, id: JobId) -> (JobInfo, Outcome) {
@@ -3132,7 +3340,7 @@ mod dispatcher_tests {
         let api_base = mockggg::start().await.unwrap();
         let (token_base, token_arrived, release_token, token_server) = delayed_token_server().await;
         let clock = Arc::new(ManualClock::new());
-        let (mut daemon, log_path) = test_daemon(&api_base, clock);
+        let (mut daemon, log_path) = test_daemon(&api_base, clock.clone());
         let credential_store = Arc::new(RecordingCredentialStore::default());
         let daemon_mut = Arc::get_mut(&mut daemon).unwrap();
         daemon_mut.credential_store = credential_store.clone();
@@ -3142,7 +3350,7 @@ mod dispatcher_tests {
             shared.auth.refresh_token = Some("rt-old".into());
             shared.auth.username = Some("old-user".into());
             shared.auth.access_token = Some("at-established".into());
-            shared.auth.access_expires_at = Some(SystemTime::now() + Duration::from_secs(3600));
+            shared.auth.access_expires_at = Some(clock.wall() + Duration::from_secs(3600));
         }
 
         let dispatcher = tokio::spawn(daemon.clone().dispatcher());
@@ -3174,7 +3382,8 @@ mod dispatcher_tests {
         }
         {
             let mut shared = daemon.shared.lock().unwrap();
-            shared.auth.access_expires_at = Some(SystemTime::now());
+            // Expired on the daemon's clock, not the machine's.
+            shared.auth.access_expires_at = Some(clock.wall());
         }
 
         // These jobs now have different learned scheduling keys, so all three

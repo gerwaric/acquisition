@@ -55,6 +55,14 @@ path, since_text = sys.argv[1], sys.argv[2]
 since = parse_ts(since_text, "timestamp")
 print(f"== journal since {since.isoformat().replace('+00:00','Z')} (from {since_text!r})")
 rows = [json.loads(l) for l in open(path) if l.strip()]
+# One "open" line per daemon lifetime carries provenance (pid, build, clock).
+# A manual-clock journal is a scenario, never live evidence.
+opens = [r for r in rows if r.get("event") == "open"]
+rows = [r for r in rows if "event" not in r]
+for o in opens:
+    if o.get("clock") != "system":
+        sys.exit(f"soak-check: journal has a {o.get('clock')!r}-clock lifetime (pid {o.get('pid')}); not live evidence")
+print("  daemon lifetimes:", [(o["pid"], o.get("build", "?")) for o in opens] or "none recorded (pre-header journal)")
 rows = [r for r in rows if parse_ts(r["ts"], "journal stamp") >= since]
 by = collections.Counter((r["method"], r["path"]) for r in rows)
 for k, v in sorted(by.items()): print(f"  {v:5d}  {k[0]} {k[1]}")

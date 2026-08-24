@@ -21,8 +21,10 @@
 use std::fs::{File, OpenOptions};
 use std::io::Write as _;
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
+
+use crate::ratelimit::{Clock, SystemClock};
 
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -142,6 +144,10 @@ pub struct Rails {
     journal: Mutex<Option<File>>,
     /// Why the journal could not be opened, if it could not.
     journal_error: Option<String>,
+    /// Stamps journal lines. Under a manual clock the timestamps are the
+    /// scenario's, not the machine's — which is what makes "finished within
+    /// N virtual seconds" a real assertion instead of one that cannot fail.
+    clock: Arc<dyn Clock>,
 }
 
 impl Rails {
@@ -152,6 +158,10 @@ impl Rails {
     }
 
     pub fn with_config(config: RailsConfig) -> Rails {
+        Rails::with_config_and_clock(config, Arc::new(SystemClock))
+    }
+
+    pub(crate) fn with_config_and_clock(config: RailsConfig, clock: Arc<dyn Clock>) -> Rails {
         let mut state = State::default();
         // A persisted trip belongs to the tripwire: a daemon started without
         // it (the post-baseline default) neither honors nor deletes it.
@@ -176,12 +186,34 @@ impl Rails {
                 ),
             },
         };
-        Rails {
+        let rails = Rails {
             config,
             state: Mutex::new(state),
             journal: Mutex::new(journal),
             journal_error,
-        }
+            clock,
+        };
+        rails.journal_header();
+        rails
+    }
+
+    /// One line per daemon lifetime, before any send: which process, which
+    /// build, and which clock. The per-send lines are unchanged. A reader
+    /// that finds `"clock":"manual"` is looking at a scenario, not at GGG;
+    /// one that finds a `build` that is not its checkout is looking at the
+    /// rung-8 mistake.
+    fn journal_header(&self) {
+        let mut guard = self.journal.lock().unwrap();
+        let Some(file) = guard.as_mut() else { return };
+        let line = json!({
+            "event": "open",
+            "ts": iso_utc(self.clock.wall()),
+            "pid": std::process::id(),
+            "build": crate::BUILD,
+            "clock": self.clock.kind(),
+        });
+        let _ = writeln!(file, "{line}");
+        let _ = file.flush();
     }
 
     /// Startup diagnostics the daemon should log: misunderstood environment
@@ -340,7 +372,7 @@ impl Rails {
         let mut guard = self.journal.lock().unwrap();
         let Some(file) = guard.as_mut() else { return };
         let line = json!({
-            "ts": iso_utc_now(),
+            "ts": iso_utc(self.clock.wall()),
             "pid": std::process::id(),
             "method": report.method,
             "route": report.route,
@@ -357,10 +389,8 @@ impl Rails {
 }
 
 /// ISO 8601 UTC with milliseconds, without pulling in a date crate.
-fn iso_utc_now() -> String {
-    let now = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default();
+fn iso_utc(at: SystemTime) -> String {
+    let now = at.duration_since(UNIX_EPOCH).unwrap_or_default();
     let secs = now.as_secs();
     let millis = now.subsec_millis();
     let days = secs / 86_400;
@@ -516,16 +546,20 @@ mod tests {
             .lines()
             .map(|l| serde_json::from_str(l).unwrap())
             .collect();
-        assert_eq!(lines.len(), 2);
-        assert_eq!(lines[0]["status"], 200);
+        assert_eq!(lines.len(), 3, "header plus two sends");
+        assert_eq!(lines[0]["event"], "open");
+        assert_eq!(lines[0]["clock"], "system");
+        assert_eq!(lines[0]["build"], crate::BUILD);
+        assert_eq!(lines[0]["pid"], std::process::id());
+        assert_eq!(lines[1]["status"], 200);
         assert_eq!(
-            lines[0]["rate"]["X-Rate-Limit-Policy"],
+            lines[1]["rate"]["X-Rate-Limit-Policy"],
             "character-list-request-limit"
         );
-        assert_eq!(lines[0]["counted"], true);
-        assert_eq!(lines[1]["status"], Value::Null);
-        assert_eq!(lines[1]["error"], "connection reset");
-        assert!(lines[0]["ts"].as_str().unwrap().ends_with('Z'));
+        assert_eq!(lines[1]["counted"], true);
+        assert_eq!(lines[2]["status"], Value::Null);
+        assert_eq!(lines[2]["error"], "connection reset");
+        assert!(lines[1]["ts"].as_str().unwrap().ends_with('Z'));
         for key in ["authorization", "token", "body", "bearer"] {
             assert!(!text.to_lowercase().contains(key), "journal leaked {key}");
         }
@@ -580,7 +614,7 @@ mod tests {
 
     #[test]
     fn iso_timestamp_is_well_formed() {
-        let ts = iso_utc_now();
+        let ts = iso_utc(SystemTime::now());
         assert_eq!(ts.len(), 24, "{ts}");
         assert!(ts.starts_with("20"));
         assert_eq!(&ts[10..11], "T");

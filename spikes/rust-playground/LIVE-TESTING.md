@@ -270,7 +270,9 @@ the R8 fix was precisely and only what was missing. The ladder's standing
 caution guards the opposite mistake (rebuilding *under* a live daemon); the
 failure here was restarting onto a new commit without rebuilding. Check the
 binary, not the checkout: `strings target/debug/acq | grep 'token rejected'`
-returns two lines with the fix present, one without.
+returns two lines with the fix present, one without. (Since 2026-08-24 the
+binary carries its commit: the daemon's first log line and the journal's
+`open` header print `build`, and `soak-check.sh` lists it per lifetime.)
 
 **R8 was then observed live, on the unfixed code.** About 2029 s of laptop
 sleep accumulated between the 11:40:01Z refresh and 21:50Z. With expiry on
