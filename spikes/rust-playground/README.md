@@ -24,6 +24,9 @@ bounded by `MAX_429_RETRIES`; a Cloudflare-shaped 403/503 is never retried.
 - [`LIVE-TESTING.md`](LIVE-TESTING.md) — control document for testing against
   the real API: blast-radius review, the L0 safety-rails package, the staged
   ladder, and the run ledger.
+- [`TESTING-NOTES.md`](TESTING-NOTES.md) — open discussion register on how
+  this project checks its own work: what the rung-8 soak exposed, and the
+  questions it left open. Questions, not decisions.
 - [`NETWORK-CLEANUP.md`](NETWORK-CLEANUP.md) — closed record of the N0–N6
   network cleanup: accepted ranges, findings, and the quality-gate baseline
   every later change keeps green.
