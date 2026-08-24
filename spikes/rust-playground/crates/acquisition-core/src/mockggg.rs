@@ -9,6 +9,7 @@ use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
+use crate::ratelimit::{Clock, SystemClock};
 use anyhow::Result;
 use serde_json::json;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -219,7 +220,16 @@ fn mock_stash(id: &str, sub: Option<&str>) -> Option<serde_json::Value> {
 }
 
 /// Start the provider on an ephemeral port; returns its base URL.
+/// Start the mock on the system clock (the daemon's default provider).
 pub async fn start() -> Result<String> {
+    start_with_clock(Arc::new(SystemClock)).await
+}
+
+/// Start the mock with its rate-limit counters on `clock`. A test that
+/// drives the daemon on a manual clock must give the mock the same one,
+/// or the mock's windows expire in real time while the limiter's expire in
+/// virtual time and every hold looks like a violation.
+pub(crate) async fn start_with_clock(clock: Arc<dyn Clock>) -> Result<String> {
     let listener = TcpListener::bind("127.0.0.1:0").await?;
     let base = format!("http://127.0.0.1:{}", listener.local_addr()?.port());
     let codes: Arc<Mutex<HashMap<String, PendingCode>>> = Arc::default();
@@ -256,7 +266,12 @@ pub async fn start() -> Result<String> {
             let Ok((stream, _)) = listener.accept().await else {
                 break;
             };
-            tokio::spawn(handle(stream, codes.clone(), policies.clone()));
+            tokio::spawn(handle(
+                stream,
+                codes.clone(),
+                policies.clone(),
+                clock.clone(),
+            ));
         }
     });
     Ok(base)
@@ -266,6 +281,7 @@ async fn handle(
     mut stream: TcpStream,
     codes: Arc<Mutex<HashMap<String, PendingCode>>>,
     policies: Policies,
+    clock: Arc<dyn Clock>,
 ) {
     let Some(req) = read_request(&mut stream).await else {
         return;
@@ -348,7 +364,7 @@ async fn handle(
                 .unwrap()
                 .get_mut(policy_key)
                 .expect("policy for path")
-                .request(req.method == "GET", Instant::now());
+                .request(req.method == "GET", clock.now());
             if req.method == "HEAD" {
                 // ACQ_MOCK_DEGRADED_HEAD=1 reproduces the Dec-2023 regression
                 // (N20): policy name present, every other header missing.
@@ -430,7 +446,7 @@ async fn handle(
                 .unwrap()
                 .get_mut("/token")
                 .expect("token policy")
-                .request(true, Instant::now());
+                .request(true, clock.now());
             if !ok {
                 respond_with(
                     &mut stream,

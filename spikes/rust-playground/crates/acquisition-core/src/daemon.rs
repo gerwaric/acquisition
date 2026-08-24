@@ -3544,10 +3544,11 @@ mod dispatcher_tests {
     }
 
     #[tokio::test]
-    async fn n6_integration_stress_mixes_policies_refresh_rotation_cancellation_and_429s() {
-        let api_base = mockggg::start().await.unwrap();
-        let (token_base, token_arrived, release_token, token_server) = delayed_token_server().await;
+    async fn n6_integration_stress_mixes_policies_refresh_rotation_and_cancellation_under_the_limit()
+     {
         let clock = Arc::new(ManualClock::new());
+        let api_base = mockggg::start_with_clock(clock.clone()).await.unwrap();
+        let (token_base, token_arrived, release_token, token_server) = delayed_token_server().await;
         let (mut daemon, log_path) = test_daemon(&api_base, clock.clone());
         let credential_store = Arc::new(RecordingCredentialStore::default());
         let daemon_mut = Arc::get_mut(&mut daemon).unwrap();
@@ -3655,7 +3656,29 @@ mod dispatcher_tests {
                 state => panic!("fetch {id} stopped in nonterminal state {state}"),
             }
         }
-        assert_eq!((done, failed, cancelled_count), (5, 1, 1));
+        // The counting mock makes N4 non-vacuous: every line's state is the
+        // mock's own count, so "never over the limit" pins the product.
+        // Checked before the job counts so a violation reports as itself.
+        let sends = journal_sends(&log_path);
+        assert_wire_contract(&sends);
+        assert_never_over_the_limit(&sends);
+        let fetch_waits: Vec<u64> = sends
+            .iter()
+            .filter(|s| s["route"] == "fetch" && s["method"] == "GET")
+            .map(|s| s["wait_ms"].as_u64().unwrap())
+            .collect();
+        assert!(
+            fetch_waits.len() == 6
+                && fetch_waits[..5].iter().all(|&w| w == 0)
+                && fetch_waits[5] > 0,
+            "five fetches fill the 5-per-10 s window at once and the sixth is held: {fetch_waits:?}"
+        );
+        // Before 2026-08-24 this read (5, 1, 1): the mock's windows expired
+        // in real time while the daemon's expired in virtual time, so the
+        // sixth fetch's retries always met a still-restricted mock. On one
+        // clock the limiter holds before the sixth send and nothing
+        // violates (N4). 429 recovery is pinned by the scripted tests.
+        assert_eq!((done, failed, cancelled_count), (6, 0, 1));
 
         let (refresh_token, access_token, refresh_flight) = {
             let shared = daemon.shared.lock().unwrap();
@@ -3703,8 +3726,8 @@ mod dispatcher_tests {
                 .iter()
                 .filter(|send| send.method == "GET" && send.endpoint == "fetch")
                 .count(),
-            8,
-            "five successes plus the exhausted job's three 429 attempts"
+            6,
+            "six fetches, none retried"
         );
         assert_eq!(daemon.choke.actual_send_occupancy(), (0, 2));
 
@@ -3727,6 +3750,46 @@ mod dispatcher_tests {
         );
 
         finish_harness(dispatcher, &log_path);
+    }
+
+    /// N4/N25 over the journal: no send is answered 429, and every window
+    /// state a response reports is within its limit with no restriction
+    /// active. Against the scripted server this is vacuous (it echoes what
+    /// the script says); against `mockggg` on the test clock the state is
+    /// the mock's own count, so a limiter that sends one too many fails
+    /// here. Rule names come from `X-Rate-Limit-Rules`, so this reads any
+    /// rule set, not only `Account`.
+    fn assert_never_over_the_limit(sends: &[Value]) {
+        for send in sends {
+            assert_ne!(send["status"], 429, "a send was answered 429: {send}");
+            let rate = &send["rate"];
+            let Some(rules) = rate["x-rate-limit-rules"].as_str() else {
+                continue;
+            };
+            for rule in rules.split(',').map(|r| r.trim().to_ascii_lowercase()) {
+                let limits = rate[format!("x-rate-limit-{rule}")]
+                    .as_str()
+                    .unwrap_or_else(|| panic!("limits for rule {rule}: {send}"));
+                let states = rate[format!("x-rate-limit-{rule}-state")]
+                    .as_str()
+                    .unwrap_or_else(|| panic!("state for rule {rule}: {send}"));
+                for (limit, state) in limits.split(',').zip(states.split(',')) {
+                    let max: u64 = limit.split(':').next().unwrap().parse().unwrap();
+                    let mut parts = state.split(':');
+                    let hits: u64 = parts.next().unwrap().parse().unwrap();
+                    let _period = parts.next();
+                    let restricted: u64 = parts.next().unwrap().parse().unwrap();
+                    assert!(
+                        hits <= max,
+                        "{rule} window {limit} reported {state}: over the limit: {send}"
+                    );
+                    assert_eq!(
+                        restricted, 0,
+                        "{rule} window {limit} reported an active restriction: {send}"
+                    );
+                }
+            }
+        }
     }
 
     #[test]
