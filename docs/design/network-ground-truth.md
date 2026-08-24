@@ -595,6 +595,35 @@ endpoint is unlimited. A design that owns token traffic should track
 `token-request-limit` like any other policy — the headers parse
 identically.
 
+### Live-testing claims (August 24, 2026)
+
+Observed while soaking the Rust daemon against the live API on branch
+`spikes/rust-playground`; the run is recorded as rung 8 in that branch's
+`LIVE-TESTING.md`. Journal and daemon log retained in that branch's
+`runs/2026-08-23-r8/`.
+
+**N34. A 401 from an expired access token carries no rate-limit headers
+at all — not the policy, not the rules, not the state.** [OBSERVED —
+Confirmed August 23, 2026]
+Three GET `/character` requests with an expired bearer token, ten
+minutes apart, each returned `401 Unauthorized` with body
+`{"error":"invalid_token","error_description":"The access token provided
+is invalid or has expired"}` and an empty header set — the send journal
+recorded `rate: {}` for all three. The next request after a refresh
+returned the usual `character-list-request-limit` headers, so the route
+itself was unaffected.
+
+Two consequences. A limiter that maintains its window state from
+response headers learns nothing from a 401 and must carry its own
+accounting forward across one, rather than treating the absent headers
+as a cleared window. And by N27 the invalid-request budget includes
+every 4xx, so a 401 spends that budget against an undocumented
+threshold while returning nothing that would let a client detect the
+cost — which is what makes a timed stream of 401s (a daemon that
+believes an expired token is still valid) more dangerous than its
+request count suggests. Whether GGG also counts a 401 against the
+route's own policy counter is Q11.
+
 ## Open questions
 
 - **Q1. HEAD sanction verbatim. RESOLVED July 18, 2026** — Tom
@@ -683,6 +712,17 @@ identically.
   design side — decide whether the redesign *coordinates* legacy and
   forum traffic with API traffic (they share the IP, hence layer 1)
   or merely tolerates them as-is.
+
+- **Q11. Does a 401 count against the route's policy counter?** —
+  N34 establishes that a 401 returns no rate-limit headers, so the
+  question cannot be answered from the failing response itself. The
+  August 23 observation is inconclusive: the first successful request
+  after the three 401s came 600 s later, outside the 300 s window, and
+  reported `1:300:0` — consistent with either answer. Resolvable
+  cheaply the next time a 401 occurs by issuing one valid request
+  inside the shorter window and reading its state, but not worth
+  provoking deliberately; N27's invalid-request budget makes 401s
+  costly independently of the answer.
 
 ---
 
