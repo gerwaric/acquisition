@@ -2994,15 +2994,47 @@ mod dispatcher_tests {
     static TEST_LOG_ID: AtomicU64 = AtomicU64::new(1);
 
     fn test_daemon(base: &str, clock: Arc<dyn Clock>) -> (Arc<Daemon>, PathBuf) {
-        test_daemon_with(Provider::mock(base), clock, Arc::new(Rails::disabled()))
+        test_daemon_with(Provider::mock(base), clock, RailsConfig::default())
     }
 
+    fn test_log_path() -> PathBuf {
+        std::env::temp_dir().join(format!(
+            "acquisition-n1-dispatcher-{}-{}.log",
+            std::process::id(),
+            TEST_LOG_ID.fetch_add(1, Ordering::Relaxed)
+        ))
+    }
+
+    /// The send journal every harness daemon writes, beside its log.
+    fn journal_of(log_path: &std::path::Path) -> PathBuf {
+        log_path.with_extension("jsonl")
+    }
+
+    /// Every harness daemon journals, on the test's clock, so that
+    /// `assert_journal_matches_wire` can hold the daemon's own account of
+    /// what it sent against what the server received. The rails handle
+    /// comes back through `daemon.choke.rails()`.
     fn test_daemon_with(
         provider: Provider,
         clock: Arc<dyn Clock>,
-        rails: Arc<Rails>,
+        config: RailsConfig,
     ) -> (Arc<Daemon>, PathBuf) {
-        test_daemon_scenario(provider, clock, rails, Arc::new(OsCredentialStore))
+        let log_path = test_log_path();
+        let _ = std::fs::remove_file(journal_of(&log_path));
+        let rails = Arc::new(Rails::with_config_and_clock(
+            RailsConfig {
+                journal_path: Some(journal_of(&log_path)),
+                ..config
+            },
+            clock.clone(),
+        ));
+        test_daemon_scenario_at(
+            provider,
+            clock,
+            rails,
+            Arc::new(OsCredentialStore),
+            log_path,
+        )
     }
 
     fn test_daemon_scenario(
@@ -3011,11 +3043,16 @@ mod dispatcher_tests {
         rails: Arc<Rails>,
         credential_store: Arc<dyn CredentialStore>,
     ) -> (Arc<Daemon>, PathBuf) {
-        let log_path = std::env::temp_dir().join(format!(
-            "acquisition-n1-dispatcher-{}-{}.log",
-            std::process::id(),
-            TEST_LOG_ID.fetch_add(1, Ordering::Relaxed)
-        ));
+        test_daemon_scenario_at(provider, clock, rails, credential_store, test_log_path())
+    }
+
+    fn test_daemon_scenario_at(
+        provider: Provider,
+        clock: Arc<dyn Clock>,
+        rails: Arc<Rails>,
+        credential_store: Arc<dyn CredentialStore>,
+        log_path: PathBuf,
+    ) -> (Arc<Daemon>, PathBuf) {
         let log = std::fs::OpenOptions::new()
             .create(true)
             .truncate(true)
@@ -3097,7 +3134,7 @@ mod dispatcher_tests {
         (base, task)
     }
 
-    fn read_journal(path: &PathBuf) -> Vec<Value> {
+    fn read_journal(path: &std::path::Path) -> Vec<Value> {
         std::fs::read_to_string(path)
             .expect("journal was written")
             .lines()
@@ -3238,9 +3275,54 @@ mod dispatcher_tests {
         count
     }
 
-    fn finish_harness(dispatcher: tokio::task::JoinHandle<()>, log_path: &PathBuf) {
+    fn finish_harness(dispatcher: tokio::task::JoinHandle<()>, log_path: &std::path::Path) {
         dispatcher.abort();
+        remove_harness_files(log_path);
+    }
+
+    fn remove_harness_files(log_path: &std::path::Path) {
         let _ = std::fs::remove_file(log_path);
+        let _ = std::fs::remove_file(journal_of(log_path));
+    }
+
+    /// The token servers record bodies, not methods; every one was a POST.
+    fn wire_posts(requests: &Arc<Mutex<Vec<String>>>) -> Vec<String> {
+        vec!["POST".to_string(); requests.lock().unwrap().len()]
+    }
+
+    /// Journal == wire. The recorder is what the server received; the
+    /// journal is what the daemon *claims* it sent. Every send must appear
+    /// in both, in order, and a journal line that no server saw is as much
+    /// a defect as a send the journal missed (R4 in LIVE-TESTING). Wire
+    /// entries are compared by method, which is what the scripted servers
+    /// record; the journal is read back here, before the harness deletes it.
+    fn assert_journal_matches_wire(log_path: &std::path::Path, wire: &[String]) {
+        let journal = journal_of(log_path);
+        let lines = read_journal(&journal);
+        let (header, sends) = lines.split_first().expect("journal has a header");
+        assert_eq!(header["event"], "open", "first journal line is the header");
+        assert_eq!(
+            header["clock"], "manual",
+            "harness daemons run on the test clock"
+        );
+        let journaled: Vec<&str> = sends
+            .iter()
+            .map(|l| l["method"].as_str().expect("journal method"))
+            .collect();
+        assert_eq!(
+            journaled, wire,
+            "journal (left) disagrees with what the server received (right)"
+        );
+    }
+
+    /// `finish_harness` for tests that hold a wire recorder.
+    fn finish_harness_wire(
+        dispatcher: tokio::task::JoinHandle<()>,
+        log_path: &std::path::Path,
+        wire: &Arc<Mutex<Vec<String>>>,
+    ) {
+        assert_journal_matches_wire(log_path, &wire.lock().unwrap());
+        finish_harness(dispatcher, log_path);
     }
 
     #[tokio::test]
@@ -3568,7 +3650,7 @@ mod dispatcher_tests {
         );
         assert_eq!(terminal_event_count(&mut events, id), 1);
         server.await.unwrap();
-        finish_harness(dispatcher, &log_path);
+        finish_harness_wire(dispatcher, &log_path, &requests);
     }
 
     #[tokio::test]
@@ -3598,7 +3680,7 @@ mod dispatcher_tests {
             "only the two retryable attempts may sleep"
         );
         server.await.unwrap();
-        finish_harness(dispatcher, &log_path);
+        finish_harness_wire(dispatcher, &log_path, &requests);
     }
 
     #[tokio::test]
@@ -3622,7 +3704,7 @@ mod dispatcher_tests {
         assert_eq!(fetch_payload_marker(&second_outcome), "second");
         assert_eq!(requests.lock().unwrap().len(), 4);
         server.await.unwrap();
-        finish_harness(dispatcher, &log_path);
+        finish_harness_wire(dispatcher, &log_path, &requests);
     }
 
     #[tokio::test]
@@ -3648,7 +3730,7 @@ mod dispatcher_tests {
             assert_eq!(requests.lock().unwrap().as_slice(), ["HEAD", "GET"]);
             assert_eq!(clock.slept(), Duration::ZERO);
             server.await.unwrap();
-            finish_harness(dispatcher, &log_path);
+            finish_harness_wire(dispatcher, &log_path, &requests);
         }
     }
 
@@ -3686,7 +3768,7 @@ mod dispatcher_tests {
             crate::ratelimit::RETRY_BUCKET_PAD + crate::ratelimit::BUFFER
         );
         server.await.unwrap();
-        finish_harness(dispatcher, &log_path);
+        finish_harness_wire(dispatcher, &log_path, &requests);
     }
 
     #[tokio::test]
@@ -3722,17 +3804,17 @@ mod dispatcher_tests {
             assert_eq!(probe.state, JobState::Failed);
             assert_eq!(probe.retries, 0);
             server.await.unwrap();
-            finish_harness(dispatcher, &log_path);
+            finish_harness_wire(dispatcher, &log_path, &requests);
         }
     }
 
     // ---- L0 live-test rails (LIVE-TESTING.md) ------------------------------
 
-    fn tripwire_rails() -> Arc<Rails> {
-        Arc::new(Rails::with_config(RailsConfig {
+    fn tripwire_config() -> RailsConfig {
+        RailsConfig {
             tripwire: true,
             ..RailsConfig::default()
-        }))
+        }
     }
 
     #[tokio::test]
@@ -3746,9 +3828,9 @@ mod dispatcher_tests {
         ];
         let (base, requests, server) = scripted_server(responses).await;
         let clock = Arc::new(ManualClock::new());
-        let rails = tripwire_rails();
         let (daemon, log_path) =
-            test_daemon_with(Provider::mock(&base), clock.clone(), rails.clone());
+            test_daemon_with(Provider::mock(&base), clock.clone(), tripwire_config());
+        let rails = daemon.choke.rails().clone();
         let dispatcher = tokio::spawn(daemon.clone().dispatcher());
 
         let first = daemon.submit("fetch".into(), json!({}), 0, "test".into());
@@ -3797,7 +3879,7 @@ mod dispatcher_tests {
         assert_eq!(info.state, JobState::Done);
         assert_eq!(requests.lock().unwrap().as_slice(), ["HEAD", "GET", "GET"]);
         server.await.unwrap();
-        finish_harness(dispatcher, &log_path);
+        finish_harness_wire(dispatcher, &log_path, &requests);
     }
 
     #[tokio::test]
@@ -3808,11 +3890,15 @@ mod dispatcher_tests {
         ];
         let (base, requests, server) = scripted_server(responses).await;
         let clock = Arc::new(ManualClock::new());
-        let rails = Arc::new(Rails::with_config(RailsConfig {
-            max_sends: Some(2),
-            ..RailsConfig::default()
-        }));
-        let (daemon, log_path) = test_daemon_with(Provider::mock(&base), clock, rails.clone());
+        let (daemon, log_path) = test_daemon_with(
+            Provider::mock(&base),
+            clock,
+            RailsConfig {
+                max_sends: Some(2),
+                ..RailsConfig::default()
+            },
+        );
+        let rails = daemon.choke.rails().clone();
         let dispatcher = tokio::spawn(daemon.clone().dispatcher());
 
         let first = daemon.submit("fetch".into(), json!({}), 0, "test".into());
@@ -3834,7 +3920,7 @@ mod dispatcher_tests {
         assert_eq!(requests.lock().unwrap().len(), 2);
         assert_eq!(rails.status().sends, 2);
         server.await.unwrap();
-        finish_harness(dispatcher, &log_path);
+        finish_harness_wire(dispatcher, &log_path, &requests);
     }
 
     async fn token_server_answering(
@@ -3889,8 +3975,9 @@ mod dispatcher_tests {
     async fn rejected_refresh_grant_disables_further_refreshes_until_login_or_logout() {
         let (base, requests, server) = token_server_answering(vec!["400 Bad Request"]).await;
         let clock = Arc::new(ManualClock::new());
-        let rails = tripwire_rails();
-        let (mut daemon, log_path) = test_daemon_with(Provider::mock(&base), clock, rails.clone());
+        let (mut daemon, log_path) =
+            test_daemon_with(Provider::mock(&base), clock, tripwire_config());
+        let rails = daemon.choke.rails().clone();
         logged_in(&mut daemon);
 
         let first = daemon.valid_access_token(false).await.unwrap_err();
@@ -3918,7 +4005,8 @@ mod dispatcher_tests {
         daemon.logout().unwrap_or(());
         assert_eq!(rails.refresh_failed(), None, "logout clears the mark");
         server.await.unwrap();
-        let _ = std::fs::remove_file(&log_path);
+        assert_journal_matches_wire(&log_path, &wire_posts(&requests));
+        remove_harness_files(&log_path);
     }
 
     #[tokio::test]
@@ -3926,8 +4014,9 @@ mod dispatcher_tests {
         let (base, requests, server) =
             token_server_answering(vec!["503 Service Unavailable", "200 OK"]).await;
         let clock = Arc::new(ManualClock::new());
-        let rails = tripwire_rails();
-        let (mut daemon, log_path) = test_daemon_with(Provider::mock(&base), clock, rails.clone());
+        let (mut daemon, log_path) =
+            test_daemon_with(Provider::mock(&base), clock, tripwire_config());
+        let rails = daemon.choke.rails().clone();
         logged_in(&mut daemon);
 
         let first = daemon.valid_access_token(false).await.unwrap_err();
@@ -3942,14 +4031,17 @@ mod dispatcher_tests {
         assert_eq!((token.as_str(), user.as_str()), ("at-new", "test-user"));
         assert_eq!(requests.lock().unwrap().len(), 2);
         server.await.unwrap();
-        let _ = std::fs::remove_file(&log_path);
+        assert_journal_matches_wire(&log_path, &wire_posts(&requests));
+        remove_harness_files(&log_path);
     }
 
     #[tokio::test]
     async fn halted_daemon_refuses_refresh_before_any_send() {
         let (base, requests, server) = token_server_answering(vec![]).await;
         let clock = Arc::new(ManualClock::new());
-        let rails = tripwire_rails();
+        let (mut daemon, log_path) =
+            test_daemon_with(Provider::mock(&base), clock, tripwire_config());
+        let rails = daemon.choke.rails().clone();
         rails.record(&crate::rails::SendReport {
             method: "GET",
             route: "character-list",
@@ -3960,13 +4052,15 @@ mod dispatcher_tests {
             counted: true,
             rate: &Value::Null,
         });
-        let (mut daemon, log_path) = test_daemon_with(Provider::mock(&base), clock, rails);
         logged_in(&mut daemon);
         let error = daemon.valid_access_token(false).await.unwrap_err();
         assert!(error.contains("halted by live-test rails"), "{error}");
         assert!(requests.lock().unwrap().is_empty());
         server.abort();
-        let _ = std::fs::remove_file(&log_path);
+        // The one journal line is the synthetic 429 recorded above, not a
+        // send; nothing else may have been written.
+        assert_journal_matches_wire(&log_path, &["GET".to_string()]);
+        remove_harness_files(&log_path);
     }
 
     #[tokio::test]
@@ -3974,8 +4068,7 @@ mod dispatcher_tests {
         // Real provider, but no session: even if the refusal were missing
         // the job could not send. The assertion is on the refusal message.
         let clock = Arc::new(ManualClock::new());
-        let (daemon, log_path) =
-            test_daemon_with(Provider::ggg(), clock, Arc::new(Rails::disabled()));
+        let (daemon, log_path) = test_daemon_with(Provider::ggg(), clock, RailsConfig::default());
         let outcome = daemon
             .execute_inner(1, "profile", json!({}), None)
             .await
@@ -3985,6 +4078,7 @@ mod dispatcher_tests {
         };
         assert!(error.contains("mock-only"), "{error}");
         assert!(daemon.choke.recent_sends().is_empty());
-        let _ = std::fs::remove_file(&log_path);
+        assert_journal_matches_wire(&log_path, &[]);
+        remove_harness_files(&log_path);
     }
 }

@@ -63,7 +63,8 @@ condition it was evaluating. Fixed in `41305e5f`.
 literal sequence matching on method names, against an in-memory
 recorder attached to the test transport. The "invariants, not literal
 sequences" position was reasoned out from first principles before
-anyone noticed the codebase had settled the other way.
+anyone noticed the codebase had settled the other way. *(Corrected by
+experiment 2: this paragraph miscounted. See surprise 10.)*
 
 **6. Ground truth stayed in sync by discipline, not topology.** Both
 branches' copies of `network-ground-truth.md` were byte-identical, via
@@ -198,6 +199,63 @@ in `daemon.rs` read `Instant::now()` directly and are not on the clock
 yet. (`acq --version` prints `<version> (<build>)` since the follow-up
 commit, so the pre-run check is one command.)
 
+## Experiment 2 — the 16, and journal == wire (2026-08-24)
+
+Chosen next because topic 5 was the concrete "too tight" case and topic
+2 needed the journal to be trustworthy before anything else could be
+built on it. The first step was to read the 16 sites rather than argue
+about them.
+
+**What the 16 are.** Seven are sequence literals (`["HEAD","GET"]` and
+variants); nine are counts (`len() == N`, `is_empty()`); two of the
+counts also check refresh-token bodies. Every count is a *negative-space*
+assertion — "exactly N reached the wire and nothing more" — which is the
+safety property in its most honest form. They are not the too-tight case.
+
+**The sequence is enforced by the script, not the assertions.**
+`scripted_server` asserts method and path per connection inside its
+spawned task, so the seven literals are redundant with the script, and
+converting them would loosen nothing. The real coupling to the test
+transport is the script. A wrong-order send panics in the server task
+and surfaces as a hang at `server.await` — a check that fails badly.
+
+**The recorder is the journal's independent witness.** The recorder is
+what the server received; the journal is what the daemon *claims* it
+sent. Surprise 9 put R4 (the journal itself failing) outside the
+boundary. It is — unless something compares journal to wire, and until
+today nothing did. Converting the 16 to journal assertions would have
+*discarded* the only witness that could catch R4.
+
+**What was built (b).** Every harness daemon now journals, on the
+test's clock, to a file beside its log. `assert_journal_matches_wire`
+reads the journal back and requires its send methods to equal the
+recorder's, in order, with the header as line 0. It runs in the 13
+tests that hold a recorder (via `finish_harness_wire` or explicitly),
+including the three token-server tests and the two with an empty wire.
+The 16 assertions are untouched; `tripwire_rails()` became
+`tripwire_config()` and the rails handle comes from
+`daemon.choke.rails()`.
+
+**The breaker.** Skip the journal write for `HEAD` in
+`Rails::journal_line` and 8 of the 13 fail on "journal (left) disagrees
+with what the server received (right)"; the five that pass are the ones
+whose wire has no HEAD. Restored; 88 pass.
+
+**Surprise 10.** The count in surprise 5 was wrong in a way that
+mattered: "16 sequence literals" was really 7 literals and 9 counts,
+and the counts were already the right shape. The position that the
+suite "settled the other way" was itself reached without reading the
+suite. Reading the sites before deciding what to do with them changed
+the plan from *convert* to *cross-check*.
+
+**Still open from this experiment:** (d) — the four `clock.slept()`
+assertions coupled to `RETRY_BUCKET_PAD + BUFFER` are the performance
+half in miniature, and are the actual too-tight case. A `wait_ms`
+journal field would move them onto the same surface. And (c), deriving
+cross-test invariants from the register, is a deliberate reading pass
+still to do; (b) makes the journal fit to carry them, it does not
+produce them.
+
 ## Open topics
 
 1. **The clock fork — resolved by experiment 1:** one clock, two faces.
@@ -222,10 +280,11 @@ commit, so the pre-run check is one command.)
    cannot answer, which is already written down as README's "Known
    gaps". If so, most future confidence is bought offline and the ladder
    becomes short and rare.
-5. **The 16 existing assertions.** Leave them, convert them, or let the
-   simplification eat them. They pass today and they are cheap; they are
-   also coupled to `ScriptedTransport`, so a transport change
-   invalidates all of them at once.
+5. **The 16 existing assertions — resolved by experiment 2: leave them,
+   cross-check them.** They are counts and redundant literals, coupled
+   to the *script* rather than to the assertions; the journal is now
+   held equal to the wire in every test that has one. The simplification
+   may still eat them; that is its call.
 6. **How much of this is a hedge that pays either way on ADR-0003?**
    Behavior pinned at the network boundary survives both rewrite and
    evolve. Does that change how much to invest now, before the decision?
