@@ -1388,12 +1388,10 @@ impl Daemon {
                 Some(rt) => rt.clone(),
                 None => return Err("not logged in — run `acq auth`".into()),
             };
-            // L0 rail 2: a grant the provider already rejected is not sent
-            // again until login or logout replaces it.
+            // A grant the provider already rejected is terminal (CONTEXT.md):
+            // it is not sent again until login or logout replaces it.
             if let Some(cause) = self.rails().refresh_failed() {
-                return Err(format!(
-                    "token refresh disabled by live-test rails after a rejected grant ({cause}); run `acq auth`"
-                ));
+                return Err(format!("token refresh disabled: {cause}; run `acq auth`"));
             }
             let generations = s.auth.generations;
             if let Some(flight) = &s.auth.refresh_flight
@@ -1453,7 +1451,7 @@ impl Daemon {
                     );
                     if current && self.rails().mark_refresh_failed(&cause) {
                         self.note_error(&format!(
-                            "LIVE-TEST RAILS: {cause}; further refreshes disabled until `acq auth` ({error})"
+                            "AUTH: {cause}; further refreshes disabled until `acq auth` ({error})"
                         ));
                     }
                 }
@@ -2696,9 +2694,9 @@ mod response_tests {
 mod dispatcher_tests {
     use super::*;
     use crate::ratelimit::Clock;
+    use std::collections::HashSet;
     use std::future::Future;
     use std::pin::Pin;
-    use std::collections::HashSet;
     use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
     use tokio::sync::{Semaphore, oneshot};
 
@@ -4113,8 +4111,9 @@ mod dispatcher_tests {
     async fn rejected_refresh_grant_disables_further_refreshes_until_login_or_logout() {
         let (base, requests, server) = token_server_answering(vec!["400 Bad Request"]).await;
         let clock = Arc::new(ManualClock::new());
+        // Rails off: this is product behavior, not a ladder rail (L0-R13).
         let (mut daemon, log_path) =
-            test_daemon_with(Provider::mock(&base), clock, tripwire_config());
+            test_daemon_with(Provider::mock(&base), clock, RailsConfig::default());
         let rails = daemon.choke.rails().clone();
         logged_in(&mut daemon);
 
@@ -4124,7 +4123,10 @@ mod dispatcher_tests {
         assert!(rails.refresh_failed().unwrap().contains("HTTP 400"));
 
         let second = daemon.valid_access_token(false).await.unwrap_err();
-        assert!(second.contains("disabled by live-test rails"), "{second}");
+        assert!(
+            second.contains("token refresh disabled: refresh token rejected with HTTP 400"),
+            "{second}"
+        );
         assert_eq!(
             requests.lock().unwrap().len(),
             1,

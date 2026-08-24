@@ -168,14 +168,18 @@ impl Rails {
 
     pub(crate) fn with_config_and_clock(config: RailsConfig, clock: Arc<dyn Clock>) -> Rails {
         let mut state = State::default();
-        // A persisted trip belongs to the tripwire: a daemon started without
-        // it (the post-baseline default) neither honors nor deletes it.
-        if config.tripwire
-            && let Some(path) = &config.state_path
+        if let Some(path) = &config.state_path
             && let Ok(text) = std::fs::read_to_string(path)
             && let Ok(persisted) = serde_json::from_str::<Persisted>(&text)
         {
-            state.tripped = persisted.tripped;
+            // A persisted trip belongs to the tripwire: a daemon started
+            // without it (the post-baseline default) neither honors nor
+            // deletes it. The refresh-failed mark is product behavior
+            // (CONTEXT.md: a rejected grant is terminal) and is honored by
+            // every daemon.
+            if config.tripwire {
+                state.tripped = persisted.tripped;
+            }
             state.refresh_failed = persisted.refresh_failed;
         }
         let (journal, journal_error) = match &config.journal_path {
@@ -316,12 +320,15 @@ impl Rails {
 
     /// Active only with the tripwire. Returns whether the mark was set.
     /// `cause` is persisted to disk: callers pass a status and a fixed
-    /// reason, never a response body (CONTEXT invariant 5).
+    /// reason, never a response body (CONTEXT invariant 5). Not gated on
+    /// the tripwire: a rejected `refresh_token` grant is terminal by
+    /// decision (CONTEXT.md, 2026-08-24), so this is product behavior
+    /// rather than a ladder rail. Returns whether the mark was newly set.
     pub fn mark_refresh_failed(&self, cause: &str) -> bool {
-        if !self.config.tripwire {
+        let mut s = self.state.lock().unwrap();
+        if s.refresh_failed.is_some() {
             return false;
         }
-        let mut s = self.state.lock().unwrap();
         s.refresh_failed = Some(cause.to_string());
         self.persist_locked(&s);
         true
@@ -440,8 +447,11 @@ mod tests {
         assert!(rails.record(&report(Some(429))).is_none());
         assert!(rails.record(&report(Some(503))).is_none());
         assert_eq!(rails.halted(), None);
-        assert!(!rails.mark_refresh_failed("400"));
-        assert_eq!(rails.refresh_failed(), None);
+        // The dead-grant mark is not a rail: it holds with the tripwire off.
+        assert!(rails.mark_refresh_failed("400"));
+        assert_eq!(rails.refresh_failed().as_deref(), Some("400"));
+        assert!(!rails.mark_refresh_failed("400 again"), "set once");
+        assert_eq!(rails.refresh_failed().as_deref(), Some("400"));
     }
 
     #[test]
@@ -586,7 +596,11 @@ mod tests {
             ..RailsConfig::default()
         });
         assert_eq!(rails.halted(), None);
-        assert_eq!(rails.refresh_failed(), None);
+        assert_eq!(
+            rails.refresh_failed().as_deref(),
+            Some("400"),
+            "the dead-grant mark is product behavior and survives rails-off"
+        );
         assert!(
             path.exists(),
             "a rails-off daemon does not delete the ladder's state"

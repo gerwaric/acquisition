@@ -63,8 +63,8 @@ gaps between "correct" and "safe to run unattended against GGG"):
   JSON failures into one string.) **Rails-conditional (2026-08-24):**
   rail 2 fixes this only while the tripwire is armed; with rails off — the
   shipped default — the product still re-sends the dead grant. Resolved for
-  the ladder, not for the product; now a CONTEXT.md decision awaiting
-  promotion out of the rail. Same for L0-R5.
+  the ladder, not for the product, until rail 2 became default behavior
+  the same day (L0-R13). Same for L0-R5.
 - **R2 — no global violation budget.** `Limiter::violations` is counted and
   never consulted. With a mis-modeled policy, a 50-child fan-out can burn
   up to 150 violations (3 attempts each), each behind a hold but each a
@@ -114,10 +114,11 @@ classification, retry, or dispatcher behavior under default settings; the
 rails only refuse or record.
 
 Rail lifetime, decided up front so a later reader can tell scaffolding from
-design: rails 3, 4, and 7 are **permanent** (ordinary hygiene); rails 1, 2,
+design: rails 3, 4, and 7 are **permanent** (ordinary hygiene); rails 1
 and 5 are **ladder-only** — kept in the code as opt-ins, off by default
 after the baseline, because they deliberately make the daemon more fragile
-than CONTEXT.md's accepted 429-recovery decision intends.
+than CONTEXT.md's accepted 429-recovery decision intends. Rail 2 was
+ladder-only until 2026-08-24 and is now **product behavior** (L0-R13).
 
 1. **Tripwire (R2).** Opt-in via `ACQ_TRIPWIRE=1` (the ladder sets it;
    never on in mock mode by default, since the mock and the existing suite
@@ -135,15 +136,17 @@ than CONTEXT.md's accepted 429-recovery decision intends.
    explicit: `acq daemon reset-tripwire`. Persisted in a file keyed by
    provider (mock and real never share it) and honoring `ACQ_SOCKET`, so a
    respawned daemon stays tripped.
-2. **Dead-token stop (R1).** Opt-in with the tripwire. `token_request`
+2. **Dead-token stop (R1).** Always on since 2026-08-24 (CONTEXT.md
+   decision; was opt-in with the tripwire). `token_request`
    returns the HTTP status alongside the error so the daemon can tell a
    rejected grant from a network blip. A **4xx other than 429** on a
    **`refresh_token` grant** (never the code exchange, never 5xx or
    transport errors) marks the session `refresh-failed`; later refreshes
    fail fast without sending until `acq auth` or logout. Generation-checked
    like `finish_refresh`, so a stale flight cannot disable a session that
-   re-authenticated meanwhile. Persisted alongside the tripwire so the idle
-   exit does not clear it. Log the response evidence once.
+   re-authenticated meanwhile. Persisted in the rails state file so the
+   idle exit does not clear it; unlike the trip, the mark is honored by a
+   daemon started without the tripwire. Log the response evidence once.
 3. **HTTP timeouts (R3).** Permanent. `connect_timeout` 10 s and a 60 s
    request timeout covering headers and body on the one client (both
    constructors). A timeout classifies as transport failure (existing
@@ -195,7 +198,7 @@ queued job. Quality gates from `NETWORK-CLEANUP.md` stay green.
 | L0-R10 | Low | `reset-tripwire` against a stopped daemon left the persisted trip | the CLI clears the provider's state file directly and says so |
 | L0-R11 | Low | Per-job refusals could evict the trip cause from the error ring | per-job refusal goes to the file log only |
 | L0-R12 | Low | Persisted refresh-failed cause contained the token-endpoint body | persisted cause is `HTTP <status>` plus a fixed reason; the body stays in the log only |
-| L0-R13 | Medium | R1 and L0-R5 are **rails-conditional**: their fixes live in opt-in rail 2, so a rails-off daemon still re-sends a dead grant per flight (found by the register walk, `TESTING-NOTES.md` surprise 12) | open; dead-grant-is-terminal recorded as a CONTEXT.md decision 2026-08-24, promotion of rail 2 to default behavior not yet built |
+| L0-R13 | Medium | R1 and L0-R5 are **rails-conditional**: their fixes live in opt-in rail 2, so a rails-off daemon still re-sends a dead grant per flight (found by the register walk, `TESTING-NOTES.md` surprise 12) | dead-grant-is-terminal recorded as a CONTEXT.md decision 2026-08-24 and rail 2 promoted to default: `mark_refresh_failed` and the persisted mark no longer depend on the tripwire; `rejected_refresh_grant_disables_further_refreshes_until_login_or_logout` now runs rails-off |
 
 Clean per the review: `note_lost_send` is never less conservative; the
 dead-token mark cannot fire on the code exchange; the fast path precedes

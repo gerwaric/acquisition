@@ -131,10 +131,11 @@ on the command that spawns it, or `acq daemon stop` first:
 
 - `ACQ_TRIPWIRE=1` — the first landed 429 (any route, HEAD and token
   included) or any 401/403/503 halts every later send until
-  `acq daemon reset-tripwire`; persisted per provider across restarts. With
-  it, a refresh token the provider rejects (4xx other than 429) is never
-  re-sent until `acq auth` or logout. Off by default; never on in mock mode
-  by accident.
+  `acq daemon reset-tripwire`; persisted per provider across restarts. Off
+  by default; never on in mock mode by accident.
+- Always on, not a knob: a refresh token the provider rejects (4xx other
+  than 429) is never re-sent until `acq auth` or logout; the mark persists
+  across restarts.
 - `ACQ_MAX_SENDS=<n>` — halt after `n` real sends this daemon lifetime
   (not persisted).
 - `ACQ_JOURNAL=<path>` — one JSON line per actual send (method, route,
