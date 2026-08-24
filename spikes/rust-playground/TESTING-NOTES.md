@@ -1,13 +1,36 @@
 # Testing notes — open questions
 
 Discussion register, opened 2026-08-24 after rung 8 closed. **These are
-open questions, not decisions.** Nothing here is settled, nothing here
+open questions, not decisions.** Nothing here is settled and nothing here
 authorizes work. `LIVE-TESTING.md` remains the control document for
 anything run against the real API; `CONTEXT.md` holds invariants.
 
 Context in one line: the rung-8 soak stopped without passing (see its
 postmortem in `LIVE-TESTING.md`), and what it turned up is less about
 that run than about how this project checks its own work.
+
+## Why any of this exists (Tom, 2026-08-24)
+
+The constraints and plans and abstractions are here to serve us in
+(a) hardening the current implementation and (b) pinning things so that
+when we drastically simplify the internals we break as little as
+possible. **When they block or impede that service we can break or
+change them.** This is a playground for experimenting, not an enterprise
+development environment with layers of organization and process. We are
+exploring, so complexity is growing, but the goal is to map out the
+terrain so that future builders can make something better and simpler,
+because they will have in hindsight everything we are discovering now
+the hard way.
+
+The other half is capturing system behavior in simple but generic
+invariants that let us iterate on implementation and design without
+losing trust in our ability to catch or prevent rate-limit violations
+**and performance degradation**.
+
+Read the rest of this file through that. Everything below is an
+observation, a question, or a fact carried out of a run; the framing
+above is the only thing here with any authority, and it is permission
+rather than constraint.
 
 ## Surprises
 
@@ -73,12 +96,47 @@ radius; wall-clock cost rode along invisibly until a low-risk rung
 implied a week of waiting. The two axes are independent and were not
 separated.
 
+## The central tension
+
+**"Simple but generic" and "catches real regressions" pull against each
+other, and that is useful rather than unfortunate.** An invariant loose
+enough to survive a drastic simplification may be too loose to catch a
+subtle bug; one tight enough to catch the bug may break on every
+legitimate refactor until someone quietly loosens it into meaninglessness.
+
+This is not an incidental difficulty. It is goals (a) and (b) meeting at
+the level of a single assertion: hardening wants invariants tight enough
+to catch today's defects, pinning wants them loose enough to survive
+tomorrow's rewrite. Any suite serving both lives on that line.
+
+Two reasons to treat it as a working tool rather than a problem to
+design away:
+
+- **It is diagnostic.** Where the right tightness is obvious, the
+  invariant is probably not pinning anything interesting. Where the
+  choice is genuinely hard is where the real contract lives, and the
+  argument about it is how you find out what the contract *is*.
+- **Both failure directions are already named here.** Too tight is the
+  16 sequence-literal assertions in surprise 5. Too loose is
+  "looks like coverage, isn't" — an invariant that cannot fail is the
+  same failure as a stop condition that cannot fail, arrived at from the
+  other side.
+
+The method below is the empirical way to locate the line rather than
+argue it in the abstract.
+
 ## A method worth trying
 
 Rather than inventing invariants — the four floated so far are guesses —
 **derive them from the bug register**. Walk the L0 review R1–R12 in
 `LIVE-TESTING.md`, `docs/cleanup/findings.md`, and the N-claims, and ask
 of each: *what invariant over observable output would have caught this?*
+
+Run the same walk for **performance**, not only safety. Every register
+here is about violations and floods, and a suite that guards only those
+will happily bless a rewrite that makes a 261-tab refresh three times
+slower while staying perfectly inside every limit. Degradation needs its
+own invariants and they are not free riders on the safety ones.
 
 That yields a grounded list instead of a plausible one. The more
 valuable half is the negative result: the bugs that **no** invariant
@@ -97,7 +155,12 @@ worth more than the invariant list itself.
 2. **Is the journal sufficient as a contract surface?** It records what
    was sent and when, but not *why* the limiter waited. Does pinning
    pacing need that? Is the CLI's `--json` outcome a necessary second
-   surface for job results and data correctness?
+   surface for job results and data correctness? Note that the journal
+   is stronger here than it first appears: under a manual clock its
+   timestamps are exact, so "this refresh completes within N virtual
+   seconds" is a deterministic, free-to-run *performance* invariant off
+   a surface that already exists — which covers the degradation half of
+   the goal without new instrumentation.
 3. **Should provenance be a rail** — the daemon refusing to run a binary
    that does not match its checkout — or is that a process fix rather
    than a code one?
