@@ -257,7 +257,45 @@ One row per rung execution. Journal files are copied to
 | 2026-08-22 | 7 | `92e74f93` | pass (pacing not exercised) | 1/2/11 | 0 | fresh daemon, 10 tabs in 1.4 s; probe taught `4:300`; final `10:10:0,14:300:0` = prior + 10, drift 0; zero 429. 10 < 15-per-10 s, so the limiter never had to hold — rungs 1–7 prove reading, not waiting; `runs/2026-08-22-r7/` |
 | 2026-08-22 | 7b | `92e74f93` | pass (pacing engaged) | 1/2/19 | 0 | fresh daemon, 18 tabs; 15 children in 1.4 s filled `stash-request-limit`'s 10 s window (`15:10:0`); the limiter held **14.75 s** (period + 5 s bucket) before the 16th, which the server answered `1:10:0` — window fully cleared; remaining 3 at full speed; final `3:10:0,18:300:0`; zero 429; ceiling 24; `runs/2026-08-22-r7b/` |
 | 2026-08-22 | 8 (first start) | `92e74f93` | stopped after 3 runs | 1/1/1 + 2 GET | 0 | pid 14352, 00:26–01:30 UTC; stopped to pick up the R8 sleep fix; all runs success |
-| 2026-08-23 | 8 | `529bdd92` | **running** since 2026-08-23T01:30:14Z | 1/1/1 at start | 0 | one daemon (pid 17066, `ACQ_IDLE_SHUTDOWN=604800`, ceiling 200, 401 trips); cron `tools/soak-run.sh` every 10 min; probe on restart reported `1:300` (the 01:30:00 cron GET); evaluate with `tools/soak-check.sh 2026-08-23T01:30:14Z`; laptop sleep is allowed |
+| 2026-08-23 | 8 | `92e74f93` — **not** `529bdd92`, see postmortem | **stopped, not a pass**: ceiling 200/200 at 2026-08-24T10:10Z, 34.1 h in | 4/1/195 = 200 | 0 × 429; **3 × 401** | one daemon (pid 17066, `ACQ_IDLE_SHUTDOWN=604800`), cron every 10 min, 210 cron runs. Steady state clean: zero 429, `1:10:0,1:300:0` on every GET, 1 HEAD for the whole lifetime, 4 token POSTs (start, then one per ~10 h; `expires_in` 36000 confirmed across all four), no keyring warnings. Three 401s at 21:50/22:00/22:10Z from R8 — see postmortem. Cron removed 2026-08-24T12:17Z; daemon stopped 2026-08-24T13:38Z (log `[128140s] stop requested`). Evaluate with `tools/soak-check.sh 2026-08-23T01:30:14Z`; `runs/2026-08-23-r8/` |
+
+### Rung 8 postmortem (2026-08-24)
+
+**The soak ran on a binary that predates the R8 fix.** `target/debug/acq`
+had mtime 2026-08-23T00:02:37Z, which is `92e74f93`'s commit instant — the
+same tip rungs 1–7b used. The daemon was restarted 7 s after `529bdd92`
+was committed, but `cargo build` was never run, so the new code never
+entered the binary. Everything between the two commits was docs-only, so
+the R8 fix was precisely and only what was missing. The ladder's standing
+caution guards the opposite mistake (rebuilding *under* a live daemon); the
+failure here was restarting onto a new commit without rebuilding. Check the
+binary, not the checkout: `strings target/debug/acq | grep 'token rejected'`
+returns two lines with the fix present, one without.
+
+**R8 was then observed live, on the unfixed code.** About 2029 s of laptop
+sleep accumulated between the 11:40:01Z refresh and 21:50Z. With expiry on
+a monotonic clock the frozen elapsed time never reached 36000 s at the
+wall-clock deadline of 21:40:01Z, so the daemon kept sending the expired
+token: 401 at 21:50, 22:00, 22:10, then a refresh at 22:20 fired at
+monotonic +36420 s from the previous one — the first job past 36000 s on
+the frozen clock, not the wall-clock deadline. The same pre-fix binary also
+lacked the 401 tripwire, so neither half of `529bdd92` was present and
+nothing halted. This is the first live sighting of a hazard that had only
+been found by reading code.
+
+**Two limits of this run, independent of the binary.** The HEAD stop
+condition could not fail: `ACQ_IDLE_SHUTDOWN=604800` means no restarts, and
+probe state is per-lifetime, so exactly one HEAD per route is guaranteed by
+construction rather than evidenced. The restart shape named in the
+blast-radius table — one POST plus one HEAD per used route, per restart —
+remains untested. And the ceiling was sized against no duration: 200 sends
+at one per 10 min is 33 h, well short of the rung's "several days". A
+future soak should derive the ceiling from cadence × intended duration, and
+express the HEAD condition per `(pid, route)` (the journal records `pid`),
+which is meaningful in both the pinned and restarting shapes.
+
+The fix is now built and `cargo test` passes (87), but it has still never
+executed against GGG.
 
 ## Review history
 
