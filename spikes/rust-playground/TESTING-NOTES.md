@@ -64,6 +64,14 @@ Kept short; each of these is a shape we expect to meet again.
   Now L0-R13 and a CONTEXT.md decision.
 - **Commit the check, then break the code.** A chained `cd` that failed
   silently into a `git checkout` discarded an uncommitted invariant once.
+- **Two clocks in one test is a harness bug that looks like coverage.**
+  The N6 stress drove `mockggg` on real time and the daemon on a manual
+  clock, so the mock's windows never expired during the test and the
+  sixth fetch's retries always met a still-restricted mock. Its "one job
+  fails after three 429s" was that mismatch, not a property. On one clock
+  the limiter holds the sixth send and nothing violates — which is what
+  N4 says should happen. Found by putting the mock on the `Clock`
+  (2026-08-24, `7762d967`).
 
 ## The journal is the contract surface
 
@@ -88,16 +96,20 @@ rather than from the code:
 | after a 401 the next send is `POST oauth-token` | N34/R8 | refresh on rejection (armed, no offline breaker yet) |
 | a send is held only if the previous landed response on its route was a 429, then for `[Retry-After, Retry-After + RETRY_BUCKET_PAD + BUFFER]`; otherwise `wait_ms == 0` | N19, N33 | safety floor and performance ceiling at once |
 | R8 scenario: after a laptop sleep past expiry, no 401, a refresh reaches the wire, all sends within 60 virtual s | R8 | wall-clock expiry |
+| no send answered 429; every reported window state `hits ≤ max` with no restriction active (`assert_never_over_the_limit`) | N4/N25 | never over the limit — real only against a counting mock; runs in the N6 stress |
 
 Each has been broken deliberately and seen to fail (the 401 rule excepted,
 noted above). The pacing rule is the first assertion here loose enough to
-survive a rewrite and tight enough to have a breaker on each side.
+survive a rewrite and tight enough to have a breaker on each side. Its
+"otherwise `wait_ms == 0`" arm is a scripted-server property: against a
+counting mock the limiter holds *before* a violation, so that arm does not
+apply there and the never-over-the-limit rule takes its place.
 
 Time is a test input: one `Clock` with two faces (`now()` monotonic,
-`wall()` system) drives limiter, token expiry, and journal; the test
-`ManualClock` can advance both or `laptop_sleep()` the wall alone. Tests
-must speak the daemon's clock. Not yet on the clock: the idle-shutdown and
-activity sites in `daemon.rs`, and `mockggg`'s policy counters.
+`wall()` system) drives limiter, token expiry, journal, and `mockggg`'s
+policy counters; the test `ManualClock` can advance both or
+`laptop_sleep()` the wall alone. Tests must speak the daemon's clock. Not
+yet on the clock: the idle-shutdown and activity sites in `daemon.rs`.
 
 ## The boundary — three kinds of "cannot"
 
@@ -116,10 +128,11 @@ matter more than the list:
    product is subject to them, but the harness's scripted server echoes
    whatever headers the script names, so asserting them would pin the
    script. They are real only live, or against a mock that keeps counters.
-   `mockggg.rs` already keeps them (`MockPolicy`: sliding windows,
-   restrictions, self-generated 429s); it reads `Instant::now()` and the
-   harness does not use it. Closing this is the single largest remaining
-   gain in offline confidence.
+   `mockggg.rs` keeps them (`MockPolicy`: sliding windows, restrictions,
+   self-generated 429s) and since `7762d967` runs on the test's `Clock`
+   (`start_with_clock`), so the N6 stress now asserts never-over-the-limit
+   non-vacuously (breaker: a limiter that never waits → "a send was
+   answered 429"). The scripted-server tests remain kind 3 by nature.
 
 Kind 3 is also the list of things a goal-seeking builder could get wrong
 without the suite noticing. The live ladder is the un-gameable half of the
@@ -142,17 +155,33 @@ Sorting the 88 tests by what they need from a daemon:
   method/path asserts) pin this implementation's concurrency mechanics.
   They die with a rewrite and should.
 
+## Next direction
+
+Test infrastructure is at diminishing returns for mapping the GGG side.
+The frontend side — what a GUI, CLI, or MCP client actually needs from the
+protocol, whether the job model survives a real stash import, how
+priorities behave under contention — is unmapped, and no journal work
+maps it. The next thing to build is a real consumer: one end-to-end task a
+user wants (a full-league stash pull with a diff on the next run), on the
+real API under the ladder rules. Every rough edge it finds is a fact about
+what the daemon's internals need to be, which is the input a
+rearchitecture needs. Alongside, at no dev cost: the re-soak below.
+
+Done 2026-08-24, closing the register's open items: rail 2 promoted to
+product behavior (L0-R13, `ee5131e0`); `mockggg` on the `Clock` with
+never-over-the-limit asserted in the N6 stress (`7762d967`).
+
 ## Before any fresh build against this suite
 
-1. Put `mockggg` on the `Clock` and run the harness scenarios against it,
-   so kind 3 moves offline.
-2. Move the harness out of `daemon.rs` into an integration-test crate that
+Prerequisites for a goal-function build, not a plan to start on now:
+
+1. Move the harness out of `daemon.rs` into an integration-test crate that
    touches only the driving surface. This is what makes the goal function
-   portable; it is not hygiene.
-3. Re-soak the fixed binary (`LIVE-TESTING.md`, next action) for the first
+   portable. Do it the day a fresh build starts, not before.
+2. Re-soak the fixed binary (`LIVE-TESTING.md`, next action) for the first
    live `wait_ms` baseline; teach `soak-check.sh` to summarize it.
-4. Pin the frontend boundary. Nothing tests the protocol yet; that is the
-   daemon's other side and the one the GUI/CLI/MCP will depend on.
+3. Pin the frontend boundary — after the consumer has validated the
+   protocol, not before. Nothing tests the protocol yet.
 
 ## Standing constraints carried from the soak
 

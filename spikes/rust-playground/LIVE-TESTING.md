@@ -121,7 +121,7 @@ than CONTEXT.md's accepted 429-recovery decision intends. Rail 2 was
 ladder-only until 2026-08-24 and is now **product behavior** (L0-R13).
 
 1. **Tripwire (R2).** Opt-in via `ACQ_TRIPWIRE=1` (the ladder sets it;
-   never on in mock mode by default, since the mock and the existing suite
+   never on in mock mode by default, since the mock and the scripted tests
    produce 429s deliberately). Trips on the first counted violation — any
    landed 429 on any route, including HEAD and token — and on any
    401/403/503 (401 added 2026-08-23: see R8).
@@ -178,7 +178,7 @@ ladder-only until 2026-08-24 and is now **product behavior** (L0-R13).
 
 Required tests: each rail has a deterministic test against the mock and the
 existing fake-clock/localhost harness, with rails 1, 2, and 5 forced on;
-the existing suite (including the N6 stress, which contains 429s) passes
+the existing suite (including the N6 stress, which at the time produced 429s — a clock-mismatch artifact, see `TESTING-NOTES.md`) passes
 unchanged with rails 1, 2, and 5 off; a tripped daemon sends nothing on a
 queued job. Quality gates from `NETWORK-CLEANUP.md` stay green.
 
