@@ -1,7 +1,18 @@
-# Rust playground — daemon + CLI spike
+# Rust playground — daemon + CLI reference implementation
 
-Throwaway code for the daemon/CLI architecture in [CONTEXT.md](CONTEXT.md);
-it exercises that doc's decisions with fake workloads. **By default nothing
+This branch is the **reference implementation** of the daemon and rate
+limiter described in [CONTEXT.md](CONTEXT.md). Its purpose is to find out
+what they need to be and to pin that as tests and recorded decisions; the
+code is replaceable given a reason (a bug, performance, maintainability,
+understandability) no matter how complete it gets, and a fully operational
+CLI is still evidence, not a promotion. It may become the real
+implementation, or a fresh build may replace it — judged by the same tests
+and the same live ladder. The limiter's behavior is fully specified
+(`ratelimit.rs` test tables, keyed to ground truth); the daemon's is still
+being mapped at its two boundaries, GGG and the frontends. Tests pin
+behavior at those boundaries, never mechanisms.
+
+**By default nothing
 here talks to GGG**: job kinds are fakes (`sleep`, `fetch`, `profile`),
 OAuth runs against an in-process localhost provider (`mockggg.rs`), and the
 mock's data endpoints sit behind truthfully simulated rate-limit policies
@@ -24,9 +35,9 @@ bounded by `MAX_429_RETRIES`; a Cloudflare-shaped 403/503 is never retried.
 - [`LIVE-TESTING.md`](LIVE-TESTING.md) — control document for testing against
   the real API: blast-radius review, the L0 safety-rails package, the staged
   ladder, and the run ledger.
-- [`TESTING-NOTES.md`](TESTING-NOTES.md) — open discussion register on how
-  this project checks its own work: what the rung-8 soak exposed, and the
-  questions it left open. Questions, not decisions.
+- [`TESTING-NOTES.md`](TESTING-NOTES.md) — closed record of how this
+  project checks its own work: what the rung-8 soak exposed, the journal
+  as test oracle, the wire invariants, and what a rewrite keeps.
 - [`NETWORK-CLEANUP.md`](NETWORK-CLEANUP.md) — closed record of the N0–N6
   network cleanup: accepted ranges, findings, and the quality-gate baseline
   every later change keeps green.

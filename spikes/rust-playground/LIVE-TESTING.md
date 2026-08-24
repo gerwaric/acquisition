@@ -60,7 +60,11 @@ gaps between "correct" and "safe to run unattended against GGG"):
   job opens a flight. Paced by N33 once learned, so not a violation, but
   pointless traffic on a Cloudflare-fronted endpoint. (`daemon.rs`
   `finish_refresh`; `auth.rs` `token_request` collapses status, body, and
-  JSON failures into one string.)
+  JSON failures into one string.) **Rails-conditional (2026-08-24):**
+  rail 2 fixes this only while the tripwire is armed; with rails off — the
+  shipped default — the product still re-sends the dead grant. Resolved for
+  the ladder, not for the product; now a CONTEXT.md decision awaiting
+  promotion out of the rail. Same for L0-R5.
 - **R2 — no global violation budget.** `Limiter::violations` is counted and
   never consulted. With a mis-modeled policy, a 50-child fan-out can burn
   up to 150 violations (3 attempts each), each behind a hold but each a
@@ -191,6 +195,7 @@ queued job. Quality gates from `NETWORK-CLEANUP.md` stay green.
 | L0-R10 | Low | `reset-tripwire` against a stopped daemon left the persisted trip | the CLI clears the provider's state file directly and says so |
 | L0-R11 | Low | Per-job refusals could evict the trip cause from the error ring | per-job refusal goes to the file log only |
 | L0-R12 | Low | Persisted refresh-failed cause contained the token-endpoint body | persisted cause is `HTTP <status>` plus a fixed reason; the body stays in the log only |
+| L0-R13 | Medium | R1 and L0-R5 are **rails-conditional**: their fixes live in opt-in rail 2, so a rails-off daemon still re-sends a dead grant per flight (found by the register walk, `TESTING-NOTES.md` surprise 12) | open; dead-grant-is-terminal recorded as a CONTEXT.md decision 2026-08-24, promotion of rail 2 to default behavior not yet built |
 
 Clean per the review: `note_lost_send` is never less conservative; the
 dead-token mark cannot fire on the code exchange; the fast path precedes
@@ -313,5 +318,8 @@ executed against GGG.
 
 ## Next action
 
-Owner decides whether the L0-R1…R12 fix commit gets a fix-only re-review
-or goes straight to rung 1.
+Rung 8 is stopped, not passed, and the R8 fix has never executed against
+GGG. The next live run is a re-soak on the built binary: `acq --version`
+equals `git rev-parse --short=12 HEAD` with no `-dirty`; ceiling derived
+from cadence × intended duration; HEAD condition per `(pid, route)`. It
+also collects the first live `wait_ms` baseline (`TESTING-NOTES.md`).
