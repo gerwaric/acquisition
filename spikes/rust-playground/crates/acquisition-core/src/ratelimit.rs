@@ -1453,11 +1453,13 @@ impl ChokePoint {
         route: &str,
         url: &str,
         bearer: Option<&str>,
+        since: Instant,
     ) -> Result<(reqwest::StatusCode, Policy, serde_json::Value), String> {
         let _permit = self
             .acquire_head(route)
             .await
             .map_err(|error| error.to_string())?;
+        let wait = self.now().saturating_duration_since(since);
         let mut req = self.http.head(url);
         if let Some(token) = bearer {
             req = req.bearer_auth(token);
@@ -1529,6 +1531,7 @@ impl ChokePoint {
             protocol_failure,
             &raw,
             false,
+            wait,
         );
         // The limiter decided whether that was good enough; report what it
         // concluded so the probe job's outcome matches the endpoint state.
@@ -1614,6 +1617,7 @@ impl ChokePoint {
         url: &str,
         result: Result<reqwest::Response, String>,
         counted: bool,
+        wait: Duration,
     ) -> Result<CompletedResponse, SendError> {
         let retry_after = result.as_ref().map_or(RetryAfter::Missing, |response| {
             retry_after_from_headers(response.headers())
@@ -1665,6 +1669,7 @@ impl ChokePoint {
             protocol_failure.as_deref(),
             &rate,
             counted,
+            wait,
         );
         match (classification, result) {
             (ResponseClassification::Success, Ok((status, Ok(body))))
@@ -1709,6 +1714,7 @@ impl ChokePoint {
         protocol_failure: Option<&str>,
         rate: &serde_json::Value,
         counted: bool,
+        wait: Duration,
     ) {
         let (outcome, ok) = match (result, protocol_failure) {
             (_, Some(error)) => (format!("protocol failure: {error}"), false),
@@ -1729,6 +1735,7 @@ impl ChokePoint {
             ok,
             counted,
             rate,
+            wait,
         });
         let mut sends = self.sends.lock().unwrap();
         if sends.len() >= SEND_HISTORY {
@@ -1751,8 +1758,10 @@ impl ChokePoint {
         route: &str,
         url: &str,
         params: &[(&str, &str)],
+        since: Instant,
     ) -> Result<CompletedResponse, SendError> {
         let _permit = self.acquire_send(route).await?;
+        let wait = self.now().saturating_duration_since(since);
         let result = self
             .http
             .post(url)
@@ -1760,7 +1769,8 @@ impl ChokePoint {
             .send()
             .await
             .map_err(|e| e.to_string());
-        self.finish_send(route, "POST", url, result, true).await
+        self.finish_send(route, "POST", url, result, true, wait)
+            .await
     }
 
     /// Bearer-authenticated GET. The dispatcher may pre-wait while the job is
@@ -1770,8 +1780,10 @@ impl ChokePoint {
         route: &str,
         url: &str,
         bearer: &str,
+        since: Instant,
     ) -> Result<CompletedResponse, SendError> {
         let _permit = self.acquire_send(route).await?;
+        let wait = self.now().saturating_duration_since(since);
         let result = self
             .http
             .get(url)
@@ -1779,14 +1791,23 @@ impl ChokePoint {
             .send()
             .await
             .map_err(|e| e.to_string());
-        self.finish_send(route, "GET", url, result, true).await
+        self.finish_send(route, "GET", url, result, true, wait)
+            .await
     }
 
     /// Unauthenticated GET (mock-only fake data endpoints).
-    pub async fn get(&self, route: &str, url: &str) -> Result<CompletedResponse, SendError> {
+    /// `since` is when the send became ready (see `SendReport::wait`).
+    pub async fn get(
+        &self,
+        route: &str,
+        url: &str,
+        since: Instant,
+    ) -> Result<CompletedResponse, SendError> {
         let _permit = self.acquire_send(route).await?;
+        let wait = self.now().saturating_duration_since(since);
         let result = self.http.get(url).send().await.map_err(|e| e.to_string());
-        self.finish_send(route, "GET", url, result, true).await
+        self.finish_send(route, "GET", url, result, true, wait)
+            .await
     }
 }
 
@@ -3099,7 +3120,7 @@ mod tests {
         let (url, server) = serve_one_raw(raw).await;
         let choke = ChokePoint::new();
 
-        let result = choke.get(route, &url).await;
+        let result = choke.get(route, &url, choke.now()).await;
         assert!(matches!(result, Err(SendError::Transport(_))));
         assert_eq!(
             choke.endpoint_state(route),
@@ -3129,7 +3150,7 @@ mod tests {
         }));
         let choke = ChokePoint::with_clock_and_rails(Arc::new(SystemClock), rails.clone());
 
-        let landed = choke.get(route, &url).await.unwrap();
+        let landed = choke.get(route, &url, choke.now()).await.unwrap();
         assert_eq!(landed.status.as_u16(), 429);
         server.await.unwrap();
         assert!(rails.halted().unwrap().contains("429 on GET /test"));
@@ -3137,12 +3158,19 @@ mod tests {
         // No listener behind this URL: a send would fail as a transport
         // error, so a `Halted` result proves nothing was attempted.
         let unreachable = "http://127.0.0.1:9/never";
-        let refused = choke.get(route, unreachable).await.err().expect("halted");
+        let refused = choke
+            .get(route, unreachable, choke.now())
+            .await
+            .err()
+            .expect("halted");
         assert!(matches!(refused, SendError::Halted(_)), "{refused}");
-        let head = choke.head(route, unreachable, None).await.unwrap_err();
+        let head = choke
+            .head(route, unreachable, None, choke.now())
+            .await
+            .unwrap_err();
         assert!(head.contains("halted by live-test rails"), "{head}");
         let post = choke
-            .post_form("oauth-token", unreachable, &[("a", "b")])
+            .post_form("oauth-token", unreachable, &[("a", "b")], choke.now())
             .await
             .err()
             .expect("halted");
@@ -3200,12 +3228,16 @@ mod tests {
 
         let head_choke = choke.clone();
         let head_url = format!("{base}/probe");
-        let head = tokio::spawn(async move { head_choke.head("parked", &head_url, None).await });
+        let head = tokio::spawn(async move {
+            head_choke
+                .head("parked", &head_url, None, head_choke.now())
+                .await
+        });
         head_arrived.await.unwrap();
 
         let get_choke = choke.clone();
         let get_url = format!("{base}/data");
-        let get = tokio::spawn(async move { get_choke.get("parked", &get_url).await });
+        let get = tokio::spawn(async move { get_choke.get("parked", &get_url, choke.now()).await });
         tokio::time::sleep(Duration::from_millis(50)).await; // let it park
         assert!(!get.is_finished(), "the GET must be parked behind the HEAD");
 
@@ -3218,6 +3250,7 @@ mod tests {
             ok: false,
             counted: true,
             rate: &serde_json::Value::Null,
+            wait: Duration::ZERO,
         });
         release_tx.send(()).unwrap();
         head.await.unwrap().unwrap();
@@ -3262,7 +3295,7 @@ mod tests {
         assert!(choke.check(route).is_ok());
 
         let refused = choke
-            .get(route, "http://127.0.0.1:9/lost")
+            .get(route, "http://127.0.0.1:9/lost", choke.now())
             .await
             .err()
             .expect("transport failure");
@@ -3293,7 +3326,7 @@ mod tests {
             )
             .unwrap();
         let _ = head_choke
-            .head(route, "http://127.0.0.1:9/lost", None)
+            .head(route, "http://127.0.0.1:9/lost", None, choke.now())
             .await;
         assert_ne!(
             head_choke.endpoint_state(route),
@@ -3321,7 +3354,7 @@ mod tests {
             .unwrap();
         let (url, server) = serve_one_raw(raw_response("200 OK", "", 100, "{}")).await;
 
-        let result = choke.get(route, &url).await;
+        let result = choke.get(route, &url, choke.now()).await;
         assert!(matches!(result, Err(SendError::Transport(_))));
         let status = choke.policy_statuses().pop().unwrap();
         assert_eq!(status.headers, established_raw);
@@ -3339,7 +3372,7 @@ mod tests {
         let choke = ChokePoint::new();
 
         assert!(matches!(
-            choke.get(route, &url).await,
+            choke.get(route, &url, choke.now()).await,
             Err(SendError::Protocol(_))
         ));
         let send = choke.recent_sends().pop().unwrap();
@@ -3365,7 +3398,7 @@ mod tests {
             let choke = ChokePoint::new();
 
             let response = choke
-                .get(&route, &url)
+                .get(&route, &url, choke.now())
                 .await
                 .expect("non-2xx status keeps precedence over body failure");
             assert_eq!(response.status.as_u16(), status);
@@ -3415,7 +3448,11 @@ mod tests {
             .map(|index| {
                 let choke = choke.clone();
                 let url = format!("{base}/{index}");
-                tokio::spawn(async move { choke.get(&format!("route-{index}"), &url).await })
+                tokio::spawn(async move {
+                    choke
+                        .get(&format!("route-{index}"), &url, choke.now())
+                        .await
+                })
             })
             .collect();
 
@@ -3479,12 +3516,14 @@ mod tests {
         let choke = Arc::new(ChokePoint::new());
         let get = {
             let choke = choke.clone();
-            tokio::spawn(async move { choke.get("ordinary-route", &get_url).await })
+            tokio::spawn(async move { choke.get("ordinary-route", &get_url, choke.now()).await })
         };
         get_arrived.await.unwrap();
         let head = {
             let choke = choke.clone();
-            tokio::spawn(async move { choke.head("head-route", &head_url, None).await })
+            tokio::spawn(
+                async move { choke.head("head-route", &head_url, None, choke.now()).await },
+            )
         };
         let mut head_arrived = Box::pin(head_arrived);
         assert!(
@@ -3539,11 +3578,19 @@ mod tests {
         let choke = Arc::new(ChokePoint::new());
         let first = {
             let choke = choke.clone();
-            tokio::spawn(async move { choke.get("writer-first-route", &first_url).await })
+            tokio::spawn(async move {
+                choke
+                    .get("writer-first-route", &first_url, choke.now())
+                    .await
+            })
         };
         let second = {
             let choke = choke.clone();
-            tokio::spawn(async move { choke.get("writer-second-route", &second_url).await })
+            tokio::spawn(async move {
+                choke
+                    .get("writer-second-route", &second_url, choke.now())
+                    .await
+            })
         };
         first_arrived.await.unwrap();
         second_arrived.await.unwrap();
@@ -3552,7 +3599,11 @@ mod tests {
         let canceled_url = format!("http://{}/get", canceled_listener.local_addr().unwrap());
         let canceled = {
             let choke = choke.clone();
-            tokio::spawn(async move { choke.get("writer-canceled-route", &canceled_url).await })
+            tokio::spawn(async move {
+                choke
+                    .get("writer-canceled-route", &canceled_url, choke.now())
+                    .await
+            })
         };
         let mut canceled_accept = Box::pin(canceled_listener.accept());
         assert!(
@@ -3588,7 +3639,11 @@ mod tests {
         });
         let head = {
             let choke = choke.clone();
-            tokio::spawn(async move { choke.head("writer-head-route", &head_url, None).await })
+            tokio::spawn(async move {
+                choke
+                    .head("writer-head-route", &head_url, None, choke.now())
+                    .await
+            })
         };
         let mut head_arrived = Box::pin(head_arrived);
         assert!(
@@ -3602,7 +3657,11 @@ mod tests {
             held_get("writer-later-policy").await;
         let later = {
             let choke = choke.clone();
-            tokio::spawn(async move { choke.get("writer-later-route", &later_url).await })
+            tokio::spawn(async move {
+                choke
+                    .get("writer-later-route", &later_url, choke.now())
+                    .await
+            })
         };
         let mut later_arrived = Box::pin(later_arrived);
         assert!(

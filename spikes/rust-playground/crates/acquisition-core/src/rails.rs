@@ -22,7 +22,7 @@ use std::fs::{File, OpenOptions};
 use std::io::Write as _;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use crate::ratelimit::{Clock, SystemClock};
 
@@ -136,6 +136,11 @@ pub struct SendReport<'a> {
     pub counted: bool,
     /// The `X-Rate-Limit-*` and `Retry-After` snapshot (an object), or Null.
     pub rate: &'a Value,
+    /// How long the send was held before it reached the transport: from
+    /// the moment it was ready (a job picked by the dispatcher, a token
+    /// refresh entering the choke) to dispatch, on the monotonic clock.
+    /// Pacing made observable without recording reasons.
+    pub wait: Duration,
 }
 
 pub struct Rails {
@@ -382,6 +387,7 @@ impl Rails {
             "ok": report.ok,
             "counted": report.counted,
             "rate": report.rate,
+            "wait_ms": report.wait.as_millis() as u64,
         });
         let _ = writeln!(file, "{line}");
         let _ = file.flush();
@@ -424,6 +430,7 @@ mod tests {
             ok: status.is_some_and(|s| (200..300).contains(&s)),
             counted: true,
             rate: &Value::Null,
+            wait: Duration::ZERO,
         }
     }
 

@@ -248,30 +248,67 @@ suite "settled the other way" was itself reached without reading the
 suite. Reading the sites before deciding what to do with them changed
 the plan from *convert* to *cross-check*.
 
-**Still open from this experiment:** (d) — the four `clock.slept()`
-assertions coupled to `RETRY_BUCKET_PAD + BUFFER` are the performance
-half in miniature, and are the actual too-tight case. A `wait_ms`
-journal field would move them onto the same surface. And (c), deriving
-cross-test invariants from the register, is a deliberate reading pass
-still to do; (b) makes the journal fit to carry them, it does not
-produce them.
+**(d) — `wait_ms`, same afternoon.** Every journal line now carries
+`wait_ms`: how long the send was held from *ready* to transport
+dispatch. "Ready" is the instant the dispatcher picked the job
+(`Daemon::process`), threaded down as `ready` through `execute` /
+`api_get` / the probe, and into the choke's `get` / `get_bearer` /
+`head` / `post_form` as `since`; a token refresh is ready when it
+enters the choke. The four `clock.slept()` assertions became
+`journal_waits(&log_path) == [..]` per send, `ManualClock` lost its
+sleep counter, and one script now answers `Retry-After: 5` so the third
+GET pins `5_000 + hold` rather than `hold` again.
+
+**Surprise 11 — the trap, met while building.** The first draft
+measured the wait inside the choke, from method entry to permit. That
+reads 0 in exactly the retry tests, because the dispatcher pre-waits
+the whole hold in `daemon.rs` *before* calling the choke. A `wait_ms`
+that cannot see the wait is surprise 7 again: a field that reads as
+observability. Caught by reading the dispatcher before wiring it.
+
+**The invariant that fell out — a first piece of (c), as predicted.**
+`assert_pacing_follows_responses` runs over every harness journal from
+`finish_harness_wire`, derived from N19 rather than from the code: a
+send on a route is held *only* if the previous landed response on that
+route was a 429, and then for at least its `Retry-After` and at most
+`Retry-After + RETRY_BUCKET_PAD + BUFFER`. No test names a number for
+it. It is both halves at once: the floor is safety (a retry that goes
+out too soon), the ceiling and the "otherwise zero" arm are performance
+(a rewrite that paces slower, or paces when nothing asked). It is the
+first assertion here that is loose enough to survive a rewrite and
+tight enough to have a breaker on each side.
+
+**Breakers (verified 2026-08-24).** One extra second of sleep before
+every send in `process()`: 9 tests fail, all through "nothing demanded
+a hold on fetch, yet the send waited". Drop `Retry-After` from the hold
+in `ratelimit.rs`: the 5-second floor fails in the daemon test, and two
+limiter unit tests that already pinned it. That second result is worth
+saying plainly: the *limiter* was already tested for this; what is new
+is that the same fact is now checked at the product boundary, where a
+rewrite of the limiter cannot take the test with it.
+
+**Still open:** (c) as a deliberate reading pass over the register with
+`wait_ms` in hand — the pacing invariant is one derived from N19; the
+walk should say which others the journal can now carry and which it
+still cannot. `soak-check.sh` does not yet read `wait_ms`; a live
+journal now carries real pacing data that nothing summarizes.
 
 ## Open topics
 
 1. **The clock fork — resolved by experiment 1:** one clock, two faces.
    Remaining: the idle/activity `Instant::now()` sites, when a scenario
    needs restarts.
-2. **Is the journal sufficient as a contract surface?** It records what
-   was sent and when, but not *why* the limiter waited. Does pinning
-   pacing need that? Is the CLI's `--json` outcome a necessary second
+2. **Is the journal sufficient as a contract surface?** Since
+   experiment 2 (d) it records *how long* each send was held
+   (`wait_ms`); pinning pacing did not need *why*, because the
+   preceding response on the route already says why. Remaining: Is the CLI's `--json` outcome a necessary second
    surface for job results and data correctness? Since experiment 1 the
    journal's timestamps *are* the scenario's, so "this refresh completes
    within N virtual seconds" is a deterministic, free-to-run
    *performance* invariant off a surface that already exists — which
    covers the degradation half of the goal without new instrumentation.
-   (Before experiment 1 this paragraph was wrong; see surprise 7.) A
-   `wait_ms` field — how long the limiter held before the send — would
-   make pacing itself observable without recording reasons.
+   (Before experiment 1 this paragraph was wrong; see surprise 7. The
+   `wait_ms` field proposed here was built in experiment 2 (d).)
 3. **Provenance — resolved as process with a code assist:** the binary
    carries its commit, the journal and log say which one, and
    `soak-check.sh` refuses what it cannot trust. The daemon does not

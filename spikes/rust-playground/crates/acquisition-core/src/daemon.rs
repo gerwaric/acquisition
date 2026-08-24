@@ -586,6 +586,7 @@ impl Daemon {
     }
 
     async fn process(&self, id: JobId) {
+        let ready = self.choke.now();
         let route = {
             let s = self.shared.lock().unwrap();
             match s.jobs.get(&id) {
@@ -674,7 +675,7 @@ impl Daemon {
         self.emit(info);
 
         let route = route.map(|(route, _)| route);
-        let outcome = match self.execute(id, &kind, params, route).await {
+        let outcome = match self.execute(id, &kind, params, route, ready).await {
             Exec::Done(outcome) => outcome,
             Exec::RateLimited(evidence) => {
                 // P-A: a 429 is recovered from, not surfaced — unless it keeps
@@ -824,10 +825,19 @@ impl Daemon {
         self.finish(id, outcome);
     }
 
-    async fn execute(&self, id: JobId, kind: &str, params: Value, route: Option<String>) -> Exec {
+    /// `ready` is when the dispatcher picked the job: every send it makes
+    /// journals its wait from that instant.
+    async fn execute(
+        &self,
+        id: JobId,
+        kind: &str,
+        params: Value,
+        route: Option<String>,
+        ready: Instant,
+    ) -> Exec {
         // Network kinds bubble a 429 up as `Exec::RateLimited`; everything
         // else is an ordinary outcome.
-        match self.execute_inner(id, kind, params, route).await {
+        match self.execute_inner(id, kind, params, route, ready).await {
             Ok(outcome) => Exec::Done(outcome),
             Err(ApiError::RateLimited(evidence)) => Exec::RateLimited(evidence),
             Err(ApiError::Protocol(error)) => Exec::Done(Outcome::Failure { error }),
@@ -841,6 +851,7 @@ impl Daemon {
         kind: &str,
         params: Value,
         route: Option<String>,
+        ready: Instant,
     ) -> Result<Outcome, ApiError> {
         Ok(match kind {
             // The one real API call: GET {api_base}/character. Same code in
@@ -855,7 +866,7 @@ impl Daemon {
                 };
                 let url = format!("{}/character", self.provider.api_base);
                 let route = route.as_deref().expect("characters is a network kind");
-                let (v, rate) = self.api_get(route, &url, Some(&token)).await?;
+                let (v, rate) = self.api_get(route, &url, Some(&token), ready).await?;
                 Outcome::Success {
                     payload: json!({
                         "provider": self.provider.name,
@@ -879,7 +890,7 @@ impl Daemon {
                     .to_string();
                 let url = format!("{}/stash/{league}", self.provider.api_base);
                 let route = route.as_deref().expect("stashes is a network kind");
-                let (v, rate) = self.api_get(route, &url, Some(&token)).await?;
+                let (v, rate) = self.api_get(route, &url, Some(&token), ready).await?;
                 Outcome::Success {
                     payload: json!({
                         "provider": self.provider.name,
@@ -901,7 +912,7 @@ impl Daemon {
                     });
                 };
                 let route = route.as_deref().expect("stash is a network kind");
-                let (v, rate) = self.api_get(route, &url, Some(&token)).await?;
+                let (v, rate) = self.api_get(route, &url, Some(&token), ready).await?;
                 let stash = v.get("stash").cloned().unwrap_or(v);
                 // Map/unique tabs carry their substashes as stubs; following
                 // them is opt-in per tab (--deep) because one map tab can
@@ -971,7 +982,7 @@ impl Daemon {
                 }
                 let url = format!("{}/stash/{league}", self.provider.api_base);
                 let route = route.as_deref().expect("refresh is a network kind");
-                let (v, rate) = self.api_get(route, &url, Some(&token)).await?;
+                let (v, rate) = self.api_get(route, &url, Some(&token), ready).await?;
                 let listed = v
                     .get("stashes")
                     .and_then(Value::as_array)
@@ -1061,7 +1072,7 @@ impl Daemon {
                 }
                 let url = format!("{}/fetch", self.provider.api_base);
                 let route = route.as_deref().expect("mock fetch is a network kind");
-                let (v, rate) = self.api_get(route, &url, None).await?;
+                let (v, rate) = self.api_get(route, &url, None, ready).await?;
                 Outcome::Success {
                     payload: json!({
                         "note": "fake data from the in-process mock",
@@ -1133,7 +1144,10 @@ impl Daemon {
                 } else {
                     None
                 };
-                let probed = self.choke.head(&route, &url, bearer.as_deref()).await;
+                let probed = self
+                    .choke
+                    .head(&route, &url, bearer.as_deref(), ready)
+                    .await;
                 self.announce_trip();
                 match probed {
                     Ok((status, policy, headers)) => {
@@ -1174,10 +1188,11 @@ impl Daemon {
         route: &str,
         url: &str,
         bearer: Option<&str>,
+        ready: Instant,
     ) -> Result<(Value, Value), ApiError> {
         let response = match bearer {
-            Some(token) => self.choke.get_bearer(route, url, token).await,
-            None => self.choke.get(route, url).await,
+            Some(token) => self.choke.get_bearer(route, url, token, ready).await,
+            None => self.choke.get(route, url, ready).await,
         }
         .map_err(|error| match error {
             SendError::Protocol(error) => ApiError::Protocol(format!(
@@ -2290,7 +2305,12 @@ mod auth_session_tests {
         let hold = {
             let daemon = daemon.clone();
             let url = format!("{base}/hold");
-            tokio::spawn(async move { daemon.choke.get("hold-route", &url).await })
+            tokio::spawn(async move {
+                daemon
+                    .choke
+                    .get("hold-route", &url, daemon.choke.now())
+                    .await
+            })
         };
         hold_arrived.await.unwrap();
         let api = {
@@ -2302,6 +2322,7 @@ mod auth_session_tests {
                         "characters",
                         serde_json::Value::Null,
                         Some("character-list".into()),
+                        daemon.choke.now(),
                     )
                     .await
             })
@@ -2688,7 +2709,6 @@ mod dispatcher_tests {
     struct ManualClock {
         now: Mutex<Instant>,
         wall: Mutex<SystemTime>,
-        slept: Mutex<Duration>,
     }
 
     impl ManualClock {
@@ -2696,12 +2716,7 @@ mod dispatcher_tests {
             ManualClock {
                 now: Mutex::new(Instant::now()),
                 wall: Mutex::new(SystemTime::UNIX_EPOCH + MANUAL_WALL_ORIGIN),
-                slept: Mutex::new(Duration::ZERO),
             }
-        }
-
-        fn slept(&self) -> Duration {
-            *self.slept.lock().unwrap()
         }
 
         /// Time passes normally: both faces move.
@@ -2733,10 +2748,7 @@ mod dispatcher_tests {
 
         fn sleep(&self, duration: Duration) -> Pin<Box<dyn Future<Output = ()> + Send + '_>> {
             Box::pin(async move {
-                {
-                    self.advance(duration);
-                    *self.slept.lock().unwrap() += duration;
-                }
+                self.advance(duration);
                 tokio::task::yield_now().await;
             })
         }
@@ -3322,7 +3334,67 @@ mod dispatcher_tests {
         wire: &Arc<Mutex<Vec<String>>>,
     ) {
         assert_journal_matches_wire(log_path, &wire.lock().unwrap());
+        assert_pacing_follows_responses(&journal_sends(log_path));
         finish_harness(dispatcher, log_path);
+    }
+
+    /// The journal's send lines, header dropped.
+    fn journal_sends(log_path: &std::path::Path) -> Vec<Value> {
+        let mut lines = read_journal(&journal_of(log_path));
+        assert_eq!(
+            lines.first().map(|l| l["event"].clone()),
+            Some("open".into())
+        );
+        lines.remove(0);
+        lines
+    }
+
+    /// `wait_ms` of every send, in journal order.
+    fn journal_waits(log_path: &std::path::Path) -> Vec<u64> {
+        journal_sends(log_path)
+            .iter()
+            .map(|l| l["wait_ms"].as_u64().expect("wait_ms"))
+            .collect()
+    }
+
+    fn full_hold_ms() -> u64 {
+        (crate::ratelimit::RETRY_BUCKET_PAD + crate::ratelimit::BUFFER).as_millis() as u64
+    }
+
+    /// The pacing invariant, derived from N19 rather than from the code: a
+    /// send on a route is held only because the previous landed response on
+    /// that route was a 429, and then for at least its `Retry-After` and at
+    /// most `Retry-After + RETRY_BUCKET_PAD + BUFFER`, the largest hold the
+    /// limiter is allowed to impose. Everything else goes out at once.
+    /// Runs over every harness journal, so a rewrite that paces slower
+    /// (or stops pacing) fails here without any test naming the numbers.
+    fn assert_pacing_follows_responses(sends: &[Value]) {
+        let pad = full_hold_ms();
+        let mut last_on_route: HashMap<String, &Value> = HashMap::new();
+        for send in sends {
+            let route = send["route"].as_str().unwrap().to_string();
+            let wait = send["wait_ms"].as_u64().expect("wait_ms");
+            match last_on_route.get(&route) {
+                Some(prev) if prev["status"] == 429 => {
+                    let retry_after: u64 = prev["rate"]["retry-after"]
+                        .as_str()
+                        .and_then(|s| s.parse().ok())
+                        .unwrap_or(0);
+                    let floor = retry_after * 1000;
+                    assert!(
+                        (floor..=floor + pad).contains(&wait),
+                        "after a 429 with Retry-After {retry_after} the next send on \
+                         {route} waited {wait} ms; allowed {floor}..={}: {send}",
+                        floor + pad
+                    );
+                }
+                _ => assert_eq!(
+                    wait, 0,
+                    "nothing demanded a hold on {route}, yet the send waited: {send}"
+                ),
+            }
+            last_on_route.insert(route, send);
+        }
     }
 
     #[tokio::test]
@@ -3379,12 +3451,22 @@ mod dispatcher_tests {
         let (daemon, log_path) = test_daemon(&base, clock.clone());
         daemon
             .choke
-            .head("character-list", &format!("{base}/character"), None)
+            .head(
+                "character-list",
+                &format!("{base}/character"),
+                None,
+                daemon.choke.now(),
+            )
             .await
             .unwrap();
         daemon
             .choke
-            .head("stash-list", &format!("{base}/stash/Standard"), None)
+            .head(
+                "stash-list",
+                &format!("{base}/stash/Standard"),
+                None,
+                daemon.choke.now(),
+            )
             .await
             .unwrap();
         server.await.unwrap();
@@ -3630,7 +3712,7 @@ mod dispatcher_tests {
         let responses = vec![
             ScriptedResponse::full("HEAD", "204 No Content", None, ""),
             ScriptedResponse::full("GET", "429 Too Many Requests", Some(0), "{}"),
-            ScriptedResponse::full("GET", "429 Too Many Requests", Some(0), "{}"),
+            ScriptedResponse::full("GET", "429 Too Many Requests", Some(5), "{}"),
             ScriptedResponse::full("GET", "200 OK", None, r#"{"items":["done"]}"#),
         ];
         let (base, requests, server) = scripted_server(responses).await;
@@ -3647,6 +3729,11 @@ mod dispatcher_tests {
         assert_eq!(
             requests.lock().unwrap().as_slice(),
             ["HEAD", "GET", "GET", "GET"]
+        );
+        assert_eq!(
+            journal_waits(&log_path),
+            [0, 0, full_hold_ms(), 5_000 + full_hold_ms()],
+            "each retry waits its Retry-After plus the bucket pad"
         );
         assert_eq!(terminal_event_count(&mut events, id), 1);
         server.await.unwrap();
@@ -3675,9 +3762,9 @@ mod dispatcher_tests {
         assert!(error.contains("giving up"));
         assert_eq!(requests.lock().unwrap().len(), 4, "HEAD plus three GETs");
         assert_eq!(
-            clock.slept(),
-            2 * (crate::ratelimit::RETRY_BUCKET_PAD + crate::ratelimit::BUFFER),
-            "only the two retryable attempts may sleep"
+            journal_waits(&log_path),
+            [0, 0, full_hold_ms(), full_hold_ms()],
+            "only the two retryable attempts wait, each behind the full hold"
         );
         server.await.unwrap();
         finish_harness_wire(dispatcher, &log_path, &requests);
@@ -3728,7 +3815,11 @@ mod dispatcher_tests {
             };
             assert!(error.contains("NOT retrying"));
             assert_eq!(requests.lock().unwrap().as_slice(), ["HEAD", "GET"]);
-            assert_eq!(clock.slept(), Duration::ZERO);
+            assert_eq!(
+                journal_waits(&log_path),
+                [0, 0],
+                "a block is never waited on"
+            );
             server.await.unwrap();
             finish_harness_wire(dispatcher, &log_path, &requests);
         }
@@ -3764,8 +3855,9 @@ mod dispatcher_tests {
         assert_eq!(probe.retries, 0);
         assert_eq!(requests.lock().unwrap().as_slice(), ["HEAD", "GET"]);
         assert_eq!(
-            clock.slept(),
-            crate::ratelimit::RETRY_BUCKET_PAD + crate::ratelimit::BUFFER
+            journal_waits(&log_path),
+            [0, full_hold_ms()],
+            "the GET waits behind the probe's 429 hold"
         );
         server.await.unwrap();
         finish_harness_wire(dispatcher, &log_path, &requests);
@@ -3851,8 +3943,8 @@ mod dispatcher_tests {
             "the 429 tripped before any retry"
         );
         assert_eq!(
-            clock.slept(),
-            Duration::ZERO,
+            journal_waits(&log_path),
+            [0, 0],
             "a requeued job fails at its next attempt instead of waiting behind the hold"
         );
 
@@ -4051,6 +4143,7 @@ mod dispatcher_tests {
             ok: false,
             counted: true,
             rate: &Value::Null,
+            wait: Duration::ZERO,
         });
         logged_in(&mut daemon);
         let error = daemon.valid_access_token(false).await.unwrap_err();
@@ -4070,7 +4163,7 @@ mod dispatcher_tests {
         let clock = Arc::new(ManualClock::new());
         let (daemon, log_path) = test_daemon_with(Provider::ggg(), clock, RailsConfig::default());
         let outcome = daemon
-            .execute_inner(1, "profile", json!({}), None)
+            .execute_inner(1, "profile", json!({}), None, daemon.choke.now())
             .await
             .unwrap();
         let Outcome::Failure { error } = outcome else {
