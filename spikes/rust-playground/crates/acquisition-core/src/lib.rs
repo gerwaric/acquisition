@@ -25,3 +25,7 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 /// journal header and the daemon's startup line: the rails verify behavior,
 /// this is the one place that says *which code* behaved.
 pub const BUILD: &str = env!("ACQ_BUILD");
+
+/// `<version> (<build>)`, what `acq --version` prints.
+pub const VERSION_WITH_BUILD: &str =
+    concat!(env!("CARGO_PKG_VERSION"), " (", env!("ACQ_BUILD"), ")");

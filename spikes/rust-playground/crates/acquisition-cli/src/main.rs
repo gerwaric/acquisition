@@ -16,7 +16,10 @@ use client::Client;
 #[derive(Parser)]
 #[command(
     name = "acq",
-    version,
+    // `<pkg version> (<git commit>)`: the thing to check before a live run
+    // is the binary, not the checkout. A `-dirty` suffix means uncommitted
+    // changes were built in.
+    version = acquisition_core::VERSION_WITH_BUILD,
     about = "Acquisition playground CLI (mock provider by default; ACQ_GGG=1 talks to real GGG)"
 )]
 struct Cli {

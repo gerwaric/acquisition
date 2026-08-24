@@ -195,8 +195,8 @@ test fails on its first send: `HEAD /character` carrying the stale bearer,
 
 **Still open from this experiment:** the idle-shutdown and activity sites
 in `daemon.rs` read `Instant::now()` directly and are not on the clock
-yet; `acq --version` does not print the build stamp (the daemon log's
-first line and the journal header do).
+yet. (`acq --version` prints `<version> (<build>)` since the follow-up
+commit, so the pre-run check is one command.)
 
 ## Open topics
 
@@ -234,7 +234,8 @@ first line and the journal header do).
 
 - Verify the **binary**, not the checkout, before any live run. Since
   experiment 1: the daemon's first log line and the journal header carry
-  `build`; it must equal `git rev-parse --short=12 HEAD` with no `-dirty`.
+  `build`, as does `acq --version`; it must equal
+  `git rev-parse --short=12 HEAD` with no `-dirty`.
   (The older check, `strings target/debug/acq | grep 'token rejected'`
   returning two lines, still works for the R8 fix specifically.)
 - A future soak must derive its ceiling from cadence × intended
