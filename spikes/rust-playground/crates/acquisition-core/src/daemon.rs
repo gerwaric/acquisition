@@ -2698,6 +2698,7 @@ mod dispatcher_tests {
     use crate::ratelimit::Clock;
     use std::future::Future;
     use std::pin::Pin;
+    use std::collections::HashSet;
     use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
     use tokio::sync::{Semaphore, oneshot};
 
@@ -3227,6 +3228,8 @@ mod dispatcher_tests {
         assert_eq!(header["build"], crate::BUILD);
         assert_eq!(header["ts"], "2000-01-01T00:00:00.000Z");
         let sends = &lines[1..];
+        assert_wire_contract(sends);
+        assert_pacing_follows_responses(sends);
 
         assert!(
             sends.iter().all(|l| l["status"] != 401),
@@ -3334,7 +3337,9 @@ mod dispatcher_tests {
         wire: &Arc<Mutex<Vec<String>>>,
     ) {
         assert_journal_matches_wire(log_path, &wire.lock().unwrap());
-        assert_pacing_follows_responses(&journal_sends(log_path));
+        let sends = journal_sends(log_path);
+        assert_pacing_follows_responses(&sends);
+        assert_wire_contract(&sends);
         finish_harness(dispatcher, log_path);
     }
 
@@ -3359,6 +3364,47 @@ mod dispatcher_tests {
 
     fn full_hold_ms() -> u64 {
         (crate::ratelimit::RETRY_BUCKET_PAD + crate::ratelimit::BUFFER).as_millis() as u64
+    }
+
+    /// The rest of the wire contract the register walk (TESTING-NOTES,
+    /// experiment 3) found expressible over the journal alone and true of
+    /// the product with rails off:
+    ///
+    /// - N16/N24, probe-before-send: within one daemon lifetime the first
+    ///   send on any API route is a HEAD. The token endpoint is never
+    ///   probed.
+    /// - N24, accounting: a HEAD is never counted; everything else is.
+    /// - N34/R8: a 401 is answered by a token refresh before any other
+    ///   send. (No offline breaker yet: the harness has no scenario in
+    ///   which a 401 lands and the refresh does not follow.)
+    fn assert_wire_contract(sends: &[Value]) {
+        let mut seen: HashSet<(u64, String)> = HashSet::new();
+        let mut owe_refresh: Option<&Value> = None;
+        for send in sends {
+            let pid = send["pid"].as_u64().unwrap();
+            let route = send["route"].as_str().unwrap().to_string();
+            let method = send["method"].as_str().unwrap();
+            if let Some(unauthorized) = owe_refresh.take() {
+                assert!(
+                    method == "POST" && route == "oauth-token",
+                    "after a 401 the next send must be the refresh, not: {send}\n401: {unauthorized}"
+                );
+            }
+            if route != "oauth-token" && seen.insert((pid, route.clone())) {
+                assert_eq!(
+                    method, "HEAD",
+                    "first send on {route} in pid {pid} was not a probe: {send}"
+                );
+            }
+            assert_eq!(
+                send["counted"],
+                method != "HEAD",
+                "HEADs are not counted and everything else is: {send}"
+            );
+            if send["status"] == 401 {
+                owe_refresh = Some(send);
+            }
+        }
     }
 
     /// The pacing invariant, derived from N19 rather than from the code: a
