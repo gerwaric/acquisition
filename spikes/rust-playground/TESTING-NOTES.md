@@ -293,6 +293,65 @@ walk should say which others the journal can now carry and which it
 still cannot. `soak-check.sh` does not yet read `wait_ms`; a live
 journal now carries real pacing data that nothing summarizes.
 
+## Experiment 3 — the register walk (2026-08-24)
+
+The reading pass the method section asked for, done with `wait_ms` and
+journal == wire in hand. For each entry: *what invariant over the
+journal would have caught it*, and whether it now runs over every
+harness journal (`finish_harness_wire` and the R8 scenario).
+
+| Entry | Journal invariant | Status |
+| --- | --- | --- |
+| R1 dead grant re-sent per flight | no `POST oauth-token` after a 400 on it, same pid | expressible; **rails-conditional** — with rails off the product still does this, so it pins the rail, not the product. Per-test only. |
+| R2 no violation budget | ≤ N 429s per pid | expressible; the product has no such rule to pin. Not applied. |
+| R3 no HTTP timeout | — | **cannot**: a hung send never journals; absence is invisible to a line-based oracle. Only the test's own timeout sees it. |
+| R4 journal itself | journal == wire | **applied** (experiment 2 b). |
+| R5 no ceiling | sends per pid ≤ max | per-test (`ceiling_halts…`), config-dependent. |
+| R6 `profile` reaches token endpoint | no sends at all in that scenario | per-test; the *reason* (job kind) is not on the wire. |
+| R7 keyring save failure | — | cannot (persistence). |
+| R8 monotonic expiry | no 401; refresh reaches the wire; all sends within N virtual s | **applied** (experiment 1). |
+| L0-R1 parked send after trip | no send after a tripping status until reset | per-test; the harness cannot see resets. |
+| L0-R4 journal open failure | — | cannot (the journal's own failure, from the other side). |
+| L0-R5 second dead-token POST (race) | same as R1 | the *outcome* of the race is on the wire even though the race is not. Same rails caveat as R1. |
+| L0-R9 `ACQ_MAX_SENDS=0` | empty journal | per-test. |
+| L0-R2/3/6/7/8/10/11/12 | — | cannot (config, reporting, persistence). |
+| N16/N24 probe before send | per (pid, route ≠ oauth-token) the first send is HEAD | **applied**, `assert_wire_contract`. Listed under "sound and unchanged" in the blast-radius review and until today tested nowhere generically. Breaker: fall through on `Unknown` → 10 fail, incl. the R8 scenario. |
+| N24 HEAD not counted | `counted == (method != HEAD)` | **applied**. Pins the product's accounting, not GGG's. Breaker: `true` in `head()`'s record → 9 fail. |
+| N19 Retry-After + bucket | pacing floor/ceiling | **applied** (experiment 2 d). |
+| N33 token endpoint paced | pacing invariant covers the route | **applied** by construction. |
+| N34/R8 401 then refresh | after a 401 the next send is `POST oauth-token` | **applied**; no offline breaker — the harness has no scenario where a 401 lands and the refresh does not follow. Honest status: armed, unproven. |
+| N18/F5 one HEAD in flight | overlap of HEAD intervals | **cannot as-is**: the journal stamps completion only. A `started` timestamp (or `duration_ms`) would make it expressible. Cheap; not built. |
+| N4/N25/N26 never over the limit; burst-then-stall shape | per line `state ≤ limit`, `restriction-active == 0` on non-429; spacing per policy from `ts` + headers | expressible — the journal carries the policy's limits and state on every line — but **vacuous in the harness**: the scripted server echoes whatever headers the script names, so it would pin the script. Real only live (`soak-check.sh`) or against a mock that keeps counters. |
+| N6 same-name policies share counters | as above, keyed by policy name | same: needs a counting mock. |
+| ≤ MAX_429_RETRIES+1 attempts per job | — | cannot: job identity is not on the wire, and a rewrite is allowed to change it. Right side of the boundary. |
+
+**The boundary, restated after the walk.** Three kinds of "cannot":
+
+1. *Not on the wire* — reporting, persistence, config, job identity.
+   The right side; a rewrite may change all of it.
+2. *Absence* — R3. A line-based oracle cannot see a send that never
+   completes. This is a real gap and the journal will never close it;
+   the answer is elsewhere (timeouts, or a `started` line).
+3. *Vacuous offline* — N4/N6/N25/N26. The journal can carry them, the
+   product is subject to them, and the harness cannot exercise them
+   because the mock has no state. This is the interesting one: the
+   most important live properties are the ones the offline suite is
+   structurally blind to. A `mockggg` that keeps real per-policy
+   counters and answers 429 on its own would move the whole row into
+   the harness — and is probably the single largest remaining gain in
+   offline confidence. It also bears on topic 4.
+
+**Surprise 12.** The walk's most valuable output was not an invariant
+but a *kind*: rails-conditional. R1 and L0-R5 are "fixed" only while
+the tripwire is armed. With rails off — the shipped default — the
+product still re-sends a dead grant per flight. The register had
+recorded them as resolved; they are resolved *for the ladder*.
+
+**Surprise 13, process.** While running breakers I chained a `cd` that
+failed silently into a `git checkout` that discarded an uncommitted
+invariant. Recovered from the transcript, re-applied, committed
+*before* the next breaker. Rule: commit the check, then break the code.
+
 ## Open topics
 
 1. **The clock fork — resolved by experiment 1:** one clock, two faces.
@@ -316,7 +375,9 @@ journal now carries real pacing data that nothing summarizes.
 4. **What does the live ladder shrink to?** Arguably only what the mock
    cannot answer, which is already written down as README's "Known
    gaps". If so, most future confidence is bought offline and the ladder
-   becomes short and rare.
+   becomes short and rare. Experiment 3 sharpened this: the mock's
+   *statelessness* is what keeps N4/N6/N25/N26 live-only. A counting
+   mock is the lever.
 5. **The 16 existing assertions — resolved by experiment 2: leave them,
    cross-check them.** They are counts and redundant literals, coupled
    to the *script* rather than to the assertions; the journal is now
