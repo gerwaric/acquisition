@@ -128,6 +128,8 @@ One row per rung execution. Journal files are copied to
 
 | 2026-08-25 | 10 (rerun) | `3b5e0282` | **pass** | 1/2/323 = 326 | 0 | pid 96766, 03:36–04:37 UTC, 61 min. Probes 0 hits; 322 tabs; the 15-per-10 s / 30-per-300 s pattern ten times, every hold ~343 s and every first send after a hold answered `1:10:0,1:300:0`; windows never exceeded 15/30; zero non-2xx; no keyring warning. Snapshot written: 322 tabs, 18 072 items, 0 errors. Tab `7b05e6f78d` (the earlier 503, "Beasts, Red (Remove-only)", 37 items) was again the first send after a hold — send #245, same position — and answered 200: the 503 was transient, not tab-specific, and one clean after-hold sample says nothing yet about stale connections. Second-run "no changes" check not yet run. `runs/2026-08-24-r10b/` |
 
+| 2026-08-25 | 10 (second run) | `5d792d0a` | **pass** (wire); diff false positive fixed client-side | 1/2/323 = 326 | 0 | pid 6111, 11:19–12:20 UTC, 61 min; fresh daemon, probes 0 hits; identical to the rerun on the wire: ten ~343 s holds, `1:10:0,1:300:0` after each, max 15/30, zero non-2xx, no keyring warning. Snapshot 322 tabs / 18 072 items / 0 errors; no tab or item added, removed, or moved. Reported **10 items changed** — all `veiledMods`, whose placeholder ids GGG re-randomizes per fetch (`Prefix06` → `Prefix01`); not stash changes. The diff now ignores that field (`pull.rs`, `VOLATILE_ITEM_FIELDS`); new ground-truth observation for master-side. `runs/2026-08-25-r10c/` |
+
 ### Rung 8 postmortem (2026-08-24), in three lines
 
 The daemon was restarted 7 s after `529bdd92` was committed but `cargo
@@ -168,16 +170,14 @@ one send landed, nothing followed. Three things it exposed that are ours:
 
 ## Next action
 
-Rung 10 passed on the rerun (2026-08-25): the 300 s window is proven live
-across ten consecutive holds, and the first pull's snapshot exists. Pending,
-owner's order:
+Rung 10 is complete (2026-08-25): two full pulls, twenty 300 s holds,
+zero non-2xx, and a real-data diff that is clean once `veiledMods` is
+ignored. Pending, owner's order:
 
-- **Rung 10, second run** — the row's last expectation: `acq pull --league
-  Standard` again on a daemon that has the first run's limiter history or
-  a fresh one (either is fine; a fresh daemon re-probes), ceiling 332,
-  expect "no changes" with 0–1/0–2/323 sends and the same ~61 min. This is
-  also the first diff against real data.
 - **Re-soak** on the verified binary, ceiling from cadence × duration, HEAD
   condition per `(pid, route)`; collects the first live `wait_ms` baseline.
-- **Ground truth:** author the openresty-503 observation as a new claim
-  master-side (`runs/2026-08-24-r10/job-243-503.json` holds the body).
+- **Ground truth:** two new claims to author master-side — the
+  openresty-503 shape (`runs/2026-08-24-r10/job-243-503.json` holds the
+  body), and `veiledMods` placeholder ids being re-randomized per fetch
+  (`runs/2026-08-25-r10c/` vs `runs/2026-08-24-r10b/` snapshots; 10 of
+  18 072 items, no other field differed).

@@ -66,6 +66,11 @@ What a real consumer needed from the protocol and did not get. Facts, not decisi
 
 - **Collecting a subtree is N+1 round trips** (`list`, then `result` per child; 15 for a deep pull of the mock, hundreds for a real map tab). Fine over a Unix socket; shape-wise it wants either results delivered on the event channel as jobs finish, or a `results` verb over a subtree. Waits for a second consumer (GUI or MCP) to show which.
 - **The denominator grows.** Children exist only once their parent runs, so progress reads "0/1" and then "8/8"; a deep pull grows again when each map/unique tab lands. Any progress UI must expect the tree to widen while it watches. A property, not a change request.
+- **Some item fields are volatile.** `veiledMods` placeholder ids change
+  on every fetch (rung 10, 2026-08-25: 10 items "changed" between two pulls
+  an hour apart with nothing touched). The diff ignores them
+  (`VOLATILE_ITEM_FIELDS`); any consumer that compares items needs the same
+  list, so it may belong in core once a second consumer exists. Client-side.
 - **Nameless substashes.** Map/unique substashes carry an empty `name` (map ones have `metadata.map.name`); a frontend labels them `parent/id`. Tab identity for a substash is `(parent, id)`. Client-side; the returned JSON is not to be changed.
 
 - **A rails halt fails never-sent children.** Rung 10 (2026-08-24): a

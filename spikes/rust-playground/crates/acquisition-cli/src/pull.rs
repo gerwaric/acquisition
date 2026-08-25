@@ -136,6 +136,25 @@ pub fn tab_label(s: &Snapshot, id: &str) -> String {
     }
 }
 
+/// Item fields the API re-randomizes on every fetch, so equal items differ
+/// in them: `veiledMods` placeholder ids (`Prefix06` one pull, `Prefix01`
+/// the next — rung 10's second run, 2026-08-25, 10 of 18 072 items). They
+/// stay in the snapshot; the diff ignores them.
+const VOLATILE_ITEM_FIELDS: &[&str] = &["veiledMods"];
+
+fn same_item(a: &Value, b: &Value) -> bool {
+    let strip = |v: &Value| {
+        let mut v = v.clone();
+        if let Some(obj) = v.as_object_mut() {
+            for f in VOLATILE_ITEM_FIELDS {
+                obj.remove(*f);
+            }
+        }
+        v
+    };
+    a == b || strip(a) == strip(b)
+}
+
 /// Pure diff over two snapshots; order of output is deterministic.
 pub fn diff<'a>(old: &'a Snapshot, new: &'a Snapshot) -> Diff {
     let mut d = Diff::default();
@@ -195,7 +214,7 @@ pub fn diff<'a>(old: &'a Snapshot, new: &'a Snapshot) -> Diff {
                 id: id.clone(),
                 label: item_label(item),
             }),
-            Some((_, old_item)) if old_item != item => d.items_changed.push(ItemRef {
+            Some((_, old_item)) if !same_item(old_item, item) => d.items_changed.push(ItemRef {
                 tab: tab.clone(),
                 id: id.clone(),
                 label: item_label(item),
@@ -704,6 +723,21 @@ pub async fn run(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn volatile_item_fields_do_not_count_as_changes() {
+        let mut before = item("i1", "Spine Bow", 0).1;
+        before["veiledMods"] = json!(["Prefix04", "Suffix06"]);
+        let mut after = before.clone();
+        after["veiledMods"] = json!(["Prefix03", "Suffix03"]);
+        assert!(same_item(&before, &after));
+        let mut moved = after.clone();
+        moved["x"] = json!(5);
+        assert!(!same_item(&before, &moved), "a real change still counts");
+        let a = snap(&[("t1", &[("i1".into(), before)])], &[]);
+        let b = snap(&[("t1", &[("i1".into(), after)])], &[]);
+        assert!(diff(&a, &b).is_empty());
+    }
 
     #[test]
     fn ceiling_guard_is_exact_and_absent_without_a_ceiling() {
