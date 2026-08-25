@@ -98,8 +98,10 @@ rung in the run ledger.
 | 9 | *deferred* — timing-bucket measurement (owner decision 2026-08-23): each early guess is a counted 429 against N10's unknown threshold (Q8); if ever run, `character-list-request-limit` (2 per 10 s), a handful of violations total, the 360 s rule between attempts. The zero-violation alternative is asking GGG (N14). Rung 7b's one data point bounds the initial bucket at ≤ 5 s. | | | |
 | 10 | `acq pull --league Standard` (the first real consumer; no `--deep`) | 0–1/2/1+N with N = tabs listed **including folder children** (322 on 2026-08-24; rung 4's 261 was the flat count); `stash-request-limit` is 30 per 300 s, so ~9 holds of up to 5 min, wall clock near 45 min; zero 429; snapshot written; a second run on the same daemon reports no changes with 1+N GETs and no new HEADs (probes are per daemon lifetime) | N + 10, from a `pull`'s own listed count, not an earlier rung's | any 429; any reported window state with hits > max; tabs the list reported missing from the snapshot with no error recorded |
 
-Rung 8 mechanics: `tools/soak-run.sh` is the cron body (sets the rails
-env itself so a respawned daemon keeps them, derives the ceiling as
+Rung 8 mechanics: the daemon is started **from a terminal** by a person
+(a daemon spawned by cron has no keychain access on macOS and no session);
+`tools/soak-run.sh` is the cron body (sets the same rails env and
+`ACQ_NO_SPAWN=1` so it can only talk to that daemon, derives the ceiling as
 `SOAK_DAYS` × 144 GETs + token POSTs + probes, runs one `acq characters`
 from a **frozen copy of the binary** at `runs/soak/acq` so the tree can be
 rebuilt while the daemon lives, appends one line to `runs/soak/runs.log`); `tools/soak-check.sh <start-ts>`
@@ -135,6 +137,8 @@ One row per rung execution. Journal files are copied to
 | 2026-08-25 | 10 (rerun) | `3b5e0282` | **pass** | 1/2/323 = 326 | 0 | pid 96766, 03:36–04:37 UTC, 61 min. Probes 0 hits; 322 tabs; the 15-per-10 s / 30-per-300 s pattern ten times, every hold ~343 s and every first send after a hold answered `1:10:0,1:300:0`; windows never exceeded 15/30; zero non-2xx; no keyring warning. Snapshot written: 322 tabs, 18 072 items, 0 errors. Tab `7b05e6f78d` (the earlier 503, "Beasts, Red (Remove-only)", 37 items) was again the first send after a hold — send #245, same position — and answered 200: the 503 was transient, not tab-specific, and one clean after-hold sample says nothing yet about stale connections. Second-run "no changes" check not yet run. `runs/2026-08-24-r10b/` |
 
 | 2026-08-25 | 10 (second run) | `5d792d0a` | **pass** (wire); diff false positive fixed client-side | 1/2/323 = 326 | 0 | pid 6111, 11:19–12:20 UTC, 61 min; fresh daemon, probes 0 hits; identical to the rerun on the wire: ten ~343 s holds, `1:10:0,1:300:0` after each, max 15/30, zero non-2xx, no keyring warning. Snapshot 322 tabs / 18 072 items / 0 errors; no tab or item added, removed, or moved. Reported **10 items changed** — all `veiledMods`, whose placeholder ids GGG re-randomizes per fetch (`Prefix06` → `Prefix01`); not stash changes. The diff now ignores that field (`pull.rs`, `VOLATILE_ITEM_FIELDS`); new ground-truth observation for master-side. `runs/2026-08-25-r10c/` |
+
+| 2026-08-25 | 8 re-soak (first tick) | `fe249193` | **no sends; stopped before start** | 0/0/0 | 0 | cron's first tick at 14:30Z lazy-spawned the daemon (pid 13589) under cron's context; macOS Keychain refused (`User interaction is not allowed`), so it came up with no session and the run failed "not logged in" before any send. Rail 7 surfaced it in `daemon status`. Rung 8's daemon had been spawned from a terminal and outlived the whole run, so this never showed. Fix: `ACQ_NO_SPAWN=1` in `soak-run.sh` (cron can only talk to a daemon a person started); the stored refresh token was never read and is intact. |
 
 ### Rung 8 postmortem (2026-08-24), in three lines
 
@@ -187,8 +191,11 @@ ignored. Pending, owner's order:
   condition across one deliberate `acq daemon stop`; plus the first live
   `wait_ms` baseline. Seven days would have frozen the checkout for a
   hypothesis two nights can test. Start: `cp target/debug/acq
-  runs/soak/acq`, `acq daemon stop`, install the cron line, note the start
-  timestamp in the ledger; `tools/soak-check.sh <start>` daily.
+  runs/soak/acq`, `acq daemon stop`, then from the terminal one
+  `runs/soak/acq characters` under the soak's rails env (this spawns the
+  daemon with keychain access), install the cron line, note the start
+  timestamp in the ledger; `tools/soak-check.sh <start>` daily. After the
+  deliberate `daemon stop`, respawn the same way — cron will not.
 - **Ground truth:** two new claims to author master-side — the
   openresty-503 shape (`runs/2026-08-24-r10/job-243-503.json` holds the
   body), and `veiledMods` placeholder ids being re-randomized per fetch

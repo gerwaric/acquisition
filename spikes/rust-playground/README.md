@@ -122,7 +122,10 @@ Its log is next to the socket (`acq daemon status` prints both paths).
 it short (Unix socket paths cap out around 104 bytes). `ACQ_NO_KEYRING=1`
 degrades sessions to in-memory only (never plaintext on disk). Mock access
 tokens live 60 seconds, so silent refresh is exercised constantly.
-`ACQ_IDLE_SHUTDOWN=<secs>` overrides the idle exit.
+`ACQ_IDLE_SHUTDOWN=<secs>` overrides the idle exit. `ACQ_NO_SPAWN=1` makes
+the CLI refuse to start or replace a daemon — for cron and other
+non-interactive callers, which on macOS would spawn a daemon with no
+keychain access and therefore no session.
 
 Live-test rails (`LIVE-TESTING.md`), read by the daemon at start — set them
 on the command that spawns it, or `acq daemon stop` first:

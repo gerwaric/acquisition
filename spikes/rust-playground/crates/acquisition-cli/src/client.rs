@@ -18,6 +18,10 @@ pub struct Client {
     provider: String,
 }
 
+fn no_spawn() -> bool {
+    std::env::var_os("ACQ_NO_SPAWN").is_some_and(|v| v == "1")
+}
+
 impl Client {
     /// Connect to the daemon, spawning one if needed (`spawn = true`) and
     /// replacing it if the handshake reports a version or provider mismatch
@@ -28,6 +32,13 @@ impl Client {
         } else {
             "mock"
         };
+        // `ACQ_NO_SPAWN=1`: never start or replace a daemon from this
+        // process. A daemon spawned from a non-interactive parent (cron,
+        // launchd) has no keychain access on macOS — it comes up with no
+        // session and every job fails "not logged in" (re-soak, 2026-08-25,
+        // caught by rail 7). The soak script sets this so cron can only
+        // talk to a daemon a person started.
+        let spawn = spawn && !no_spawn();
         let mut respawned = false;
         let mut spawned = false;
         for _attempt in 0..100 {
@@ -56,6 +67,11 @@ impl Client {
                             "daemon (pid {pid}) still reports version {daemon_version} / provider {provider} after respawn; wanted {VERSION} / {want_provider}"
                         );
                     }
+                    if no_spawn() {
+                        bail!(
+                            "daemon (pid {pid}) reports version {daemon_version} / provider {provider}; wanted {VERSION} / {want_provider}, and ACQ_NO_SPAWN forbids replacing it"
+                        );
+                    }
                     // Stale daemon (older build, or wrong mode): kill and respawn.
                     let _ = client.request(&Request::DaemonStop).await;
                     respawned = true;
@@ -68,6 +84,11 @@ impl Client {
                         spawned = true;
                     }
                     tokio::time::sleep(Duration::from_millis(50)).await;
+                }
+                Err(e) if no_spawn() => {
+                    return Err(e).context(
+                        "daemon is not running and ACQ_NO_SPAWN forbids starting one from here",
+                    );
                 }
                 Err(e) => {
                     return Err(e)
