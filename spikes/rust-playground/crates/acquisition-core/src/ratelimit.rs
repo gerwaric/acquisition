@@ -721,7 +721,26 @@ impl Limiter {
             push_history(&mut state.history, now);
         }
 
-        let policy = observation.map_err(PolicyObservationError::Parse)?;
+        let policy = match observation {
+            Ok(policy) => policy,
+            Err(error) => {
+                // A counted send whose response carried no usable policy
+                // headers (rung 10's origin 503, 2026-08-24: an HTML error
+                // page with no `X-Rate-Limit-*`) is the same situation as a
+                // send lost in transport: we sent, the server may have
+                // counted, and nothing tells us otherwise. Advance the
+                // prediction the same way, or the next send is paced from
+                // a state that predates this one and goes out immediately.
+                if counted
+                    && let Some(state) = established
+                        .as_ref()
+                        .and_then(|name| self.policies.get_mut(name))
+                {
+                    assume_counted(state, now);
+                }
+                return Err(PolicyObservationError::Parse(error));
+            }
+        };
         if let Some(name) = &established
             && *name != policy.name
         {
@@ -813,12 +832,7 @@ impl Limiter {
         };
         if let Some(state) = self.policies.get_mut(&established) {
             push_history(&mut state.history, now);
-            for rule in &mut state.policy.rules {
-                for window in &mut rule.state {
-                    window.hits = window.hits.saturating_add(1);
-                }
-            }
-            state.last_response = now;
+            assume_counted(state, now);
         }
     }
 
@@ -946,6 +960,20 @@ impl Limiter {
         v.sort_by(|a, b| a.endpoint.cmp(&b.endpoint));
         v
     }
+}
+
+/// Advance a policy's prediction by one hit the server may have counted but
+/// never reported: one more hit in every window of every rule, as of `now`.
+/// The next landed response with headers replaces it (invariant 2). Used
+/// for a send lost in transport and for a landed response without usable
+/// policy headers; the history point is the caller's.
+fn assume_counted(state: &mut PolicyState, now: Instant) {
+    for rule in &mut state.policy.rules {
+        for window in &mut rule.state {
+            window.hits = window.hits.saturating_add(1);
+        }
+    }
+    state.last_response = now;
 }
 
 fn push_history(history: &mut VecDeque<Instant>, now: Instant) {
@@ -2671,6 +2699,24 @@ mod tests {
         );
     }
 
+    /// Non-Full headers cannot update the policy definition; the counted
+    /// send behind them is assumed counted, so every window's predicted
+    /// hits advance by exactly one.
+    fn assert_policy_unchanged_but_one_hit_assumed(after: &Policy, before: &Policy) {
+        assert_eq!(after.name, before.name);
+        assert_eq!(after.rules.len(), before.rules.len());
+        for (a, b) in after.rules.iter().zip(&before.rules) {
+            assert_eq!(a.name, b.name);
+            assert_eq!(a.limits, b.limits, "non-Full headers cannot update policy");
+            assert_eq!(a.state.len(), b.state.len());
+            for (wa, wb) in a.state.iter().zip(&b.state) {
+                assert_eq!(wa.hits, wb.hits + 1, "one assumed hit per window");
+                assert_eq!(wa.period_secs, wb.period_secs);
+                assert_eq!(wa.restricted_secs, wb.restricted_secs);
+            }
+        }
+    }
+
     #[test]
     fn malformed_observation_never_erases_a_known_policy() {
         let now = far_future();
@@ -2697,9 +2743,14 @@ mod tests {
             EndpointState::Policy("character-list-request-limit".into())
         );
         let state = l.policies.get("character-list-request-limit").unwrap();
-        assert_eq!(state.policy, original);
-        assert_eq!(state.raw, raw);
+        assert_eq!(
+            state.raw, raw,
+            "non-Full headers cannot replace observation"
+        );
         assert_eq!(state.history.len(), 2);
+        // The definition is untouched; the prediction advances by the one
+        // hit the server may have counted (2026-08-24, rung 10's 503).
+        assert_policy_unchanged_but_one_hit_assumed(&state.policy, &original);
 
         let result = l.observe("/token", parse(&[]), serde_json::Value::Null, true, now);
         assert!(matches!(result, Err(PolicyObservationError::Parse(_))));
@@ -2890,10 +2941,7 @@ mod tests {
             .unwrap();
         assert_eq!(state.history.len(), 2, "the counted 429 is retained");
         assert_eq!(limiter.violation_count(), 1);
-        assert_eq!(
-            state.policy, original,
-            "non-Full headers cannot update policy"
-        );
+        assert_policy_unchanged_but_one_hit_assumed(&state.policy, &original);
         assert_eq!(
             state.raw, raw,
             "non-Full headers cannot replace observation"
@@ -3278,6 +3326,117 @@ mod tests {
             "only the HEAD reached the server"
         );
         server.await.unwrap();
+    }
+
+    /// A landed response with no usable policy headers is paced like a lost
+    /// send: the server may have counted it, and nothing says otherwise.
+    /// Before 2026-08-24 only the history point was recorded, so `wait_for`
+    /// read a window state that predated the send and let the next one go
+    /// immediately — a run of headerless 503s would not have been paced.
+    #[test]
+    fn headerless_counted_response_paces_as_if_counted() {
+        let mut limiter = Limiter::new();
+        let route = "stash";
+        let now = Instant::now();
+        // stash-request-limit at 14/15 in the 10 s window, as of now.
+        limiter
+            .observe(
+                route,
+                parse(&[
+                    ("x-rate-limit-policy", "stash-request-limit"),
+                    ("x-rate-limit-rules", "Account"),
+                    ("x-rate-limit-account", "15:10:60,30:300:300"),
+                    ("x-rate-limit-account-state", "14:10:0,20:300:0"),
+                ]),
+                serde_json::Value::Null,
+                true,
+                now,
+            )
+            .unwrap();
+        assert_eq!(limiter.wait_for(route, now), Duration::ZERO);
+
+        // The 15th send lands as a 503 with no headers at all.
+        let error = limiter
+            .observe(
+                route,
+                Policy::parse(|_| None),
+                serde_json::Value::Null,
+                true,
+                now,
+            )
+            .unwrap_err();
+        assert!(
+            matches!(error, PolicyObservationError::Parse(_)),
+            "{error:?}"
+        );
+        // Assumed counted: 15/15, window saturated, next send waits the
+        // period + the 5 s bucket + 1 s from the only known in-window hit.
+        let wait = limiter.wait_for(route, now);
+        assert_eq!(wait, Duration::from_secs(10 + 5 + 1), "{wait:?}");
+        // A HEAD (uncounted) with no headers changes nothing.
+        let mut probe_only = Limiter::new();
+        probe_only
+            .observe(
+                route,
+                parse(&[
+                    ("x-rate-limit-policy", "stash-request-limit"),
+                    ("x-rate-limit-rules", "Account"),
+                    ("x-rate-limit-account", "15:10:60,30:300:300"),
+                    ("x-rate-limit-account-state", "14:10:0,20:300:0"),
+                ]),
+                serde_json::Value::Null,
+                true,
+                now,
+            )
+            .unwrap();
+        let _ = probe_only.observe(
+            route,
+            Policy::parse(|_| None),
+            serde_json::Value::Null,
+            false,
+            now,
+        );
+        assert_eq!(probe_only.wait_for(route, now), Duration::ZERO);
+    }
+
+    #[tokio::test]
+    async fn headerless_503_on_an_established_policy_paces_as_if_counted() {
+        let route = "origin-503";
+        let choke = ChokePoint::new();
+        choke
+            .limiter
+            .lock()
+            .unwrap()
+            .observe(
+                route,
+                parse(&[
+                    ("x-rate-limit-policy", "origin-503-policy"),
+                    ("x-rate-limit-rules", "account"),
+                    ("x-rate-limit-account", "2:10:60"),
+                    ("x-rate-limit-account-state", "1:10:0"),
+                ]),
+                serde_json::Value::Null,
+                false,
+                choke.now(),
+            )
+            .unwrap();
+        assert!(choke.check(route).is_ok());
+
+        // Rung 10's shape: an HTML error page, no X-Rate-Limit-* at all.
+        let body = "<html><center><h1>503 Service Temporarily Unavailable</h1></center><hr><center>openresty</center></html>";
+        let (url, server) = serve_one_raw(format!(
+            "HTTP/1.1 503 Service Unavailable\r\nContent-Type: text/html\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+            body.len()
+        ))
+        .await;
+        let completed = choke.get(route, &url, choke.now()).await.expect("landed");
+        assert_eq!(completed.status.as_u16(), 503);
+        server.await.unwrap();
+        let wait = choke.check(route).unwrap_err();
+        assert!(
+            wait > Duration::from_secs(5),
+            "the headerless 503 is assumed counted; window must be saturated, got {wait:?}"
+        );
     }
 
     #[tokio::test]

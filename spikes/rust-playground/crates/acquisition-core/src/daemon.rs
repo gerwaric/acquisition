@@ -3411,16 +3411,36 @@ mod dispatcher_tests {
     /// send on a route is held only because the previous landed response on
     /// that route was a 429, and then for at least its `Retry-After` and at
     /// most `Retry-After + RETRY_BUCKET_PAD + BUFFER`, the largest hold the
-    /// limiter is allowed to impose. Everything else goes out at once.
-    /// Runs over every harness journal, so a rewrite that paces slower
-    /// (or stops pacing) fails here without any test naming the numbers.
+    /// limiter is allowed to impose — or because it was counted and came
+    /// back without rate headers (rung 10's origin 503), in which case the
+    /// hit is assumed counted and the hold may reach the longest window
+    /// period of the route's last known policy plus the same pad. Everything
+    /// else goes out at once. Runs over every harness journal, so a rewrite
+    /// that paces slower (or stops pacing) fails here without any test
+    /// naming the numbers.
     fn assert_pacing_follows_responses(sends: &[Value]) {
         let pad = full_hold_ms();
         let mut last_on_route: HashMap<String, &Value> = HashMap::new();
+        let mut longest_period_ms: HashMap<String, u64> = HashMap::new();
+        let headerless = |send: &Value| {
+            send["counted"] == true
+                && send["status"].as_u64().is_some()
+                && send["rate"]
+                    .as_object()
+                    .is_none_or(|rate| !rate.keys().any(|k| k.starts_with("x-rate-limit-")))
+        };
         for send in sends {
             let route = send["route"].as_str().unwrap().to_string();
             let wait = send["wait_ms"].as_u64().expect("wait_ms");
             match last_on_route.get(&route) {
+                Some(prev) if headerless(prev) => {
+                    let ceiling = longest_period_ms.get(&route).copied().unwrap_or(0) + pad;
+                    assert!(
+                        wait <= ceiling,
+                        "after a headerless counted response the next send on {route} \
+                         waited {wait} ms; allowed at most {ceiling}: {send}"
+                    );
+                }
                 Some(prev) if prev["status"] == 429 => {
                     let retry_after: u64 = prev["rate"]["retry-after"]
                         .as_str()
@@ -3438,6 +3458,25 @@ mod dispatcher_tests {
                     wait, 0,
                     "nothing demanded a hold on {route}, yet the send waited: {send}"
                 ),
+            }
+            // Window periods from every `X-Rate-Limit-<rule>` header seen on
+            // the route: "hits:period:restriction" triplets, comma-separated.
+            if let Some(rate) = send["rate"].as_object() {
+                for (key, value) in rate {
+                    if !key.starts_with("x-rate-limit-") || key.ends_with("-state") {
+                        continue;
+                    }
+                    for triplet in value.as_str().unwrap_or("").split(',') {
+                        if let Some(period) = triplet
+                            .split(':')
+                            .nth(1)
+                            .and_then(|p| p.parse::<u64>().ok())
+                        {
+                            let slot = longest_period_ms.entry(route.clone()).or_default();
+                            *slot = (*slot).max(period * 1000);
+                        }
+                    }
+                }
             }
             last_on_route.insert(route, send);
         }
@@ -3814,6 +3853,62 @@ mod dispatcher_tests {
         );
         assert!(!daemon.shared.lock().unwrap().active_jobs.contains_key(&low));
         let _ = std::fs::remove_file(log_path);
+    }
+
+    /// Rung 10 (2026-08-24) with the tripwire off: a 503 with no rate
+    /// headers fails its job and is never retried, and the *next* job's send
+    /// is paced as if the 503 counted — visible as `wait_ms` in the journal.
+    #[tokio::test]
+    async fn headerless_503_fails_its_job_and_paces_the_next_send() {
+        let policy = "X-Rate-Limit-Policy: dispatcher-test-policy\r\nX-Rate-Limit-Rules: Account\r\nX-Rate-Limit-Account: 1:10:60\r\nX-Rate-Limit-Account-State: 0:10:0\r\n";
+        let responses = vec![
+            ScriptedResponse {
+                method: "HEAD",
+                status: "204 No Content",
+                headers: policy.into(),
+                body: String::new(),
+            },
+            ScriptedResponse {
+                method: "GET",
+                status: "503 Service Unavailable",
+                headers: String::new(),
+                body: "<html><center>openresty</center></html>".into(),
+            },
+            ScriptedResponse {
+                method: "GET",
+                status: "200 OK",
+                headers: policy.replace("0:10:0", "1:10:0"),
+                body: r#"{"items":["done"]}"#.into(),
+            },
+        ];
+        let (base, requests, server) = scripted_server(responses).await;
+        let clock = Arc::new(ManualClock::new());
+        let (daemon, log_path) = test_daemon(&base, clock);
+        let dispatcher = tokio::spawn(daemon.clone().dispatcher());
+        let first = daemon.submit("fetch".into(), json!({}), 0, "test".into());
+        let second = daemon.submit("fetch".into(), json!({}), 0, "test".into());
+
+        let (info, outcome) = wait_terminal(&daemon, first).await;
+        assert_eq!(info.state, JobState::Failed);
+        assert_eq!(info.retries, 0);
+        let Outcome::Failure { error } = outcome else {
+            panic!("503 did not fail")
+        };
+        assert!(error.contains("origin error page"), "{error}");
+        let (info, outcome) = wait_terminal(&daemon, second).await;
+        assert_eq!(info.state, JobState::Done);
+        assert_eq!(fetch_payload_marker(&outcome), "done");
+        assert_eq!(requests.lock().unwrap().as_slice(), ["HEAD", "GET", "GET"]);
+        let waits = journal_waits(&log_path);
+        assert_eq!(waits[..2], [0, 0]);
+        // 10 s period + the 5 s initial-window bucket + 1 s buffer, measured
+        // from the 503 itself — the only known in-window hit.
+        assert_eq!(
+            waits[2], 16_000,
+            "the send after a headerless 503 waits as if the 503 filled the window: {waits:?}"
+        );
+        server.await.unwrap();
+        finish_harness_wire(dispatcher, &log_path, &requests);
     }
 
     #[tokio::test]

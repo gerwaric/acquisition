@@ -151,7 +151,8 @@ on the command that spawns it, or `acq daemon stop` first:
   logged at startup as `RAILS CONFIG` errors; the rail stays off. A
   persisted trip is honored only by a daemon started with the tripwire.
 - The HTTP client has a 10 s connect and 60 s request timeout; a send lost
-  in transport is paced as if the server counted it.
+  in transport, or answered without rate headers (an origin 503), is paced
+  as if the server counted it.
 
 `acq daemon status` prints the rails state; `acq dash` shows a halt in red.
 
