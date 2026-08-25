@@ -139,6 +139,9 @@ on the command that spawns it, or `acq daemon stop` first:
 - `ACQ_JOURNAL=<path>` — one JSON line per actual send (method, route,
   status, every `X-Rate-Limit-*` header; never a token or body), flushed
   per line; defaults to `<socket>.<provider>.sends.jsonl`, `0` disables.
+  A 403/503 line also carries `shape`: `cloudflare` (N3/N28 page markers),
+  `origin` (an openresty/nginx error page that passed through Cloudflare —
+  rung 10's 503), or `unclassified`. All three are equally never retried.
   Each daemon lifetime opens with `{"event":"open","pid","build","clock"}`
   — the git commit the binary was built from and whether time was the
   system's or a test's manual clock.
@@ -160,7 +163,10 @@ regression (N20) so the degraded path can be exercised.
 - **Pull has no delta/selection smarts.** `--all` fetches every listed
   tab every time; the real API's `metadata.items` counts on substash stubs
   (free) plus the previous snapshot are the obvious lever for skipping,
-  not used yet. A killed `pull` leaves its refresh running in the daemon;
+  not used yet. A pull that loses tabs (a 503, a rails halt) still writes
+  its snapshot with per-tab `errors` and the refresh's reason; the diff
+  treats those tabs as unknown, and the next pull refetches everything, not
+  just them. A killed `pull` leaves its refresh running in the daemon;
   the next `pull` with the same arguments reattaches to it while the
   daemon lives (`inflight.json` in the league's snapshot dir). Results
   that finish after the daemon idles out are lost — job persistence,
@@ -170,6 +176,10 @@ regression (N20) so the degraded path can be exercised.
 - **The mock reports an active restriction on every window of the rule,**
   so the limiter picks the larger bucket after a 429. Whether real GGG
   flags only the violated window is unobserved.
+- **Under a send ceiling, `pull` refuses a tree it cannot finish**: once
+  the children exist it compares them with `ACQ_MAX_SENDS` headroom and
+  cancels the refresh with the ceiling to restart with. A daemon already
+  halted is left to fail its children so the snapshot keeps what landed.
 - **Lazy spawn hides daemon startup errors.** The spawned daemon's stderr goes
   to null, so a failed bind looks like "could not reach daemon after 5s" —
   check the daemon log.

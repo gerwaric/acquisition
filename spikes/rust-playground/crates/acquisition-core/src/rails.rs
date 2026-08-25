@@ -124,6 +124,53 @@ pub struct RailsStatus {
     pub journal: Option<String>,
 }
 
+/// What a 403/503 body looked like. Both shapes are treated the same way
+/// today — never retried (invariant 3) and a tripwire trip on the ladder —
+/// but the evidence is recorded separately so a future retry decision has
+/// data to cite. Rung 10 (2026-08-24) saw an origin 503 (openresty page,
+/// no rate headers) that the code labelled "possibly a Cloudflare block".
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BlockShape {
+    /// Cloudflare's own error page: ground truth N3 (error 1015) and N28
+    /// (a 403 challenge page); "Ray ID" appears on every Cloudflare page.
+    Cloudflare,
+    /// An origin error page that reached us through Cloudflare unchanged.
+    Origin,
+    /// Nothing recognisable (empty body, JSON, transport failure reading it).
+    Unclassified,
+}
+
+impl BlockShape {
+    pub fn of(body: &str) -> BlockShape {
+        let lower = body.to_ascii_lowercase();
+        if lower.contains("cloudflare") || lower.contains("ray id") || lower.contains("error 1015")
+        {
+            BlockShape::Cloudflare
+        } else if lower.contains("openresty") || lower.contains("nginx") {
+            BlockShape::Origin
+        } else {
+            BlockShape::Unclassified
+        }
+    }
+
+    /// The phrase that goes in error text, the trip cause, and the journal.
+    pub fn describe(self) -> &'static str {
+        match self {
+            BlockShape::Cloudflare => "Cloudflare-shaped block (N3/N28)",
+            BlockShape::Origin => "origin error page, not Cloudflare-shaped",
+            BlockShape::Unclassified => "unclassified body, possibly a Cloudflare block",
+        }
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            BlockShape::Cloudflare => "cloudflare",
+            BlockShape::Origin => "origin",
+            BlockShape::Unclassified => "unclassified",
+        }
+    }
+}
+
 /// One completed exchange, as the choke point reports it. Never carries a
 /// token, an Authorization header, or a body.
 pub struct SendReport<'a> {
@@ -136,6 +183,8 @@ pub struct SendReport<'a> {
     pub counted: bool,
     /// The `X-Rate-Limit-*` and `Retry-After` snapshot (an object), or Null.
     pub rate: &'a Value,
+    /// For a 403/503, what the body looked like; `None` for every other status.
+    pub shape: Option<BlockShape>,
     /// How long the send was held before it reached the transport: from
     /// the moment it was ready (a job picked by the dispatcher, a token
     /// refresh entering the choke) to dispatch, on the monotonic clock.
@@ -265,8 +314,10 @@ impl Rails {
                     report.method, report.url_path, report.rate
                 )),
                 Some(status @ (403 | 503)) => Some(format!(
-                    "{status} on {} {} — possibly a Cloudflare block",
-                    report.method, report.url_path
+                    "{status} on {} {} — {}",
+                    report.method,
+                    report.url_path,
+                    report.shape.unwrap_or(BlockShape::Unclassified).describe()
                 )),
                 // An unauthorized request repeating on a timer (a token the
                 // daemon wrongly believes valid) is not a violation, but it
@@ -396,6 +447,10 @@ impl Rails {
             "rate": report.rate,
             "wait_ms": report.wait.as_millis() as u64,
         });
+        let mut line = line;
+        if let Some(shape) = report.shape {
+            line["shape"] = Value::String(shape.as_str().to_string());
+        }
         let _ = writeln!(file, "{line}");
         let _ = file.flush();
     }
@@ -437,8 +492,51 @@ mod tests {
             ok: status.is_some_and(|s| (200..300).contains(&s)),
             counted: true,
             rate: &Value::Null,
+            shape: None,
             wait: Duration::ZERO,
         }
+    }
+
+    #[test]
+    fn block_shape_separates_cloudflare_from_origin() {
+        // Rung 10's actual 503 body (openresty, no Cloudflare markers).
+        let origin = "<html>\r\n<head><title>503 Service Temporarily Unavailable</title></head>\r\n<body>\r\n<center><h1>503 Service Temporarily Unavailable</h1></center>\r\n<hr><center>openresty</center>";
+        assert_eq!(BlockShape::of(origin), BlockShape::Origin);
+        // N28's shape: a Cloudflare challenge/block page.
+        assert_eq!(
+            BlockShape::of("<title>Attention Required! | Cloudflare</title> Ray ID: 8a1"),
+            BlockShape::Cloudflare
+        );
+        assert_eq!(
+            BlockShape::of("Error 1015 — you are being rate limited"),
+            BlockShape::Cloudflare
+        );
+        assert_eq!(BlockShape::of(""), BlockShape::Unclassified);
+        assert_eq!(BlockShape::of("{}"), BlockShape::Unclassified);
+    }
+
+    #[test]
+    fn trip_cause_names_the_shape() {
+        let rails = Rails::with_config(RailsConfig {
+            tripwire: true,
+            ..RailsConfig::default()
+        });
+        let cause = rails
+            .record(&SendReport {
+                shape: Some(BlockShape::Origin),
+                ..report(Some(503))
+            })
+            .expect("trips");
+        assert_eq!(
+            cause,
+            "503 on GET /character — origin error page, not Cloudflare-shaped"
+        );
+        rails.reset_tripwire();
+        let cause = rails.record(&report(Some(403))).expect("trips");
+        assert!(
+            cause.ends_with("unclassified body, possibly a Cloudflare block"),
+            "{cause}"
+        );
     }
 
     #[test]

@@ -30,7 +30,7 @@ use std::time::{Duration, Instant, SystemTime};
 use serde::{Deserialize, Serialize};
 
 use crate::gate::{SendGate, SendPermit};
-use crate::rails::{Rails, SendReport};
+use crate::rails::{BlockShape, Rails, SendReport};
 
 /// Server-side timing bucket for a rule's first (initial) window (N12).
 pub const INITIAL_BUCKET: Duration = Duration::from_secs(5);
@@ -1726,15 +1726,25 @@ impl ChokePoint {
         };
         let path = url_path(url);
         let transport_error = result.as_ref().err().map(String::as_str);
+        let status = result.as_ref().ok().map(|(status, _)| status.as_u16());
+        let shape = match (&result, status) {
+            (Ok((_, body)), Some(403 | 503)) => Some(
+                body.as_deref()
+                    .map(BlockShape::of)
+                    .unwrap_or(BlockShape::Unclassified),
+            ),
+            _ => None,
+        };
         self.rails.record(&SendReport {
             method,
             route: endpoint,
             url_path: &path,
-            status: result.as_ref().ok().map(|(status, _)| status.as_u16()),
+            status,
             error: transport_error.or(protocol_failure),
             ok,
             counted,
             rate,
+            shape,
             wait,
         });
         let mut sends = self.sends.lock().unwrap();
@@ -3250,6 +3260,7 @@ mod tests {
             ok: false,
             counted: true,
             rate: &serde_json::Value::Null,
+            shape: None,
             wait: Duration::ZERO,
         });
         release_tx.send(()).unwrap();

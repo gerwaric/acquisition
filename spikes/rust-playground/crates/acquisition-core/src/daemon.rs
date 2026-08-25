@@ -21,7 +21,7 @@ use crate::VERSION;
 use crate::job::{JobId, JobInfo, JobState, Outcome, Priority};
 use crate::protocol::{ErrorRecord, Request, Response};
 use crate::provider::{CALLBACK_PATH, Provider, SCOPES, ggg_mode};
-use crate::rails::{Rails, RailsConfig};
+use crate::rails::{BlockShape, Rails, RailsConfig};
 use crate::ratelimit::{
     ChokePoint, Clock, EndpointState, RetryAfter, SendError, SystemClock, url_path,
 };
@@ -1787,7 +1787,8 @@ fn classify_api_body(
                 "terminal rate limit: {evidence}; {retry_after}; NOT retrying"
             )),
             403 | 503 => ApiError::Other(format!(
-                "{evidence} — possibly a Cloudflare block; NOT retrying (invariant 3)"
+                "{evidence} — {}; NOT retrying (invariant 3)",
+                BlockShape::of(&body).describe()
             )),
             _ => ApiError::Other(evidence),
         });
@@ -3904,10 +3905,29 @@ mod dispatcher_tests {
 
     #[tokio::test]
     async fn dispatcher_never_retries_403_or_503() {
-        for status in ["403 Forbidden", "503 Service Unavailable"] {
+        // The third case is rung 10's live 503 (2026-08-24): an origin page
+        // with no rate headers. Named as such, still never retried.
+        const ORIGIN_503: &str = "<html><head><title>503 Service Temporarily Unavailable</title></head><body><center><h1>503 Service Temporarily Unavailable</h1></center><hr><center>openresty</center></body></html>";
+        for (status, body, shape) in [
+            (
+                "403 Forbidden",
+                "{}",
+                "unclassified body, possibly a Cloudflare block",
+            ),
+            (
+                "503 Service Unavailable",
+                "{}",
+                "unclassified body, possibly a Cloudflare block",
+            ),
+            (
+                "503 Service Unavailable",
+                ORIGIN_503,
+                "origin error page, not Cloudflare-shaped",
+            ),
+        ] {
             let responses = vec![
                 ScriptedResponse::full("HEAD", "204 No Content", None, ""),
-                ScriptedResponse::full("GET", status, None, "{}"),
+                ScriptedResponse::full("GET", status, None, body),
             ];
             let (base, requests, server) = scripted_server(responses).await;
             let clock = Arc::new(ManualClock::new());
@@ -3922,6 +3942,7 @@ mod dispatcher_tests {
                 panic!("{status} did not fail")
             };
             assert!(error.contains("NOT retrying"));
+            assert!(error.contains(shape), "{error}");
             assert_eq!(requests.lock().unwrap().as_slice(), ["HEAD", "GET"]);
             assert_eq!(
                 journal_waits(&log_path),
@@ -4255,6 +4276,7 @@ mod dispatcher_tests {
             ok: false,
             counted: true,
             rate: &Value::Null,
+            shape: None,
             wait: Duration::ZERO,
         });
         logged_in(&mut daemon);

@@ -40,6 +40,12 @@ pub struct Snapshot {
     /// snapshot with errors is still written — it is what we know — but the
     /// diff treats those tabs as unknown, not empty.
     pub errors: BTreeMap<String, String>,
+    /// Why the `refresh` parent itself reported failure or cancellation, if
+    /// it did. The parent fails when any child does, so this is usually the
+    /// count behind `errors`; the snapshot is written regardless — rung 10
+    /// (2026-08-24) fetched 240 of 322 tabs and lost them all to a bail here.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub refresh_error: Option<String>,
 }
 
 #[derive(Debug, Default, Serialize, Deserialize, PartialEq, Clone)]
@@ -285,6 +291,34 @@ async fn daemon_pid(client: &mut Client) -> Result<u32> {
     }
 }
 
+/// A ladder send ceiling that cannot cover `pending` more sends, described;
+/// `None` when there is no ceiling or it fits. A daemon that has already
+/// halted is not a shortfall: its remaining children fail on their own and
+/// whatever landed is collected into the snapshot.
+async fn ceiling_shortfall(client: &mut Client, pending: u64) -> Result<Option<String>> {
+    let rails = match client.request(&Request::DaemonStatus).await? {
+        Response::DaemonStatus { rails, .. } => rails,
+        Response::Error { message } => bail!("{message}"),
+        other => bail!("unexpected response: {other:?}"),
+    };
+    if rails.halted.is_some() {
+        return Ok(None);
+    }
+    Ok(shortfall(rails.max_sends, rails.sends, pending))
+}
+
+fn shortfall(max_sends: Option<u64>, sent: u64, pending: u64) -> Option<String> {
+    let max = max_sends?;
+    let headroom = max.saturating_sub(sent);
+    (pending > headroom).then(|| {
+        format!(
+            "send ceiling {max} cannot cover {pending} queued tabs ({sent} sent so far, \
+             {headroom} left); restart the daemon with ACQ_MAX_SENDS >= {}",
+            sent + pending + 1
+        )
+    })
+}
+
 /// A refresh this client submitted and may not have finished collecting:
 /// written at submit, removed after the snapshot is saved. Job ids restart
 /// per daemon lifetime, so the daemon pid is part of the identity.
@@ -388,12 +422,32 @@ async fn collect(
     // The parent finishes when its last descendant does (CONTEXT.md), so
     // waiting on it is waiting on the tree. Progress comes from `list`.
     let mut last = String::new();
+    let mut ceiling_checked = false;
     loop {
         let jobs = list(client).await?;
         let tree = subtree(&jobs, root);
         let Some(me) = tree.iter().find(|j| j.id == root) else {
             bail!("job {root} vanished from the daemon");
         };
+        // The tab count is only known once the parent has run and its
+        // children exist. A ladder send ceiling (`ACQ_MAX_SENDS`) that cannot
+        // cover them would halt the daemon partway through; refuse up front
+        // instead — rung 10's first attempt was aborted for exactly this.
+        if !ceiling_checked && tree.len() > 1 {
+            ceiling_checked = true;
+            let pending = tree
+                .iter()
+                .filter(|j| j.id != root && !j.state.is_terminal())
+                .count() as u64;
+            if let Some(short) = ceiling_shortfall(client, pending).await? {
+                let _ = client.request(&Request::Cancel { id: root }).await;
+                let _ = std::fs::remove_file(&inflight);
+                if !quiet {
+                    println!();
+                }
+                bail!("{short}; cancelled refresh job {root}");
+            }
+        }
         let done = tree.iter().filter(|j| j.state.is_terminal()).count();
         let eta = tree
             .iter()
@@ -436,16 +490,18 @@ async fn collect(
         jobs: tree.len(),
         ..Default::default()
     };
-    let root_payload = match result(client, root).await? {
-        Outcome::Success { payload } => payload,
-        Outcome::Failure { error } => bail!("refresh failed: {error}"),
-        Outcome::Cancelled => bail!("refresh was cancelled"),
-    };
-    snap.provider = root_payload
-        .get("provider")
-        .and_then(Value::as_str)
-        .unwrap_or("unknown")
-        .into();
+    // A parent that reports failure has children that failed; what the
+    // other children fetched is still in the daemon and still worth keeping.
+    snap.provider = provider.into();
+    match result(client, root).await? {
+        Outcome::Success { payload } => {
+            if let Some(p) = payload.get("provider").and_then(Value::as_str) {
+                snap.provider = p.into();
+            }
+        }
+        Outcome::Failure { error } => snap.refresh_error = Some(error),
+        Outcome::Cancelled => snap.refresh_error = Some("refresh was cancelled".into()),
+    }
     // A child's tab is in its own params (`sub` for a substash, else `id`).
     let tab_of = |j: &JobInfo| {
         j.params
@@ -550,6 +606,7 @@ pub async fn run(
                 "tabs": snap.tabs.len(),
                 "items": items,
                 "errors": snap.errors,
+                "refresh_error": snap.refresh_error,
                 "diff": diff,
             }))?
         );
@@ -566,6 +623,12 @@ pub async fn run(
     for (tab, why) in &snap.errors {
         println!("  ! tab {tab}: {why}");
     }
+    if let Some(why) = &snap.refresh_error {
+        println!(
+            "  ! refresh incomplete: {why}\n    snapshot keeps the {} tabs that landed; the next pull refetches the rest",
+            snap.tabs.len()
+        );
+    }
     let Some(d) = diff else {
         println!("first snapshot for this league; run again to see changes");
         return Ok(());
@@ -573,6 +636,12 @@ pub async fn run(
     let prev = previous.unwrap();
     if d.is_empty() {
         println!("no changes since {}", prev.display());
+        if !d.unknown_tabs.is_empty() {
+            println!(
+                "  ? not compared (errored in one snapshot): {}",
+                d.unknown_tabs.join(", ")
+            );
+        }
         return Ok(());
     }
     println!(
@@ -635,6 +704,21 @@ pub async fn run(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn ceiling_guard_is_exact_and_absent_without_a_ceiling() {
+        assert_eq!(shortfall(None, 1000, 1000), None);
+        // Rung 10, attempt 1 (2026-08-24): ceiling 271, 4 sends before the
+        // children (refresh, two probes, the list), 322 tabs queued.
+        let why = shortfall(Some(271), 4, 322).expect("cannot fit");
+        assert!(why.contains("cannot cover 322 queued tabs"), "{why}");
+        assert!(why.ends_with("ACQ_MAX_SENDS >= 327"), "{why}");
+        // Exactly enough is not a shortfall; one fewer is.
+        assert_eq!(shortfall(Some(326), 4, 322), None);
+        assert!(shortfall(Some(325), 4, 322).is_some());
+        // A ceiling already spent does not underflow.
+        assert!(shortfall(Some(6), 6, 5).is_some());
+    }
 
     fn item(id: &str, ty: &str, x: u64) -> (String, Value) {
         (
