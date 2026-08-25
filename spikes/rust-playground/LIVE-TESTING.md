@@ -1,16 +1,21 @@
 # Live testing control
 
-Control document for testing the Rust daemon against the real GGG API. It
-holds the blast-radius review that gates the first live send, the safety
-rails package, the staged ladder, and the run ledger that becomes the
-medium-term baseline. `CONTEXT.md` invariants and the authority order in
-`NETWORK-CLEANUP.md` apply. Process is lighter than the network cleanup by
-decision (2026-08-22): one independent read-only review of the rails diff,
-then spike-style work recorded by outcome.
+Control document for running the Rust daemon against the real GGG API:
+preconditions, the safety rails, the staged ladder, the run ledger, and
+the next action. `CONTEXT.md` invariants apply. Ground-truth facts learned
+live go to `docs/design/network-ground-truth.md` as numbered claims
+(authored master-side, cherry-picked here); this file records only runs.
 
 Goal: confidence that the daemon **halts rather than floods** — no HEAD
 streams, no repeated rate-limit violations — so a baseline can be collected
 before further development or refactoring. Not a correctness proof.
+
+History moved out of this file on 2026-08-24 and lives in git: the
+blast-radius review (risks R1–R8, at `c1be5c39`), the L0 rails build and
+its review register (L0-R1–R13), and the review history. The file at
+`9fa99459` holds the full text. All of R1–R8 are resolved: R1 by the
+dead-grant decision (`CONTEXT.md`), R2–R7 by the rails below, R8 fixed in
+`529bdd92` and seen live once (rung 8).
 
 ## Preconditions (owner decisions, 2026-08-22)
 
@@ -24,185 +29,52 @@ before further development or refactoring. Not a correctness proof.
 - **One daemon per rung.** Every rung starts with `acq daemon stop`, and the
   daemon is started with `ACQ_IDLE_SHUTDOWN` long enough to outlive the
   rung, so rails configured by environment are actually in effect and the
-  limiter history is continuous. The soak (rung 8) runs on a single
-  long-lived daemon.
+  limiter history is continuous.
+- **Verify the binary, not the checkout.** `acq --version` must equal
+  `git rev-parse --short=12 HEAD` with no `-dirty`; the daemon's first log
+  line and the journal's `open` header say the same. Never rebuild
+  `target/debug/acq` under a live daemon without `acq daemon stop` first —
+  the version handshake would not notice. (Rung 8 ran 34 h on a binary
+  that predated the fix it was restarted to pick up.)
 - **Post-violation rule.** After any tripwire trip: write the cause in the
   run ledger, wait at least **360 s** (the longest observed policy window
   plus the 60 s bucket), and only then `acq daemon reset-tripwire`. Never
   reset-and-retry to "see if it happens again."
+- **Ceilings are derived, not guessed:** cadence × intended duration for a
+  soak; listed tabs + probes + refresh for a pull.
 
-## Blast-radius review (2026-08-22, read-only, at `c1be5c39`)
+## Rails
 
-Every daemon HTTP path is one of four `ChokePoint` methods (`get_bearer`,
-`get`, `head`, `post_form`), each holding a gate permit from before dispatch
-through body completion. Worst-case send counts per daemon lifetime, and
-what bounds them:
+Knobs and defaults are in the README ("Live-test rails"); `acq daemon
+status` prints their state and `acq dash` shows a halt in red. What each
+one is, and whether it outlives the ladder:
 
-| Path | Trigger | Bound | Verdict |
-| --- | --- | --- | --- |
-| OAuth refresh POST | first auth-required job of a daemon lifetime (the access token is memory-only; only the refresh token survives in the keyring), then every ~10 h; also `acq auth check` | singleflight while a flight is open; paced by `token-request-limit` once learned (N33: 60/30 s); every success rotates the only refresh token | bounded; **R1** on failure |
-| HEAD probe | first job on an `Unknown` route; the probe itself first needs a token (so a fresh daemon's first API job is POST + HEAD + GET) | one per route per lifetime; a failed probe (including a token failure) degrades the route for `PROBE_COOLDOWN` (60 s), after which the next job triggers one more | bounded: ≤ 1 HEAD / route / 60 s while jobs keep arriving |
-| API GET | one per job attempt | limiter pacing from learned headers; 429 → requeue ≤ `MAX_429_RETRIES` (2) → 3 attempts max per job; 403/503 never retried; `Degraded` routes fail jobs without sending | bounded per job |
-| OAuth code exchange POST | one per `acq auth` | user-driven | bounded |
-| Daemon restart | CLI respawns at most once per invocation; idle exit after 60 s unless a policy window is live (≤ 300 s) | probe state and access token are in-memory, so every restart costs one POST plus one HEAD per used route | bounded per restart; a scripted loop of CLI calls across idle exits is the only stream shape (see rung 8 design) |
-| Fan-out (`refresh --all`, `--deep`) | one `stash` child per tab / substash | data-bounded (tabs, substashes); each child is a normal job | bounded, but multiplies R2 |
-| `profile` job | `acq submit profile` | fake-data kind that is **not** refused in real mode and calls `valid_access_token` → a real token POST | **R6** |
+1. **Tripwire** (`ACQ_TRIPWIRE=1`, ladder-only). The first landed 429 on
+   any route, HEAD and token included, or any 401/403/503, halts every
+   later send until `acq daemon reset-tripwire`; persisted per provider
+   across restarts. Tripping on a HEAD 429 is a deliberate ladder-time
+   tightening of the accepted 429-recovery decision, which is why the rail
+   is off by default. The gate admits two concurrent sends, so one
+   already-dispatched request may still land after a trip: a 2-send row in
+   the ledger is not a rail failure.
+2. **Dead-grant stop** — product behavior since 2026-08-24, not a knob: a
+   `refresh_token` grant rejected with a 4xx other than 429 is never
+   re-sent until `acq auth` or logout.
+3. **HTTP timeouts** (permanent): 10 s connect, 60 s request; a send lost
+   in transport is paced as if the server counted it.
+4. **Send journal** (`ACQ_JOURNAL`, permanent): one JSON line per actual
+   send, never a token or body; the contract surface (`TESTING-NOTES.md`).
+5. **Send ceiling** (`ACQ_MAX_SENDS=<n>`, ladder-only): halt after `n`
+   sends this lifetime; not persisted, so a soak's respawn starts fresh.
+6. **`profile` and the mock-only kinds are refused in real mode**
+   (permanent).
+7. **Keyring save failure is surfaced** in `daemon status` and is a stop
+   condition (permanent); the in-memory token is kept until exit.
+8. **`ACQ_IDLE_SHUTDOWN=<secs>`** (permanent knob), set per rung.
 
-Risks found (none is a bug against the accepted N0–N6 contract; all are
-gaps between "correct" and "safe to run unattended against GGG"). Status:
-R1 resolved (L0-R13); R2–R7 answered by rails 1 and 3–7 below; R8 fixed in
-`529bdd92` and observed live once (rung 8 postmortem).
-
-- **R1 — dead refresh token is retried per flight.** A non-429 refresh
-  failure (e.g. `400 invalid_grant` after revocation) ends the flight but
-  leaves the refresh token in place, so the next auth-required job POSTs
-  the same dead token. On a fresh daemon the probe fails first and degrades
-  the route, so the shape is one POST per 60 s; the bad shape is a token
-  that dies mid-fan-out after the access token expires, where every child
-  job opens a flight. Paced by N33 once learned, so not a violation, but
-  pointless traffic on a Cloudflare-fronted endpoint. (`daemon.rs`
-  `finish_refresh`; `auth.rs` `token_request` collapses status, body, and
-  JSON failures into one string.) Resolved 2026-08-24: a rejected grant is
-  terminal by default (L0-R13; CONTEXT.md decision).
-- **R2 — no global violation budget.** `Limiter::violations` is counted and
-  never consulted. With a mis-modeled policy, a 50-child fan-out can burn
-  up to 150 violations (3 attempts each), each behind a hold but each a
-  counted violation against N10's unknown revocation threshold (Q8). One
-  bad assumption should cost one violation, not one per job.
-- **R3 — no HTTP timeout.** The `reqwest::Client` has neither connect nor
-  request timeout. A hung send holds its gate permit and scheduling key
-  indefinitely: the daemon stalls (safe direction) and nothing surfaces
-  why. Note also that `ChokePoint::observe` records nothing on a transport
-  error, so a request that times out *after* the server counted it leaves
-  no history hit and the next send is under-paced.
-- **R4 — no durable send record.** `ChokePoint::sends` is a 100-entry
-  in-memory ring; the daemon log is prose and the daemon exits via
-  `process::exit`, so buffered output is lost on every idle exit. The
-  baseline needs every real send with its headers, across restarts.
-- **R5 — no hard ceiling.** Nothing caps total real sends per lifetime. Not
-  needed for correctness; wanted as the backstop for the bug nobody
-  imagined, during the ladder only.
-- **R6 — `profile` reaches the real token endpoint.** See the table.
-- **R8 — access-token expiry was tracked on a monotonic clock** (found
-  2026-08-23 while planning the soak, before any live occurrence). On macOS
-  `Instant` does not advance during sleep, so a daemon waking after a long
-  sleep believed an expired token still valid and would have sent a GET
-  every 10 min answered 401 — not a violation, but a timed stream of
-  unauthorized requests — until the frozen clock caught up. Fixed in the
-  commit recorded in the rung-8 ledger row: expiry is wall-clock
-  (`SystemTime`), and 401 trips the tripwire. The limiter's windows still
-  use `Instant`; after a sleep that errs toward waiting longer (safe), by
-  at most one window length.
-- **R7 — a keyring save failure after rotation is a warning, not a stop.**
-  The rotated refresh token is then memory-only; the next idle exit
-  silently logs the account out. (`daemon.rs` `install_tokens_locked`.)
-
-Sound and unchanged: probe-before-send on every unknown route; 429 bound
-and hold; Cloudflare-shape non-retry; gate permit lifetime; singleflight
-refresh; mock `fetch`/`demo` refusing to map to a route in real mode; CLI
-respawn bounded to once per invocation.
-
-## L0 — live-test rails (package)
-
-Status: `built` and reviewed. Build range `7be3e7a9..2aa83f4d`; the
-independent read-only review (question: *can any change add a send or
-delay a halt?*) returned `changes-requested` with 4 Medium and 8 Low
-findings, recorded in the L0 review register below and fixed in
-`d7149374`. No semantic change to gate, limiter, OAuth, classification,
-retry, or dispatcher behavior under default settings; the rails only
-refuse or record.
-
-Rail lifetime, decided up front so a later reader can tell scaffolding from
-design: rails 3, 4, and 7 are **permanent** (ordinary hygiene); rails 1
-and 5 are **ladder-only** — kept in the code as opt-ins, off by default
-after the baseline, because they deliberately make the daemon more fragile
-than CONTEXT.md's accepted 429-recovery decision intends. Rail 2 was
-ladder-only until 2026-08-24 and is now **product behavior** (L0-R13).
-
-1. **Tripwire (R2).** Opt-in via `ACQ_TRIPWIRE=1` (the ladder sets it;
-   never on in mock mode by default, since the mock and the scripted tests
-   produce 429s deliberately). Trips on the first counted violation — any
-   landed 429 on any route, including HEAD and token — and on any
-   401/403/503 (401 added 2026-08-23: see R8).
-   A HEAD 429 is a designed-recoverable case under frozen D4; tripping on it
-   is a deliberate ladder-time tightening, not a contradiction. While
-   tripped, every `ChokePoint` transport method fails fast before acquiring
-   a permit; a job already requeued by the triggering 429 fails at its next
-   attempt rather than waiting behind the hold; `acq daemon status` and
-   `acq dash` show the trip and its cause. Because the gate admits two
-   concurrent sends, one already-dispatched request may still land after
-   the trip: a 2-send row in the ledger is not a rail failure. Reset is
-   explicit: `acq daemon reset-tripwire`. Persisted in a file keyed by
-   provider (mock and real never share it) and honoring `ACQ_SOCKET`, so a
-   respawned daemon stays tripped.
-2. **Dead-token stop (R1).** Always on since 2026-08-24 (CONTEXT.md
-   decision; was opt-in with the tripwire). `token_request`
-   returns the HTTP status alongside the error so the daemon can tell a
-   rejected grant from a network blip. A **4xx other than 429** on a
-   **`refresh_token` grant** (never the code exchange, never 5xx or
-   transport errors) marks the session `refresh-failed`; later refreshes
-   fail fast without sending until `acq auth` or logout. Generation-checked
-   like `finish_refresh`, so a stale flight cannot disable a session that
-   re-authenticated meanwhile. Persisted in the rails state file so the
-   idle exit does not clear it; unlike the trip, the mark is honored by a
-   daemon started without the tripwire. Log the response evidence once.
-3. **HTTP timeouts (R3).** Permanent. `connect_timeout` 10 s and a 60 s
-   request timeout covering headers and body on the one client (both
-   constructors). A timeout classifies as transport failure (existing
-   `Network` path), no retry. On transport failure for a route with an
-   established policy, push one conservative history hit so the next send
-   is paced as if the lost request was counted.
-4. **Send journal (R4).** Permanent, path from `ACQ_JOURNAL` (default next
-   to the daemon log; `acq daemon status` prints it). Append-only JSONL,
-   one line per actual send, written and flushed per line from
-   `record_completed`, which is extended to receive the header snapshot and
-   `counted` flag it currently lacks: wall-clock time, daemon pid, method,
-   route, URL path, status or transport error, every `X-Rate-Limit-*`
-   header and `Retry-After`, and `counted`. Never the Authorization header,
-   a token body, or any response body. Predicted-wait is not in L0; drift
-   is computed from consecutive header states and timestamps.
-5. **Send ceiling (R5).** Ladder-only. `ACQ_MAX_SENDS=<n>`: after `n` real
-   sends (HEAD, GET, and POST alike) in a lifetime the daemon halts with
-   reason `ceiling`. Per-lifetime, **not** persisted — a respawn starts a
-   fresh count — so the soak is not ended by its own ceiling. `acq daemon
-   status` reports the configured ceiling and the count so far.
-6. **Refuse `profile` in real mode (R6).** Permanent. Same treatment as
-   `fetch`.
-7. **Keyring save failure stops refresh (R7).** Permanent. A failed save
-   of a rotated refresh token is surfaced as an error in `daemon status`
-   and the ladder's stop condition; the in-memory token is kept so the
-   session survives until exit.
-8. **`ACQ_IDLE_SHUTDOWN=<secs>`.** Permanent knob, default unchanged
-   (60 s). The ladder sets it per rung.
-
-Required tests: each rail has a deterministic test against the mock and the
-existing fake-clock/localhost harness, with rails 1, 2, and 5 forced on;
-the existing suite passes unchanged with rails 1 and 5 off; a tripped daemon sends nothing on a
-queued job. Quality gates from `NETWORK-CLEANUP.md` stay green.
-
-### L0 review register
-
-| ID | Sev | Finding | Resolution |
-| --- | --- | --- | --- |
-| L0-R1 | Medium | Halt checked only on entry to the admission loops; a task parked in a hold sleep or in the gate sent after the trip | re-checked every iteration and after admission; admission sleeps sliced to ≤ 1 s; test `a_send_parked_in_the_gate_is_refused_after_a_trip` |
-| L0-R2 | Medium | Persisted trip / refresh-failed mark enforced by a rails-off daemon (behavior change under default settings) | loaded only when the tripwire is armed; a rails-off daemon neither honors nor deletes the file; test `persisted_trip_is_ignored_without_the_tripwire` |
-| L0-R3 | Medium | `finish_auth_flow` cleared the dead-token mark before its generation check, so a stale callback re-armed a dead token | clear moved after a current flow installs tokens |
-| L0-R4 | Medium | Journal open failure silent while status advertised the path | error kept; status shows `NOT WRITTEN — …`; logged at startup; test `unopenable_journal_is_reported_not_silent` |
-| L0-R5 | Low | Mark set after the flight closed: one-instruction window for a second dead-token POST | mark set before `owner.finish`, only while the flight is still current |
-| L0-R6 | Low | Stale-flight suppression was a string compare | superseded by L0-R5's explicit flight-current check under the lock; no prose compare remains |
-| L0-R7 | Low | Default journal shared by mock and real | keyed by provider |
-| L0-R8 | Low | Env knobs failed open silently | truthy set accepted; misunderstood values logged as `RAILS CONFIG` errors |
-| L0-R9 | Low | `ACQ_MAX_SENDS=0` allowed one send | `halted()` refuses at zero; test `zero_ceiling_refuses_before_the_first_send` |
-| L0-R10 | Low | `reset-tripwire` against a stopped daemon left the persisted trip | the CLI clears the provider's state file directly and says so |
-| L0-R11 | Low | Per-job refusals could evict the trip cause from the error ring | per-job refusal goes to the file log only |
-| L0-R12 | Low | Persisted refresh-failed cause contained the token-endpoint body | persisted cause is `HTTP <status>` plus a fixed reason; the body stays in the log only |
-| L0-R13 | Medium | R1 and L0-R5 are **rails-conditional**: their fixes live in opt-in rail 2, so a rails-off daemon still re-sends a dead grant per flight (found by the register walk, `TESTING-NOTES.md`) | dead-grant-is-terminal recorded as a CONTEXT.md decision 2026-08-24 and rail 2 promoted to default: `mark_refresh_failed` and the persisted mark no longer depend on the tripwire; `rejected_refresh_grant_disables_further_refreshes_until_login_or_logout` now runs rails-off |
-
-Clean per the review: `note_lost_send` is never less conservative; the
-dead-token mark cannot fire on the code exchange; the fast path precedes
-flight open/join and cannot strand waiters; `process()`'s early return
-mirrors the `Degraded` return; journal contents carry no secret; CLI and
-dash additions send nothing; N0–N6 behavior with rails off is unchanged.
+Each rail has a deterministic test against the mock with rails 1 and 5
+forced on; the suite passes unchanged with them off; quality gates from
+`NETWORK-CLEANUP.md` stay green.
 
 ## Ladder
 
@@ -222,31 +94,15 @@ rung in the run ledger.
 | 6 | `acq refresh --tabs a,b,c` (3 tabs) | 0–1/0–1/4; observed hits match limiter prediction | 8 | predicted vs. observed state drift > 1 hit |
 | 7 | `acq refresh --tabs …` (≈10 tabs) over several minutes | 0–1/0/11; pacing engages; zero 429 | 16 | any 429 |
 | 7b | `acq refresh --tabs …` (18 tabs, > 15-per-10 s) | 1/2/19; the limiter holds before the 16th child; zero 429 | 24 | any 429; no hold observed |
-| 8 | soak: one daemon with `ACQ_IDLE_SHUTDOWN` ≥ 1 day; `acq characters` every 10 min by cron for several days | 1 POST per ~10 h, 1 HEAD per route per daemon lifetime, 1 GET per run; stable headers | 200 per lifetime | any trip; more than one HEAD per route per day; any keyring warning |
-| 10 | `acq pull --league Standard` (the first real consumer; no `--deep`) | 0–1/2/1+N with N = tabs listed (261 on the test account at rung 4); `stash-request-limit` is 30 per 300 s, so expect ~9 holds of up to 5 min and a wall clock near 45 min; zero 429; snapshot written; a second run reports no changes with the same send count | N + 10 | any 429; any reported window state with hits > max; a snapshot missing tabs the list reported without an error recorded for them |
+| 8 | soak: one daemon with `ACQ_IDLE_SHUTDOWN` ≥ 1 day; `acq characters` every 10 min by cron | 1 POST per ~10 h, 1 HEAD per `(pid, route)`, 1 GET per run; stable headers | cadence × duration | any trip; more than one HEAD per `(pid, route)`; any keyring warning |
+| 9 | *deferred* — timing-bucket measurement (owner decision 2026-08-23): each early guess is a counted 429 against N10's unknown threshold (Q8); if ever run, `character-list-request-limit` (2 per 10 s), a handful of violations total, the 360 s rule between attempts. The zero-violation alternative is asking GGG (N14). Rung 7b's one data point bounds the initial bucket at ≤ 5 s. | | | |
+| 10 | `acq pull --league Standard` (the first real consumer; no `--deep`) | 0–1/2/1+N with N = tabs listed (261 at rung 4); `stash-request-limit` is 30 per 300 s, so ~9 holds of up to 5 min, wall clock near 45 min; zero 429; snapshot written; a second run reports no changes with the same send count | N + 10 | any 429; any reported window state with hits > max; tabs the list reported missing from the snapshot with no error recorded |
 
 Rung 8 mechanics: `tools/soak-run.sh` is the cron body (sets the rails
 env itself so a respawned daemon keeps them, runs one `acq characters`,
 appends one line to `runs/soak/runs.log`); `tools/soak-check.sh <start-ts>`
 evaluates the stop conditions from the journal, the run log, and daemon
-status. Do not rebuild `target/debug/acq` while the soak daemon runs
-without `acq daemon stop` first — the version handshake would not notice.
-
-Rung 8 is the baseline. Anything the rungs teach about GGG goes into
-`docs/design/network-ground-truth.md` as numbered claims and is promoted
-to master promptly; this file records only runs.
-
-## Deferred: rung 9 — timing-bucket measurement (owner decision 2026-08-23)
-
-Not part of the baseline. Measuring N11–N12's bucket values means sending
-deliberately inside the limiter's padding at a window edge; each early
-guess is a counted 429 against N10's unknown threshold (Q8). If run, it is
-its own rung after the soak: `character-list-request-limit` (2 per 10 s),
-a hard cap of a handful of violations total, tripwire reset between
-attempts under the 360 s rule, every attempt in the ledger. The
-zero-violation alternative is asking GGG through N14's channel. Rung 7b's
-single data point: after a 10 s + 5 s hold the window read fully clear,
-bounding the initial bucket at ≤ 5 s.
+status, and refuses a journal whose `build` it cannot trust.
 
 ## Run ledger
 
@@ -264,67 +120,28 @@ One row per rung execution. Journal files are copied to
 | 2026-08-22 | 7 | `92e74f93` | pass (pacing not exercised) | 1/2/11 | 0 | fresh daemon, 10 tabs in 1.4 s; probe taught `4:300`; final `10:10:0,14:300:0` = prior + 10, drift 0; zero 429. 10 < 15-per-10 s, so the limiter never had to hold — rungs 1–7 prove reading, not waiting; `runs/2026-08-22-r7/` |
 | 2026-08-22 | 7b | `92e74f93` | pass (pacing engaged) | 1/2/19 | 0 | fresh daemon, 18 tabs; 15 children in 1.4 s filled `stash-request-limit`'s 10 s window (`15:10:0`); the limiter held **14.75 s** (period + 5 s bucket) before the 16th, which the server answered `1:10:0` — window fully cleared; remaining 3 at full speed; final `3:10:0,18:300:0`; zero 429; ceiling 24; `runs/2026-08-22-r7b/` |
 | 2026-08-22 | 8 (first start) | `92e74f93` | stopped after 3 runs | 1/1/1 + 2 GET | 0 | pid 14352, 00:26–01:30 UTC; stopped to pick up the R8 sleep fix; all runs success |
-| 2026-08-23 | 8 | `92e74f93` — **not** `529bdd92`, see postmortem | **stopped, not a pass**: ceiling 200/200 at 2026-08-24T10:10Z, 34.1 h in | 4/1/195 = 200 | 0 × 429; **3 × 401** | one daemon (pid 17066, `ACQ_IDLE_SHUTDOWN=604800`), cron every 10 min, 210 cron runs. Steady state clean: zero 429, `1:10:0,1:300:0` on every GET, 1 HEAD for the whole lifetime, 4 token POSTs (start, then one per ~10 h; `expires_in` 36000 confirmed across all four), no keyring warnings. Three 401s at 21:50/22:00/22:10Z from R8 — see postmortem. Cron removed 2026-08-24T12:17Z; daemon stopped 2026-08-24T13:38Z (log `[128140s] stop requested`). Evaluate with `tools/soak-check.sh 2026-08-23T01:30:14Z`; `runs/2026-08-23-r8/` |
+| 2026-08-23 | 8 | `92e74f93` — **not** `529bdd92` | **stopped, not a pass**: ceiling 200/200 at 2026-08-24T10:10Z, 34.1 h in | 4/1/195 = 200 | 0 × 429; **3 × 401** | one daemon (pid 17066, `ACQ_IDLE_SHUTDOWN=604800`), cron every 10 min, 210 runs. Steady state clean: zero 429, `1:10:0,1:300:0` on every GET, 1 HEAD for the lifetime, 4 token POSTs (one per ~10 h; `expires_in` 36000 each), no keyring warnings. Postmortem below. Evaluate with `tools/soak-check.sh 2026-08-23T01:30:14Z`; `runs/2026-08-23-r8/` |
 
-### Rung 8 postmortem (2026-08-24)
+### Rung 8 postmortem (2026-08-24), in three lines
 
-**The soak ran on a binary that predates the R8 fix.** `target/debug/acq`
-had mtime 2026-08-23T00:02:37Z, which is `92e74f93`'s commit instant — the
-same tip rungs 1–7b used. The daemon was restarted 7 s after `529bdd92`
-was committed, but `cargo build` was never run, so the new code never
-entered the binary. Everything between the two commits was docs-only, so
-the R8 fix was precisely and only what was missing. The ladder's standing
-caution guards the opposite mistake (rebuilding *under* a live daemon); the
-failure here was restarting onto a new commit without rebuilding. Check the
-binary, not the checkout: `strings target/debug/acq | grep 'token rejected'`
-returns two lines with the fix present, one without. (Since 2026-08-24 the
-binary carries its commit: the daemon's first log line and the journal's
-`open` header print `build`, and `soak-check.sh` lists it per lifetime.)
-
-**R8 was then observed live, on the unfixed code.** About 2029 s of laptop
-sleep accumulated between the 11:40:01Z refresh and 21:50Z. With expiry on
-a monotonic clock the frozen elapsed time never reached 36000 s at the
-wall-clock deadline of 21:40:01Z, so the daemon kept sending the expired
-token: 401 at 21:50, 22:00, 22:10, then a refresh at 22:20 fired at
-monotonic +36420 s from the previous one — the first job past 36000 s on
-the frozen clock, not the wall-clock deadline. The same pre-fix binary also
-lacked the 401 tripwire, so neither half of `529bdd92` was present and
-nothing halted. This is the first live sighting of a hazard that had only
-been found by reading code.
-
-**Two limits of this run, independent of the binary.** The HEAD stop
-condition could not fail: `ACQ_IDLE_SHUTDOWN=604800` means no restarts, and
-probe state is per-lifetime, so exactly one HEAD per route is guaranteed by
-construction rather than evidenced. The restart shape named in the
-blast-radius table — one POST plus one HEAD per used route, per restart —
-remains untested. And the ceiling was sized against no duration: 200 sends
-at one per 10 min is 33 h, well short of the rung's "several days". A
-future soak should derive the ceiling from cadence × intended duration, and
-express the HEAD condition per `(pid, route)` (the journal records `pid`),
-which is meaningful in both the pinned and restarting shapes.
-
-The fix is built and under test, but it has still never executed against
-GGG.
-
-## Review history
-
-- 2026-08-22: plan reviewed before build (owner, author, and one
-  independent read-only agent). Corrections folded in: per-rung send
-  counts include the refresh POST; R1's worst case restated; `profile`
-  (R6) and keyring-save (R7) added; rails 1/2/5 made opt-in and the
-  tripwire file keyed by provider; rail 2 given status-based and
-  generation-checked semantics; rail 3's observe blind spot; rail 4's
-  flush-per-line and no-secrets rules; `ACQ_MAX_SENDS` made per-lifetime;
-  env knobs reported in `daemon status`; preconditions and the 360 s
-  post-violation rule added; soak moved to one long-lived daemon.
+The daemon was restarted 7 s after `529bdd92` was committed but `cargo
+build` was never run, so the soak ran on `92e74f93` — every rail correct
+and blind to it; hence the binary-provenance precondition above and the
+build stamp in `--version`, the log, and the journal. R8 was then observed
+live on that unfixed code: ~2029 s of laptop sleep froze the monotonic
+expiry clock, so three GETs went out with an expired token (401 ×3) before
+the refresh fired late — the first live sighting of a hazard found by
+reading. Two limits of the run itself: the "one HEAD per route" condition
+could not fail without restarts, and the 200-send ceiling was 33 h against
+a "several days" intent — both folded into the preconditions and the rung
+8 row.
 
 ## Next action
 
 Rung 8 is stopped, not passed, and the R8 fix has never executed against
-GGG. The next live run is a re-soak on the built binary: `acq --version`
-equals `git rev-parse --short=12 HEAD` with no `-dirty`; ceiling derived
-from cadence × intended duration; HEAD condition per `(pid, route)`. It
-also collects the first live `wait_ms` baseline (`TESTING-NOTES.md`).
-Rung 10 (`acq pull`) can run before or after it; it is the first live run
-that exercises the 300 s window repeatedly, so its ceiling and duration
-are derived above, not guessed.
+GGG. Two live runs are pending, in either order:
+
+- **Re-soak** on the verified binary, ceiling from cadence × duration, HEAD
+  condition per `(pid, route)`; collects the first live `wait_ms` baseline.
+- **Rung 10, `acq pull`** — the first live run that exercises the 300 s
+  window repeatedly; ceiling and duration are derived in the ladder row.

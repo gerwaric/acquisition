@@ -116,7 +116,7 @@ yet on the clock: the idle-shutdown and activity sites in `daemon.rs`.
 
 ## The boundary — three kinds of "cannot"
 
-The register walk (R1–R8, L0-R1–R12, the N-claims) gives about half the
+The register walk (R1–R8 and L0-R1–R12 from `LIVE-TESTING.md`'s history at `9fa99459`, plus the N-claims) gives about half the
 entries a journal invariant. The rest fall into three kinds, and the kinds
 matter more than the list:
 
