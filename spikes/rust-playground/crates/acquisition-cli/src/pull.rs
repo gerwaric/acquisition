@@ -137,9 +137,9 @@ pub fn tab_label(s: &Snapshot, id: &str) -> String {
 }
 
 /// Item fields the API re-randomizes on every fetch, so equal items differ
-/// in them: `veiledMods` placeholder ids (`Prefix06` one pull, `Prefix01`
-/// the next — rung 10's second run, 2026-08-25, 10 of 18 072 items). They
-/// stay in the snapshot; the diff ignores them.
+/// in them: `veiledMods` placeholder ids (ground truth N36; rung 10's second
+/// run, 2026-08-25, 10 of 18 072 items). They stay in the snapshot; the diff
+/// ignores them.
 const VOLATILE_ITEM_FIELDS: &[&str] = &["veiledMods"];
 
 fn same_item(a: &Value, b: &Value) -> bool {

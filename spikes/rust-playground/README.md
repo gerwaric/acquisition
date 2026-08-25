@@ -144,7 +144,7 @@ on the command that spawns it, or `acq daemon stop` first:
   per line; defaults to `<socket>.<provider>.sends.jsonl`, `0` disables.
   A 403/503 line also carries `shape`: `cloudflare` (N3/N28 page markers),
   `origin` (an openresty/nginx error page that passed through Cloudflare —
-  rung 10's 503), or `unclassified`. All three are equally never retried.
+  rung 10's 503, N35), or `unclassified`. All three are equally never retried.
   Each daemon lifetime opens with `{"event":"open","pid","build","clock"}`
   — the git commit the binary was built from and whether time was the
   system's or a test's manual clock.

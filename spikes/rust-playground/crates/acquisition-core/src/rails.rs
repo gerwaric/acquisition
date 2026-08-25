@@ -128,13 +128,15 @@ pub struct RailsStatus {
 /// today — never retried (invariant 3) and a tripwire trip on the ladder —
 /// but the evidence is recorded separately so a future retry decision has
 /// data to cite. Rung 10 (2026-08-24) saw an origin 503 (openresty page,
-/// no rate headers) that the code labelled "possibly a Cloudflare block".
+/// no rate headers — ground truth N35) that the code labelled "possibly a
+/// Cloudflare block".
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BlockShape {
     /// Cloudflare's own error page: ground truth N3 (error 1015) and N28
     /// (a 403 challenge page); "Ray ID" appears on every Cloudflare page.
     Cloudflare,
-    /// An origin error page that reached us through Cloudflare unchanged.
+    /// An origin error page that reached us through Cloudflare unchanged
+    /// (N35).
     Origin,
     /// Nothing recognisable (empty body, JSON, transport failure reading it).
     Unclassified,
@@ -157,7 +159,7 @@ impl BlockShape {
     pub fn describe(self) -> &'static str {
         match self {
             BlockShape::Cloudflare => "Cloudflare-shaped block (N3/N28)",
-            BlockShape::Origin => "origin error page, not Cloudflare-shaped",
+            BlockShape::Origin => "origin error page, not Cloudflare-shaped (N35)",
             BlockShape::Unclassified => "unclassified body, possibly a Cloudflare block",
         }
     }
@@ -529,7 +531,7 @@ mod tests {
             .expect("trips");
         assert_eq!(
             cause,
-            "503 on GET /character — origin error page, not Cloudflare-shaped"
+            "503 on GET /character — origin error page, not Cloudflare-shaped (N35)"
         );
         rails.reset_tripwire();
         let cause = rails.record(&report(Some(403))).expect("trips");

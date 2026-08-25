@@ -198,8 +198,5 @@ ignored. Pending, owner's order:
   daemon with keychain access), install the cron line, note the start
   timestamp in the ledger; `tools/soak-check.sh <start>` daily. After the
   deliberate `daemon stop`, respawn the same way — cron will not.
-- **Ground truth:** two new claims to author master-side — the
-  openresty-503 shape (`runs/2026-08-24-r10/job-243-503.json` holds the
-  body), and `veiledMods` placeholder ids being re-randomized per fetch
-  (`runs/2026-08-25-r10c/` vs `runs/2026-08-24-r10b/` snapshots; 10 of
-  18 072 items, no other field differed).
+- ~~Ground truth~~ — done: N35 (origin 503 shape) and N36 (`veiledMods`
+  volatile) are on master (`44909c22`) and cherry-picked here.
