@@ -126,6 +126,8 @@ One row per rung execution. Journal files are copied to
 | 2026-08-24 | 10 (attempt 2) | `18b68aa2` | aborted by owner (interrupted shell) | 1/2/1 | 0 | pid 88037, ceiling 332; the stash probe reported `0:10:0,30:300:0` — attempt 1's hits, learned before any send; stopped before its first GET |
 | 2026-08-24 | 10 | `18b68aa2` | **halted by tripwire, not a pass**: 503 at send 245/332 | 1/2/242 (241 GET 200 + 1 GET 503) | 0 × 429; **1 × 503** | pid 88389, 02:05–02:54 UTC. Probes 0 hits; 15 GETs per 10 s window, 14 s hold, 15 more, then a **~343 s hold** (300 s + 60 s bucket − elapsed) — seven times; the first GET after every hold was answered `1:10:0,1:300:0`, prediction exact, windows never exceeded 15/30. The first send after the 8th hold (`GET /stash/Standard/7b05e6f78d`) got **503 with no rate headers** and an **openresty** "Service Temporarily Unavailable" HTML body — GGG's origin, not a Cloudflare 1015/403 shape (N3, N28). Tripwire halted; 0 sends after it; the remaining 82 children failed as "halted by rails" without sending. Not retried (invariant 3). `pull` wrote no snapshot. Postmortem below. |
 
+| 2026-08-25 | 10 (rerun) | `3b5e0282` | **pass** | 1/2/323 = 326 | 0 | pid 96766, 03:36–04:37 UTC, 61 min. Probes 0 hits; 322 tabs; the 15-per-10 s / 30-per-300 s pattern ten times, every hold ~343 s and every first send after a hold answered `1:10:0,1:300:0`; windows never exceeded 15/30; zero non-2xx; no keyring warning. Snapshot written: 322 tabs, 18 072 items, 0 errors. Tab `7b05e6f78d` (the earlier 503, "Beasts, Red (Remove-only)", 37 items) was again the first send after a hold — send #245, same position — and answered 200: the 503 was transient, not tab-specific, and one clean after-hold sample says nothing yet about stale connections. Second-run "no changes" check not yet run. `runs/2026-08-24-r10b/` |
+
 ### Rung 8 postmortem (2026-08-24), in three lines
 
 The daemon was restarted 7 s after `529bdd92` was committed but `cargo
@@ -166,19 +168,15 @@ one send landed, nothing followed. Three things it exposed that are ours:
 
 ## Next action
 
-Rung 10 halted on a server-side 503 with the account at zero hits (see
-postmortem); the 360 s post-violation wait has elapsed. Pending, owner's
-order:
+Rung 10 passed on the rerun (2026-08-25): the 300 s window is proven live
+across ten consecutive holds, and the first pull's snapshot exists. Pending,
+owner's order:
 
-- **Rung 10 rerun** on a fresh daemon built from the post-rung code
-  (partial snapshots, the ceiling guard, `shape` on 403/503 journal lines;
-  verify `acq --version`): `acq daemon stop`, then `acq daemon
-  reset-tripwire` (the trip is persisted per provider and a new daemon
-  honours it), ceiling 332 from the listed count. Two things to watch: the
-  503's tab (`7b05e6f78d`) — again means tab-specific, otherwise transient
-  — and whether any 503 lands on the *first send after a 300 s hold*
-  again, which would point at a stale keep-alive connection rather than
-  the server, and at a pool idle timeout as the fix.
+- **Rung 10, second run** — the row's last expectation: `acq pull --league
+  Standard` again on a daemon that has the first run's limiter history or
+  a fresh one (either is fine; a fresh daemon re-probes), ceiling 332,
+  expect "no changes" with 0–1/0–2/323 sends and the same ~61 min. This is
+  also the first diff against real data.
 - **Re-soak** on the verified binary, ceiling from cadence × duration, HEAD
   condition per `(pid, route)`; collects the first live `wait_ms` baseline.
 - **Ground truth:** author the openresty-503 observation as a new claim
