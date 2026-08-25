@@ -1,9 +1,16 @@
 #!/bin/sh
 # Rung 8 soak: one `acq characters` per invocation (cron every 10 min).
 # The rails env is set here too, so a respawned daemon keeps them.
+#
+# The send ceiling is derived, not guessed (LIVE-TESTING preconditions):
+# cron cadence 6/h x 24 h = 144 GETs per day, plus one token POST per ~10 h
+# and one HEAD per daemon lifetime, for SOAK_DAYS days (default 7). Rung 8
+# ran with a flat 200 and was cut off at 33 h of a "several days" intent.
 set -u
 DIR="$(cd "$(dirname "$0")/.." && pwd)"
-export ACQ_GGG=1 ACQ_TRIPWIRE=1 ACQ_MAX_SENDS=200 ACQ_IDLE_SHUTDOWN=604800
+SOAK_DAYS="${SOAK_DAYS:-7}"
+CEILING=$(( SOAK_DAYS * 144 + SOAK_DAYS * 3 + 10 ))
+export ACQ_GGG=1 ACQ_TRIPWIRE=1 ACQ_MAX_SENDS="$CEILING" ACQ_IDLE_SHUTDOWN=604800
 TS="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 OUT="$("$DIR/target/debug/acq" characters --json 2>&1)"
 RC=$?

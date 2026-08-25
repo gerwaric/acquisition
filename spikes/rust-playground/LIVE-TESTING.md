@@ -99,10 +99,15 @@ rung in the run ledger.
 | 10 | `acq pull --league Standard` (the first real consumer; no `--deep`) | 0–1/2/1+N with N = tabs listed **including folder children** (322 on 2026-08-24; rung 4's 261 was the flat count); `stash-request-limit` is 30 per 300 s, so ~9 holds of up to 5 min, wall clock near 45 min; zero 429; snapshot written; a second run on the same daemon reports no changes with 1+N GETs and no new HEADs (probes are per daemon lifetime) | N + 10, from a `pull`'s own listed count, not an earlier rung's | any 429; any reported window state with hits > max; tabs the list reported missing from the snapshot with no error recorded |
 
 Rung 8 mechanics: `tools/soak-run.sh` is the cron body (sets the rails
-env itself so a respawned daemon keeps them, runs one `acq characters`,
+env itself so a respawned daemon keeps them, derives the ceiling as
+`SOAK_DAYS` × 144 GETs + token POSTs + probes, runs one `acq characters`,
 appends one line to `runs/soak/runs.log`); `tools/soak-check.sh <start-ts>`
 evaluates the stop conditions from the journal, the run log, and daemon
-status, and refuses a journal whose `build` it cannot trust.
+status: it refuses a manual-clock journal and any lifetime in the window
+not built from the binary on disk, and counts HEADs per `(pid, route)`.
+Laptop sleep is welcome, not avoided — cron skips the sleeping minutes and
+the wake is what exercises R8 (an expired token refreshed before the
+next GET, never a 401).
 
 ## Run ledger
 
@@ -174,8 +179,11 @@ Rung 10 is complete (2026-08-25): two full pulls, twenty 300 s holds,
 zero non-2xx, and a real-data diff that is clean once `veiledMods` is
 ignored. Pending, owner's order:
 
-- **Re-soak** on the verified binary, ceiling from cadence × duration, HEAD
-  condition per `(pid, route)`; collects the first live `wait_ms` baseline.
+- **Re-soak** on the verified binary (`SOAK_DAYS=7` → ceiling 1039), the
+  first run whose HEAD condition can fail and whose R8 fix can be seen;
+  collects the first live `wait_ms` baseline. Start: `acq daemon stop`,
+  install the cron line, note the start timestamp in the ledger; check
+  with `tools/soak-check.sh <start>` daily; stop condition per the ladder.
 - **Ground truth:** two new claims to author master-side — the
   openresty-503 shape (`runs/2026-08-24-r10/job-243-503.json` holds the
   body), and `veiledMods` placeholder ids being re-randomized per fetch
