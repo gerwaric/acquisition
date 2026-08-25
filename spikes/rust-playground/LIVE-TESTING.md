@@ -100,8 +100,9 @@ rung in the run ledger.
 
 Rung 8 mechanics: `tools/soak-run.sh` is the cron body (sets the rails
 env itself so a respawned daemon keeps them, derives the ceiling as
-`SOAK_DAYS` × 144 GETs + token POSTs + probes, runs one `acq characters`,
-appends one line to `runs/soak/runs.log`); `tools/soak-check.sh <start-ts>`
+`SOAK_DAYS` × 144 GETs + token POSTs + probes, runs one `acq characters`
+from a **frozen copy of the binary** at `runs/soak/acq` so the tree can be
+rebuilt while the daemon lives, appends one line to `runs/soak/runs.log`); `tools/soak-check.sh <start-ts>`
 evaluates the stop conditions from the journal, the run log, and daemon
 status: it refuses a manual-clock journal and any lifetime in the window
 not built from the binary on disk, and counts HEADs per `(pid, route)`.
@@ -179,11 +180,15 @@ Rung 10 is complete (2026-08-25): two full pulls, twenty 300 s holds,
 zero non-2xx, and a real-data diff that is clean once `veiledMods` is
 ignored. Pending, owner's order:
 
-- **Re-soak** on the verified binary (`SOAK_DAYS=7` → ceiling 1039), the
-  first run whose HEAD condition can fail and whose R8 fix can be seen;
-  collects the first live `wait_ms` baseline. Start: `acq daemon stop`,
-  install the cron line, note the start timestamp in the ledger; check
-  with `tools/soak-check.sh <start>` daily; stop condition per the ladder.
+- **Re-soak**, rescoped 2026-08-25 to **48 h** on a frozen binary
+  (`SOAK_DAYS=2` → ceiling 304): what it must still show is the R8 fix
+  live (two deliberate overnight sleeps spanning a token expiry — a refresh
+  POST, never a 401, on the first run after each wake) and the HEAD
+  condition across one deliberate `acq daemon stop`; plus the first live
+  `wait_ms` baseline. Seven days would have frozen the checkout for a
+  hypothesis two nights can test. Start: `cp target/debug/acq
+  runs/soak/acq`, `acq daemon stop`, install the cron line, note the start
+  timestamp in the ledger; `tools/soak-check.sh <start>` daily.
 - **Ground truth:** two new claims to author master-side — the
   openresty-503 shape (`runs/2026-08-24-r10/job-243-503.json` holds the
   body), and `veiledMods` placeholder ids being re-randomized per fetch

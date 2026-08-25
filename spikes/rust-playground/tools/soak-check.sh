@@ -11,10 +11,11 @@ fi
 DIR="$(cd "$(dirname "$0")/.." && pwd)"
 T="$(python3 -c 'import tempfile;print(tempfile.gettempdir())')"
 J="$T/acquisition-playground.ggg.sends.jsonl"
-echo "== daemon status"; ACQ_GGG=1 "$DIR/target/debug/acq" daemon status 2>&1 | grep -E 'daemon|rails|HALT|KEYRING|REFRESH|not running'
-HEAD_REV="$(git -C "$DIR" rev-parse --short=12 HEAD 2>/dev/null || echo unknown)"
-BIN_REV="$("$DIR/target/debug/acq" --version 2>/dev/null | sed -n 's/.*(\(.*\)).*/\1/p')"
-echo "== provenance: checkout $HEAD_REV, binary $BIN_REV$( [ "$HEAD_REV" = "$BIN_REV" ] || echo '  ** MISMATCH: the binary is not the checkout **')"
+ACQ="$DIR/runs/soak/acq"
+[ -x "$ACQ" ] || { echo "soak-check: no frozen binary at $ACQ" >&2; exit 2; }
+echo "== daemon status"; ACQ_GGG=1 "$ACQ" daemon status 2>&1 | grep -E 'daemon|rails|HALT|KEYRING|REFRESH|not running'
+BIN_REV="$("$ACQ" --version 2>/dev/null | sed -n 's/.*(\(.*\)).*/\1/p')"
+echo "== provenance: frozen binary $BIN_REV (checkout may have moved on; the journal's build stamps must match the frozen binary)"
 echo "== runs.log: $(wc -l < "$DIR/runs/soak/runs.log" 2>/dev/null || echo 0) runs; non-success:"
 grep -v ' success ' "$DIR/runs/soak/runs.log" 2>/dev/null || echo "  none"
 python3 - "$J" "$1" "$BIN_REV" <<'PY'

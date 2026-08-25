@@ -6,13 +6,23 @@
 # cron cadence 6/h x 24 h = 144 GETs per day, plus one token POST per ~10 h
 # and one HEAD per daemon lifetime, for SOAK_DAYS days (default 7). Rung 8
 # ran with a flat 200 and was cut off at 33 h of a "several days" intent.
+#
+# The soak runs a frozen copy of the binary, `runs/soak/acq`, so the tree
+# can be rebuilt while the daemon lives (the precondition forbids rebuilding
+# the binary a live daemon was spawned from; the version handshake cannot
+# see it). Freeze it at the start: `cp target/debug/acq runs/soak/acq`.
 set -u
 DIR="$(cd "$(dirname "$0")/.." && pwd)"
-SOAK_DAYS="${SOAK_DAYS:-7}"
+ACQ="$DIR/runs/soak/acq"
+SOAK_DAYS="${SOAK_DAYS:-2}"
 CEILING=$(( SOAK_DAYS * 144 + SOAK_DAYS * 3 + 10 ))
 export ACQ_GGG=1 ACQ_TRIPWIRE=1 ACQ_MAX_SENDS="$CEILING" ACQ_IDLE_SHUTDOWN=604800
 TS="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-OUT="$("$DIR/target/debug/acq" characters --json 2>&1)"
+if [ ! -x "$ACQ" ]; then
+    printf '%s rc=127 NOBINARY %s\n' "$TS" "$ACQ" >> "$DIR/runs/soak/runs.log"
+    exit 127
+fi
+OUT="$("$ACQ" characters --json 2>&1)"
 RC=$?
 LINE="$(printf '%s' "$OUT" | python3 -c '
 import json,sys
