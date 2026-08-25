@@ -140,6 +140,8 @@ One row per rung execution. Journal files are copied to
 
 | 2026-08-25 | 8 re-soak (first tick) | `fe249193` | **no sends; stopped before start** | 0/0/0 | 0 | cron's first tick at 14:30Z lazy-spawned the daemon (pid 13589) under cron's context; macOS Keychain refused (`User interaction is not allowed`), so it came up with no session and the run failed "not logged in" before any send. Rail 7 surfaced it in `daemon status`. Rung 8's daemon had been spawned from a terminal and outlived the whole run, so this never showed. Fix: `ACQ_NO_SPAWN=1` in `soak-run.sh` (cron can only talk to a daemon a person started); the stored refresh token was never read and is intact. |
 
+| 2026-08-25 | 8 re-soak | `a7873d21` (frozen `runs/soak/acq`) | **running** from 2026-08-25T14:33:40Z | 1/1/1 at start | 0 | pid 14571 spawned from a terminal (keyring ok), then cron every 10 min with `ACQ_NO_SPAWN=1`; ceiling 304 (`SOAK_DAYS=2`); planned: overnight sleeps spanning token expiry (R8), one deliberate `daemon stop` + terminal respawn on day 2; evaluate with `tools/soak-check.sh 2026-08-25T14:33:40Z`; ends ~2026-08-27 morning |
+
 ### Rung 8 postmortem (2026-08-24), in three lines
 
 The daemon was restarted 7 s after `529bdd92` was committed but `cargo
