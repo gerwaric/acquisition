@@ -67,6 +67,14 @@ What a real consumer needed from the protocol and did not get. Facts, not decisi
 - **The denominator grows.** Children exist only once their parent runs, so progress reads "0/1" and then "8/8"; a deep pull grows again when each map/unique tab lands. Any progress UI must expect the tree to widen while it watches. A property, not a change request.
 - **Nameless substashes.** Map/unique substashes carry an empty `name` (map ones have `metadata.map.name`); a frontend labels them `parent/id`. Tab identity for a substash is `(parent, id)`. Client-side; the returned JSON is not to be changed.
 
+- **Partial pulls are discarded.** Rung 10 (2026-08-24) fetched 240 of
+  322 tabs before a server 503 halted the daemon; `pull` wrote no snapshot
+  and the rerun refetches everything. A consumer wants to keep what landed
+  (per-tab results are already per-job) and refetch only the failed set —
+  which also needs the daemon to leave never-sent children resumable
+  rather than failing them on a rails halt. Both client-side and daemon-side;
+  the daemon half is a decision for the owner.
+
 ## Open topics
 
 - **Persistence — two questions, not one.** (1) *Job persistence* (queue + outcomes surviving disconnect/restart): daemon-owned, shape already decided (SQLite job table), timing deferred; now has a real frontend requirement (results finished while the client was away). (2) *Data persistence* (items, tabs, buyouts, search state — the app's model): undecided whether the daemon owns it or each frontend does. Daemon-owned means one store shared by GUI/CLI/MCP and one refresh, but every item-model decision becomes a protocol decision and the daemon becomes an application server rather than the GGG traffic owner. Deferred until the first GUI consumer shows whether it wants items *from the daemon* or from its own store fed by jobs. `acq pull`'s client-side snapshot is a prototype of the frontend-owned answer. Neither question changes `JobInfo.params` (input, stored verbatim either way); only result *shape* could be affected.
