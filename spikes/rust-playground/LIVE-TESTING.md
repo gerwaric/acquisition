@@ -170,10 +170,15 @@ Rung 10 halted on a server-side 503 with the account at zero hits (see
 postmortem); the 360 s post-violation wait has elapsed. Pending, owner's
 order:
 
-- **Rung 10 rerun** on a fresh daemon: `acq daemon stop`, then
-  `acq daemon reset-tripwire` (the trip is persisted per provider and a
-  new daemon honours it), ceiling 332 from the listed count. The 503's tab (`7b05e6f78d`) is the one to watch: if it 503s
-  again the fault is tab-specific, otherwise it was transient.
+- **Rung 10 rerun** on a fresh daemon built from the post-rung code
+  (partial snapshots, the ceiling guard, `shape` on 403/503 journal lines;
+  verify `acq --version`): `acq daemon stop`, then `acq daemon
+  reset-tripwire` (the trip is persisted per provider and a new daemon
+  honours it), ceiling 332 from the listed count. Two things to watch: the
+  503's tab (`7b05e6f78d`) — again means tab-specific, otherwise transient
+  — and whether any 503 lands on the *first send after a 300 s hold*
+  again, which would point at a stale keep-alive connection rather than
+  the server, and at a pool idle timeout as the fix.
 - **Re-soak** on the verified binary, ceiling from cadence × duration, HEAD
   condition per `(pid, route)`; collects the first live `wait_ms` baseline.
 - **Ground truth:** author the openresty-503 observation as a new claim

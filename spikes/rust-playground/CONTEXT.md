@@ -67,13 +67,15 @@ What a real consumer needed from the protocol and did not get. Facts, not decisi
 - **The denominator grows.** Children exist only once their parent runs, so progress reads "0/1" and then "8/8"; a deep pull grows again when each map/unique tab lands. Any progress UI must expect the tree to widen while it watches. A property, not a change request.
 - **Nameless substashes.** Map/unique substashes carry an empty `name` (map ones have `metadata.map.name`); a frontend labels them `parent/id`. Tab identity for a substash is `(parent, id)`. Client-side; the returned JSON is not to be changed.
 
-- **Partial pulls are discarded.** Rung 10 (2026-08-24) fetched 240 of
-  322 tabs before a server 503 halted the daemon; `pull` wrote no snapshot
-  and the rerun refetches everything. A consumer wants to keep what landed
-  (per-tab results are already per-job) and refetch only the failed set —
-  which also needs the daemon to leave never-sent children resumable
-  rather than failing them on a rails halt. Both client-side and daemon-side;
-  the daemon half is a decision for the owner.
+- **A rails halt fails never-sent children.** Rung 10 (2026-08-24): a
+  server 503 tripped the tripwire with 82 children queued; all failed
+  without a send, so the rerun refetches all 322 tabs. The client half is
+  done — `pull` keeps what landed (`errors` + `refresh_error` in the
+  snapshot; built 2026-08-24). What remains is daemon-side and the owner's:
+  should a halt leave queued jobs *waiting* (resumable after
+  `reset-tripwire`, but a halted daemon then never idles out)? The larger
+  saving — refetching only the failed set — is the deferred
+  delta/selection gap, not a halt question.
 
 ## Open topics
 
