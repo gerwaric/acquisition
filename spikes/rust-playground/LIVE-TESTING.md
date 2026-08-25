@@ -49,7 +49,9 @@ what bounds them:
 | `profile` job | `acq submit profile` | fake-data kind that is **not** refused in real mode and calls `valid_access_token` → a real token POST | **R6** |
 
 Risks found (none is a bug against the accepted N0–N6 contract; all are
-gaps between "correct" and "safe to run unattended against GGG"):
+gaps between "correct" and "safe to run unattended against GGG"). Status:
+R1 resolved (L0-R13); R2–R7 answered by rails 1 and 3–7 below; R8 fixed in
+`529bdd92` and observed live once (rung 8 postmortem).
 
 - **R1 — dead refresh token is retried per flight.** A non-429 refresh
   failure (e.g. `400 invalid_grant` after revocation) ends the flight but
@@ -60,11 +62,8 @@ gaps between "correct" and "safe to run unattended against GGG"):
   job opens a flight. Paced by N33 once learned, so not a violation, but
   pointless traffic on a Cloudflare-fronted endpoint. (`daemon.rs`
   `finish_refresh`; `auth.rs` `token_request` collapses status, body, and
-  JSON failures into one string.) **Rails-conditional (2026-08-24):**
-  rail 2 fixes this only while the tripwire is armed; with rails off — the
-  shipped default — the product still re-sends the dead grant. Resolved for
-  the ladder, not for the product, until rail 2 became default behavior
-  the same day (L0-R13). Same for L0-R5.
+  JSON failures into one string.) Resolved 2026-08-24: a rejected grant is
+  terminal by default (L0-R13; CONTEXT.md decision).
 - **R2 — no global violation budget.** `Limiter::violations` is counted and
   never consulted. With a mis-modeled policy, a 50-child fan-out can burn
   up to 150 violations (3 attempts each), each behind a hold but each a
@@ -109,9 +108,9 @@ Status: `built` and reviewed. Build range `7be3e7a9..2aa83f4d`; the
 independent read-only review (question: *can any change add a send or
 delay a halt?*) returned `changes-requested` with 4 Medium and 8 Low
 findings, recorded in the L0 review register below and fixed in
-`d7149374`. No re-review has been run. No semantic change to gate, limiter, OAuth,
-classification, retry, or dispatcher behavior under default settings; the
-rails only refuse or record.
+`d7149374`. No semantic change to gate, limiter, OAuth, classification,
+retry, or dispatcher behavior under default settings; the rails only
+refuse or record.
 
 Rail lifetime, decided up front so a later reader can tell scaffolding from
 design: rails 3, 4, and 7 are **permanent** (ordinary hygiene); rails 1
@@ -178,8 +177,7 @@ ladder-only until 2026-08-24 and is now **product behavior** (L0-R13).
 
 Required tests: each rail has a deterministic test against the mock and the
 existing fake-clock/localhost harness, with rails 1, 2, and 5 forced on;
-the existing suite (including the N6 stress, which at the time produced 429s — a clock-mismatch artifact, see `TESTING-NOTES.md`) passes
-unchanged with rails 1, 2, and 5 off; a tripped daemon sends nothing on a
+the existing suite passes unchanged with rails 1 and 5 off; a tripped daemon sends nothing on a
 queued job. Quality gates from `NETWORK-CLEANUP.md` stay green.
 
 ### L0 review register
@@ -198,7 +196,7 @@ queued job. Quality gates from `NETWORK-CLEANUP.md` stay green.
 | L0-R10 | Low | `reset-tripwire` against a stopped daemon left the persisted trip | the CLI clears the provider's state file directly and says so |
 | L0-R11 | Low | Per-job refusals could evict the trip cause from the error ring | per-job refusal goes to the file log only |
 | L0-R12 | Low | Persisted refresh-failed cause contained the token-endpoint body | persisted cause is `HTTP <status>` plus a fixed reason; the body stays in the log only |
-| L0-R13 | Medium | R1 and L0-R5 are **rails-conditional**: their fixes live in opt-in rail 2, so a rails-off daemon still re-sends a dead grant per flight (found by the register walk, `TESTING-NOTES.md` surprise 12) | dead-grant-is-terminal recorded as a CONTEXT.md decision 2026-08-24 and rail 2 promoted to default: `mark_refresh_failed` and the persisted mark no longer depend on the tripwire; `rejected_refresh_grant_disables_further_refreshes_until_login_or_logout` now runs rails-off |
+| L0-R13 | Medium | R1 and L0-R5 are **rails-conditional**: their fixes live in opt-in rail 2, so a rails-off daemon still re-sends a dead grant per flight (found by the register walk, `TESTING-NOTES.md`) | dead-grant-is-terminal recorded as a CONTEXT.md decision 2026-08-24 and rail 2 promoted to default: `mark_refresh_failed` and the persisted mark no longer depend on the tripwire; `rejected_refresh_grant_disables_further_refreshes_until_login_or_logout` now runs rails-off |
 
 Clean per the review: `note_lost_send` is never less conservative; the
 dead-token mark cannot fire on the code exchange; the fast path precedes
@@ -225,6 +223,7 @@ rung in the run ledger.
 | 7 | `acq refresh --tabs …` (≈10 tabs) over several minutes | 0–1/0/11; pacing engages; zero 429 | 16 | any 429 |
 | 7b | `acq refresh --tabs …` (18 tabs, > 15-per-10 s) | 1/2/19; the limiter holds before the 16th child; zero 429 | 24 | any 429; no hold observed |
 | 8 | soak: one daemon with `ACQ_IDLE_SHUTDOWN` ≥ 1 day; `acq characters` every 10 min by cron for several days | 1 POST per ~10 h, 1 HEAD per route per daemon lifetime, 1 GET per run; stable headers | 200 per lifetime | any trip; more than one HEAD per route per day; any keyring warning |
+| 10 | `acq pull --league Standard` (the first real consumer; no `--deep`) | 0–1/2/1+N with N = tabs listed (261 on the test account at rung 4); `stash-request-limit` is 30 per 300 s, so expect ~9 holds of up to 5 min and a wall clock near 45 min; zero 429; snapshot written; a second run reports no changes with the same send count | N + 10 | any 429; any reported window state with hits > max; a snapshot missing tabs the list reported without an error recorded for them |
 
 Rung 8 mechanics: `tools/soak-run.sh` is the cron body (sets the rails
 env itself so a respawned daemon keeps them, runs one `acq characters`,
@@ -304,8 +303,8 @@ future soak should derive the ceiling from cadence × intended duration, and
 express the HEAD condition per `(pid, route)` (the journal records `pid`),
 which is meaningful in both the pinned and restarting shapes.
 
-The fix is now built and `cargo test` passes (87), but it has still never
-executed against GGG.
+The fix is built and under test, but it has still never executed against
+GGG.
 
 ## Review history
 
@@ -326,3 +325,6 @@ GGG. The next live run is a re-soak on the built binary: `acq --version`
 equals `git rev-parse --short=12 HEAD` with no `-dirty`; ceiling derived
 from cadence × intended duration; HEAD condition per `(pid, route)`. It
 also collects the first live `wait_ms` baseline (`TESTING-NOTES.md`).
+Rung 10 (`acq pull`) can run before or after it; it is the first live run
+that exercises the 300 s window repeatedly, so its ceiling and duration
+are derived above, not guessed.

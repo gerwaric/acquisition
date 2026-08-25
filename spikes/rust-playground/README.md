@@ -42,19 +42,14 @@ bounded by `MAX_429_RETRIES`; a Cloudflare-shaped 403/503 is never retried.
   network cleanup: accepted ranges, findings, and the quality-gate baseline
   every later change keeps green.
 - `crates/acquisition-core` — protocol types, job model, header-driven rate
-  limiter + choke point, the mock provider, and the daemon itself (priority
-  queue + dispatcher + Unix-socket server + idle watchdog). The dispatcher
-  keeps at most one active job task per scheduling key to preserve priority
-  and FIFO, with no global job-task cap; pacing/auth waits do not block
-  independent keys. The P-B/N33 bound is one common gate inside the choke point,
-  held for the lifetime of every daemon-owned API, HEAD, code-exchange, and
-  refresh request. Token traffic serializes under `oauth-token` before its
-  policy is learned and `token-request-limit` afterward. Authentication
-  finishes before an API request takes its final permit; browser authorize
-  stays outside because the user's browser owns that navigation.
+  limiter + choke point (`ratelimit.rs`, `gate.rs`), the mock provider
+  (`mockggg.rs`), live-test rails (`rails.rs`), and the daemon itself
+  (priority queue + dispatcher + Unix-socket server + idle watchdog). The
+  gate and dispatcher properties are CONTEXT.md decisions, not restated here.
 - `crates/acquisition-cli` — the `acq` binary. Thin: clap parsing, a small
-  protocol client, output formatting. The daemon is reached via the hidden-ish
-  `acq daemon run` subcommand, which is what lazy spawn execs.
+  protocol client, output formatting, and `pull.rs` — the first real
+  consumer (snapshot + diff, client-side). The daemon is reached via the
+  hidden-ish `acq daemon run` subcommand, which is what lazy spawn execs.
 
 ## Try it
 
@@ -156,10 +151,11 @@ on the command that spawns it, or `acq daemon stop` first:
 
 `acq daemon status` prints the rails state; `acq dash` shows a halt in red.
 
+`ACQ_MOCK_DEGRADED_HEAD=1` makes the mock reproduce the Dec-2023 HEAD
+regression (N20) so the degraded path can be exercised.
+
 ## Known gaps
 
-- **`ACQ_MOCK_DEGRADED_HEAD=1`** makes the mock reproduce the Dec-2023
-  regression (N20) so the degraded path can be exercised.
 - **Pull has no delta/selection smarts.** `--all` fetches every listed
   tab every time; the real API's `metadata.items` counts on substash stubs
   (free) plus the previous snapshot are the obvious lever for skipping,

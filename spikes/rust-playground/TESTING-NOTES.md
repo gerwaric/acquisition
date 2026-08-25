@@ -99,7 +99,10 @@ rather than from the code:
 | no send answered 429; every reported window state `hits ≤ max` with no restriction active (`assert_never_over_the_limit`) | N4/N25 | never over the limit — real only against a counting mock; runs in the N6 stress |
 
 Each has been broken deliberately and seen to fail (the 401 rule excepted,
-noted above). The pacing rule is the first assertion here loose enough to
+noted above). Reading note: a pre-emptive hold appears as `wait_ms` on
+exactly the send that was held and as ETA on every job behind it; the
+sends released after it read 0. A column of zeros with one large value
+is the expected shape, not a broken column (misread once, 2026-08-24). The pacing rule is the first assertion here loose enough to
 survive a rewrite and tight enough to have a breaker on each side. Its
 "otherwise `wait_ms == 0`" arm is a scripted-server property: against a
 counting mock the limiter holds *before* a violation, so that arm does not
@@ -140,10 +143,11 @@ goal function and stays human-run.
 
 ## What a rewrite keeps
 
-Sorting the 88 tests by what they need from a daemon:
+Sorting the tests (95 at `9d5f3b62`) by what they need from a daemon:
 
-- **Component unit tests** (limiter 40, gate 7, rails 9, auth 2) survive
-  with the component and vanish with it. The limiter's are its spec.
+- **Component unit tests** (limiter 40, gate 7, rails 9, auth 2; the
+  CLI's 7 for `pull`'s diff and snapshot store) survive with the component
+  and vanish with it. The limiter's are its spec.
 - **The journal invariants and the R8 scenario** need only a driving
   surface of about five calls: construct a daemon with a base URL, a
   clock, and a credential store; submit a job; await it terminal; read the
