@@ -624,6 +624,59 @@ believes an expired token is still valid) more dangerous than its
 request count suggests. Whether GGG also counts a 401 against the
 route's own policy counter is Q11.
 
+### Live-testing claims — rung 10 (August 25, 2026)
+
+Observed while the Rust daemon on branch `spikes/rust-playground` pulled
+the full Standard stash (322 tabs, 18 072 items) against the live API;
+the runs are recorded as rung 10 in that branch's `LIVE-TESTING.md`.
+Journals, daemon logs, and the 503 body are retained in that branch's
+`runs/2026-08-24-r10/`, `runs/2026-08-24-r10b/`, and
+`runs/2026-08-25-r10c/` (gitignored, on disk).
+
+**N35. The origin can answer a compliant request with an HTTP 503 that
+carries no rate-limit headers and is not Cloudflare-shaped.** [OBSERVED
+— High; one occurrence, August 25, 2026]
+At 2026-08-25T02:54:04Z, GET `/stash/Standard/7b05e6f78d` returned
+`503 Service Unavailable` with no `X-Rate-Limit-*` headers at all (the
+send journal recorded `rate: {}`) and an HTML body `503 Service
+Temporarily Unavailable` signed `openresty` — no `cloudflare` string,
+no Ray ID, no error 1015 (`runs/2026-08-24-r10/job-243-503.json` holds
+the body). The account was at 0 hits in both `stash-request-limit`
+windows: it was the first send after a 343 s hold, and the previous
+response had read `15:10:0,30:300:0`. The same tab, in the same
+position (first send after a hold), answered 200 on the two later runs
+of the same pull, so the 503 was transient, not tab-specific.
+
+This extends the recognition surface of N3 and N28: a 5xx exists that
+is neither a Cloudflare block nor a policy 429, so a client cannot treat
+"5xx without rate-limit headers" as layer-1 evidence. As with N34, a
+limiter fed from response headers learns nothing from it and must carry
+its own accounting forward. Whether the rate-limit middleware counted
+the request is unknown — there were no headers to say — so the
+conservative reading is that it did (the spike counts it). Whether a
+503 spends the invalid-request budget of N27 is unknown; that budget is
+documented as 4xx-only.
+
+**N36. `veiledMods` is volatile: its placeholder ids are re-randomized
+per fetch, so the field differs between two pulls of an unchanged
+stash.** [OBSERVED — High; one pair of samples, August 25, 2026]
+Two full pulls of the same 322-tab Standard stash, at
+2026-08-25T04:37Z and 2026-08-25T12:20Z with nothing touched in between,
+differed in exactly one item field across the 18 072 items in each:
+`veiledMods` on 10 items, with values such as `["Prefix04","Suffix06"]`
+→ `["Prefix03","Suffix03"]` and `["Prefix06"]` → `["Prefix01"]`. No
+other field on any item changed, and no tab or item was added, removed,
+or moved. Snapshots: the branch's `runs/2026-08-24-r10b/` and
+`runs/2026-08-25-r10c/` (the snapshot JSON files themselves live under
+`~/.local/share/acquisition-playground/snapshots/ggg/Standard/`).
+
+Consequence: a consumer that diffs two snapshots to detect stash changes
+must ignore `veiledMods`, or it reports phantom changes on every pull;
+the spike's pull diff now does so. More generally, "the payload differs"
+is not evidence that the stash changed, and any future change-detection
+or conditional-fetch design should assume other fields may prove
+volatile until a wider sample says otherwise.
+
 ## Open questions
 
 - **Q1. HEAD sanction verbatim. RESOLVED July 18, 2026** — Tom
