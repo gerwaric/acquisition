@@ -167,6 +167,10 @@ real API under the ladder rules. Every rough edge it finds is a fact about
 what the daemon's internals need to be, which is the input a
 rearchitecture needs. Alongside, at no dev cost: the re-soak below.
 
+Started 2026-08-24: `acq pull` (CLI-side snapshot + diff over the existing
+verbs); its findings are in `CONTEXT.md` under "Frontend boundary findings".
+Not yet run live.
+
 Done 2026-08-24, closing the register's open items: rail 2 promoted to
 product behavior (L0-R13, `ee5131e0`); `mockggg` on the `Clock` with
 never-over-the-limit asserted in the N6 stress (`7762d967`).

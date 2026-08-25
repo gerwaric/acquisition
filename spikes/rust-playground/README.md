@@ -72,12 +72,14 @@ acq characters                               # auth-required; GET /character aga
 acq stashes --league Standard                # GET /stash/{league}: a second policy, runs in parallel
 acq stash <id> [--sub <id>] [--deep]         # one tab; --deep follows a map/unique tab's substashes as child jobs
 acq refresh --tabs a,b,c | --all [--deep]    # list, then one `stash` child per tab; parent finishes last
+acq pull [--league L] [--deep] [--dir D]     # the real consumer: refresh --all, snapshot to disk, diff vs the previous pull
+                                             # ($ACQ_SNAPSHOTS or ~/.local/share/acquisition-playground/snapshots)
 acq cancel <parent-id>                       # cascades to every descendant still waiting
 acq auth logout                              # drops session + keyring entry
 acq submit sleep --params '{"seconds": 5}'   # blocks with progress; daemon lazy-spawns
 acq demo                                     # burst of 8 fetch jobs against the mock's 5-per-10s policy; watch ETAs
 acq submit fetch --detach                    # job mode: returns id immediately
-acq jobs                                     # job table with ETAs
+acq jobs                                     # job table with targets (from params) and ETAs
 acq jobs --watch                             # subscribe to job-state-changed events
 acq dash                                     # live TUI: rate limits, jobs, HTTP sends, errors
                                              # (enter expands a rate-limit policy: bucket state,
@@ -158,9 +160,14 @@ on the command that spawns it, or `acq daemon stop` first:
 
 - **`ACQ_MOCK_DEGRADED_HEAD=1`** makes the mock reproduce the Dec-2023
   regression (N20) so the degraded path can be exercised.
-- **Refresh has no delta/selection smarts.** `--all` fetches every listed
-  tab; the real API's `metadata.items` counts on substash stubs (free) are
-  the obvious lever for skipping, not used yet.
+- **Pull has no delta/selection smarts.** `--all` fetches every listed
+  tab every time; the real API's `metadata.items` counts on substash stubs
+  (free) plus the previous snapshot are the obvious lever for skipping,
+  not used yet. A killed `pull` leaves its refresh running in the daemon;
+  the next `pull` with the same arguments reattaches to it while the
+  daemon lives (`inflight.json` in the league's snapshot dir). Results
+  that finish after the daemon idles out are lost — job persistence,
+  deferred (CONTEXT.md).
 - **The mock does not simulate timing-bucket quantization** (N11–N12); the
   limiter pads for it regardless.
 - **The mock reports an active restriction on every window of the rule,**

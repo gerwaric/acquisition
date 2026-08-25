@@ -1,5 +1,6 @@
 mod client;
 mod dash;
+mod pull;
 
 use std::io::Write as _;
 use std::time::Duration;
@@ -73,6 +74,19 @@ enum Cmd {
         deep: bool,
         #[arg(long, default_value = "Standard")]
         league: String,
+    },
+    /// Pull every stash tab in a league, snapshot it, and diff against the
+    /// previous pull. The first real consumer of the daemon.
+    Pull {
+        #[arg(long, default_value = "Standard")]
+        league: String,
+        /// Also follow map/unique substashes (one child job each).
+        #[arg(long)]
+        deep: bool,
+        /// Snapshot directory (default: $ACQ_SNAPSHOTS or
+        /// ~/.local/share/acquisition-playground/snapshots).
+        #[arg(long)]
+        dir: Option<std::path::PathBuf>,
     },
     /// Submit a job (kinds: sleep, fetch, profile, characters, stashes, stash, refresh).
     Submit {
@@ -218,6 +232,11 @@ async fn main() -> Result<()> {
             )
             .await?;
             block_on_job(&mut client, id, cli.json).await
+        }
+        Cmd::Pull { league, deep, dir } => {
+            let mut client = Client::connect(true).await?;
+            let dir = dir.unwrap_or_else(pull::default_dir);
+            pull::run(&mut client, &league, deep, &dir, cli.json).await
         }
         Cmd::Submit {
             kind,
@@ -618,8 +637,8 @@ fn print_table(jobs: &[JobInfo]) {
         return;
     }
     println!(
-        "{:>4}  {:>6}  {:<10}  {:<10}  {:>4}  {:<12}  eta",
-        "id", "parent", "kind", "state", "prio", "by"
+        "{:>4}  {:>6}  {:<10}  {:<22}  {:<10}  {:>4}  {:<12}  eta",
+        "id", "parent", "kind", "target", "state", "prio", "by"
     );
     for job in jobs {
         let eta = job
@@ -627,10 +646,11 @@ fn print_table(jobs: &[JobInfo]) {
             .map(|s| format!("~{s}s"))
             .unwrap_or_default();
         println!(
-            "{:>4}  {:>6}  {:<10}  {:<10}  {:>4}  {:<12}  {}",
+            "{:>4}  {:>6}  {:<10}  {:<22}  {:<10}  {:>4}  {:<12}  {}",
             job.id,
             job.parent.map(|p| p.to_string()).unwrap_or_default(),
             job.kind,
+            job.target(),
             if job.retries > 0 {
                 format!("{} ↻{}", job.state, job.retries)
             } else {

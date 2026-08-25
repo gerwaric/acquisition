@@ -52,11 +52,46 @@ pub struct JobInfo {
     pub eta_seconds: Option<u64>,
     /// The job that submitted this one (a refresh's tabs, a deep tab's
     /// substashes). A parent finishes when its last descendant does.
-    #[serde(default)]
     pub parent: Option<JobId>,
     /// Times this job has been put back in the queue after a 429.
-    #[serde(default)]
     pub retries: u32,
+    /// What the job was submitted with, verbatim. Public: every connected
+    /// client sees it, so a job's params must never carry a secret (tokens
+    /// are fetched inside the daemon, never passed in). This is what makes
+    /// a queued job identifiable to a person — the prerequisite for any
+    /// queue-management UI — and what lets a client label a failed child.
+    pub params: Value,
+}
+
+impl JobInfo {
+    /// A short human label for what the job targets, derived from its
+    /// params: `Standard/cur1`, `Standard/maps/m003`, `Standard (all)`.
+    /// Rendering is the client's business; this is the one shared default.
+    pub fn target(&self) -> String {
+        let p = &self.params;
+        let s = |k: &str| p.get(k).and_then(Value::as_str);
+        match self.kind.as_str() {
+            "stash" => match (s("league"), s("id"), s("sub")) {
+                (Some(l), Some(id), Some(sub)) => format!("{l}/{id}/{sub}"),
+                (Some(l), Some(id), None) => format!("{l}/{id}"),
+                _ => String::new(),
+            },
+            "stashes" => s("league").unwrap_or("").to_string(),
+            "refresh" => {
+                let l = s("league").unwrap_or("");
+                if p.get("all").and_then(Value::as_bool).unwrap_or(false) {
+                    format!("{l} (all)")
+                } else {
+                    format!(
+                        "{l} ({} tabs)",
+                        p.get("tabs").and_then(Value::as_array).map_or(0, Vec::len)
+                    )
+                }
+            }
+            "probe" => s("route").unwrap_or("").to_string(),
+            _ => String::new(),
+        }
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

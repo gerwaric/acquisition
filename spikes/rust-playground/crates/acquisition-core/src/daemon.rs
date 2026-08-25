@@ -454,6 +454,7 @@ impl Daemon {
                 eta_seconds: None,
                 parent,
                 retries: 0,
+                params: params.clone(),
             };
             s.jobs.insert(
                 id,

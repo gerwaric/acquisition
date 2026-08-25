@@ -74,8 +74,6 @@ pub enum Response {
         daemon_version: String,
         pid: u32,
         /// "mock" or "ggg"; clients respawn a daemon running the wrong mode.
-        /// Defaulted so a pre-provider daemon parses as a mismatch, not an error.
-        #[serde(default)]
         provider: String,
     },
     Submitted {
@@ -105,13 +103,11 @@ pub enum Response {
         /// "ok" or an error description; sessions still work in-memory when
         /// the keyring is unavailable.
         keyring: String,
-        #[serde(default)]
         provider: String,
     },
     DaemonStatus {
         pid: u32,
         version: String,
-        #[serde(default)]
         provider: String,
         uptime_seconds: u64,
         connections: usize,
@@ -122,11 +118,9 @@ pub enum Response {
         in_flight: usize,
         max_in_flight: usize,
         /// Live-test rails state (tripwire, ceiling, journal).
-        #[serde(default)]
         rails: RailsStatus,
         /// "ok" or the keyring failure; a failed save after refresh-token
         /// rotation leaves the session memory-only (LIVE-TESTING.md R7).
-        #[serde(default)]
         keyring: String,
     },
     Stopping,
@@ -152,7 +146,6 @@ pub enum Response {
         jobs: Vec<JobInfo>,
         /// Newest first.
         sends: Vec<SendRecord>,
-        #[serde(default)]
         rails: RailsStatus,
         /// Newest first.
         errors: Vec<ErrorRecord>,

@@ -14,6 +14,8 @@ use tokio::net::unix::{OwnedReadHalf, OwnedWriteHalf};
 pub struct Client {
     lines: Lines<BufReader<OwnedReadHalf>>,
     write: OwnedWriteHalf,
+    /// "mock" or "ggg", as the daemon reported in its handshake.
+    provider: String,
 }
 
 impl Client {
@@ -46,6 +48,7 @@ impl Client {
                         bail!("unexpected handshake response: {hello:?}");
                     };
                     if daemon_version == VERSION && provider == want_provider {
+                        client.provider = provider;
                         return Ok(client);
                     }
                     if respawned {
@@ -83,6 +86,7 @@ impl Client {
         Client {
             lines: BufReader::new(read).lines(),
             write,
+            provider: String::new(),
         }
     }
 
@@ -117,6 +121,10 @@ impl Client {
             Response::Error { message } => bail!("{message}"),
             other => bail!("unexpected response: {other:?}"),
         }
+    }
+
+    pub fn provider(&self) -> &str {
+        &self.provider
     }
 
     pub async fn status(&mut self, id: u64) -> Result<JobInfo> {

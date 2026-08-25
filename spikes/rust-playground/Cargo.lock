@@ -10,6 +10,7 @@ dependencies = [
  "anyhow",
  "clap",
  "ratatui",
+ "serde",
  "serde_json",
  "tokio",
 ]
