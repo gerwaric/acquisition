@@ -837,3 +837,6 @@ install(TARGETS acquisition
     RUNTIME DESTINATION bin
     COMPONENT applications
 )
+
+install(FILES acquisition.desktop
+        DESTINATION share/applications/)
