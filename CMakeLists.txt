@@ -832,3 +832,8 @@ add_custom_command(TARGET acquisition POST_BUILD
 if(BUILD_TESTING)
     add_subdirectory(tests)
 endif()
+
+install(TARGETS acquisition
+    RUNTIME DESTINATION bin
+    COMPONENT applications
+)
