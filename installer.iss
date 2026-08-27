@@ -77,8 +77,13 @@ MinVersion=10.0
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
-Name: "vc_redist"; Description: "Update/Install Microsoft Visual C++ 2015-2022 Runtime";
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; Flags: unchecked
+
+[InstallDelete]
+; Remove unsupported app-local MSVC runtime files left by older or manual installs.
+Type: files; Name: "{app}\msvcp140*.dll"
+Type: files; Name: "{app}\vcruntime140*.dll"
+Type: files; Name: "{app}\concrt140.dll"
 
 [Files]
 Source: "{#DEPLOY_DIR}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
@@ -89,5 +94,5 @@ Name: "{autoprograms}\{#APP_NAME}"; Filename: "{app}\{#APP_NAME}.exe"
 Name: "{autodesktop}\{#APP_NAME}"; Filename: "{app}\{#APP_NAME}.exe"; Tasks: desktopicon
 
 [Run]
+Filename: "{app}\vc_redist.x64.exe"; Parameters: "/install /quiet /norestart /log ""{tmp}\vc_redist.log"""; StatusMsg: "Installing Microsoft Visual C++ Runtime..."
 Filename: "{app}\{#APP_NAME}.exe"; Description: "{cm:LaunchProgram,{#StringChange(APP_NAME, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
-Filename: "{app}\vc_redist.x64.exe"; Parameters: "/install /passive /norestart"; Tasks: vc_redist;
