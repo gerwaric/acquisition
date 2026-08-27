@@ -33,8 +33,9 @@ bounded by `MAX_429_RETRIES`; a Cloudflare-shaped 403/503 is never retried.
 ## Layout
 
 - [`LIVE-TESTING.md`](LIVE-TESTING.md) — control document for testing against
-  the real API: preconditions, the safety rails, the staged ladder, the run
-  ledger, and the next action. Its history (blast-radius review, rails
+  the real API: preconditions, the safety rails, the staged ladder, and the
+  run ledger. **The ladder is closed (2026-08-27)**: every rung passed,
+  zero 429s across ~1,450 live sends. Its history (blast-radius review, rails
   build, review register) is in git at `9fa99459`.
 - [`TESTING-NOTES.md`](TESTING-NOTES.md) — closed record of how this
   project checks its own work: what the rung-8 soak exposed, the journal

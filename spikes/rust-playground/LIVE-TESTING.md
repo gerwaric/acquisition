@@ -140,7 +140,27 @@ One row per rung execution. Journal files are copied to
 
 | 2026-08-25 | 8 re-soak (first tick) | `fe249193` | **no sends; stopped before start** | 0/0/0 | 0 | cron's first tick at 14:30Z lazy-spawned the daemon (pid 13589) under cron's context; macOS Keychain refused (`User interaction is not allowed`), so it came up with no session and the run failed "not logged in" before any send. Rail 7 surfaced it in `daemon status`. Rung 8's daemon had been spawned from a terminal and outlived the whole run, so this never showed. Fix: `ACQ_NO_SPAWN=1` in `soak-run.sh` (cron can only talk to a daemon a person started); the stored refresh token was never read and is intact. |
 
-| 2026-08-25 | 8 re-soak | `a7873d21` (frozen `runs/soak/acq`) | **running** from 2026-08-25T14:33:40Z | 1/1/1 at start | 0 | pid 14571 spawned from a terminal (keyring ok), then cron every 10 min with `ACQ_NO_SPAWN=1`; ceiling 304 (`SOAK_DAYS=2`); planned: overnight sleeps spanning token expiry (R8), one deliberate `daemon stop` + terminal respawn on day 2; evaluate with `tools/soak-check.sh 2026-08-25T14:33:40Z`; ends ~2026-08-27 morning |
+| 2026-08-25 → 27 | 8 re-soak | `a7873d21` (frozen `runs/soak/acq`) | **pass** — 45.3 h, 2026-08-25T14:33:40Z → 2026-08-27T11:53Z | 4/2/133 = 139 (+1 transport failure) | 0 | Two lifetimes (pid 14571 from a terminal; pid 43863 after a deliberate `daemon stop` at 21:52Z day 2), cron every 10 min with `ACQ_NO_SPAWN=1`, 132 runs, ceiling 304. Every GET `1:10:0,1:300:0`; exactly one HEAD per lifetime; four token POSTs, each immediately before the GET that needed it. **R8 seen fixed live twice**: token expiry inside a 15 min sleep (10:40Z day 2, refresh at 10:50Z) and inside a **10 h sleep** (07:52Z day 3, refresh at 11:40:51Z, GET 170 ms behind it) — zero 401s. One `error sending request` at 02:59Z day 2: cron fired 9 min late out of a sleep, network not up; paced as counted, next run clean. No trip, no keyring warning. Fewer sends than the cadence × duration estimate because the closed laptop slept most of both days — which is what produced the evidence. `runs/2026-08-25-r8b/` (journal, daemon log, run log, `soak-check.txt`, `pmset` sleep/wake log) |
+
+### Re-soak postmortem (2026-08-27)
+
+What the re-soak had to show, it showed: the R8 fix live (twice, once
+across a ten-hour sleep), the HEAD condition able to fail and not failing
+across a restart, and a `wait_ms` baseline of zero on a route that never
+saturates. Three things it taught that were not on the list:
+
+- **A daemon spawned from cron has no keychain.** macOS refuses secure
+  storage to non-interactive callers; the first tick came up with no
+  session and failed before any send — rail 7 caught it. Now
+  `ACQ_NO_SPAWN=1` (README): cron only talks to a daemon a person started.
+- **"Sleep" is not one thing.** On AC, Power Nap dark-wakes the closed
+  laptop every 15–60 min and cron runs during the dark wakes; on battery
+  it sleeps for hours. Both produced expiry-spanning samples, but only
+  the battery night produced a long one. `pmset -g log` is part of the
+  evidence for any sleep claim.
+- **The first request after a wake can fail in transport** (network not
+  up). Rail 3 paces it as counted; a product consumer sees one failed
+  job. Same gap as "refetch only the failed set" (`CONTEXT.md`).
 
 ### Rung 8 postmortem (2026-08-24), in three lines
 
@@ -180,23 +200,18 @@ one send landed, nothing followed. Three things it exposed that are ours:
 - **A pull that fetched 240 of 322 tabs wrote nothing.** Partial results
   are discarded on any child failure. Recorded as a frontend finding.
 
-## Next action
+## Status: ladder closed (2026-08-27)
 
-Rung 10 is complete (2026-08-25): two full pulls, twenty 300 s holds,
-zero non-2xx, and a real-data diff that is clean once `veiledMods` is
-ignored. Pending, owner's order:
+Every rung has passed except rung 9, deferred on purpose (each attempt is
+a counted violation; rung 10's twenty holds bound the bucket well enough).
+Across the ladder: ~1,450 live sends, **zero 429s**, one transient origin
+503 (N35) handled without a retry, R8 seen fixed live, and the rails
+proven on three real incidents (the 503, a ceiling derived from a stale
+count, a keyring-blind spawn). The goal this document set — the daemon
+**halts rather than floods** — is met with evidence, and the GGG-side
+boundary is mapped to diminishing returns. No further live runs are
+planned; a new run needs a new hypothesis written here first, under the
+same preconditions and rails.
 
-- **Re-soak**, rescoped 2026-08-25 to **48 h** on a frozen binary
-  (`SOAK_DAYS=2` → ceiling 304): what it must still show is the R8 fix
-  live (two deliberate overnight sleeps spanning a token expiry — a refresh
-  POST, never a 401, on the first run after each wake) and the HEAD
-  condition across one deliberate `acq daemon stop`; plus the first live
-  `wait_ms` baseline. Seven days would have frozen the checkout for a
-  hypothesis two nights can test. Start: `cp target/debug/acq
-  runs/soak/acq`, `acq daemon stop`, then from the terminal one
-  `runs/soak/acq characters` under the soak's rails env (this spawns the
-  daemon with keychain access), install the cron line, note the start
-  timestamp in the ledger; `tools/soak-check.sh <start>` daily. After the
-  deliberate `daemon stop`, respawn the same way — cron will not.
-- ~~Ground truth~~ — done: N35 (origin 503 shape) and N36 (`veiledMods`
-  volatile) are on master (`44909c22`) and cherry-picked here.
+The frontier is the frontend boundary (`CONTEXT.md`, "Frontend boundary
+findings" and the persistence open topic).
