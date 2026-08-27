@@ -16,6 +16,7 @@ project(acquisition
 )
 
 include(CTest)
+include(GNUInstallDirs)
 
 # Use this to define pre-releases
 set(app_version_suffix "")
@@ -828,6 +829,31 @@ add_custom_command(TARGET acquisition POST_BUILD
     COMMAND_EXPAND_LISTS
     VERBATIM
 )
+
+# Install the application and the Crashpad handler it launches at runtime.
+install(TARGETS acquisition
+    BUNDLE DESTINATION . COMPONENT Runtime
+    RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT Runtime
+)
+
+if(APPLE)
+    install(PROGRAMS "$<TARGET_FILE:crashpad_handler>"
+        DESTINATION "acquisition.app/Contents/MacOS"
+        COMPONENT Runtime
+    )
+else()
+    install(PROGRAMS "$<TARGET_FILE:crashpad_handler>"
+        DESTINATION "${CMAKE_INSTALL_BINDIR}"
+        COMPONENT Runtime
+    )
+endif()
+
+if(UNIX AND NOT APPLE)
+    install(FILES acquisition.desktop
+        DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/applications"
+        COMPONENT Runtime
+    )
+endif()
 
 if(BUILD_TESTING)
     add_subdirectory(tests)
