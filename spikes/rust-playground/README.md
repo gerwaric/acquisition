@@ -8,9 +8,14 @@ understandability) no matter how complete it gets, and a fully operational
 CLI is still evidence, not a promotion. It may become the real
 implementation, or a fresh build may replace it — judged by the same tests
 and the same live ladder. The limiter's behavior is fully specified
-(`ratelimit.rs` test tables, keyed to ground truth); the daemon's is still
-being mapped at its two boundaries, GGG and the frontends. Tests pin
-behavior at those boundaries, never mechanisms.
+(`ratelimit.rs` test tables, keyed to ground truth). Of the daemon's two
+boundaries, the **GGG side is proven**: the live ladder closed on
+2026-08-27 with every rung passed and zero 429s across ~1,450 real sends
+(`LIVE-TESTING.md`), and the send journal is its contract surface. The
+**frontend side is the frontier**: one consumer (`acq pull`) has run
+against real data and left its findings in `CONTEXT.md`; the protocol is
+not yet pinned, and the persistence questions wait for a second consumer.
+Tests pin behavior at those boundaries, never mechanisms.
 
 **By default nothing
 here talks to GGG**: job kinds are fakes (`sleep`, `fetch`, `profile`),
