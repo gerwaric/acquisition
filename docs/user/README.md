@@ -38,6 +38,9 @@ Acquisition is neither affiliated with nor endorsed by Grinding Gear Games.
 
 ## A note on this guide
 
+This guide first shipped with Acquisition 0.18.5 and is new; earlier versions
+had no user documentation, so expect gaps.
+
 Menu and dialog names are quoted exactly as they appear in the
 application. If something here disagrees with the program, the program wins —
 please open an issue so the page can be corrected.

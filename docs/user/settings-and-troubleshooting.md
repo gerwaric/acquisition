@@ -73,7 +73,7 @@ options from the login window and the menus.
 | *No forum threads have been set* | Set a thread under **Shop → Forum shop thread…** |
 | *POESESSID has not been set* / rejected | Enter a fresh cookie under **Shop → Update shop POESESSID** |
 | Cannot change a price | The price comes from the game (tab name or item note); change it there |
-| Windows: crash at startup in `MSVCP140.dll` | Install the Visual C++ runtime the installer offers |
+| Windows: crash at startup in `MSVCP140.dll` | An outdated Visual C++ runtime; re-run the installer (it updates the runtime) and reboot if asked |
 
 ## Getting help
 
