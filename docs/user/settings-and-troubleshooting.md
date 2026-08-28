@@ -74,3 +74,7 @@ options from the login window and the menus.
 | *POESESSID has not been set* / rejected | Enter a fresh cookie under **Shop → Update shop POESESSID** |
 | Cannot change a price | The price comes from the game (tab name or item note); change it there |
 | Windows: crash at startup in `MSVCP140.dll` | Install the Visual C++ runtime the installer offers |
+
+## Getting help
+
+The best place to look or ask is [GitHub Issues](https://github.com/gerwaric/acquisition/issues).

@@ -22,8 +22,8 @@ Acquisition is neither affiliated with nor endorsed by Grinding Gear Games.
 
 1. Launch Acquisition and click **Authenticate**. A browser window opens for the
    Path of Exile OAuth grant. Pick a realm and league, then click **Login**.
-2. Acquisition loads whatever it already has cached, then fetches your stash tab
-   list and downloads the checked tabs and characters.
+2. Acquisition loads whatever it already has cached, then upon your request,
+   fetches your stash tab list and downloads the checked tabs and characters.
 3. Use the search form at the top of the window to filter items. Each search
    lives in its own tab; click **+** to open another.
 4. Select an item or a tab and set a price with the buyout controls under the
@@ -38,8 +38,6 @@ Acquisition is neither affiliated with nor endorsed by Grinding Gear Games.
 
 ## A note on this guide
 
-Acquisition is mature software that is being replaced by a from-scratch rewrite,
-so this guide is intentionally short and written from the source code rather than
-from screenshots. Menu and dialog names are quoted exactly as they appear in the
+Menu and dialog names are quoted exactly as they appear in the
 application. If something here disagrees with the program, the program wins —
 please open an issue so the page can be corrected.

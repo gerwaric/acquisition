@@ -4,8 +4,8 @@
 
 Download a package for Windows, macOS, or Linux from the
 [releases page](https://github.com/gerwaric/acquisition/releases). On Windows the
-installer also offers the Microsoft Visual C++ runtime; accept it unless you know
-you already have a current one. To build from source, see [BUILD.md](../../BUILD.md).
+installer will update the Microsoft Visual C++ runtime and may need a reboot. To
+build from source, see [BUILD.md](../../BUILD.md).
 
 ## Logging in
 
@@ -16,7 +16,7 @@ The login window has an **OAuth** tab with an **Authenticate** button.
    and the label shows *You are authenticated as "<account>"*.
 2. Choose a **Realm** (PC, Xbox, or PlayStation) and a **League**. The league
    list is fetched live, so an error here usually means the Path of Exile API is
-   unreachable.
+   unreachable. You can manually edit this field to specify a **Private League**.
 3. Click **Login**. The button is disabled until you are authenticated and a
    league is selected.
 
@@ -35,7 +35,7 @@ still needs a POESESSID cookie; see [Forum shop](forum-shop.md).
 | Option | Effect |
 |---|---|
 | Remember me | Keep the account and league for the next launch |
-| Report crashes | Send crash reports to the developer via Sentry |
+| Report crashes | Send crash reports to the developer via [Sentry](https://sentry.io) |
 | Use system proxy | Route network traffic through the operating system's proxy settings |
 | Logging Level | Same as the **Settings → Logging** menu in the main window |
 | Theme | Dark, Light, or Default (the platform theme) |
@@ -46,9 +46,9 @@ still needs a POESESSID cookie; see [Forum shop](forum-shop.md).
 The main window title reads `Acquisition [version] - <League> League [<account>]`.
 
 Acquisition first loads any items it cached from a previous session, so a large
-account is searchable within seconds of logging in. It then fetches the stash
-tab list from the API. Tabs and characters that are **checked** in the item list
-are downloaded next; unchecked ones are skipped. See
+account is searchable within seconds of logging in. Then you can use it to fetch
+the stash tab list from the API. You can refresh **all tabs**, **checked tabs**,
+or **selected tabs** using the right click context menu and/or menubar. See
 [Settings and troubleshooting](settings-and-troubleshooting.md#refreshing-items)
 for the refresh modes and [Searching](searching.md) for the layout of the window.
 
