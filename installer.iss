@@ -100,35 +100,53 @@ Filename: "{app}\{#APP_NAME}.exe"; Description: "{cm:LaunchProgram,{#StringChang
 [Code]
 const
   VCRedistSuccess = 0;
+  VCRedistAccessDenied = 5;
+  VCRedistElevationRequired = 740;
+  VCRedistOperationCancelled = 1223;
+  VCRedistInstallCancelled = 1602;
   VCRedistAnotherVersionInstalled = 1638;
   VCRedistRebootInitiated = 1641;
   VCRedistRebootRequired = 3010;
+  VCRedistRegistryKey =
+    'SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64';
 
 var
   VCRedistNeedsRestart: Boolean;
 
+function GetInstalledVCRedistVersion(var Version: Int64): Boolean;
+var
+  Installed: Cardinal;
+  Major: Cardinal;
+  Minor: Cardinal;
+  Build: Cardinal;
+  Revision: Cardinal;
+begin
+  Result :=
+    RegQueryDWordValue(HKLM64, VCRedistRegistryKey, 'Installed', Installed) and
+    (Installed = 1) and
+    RegQueryDWordValue(HKLM64, VCRedistRegistryKey, 'Major', Major) and
+    RegQueryDWordValue(HKLM64, VCRedistRegistryKey, 'Minor', Minor) and
+    RegQueryDWordValue(HKLM64, VCRedistRegistryKey, 'Bld', Build) and
+    RegQueryDWordValue(HKLM64, VCRedistRegistryKey, 'Rbld', Revision);
+
+  if Result then
+    Version := PackVersionComponents(
+      Word(Major), Word(Minor), Word(Build), Word(Revision));
+end;
+
 function InstallVCRedist: String;
 var
-  RedistPath: String;
   LogDirectory: String;
   LogPath: String;
-  Parameters: String;
   ResultCode: Integer;
+#ifndef VC_REDIST_TEST_EXIT_CODE
+  RedistPath: String;
+  Parameters: String;
+  BundledVersion: Int64;
+  InstalledVersion: Int64;
+#endif
 begin
   Result := '';
-  LogDirectory := ExpandConstant('{localappdata}\{#APP_NAME}\installer-logs');
-  LogPath := LogDirectory + '\vc_redist-{#APP_VERSION_STRING}.log';
-
-  if not ForceDirectories(LogDirectory) then
-  begin
-    Result :=
-      'Setup could not create the Visual C++ Runtime log directory:' + #13#10 +
-      LogDirectory;
-    Exit;
-  end;
-
-  WizardForm.StatusLabel.Caption :=
-    'Installing Microsoft Visual C++ Runtime...';
 
 #ifdef VC_REDIST_TEST_EXIT_CODE
   ResultCode := {#VC_REDIST_TEST_EXIT_CODE};
@@ -144,15 +162,59 @@ begin
   end;
 
   RedistPath := ExpandConstant('{tmp}\vc_redist.x64.exe');
+
+  if not GetPackedVersion(RedistPath, BundledVersion) then
+  begin
+    Result :=
+      'Setup could not read the Microsoft Visual C++ Runtime version.';
+    Exit;
+  end;
+
+  if GetInstalledVCRedistVersion(InstalledVersion) and
+    (ComparePackedVersion(InstalledVersion, BundledVersion) >= 0) then
+  begin
+    Log('Microsoft Visual C++ Runtime ' + VersionToStr(InstalledVersion) +
+      ' is already installed; bundled version ' +
+      VersionToStr(BundledVersion) + ' is not required.');
+    Exit;
+  end;
+
+  Log('Microsoft Visual C++ Runtime ' + VersionToStr(BundledVersion) +
+    ' must be installed or updated.');
+#endif
+
+  LogDirectory := ExpandConstant('{localappdata}\{#APP_NAME}\installer-logs');
+  LogPath := LogDirectory + '\vc_redist-{#APP_VERSION_STRING}.log';
+
+  if not ForceDirectories(LogDirectory) then
+  begin
+    Result :=
+      'Setup could not create the Visual C++ Runtime log directory:' + #13#10 +
+      LogDirectory;
+    Exit;
+  end;
+
+  WizardForm.PreparingLabel.Caption :=
+    'Installing Microsoft Visual C++ Runtime...';
+
+#ifndef VC_REDIST_TEST_EXIT_CODE
   Parameters := '/install /quiet /norestart /log "' + LogPath + '"';
 
   if not Exec(RedistPath, Parameters, '', SW_SHOWNORMAL,
     ewWaitUntilTerminated, ResultCode) then
   begin
-    Result :=
-      'Setup could not start the Microsoft Visual C++ Runtime installer.' + #13#10 +
-      'Windows error: ' + IntToStr(ResultCode) + #13#10 +
-      'Log: ' + LogPath;
+    if (ResultCode = VCRedistAccessDenied) or
+      (ResultCode = VCRedistElevationRequired) or
+      (ResultCode = VCRedistOperationCancelled) then
+      Result :=
+        'Administrator approval is required to install or update the ' +
+        'Microsoft Visual C++ Runtime.' + #13#10 +
+        'Acquisition was not installed.'
+    else
+      Result :=
+        'Setup could not start the Microsoft Visual C++ Runtime installer.' + #13#10 +
+        'Windows error: ' + IntToStr(ResultCode) + ' (' +
+        SysErrorMessage(ResultCode) + ')' + #13#10 + 'Log: ' + LogPath;
     Exit;
   end;
 #endif
@@ -162,6 +224,11 @@ begin
       Log('Microsoft Visual C++ Runtime installation succeeded.');
     VCRedistAnotherVersionInstalled:
       Log('A newer Microsoft Visual C++ Runtime is already installed.');
+    VCRedistInstallCancelled, VCRedistOperationCancelled:
+      Result :=
+        'Administrator approval is required to install or update the ' +
+        'Microsoft Visual C++ Runtime.' + #13#10 +
+        'Acquisition was not installed.';
     VCRedistRebootInitiated, VCRedistRebootRequired:
       begin
         Log('Microsoft Visual C++ Runtime installation requires a restart.');

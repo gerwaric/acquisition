@@ -2,7 +2,7 @@ param(
     [Parameter(Mandatory = $true)]
     [string] $InstallerPath,
 
-    [ValidateSet('success', 'restart', 'failure')]
+    [ValidateSet('success', 'skip', 'restart', 'failure')]
     [string] $ExpectedOutcome = 'success'
 )
 

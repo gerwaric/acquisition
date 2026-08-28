@@ -5,6 +5,23 @@ records the initial and final Visual C++ Runtime state, exercises stale
 app-local runtime cleanup, launches Acquisition with isolated data, uninstalls
 it, and writes logs plus `report.json` to `build/sandbox-results/`.
 
+The production installer remains a per-user installer. It skips the
+redistributable without elevation when the registered x64 runtime is equal to
+or newer than the bundled version. If the runtime is missing or older, Windows
+requests administrator approval for that machine-wide prerequisite; Acquisition
+then continues with the selected per-user installation.
+
+To verify the unelevated skip path, use the `skip` outcome. The harness first
+performs an elevated install to register the bundled runtime, removes
+Acquisition, and then runs the installer without `RunAs`. The second install
+must skip the prerequisite and complete per-user without elevation:
+
+```powershell
+tools\windows-sandbox\start-installer-test.ps1 `
+  -InstallerPath Output\acquisition_setup_0.18.4.exe `
+  -ExpectedOutcome skip
+```
+
 Windows Sandbox must be enabled on the host. Build the installer, then run:
 
 ```powershell

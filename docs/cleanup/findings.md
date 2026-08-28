@@ -239,9 +239,15 @@ prerequisite before modifying Acquisition, validates its exit code,
 propagates restart-required results, and preserves its diagnostic log
 under the user's local application data. Packaging fails if
 `windeployqt` omits the redistributable or supplies one without a valid
-Microsoft signature; the workflow does not download a fallback. Upgrades
-also delete stale app-local `msvcp140*`, `vcruntime140*`, and `concrt140`
-DLLs before copying application files. The existing stray-DLL runtime
+Microsoft signature; the workflow does not download a fallback. The installer
+skips the prerequisite when an equal or newer registered runtime is already
+installed, preserving an unelevated per-user installation in that case. When
+the runtime is missing or older, its machine-wide update requires administrator
+approval, after which Acquisition can still be installed per-user. Every install
+also deletes stale app-local `msvcp140*`, `vcruntime140*`, and `concrt140` DLLs
+before copying application files. Redistributable logs are intentionally retained
+under `%LOCALAPPDATA%\acquisition\installer-logs` for diagnosis after setup or
+uninstallation. The existing stray-DLL runtime
 check remains because users historically copied CRT DLLs into the
 Acquisition directory themselves.
 

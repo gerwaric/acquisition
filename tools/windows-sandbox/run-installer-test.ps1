@@ -23,6 +23,7 @@ $report = [ordered]@{
     final_runtime = $null
     installer_exit_code = $null
     expected_outcome = $expectedOutcome
+    test_install_elevated = $expectedOutcome -ne 'skip'
     app_started = $false
     app_stayed_running = $false
     uninstaller_exit_code = $null
@@ -74,6 +75,35 @@ try {
     $installer = $installers[0]
     $report.installer = $installer.Name
 
+    if ($expectedOutcome -eq 'skip') {
+        $report.phase = 'seeding registered runtime'
+        $seedSetupLog = Join-Path $resultsDirectory 'seed-setup.log'
+        $seedUninstallLog = Join-Path $resultsDirectory 'seed-uninstall.log'
+        $seedArguments =
+            '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /CURRENTUSER ' +
+            "/DIR=`"$installDirectory`" /LOG=`"$seedSetupLog`""
+        $seedProcess = Start-Process -FilePath $installer.FullName `
+            -ArgumentList $seedArguments -Verb RunAs -Wait -PassThru
+        if ($seedProcess.ExitCode -ne 0) {
+            throw "Runtime-seeding install exited with code $($seedProcess.ExitCode)."
+        }
+
+        $seedUninstaller = Join-Path $installDirectory 'unins000.exe'
+        $seedUninstallArguments =
+            "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /LOG=`"$seedUninstallLog`""
+        $seedUninstallProcess = Start-Process -FilePath $seedUninstaller `
+            -ArgumentList $seedUninstallArguments -Wait -PassThru
+        if ($seedUninstallProcess.ExitCode -ne 0) {
+            throw "Runtime-seeding uninstall exited with code $($seedUninstallProcess.ExitCode)."
+        }
+
+        $report.initial_runtime = Get-VCRuntimeState
+        if ($null -eq $report.initial_runtime -or
+            $report.initial_runtime.installed -ne 1) {
+            throw 'The runtime-seeding install did not register the x64 runtime.'
+        }
+    }
+
     $report.phase = 'seeding stale runtime files'
     New-Item -ItemType Directory -Force -Path $installDirectory | Out-Null
     @('msvcp140.dll', 'vcruntime140_1.dll', 'concrt140.dll') |
@@ -86,8 +116,14 @@ try {
     $installerArguments =
         '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /CURRENTUSER ' +
         "/DIR=`"$installDirectory`" /LOG=`"$setupLog`""
-    $installerProcess = Start-Process -FilePath $installer.FullName `
-        -ArgumentList $installerArguments -Verb RunAs -Wait -PassThru
+    if ($expectedOutcome -eq 'skip') {
+        $installerProcess = Start-Process -FilePath $installer.FullName `
+            -ArgumentList $installerArguments -Wait -PassThru
+    }
+    else {
+        $installerProcess = Start-Process -FilePath $installer.FullName `
+            -ArgumentList $installerArguments -Verb RunAs -Wait -PassThru
+    }
     $report.installer_exit_code = $installerProcess.ExitCode
     if ($expectedOutcome -eq 'failure') {
         if ($installerProcess.ExitCode -eq 0) {
@@ -112,6 +148,14 @@ try {
     if ($expectedOutcome -eq 'success' -and $restartReported) {
         throw 'Setup unexpectedly reported that Windows needs to restart.'
     }
+    if ($expectedOutcome -eq 'skip' -and
+        $setupLogText -notmatch 'is already installed; bundled version .* is not required') {
+        throw 'Setup did not report skipping the equal or newer registered runtime.'
+    }
+    if ($expectedOutcome -eq 'skip' -and
+        $setupLogText -notmatch 'Administrative install mode: No') {
+        throw 'The runtime-skip case did not retain per-user install mode.'
+    }
 
     $report.phase = 'verifying installation'
     $applicationPath = Join-Path $installDirectory 'acquisition.exe'
@@ -129,7 +173,7 @@ try {
     }
 
     $report.final_runtime = Get-VCRuntimeState
-    if ($expectedOutcome -eq 'success') {
+    if ($expectedOutcome -in @('success', 'skip')) {
         if ($null -eq $report.final_runtime -or $report.final_runtime.installed -ne 1) {
             throw 'The x64 Visual C++ Runtime is not registered after installation.'
         }
