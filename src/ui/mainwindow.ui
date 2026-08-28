@@ -574,11 +574,6 @@
     <string>Light</string>
    </property>
   </action>
-  <action name="actionRefresh_Mod_List">
-   <property name="text">
-    <string>Refresh Mod List</string>
-   </property>
-  </action>
   <action name="actionSetDefaultTheme">
    <property name="checkable">
     <bool>true</bool>
