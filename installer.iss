@@ -86,7 +86,8 @@ Type: files; Name: "{app}\vcruntime140*.dll"
 Type: files; Name: "{app}\concrt140.dll"
 
 [Files]
-Source: "{#DEPLOY_DIR}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#DEPLOY_DIR}\*"; DestDir: "{app}"; Excludes: "vc_redist.x64.exe"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#DEPLOY_DIR}\vc_redist.x64.exe"; Flags: dontcopy
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 
 [Icons]
@@ -94,5 +95,92 @@ Name: "{autoprograms}\{#APP_NAME}"; Filename: "{app}\{#APP_NAME}.exe"
 Name: "{autodesktop}\{#APP_NAME}"; Filename: "{app}\{#APP_NAME}.exe"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\vc_redist.x64.exe"; Parameters: "/install /quiet /norestart /log ""{tmp}\vc_redist.log"""; StatusMsg: "Installing Microsoft Visual C++ Runtime..."
 Filename: "{app}\{#APP_NAME}.exe"; Description: "{cm:LaunchProgram,{#StringChange(APP_NAME, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
+
+[Code]
+const
+  VCRedistSuccess = 0;
+  VCRedistAnotherVersionInstalled = 1638;
+  VCRedistRebootInitiated = 1641;
+  VCRedistRebootRequired = 3010;
+
+var
+  VCRedistNeedsRestart: Boolean;
+
+function InstallVCRedist: String;
+var
+  RedistPath: String;
+  LogDirectory: String;
+  LogPath: String;
+  Parameters: String;
+  ResultCode: Integer;
+begin
+  Result := '';
+  LogDirectory := ExpandConstant('{localappdata}\{#APP_NAME}\installer-logs');
+  LogPath := LogDirectory + '\vc_redist-{#APP_VERSION_STRING}.log';
+
+  if not ForceDirectories(LogDirectory) then
+  begin
+    Result :=
+      'Setup could not create the Visual C++ Runtime log directory:' + #13#10 +
+      LogDirectory;
+    Exit;
+  end;
+
+  WizardForm.StatusLabel.Caption :=
+    'Installing Microsoft Visual C++ Runtime...';
+
+#ifdef VC_REDIST_TEST_EXIT_CODE
+  ResultCode := {#VC_REDIST_TEST_EXIT_CODE};
+  Log('Using synthetic Microsoft Visual C++ Runtime exit code ' +
+    IntToStr(ResultCode) + '.');
+#else
+  try
+    ExtractTemporaryFile('vc_redist.x64.exe');
+  except
+    Result :=
+      'Setup could not extract the Microsoft Visual C++ Runtime installer.';
+    Exit;
+  end;
+
+  RedistPath := ExpandConstant('{tmp}\vc_redist.x64.exe');
+  Parameters := '/install /quiet /norestart /log "' + LogPath + '"';
+
+  if not Exec(RedistPath, Parameters, '', SW_SHOWNORMAL,
+    ewWaitUntilTerminated, ResultCode) then
+  begin
+    Result :=
+      'Setup could not start the Microsoft Visual C++ Runtime installer.' + #13#10 +
+      'Windows error: ' + IntToStr(ResultCode) + #13#10 +
+      'Log: ' + LogPath;
+    Exit;
+  end;
+#endif
+
+  case ResultCode of
+    VCRedistSuccess:
+      Log('Microsoft Visual C++ Runtime installation succeeded.');
+    VCRedistAnotherVersionInstalled:
+      Log('A newer Microsoft Visual C++ Runtime is already installed.');
+    VCRedistRebootInitiated, VCRedistRebootRequired:
+      begin
+        Log('Microsoft Visual C++ Runtime installation requires a restart.');
+        VCRedistNeedsRestart := True;
+      end;
+  else
+    Result :=
+      'Microsoft Visual C++ Runtime installation failed with exit code ' +
+      IntToStr(ResultCode) + '.' + #13#10 +
+      'See the installation log for details:' + #13#10 + LogPath;
+  end;
+end;
+
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+begin
+  Result := InstallVCRedist;
+end;
+
+function NeedRestart: Boolean;
+begin
+  Result := VCRedistNeedsRestart;
+end;
