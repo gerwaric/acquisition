@@ -91,12 +91,19 @@ jobs:
           --dir $deploy `
           "$deploy\acquisition.exe"
 
-        # Ensure vc_redist is present (windeployqt --compiler-runtime should copy it,
-        # but fall back to downloading if it doesn't)
-        if (-not (Test-Path "$deploy\vc_redist.x64.exe")) {
-          Write-Host "Downloading Visual C++ Redistributable..."
-          Invoke-WebRequest -Uri "https://aka.ms/vs/17/release/vc_redist.x64.exe" `
-            -OutFile "$deploy\vc_redist.x64.exe"
+        # windeployqt --compiler-runtime is the authority for this prerequisite.
+        # Fail packaging if it did not provide a valid Microsoft-signed installer.
+        $redist = "$deploy\vc_redist.x64.exe"
+        if (-not (Test-Path -LiteralPath $redist)) {
+          throw "windeployqt did not package vc_redist.x64.exe"
+        }
+
+        $signature = Get-AuthenticodeSignature -LiteralPath $redist
+        if ($signature.Status -ne 'Valid' -or
+            $null -eq $signature.SignerCertificate -or
+            $signature.SignerCertificate.Subject -notmatch
+              '(^|,\s*)O=Microsoft Corporation(,|$)') {
+          throw "vc_redist.x64.exe does not have a valid Microsoft signature"
         }
 
     - name: Install Inno Setup

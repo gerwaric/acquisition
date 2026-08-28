@@ -185,7 +185,7 @@ only by `LoginDialog`. Fix shape: surface refresh failure to the UI
 and add an `oauth_rejected` de-arming path symmetric with the
 POESESSID one.
 
-### F78. `_DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR` was defined for only one target — Confirmed; fix landed and verified on Windows
+### F78. `_DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR` was defined for only one target — Resolved; build and installer fixes verified on Windows
 
 Found August 22, 2026, from a Sentry crash on 0.18.3
 (`acquisition.sentry.io/issues/7687078638`, two events, one Windows 10
@@ -233,22 +233,41 @@ app launches and runs past `logging::init`. Not reproduced against an
 actual 14.28 `msvcp140.dll` — the workstation has a current CRT — so
 the closing evidence is the import, not a crash-then-no-crash.
 
-Not fixed here, and left open by decision (Tom, August 22, 2026): the
-stray-DLL check below exists because users once copied CRT DLLs into
-the Acquisition folder themselves, so it is guarding a real historical
-failure mode and should not be removed to make room for app-local
-deployment.
+The remaining installer gap was closed August 27, 2026. `installer.iss`
+now runs the `windeployqt`-supplied redistributable as a mandatory
+prerequisite before modifying Acquisition, validates its exit code,
+propagates restart-required results, and preserves its diagnostic log
+under the user's local application data. Packaging fails if
+`windeployqt` omits the redistributable or supplies one without a valid
+Microsoft signature; the workflow does not download a fallback. The installer
+skips the prerequisite when an equal or newer registered runtime is already
+installed, preserving an unelevated per-user installation in that case. When
+the runtime is missing or older, its machine-wide update requires administrator
+approval, after which Acquisition can still be installed per-user. Every install
+also deletes stale app-local `msvcp140*`, `vcruntime140*`, and `concrt140` DLLs
+before copying application files. Redistributable logs are intentionally retained
+under `%LOCALAPPDATA%\acquisition\installer-logs` for diagnosis after setup or
+uninstallation. The existing stray-DLL runtime
+check remains because users historically copied CRT DLLs into the
+Acquisition directory themselves.
 
-- `installer.iss` leaves the redistributable an unchecked-able Task,
-  so a user can still decline it. With the macro global this is no
-  longer fatal, but it should be forced.
+Verified on the Windows workstation in two isolated installs: a host test
+with a newer runtime accepted redistributable result 1638, and a disposable
+Windows Sandbox started without a registered x64 runtime, installed
+v14.44.35211.00, launched Acquisition with an isolated data directory, and
+uninstalled cleanly. Both removed seeded stale app-local CRT files and left
+neither CRT DLLs nor `vc_redist.x64.exe` beside the application. The
+checked-in Sandbox harness also covers synthetic restart-required and
+prerequisite-failure exit paths.
+
+Known diagnostic limitation retained by design:
+
 - `checkMicrosoftRuntime()` runs at `src/main.cpp:164`, *after*
   `logging::init` at `:134`, so it can never fire for a crash in the
   CRT's first lock. It also only looks for stray DLLs beside the exe
   (`src/util/checkmsvc.cpp`) and never checks the system CRT's
-  version, which was the actual fault here.
-- Shipping the CRT DLLs app-local would conflict with that same
-  check, which aborts when it finds `msvcp140.dll` next to the exe.
+  version. The global compatibility macro protects startup against an
+  old system runtime, while the mandatory prerequisite upgrades it.
 
 ## Standing constraints and lessons
 
