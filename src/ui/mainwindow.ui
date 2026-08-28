@@ -441,13 +441,6 @@
      <addaction name="actionLoggingDEBUG"/>
      <addaction name="actionLoggingTRACE"/>
     </widget>
-    <widget class="QMenu" name="menuOAuth">
-     <property name="title">
-      <string>OAuth</string>
-     </property>
-     <addaction name="actionShowOAuthToken"/>
-     <addaction name="actionRefreshOAuthToken"/>
-    </widget>
     <widget class="QMenu" name="menuSessionID">
      <property name="title">
       <string>POESESSID</string>
@@ -456,7 +449,6 @@
     </widget>
     <addaction name="menuTheme"/>
     <addaction name="menuLogging"/>
-    <addaction name="menuOAuth"/>
     <addaction name="menuSessionID"/>
    </widget>
    <widget class="QMenu" name="menuHelp">
@@ -649,16 +641,6 @@
    </property>
    <property name="text">
     <string>TRACE</string>
-   </property>
-  </action>
-  <action name="actionShowOAuthToken">
-   <property name="text">
-    <string>Show Token</string>
-   </property>
-  </action>
-  <action name="actionRefreshOAuthToken">
-   <property name="text">
-    <string>Refresh Token</string>
    </property>
   </action>
   <action name="actionOpenUserGuide">

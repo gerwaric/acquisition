@@ -13,9 +13,12 @@ appear somewhere in the mod name, case-insensitively, in any order. Typing
 shows `+# total to Level of Socketed Minion Gems`.
 
 Mod names use `#` as the placeholder for the number, exactly as the trade site
-does. Implicit, explicit, crafted, enchant, fractured, and other affix lines are
-all included; a mod that appears more than once on an item (for example the same
-line as implicit and explicit) is summed into a single value.
+does. Unlike the trade site, Acquisition does **not** separate implicit,
+explicit, crafted, enchant, or fractured lines: they all go into one table
+keyed by mod name, so a single row matches the line wherever it appears on the
+item. If the same line occurs twice on one item (for example as both an implicit
+and an explicit), only one value is kept for that name; use the
+`… total …` pseudomods below when you need lines added together.
 
 ## Pseudomods
 
