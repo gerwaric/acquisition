@@ -858,3 +858,5 @@ endif()
 if(BUILD_TESTING)
     add_subdirectory(tests)
 endif()
+
+target_link_libraries(qdarkstyle PRIVATE Qt6::Core)
