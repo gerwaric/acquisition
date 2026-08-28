@@ -4,6 +4,13 @@ One line per document, plus the traceability rules that connect them.
 Each document also states its own status and provenance in its header;
 when this map and a header disagree, the header wins.
 
+## User-facing
+
+- `user/README.md` — index of the end-user guide (`user/*.md`): login,
+  searching, mods and pseudomods, pricing, forum shop, currency, settings.
+  Written from source in August 2026; linked from the top-level README and
+  the application's Help menu.
+
 ## Active
 
 - `design/legacy-buyout-import.md` — deliberately minimal design for

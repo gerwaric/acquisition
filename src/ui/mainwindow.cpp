@@ -7,6 +7,7 @@
 #include <QApplication>
 #include <QBuffer>
 #include <QClipboard>
+#include <QDesktopServices>
 #include <QDir>
 #include <QEvent>
 #include <QFile>
@@ -512,6 +513,15 @@ void MainWindow::InitializeUi()
 
     // Connect the POESESSID submenu.
     connect(ui->actionShowPOESESSID, &QAction::triggered, this, &MainWindow::OnShowPOESESSID);
+
+    // Help menu
+    connect(ui->actionOpenUserGuide, &QAction::triggered, this, [] {
+        QDesktopServices::openUrl(
+            QUrl("https://github.com/gerwaric/acquisition/blob/master/docs/user/README.md"));
+    });
+    connect(ui->actionReportIssue, &QAction::triggered, this, [] {
+        QDesktopServices::openUrl(QUrl("https://github.com/gerwaric/acquisition/issues"));
+    });
 
     // Connect the Tooltip tab buttons
     connect(ui->uploadTooltipButton, &QPushButton::clicked, this, &MainWindow::OnUploadToImgur);

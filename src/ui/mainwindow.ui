@@ -459,11 +459,19 @@
     <addaction name="menuOAuth"/>
     <addaction name="menuSessionID"/>
    </widget>
+   <widget class="QMenu" name="menuHelp">
+    <property name="title">
+     <string>Help</string>
+    </property>
+    <addaction name="actionOpenUserGuide"/>
+    <addaction name="actionReportIssue"/>
+   </widget>
    <addaction name="menuTabs"/>
    <addaction name="menuShop"/>
    <addaction name="menuBuyouts"/>
    <addaction name="menuCurrency"/>
    <addaction name="menuSettings"/>
+   <addaction name="menuHelp"/>
   </widget>
   <widget class="QStatusBar" name="statusBar"/>
   <action name="actionSetShopThreads">
@@ -651,6 +659,16 @@
   <action name="actionRefreshOAuthToken">
    <property name="text">
     <string>Refresh Token</string>
+   </property>
+  </action>
+  <action name="actionOpenUserGuide">
+   <property name="text">
+    <string>User guide (online)</string>
+   </property>
+  </action>
+  <action name="actionReportIssue">
+   <property name="text">
+    <string>Report an issue (online)</string>
    </property>
   </action>
   <action name="actionShowPOESESSID">
