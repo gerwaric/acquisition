@@ -10,6 +10,10 @@ Acquisition can run on Windows, macOS, Linux.
 
 You can download setup packages from [the releases page](https://github.com/gerwaric/acquisition/releases).
 
+## User guide
+
+The [user guide](docs/user/README.md) covers logging in, searching and filters, mods and pseudomods, pricing, forum shops, currency tracking, and troubleshooting. It is also reachable from the **Help** menu inside the application.
+
 ## Building Acquisition
 
 Acquisition is written in C++ and uses the Qt widget toolkit. It was originally a qmake project, but has been migrated to cmake.
