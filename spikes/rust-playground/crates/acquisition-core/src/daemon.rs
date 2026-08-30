@@ -1474,9 +1474,11 @@ resubmit if still wanted",
     /// arbitrated under this final lock: if `cancel` set the flag at any
     /// point before terminalization — including between a caller
     /// computing this outcome and the lock below — the job finishes
-    /// `Cancelled`, never with the stale outcome. The work a network job
-    /// already did is not lost: its response was recorded to the store as
-    /// it landed.
+    /// `Cancelled`, never with the stale outcome. Cancellation wins the
+    /// job's terminal surface; work already done may have sent regardless
+    /// (sends are committed once dispatched), and storable API responses
+    /// were recorded as they landed — though not every outcome is stored
+    /// separately (probes, mock fetches, and failures are not).
     fn finish(&self, id: JobId, outcome: Outcome) {
         let info = {
             let mut s = self.shared.lock().unwrap();
