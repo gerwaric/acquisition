@@ -369,7 +369,6 @@ struct Shared {
     auth: Sessions,
     connections: usize,
     last_activity: Instant,
-    started: Instant,
     /// Recent errors for the dashboard, newest last (bounded ring). Every
     /// entry is also in the log; this is the structured, queryable subset.
     errors: VecDeque<(Instant, String)>,
@@ -441,6 +440,9 @@ impl Shared {
 
 pub struct Daemon {
     shared: Mutex<Shared>,
+    /// On `Daemon`, not `Shared`, so `log`'s uptime prefix needs no lock:
+    /// `persist` logs failures while holding `shared`.
+    started: Instant,
     events: broadcast::Sender<JobInfo>,
     work: Notify,
     log: Mutex<std::fs::File>,
@@ -460,9 +462,10 @@ pub struct Daemon {
     /// only ever writes it.
     store: Mutex<Option<(String, Store)>>,
     /// The persisted queue (`daemon.db`), mirrored from memory at every
-    /// state change and read at start. `None`: in-memory only (tests, or
-    /// the file could not be opened — logged at start).
-    jobs_db: Option<Mutex<JobDb>>,
+    /// state change and read at start. Always present: `run` refuses to
+    /// start without it, and test daemons get a throwaway in-memory one —
+    /// so every test exercises the mirror.
+    jobs_db: Mutex<JobDb>,
 }
 
 struct RefreshOwnerGuard<'a> {
@@ -528,7 +531,7 @@ impl CredentialStore for OsCredentialStore {
 impl Daemon {
     // Takes the shared lock for the uptime stamp — never call while holding it.
     fn log(&self, msg: &str) {
-        let uptime = self.shared.lock().unwrap().started.elapsed().as_secs();
+        let uptime = self.started.elapsed().as_secs();
         let mut f = self.log.lock().unwrap();
         let _ = writeln!(f, "[{uptime:>5}s] {msg}");
     }
@@ -554,10 +557,10 @@ impl Daemon {
     /// error. No-op in tests (no store directory).
     /// Mirror one job to `daemon.db`. Called with the `Shared` lock held,
     /// so the table sees changes in memory's order; a failed write is
-    /// logged and the daemon carries on from memory.
+    /// logged (safe: `log` takes no lock but its own) and the daemon
+    /// carries on from memory.
     fn persist(&self, entry: &Entry) {
-        let Some(db) = &self.jobs_db else { return };
-        if let Err(e) = db.lock().unwrap().upsert(&entry.row(unix_now())) {
+        if let Err(e) = self.jobs_db.lock().unwrap().upsert(&entry.row(unix_now())) {
             self.log(&format!(
                 "JOBS: could not persist job {}: {e:#}",
                 entry.info.id
@@ -566,15 +569,21 @@ impl Daemon {
     }
 
     /// Take the previous lifetime's open jobs from `daemon.db`
-    /// (`CONTEXT.md`, "The job queue persists"): waiting jobs resume,
-    /// running ones are re-queued (idempotent GETs; the restart probe reads
-    /// GGG's current counters before any of them sends), a parent holding
-    /// its result keeps holding it, probes are per lifetime and dropped.
-    /// An open parent's finished children come back with it (its summary
-    /// counts them). Ids continue from the table's sequence. Other
-    /// terminal rows stay in the table for `result`, pruned by age first.
+    /// (`CONTEXT.md`, "The job queue persists"): waiting jobs resume; a
+    /// running one is re-queued only where the replay premise holds — a
+    /// probe will read GGG's current counters before the send. Two
+    /// exceptions: a running job on a declared no-probe route would send
+    /// blind, so it fails as interrupted instead; and a running parent
+    /// whose children exist is mid-fan-out (its held result was not yet
+    /// written) — re-running it would submit a duplicate child set, so it
+    /// is held for its existing children with a synthetic result. A parent
+    /// whose held result was written keeps holding it; probes are per
+    /// lifetime and dropped. An open parent's finished children come back
+    /// with it (its summary counts them). Ids continue from the table's
+    /// sequence. Other terminal rows stay in the table for `result`,
+    /// pruned by age first.
     fn restore_jobs(&self, retention: Retention) {
-        let Some(db) = &self.jobs_db else { return };
+        let db = &self.jobs_db;
         let (rows, next_id, pruned) = {
             let db = db.lock().unwrap();
             let pruned = db.prune(retention, unix_now()).unwrap_or_else(|e| {
@@ -592,21 +601,28 @@ impl Daemon {
                 }
             }
         };
-        let (mut requeued, mut dropped, mut finish_parents) = (0, 0, Vec::new());
+        let entries: Vec<Entry> = rows.into_iter().filter_map(Entry::from_row).collect();
+        let has_children: HashSet<JobId> = entries.iter().filter_map(|e| e.info.parent).collect();
+        let (mut requeued, mut held, mut not_replayed, mut dropped) = (0, 0, 0, 0);
+        let mut finish_parents = Vec::new();
         let mut restored = Vec::new();
         {
             let mut s = self.shared.lock().unwrap();
             s.next_id = next_id;
-            for row in rows {
-                let Some(mut entry) = Entry::from_row(row) else {
-                    continue;
-                };
+            for mut entry in entries {
                 if entry.info.kind == "probe" {
                     dropped += 1;
                     let _ = db.lock().unwrap().delete(entry.info.id);
                     continue;
                 }
                 if entry.info.state == JobState::Running {
+                    let no_probe_route = self
+                        .keyed_route_for(
+                            &entry.info.kind,
+                            &entry.params,
+                            entry.info.account.as_deref(),
+                        )
+                        .is_some_and(|(route, _)| !Self::route_probes(&route));
                     if entry.cancel_requested {
                         entry.info.state = JobState::Cancelled;
                         entry.outcome = Some(Outcome::Cancelled);
@@ -614,6 +630,35 @@ impl Daemon {
                         // Holding its result for children: no task to
                         // give it; it finishes when they do.
                         finish_parents.push(entry.info.id);
+                    } else if has_children.contains(&entry.info.id) {
+                        // Mid-fan-out: children were submitted but the
+                        // held result was not yet written. Re-running the
+                        // parent would submit them all again, so it holds
+                        // for the set it has; its own payload died with
+                        // the previous lifetime.
+                        entry.deferred = Some(Outcome::Success {
+                            payload: json!({
+                                "note": "daemon restarted while this job's children ran; \
+                            its own result was lost with the previous lifetime",
+                            }),
+                        });
+                        held += 1;
+                        finish_parents.push(entry.info.id);
+                    } else if no_probe_route {
+                        // The replay premise — a probe reads the previous
+                        // lifetime's hits before anything sends — does not
+                        // hold on a no-probe route; a replay would go out
+                        // against an empty limiter.
+                        not_replayed += 1;
+                        entry.info.state = JobState::Failed;
+                        entry.outcome = Some(Outcome::Failure {
+                            error: format!(
+                                "interrupted by a daemon restart and not replayed: \
+{} sends without a probe, so a replay could not learn the previous lifetime's hits first; \
+resubmit if still wanted",
+                                entry.info.kind
+                            ),
+                        });
                     } else {
                         entry.info.state = JobState::Waiting;
                         requeued += 1;
@@ -626,7 +671,7 @@ impl Daemon {
         }
         if !restored.is_empty() || dropped > 0 {
             self.log(&format!(
-                "JOBS: restored {} from {} ({requeued} re-queued from running, {dropped} probes dropped, {pruned} old rows pruned); next id {next_id}",
+                "JOBS: restored {} from {} ({requeued} re-queued from running, {held} parents held mid-fan-out, {not_replayed} not replayed on no-probe routes, {dropped} probes dropped, {pruned} old rows pruned); next id {next_id}",
                 restored.len(),
                 db.lock().unwrap().path().display()
             ));
@@ -644,8 +689,7 @@ impl Daemon {
 
     /// The previous lifetime's result for a job this one never held.
     fn stored_outcome(&self, id: JobId) -> Option<Outcome> {
-        let db = self.jobs_db.as_ref()?.lock().unwrap();
-        let row = db.get(id).ok()??;
+        let row = self.jobs_db.lock().unwrap().get(id).ok()??;
         Entry::from_row(row)?.outcome
     }
 
@@ -1019,8 +1063,18 @@ impl Daemon {
                 self.persist(entry);
             }
         }
+        // A cancelled child may have been the last thing its parent was
+        // holding for; without this the parent would wait forever.
+        let parents: HashSet<JobId> = emits
+            .iter()
+            .filter(|i| i.state.is_terminal())
+            .filter_map(|i| i.parent)
+            .collect();
         for info in emits {
             self.emit(info);
+        }
+        for pid in parents {
+            self.maybe_finish_parent(pid);
         }
         Ok(())
     }
@@ -2408,7 +2462,7 @@ impl Daemon {
                     pid: std::process::id(),
                     version: VERSION.to_string(),
                     provider: self.provider.name.to_string(),
-                    uptime_seconds: s.started.elapsed().as_secs(),
+                    uptime_seconds: self.started.elapsed().as_secs(),
                     connections: s.connections,
                     jobs_waiting: waiting,
                     jobs_running: running,
@@ -2431,7 +2485,7 @@ impl Daemon {
                     pid: std::process::id(),
                     version: VERSION.to_string(),
                     provider: self.provider.name.to_string(),
-                    uptime_seconds: s.started.elapsed().as_secs(),
+                    uptime_seconds: self.started.elapsed().as_secs(),
                     connections: s.connections,
                     logged_in: !s.auth.by_account.is_empty(),
                     username: self.headline_session(&s).and_then(|h| h.username.clone()),
@@ -2712,15 +2766,18 @@ pub async fn run() -> Result<()> {
         }
     }
 
+    // A daemon that cannot read its queue must not run: it would restart
+    // ids at 1 and reuse them against the table's history the moment the
+    // file comes back. Refusing to start is the safe failure; the log
+    // names the file to repair or remove.
     let jobs_db = match JobDb::open(&acquisition_store::jobs::daemon_db_path(&dir)) {
-        Ok(db) => Some(Mutex::new(db)),
+        Ok(db) => Mutex::new(db),
         Err(e) => {
-            writeln!(
-                &log,
-                "JOBS: could not open daemon.db: {e:#}; jobs are in-memory only"
-            )
-            .ok();
-            None
+            writeln!(&log, "JOBS: could not open the persisted queue: {e:#}").ok();
+            anyhow::bail!(
+                "could not open {}: {e:#} (repair or remove it; the daemon will not run without its queue)",
+                acquisition_store::jobs::daemon_db_path(&dir).display()
+            );
         }
     };
     let daemon = Arc::new(Daemon {
@@ -2730,10 +2787,10 @@ pub async fn run() -> Result<()> {
             auth: sessions,
             connections: 0,
             last_activity: Instant::now(),
-            started: Instant::now(),
             errors: VecDeque::new(),
             active_jobs: HashMap::new(),
         }),
+        started: Instant::now(),
         events: broadcast::channel(256).0,
         work: Notify::new(),
         log: Mutex::new(log),
@@ -2980,10 +3037,10 @@ mod auth_session_tests {
                 }),
                 connections: 0,
                 last_activity: Instant::now(),
-                started: Instant::now(),
                 errors: VecDeque::new(),
                 active_jobs: HashMap::new(),
             }),
+            started: Instant::now(),
             events: broadcast::channel(16).0,
             work: Notify::new(),
             log: Mutex::new(log),
@@ -2992,7 +3049,7 @@ mod auth_session_tests {
             credential_store: credential_store.clone(),
             store_dir: None,
             store: Mutex::new(None),
-            jobs_db: None,
+            jobs_db: Mutex::new(JobDb::open_memory().unwrap()),
         });
         (daemon, credential_store, log_path)
     }
@@ -4057,10 +4114,10 @@ mod dispatcher_tests {
                 auth: Sessions::with(AuthSession::default()),
                 connections: 0,
                 last_activity: Instant::now(),
-                started: Instant::now(),
                 errors: VecDeque::new(),
                 active_jobs: HashMap::new(),
             }),
+            started: Instant::now(),
             events: broadcast::channel(256).0,
             work: Notify::new(),
             log: Mutex::new(log),
@@ -4069,7 +4126,7 @@ mod dispatcher_tests {
             credential_store,
             store_dir: None,
             store: Mutex::new(None),
-            jobs_db: None,
+            jobs_db: Mutex::new(JobDb::open_memory().unwrap()),
         });
         // Test daemons know what the real one knows about routes.
         Daemon::declare_route_knowledge(&daemon.choke);
@@ -5334,11 +5391,11 @@ mod dispatcher_tests {
         ))
     }
 
-    /// A harness daemon on a `daemon.db`, restored from it like `run` does.
+    /// A harness daemon on a file-backed `daemon.db` (test daemons default
+    /// to a throwaway in-memory one), restored from it like `run` does.
     fn persisting_daemon(base: &str, db_path: &std::path::Path) -> (Arc<Daemon>, PathBuf) {
         let (mut daemon, log_path) = test_daemon(base, Arc::new(ManualClock::new()));
-        Arc::get_mut(&mut daemon).unwrap().jobs_db =
-            Some(Mutex::new(JobDb::open(db_path).unwrap()));
+        Arc::get_mut(&mut daemon).unwrap().jobs_db = Mutex::new(JobDb::open(db_path).unwrap());
         daemon.restore_jobs(Retention::default());
         (daemon, log_path)
     }
@@ -5353,10 +5410,11 @@ mod dispatcher_tests {
     async fn the_queue_and_results_survive_a_daemon_restart() {
         let db = test_db_path();
         remove_db(&db);
-        // Lifetime 1: one job finishes, one is running, one waits behind
-        // it; then the daemon "crashes" mid-run.
+        // Lifetime 1: one job finished, one running, one waiting. No
+        // dispatcher runs — the running state is written the way
+        // `process` writes it — so nothing of this lifetime survives the
+        // drop to write behind lifetime 2's back.
         let (daemon, log1) = persisting_daemon("http://127.0.0.1:1", &db);
-        let dispatcher = tokio::spawn(daemon.clone().dispatcher());
         let done = daemon.submit(
             "sleep".into(),
             json!({ "seconds": 0.01 }),
@@ -5364,7 +5422,12 @@ mod dispatcher_tests {
             "a".into(),
             None,
         );
-        wait_terminal(&daemon, done).await;
+        daemon.start_and_finish(
+            done,
+            Outcome::Success {
+                payload: json!({ "slept_seconds": 0.01 }),
+            },
+        );
         let running = daemon.submit(
             "sleep".into(),
             json!({ "seconds": 0.3 }),
@@ -5372,7 +5435,12 @@ mod dispatcher_tests {
             "b".into(),
             None,
         );
-        wait_until(&daemon, running, |i| i.state == JobState::Running).await;
+        {
+            let mut s = daemon.shared.lock().unwrap();
+            let entry = s.jobs.get_mut(&running).unwrap();
+            entry.info.state = JobState::Running;
+            daemon.persist(entry);
+        }
         let waiting = daemon.submit(
             "sleep".into(),
             json!({ "seconds": 0.01 }),
@@ -5381,7 +5449,6 @@ mod dispatcher_tests {
             None,
         );
         daemon.set_priority(waiting, 5).unwrap();
-        dispatcher.abort();
         drop(daemon);
 
         // Lifetime 2: the running job is re-queued, the waiting one kept
@@ -5482,6 +5549,13 @@ mod dispatcher_tests {
             let mut cancelling = row(4, "sleep", "running", None);
             cancelling.cancel_requested = true;
             db.upsert(&cancelling).unwrap();
+            // Running on a declared no-probe route: a replay would send
+            // against an empty limiter, so it is not replayed.
+            db.upsert(&row(5, "leagues", "running", None)).unwrap();
+            // Mid-fan-out: children submitted, held result not yet
+            // written. Re-running would duplicate the children.
+            db.upsert(&row(6, "refresh", "running", None)).unwrap();
+            db.upsert(&row(7, "stash", "waiting", Some(6))).unwrap();
         }
         let (daemon, log) = persisting_daemon("http://127.0.0.1:1", &db);
         let jobs = daemon.shared.lock().unwrap().list(&daemon);
@@ -5491,9 +5565,31 @@ mod dispatcher_tests {
             [
                 (1, JobState::Done),
                 (2, JobState::Done),
-                (4, JobState::Cancelled)
-            ]
+                (4, JobState::Cancelled),
+                (5, JobState::Failed),
+                (6, JobState::Running),
+                (7, JobState::Waiting)
+            ],
+            "no-probe replays fail; a mid-fan-out parent holds for its children"
         );
+        let Outcome::Failure { error } = daemon.shared.lock().unwrap().jobs[&5]
+            .outcome
+            .clone()
+            .unwrap()
+        else {
+            panic!("the leagues replay did not fail")
+        };
+        assert!(error.contains("not replayed"), "{error}");
+        // The held parent finishes when its remaining child does.
+        daemon.cancel(7).unwrap();
+        let Outcome::Success { payload } = daemon.shared.lock().unwrap().jobs[&6]
+            .outcome
+            .clone()
+            .unwrap()
+        else {
+            panic!("held parent did not finish with a synthetic result")
+        };
+        assert_eq!(payload["children"]["cancelled"], json!(1));
         let Outcome::Success { payload } = daemon.shared.lock().unwrap().jobs[&1]
             .outcome
             .clone()
@@ -5507,7 +5603,7 @@ mod dispatcher_tests {
             JobDb::open(&db).unwrap().get(3).unwrap().is_none(),
             "the probe row is gone from the table too"
         );
-        assert_eq!(daemon.shared.lock().unwrap().next_id, 5);
+        assert_eq!(daemon.shared.lock().unwrap().next_id, 8);
         remove_harness_files(&log);
         remove_db(&db);
     }

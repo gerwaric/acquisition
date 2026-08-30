@@ -78,7 +78,9 @@ bounded by `MAX_429_RETRIES`; a Cloudflare-shaped 403/503 is never retried.
   change and takes the open ones back when it starts, so an idle exit,
   `daemon stop`, a version respawn, or a crash loses nothing — a job that
   was running is re-queued (idempotent GETs; the restart probe reads
-  GGG's counters first), probes are dropped, ids continue. Finished rows
+  GGG's counters first) — except on no-probe routes, where it fails as
+  interrupted, and a parent restarted mid-fan-out, which holds for the
+  children it already has — probes are dropped, ids continue. Finished rows
   stay for `acq result <id>` across restarts, pruned by age at start.
 - `crates/acquisition-cli` — the `acq` binary. Thin: clap parsing, a small
   protocol client, output formatting, and `store_cmd.rs` — the reads of
