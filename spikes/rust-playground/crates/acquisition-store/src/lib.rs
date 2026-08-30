@@ -155,6 +155,7 @@ pub struct Status {
 }
 
 pub mod index;
+pub mod jobs;
 pub use index::{
     AccountEntry, Index, Resolve, account_matches, account_path, index_path, store_dir,
 };

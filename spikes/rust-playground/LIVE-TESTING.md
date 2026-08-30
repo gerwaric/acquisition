@@ -75,7 +75,11 @@ one is, and whether it outlives the ladder:
 1. **Tripwire** (`ACQ_TRIPWIRE=1`, ladder-only). The first landed 429 on
    any route, HEAD and token included, or any 401/403/503, halts every
    later send until `acq daemon reset-tripwire`; persisted per provider
-   across restarts. Tripping on a HEAD 429 is a deliberate ladder-time
+   across restarts. Since 2026-08-30 a halt leaves queued jobs *waiting*
+   (on disk, in `daemon.db`) rather than failing them: the halted daemon
+   idles out and its successor holds the queue until the reset — so
+   `acq jobs` before `reset-tripwire`, and `acq cancel` what should not go
+   out. Tripping on a HEAD 429 is a deliberate ladder-time
    tightening of the accepted 429-recovery decision, which is why the rail
    is off by default. The gate admits two concurrent sends, so one
    already-dispatched request may still land after a trip: a 2-send row in
@@ -89,6 +93,10 @@ one is, and whether it outlives the ladder:
    send, never a token or body; the contract surface (`TESTING-NOTES.md`).
 5. **Send ceiling** (`ACQ_MAX_SENDS=<n>`, ladder-only): halt after `n`
    sends this lifetime; not persisted, so a soak's respawn starts fresh.
+   **The queue is persisted, the ceiling is not**: jobs halted by the
+   ceiling resume under the next daemon's fresh ceiling. Before respawning
+   after a ceiling halt, `acq jobs` and cancel what the run did not mean to
+   send; a first-contact ceiling of 3 bounds one lifetime, not the queue.
 6. **The mock-only kinds (`whoami`, `fetch`, `sleep`) are refused or
    unroutable in real mode** (permanent). `profile` is real since
    `fa74c5ef` (2026-08-29), as are `character` and `leagues`; all three

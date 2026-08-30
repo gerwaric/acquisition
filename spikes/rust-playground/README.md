@@ -73,7 +73,13 @@ bounded by `MAX_429_RETRIES`; a Cloudflare-shaped 403/503 is never retried.
   `item_events` (added/moved/changed/removed; `veiledMods` ignored, N36).
   Its tests are the spec; `acq store import <snapshot>` replays a
   retired-`acq pull` snapshot through it with no GGG traffic (19,210 rows
-  in ~2.3 s).
+  in ~2.3 s). `daemon.db` in the same directory is the **persisted job
+  queue** (`jobs.rs`): the daemon mirrors every job there at each state
+  change and takes the open ones back when it starts, so an idle exit,
+  `daemon stop`, a version respawn, or a crash loses nothing — a job that
+  was running is re-queued (idempotent GETs; the restart probe reads
+  GGG's counters first), probes are dropped, ids continue. Finished rows
+  stay for `acq result <id>` across restarts, pruned by age at start.
 - `crates/acquisition-cli` — the `acq` binary. Thin: clap parsing, a small
   protocol client, output formatting, and `store_cmd.rs` — the reads of
   the shared store (`tabs`, `items`, `store`). `acq pull` (client-side
@@ -120,7 +126,7 @@ acq dash                                     # live TUI: rate limits, jobs, HTTP
                                              #  observed X-Rate-Limit headers, per-endpoint sends)
 acq set-priority <id> 5                      # higher runs sooner; queue reorders live
 acq cancel <id>
-acq result <id> --json                       # every command takes --json
+acq result <id> --json                       # every command takes --json; answers across daemon restarts
 acq daemon status                            # debugging only
 ```
 
@@ -176,6 +182,9 @@ relocates the shared store (`<dir>/<provider>/<account>.db` plus
 crate — `~/.local/share/acquisition-playground/store` on Linux,
 `~/Library/Application Support/gerwaric.acquisition-playground/store` on
 macOS, `%APPDATA%\gerwaric\acquisition-playground\data\store` on Windows).
+`ACQ_JOB_RETENTION_DAYS` (default 7) and `ACQ_FAILED_JOB_RETENTION_DAYS`
+(default 30) say how long finished job rows stay in `daemon.db`; a
+misread value is logged as a `JOBS CONFIG` error and the default stays.
 `--account <username|name|uuid>` (global; `ACQ_ACCOUNT` is the env form)
 names the account a command acts as. The daemon holds **one session per
 logged-in account** (log in again as someone else and both stay live;
@@ -199,7 +208,9 @@ on the command that spawns it, or `acq daemon stop` first:
 - `ACQ_TRIPWIRE=1` — the first landed 429 (any route, HEAD and token
   included) or any 401/403/503 halts every later send until
   `acq daemon reset-tripwire`; persisted per provider across restarts. Off
-  by default; never on in mock mode by accident.
+  by default; never on in mock mode by accident. Queued jobs wait out a
+  halt (they are on disk); a halted daemon with nothing running idles out
+  and its successor holds the queue until the reset.
 - Always on, not a knob: a refresh token the provider rejects (4xx other
   than 429) is never re-sent until `acq auth` or logout; the mark persists
   across restarts.

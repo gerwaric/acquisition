@@ -9,6 +9,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime};
 
+use acquisition_store::jobs::{JobDb, JobRow, Retention};
 use acquisition_store::{Endpoint, Index, Store, account_matches, account_path, store_dir};
 use anyhow::Result;
 use serde_json::{Value, json};
@@ -94,6 +95,96 @@ struct Entry {
     /// A parent's own result, held back until its descendants finish. Set
     /// means "running, waiting on children, with no active dispatcher task".
     deferred: Option<Outcome>,
+    /// Unix seconds; the persisted row's `submitted_at`.
+    submitted_at: i64,
+}
+
+impl Entry {
+    /// The row `daemon.db` holds for this job (`CONTEXT.md`, "The job
+    /// queue persists"): `JobInfo` column for column plus the fields a
+    /// restart needs. `eta_seconds` is a prediction, never stored.
+    fn row(&self, now: i64) -> JobRow {
+        let json = |o: &Outcome| serde_json::to_value(o).unwrap_or(Value::Null);
+        JobRow {
+            id: self.info.id,
+            kind: self.info.kind.clone(),
+            state: self.info.state.to_string(),
+            priority: self.info.priority,
+            submitted_by: self.info.submitted_by.clone(),
+            parent: self.info.parent,
+            retries: self.info.retries,
+            account: self.info.account.clone(),
+            params: self.params.clone(),
+            outcome: self.outcome.as_ref().map(json),
+            deferred: self.deferred.as_ref().map(json),
+            cancel_requested: self.cancel_requested,
+            submitted_at: self.submitted_at,
+            updated_at: now,
+        }
+    }
+
+    /// A restored row. What a restart does with `running` (re-queue) or
+    /// `probe` (drop) is decided by the caller; this is the plain mapping.
+    fn from_row(row: JobRow) -> Option<Entry> {
+        let state = match row.state.as_str() {
+            "waiting" => JobState::Waiting,
+            "running" => JobState::Running,
+            "done" => JobState::Done,
+            "failed" => JobState::Failed,
+            "cancelled" => JobState::Cancelled,
+            _ => return None,
+        };
+        let outcome = |v: Option<Value>| v.and_then(|v| serde_json::from_value(v).ok());
+        Some(Entry {
+            info: JobInfo {
+                id: row.id,
+                kind: row.kind,
+                state,
+                priority: row.priority,
+                submitted_by: row.submitted_by,
+                eta_seconds: None,
+                parent: row.parent,
+                retries: row.retries,
+                account: row.account,
+                params: row.params.clone(),
+            },
+            params: row.params,
+            outcome: outcome(row.outcome),
+            cancel_requested: row.cancel_requested,
+            deferred: outcome(row.deferred),
+            submitted_at: row.submitted_at,
+        })
+    }
+}
+
+/// Seconds since the Unix epoch, for persisted rows.
+fn unix_now() -> i64 {
+    SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0)
+}
+
+/// `ACQ_JOB_RETENTION_DAYS` / `ACQ_FAILED_JOB_RETENTION_DAYS`, each read
+/// like a rails knob: absent means the default, a misread value is
+/// reported (the second return) and the default stays.
+fn retention_from_env() -> (Retention, Vec<String>) {
+    let mut r = Retention::default();
+    let mut problems = Vec::new();
+    for (var, slot) in [
+        ("ACQ_JOB_RETENTION_DAYS", &mut r.done_days),
+        ("ACQ_FAILED_JOB_RETENTION_DAYS", &mut r.failed_days),
+    ] {
+        if let Ok(v) = std::env::var(var) {
+            match v.trim().parse::<u32>() {
+                Ok(days) => *slot = days,
+                Err(_) => {
+                    problems.push(format!("{var}={v:?} is not a number of days; using {slot}"))
+                }
+            }
+        }
+    }
+    (r, problems)
 }
 
 type AccessTokenResult = Result<(String, String), String>;
@@ -368,6 +459,10 @@ pub struct Daemon {
     /// record and reopened when the session's username changes. The daemon
     /// only ever writes it.
     store: Mutex<Option<(String, Store)>>,
+    /// The persisted queue (`daemon.db`), mirrored from memory at every
+    /// state change and read at start. `None`: in-memory only (tests, or
+    /// the file could not be opened — logged at start).
+    jobs_db: Option<Mutex<JobDb>>,
 }
 
 struct RefreshOwnerGuard<'a> {
@@ -457,6 +552,103 @@ impl Daemon {
 
     /// Apply one change to the account index, logging (never failing) on
     /// error. No-op in tests (no store directory).
+    /// Mirror one job to `daemon.db`. Called with the `Shared` lock held,
+    /// so the table sees changes in memory's order; a failed write is
+    /// logged and the daemon carries on from memory.
+    fn persist(&self, entry: &Entry) {
+        let Some(db) = &self.jobs_db else { return };
+        if let Err(e) = db.lock().unwrap().upsert(&entry.row(unix_now())) {
+            self.log(&format!(
+                "JOBS: could not persist job {}: {e:#}",
+                entry.info.id
+            ));
+        }
+    }
+
+    /// Take the previous lifetime's open jobs from `daemon.db`
+    /// (`CONTEXT.md`, "The job queue persists"): waiting jobs resume,
+    /// running ones are re-queued (idempotent GETs; the restart probe reads
+    /// GGG's current counters before any of them sends), a parent holding
+    /// its result keeps holding it, probes are per lifetime and dropped.
+    /// An open parent's finished children come back with it (its summary
+    /// counts them). Ids continue from the table's sequence. Other
+    /// terminal rows stay in the table for `result`, pruned by age first.
+    fn restore_jobs(&self, retention: Retention) {
+        let Some(db) = &self.jobs_db else { return };
+        let (rows, next_id, pruned) = {
+            let db = db.lock().unwrap();
+            let pruned = db.prune(retention, unix_now()).unwrap_or_else(|e| {
+                self.log(&format!("JOBS: prune failed: {e:#}"));
+                0
+            });
+            match (db.load_open(), db.next_id()) {
+                (Ok(rows), Ok(next)) => (rows, next, pruned),
+                (Err(e), _) | (_, Err(e)) => {
+                    self.note_error(&format!(
+                        "JOBS: could not read {}: {e:#}",
+                        db.path().display()
+                    ));
+                    return;
+                }
+            }
+        };
+        let (mut requeued, mut dropped, mut finish_parents) = (0, 0, Vec::new());
+        let mut restored = Vec::new();
+        {
+            let mut s = self.shared.lock().unwrap();
+            s.next_id = next_id;
+            for row in rows {
+                let Some(mut entry) = Entry::from_row(row) else {
+                    continue;
+                };
+                if entry.info.kind == "probe" {
+                    dropped += 1;
+                    let _ = db.lock().unwrap().delete(entry.info.id);
+                    continue;
+                }
+                if entry.info.state == JobState::Running {
+                    if entry.cancel_requested {
+                        entry.info.state = JobState::Cancelled;
+                        entry.outcome = Some(Outcome::Cancelled);
+                    } else if entry.deferred.is_some() {
+                        // Holding its result for children: no task to
+                        // give it; it finishes when they do.
+                        finish_parents.push(entry.info.id);
+                    } else {
+                        entry.info.state = JobState::Waiting;
+                        requeued += 1;
+                    }
+                    self.persist(&entry);
+                }
+                restored.push(entry.info.clone());
+                s.jobs.insert(entry.info.id, entry);
+            }
+        }
+        if !restored.is_empty() || dropped > 0 {
+            self.log(&format!(
+                "JOBS: restored {} from {} ({requeued} re-queued from running, {dropped} probes dropped, {pruned} old rows pruned); next id {next_id}",
+                restored.len(),
+                db.lock().unwrap().path().display()
+            ));
+        }
+        for info in restored {
+            self.emit(info);
+        }
+        // A parent whose last child finished in the instant before the
+        // previous daemon died is finished now.
+        for pid in finish_parents {
+            self.maybe_finish_parent(pid);
+        }
+        self.work.notify_one();
+    }
+
+    /// The previous lifetime's result for a job this one never held.
+    fn stored_outcome(&self, id: JobId) -> Option<Outcome> {
+        let db = self.jobs_db.as_ref()?.lock().unwrap();
+        let row = db.get(id).ok()??;
+        Entry::from_row(row)?.outcome
+    }
+
     fn with_index(&self, f: impl FnOnce(&mut Index) -> anyhow::Result<()>) {
         let Some(dir) = &self.store_dir else { return };
         let result = Index::load(dir).and_then(|mut index| f(&mut index));
@@ -765,16 +957,16 @@ impl Daemon {
                 account,
                 params: params.clone(),
             };
-            s.jobs.insert(
-                id,
-                Entry {
-                    info: info.clone(),
-                    params,
-                    outcome: None,
-                    cancel_requested: false,
-                    deferred: None,
-                },
-            );
+            let entry = Entry {
+                info: info.clone(),
+                params,
+                outcome: None,
+                cancel_requested: false,
+                deferred: None,
+                submitted_at: unix_now(),
+            };
+            self.persist(&entry);
+            s.jobs.insert(id, entry);
             info
         };
         let id = info.id;
@@ -822,8 +1014,9 @@ impl Daemon {
                         emits.push(entry.info.clone());
                     }
                     JobState::Running => entry.cancel_requested = true,
-                    _ => {}
+                    _ => continue,
                 }
+                self.persist(entry);
             }
         }
         for info in emits {
@@ -839,6 +1032,7 @@ impl Daemon {
             return Err(format!("job {id} is {}, not waiting", entry.info.state));
         }
         entry.info.priority = priority;
+        self.persist(entry);
         Ok(())
     }
 
@@ -866,18 +1060,26 @@ impl Daemon {
     fn pick_runnable(&self) -> Vec<JobId> {
         let mut s = self.shared.lock().unwrap();
         let mut busy: HashSet<String> = s.active_jobs.values().cloned().collect();
+        let halted = self.rails().halted().is_some();
         let mut picks = Vec::new();
         for id in s.queue_order() {
             let entry = &s.jobs[&id];
-            // A job whose route is still being probed has nothing to do yet.
             if let Some((route, _)) = self.keyed_route_for(
                 &entry.info.kind,
                 &entry.params,
                 entry.info.account.as_deref(),
-            ) && self.choke.endpoint_state(&route) == EndpointState::Unknown
-                && Self::probe_pending(&s, &route)
-            {
-                continue;
+            ) {
+                // A halted daemon (LIVE-TESTING.md rails) sends nothing:
+                // network jobs wait, on disk, for `reset-tripwire`.
+                if halted {
+                    continue;
+                }
+                // A job whose route is still being probed has nothing to do yet.
+                if self.choke.endpoint_state(&route) == EndpointState::Unknown
+                    && Self::probe_pending(&s, &route)
+                {
+                    continue;
+                }
             }
             let key = self.serial_key(entry);
             if busy.contains(&key) {
@@ -911,16 +1113,10 @@ impl Daemon {
             }
         };
 
-        // L0 rail 1: a halted daemon fails network jobs immediately — no
-        // probe, no pacing wait behind a hold, no permit — with the cause.
-        if let Some((route, _)) = &route
-            && let Some(cause) = self.rails().halted()
-        {
-            let error = format!("route {route}: {cause}");
-            // File log only: a halted fan-out must not evict the trip cause
-            // from the dashboard's error ring.
-            self.log(&format!("job {id}: {error}"));
-            self.start_and_finish(id, Outcome::Failure { error });
+        // L0 rail 1: a halted daemon sends nothing — no probe, no pacing
+        // wait, no permit. The job stays waiting (the dispatcher will not
+        // pick it again until the reset); its key is given back.
+        if route.is_some() && self.rails().halted().is_some() {
             return;
         }
 
@@ -986,6 +1182,7 @@ impl Daemon {
                 return;
             }
             entry.info.state = JobState::Running;
+            self.persist(entry);
             (entry.info.clone(), entry.params.clone())
         };
         let (info, params) = job;
@@ -1012,6 +1209,7 @@ impl Daemon {
                     if may_requeue_429(entry.info.retries, entry.cancel_requested) {
                         entry.info.retries += 1;
                         entry.info.state = JobState::Waiting;
+                        self.persist(entry);
                         Some(entry.info.clone())
                     } else {
                         None
@@ -1047,6 +1245,7 @@ impl Daemon {
                 && entry.info.state == JobState::Running
             {
                 entry.deferred = Some(outcome.clone());
+                self.persist(entry);
             }
             spawned
         };
@@ -1119,6 +1318,7 @@ impl Daemon {
                 Outcome::Cancelled => JobState::Cancelled,
             };
             entry.outcome = Some(outcome);
+            self.persist(entry);
             entry.info.clone()
         };
         let parent = info.parent;
@@ -1140,6 +1340,7 @@ impl Daemon {
                 return;
             }
             entry.info.state = JobState::Running;
+            self.persist(entry);
             entry.info.clone()
         };
         self.emit(info);
@@ -2109,19 +2310,22 @@ impl Daemon {
                 },
             },
             Request::Result { id } => {
-                let s = self.shared.lock().unwrap();
-                match s.jobs.get(&id) {
-                    Some(e) => match &e.outcome {
-                        Some(outcome) => Response::Result {
-                            id,
-                            outcome: outcome.clone(),
-                        },
-                        None => Response::Error {
-                            message: format!("job {id} is still {}", e.info.state),
-                        },
+                let held = {
+                    let s = self.shared.lock().unwrap();
+                    s.jobs.get(&id).map(|e| (e.info.state, e.outcome.clone()))
+                };
+                match held {
+                    Some((_, Some(outcome))) => Response::Result { id, outcome },
+                    Some((state, None)) => Response::Error {
+                        message: format!("job {id} is still {state}"),
                     },
-                    None => Response::Error {
-                        message: format!("no job {id}"),
+                    // Not this lifetime's: a previous daemon's result, if
+                    // retention still has it.
+                    None => match self.stored_outcome(id) {
+                        Some(outcome) => Response::Result { id, outcome },
+                        None => Response::Error {
+                            message: format!("no job {id}"),
+                        },
                     },
                 }
             }
@@ -2217,8 +2421,7 @@ impl Daemon {
             }
             Request::DaemonStop => Response::Stopping,
             Request::ResetTripwire => {
-                self.rails().reset_tripwire();
-                self.log("live-test rails reset by request");
+                self.reset_rails();
                 Response::Ack
             }
             Request::Dashboard => {
@@ -2263,13 +2466,20 @@ impl Daemon {
         }
     }
 
+    /// Clear the rails halt and wake the jobs that were waiting on it.
+    fn reset_rails(&self) {
+        self.rails().reset_tripwire();
+        self.log("live-test rails reset by request");
+        self.work.notify_one();
+    }
+
     async fn idle_watchdog(self: Arc<Self>) {
         let idle_shutdown = idle_shutdown_from_env();
         loop {
             tokio::time::sleep(IDLE_POLL).await;
             let idle = {
                 let s = self.shared.lock().unwrap();
-                let live_jobs = s.jobs.values().any(|e| !e.info.state.is_terminal());
+                let live_jobs = Self::has_live_jobs(&s, self.rails().halted().is_some());
                 s.connections == 0 && !live_jobs && s.last_activity.elapsed() >= idle_shutdown
             };
             // Limiter history inside a policy window is worth more than a
@@ -2282,6 +2492,20 @@ impl Daemon {
                 std::process::exit(0);
             }
         }
+    }
+}
+
+impl Daemon {
+    /// Whether any job keeps the daemon up. A halted daemon's waiting jobs
+    /// do not: they are on disk, and its successor holds them until the
+    /// reset (`CONTEXT.md`, "A rails halt leaves queued network jobs
+    /// waiting"). A parent holding its result runs no task of its own.
+    fn has_live_jobs(s: &Shared, halted: bool) -> bool {
+        s.jobs.values().any(|e| match e.info.state {
+            JobState::Running => e.deferred.is_none() || !halted,
+            JobState::Waiting => !halted,
+            _ => false,
+        })
     }
 }
 
@@ -2488,6 +2712,17 @@ pub async fn run() -> Result<()> {
         }
     }
 
+    let jobs_db = match JobDb::open(&acquisition_store::jobs::daemon_db_path(&dir)) {
+        Ok(db) => Some(Mutex::new(db)),
+        Err(e) => {
+            writeln!(
+                &log,
+                "JOBS: could not open daemon.db: {e:#}; jobs are in-memory only"
+            )
+            .ok();
+            None
+        }
+    };
     let daemon = Arc::new(Daemon {
         shared: Mutex::new(Shared {
             jobs: HashMap::new(),
@@ -2505,8 +2740,9 @@ pub async fn run() -> Result<()> {
         choke,
         provider,
         credential_store: Arc::new(OsCredentialStore),
-        store_dir: Some(dir),
+        store_dir: Some(dir.clone()),
         store: Mutex::new(None),
+        jobs_db,
     });
 
     daemon.log(&format!(
@@ -2546,6 +2782,11 @@ pub async fn run() -> Result<()> {
     for warning in daemon.rails().startup_warnings() {
         daemon.note_error(&format!("RAILS CONFIG: {warning}"));
     }
+    let (retention, problems) = retention_from_env();
+    for problem in problems {
+        daemon.note_error(&format!("JOBS CONFIG: {problem}"));
+    }
+    daemon.restore_jobs(retention);
 
     tokio::spawn(daemon.clone().dispatcher());
     tokio::spawn(daemon.clone().idle_watchdog());
@@ -2751,6 +2992,7 @@ mod auth_session_tests {
             credential_store: credential_store.clone(),
             store_dir: None,
             store: Mutex::new(None),
+            jobs_db: None,
         });
         (daemon, credential_store, log_path)
     }
@@ -3827,6 +4069,7 @@ mod dispatcher_tests {
             credential_store,
             store_dir: None,
             store: Mutex::new(None),
+            jobs_db: None,
         });
         // Test daemons know what the real one knows about routes.
         Daemon::declare_route_knowledge(&daemon.choke);
@@ -4959,13 +5202,31 @@ mod dispatcher_tests {
         }
     }
 
+    /// Poll a job until `pred` holds on its snapshot (3 s budget).
+    async fn wait_until(daemon: &Daemon, id: JobId, pred: impl Fn(&JobInfo) -> bool) -> JobInfo {
+        tokio::time::timeout(Duration::from_secs(3), async {
+            loop {
+                let info = daemon.shared.lock().unwrap().jobs[&id].info.clone();
+                if pred(&info) {
+                    return info;
+                }
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("job reached the expected state")
+    }
+
     #[tokio::test]
-    async fn tripped_daemon_fails_queued_jobs_without_sending_until_reset() {
-        // HEAD establishes, the first GET lands a 429 (tripping), and after
-        // the reset one more GET succeeds. Nothing else may reach the server.
+    async fn tripped_daemon_leaves_queued_jobs_waiting_until_reset() {
+        // HEAD establishes, the first GET lands a 429 (tripping). Nothing
+        // else reaches the server until the reset; then both queued jobs
+        // go out (CONTEXT.md, "A rails halt leaves queued network jobs
+        // waiting").
         let responses = vec![
             ScriptedResponse::full("HEAD", "204 No Content", None, ""),
             ScriptedResponse::full("GET", "429 Too Many Requests", Some(0), "{}"),
+            ScriptedResponse::full("GET", "200 OK", None, r#"{"ok":true}"#),
             ScriptedResponse::full("GET", "200 OK", None, r#"{"ok":true}"#),
         ];
         let (base, requests, server) = scripted_server(responses).await;
@@ -4976,36 +5237,28 @@ mod dispatcher_tests {
         let dispatcher = tokio::spawn(daemon.clone().dispatcher());
 
         let first = daemon.submit("fetch".into(), json!({}), 0, "test".into(), None);
-        let (info, outcome) = wait_terminal(&daemon, first).await;
-        assert_eq!(info.state, JobState::Failed);
-        let Outcome::Failure { error } = outcome else {
-            panic!("tripped job did not fail")
-        };
-        assert!(error.contains("halted by live-test rails"), "{error}");
+        let info = wait_until(&daemon, first, |i| i.retries == 1).await;
+        assert_eq!(
+            info.state,
+            JobState::Waiting,
+            "re-queued by the 429, then held"
+        );
         assert!(
             rails.halted().unwrap().contains("429 on GET /fetch"),
             "{:?}",
             rails.halted()
         );
+        let second = daemon.submit("fetch".into(), json!({}), 0, "test".into(), None);
+        tokio::time::sleep(Duration::from_millis(100)).await;
         assert_eq!(
             requests.lock().unwrap().as_slice(),
             ["HEAD", "GET"],
-            "the 429 tripped before any retry"
-        );
-        assert_eq!(
-            journal_waits(&log_path),
-            [0, 0],
-            "a requeued job fails at its next attempt instead of waiting behind the hold"
-        );
-
-        let second = daemon.submit("fetch".into(), json!({}), 0, "test".into(), None);
-        let (info, _) = wait_terminal(&daemon, second).await;
-        assert_eq!(info.state, JobState::Failed);
-        assert_eq!(
-            requests.lock().unwrap().len(),
-            2,
             "a tripped daemon sends nothing"
         );
+        for id in [first, second] {
+            let state = daemon.shared.lock().unwrap().jobs[&id].info.state;
+            assert_eq!(state, JobState::Waiting, "job {id} waits out the halt");
+        }
         let logged = {
             let s = daemon.shared.lock().unwrap();
             s.errors
@@ -5014,12 +5267,17 @@ mod dispatcher_tests {
         };
         assert!(logged, "the trip is announced once in the error ring");
 
-        rails.reset_tripwire();
-        // The limiter's own hold from the 429 still applies after the reset.
-        let third = daemon.submit("fetch".into(), json!({}), 0, "test".into(), None);
-        let (info, _) = wait_terminal(&daemon, third).await;
+        // The reset wakes the queue; the limiter's own hold from the 429
+        // still applies.
+        daemon.reset_rails();
+        let (info, _) = wait_terminal(&daemon, first).await;
         assert_eq!(info.state, JobState::Done);
-        assert_eq!(requests.lock().unwrap().as_slice(), ["HEAD", "GET", "GET"]);
+        let (info, _) = wait_terminal(&daemon, second).await;
+        assert_eq!(info.state, JobState::Done);
+        assert_eq!(
+            requests.lock().unwrap().as_slice(),
+            ["HEAD", "GET", "GET", "GET"]
+        );
         server.await.unwrap();
         finish_harness_wire(dispatcher, &log_path, &requests);
     }
@@ -5053,16 +5311,236 @@ mod dispatcher_tests {
         assert!(rails.halted().unwrap().contains("ceiling: 2 of 2"));
 
         let second = daemon.submit("fetch".into(), json!({}), 0, "test".into(), None);
-        let (info, outcome) = wait_terminal(&daemon, second).await;
-        assert_eq!(info.state, JobState::Failed);
-        let Outcome::Failure { error } = outcome else {
-            panic!("ceiling job did not fail")
-        };
-        assert!(error.contains("ceiling"), "{error}");
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        let state = daemon.shared.lock().unwrap().jobs[&second].info.state;
+        assert_eq!(
+            state,
+            JobState::Waiting,
+            "a ceiling halt holds the queue too"
+        );
         assert_eq!(requests.lock().unwrap().len(), 2);
         assert_eq!(rails.status().sends, 2);
         server.await.unwrap();
         finish_harness_wire(dispatcher, &log_path, &requests);
+    }
+
+    // ---- persistence (CONTEXT.md, "The job queue persists") -------------
+
+    fn test_db_path() -> PathBuf {
+        std::env::temp_dir().join(format!(
+            "acquisition-jobs-{}-{}.db",
+            std::process::id(),
+            TEST_LOG_ID.fetch_add(1, Ordering::Relaxed)
+        ))
+    }
+
+    /// A harness daemon on a `daemon.db`, restored from it like `run` does.
+    fn persisting_daemon(base: &str, db_path: &std::path::Path) -> (Arc<Daemon>, PathBuf) {
+        let (mut daemon, log_path) = test_daemon(base, Arc::new(ManualClock::new()));
+        Arc::get_mut(&mut daemon).unwrap().jobs_db =
+            Some(Mutex::new(JobDb::open(db_path).unwrap()));
+        daemon.restore_jobs(Retention::default());
+        (daemon, log_path)
+    }
+
+    fn remove_db(path: &std::path::Path) {
+        for suffix in ["", "-wal", "-shm"] {
+            let _ = std::fs::remove_file(format!("{}{suffix}", path.display()));
+        }
+    }
+
+    #[tokio::test]
+    async fn the_queue_and_results_survive_a_daemon_restart() {
+        let db = test_db_path();
+        remove_db(&db);
+        // Lifetime 1: one job finishes, one is running, one waits behind
+        // it; then the daemon "crashes" mid-run.
+        let (daemon, log1) = persisting_daemon("http://127.0.0.1:1", &db);
+        let dispatcher = tokio::spawn(daemon.clone().dispatcher());
+        let done = daemon.submit(
+            "sleep".into(),
+            json!({ "seconds": 0.01 }),
+            0,
+            "a".into(),
+            None,
+        );
+        wait_terminal(&daemon, done).await;
+        let running = daemon.submit(
+            "sleep".into(),
+            json!({ "seconds": 0.3 }),
+            2,
+            "b".into(),
+            None,
+        );
+        wait_until(&daemon, running, |i| i.state == JobState::Running).await;
+        let waiting = daemon.submit(
+            "sleep".into(),
+            json!({ "seconds": 0.01 }),
+            1,
+            "c".into(),
+            None,
+        );
+        daemon.set_priority(waiting, 5).unwrap();
+        dispatcher.abort();
+        drop(daemon);
+
+        // Lifetime 2: the running job is re-queued, the waiting one kept
+        // with its reprioritization, ids continue, and the finished job's
+        // result is still answerable over the protocol.
+        let (daemon, log2) = persisting_daemon("http://127.0.0.1:1", &db);
+        let jobs = daemon.shared.lock().unwrap().list(&daemon);
+        let summary: Vec<(JobId, JobState, Priority)> =
+            jobs.iter().map(|j| (j.id, j.state, j.priority)).collect();
+        assert_eq!(
+            summary,
+            [
+                (running, JobState::Waiting, 2),
+                (waiting, JobState::Waiting, 5)
+            ],
+            "open jobs come back; terminal ones stay in the table"
+        );
+        assert_eq!(jobs[0].submitted_by, "b", "every field rides along");
+        let fresh = daemon.submit(
+            "sleep".into(),
+            json!({ "seconds": 0.01 }),
+            0,
+            "d".into(),
+            None,
+        );
+        assert_eq!(fresh, waiting + 1, "ids continue across the restart");
+        match daemon
+            .handle_request(Request::Result { id: done }, &mut None)
+            .await
+        {
+            Response::Result {
+                outcome: Outcome::Success { payload },
+                ..
+            } => {
+                assert_eq!(payload["slept_seconds"], json!(0.01))
+            }
+            other => panic!("previous lifetime's result not served: {other:?}"),
+        }
+        match daemon
+            .handle_request(Request::Result { id: 999 }, &mut None)
+            .await
+        {
+            Response::Error { message } => assert_eq!(message, "no job 999"),
+            other => panic!("{other:?}"),
+        }
+
+        let dispatcher = tokio::spawn(daemon.clone().dispatcher());
+        for id in [running, waiting, fresh] {
+            let (info, _) = wait_terminal(&daemon, id).await;
+            assert_eq!(info.state, JobState::Done, "job {id} runs to completion");
+        }
+        dispatcher.abort();
+        // Lifetime 3 has nothing to restore.
+        drop(daemon);
+        let (daemon, log3) = persisting_daemon("http://127.0.0.1:1", &db);
+        assert!(daemon.shared.lock().unwrap().jobs.is_empty());
+        for p in [log1, log2, log3] {
+            remove_harness_files(&p);
+        }
+        remove_db(&db);
+    }
+
+    #[tokio::test]
+    async fn restore_drops_probes_and_finishes_a_parent_whose_children_are_done() {
+        let db = test_db_path();
+        remove_db(&db);
+        {
+            let db = JobDb::open(&db).unwrap();
+            let row = |id: u64, kind: &str, state: &str, parent: Option<u64>| {
+                acquisition_store::jobs::JobRow {
+                    id,
+                    kind: kind.into(),
+                    state: state.into(),
+                    priority: 0,
+                    submitted_by: "t".into(),
+                    parent,
+                    retries: 0,
+                    account: Some("A#1".into()),
+                    params: json!({ "route": "fetch@A#1", "league": "Standard" }),
+                    outcome: (state == "done")
+                        .then(|| json!({ "outcome": "success", "payload": {} })),
+                    deferred: None,
+                    cancel_requested: false,
+                    submitted_at: 0,
+                    updated_at: 0,
+                }
+            };
+            // A refresh whose last child finished just before the daemon
+            // died: its own result is held, deferred.
+            let mut parent = row(1, "refresh", "running", None);
+            parent.deferred =
+                Some(json!({ "outcome": "success", "payload": { "tabs_listed": 1 } }));
+            db.upsert(&parent).unwrap();
+            db.upsert(&row(2, "stash", "done", Some(1))).unwrap();
+            // Per-lifetime: a probe from the previous daemon.
+            db.upsert(&row(3, "probe", "waiting", None)).unwrap();
+            // A running job that was asked to cancel: it never ran again.
+            let mut cancelling = row(4, "sleep", "running", None);
+            cancelling.cancel_requested = true;
+            db.upsert(&cancelling).unwrap();
+        }
+        let (daemon, log) = persisting_daemon("http://127.0.0.1:1", &db);
+        let jobs = daemon.shared.lock().unwrap().list(&daemon);
+        let states: Vec<(JobId, JobState)> = jobs.iter().map(|j| (j.id, j.state)).collect();
+        assert_eq!(
+            states,
+            [
+                (1, JobState::Done),
+                (2, JobState::Done),
+                (4, JobState::Cancelled)
+            ]
+        );
+        let Outcome::Success { payload } = daemon.shared.lock().unwrap().jobs[&1]
+            .outcome
+            .clone()
+            .unwrap()
+        else {
+            panic!("parent did not finish with its held result")
+        };
+        assert_eq!(payload["tabs_listed"], json!(1));
+        assert_eq!(payload["children"]["done"], json!(1));
+        assert!(
+            JobDb::open(&db).unwrap().get(3).unwrap().is_none(),
+            "the probe row is gone from the table too"
+        );
+        assert_eq!(daemon.shared.lock().unwrap().next_id, 5);
+        remove_harness_files(&log);
+        remove_db(&db);
+    }
+
+    #[tokio::test]
+    async fn a_halted_daemon_with_only_waiting_jobs_is_idle() {
+        let (daemon, log) = test_daemon("http://127.0.0.1:1", Arc::new(ManualClock::new()));
+        let id = daemon.submit("fetch".into(), json!({}), 0, "t".into(), None);
+        {
+            let s = daemon.shared.lock().unwrap();
+            assert!(
+                Daemon::has_live_jobs(&s, false),
+                "a waiting job keeps an unhalted daemon up"
+            );
+            assert!(
+                !Daemon::has_live_jobs(&s, true),
+                "…but not a halted one: the queue is on disk"
+            );
+        }
+        daemon
+            .shared
+            .lock()
+            .unwrap()
+            .jobs
+            .get_mut(&id)
+            .unwrap()
+            .info
+            .state = JobState::Running;
+        assert!(
+            Daemon::has_live_jobs(&daemon.shared.lock().unwrap(), true),
+            "a running job keeps even a halted daemon up"
+        );
+        remove_harness_files(&log);
     }
 
     async fn token_server_answering(

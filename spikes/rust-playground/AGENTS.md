@@ -30,8 +30,9 @@ Quality gate, kept green by every change (`NETWORK-CLEANUP.md`):
 
 Working against the mock daemon in a session: use `ACQ_SOCKET=<short
 path>` and `ACQ_NO_KEYRING=1` to stay isolated, `ACQ_STORE_DIR=<scratch>`
-so the shared store does not land in the real per-user data directory, and `acq daemon
-stop` when done. A scripted mock login is `acq auth --no-browser` in the
+so the shared store and the persisted job queue (`daemon.db`) do not land
+in the real per-user data directory — two daemons on one store directory
+would run the same queue — and `acq daemon stop` when done. A scripted mock login is `acq auth --no-browser` in the
 background, then `curl` the printed URL with `/authorize?` replaced by
 `/approve?` (add `&user=NAME` for a second account). macOS has no
 `timeout`; long holds (up to 300 s + 60 s) are the limiter working, not a
