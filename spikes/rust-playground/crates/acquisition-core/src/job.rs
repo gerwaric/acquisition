@@ -55,6 +55,12 @@ pub struct JobInfo {
     pub parent: Option<JobId>,
     /// Times this job has been put back in the queue after a 429.
     pub retries: u32,
+    /// The GGG account this job runs as (`name#discriminator`), fixed at
+    /// submit: it selects the token it sends with and the store file its
+    /// response lands in. `None` only for jobs that need no account
+    /// (`sleep`, the mock's `fetch`).
+    #[serde(default)]
+    pub account: Option<String>,
     /// What the job was submitted with, verbatim. Public: every connected
     /// client sees it, so a job's params must never carry a secret (tokens
     /// are fetched inside the daemon, never passed in). This is what makes
@@ -68,9 +74,15 @@ impl JobInfo {
     /// params: `Standard/cur1`, `Standard/maps/m003`, `Standard (all)`.
     /// Rendering is the client's business; this is the one shared default.
     pub fn target(&self) -> String {
-        let p = &self.params;
+        target_of(&self.kind, &self.params)
+    }
+}
+
+/// `JobInfo::target` for a kind and params without a `JobInfo`.
+pub fn target_of(kind: &str, p: &Value) -> String {
+    {
         let s = |k: &str| p.get(k).and_then(Value::as_str);
-        match self.kind.as_str() {
+        match kind {
             "stash" => match (s("league"), s("id"), s("sub")) {
                 (Some(l), Some(id), Some(sub)) => format!("{l}/{id}/{sub}"),
                 (Some(l), Some(id), None) => format!("{l}/{id}"),

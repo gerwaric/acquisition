@@ -32,6 +32,11 @@ pub enum Request {
         params: Value,
         priority: Priority,
         submitted_by: String,
+        /// Which account to run as: a username (with or without its
+        /// `#discriminator`) or uuid. Omitted means the live session's
+        /// account. Refused if it does not name the live session.
+        #[serde(default)]
+        account: Option<String>,
     },
     Status {
         id: JobId,

@@ -159,10 +159,16 @@ tokens live 60 seconds, so silent refresh is exercised constantly.
 `ACQ_IDLE_SHUTDOWN=<secs>` overrides the idle exit. `ACQ_STORE_DIR=<dir>`
 relocates the shared store (`<dir>/<provider>/<account>.db` plus
 `accounts.json`; default `~/.local/share/acquisition-playground/store`).
-`ACQ_ACCOUNT=<username|name|uuid>` picks which account's store the reads
-(`accounts`, `tabs`, `items`, `store`) open; with one known account it is
-implicit, with several the reads refuse and list them (`--account` comes
-with the multi-account build, `CONTEXT.md`). `ACQ_NO_SPAWN=1` makes
+`--account <username|name|uuid>` (global; `ACQ_ACCOUNT` is the env form)
+names the account a command acts as: for the store reads (`accounts`,
+`tabs`, `items`, `store`) it picks the file; for job commands it travels
+on the submit, is validated against the daemon's live session (refused
+with both names if they differ), and is fixed on the job — a job runs
+with that account's token and its response lands in that account's file,
+even if someone logs in as another account while it waits. With one known
+account it is implicit; with several, the reads refuse and list them. A
+job whose account no longer matches the session when its token is taken
+(a re-login, or a logout) fails without a send, naming what happened. `ACQ_NO_SPAWN=1` makes
 the CLI refuse to start or replace a daemon — for cron and other
 non-interactive callers, which on macOS would spawn a daemon with no
 keychain access and therefore no session.

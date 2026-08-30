@@ -10,6 +10,13 @@ use acquisition_store::{AccountEntry, Endpoint, Index, Store, account_path, stor
 use anyhow::{Context, Result, bail};
 use serde_json::{Value, json};
 
+static SELECTOR: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
+
+/// `--account` (clap already folded in `ACQ_ACCOUNT`), set once by main.
+pub fn set_selector(selector: Option<String>) {
+    let _ = SELECTOR.set(selector);
+}
+
 fn provider() -> &'static str {
     if ggg_mode() { "ggg" } else { "mock" }
 }
@@ -20,7 +27,7 @@ fn provider() -> &'static str {
 fn resolve() -> Result<(PathBuf, AccountEntry)> {
     let dir = store_dir(provider());
     let index = Index::load(&dir)?;
-    let selector = std::env::var("ACQ_ACCOUNT").ok();
+    let selector = SELECTOR.get().cloned().flatten();
     let entry = index
         .resolve(selector.as_deref())
         .map_err(anyhow::Error::from)?

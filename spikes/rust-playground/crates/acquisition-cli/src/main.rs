@@ -27,6 +27,10 @@ struct Cli {
     /// Emit structured JSON instead of human-readable output.
     #[arg(long, global = true)]
     json: bool,
+    /// Which account to act as: a username (with or without `#…`) or uuid.
+    /// Defaults to `ACQ_ACCOUNT`, else the sole known/logged-in account.
+    #[arg(long, global = true, env = "ACQ_ACCOUNT")]
+    account: Option<String>,
     #[command(subcommand)]
     cmd: Cmd,
 }
@@ -196,9 +200,14 @@ enum DaemonCmd {
     Run,
 }
 
+/// `--account`/`ACQ_ACCOUNT`, for every submit this process makes.
+static ACCOUNT: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
+    store_cmd::set_selector(cli.account.clone());
+    let _ = ACCOUNT.set(cli.account.clone());
     match cli.cmd {
         Cmd::Auth { cmd, no_browser } => match cmd {
             None => login(no_browser, cli.json).await,
@@ -627,12 +636,14 @@ async fn submit(
     priority: u8,
 ) -> Result<u64> {
     let submitted_by = format!("cli:{}", std::process::id());
+    let account = ACCOUNT.get().cloned().flatten();
     match client
         .request(&Request::Submit {
             kind,
             params,
             priority,
             submitted_by,
+            account,
         })
         .await?
     {
@@ -708,8 +719,8 @@ fn print_table(jobs: &[JobInfo]) {
         return;
     }
     println!(
-        "{:>4}  {:>6}  {:<10}  {:<22}  {:<10}  {:>4}  {:<12}  eta",
-        "id", "parent", "kind", "target", "state", "prio", "by"
+        "{:>4}  {:>6}  {:<10}  {:<22}  {:<10}  {:>4}  {:<16}  {:<12}  eta",
+        "id", "parent", "kind", "target", "state", "prio", "account", "by"
     );
     for job in jobs {
         let eta = job
@@ -717,7 +728,7 @@ fn print_table(jobs: &[JobInfo]) {
             .map(|s| format!("~{s}s"))
             .unwrap_or_default();
         println!(
-            "{:>4}  {:>6}  {:<10}  {:<22}  {:<10}  {:>4}  {:<12}  {}",
+            "{:>4}  {:>6}  {:<10}  {:<22}  {:<10}  {:>4}  {:<16}  {:<12}  {}",
             job.id,
             job.parent.map(|p| p.to_string()).unwrap_or_default(),
             job.kind,
@@ -728,6 +739,7 @@ fn print_table(jobs: &[JobInfo]) {
                 job.state.to_string()
             },
             job.priority,
+            job.account.as_deref().unwrap_or("-"),
             job.submitted_by,
             eta
         );

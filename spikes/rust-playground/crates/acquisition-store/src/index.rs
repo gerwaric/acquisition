@@ -98,6 +98,15 @@ pub fn index_path(dir: &Path) -> PathBuf {
     dir.join("accounts.json")
 }
 
+/// Whether a selector names this account: the exact username, the name
+/// without its `#discriminator` (both case-insensitive), or the uuid.
+/// Never a prefix.
+pub fn account_matches(selector: &str, username: &str, uuid: Option<&str>) -> bool {
+    let sel = selector.to_lowercase();
+    let u = username.to_lowercase();
+    u == sel || u.split_once('#').is_some_and(|(name, _)| name == sel) || uuid == Some(selector)
+}
+
 impl Index {
     /// A missing file is an empty index.
     pub fn load(dir: &Path) -> Result<Index> {
@@ -179,16 +188,10 @@ impl Index {
                 )),
             },
             Some(sel) => {
-                let sel_l = sel.to_lowercase();
                 let hits: Vec<&AccountEntry> = self
                     .entries
                     .iter()
-                    .filter(|e| {
-                        let u = e.username.to_lowercase();
-                        u == sel_l
-                            || u.split_once('#').is_some_and(|(name, _)| name == sel_l)
-                            || e.uuid.as_deref().is_some_and(|id| id == sel)
-                    })
+                    .filter(|e| account_matches(sel, &e.username, e.uuid.as_deref()))
                     .collect();
                 match hits.as_slice() {
                     [one] => Ok(one),

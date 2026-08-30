@@ -9,7 +9,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime};
 
-use acquisition_store::{Endpoint, Index, Store, account_path, store_dir};
+use acquisition_store::{Endpoint, Index, Store, account_matches, account_path, store_dir};
 use anyhow::Result;
 use serde_json::{Value, json};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
@@ -19,7 +19,7 @@ use tokio::sync::{Notify, broadcast, watch};
 use std::collections::VecDeque;
 
 use crate::VERSION;
-use crate::job::{JobId, JobInfo, JobState, Outcome, Priority};
+use crate::job::{JobId, JobInfo, JobState, Outcome, Priority, target_of};
 use crate::protocol::{ErrorRecord, Request, Response};
 use crate::provider::{CALLBACK_PATH, Provider, SCOPES, ggg_mode};
 use crate::rails::{BlockShape, Rails, RailsConfig};
@@ -335,27 +335,27 @@ impl Daemon {
     /// involvement: endpoint + params + body; what is inside is the store's
     /// business. A store failure is logged, never a job failure — the job's
     /// payload still reaches the client that asked.
-    fn record(&self, kind: &str, params: &Value, body: &Value) {
+    fn record(&self, account: Option<&str>, kind: &str, params: &Value, body: &Value) {
         let Some(dir) = &self.store_dir else { return };
         let Some(endpoint) = Endpoint::from_job(kind, params) else {
             return;
         };
-        // The store is the session's account's file, opened on first use;
-        // a re-login as another account switches files.
-        let username = self.shared.lock().unwrap().auth.username.clone();
-        let Some(username) = username else {
+        // The job's account — fixed at submit — selects the file, never the
+        // session at landing time: a login as B while A's refresh is still
+        // landing must not file A's tabs under B.
+        let Some(account) = account else {
             self.note_error(&format!(
-                "store: {kind} landed with no session username; not recorded"
+                "store: {kind} landed with no account; not recorded"
             ));
             return;
         };
         let mut guard = self.store.lock().unwrap();
-        if guard.as_ref().is_none_or(|(u, _)| *u != username) {
-            let path = account_path(dir, &username);
+        if guard.as_ref().is_none_or(|(u, _)| u != account) {
+            let path = account_path(dir, account);
             match Store::open(&path) {
                 Ok(store) => {
-                    self.log(&format!("store: {} opened for {username}", path.display()));
-                    *guard = Some((username.clone(), store));
+                    self.log(&format!("store: {} opened for {account}", path.display()));
+                    *guard = Some((account.to_string(), store));
                 }
                 Err(e) => {
                     self.note_error(&format!("store: could not open {}: {e:#}", path.display()));
@@ -368,18 +368,7 @@ impl Daemon {
         match result {
             Ok(ingest) => self.log(&format!(
                 "store: {kind} {} -> response {} | {} items (+{} ~{} >{} -{})",
-                JobInfo {
-                    id: 0,
-                    kind: kind.into(),
-                    state: JobState::Done,
-                    priority: 0,
-                    submitted_by: String::new(),
-                    eta_seconds: None,
-                    parent: None,
-                    retries: 0,
-                    params: params.clone()
-                }
-                .target(),
+                target_of(kind, params),
                 ingest.response_id,
                 ingest.items,
                 ingest.added,
@@ -483,7 +472,7 @@ impl Daemon {
     /// Make sure a probe for `route` is queued or running; submit one if not.
     /// One probe per route per daemon lifetime in the normal case — the
     /// sanctioned "one HEAD at startup" (N16), sent lazily on first use.
-    fn ensure_probe(&self, route: &str, url: &str) {
+    fn ensure_probe(&self, route: &str, url: &str, account: Option<String>) {
         let pending = Self::probe_pending(&self.shared.lock().unwrap(), route);
         if !pending {
             self.log(&format!(
@@ -495,7 +484,23 @@ impl Daemon {
                 json!({ "route": route, "url": url }),
                 PROBE_PRIORITY,
                 "daemon".into(),
+                account,
             );
+        }
+    }
+
+    /// Turn a client's account selector into the account a job runs as.
+    /// One live session for now: the selector must name it (or be absent);
+    /// anything else is refused at submit, before a job exists.
+    fn resolve_account(&self, requested: Option<&str>) -> Result<Option<String>, String> {
+        let live = self.shared.lock().unwrap().auth.username.clone();
+        match (requested, live) {
+            (None, live) => Ok(live),
+            (Some(req), Some(live)) if account_matches(req, &live, None) => Ok(Some(live)),
+            (Some(req), Some(live)) => Err(format!(
+                "account {req:?} is not the live session ({live}); log in as it first"
+            )),
+            (Some(req), None) => Err(format!("account {req:?}: not logged in — run `acq auth`")),
         }
     }
 
@@ -505,18 +510,23 @@ impl Daemon {
         params: Value,
         priority: Priority,
         submitted_by: String,
+        account: Option<String>,
     ) -> JobId {
-        self.submit_with_parent(kind, params, priority, submitted_by, None)
+        self.submit_with_parent(kind, params, priority, submitted_by, account, None)
     }
 
-    /// A child inherits its parent's priority and submitter.
+    /// A child inherits its parent's priority, submitter, and account.
     fn submit_child(&self, parent: JobId, kind: &str, params: Value) -> Option<JobId> {
-        let (priority, by) = {
+        let (priority, by, account) = {
             let s = self.shared.lock().unwrap();
             let p = s.jobs.get(&parent)?;
-            (p.info.priority, p.info.submitted_by.clone())
+            (
+                p.info.priority,
+                p.info.submitted_by.clone(),
+                p.info.account.clone(),
+            )
         };
-        Some(self.submit_with_parent(kind.into(), params, priority, by, Some(parent)))
+        Some(self.submit_with_parent(kind.into(), params, priority, by, account, Some(parent)))
     }
 
     fn submit_with_parent(
@@ -525,6 +535,7 @@ impl Daemon {
         params: Value,
         priority: Priority,
         submitted_by: String,
+        account: Option<String>,
         parent: Option<JobId>,
     ) -> JobId {
         let info = {
@@ -541,6 +552,7 @@ impl Daemon {
                 eta_seconds: None,
                 parent,
                 retries: 0,
+                account,
                 params: params.clone(),
             };
             s.jobs.insert(
@@ -675,10 +687,13 @@ impl Daemon {
 
     async fn process(&self, id: JobId) {
         let ready = self.choke.now();
-        let route = {
+        let (route, account) = {
             let s = self.shared.lock().unwrap();
             match s.jobs.get(&id) {
-                Some(e) => self.route_for(&e.info.kind, &e.params),
+                Some(e) => (
+                    self.route_for(&e.info.kind, &e.params),
+                    e.info.account.clone(),
+                ),
                 None => return,
             }
         };
@@ -701,7 +716,7 @@ impl Daemon {
         if let Some((route, url)) = &route {
             match self.choke.endpoint_state(route) {
                 EndpointState::Unknown => {
-                    self.ensure_probe(route, url);
+                    self.ensure_probe(route, url, account);
                     return; // scheduling key released; the probe outranks us
                 }
                 EndpointState::Degraded { until, reason } => {
@@ -763,7 +778,10 @@ impl Daemon {
         self.emit(info);
 
         let route = route.map(|(route, _)| route);
-        let outcome = match self.execute(id, &kind, params, route, ready).await {
+        let outcome = match self
+            .execute(id, &kind, params, route, account.as_deref(), ready)
+            .await
+        {
             Exec::Done(outcome) => outcome,
             Exec::RateLimited(evidence) => {
                 // P-A: a 429 is recovered from, not surfaced — unless it keeps
@@ -921,11 +939,15 @@ impl Daemon {
         kind: &str,
         params: Value,
         route: Option<String>,
+        account: Option<&str>,
         ready: Instant,
     ) -> Exec {
         // Network kinds bubble a 429 up as `Exec::RateLimited`; everything
         // else is an ordinary outcome.
-        match self.execute_inner(id, kind, params, route, ready).await {
+        match self
+            .execute_inner(id, kind, params, route, account, ready)
+            .await
+        {
             Ok(outcome) => Exec::Done(outcome),
             Err(ApiError::RateLimited(evidence)) => Exec::RateLimited(evidence),
             Err(ApiError::Protocol(error)) => Exec::Done(Outcome::Failure { error }),
@@ -939,6 +961,7 @@ impl Daemon {
         kind: &str,
         params: Value,
         route: Option<String>,
+        account: Option<&str>,
         ready: Instant,
     ) -> Result<Outcome, ApiError> {
         Ok(match kind {
@@ -948,14 +971,14 @@ impl Daemon {
             // requeues only acceptable 429s, while Cloudflare-shaped blocks
             // are never retried.
             "characters" => {
-                let (token, username) = match self.valid_access_token(false).await {
+                let (token, username) = match self.valid_access_token(account, false).await {
                     Ok(pair) => pair,
                     Err(error) => return Ok(Outcome::Failure { error }),
                 };
                 let url = format!("{}/character", self.provider.api_base);
                 let route = route.as_deref().expect("characters is a network kind");
                 let (v, rate) = self.api_get(route, &url, Some(&token), ready).await?;
-                self.record(kind, &params, &v);
+                self.record(account, kind, &params, &v);
                 Outcome::Success {
                     payload: json!({
                         "provider": self.provider.name,
@@ -966,7 +989,7 @@ impl Daemon {
                 }
             }
             "character" | "leagues" | "profile" => {
-                let (token, username) = match self.valid_access_token(false).await {
+                let (token, username) = match self.valid_access_token(account, false).await {
                     Ok(pair) => pair,
                     Err(error) => return Ok(Outcome::Failure { error }),
                 };
@@ -977,7 +1000,7 @@ impl Daemon {
                 };
                 let route = route.as_deref().expect("network kind");
                 let (v, rate) = self.api_get(route, &url, Some(&token), ready).await?;
-                self.record(kind, &params, &v);
+                self.record(account, kind, &params, &v);
                 Outcome::Success {
                     payload: json!({
                         "provider": self.provider.name,
@@ -991,7 +1014,7 @@ impl Daemon {
             // The stash list: one request under stash-list-request-limit, the
             // second real policy. Tab contents are a later step.
             "stashes" => {
-                let (token, username) = match self.valid_access_token(false).await {
+                let (token, username) = match self.valid_access_token(account, false).await {
                     Ok(pair) => pair,
                     Err(error) => return Ok(Outcome::Failure { error }),
                 };
@@ -1003,7 +1026,7 @@ impl Daemon {
                 let url = format!("{}/stash/{league}", self.provider.api_base);
                 let route = route.as_deref().expect("stashes is a network kind");
                 let (v, rate) = self.api_get(route, &url, Some(&token), ready).await?;
-                self.record(kind, &params, &v);
+                self.record(account, kind, &params, &v);
                 Outcome::Success {
                     payload: json!({
                         "provider": self.provider.name,
@@ -1015,7 +1038,7 @@ impl Daemon {
                 }
             }
             "stash" => {
-                let (token, _) = match self.valid_access_token(false).await {
+                let (token, _) = match self.valid_access_token(account, false).await {
                     Ok(pair) => pair,
                     Err(error) => return Ok(Outcome::Failure { error }),
                 };
@@ -1026,7 +1049,7 @@ impl Daemon {
                 };
                 let route = route.as_deref().expect("stash is a network kind");
                 let (v, rate) = self.api_get(route, &url, Some(&token), ready).await?;
-                self.record(kind, &params, &v);
+                self.record(account, kind, &params, &v);
                 let stash = v.get("stash").cloned().unwrap_or(v);
                 // Map/unique tabs carry their substashes as stubs; following
                 // them is opt-in per tab (--deep) because one map tab can
@@ -1068,7 +1091,7 @@ impl Daemon {
             // (folders themselves are never fetched); map/unique substashes
             // only if `deep`. Selection is explicit — there is no default.
             "refresh" => {
-                let (token, _) = match self.valid_access_token(false).await {
+                let (token, _) = match self.valid_access_token(account, false).await {
                     Ok(pair) => pair,
                     Err(error) => return Ok(Outcome::Failure { error }),
                 };
@@ -1099,7 +1122,12 @@ impl Daemon {
                 let (v, rate) = self.api_get(route, &url, Some(&token), ready).await?;
                 // The list a refresh fetches is the same response `stashes`
                 // records; the store wants it under that endpoint.
-                self.record("stashes", &json!({ "league": params.get("league").cloned().unwrap_or(json!("Standard")) }), &v);
+                self.record(
+                    account,
+                    "stashes",
+                    &json!({ "league": params.get("league").cloned().unwrap_or(json!("Standard")) }),
+                    &v,
+                );
                 let listed = v
                     .get("stashes")
                     .and_then(Value::as_array)
@@ -1208,7 +1236,7 @@ impl Daemon {
                         error: "whoami is a mock-only job kind; not run against real GGG".into(),
                     });
                 }
-                let (token, username) = match self.valid_access_token(false).await {
+                let (token, username) = match self.valid_access_token(account, false).await {
                     Ok(pair) => pair,
                     Err(error) => return Ok(Outcome::Failure { error }),
                 };
@@ -1249,7 +1277,7 @@ impl Daemon {
                     });
                 };
                 let bearer = if self.needs_auth(&route) {
-                    match self.valid_access_token(false).await {
+                    match self.valid_access_token(account, false).await {
                         Ok((token, _)) => Some(token),
                         Err(error) => {
                             // Close the endpoint too, or the waiting job would
@@ -1488,7 +1516,16 @@ impl Daemon {
     /// expired (or about to be). Jobs call this; clients never see tokens.
     /// `force_refresh` skips the cached token so the provider round-trip is
     /// guaranteed — that's what makes `auth check` an actual proof.
-    async fn valid_access_token(&self, force_refresh: bool) -> Result<(String, String), String> {
+    /// `account` is the job's account (fixed at submit); the token handed
+    /// back is always the live session's, so the two must agree at the
+    /// moment the token is taken — a login as B after A's job was submitted
+    /// fails A's job here, before any send. Same idea as the generation
+    /// guard on refreshes. `None` skips the check (auth verbs).
+    async fn valid_access_token(
+        &self,
+        account: Option<&str>,
+        force_refresh: bool,
+    ) -> Result<(String, String), String> {
         enum Decision {
             Owner {
                 id: u64,
@@ -1501,6 +1538,21 @@ impl Daemon {
 
         let decision = {
             let mut s = self.shared.lock().unwrap();
+            if let Some(account) = account {
+                match &s.auth.username {
+                    Some(live) if live == account => {}
+                    Some(live) => {
+                        return Err(format!(
+                            "session changed to {live} while this job was for {account}; resubmit as {live}"
+                        ));
+                    }
+                    None => {
+                        return Err(format!(
+                            "account {account}: its session is gone (logged out) — run `acq auth`"
+                        ));
+                    }
+                }
+            }
             if !force_refresh
                 && let (Some(token), Some(expires)) =
                     (&s.auth.access_token, s.auth.access_expires_at)
@@ -1744,8 +1796,12 @@ impl Daemon {
                 params,
                 priority,
                 submitted_by,
-            } => Response::Submitted {
-                id: self.submit(kind, params, priority, submitted_by),
+                account,
+            } => match self.resolve_account(account.as_deref()) {
+                Ok(account) => Response::Submitted {
+                    id: self.submit(kind, params, priority, submitted_by, account),
+                },
+                Err(message) => Response::Error { message },
             },
             Request::Status { id } => match self.shared.lock().unwrap().snapshot(self, id) {
                 Some(job) => Response::Status { job },
@@ -1793,7 +1849,7 @@ impl Daemon {
                 Err(message) => Response::Error { message },
             },
             Request::AuthStatus => self.auth_status(),
-            Request::AuthCheck => match self.valid_access_token(true).await {
+            Request::AuthCheck => match self.valid_access_token(None, true).await {
                 Ok(_) => self.auth_status(),
                 Err(message) => {
                     self.note_error(&format!("auth check failed: {message}"));
@@ -2386,10 +2442,11 @@ mod auth_session_tests {
         let (daemon, store, log_path) = test_daemon(&delayed.base);
 
         let owner_daemon = daemon.clone();
-        let owner = tokio::spawn(async move { owner_daemon.valid_access_token(false).await });
+        let owner = tokio::spawn(async move { owner_daemon.valid_access_token(None, false).await });
         delayed.arrived.await.unwrap();
         let waiter_daemon = daemon.clone();
-        let waiter = tokio::spawn(async move { waiter_daemon.valid_access_token(false).await });
+        let waiter =
+            tokio::spawn(async move { waiter_daemon.valid_access_token(None, false).await });
         tokio::task::yield_now().await;
         delayed.release.send(()).unwrap();
 
@@ -2490,6 +2547,7 @@ mod auth_session_tests {
                         "characters",
                         serde_json::Value::Null,
                         Some("character-list".into()),
+                        None,
                         daemon.choke.now(),
                     )
                     .await
@@ -2522,14 +2580,14 @@ mod auth_session_tests {
         let before = daemon.shared.lock().unwrap().auth.generations;
 
         let owner_daemon = daemon.clone();
-        let owner = tokio::spawn(async move { owner_daemon.valid_access_token(false).await });
+        let owner = tokio::spawn(async move { owner_daemon.valid_access_token(None, false).await });
         responses.first_arrived.await.unwrap();
 
         let mut waiters = Vec::new();
         for _ in 0..3 {
             let waiter_daemon = daemon.clone();
             waiters.push(tokio::spawn(async move {
-                waiter_daemon.valid_access_token(false).await
+                waiter_daemon.valid_access_token(None, false).await
             }));
         }
         wait_for_refresh_waiters(&daemon, waiters.len()).await;
@@ -2557,10 +2615,13 @@ mod auth_session_tests {
         assert!(store.saves.lock().unwrap().is_empty());
 
         responses.release_first.send(()).unwrap();
-        let retry = tokio::time::timeout(Duration::from_secs(2), daemon.valid_access_token(false))
-            .await
-            .expect("retry after owner abandonment completed")
-            .unwrap();
+        let retry = tokio::time::timeout(
+            Duration::from_secs(2),
+            daemon.valid_access_token(None, false),
+        )
+        .await
+        .expect("retry after owner abandonment completed")
+        .unwrap();
         assert_eq!(retry, ("at-retried".into(), "retry-user".into()));
         responses.server.await.unwrap();
         let requests = responses.requests.lock().unwrap();
@@ -2586,7 +2647,7 @@ mod auth_session_tests {
         let before = daemon.shared.lock().unwrap().auth.generations;
 
         let owner_daemon = daemon.clone();
-        let owner = tokio::spawn(async move { owner_daemon.valid_access_token(false).await });
+        let owner = tokio::spawn(async move { owner_daemon.valid_access_token(None, false).await });
         responses.first_arrived.await.unwrap();
         owner.abort();
         assert!(owner.await.unwrap_err().is_cancelled());
@@ -2600,10 +2661,13 @@ mod auth_session_tests {
         assert!(store.saves.lock().unwrap().is_empty());
 
         responses.release_first.send(()).unwrap();
-        let retry = tokio::time::timeout(Duration::from_secs(2), daemon.valid_access_token(false))
-            .await
-            .expect("retry after owner abandonment completed")
-            .unwrap();
+        let retry = tokio::time::timeout(
+            Duration::from_secs(2),
+            daemon.valid_access_token(None, false),
+        )
+        .await
+        .expect("retry after owner abandonment completed")
+        .unwrap();
         assert_eq!(retry, ("at-retried".into(), "retry-user".into()));
         responses.server.await.unwrap();
         let requests = responses.requests.lock().unwrap();
@@ -2628,7 +2692,8 @@ mod auth_session_tests {
         let before = daemon.shared.lock().unwrap().auth.generations;
 
         let refresh_daemon = daemon.clone();
-        let refresh = tokio::spawn(async move { refresh_daemon.valid_access_token(false).await });
+        let refresh =
+            tokio::spawn(async move { refresh_daemon.valid_access_token(None, false).await });
         delayed.arrived.await.unwrap();
         delayed.release.send(()).unwrap();
         assert_eq!(
@@ -2664,10 +2729,11 @@ mod auth_session_tests {
         let before = daemon.shared.lock().unwrap().auth.generations;
 
         let owner_daemon = daemon.clone();
-        let owner = tokio::spawn(async move { owner_daemon.valid_access_token(false).await });
+        let owner = tokio::spawn(async move { owner_daemon.valid_access_token(None, false).await });
         delayed.arrived.await.unwrap();
         let waiter_daemon = daemon.clone();
-        let waiter = tokio::spawn(async move { waiter_daemon.valid_access_token(false).await });
+        let waiter =
+            tokio::spawn(async move { waiter_daemon.valid_access_token(None, false).await });
         tokio::task::yield_now().await;
         delayed.release.send(()).unwrap();
 
@@ -2695,7 +2761,8 @@ mod auth_session_tests {
         let (daemon, store, log_path) = test_daemon(&delayed.base);
 
         let refresh_daemon = daemon.clone();
-        let refresh = tokio::spawn(async move { refresh_daemon.valid_access_token(false).await });
+        let refresh =
+            tokio::spawn(async move { refresh_daemon.valid_access_token(None, false).await });
         delayed.arrived.await.unwrap();
         daemon.logout().unwrap();
         delayed.release.send(()).unwrap();
@@ -2724,7 +2791,8 @@ mod auth_session_tests {
         let (daemon, store, log_path) = test_daemon(&delayed.base);
 
         let refresh_daemon = daemon.clone();
-        let refresh = tokio::spawn(async move { refresh_daemon.valid_access_token(false).await });
+        let refresh =
+            tokio::spawn(async move { refresh_daemon.valid_access_token(None, false).await });
         delayed.arrived.await.unwrap();
         let flow_generation = daemon.begin_auth_flow();
         assert!(daemon.finish_auth_flow(
@@ -2753,6 +2821,94 @@ mod auth_session_tests {
             )]
         );
         delayed.server.await.unwrap();
+        remove_test_log(&log_path);
+    }
+
+    // ---- multi-account step (2): the job's account is what runs ---------
+
+    #[test]
+    fn submit_resolves_the_account_against_the_live_session() {
+        let (daemon, _, log_path) = test_daemon("http://127.0.0.1:1");
+        // Session is "old-user" (test_daemon).
+        assert_eq!(daemon.resolve_account(None), Ok(Some("old-user".into())));
+        assert_eq!(
+            daemon.resolve_account(Some("OLD-USER")),
+            Ok(Some("old-user".into()))
+        );
+        let err = daemon.resolve_account(Some("Other#1")).unwrap_err();
+        assert!(err.contains("Other#1") && err.contains("old-user"), "{err}");
+        daemon.shared.lock().unwrap().auth.username = None;
+        assert_eq!(daemon.resolve_account(None), Ok(None));
+        let err = daemon.resolve_account(Some("Other#1")).unwrap_err();
+        assert!(err.contains("not logged in"), "{err}");
+        remove_test_log(&log_path);
+    }
+
+    #[tokio::test]
+    async fn a_token_is_refused_once_the_session_no_longer_matches_the_job() {
+        let (daemon, _, log_path) = test_daemon("http://127.0.0.1:1");
+        {
+            let mut s = daemon.shared.lock().unwrap();
+            s.auth.access_token = Some("at-live".into());
+            s.auth.access_expires_at = Some(SystemTime::now() + Duration::from_secs(3600));
+        }
+        // The job's account matches: the live token, no refresh.
+        let (token, user) = daemon
+            .valid_access_token(Some("old-user"), false)
+            .await
+            .unwrap();
+        assert_eq!((token.as_str(), user.as_str()), ("at-live", "old-user"));
+        // Login as someone else after the job was submitted: refused, no send.
+        daemon.shared.lock().unwrap().auth.username = Some("new-user".into());
+        let err = daemon
+            .valid_access_token(Some("old-user"), false)
+            .await
+            .unwrap_err();
+        assert!(
+            err.contains("session changed to new-user") && err.contains("resubmit as new-user"),
+            "{err}"
+        );
+        // Logged out entirely: a distinct message.
+        daemon.shared.lock().unwrap().auth.username = None;
+        let err = daemon
+            .valid_access_token(Some("old-user"), false)
+            .await
+            .unwrap_err();
+        assert!(err.contains("session is gone"), "{err}");
+        // Auth verbs pass no account and are unaffected.
+        assert!(daemon.valid_access_token(None, false).await.is_ok());
+        remove_test_log(&log_path);
+    }
+
+    #[test]
+    fn a_response_is_filed_under_the_job_account_not_the_session() {
+        let (mut daemon, _, log_path) = test_daemon("http://127.0.0.1:1");
+        let dir =
+            std::env::temp_dir().join(format!("acq-store-{}-{}", std::process::id(), line!()));
+        let _ = std::fs::remove_dir_all(&dir);
+        Arc::get_mut(&mut daemon).unwrap().store_dir = Some(dir.clone());
+        // Session is "old-user"; the job was submitted as "A#1" (a login
+        // happened in between). The body lands in A#1's file.
+        daemon.record(
+            Some("A#1"),
+            "stashes",
+            &json!({ "league": "Standard" }),
+            &json!({ "stashes": [ { "id": "t1", "name": "T", "type": "PremiumStash" } ] }),
+        );
+        assert!(acquisition_store::account_path(&dir, "A#1").exists());
+        assert!(!acquisition_store::account_path(&dir, "old-user").exists());
+        // No account at all: nothing recorded, an error noted.
+        daemon.record(None, "stashes", &json!({}), &json!({ "stashes": [] }));
+        assert!(
+            daemon
+                .shared
+                .lock()
+                .unwrap()
+                .errors
+                .iter()
+                .any(|(_, m)| m.contains("no account"))
+        );
+        std::fs::remove_dir_all(&dir).unwrap();
         remove_test_log(&log_path);
     }
 }
@@ -3385,7 +3541,7 @@ mod dispatcher_tests {
         let scenario_start = 3800;
 
         let dispatcher = tokio::spawn(daemon.clone().dispatcher());
-        let id = daemon.submit("characters".into(), json!({}), 0, "test".into());
+        let id = daemon.submit("characters".into(), json!({}), 0, "test".into(), None);
         let (info, _) = wait_terminal(&daemon, id).await;
         server.abort();
         finish_harness(dispatcher, &log_path);
@@ -3664,8 +3820,8 @@ mod dispatcher_tests {
             shared.auth.username = Some("old-user".into());
         }
         let dispatcher = tokio::spawn(daemon.clone().dispatcher());
-        let first = daemon.submit("whoami".into(), json!({}), 0, "test".into());
-        let second = daemon.submit("whoami".into(), json!({}), 0, "test".into());
+        let first = daemon.submit("whoami".into(), json!({}), 0, "test".into(), None);
+        let second = daemon.submit("whoami".into(), json!({}), 0, "test".into(), None);
 
         arrived.await.unwrap();
         tokio::time::timeout(Duration::from_secs(1), async {
@@ -3687,8 +3843,13 @@ mod dispatcher_tests {
         .await
         .expect("second job joined the refresh owner");
 
-        let independent =
-            daemon.submit("sleep".into(), json!({ "seconds": 0.0 }), 0, "test".into());
+        let independent = daemon.submit(
+            "sleep".into(),
+            json!({ "seconds": 0.0 }),
+            0,
+            "test".into(),
+            None,
+        );
         let (info, _) = wait_terminal(&daemon, independent).await;
         assert_eq!(info.state, JobState::Done);
 
@@ -3727,17 +3888,23 @@ mod dispatcher_tests {
         server.await.unwrap();
 
         let dispatcher = tokio::spawn(daemon.clone().dispatcher());
-        let characters = daemon.submit("characters".into(), json!({}), 0, "test".into());
+        let characters = daemon.submit("characters".into(), json!({}), 0, "test".into(), None);
         let stashes = daemon.submit(
             "stashes".into(),
             json!({ "league": "Standard" }),
             0,
             "test".into(),
+            None,
         );
         clock.wait_for_sleepers(2).await;
 
-        let independent =
-            daemon.submit("sleep".into(), json!({ "seconds": 0.0 }), 0, "test".into());
+        let independent = daemon.submit(
+            "sleep".into(),
+            json!({ "seconds": 0.0 }),
+            0,
+            "test".into(),
+            None,
+        );
         let (info, _) = wait_terminal(&daemon, independent).await;
         assert_eq!(info.state, JobState::Done);
 
@@ -3778,18 +3945,20 @@ mod dispatcher_tests {
         // Establish every authenticated route before expiry so the refresh
         // phase is not serialized behind the one-at-a-time probe key.
         let established_routes = [
-            daemon.submit("characters".into(), json!({}), 0, "test".into()),
+            daemon.submit("characters".into(), json!({}), 0, "test".into(), None),
             daemon.submit(
                 "stashes".into(),
                 json!({ "league": "Standard" }),
                 0,
                 "test".into(),
+                None,
             ),
             daemon.submit(
                 "stash".into(),
                 json!({ "league": "Standard", "id": "cur1" }),
                 0,
                 "test".into(),
+                None,
             ),
         ];
         for id in established_routes {
@@ -3808,18 +3977,20 @@ mod dispatcher_tests {
 
         // These jobs now have different learned scheduling keys, so all three
         // can enter valid_access_token while the localhost token body is held.
-        let characters = daemon.submit("characters".into(), json!({}), 0, "test".into());
+        let characters = daemon.submit("characters".into(), json!({}), 0, "test".into(), None);
         let stashes = daemon.submit(
             "stashes".into(),
             json!({ "league": "Standard" }),
             0,
             "test".into(),
+            None,
         );
         let stash = daemon.submit(
             "stash".into(),
             json!({ "league": "Standard", "id": "cur1" }),
             0,
             "test".into(),
+            None,
         );
         let fetches: Vec<_> = (0..7)
             .map(|sequence| {
@@ -3828,6 +3999,7 @@ mod dispatcher_tests {
                     json!({ "sequence": sequence }),
                     0,
                     "test".into(),
+                    None,
                 )
             })
             .collect();
@@ -4007,8 +4179,8 @@ mod dispatcher_tests {
     fn dispatcher_preserves_priority_within_a_scheduling_key() {
         let clock = Arc::new(ManualClock::new());
         let (daemon, log_path) = test_daemon("http://127.0.0.1:1", clock);
-        let low = daemon.submit("fetch".into(), json!({}), 1, "test".into());
-        let high = daemon.submit("fetch".into(), json!({}), 9, "test".into());
+        let low = daemon.submit("fetch".into(), json!({}), 1, "test".into(), None);
+        let high = daemon.submit("fetch".into(), json!({}), 9, "test".into(), None);
 
         assert_eq!(daemon.pick_runnable(), vec![high]);
         assert_eq!(
@@ -4055,8 +4227,8 @@ mod dispatcher_tests {
         let clock = Arc::new(ManualClock::new());
         let (daemon, log_path) = test_daemon(&base, clock);
         let dispatcher = tokio::spawn(daemon.clone().dispatcher());
-        let first = daemon.submit("fetch".into(), json!({}), 0, "test".into());
-        let second = daemon.submit("fetch".into(), json!({}), 0, "test".into());
+        let first = daemon.submit("fetch".into(), json!({}), 0, "test".into(), None);
+        let second = daemon.submit("fetch".into(), json!({}), 0, "test".into(), None);
 
         let (info, outcome) = wait_terminal(&daemon, first).await;
         assert_eq!(info.state, JobState::Failed);
@@ -4094,7 +4266,7 @@ mod dispatcher_tests {
         let (daemon, log_path) = test_daemon(&base, clock);
         let mut events = daemon.events.subscribe();
         let dispatcher = tokio::spawn(daemon.clone().dispatcher());
-        let id = daemon.submit("fetch".into(), json!({}), 0, "test".into());
+        let id = daemon.submit("fetch".into(), json!({}), 0, "test".into(), None);
 
         let (info, outcome) = wait_terminal(&daemon, id).await;
         assert_eq!(info.state, JobState::Done);
@@ -4126,7 +4298,7 @@ mod dispatcher_tests {
         let clock = Arc::new(ManualClock::new());
         let (daemon, log_path) = test_daemon(&base, clock.clone());
         let dispatcher = tokio::spawn(daemon.clone().dispatcher());
-        let id = daemon.submit("fetch".into(), json!({}), 0, "test".into());
+        let id = daemon.submit("fetch".into(), json!({}), 0, "test".into(), None);
 
         let (info, outcome) = wait_terminal(&daemon, id).await;
         assert_eq!(info.state, JobState::Failed);
@@ -4156,8 +4328,8 @@ mod dispatcher_tests {
         let clock = Arc::new(ManualClock::new());
         let (daemon, log_path) = test_daemon(&base, clock);
         let dispatcher = tokio::spawn(daemon.clone().dispatcher());
-        let first = daemon.submit("fetch".into(), json!({}), 0, "test".into());
-        let second = daemon.submit("fetch".into(), json!({}), 0, "test".into());
+        let first = daemon.submit("fetch".into(), json!({}), 0, "test".into(), None);
+        let second = daemon.submit("fetch".into(), json!({}), 0, "test".into(), None);
 
         let (_, first_outcome) = wait_terminal(&daemon, first).await;
         let (_, second_outcome) = wait_terminal(&daemon, second).await;
@@ -4198,7 +4370,7 @@ mod dispatcher_tests {
             let clock = Arc::new(ManualClock::new());
             let (daemon, log_path) = test_daemon(&base, clock.clone());
             let dispatcher = tokio::spawn(daemon.clone().dispatcher());
-            let id = daemon.submit("fetch".into(), json!({}), 0, "test".into());
+            let id = daemon.submit("fetch".into(), json!({}), 0, "test".into(), None);
 
             let (info, outcome) = wait_terminal(&daemon, id).await;
             assert_eq!(info.state, JobState::Failed);
@@ -4229,7 +4401,7 @@ mod dispatcher_tests {
         let clock = Arc::new(ManualClock::new());
         let (daemon, log_path) = test_daemon(&base, clock.clone());
         let dispatcher = tokio::spawn(daemon.clone().dispatcher());
-        let id = daemon.submit("fetch".into(), json!({}), 0, "test".into());
+        let id = daemon.submit("fetch".into(), json!({}), 0, "test".into(), None);
 
         let (info, outcome) = wait_terminal(&daemon, id).await;
         assert_eq!(info.state, JobState::Done);
@@ -4267,7 +4439,7 @@ mod dispatcher_tests {
             let clock = Arc::new(ManualClock::new());
             let (daemon, log_path) = test_daemon(&base, clock);
             let dispatcher = tokio::spawn(daemon.clone().dispatcher());
-            let id = daemon.submit("fetch".into(), json!({}), 0, "test".into());
+            let id = daemon.submit("fetch".into(), json!({}), 0, "test".into(), None);
 
             let (info, _) = wait_terminal(&daemon, id).await;
             assert_eq!(info.state, JobState::Failed);
@@ -4319,7 +4491,7 @@ mod dispatcher_tests {
         let rails = daemon.choke.rails().clone();
         let dispatcher = tokio::spawn(daemon.clone().dispatcher());
 
-        let first = daemon.submit("fetch".into(), json!({}), 0, "test".into());
+        let first = daemon.submit("fetch".into(), json!({}), 0, "test".into(), None);
         let (info, outcome) = wait_terminal(&daemon, first).await;
         assert_eq!(info.state, JobState::Failed);
         let Outcome::Failure { error } = outcome else {
@@ -4342,7 +4514,7 @@ mod dispatcher_tests {
             "a requeued job fails at its next attempt instead of waiting behind the hold"
         );
 
-        let second = daemon.submit("fetch".into(), json!({}), 0, "test".into());
+        let second = daemon.submit("fetch".into(), json!({}), 0, "test".into(), None);
         let (info, _) = wait_terminal(&daemon, second).await;
         assert_eq!(info.state, JobState::Failed);
         assert_eq!(
@@ -4360,7 +4532,7 @@ mod dispatcher_tests {
 
         rails.reset_tripwire();
         // The limiter's own hold from the 429 still applies after the reset.
-        let third = daemon.submit("fetch".into(), json!({}), 0, "test".into());
+        let third = daemon.submit("fetch".into(), json!({}), 0, "test".into(), None);
         let (info, _) = wait_terminal(&daemon, third).await;
         assert_eq!(info.state, JobState::Done);
         assert_eq!(requests.lock().unwrap().as_slice(), ["HEAD", "GET", "GET"]);
@@ -4387,7 +4559,7 @@ mod dispatcher_tests {
         let rails = daemon.choke.rails().clone();
         let dispatcher = tokio::spawn(daemon.clone().dispatcher());
 
-        let first = daemon.submit("fetch".into(), json!({}), 0, "test".into());
+        let first = daemon.submit("fetch".into(), json!({}), 0, "test".into(), None);
         let (info, _) = wait_terminal(&daemon, first).await;
         assert_eq!(
             info.state,
@@ -4396,7 +4568,7 @@ mod dispatcher_tests {
         );
         assert!(rails.halted().unwrap().contains("ceiling: 2 of 2"));
 
-        let second = daemon.submit("fetch".into(), json!({}), 0, "test".into());
+        let second = daemon.submit("fetch".into(), json!({}), 0, "test".into(), None);
         let (info, outcome) = wait_terminal(&daemon, second).await;
         assert_eq!(info.state, JobState::Failed);
         let Outcome::Failure { error } = outcome else {
@@ -4467,12 +4639,12 @@ mod dispatcher_tests {
         let rails = daemon.choke.rails().clone();
         logged_in(&mut daemon);
 
-        let first = daemon.valid_access_token(false).await.unwrap_err();
+        let first = daemon.valid_access_token(None, false).await.unwrap_err();
         assert!(first.contains("400 Bad Request"), "{first}");
         assert_eq!(requests.lock().unwrap().len(), 1);
         assert!(rails.refresh_failed().unwrap().contains("HTTP 400"));
 
-        let second = daemon.valid_access_token(false).await.unwrap_err();
+        let second = daemon.valid_access_token(None, false).await.unwrap_err();
         assert!(
             second.contains("token refresh disabled: refresh token rejected with HTTP 400"),
             "{second}"
@@ -4509,7 +4681,7 @@ mod dispatcher_tests {
         let rails = daemon.choke.rails().clone();
         logged_in(&mut daemon);
 
-        let first = daemon.valid_access_token(false).await.unwrap_err();
+        let first = daemon.valid_access_token(None, false).await.unwrap_err();
         assert!(first.contains("503"), "{first}");
         assert_eq!(rails.refresh_failed(), None, "5xx is not a rejected grant");
         // The tripwire did trip on the 503 (Cloudflare shape); clear it so
@@ -4517,7 +4689,7 @@ mod dispatcher_tests {
         assert!(rails.halted().unwrap().contains("503"));
         rails.reset_tripwire();
 
-        let (token, user) = daemon.valid_access_token(false).await.unwrap();
+        let (token, user) = daemon.valid_access_token(None, false).await.unwrap();
         assert_eq!((token.as_str(), user.as_str()), ("at-new", "test-user"));
         assert_eq!(requests.lock().unwrap().len(), 2);
         server.await.unwrap();
@@ -4545,7 +4717,7 @@ mod dispatcher_tests {
             wait: Duration::ZERO,
         });
         logged_in(&mut daemon);
-        let error = daemon.valid_access_token(false).await.unwrap_err();
+        let error = daemon.valid_access_token(None, false).await.unwrap_err();
         assert!(error.contains("halted by live-test rails"), "{error}");
         assert!(requests.lock().unwrap().is_empty());
         server.abort();
@@ -4562,7 +4734,7 @@ mod dispatcher_tests {
         let clock = Arc::new(ManualClock::new());
         let (daemon, log_path) = test_daemon_with(Provider::ggg(), clock, RailsConfig::default());
         let outcome = daemon
-            .execute_inner(1, "whoami", json!({}), None, daemon.choke.now())
+            .execute_inner(1, "whoami", json!({}), None, None, daemon.choke.now())
             .await
             .unwrap();
         let Outcome::Failure { error } = outcome else {

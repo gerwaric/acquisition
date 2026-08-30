@@ -155,7 +155,9 @@ pub struct Status {
 }
 
 pub mod index;
-pub use index::{AccountEntry, Index, Resolve, account_path, index_path, store_dir};
+pub use index::{
+    AccountEntry, Index, Resolve, account_matches, account_path, index_path, store_dir,
+};
 
 pub fn now() -> i64 {
     SystemTime::now()
