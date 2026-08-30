@@ -559,8 +559,6 @@ impl Daemon {
         self.log(msg);
     }
 
-    /// Apply one change to the account index, logging (never failing) on
-    /// error. No-op in tests (no store directory).
     /// Mirror one job to `daemon.db`. Called with the `Shared` lock held,
     /// so the table sees changes in memory's order. A failed write trips
     /// the sticky queue failure (logged here — safe, `log` takes no lock
@@ -719,6 +717,8 @@ resubmit if still wanted",
         }
     }
 
+    /// Apply one change to the account index, logging (never failing) on
+    /// error. No-op in tests (no store directory).
     fn with_index(&self, f: impl FnOnce(&mut Index) -> anyhow::Result<()>) {
         let Some(dir) = &self.store_dir else { return };
         let result = Index::load(dir).and_then(|mut index| f(&mut index));
@@ -1469,11 +1469,24 @@ resubmit if still wanted",
         self.finish(pid, final_outcome);
     }
 
+    /// The one place a job becomes terminal (`start_and_finish` and
+    /// `maybe_finish_parent` both land here). A pending cancellation is
+    /// arbitrated under this final lock: if `cancel` set the flag at any
+    /// point before terminalization — including between a caller
+    /// computing this outcome and the lock below — the job finishes
+    /// `Cancelled`, never with the stale outcome. The work a network job
+    /// already did is not lost: its response was recorded to the store as
+    /// it landed.
     fn finish(&self, id: JobId, outcome: Outcome) {
         let info = {
             let mut s = self.shared.lock().unwrap();
             let Some(entry) = s.jobs.get_mut(&id) else {
                 return;
+            };
+            let outcome = if entry.cancel_requested {
+                Outcome::Cancelled
+            } else {
+                outcome
             };
             entry.info.state = match &outcome {
                 Outcome::Success { .. } => JobState::Done,
@@ -6005,6 +6018,37 @@ mod dispatcher_tests {
             ),
             other => panic!("{other:?}"),
         }
+        remove_harness_files(&log);
+    }
+
+    #[tokio::test]
+    async fn a_cancellation_pending_at_finish_wins_the_terminal_state() {
+        // The gap this pins: a caller (conclude, maybe_finish_parent)
+        // computes an outcome, releases the lock, and a cancel lands
+        // before finish takes the final lock. The stale success must not
+        // be written.
+        let (daemon, log) = test_daemon("http://127.0.0.1:1", Arc::new(ManualClock::new()));
+        let id = daemon
+            .submit("sleep".into(), json!({}), 0, "t".into(), None)
+            .unwrap();
+        {
+            let mut s = daemon.shared.lock().unwrap();
+            s.jobs.get_mut(&id).unwrap().info.state = JobState::Running;
+        }
+        daemon.cancel(id).unwrap();
+        daemon.finish(
+            id,
+            Outcome::Success {
+                payload: json!({ "stale": true }),
+            },
+        );
+        let (state, outcome) = {
+            let s = daemon.shared.lock().unwrap();
+            let e = &s.jobs[&id];
+            (e.info.state, e.outcome.clone())
+        };
+        assert_eq!(state, JobState::Cancelled);
+        assert!(matches!(outcome, Some(Outcome::Cancelled)));
         remove_harness_files(&log);
     }
 
