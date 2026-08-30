@@ -466,6 +466,12 @@ pub struct Daemon {
     /// start without it, and test daemons get a throwaway in-memory one —
     /// so every test exercises the mirror.
     jobs_db: Mutex<JobDb>,
+    /// Set (sticky) by the first failed queue write. A daemon whose
+    /// mirror diverges from memory must not take or dispatch new work:
+    /// finished jobs would replay and ids could repeat after a restart.
+    /// Running jobs finish (their sends are committed); everything else
+    /// refuses until a restart finds a working `daemon.db`.
+    queue_failure: Mutex<Option<String>>,
 }
 
 struct RefreshOwnerGuard<'a> {
@@ -556,16 +562,30 @@ impl Daemon {
     /// Apply one change to the account index, logging (never failing) on
     /// error. No-op in tests (no store directory).
     /// Mirror one job to `daemon.db`. Called with the `Shared` lock held,
-    /// so the table sees changes in memory's order; a failed write is
-    /// logged (safe: `log` takes no lock but its own) and the daemon
-    /// carries on from memory.
-    fn persist(&self, entry: &Entry) {
-        if let Err(e) = self.jobs_db.lock().unwrap().upsert(&entry.row(unix_now())) {
-            self.log(&format!(
-                "JOBS: could not persist job {}: {e:#}",
-                entry.info.id
-            ));
+    /// so the table sees changes in memory's order. A failed write trips
+    /// the sticky queue failure (logged here — safe, `log` takes no lock
+    /// but its own — and refused loudly at the next submit): disk has
+    /// diverged from memory, so no new work may be taken.
+    fn persist(&self, entry: &Entry) -> bool {
+        match self.jobs_db.lock().unwrap().upsert(&entry.row(unix_now())) {
+            Ok(()) => true,
+            Err(e) => {
+                let mut failure = self.queue_failure.lock().unwrap();
+                if failure.is_none() {
+                    *failure = Some(format!("{e:#}"));
+                    self.log(&format!(
+                        "JOBS QUEUE FAILED persisting job {}: {e:#}; refusing new jobs until restart",
+                        entry.info.id
+                    ));
+                }
+                false
+            }
         }
+    }
+
+    /// The sticky queue-write failure, if one has happened.
+    fn queue_failed(&self) -> Option<String> {
+        self.queue_failure.lock().unwrap().clone()
     }
 
     /// Take the previous lifetime's open jobs from `daemon.db`
@@ -582,7 +602,10 @@ impl Daemon {
     /// with it (its summary counts them). Ids continue from the table's
     /// sequence. Other terminal rows stay in the table for `result`,
     /// pruned by age first.
-    fn restore_jobs(&self, retention: Retention) {
+    /// A read failure is fatal to startup, like an unopenable file: a
+    /// daemon that cannot see the previous lifetime's rows would reissue
+    /// ids from 1 against them.
+    fn restore_jobs(&self, retention: Retention) -> Result<()> {
         let db = &self.jobs_db;
         let (rows, next_id, pruned) = {
             let db = db.lock().unwrap();
@@ -593,11 +616,7 @@ impl Daemon {
             match (db.load_open(), db.next_id()) {
                 (Ok(rows), Ok(next)) => (rows, next, pruned),
                 (Err(e), _) | (_, Err(e)) => {
-                    self.note_error(&format!(
-                        "JOBS: could not read {}: {e:#}",
-                        db.path().display()
-                    ));
-                    return;
+                    anyhow::bail!("could not read {}: {e:#}", db.path().display());
                 }
             }
         };
@@ -634,13 +653,15 @@ impl Daemon {
                         // Mid-fan-out: children were submitted but the
                         // held result was not yet written. Re-running the
                         // parent would submit them all again, so it holds
-                        // for the set it has; its own payload died with
-                        // the previous lifetime.
-                        entry.deferred = Some(Outcome::Success {
-                            payload: json!({
-                                "note": "daemon restarted while this job's children ran; \
-                            its own result was lost with the previous lifetime",
-                            }),
+                        // for the set it has — but how many children never
+                        // got submitted is unknowable, so once they land
+                        // it finishes as interrupted, never as success.
+                        entry.deferred = Some(Outcome::Failure {
+                            error: "interrupted by a daemon restart mid fan-out: the children \
+                                    submitted before the restart ran (their responses are in \
+                                    the store), but the full child set is unknown — resubmit \
+                                    to complete it"
+                                .into(),
                         });
                         held += 1;
                         finish_parents.push(entry.info.id);
@@ -685,12 +706,17 @@ resubmit if still wanted",
             self.maybe_finish_parent(pid);
         }
         self.work.notify_one();
+        Ok(())
     }
 
     /// The previous lifetime's result for a job this one never held.
-    fn stored_outcome(&self, id: JobId) -> Option<Outcome> {
-        let row = self.jobs_db.lock().unwrap().get(id).ok()??;
-        Entry::from_row(row)?.outcome
+    /// `Ok(None)` is genuinely no such job; a queue that cannot be read
+    /// is an error, never mistaken for "no job".
+    fn stored_outcome(&self, id: JobId) -> Result<Option<Outcome>, String> {
+        match self.jobs_db.lock().unwrap().get(id) {
+            Ok(row) => Ok(row.and_then(Entry::from_row).and_then(|e| e.outcome)),
+            Err(e) => Err(format!("could not read the persisted queue: {e:#}")),
+        }
     }
 
     fn with_index(&self, f: impl FnOnce(&mut Index) -> anyhow::Result<()>) {
@@ -889,13 +915,17 @@ resubmit if still wanted",
                 "route {route} unknown; probing {} first",
                 url_path(url)
             ));
-            self.submit(
+            if let Err(e) = self.submit(
                 "probe".into(),
                 json!({ "route": route, "url": url }),
                 PROBE_PRIORITY,
                 "daemon".into(),
                 account,
-            );
+            ) {
+                // Queue failed: the dispatcher has stopped picking, so the
+                // jobs behind this probe wait rather than spin.
+                self.log(&format!("JOBS: could not queue a probe for {route}: {e}"));
+            }
         }
     }
 
@@ -957,24 +987,32 @@ resubmit if still wanted",
         priority: Priority,
         submitted_by: String,
         account: Option<String>,
-    ) -> JobId {
+    ) -> Result<JobId, String> {
         self.submit_with_parent(kind, params, priority, submitted_by, account, None)
     }
 
     /// A child inherits its parent's priority, submitter, and account.
-    fn submit_child(&self, parent: JobId, kind: &str, params: Value) -> Option<JobId> {
+    /// The cancellation guard lives in `submit_with_parent`, inside the
+    /// same critical section as the insert.
+    fn submit_child(&self, parent: JobId, kind: &str, params: Value) -> Result<JobId, String> {
         let (priority, by, account) = {
             let s = self.shared.lock().unwrap();
-            let p = s.jobs.get(&parent)?;
+            let p = s
+                .jobs
+                .get(&parent)
+                .ok_or_else(|| format!("parent job {parent} is gone"))?;
             (
                 p.info.priority,
                 p.info.submitted_by.clone(),
                 p.info.account.clone(),
             )
         };
-        Some(self.submit_with_parent(kind.into(), params, priority, by, account, Some(parent)))
+        self.submit_with_parent(kind.into(), params, priority, by, account, Some(parent))
     }
 
+    /// A job exists only once its row does: an insert that fails rolls the
+    /// id back and refuses the submit, so memory can never run ahead of
+    /// the ids disk has seen.
     fn submit_with_parent(
         &self,
         kind: String,
@@ -983,9 +1021,27 @@ resubmit if still wanted",
         submitted_by: String,
         account: Option<String>,
         parent: Option<JobId>,
-    ) -> JobId {
+    ) -> Result<JobId, String> {
+        if let Some(e) = self.queue_failed() {
+            return Err(format!(
+                "the persisted queue failed ({e}); the daemon refuses new jobs — restart it once daemon.db is writable"
+            ));
+        }
         let info = {
             let mut s = self.shared.lock().unwrap();
+            // The parent guard sits here, inside the same critical section
+            // as the insert: `cancel` takes this lock to enumerate
+            // children, so a child can never be inserted after a
+            // cancellation has swept and missed it.
+            if let Some(pid) = parent {
+                let p = s
+                    .jobs
+                    .get(&pid)
+                    .ok_or_else(|| format!("parent job {pid} is gone"))?;
+                if p.info.state.is_terminal() || p.cancel_requested {
+                    return Err(format!("parent job {pid} was cancelled"));
+                }
+            }
             s.last_activity = Instant::now();
             let id = s.next_id;
             s.next_id += 1;
@@ -1009,20 +1065,27 @@ resubmit if still wanted",
                 deferred: None,
                 submitted_at: unix_now(),
             };
-            self.persist(&entry);
+            if !self.persist(&entry) {
+                s.next_id -= 1;
+                let e = self.queue_failed().unwrap_or_default();
+                return Err(format!(
+                    "the persisted queue failed ({e}); the daemon refuses new jobs — restart it once daemon.db is writable"
+                ));
+            }
             s.jobs.insert(id, entry);
             info
         };
         let id = info.id;
         self.emit(info);
         self.work.notify_one();
-        id
+        Ok(id)
     }
 
     fn cancel(&self, id: JobId) -> Result<(), String> {
         // Cancelling a parent cancels everything under it: waiting
         // descendants immediately, running ones at their next slice.
         let mut emits = Vec::new();
+        let mut persist_failed = false;
         {
             let mut s = self.shared.lock().unwrap();
             let entry = s.jobs.get(&id).ok_or_else(|| format!("no job {id}"))?;
@@ -1060,7 +1123,7 @@ resubmit if still wanted",
                     JobState::Running => entry.cancel_requested = true,
                     _ => continue,
                 }
-                self.persist(entry);
+                persist_failed |= !self.persist(entry);
             }
         }
         // A cancelled child may have been the last thing its parent was
@@ -1076,6 +1139,16 @@ resubmit if still wanted",
         for pid in parents {
             self.maybe_finish_parent(pid);
         }
+        if persist_failed {
+            // The cancellation holds for this lifetime — nothing here will
+            // send — but disk may still say waiting/running, so a restart
+            // can revive the job. Say so instead of claiming success.
+            return Err(
+                "cancelled for this daemon's lifetime, but the queue write failed — the \
+                 cancellation may not survive a restart; the daemon refuses new jobs until then"
+                    .to_string(),
+            );
+        }
         Ok(())
     }
 
@@ -1085,8 +1158,15 @@ resubmit if still wanted",
         if entry.info.state != JobState::Waiting {
             return Err(format!("job {id} is {}, not waiting", entry.info.state));
         }
+        let before = entry.info.priority;
         entry.info.priority = priority;
-        self.persist(entry);
+        if !self.persist(entry) {
+            entry.info.priority = before;
+            return Err(
+                "priority unchanged: the queue write failed; the daemon refuses new work until restart"
+                    .to_string(),
+            );
+        }
         Ok(())
     }
 
@@ -1113,6 +1193,11 @@ resubmit if still wanted",
     /// Waiting jobs, in dispatch order, that can start a task right now.
     fn pick_runnable(&self) -> Vec<JobId> {
         let mut s = self.shared.lock().unwrap();
+        // A failed queue means no new dispatch at all: every transition
+        // a job makes from here would widen the memory/disk divergence.
+        if self.queue_failed().is_some() {
+            return Vec::new();
+        }
         let mut busy: HashSet<String> = s.active_jobs.values().cloned().collect();
         let halted = self.rails().halted().is_some();
         let mut picks = Vec::new();
@@ -1236,7 +1321,13 @@ resubmit if still wanted",
                 return;
             }
             entry.info.state = JobState::Running;
-            self.persist(entry);
+            if !self.persist(entry) {
+                // Disk still says waiting: after a restart this run would
+                // be invisible (a no-probe job would replay blind). A send
+                // the queue cannot see must not happen — revert, don't run.
+                entry.info.state = JobState::Waiting;
+                return;
+            }
             (entry.info.clone(), entry.params.clone())
         };
         let (info, params) = job;
@@ -1289,8 +1380,17 @@ resubmit if still wanted",
         if let Outcome::Failure { error } = &outcome {
             self.note_error(&format!("job {id} ({kind}): {error}"));
         }
-        // A job that spawned children holds its own result until they're
-        // all done. It gives its scheduling key back so children can run.
+        self.conclude(id, outcome);
+    }
+
+    /// A finished job's landing. A job that spawned children holds its
+    /// own result until they're all done (its scheduling key is already
+    /// given back so children can run); anything else finishes. A
+    /// cancellation that landed during the fan-out is honored here, under
+    /// the lock: the held result becomes `Cancelled`, so a parent
+    /// cancelled after its last child was submitted can never report
+    /// success.
+    fn conclude(&self, id: JobId, outcome: Outcome) {
         let has_children = {
             let mut s = self.shared.lock().unwrap();
             let spawned = s.jobs.values().any(|e| e.info.parent == Some(id));
@@ -1298,7 +1398,11 @@ resubmit if still wanted",
                 && let Some(entry) = s.jobs.get_mut(&id)
                 && entry.info.state == JobState::Running
             {
-                entry.deferred = Some(outcome.clone());
+                entry.deferred = Some(if entry.cancel_requested {
+                    Outcome::Cancelled
+                } else {
+                    outcome.clone()
+                });
                 self.persist(entry);
             }
             spawned
@@ -1345,10 +1449,15 @@ resubmit if still wanted",
             let summary = json!({ "done": done, "failed": failed, "cancelled": cancelled, "failed_ids": failed_ids });
             let deferred = s.jobs.get_mut(&pid).unwrap().deferred.take().unwrap();
             match deferred {
-                Outcome::Success { mut payload } if failed == 0 => {
+                Outcome::Success { mut payload } if failed == 0 && cancelled == 0 => {
                     payload["children"] = summary;
                     Outcome::Success { payload }
                 }
+                // Cancelled children mean the work was not completed; a
+                // parent must not call that success.
+                Outcome::Success { .. } if failed == 0 => Outcome::Failure {
+                    error: format!("{cancelled} of {total} child jobs were cancelled"),
+                },
                 Outcome::Success { .. } => Outcome::Failure {
                     error: format!(
                         "{failed} of {total} child jobs failed: {failed_ids:?} (acq result <id> for each)"
@@ -1544,14 +1653,22 @@ resubmit if still wanted",
                     let league = params.get("league").cloned().unwrap_or(json!("Standard"));
                     let tab = params.get("id").cloned().unwrap_or(Value::Null);
                     for child in &children {
-                        if let Some(sub) = child.get("id").and_then(Value::as_str)
-                            && let Some(cid) = self.submit_child(
-                                id,
-                                "stash",
-                                json!({ "league": league, "id": tab, "sub": sub, "deep": false }),
-                            )
-                        {
-                            submitted.push(cid);
+                        let Some(sub) = child.get("id").and_then(Value::as_str) else {
+                            continue;
+                        };
+                        match self.submit_child(
+                            id,
+                            "stash",
+                            json!({ "league": league, "id": tab, "sub": sub, "deep": false }),
+                        ) {
+                            Ok(cid) => submitted.push(cid),
+                            Err(e) => {
+                                return Ok(fan_out_stopped(
+                                    self.cancelled(id),
+                                    submitted.len(),
+                                    &e,
+                                ));
+                            }
                         }
                     }
                 }
@@ -1650,12 +1767,15 @@ resubmit if still wanted",
                 let mut submitted = Vec::new();
                 for (tid, _, ty) in &selected {
                     let follow = deep && matches!(ty.as_str(), "MapStash" | "UniqueStash");
-                    if let Some(cid) = self.submit_child(
+                    match self.submit_child(
                         id,
                         "stash",
                         json!({ "league": league, "id": tid, "deep": follow }),
                     ) {
-                        submitted.push(cid);
+                        Ok(cid) => submitted.push(cid),
+                        Err(e) => {
+                            return Ok(fan_out_stopped(self.cancelled(id), submitted.len(), &e));
+                        }
                     }
                 }
                 Outcome::Success {
@@ -2351,11 +2471,15 @@ resubmit if still wanted",
                 priority,
                 submitted_by,
                 account,
-            } => match self.resolve_account(&kind, account.as_deref()) {
-                Ok(account) => Response::Submitted {
-                    id: self.submit(kind, params, priority, submitted_by, account),
-                },
-                Err(message) => Response::Error { message },
+            } => match self
+                .resolve_account(&kind, account.as_deref())
+                .and_then(|account| self.submit(kind, params, priority, submitted_by, account))
+            {
+                Ok(id) => Response::Submitted { id },
+                Err(message) => {
+                    self.note_error(&format!("submit refused: {message}"));
+                    Response::Error { message }
+                }
             },
             Request::Status { id } => match self.shared.lock().unwrap().snapshot(self, id) {
                 Some(job) => Response::Status { job },
@@ -2376,10 +2500,14 @@ resubmit if still wanted",
                     // Not this lifetime's: a previous daemon's result, if
                     // retention still has it.
                     None => match self.stored_outcome(id) {
-                        Some(outcome) => Response::Result { id, outcome },
-                        None => Response::Error {
+                        Ok(Some(outcome)) => Response::Result { id, outcome },
+                        Ok(None) => Response::Error {
                             message: format!("no job {id}"),
                         },
+                        Err(message) => {
+                            self.note_error(&format!("result {id}: {message}"));
+                            Response::Error { message }
+                        }
                     },
                 }
             }
@@ -2533,7 +2661,8 @@ resubmit if still wanted",
             tokio::time::sleep(IDLE_POLL).await;
             let idle = {
                 let s = self.shared.lock().unwrap();
-                let live_jobs = Self::has_live_jobs(&s, self.rails().halted().is_some());
+                let parked = self.rails().halted().is_some() || self.queue_failed().is_some();
+                let live_jobs = Self::has_live_jobs(&s, parked);
                 s.connections == 0 && !live_jobs && s.last_activity.elapsed() >= idle_shutdown
             };
             // Limiter history inside a policy window is worth more than a
@@ -2545,6 +2674,20 @@ resubmit if still wanted",
                 let _ = std::fs::remove_file(socket_path());
                 std::process::exit(0);
             }
+        }
+    }
+}
+
+/// The outcome of a fan-out whose child submission was refused: the
+/// parent was cancelled, or the queue failed. Already-submitted children
+/// run either way (their sends are theirs); the parent never claims
+/// success over a partial set.
+fn fan_out_stopped(cancelled: bool, submitted: usize, why: &str) -> Outcome {
+    if cancelled {
+        Outcome::Cancelled
+    } else {
+        Outcome::Failure {
+            error: format!("fan-out stopped after {submitted} children: {why}"),
         }
     }
 }
@@ -2800,6 +2943,7 @@ pub async fn run() -> Result<()> {
         store_dir: Some(dir.clone()),
         store: Mutex::new(None),
         jobs_db,
+        queue_failure: Mutex::new(None),
     });
 
     daemon.log(&format!(
@@ -2843,7 +2987,12 @@ pub async fn run() -> Result<()> {
     for problem in problems {
         daemon.note_error(&format!("JOBS CONFIG: {problem}"));
     }
-    daemon.restore_jobs(retention);
+    if let Err(e) = daemon.restore_jobs(retention) {
+        daemon.log(&format!("JOBS: restore failed: {e:#}"));
+        anyhow::bail!(
+            "restore of the persisted queue failed: {e:#} (repair or remove it; the daemon will not run without its queue)"
+        );
+    }
 
     tokio::spawn(daemon.clone().dispatcher());
     tokio::spawn(daemon.clone().idle_watchdog());
@@ -3050,6 +3199,7 @@ mod auth_session_tests {
             store_dir: None,
             store: Mutex::new(None),
             jobs_db: Mutex::new(JobDb::open_memory().unwrap()),
+            queue_failure: Mutex::new(None),
         });
         (daemon, credential_store, log_path)
     }
@@ -4127,6 +4277,7 @@ mod dispatcher_tests {
             store_dir: None,
             store: Mutex::new(None),
             jobs_db: Mutex::new(JobDb::open_memory().unwrap()),
+            queue_failure: Mutex::new(None),
         });
         // Test daemons know what the real one knows about routes.
         Daemon::declare_route_knowledge(&daemon.choke);
@@ -4258,7 +4409,9 @@ mod dispatcher_tests {
         let scenario_start = 3800;
 
         let dispatcher = tokio::spawn(daemon.clone().dispatcher());
-        let id = daemon.submit("characters".into(), json!({}), 0, "test".into(), None);
+        let id = daemon
+            .submit("characters".into(), json!({}), 0, "test".into(), None)
+            .unwrap();
         let (info, _) = wait_terminal(&daemon, id).await;
         server.abort();
         finish_harness(dispatcher, &log_path);
@@ -4537,8 +4690,12 @@ mod dispatcher_tests {
             shared.auth.rename("", "old-user");
         }
         let dispatcher = tokio::spawn(daemon.clone().dispatcher());
-        let first = daemon.submit("whoami".into(), json!({}), 0, "test".into(), None);
-        let second = daemon.submit("whoami".into(), json!({}), 0, "test".into(), None);
+        let first = daemon
+            .submit("whoami".into(), json!({}), 0, "test".into(), None)
+            .unwrap();
+        let second = daemon
+            .submit("whoami".into(), json!({}), 0, "test".into(), None)
+            .unwrap();
 
         arrived.await.unwrap();
         tokio::time::timeout(Duration::from_secs(1), async {
@@ -4561,13 +4718,15 @@ mod dispatcher_tests {
         .await
         .expect("second job joined the refresh owner");
 
-        let independent = daemon.submit(
-            "sleep".into(),
-            json!({ "seconds": 0.0 }),
-            0,
-            "test".into(),
-            None,
-        );
+        let independent = daemon
+            .submit(
+                "sleep".into(),
+                json!({ "seconds": 0.0 }),
+                0,
+                "test".into(),
+                None,
+            )
+            .unwrap();
         let (info, _) = wait_terminal(&daemon, independent).await;
         assert_eq!(info.state, JobState::Done);
 
@@ -4606,23 +4765,29 @@ mod dispatcher_tests {
         server.await.unwrap();
 
         let dispatcher = tokio::spawn(daemon.clone().dispatcher());
-        let characters = daemon.submit("characters".into(), json!({}), 0, "test".into(), None);
-        let stashes = daemon.submit(
-            "stashes".into(),
-            json!({ "league": "Standard" }),
-            0,
-            "test".into(),
-            None,
-        );
+        let characters = daemon
+            .submit("characters".into(), json!({}), 0, "test".into(), None)
+            .unwrap();
+        let stashes = daemon
+            .submit(
+                "stashes".into(),
+                json!({ "league": "Standard" }),
+                0,
+                "test".into(),
+                None,
+            )
+            .unwrap();
         clock.wait_for_sleepers(2).await;
 
-        let independent = daemon.submit(
-            "sleep".into(),
-            json!({ "seconds": 0.0 }),
-            0,
-            "test".into(),
-            None,
-        );
+        let independent = daemon
+            .submit(
+                "sleep".into(),
+                json!({ "seconds": 0.0 }),
+                0,
+                "test".into(),
+                None,
+            )
+            .unwrap();
         let (info, _) = wait_terminal(&daemon, independent).await;
         assert_eq!(info.state, JobState::Done);
 
@@ -4664,21 +4829,27 @@ mod dispatcher_tests {
         // Establish every authenticated route before expiry so the refresh
         // phase is not serialized behind the one-at-a-time probe key.
         let established_routes = [
-            daemon.submit("characters".into(), json!({}), 0, "test".into(), None),
-            daemon.submit(
-                "stashes".into(),
-                json!({ "league": "Standard" }),
-                0,
-                "test".into(),
-                None,
-            ),
-            daemon.submit(
-                "stash".into(),
-                json!({ "league": "Standard", "id": "cur1" }),
-                0,
-                "test".into(),
-                None,
-            ),
+            daemon
+                .submit("characters".into(), json!({}), 0, "test".into(), None)
+                .unwrap(),
+            daemon
+                .submit(
+                    "stashes".into(),
+                    json!({ "league": "Standard" }),
+                    0,
+                    "test".into(),
+                    None,
+                )
+                .unwrap(),
+            daemon
+                .submit(
+                    "stash".into(),
+                    json!({ "league": "Standard", "id": "cur1" }),
+                    0,
+                    "test".into(),
+                    None,
+                )
+                .unwrap(),
         ];
         for id in established_routes {
             let (info, outcome) = wait_terminal(&daemon, id).await;
@@ -4696,30 +4867,38 @@ mod dispatcher_tests {
 
         // These jobs now have different learned scheduling keys, so all three
         // can enter valid_access_token while the localhost token body is held.
-        let characters = daemon.submit("characters".into(), json!({}), 0, "test".into(), None);
-        let stashes = daemon.submit(
-            "stashes".into(),
-            json!({ "league": "Standard" }),
-            0,
-            "test".into(),
-            None,
-        );
-        let stash = daemon.submit(
-            "stash".into(),
-            json!({ "league": "Standard", "id": "cur1" }),
-            0,
-            "test".into(),
-            None,
-        );
+        let characters = daemon
+            .submit("characters".into(), json!({}), 0, "test".into(), None)
+            .unwrap();
+        let stashes = daemon
+            .submit(
+                "stashes".into(),
+                json!({ "league": "Standard" }),
+                0,
+                "test".into(),
+                None,
+            )
+            .unwrap();
+        let stash = daemon
+            .submit(
+                "stash".into(),
+                json!({ "league": "Standard", "id": "cur1" }),
+                0,
+                "test".into(),
+                None,
+            )
+            .unwrap();
         let fetches: Vec<_> = (0..7)
             .map(|sequence| {
-                daemon.submit(
-                    "fetch".into(),
-                    json!({ "sequence": sequence }),
-                    0,
-                    "test".into(),
-                    None,
-                )
+                daemon
+                    .submit(
+                        "fetch".into(),
+                        json!({ "sequence": sequence }),
+                        0,
+                        "test".into(),
+                        None,
+                    )
+                    .unwrap()
             })
             .collect();
         let cancelled = *fetches.last().unwrap();
@@ -4898,8 +5077,12 @@ mod dispatcher_tests {
     fn dispatcher_preserves_priority_within_a_scheduling_key() {
         let clock = Arc::new(ManualClock::new());
         let (daemon, log_path) = test_daemon("http://127.0.0.1:1", clock);
-        let low = daemon.submit("fetch".into(), json!({}), 1, "test".into(), None);
-        let high = daemon.submit("fetch".into(), json!({}), 9, "test".into(), None);
+        let low = daemon
+            .submit("fetch".into(), json!({}), 1, "test".into(), None)
+            .unwrap();
+        let high = daemon
+            .submit("fetch".into(), json!({}), 9, "test".into(), None)
+            .unwrap();
 
         assert_eq!(daemon.pick_runnable(), vec![high]);
         assert_eq!(
@@ -4946,8 +5129,12 @@ mod dispatcher_tests {
         let clock = Arc::new(ManualClock::new());
         let (daemon, log_path) = test_daemon(&base, clock);
         let dispatcher = tokio::spawn(daemon.clone().dispatcher());
-        let first = daemon.submit("fetch".into(), json!({}), 0, "test".into(), None);
-        let second = daemon.submit("fetch".into(), json!({}), 0, "test".into(), None);
+        let first = daemon
+            .submit("fetch".into(), json!({}), 0, "test".into(), None)
+            .unwrap();
+        let second = daemon
+            .submit("fetch".into(), json!({}), 0, "test".into(), None)
+            .unwrap();
 
         let (info, outcome) = wait_terminal(&daemon, first).await;
         assert_eq!(info.state, JobState::Failed);
@@ -4994,16 +5181,20 @@ mod dispatcher_tests {
         // Resolution happens in the `Submit` handler; here the account is
         // passed as that handler would after resolving the sole session.
         let account = Some("Alice#1234".to_string());
-        let profile = daemon.submit(
-            "profile".into(),
-            json!({}),
-            0,
-            "test".into(),
-            account.clone(),
-        );
+        let profile = daemon
+            .submit(
+                "profile".into(),
+                json!({}),
+                0,
+                "test".into(),
+                account.clone(),
+            )
+            .unwrap();
         let (info, outcome) = wait_terminal(&daemon, profile).await;
         assert_eq!(info.state, JobState::Done, "{outcome:?}");
-        let leagues = daemon.submit("leagues".into(), json!({}), 0, "test".into(), account);
+        let leagues = daemon
+            .submit("leagues".into(), json!({}), 0, "test".into(), account)
+            .unwrap();
         let (info, outcome) = wait_terminal(&daemon, leagues).await;
         assert_eq!(info.state, JobState::Done, "{outcome:?}");
 
@@ -5050,7 +5241,9 @@ mod dispatcher_tests {
         let (daemon, log_path) = test_daemon(&base, clock);
         let mut events = daemon.events.subscribe();
         let dispatcher = tokio::spawn(daemon.clone().dispatcher());
-        let id = daemon.submit("fetch".into(), json!({}), 0, "test".into(), None);
+        let id = daemon
+            .submit("fetch".into(), json!({}), 0, "test".into(), None)
+            .unwrap();
 
         let (info, outcome) = wait_terminal(&daemon, id).await;
         assert_eq!(info.state, JobState::Done);
@@ -5082,7 +5275,9 @@ mod dispatcher_tests {
         let clock = Arc::new(ManualClock::new());
         let (daemon, log_path) = test_daemon(&base, clock.clone());
         let dispatcher = tokio::spawn(daemon.clone().dispatcher());
-        let id = daemon.submit("fetch".into(), json!({}), 0, "test".into(), None);
+        let id = daemon
+            .submit("fetch".into(), json!({}), 0, "test".into(), None)
+            .unwrap();
 
         let (info, outcome) = wait_terminal(&daemon, id).await;
         assert_eq!(info.state, JobState::Failed);
@@ -5112,8 +5307,12 @@ mod dispatcher_tests {
         let clock = Arc::new(ManualClock::new());
         let (daemon, log_path) = test_daemon(&base, clock);
         let dispatcher = tokio::spawn(daemon.clone().dispatcher());
-        let first = daemon.submit("fetch".into(), json!({}), 0, "test".into(), None);
-        let second = daemon.submit("fetch".into(), json!({}), 0, "test".into(), None);
+        let first = daemon
+            .submit("fetch".into(), json!({}), 0, "test".into(), None)
+            .unwrap();
+        let second = daemon
+            .submit("fetch".into(), json!({}), 0, "test".into(), None)
+            .unwrap();
 
         let (_, first_outcome) = wait_terminal(&daemon, first).await;
         let (_, second_outcome) = wait_terminal(&daemon, second).await;
@@ -5154,7 +5353,9 @@ mod dispatcher_tests {
             let clock = Arc::new(ManualClock::new());
             let (daemon, log_path) = test_daemon(&base, clock.clone());
             let dispatcher = tokio::spawn(daemon.clone().dispatcher());
-            let id = daemon.submit("fetch".into(), json!({}), 0, "test".into(), None);
+            let id = daemon
+                .submit("fetch".into(), json!({}), 0, "test".into(), None)
+                .unwrap();
 
             let (info, outcome) = wait_terminal(&daemon, id).await;
             assert_eq!(info.state, JobState::Failed);
@@ -5185,7 +5386,9 @@ mod dispatcher_tests {
         let clock = Arc::new(ManualClock::new());
         let (daemon, log_path) = test_daemon(&base, clock.clone());
         let dispatcher = tokio::spawn(daemon.clone().dispatcher());
-        let id = daemon.submit("fetch".into(), json!({}), 0, "test".into(), None);
+        let id = daemon
+            .submit("fetch".into(), json!({}), 0, "test".into(), None)
+            .unwrap();
 
         let (info, outcome) = wait_terminal(&daemon, id).await;
         assert_eq!(info.state, JobState::Done);
@@ -5223,7 +5426,9 @@ mod dispatcher_tests {
             let clock = Arc::new(ManualClock::new());
             let (daemon, log_path) = test_daemon(&base, clock);
             let dispatcher = tokio::spawn(daemon.clone().dispatcher());
-            let id = daemon.submit("fetch".into(), json!({}), 0, "test".into(), None);
+            let id = daemon
+                .submit("fetch".into(), json!({}), 0, "test".into(), None)
+                .unwrap();
 
             let (info, _) = wait_terminal(&daemon, id).await;
             assert_eq!(info.state, JobState::Failed);
@@ -5293,7 +5498,9 @@ mod dispatcher_tests {
         let rails = daemon.choke.rails().clone();
         let dispatcher = tokio::spawn(daemon.clone().dispatcher());
 
-        let first = daemon.submit("fetch".into(), json!({}), 0, "test".into(), None);
+        let first = daemon
+            .submit("fetch".into(), json!({}), 0, "test".into(), None)
+            .unwrap();
         let info = wait_until(&daemon, first, |i| i.retries == 1).await;
         assert_eq!(
             info.state,
@@ -5305,7 +5512,9 @@ mod dispatcher_tests {
             "{:?}",
             rails.halted()
         );
-        let second = daemon.submit("fetch".into(), json!({}), 0, "test".into(), None);
+        let second = daemon
+            .submit("fetch".into(), json!({}), 0, "test".into(), None)
+            .unwrap();
         tokio::time::sleep(Duration::from_millis(100)).await;
         assert_eq!(
             requests.lock().unwrap().as_slice(),
@@ -5358,7 +5567,9 @@ mod dispatcher_tests {
         let rails = daemon.choke.rails().clone();
         let dispatcher = tokio::spawn(daemon.clone().dispatcher());
 
-        let first = daemon.submit("fetch".into(), json!({}), 0, "test".into(), None);
+        let first = daemon
+            .submit("fetch".into(), json!({}), 0, "test".into(), None)
+            .unwrap();
         let (info, _) = wait_terminal(&daemon, first).await;
         assert_eq!(
             info.state,
@@ -5367,7 +5578,9 @@ mod dispatcher_tests {
         );
         assert!(rails.halted().unwrap().contains("ceiling: 2 of 2"));
 
-        let second = daemon.submit("fetch".into(), json!({}), 0, "test".into(), None);
+        let second = daemon
+            .submit("fetch".into(), json!({}), 0, "test".into(), None)
+            .unwrap();
         tokio::time::sleep(Duration::from_millis(100)).await;
         let state = daemon.shared.lock().unwrap().jobs[&second].info.state;
         assert_eq!(
@@ -5396,7 +5609,7 @@ mod dispatcher_tests {
     fn persisting_daemon(base: &str, db_path: &std::path::Path) -> (Arc<Daemon>, PathBuf) {
         let (mut daemon, log_path) = test_daemon(base, Arc::new(ManualClock::new()));
         Arc::get_mut(&mut daemon).unwrap().jobs_db = Mutex::new(JobDb::open(db_path).unwrap());
-        daemon.restore_jobs(Retention::default());
+        daemon.restore_jobs(Retention::default()).unwrap();
         (daemon, log_path)
     }
 
@@ -5415,39 +5628,45 @@ mod dispatcher_tests {
         // `process` writes it — so nothing of this lifetime survives the
         // drop to write behind lifetime 2's back.
         let (daemon, log1) = persisting_daemon("http://127.0.0.1:1", &db);
-        let done = daemon.submit(
-            "sleep".into(),
-            json!({ "seconds": 0.01 }),
-            0,
-            "a".into(),
-            None,
-        );
+        let done = daemon
+            .submit(
+                "sleep".into(),
+                json!({ "seconds": 0.01 }),
+                0,
+                "a".into(),
+                None,
+            )
+            .unwrap();
         daemon.start_and_finish(
             done,
             Outcome::Success {
                 payload: json!({ "slept_seconds": 0.01 }),
             },
         );
-        let running = daemon.submit(
-            "sleep".into(),
-            json!({ "seconds": 0.3 }),
-            2,
-            "b".into(),
-            None,
-        );
+        let running = daemon
+            .submit(
+                "sleep".into(),
+                json!({ "seconds": 0.3 }),
+                2,
+                "b".into(),
+                None,
+            )
+            .unwrap();
         {
             let mut s = daemon.shared.lock().unwrap();
             let entry = s.jobs.get_mut(&running).unwrap();
             entry.info.state = JobState::Running;
             daemon.persist(entry);
         }
-        let waiting = daemon.submit(
-            "sleep".into(),
-            json!({ "seconds": 0.01 }),
-            1,
-            "c".into(),
-            None,
-        );
+        let waiting = daemon
+            .submit(
+                "sleep".into(),
+                json!({ "seconds": 0.01 }),
+                1,
+                "c".into(),
+                None,
+            )
+            .unwrap();
         daemon.set_priority(waiting, 5).unwrap();
         drop(daemon);
 
@@ -5467,13 +5686,15 @@ mod dispatcher_tests {
             "open jobs come back; terminal ones stay in the table"
         );
         assert_eq!(jobs[0].submitted_by, "b", "every field rides along");
-        let fresh = daemon.submit(
-            "sleep".into(),
-            json!({ "seconds": 0.01 }),
-            0,
-            "d".into(),
-            None,
-        );
+        let fresh = daemon
+            .submit(
+                "sleep".into(),
+                json!({ "seconds": 0.01 }),
+                0,
+                "d".into(),
+                None,
+            )
+            .unwrap();
         assert_eq!(fresh, waiting + 1, "ids continue across the restart");
         match daemon
             .handle_request(Request::Result { id: done }, &mut None)
@@ -5580,16 +5801,17 @@ mod dispatcher_tests {
             panic!("the leagues replay did not fail")
         };
         assert!(error.contains("not replayed"), "{error}");
-        // The held parent finishes when its remaining child does.
+        // The held parent finishes when its remaining child does — as
+        // interrupted, never success: the full child set is unknown.
         daemon.cancel(7).unwrap();
-        let Outcome::Success { payload } = daemon.shared.lock().unwrap().jobs[&6]
+        let Outcome::Failure { error } = daemon.shared.lock().unwrap().jobs[&6]
             .outcome
             .clone()
             .unwrap()
         else {
-            panic!("held parent did not finish with a synthetic result")
+            panic!("held parent must finish as interrupted, not success")
         };
-        assert_eq!(payload["children"]["cancelled"], json!(1));
+        assert!(error.contains("mid fan-out"), "{error}");
         let Outcome::Success { payload } = daemon.shared.lock().unwrap().jobs[&1]
             .outcome
             .clone()
@@ -5609,9 +5831,189 @@ mod dispatcher_tests {
     }
 
     #[tokio::test]
+    async fn a_failed_queue_write_refuses_new_jobs_and_stops_dispatch() {
+        let (daemon, log) = test_daemon("http://127.0.0.1:1", Arc::new(ManualClock::new()));
+        daemon
+            .submit("sleep".into(), json!({}), 0, "t".into(), None)
+            .unwrap();
+        daemon.jobs_db.lock().unwrap().break_for_tests();
+        let err = daemon
+            .submit("sleep".into(), json!({}), 0, "t".into(), None)
+            .unwrap_err();
+        assert!(err.contains("refuses new jobs"), "{err}");
+        assert_eq!(
+            daemon.shared.lock().unwrap().next_id,
+            2,
+            "the refused submit rolled its id back"
+        );
+        assert!(
+            daemon.pick_runnable().is_empty(),
+            "a failed queue dispatches nothing"
+        );
+        assert!(
+            !Daemon::has_live_jobs(&daemon.shared.lock().unwrap(), true),
+            "the parked queue does not hold the daemon up"
+        );
+        remove_harness_files(&log);
+    }
+
+    #[tokio::test]
+    async fn a_cancelled_parent_cannot_gain_children() {
+        // The race: cancel() enumerates children while the fan-out loop
+        // keeps submitting. submit_child now refuses under the same lock
+        // cancel takes.
+        let (daemon, log) = test_daemon("http://127.0.0.1:1", Arc::new(ManualClock::new()));
+        let parent = daemon
+            .submit("refresh".into(), json!({}), 0, "t".into(), None)
+            .unwrap();
+        {
+            let mut s = daemon.shared.lock().unwrap();
+            s.jobs.get_mut(&parent).unwrap().info.state = JobState::Running;
+        }
+        daemon.cancel(parent).unwrap();
+        let err = daemon.submit_child(parent, "stash", json!({})).unwrap_err();
+        assert!(err.contains("cancelled"), "{err}");
+        remove_harness_files(&log);
+    }
+
+    #[tokio::test]
+    async fn a_broken_queue_is_fatal_to_restore() {
+        let (daemon, log) = test_daemon("http://127.0.0.1:1", Arc::new(ManualClock::new()));
+        daemon.jobs_db.lock().unwrap().break_for_tests();
+        let err = daemon.restore_jobs(Retention::default()).unwrap_err();
+        assert!(err.to_string().contains("could not read"), "{err:#}");
+        remove_harness_files(&log);
+    }
+
+    #[tokio::test]
+    async fn a_transition_that_cannot_persist_does_not_run() {
+        // waiting → running is the transition that gates a send: if its
+        // write fails, disk still says waiting, and after a restart a
+        // no-probe job would replay blind. The job must not run.
+        let (daemon, log) = test_daemon("http://127.0.0.1:1", Arc::new(ManualClock::new()));
+        let id = daemon
+            .submit(
+                "sleep".into(),
+                json!({ "seconds": 0.01 }),
+                0,
+                "t".into(),
+                None,
+            )
+            .unwrap();
+        daemon.jobs_db.lock().unwrap().break_for_tests();
+        let dispatcher = tokio::spawn(daemon.clone().dispatcher());
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        let state = daemon.shared.lock().unwrap().jobs[&id].info.state;
+        assert_eq!(
+            state,
+            JobState::Waiting,
+            "the job reverted instead of running"
+        );
+        assert!(
+            daemon.queue_failed().is_some(),
+            "the failed write tripped the queue"
+        );
+        dispatcher.abort();
+        remove_harness_files(&log);
+    }
+
+    #[tokio::test]
+    async fn cancel_and_reprioritize_report_a_failed_queue_write() {
+        let (daemon, log) = test_daemon("http://127.0.0.1:1", Arc::new(ManualClock::new()));
+        let id = daemon
+            .submit("sleep".into(), json!({}), 3, "t".into(), None)
+            .unwrap();
+        daemon.jobs_db.lock().unwrap().break_for_tests();
+        let err = daemon.set_priority(id, 9).unwrap_err();
+        assert!(err.contains("priority unchanged"), "{err}");
+        assert_eq!(daemon.shared.lock().unwrap().jobs[&id].info.priority, 3);
+        let err = daemon.cancel(id).unwrap_err();
+        assert!(err.contains("may not survive"), "{err}");
+        assert_eq!(
+            daemon.shared.lock().unwrap().jobs[&id].info.state,
+            JobState::Cancelled,
+            "the cancellation still holds for this lifetime"
+        );
+        remove_harness_files(&log);
+    }
+
+    #[tokio::test]
+    async fn a_parent_cancelled_after_its_last_child_is_not_a_success() {
+        let (daemon, log) = test_daemon("http://127.0.0.1:1", Arc::new(ManualClock::new()));
+        let parent = daemon
+            .submit("refresh".into(), json!({}), 0, "t".into(), None)
+            .unwrap();
+        {
+            let mut s = daemon.shared.lock().unwrap();
+            s.jobs.get_mut(&parent).unwrap().info.state = JobState::Running;
+        }
+        let _child = daemon.submit_child(parent, "stash", json!({})).unwrap();
+        // The cancellation lands after the fan-out submitted its last
+        // child but before the parent's own outcome is installed.
+        daemon.cancel(parent).unwrap();
+        daemon.conclude(
+            parent,
+            Outcome::Success {
+                payload: json!({ "tabs_listed": 1 }),
+            },
+        );
+        let (state, outcome) = {
+            let s = daemon.shared.lock().unwrap();
+            let e = &s.jobs[&parent];
+            (e.info.state, e.outcome.clone())
+        };
+        assert_eq!(state, JobState::Cancelled, "never a success");
+        assert!(matches!(outcome, Some(Outcome::Cancelled)));
+        remove_harness_files(&log);
+    }
+
+    #[tokio::test]
+    async fn cancelled_children_do_not_make_a_parent_successful() {
+        let (daemon, log) = test_daemon("http://127.0.0.1:1", Arc::new(ManualClock::new()));
+        let parent = daemon
+            .submit("refresh".into(), json!({}), 0, "t".into(), None)
+            .unwrap();
+        {
+            let mut s = daemon.shared.lock().unwrap();
+            s.jobs.get_mut(&parent).unwrap().info.state = JobState::Running;
+        }
+        let child = daemon.submit_child(parent, "stash", json!({})).unwrap();
+        daemon.cancel(child).unwrap();
+        daemon.conclude(parent, Outcome::Success { payload: json!({}) });
+        let Outcome::Failure { error } = daemon.shared.lock().unwrap().jobs[&parent]
+            .outcome
+            .clone()
+            .unwrap()
+        else {
+            panic!("a parent with cancelled children must not succeed")
+        };
+        assert!(error.contains("cancelled"), "{error}");
+        remove_harness_files(&log);
+    }
+
+    #[tokio::test]
+    async fn a_result_read_failure_is_reported_not_no_job() {
+        let (daemon, log) = test_daemon("http://127.0.0.1:1", Arc::new(ManualClock::new()));
+        daemon.jobs_db.lock().unwrap().break_for_tests();
+        match daemon
+            .handle_request(Request::Result { id: 42 }, &mut None)
+            .await
+        {
+            Response::Error { message } => assert!(
+                message.contains("could not read the persisted queue"),
+                "{message}"
+            ),
+            other => panic!("{other:?}"),
+        }
+        remove_harness_files(&log);
+    }
+
+    #[tokio::test]
     async fn a_halted_daemon_with_only_waiting_jobs_is_idle() {
         let (daemon, log) = test_daemon("http://127.0.0.1:1", Arc::new(ManualClock::new()));
-        let id = daemon.submit("fetch".into(), json!({}), 0, "t".into(), None);
+        let id = daemon
+            .submit("fetch".into(), json!({}), 0, "t".into(), None)
+            .unwrap();
         {
             let s = daemon.shared.lock().unwrap();
             assert!(

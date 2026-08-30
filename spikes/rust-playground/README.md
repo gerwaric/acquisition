@@ -75,12 +75,17 @@ bounded by `MAX_429_RETRIES`; a Cloudflare-shaped 403/503 is never retried.
   retired-`acq pull` snapshot through it with no GGG traffic (19,210 rows
   in ~2.3 s). `daemon.db` in the same directory is the **persisted job
   queue** (`jobs.rs`): the daemon mirrors every job there at each state
-  change and takes the open ones back when it starts, so an idle exit,
-  `daemon stop`, a version respawn, or a crash loses nothing — a job that
-  was running is re-queued (idempotent GETs; the restart probe reads
-  GGG's counters first) — except on no-probe routes, where it fails as
-  interrupted, and a parent restarted mid-fan-out, which holds for the
-  children it already has — probes are dropped, ids continue. Finished rows
+  change and takes the open ones back when it starts, so the queue
+  survives an idle exit, `daemon stop`, a version respawn, or a crash.
+  A job that was running is re-queued (idempotent GETs; the restart
+  probe reads GGG's counters first) — except on no-probe routes, where
+  it fails as interrupted, and a parent restarted mid-fan-out, which
+  holds for the children it already has and then finishes as interrupted
+  (the full child set is unknown, so success is never claimed; its own
+  payload is lost) — probes are dropped, ids continue. A queue write
+  failure at runtime is sticky: the daemon refuses new jobs and stops
+  dispatching (running jobs finish) until a restart finds a working
+  `daemon.db`; a queue it cannot read at start is fatal. Finished rows
   stay for `acq result <id>` across restarts, pruned by age at start.
 - `crates/acquisition-cli` — the `acq` binary. Thin: clap parsing, a small
   protocol client, output formatting, and `store_cmd.rs` — the reads of

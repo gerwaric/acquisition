@@ -9,3 +9,7 @@ serde_json.workspace = true
 anyhow.workspace = true
 rusqlite = { version = "0.32", features = ["bundled"] }
 directories = "6"
+
+[features]
+# Destructive hooks for exercising failure paths; never in production builds.
+test-hooks = []

@@ -1,8 +1,10 @@
 //! The persisted job queue: `store/<provider>/daemon.db`, one row per job,
 //! written by the daemon at every state change and read back when a
 //! daemon starts. The daemon's memory is the source of truth while it
-//! runs; this table is its mirror, so a restart — idle exit, `daemon
-//! stop`, a version respawn, a crash — loses nothing.
+//! runs; this table is its mirror, and the queue survives a restart —
+//! idle exit, `daemon stop`, a version respawn, a crash. What a
+//! restarting daemon does with each row — resume, replay, hold, or fail
+//! as interrupted — is its decision, not this crate's.
 //!
 //! This crate knows nothing about job semantics (what `running` means for
 //! a restart, which kinds are per-lifetime); it stores rows and hands them
@@ -105,6 +107,15 @@ impl JobDb {
 
     pub fn path(&self) -> &Path {
         &self.path
+    }
+
+    /// Make every later statement fail, so the daemon's queue-failure
+    /// handling can be exercised. Compiled only for builds that opt into
+    /// the `test-hooks` feature (acquisition-core's dev-dependency);
+    /// production builds have no way to call this.
+    #[cfg(feature = "test-hooks")]
+    pub fn break_for_tests(&self) {
+        self.conn.execute_batch("DROP TABLE jobs").unwrap();
     }
 
     /// Insert or replace the row for `row.id`. One small transaction; the
