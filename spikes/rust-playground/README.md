@@ -172,7 +172,10 @@ degrades sessions to in-memory only (never plaintext on disk). Mock access
 tokens live 60 seconds, so silent refresh is exercised constantly.
 `ACQ_IDLE_SHUTDOWN=<secs>` overrides the idle exit. `ACQ_STORE_DIR=<dir>`
 relocates the shared store (`<dir>/<provider>/<account>.db` plus
-`accounts.json`; default `~/.local/share/acquisition-playground/store`).
+`accounts.json`; default is the platform data directory via the `directories`
+crate — `~/.local/share/acquisition-playground/store` on Linux,
+`~/Library/Application Support/gerwaric.acquisition-playground/store` on
+macOS, `%APPDATA%\gerwaric\acquisition-playground\data\store` on Windows).
 `--account <username|name|uuid>` (global; `ACQ_ACCOUNT` is the env form)
 names the account a command acts as. The daemon holds **one session per
 logged-in account** (log in again as someone else and both stay live;

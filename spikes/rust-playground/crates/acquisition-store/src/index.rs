@@ -8,6 +8,7 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
+use directories::ProjectDirs;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -64,16 +65,20 @@ impl std::fmt::Display for Resolve {
 
 impl std::error::Error for Resolve {}
 
-/// The provider's store directory: `$ACQ_STORE_DIR/<provider>`, else
-/// `~/.local/share/acquisition-playground/store/<provider>`. One
-/// directory per provider so mock data never mixes with real.
+/// The provider's store directory: `$ACQ_STORE_DIR/<provider>`, else the
+/// platform's per-user data directory for this app (`directories`):
+/// `~/.local/share/acquisition-playground/store/<provider>` on Linux,
+/// `~/Library/Application Support/gerwaric.acquisition-playground/store/<provider>`
+/// on macOS, `%APPDATA%\gerwaric\acquisition-playground\data\store\<provider>`
+/// on Windows. One directory per provider so mock data never mixes with
+/// real. No home directory at all (a bare service account) falls back to
+/// `store/<provider>` under the current directory rather than failing.
 pub fn store_dir(provider: &str) -> PathBuf {
     let base = match std::env::var_os("ACQ_STORE_DIR") {
         Some(d) => PathBuf::from(d),
-        None => std::env::var_os("HOME")
-            .map(PathBuf::from)
-            .unwrap_or_default()
-            .join(".local/share/acquisition-playground/store"),
+        None => ProjectDirs::from("", "gerwaric", "acquisition-playground")
+            .map(|p| p.data_dir().join("store"))
+            .unwrap_or_else(|| PathBuf::from("store")),
     };
     base.join(provider)
 }

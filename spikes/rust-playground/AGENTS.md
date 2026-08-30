@@ -30,7 +30,7 @@ Quality gate, kept green by every change (`NETWORK-CLEANUP.md`):
 
 Working against the mock daemon in a session: use `ACQ_SOCKET=<short
 path>` and `ACQ_NO_KEYRING=1` to stay isolated, `ACQ_STORE_DIR=<scratch>`
-so the shared store does not land under `~/.local/share`, and `acq daemon
+so the shared store does not land in the real per-user data directory, and `acq daemon
 stop` when done. A scripted mock login is `acq auth --no-browser` in the
 background, then `curl` the printed URL with `/authorize?` replaced by
 `/approve?` (add `&user=NAME` for a second account). macOS has no
