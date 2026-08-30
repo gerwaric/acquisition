@@ -1,14 +1,55 @@
 # Live testing control
 
 Control document for running the Rust daemon against the real GGG API:
-preconditions, the safety rails, the staged ladder, the run ledger, and
-the next action. `CONTEXT.md` invariants apply. Ground-truth facts learned
-live go to `docs/design/network-ground-truth.md` as numbered claims
-(authored master-side, cherry-picked here); this file records only runs.
+the standing rule for first contact with anything new, the safety rails,
+the closed ladder (history), and the run ledger. `CONTEXT.md` invariants
+apply. Ground-truth facts learned live go to
+`docs/design/network-ground-truth.md` as numbered claims (authored
+master-side, cherry-picked here); this file records only runs.
 
-Goal: confidence that the daemon **halts rather than floods** — no HEAD
-streams, no repeated rate-limit violations — so a baseline can be collected
-before further development or refactoring. Not a correctness proof.
+The ladder's goal — confidence that the daemon **halts rather than
+floods** — was met on 2026-08-27 (status at the end). The ladder was the
+right ceremony for an unproven limiter; with the limiter proven, its
+paperwork half (a written hypothesis before any live run) is retired
+(owner decision, 2026-08-30) and what survives is the part with teeth: the
+rails, which are code, and the rule below.
+
+## Standing rule: first contact (2026-08-30)
+
+Replaces the preconditions and the "new hypothesis first" requirement.
+
+- **First live call on a new endpoint runs with the rails on**:
+  `ACQ_GGG=1 ACQ_TRIPWIRE=1 ACQ_MAX_SENDS=3`, from a terminal, on a fresh
+  daemon (`acq daemon stop` first). Three, not one: a fresh daemon sends a
+  token POST, then the HEAD probe, then the GET, and the ceiling counts
+  every method (`rails.rs`, "ceiling is per lifetime and counts every
+  method"). Two if the daemon already holds a valid access token.
+- **Read the journal before anything else.** The probe line must report
+  0 hits on its policy; hits > 0 means something else is using this
+  account (the C++ app, another CLI, another machine — counters are
+  per account, N24/rung 11) — stop and find it. The probe is the
+  hypothesis mechanism: it learns the policy before the first counted
+  send, and a probe that fails or comes back without rules closes the
+  endpoint for 60 s (N20 path).
+- **Record the observed policy** (name, windows, the state after the
+  GET) as one row in the run ledger and as a ground-truth claim
+  master-side. That row is what lets `ratelimit.rs`'s test table cite it.
+- **Post-violation: wait 360 s, then `reset-tripwire`; never
+  reset-and-retry.** After any tripwire trip write the cause in the
+  ledger, wait at least 360 s (the longest observed policy window plus
+  the 60 s bucket), and only then `acq daemon reset-tripwire`. A trip
+  is evidence to read, not a retry prompt. This is a fact about GGG, not
+  paperwork, and it outlives the ladder.
+- **Verify the binary, not the checkout.** `acq --version` must equal
+  `git rev-parse --short=12 HEAD` with no `-dirty`; never rebuild
+  `target/debug/acq` under a live daemon without `acq daemon stop` first
+  (rung 8 ran 34 h on a binary that predated the fix it was restarted to
+  pick up).
+
+Endpoints real but unsampled as of 2026-08-30: `GET /profile`,
+`GET /character/{name}`, `GET /league` (job kinds `profile`, `character`,
+`leagues`, added in `fa74c5ef`). Each gets first contact under this rule
+— step (7) of the multi-account build order in `CONTEXT.md`.
 
 History moved out of this file on 2026-08-24 and lives in git: the
 blast-radius review (risks R1–R8, at `c1be5c39`), the L0 rails build and
@@ -16,32 +57,6 @@ its review register (L0-R1–R13), and the review history. The file at
 `9fa99459` holds the full text. All of R1–R8 are resolved: R1 by the
 dead-grant decision (`CONTEXT.md`), R2–R7 by the rails below, R8 fixed in
 `529bdd92` and seen live once (rung 8).
-
-## Preconditions (owner decisions, 2026-08-22)
-
-- **Exclusive use.** No other Acquisition instance — the shipped C++ app, a
-  second CLI, another machine — runs on the test account or from the test
-  IP during a rung. Counters are server-side per account (N24), the token
-  policy is IP-scoped (N33), and the spike sends the shipped registration's
-  `client_id` and user-agent, so every violation lands on the shared
-  registration (N10). Each rung's first probe must report 0 hits on its
-  policy before the first GET is allowed to proceed.
-- **One daemon per rung.** Every rung starts with `acq daemon stop`, and the
-  daemon is started with `ACQ_IDLE_SHUTDOWN` long enough to outlive the
-  rung, so rails configured by environment are actually in effect and the
-  limiter history is continuous.
-- **Verify the binary, not the checkout.** `acq --version` must equal
-  `git rev-parse --short=12 HEAD` with no `-dirty`; the daemon's first log
-  line and the journal's `open` header say the same. Never rebuild
-  `target/debug/acq` under a live daemon without `acq daemon stop` first —
-  the version handshake would not notice. (Rung 8 ran 34 h on a binary
-  that predated the fix it was restarted to pick up.)
-- **Post-violation rule.** After any tripwire trip: write the cause in the
-  run ledger, wait at least **360 s** (the longest observed policy window
-  plus the 60 s bucket), and only then `acq daemon reset-tripwire`. Never
-  reset-and-retry to "see if it happens again."
-- **Ceilings are derived, not guessed:** cadence × intended duration for a
-  soak; listed tabs + probes + refresh for a pull.
 
 ## Rails
 
@@ -66,8 +81,12 @@ one is, and whether it outlives the ladder:
    send, never a token or body; the contract surface (`TESTING-NOTES.md`).
 5. **Send ceiling** (`ACQ_MAX_SENDS=<n>`, ladder-only): halt after `n`
    sends this lifetime; not persisted, so a soak's respawn starts fresh.
-6. **`profile` and the mock-only kinds are refused in real mode**
-   (permanent).
+6. **The mock-only kinds (`whoami`, `fetch`, `sleep`) are refused or
+   unroutable in real mode** (permanent). `profile` is real since
+   `fa74c5ef` (2026-08-29), as are `character` and `leagues`; all three
+   are unsampled — see the standing rule. (This rail's text said
+   `profile` was refused until 2026-08-30; that was stale from the
+   rename of the old mock exerciser to `whoami`.)
 7. **Keyring save failure is surfaced** in `daemon status` and is a stop
    condition (permanent); the in-memory token is kept until exit.
 8. **`ACQ_IDLE_SHUTDOWN=<secs>`** (permanent knob), set per rung.
@@ -76,13 +95,16 @@ Each rail has a deterministic test against the mock with rails 1 and 5
 forced on; the suite passes unchanged with them off; quality gates from
 `NETWORK-CLEANUP.md` stay green.
 
-## Ladder
+## Ladder (closed 2026-08-27; kept as history)
 
-Each rung has a stop condition; stopping means reading the journal before
-the next rung, not retrying. `ACQ_GGG=1 ACQ_TRIPWIRE=1` throughout; journal
-on; ceiling set per rung; `acq daemon stop` first. Expected counts assume
-a fresh daemon (one refresh POST before the first API job). Record every
-rung in the run ledger.
+The preconditions it ran under (exclusive use; one daemon per rung with
+`ACQ_IDLE_SHUTDOWN` outliving it; binary provenance; the 360 s
+post-violation rule; ceilings derived from the rung's own counts, never
+another rung's) are in git at `26850097` and earlier; the ones that are
+facts about GGG rather than ceremony live on in the standing rule above.
+Each rung had a stop condition; stopping meant reading the journal, not
+retrying. `ACQ_GGG=1 ACQ_TRIPWIRE=1` throughout; journal on; ceiling per
+rung; fresh daemon (one token POST before the first API job).
 
 | Rung | Command(s) | Expect (POST/HEAD/GET) | Ceiling | Stop if |
 | --- | --- | --- | --- | --- |
@@ -277,9 +299,14 @@ Across the ladder: ~1,450 live sends, **zero 429s**, one transient origin
 proven on three real incidents (the 503, a ceiling derived from a stale
 count, a keyring-blind spawn). The goal this document set — the daemon
 **halts rather than floods** — is met with evidence, and the GGG-side
-boundary is mapped to diminishing returns. No further live runs are
-planned; a new run needs a new hypothesis written here first, under the
-same preconditions and rails.
+boundary is mapped to diminishing returns. Rung 11 (2026-08-30) was the
+one addition after closing, run as a written hypothesis because it asked a
+question about GGG (per-account counting) rather than about a new
+endpoint. No further rungs are planned. Live contact from here follows
+the standing rule at the top: rails on, ceiling 3, read the journal,
+record the policy — a ledger row, not a hypothesis document. A run that
+asks a genuinely new question of GGG (like rung 11) is still worth
+writing down first; that is judgment, not a rule.
 
-The frontier is the frontend boundary (`CONTEXT.md`, "Frontend boundary
-findings" and the persistence open topic).
+The frontier is the frontend boundary and the multi-account build
+(`CONTEXT.md`).

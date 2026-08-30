@@ -16,10 +16,10 @@ Read, in this order, before changing anything:
    (invariants, protocol, core API surface); agents own internals.
 3. `LIVE-TESTING.md` — the control document for anything that touches the
    real GGG API. **Nothing here talks to GGG unless `ACQ_GGG=1` is set;
-   never set it without the ladder rules in that file.** Live runs are
-   human-run, from a terminal (a cron-spawned daemon has no keychain), and
-   the ladder is closed: a new live run needs a new hypothesis written
-   there first.
+   never set it without the standing rule in that file** (rails on,
+   ceiling 3, read the journal, record the policy). Live runs are
+   human-run, from a terminal (a cron-spawned daemon has no keychain).
+   The ladder is closed and is history.
 4. `TESTING-NOTES.md` — how the project checks its own work; the send
    journal is the contract surface.
 
