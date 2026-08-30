@@ -3828,6 +3828,8 @@ mod dispatcher_tests {
             store_dir: None,
             store: Mutex::new(None),
         });
+        // Test daemons know what the real one knows about routes.
+        Daemon::declare_route_knowledge(&daemon.choke);
         (daemon, log_path)
     }
 
@@ -4668,6 +4670,71 @@ mod dispatcher_tests {
         );
         server.await.unwrap();
         finish_harness_wire(dispatcher, &log_path, &requests);
+    }
+
+    /// The route knowledge declared for `/profile` and `/account/leagues`
+    /// (first contact 2026-08-30), held against the mock that mirrors GGG:
+    /// neither is probed; `/profile`'s headerless 200 is accepted and the
+    /// endpoint becomes Policyless; `/account/leagues` teaches its policy
+    /// from the GET. Removing a declaration fails here, not live.
+    #[tokio::test]
+    async fn declared_route_knowledge_holds_against_the_mock() {
+        let base = mockggg::start().await.unwrap();
+        let clock = Arc::new(ManualClock::new());
+        let (daemon, log_path) = test_daemon(&base, clock);
+        {
+            let mut s = daemon.shared.lock().unwrap();
+            s.auth.rename("", "Alice#1234");
+            let session = s.auth.one_mut();
+            session.username = Some("Alice#1234".into());
+            session.access_token = Some("at-test.Alice#1234".into());
+            session.access_expires_at = Some(daemon.choke.wall() + Duration::from_secs(3600));
+        }
+        let dispatcher = tokio::spawn(daemon.clone().dispatcher());
+        // Resolution happens in the `Submit` handler; here the account is
+        // passed as that handler would after resolving the sole session.
+        let account = Some("Alice#1234".to_string());
+        let profile = daemon.submit(
+            "profile".into(),
+            json!({}),
+            0,
+            "test".into(),
+            account.clone(),
+        );
+        let (info, outcome) = wait_terminal(&daemon, profile).await;
+        assert_eq!(info.state, JobState::Done, "{outcome:?}");
+        let leagues = daemon.submit("leagues".into(), json!({}), 0, "test".into(), account);
+        let (info, outcome) = wait_terminal(&daemon, leagues).await;
+        assert_eq!(info.state, JobState::Done, "{outcome:?}");
+
+        let sends: Vec<(String, String)> = daemon
+            .choke
+            .recent_sends()
+            .into_iter()
+            .map(|send| (url_path(&send.url), send.method))
+            .collect();
+        assert!(
+            !sends.iter().any(|(_, method)| method == "HEAD"),
+            "no-probe routes must not be probed: {sends:?}"
+        );
+        assert!(
+            sends.contains(&("/profile".into(), "GET".into())),
+            "{sends:?}"
+        );
+        assert!(
+            sends.contains(&("/account/leagues".into(), "GET".into())),
+            "{sends:?}"
+        );
+        assert_eq!(
+            daemon.choke.endpoint_state("profile@Alice#1234"),
+            EndpointState::Policyless
+        );
+        assert!(matches!(
+            daemon.choke.endpoint_state("league@Alice#1234"),
+            EndpointState::Policy(ref name) if name.starts_with("league-request-limit")
+        ));
+        dispatcher.abort();
+        let _ = std::fs::remove_file(&log_path);
     }
 
     #[tokio::test]

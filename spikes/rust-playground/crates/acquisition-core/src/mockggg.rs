@@ -164,14 +164,32 @@ fn policy_template(path_key: &str) -> Option<MockPolicy> {
         "/character/name" => {
             MockPolicy::new("character-request-limit", &[(5, 10, 60), (15, 300, 300)])
         }
-        "/profile" => MockPolicy::new("profile-request-limit", &[(2, 10, 60), (5, 300, 300)]),
-        // Real shape, first contact 2026-08-30 (the real endpoint also
-        // counts HEAD, which the mock does not simulate).
+        // `/profile` has no policy on the wire (first contact 2026-08-30:
+        // GET answers without rate headers, HEAD is 403) — handled before
+        // the policy step, so it has no template.
+        // `/account/leagues`: real shape, first contact 2026-08-30; the real
+        // endpoint counts HEAD too, and so does the mock.
         "/account/leagues" => {
             MockPolicy::new("league-request-limit", &[(5, 10, 60), (10, 60, 300)])
         }
         "/token" => MockPolicy::scoped("token-request-limit", "Ip", &[(60, 30, 30)]),
         _ => return None,
+    })
+}
+
+/// The mock profile: a stable per-username uuid, the shape GGG returns.
+fn profile_body(bearer_user: Option<&str>) -> serde_json::Value {
+    let hash = bearer_user.map_or(0, |u| {
+        u.bytes()
+            .fold(0u64, |h, b| h.wrapping_mul(31).wrapping_add(b as u64))
+            & 0xffff_ffff_ffff
+    });
+    json!({
+        "uuid": format!("00000000-0000-4000-8000-{hash:012x}"),
+        "name": bearer_user.unwrap_or(USERNAME),
+        "realm": "pc",
+        "guild": { "name": "Playground" },
+        "twitch": { "name": "exiletester" },
     })
 }
 
@@ -442,11 +460,31 @@ async fn handle(
                 .await;
                 return;
             }
+            // `/profile` as GGG serves it (2026-08-30): HEAD is refused
+            // outright, GET carries no `X-Rate-Limit-*` at all.
+            if policy_key == "/profile" {
+                if req.method == "HEAD" {
+                    respond(
+                        &mut stream,
+                        "403 Forbidden",
+                        "application/json",
+                        &json!({ "error": "forbidden" }).to_string(),
+                    )
+                    .await;
+                    return;
+                }
+                let body = profile_body(bearer_user.as_deref());
+                respond(&mut stream, "200 OK", "application/json", &body.to_string()).await;
+                return;
+            }
+            // HEAD is uncounted (N24) except on `/account/leagues`, where
+            // GGG counts it (first contact 2026-08-30).
+            let head_counts = policy_key == "/account/leagues";
             let (ok, extra) = apply_policy(
                 &policies,
                 policy_key,
                 bearer_user.as_deref(),
-                req.method == "GET",
+                req.method == "GET" || head_counts,
                 clock.now(),
             );
             if req.method == "HEAD" {
@@ -461,14 +499,14 @@ async fn handle(
                 } else {
                     extra
                 };
-                respond_with(
-                    &mut stream,
-                    "204 No Content",
-                    "application/json",
-                    &extra,
-                    "",
-                )
-                .await;
+                // A counted HEAD is answered 200 where the free ones are
+                // 204 — the one tell observed on `/account/leagues`.
+                let status = if head_counts {
+                    "200 OK"
+                } else {
+                    "204 No Content"
+                };
+                respond_with(&mut stream, status, "application/json", &extra, "").await;
                 return;
             }
             if !ok {
@@ -510,10 +548,6 @@ async fn handle(
                     "inventory": mock_items(&format!("{name}-inv"), 4),
                     "jewels": [],
                 }})
-            } else if req.path == "/profile" {
-                json!({ "uuid": format!("00000000-0000-4000-8000-{:012x}", bearer_user.as_deref().map_or(0, |u| u.bytes().fold(0u64, |h, b| h.wrapping_mul(31).wrapping_add(b as u64)) & 0xffff_ffff_ffff)),
-                        "name": bearer_user.as_deref().unwrap_or(USERNAME), "realm": "pc",
-                        "guild": { "name": "Playground" }, "twitch": { "name": "exiletester" } })
             } else if req.path == "/account/leagues" {
                 json!({ "leagues": [
                     { "id": "Standard", "realm": "pc", "description": "The default game mode.", "category": { "id": "Standard" } },
