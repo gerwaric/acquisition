@@ -539,8 +539,11 @@ impl Daemon {
                 let name = params.get("name").and_then(Value::as_str)?;
                 Some(("character".into(), format!("{base}/character/{name}")))
             }
-            // The account's leagues (the OAuth `GET /league`, account:leagues).
-            "leagues" => Some(("league".into(), format!("{base}/league"))),
+            // The account's leagues: `GET /account/leagues` (account:leagues).
+            // `/league` is the public league list and needs `service:leagues`,
+            // which the registration does not have (first contact
+            // 2026-08-30: 403 `insufficient_scope`).
+            "leagues" => Some(("league".into(), format!("{base}/account/leagues"))),
             // The account profile (account:profile).
             "profile" => Some(("profile".into(), format!("{base}/profile"))),
             "stashes" => {

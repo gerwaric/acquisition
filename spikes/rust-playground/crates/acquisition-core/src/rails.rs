@@ -329,6 +329,13 @@ impl Rails {
                     "429 on {} {} (rate headers {})",
                     report.method, report.url_path, report.rate
                 )),
+                // A 403 that names its own cause (`WWW-Authenticate` with
+                // `insufficient_scope`, an invalid token…) is an auth
+                // error, not a block; say what the server said.
+                Some(403) if report.headers.get("www-authenticate").is_some() => Some(format!(
+                    "403 on {} {} — auth error: {}",
+                    report.method, report.url_path, report.headers["www-authenticate"]
+                )),
                 // A HEAD has no body to classify; say so rather than
                 // reporting an "unclassified body", and carry the headers.
                 Some(status @ (403 | 503)) if report.method == "HEAD" => Some(format!(
@@ -807,5 +814,28 @@ mod tests {
         assert!(cause.contains("no body to classify (HEAD)"), "{cause}");
         assert!(cause.contains("cf-ray"), "{cause}");
         assert!(!cause.contains("unclassified body"), "{cause}");
+    }
+    #[test]
+    fn a_403_with_www_authenticate_is_named_an_auth_error() {
+        let rails = Rails::with_config(RailsConfig {
+            tripwire: true,
+            ..RailsConfig::default()
+        });
+        let headers = json!({
+            "www-authenticate": "Bearer realm=\"pathofexile:production\", error=\"insufficient_scope\""
+        });
+        let cause = rails
+            .record(&SendReport {
+                method: "HEAD",
+                url_path: "/league",
+                headers: &headers,
+                ..report(Some(403))
+            })
+            .expect("a 403 still trips");
+        assert!(
+            cause.starts_with("403 on HEAD /league — auth error: "),
+            "{cause}"
+        );
+        assert!(cause.contains("insufficient_scope"), "{cause}");
     }
 }

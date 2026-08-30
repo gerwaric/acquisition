@@ -126,7 +126,7 @@ and store; (2) `account` on jobs, validated against the sole session;
 (3) the selector; (4) mock any-username login and per-username counting;
 (5) limiter and probe scope keying as test-table rows, verified on (4);
 (6) the session map; (7) cheap live samples of `/profile`,
-`/character/{name}`, `/league` under `LIVE-TESTING.md`'s replacement
+`/character/{name}`, `/account/leagues` under `LIVE-TESTING.md`'s replacement
 rule, uuid recorded opportunistically.
 
 ## Frontend boundary findings (from `acq pull`, 2026-08-24; `pull` itself was retired 2026-08-29 in favor of the store)

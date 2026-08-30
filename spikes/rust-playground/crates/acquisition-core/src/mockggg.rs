@@ -165,7 +165,9 @@ fn policy_template(path_key: &str) -> Option<MockPolicy> {
             MockPolicy::new("character-request-limit", &[(5, 10, 60), (15, 300, 300)])
         }
         "/profile" => MockPolicy::new("profile-request-limit", &[(2, 10, 60), (5, 300, 300)]),
-        "/league" => MockPolicy::new("league-request-limit", &[(2, 10, 60), (5, 300, 300)]),
+        "/account/leagues" => {
+            MockPolicy::new("league-request-limit", &[(2, 10, 60), (5, 300, 300)])
+        }
         "/token" => MockPolicy::scoped("token-request-limit", "Ip", &[(60, 30, 30)]),
         _ => return None,
     })
@@ -402,7 +404,7 @@ async fn handle(
         ("GET" | "HEAD", path)
             if path == "/character"
                 || path == "/fetch"
-                || path == "/league"
+                || path == "/account/leagues"
                 || path == "/profile"
                 || path.starts_with("/character/")
                 || path.starts_with("/stash/") =>
@@ -510,7 +512,7 @@ async fn handle(
                 json!({ "uuid": format!("00000000-0000-4000-8000-{:012x}", bearer_user.as_deref().map_or(0, |u| u.bytes().fold(0u64, |h, b| h.wrapping_mul(31).wrapping_add(b as u64)) & 0xffff_ffff_ffff)),
                         "name": bearer_user.as_deref().unwrap_or(USERNAME), "realm": "pc",
                         "guild": { "name": "Playground" }, "twitch": { "name": "exiletester" } })
-            } else if req.path == "/league" {
+            } else if req.path == "/account/leagues" {
                 json!({ "leagues": [
                     { "id": "Standard", "realm": "pc", "description": "The default game mode.", "category": { "id": "Standard" } },
                     { "id": "Hardcore", "realm": "pc", "description": "A character killed in Hardcore is moved to Standard.", "category": { "id": "Standard" } },

@@ -53,7 +53,8 @@ Replaces the preconditions and the "new hypothesis first" requirement.
   pick up).
 
 Endpoints real but unsampled as of 2026-08-30: `GET /character/{name}`,
-`GET /league` (job kinds `character`, `leagues`, added in `fa74c5ef`).
+`GET /account/leagues` (job kinds `character`, `leagues`, added in
+`fa74c5ef`; `leagues` was routed to `/league` until 2026-08-30).
 Each gets first contact under this rule — step (7) of the multi-account
 build order in `CONTEXT.md`. `GET /profile` was sampled 2026-08-30 (run
 ledger): it answers 200 **without rate-limit headers** and 403 to HEAD,
@@ -179,6 +180,8 @@ One row per rung execution. Journal files are copied to
 
 | 2026-08-30 | first contact: `characters` (machine check after the 403) | `ad349ed0` | **pass** for its question; GET refused by the ceiling (my arithmetic: a fresh daemon always spends a token POST, so 2 was one short) | 1/1/0 | 0 | pid 92791. Refresh POST 200 (`token-request-limit` Ip `1:30:0`); **HEAD `/character` 204**, `character-list-request-limit` `0:10:0,0:300:0`: the token, the account, HEAD-in-general and the machine are all fine — the 403 was specific to `/profile`. Ceiling halt, not a trip. |
 | 2026-08-30 | first contact: `profile` (second attempt, no probe) | `ad349ed0` | **endpoint works; our side rejected the answer** | 1/0/1 | 0 | pid 93065. Refresh POST 200; **`GET /profile` 200 with no `X-Rate-Limit-*` headers at all** (journal `rate {}`), 136 ms. The limiter's strict observation classed it "rate-limit protocol failure: missing x-rate-limit-policy"; the job failed and the body (with the uuid) was discarded. Scope is fine. Together with the HEAD 403: `/profile` is served differently from the API-policy endpoints — no rate-limit headers, no HEAD. New ground-truth observation for master-side; design decision needed (below) before the next call. |
+
+| 2026-08-30 | first contact: `leagues` | `7a61c554` | **halted by tripwire at send 2 — our route was wrong** | 1/1/0 | 0 × 429; **1 × 403 on HEAD** | pid 97497. Refresh POST 200; **HEAD `/league` 403** with `www-authenticate: Bearer realm="pathofexile:production", error="insufficient_scope"` (via Cloudflare, `cf-ray a33505ad2f663aa8-DFW`, JSON content-type) — the header snapshot added after the `/profile` 403 classified it in one send. `/league` is the public league list and needs `service:leagues`; the account's leagues are `GET /account/leagues[/{realm}]` under `account:leagues`. Route fixed the same day; the tripwire cause now names an auth error when `WWW-Authenticate` is present. Not a rate-limit finding. |
 
 ### Re-soak postmortem (2026-08-27)
 

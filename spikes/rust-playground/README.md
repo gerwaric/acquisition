@@ -97,7 +97,7 @@ acq characters                               # auth-required; GET /character aga
                                              #  one HEAD that learns the policy + current counters)
 acq stashes --league Standard                # GET /stash/{league}: a second policy, runs in parallel
 acq character <name>                         # GET /character/{name}: equipment + inventory
-acq leagues                                  # GET /league (account:leagues)
+acq leagues                                  # GET /account/leagues (account:leagues)
 acq stash <id> [--sub <id>] [--deep]         # one tab; --deep follows a map/unique tab's substashes as child jobs
 acq refresh --tabs a,b,c | --all [--deep]    # list, then one `stash` child per tab; parent finishes last
 acq cancel <parent-id>                       # cascades to every descendant still waiting
