@@ -265,10 +265,13 @@ regression (N20) so the degraded path can be exercised.
   for skipping, not used yet. A refresh that loses tabs (a 503, a rails
   halt) leaves those tabs' rows at their previous state; nothing yet
   refetches only the failed set.
-- **`/profile` advertises no rate-limit policy** (N38), so it is paced by
-  the send gate only and called once per login; whether it is limited at
-  all is asked of GGG (Q12). `/account/leagues` counts its HEAD (N39).
-  Both are declared per route and the declarations go when GGG answers.
+- **Two endpoints carry declared route knowledge** (`/profile`
+  policyless, `/account/leagues` no-probe). GGG answered Q12
+  (2026-08-30): `/profile` is not rate limited at present — its
+  declaration is confirmed and stays until headers ever appear (N38);
+  the counted HEAD on `/account/leagues` is a defect GGG will correct
+  in a future release — treat it as counted until the free HEAD is
+  observed, then the declaration goes and the probe returns (N39).
 - **The mock does not simulate timing-bucket quantization** (N11–N12); the
   limiter pads for it regardless.
 - **The mock reports an active restriction on every window of the rule,**

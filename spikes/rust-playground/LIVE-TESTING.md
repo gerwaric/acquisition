@@ -409,11 +409,15 @@ First contact under the standing rule, 2026-08-30 (run ledger): `/profile`
 answers 200 with no rate-limit headers and 403 to HEAD; `/account/leagues`
 is `league-request-limit 5:10:60,10:60:300` and counts its HEAD; `/league`
 needs `service:leagues` (our route was wrong, fixed). The daemon carries
-both endpoint facts as declared route knowledge; the owner has asked GGG
-whether the two endpoints can be normalised (headers on `/profile`, free
-HEAD on both), which would delete those declarations. `/character/{name}`
-(same day) is the ordinary pattern: free HEAD, full policy, the C++
-capture's shape. Pending: GGG's answer.
+both endpoint facts as declared route knowledge. GGG answered the same
+day (Q12): `/profile` is **not rate limited at present** — the
+policyless declaration is confirmed and stays until headers ever
+appear — and the counted HEAD on `/account/leagues` is a defect **GGG
+will correct in a future release**; until the free HEAD is observed
+live, it is treated as counted, and the observation that shows the fix
+is what deletes the no-probe declaration and restores the probe.
+`/character/{name}` (same day) is the ordinary pattern: free HEAD, full
+policy, the C++ capture's shape.
 
 The frontier is the frontend boundary and the multi-account build
 (`CONTEXT.md`).
