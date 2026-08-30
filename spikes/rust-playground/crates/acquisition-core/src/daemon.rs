@@ -20,7 +20,7 @@ use std::collections::VecDeque;
 
 use crate::VERSION;
 use crate::job::{JobId, JobInfo, JobState, Outcome, Priority, target_of};
-use crate::protocol::{ErrorRecord, Request, Response};
+use crate::protocol::{ErrorRecord, Request, Response, SessionStatus};
 use crate::provider::{CALLBACK_PATH, Provider, SCOPES, ggg_mode};
 use crate::rails::{BlockShape, Rails, RailsConfig};
 use crate::ratelimit::endpoint_key;
@@ -124,8 +124,6 @@ struct AuthSession {
     access_expires_at: Option<SystemTime>,
     refresh_token: Option<String>,
     username: Option<String>,
-    /// The session generation of a login flow waiting on the browser.
-    pending: Option<u64>,
     /// "ok" or an error description shown in `auth status`.
     keyring: String,
     generations: AuthGenerations,
@@ -133,12 +131,129 @@ struct AuthSession {
     next_refresh_flight: u64,
 }
 
-impl AuthSession {
-    fn advance_session(&mut self) -> u64 {
-        self.generations.session = self.generations.session.wrapping_add(1);
-        self.generations.session
+/// Every live session, by account. One daemon, many sessions (CONTEXT.md,
+/// "Multi-account design"): the daemon holds no default — a caller names
+/// the account, or there is exactly one.
+#[derive(Default)]
+struct Sessions {
+    by_account: HashMap<String, AuthSession>,
+    /// A login flow waiting on the browser (its flow generation).
+    pending: Option<u64>,
+    next_flow: u64,
+    /// The account of the most recent login — reported, never used to pick.
+    last_login: Option<String>,
+    /// Keyring health from restore, shown when there is no session to ask.
+    keyring: String,
+}
+
+impl Sessions {
+    /// The session an operation is for: the named account's, or the sole
+    /// one. No selector with several live is refused — the daemon does not
+    /// guess whose stash to spend sends on.
+    /// Lookups go by each session's own `username`, never the map key, so
+    /// a session whose name is set after insertion is still found.
+    fn find(&self, username: &str) -> Option<&AuthSession> {
+        self.by_account
+            .values()
+            .find(|s| s.username.as_deref() == Some(username))
     }
 
+    fn find_mut(&mut self, username: &str) -> Option<&mut AuthSession> {
+        self.by_account
+            .values_mut()
+            .find(|s| s.username.as_deref() == Some(username))
+    }
+
+    fn get(&self, account: Option<&str>) -> Result<&AuthSession, String> {
+        match account {
+            Some(account) => self
+                .find(account)
+                .ok_or_else(|| format!("no session for {account} — run `acq auth`")),
+            None => match self.by_account.len() {
+                0 => Err("not logged in — run `acq auth`".into()),
+                1 => Ok(self.by_account.values().next().expect("one")),
+                _ => Err(format!(
+                    "several accounts are logged in ({}); pick one with --account",
+                    self.usernames().join(", ")
+                )),
+            },
+        }
+    }
+
+    fn get_mut(&mut self, account: Option<&str>) -> Result<&mut AuthSession, String> {
+        match account {
+            Some(account) => self
+                .find_mut(account)
+                .ok_or_else(|| format!("no session for {account} — run `acq auth`")),
+            None => {
+                self.get(None)?;
+                Ok(self.by_account.values_mut().next().expect("one"))
+            }
+        }
+    }
+
+    /// Live usernames, sorted.
+    fn usernames(&self) -> Vec<String> {
+        let mut v: Vec<String> = self.by_account.keys().cloned().collect();
+        v.sort();
+        v
+    }
+
+    /// The live session a selector names (username, name without
+    /// discriminator, or uuid), if any.
+    fn matching(&self, selector: &str) -> Option<&AuthSession> {
+        self.by_account.values().find(|s| {
+            s.username
+                .as_deref()
+                .is_some_and(|u| account_matches(selector, u, None))
+        })
+    }
+
+    /// Insert or replace an account's session. Replacing advances the old
+    /// session's generations so an in-flight refresh for it lands stale.
+    fn replace(&mut self, mut session: AuthSession) -> &mut AuthSession {
+        let key = session.username.clone().unwrap_or_default();
+        let old_key = self
+            .find(&key)
+            .and_then(|old| old.username.clone())
+            .map(|_| key.clone());
+        if let Some(old) = old_key.and_then(|k| self.by_account.remove(&k)) {
+            session.generations = AuthGenerations {
+                session: old.generations.session.wrapping_add(1),
+                access_token: old.generations.access_token.wrapping_add(1),
+                refresh_token: old.generations.refresh_token.wrapping_add(1),
+            };
+            session.next_refresh_flight = old.next_refresh_flight;
+        }
+        self.last_login = Some(key.clone());
+        self.by_account.entry(key).or_insert(session)
+    }
+
+    #[cfg(test)]
+    fn with(session: AuthSession) -> Sessions {
+        let mut s = Sessions {
+            keyring: "ok".into(),
+            ..Sessions::default()
+        };
+        s.replace(session);
+        s
+    }
+
+    /// Test helper: the sole session.
+    #[cfg(test)]
+    fn one(&self) -> &AuthSession {
+        assert_eq!(self.by_account.len(), 1, "exactly one session expected");
+        self.by_account.values().next().expect("one")
+    }
+
+    #[cfg(test)]
+    fn one_mut(&mut self) -> &mut AuthSession {
+        assert_eq!(self.by_account.len(), 1, "exactly one session expected");
+        self.by_account.values_mut().next().expect("one")
+    }
+}
+
+impl AuthSession {
     fn advance_access_token(&mut self) {
         self.generations.access_token = self.generations.access_token.wrapping_add(1);
     }
@@ -151,7 +266,7 @@ impl AuthSession {
 struct Shared {
     jobs: HashMap<JobId, Entry>,
     next_id: JobId,
-    auth: AuthSession,
+    auth: Sessions,
     connections: usize,
     last_activity: Instant,
     started: Instant,
@@ -248,6 +363,7 @@ pub struct Daemon {
 
 struct RefreshOwnerGuard<'a> {
     daemon: &'a Daemon,
+    account: String,
     id: u64,
     generations: AuthGenerations,
     result: Option<watch::Sender<Option<AccessTokenResult>>>,
@@ -256,9 +372,9 @@ struct RefreshOwnerGuard<'a> {
 impl RefreshOwnerGuard<'_> {
     fn finish(mut self, refresh: Result<auth::TokenResponse, String>) -> AccessTokenResult {
         let result = self.result.as_ref().expect("refresh owner result exists");
-        let outcome = self
-            .daemon
-            .finish_refresh(self.id, self.generations, refresh, result);
+        let outcome =
+            self.daemon
+                .finish_refresh(&self.account, self.id, self.generations, refresh, result);
         self.result = None;
         outcome
     }
@@ -274,12 +390,14 @@ impl Drop for RefreshOwnerGuard<'_> {
         }
         {
             let mut s = self.daemon.shared.lock().unwrap();
-            let owns_current_flight = s.auth.generations == self.generations
-                && s.auth.refresh_flight.as_ref().is_some_and(|flight| {
-                    flight.id == self.id && flight.generations == self.generations
-                });
-            if owns_current_flight {
-                s.auth.refresh_flight = None;
+            if let Some(session) = s.auth.find_mut(&self.account) {
+                let owns_current_flight = session.generations == self.generations
+                    && session.refresh_flight.as_ref().is_some_and(|flight| {
+                        flight.id == self.id && flight.generations == self.generations
+                    });
+                if owns_current_flight {
+                    session.refresh_flight = None;
+                }
             }
         }
         result.send_replace(Some(Err(REFRESH_OWNER_ABANDONED.into())));
@@ -517,19 +635,23 @@ impl Daemon {
         kind: &str,
         requested: Option<&str>,
     ) -> Result<Option<String>, String> {
-        let live = self.shared.lock().unwrap().auth.username.clone();
-        match (requested, live) {
+        let s = self.shared.lock().unwrap();
+        match requested {
+            Some(req) => match s.auth.matching(req) {
+                Some(session) => Ok(session.username.clone()),
+                None if s.auth.by_account.is_empty() => {
+                    Err(format!("account {req:?}: not logged in — run `acq auth`"))
+                }
+                None => Err(format!(
+                    "account {req:?} is not logged in (live: {}); log in as it first",
+                    s.auth.usernames().join(", ")
+                )),
+            },
             // A job that will need a token must not exist without an
-            // account: it would slip past the token-time check.
-            (None, None) if self.kind_needs_account(kind) => {
-                Err(format!("{kind}: not logged in — run `acq auth`"))
-            }
-            (None, live) => Ok(live),
-            (Some(req), Some(live)) if account_matches(req, &live, None) => Ok(Some(live)),
-            (Some(req), Some(live)) => Err(format!(
-                "account {req:?} is not the live session ({live}); log in as it first"
-            )),
-            (Some(req), None) => Err(format!("account {req:?}: not logged in — run `acq auth`")),
+            // account: it would slip past the token-time check. With
+            // several sessions live, nothing is guessed.
+            None if !self.kind_needs_account(kind) => Ok(None),
+            None => s.auth.get(None).map(|session| session.username.clone()),
         }
     }
 
@@ -1472,26 +1594,36 @@ impl Daemon {
         Ok(authorize_url)
     }
 
+    /// A login flow is daemon-wide (one browser at a time), not a session:
+    /// it disturbs no live session until its tokens arrive and name one.
     fn begin_auth_flow(&self) -> u64 {
         let mut s = self.shared.lock().unwrap();
-        let generation = s.auth.advance_session();
+        s.auth.next_flow = s.auth.next_flow.wrapping_add(1);
+        let generation = s.auth.next_flow;
         s.auth.pending = Some(generation);
-        s.auth.refresh_flight = None;
         generation
     }
 
     fn finish_auth_flow(&self, generation: u64, tokens: auth::TokenResponse) -> bool {
+        let username = tokens.username.clone();
         let warning = {
             let mut s = self.shared.lock().unwrap();
-            if s.auth.pending != Some(generation) || s.auth.generations.session != generation {
+            if s.auth.pending != Some(generation) {
                 return false;
             }
             s.auth.pending = None;
-            self.install_tokens_locked(&mut s.auth, tokens)
+            // A re-login as an account that is already live replaces its
+            // session (generations advance, so a refresh in flight for the
+            // old one lands stale); any other account is untouched.
+            let session = s.auth.replace(AuthSession {
+                username: Some(username.clone()),
+                ..AuthSession::default()
+            });
+            self.install_tokens_locked(session, tokens)
         };
         // Only a current flow that installed a new token clears the
         // refresh-failed mark; a stale callback must not re-arm a dead one.
-        self.rails().clear_refresh_failed();
+        self.rails().clear_refresh_failed(&username);
         if let Some(warning) = warning {
             self.note_error(&warning);
         }
@@ -1501,7 +1633,7 @@ impl Daemon {
     fn finish_auth_flow_error(&self, generation: u64, error: &str) {
         let current = {
             let mut s = self.shared.lock().unwrap();
-            if s.auth.pending == Some(generation) && s.auth.generations.session == generation {
+            if s.auth.pending == Some(generation) {
                 s.auth.pending = None;
                 true
             } else {
@@ -1558,11 +1690,11 @@ impl Daemon {
     /// expired (or about to be). Jobs call this; clients never see tokens.
     /// `force_refresh` skips the cached token so the provider round-trip is
     /// guaranteed — that's what makes `auth check` an actual proof.
-    /// `account` is the job's account (fixed at submit); the token handed
-    /// back is always the live session's, so the two must agree at the
-    /// moment the token is taken — a login as B after A's job was submitted
-    /// fails A's job here, before any send. Same idea as the generation
-    /// guard on refreshes. `None` skips the check (auth verbs).
+    /// `account` is the job's account (fixed at submit): the token handed
+    /// back is that account's session's, looked up at the moment the token
+    /// is taken — a logout of A after A's job was submitted fails A's job
+    /// here, before any send ("no session for A"). `None` is the sole
+    /// session (auth verbs), refused when several are live.
     async fn valid_access_token(
         &self,
         account: Option<&str>,
@@ -1578,51 +1710,41 @@ impl Daemon {
             Waiter(watch::Receiver<Option<AccessTokenResult>>),
         }
 
-        let decision = {
+        let (username, decision) = {
             let mut s = self.shared.lock().unwrap();
-            if let Some(account) = account {
-                match &s.auth.username {
-                    Some(live) if live == account => {}
-                    Some(live) => {
-                        return Err(format!(
-                            "session changed to {live} while this job was for {account}; resubmit as {live}"
-                        ));
-                    }
-                    None => {
-                        return Err(format!(
-                            "account {account}: its session is gone (logged out) — run `acq auth`"
-                        ));
-                    }
-                }
-            }
+            let wall = self.choke.wall();
+            let session = s.auth.get_mut(account)?;
+            let username = session.username.clone().unwrap_or_default();
             if !force_refresh
                 && let (Some(token), Some(expires)) =
-                    (&s.auth.access_token, s.auth.access_expires_at)
+                    (&session.access_token, session.access_expires_at)
                 && expires
-                    .duration_since(self.choke.wall())
+                    .duration_since(wall)
                     .is_ok_and(|left| left > Duration::from_secs(5))
             {
-                return Ok((token.clone(), s.auth.username.clone().unwrap_or_default()));
+                return Ok((token.clone(), username));
             }
-            let refresh_token = match &s.auth.refresh_token {
+            let refresh_token = match &session.refresh_token {
                 Some(rt) => rt.clone(),
-                None => return Err("not logged in — run `acq auth`".into()),
+                None => return Err(format!("no refresh token for {username} — run `acq auth`")),
             };
             // A grant the provider already rejected is terminal (CONTEXT.md):
             // it is not sent again until login or logout replaces it.
-            if let Some(cause) = self.rails().refresh_failed() {
-                return Err(format!("token refresh disabled: {cause}; run `acq auth`"));
+            if let Some(cause) = self.rails().refresh_failed(&username) {
+                return Err(format!(
+                    "token refresh disabled for {username}: {cause}; run `acq auth`"
+                ));
             }
-            let generations = s.auth.generations;
-            if let Some(flight) = &s.auth.refresh_flight
+            let generations = session.generations;
+            let decision = if let Some(flight) = &session.refresh_flight
                 && flight.generations == generations
             {
                 Decision::Waiter(flight.result.subscribe())
             } else {
-                let id = s.auth.next_refresh_flight;
-                s.auth.next_refresh_flight = s.auth.next_refresh_flight.wrapping_add(1);
+                let id = session.next_refresh_flight;
+                session.next_refresh_flight = session.next_refresh_flight.wrapping_add(1);
                 let (result, _) = watch::channel(None);
-                s.auth.refresh_flight = Some(RefreshFlight {
+                session.refresh_flight = Some(RefreshFlight {
                     id,
                     generations,
                     result: result.clone(),
@@ -1633,7 +1755,8 @@ impl Daemon {
                     refresh_token,
                     result,
                 }
-            }
+            };
+            (username, decision)
         };
         match decision {
             Decision::Waiter(result) => wait_for_refresh(result).await,
@@ -1645,6 +1768,7 @@ impl Daemon {
             } => {
                 let owner = RefreshOwnerGuard {
                     daemon: self,
+                    account: username.clone(),
                     id,
                     generations,
                     result: Some(result),
@@ -1662,16 +1786,18 @@ impl Daemon {
                 if let Some(error) = refresh.as_ref().err().filter(|e| e.is_rejected_grant()) {
                     let current = {
                         let s = self.shared.lock().unwrap();
-                        s.auth.generations == generations
-                            && s.auth.refresh_flight.as_ref().is_some_and(|f| f.id == id)
+                        s.auth.find(&username).is_some_and(|session| {
+                            session.generations == generations
+                                && session.refresh_flight.as_ref().is_some_and(|f| f.id == id)
+                        })
                     };
                     let cause = format!(
                         "refresh token rejected with HTTP {}",
                         error.status.unwrap_or_default()
                     );
-                    if current && self.rails().mark_refresh_failed(&cause) {
+                    if current && self.rails().mark_refresh_failed(&username, &cause) {
                         self.note_error(&format!(
-                            "AUTH: {cause}; further refreshes disabled until `acq auth` ({error})"
+                            "AUTH: {username}: {cause}; further refreshes disabled until `acq auth` ({error})"
                         ));
                     }
                 }
@@ -1683,27 +1809,37 @@ impl Daemon {
 
     fn finish_refresh(
         &self,
+        account: &str,
         id: u64,
         generations: AuthGenerations,
         refresh: Result<auth::TokenResponse, String>,
         sender: &watch::Sender<Option<AccessTokenResult>>,
     ) -> AccessTokenResult {
         let mut warning = None;
+        let mut renamed = None;
         let outcome = {
             let mut s = self.shared.lock().unwrap();
-            let owns_current_flight = s
-                .auth
+            let Some(session) = s.auth.find_mut(account) else {
+                return finish_stale(sender);
+            };
+            let owns_current_flight = session
                 .refresh_flight
                 .as_ref()
                 .is_some_and(|flight| flight.id == id && flight.generations == generations);
-            if !owns_current_flight || s.auth.generations != generations {
+            if !owns_current_flight || session.generations != generations {
                 Err(SESSION_CHANGED_DURING_REFRESH.into())
             } else {
-                s.auth.refresh_flight = None;
+                session.refresh_flight = None;
                 match refresh {
                     Ok(tokens) => {
+                        // GGG returns the same account on a refresh; if the
+                        // name ever differs (a rename), the session follows
+                        // it — lookups go by the session's username.
+                        if tokens.username != account {
+                            renamed = Some(tokens.username.clone());
+                        }
                         let result = (tokens.access_token.clone(), tokens.username.clone());
-                        warning = self.install_tokens_locked(&mut s.auth, tokens);
+                        warning = self.install_tokens_locked(session, tokens);
                         Ok(result)
                     }
                     Err(error) => Err(error),
@@ -1712,12 +1848,40 @@ impl Daemon {
         };
         sender.send_replace(Some(outcome.clone()));
         if outcome.is_ok() {
-            self.log("access token refreshed");
+            self.log(&format!("access token refreshed for {account}"));
+        }
+        if let Some(new_name) = renamed {
+            self.note_error(&format!(
+                "AUTH: refresh for {account} returned username {new_name}; session follows the new name"
+            ));
         }
         if let Some(warning) = warning {
             self.note_error(&warning);
         }
         outcome
+    }
+
+    /// Drop a session (the named account's, or the sole one), its keyring
+    /// entry, and its dead-grant mark. Other sessions are untouched.
+    fn logout(&self, account: Option<&str>) -> Result<(), String> {
+        let (username, clear) = {
+            let mut s = self.shared.lock().unwrap();
+            let username = s.auth.get(account)?.username.clone().unwrap_or_default();
+            s.auth
+                .by_account
+                .retain(|_, x| x.username.as_deref() != Some(username.as_str()));
+            if s.auth.last_login.as_deref() == Some(username.as_str()) {
+                s.auth.last_login = None;
+            }
+            let clear = self
+                .credential_store
+                .clear(self.provider.keyring_service, &username);
+            (username, clear)
+        };
+        self.rails().clear_refresh_failed(&username);
+        self.with_index(|index| index.set_persisted(&username, false));
+        self.log(&format!("logged out {username}"));
+        clear
     }
 
     /// Drop a *non-live* account's keyring entry and mark it not persisted.
@@ -1746,51 +1910,55 @@ impl Daemon {
         cleared
     }
 
-    fn logout(&self) -> Result<(), String> {
-        self.rails().clear_refresh_failed();
-        let result = {
-            let mut s = self.shared.lock().unwrap();
-            let keyring = std::mem::take(&mut s.auth.keyring);
-            let mut generations = s.auth.generations;
-            generations.session = generations.session.wrapping_add(1);
-            generations.access_token = generations.access_token.wrapping_add(1);
-            generations.refresh_token = generations.refresh_token.wrapping_add(1);
-            let username = s.auth.username.clone();
-            let clear = match &username {
-                Some(username) => self
-                    .credential_store
-                    .clear(self.provider.keyring_service, username),
-                None => Ok(()),
-            };
-            if let Some(username) = &username {
-                self.with_index(|index| index.set_persisted(username, false));
-            }
-            let next_refresh_flight = s.auth.next_refresh_flight;
-            s.auth = AuthSession {
-                keyring,
-                generations,
-                next_refresh_flight,
-                ..AuthSession::default()
-            };
-            clear
-        };
-        self.log("logged out");
-        result
+    fn session_statuses(&self, s: &Shared) -> Vec<SessionStatus> {
+        let wall = self.choke.wall();
+        let mut v: Vec<SessionStatus> = s
+            .auth
+            .by_account
+            .values()
+            .map(|session| SessionStatus {
+                username: session.username.clone().unwrap_or_default(),
+                access_expires_in_seconds: session
+                    .access_expires_at
+                    .map(|t| t.duration_since(wall).unwrap_or_default().as_secs()),
+                keyring: session.keyring.clone(),
+            })
+            .collect();
+        v.sort_by(|a, b| a.username.cmp(&b.username));
+        v
+    }
+
+    /// The account reported as "the" username: the most recent login while
+    /// it is live, else the sole session. Informational only.
+    fn headline_session<'a>(&self, s: &'a Shared) -> Option<&'a AuthSession> {
+        s.auth
+            .last_login
+            .as_ref()
+            .and_then(|u| s.auth.find(u))
+            .or_else(|| s.auth.get(None).ok())
+    }
+
+    fn keyring_summary(&self, s: &Shared) -> String {
+        self.headline_session(s)
+            .map(|session| session.keyring.clone())
+            .unwrap_or_else(|| s.auth.keyring.clone())
     }
 
     fn auth_status(&self) -> Response {
         let s = self.shared.lock().unwrap();
+        let head = self.headline_session(&s);
         Response::Auth {
-            logged_in: s.auth.refresh_token.is_some(),
+            logged_in: !s.auth.by_account.is_empty(),
             pending: s.auth.pending.is_some(),
-            username: s.auth.username.clone(),
-            access_expires_in_seconds: s.auth.access_expires_at.map(|t| {
+            username: head.and_then(|h| h.username.clone()),
+            access_expires_in_seconds: head.and_then(|h| h.access_expires_at).map(|t| {
                 t.duration_since(self.choke.wall())
                     .unwrap_or_default()
                     .as_secs()
             }),
-            keyring: s.auth.keyring.clone(),
+            keyring: self.keyring_summary(&s),
             provider: self.provider.name.to_string(),
+            accounts: self.session_statuses(&s),
         }
     }
 
@@ -1917,30 +2085,44 @@ impl Daemon {
                 Err(message) => Response::Error { message },
             },
             Request::AuthStatus => self.auth_status(),
-            Request::AuthCheck => match self.valid_access_token(None, true).await {
-                Ok(_) => self.auth_status(),
-                Err(message) => {
-                    self.note_error(&format!("auth check failed: {message}"));
-                    Response::Error { message }
-                }
-            },
-            Request::AuthLogout { account } => {
-                let live = self.shared.lock().unwrap().auth.username.clone();
-                let is_live = match (&account, &live) {
-                    (None, _) => true,
-                    (Some(req), Some(live)) => account_matches(req, live, None),
-                    (Some(_), None) => false,
-                };
-                if is_live {
-                    if let Err(e) = self.logout() {
-                        self.log(&format!("keyring clear failed: {e}"));
+            Request::AuthCheck { account } => {
+                match self.valid_access_token(account.as_deref(), true).await {
+                    Ok(_) => self.auth_status(),
+                    Err(message) => {
+                        self.note_error(&format!("auth check failed: {message}"));
+                        Response::Error { message }
                     }
-                    Response::Ack
-                } else {
-                    match self.forget_account(account.as_deref().unwrap_or_default()) {
+                }
+            }
+            Request::AuthLogout { account } => {
+                // A live session (named, or the sole one) logs out; a known
+                // but not live account only loses its keyring entry.
+                let live = {
+                    let s = self.shared.lock().unwrap();
+                    match &account {
+                        None => s
+                            .auth
+                            .get(None)
+                            .map(|x| x.username.clone().unwrap_or_default()),
+                        Some(req) => s
+                            .auth
+                            .matching(req)
+                            .map(|x| x.username.clone().unwrap_or_default())
+                            .ok_or_else(|| "not live".to_string()),
+                    }
+                };
+                match (live, &account) {
+                    (Ok(username), _) => {
+                        if let Err(e) = self.logout(Some(&username)) {
+                            self.log(&format!("keyring clear failed: {e}"));
+                        }
+                        Response::Ack
+                    }
+                    (Err(_), Some(req)) => match self.forget_account(req) {
                         Ok(()) => Response::Ack,
                         Err(message) => Response::Error { message },
-                    }
+                    },
+                    (Err(message), None) => Response::Error { message },
                 }
             }
             Request::DaemonStatus => {
@@ -1966,7 +2148,7 @@ impl Daemon {
                     in_flight,
                     max_in_flight,
                     rails: self.rails().status(),
-                    keyring: s.auth.keyring.clone(),
+                    keyring: self.keyring_summary(&s),
                 }
             }
             Request::DaemonStop => Response::Stopping,
@@ -1984,14 +2166,17 @@ impl Daemon {
                     provider: self.provider.name.to_string(),
                     uptime_seconds: s.started.elapsed().as_secs(),
                     connections: s.connections,
-                    logged_in: s.auth.refresh_token.is_some(),
-                    username: s.auth.username.clone(),
-                    access_expires_in_seconds: s.auth.access_expires_at.map(|t| {
-                        t.duration_since(self.choke.wall())
-                            .unwrap_or_default()
-                            .as_secs()
-                    }),
-                    keyring: s.auth.keyring.clone(),
+                    logged_in: !s.auth.by_account.is_empty(),
+                    username: self.headline_session(&s).and_then(|h| h.username.clone()),
+                    access_expires_in_seconds: self
+                        .headline_session(&s)
+                        .and_then(|h| h.access_expires_at)
+                        .map(|t| {
+                            t.duration_since(self.choke.wall())
+                                .unwrap_or_default()
+                                .as_secs()
+                        }),
+                    keyring: self.keyring_summary(&s),
                     in_flight,
                     max_in_flight,
                     policies: self.choke.policy_statuses(),
@@ -2127,6 +2312,13 @@ async fn recv_event(rx: &mut Option<broadcast::Receiver<JobInfo>>) -> JobInfo {
     }
 }
 
+/// A refresh whose session vanished (logged out) while it was in flight.
+fn finish_stale(sender: &watch::Sender<Option<AccessTokenResult>>) -> AccessTokenResult {
+    let outcome: AccessTokenResult = Err(SESSION_CHANGED_DURING_REFRESH.into());
+    sender.send_replace(Some(outcome.clone()));
+    outcome
+}
+
 async fn wait_for_refresh(
     mut result: watch::Receiver<Option<AccessTokenResult>>,
 ) -> AccessTokenResult {
@@ -2187,19 +2379,22 @@ pub async fn run() -> Result<()> {
     // session for now (the most recent login); the others stay in the
     // keyring untouched. One unreadable entry never blocks the rest.
     let dir = store_dir(provider.name);
-    let mut session = AuthSession {
+    let mut sessions = Sessions {
         keyring: "ok".into(),
-        ..AuthSession::default()
+        ..Sessions::default()
     };
     match Index::load(&dir) {
         Ok(index) => {
             for entry in index.persisted() {
                 match auth::keyring_load(provider.keyring_service, &entry.username) {
-                    Ok(Some(refresh_token)) if session.refresh_token.is_none() => {
-                        session.refresh_token = Some(refresh_token);
-                        session.username = Some(entry.username.clone());
+                    Ok(Some(refresh_token)) => {
+                        sessions.replace(AuthSession {
+                            refresh_token: Some(refresh_token),
+                            username: Some(entry.username.clone()),
+                            keyring: "ok".into(),
+                            ..AuthSession::default()
+                        });
                     }
-                    Ok(Some(_)) => {}
                     Ok(None) => {
                         writeln!(
                             &log,
@@ -2209,7 +2404,7 @@ pub async fn run() -> Result<()> {
                         .ok();
                     }
                     Err(e) => {
-                        session.keyring = format!("unavailable: {e}");
+                        sessions.keyring = format!("unavailable: {e}");
                         writeln!(
                             &log,
                             "ACCOUNTS: keyring read for {} failed: {e}",
@@ -2219,6 +2414,9 @@ pub async fn run() -> Result<()> {
                     }
                 }
             }
+            // `persisted()` is newest first; `replace` marked the last one
+            // inserted as the most recent login, which is the oldest.
+            sessions.last_login = index.persisted().first().map(|e| e.username.clone());
         }
         Err(e) => {
             writeln!(&log, "ACCOUNTS: could not read {}: {e:#}", dir.display()).ok();
@@ -2229,7 +2427,7 @@ pub async fn run() -> Result<()> {
         shared: Mutex::new(Shared {
             jobs: HashMap::new(),
             next_id: 1,
-            auth: session,
+            auth: sessions,
             connections: 0,
             last_activity: Instant::now(),
             started: Instant::now(),
@@ -2255,7 +2453,11 @@ pub async fn run() -> Result<()> {
     ));
     let (keyring, username) = {
         let s = daemon.shared.lock().unwrap();
-        (s.auth.keyring.clone(), s.auth.username.clone())
+        let names = s.auth.usernames();
+        (
+            daemon.keyring_summary(&s),
+            (!names.is_empty()).then(|| names.join(", ")),
+        )
     };
     let provider_desc = if daemon.provider.is_real() {
         "ggg (REAL GGG — requests leave this machine)".to_string()
@@ -2456,7 +2658,7 @@ mod auth_session_tests {
             shared: Mutex::new(Shared {
                 jobs: HashMap::new(),
                 next_id: 1,
-                auth: AuthSession {
+                auth: Sessions::with(AuthSession {
                     access_token: Some("at-expired".into()),
                     access_expires_at: Some(SystemTime::now()),
                     refresh_token: Some("rt-old".into()),
@@ -2469,7 +2671,7 @@ mod auth_session_tests {
                     },
                     next_refresh_flight: 1,
                     ..AuthSession::default()
-                },
+                }),
                 connections: 0,
                 last_activity: Instant::now(),
                 started: Instant::now(),
@@ -2500,6 +2702,7 @@ mod auth_session_tests {
                     .lock()
                     .unwrap()
                     .auth
+                    .one()
                     .refresh_flight
                     .as_ref()
                     .map_or(0, |flight| flight.result.receiver_count());
@@ -2658,7 +2861,7 @@ mod auth_session_tests {
         ))
         .await;
         let (daemon, store, log_path) = test_daemon(&responses.base);
-        let before = daemon.shared.lock().unwrap().auth.generations;
+        let before = daemon.shared.lock().unwrap().auth.one().generations;
 
         let owner_daemon = daemon.clone();
         let owner = tokio::spawn(async move { owner_daemon.valid_access_token(None, false).await });
@@ -2688,10 +2891,10 @@ mod auth_session_tests {
         assert_eq!(waiter_errors, vec![REFRESH_OWNER_ABANDONED; 3]);
         {
             let s = daemon.shared.lock().unwrap();
-            assert!(s.auth.refresh_flight.is_none());
-            assert_eq!(s.auth.generations, before);
-            assert_eq!(s.auth.refresh_token.as_deref(), Some("rt-old"));
-            assert_eq!(s.auth.access_token.as_deref(), Some("at-expired"));
+            assert!(s.auth.one().refresh_flight.is_none());
+            assert_eq!(s.auth.one().generations, before);
+            assert_eq!(s.auth.one().refresh_token.as_deref(), Some("rt-old"));
+            assert_eq!(s.auth.one().access_token.as_deref(), Some("at-expired"));
         }
         assert!(store.saves.lock().unwrap().is_empty());
 
@@ -2725,7 +2928,7 @@ mod auth_session_tests {
         ))
         .await;
         let (daemon, store, log_path) = test_daemon(&responses.base);
-        let before = daemon.shared.lock().unwrap().auth.generations;
+        let before = daemon.shared.lock().unwrap().auth.one().generations;
 
         let owner_daemon = daemon.clone();
         let owner = tokio::spawn(async move { owner_daemon.valid_access_token(None, false).await });
@@ -2734,10 +2937,10 @@ mod auth_session_tests {
         assert!(owner.await.unwrap_err().is_cancelled());
         {
             let s = daemon.shared.lock().unwrap();
-            assert!(s.auth.refresh_flight.is_none());
-            assert_eq!(s.auth.generations, before);
-            assert_eq!(s.auth.refresh_token.as_deref(), Some("rt-old"));
-            assert_eq!(s.auth.access_token.as_deref(), Some("at-expired"));
+            assert!(s.auth.one().refresh_flight.is_none());
+            assert_eq!(s.auth.one().generations, before);
+            assert_eq!(s.auth.one().refresh_token.as_deref(), Some("rt-old"));
+            assert_eq!(s.auth.one().access_token.as_deref(), Some("at-expired"));
         }
         assert!(store.saves.lock().unwrap().is_empty());
 
@@ -2770,7 +2973,7 @@ mod auth_session_tests {
         )
         .await;
         let (daemon, store, log_path) = test_daemon(&delayed.base);
-        let before = daemon.shared.lock().unwrap().auth.generations;
+        let before = daemon.shared.lock().unwrap().auth.one().generations;
 
         let refresh_daemon = daemon.clone();
         let refresh =
@@ -2784,11 +2987,11 @@ mod auth_session_tests {
 
         {
             let s = daemon.shared.lock().unwrap();
-            assert_eq!(s.auth.refresh_token.as_deref(), Some("rt-rotated"));
-            assert_eq!(s.auth.access_token.as_deref(), Some("at-rotated"));
-            assert_eq!(s.auth.generations.session, before.session);
-            assert_ne!(s.auth.generations.access_token, before.access_token);
-            assert_ne!(s.auth.generations.refresh_token, before.refresh_token);
+            assert_eq!(s.auth.one().refresh_token.as_deref(), Some("rt-rotated"));
+            assert_eq!(s.auth.one().access_token.as_deref(), Some("at-rotated"));
+            assert_eq!(s.auth.one().generations.session, before.session);
+            assert_ne!(s.auth.one().generations.access_token, before.access_token);
+            assert_ne!(s.auth.one().generations.refresh_token, before.refresh_token);
         }
         assert_eq!(
             store.saves.lock().unwrap().as_slice(),
@@ -2807,7 +3010,7 @@ mod auth_session_tests {
         let delayed =
             delayed_token_response("400 Bad Request", r#"{"error":"invalid_grant"}"#.into()).await;
         let (daemon, store, log_path) = test_daemon(&delayed.base);
-        let before = daemon.shared.lock().unwrap().auth.generations;
+        let before = daemon.shared.lock().unwrap().auth.one().generations;
 
         let owner_daemon = daemon.clone();
         let owner = tokio::spawn(async move { owner_daemon.valid_access_token(None, false).await });
@@ -2824,10 +3027,10 @@ mod auth_session_tests {
         assert!(owner_error.contains("400 Bad Request"));
         {
             let s = daemon.shared.lock().unwrap();
-            assert_eq!(s.auth.generations, before);
-            assert_eq!(s.auth.refresh_token.as_deref(), Some("rt-old"));
-            assert_eq!(s.auth.access_token.as_deref(), Some("at-expired"));
-            assert!(s.auth.refresh_flight.is_none());
+            assert_eq!(s.auth.one().generations, before);
+            assert_eq!(s.auth.one().refresh_token.as_deref(), Some("rt-old"));
+            assert_eq!(s.auth.one().access_token.as_deref(), Some("at-expired"));
+            assert!(s.auth.one().refresh_flight.is_none());
         }
         assert!(store.saves.lock().unwrap().is_empty());
         delayed.server.await.unwrap();
@@ -2845,19 +3048,17 @@ mod auth_session_tests {
         let refresh =
             tokio::spawn(async move { refresh_daemon.valid_access_token(None, false).await });
         delayed.arrived.await.unwrap();
-        daemon.logout().unwrap();
+        daemon.logout(None).unwrap();
         delayed.release.send(()).unwrap();
 
         assert_eq!(
             refresh.await.unwrap().unwrap_err(),
             SESSION_CHANGED_DURING_REFRESH
         );
-        {
-            let s = daemon.shared.lock().unwrap();
-            assert!(s.auth.access_token.is_none());
-            assert!(s.auth.refresh_token.is_none());
-            assert!(s.auth.username.is_none());
-        }
+        assert!(
+            daemon.shared.lock().unwrap().auth.by_account.is_empty(),
+            "the session is gone"
+        );
         assert!(store.cleared.load(Ordering::SeqCst));
         assert!(store.saves.lock().unwrap().is_empty());
         delayed.server.await.unwrap();
@@ -2866,10 +3067,14 @@ mod auth_session_tests {
 
     #[tokio::test]
     async fn reauthentication_during_refresh_keeps_new_session_and_rejects_old_completion() {
+        // A re-login as the *same* account while its refresh is in flight:
+        // the new session replaces the old one (generations advance), and
+        // the stale completion is rejected. Another account's login would
+        // not touch this session at all (see the two-session tests).
         let delayed =
-            delayed_token_response("200 OK", token_body("at-stale", "rt-stale", "stale-user"))
-                .await;
+            delayed_token_response("200 OK", token_body("at-stale", "rt-stale", "old-user")).await;
         let (daemon, store, log_path) = test_daemon(&delayed.base);
+        let before = daemon.shared.lock().unwrap().auth.one().generations;
 
         let refresh_daemon = daemon.clone();
         let refresh =
@@ -2878,7 +3083,7 @@ mod auth_session_tests {
         let flow_generation = daemon.begin_auth_flow();
         assert!(daemon.finish_auth_flow(
             flow_generation,
-            tokens("at-reauth", "rt-reauth", "reauth-user")
+            tokens("at-reauth", "rt-reauth", "old-user")
         ));
         delayed.release.send(()).unwrap();
 
@@ -2888,17 +3093,17 @@ mod auth_session_tests {
         );
         {
             let s = daemon.shared.lock().unwrap();
-            assert_eq!(s.auth.access_token.as_deref(), Some("at-reauth"));
-            assert_eq!(s.auth.refresh_token.as_deref(), Some("rt-reauth"));
-            assert_eq!(s.auth.username.as_deref(), Some("reauth-user"));
-            assert_eq!(s.auth.generations.session, flow_generation);
+            assert_eq!(s.auth.one().access_token.as_deref(), Some("at-reauth"));
+            assert_eq!(s.auth.one().refresh_token.as_deref(), Some("rt-reauth"));
+            assert_eq!(s.auth.one().username.as_deref(), Some("old-user"));
+            assert_ne!(s.auth.one().generations.session, before.session);
         }
         assert_eq!(
             store.saves.lock().unwrap().as_slice(),
             [(
                 "acquisition-playground".into(),
                 "rt-reauth".into(),
-                "reauth-user".into()
+                "old-user".into()
             )]
         );
         delayed.server.await.unwrap();
@@ -2923,7 +3128,18 @@ mod auth_session_tests {
             .resolve_account("characters", Some("Other#1"))
             .unwrap_err();
         assert!(err.contains("Other#1") && err.contains("old-user"), "{err}");
-        daemon.shared.lock().unwrap().auth.username = None;
+        // Two sessions live: no selector is ambiguous for a token kind.
+        daemon.shared.lock().unwrap().auth.replace(AuthSession {
+            username: Some("Other#1".into()),
+            ..AuthSession::default()
+        });
+        let err = daemon.resolve_account("characters", None).unwrap_err();
+        assert!(err.contains("several accounts"), "{err}");
+        assert_eq!(
+            daemon.resolve_account("characters", Some("other")),
+            Ok(Some("Other#1".into()))
+        );
+        daemon.shared.lock().unwrap().auth.by_account.clear();
         // No session: an auth-required kind is refused at submit; a kind
         // that never sends with a token simply has no account.
         let err = daemon.resolve_account("characters", None).unwrap_err();
@@ -2941,33 +3157,42 @@ mod auth_session_tests {
         let (daemon, _, log_path) = test_daemon("http://127.0.0.1:1");
         {
             let mut s = daemon.shared.lock().unwrap();
-            s.auth.access_token = Some("at-live".into());
-            s.auth.access_expires_at = Some(SystemTime::now() + Duration::from_secs(3600));
+            s.auth.one_mut().access_token = Some("at-live".into());
+            s.auth.one_mut().access_expires_at =
+                Some(SystemTime::now() + Duration::from_secs(3600));
         }
-        // The job's account matches: the live token, no refresh.
+        // The job's account has a session: its live token, no refresh.
         let (token, user) = daemon
             .valid_access_token(Some("old-user"), false)
             .await
             .unwrap();
         assert_eq!((token.as_str(), user.as_str()), ("at-live", "old-user"));
-        // Login as someone else after the job was submitted: refused, no send.
-        daemon.shared.lock().unwrap().auth.username = Some("new-user".into());
-        let err = daemon
+        // Another account logging in changes nothing for old-user's jobs.
+        daemon.shared.lock().unwrap().auth.replace(AuthSession {
+            username: Some("new-user".into()),
+            access_token: Some("at-new".into()),
+            access_expires_at: Some(SystemTime::now() + Duration::from_secs(3600)),
+            ..AuthSession::default()
+        });
+        let (token, _) = daemon
             .valid_access_token(Some("old-user"), false)
             .await
-            .unwrap_err();
+            .unwrap();
+        assert_eq!(token, "at-live");
+        // No selector with two sessions live: refused, never guessed.
+        let err = daemon.valid_access_token(None, false).await.unwrap_err();
         assert!(
-            err.contains("session changed to new-user") && err.contains("resubmit as new-user"),
+            err.contains("several accounts") && err.contains("--account"),
             "{err}"
         );
-        // Logged out entirely: a distinct message.
-        daemon.shared.lock().unwrap().auth.username = None;
+        // old-user logs out: its jobs fail at token time, before any send.
+        daemon.logout(Some("old-user")).unwrap();
         let err = daemon
             .valid_access_token(Some("old-user"), false)
             .await
             .unwrap_err();
-        assert!(err.contains("session is gone"), "{err}");
-        // Auth verbs pass no account and are unaffected.
+        assert!(err.contains("no session for old-user"), "{err}");
+        // The other session is untouched, and is now the sole one.
         assert!(daemon.valid_access_token(None, false).await.is_ok());
         remove_test_log(&log_path);
     }
@@ -3407,6 +3632,7 @@ mod dispatcher_tests {
                     .lock()
                     .unwrap()
                     .auth
+                    .one()
                     .refresh_flight
                     .as_ref()
                     .map_or(0, |flight| flight.result.receiver_count());
@@ -3492,7 +3718,7 @@ mod dispatcher_tests {
             shared: Mutex::new(Shared {
                 jobs: HashMap::new(),
                 next_id: 1,
-                auth: AuthSession::default(),
+                auth: Sessions::with(AuthSession::default()),
                 connections: 0,
                 last_activity: Instant::now(),
                 started: Instant::now(),
@@ -3619,7 +3845,7 @@ mod dispatcher_tests {
         {
             let mut s = daemon.shared.lock().unwrap();
             daemon.install_tokens_locked(
-                &mut s.auth,
+                s.auth.one_mut(),
                 auth::TokenResponse {
                     access_token: "at-old".into(),
                     refresh_token: "rt-old".into(),
@@ -3908,8 +4134,8 @@ mod dispatcher_tests {
         Arc::get_mut(&mut daemon).unwrap().credential_store = Arc::new(NoopCredentialStore);
         {
             let mut shared = daemon.shared.lock().unwrap();
-            shared.auth.refresh_token = Some("rt-old".into());
-            shared.auth.username = Some("old-user".into());
+            shared.auth.one_mut().refresh_token = Some("rt-old".into());
+            shared.auth.one_mut().username = Some("old-user".into());
         }
         let dispatcher = tokio::spawn(daemon.clone().dispatcher());
         let first = daemon.submit("whoami".into(), json!({}), 0, "test".into(), None);
@@ -3923,6 +4149,7 @@ mod dispatcher_tests {
                     .lock()
                     .unwrap()
                     .auth
+                    .one()
                     .refresh_flight
                     .as_ref()
                     .map_or(0, |flight| flight.result.receiver_count());
@@ -4026,10 +4253,11 @@ mod dispatcher_tests {
         daemon_mut.provider.token_url = format!("{token_base}/token");
         {
             let mut shared = daemon.shared.lock().unwrap();
-            shared.auth.refresh_token = Some("rt-old".into());
-            shared.auth.username = Some("old-user".into());
-            shared.auth.access_token = Some("at-established".into());
-            shared.auth.access_expires_at = Some(clock.wall() + Duration::from_secs(3600));
+            shared.auth.one_mut().refresh_token = Some("rt-old".into());
+            shared.auth.one_mut().username = Some("old-user".into());
+            shared.auth.one_mut().access_token = Some("at-established".into());
+            shared.auth.one_mut().access_expires_at =
+                Some(clock.wall() + Duration::from_secs(3600));
         }
 
         let dispatcher = tokio::spawn(daemon.clone().dispatcher());
@@ -4064,7 +4292,7 @@ mod dispatcher_tests {
         {
             let mut shared = daemon.shared.lock().unwrap();
             // Expired on the daemon's clock, not the machine's.
-            shared.auth.access_expires_at = Some(clock.wall());
+            shared.auth.one_mut().access_expires_at = Some(clock.wall());
         }
 
         // These jobs now have different learned scheduling keys, so all three
@@ -4158,9 +4386,9 @@ mod dispatcher_tests {
         let (refresh_token, access_token, refresh_flight) = {
             let shared = daemon.shared.lock().unwrap();
             (
-                shared.auth.refresh_token.clone().unwrap(),
-                shared.auth.access_token.clone().unwrap(),
-                shared.auth.refresh_flight.is_some(),
+                shared.auth.one().refresh_token.clone().unwrap(),
+                shared.auth.one().access_token.clone().unwrap(),
+                shared.auth.one().refresh_flight.is_some(),
             )
         };
         assert_eq!(refresh_token, "rt-rotated");
@@ -4716,8 +4944,8 @@ mod dispatcher_tests {
         Arc::get_mut(daemon).unwrap().credential_store =
             Arc::new(RecordingCredentialStore::default());
         let mut s = daemon.shared.lock().unwrap();
-        s.auth.refresh_token = Some("rt-old".into());
-        s.auth.username = Some("test-user".into());
+        s.auth.one_mut().refresh_token = Some("rt-old".into());
+        s.auth.one_mut().username = Some("test-user".into());
         s.auth.keyring = "ok".into();
     }
 
@@ -4734,11 +4962,18 @@ mod dispatcher_tests {
         let first = daemon.valid_access_token(None, false).await.unwrap_err();
         assert!(first.contains("400 Bad Request"), "{first}");
         assert_eq!(requests.lock().unwrap().len(), 1);
-        assert!(rails.refresh_failed().unwrap().contains("HTTP 400"));
+        assert!(
+            rails
+                .refresh_failed("test-user")
+                .unwrap()
+                .contains("HTTP 400")
+        );
 
         let second = daemon.valid_access_token(None, false).await.unwrap_err();
         assert!(
-            second.contains("token refresh disabled: refresh token rejected with HTTP 400"),
+            second.contains(
+                "token refresh disabled for test-user: refresh token rejected with HTTP 400"
+            ),
             "{second}"
         );
         assert_eq!(
@@ -4749,15 +4984,19 @@ mod dispatcher_tests {
         {
             let s = daemon.shared.lock().unwrap();
             assert_eq!(
-                s.auth.refresh_token.as_deref(),
+                s.auth.one().refresh_token.as_deref(),
                 Some("rt-old"),
                 "nothing is deleted"
             );
-            assert!(s.auth.refresh_flight.is_none());
+            assert!(s.auth.one().refresh_flight.is_none());
         }
 
-        daemon.logout().unwrap_or(());
-        assert_eq!(rails.refresh_failed(), None, "logout clears the mark");
+        daemon.logout(None).unwrap_or(());
+        assert_eq!(
+            rails.refresh_failed("test-user"),
+            None,
+            "logout clears the mark"
+        );
         server.await.unwrap();
         assert_journal_matches_wire(&log_path, &wire_posts(&requests));
         remove_harness_files(&log_path);
@@ -4775,7 +5014,11 @@ mod dispatcher_tests {
 
         let first = daemon.valid_access_token(None, false).await.unwrap_err();
         assert!(first.contains("503"), "{first}");
-        assert_eq!(rails.refresh_failed(), None, "5xx is not a rejected grant");
+        assert_eq!(
+            rails.refresh_failed("test-user"),
+            None,
+            "5xx is not a rejected grant"
+        );
         // The tripwire did trip on the 503 (Cloudflare shape); clear it so
         // the retry can show the refresh path itself is untouched.
         assert!(rails.halted().unwrap().contains("503"));

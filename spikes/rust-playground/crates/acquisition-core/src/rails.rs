@@ -18,6 +18,7 @@
 //! - **Send journal** (`ACQ_JOURNAL=<path>`, permanent): one JSON line per
 //!   actual send, flushed per line, never containing a token or body.
 
+use std::collections::HashMap;
 use std::fs::{File, OpenOptions};
 use std::io::Write as _;
 use std::path::{Path, PathBuf};
@@ -96,8 +97,10 @@ impl RailsConfig {
 struct Persisted {
     #[serde(default)]
     tripped: Option<String>,
+    /// Per account (username → cause). The pre-multi-account file had one
+    /// `refresh_failed` string; it is ignored on load (one re-login).
     #[serde(default)]
-    refresh_failed: Option<String>,
+    refresh_failed_by_account: HashMap<String, String>,
 }
 
 #[derive(Debug, Default)]
@@ -106,7 +109,8 @@ struct State {
     tripped: Option<String>,
     /// Ceiling trip cause (this lifetime only).
     ceiling_tripped: Option<String>,
-    refresh_failed: Option<String>,
+    /// Accounts whose refresh grant the provider rejected (persisted).
+    refresh_failed: HashMap<String, String>,
     sends: u64,
     /// A trip nobody has logged yet; drained by the daemon's `announce_trip`.
     unannounced: Option<String>,
@@ -231,7 +235,7 @@ impl Rails {
             if config.tripwire {
                 state.tripped = persisted.tripped;
             }
-            state.refresh_failed = persisted.refresh_failed;
+            state.refresh_failed = persisted.refresh_failed_by_account;
         }
         let (journal, journal_error) = match &config.journal_path {
             None => (None, None),
@@ -377,23 +381,29 @@ impl Rails {
     /// the tripwire: a rejected `refresh_token` grant is terminal by
     /// decision (CONTEXT.md, 2026-08-24), so this is product behavior
     /// rather than a ladder rail. Returns whether the mark was newly set.
-    pub fn mark_refresh_failed(&self, cause: &str) -> bool {
+    pub fn mark_refresh_failed(&self, account: &str, cause: &str) -> bool {
         let mut s = self.state.lock().unwrap();
-        if s.refresh_failed.is_some() {
+        if s.refresh_failed.contains_key(account) {
             return false;
         }
-        s.refresh_failed = Some(cause.to_string());
+        s.refresh_failed
+            .insert(account.to_string(), cause.to_string());
         self.persist_locked(&s);
         true
     }
 
-    pub fn refresh_failed(&self) -> Option<String> {
-        self.state.lock().unwrap().refresh_failed.clone()
+    pub fn refresh_failed(&self, account: &str) -> Option<String> {
+        self.state
+            .lock()
+            .unwrap()
+            .refresh_failed
+            .get(account)
+            .cloned()
     }
 
-    pub fn clear_refresh_failed(&self) {
+    pub fn clear_refresh_failed(&self, account: &str) {
         let mut s = self.state.lock().unwrap();
-        if s.refresh_failed.take().is_some() {
+        if s.refresh_failed.remove(account).is_some() {
             self.persist_locked(&s);
         }
     }
@@ -403,7 +413,15 @@ impl Rails {
         RailsStatus {
             tripwire_enabled: self.config.tripwire,
             halted: s.tripped.clone().or_else(|| s.ceiling_tripped.clone()),
-            refresh_failed: s.refresh_failed.clone(),
+            refresh_failed: (!s.refresh_failed.is_empty()).then(|| {
+                let mut v: Vec<String> = s
+                    .refresh_failed
+                    .iter()
+                    .map(|(a, c)| format!("{a}: {c}"))
+                    .collect();
+                v.sort();
+                v.join("; ")
+            }),
             sends: s.sends,
             max_sends: self.config.max_sends,
             journal: match (&self.journal_error, &self.config.journal_path) {
@@ -420,9 +438,9 @@ impl Rails {
         };
         let persisted = Persisted {
             tripped: s.tripped.clone(),
-            refresh_failed: s.refresh_failed.clone(),
+            refresh_failed_by_account: s.refresh_failed.clone(),
         };
-        if persisted.tripped.is_none() && persisted.refresh_failed.is_none() {
+        if persisted.tripped.is_none() && persisted.refresh_failed_by_account.is_empty() {
             let _ = std::fs::remove_file(path);
             return;
         }
@@ -548,10 +566,11 @@ mod tests {
         assert!(rails.record(&report(Some(503))).is_none());
         assert_eq!(rails.halted(), None);
         // The dead-grant mark is not a rail: it holds with the tripwire off.
-        assert!(rails.mark_refresh_failed("400"));
-        assert_eq!(rails.refresh_failed().as_deref(), Some("400"));
-        assert!(!rails.mark_refresh_failed("400 again"), "set once");
-        assert_eq!(rails.refresh_failed().as_deref(), Some("400"));
+        assert!(rails.mark_refresh_failed("A#1", "400"));
+        assert_eq!(rails.refresh_failed("A#1").as_deref(), Some("400"));
+        assert!(!rails.mark_refresh_failed("A#1", "400 again"), "set once");
+        assert_eq!(rails.refresh_failed("A#1").as_deref(), Some("400"));
+        assert_eq!(rails.refresh_failed("B#2"), None, "per account");
     }
 
     #[test]
@@ -613,22 +632,25 @@ mod tests {
         };
         {
             let rails = Rails::with_config(config.clone());
-            assert!(rails.mark_refresh_failed("400 invalid_grant"));
+            assert!(rails.mark_refresh_failed("A#1", "400 invalid_grant"));
             rails.record(&report(Some(429)));
             assert!(rails.halted().is_some());
         }
         {
             let rails = Rails::with_config(config.clone());
             assert!(rails.halted().unwrap().contains("429"));
-            assert_eq!(rails.refresh_failed().as_deref(), Some("400 invalid_grant"));
+            assert_eq!(
+                rails.refresh_failed("A#1").as_deref(),
+                Some("400 invalid_grant")
+            );
             assert_eq!(rails.status().sends, 0);
             rails.reset_tripwire();
-            rails.clear_refresh_failed();
+            rails.clear_refresh_failed("A#1");
         }
         {
             let rails = Rails::with_config(config.clone());
             assert_eq!(rails.halted(), None);
-            assert_eq!(rails.refresh_failed(), None);
+            assert_eq!(rails.refresh_failed("A#1"), None);
             assert!(!path.exists(), "an all-clear state removes the file");
             rails.record(&report(Some(200)));
             assert!(rails.halted().unwrap().contains("ceiling"));
@@ -688,7 +710,7 @@ mod tests {
         let path = std::env::temp_dir().join(format!("acq-rails-off-{}.json", std::process::id()));
         std::fs::write(
             &path,
-            r#"{"tripped":"429 on GET /x","refresh_failed":"400"}"#,
+            r#"{"tripped":"429 on GET /x","refresh_failed_by_account":{"A#1":"400"}}"#,
         )
         .unwrap();
         let rails = Rails::with_config(RailsConfig {
@@ -697,7 +719,7 @@ mod tests {
         });
         assert_eq!(rails.halted(), None);
         assert_eq!(
-            rails.refresh_failed().as_deref(),
+            rails.refresh_failed("A#1").as_deref(),
             Some("400"),
             "the dead-grant mark is product behavior and survives rails-off"
         );

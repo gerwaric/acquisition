@@ -218,15 +218,18 @@ async fn main() -> Result<()> {
                 print_auth(&status, cli.json)?;
                 if !cli.json {
                     store_cmd::print_other_accounts(match &status {
-                        Response::Auth { username, .. } => username.as_deref(),
-                        _ => None,
+                        Response::Auth { accounts, .. } => {
+                            accounts.iter().map(|a| a.username.clone()).collect()
+                        }
+                        _ => Vec::new(),
                     })?;
                 }
                 Ok(())
             }
             Some(AuthCmd::Check) => {
                 let mut client = Client::connect(true).await?;
-                match client.request(&Request::AuthCheck).await? {
+                let account = ACCOUNT.get().cloned().flatten();
+                match client.request(&Request::AuthCheck { account }).await? {
                     Response::Error { message } => bail!("auth check failed: {message}"),
                     status => {
                         if !cli.json {
@@ -591,10 +594,10 @@ fn print_auth(status: &Response, json: bool) -> Result<()> {
     let Response::Auth {
         logged_in,
         pending,
-        username,
-        access_expires_in_seconds,
         keyring,
         provider,
+        accounts,
+        ..
     } = status
     else {
         bail!("unexpected response: {status:?}");
@@ -610,13 +613,17 @@ fn print_auth(status: &Response, json: bool) -> Result<()> {
         (_, true) => println!("login in progress (waiting on the browser)"),
         (false, _) => println!("not logged in — run `acq auth`"),
         (true, _) => {
-            println!(
-                "logged in as {}",
-                username.as_deref().unwrap_or("<unknown>")
-            );
-            match access_expires_in_seconds {
-                Some(s) if *s > 0 => println!("access token valid for ~{s}s"),
-                _ => println!("access token expired (will refresh on next use)"),
+            for a in accounts {
+                let token = match a.access_expires_in_seconds {
+                    Some(s) if s > 0 => format!("access token valid for ~{s}s"),
+                    _ => "access token expired (will refresh on next use)".into(),
+                };
+                let kr = if a.keyring == "ok" {
+                    String::new()
+                } else {
+                    format!("; keyring {}", a.keyring)
+                };
+                println!("logged in as {}: {token}{kr}", a.username);
             }
         }
     }

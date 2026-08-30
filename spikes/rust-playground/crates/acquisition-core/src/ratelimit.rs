@@ -4005,21 +4005,20 @@ mod tests {
             ("x-rate-limit-ip", "2:30:30"),
             ("x-rate-limit-ip-state", "2:30:0"),
         ];
+        // The daemon posts every account's token request on the bare
+        // `oauth-token` key (auth.rs): an accounted key on a probe-less Ip
+        // route would be Unknown — and unpaced — on its first use.
         let now = far_future();
         let mut l = Limiter::new();
-        let alice = endpoint_key("oauth-token", Some("Alice#1234"));
-        let bob = endpoint_key("oauth-token", Some("Bob#0001"));
-        run(&mut l, &alice, TOKEN, &[2.0, 1.0], now);
-        assert!(l.wait_for(&alice, now) > Duration::ZERO);
-        assert_eq!(
-            l.wait_for(&bob, now),
-            Duration::ZERO,
-            "Bob's endpoint is unknown until observed"
-        );
-        run(&mut l, &bob, TOKEN, &[0.5], now);
+        run(&mut l, "oauth-token", TOKEN, &[2.0, 1.0], now);
         assert!(
-            l.wait_for(&bob, now) > Duration::ZERO,
-            "Bob shares the Ip counter"
+            l.wait_for("oauth-token", now) > Duration::ZERO,
+            "Alice's two logins fill it"
+        );
+        run(&mut l, "oauth-token", TOKEN, &[0.5], now);
+        assert!(
+            l.wait_for("oauth-token", now) > Duration::ZERO,
+            "Bob's login shares the Ip counter"
         );
         assert_eq!(
             l.statuses(now)

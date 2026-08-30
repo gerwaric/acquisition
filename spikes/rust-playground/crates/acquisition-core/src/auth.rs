@@ -118,6 +118,8 @@ async fn token_request(
     provider: &Provider,
     params: &[(&str, &str)],
 ) -> Result<TokenResponse, TokenError> {
+    // Accountless on purpose: the token endpoint is `Ip`-scoped (N33) and
+    // never probed, so every account's login shares this one known key.
     let response = choke
         .post_form("oauth-token", &provider.token_url, params, choke.now())
         .await

@@ -41,13 +41,13 @@ pub fn open() -> Result<Store> {
 }
 
 /// After `auth status`: the other accounts the index knows.
-pub fn print_other_accounts(live: Option<&str>) -> Result<()> {
+pub fn print_other_accounts(live: Vec<String>) -> Result<()> {
     let dir = store_dir(provider());
     let index = Index::load(&dir)?;
     let others: Vec<&AccountEntry> = index
         .entries()
         .iter()
-        .filter(|e| Some(e.username.as_str()) != live)
+        .filter(|e| !live.contains(&e.username))
         .collect();
     if others.is_empty() {
         return Ok(());

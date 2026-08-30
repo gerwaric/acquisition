@@ -19,6 +19,15 @@ pub struct ErrorRecord {
     pub message: String,
 }
 
+/// One live session, for `auth status` and the dashboard.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SessionStatus {
+    pub username: String,
+    pub access_expires_in_seconds: Option<u64>,
+    /// "ok" or why this session is memory-only.
+    pub keyring: String,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "req", rename_all = "snake_case")]
 pub enum Request {
@@ -61,7 +70,11 @@ pub enum Request {
     /// Active verification: prove the session works by obtaining a valid
     /// access token (refreshing through the provider if needed), unlike
     /// `auth_status` which only reports local belief.
-    AuthCheck,
+    AuthCheck {
+        /// Which session to prove; required when several are live.
+        #[serde(default)]
+        account: Option<String>,
+    },
     /// Drop a session and its keyring entry. Omitted or the live session's
     /// account: the live session. Another known account: only its keyring
     /// entry (the index marks it not persisted); the live session stays.
@@ -106,15 +119,22 @@ pub enum Response {
         authorize_url: String,
     },
     Auth {
+        /// At least one session is live.
         logged_in: bool,
         /// A login flow is in progress (waiting on the browser).
         pending: bool,
+        /// The most recently logged-in account — informational; the daemon
+        /// never selects by it.
         username: Option<String>,
+        /// Of `username`'s session.
         access_expires_in_seconds: Option<u64>,
         /// "ok" or an error description; sessions still work in-memory when
         /// the keyring is unavailable.
         keyring: String,
         provider: String,
+        /// Every live session.
+        #[serde(default)]
+        accounts: Vec<SessionStatus>,
     },
     DaemonStatus {
         pid: u32,
