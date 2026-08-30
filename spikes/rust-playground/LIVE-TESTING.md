@@ -52,10 +52,13 @@ Replaces the preconditions and the "new hypothesis first" requirement.
   (rung 8 ran 34 h on a binary that predated the fix it was restarted to
   pick up).
 
-Endpoints real but unsampled as of 2026-08-30: `GET /profile`,
-`GET /character/{name}`, `GET /league` (job kinds `profile`, `character`,
-`leagues`, added in `fa74c5ef`). Each gets first contact under this rule
-— step (7) of the multi-account build order in `CONTEXT.md`.
+Endpoints real but unsampled as of 2026-08-30: `GET /character/{name}`,
+`GET /league` (job kinds `character`, `leagues`, added in `fa74c5ef`).
+Each gets first contact under this rule — step (7) of the multi-account
+build order in `CONTEXT.md`. `GET /profile` was sampled 2026-08-30 (run
+ledger): it answers 200 **without rate-limit headers** and 403 to HEAD,
+which the daemon's strict observation currently treats as a protocol
+failure — an owner decision on policyless endpoints is pending.
 
 History moved out of this file on 2026-08-24 and lives in git: the
 blast-radius review (risks R1–R8, at `c1be5c39`), the L0 rails build and
@@ -173,6 +176,9 @@ One row per rung execution. Journal files are copied to
 | 2026-08-30 | 11 | `227fca80` | **pass** for H1, H2 (H0 missed, H3 not run) | A 2/1/2, B 1/1/2 = 9 | 0 | pids 43950 (A, account 1) and 44048 (B, account 2), both `ACQ_NO_KEYRING=1`, 03:03–03:07 UTC. **H1 confirmed**: B's HEAD `/character` at 03:05:12.8, **4.1 s after A's counted GET**, reported `0:10:0,0:300:0`, and B's GET was answered `1:10:0,1:300:0` — `Account` rules count per account, not per IP or client. **H2 confirmed**: both daemons' GETs went out **28 ms apart** (03:06:03.835 / .863), each answered `1:10:0,2:300:0`, `wait_ms` 0, no HEAD, neither saw the other's hit. H0 unsampled: the two code exchanges were 31.2 s apart, so A's token hit had just aged out (`1:30:0` on both); consistent with N33, proves nothing new. H3 not run: daemon A re-logged in as account 2 at 03:06:43 (`logged in as` the second account, no HEAD, no re-probe) but was stopped 13 s later before `acq characters` — the carry-over stays a mock-only observation. Zero non-2xx, no trip. `runs/2026-08-30-r11/` (journals + daemon logs) |
 
 | 2026-08-30 | first contact: `profile` | `fdb2d20f`-dirty | **halted by tripwire at send 2** | 1/1/0 | 0 × 429; **1 × 403 on HEAD** | Fresh daemon, second account, `acq profile` 27 s after login: the first-use **HEAD `/profile` was answered 403**; the GET never went out. No headers or body recorded — a HEAD has no body, and the daemon did not yet log a probe's response headers; the journal was not written because its directory did not exist (both fixed the same day: header snapshot on every non-2xx, journal directory created on demand). Two candidate causes, undecided: `/profile` does not accept HEAD (the N24 allowance has only been seen on `/character` and `/stash`), or the `account:profile` scope was not granted. Not a Cloudflare burst (2 sends). `/profile` now skips the probe; the next sample is one GET with ceiling 1 (token still valid). Binary provenance rule was not met (`-dirty`); does not affect the finding. |
+
+| 2026-08-30 | first contact: `characters` (machine check after the 403) | `ad349ed0` | **pass** for its question; GET refused by the ceiling (my arithmetic: a fresh daemon always spends a token POST, so 2 was one short) | 1/1/0 | 0 | pid 92791. Refresh POST 200 (`token-request-limit` Ip `1:30:0`); **HEAD `/character` 204**, `character-list-request-limit` `0:10:0,0:300:0`: the token, the account, HEAD-in-general and the machine are all fine — the 403 was specific to `/profile`. Ceiling halt, not a trip. |
+| 2026-08-30 | first contact: `profile` (second attempt, no probe) | `ad349ed0` | **endpoint works; our side rejected the answer** | 1/0/1 | 0 | pid 93065. Refresh POST 200; **`GET /profile` 200 with no `X-Rate-Limit-*` headers at all** (journal `rate {}`), 136 ms. The limiter's strict observation classed it "rate-limit protocol failure: missing x-rate-limit-policy"; the job failed and the body (with the uuid) was discarded. Scope is fine. Together with the HEAD 403: `/profile` is served differently from the API-policy endpoints — no rate-limit headers, no HEAD. New ground-truth observation for master-side; design decision needed (below) before the next call. |
 
 ### Re-soak postmortem (2026-08-27)
 
