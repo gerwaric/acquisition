@@ -3,7 +3,7 @@
 use std::time::Duration;
 
 use acquisition_core::VERSION;
-use acquisition_core::daemon::socket_path;
+use acquisition_core::daemon::{log_path, socket_path};
 use acquisition_core::job::JobInfo;
 use acquisition_core::protocol::{Request, Response};
 use anyhow::{Context, Result, bail};
@@ -40,7 +40,10 @@ impl Client {
         // talk to a daemon a person started.
         let spawn = spawn && !no_spawn();
         let mut respawned = false;
-        let mut spawned = false;
+        // The spawned daemon, with where its log ended at spawn time: if it
+        // exits instead of binding the socket, the lines after that offset
+        // are its refusal (its stderr goes to null — the log is all there is).
+        let mut child: Option<(std::process::Child, u64)> = None;
         for _attempt in 0..100 {
             match UnixStream::connect(socket_path()).await {
                 Ok(stream) => {
@@ -75,13 +78,22 @@ impl Client {
                     // Stale daemon (older build, or wrong mode): kill and respawn.
                     let _ = client.request(&Request::DaemonStop).await;
                     respawned = true;
-                    spawned = false;
+                    child = None;
                     tokio::time::sleep(Duration::from_millis(200)).await;
                 }
                 Err(_) if spawn => {
-                    if !spawned {
-                        spawn_daemon()?;
-                        spawned = true;
+                    match child.as_mut() {
+                        None => child = Some(spawn_daemon()?),
+                        Some((c, log_from)) => {
+                            // An exited daemon will never bind the socket:
+                            // report its refusal now, not after the timeout.
+                            if let Some(status) = c.try_wait().ok().flatten() {
+                                bail!(
+                                    "daemon exited during startup ({status}){}",
+                                    startup_log_excerpt(*log_from)
+                                );
+                            }
+                        }
                     }
                     tokio::time::sleep(Duration::from_millis(50)).await;
                 }
@@ -97,8 +109,9 @@ impl Client {
             }
         }
         bail!(
-            "could not reach daemon at {} after 5s",
-            socket_path().display()
+            "could not reach daemon at {} after 5s{}",
+            socket_path().display(),
+            child.map_or_else(String::new, |(_, log_from)| startup_log_excerpt(log_from))
         )
     }
 
@@ -153,14 +166,40 @@ impl Client {
     }
 }
 
-fn spawn_daemon() -> Result<()> {
+fn spawn_daemon() -> Result<(std::process::Child, u64)> {
+    // Where the log ends now; lines past this offset are the new daemon's.
+    let log_from = std::fs::metadata(log_path()).map_or(0, |m| m.len());
     let exe = std::env::current_exe()?;
-    std::process::Command::new(exe)
+    let child = std::process::Command::new(exe)
         .args(["daemon", "run"])
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
         .spawn()
         .context("failed to spawn daemon")?;
-    Ok(())
+    Ok((child, log_from))
+}
+
+/// What the daemon wrote to its log after we spawned it — the only place a
+/// lazy-spawned daemon's startup refusal lands.
+fn startup_log_excerpt(log_from: u64) -> String {
+    use std::io::{Read, Seek, SeekFrom};
+    let path = log_path();
+    let tail = std::fs::File::open(&path).ok().and_then(|mut f| {
+        f.seek(SeekFrom::Start(log_from)).ok()?;
+        let mut s = String::new();
+        f.read_to_string(&mut s).ok()?;
+        let lines: Vec<&str> = s.trim().lines().collect();
+        // A refusal is a few lines; cap so a crash after a busy start
+        // doesn't flood the terminal.
+        let last = &lines[lines.len().saturating_sub(20)..];
+        (!last.is_empty()).then(|| last.join("\n  "))
+    });
+    match tail {
+        Some(t) => format!("; the daemon log says:\n  {t}"),
+        None => format!(
+            "; its log ({}) has nothing new — it may have failed before opening it",
+            path.display()
+        ),
+    }
 }

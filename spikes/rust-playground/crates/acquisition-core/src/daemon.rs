@@ -2844,6 +2844,22 @@ async fn write_line(
 /// Run the daemon until stopped or idle-timed-out. Never returns Ok while the
 /// socket is healthy; returns Err early if another daemon already owns it.
 pub async fn run() -> Result<()> {
+    // The log opens before anything that can refuse startup: a lazy-spawned
+    // daemon's stderr goes to null, so the log is the only place a refusal
+    // (broken daemon.db, failed bind) can reach the user — the CLI reads it
+    // when the spawn fails.
+    let log = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(log_path())?;
+    let result = run_with_log(log.try_clone()?).await;
+    if let Err(e) = &result {
+        writeln!(&log, "STARTUP: {e:#}").ok();
+    }
+    result
+}
+
+async fn run_with_log(log: std::fs::File) -> Result<()> {
     let path = socket_path();
     if path.exists() {
         // Live daemon or stale socket from a crash?
@@ -2852,12 +2868,8 @@ pub async fn run() -> Result<()> {
         }
         std::fs::remove_file(&path)?;
     }
-    let listener = UnixListener::bind(&path)?;
-
-    let log = std::fs::OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(log_path())?;
+    let listener = UnixListener::bind(&path)
+        .map_err(|e| anyhow::anyhow!("could not bind {}: {e}", path.display()))?;
 
     // Real GGG only on explicit opt-in; the default remains the in-process
     // mock, and in real mode the mock is never even started.
@@ -2931,7 +2943,6 @@ pub async fn run() -> Result<()> {
     let jobs_db = match JobDb::open(&acquisition_store::jobs::daemon_db_path(&dir)) {
         Ok(db) => Mutex::new(db),
         Err(e) => {
-            writeln!(&log, "JOBS: could not open the persisted queue: {e:#}").ok();
             anyhow::bail!(
                 "could not open {}: {e:#} (repair or remove it; the daemon will not run without its queue)",
                 acquisition_store::jobs::daemon_db_path(&dir).display()
@@ -3003,7 +3014,6 @@ pub async fn run() -> Result<()> {
         daemon.note_error(&format!("JOBS CONFIG: {problem}"));
     }
     if let Err(e) = daemon.restore_jobs(retention) {
-        daemon.log(&format!("JOBS: restore failed: {e:#}"));
         anyhow::bail!(
             "restore of the persisted queue failed: {e:#} (repair or remove it; the daemon will not run without its queue)"
         );

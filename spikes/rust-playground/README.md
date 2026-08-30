@@ -175,6 +175,10 @@ unless the limiter still holds history inside a policy window (up to 300s),
 in which case it stays up so a quick respawn doesn't have to assume the worst
 about hits it can no longer see.
 Its log is next to the socket (`acq daemon status` prints both paths).
+A daemon that refuses to start (a broken `daemon.db`, a failed bind) writes
+the refusal to that log, and a lazy spawn that dies surfaces it: the CLI
+notices the exited daemon and prints the log's new lines instead of timing
+out.
 `ACQ_SOCKET=<path>` overrides the socket location for parallel testing — keep
 it short (Unix socket paths cap out around 104 bytes). Parallel daemons are
 for the mock: two daemons in real mode on one machine each hold their own
@@ -270,8 +274,5 @@ regression (N20) so the degraded path can be exercised.
 - **The mock reports an active restriction on every window of the rule,**
   so the limiter picks the larger bucket after a 429. Whether real GGG
   flags only the violated window is unobserved.
-- **Lazy spawn hides daemon startup errors.** The spawned daemon's stderr goes
-  to null, so a failed bind looks like "could not reach daemon after 5s" —
-  check the daemon log.
 - **Unix only.** No Windows named pipes yet; the protocol doesn't care.
 - Everything in CONTEXT.md's "Explicitly deferred" list.
