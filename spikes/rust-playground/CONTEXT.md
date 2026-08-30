@@ -45,7 +45,7 @@ Short one-liners with rationale, optimized for agents to reason from. Kept curre
 - **A client that disappears leaves its jobs running.** Ctrl-C, a closed terminal, or a crash cancels nothing; the sends are committed either way, and a hold can last minutes. A client that wants the results reattaches (`acq pull` records `{daemon pid, job id, params}` at submit and does so on its next run). Results that finish after the daemon idles out are lost — that is the persistence open topic. Decided 2026-08-24.
 - **Persistence is a shared library + file, not a process: `acquisition-store` (SQLite, one file per provider), written by the daemon and read directly by every frontend.** The daemon's whole involvement is `record(endpoint, params, status, body)` after each API success; it never reads the store and never looks inside a body. Search and the item model live in the store crate as plain functions, so the CLI, GUI, and an agent on the CLI call the same code and see the same data. Rationale (2026-08-29): frontend-owned stores duplicate GGG traffic when two frontends pull (the one real rule); daemon-served queries make the daemon an application server; a shared file gives one fetch for all consumers and keeps net/store/frontend separable for testing.
 - **Bodies are stored verbatim except at the item seams; `items` is the only place to look for an item.** Every item array (tab `items`, character `inventory`/`equipment`/`jewels`/`rucksack`, each `socketedItems`) is lifted into `items`, one row per GGG item id (stable across moves), keyed by location `(kind, id)`; the envelope keeps the counts under `_split`, so envelope + rows is the response exactly. Derived columns come from the row's own JSON (`rebuild` re-extracts; never a refetch). Ingest compares with the previous state and records `item_events` — this replaces `pull`'s snapshot diff. Rationale: raw-plus-parsed duplicated every body (a league spans 1000× in size); raw-only made every query a body scan and gave user state (buyouts, notes) no key. Decided 2026-08-29; the real-snapshot replay (322 tabs, 19,210 rows, 2.3 s, zero false changes 8 h apart) is the evidence.
-- **Multi-account is one daemon holding many sessions, never one daemon per account.** The Cloudflare bound (`SendGate`, 2 live sends) is a per-IP property (P-B, ground truth §1) held as per-process state; two daemons on one machine make it a 4-wide burst that neither sees, with separate tripwires. Rung 11 (2026-08-30) showed the other half: `Account` rules count per account on GGG's side, so two accounts never contend on layer 2 — the only thing they share is layer 1 and the `Ip`-scoped token endpoint, which is exactly what the single gate exists for. Consequences for internals when this is built: sessions become a map keyed by account; limiter state keyed by `(account, policy)` for `Account` rules and by policy alone for `Ip` rules (the two rule scopes are learned from `X-Rate-Limit-Rules`); probes per `(account, route)`; one store file per account (owner decision; the store is API responses); the keyring holds one entry per account and the daemon restores every one at start. Decided 2026-08-29; design below in "Multi-account design"; not started.
+- **Multi-account is one daemon holding many sessions, never one daemon per account.** The Cloudflare bound (`SendGate`, 2 live sends) is a per-IP property (P-B, ground truth §1) held as per-process state; two daemons on one machine make it a 4-wide burst that neither sees, with separate tripwires. Rung 11 (2026-08-30) showed the other half: `Account` rules count per account on GGG's side, so two accounts never contend on layer 2 — the only thing they share is layer 1 and the `Ip`-scoped token endpoint, which is exactly what the single gate exists for. Built in two halves with different blast radii (option C): **account as first-class identity now** (store path, job field, keyring key — leaves), **many live sessions later** (a refactor confined to the session layer). Limiter and probe scope keying — `(account, policy)` for `Account` rules, policy alone for `Ip` rules, scope learned from `X-Rate-Limit-Rules` — is a **precondition of the session map, not an optimization**: with two live sessions on one policy each response would overwrite shared state with a different account's counters, and the next send from the other account floods (a 429 path; the "over-waits, never floods" reading only held for rung 11's sequential switch). Decided 2026-08-29, amended 2026-08-30 after review across sessions; design below in "Multi-account design"; not started.
 - **Rate limiter spec will be expressed as test tables, not prose.** `docs/design/network-ground-truth.md` (the claims registry; it indexes the deeper spike evidence) is the input; "given these headers, wait N seconds" tests are the permanent, enforced spec.
 
 ## Interfaces (boundaries are specified; internals are not)
@@ -62,26 +62,57 @@ ETA is computed from limiter state + queue depth ahead of the job — the daemon
 
 The live verb list is `acq --help` and the README's "Try it" block. Properties: default mode is blocking-with-progress ("rate limited, starting in ~4m37s..."), `--detach` is the async/job mode, every command takes `--json`, and `daemon status|stop` exist for debugging only.
 
-### Multi-account design (decided 2026-08-29, not started)
+### Multi-account design (decided 2026-08-30, not started)
 
-Account selection follows the idiom every multi-profile CLI shares (AWS
-`--profile`/`AWS_PROFILE`, `gcloud` configurations, `gh auth switch`,
-`kubectl` contexts): **explicit flag > environment > daemon-side default**.
-Concretely: `--account <name>` on every auth-requiring verb, `ACQ_ACCOUNT`
-as the env form, and `acq auth switch <name>` sets the daemon's default;
-with exactly one session the default is implicit and nothing changes for
-today's user. Account names are GGG's `name#discriminator` as returned by
-the token response. `acq auth status` lists every session and marks the
-default; `acq auth logout [--account]` drops one. Jobs carry the account
-they were submitted under (protocol field; a job never changes account),
-so `jobs`, `dash`, and the journal show it. Store: one file per account
-(`<provider>-<account>.db`); `tabs`/`items` take the same selector and
-do not span accounts. The future `jobs` table (persistence open topic)
-needs the account column from day one. The `Ip`-scoped token policy and
-the send gate stay account-blind on purpose. What rung 11 did not sample
-and the design accepts: switching the default account is not a limiter
-event — per-account keying makes the mock-observed carry-over
-disappear, so no "forget on switch" is needed.
+**Complexity rule:** the only code that interprets accounts is the
+session layer. Everywhere else account is data — a field on the job, a
+path segment for the store, an opaque key component for the limiter
+(which never reads it; scope comes from `X-Rate-Limit-Rules`). An
+`if account == …` outside the session layer is the smell.
+
+- **Identity is the token response's `username`** (`name#discriminator`),
+  which every login already returns — no fetch at login, no new failure
+  mode. The profile `uuid` is recorded opportunistically whenever
+  `/profile` has been called for that account and then accepted as an
+  exact match; a name change is one re-auth plus an orphaned store file.
+- **No daemon-side default account; stateless selection.** Every submit
+  carries `account`. Omitted, it resolves only when exactly one session
+  exists; otherwise the daemon refuses with the list. While the daemon
+  holds one session, a submitted `account` is validated against it and
+  refused on mismatch (so the selector is testable before the session
+  map exists). The CLI resolves `--account` / `ACQ_ACCOUNT` client-side
+  against a non-secret index file, `store/<provider>/accounts.json`
+  (username, uuid when known, last login), so reads never spawn a daemon.
+  Matching is exact — name with or without discriminator, or uuid —
+  never by prefix. GUI/MCP hold their own selection and pass it.
+- One-off (non-persisted) sessions are accounts: listed, selectable,
+  marked "not persisted".
+- A job has exactly one account; no cross-account `refresh --all`.
+  Cross-account work is a frontend loop.
+- `account` is a protocol field on `Submit`/`JobInfo`, not a params
+  entry; shown in `jobs`, `dash`, and the journal.
+- Store: `store/<provider>/<account>.db`, opened lazily on first record;
+  `tabs`/`items`/`store` take the selector and never span accounts.
+  Keyring: one entry per account; the index file is how the daemon knows
+  which entries to restore (the keyring crate cannot enumerate). Restore
+  continues past a dead grant — the terminal-grant mark is per session.
+  The existing single keyring entry is orphaned, not migrated: one
+  re-auth.
+- The future `jobs` table lives in a per-daemon `daemon.db`, not inside
+  an account file, and carries the account column from day one.
+- Mock: the login page accepts any username and policies count per
+  username (the access token carries it, `at-<user>-<rand>`), so
+  two-account tests can distinguish per-account from shared counting —
+  the property rung 11 established for GGG.
+
+Build order, each step gate-green, single-session behaviour unchanged
+through (5): (1) identity — username key, index file, per-account keyring
+and store; (2) `account` on jobs, validated against the sole session;
+(3) the selector; (4) mock any-username login and per-username counting;
+(5) limiter and probe scope keying as test-table rows, verified on (4);
+(6) the session map; (7) cheap live samples of `/profile`,
+`/character/{name}`, `/league` under `LIVE-TESTING.md`'s replacement
+rule, uuid recorded opportunistically.
 
 ## Frontend boundary findings (from `acq pull`, 2026-08-24; `pull` itself was retired 2026-08-29 in favor of the store)
 
@@ -111,14 +142,13 @@ What a real consumer needed from the protocol and did not get. Facts, not decisi
 - **Job persistence** (queue + outcomes surviving daemon restart): shape decided (a `jobs` table in the same store), timing still deferred. Results themselves no longer die with the daemon — every API body is in the store the moment it lands — so the remaining requirement is the *queue* (a halted or restarted daemon resuming waiting jobs), not the results.
 - **Delta/selection for refresh.** The store now knows each tab's `fetched_at` and the last listing; with the real API's `metadata.items` counts on substash stubs, a refresh could skip tabs that cannot have changed. Undesigned; the one remaining reason a client would want its own snapshot.
 - **User state on items** (buyouts, notes, ignore flags): the store has the key (`items.id`) but no table yet; needs the first frontend that writes.
-- **Multi-account, remaining owner questions:** whether a session with no stored refresh token (a one-off login) should be listed as an account at all; whether a `refresh --all` may span accounts as one parent job or must be one job per account; and, for the GUI, whether the default account is per frontend or per daemon. Design is in "Multi-account design"; the session that raised it is being consulted before build.
 - Priority levels: how many, and named or numeric? (Interactive GUI > CLI > background/MCP is the intuition.)
 - MCP server: in-process with the daemon, or a fourth thin client?
 
 ## Explicitly deferred (do not build yet)
 
 - Job persistence across daemon restarts (SQLite-backed queue) (open topic above).
-- Multi-account sessions (design decided; waiting on the other session's view and on job persistence's account column being designed together).
+- Multi-account build steps (design and order decided 2026-08-30, "Multi-account design"); starts on the owner's go, after the `LIVE-TESTING.md` rewrite lands.
 - Queue-management UI (drag-to-reorder, per-job progress bars). v1.0 only guarantees the architecture makes this a rendering problem.
 - Agent/MCP traffic against GGG — blocked on verifying GGG's policy stance on agent traffic before the MCP path ships. (Owner-driven live baseline testing of the daemon against GGG is not deferred; it has its own control document.)
 
