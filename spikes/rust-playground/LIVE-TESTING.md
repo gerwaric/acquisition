@@ -52,9 +52,9 @@ Replaces the preconditions and the "new hypothesis first" requirement.
   (rung 8 ran 34 h on a binary that predated the fix it was restarted to
   pick up).
 
-Endpoints real but unsampled as of 2026-08-30: `GET /character/{name}`,
-`GET /account/leagues` (job kinds `character`, `leagues`, added in
-`fa74c5ef`; `leagues` was routed to `/league` until 2026-08-30).
+Endpoints real but unsampled as of 2026-08-30: `GET /character/{name}`
+(job kind `character`, added in `fa74c5ef`). `leagues` was sampled the
+same day (run ledger; it was routed to `/league` until then).
 Each gets first contact under this rule — step (7) of the multi-account
 build order in `CONTEXT.md`. `GET /profile` was sampled 2026-08-30 (run
 ledger): it answers 200 **without rate-limit headers** and 403 to HEAD,
@@ -182,6 +182,8 @@ One row per rung execution. Journal files are copied to
 | 2026-08-30 | first contact: `profile` (second attempt, no probe) | `ad349ed0` | **endpoint works; our side rejected the answer** | 1/0/1 | 0 | pid 93065. Refresh POST 200; **`GET /profile` 200 with no `X-Rate-Limit-*` headers at all** (journal `rate {}`), 136 ms. The limiter's strict observation classed it "rate-limit protocol failure: missing x-rate-limit-policy"; the job failed and the body (with the uuid) was discarded. Scope is fine. Together with the HEAD 403: `/profile` is served differently from the API-policy endpoints — no rate-limit headers, no HEAD. New ground-truth observation for master-side; design decision needed (below) before the next call. |
 
 | 2026-08-30 | first contact: `leagues` | `7a61c554` | **halted by tripwire at send 2 — our route was wrong** | 1/1/0 | 0 × 429; **1 × 403 on HEAD** | pid 97497. Refresh POST 200; **HEAD `/league` 403** with `www-authenticate: Bearer realm="pathofexile:production", error="insufficient_scope"` (via Cloudflare, `cf-ray a33505ad2f663aa8-DFW`, JSON content-type) — the header snapshot added after the `/profile` 403 classified it in one send. `/league` is the public league list and needs `service:leagues`; the account's leagues are `GET /account/leagues[/{realm}]` under `account:leagues`. Route fixed the same day; the tripwire cause now names an auth error when `WWW-Authenticate` is present. Not a rate-limit finding. |
+
+| 2026-08-30 | first contact: `leagues` (rerun, `/account/leagues`) | `5cee50a5` | **pass**, with a new fact | 1/1/1 | 0 | pid 98647, after `reset-tripwire` on the persisted mark. Refresh POST 200. **HEAD `/account/leagues` answered 200 (not 204) and was counted**: state `1:10:0,1:60:0` straight after it, then the GET `2:10:0,2:60:0` — N24's uncounted HEAD is per endpoint, not a property of the API. Policy **`league-request-limit`, `Account`, `5:10:60,10:60:300`** (the mock had guessed `2:10:60,5:300:300`; corrected). No pacing error — headers are post-increment and trusted — but the probe costs what the GET costs, so `league` is now a no-probe route. Ground truth for master: the policy shape, and "HEAD counts on `/account/leagues`". |
 
 ### Re-soak postmortem (2026-08-27)
 

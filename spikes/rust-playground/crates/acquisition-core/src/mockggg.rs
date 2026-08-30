@@ -165,8 +165,10 @@ fn policy_template(path_key: &str) -> Option<MockPolicy> {
             MockPolicy::new("character-request-limit", &[(5, 10, 60), (15, 300, 300)])
         }
         "/profile" => MockPolicy::new("profile-request-limit", &[(2, 10, 60), (5, 300, 300)]),
+        // Real shape, first contact 2026-08-30 (the real endpoint also
+        // counts HEAD, which the mock does not simulate).
         "/account/leagues" => {
-            MockPolicy::new("league-request-limit", &[(2, 10, 60), (5, 300, 300)])
+            MockPolicy::new("league-request-limit", &[(5, 10, 60), (10, 60, 300)])
         }
         "/token" => MockPolicy::scoped("token-request-limit", "Ip", &[(60, 30, 30)]),
         _ => return None,

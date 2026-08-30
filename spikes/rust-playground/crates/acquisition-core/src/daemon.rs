@@ -620,20 +620,27 @@ impl Daemon {
     }
 
     /// Per-route knowledge about GGG that headers cannot teach, kept in
-    /// one place. `/profile` (sampled 2026-08-30, `LIVE-TESTING.md` run
-    /// ledger): HEAD is answered 403, and GET answers 200 with no
-    /// `X-Rate-Limit-*` headers at all — so it is not probed and may be
-    /// policyless. Every other route is probed and observed strictly.
-    /// Owner decision 2026-08-30, pending GGG's word on the endpoint.
+    /// one place (`LIVE-TESTING.md` run ledger, 2026-08-30):
+    /// - `/profile`: HEAD is answered 403, and GET answers 200 with no
+    ///   `X-Rate-Limit-*` headers at all — not probed, may be policyless.
+    /// - `/account/leagues`: HEAD is answered 200 and **counted** as a hit
+    ///   (state `1:10:0` after the probe; N24's free HEAD is per endpoint),
+    ///   so a probe costs what the GET costs — not probed; the GET teaches.
+    ///
+    /// Every other route is probed (HEAD uncounted) and observed strictly.
+    /// Owner decisions 2026-08-30, pending GGG's word on both endpoints.
     fn declare_route_knowledge(choke: &ChokePoint) {
         choke.declare_policyless("profile");
     }
 
-    /// Whether a route's first use is preceded by a HEAD probe (see
-    /// `declare_route_knowledge`). `route` is the endpoint key
-    /// (`profile@user`).
+    /// Routes whose first use is not preceded by a HEAD probe (see
+    /// `declare_route_knowledge`).
+    const NO_PROBE_ROUTES: &'static [&'static str] = &["profile", "league"];
+
+    /// Whether a route's first use is preceded by a HEAD probe. `route` is
+    /// the endpoint key (`profile@user`).
     fn route_probes(route: &str) -> bool {
-        crate::ratelimit::split_endpoint_key(route).0 != "profile"
+        !Self::NO_PROBE_ROUTES.contains(&crate::ratelimit::split_endpoint_key(route).0)
     }
 
     /// Make sure a probe for `route` is queued or running; submit one if not.
