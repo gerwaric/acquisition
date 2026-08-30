@@ -1531,13 +1531,25 @@ impl ChokePoint {
             req = req.bearer_auth(token);
         }
         let sent = req.send().await.map_err(|error| error.to_string());
-        let (policy, retry_after, raw) = sent.as_ref().map_or_else(
-            |_| (None, RetryAfter::Missing, serde_json::Value::Null),
+        let (policy, retry_after, raw, headers) = sent.as_ref().map_or_else(
+            |_| {
+                (
+                    None,
+                    RetryAfter::Missing,
+                    serde_json::Value::Null,
+                    serde_json::Value::Null,
+                )
+            },
             |response| {
                 (
                     Some(Policy::from_headers(response.headers())),
                     retry_after_from_headers(response.headers()),
                     rate_limit_snapshot(response.headers()),
+                    if response.status().is_success() {
+                        serde_json::Value::Null
+                    } else {
+                        response_headers_snapshot(response.headers())
+                    },
                 )
             },
         );
@@ -1564,7 +1576,10 @@ impl ChokePoint {
             Ok((status, Err(error))) if status.is_success() => {
                 Err(format!("HEAD body transfer failed: {error}"))
             }
-            Ok((status, _)) => Err(format!("HEAD returned {status}")),
+            // A HEAD has no body: the headers are the whole of the evidence.
+            Ok((status, _)) => Err(format!(
+                "HEAD returned {status}; response headers {headers}"
+            )),
             Err(error) => Err(format!("HEAD failed: {error}")),
         };
         let now = self.now();
@@ -1596,6 +1611,7 @@ impl ChokePoint {
             &completed,
             protocol_failure,
             &raw,
+            &headers,
             false,
             wait,
         );
@@ -1706,6 +1722,12 @@ impl ChokePoint {
             .as_ref()
             .map(|response| rate_limit_snapshot(response.headers()))
             .unwrap_or(serde_json::Value::Null);
+        let headers = result
+            .as_ref()
+            .ok()
+            .filter(|response| !response.status().is_success())
+            .map(|response| response_headers_snapshot(response.headers()))
+            .unwrap_or(serde_json::Value::Null);
         let result = match result {
             Ok(response) => {
                 let status = response.status();
@@ -1734,6 +1756,7 @@ impl ChokePoint {
             &result,
             protocol_failure.as_deref(),
             &rate,
+            &headers,
             counted,
             wait,
         );
@@ -1779,6 +1802,7 @@ impl ChokePoint {
         result: &Result<(reqwest::StatusCode, Result<String, String>), String>,
         protocol_failure: Option<&str>,
         rate: &serde_json::Value,
+        headers: &serde_json::Value,
         counted: bool,
         wait: Duration,
     ) {
@@ -1810,6 +1834,7 @@ impl ChokePoint {
             ok,
             counted,
             rate,
+            headers,
             shape,
             wait,
         });
@@ -1889,6 +1914,33 @@ impl ChokePoint {
 
 /// The `X-Rate-Limit-*` (+ `Retry-After`) headers as a JSON object, for
 /// logging, job payloads, and the dashboard.
+/// The response headers worth keeping from a non-2xx: everything the rate
+/// snapshot keeps plus the ones that say *who* answered (Cloudflare or the
+/// origin) and *what* it sent. A HEAD has no body, so for a probe these
+/// headers are the only evidence a failure leaves. Never `set-cookie`.
+pub fn response_headers_snapshot(headers: &reqwest::header::HeaderMap) -> serde_json::Value {
+    const KEEP: &[&str] = &[
+        "retry-after",
+        "cf-ray",
+        "cf-cache-status",
+        "cf-mitigated",
+        "content-type",
+        "content-length",
+        "server",
+        "date",
+        "www-authenticate",
+        "x-request-id",
+    ];
+    let mut map = serde_json::Map::new();
+    for (name, value) in headers {
+        let name = name.as_str();
+        if name.starts_with("x-rate-limit") || KEEP.contains(&name) {
+            map.insert(name.into(), value.to_str().unwrap_or("<non-utf8>").into());
+        }
+    }
+    serde_json::Value::Object(map)
+}
+
 pub fn rate_limit_snapshot(headers: &reqwest::header::HeaderMap) -> serde_json::Value {
     let mut map = serde_json::Map::new();
     for (name, value) in headers {
@@ -3346,6 +3398,7 @@ mod tests {
             ok: false,
             counted: true,
             rate: &serde_json::Value::Null,
+            headers: &serde_json::Value::Null,
             shape: None,
             wait: Duration::ZERO,
         });

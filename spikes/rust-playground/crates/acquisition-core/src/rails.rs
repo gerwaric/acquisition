@@ -189,6 +189,9 @@ pub struct SendReport<'a> {
     pub counted: bool,
     /// The `X-Rate-Limit-*` and `Retry-After` snapshot (an object), or Null.
     pub rate: &'a Value,
+    /// The response headers of a non-2xx (`response_headers_snapshot`), or
+    /// Null. A HEAD has no body, so for a failed probe this is the evidence.
+    pub headers: &'a Value,
     /// For a 403/503, what the body looked like; `None` for every other status.
     pub shape: Option<BlockShape>,
     /// How long the send was held before it reached the transport: from
@@ -239,7 +242,14 @@ impl Rails {
         }
         let (journal, journal_error) = match &config.journal_path {
             None => (None, None),
-            Some(path) => match OpenOptions::new().create(true).append(true).open(path) {
+            // The journal's directory is created on demand: a run directory
+            // that does not exist yet must not cost the run its evidence.
+            Some(path) => match path
+                .parent()
+                .filter(|dir| !dir.as_os_str().is_empty())
+                .map_or(Ok(()), std::fs::create_dir_all)
+                .and_then(|()| OpenOptions::new().create(true).append(true).open(path))
+            {
                 Ok(file) => (Some(file), None),
                 Err(error) => (
                     None,
@@ -319,11 +329,22 @@ impl Rails {
                     "429 on {} {} (rate headers {})",
                     report.method, report.url_path, report.rate
                 )),
+                // A HEAD has no body to classify; say so rather than
+                // reporting an "unclassified body", and carry the headers.
+                Some(status @ (403 | 503)) if report.method == "HEAD" => Some(format!(
+                    "{status} on HEAD {} — no body to classify (HEAD); response headers {}",
+                    report.url_path, report.headers
+                )),
                 Some(status @ (403 | 503)) => Some(format!(
-                    "{status} on {} {} — {}",
+                    "{status} on {} {} — {}{}",
                     report.method,
                     report.url_path,
-                    report.shape.unwrap_or(BlockShape::Unclassified).describe()
+                    report.shape.unwrap_or(BlockShape::Unclassified).describe(),
+                    if report.headers.is_null() {
+                        String::new()
+                    } else {
+                        format!("; response headers {}", report.headers)
+                    }
                 )),
                 // An unauthorized request repeating on a timer (a token the
                 // daemon wrongly believes valid) is not a violation, but it
@@ -471,6 +492,9 @@ impl Rails {
         if let Some(shape) = report.shape {
             line["shape"] = Value::String(shape.as_str().to_string());
         }
+        if !report.headers.is_null() {
+            line["headers"] = report.headers.clone();
+        }
         let _ = writeln!(file, "{line}");
         let _ = file.flush();
     }
@@ -513,6 +537,7 @@ mod tests {
             counted: true,
             rate: &Value::Null,
             shape: None,
+            headers: &Value::Null,
             wait: Duration::ZERO,
         }
     }
@@ -544,6 +569,7 @@ mod tests {
         let cause = rails
             .record(&SendReport {
                 shape: Some(BlockShape::Origin),
+                headers: &Value::Null,
                 ..report(Some(503))
             })
             .expect("trips");
@@ -761,5 +787,25 @@ mod tests {
         assert_eq!(ts.len(), 24, "{ts}");
         assert!(ts.starts_with("20"));
         assert_eq!(&ts[10..11], "T");
+    }
+    #[test]
+    fn a_head_trip_reports_headers_not_a_body() {
+        let rails = Rails::with_config(RailsConfig {
+            tripwire: true,
+            ..RailsConfig::default()
+        });
+        let headers = json!({ "cf-ray": "8a1-SJC", "content-type": "text/html" });
+        let cause = rails
+            .record(&SendReport {
+                method: "HEAD",
+                url_path: "/profile",
+                counted: false,
+                headers: &headers,
+                ..report(Some(403))
+            })
+            .expect("a 403 trips");
+        assert!(cause.contains("no body to classify (HEAD)"), "{cause}");
+        assert!(cause.contains("cf-ray"), "{cause}");
+        assert!(!cause.contains("unclassified body"), "{cause}");
     }
 }

@@ -207,6 +207,10 @@ on the command that spawns it, or `acq daemon stop` first:
   the journal names the account of every send.
   A journal that cannot be opened is reported in `daemon status`, not
   silently dropped.
+  The path's directory is created on demand. A non-2xx response adds a
+  `headers` object (the `X-Rate-Limit-*`, `Retry-After`, `cf-*`,
+  `content-type`, `server`, `date` headers) — for a failed HEAD probe
+  that is the whole of the evidence.
 - Misunderstood values (`ACQ_TRIPWIRE=maybe`, `ACQ_MAX_SENDS=ten`) are
   logged at startup as `RAILS CONFIG` errors; the rail stays off. A
   persisted trip is honored only by a daemon started with the tripwire.

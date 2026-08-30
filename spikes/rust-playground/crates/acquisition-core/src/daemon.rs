@@ -616,6 +616,15 @@ impl Daemon {
         })
     }
 
+    /// Whether a route's first use is preceded by a HEAD probe. The HEAD
+    /// allowance (N24) has only been seen on `/character` and `/stash`;
+    /// the first HEAD ever sent to `/profile` (2026-08-30) was answered
+    /// 403 with no body, so that route goes straight to its GET until the
+    /// sample says otherwise. `route` is the endpoint key (`profile@user`).
+    fn route_probes(route: &str) -> bool {
+        crate::ratelimit::split_endpoint_key(route).0 != "profile"
+    }
+
     /// Make sure a probe for `route` is queued or running; submit one if not.
     /// One probe per route per daemon lifetime in the normal case — the
     /// sanctioned "one HEAD at startup" (N16), sent lazily on first use.
@@ -897,11 +906,12 @@ impl Daemon {
             return;
         }
 
-        // A route we've never heard from gets a probe first (N16, N24); a
-        // degraded one (N20) fails its jobs cleanly until the cooldown ends.
+        // A route we've never heard from gets a probe first (N16, N24) —
+        // unless HEAD is known not to be accepted there; a degraded one
+        // (N20) fails its jobs cleanly until the cooldown ends.
         if let Some((route, url)) = &route {
             match self.choke.endpoint_state(route) {
-                EndpointState::Unknown => {
+                EndpointState::Unknown if Self::route_probes(route) => {
                     self.ensure_probe(route, url, account);
                     return; // scheduling key released; the probe outranks us
                 }
@@ -912,7 +922,8 @@ impl Daemon {
                     self.start_and_finish(id, Outcome::Failure { error });
                     return;
                 }
-                EndpointState::Policy(_) | EndpointState::Policyless => {}
+                // A no-probe route's first GET is what teaches the limiter.
+                EndpointState::Unknown | EndpointState::Policy(_) | EndpointState::Policyless => {}
             }
         }
 
@@ -5107,6 +5118,7 @@ mod dispatcher_tests {
             counted: true,
             rate: &Value::Null,
             shape: None,
+            headers: &serde_json::Value::Null,
             wait: Duration::ZERO,
         });
         logged_in(&mut daemon);
