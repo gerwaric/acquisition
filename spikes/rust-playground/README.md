@@ -22,7 +22,9 @@ here talks to GGG**: job kinds are fakes (`sleep`, `fetch`, `whoami`),
 OAuth runs against an in-process localhost provider (`mockggg.rs`), and the
 mock's data endpoints sit behind truthfully simulated rate-limit policies
 (real sliding windows, real restrictions, real 429s with `Retry-After`,
-HEADs that report but don't count). The rate limiter is header-driven: it
+HEADs that report but don't count — except on `/account/leagues`, where
+GGG counts them and so does the mock; `/profile` answers with no headers
+and refuses HEAD, as GGG does). The rate limiter is header-driven: it
 knows nothing except what responses told it (`X-Rate-Limit-*` per policy
 name, plus when counted responses arrived) and pads every wait by GGG's
 server-side timing bucket. Its spec is the test table at the bottom of
@@ -141,9 +143,12 @@ counts them per account) and `Ip`-scoped ones — the token endpoint — as
 one shared counter; `acq dash` shows the state keys
 (`stash-request-limit@Alice#1234`, `token-request-limit`). The limiter is
 the same code in both modes and starts empty: the first job on an endpoint queues a
-`probe` (a HEAD, which GGG doesn't count) that teaches the policy and the
-account's current counters — including hits made by other tools — before
-anything real is sent. A probe that fails or comes back without rule
+`probe` (a HEAD, which GGG doesn't count on the probed routes) that
+teaches the policy and the account's current counters — including hits
+made by other tools — before anything real is sent. Two routes are not
+probed, by declared knowledge (`declare_route_knowledge` in `daemon.rs`):
+`/profile` (HEAD 403, no rate headers; paced by the send gate alone) and
+`/account/leagues` (HEAD counted); their first GET teaches the limiter. A probe that fails or comes back without rule
 definitions closes the endpoint for 60s (login reopens it). Nothing retries
 on a Cloudflare-shaped 403/503. A 429 re-queues behind the policy hold and
 retries at most `MAX_429_RETRIES` times; after that it fails with the
@@ -235,6 +240,10 @@ regression (N20) so the degraded path can be exercised.
   for skipping, not used yet. A refresh that loses tabs (a 503, a rails
   halt) leaves those tabs' rows at their previous state; nothing yet
   refetches only the failed set.
+- **`/profile` advertises no rate-limit policy** (N38), so it is paced by
+  the send gate only and called once per login; whether it is limited at
+  all is asked of GGG (Q12). `/account/leagues` counts its HEAD (N39).
+  Both are declared per route and the declarations go when GGG answers.
 - **The mock does not simulate timing-bucket quantization** (N11–N12); the
   limiter pads for it regardless.
 - **The mock reports an active restriction on every window of the rule,**

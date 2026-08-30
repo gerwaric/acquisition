@@ -54,12 +54,10 @@ Replaces the preconditions and the "new hypothesis first" requirement.
 
 Every job kind has had first contact as of 2026-08-30 (run ledger:
 `profile`, `leagues`, `character`; `leagues` was routed to `/league` until
-that day). A new kind gets the same treatment under this rule.
-Each gets first contact under this rule — step (7) of the multi-account
-build order in `CONTEXT.md`. `GET /profile` was sampled 2026-08-30 (run
-ledger): it answers 200 **without rate-limit headers** and 403 to HEAD,
-which the daemon's strict observation currently treats as a protocol
-failure — an owner decision on policyless endpoints is pending.
+that day). A new kind gets the same treatment under this rule. What the
+samples found that headers could not teach (`/profile`: no rate headers,
+HEAD 403; `/account/leagues`: HEAD counted) is carried as declared route
+knowledge (`CONTEXT.md` decisions; ground truth N38/N39, Q12).
 
 History moved out of this file on 2026-08-24 and lives in git: the
 blast-radius review (risks R1–R8, at `c1be5c39`), the L0 rails build and
