@@ -317,6 +317,49 @@ predicted from the code and seen on the mock, is conservative
 (over-waiting only), and is not worth a further live run on its own.
 H0 was missed by one second and is already covered by N33.
 
+## Persistence check — halt, crash, resume (planned 2026-08-30)
+
+The persisted queue (`daemon.db`, CONTEXT.md decision 2026-08-30) is
+proven offline and against the mock; two of its behaviors rest on a wire
+premise and get one rung-style check each, in a single run of ~13 sends:
+a halted queue resuming under a successor daemon (rail 5's ceremony
+rehearsed for real), and a restore that sends nothing before its probe
+has read the account's real counters. This asks nothing new of GGG — the
+question is about our restart behavior — so no hypothesis document; this
+section plus a ledger row is the record. The halt trigger is the
+**ceiling**, not the tripwire: tripping the tripwire live requires a real
+violation, and a ceiling halt exercises the same halt-leaves-jobs-waiting
+machinery with zero violations (`reset-tripwire` cannot release a ceiling
+halt mid-lifetime anyway — the send count survives it — so restart is the
+release, which is the thing under test).
+
+Rails on throughout; binary provenance rule; journal at its default path,
+copied to `runs/2026-08-30-persist/` after. Pick 6 small tabs from
+`acq tabs` (a store read; no daemon). `ACQ_IDLE_SHUTDOWN=600` on
+lifetime 1 so the halted daemon is still there to kill; if it idles out
+before step 3, note it in the ledger and continue — the idle-out variant
+is equally valid (the queue is on disk either way).
+
+| Step | Command | Expect | Stop if |
+| --- | --- | --- | --- |
+| 1 | `ACQ_GGG=1 ACQ_TRIPWIRE=1 ACQ_MAX_SENDS=6 ACQ_IDLE_SHUTDOWN=600 acq refresh --tabs <6 small tabs>` (blocking; note the parent id it prints, Ctrl-C once the halt lands — a disappearing client cancels nothing, by decision) | POST, HEAD+GET list, HEAD stash (probes report 0 hits), then child GETs until the ceiling halts at send 6 — the 2-wide gate may let one extra land; 3–4 children never sent | probe hits > 0 (standing rule: something else is on this account); any non-2xx |
+| 2 | `acq jobs` (after ~10 s) | remaining children `waiting`, parent held, nothing running; `daemon status` names the ceiling halt | any child `failed` for lack of a send (the pre-persistence behavior) |
+| 3 | `kill -9 <daemon pid>` (pid from `acq daemon status`) | daemon gone mid-halt, no shutdown path run; queue on disk | |
+| 4 | `ACQ_GGG=1 ACQ_TRIPWIRE=1 ACQ_MAX_SENDS=10 acq dash` (any spawning command works) | successor restores the queue and journals: open line, POST, **HEAD stash probe before any GET**, the probe reporting step 1's hits still inside the 300 s window — **hits > 0 is expected here and only here**; they are ours and this run knows it, so the standing rule's "stop and find it" does not apply — then the remaining child GETs; parent finishes **done** across two daemon lifetimes, not interrupted (its held result predates the kill) | any GET before its route's probe; parent finishes interrupted (held-result ordering differs live from the mock); any 429 or non-2xx |
+| 5 | `acq result <parent-id>`, then `acq daemon stop`; copy the journal; ledger row | result served by a daemon that never ran the job | |
+
+Expected totals: lifetime 1 `1/2/3` = 6 (+1 slip), lifetime 2 `1/1/3–4`
+≤ 6; ceiling 6 then 10; every send on well-trodden routes
+(`stash-list-request-limit`, `stash-request-limit`), max ~7 stash GETs in
+300 s against a 30-per-300 s window. Residual stated plainly: at kill
+time nothing is mid-send (the halt guarantees it), so the
+running-job-re-queued-as-duplicate path stays mock-proven; what this run
+checks live is the premise that path rests on — a restore's first send on
+a route happens after its probe has read GGG's real counters. Step 3→4 is
+also rail 5's ceremony (`acq jobs`, cancel what should not resume, then
+respawn) run for real; if it feels sufficient in practice, rail 5 stands
+as written and the ceiling-doesn't-persist caveat needs no further rule.
+
 ## Status: ladder closed (2026-08-27)
 
 Every rung has passed except rung 9, deferred on purpose (each attempt is
