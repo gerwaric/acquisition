@@ -200,6 +200,65 @@ one send landed, nothing followed. Three things it exposed that are ours:
 - **A pull that fetched 240 of 322 tabs wrote nothing.** Partial results
   are discarded on any child failure. Recorded as a frontend finding.
 
+## Rung 11 — two accounts, one machine (hypothesis, 2026-08-29)
+
+Question: what does the rate limiter do when two accounts are logged in
+and sending at the same time? Everything the code implies is untested
+against GGG, so this rung asks the servers rather than reasoning from the
+ground-truth table. What the code does is known and is the thing under
+test: the limiter is keyed by policy name only (`ratelimit.rs`), one
+daemon holds one session, login does not reset counters or re-probe, and
+each daemon has its own limiter. Seen on the mock 2026-08-29: after an
+account switch the first request is paced on the previous account's
+history with no new probe.
+
+Hypotheses (H1 decides whether H2–H3 run):
+
+- **H1 — `Account` rules count per account, not per IP or client.** A
+  HEAD probe on account B, seconds after account A's counted GET on the
+  same policy, reports `0` hits. If it reports A's hit, counters are
+  shared across accounts on this machine and the single-limiter design is
+  right by accident; stop there and record it.
+- **H2 — two daemons on two accounts sending simultaneously do not see
+  each other** in `character-list-request-limit` headers (each GET is
+  answered `1:10:0`), and neither is held.
+- **H3 — an account switch on one daemon carries the old account's
+  counters** (predicted from the code, never seen live): after A's hits,
+  `acq auth` as B on daemon A, then `acq characters` — no HEAD, `wait_ms`
+  computed from A's history, and the response state is B's real count.
+  A conservative gap, not a violation; the fix shape is "forget
+  `Account`-scoped policies on session change".
+- **H0 (free)** — two code exchanges within 30 s from one IP show
+  `token-request-limit` state `2:30:0` on the second (N33 says Ip-scoped;
+  this is the first cross-account sample).
+
+Preconditions and an explicit exception: the ladder's exclusive-use rule
+forbids two instances from one IP; this rung *is* two instances from one
+IP, by owner decision, on `character-list-request-limit` only (2 per
+10 s, 5 per 300 s — low enough that the shared-counter case cannot 429
+within the plan). Both daemons run `ACQ_NO_KEYRING=1`, so the stored
+refresh token of the real account is never read or overwritten. Every
+`acq` call goes through `tools/acq-as.sh A|B …`, which sets the rails
+(`ACQ_GGG=1 ACQ_TRIPWIRE=1`, ceiling 8, idle 3600 s), one socket per
+label (own limiter, own tripwire file, own store) and one journal per
+label under `runs/<date>-r11/`. Binary provenance as always; both
+daemons on the same tip. Account B needs its own browser login
+(private window): `acq auth --no-browser` prints the URL.
+
+| Step | Where | Command | Expect | Stop if |
+| --- | --- | --- | --- | --- |
+| 0 | A, then B within 30 s | `tools/acq-as.sh A auth --no-browser`, approve as account A; same for B as account B | POST 200 each; B's token state `2:30:0` (H0) | any non-2xx |
+| 1 | A | `tools/acq-as.sh A characters` | HEAD `0:10:0,0:300:0` (both accounts quiet), GET `1:10:0,1:300:0` | probe hits > 0; any non-2xx |
+| 2 | B, within 10 s of step 1 | `tools/acq-as.sh B characters` | **H1**: HEAD `0:10:0,0:300:0` → per account, continue; HEAD `1:10:0,1:300:0` → shared, **stop and record** | any non-2xx |
+| 3 | both, ≥ 15 s after step 2 | `tools/acq-as.sh A characters & tools/acq-as.sh B characters & wait` | **H2**: both GET 200, each `1:10:0,2:300:0`, `wait_ms` 0 on both, no HEAD | either held; either state shows the other's hit; any non-2xx |
+| 4 | A | `tools/acq-as.sh A auth --no-browser`, approve as **account B**; then immediately `tools/acq-as.sh A characters` | **H3**: POST 200; no HEAD; GET state is B's count (`…,3:300:0`); `wait_ms` > 0 only if A's 10 s window was still open | a HEAD is sent (would mean login re-probes — record, not a fault); any non-2xx |
+| 5 | both | `tools/acq-as.sh A daemon stop; tools/acq-as.sh B daemon stop` | | |
+
+Expected totals: A 2 POST / 1 HEAD / 3 GET, B 1 / 1 / 2; ceiling 8 each.
+Under the shared-counter branch of H1 the plan ends after step 2 with 2
+GETs in a 5-per-300 s window. Result rows go in the run ledger above;
+anything learned about GGG goes to ground truth master-side.
+
 ## Status: ladder closed (2026-08-27)
 
 Every rung has passed except rung 9, deferred on purpose (each attempt is
