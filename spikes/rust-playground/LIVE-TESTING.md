@@ -340,6 +340,19 @@ lifetime 1 so the halted daemon is still there to kill; if it idles out
 before step 3, note it in the ledger and continue — the idle-out variant
 is equally valid (the queue is on disk either way).
 
+`tools/persist-check.sh <6 tab ids>` drives the whole table from one
+terminal: it refuses stale binaries and leftover env, spawns each daemon
+with the step's rails, gates every wire phase on an explicit enter,
+aborts loudly on a tripwire trip or a failed job, verifies the
+expectations from the journal (probe before first send per route, no
+non-2xx, two lifetimes), collects the evidence into the run directory,
+and drafts the ledger row. `--mock` rehearses the identical flow against
+the mock — run green 2026-08-30 (L1 `1/2/3`, halt at 6, 4 children
+waiting, parent done under the successor) — with one caveat: the mock
+provider dies with the daemon, so only the live run can show the probe
+reading counters that survived the kill. The table stays the
+specification; the script implements it.
+
 | Step | Command | Expect | Stop if |
 | --- | --- | --- | --- |
 | 1 | `ACQ_GGG=1 ACQ_TRIPWIRE=1 ACQ_MAX_SENDS=6 ACQ_IDLE_SHUTDOWN=600 acq refresh --tabs <6 small tabs>` (blocking; note the parent id it prints, Ctrl-C once the halt lands — a disappearing client cancels nothing, by decision) | POST, HEAD+GET list, HEAD stash (probes report 0 hits), then child GETs until the ceiling halts at send 6 — the 2-wide gate may let one extra land; 3–4 children never sent | probe hits > 0 (standing rule: something else is on this account); any non-2xx |
