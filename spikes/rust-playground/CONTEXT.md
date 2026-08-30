@@ -93,9 +93,18 @@ path segment for the store, an opaque key component for the limiter
   entry; fixed at submit (resolved against the live session, refused
   before a job exists otherwise), checked again at the moment a token is
   taken (a mismatch fails the job with no send), and it selects the store
-  file — never the session at landing time. Shown in `jobs`, `dash`, and
-  the daemon log; the send journal does not carry it yet (follow-up:
-  thread it through `SendReport`).
+  file — never the session at landing time. Shown in `jobs`, `dash`, the
+  daemon log, and the journal (the `route` field is the endpoint key,
+  `stash@Alice#1234`).
+- **Limiter keying as built (step 5):** the endpoint key is
+  `route@account`; a policy's state is keyed `name@account` only when
+  *every* rule of the policy is `Account`-scoped and the send had an
+  account — `Ip` rules, mixed scopes, and accountless sends share the
+  bare name (over-waits at worst). One notch more conservative than
+  "Account rules per account" if GGG ever mixes scopes in one policy.
+  The token route (`oauth-token`) is deliberately accountless: it is
+  `Ip`-scoped and has no probe, so an accounted key would be unpaced on
+  an account's first login.
 - Store: `store/<provider>/<account>.db`, opened lazily on first record;
   `tabs`/`items`/`store` take the selector and never span accounts.
   Keyring: one entry per account; the index file is how the daemon knows
