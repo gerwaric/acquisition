@@ -160,7 +160,7 @@ What a real consumer needed from the protocol and did not get. Facts, not decisi
 
 ## Open topics
 
-- **Job persistence** (queue + outcomes surviving daemon restart): shape decided (a `jobs` table in the same store), timing still deferred. Results themselves no longer die with the daemon — every API body is in the store the moment it lands — so the remaining requirement is the *queue* (a halted or restarted daemon resuming waiting jobs), not the results.
+- **Job persistence** (queue + outcomes surviving daemon restart): shape decided — a `jobs` table in a per-daemon `daemon.db` (not inside an account's store file), with the account column from day one ("Multi-account design"); timing still deferred, to be built with the first frontend that needs it. Results themselves no longer die with the daemon — every API body is in the store the moment it lands — so the remaining requirement is the *queue* (a halted or restarted daemon resuming waiting jobs), not the results.
 - **Delta/selection for refresh.** The store now knows each tab's `fetched_at` and the last listing; with the real API's `metadata.items` counts on substash stubs, a refresh could skip tabs that cannot have changed. Undesigned; the one remaining reason a client would want its own snapshot.
 - **User state on items** (buyouts, notes, ignore flags): the store has the key (`items.id`) but no table yet; needs the first frontend that writes.
 - Priority levels: how many, and named or numeric? (Interactive GUI > CLI > background/MCP is the intuition.)
