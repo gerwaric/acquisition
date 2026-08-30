@@ -142,6 +142,8 @@ One row per rung execution. Journal files are copied to
 
 | 2026-08-25 → 27 | 8 re-soak | `a7873d21` (frozen `runs/soak/acq`) | **pass** — 45.3 h, 2026-08-25T14:33:40Z → 2026-08-27T11:53Z | 4/2/133 = 139 (+1 transport failure) | 0 | Two lifetimes (pid 14571 from a terminal; pid 43863 after a deliberate `daemon stop` at 21:52Z day 2), cron every 10 min with `ACQ_NO_SPAWN=1`, 132 runs, ceiling 304. Every GET `1:10:0,1:300:0`; exactly one HEAD per lifetime; four token POSTs, each immediately before the GET that needed it. **R8 seen fixed live twice**: token expiry inside a 15 min sleep (10:40Z day 2, refresh at 10:50Z) and inside a **10 h sleep** (07:52Z day 3, refresh at 11:40:51Z, GET 170 ms behind it) — zero 401s. One `error sending request` at 02:59Z day 2: cron fired 9 min late out of a sleep, network not up; paced as counted, next run clean. No trip, no keyring warning. Fewer sends than the cadence × duration estimate because the closed laptop slept most of both days — which is what produced the evidence. `runs/2026-08-25-r8b/` (journal, daemon log, run log, `soak-check.txt`, `pmset` sleep/wake log) |
 
+| 2026-08-30 | 11 | `227fca80` | **pass** for H1, H2 (H0 missed, H3 not run) | A 2/1/2, B 1/1/2 = 9 | 0 | pids 43950 (A, account 1) and 44048 (B, account 2), both `ACQ_NO_KEYRING=1`, 03:03–03:07 UTC. **H1 confirmed**: B's HEAD `/character` at 03:05:12.8, **4.1 s after A's counted GET**, reported `0:10:0,0:300:0`, and B's GET was answered `1:10:0,1:300:0` — `Account` rules count per account, not per IP or client. **H2 confirmed**: both daemons' GETs went out **28 ms apart** (03:06:03.835 / .863), each answered `1:10:0,2:300:0`, `wait_ms` 0, no HEAD, neither saw the other's hit. H0 unsampled: the two code exchanges were 31.2 s apart, so A's token hit had just aged out (`1:30:0` on both); consistent with N33, proves nothing new. H3 not run: daemon A re-logged in as account 2 at 03:06:43 (`logged in as` the second account, no HEAD, no re-probe) but was stopped 13 s later before `acq characters` — the carry-over stays a mock-only observation. Zero non-2xx, no trip. `runs/2026-08-30-r11/` (journals + daemon logs) |
+
 ### Re-soak postmortem (2026-08-27)
 
 What the re-soak had to show, it showed: the R8 fix live (twice, once
@@ -258,6 +260,13 @@ Expected totals: A 2 POST / 1 HEAD / 3 GET, B 1 / 1 / 2; ceiling 8 each.
 Under the shared-counter branch of H1 the plan ends after step 2 with 2
 GETs in a 5-per-300 s window. Result rows go in the run ledger above;
 anything learned about GGG goes to ground truth master-side.
+
+Run 2026-08-30 (ledger row above): **H1 and H2 hold** — per-account
+counters, no cross-account interference between two daemons on one IP.
+H3 (the account-switch carry-over on one daemon) was not sampled; it is
+predicted from the code and seen on the mock, is conservative
+(over-waiting only), and is not worth a further live run on its own.
+H0 was missed by one second and is already covered by N33.
 
 ## Status: ladder closed (2026-08-27)
 
