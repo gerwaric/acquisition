@@ -193,6 +193,8 @@ One row per rung execution. Journal files are copied to
 
 | 2026-08-30 | first contact: `character <name>` | `9de33eec` | **pass** | 1/1/1 | 0 | pid 4900. Refresh POST 200; **HEAD `/character/{name}` 204, uncounted** (`0:10:0,0:300:0` after it — the N24 pattern, unlike `/account/leagues`); GET 200 `1:10:0,1:300:0`. Policy **`character-request-limit`, `Account`, `5:10:60,30:300:300`** — matches the C++ capture in ground truth exactly; 180 ms end to end. The "real but unsampled" list is now empty. |
 
+| 2026-08-30 | persistence check | `ee494e3249c3` | **pass** | L1 1/2/3 = 6, L2 1/1/3 = 5 | 0 | pids 44737/44828, driven by `tools/persist-check.sh` (account `GERWARIC#7694`). Ceiling halt at send 6 left 3 `stash` children waiting and the parent held, none failed; **kill -9 mid-halt**; the successor restored the queue and its probe answered **`0:10:0,2:300:0` before any GET** — lifetime 1's own two stash hits, read from GGG's counters by a daemon that never sent them (the restart-replay premise, live). Remaining children resumed under the fresh ceiling; parent finished **done across two daemon lifetimes**; result served after. One requested id was absent from the 322-tab list (a typo picking ids) and reported in `unknown_tab_ids` — 5 children by input, not a drop. Zero non-2xx. `runs/2026-08-30-persist/` |
+
 ### Re-soak postmortem (2026-08-27)
 
 What the re-soak had to show, it showed: the R8 fix live (twice, once
@@ -317,7 +319,7 @@ predicted from the code and seen on the mock, is conservative
 (over-waiting only), and is not worth a further live run on its own.
 H0 was missed by one second and is already covered by N33.
 
-## Persistence check — halt, crash, resume (planned 2026-08-30)
+## Persistence check — halt, crash, resume (run 2026-08-30: pass)
 
 The persisted queue (`daemon.db`, CONTEXT.md decision 2026-08-30) is
 proven offline and against the mock; two of its behaviors rest on a wire
@@ -372,6 +374,16 @@ a route happens after its probe has read GGG's real counters. Step 3→4 is
 also rail 5's ceremony (`acq jobs`, cancel what should not resume, then
 respawn) run for real; if it feels sufficient in practice, rail 5 stands
 as written and the ceiling-doesn't-persist caveat needs no further rule.
+
+Run 2026-08-30 (ledger row): **pass**, every check green. The one
+surprise was input, not behavior: a requested tab id was absent from the
+322-tab list (mistyped when picking ids); the parent refreshed the other
+5 and named the stranger in its payload's `unknown_tab_ids` — the
+honest-success shape doing its job. The evidence line: lifetime 2's
+probe answered `0:10:0,2:300:0` before any GET — lifetime 1's two stash
+hits, read back from GGG's counters by a daemon that never sent them.
+The rail-5 ceremony was exercised as written and nothing in the run
+argued for more.
 
 ## Status: ladder closed (2026-08-27)
 

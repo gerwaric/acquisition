@@ -253,6 +253,10 @@ failed | cancelled)
 esac
 
 "$ACQ" result "$PARENT" --json >"$RUN_DIR/parent-result.json"
+unknown=$(jq -r '.payload.unknown_tab_ids // [] | join(",")' "$RUN_DIR/parent-result.json")
+if [ -n "$unknown" ]; then
+    echo "note: requested id(s) not in the account's tab list, never fetched: $unknown"
+fi
 if [ "$MODE" = mock ]; then "$ACQ" auth logout >/dev/null 2>&1 || true; fi
 "$ACQ" daemon stop >/dev/null
 
