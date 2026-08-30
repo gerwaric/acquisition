@@ -342,8 +342,10 @@ lifetime 1 so the halted daemon is still there to kill; if it idles out
 before step 3, note it in the ledger and continue — the idle-out variant
 is equally valid (the queue is on disk either way).
 
-`tools/persist-check.sh <6 tab ids>` drives the whole table from one
-terminal: it refuses stale binaries and leftover env, spawns each daemon
+`tools/persist-check.sh [--account NAME] <6 tab ids>` drives the whole
+table from one terminal (the selector is required with more than one
+persisted account — every job carries an account): it refuses stale
+binaries and leftover env, spawns each daemon
 with the step's rails, gates every wire phase on an explicit enter,
 aborts loudly on a tripwire trip or a failed job, verifies the
 expectations from the journal (probe before first send per route, no

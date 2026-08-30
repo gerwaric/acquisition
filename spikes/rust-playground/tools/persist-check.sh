@@ -41,7 +41,7 @@ while [ $# -gt 0 ]; do
     esac
 done
 TABS=${1:?usage: persist-check.sh [--mock] [--account NAME] <tab1,...,tab6>}
-ntabs=$(echo "$TABS" | tr ',' '\n' | grep -c .)
+ntabs=$(echo "$TABS" | tr ',' '\n' | grep -c . || true)
 if [ "$ntabs" -ne 6 ]; then
     echo "need exactly 6 tab ids (got $ntabs) — the ceilings are derived for 6" >&2
     exit 2
@@ -105,7 +105,7 @@ fi
 COMPLETED=0
 REFRESH_PID=
 cleanup() {
-    [ -n "$REFRESH_PID" ] && kill "$REFRESH_PID" 2>/dev/null
+    if [ -n "$REFRESH_PID" ]; then kill "$REFRESH_PID" 2>/dev/null || true; fi
     if [ "$COMPLETED" != 1 ]; then
         echo ""
         if [ -z "${PID1:-}" ]; then
@@ -237,6 +237,11 @@ echo "daemon 2: pid $PID2 — waiting for parent job $PARENT to finish"
 
 STATE=
 for _ in $(seq 1 400); do
+    if ! kill -0 "$PID2" 2>/dev/null; then
+        echo "*** daemon 2 died while the parent was still '${STATE:-unknown}':" >&2
+        tail -5 "$RUN_DIR/daemon2.out" "$LOG" >&2 || true
+        exit 1
+    fi
     STATE=$("$ACQ" status "$PARENT" --json 2>/dev/null | jq -r '.state // empty' || true)
     case "$STATE" in done | failed | cancelled) break ;; esac
     sleep 1
@@ -259,13 +264,16 @@ if [ -n "$unknown" ]; then
 fi
 if [ "$MODE" = mock ]; then "$ACQ" auth logout >/dev/null 2>&1 || true; fi
 "$ACQ" daemon stop >/dev/null
+# The wire phases are over and no daemon is left; what remains is analysis,
+# so the trap's "a daemon may still hold the queue" warning no longer applies.
+COMPLETED=1
 
 # ---- evidence and verification ---------------------------------------------
 
 cp "$JOURNAL" "$RUN_DIR/sends.jsonl"
 cp "$LOG" "$RUN_DIR/daemon.log" 2>/dev/null || true
 
-python3 - "$JOURNAL" "$OFFSET" <<'PY' | tee "$RUN_DIR/summary.txt"
+verify() { python3 - "$JOURNAL" "$OFFSET" <<'PY'
 import json, sys
 
 f = open(sys.argv[1]); f.seek(int(sys.argv[2]))
@@ -328,8 +336,13 @@ print(f"| <date> | persist | <tip> | pass | L1 {totals[0]}, L2 {totals[1]} | 0 |
       " ceiling halt left children waiting; kill -9 mid-halt; successor probed"
       " before resuming; parent done across lifetimes; runs/<date>-persist/ |")
 PY
+}
+if ! verify | tee "$RUN_DIR/summary.txt"; then
+    echo ""
+    echo "*** verification FAILED — see above; evidence in $RUN_DIR" >&2
+    exit 1
+fi
 
-COMPLETED=1
 echo ""
 echo "evidence in $RUN_DIR (journal, daemon log, job snapshots, summary)."
 if [ "$MODE" = live ]; then
