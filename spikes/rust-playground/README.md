@@ -158,7 +158,11 @@ in which case it stays up so a quick respawn doesn't have to assume the worst
 about hits it can no longer see.
 Its log is next to the socket (`acq daemon status` prints both paths).
 `ACQ_SOCKET=<path>` overrides the socket location for parallel testing — keep
-it short (Unix socket paths cap out around 104 bytes). `ACQ_NO_KEYRING=1`
+it short (Unix socket paths cap out around 104 bytes). Parallel daemons are
+for the mock: two daemons in real mode on one machine each hold their own
+Cloudflare gate and tripwire, so the IP can have four sends in flight that
+neither sees (P-B) — multiple accounts are sessions in one daemon, never
+one daemon each. `ACQ_NO_KEYRING=1`
 degrades sessions to in-memory only (never plaintext on disk). Mock access
 tokens live 60 seconds, so silent refresh is exercised constantly.
 `ACQ_IDLE_SHUTDOWN=<secs>` overrides the idle exit. `ACQ_STORE_DIR=<dir>`

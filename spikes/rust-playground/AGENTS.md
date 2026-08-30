@@ -33,8 +33,14 @@ path>` and `ACQ_NO_KEYRING=1` to stay isolated, `ACQ_STORE_DIR=<scratch>`
 so the shared store does not land under `~/.local/share`, and `acq daemon
 stop` when done. A scripted mock login is `acq auth --no-browser` in the
 background, then `curl` the printed URL with `/authorize?` replaced by
-`/approve?`. macOS has no `timeout`; long holds (up to 300 s + 60 s) are
-the limiter working, not a hang.
+`/approve?` (add `&user=NAME` for a second account). macOS has no
+`timeout`; long holds (up to 300 s + 60 s) are the limiter working, not a
+hang. Two traps seen 2026-08-30: the shell you were launched from may
+already export `ACQ_GGG=1` and the rails knobs from a live run — `unset
+ACQ_GGG ACQ_TRIPWIRE ACQ_MAX_SENDS ACQ_IDLE_SHUTDOWN` before any mock work
+and check `acq daemon status` says `provider: mock`; and `cargo test` /
+`cargo clippy` do not rebuild `target/debug/acq` — run `cargo build` and
+check `acq --version` before any smoke or live run.
 
 Facts about GGG live in `../../docs/design/network-ground-truth.md` and are
 cited by claim number; new claims are authored on the master-side branch

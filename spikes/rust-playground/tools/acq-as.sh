@@ -1,5 +1,11 @@
 #!/bin/sh
 # Rung 11 helper: run `acq` against one of two isolated live daemons, A or B.
+#
+# EXPERIMENT-ONLY. Two real daemons on one machine violate P-B: each holds
+# its own 2-send Cloudflare gate and its own tripwire, so the IP can have
+# 4 sends in flight that neither daemon sees, and a trip halts only one.
+# Multi-account is one daemon with many sessions (CONTEXT.md); this script
+# exists for the rung 11 evidence and nothing else.
 #   tools/acq-as.sh A auth --no-browser
 #   tools/acq-as.sh B characters --json
 # Each label has its own socket (so its own limiter, tripwire and store),

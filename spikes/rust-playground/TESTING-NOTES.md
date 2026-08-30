@@ -79,7 +79,12 @@ The send journal was built for live forensics (rail 4) and turned out to
 be the better test oracle, because it records what the *product* emits —
 pid, method, route, status, `counted`, every rate header, a timestamp on
 the daemon's clock, and `wait_ms` (held from dispatcher-ready to transport
-dispatch) — rather than what a test double happened to observe. Every
+dispatch) — rather than what a test double happened to observe. Since
+2026-08-30 `route` is the endpoint key and carries the account
+(`stash@Alice#1234`; the `Ip`-scoped token route stays bare), and a non-2xx
+adds `headers` — the `X-Rate-Limit-*`, `Retry-After`, `cf-*`,
+`content-type`, `server`, `date`, `www-authenticate` snapshot — which for
+a failed HEAD probe is the whole of the evidence. Every
 harness daemon journals; `assert_journal_matches_wire` holds the journal
 equal to what the test server received, so the journal's own failure (R4)
 is caught by the recorder and the recorder's coupling is caught by the

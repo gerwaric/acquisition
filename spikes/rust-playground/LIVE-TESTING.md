@@ -243,7 +243,7 @@ one send landed, nothing followed. Three things it exposed that are ours:
 - **A pull that fetched 240 of 322 tabs wrote nothing.** Partial results
   are discarded on any child failure. Recorded as a frontend finding.
 
-## Rung 11 — two accounts, one machine (hypothesis, 2026-08-29)
+## Rung 11 — two accounts, one machine (hypothesis 2026-08-29, run 2026-08-30: H1, H2 confirmed)
 
 Question: what does the rate limiter do when two accounts are logged in
 and sending at the same time? Everything the code implies is untested
@@ -326,6 +326,15 @@ the standing rule at the top: rails on, ceiling 3, read the journal,
 record the policy — a ledger row, not a hypothesis document. A run that
 asks a genuinely new question of GGG (like rung 11) is still worth
 writing down first; that is judgment, not a rule.
+
+First contact under the standing rule, 2026-08-30 (run ledger): `/profile`
+answers 200 with no rate-limit headers and 403 to HEAD; `/account/leagues`
+is `league-request-limit 5:10:60,10:60:300` and counts its HEAD; `/league`
+needs `service:leagues` (our route was wrong, fixed). The daemon carries
+both endpoint facts as declared route knowledge; the owner has asked GGG
+whether the two endpoints can be normalised (headers on `/profile`, free
+HEAD on both), which would delete those declarations. Pending:
+`/character/{name}`, and GGG's answer.
 
 The frontier is the frontend boundary and the multi-account build
 (`CONTEXT.md`).

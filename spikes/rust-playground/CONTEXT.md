@@ -106,6 +106,12 @@ path segment for the store, an opaque key component for the limiter
   The token route (`oauth-token`) is deliberately accountless: it is
   `Ip`-scoped and has no probe, so an accounted key would be unpaced on
   an account's first login.
+- **The free HEAD probe (N24) is per endpoint, not an API property.**
+  First contact 2026-08-30: `HEAD /account/leagues` is answered 200 and
+  counted as a hit (the free HEADs answer 204); `HEAD /profile` is 403.
+  Both routes are declared no-probe in `Daemon::declare_route_knowledge`
+  and taught by their first GET; pacing was never wrong (headers are
+  post-increment and trusted), a probe there is just a wasted hit.
 - Store: `store/<provider>/<account>.db`, opened lazily on first record;
   `tabs`/`items`/`store` take the selector and never span accounts.
   Keyring: one entry per account; the index file is how the daemon knows
@@ -163,7 +169,7 @@ What a real consumer needed from the protocol and did not get. Facts, not decisi
 ## Explicitly deferred (do not build yet)
 
 - Job persistence across daemon restarts (SQLite-backed queue) (open topic above).
-- Multi-account build steps (design and order decided 2026-08-30, "Multi-account design"); starts on the owner's go, after the `LIVE-TESTING.md` rewrite lands.
+- ~~Multi-account build steps~~ — built 2026-08-30, steps (1)–(6) of "Multi-account design"; step (7)'s first contacts are in `LIVE-TESTING.md`'s run ledger (`/profile`, `/account/leagues` done; `/character/{name}` pending). What remains is not deferred work but two facts GGG has been asked about (`declare_route_knowledge`).
 - Queue-management UI (drag-to-reorder, per-job progress bars). v1.0 only guarantees the architecture makes this a rendering problem.
 - Agent/MCP traffic against GGG — blocked on verifying GGG's policy stance on agent traffic before the MCP path ships. (Owner-driven live baseline testing of the daemon against GGG is not deferred; it has its own control document.)
 
