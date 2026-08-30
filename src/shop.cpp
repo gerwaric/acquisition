@@ -213,7 +213,7 @@ QString Shop::SpoilerBuyout(const Buyout &bo)
     QString out = "";
     out += "[spoiler=\"" + bo.BuyoutTypeAsPrefix();
     if (bo.IsPriced()) {
-        out += " " + QString::number(bo.value) + " " + bo.CurrencyAsTag();
+        out += " " + QString::number(bo.value, 'g', 15) + " " + bo.CurrencyAsTag();
     }
     out += "\"]";
     return out;
@@ -700,8 +700,7 @@ void Shop::OnShopSubmitted(QUrlQuery query, QNetworkReply *reply)
                       : "(Failed to parse the error message)";
             spdlog::error("Shop: error submitting shop thread: {}", error_message);
             if (error_message.startsWith("Failed to find item.", Qt::CaseInsensitive)) {
-                spdlog::error(
-                    "Shop: the stash index may be out of date. (Try Shop->\"Update stash index\")");
+                spdlog::error("Shop: the stash index may be out of date. Try submitting again.");
                 FailActiveJob();
                 return;
             } else if (error_message.startsWith("Security token has expired.")) {

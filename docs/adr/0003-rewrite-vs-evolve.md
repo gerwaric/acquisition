@@ -15,6 +15,11 @@ network-redesign specs in `docs/design/` remain full authority for all
 work on `master`, and maintenance and releases of the current
 application continue normally.
 
+Agents: this ADR requires no action from anyone. It stays Proposed
+until the maintainer rewrites it; work on any branch proceeds under
+that branch's own docs. Do not spend effort on this question unless
+explicitly asked.
+
 ## Context
 
 ADR 0002 deferred the QML migration and chose an interior design

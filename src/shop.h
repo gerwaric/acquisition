@@ -74,7 +74,6 @@ public slots:
     void OnRefreshFinished(const RefreshOutcome &outcome);
 
 signals:
-    void StashesIndexed();
     void StatusUpdate(ProgramState state, const QString &status);
     void UserWarning(const QString &message);
     void PoeSessionRejected();

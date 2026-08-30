@@ -35,7 +35,6 @@ private slots:
 
 signals:
     void grantAccess(const OAuthToken &token);
-    void isAuthenticatedChanged();
 
 private:
     void setToken(const OAuthToken &token);
@@ -47,6 +46,5 @@ private:
 
     void initOAuth();
 
-    bool m_authenticated{false};
     OAuthToken m_token;
 };

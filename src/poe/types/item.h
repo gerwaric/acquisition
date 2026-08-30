@@ -37,9 +37,9 @@ namespace poe {
         {
             QString label; // string
             std::unordered_map<QString,
-                               QString>
-                rewards; // dictionary of int the key is a string representing the type of reward.The value is the amount
-            // NOTE: TODO: WARNING: reward values (int) are formatted as a strings.
+                               int>
+                rewards; // dictionary of int the key is a string representing the type of reward. The value is the amount
+            // NOTE: TODO: WARNING: reward values (int) were formatted as a strings at one point. Has this been fixed with 3.29?
         };
 
         struct LogbookFaction

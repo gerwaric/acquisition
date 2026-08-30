@@ -65,6 +65,17 @@ row, delete the hash-keyed one) inside `MigrateItem`, or have
 (dual persistence), F51 ledger entry (do not rekey `GetLegacyHash` — a
 correct future v4→v5 migration depends on it).
 
+Update (August 14, 2026): the `legacy-buyout-import` branch wires
+`LegacyDataStore` into the application via `LegacyBuyoutImporter`
+(menu-driven, writes id-keyed rows directly through `BuyoutRepo`), so
+the "no callers outside `src/legacy/`" reachability note above is stale
+on that branch. The importer never lowers `db_version`, so it still
+cannot arm this migration; instead it supersedes it — once the importer
+proves out in a release, the plan of record
+(`design/legacy-buyout-import.md`, deferred list) is to delete
+`MigrateBuyouts`/`hash_v4`/`old_hash`/`GetLegacyHash`, resolving this
+finding by removal and retiring the F51 constraint.
+
 ### F63. `Character::guardian` and `skills` are modeled but never ingested — Confirmed; deferred by decision
 
 Found July 27, 2026, during the 3.29 documentation reconciliation
@@ -129,6 +140,135 @@ named the natural opportunity but completed July 31, 2026 without
 reworking the stores — its spec's D7 records the deliberate
 non-exercise; the hook stands.)
 
+### F74. The POESESSID cookie is not host-scoped — Likely
+
+Found August 8, 2026, during the credential-custody investigation
+(`docs/redesign/topics/credential-custody.md`, `redesign` branch).
+`NetworkManager::setPoeSessionId` installs the cookie domain-wide on
+`.pathofexile.com` (`POE_COOKIE_DOMAIN`), and standard cookie
+domain-matching sends it to every `*.pathofexile.com` host — the
+intended consumers on `www.` (legacy stash index, forum), but also
+`api.pathofexile.com` and the OAuth token endpoint. The assumed
+guarantee "cookie never sent to `api.`" does not exist today — the
+secret reaches hosts that never need it, and the API evidently
+tolerates it. Inferred from the cookie domain plus
+`QNetworkCookieJar`'s suffix matching; not verified with a packet
+capture — hence Likely. Fix shape: scope the cookie to
+`www.pathofexile.com` — both real consumers are on `www.`, so nothing
+should break, but verify the legacy index still authenticates.
+
+### F75. User-Agent does not follow GGG's documented format — Confirmed
+
+Found August 8, 2026, during the same investigation. GGG's developer
+docs require the prefix format
+`User-Agent: OAuth {clientId}/{version} (contact: {contact})`; the app
+sends `acquisition/<version> (contact: …)` without the `OAuth ` prefix
+(the `USER_AGENT` constant in `networkmanager.cpp`, built from
+`APP_NAME`/`APP_VERSION_STRING`/`APP_PUBLISHER_EMAIL`). Tolerated in
+practice, but it is the one documented API-citizenship rule the client
+visibly breaks — worth weighing given the project's history. Fix
+shape: add the `OAuth ` prefix.
+
+### F77. No OAuth de-arming: refresh failure and bearer rejection are log-only — Confirmed
+
+Found August 8, 2026, during the same investigation.
+`OAuthManager`'s failure signals land in slots that only write log
+lines (`onRequestFailure`, `onServerError`): no de-arming, no
+credential clearing, no UI event. Mid-session, an expired or revoked
+bearer surfaces as per-request 401 `FetchError`s — no OAuth-side
+401 classification exists anywhere (grep-verified; the only 401/403
+handling is the shop's POESESSID path). This is asymmetric with the
+POESESSID guard, which de-arms automation, clears the credential, and
+notifies the user (shop-write-path §2, commit 8b761e2c). After login
+nothing listens to OAuth state at all — `grantAccess` is consumed
+only by `LoginDialog`. Fix shape: surface refresh failure to the UI
+and add an `oauth_rejected` de-arming path symmetric with the
+POESESSID one.
+
+### F78. `_DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR` was defined for only one target — Resolved; build and installer fixes verified on Windows
+
+Found August 22, 2026, from a Sentry crash on 0.18.3
+(`acquisition.sentry.io/issues/7687078638`, two events, one Windows 10
+19044 machine). `EXCEPTION_ACCESS_VIOLATION_READ / 0x0` inside
+`mtx_do_lock` (MSVCP140.dll), reached from `main` ->
+`logging::init` (`src/util/logging.cpp:78`) ->
+`spdlog::set_default_logger` -> `registry::set_default_logger`
+(`registry-inl.h`) -> `std::lock_guard`. The process died on its very
+first `std::mutex` lock, before `logging::init` returned.
+
+Mechanism: MSVC 14.38 (VS 2022 17.8) made `std::mutex`'s constructor
+`constexpr`, so the mutex's storage is constant-initialized to zero
+instead of being set up by `_Mtx_init_in_situ`. An older
+`msvcp140.dll` does not understand that representation and its
+`mtx_do_lock` dereferences a null handle. The crash event's debug
+images confirm it: `acquisition.exe` built 2026-08-20 against a
+`C:\Windows\SYSTEM32\MSVCP140.dll` built 2021-02-11 (~14.28, the
+VS 2019 redistributable). The bundled `vc_redist.x64.exe` had never
+run or had failed; `installer.iss` makes it an optional Task.
+
+`_DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR` was already in the build, but
+as a `PRIVATE` `target_compile_options` entry on `acquisition_core`
+alone. `src/main.cpp` (the `acquisition` target), `acquisition_filters`,
+every test target, and all fetched dependencies compiled without it.
+`std::mutex`'s constructor is inline, so a mutex inside an inline
+function or a header-only library — spdlog's `registry` singleton is
+exactly that — is emitted as a COMDAT by every translation unit that
+uses it. Mixing macro and non-macro TUs makes those definitions
+disagree and the linker keeps one arbitrarily: an ODR violation whose
+observable symptom is this crash. Partial coverage was therefore worse
+than none, because it read as protection.
+
+Fix: the macro is now a global `add_compile_definitions()` in
+`CMakeLists.txt`, placed ahead of the `FetchContent` block so the
+fetched dependencies get it too, and removed from the per-target list.
+
+Verified on Windows (August 22, 2026, MSVC 14.51 / Qt 6.11.1, fresh
+Release tree): every one of the 55 compiled targets — app, core,
+filters, all tests, spdlog, QCoro, QXlsx, sentry, crashpad — carries
+the macro in its generated project, and none is without it;
+`dumpbin /imports acquisition.exe` shows `_Mtx_init_in_situ` imported
+from MSVCP140.dll, i.e. the runtime-initialized constructor that an old
+CRT understands rather than the constexpr zero-init; `ctest` 39/39; the
+app launches and runs past `logging::init`. Not reproduced against an
+actual 14.28 `msvcp140.dll` — the workstation has a current CRT — so
+the closing evidence is the import, not a crash-then-no-crash.
+
+The remaining installer gap was closed August 27, 2026. `installer.iss`
+now runs the `windeployqt`-supplied redistributable as a mandatory
+prerequisite before modifying Acquisition, validates its exit code,
+propagates restart-required results, and preserves its diagnostic log
+under the user's local application data. Packaging fails if
+`windeployqt` omits the redistributable or supplies one without a valid
+Microsoft signature; the workflow does not download a fallback. The installer
+skips the prerequisite when an equal or newer registered runtime is already
+installed, preserving an unelevated per-user installation in that case. When
+the runtime is missing or older, its machine-wide update requires administrator
+approval, after which Acquisition can still be installed per-user. Every install
+also deletes stale app-local `msvcp140*`, `vcruntime140*`, and `concrt140` DLLs
+before copying application files. Redistributable logs are intentionally retained
+under `%LOCALAPPDATA%\acquisition\installer-logs` for diagnosis after setup or
+uninstallation. The existing stray-DLL runtime
+check remains because users historically copied CRT DLLs into the
+Acquisition directory themselves.
+
+Verified on the Windows workstation in two isolated installs: a host test
+with a newer runtime accepted redistributable result 1638, and a disposable
+Windows Sandbox started without a registered x64 runtime, installed
+v14.44.35211.00, launched Acquisition with an isolated data directory, and
+uninstalled cleanly. Both removed seeded stale app-local CRT files and left
+neither CRT DLLs nor `vc_redist.x64.exe` beside the application. The
+checked-in Sandbox harness also covers synthetic restart-required and
+prerequisite-failure exit paths.
+
+Known diagnostic limitation retained by design:
+
+- `checkMicrosoftRuntime()` runs at `src/main.cpp:164`, *after*
+  `logging::init` at `:134`, so it can never fire for a crash in the
+  CRT's first lock. It also only looks for stray DLLs beside the exe
+  (`src/util/checkmsvc.cpp`) and never checks the system CRT's
+  version. The global compatibility macro protects startup against an
+  old system runtime, while the mandatory prerequisite upgrades it.
+
 ## Standing constraints and lessons
 
 Rules distilled from resolved findings that remain binding on future work.
@@ -148,8 +288,9 @@ The F-numbers refer to the ledger below.
   `qScopeGuard` declared before `Application` in `main.cpp` so it runs
   after all threads are joined; keep it that way.
 - **F30 — BORDERLINE is not an error.** The frequent "policy is
-  BORDERLINE" rate-limit warnings during refreshes are normal saturation
-  pacing, not a failure signal (arguably worth downgrading from `warn`).
+  BORDERLINE" rate-limit messages during refreshes are normal saturation
+  pacing, not a failure signal (downgraded from `warn` to `info`,
+  August 2026).
 - **F31 — check acceptance criteria against non-goals.** A grep-shaped
   acceptance criterion once forced out a load-bearing guard the same
   spec's non-goals said to keep. Mechanical criteria are subordinate to
@@ -232,3 +373,10 @@ above). "PR #161" refers to the post-Phase-6 follow-ups branch
 | F65 | The legacy stash endpoint returned the same `backend-item-request-limit` policy name with an `Ip`-only shape for an invalid/unauthenticated POESESSID and an `Account,Ip` shape after a valid POESESSID was installed. The pump adopted the new definition but logged the expected authentication transition as a warning and error, which surfaced to the user, and retained request history recorded against a different counter set | Fixed July 28, 2026: same-name shape changes are explicitly supported. `RateLimitPolicy::HasSameShape()` compares rule names, item counts, and bucket periods; `RateLimitManager::Update()` clears history before adopting a different shape, logs one concise `info` message, and leaves the full transition at `debug`. Same-shape limit-value changes retain history. Pinned by `tst_ratelimitmanager::policyShapeChangeClearsHistory`, which transitions `Ip` to `Account,Ip` after recording a saturating event and proves the next request is delayed only by the gate floor rather than the obsolete history |
 | F62 | The stash/character cache stored a lossy re-serialization (`json::writeStash`/`writeCharacter` of the parsed structs), not the JSON GGG sent: reads tolerate unknown keys but glaze writes only declared members, so every unmodeled API field was silently dropped before it reached `json_data`. The cache could not backfill a newly modeled field, could not reproduce a parse bug, and could answer a wire-format change only by invalidation — 3.28→3.29 would otherwise have been a mechanical blob transform instead of emptying the cache (found July 24, 2026, while designing that invalidation) | Fixed July 28, 2026, per the July 26 decision (full prose in git history): raw wire bytes flow through the persistence lane at per-reply granularity. The facade captures the reply's stash/character sub-object losslessly (`glz::raw_json`), parses the typed payload from that same substring, and returns both (`poe::StashPayload`/`poe::CharacterPayload`); `stashReceived`/`characterReceived` carry the bytes as an opaque `QByteArray` the worker never interprets; `saveStash`/`saveCharacter` persist the bytes verbatim. `json_data` keeps its shape — the tolerant reader parses old re-serialized rows and new wire rows alike — and `json_version` labels GGG's wire format from then on, which is what makes a future blob upgrader possible. The save trigger stays the worker's post-acceptance emit, so nothing the worker discards (stopped stragglers, failed parses) is ever persisted. A 200 whose reply lacks its stash/character sub-object (missing or null) is classified at the facade as `FetchError{Parse}` per M2 D5/R2-4 — the payload members are non-optional, so a success cannot represent that state, and the worker's untyped "is empty" abort branches are deleted (independent review of the first implementation caught that it initially preserved them as successful empty payloads, contradicting D5). Network-redesign D7 amended in place: nothing above the boundary *interprets* bytes. Rejected alternatives: a facade/pump-level persistence tap (persists replies the worker discards — reintroduces the cache/memory divergence class M1 eliminated) and glaze unknown-field capture on every poe type (known-field parse bugs still bake in; every nested type carries an `extra` map forever). Tests serialize typed fixtures where real replies' bytes would flow (`FakePoeApiClient`, `saveStashFixture`/`saveCharacterFixture`) — re-serialization is harmless in tests; it is the production cache that must be faithful. Pinned by `tst_poeapiclient`'s byte-fidelity pins (`stashPayloadCarriesTheWireBytes`, `characterPayloadCarriesTheWireBytes`, `missingStashSubObjectIsAParseError`, `missingCharacterSubObjectIsAParseError`) and `tst_reconcile`'s verbatim-storage pins (`savedStashBytesAreStoredVerbatim`, `savedCharacterBytesAreStoredVerbatim`). Backfill fidelity begins with the first refresh after the fix ships — nothing recovers fields already dropped from existing caches |
 | F67 | `Item::operator<` compared `m_hash` against itself: the tie-break tuple's third element was the left-hand hash on both sides, so the intended hash-level determinism for id-less items was dead code (found July 30, 2026, during the M3 sort-profiling spike) | Fixed, items-pipeline M3 S1 (spec D5): the one-token change to `rhs.m_hash` restores the intended `(name, uid, hash)` order, and the keyed-sort suffix carries the same order so keyed and comparator sorts agree. Pinned by `intendedTieBreakRestored` (determinism) and `keyedOrderMatchesComparatorOrder` (equivalence), both in `tst_search` |
+| F68 | `src/poe/endpoints/website/` was dead code — no includers anywhere, and two headers (`webleagues.h`, `webstashitems.h`) were copy-paste casualties defining types under filenames that promised something else | Deleted, August 2026 mechanical-findings sweep: the directory and its `CMakeLists.txt` entries removed |
+| F69 | `Shop::StashesIndexed` was declared, never emitted, never connected | Deleted, August 2026 mechanical-findings sweep |
+| F70 | The "Failed to find item" recovery advice in `Shop::OnShopSubmitted` pointed at a Shop → "Update stash index" menu action that no longer exists (and every job fetches a fresh index anyway) | Reworded, August 2026 mechanical-findings sweep: the message now says to try submitting again |
+| F71 | `NetworkManager::createRequest` logged the full `Bearer …` value at trace level, a user-selectable log level — "turn on trace logging and send the log" shipped the token | Fixed, August 2026 mechanical-findings sweep: the value is masked the way `setPoeSessionId` masks POESESSID |
+| F72 | The Authorization mask in `NetworkManager::logHeaders` compared `name` (the "request"/"reply" label) instead of `header`, so masking could never fire; latent today, but any future post-send request log would have leaked the bearer unmasked | Fixed, August 2026 mechanical-findings sweep: the check compares `header` |
+| F73 | Token bytes could reach the error log via `glz::format_error`'s buffer context on token serialization failure (`OAuthManager::receiveToken`) and token parse failure (`read_json` via `readOAuthToken`) | Fixed, August 2026 mechanical-findings sweep: `receiveToken` formats the error without the buffer, and `read_json` takes a `buffer_may_hold_credentials` flag (set by `readOAuthToken`) that logs the error code and position only |
+| F76 | Dead OAuth/session code: `OAuthManager::m_authenticated` never written, `isAuthenticatedChanged` connected nowhere, `LoginDialog::OnSessionIDChanged` never connected | Deleted, August 2026 mechanical-findings sweep (F69 precedent) |

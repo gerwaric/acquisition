@@ -395,6 +395,14 @@ void BuyoutManager::Load()
     m_tab_buyouts = m_repo.getLocationBuyouts();
     Deserialize(m_data.Get("refresh_checked_state"), m_refresh_checked);
 }
+
+void BuyoutManager::ReloadBuyouts()
+{
+    m_buyouts = m_repo.getItemBuyouts();
+    m_tab_buyouts = m_repo.getLocationBuyouts();
+    RecordChange(ChangeScope::Everything, {});
+}
+
 void BuyoutManager::SetStashTabLocations(const std::vector<ItemLocation> &tabs)
 {
     m_tabs = tabs;

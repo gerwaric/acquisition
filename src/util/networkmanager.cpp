@@ -118,7 +118,10 @@ QNetworkReply *NetworkManager::createRequest(QNetworkAccessManager::Operation op
             spdlog::error("API call may fail because the bearer token is empty: {}",
                           request.url().toString());
         } else {
-            spdlog::trace("NetworkManager: setting bearer token: {}", m_bearerToken);
+            QString masked{QString::fromUtf8(m_bearerToken)};
+            masked.fill('*');
+            spdlog::trace("NetworkManager: setting bearer token: {} (masked for security)",
+                          masked);
             request.setRawHeader("Authorization", m_bearerToken);
         }
     } else if (host == POE_CDN_HOST) {
@@ -169,7 +172,7 @@ void NetworkManager::logHeaders(const QString &name, const QHttpHeaders &headers
     QStringList lines;
     const auto headerPairs = headers.toListOfPairs();
     for (const auto &[header, value] : headerPairs) {
-        const bool is_authorization = (0 == name.compare("Authorization", Qt::CaseInsensitive));
+        const bool is_authorization = (0 == header.compare("Authorization", Qt::CaseInsensitive));
         QString v = value;
         if (is_authorization) {
             // Mask the OAuth bearer token so it's not written to the log.

@@ -27,7 +27,10 @@ void NetworkCapture::RecordHeadResponse(const QString &endpoint, const QNetworkR
     record["kind"] = "head";
     record["endpoint"] = endpoint;
     record["url"] = reply->url().toString();
-    record["received"] = QDateTime::currentDateTime().toString(Qt::ISODateWithMs);
+    // UTC so the timestamp carries its offset ("Z"): local-time QDateTime
+    // serializes with no offset at all, which downstream tooling rejects
+    // as an ambiguous clock.
+    record["received"] = QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs);
     AddReplyFields(record, reply);
     Append(std::move(record));
 }
@@ -43,9 +46,9 @@ void NetworkCapture::RecordReply(const QString &policy_name,
     record["endpoint"] = request.endpoint;
     record["request_id"] = static_cast<qint64>(request.id);
     record["url"] = request.network_request.url().toString();
-    record["scheduled"] = request.scheduled_time.toString(Qt::ISODateWithMs);
-    record["sent"] = request.send_time.toString(Qt::ISODateWithMs);
-    record["received"] = received.toString(Qt::ISODateWithMs);
+    record["scheduled"] = request.scheduled_time.toUTC().toString(Qt::ISODateWithMs);
+    record["sent"] = request.send_time.toUTC().toString(Qt::ISODateWithMs);
+    record["received"] = received.toUTC().toString(Qt::ISODateWithMs);
     AddReplyFields(record, reply);
     Append(std::move(record));
 }

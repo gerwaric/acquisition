@@ -46,11 +46,12 @@ public:
         QObject::connect(manager.get(),
                          &BuyoutManager::SetItemBuyout,
                          repo.get(),
-                         &BuyoutRepo::saveItemBuyout);
+                         qOverload<const Buyout &, const Item &>(&BuyoutRepo::saveItemBuyout));
         QObject::connect(manager.get(),
                          &BuyoutManager::SetLocationBuyout,
                          repo.get(),
-                         &BuyoutRepo::saveLocationBuyout);
+                         qOverload<const Buyout &, const ItemLocation &>(
+                             &BuyoutRepo::saveLocationBuyout));
     }
 
     ~BuyoutManagerFixture()
