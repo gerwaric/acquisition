@@ -616,11 +616,19 @@ impl Daemon {
         })
     }
 
-    /// Whether a route's first use is preceded by a HEAD probe. The HEAD
-    /// allowance (N24) has only been seen on `/character` and `/stash`;
-    /// the first HEAD ever sent to `/profile` (2026-08-30) was answered
-    /// 403 with no body, so that route goes straight to its GET until the
-    /// sample says otherwise. `route` is the endpoint key (`profile@user`).
+    /// Per-route knowledge about GGG that headers cannot teach, kept in
+    /// one place. `/profile` (sampled 2026-08-30, `LIVE-TESTING.md` run
+    /// ledger): HEAD is answered 403, and GET answers 200 with no
+    /// `X-Rate-Limit-*` headers at all — so it is not probed and may be
+    /// policyless. Every other route is probed and observed strictly.
+    /// Owner decision 2026-08-30, pending GGG's word on the endpoint.
+    fn declare_route_knowledge(choke: &ChokePoint) {
+        choke.declare_policyless("profile");
+    }
+
+    /// Whether a route's first use is preceded by a HEAD probe (see
+    /// `declare_route_knowledge`). `route` is the endpoint key
+    /// (`profile@user`).
     fn route_probes(route: &str) -> bool {
         crate::ratelimit::split_endpoint_key(route).0 != "profile"
     }
@@ -1198,6 +1206,15 @@ impl Daemon {
                 let route = route.as_deref().expect("network kind");
                 let (v, rate) = self.api_get(route, &url, Some(&token), ready).await?;
                 self.record(account, kind, &params, &v);
+                // The profile's uuid is the stable account identity; it is
+                // recorded whenever a profile lands (opportunistic, never
+                // required — `CONTEXT.md`, "Multi-account design").
+                if kind == "profile"
+                    && let (Some(account), Some(uuid)) =
+                        (account, v.get("uuid").and_then(Value::as_str))
+                {
+                    self.with_index(|index| index.set_uuid(account, uuid));
+                }
                 Outcome::Success {
                     payload: json!({
                         "provider": self.provider.name,
@@ -2410,6 +2427,7 @@ pub async fn run() -> Result<()> {
         clock.clone(),
     ));
     let choke = ChokePoint::with_clock_and_rails(clock, rails);
+    Daemon::declare_route_knowledge(&choke);
 
     // Sessions survive daemon restarts through the keyring, one entry per
     // account; the account index says which entries to look for. One live

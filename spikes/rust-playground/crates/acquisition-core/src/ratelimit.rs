@@ -20,7 +20,7 @@
 //! API GETs, HEAD probes, and OAuth token requests (P-B/N33). The dispatcher
 //! cap remains separate job-scheduling machinery.
 
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::fmt;
 use std::future::Future;
 use std::pin::Pin;
@@ -428,8 +428,10 @@ pub enum EndpointState {
     Unknown,
     /// Governed by the named policy.
     Policy(String),
-    /// Legacy dashboard state from before N33 established that the OAuth
-    /// token endpoint has a policy. Strict observation never creates it.
+    /// Answered 2xx with no rate-limit headers at all, on a route declared
+    /// policyless (`Limiter::declare_policyless`; per-route knowledge, as
+    /// `GET /profile` was observed on 2026-08-30). Paced by nothing but the
+    /// send gate. Strict observation never creates it for any other route.
     Policyless,
     /// The probe failed or came back without a policy (N20); closed until
     /// `until`, then probed again.
@@ -546,6 +548,9 @@ pub struct Limiter {
     /// while its policy headers are malformed or the route is not established
     /// yet; that must still prevent the requeued job from sending early.
     retry_holds: HashMap<String, (Instant, u64)>,
+    /// Bare routes that may answer without any rate-limit header. Every
+    /// other route's headerless 2xx stays a protocol failure.
+    policyless_routes: HashSet<String>,
 }
 
 impl Limiter {
@@ -556,6 +561,14 @@ impl Limiter {
     /// How long to wait before sending to `endpoint`. An unknown endpoint is
     /// normally ready, except when a malformed-policy 429 installed its
     /// route-local Retry-After hold.
+    /// Declare that `route` (bare, no account) may answer a 2xx with no
+    /// `X-Rate-Limit-*` headers. Such an answer makes the endpoint
+    /// `Policyless` instead of a protocol failure; headers, if they ever
+    /// appear, are learned strictly as on any other route.
+    pub fn declare_policyless(&mut self, route: &str) {
+        self.policyless_routes.insert(route.to_string());
+    }
+
     pub fn wait_for(&self, endpoint: &str, now: Instant) -> Duration {
         let policy = self.policy_for(endpoint).and_then(next_safe_send);
         let route = self.retry_holds.get(endpoint).map(|(until, _)| *until);
@@ -761,6 +774,22 @@ impl Limiter {
 
         let policy = match observation {
             Ok(policy) => policy,
+            // A declared-policyless route answering with no rate-limit
+            // header at all (not a partial or malformed set) is what it
+            // was declared to be. An established policy vanishing from a
+            // route is still a protocol failure.
+            Err(PolicyParseError::MissingHeader { ref name })
+                if name == "x-rate-limit-policy"
+                    && established.is_none()
+                    && raw.as_object().is_some_and(|m| m.is_empty())
+                    && self
+                        .policyless_routes
+                        .contains(split_endpoint_key(endpoint).0) =>
+            {
+                self.endpoints
+                    .insert(endpoint.to_string(), EndpointState::Policyless);
+                return Ok(());
+            }
             Err(error) => {
                 // A counted send whose response carried no usable policy
                 // headers (rung 10's origin 503, 2026-08-24: an HTML error
@@ -1370,6 +1399,11 @@ impl ChokePoint {
     /// Ask whether `route` may send now, or learn how long to wait. This is a
     /// pacing hint for the cancellation-aware dispatcher; every transport
     /// method repeats the final check under a live gate permit.
+    /// See `Limiter::declare_policyless`.
+    pub fn declare_policyless(&self, route: &str) {
+        self.limiter.lock().unwrap().declare_policyless(route);
+    }
+
     pub fn check(&self, route: &str) -> Result<(), Duration> {
         let wait = self.limiter.lock().unwrap().wait_for(route, self.now());
         if wait.is_zero() { Ok(()) } else { Err(wait) }
@@ -4130,5 +4164,49 @@ mod tests {
             ("stash", Some("Alice#1234"))
         );
         assert_eq!(split_endpoint_key("oauth-token"), ("oauth-token", None));
+    }
+    #[test]
+    fn a_declared_policyless_route_accepts_a_headerless_2xx_and_nothing_else_does() {
+        let now = far_future();
+        let mut l = Limiter::new();
+        l.declare_policyless("profile");
+        let none: &[(&str, &str)] = &[];
+        let profile = endpoint_key("profile", Some("Alice#1234"));
+        // Declared route, no headers at all: Policyless, unpaced, Ok.
+        l.observe(&profile, parse(none), serde_json::json!({}), true, now)
+            .expect("declared policyless");
+        assert_eq!(l.endpoint_state(&profile, now), EndpointState::Policyless);
+        assert_eq!(l.wait_for(&profile, now), Duration::ZERO);
+        // The same answer on an undeclared route is still a protocol failure.
+        let err = l
+            .observe(
+                "character-list",
+                parse(none),
+                serde_json::json!({}),
+                true,
+                now,
+            )
+            .unwrap_err();
+        assert!(
+            err.to_string().contains("missing x-rate-limit-policy"),
+            "{err}"
+        );
+        // A partial header set on the declared route is not "no headers".
+        let partial: &[(&str, &str)] = &[("x-rate-limit-rules", "Account")];
+        let raw = serde_json::json!({ "x-rate-limit-rules": "Account" });
+        assert!(l.observe(&profile, parse(partial), raw, true, now).is_err());
+        // Headers appearing on the declared route are learned strictly.
+        l.observe(
+            &profile,
+            parse(&char_list_state("1:10:0,1:300:0")),
+            serde_json::Value::Null,
+            true,
+            now,
+        )
+        .expect("a real policy is learned");
+        assert!(matches!(
+            l.endpoint_state(&profile, now),
+            EndpointState::Policy(_)
+        ));
     }
 }
