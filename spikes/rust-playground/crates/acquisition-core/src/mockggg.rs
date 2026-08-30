@@ -17,12 +17,29 @@ use tokio::net::{TcpListener, TcpStream};
 
 use crate::auth;
 
+/// The default mock account; the login page takes any other name, so a
+/// two-account test is hermetic. Access and refresh tokens carry the
+/// username (`at-<random>.<user>`), which is how data requests are
+/// attributed and counted per account (rung 11: `Account` rules are per
+/// account on real GGG).
 const USERNAME: &str = "ExileTester";
 const ACCESS_TOKEN_TTL_SECONDS: u64 = 60;
 
 struct PendingCode {
     challenge: String,
     redirect_uri: String,
+    username: String,
+}
+
+fn token_for(prefix: &str, username: &str) -> String {
+    format!("{}.{username}", auth::random_token(prefix))
+}
+
+/// The username a mock token was issued to. A token without one (tests
+/// hand the mock bare tokens) is attributed to itself, so it is still one
+/// distinct account for counting.
+fn token_user(token: &str) -> Option<&str> {
+    Some(token.split_once('.').map_or(token, |(_, user)| user))
 }
 
 /// A server-side rate-limit policy, simulated truthfully enough to test the
@@ -32,6 +49,10 @@ struct PendingCode {
 /// timing-bucket quantization (N11–N12) — the limiter pads for it anyway.
 struct MockPolicy {
     name: &'static str,
+    /// `Account` (counted per account: one policy instance per username)
+    /// or `Ip` (shared by everyone behind this mock, like the real token
+    /// endpoint — N33).
+    scope: &'static str,
     /// `(max_hits, period, restriction)` per window, initial first (N23).
     windows: &'static [(u32, u64, u64)],
     hits: VecDeque<Instant>,
@@ -40,8 +61,17 @@ struct MockPolicy {
 
 impl MockPolicy {
     fn new(name: &'static str, windows: &'static [(u32, u64, u64)]) -> Self {
+        Self::scoped(name, "Account", windows)
+    }
+
+    fn scoped(
+        name: &'static str,
+        scope: &'static str,
+        windows: &'static [(u32, u64, u64)],
+    ) -> Self {
         MockPolicy {
             name,
+            scope,
             windows,
             hits: VecDeque::new(),
             restricted_until: None,
@@ -101,10 +131,11 @@ impl MockPolicy {
             .map(|w| format!("{}:{}:{}", self.hits_within(w.1, now), w.1, restricted_for))
             .collect();
         let mut headers = format!(
-            "X-Rate-Limit-Policy: {}\r\nX-Rate-Limit-Rules: Account\r\nX-Rate-Limit-Account: {}\r\nX-Rate-Limit-Account-State: {}\r\n",
+            "X-Rate-Limit-Policy: {}\r\nX-Rate-Limit-Rules: {scope}\r\nX-Rate-Limit-{scope}: {}\r\nX-Rate-Limit-{scope}-State: {}\r\n",
             self.name,
             limits.join(","),
             state.join(","),
+            scope = self.scope,
         );
         if !ok {
             headers.push_str(&format!("Retry-After: {restricted_for}\r\n"));
@@ -113,7 +144,50 @@ impl MockPolicy {
     }
 }
 
-type Policies = Arc<Mutex<HashMap<&'static str, MockPolicy>>>;
+/// Live policy instances keyed by `"<path key>"` for `Ip` rules and
+/// `"<path key>\n<username>"` for `Account` rules, created on first use
+/// from `policy_template`.
+type Policies = Arc<Mutex<HashMap<String, MockPolicy>>>;
+
+/// The mock's policy table. Real shapes from the first capture (N23):
+/// `/character` is the real character-list policy; `/fetch` borrows its
+/// shape under a mock name so the limiter sees two independent policies.
+fn policy_template(path_key: &str) -> Option<MockPolicy> {
+    Some(match path_key {
+        "/character" => MockPolicy::new(
+            "character-list-request-limit",
+            &[(2, 10, 60), (5, 300, 300)],
+        ),
+        "/stash" => MockPolicy::new("stash-list-request-limit", &[(10, 15, 60), (30, 60, 300)]),
+        "/stash/tab" => MockPolicy::new("stash-request-limit", &[(15, 10, 60), (30, 300, 300)]),
+        "/fetch" => MockPolicy::new("mock-fetch-request-limit", &[(5, 10, 60), (30, 300, 300)]),
+        "/character/name" => {
+            MockPolicy::new("character-request-limit", &[(5, 10, 60), (15, 300, 300)])
+        }
+        "/profile" => MockPolicy::new("profile-request-limit", &[(2, 10, 60), (5, 300, 300)]),
+        "/league" => MockPolicy::new("league-request-limit", &[(2, 10, 60), (5, 300, 300)]),
+        "/token" => MockPolicy::scoped("token-request-limit", "Ip", &[(60, 30, 30)]),
+        _ => return None,
+    })
+}
+
+/// Apply one request to the policy for `path_key` as `username` (`None`
+/// for the unauthenticated `/fetch` and the `Ip`-scoped token endpoint).
+fn apply_policy(
+    policies: &Policies,
+    path_key: &str,
+    username: Option<&str>,
+    counts: bool,
+    now: Instant,
+) -> (bool, String) {
+    let template = policy_template(path_key).expect("policy for path");
+    let key = match (template.scope, username) {
+        ("Account", Some(user)) => format!("{path_key}\n{user}"),
+        _ => path_key.to_string(),
+    };
+    let mut policies = policies.lock().unwrap();
+    policies.entry(key).or_insert(template).request(counts, now)
+}
 
 /// The mock account's stash tree, shaped like the real API answered on
 /// 2026-08-20: folders carry their children in the *list*; map/unique tabs
@@ -233,46 +307,7 @@ pub(crate) async fn start_with_clock(clock: Arc<dyn Clock>) -> Result<String> {
     let listener = TcpListener::bind("127.0.0.1:0").await?;
     let base = format!("http://127.0.0.1:{}", listener.local_addr()?.port());
     let codes: Arc<Mutex<HashMap<String, PendingCode>>> = Arc::default();
-    // Real policy shapes from the first capture (N23): /character is the
-    // real character-list policy; /fetch borrows character-request-limit's
-    // shape under a mock name so the limiter sees two independent policies.
-    let policies: Policies = Arc::new(Mutex::new(HashMap::from([
-        (
-            "/character",
-            MockPolicy::new(
-                "character-list-request-limit",
-                &[(2, 10, 60), (5, 300, 300)],
-            ),
-        ),
-        (
-            "/stash",
-            MockPolicy::new("stash-list-request-limit", &[(10, 15, 60), (30, 60, 300)]),
-        ),
-        (
-            "/stash/tab",
-            MockPolicy::new("stash-request-limit", &[(15, 10, 60), (30, 300, 300)]),
-        ),
-        (
-            "/fetch",
-            MockPolicy::new("mock-fetch-request-limit", &[(5, 10, 60), (30, 300, 300)]),
-        ),
-        (
-            "/character/name",
-            MockPolicy::new("character-request-limit", &[(5, 10, 60), (15, 300, 300)]),
-        ),
-        (
-            "/profile",
-            MockPolicy::new("profile-request-limit", &[(2, 10, 60), (5, 300, 300)]),
-        ),
-        (
-            "/league",
-            MockPolicy::new("league-request-limit", &[(2, 10, 60), (5, 300, 300)]),
-        ),
-        (
-            "/token",
-            MockPolicy::new("token-request-limit", &[(60, 30, 30)]),
-        ),
-    ])));
+    let policies: Policies = Arc::default();
     tokio::spawn(async move {
         loop {
             let Ok((stream, _)) = listener.accept().await else {
@@ -304,9 +339,22 @@ async fn handle(
             let page = format!(
                 "<h1>Fake GGG OAuth</h1>\
                  <p>This is the playground's mock provider — no real accounts here.</p>\
-                 <p>Pretend you just logged in as <b>{USERNAME}</b>.</p>\
-                 <p><a href=\"/approve?{}\">Authorize {client_id}</a></p>",
+                 <p>Authorize <b>{client_id}</b> as:</p>\
+                 <form action=\"/approve\" method=\"get\">\
+                 {hidden}\
+                 <input name=\"user\" value=\"{USERNAME}\"> <button>Log in</button>\
+                 </form>\
+                 <p><a href=\"/approve?{}\">…or just authorize as {USERNAME}</a></p>",
                 req.raw_query,
+                hidden = req
+                    .query
+                    .iter()
+                    .map(|(k, v)| format!(
+                        "<input type=\"hidden\" name=\"{}\" value=\"{}\">",
+                        html_escape(k),
+                        html_escape(v)
+                    ))
+                    .collect::<String>(),
             );
             respond(&mut stream, "200 OK", "text/html", &page).await;
         }
@@ -325,12 +373,21 @@ async fn handle(
                 .await;
                 return;
             };
+            // `user` is the login page's field (any name); scripted logins
+            // pass it on the approve URL. Default: the mock account.
+            let username = req
+                .query
+                .get("user")
+                .filter(|u| !u.trim().is_empty())
+                .cloned()
+                .unwrap_or_else(|| USERNAME.to_string());
             let code = auth::random_token("code");
             codes.lock().unwrap().insert(
                 code.clone(),
                 PendingCode {
                     challenge: challenge.clone(),
                     redirect_uri: redirect_uri.clone(),
+                    username,
                 },
             );
             let location = format!("{redirect_uri}?code={code}&state={}", urlencode(state));
@@ -364,10 +421,13 @@ async fn handle(
             } else {
                 path
             };
-            let authed = req
+            let bearer_user = req
                 .headers
                 .get("authorization")
-                .is_some_and(|v| v.starts_with("Bearer "));
+                .and_then(|v| v.strip_prefix("Bearer "))
+                .and_then(|t| token_user(t.trim()))
+                .map(str::to_string);
+            let authed = bearer_user.is_some();
             if policy_key != "/fetch" && !authed {
                 respond(
                     &mut stream,
@@ -378,12 +438,13 @@ async fn handle(
                 .await;
                 return;
             }
-            let (ok, extra) = policies
-                .lock()
-                .unwrap()
-                .get_mut(policy_key)
-                .expect("policy for path")
-                .request(req.method == "GET", clock.now());
+            let (ok, extra) = apply_policy(
+                &policies,
+                policy_key,
+                bearer_user.as_deref(),
+                req.method == "GET",
+                clock.now(),
+            );
             if req.method == "HEAD" {
                 // ACQ_MOCK_DEGRADED_HEAD=1 reproduces the Dec-2023 regression
                 // (N20): policy name present, every other header missing.
@@ -446,7 +507,8 @@ async fn handle(
                     "jewels": [],
                 }})
             } else if req.path == "/profile" {
-                json!({ "uuid": "00000000-0000-4000-8000-000000000001", "name": "ExileTester", "realm": "pc",
+                json!({ "uuid": format!("00000000-0000-4000-8000-{:012x}", bearer_user.as_deref().map_or(0, |u| u.bytes().fold(0u64, |h, b| h.wrapping_mul(31).wrapping_add(b as u64)) & 0xffff_ffff_ffff)),
+                        "name": bearer_user.as_deref().unwrap_or(USERNAME), "realm": "pc",
                         "guild": { "name": "Playground" }, "twitch": { "name": "exiletester" } })
             } else if req.path == "/league" {
                 json!({ "leagues": [
@@ -480,12 +542,7 @@ async fn handle(
             .await;
         }
         ("POST", "/token") => {
-            let (ok, extra) = policies
-                .lock()
-                .unwrap()
-                .get_mut("/token")
-                .expect("token policy")
-                .request(true, clock.now());
+            let (ok, extra) = apply_policy(&policies, "/token", None, true, clock.now());
             if !ok {
                 respond_with(
                     &mut stream,
@@ -544,27 +601,37 @@ fn token_reply(
             if *redirect_uri != pending.redirect_uri {
                 return Err("invalid_grant: redirect_uri mismatch".into());
             }
-            Ok(tokens())
+            Ok(tokens(&pending.username))
         }
         // Stateless on purpose: any well-shaped refresh token survives a
         // provider restart, so keyring persistence works across daemon lives.
+        // The username rides in the token.
         Some("refresh_token") => match form.get("refresh_token") {
-            Some(rt) if rt.starts_with("rt-") => Ok(tokens()),
+            Some(rt) if rt.starts_with("rt-") => Ok(tokens(
+                rt.split_once('.').map_or(USERNAME, |(_, user)| user),
+            )),
             _ => Err("invalid_grant: bad refresh token".into()),
         },
         _ => Err("unsupported_grant_type".into()),
     }
 }
 
-fn tokens() -> String {
+fn tokens(username: &str) -> String {
     json!({
-        "access_token": auth::random_token("at"),
-        "refresh_token": auth::random_token("rt"),
+        "access_token": token_for("at", username),
+        "refresh_token": token_for("rt", username),
         "expires_in": ACCESS_TOKEN_TTL_SECONDS,
         "token_type": "Bearer",
-        "username": USERNAME,
+        "username": username,
     })
     .to_string()
+}
+
+fn html_escape(s: &str) -> String {
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
 }
 
 // ---- minimal HTTP plumbing (shared with the daemon's loopback listener) --

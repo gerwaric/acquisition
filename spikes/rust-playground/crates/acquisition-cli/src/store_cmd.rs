@@ -40,6 +40,33 @@ pub fn open() -> Result<Store> {
     Store::open(&account_path(&dir, &entry.username))
 }
 
+/// After `auth status`: the other accounts the index knows.
+pub fn print_other_accounts(live: Option<&str>) -> Result<()> {
+    let dir = store_dir(provider());
+    let index = Index::load(&dir)?;
+    let others: Vec<&AccountEntry> = index
+        .entries()
+        .iter()
+        .filter(|e| Some(e.username.as_str()) != live)
+        .collect();
+    if others.is_empty() {
+        return Ok(());
+    }
+    println!(
+        "other accounts: {}",
+        others
+            .iter()
+            .map(|e| format!(
+                "{}{}",
+                e.username,
+                if e.persisted { "" } else { " (not persisted)" }
+            ))
+            .collect::<Vec<_>>()
+            .join(", ")
+    );
+    Ok(())
+}
+
 /// Every account the index knows, with its store file.
 pub fn accounts(json: bool) -> Result<()> {
     let dir = store_dir(provider());

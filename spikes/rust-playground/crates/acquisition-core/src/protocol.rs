@@ -62,7 +62,13 @@ pub enum Request {
     /// access token (refreshing through the provider if needed), unlike
     /// `auth_status` which only reports local belief.
     AuthCheck,
-    AuthLogout,
+    /// Drop a session and its keyring entry. Omitted or the live session's
+    /// account: the live session. Another known account: only its keyring
+    /// entry (the index marks it not persisted); the live session stays.
+    AuthLogout {
+        #[serde(default)]
+        account: Option<String>,
+    },
     DaemonStatus,
     DaemonStop,
     /// Clear the live-test rails' tripwire and ceiling halt (`LIVE-TESTING.md`).

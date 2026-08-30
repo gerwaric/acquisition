@@ -86,6 +86,8 @@ cargo build
 alias acq=./target/debug/acq
 
 acq auth                                     # OAuth login: opens a fake provider page in your browser
+                                             # (the page takes any username, so two accounts are one login apart;
+                                             #  scripted: curl the printed URL with /authorize?→/approve?&user=NAME)
 acq auth status                              # session, token expiry, keyring health (local belief)
 acq auth check                               # preflight: proves the session via a forced token round-trip
 acq submit whoami                            # mock-only auth job; refreshes the access token silently

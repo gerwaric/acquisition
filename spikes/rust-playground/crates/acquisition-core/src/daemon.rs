@@ -492,15 +492,34 @@ impl Daemon {
     /// Turn a client's account selector into the account a job runs as.
     /// One live session for now: the selector must name it (or be absent);
     /// anything else is refused at submit, before a job exists.
-    fn resolve_account(&self, requested: Option<&str>) -> Result<Option<String>, String> {
+    fn resolve_account(
+        &self,
+        kind: &str,
+        requested: Option<&str>,
+    ) -> Result<Option<String>, String> {
         let live = self.shared.lock().unwrap().auth.username.clone();
         match (requested, live) {
+            // A job that will need a token must not exist without an
+            // account: it would slip past the token-time check.
+            (None, None) if self.kind_needs_account(kind) => {
+                Err(format!("{kind}: not logged in — run `acq auth`"))
+            }
             (None, live) => Ok(live),
             (Some(req), Some(live)) if account_matches(req, &live, None) => Ok(Some(live)),
             (Some(req), Some(live)) => Err(format!(
                 "account {req:?} is not the live session ({live}); log in as it first"
             )),
             (Some(req), None) => Err(format!("account {req:?}: not logged in — run `acq auth`")),
+        }
+    }
+
+    /// Every kind that sends with a token. `sleep` never sends; the mock's
+    /// `fetch` is open.
+    fn kind_needs_account(&self, kind: &str) -> bool {
+        match kind {
+            "sleep" => false,
+            "fetch" => self.provider.is_real(),
+            _ => true,
         }
     }
 
@@ -1678,6 +1697,32 @@ impl Daemon {
         outcome
     }
 
+    /// Drop a *non-live* account's keyring entry and mark it not persisted.
+    /// Nothing about the live session changes.
+    fn forget_account(&self, selector: &str) -> Result<(), String> {
+        let Some(dir) = &self.store_dir else {
+            return Err("no account index in this daemon".into());
+        };
+        let index = Index::load(dir).map_err(|e| format!("accounts index: {e:#}"))?;
+        let entry = index
+            .resolve(Some(selector))
+            .map_err(|e| e.to_string())?
+            .clone();
+        // Nothing to clear for a session that was never in the keyring.
+        let cleared = if entry.persisted {
+            self.credential_store
+                .clear(self.provider.keyring_service, &entry.username)
+        } else {
+            Ok(())
+        };
+        self.with_index(|index| index.set_persisted(&entry.username, false));
+        self.log(&format!(
+            "forgot account {} (keyring entry cleared)",
+            entry.username
+        ));
+        cleared
+    }
+
     fn logout(&self) -> Result<(), String> {
         self.rails().clear_refresh_failed();
         let result = {
@@ -1797,7 +1842,7 @@ impl Daemon {
                 priority,
                 submitted_by,
                 account,
-            } => match self.resolve_account(account.as_deref()) {
+            } => match self.resolve_account(&kind, account.as_deref()) {
                 Ok(account) => Response::Submitted {
                     id: self.submit(kind, params, priority, submitted_by, account),
                 },
@@ -1856,11 +1901,24 @@ impl Daemon {
                     Response::Error { message }
                 }
             },
-            Request::AuthLogout => {
-                if let Err(e) = self.logout() {
-                    self.log(&format!("keyring clear failed: {e}"));
+            Request::AuthLogout { account } => {
+                let live = self.shared.lock().unwrap().auth.username.clone();
+                let is_live = match (&account, &live) {
+                    (None, _) => true,
+                    (Some(req), Some(live)) => account_matches(req, live, None),
+                    (Some(_), None) => false,
+                };
+                if is_live {
+                    if let Err(e) = self.logout() {
+                        self.log(&format!("keyring clear failed: {e}"));
+                    }
+                    Response::Ack
+                } else {
+                    match self.forget_account(account.as_deref().unwrap_or_default()) {
+                        Ok(()) => Response::Ack,
+                        Err(message) => Response::Error { message },
+                    }
                 }
-                Response::Ack
             }
             Request::DaemonStatus => {
                 let s = self.shared.lock().unwrap();
@@ -2830,16 +2888,27 @@ mod auth_session_tests {
     fn submit_resolves_the_account_against_the_live_session() {
         let (daemon, _, log_path) = test_daemon("http://127.0.0.1:1");
         // Session is "old-user" (test_daemon).
-        assert_eq!(daemon.resolve_account(None), Ok(Some("old-user".into())));
         assert_eq!(
-            daemon.resolve_account(Some("OLD-USER")),
+            daemon.resolve_account("characters", None),
             Ok(Some("old-user".into()))
         );
-        let err = daemon.resolve_account(Some("Other#1")).unwrap_err();
+        assert_eq!(
+            daemon.resolve_account("characters", Some("OLD-USER")),
+            Ok(Some("old-user".into()))
+        );
+        let err = daemon
+            .resolve_account("characters", Some("Other#1"))
+            .unwrap_err();
         assert!(err.contains("Other#1") && err.contains("old-user"), "{err}");
         daemon.shared.lock().unwrap().auth.username = None;
-        assert_eq!(daemon.resolve_account(None), Ok(None));
-        let err = daemon.resolve_account(Some("Other#1")).unwrap_err();
+        // No session: an auth-required kind is refused at submit; a kind
+        // that never sends with a token simply has no account.
+        let err = daemon.resolve_account("characters", None).unwrap_err();
+        assert!(err.contains("not logged in"), "{err}");
+        assert_eq!(daemon.resolve_account("sleep", None), Ok(None));
+        let err = daemon
+            .resolve_account("characters", Some("Other#1"))
+            .unwrap_err();
         assert!(err.contains("not logged in"), "{err}");
         remove_test_log(&log_path);
     }

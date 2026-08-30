@@ -185,7 +185,8 @@ enum AuthCmd {
     /// Verify the session actually works: forces a token round-trip through
     /// the provider instead of trusting local state. Exit code 1 on failure.
     Check,
-    /// Drop the session and clear the keyring entry.
+    /// Drop the session and clear the keyring entry. With --account naming
+    /// another known account, clear only that account's keyring entry.
     Logout,
 }
 
@@ -214,7 +215,14 @@ async fn main() -> Result<()> {
             Some(AuthCmd::Status) => {
                 let mut client = Client::connect(false).await?;
                 let status = client.request(&Request::AuthStatus).await?;
-                print_auth(&status, cli.json)
+                print_auth(&status, cli.json)?;
+                if !cli.json {
+                    store_cmd::print_other_accounts(match &status {
+                        Response::Auth { username, .. } => username.as_deref(),
+                        _ => None,
+                    })?;
+                }
+                Ok(())
             }
             Some(AuthCmd::Check) => {
                 let mut client = Client::connect(true).await?;
@@ -230,7 +238,8 @@ async fn main() -> Result<()> {
             }
             Some(AuthCmd::Logout) => {
                 let mut client = Client::connect(false).await?;
-                client.expect_ack(&Request::AuthLogout).await?;
+                let account = ACCOUNT.get().cloned().flatten();
+                client.expect_ack(&Request::AuthLogout { account }).await?;
                 println!("logged out (session dropped, keyring cleared)");
                 Ok(())
             }
