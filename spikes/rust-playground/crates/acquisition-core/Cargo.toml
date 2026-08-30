@@ -8,6 +8,7 @@ tokio.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 anyhow.workspace = true
+acquisition-store = { path = "../acquisition-store" }
 # TLS is required by real-GGG mode (ACQ_GGG=1); the mock peer stays loopback.
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 keyring = { version = "3", features = ["apple-native", "windows-native"] }

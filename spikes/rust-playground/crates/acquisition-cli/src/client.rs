@@ -144,10 +144,6 @@ impl Client {
         }
     }
 
-    pub fn provider(&self) -> &str {
-        &self.provider
-    }
-
     pub async fn status(&mut self, id: u64) -> Result<JobInfo> {
         match self.request(&Request::Status { id }).await? {
             Response::Status { job } => Ok(job),

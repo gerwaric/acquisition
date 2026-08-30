@@ -1,6 +1,6 @@
 mod client;
 mod dash;
-mod pull;
+mod store_cmd;
 
 use std::io::Write as _;
 use std::time::Duration;
@@ -41,8 +41,29 @@ enum Cmd {
         #[arg(long)]
         no_browser: bool,
     },
+    /// The account profile (account:profile).
+    Profile,
     /// List characters on the logged-in account.
     Characters,
+    /// Fetch one character with its equipment and inventory.
+    Character { name: String },
+    /// List the account's leagues.
+    Leagues,
+    /// Tabs of a league, from the shared store (no daemon round-trip).
+    Tabs {
+        #[arg(long, default_value = "Standard")]
+        league: String,
+    },
+    /// Items in the shared store.
+    Items {
+        #[command(subcommand)]
+        cmd: ItemsCmd,
+    },
+    /// The shared store itself (what the daemon writes; every frontend reads).
+    Store {
+        #[command(subcommand)]
+        cmd: StoreCmd,
+    },
     /// List stash tabs for a league.
     Stashes {
         #[arg(long, default_value = "Standard")]
@@ -75,20 +96,7 @@ enum Cmd {
         #[arg(long, default_value = "Standard")]
         league: String,
     },
-    /// Pull every stash tab in a league, snapshot it, and diff against the
-    /// previous pull. The first real consumer of the daemon.
-    Pull {
-        #[arg(long, default_value = "Standard")]
-        league: String,
-        /// Also follow map/unique substashes (one child job each).
-        #[arg(long)]
-        deep: bool,
-        /// Snapshot directory (default: $ACQ_SNAPSHOTS or
-        /// ~/.local/share/acquisition-playground/snapshots).
-        #[arg(long)]
-        dir: Option<std::path::PathBuf>,
-    },
-    /// Submit a job (kinds: sleep, fetch, profile, characters, stashes, stash, refresh).
+    /// Submit a job (kinds: sleep, fetch, whoami, profile, characters, character, leagues, stashes, stash, refresh).
     Submit {
         kind: String,
         /// JSON params, e.g. '{"seconds": 5}'.
@@ -128,6 +136,40 @@ enum Cmd {
         #[command(subcommand)]
         cmd: DaemonCmd,
     },
+}
+
+#[derive(Subcommand)]
+enum ItemsCmd {
+    /// Substring search over name, type line, and base type.
+    Search {
+        text: String,
+        #[arg(long)]
+        league: Option<String>,
+        /// Include items no longer seen at their last location.
+        #[arg(long)]
+        removed: bool,
+        #[arg(long, default_value_t = 50)]
+        limit: usize,
+    },
+    /// One item by id, verbatim.
+    Show { id: String },
+}
+
+#[derive(Subcommand)]
+enum StoreCmd {
+    /// Path, size, and row counts.
+    Status,
+    /// Item events (added/moved/changed/removed) from recent ingests.
+    Events {
+        #[arg(long, default_value_t = 24.0)]
+        hours: f64,
+        #[arg(long, default_value_t = 200)]
+        limit: usize,
+    },
+    /// Re-extract derived columns from each item's own JSON.
+    Rebuild,
+    /// Replay a snapshot file from the retired `acq pull` into the store (no GGG traffic).
+    Import { path: std::path::PathBuf },
 }
 
 #[derive(Subcommand)]
@@ -182,11 +224,42 @@ async fn main() -> Result<()> {
                 Ok(())
             }
         },
+        Cmd::Profile => {
+            let mut client = Client::connect(true).await?;
+            let id = submit(&mut client, "profile".into(), json!({}), 0).await?;
+            block_on_job(&mut client, id, cli.json).await
+        }
         Cmd::Characters => {
             let mut client = Client::connect(true).await?;
             let id = submit(&mut client, "characters".into(), json!({}), 0).await?;
             block_on_job(&mut client, id, cli.json).await
         }
+        Cmd::Character { name } => {
+            let mut client = Client::connect(true).await?;
+            let id = submit(&mut client, "character".into(), json!({ "name": name }), 0).await?;
+            block_on_job(&mut client, id, cli.json).await
+        }
+        Cmd::Leagues => {
+            let mut client = Client::connect(true).await?;
+            let id = submit(&mut client, "leagues".into(), json!({}), 0).await?;
+            block_on_job(&mut client, id, cli.json).await
+        }
+        Cmd::Tabs { league } => store_cmd::tabs(&league, cli.json),
+        Cmd::Items { cmd } => match cmd {
+            ItemsCmd::Search {
+                text,
+                league,
+                removed,
+                limit,
+            } => store_cmd::search(&text, league.as_deref(), removed, limit, cli.json),
+            ItemsCmd::Show { id } => store_cmd::show(&id, cli.json),
+        },
+        Cmd::Store { cmd } => match cmd {
+            StoreCmd::Status => store_cmd::status(cli.json),
+            StoreCmd::Events { hours, limit } => store_cmd::events(hours, limit, cli.json),
+            StoreCmd::Rebuild => store_cmd::rebuild(cli.json),
+            StoreCmd::Import { path } => store_cmd::import(&path, cli.json),
+        },
         Cmd::Stashes { league } => {
             let mut client = Client::connect(true).await?;
             let id = submit(
@@ -232,11 +305,6 @@ async fn main() -> Result<()> {
             )
             .await?;
             block_on_job(&mut client, id, cli.json).await
-        }
-        Cmd::Pull { league, deep, dir } => {
-            let mut client = Client::connect(true).await?;
-            let dir = dir.unwrap_or_else(pull::default_dir);
-            pull::run(&mut client, &league, deep, &dir, cli.json).await
         }
         Cmd::Submit {
             kind,

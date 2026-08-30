@@ -12,13 +12,13 @@ and the same live ladder. The limiter's behavior is fully specified
 boundaries, the **GGG side is proven**: the live ladder closed on
 2026-08-27 with every rung passed and zero 429s across ~1,450 real sends
 (`LIVE-TESTING.md`), and the send journal is its contract surface. The
-**frontend side is the frontier**: one consumer (`acq pull`) has run
-against real data and left its findings in `CONTEXT.md`; the protocol is
-not yet pinned, and the persistence questions wait for a second consumer.
+**frontend side is the frontier**: the shared store (`acquisition-store`)
+is the first answer to what frontends need, built 2026-08-29 and proven
+against real data by replay; the protocol is not yet pinned.
 Tests pin behavior at those boundaries, never mechanisms.
 
 **By default nothing
-here talks to GGG**: job kinds are fakes (`sleep`, `fetch`, `profile`),
+here talks to GGG**: job kinds are fakes (`sleep`, `fetch`, `whoami`),
 OAuth runs against an in-process localhost provider (`mockggg.rs`), and the
 mock's data endpoints sit behind truthfully simulated rate-limit policies
 (real sliding windows, real restrictions, real 429s with `Retry-After`,
@@ -53,9 +53,23 @@ bounded by `MAX_429_RETRIES`; a Cloudflare-shaped 403/503 is never retried.
   (`mockggg.rs`), live-test rails (`rails.rs`), and the daemon itself
   (priority queue + dispatcher + Unix-socket server + idle watchdog). The
   gate and dispatcher properties are CONTEXT.md decisions, not restated here.
+- `crates/acquisition-store` — the shared store (SQLite, one file per
+  provider): the daemon records every storable API response through one
+  call, `Store::record(endpoint, params, status, body)`, and every frontend
+  reads the file directly. Bodies are kept verbatim except at the item
+  seams: each item array (tab `items`, character `inventory`/`equipment`/
+  `jewels`/`rucksack`, and every `socketedItems`) is lifted into `items`,
+  one row per GGG item id, so `items` is the only place to look for an
+  item. Each ingest compares with what was known and writes
+  `item_events` (added/moved/changed/removed; `veiledMods` ignored, N36).
+  Its tests are the spec; `acq store import <snapshot>` replays a
+  retired-`acq pull` snapshot through it with no GGG traffic (19,210 rows
+  in ~2.3 s).
 - `crates/acquisition-cli` — the `acq` binary. Thin: clap parsing, a small
-  protocol client, output formatting, and `pull.rs` — the first real
-  consumer (snapshot + diff, client-side). The daemon is reached via the
+  protocol client, output formatting, and `store_cmd.rs` — the reads of
+  the shared store (`tabs`, `items`, `store`). `acq pull` (client-side
+  snapshot + diff, 2026-08-24) is retired: the store's `item_events` answer
+  the same question for every consumer. The daemon is reached via the
   hidden-ish `acq daemon run` subcommand, which is what lazy spawn execs.
 
 ## Try it
@@ -67,16 +81,22 @@ alias acq=./target/debug/acq
 acq auth                                     # OAuth login: opens a fake provider page in your browser
 acq auth status                              # session, token expiry, keyring health (local belief)
 acq auth check                               # preflight: proves the session via a forced token round-trip
-acq submit profile                           # auth-required job; refreshes the access token silently
+acq submit whoami                            # mock-only auth job; refreshes the access token silently
+acq profile                                  # GET /profile (account:profile)
 acq characters                               # auth-required; GET /character against the mock
                                              # (first use of a route queues a visible `probe` job:
                                              #  one HEAD that learns the policy + current counters)
 acq stashes --league Standard                # GET /stash/{league}: a second policy, runs in parallel
+acq character <name>                         # GET /character/{name}: equipment + inventory
+acq leagues                                  # GET /league (account:leagues)
 acq stash <id> [--sub <id>] [--deep]         # one tab; --deep follows a map/unique tab's substashes as child jobs
 acq refresh --tabs a,b,c | --all [--deep]    # list, then one `stash` child per tab; parent finishes last
-acq pull [--league L] [--deep] [--dir D]     # the real consumer: refresh --all, snapshot to disk, diff vs the previous pull
-                                             # ($ACQ_SNAPSHOTS or ~/.local/share/acquisition-playground/snapshots)
 acq cancel <parent-id>                       # cascades to every descendant still waiting
+acq tabs [--league L]                        # from the shared store: tab tree with live item counts (no daemon)
+acq items search <text> [--removed]          # substring search over name/type/base; socketed gems are rows too
+acq items show <id>                          # one item, verbatim
+acq store status | events [--hours N]        # row counts; what recent ingests concluded
+acq store import <snapshot.json> | rebuild   # replay a retired-pull snapshot (no GGG traffic); re-extract columns
 acq auth logout                              # drops session + keyring entry
 acq submit sleep --params '{"seconds": 5}'   # blocks with progress; daemon lazy-spawns
 acq demo                                     # burst of 8 fetch jobs against the mock's 5-per-10s policy; watch ETAs
@@ -128,7 +148,9 @@ Its log is next to the socket (`acq daemon status` prints both paths).
 it short (Unix socket paths cap out around 104 bytes). `ACQ_NO_KEYRING=1`
 degrades sessions to in-memory only (never plaintext on disk). Mock access
 tokens live 60 seconds, so silent refresh is exercised constantly.
-`ACQ_IDLE_SHUTDOWN=<secs>` overrides the idle exit. `ACQ_NO_SPAWN=1` makes
+`ACQ_IDLE_SHUTDOWN=<secs>` overrides the idle exit. `ACQ_STORE_DIR=<dir>`
+relocates the shared store (`<dir>/<provider>.db`; default
+`~/.local/share/acquisition-playground/store`). `ACQ_NO_SPAWN=1` makes
 the CLI refuse to start or replace a daemon — for cron and other
 non-interactive callers, which on macOS would spawn a daemon with no
 keychain access and therefore no session.
@@ -170,26 +192,17 @@ regression (N20) so the degraded path can be exercised.
 
 ## Known gaps
 
-- **Pull has no delta/selection smarts.** `--all` fetches every listed
-  tab every time; the real API's `metadata.items` counts on substash stubs
-  (free) plus the previous snapshot are the obvious lever for skipping,
-  not used yet. A pull that loses tabs (a 503, a rails halt) still writes
-  its snapshot with per-tab `errors` and the refresh's reason; the diff
-  treats those tabs as unknown, and the next pull refetches everything, not
-  just them. A killed `pull` leaves its refresh running in the daemon;
-  the next `pull` with the same arguments reattaches to it while the
-  daemon lives (`inflight.json` in the league's snapshot dir). Results
-  that finish after the daemon idles out are lost — job persistence,
-  deferred (CONTEXT.md).
+- **Refresh has no delta/selection smarts.** `--all` fetches every listed
+  tab every time; the store's per-tab `fetched_at` plus the real API's
+  `metadata.items` counts on substash stubs (free) are the obvious lever
+  for skipping, not used yet. A refresh that loses tabs (a 503, a rails
+  halt) leaves those tabs' rows at their previous state; nothing yet
+  refetches only the failed set.
 - **The mock does not simulate timing-bucket quantization** (N11–N12); the
   limiter pads for it regardless.
 - **The mock reports an active restriction on every window of the rule,**
   so the limiter picks the larger bucket after a 429. Whether real GGG
   flags only the violated window is unobserved.
-- **Under a send ceiling, `pull` refuses a tree it cannot finish**: once
-  the children exist it compares them with `ACQ_MAX_SENDS` headroom and
-  cancels the refresh with the ceiling to restart with. A daemon already
-  halted is left to fail its children so the snapshot keeps what landed.
 - **Lazy spawn hides daemon startup errors.** The spawned daemon's stderr goes
   to null, so a failed bind looks like "could not reach daemon after 5s" —
   check the daemon log.

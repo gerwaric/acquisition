@@ -257,6 +257,18 @@ pub(crate) async fn start_with_clock(clock: Arc<dyn Clock>) -> Result<String> {
             MockPolicy::new("mock-fetch-request-limit", &[(5, 10, 60), (30, 300, 300)]),
         ),
         (
+            "/character/name",
+            MockPolicy::new("character-request-limit", &[(5, 10, 60), (15, 300, 300)]),
+        ),
+        (
+            "/profile",
+            MockPolicy::new("profile-request-limit", &[(2, 10, 60), (5, 300, 300)]),
+        ),
+        (
+            "/league",
+            MockPolicy::new("league-request-limit", &[(2, 10, 60), (5, 300, 300)]),
+        ),
+        (
             "/token",
             MockPolicy::new("token-request-limit", &[(60, 30, 30)]),
         ),
@@ -331,7 +343,12 @@ async fn handle(
         // path in mock and real mode) plus `/fetch`, each behind its own
         // truthfully simulated rate-limit policy.
         ("GET" | "HEAD", path)
-            if path == "/character" || path == "/fetch" || path.starts_with("/stash/") =>
+            if path == "/character"
+                || path == "/fetch"
+                || path == "/league"
+                || path == "/profile"
+                || path.starts_with("/character/")
+                || path.starts_with("/stash/") =>
         {
             // `/stash/{league}` is the list; `/stash/{league}/{id}[/{sub}]` is
             // one tab, under its own policy (N7).
@@ -342,6 +359,8 @@ async fn handle(
                 } else {
                     "/stash"
                 }
+            } else if path.starts_with("/character/") {
+                "/character/name"
             } else {
                 path
             };
@@ -414,6 +433,26 @@ async fn handle(
                 }
             } else if policy_key == "/stash" {
                 mock_stash_list(stash_parts[0])
+            } else if policy_key == "/character/name" {
+                let name = req.path.trim_start_matches("/character/");
+                json!({ "character": {
+                    "id": "fake0001", "name": name, "realm": "pc", "class": "Scion", "league": "Standard", "level": 97,
+                    "equipment": [
+                        { "id": format!("{name}-helm"), "name": "Starkonja's Head", "typeLine": "Silken Hood", "baseType": "Silken Hood",
+                          "w": 2, "h": 2, "x": 0, "y": 0, "inventoryId": "Helm", "league": "Standard", "frameType": 3, "identified": true,
+                          "socketedItems": [ { "id": format!("{name}-gem0"), "typeLine": "Determination", "baseType": "Determination", "socket": 0, "colour": "S", "frameType": 4 } ] },
+                    ],
+                    "inventory": mock_items(&format!("{name}-inv"), 4),
+                    "jewels": [],
+                }})
+            } else if req.path == "/profile" {
+                json!({ "uuid": "00000000-0000-4000-8000-000000000001", "name": "ExileTester", "realm": "pc",
+                        "guild": { "name": "Playground" }, "twitch": { "name": "exiletester" } })
+            } else if req.path == "/league" {
+                json!({ "leagues": [
+                    { "id": "Standard", "realm": "pc", "description": "The default game mode.", "category": { "id": "Standard" } },
+                    { "id": "Hardcore", "realm": "pc", "description": "A character killed in Hardcore is moved to Standard.", "category": { "id": "Standard" } },
+                ]})
             } else if req.path == "/character" {
                 json!({
                     "characters": [

@@ -10,10 +10,15 @@
 /// live testing is attributable to this spike, not to a shipped release.
 pub const USER_AGENT: &str = "acquisition/1.0.0-alpha.1 (contact: gerwaric@gmail.com)";
 
-/// Same scope set the C++ app requests; the characters call needs only
-/// `account:characters`, but granting identically keeps the registration story
-/// simple and lets the spike grow to stashes without a re-auth.
-pub const SCOPES: &[&str] = &["account:leagues", "account:stashes", "account:characters"];
+/// The C++ app's scope set plus `account:profile`, which the registration
+/// offers but the shipped app never requested (2026-08-29). A user of the
+/// spike consents to the four together at `acq auth`.
+pub const SCOPES: &[&str] = &[
+    "account:profile",
+    "account:leagues",
+    "account:stashes",
+    "account:characters",
+];
 
 /// The callback path registered for the "acquisition" client. The mock
 /// provider redirects wherever it's told, so both modes share it.

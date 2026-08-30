@@ -9,6 +9,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime};
 
+use acquisition_store::{Endpoint, Store};
 use anyhow::Result;
 use serde_json::{Value, json};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
@@ -229,6 +230,10 @@ pub struct Daemon {
     /// started with ACQ_GGG=1.
     provider: Provider,
     credential_store: Arc<dyn CredentialStore>,
+    /// The shared store (`acquisition-store`): every storable API response
+    /// is recorded here as it lands. The daemon never reads it. `None` in
+    /// tests and when the file could not be opened (reported at startup).
+    store: Option<Mutex<Store>>,
 }
 
 struct RefreshOwnerGuard<'a> {
@@ -313,6 +318,46 @@ impl Daemon {
         self.log(msg);
     }
 
+    /// Hand a successful API body to the shared store. The daemon's whole
+    /// involvement: endpoint + params + body; what is inside is the store's
+    /// business. A store failure is logged, never a job failure — the job's
+    /// payload still reaches the client that asked.
+    fn record(&self, kind: &str, params: &Value, body: &Value) {
+        let Some(store) = &self.store else { return };
+        let Some(endpoint) = Endpoint::from_job(kind, params) else {
+            return;
+        };
+        let result =
+            store
+                .lock()
+                .unwrap()
+                .record(&endpoint, params, 200, body, acquisition_store::now());
+        match result {
+            Ok(ingest) => self.log(&format!(
+                "store: {kind} {} -> response {} | {} items (+{} ~{} >{} -{})",
+                JobInfo {
+                    id: 0,
+                    kind: kind.into(),
+                    state: JobState::Done,
+                    priority: 0,
+                    submitted_by: String::new(),
+                    eta_seconds: None,
+                    parent: None,
+                    retries: 0,
+                    params: params.clone()
+                }
+                .target(),
+                ingest.response_id,
+                ingest.items,
+                ingest.added,
+                ingest.changed,
+                ingest.moved,
+                ingest.removed
+            )),
+            Err(e) => self.note_error(&format!("store: recording {kind} failed: {e:#}")),
+        }
+    }
+
     fn rails(&self) -> &Arc<Rails> {
         self.choke.rails()
     }
@@ -333,6 +378,15 @@ impl Daemon {
         let base = &self.provider.api_base;
         match kind {
             "characters" => Some(("character-list".into(), format!("{base}/character"))),
+            // One character with its inventory/equipment: its own policy.
+            "character" => {
+                let name = params.get("name").and_then(Value::as_str)?;
+                Some(("character".into(), format!("{base}/character/{name}")))
+            }
+            // The account's leagues (the OAuth `GET /league`, account:leagues).
+            "leagues" => Some(("league".into(), format!("{base}/league"))),
+            // The account profile (account:profile).
+            "profile" => Some(("profile".into(), format!("{base}/profile"))),
             "stashes" => {
                 let league = params
                     .get("league")
@@ -868,11 +922,35 @@ impl Daemon {
                 let url = format!("{}/character", self.provider.api_base);
                 let route = route.as_deref().expect("characters is a network kind");
                 let (v, rate) = self.api_get(route, &url, Some(&token), ready).await?;
+                self.record(kind, &params, &v);
                 Outcome::Success {
                     payload: json!({
                         "provider": self.provider.name,
                         "username": username,
                         "characters": v.get("characters").cloned().unwrap_or(v),
+                        "rate_limit": rate,
+                    }),
+                }
+            }
+            "character" | "leagues" | "profile" => {
+                let (token, username) = match self.valid_access_token(false).await {
+                    Ok(pair) => pair,
+                    Err(error) => return Ok(Outcome::Failure { error }),
+                };
+                let Some((_, url)) = self.route_for(kind, &params) else {
+                    return Ok(Outcome::Failure {
+                        error: format!("{kind} needs a name"),
+                    });
+                };
+                let route = route.as_deref().expect("network kind");
+                let (v, rate) = self.api_get(route, &url, Some(&token), ready).await?;
+                self.record(kind, &params, &v);
+                Outcome::Success {
+                    payload: json!({
+                        "provider": self.provider.name,
+                        "username": username,
+                        "params": params,
+                        "body": v,
                         "rate_limit": rate,
                     }),
                 }
@@ -892,6 +970,7 @@ impl Daemon {
                 let url = format!("{}/stash/{league}", self.provider.api_base);
                 let route = route.as_deref().expect("stashes is a network kind");
                 let (v, rate) = self.api_get(route, &url, Some(&token), ready).await?;
+                self.record(kind, &params, &v);
                 Outcome::Success {
                     payload: json!({
                         "provider": self.provider.name,
@@ -914,6 +993,7 @@ impl Daemon {
                 };
                 let route = route.as_deref().expect("stash is a network kind");
                 let (v, rate) = self.api_get(route, &url, Some(&token), ready).await?;
+                self.record(kind, &params, &v);
                 let stash = v.get("stash").cloned().unwrap_or(v);
                 // Map/unique tabs carry their substashes as stubs; following
                 // them is opt-in per tab (--deep) because one map tab can
@@ -984,6 +1064,9 @@ impl Daemon {
                 let url = format!("{}/stash/{league}", self.provider.api_base);
                 let route = route.as_deref().expect("refresh is a network kind");
                 let (v, rate) = self.api_get(route, &url, Some(&token), ready).await?;
+                // The list a refresh fetches is the same response `stashes`
+                // records; the store wants it under that endpoint.
+                self.record("stashes", &json!({ "league": params.get("league").cloned().unwrap_or(json!("Standard")) }), &v);
                 let listed = v
                     .get("stashes")
                     .and_then(Value::as_array)
@@ -1083,13 +1166,13 @@ impl Daemon {
                     }),
                 }
             }
-            "profile" => {
-                // The auth-required kind: exercises access-token expiry and
+            "whoami" => {
+                // The mock-only auth-exercising kind: access-token expiry and
                 // silent refresh through the daemon-owned session. Fake data,
                 // so in real mode it must not cost a token POST (L0 rail 6).
                 if self.provider.is_real() {
                     return Ok(Outcome::Failure {
-                        error: "profile is a mock-only job kind; not run against real GGG".into(),
+                        error: "whoami is a mock-only job kind; not run against real GGG".into(),
                     });
                 }
                 let (token, username) = match self.valid_access_token(false).await {
@@ -1174,7 +1257,7 @@ impl Daemon {
             }
             other => Outcome::Failure {
                 error: format!(
-                    "unknown job kind '{other}' (kinds: sleep, fetch, profile, characters, stashes, stash, refresh, probe)"
+                    "unknown job kind '{other}' (kinds: sleep, fetch, whoami, profile, characters, character, leagues, stashes, stash, refresh, probe)"
                 ),
             },
         })
@@ -1924,6 +2007,19 @@ pub async fn run() -> Result<()> {
         Err(e) => session.keyring = format!("unavailable: {e}"),
     }
 
+    let store_path = acquisition_store::default_path(provider.name);
+    let store = match Store::open(&store_path) {
+        Ok(store) => Some(Mutex::new(store)),
+        Err(e) => {
+            writeln!(
+                &log,
+                "STORE: could not open {}: {e:#}",
+                store_path.display()
+            )
+            .ok();
+            None
+        }
+    };
     let daemon = Arc::new(Daemon {
         shared: Mutex::new(Shared {
             jobs: HashMap::new(),
@@ -1941,6 +2037,7 @@ pub async fn run() -> Result<()> {
         choke,
         provider,
         credential_store: Arc::new(OsCredentialStore),
+        store,
     });
 
     daemon.log(&format!(
@@ -2179,6 +2276,7 @@ mod auth_session_tests {
             choke: ChokePoint::new(),
             provider: Provider::mock(base),
             credential_store: credential_store.clone(),
+            store: None,
         });
         (daemon, credential_store, log_path)
     }
@@ -3089,6 +3187,7 @@ mod dispatcher_tests {
             choke: ChokePoint::with_clock_and_rails(clock, rails),
             provider,
             credential_store,
+            store: None,
         });
         (daemon, log_path)
     }
@@ -3494,8 +3593,8 @@ mod dispatcher_tests {
             shared.auth.username = Some("old-user".into());
         }
         let dispatcher = tokio::spawn(daemon.clone().dispatcher());
-        let first = daemon.submit("profile".into(), json!({}), 0, "test".into());
-        let second = daemon.submit("profile".into(), json!({}), 0, "test".into());
+        let first = daemon.submit("whoami".into(), json!({}), 0, "test".into());
+        let second = daemon.submit("whoami".into(), json!({}), 0, "test".into());
 
         arrived.await.unwrap();
         tokio::time::timeout(Duration::from_secs(1), async {
@@ -4386,17 +4485,17 @@ mod dispatcher_tests {
     }
 
     #[tokio::test]
-    async fn profile_is_refused_in_real_mode_without_a_token_request() {
+    async fn whoami_is_refused_in_real_mode_without_a_token_request() {
         // Real provider, but no session: even if the refusal were missing
         // the job could not send. The assertion is on the refusal message.
         let clock = Arc::new(ManualClock::new());
         let (daemon, log_path) = test_daemon_with(Provider::ggg(), clock, RailsConfig::default());
         let outcome = daemon
-            .execute_inner(1, "profile", json!({}), None, daemon.choke.now())
+            .execute_inner(1, "whoami", json!({}), None, daemon.choke.now())
             .await
             .unwrap();
         let Outcome::Failure { error } = outcome else {
-            panic!("profile ran in real mode")
+            panic!("whoami ran in real mode")
         };
         assert!(error.contains("mock-only"), "{error}");
         assert!(daemon.choke.recent_sends().is_empty());

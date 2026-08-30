@@ -29,9 +29,9 @@ Quality gate, kept green by every change (`NETWORK-CLEANUP.md`):
 `git diff --check`.
 
 Working against the mock daemon in a session: use `ACQ_SOCKET=<short
-path>` and `ACQ_NO_KEYRING=1` to stay isolated, `ACQ_SNAPSHOTS=<scratch>`
-so `acq pull` does not write under `~/.local/share`, and `acq daemon stop`
-when done. A scripted mock login is `acq auth --no-browser` in the
+path>` and `ACQ_NO_KEYRING=1` to stay isolated, `ACQ_STORE_DIR=<scratch>`
+so the shared store does not land under `~/.local/share`, and `acq daemon
+stop` when done. A scripted mock login is `acq auth --no-browser` in the
 background, then `curl` the printed URL with `/authorize?` replaced by
 `/approve?`. macOS has no `timeout`; long holds (up to 300 s + 60 s) are
 the limiter working, not a hang.

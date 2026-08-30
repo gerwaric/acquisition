@@ -77,6 +77,7 @@ impl JobInfo {
                 _ => String::new(),
             },
             "stashes" => s("league").unwrap_or("").to_string(),
+            "character" => s("name").unwrap_or("").to_string(),
             "refresh" => {
                 let l = s("league").unwrap_or("");
                 if p.get("all").and_then(Value::as_bool).unwrap_or(false) {

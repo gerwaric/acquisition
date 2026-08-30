@@ -1,0 +1,279 @@
+//! Frontend-side reads of the shared store: no daemon round-trip. The CLI
+//! opens the same SQLite file the daemon writes; WAL makes that safe.
+
+use std::path::Path;
+
+use acquisition_core::provider::ggg_mode;
+use acquisition_store::{Endpoint, Store};
+use anyhow::{Context, Result, bail};
+use serde_json::{Value, json};
+
+pub fn open() -> Result<Store> {
+    let provider = if ggg_mode() { "ggg" } else { "mock" };
+    Store::open(&acquisition_store::default_path(provider))
+}
+
+fn ago(now: i64, t: Option<i64>) -> String {
+    match t {
+        None => "never".into(),
+        Some(t) => {
+            let d = (now - t).max(0);
+            if d < 90 {
+                format!("{d}s ago")
+            } else if d < 5400 {
+                format!("{}m ago", d / 60)
+            } else if d < 172_800 {
+                format!("{}h ago", d / 3600)
+            } else {
+                format!("{}d ago", d / 86400)
+            }
+        }
+    }
+}
+
+pub fn tabs(league: &str, json: bool) -> Result<()> {
+    let store = open()?;
+    let tabs = store.tabs(league)?;
+    if json {
+        println!("{}", serde_json::to_string_pretty(&tabs)?);
+        return Ok(());
+    }
+    if tabs.is_empty() {
+        println!(
+            "no tabs known for {league} in {} (run `acq stashes` or `acq refresh --all`)",
+            store.path().display()
+        );
+        return Ok(());
+    }
+    let now = acquisition_store::now();
+    println!(
+        "{:<12} {:<28} {:<14} {:>6}  {:<12} parent",
+        "id", "name", "type", "items", "fetched"
+    );
+    for t in &tabs {
+        let name = if t.name.is_empty() {
+            "(unnamed)".to_string()
+        } else {
+            t.name.clone()
+        };
+        let indent = if t.parent.is_some() { "  " } else { "" };
+        println!(
+            "{:<12} {:<28} {:<14} {:>6}  {:<12} {}",
+            t.id,
+            format!("{indent}{name}")
+                .chars()
+                .take(28)
+                .collect::<String>(),
+            t.r#type,
+            t.item_count,
+            ago(now, t.fetched_at),
+            t.parent.as_deref().unwrap_or("")
+        );
+    }
+    println!(
+        "{} tabs, {} items",
+        tabs.len(),
+        tabs.iter().map(|t| t.item_count).sum::<i64>()
+    );
+    Ok(())
+}
+
+pub fn search(
+    text: &str,
+    league: Option<&str>,
+    removed: bool,
+    limit: usize,
+    json: bool,
+) -> Result<()> {
+    let store = open()?;
+    let items = store.search(text, league, removed, limit)?;
+    if json {
+        println!("{}", serde_json::to_string_pretty(&items)?);
+        return Ok(());
+    }
+    for i in &items {
+        let label = if i.name.is_empty() {
+            i.type_line.clone()
+        } else {
+            format!("{} {}", i.name, i.type_line)
+        };
+        let stack = i.stack_size.map(|n| format!(" x{n}")).unwrap_or_default();
+        let gone = if i.removed_at.is_some() {
+            "  [removed]"
+        } else {
+            ""
+        };
+        let socket = i
+            .socketed_in
+            .as_deref()
+            .map(|p| format!(" (in {})", &p[..p.len().min(8)]))
+            .unwrap_or_default();
+        println!(
+            "{:<10} {:<8} {:<12} {label}{stack}{socket}{gone}",
+            &i.id[..i.id.len().min(10)],
+            i.location_kind,
+            i.location_id
+        );
+    }
+    println!(
+        "{} item(s){}",
+        items.len(),
+        if items.len() == limit {
+            " (limit reached)"
+        } else {
+            ""
+        }
+    );
+    Ok(())
+}
+
+pub fn show(id: &str, json: bool) -> Result<()> {
+    let store = open()?;
+    let Some(item) = store.item(id)? else {
+        bail!("no item {id}")
+    };
+    if json {
+        println!("{}", serde_json::to_string_pretty(&item)?);
+    } else {
+        println!(
+            "{}/{}{}  first seen {}  last seen {}{}",
+            item.location_kind,
+            item.location_id,
+            item.socketed_in
+                .as_deref()
+                .map(|p| format!(" socketed in {p}"))
+                .unwrap_or_default(),
+            item.first_seen,
+            item.last_seen,
+            item.removed_at
+                .map(|t| format!("  removed {t}"))
+                .unwrap_or_default()
+        );
+        println!("{}", serde_json::to_string_pretty(&item.json)?);
+    }
+    Ok(())
+}
+
+pub fn status(json: bool) -> Result<()> {
+    let store = open()?;
+    let st = store.status()?;
+    if json {
+        println!("{}", serde_json::to_string_pretty(&st)?);
+    } else {
+        println!("{}  ({:.1} MB)", st.path, st.bytes as f64 / 1e6);
+        println!(
+            "responses {}  leagues {}  characters {}  tabs {}  items {} (+{} removed)  events {}",
+            st.responses, st.leagues, st.characters, st.tabs, st.items, st.items_removed, st.events
+        );
+    }
+    Ok(())
+}
+
+pub fn events(since_hours: f64, limit: usize, json: bool) -> Result<()> {
+    let store = open()?;
+    let since = acquisition_store::now() - (since_hours * 3600.0) as i64;
+    let ev = store.events_since(since, limit)?;
+    if json {
+        println!("{}", serde_json::to_string_pretty(&ev)?);
+        return Ok(());
+    }
+    for e in &ev {
+        let label = match (&e.name, &e.type_line) {
+            (Some(n), Some(t)) if !n.is_empty() => format!("{n} {t}"),
+            (_, Some(t)) => t.clone(),
+            _ => "?".into(),
+        };
+        let loc = match e.kind.as_str() {
+            "moved" => format!(
+                "{} -> {}",
+                e.from_location.as_deref().unwrap_or("?"),
+                e.to_location.as_deref().unwrap_or("?")
+            ),
+            "removed" => format!("from {}", e.from_location.as_deref().unwrap_or("?")),
+            _ => format!("at {}", e.to_location.as_deref().unwrap_or("?")),
+        };
+        println!(
+            "{} {:<8} {:<40} {loc}",
+            e.at,
+            e.kind,
+            label.chars().take(40).collect::<String>()
+        );
+    }
+    println!("{} event(s)", ev.len());
+    Ok(())
+}
+
+pub fn rebuild(json: bool) -> Result<()> {
+    let mut store = open()?;
+    let n = store.rebuild()?;
+    if json {
+        println!("{}", json!({ "reextracted": n }));
+    } else {
+        println!("re-extracted columns for {n} items");
+    }
+    Ok(())
+}
+
+/// Replay a snapshot from the retired `acq pull` (its format: `{league,
+/// taken_at_unix, tabs: {id: {name, type, items: {id: item}}}}`) into the
+/// store as if each tab had just been fetched: real-shape data, zero GGG
+/// traffic. Those snapshots lost tab metadata and parents, so tabs land
+/// flat. Kept as the real-data fixture path.
+pub fn import(path: &Path, json: bool) -> Result<()> {
+    let text =
+        std::fs::read_to_string(path).with_context(|| format!("reading {}", path.display()))?;
+    let snap: Value = serde_json::from_str(&text)?;
+    let league = snap
+        .get("league")
+        .and_then(Value::as_str)
+        .unwrap_or("Standard")
+        .to_string();
+    let at = snap
+        .get("taken_at_unix")
+        .and_then(Value::as_i64)
+        .unwrap_or_else(acquisition_store::now);
+    let Some(tabs) = snap.get("tabs").and_then(Value::as_object) else {
+        bail!("not a pull snapshot: no `tabs`")
+    };
+    let mut store = open()?;
+    let started = std::time::Instant::now();
+    let mut total = acquisition_store::Ingest::default();
+    for (id, tab) in tabs {
+        let items: Vec<Value> = match tab.get("items") {
+            Some(Value::Object(m)) => m.values().cloned().collect(),
+            Some(Value::Array(a)) => a.clone(),
+            _ => Vec::new(),
+        };
+        let body = json!({ "stash": { "id": id, "name": tab.get("name"), "type": tab.get("type"), "items": items } });
+        let ep = Endpoint::Stash {
+            league: league.clone(),
+            id: id.clone(),
+            sub: None,
+        };
+        let ing = store.record(&ep, &json!({ "league": league, "id": id }), 200, &body, at)?;
+        total.items += ing.items;
+        total.added += ing.added;
+        total.moved += ing.moved;
+        total.changed += ing.changed;
+        total.removed += ing.removed;
+    }
+    let elapsed = started.elapsed();
+    if json {
+        println!(
+            "{}",
+            json!({ "tabs": tabs.len(), "ingest": total, "seconds": elapsed.as_secs_f64() })
+        );
+    } else {
+        println!(
+            "imported {} tabs, {} items (+{} added, ~{} changed, >{} moved, -{} removed) in {:.2}s",
+            tabs.len(),
+            total.items,
+            total.added,
+            total.changed,
+            total.moved,
+            total.removed,
+            elapsed.as_secs_f64()
+        );
+    }
+    Ok(())
+}
