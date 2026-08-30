@@ -150,45 +150,38 @@ async fn token_request(
 // in-memory-only sessions (still never plaintext on disk). The service name
 // comes from the provider, so mock and real sessions can never cross.
 
-const KEYRING_USER: &str = "oauth";
+// One keyring entry per account: the entry's user is the GGG username
+// (`name#discriminator`), so two accounts on one provider never share a
+// secret. The account index (`acquisition_store::Index`) is how a daemon
+// knows which entries exist — the keyring cannot enumerate.
 
 // Ad-hoc code signatures change on rebuild; if macOS ever prompts on reads of
 // items created by an older build, the fix is signing the binary consistently.
-fn entry(service: &str) -> Result<keyring::Entry, String> {
+fn entry(service: &str, username: &str) -> Result<keyring::Entry, String> {
     if std::env::var_os("ACQ_NO_KEYRING").is_some() {
         return Err("disabled by ACQ_NO_KEYRING".into());
     }
-    keyring::Entry::new(service, KEYRING_USER).map_err(|e| e.to_string())
+    keyring::Entry::new(service, username).map_err(|e| e.to_string())
 }
 
 pub fn keyring_save(service: &str, refresh_token: &str, username: &str) -> Result<(), String> {
-    let secret = serde_json::json!({
-        "refresh_token": refresh_token,
-        "username": username,
-    });
-    entry(service)?
-        .set_password(&secret.to_string())
+    entry(service, username)?
+        .set_password(refresh_token)
         .map_err(|e| e.to_string())
 }
 
-/// Ok(None) means the keyring works but holds no session.
-pub fn keyring_load(service: &str) -> Result<Option<(String, String)>, String> {
-    match entry(service)?.get_password() {
-        Ok(secret) => {
-            let v: serde_json::Value =
-                serde_json::from_str(&secret).map_err(|e| format!("corrupt secret: {e}"))?;
-            match (v["refresh_token"].as_str(), v["username"].as_str()) {
-                (Some(rt), Some(user)) => Ok(Some((rt.to_string(), user.to_string()))),
-                _ => Err("corrupt secret: missing fields".into()),
-            }
-        }
+/// The stored refresh token for one account; Ok(None) means the keyring
+/// works but holds no entry for it.
+pub fn keyring_load(service: &str, username: &str) -> Result<Option<String>, String> {
+    match entry(service, username)?.get_password() {
+        Ok(secret) => Ok(Some(secret)),
         Err(keyring::Error::NoEntry) => Ok(None),
         Err(e) => Err(e.to_string()),
     }
 }
 
-pub fn keyring_clear(service: &str) -> Result<(), String> {
-    match entry(service)?.delete_credential() {
+pub fn keyring_clear(service: &str, username: &str) -> Result<(), String> {
+    match entry(service, username)?.delete_credential() {
         Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
         Err(e) => Err(e.to_string()),
     }

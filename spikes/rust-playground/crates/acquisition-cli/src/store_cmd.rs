@@ -3,14 +3,76 @@
 
 use std::path::Path;
 
+use std::path::PathBuf;
+
 use acquisition_core::provider::ggg_mode;
-use acquisition_store::{Endpoint, Store};
+use acquisition_store::{AccountEntry, Endpoint, Index, Store, account_path, store_dir};
 use anyhow::{Context, Result, bail};
 use serde_json::{Value, json};
 
+fn provider() -> &'static str {
+    if ggg_mode() { "ggg" } else { "mock" }
+}
+
+/// Which account's store: `ACQ_ACCOUNT` (exact username, name without
+/// discriminator, or uuid), else the sole known account. Resolved against
+/// the index file, so no daemon is involved.
+fn resolve() -> Result<(PathBuf, AccountEntry)> {
+    let dir = store_dir(provider());
+    let index = Index::load(&dir)?;
+    let selector = std::env::var("ACQ_ACCOUNT").ok();
+    let entry = index
+        .resolve(selector.as_deref())
+        .map_err(anyhow::Error::from)?
+        .clone();
+    Ok((dir, entry))
+}
+
 pub fn open() -> Result<Store> {
-    let provider = if ggg_mode() { "ggg" } else { "mock" };
-    Store::open(&acquisition_store::default_path(provider))
+    let (dir, entry) = resolve()?;
+    Store::open(&account_path(&dir, &entry.username))
+}
+
+/// Every account the index knows, with its store file.
+pub fn accounts(json: bool) -> Result<()> {
+    let dir = store_dir(provider());
+    let index = Index::load(&dir)?;
+    if json {
+        let rows: Vec<Value> = index
+            .entries()
+            .iter()
+            .map(|e| json!({ "username": e.username, "last_login": e.last_login, "persisted": e.persisted,
+                             "uuid": e.uuid, "store": account_path(&dir, &e.username) }))
+            .collect();
+        println!("{}", serde_json::to_string_pretty(&rows)?);
+        return Ok(());
+    }
+    if index.entries().is_empty() {
+        println!("no accounts known for {} (run `acq auth`)", provider());
+        return Ok(());
+    }
+    let now = acquisition_store::now();
+    for e in index.entries() {
+        let size = std::fs::metadata(account_path(&dir, &e.username))
+            .map(|m| m.len())
+            .unwrap_or(0);
+        println!(
+            "{:<24} last login {:<10} {:<14} store {:.1} MB{}",
+            e.username,
+            ago(now, Some(e.last_login)),
+            if e.persisted {
+                "in keyring"
+            } else {
+                "not persisted"
+            },
+            size as f64 / 1e6,
+            e.uuid
+                .as_deref()
+                .map(|u| format!("  uuid {u}"))
+                .unwrap_or_default()
+        );
+    }
+    Ok(())
 }
 
 fn ago(now: i64, t: Option<i64>) -> String {

@@ -9,7 +9,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime};
 
-use acquisition_store::{Endpoint, Store};
+use acquisition_store::{Endpoint, Index, Store, account_path, store_dir};
 use anyhow::Result;
 use serde_json::{Value, json};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
@@ -230,10 +230,13 @@ pub struct Daemon {
     /// started with ACQ_GGG=1.
     provider: Provider,
     credential_store: Arc<dyn CredentialStore>,
-    /// The shared store (`acquisition-store`): every storable API response
-    /// is recorded here as it lands. The daemon never reads it. `None` in
-    /// tests and when the file could not be opened (reported at startup).
-    store: Option<Mutex<Store>>,
+    /// The provider's store directory (`acquisition-store`): one file per
+    /// account plus the account index. `None` in tests: nothing recorded.
+    store_dir: Option<PathBuf>,
+    /// The open store for the current session's account, opened on first
+    /// record and reopened when the session's username changes. The daemon
+    /// only ever writes it.
+    store: Mutex<Option<(String, Store)>>,
 }
 
 struct RefreshOwnerGuard<'a> {
@@ -278,7 +281,7 @@ impl Drop for RefreshOwnerGuard<'_> {
 
 trait CredentialStore: Send + Sync {
     fn save(&self, service: &str, refresh_token: &str, username: &str) -> Result<(), String>;
-    fn clear(&self, service: &str) -> Result<(), String>;
+    fn clear(&self, service: &str, username: &str) -> Result<(), String>;
 }
 
 struct OsCredentialStore;
@@ -288,8 +291,8 @@ impl CredentialStore for OsCredentialStore {
         auth::keyring_save(service, refresh_token, username)
     }
 
-    fn clear(&self, service: &str) -> Result<(), String> {
-        auth::keyring_clear(service)
+    fn clear(&self, service: &str, username: &str) -> Result<(), String> {
+        auth::keyring_clear(service, username)
     }
 }
 
@@ -318,20 +321,50 @@ impl Daemon {
         self.log(msg);
     }
 
+    /// Apply one change to the account index, logging (never failing) on
+    /// error. No-op in tests (no store directory).
+    fn with_index(&self, f: impl FnOnce(&mut Index) -> anyhow::Result<()>) {
+        let Some(dir) = &self.store_dir else { return };
+        let result = Index::load(dir).and_then(|mut index| f(&mut index));
+        if let Err(e) = result {
+            self.note_error(&format!("accounts index: {e:#}"));
+        }
+    }
+
     /// Hand a successful API body to the shared store. The daemon's whole
     /// involvement: endpoint + params + body; what is inside is the store's
     /// business. A store failure is logged, never a job failure — the job's
     /// payload still reaches the client that asked.
     fn record(&self, kind: &str, params: &Value, body: &Value) {
-        let Some(store) = &self.store else { return };
+        let Some(dir) = &self.store_dir else { return };
         let Some(endpoint) = Endpoint::from_job(kind, params) else {
             return;
         };
-        let result =
-            store
-                .lock()
-                .unwrap()
-                .record(&endpoint, params, 200, body, acquisition_store::now());
+        // The store is the session's account's file, opened on first use;
+        // a re-login as another account switches files.
+        let username = self.shared.lock().unwrap().auth.username.clone();
+        let Some(username) = username else {
+            self.note_error(&format!(
+                "store: {kind} landed with no session username; not recorded"
+            ));
+            return;
+        };
+        let mut guard = self.store.lock().unwrap();
+        if guard.as_ref().is_none_or(|(u, _)| *u != username) {
+            let path = account_path(dir, &username);
+            match Store::open(&path) {
+                Ok(store) => {
+                    self.log(&format!("store: {} opened for {username}", path.display()));
+                    *guard = Some((username.clone(), store));
+                }
+                Err(e) => {
+                    self.note_error(&format!("store: could not open {}: {e:#}", path.display()));
+                    return;
+                }
+            }
+        }
+        let (_, store) = guard.as_mut().expect("store opened above");
+        let result = store.record(&endpoint, params, 200, body, acquisition_store::now());
         match result {
             Ok(ingest) => self.log(&format!(
                 "store: {kind} {} -> response {} | {} items (+{} ~{} >{} -{})",
@@ -1430,6 +1463,15 @@ impl Daemon {
                 (format!("unavailable: {e}"), Some(warning))
             }
         };
+        // The account index lists this login either way; `persisted` says
+        // whether a restart will find it in the keyring.
+        self.with_index(|index| {
+            index.upsert(
+                &tokens.username,
+                warning.is_none(),
+                acquisition_store::now(),
+            )
+        });
         session.access_token = Some(tokens.access_token);
         session.access_expires_at =
             Some(self.choke.wall() + Duration::from_secs(tokens.expires_in));
@@ -1593,7 +1635,16 @@ impl Daemon {
             generations.session = generations.session.wrapping_add(1);
             generations.access_token = generations.access_token.wrapping_add(1);
             generations.refresh_token = generations.refresh_token.wrapping_add(1);
-            let clear = self.credential_store.clear(self.provider.keyring_service);
+            let username = s.auth.username.clone();
+            let clear = match &username {
+                Some(username) => self
+                    .credential_store
+                    .clear(self.provider.keyring_service, username),
+                None => Ok(()),
+            };
+            if let Some(username) = &username {
+                self.with_index(|index| index.set_persisted(username, false));
+            }
             let next_refresh_flight = s.auth.next_refresh_flight;
             s.auth = AuthSession {
                 keyring,
@@ -1994,32 +2045,49 @@ pub async fn run() -> Result<()> {
     ));
     let choke = ChokePoint::with_clock_and_rails(clock, rails);
 
-    // A session in the keyring survives daemon restarts; the first
-    // auth-required job will refresh its way to a live access token.
-    let mut session = AuthSession::default();
-    match auth::keyring_load(provider.keyring_service) {
-        Ok(Some((refresh_token, username))) => {
-            session.refresh_token = Some(refresh_token);
-            session.username = Some(username);
-            session.keyring = "ok".into();
+    // Sessions survive daemon restarts through the keyring, one entry per
+    // account; the account index says which entries to look for. One live
+    // session for now (the most recent login); the others stay in the
+    // keyring untouched. One unreadable entry never blocks the rest.
+    let dir = store_dir(provider.name);
+    let mut session = AuthSession {
+        keyring: "ok".into(),
+        ..AuthSession::default()
+    };
+    match Index::load(&dir) {
+        Ok(index) => {
+            for entry in index.persisted() {
+                match auth::keyring_load(provider.keyring_service, &entry.username) {
+                    Ok(Some(refresh_token)) if session.refresh_token.is_none() => {
+                        session.refresh_token = Some(refresh_token);
+                        session.username = Some(entry.username.clone());
+                    }
+                    Ok(Some(_)) => {}
+                    Ok(None) => {
+                        writeln!(
+                            &log,
+                            "ACCOUNTS: index lists {} as persisted but the keyring has no entry",
+                            entry.username
+                        )
+                        .ok();
+                    }
+                    Err(e) => {
+                        session.keyring = format!("unavailable: {e}");
+                        writeln!(
+                            &log,
+                            "ACCOUNTS: keyring read for {} failed: {e}",
+                            entry.username
+                        )
+                        .ok();
+                    }
+                }
+            }
         }
-        Ok(None) => session.keyring = "ok".into(),
-        Err(e) => session.keyring = format!("unavailable: {e}"),
+        Err(e) => {
+            writeln!(&log, "ACCOUNTS: could not read {}: {e:#}", dir.display()).ok();
+        }
     }
 
-    let store_path = acquisition_store::default_path(provider.name);
-    let store = match Store::open(&store_path) {
-        Ok(store) => Some(Mutex::new(store)),
-        Err(e) => {
-            writeln!(
-                &log,
-                "STORE: could not open {}: {e:#}",
-                store_path.display()
-            )
-            .ok();
-            None
-        }
-    };
     let daemon = Arc::new(Daemon {
         shared: Mutex::new(Shared {
             jobs: HashMap::new(),
@@ -2037,7 +2105,8 @@ pub async fn run() -> Result<()> {
         choke,
         provider,
         credential_store: Arc::new(OsCredentialStore),
-        store,
+        store_dir: Some(dir),
+        store: Mutex::new(None),
     });
 
     daemon.log(&format!(
@@ -2105,7 +2174,7 @@ mod auth_session_tests {
             Ok(())
         }
 
-        fn clear(&self, _service: &str) -> Result<(), String> {
+        fn clear(&self, _service: &str, _username: &str) -> Result<(), String> {
             self.cleared.store(true, Ordering::SeqCst);
             Ok(())
         }
@@ -2276,7 +2345,8 @@ mod auth_session_tests {
             choke: ChokePoint::new(),
             provider: Provider::mock(base),
             credential_store: credential_store.clone(),
-            store: None,
+            store_dir: None,
+            store: Mutex::new(None),
         });
         (daemon, credential_store, log_path)
     }
@@ -2927,7 +2997,7 @@ mod dispatcher_tests {
             Ok(())
         }
 
-        fn clear(&self, _service: &str) -> Result<(), String> {
+        fn clear(&self, _service: &str, _username: &str) -> Result<(), String> {
             Ok(())
         }
     }
@@ -2947,7 +3017,7 @@ mod dispatcher_tests {
             Ok(())
         }
 
-        fn clear(&self, _service: &str) -> Result<(), String> {
+        fn clear(&self, _service: &str, _username: &str) -> Result<(), String> {
             Ok(())
         }
     }
@@ -3187,7 +3257,8 @@ mod dispatcher_tests {
             choke: ChokePoint::with_clock_and_rails(clock, rails),
             provider,
             credential_store,
-            store: None,
+            store_dir: None,
+            store: Mutex::new(None),
         });
         (daemon, log_path)
     }

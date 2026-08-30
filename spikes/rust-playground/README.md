@@ -56,9 +56,14 @@ bounded by `MAX_429_RETRIES`; a Cloudflare-shaped 403/503 is never retried.
   (priority queue + dispatcher + Unix-socket server + idle watchdog). The
   gate and dispatcher properties are CONTEXT.md decisions, not restated here.
 - `crates/acquisition-store` — the shared store (SQLite, one file per
-  provider): the daemon records every storable API response through one
-  call, `Store::record(endpoint, params, status, body)`, and every frontend
-  reads the file directly. Bodies are kept verbatim except at the item
+  **account** under one directory per provider, named by the GGG username
+  the token response reports): the daemon records every storable API
+  response through one call, `Store::record(endpoint, params, status,
+  body)`, and every frontend reads the file directly. `accounts.json` next
+  to the files is the non-secret account index: written at login/logout,
+  read by frontends to resolve `ACQ_ACCOUNT` without a daemon, and read by
+  the daemon at start to know which keyring entries (one per account) to
+  load. Bodies are kept verbatim except at the item
   seams: each item array (tab `items`, character `inventory`/`equipment`/
   `jewels`/`rucksack`, and every `socketedItems`) is lifted into `items`,
   one row per GGG item id, so `items` is the only place to look for an
@@ -94,6 +99,7 @@ acq leagues                                  # GET /league (account:leagues)
 acq stash <id> [--sub <id>] [--deep]         # one tab; --deep follows a map/unique tab's substashes as child jobs
 acq refresh --tabs a,b,c | --all [--deep]    # list, then one `stash` child per tab; parent finishes last
 acq cancel <parent-id>                       # cascades to every descendant still waiting
+acq accounts                                 # accounts this machine has logged into, from the store's index (no daemon)
 acq tabs [--league L]                        # from the shared store: tab tree with live item counts (no daemon)
 acq items search <text> [--removed]          # substring search over name/type/base; socketed gems are rows too
 acq items show <id>                          # one item, verbatim
@@ -151,8 +157,12 @@ it short (Unix socket paths cap out around 104 bytes). `ACQ_NO_KEYRING=1`
 degrades sessions to in-memory only (never plaintext on disk). Mock access
 tokens live 60 seconds, so silent refresh is exercised constantly.
 `ACQ_IDLE_SHUTDOWN=<secs>` overrides the idle exit. `ACQ_STORE_DIR=<dir>`
-relocates the shared store (`<dir>/<provider>.db`; default
-`~/.local/share/acquisition-playground/store`). `ACQ_NO_SPAWN=1` makes
+relocates the shared store (`<dir>/<provider>/<account>.db` plus
+`accounts.json`; default `~/.local/share/acquisition-playground/store`).
+`ACQ_ACCOUNT=<username|name|uuid>` picks which account's store the reads
+(`accounts`, `tabs`, `items`, `store`) open; with one known account it is
+implicit, with several the reads refuse and list them (`--account` comes
+with the multi-account build, `CONTEXT.md`). `ACQ_NO_SPAWN=1` makes
 the CLI refuse to start or replace a daemon — for cron and other
 non-interactive callers, which on macOS would spawn a daemon with no
 keychain access and therefore no session.

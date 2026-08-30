@@ -1,5 +1,7 @@
-//! The shared store: one SQLite file per provider, written by the daemon as
-//! API responses land and read directly by every frontend (CLI, GUI, MCP).
+//! The shared store: one SQLite file per account (under one directory per
+//! provider), written by the daemon as API responses land and read directly
+//! by every frontend (CLI, GUI, MCP). `index` is the non-secret list of
+//! accounts that names those files.
 //!
 //! The daemon's whole contract is [`Store::record`]: endpoint, params, status,
 //! body. It never looks inside a body. Inside this crate, a body is kept
@@ -152,19 +154,8 @@ pub struct Status {
     pub events: i64,
 }
 
-/// `$ACQ_STORE_DIR/<provider>.db`, else
-/// `~/.local/share/acquisition-playground/store/<provider>.db`. One file per
-/// provider so mock data never mixes with real.
-pub fn default_path(provider: &str) -> PathBuf {
-    let dir = match std::env::var_os("ACQ_STORE_DIR") {
-        Some(d) => PathBuf::from(d),
-        None => std::env::var_os("HOME")
-            .map(PathBuf::from)
-            .unwrap_or_default()
-            .join(".local/share/acquisition-playground/store"),
-    };
-    dir.join(format!("{provider}.db"))
-}
+pub mod index;
+pub use index::{AccountEntry, Index, Resolve, account_path, index_path, store_dir};
 
 pub fn now() -> i64 {
     SystemTime::now()

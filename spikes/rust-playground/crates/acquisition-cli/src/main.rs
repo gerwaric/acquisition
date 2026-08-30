@@ -49,6 +49,8 @@ enum Cmd {
     Character { name: String },
     /// List the account's leagues.
     Leagues,
+    /// Accounts this machine has logged into (the store's index; no daemon).
+    Accounts,
     /// Tabs of a league, from the shared store (no daemon round-trip).
     Tabs {
         #[arg(long, default_value = "Standard")]
@@ -244,6 +246,7 @@ async fn main() -> Result<()> {
             let id = submit(&mut client, "leagues".into(), json!({}), 0).await?;
             block_on_job(&mut client, id, cli.json).await
         }
+        Cmd::Accounts => store_cmd::accounts(cli.json),
         Cmd::Tabs { league } => store_cmd::tabs(&league, cli.json),
         Cmd::Items { cmd } => match cmd {
             ItemsCmd::Search {
