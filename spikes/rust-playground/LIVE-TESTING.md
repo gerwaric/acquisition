@@ -52,9 +52,9 @@ Replaces the preconditions and the "new hypothesis first" requirement.
   (rung 8 ran 34 h on a binary that predated the fix it was restarted to
   pick up).
 
-Endpoints real but unsampled as of 2026-08-30: `GET /character/{name}`
-(job kind `character`, added in `fa74c5ef`). `leagues` was sampled the
-same day (run ledger; it was routed to `/league` until then).
+Every job kind has had first contact as of 2026-08-30 (run ledger:
+`profile`, `leagues`, `character`; `leagues` was routed to `/league` until
+that day). A new kind gets the same treatment under this rule.
 Each gets first contact under this rule — step (7) of the multi-account
 build order in `CONTEXT.md`. `GET /profile` was sampled 2026-08-30 (run
 ledger): it answers 200 **without rate-limit headers** and 403 to HEAD,
@@ -184,6 +184,8 @@ One row per rung execution. Journal files are copied to
 | 2026-08-30 | first contact: `leagues` | `7a61c554` | **halted by tripwire at send 2 — our route was wrong** | 1/1/0 | 0 × 429; **1 × 403 on HEAD** | pid 97497. Refresh POST 200; **HEAD `/league` 403** with `www-authenticate: Bearer realm="pathofexile:production", error="insufficient_scope"` (via Cloudflare, `cf-ray a33505ad2f663aa8-DFW`, JSON content-type) — the header snapshot added after the `/profile` 403 classified it in one send. `/league` is the public league list and needs `service:leagues`; the account's leagues are `GET /account/leagues[/{realm}]` under `account:leagues`. Route fixed the same day; the tripwire cause now names an auth error when `WWW-Authenticate` is present. Not a rate-limit finding. |
 
 | 2026-08-30 | first contact: `leagues` (rerun, `/account/leagues`) | `5cee50a5` | **pass**, with a new fact | 1/1/1 | 0 | pid 98647, after `reset-tripwire` on the persisted mark. Refresh POST 200. **HEAD `/account/leagues` answered 200 (not 204) and was counted**: state `1:10:0,1:60:0` straight after it, then the GET `2:10:0,2:60:0` — N24's uncounted HEAD is per endpoint, not a property of the API. Policy **`league-request-limit`, `Account`, `5:10:60,10:60:300`** (the mock had guessed `2:10:60,5:300:300`; corrected). No pacing error — headers are post-increment and trusted — but the probe costs what the GET costs, so `league` is now a no-probe route. Ground truth for master: the policy shape, and "HEAD counts on `/account/leagues`". |
+
+| 2026-08-30 | first contact: `character <name>` | `9de33eec` | **pass** | 1/1/1 | 0 | pid 4900. Refresh POST 200; **HEAD `/character/{name}` 204, uncounted** (`0:10:0,0:300:0` after it — the N24 pattern, unlike `/account/leagues`); GET 200 `1:10:0,1:300:0`. Policy **`character-request-limit`, `Account`, `5:10:60,30:300:300`** — matches the C++ capture in ground truth exactly; 180 ms end to end. The "real but unsampled" list is now empty. |
 
 ### Re-soak postmortem (2026-08-27)
 
@@ -333,8 +335,9 @@ is `league-request-limit 5:10:60,10:60:300` and counts its HEAD; `/league`
 needs `service:leagues` (our route was wrong, fixed). The daemon carries
 both endpoint facts as declared route knowledge; the owner has asked GGG
 whether the two endpoints can be normalised (headers on `/profile`, free
-HEAD on both), which would delete those declarations. Pending:
-`/character/{name}`, and GGG's answer.
+HEAD on both), which would delete those declarations. `/character/{name}`
+(same day) is the ordinary pattern: free HEAD, full policy, the C++
+capture's shape. Pending: GGG's answer.
 
 The frontier is the frontend boundary and the multi-account build
 (`CONTEXT.md`).

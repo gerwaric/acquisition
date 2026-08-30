@@ -161,8 +161,9 @@ fn policy_template(path_key: &str) -> Option<MockPolicy> {
         "/stash" => MockPolicy::new("stash-list-request-limit", &[(10, 15, 60), (30, 60, 300)]),
         "/stash/tab" => MockPolicy::new("stash-request-limit", &[(15, 10, 60), (30, 300, 300)]),
         "/fetch" => MockPolicy::new("mock-fetch-request-limit", &[(5, 10, 60), (30, 300, 300)]),
+        // Real shape, confirmed by first contact 2026-08-30.
         "/character/name" => {
-            MockPolicy::new("character-request-limit", &[(5, 10, 60), (15, 300, 300)])
+            MockPolicy::new("character-request-limit", &[(5, 10, 60), (30, 300, 300)])
         }
         // `/profile` has no policy on the wire (first contact 2026-08-30:
         // GET answers without rate headers, HEAD is 403) — handled before
