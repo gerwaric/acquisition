@@ -5,8 +5,12 @@
 # terminal (the daemon needs your keychain), and every wire phase waits for
 # an explicit enter.
 #
-#   tools/persist-check.sh <tab1,tab2,...,tab6>          # live, rails on
-#   tools/persist-check.sh --mock <tab1,...,tab6>        # same flow, mock
+#   tools/persist-check.sh [--account NAME] <tab1,...,tab6>   # live, rails on
+#   tools/persist-check.sh --mock <tab1,...,tab6>              # same flow, mock
+#
+# With more than one persisted account, every job needs a selector: pass
+# --account (or have ACQ_ACCOUNT exported) naming the account whose tabs
+# these are.
 #
 # Live mode sends ~13 real requests across two daemon lifetimes:
 #   lifetime 1 (ceiling 6):  POST, HEAD+GET list, HEAD stash, ~2 child GETs,
@@ -28,14 +32,26 @@ here=$(cd "$(dirname "$0")/.." && pwd)
 ACQ="$here/target/debug/acq"
 
 MODE=live
-if [ "${1:-}" = "--mock" ]; then MODE=mock; shift; fi
-TABS=${1:?usage: persist-check.sh [--mock] <tab1,...,tab6>}
+ACCOUNT=
+while [ $# -gt 0 ]; do
+    case "$1" in
+    --mock) MODE=mock; shift ;;
+    --account) ACCOUNT=${2:?--account needs a value}; shift 2 ;;
+    *) break ;;
+    esac
+done
+TABS=${1:?usage: persist-check.sh [--mock] [--account NAME] <tab1,...,tab6>}
 ntabs=$(echo "$TABS" | tr ',' '\n' | grep -c .)
 if [ "$ntabs" -ne 6 ]; then
     echo "need exactly 6 tab ids (got $ntabs) — the ceilings are derived for 6" >&2
     exit 2
 fi
 command -v jq >/dev/null || { echo "jq is required" >&2; exit 2; }
+if [ "$MODE" = live ] && [ ! -t 0 ]; then
+    echo "refusing: stdin is not a terminal — the wire phases gate on enter." >&2
+    echo "run this directly from a terminal, not via a captured or piped shell." >&2
+    exit 2
+fi
 
 # ---- preflight (no wire) ---------------------------------------------------
 
@@ -92,9 +108,13 @@ cleanup() {
     [ -n "$REFRESH_PID" ] && kill "$REFRESH_PID" 2>/dev/null
     if [ "$COMPLETED" != 1 ]; then
         echo ""
-        echo "*** aborted mid-run. The queue is on disk; a live daemon may still hold it."
-        echo "*** inspect with: acq jobs / acq daemon status; cancel what should not resume."
-        echo "*** partial evidence is in $RUN_DIR and $JOURNAL"
+        if [ -z "${PID1:-}" ]; then
+            echo "*** aborted before any daemon started; nothing was sent."
+        else
+            echo "*** aborted mid-run. The queue is on disk; a live daemon may still hold it."
+            echo "*** inspect with: acq jobs / acq daemon status; cancel what should not resume."
+            echo "*** partial evidence is in $RUN_DIR and $JOURNAL"
+        fi
     fi
     return 0
 }
@@ -120,9 +140,18 @@ confirm() {
 
 echo "persistence check ($MODE) — binary $ver"
 echo "socket $SOCK | journal $JOURNAL | evidence -> $RUN_DIR"
+if [ -n "$ACCOUNT" ]; then export ACQ_ACCOUNT="$ACCOUNT"; fi
 if [ "$MODE" = live ]; then
     echo "accounts on this machine (the fresh daemon restores the persisted ones):"
     "$ACQ" accounts || true
+    persisted=$("$ACQ" accounts --json 2>/dev/null |
+        jq '[.[] | select(.persisted)] | length' || echo 0)
+    if [ "$persisted" -gt 1 ] && [ -z "${ACQ_ACCOUNT:-}" ]; then
+        echo "refusing: $persisted persisted accounts — every job needs a selector." >&2
+        echo "rerun with --account <username>, the account whose tabs these are." >&2
+        exit 2
+    fi
+    if [ -n "${ACQ_ACCOUNT:-}" ]; then echo "acting as: $ACQ_ACCOUNT"; fi
 fi
 OFFSET=0
 if [ -f "$JOURNAL" ]; then OFFSET=$(wc -c <"$JOURNAL" | tr -d ' '); fi
