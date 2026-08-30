@@ -90,7 +90,12 @@ path segment for the store, an opaque key component for the limiter
 - A job has exactly one account; no cross-account `refresh --all`.
   Cross-account work is a frontend loop.
 - `account` is a protocol field on `Submit`/`JobInfo`, not a params
-  entry; shown in `jobs`, `dash`, and the journal.
+  entry; fixed at submit (resolved against the live session, refused
+  before a job exists otherwise), checked again at the moment a token is
+  taken (a mismatch fails the job with no send), and it selects the store
+  file — never the session at landing time. Shown in `jobs`, `dash`, and
+  the daemon log; the send journal does not carry it yet (follow-up:
+  thread it through `SendReport`).
 - Store: `store/<provider>/<account>.db`, opened lazily on first record;
   `tabs`/`items`/`store` take the selector and never span accounts.
   Keyring: one entry per account; the index file is how the daemon knows
