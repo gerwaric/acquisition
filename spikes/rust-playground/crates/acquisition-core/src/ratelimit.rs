@@ -444,6 +444,44 @@ pub struct DegradedEndpoint {
     pub reason: String,
 }
 
+/// The limiter's endpoint key: the route, plus the account the send is for
+/// when there is one — `stash@Alice#1234`. The limiter never interprets the
+/// account; it only decides whether a policy's *state* is per account, and
+/// that comes from the policy's own `X-Rate-Limit-Rules` (rung 11:
+/// `Account` rules count per account on GGG's side; `Ip` rules per IP).
+pub fn endpoint_key(route: &str, account: Option<&str>) -> String {
+    match account {
+        Some(account) => format!("{route}@{account}"),
+        None => route.to_string(),
+    }
+}
+
+/// `(route, account)` of an endpoint key. Routes never contain `@`.
+pub fn split_endpoint_key(key: &str) -> (&str, Option<&str>) {
+    match key.split_once('@') {
+        Some((route, account)) => (route, Some(account)),
+        None => (key, None),
+    }
+}
+
+/// The key a policy's state lives under: per account when every rule of
+/// the policy is `Account`-scoped and the send was for an account; the
+/// bare policy name otherwise (`Ip` rules, or a policy mixing scopes —
+/// shared state over-waits at worst, never floods).
+fn policy_state_key(policy: &Policy, account: Option<&str>) -> String {
+    let all_account = !policy.rules.is_empty() && policy.rules.iter().all(|r| r.name == "Account");
+    match account {
+        Some(account) if all_account => format!("{}@{account}", policy.name),
+        _ => policy.name.clone(),
+    }
+}
+
+/// The policy name in a state key (`stash-request-limit@Alice#1234` →
+/// `stash-request-limit`).
+fn policy_name_of(state_key: &str) -> &str {
+    split_endpoint_key(state_key).0
+}
+
 /// What the limiter remembers about one named policy.
 struct PolicyState {
     policy: Policy,
@@ -742,22 +780,22 @@ impl Limiter {
             }
         };
         if let Some(name) = &established
-            && *name != policy.name
+            && policy_name_of(name) != policy.name
         {
             return Err(PolicyObservationError::PolicyMismatch {
-                established: name.clone(),
+                established: policy_name_of(name).to_string(),
                 observed: policy.name,
             });
         }
 
-        let policy_name = policy.name.clone();
+        let state_key = policy_state_key(&policy, split_endpoint_key(endpoint).1);
         self.endpoints.insert(
             endpoint.to_string(),
-            EndpointState::Policy(policy_name.clone()),
+            EndpointState::Policy(state_key.clone()),
         );
         let state = self
             .policies
-            .entry(policy_name)
+            .entry(state_key)
             .or_insert_with(|| PolicyState {
                 policy: policy.clone(),
                 history: VecDeque::new(),
@@ -3891,5 +3929,154 @@ mod tests {
             "/stash/Standard"
         );
         assert_eq!(url_path("http://127.0.0.1:5555/character"), "/character");
+    }
+
+    // ---- scope keying (multi-account step 5) ----------------------------
+
+    fn char_list_state(state: &'static str) -> Vec<(&'static str, &'static str)> {
+        with_state(CHAR_LIST, state)
+    }
+
+    /// The rung-11 property, in the limiter: `Account` rules are paced per
+    /// account. Alice fills `character-list-request-limit` (2 per 10 s);
+    /// Bob's first response on the same policy reports *his* count (0→1) —
+    /// which must not free Alice's window (the pre-keying overwrite path).
+    #[test]
+    fn account_rules_are_paced_per_account() {
+        let now = far_future();
+        let mut l = Limiter::new();
+        let alice = endpoint_key("character-list", Some("Alice#1234"));
+        let bob = endpoint_key("character-list", Some("Bob#0001"));
+        run(
+            &mut l,
+            &alice,
+            &char_list_state("2:10:0,2:300:0"),
+            &[1.0, 0.5],
+            now,
+        );
+        let alice_wait = l.wait_for(&alice, now);
+        assert!(alice_wait > Duration::ZERO, "Alice's window is full");
+        assert_eq!(
+            l.wait_for(&bob, now),
+            Duration::ZERO,
+            "Bob is unknown, not held"
+        );
+        // Bob's probe + first send land, reporting his own counters.
+        l.observe(
+            &bob,
+            parse(&char_list_state("0:10:0,0:300:0")),
+            serde_json::Value::Null,
+            false,
+            now,
+        )
+        .unwrap();
+        run(
+            &mut l,
+            &bob,
+            &char_list_state("1:10:0,1:300:0"),
+            &[0.0],
+            now,
+        );
+        assert_eq!(
+            l.wait_for(&alice, now),
+            alice_wait,
+            "Bob's counters did not touch Alice's state"
+        );
+        assert_eq!(l.wait_for(&bob, now), Duration::ZERO, "Bob has room");
+        // Two states under one policy name, and the endpoint keys show which.
+        let mut keys: Vec<String> = l.statuses(now).into_iter().map(|p| p.policy).collect();
+        keys.sort();
+        assert_eq!(
+            keys,
+            vec![
+                "character-list-request-limit@Alice#1234".to_string(),
+                "character-list-request-limit@Bob#0001".to_string()
+            ]
+        );
+    }
+
+    /// `Ip` rules are one counter for everyone behind this machine (N33's
+    /// token endpoint): two accounts' sends share it.
+    #[test]
+    fn ip_rules_share_state_across_accounts() {
+        const TOKEN: &[(&str, &str)] = &[
+            ("x-rate-limit-policy", "token-request-limit"),
+            ("x-rate-limit-rules", "Ip"),
+            ("x-rate-limit-ip", "2:30:30"),
+            ("x-rate-limit-ip-state", "2:30:0"),
+        ];
+        let now = far_future();
+        let mut l = Limiter::new();
+        let alice = endpoint_key("oauth-token", Some("Alice#1234"));
+        let bob = endpoint_key("oauth-token", Some("Bob#0001"));
+        run(&mut l, &alice, TOKEN, &[2.0, 1.0], now);
+        assert!(l.wait_for(&alice, now) > Duration::ZERO);
+        assert_eq!(
+            l.wait_for(&bob, now),
+            Duration::ZERO,
+            "Bob's endpoint is unknown until observed"
+        );
+        run(&mut l, &bob, TOKEN, &[0.5], now);
+        assert!(
+            l.wait_for(&bob, now) > Duration::ZERO,
+            "Bob shares the Ip counter"
+        );
+        assert_eq!(
+            l.statuses(now)
+                .into_iter()
+                .map(|p| p.policy)
+                .collect::<Vec<_>>(),
+            vec!["token-request-limit".to_string()],
+            "one shared state, no account suffix"
+        );
+    }
+
+    /// A policy that mixes scopes is shared (conservative), and a send with
+    /// no account is always on the bare key.
+    #[test]
+    fn mixed_scope_and_accountless_sends_use_the_shared_state() {
+        const MIXED: &[(&str, &str)] = &[
+            ("x-rate-limit-policy", "mixed-policy"),
+            ("x-rate-limit-rules", "Account,Ip"),
+            ("x-rate-limit-account", "2:10:60"),
+            ("x-rate-limit-account-state", "2:10:0"),
+            ("x-rate-limit-ip", "50:10:60"),
+            ("x-rate-limit-ip-state", "2:10:0"),
+        ];
+        let now = far_future();
+        let mut l = Limiter::new();
+        run(
+            &mut l,
+            &endpoint_key("mixed", Some("Alice#1234")),
+            MIXED,
+            &[1.0, 0.5],
+            now,
+        );
+        run(
+            &mut l,
+            &endpoint_key("mixed", Some("Bob#0001")),
+            MIXED,
+            &[0.2],
+            now,
+        );
+        assert_eq!(
+            l.statuses(now).len(),
+            1,
+            "one shared state for a mixed-scope policy"
+        );
+        let mut l = Limiter::new();
+        run(
+            &mut l,
+            "character-list",
+            &char_list_state("2:10:0,2:300:0"),
+            &[1.0],
+            now,
+        );
+        assert_eq!(l.statuses(now)[0].policy, "character-list-request-limit");
+        assert_eq!(
+            split_endpoint_key("stash@Alice#1234"),
+            ("stash", Some("Alice#1234"))
+        );
+        assert_eq!(split_endpoint_key("oauth-token"), ("oauth-token", None));
     }
 }

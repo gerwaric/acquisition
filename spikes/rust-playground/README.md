@@ -136,8 +136,11 @@ provider name), so mock and real never mix on one daemon. Real mode uses the
 existing "acquisition" registration — same client id, callback path
 (`/auth/path-of-exile` on a random loopback port), scopes, and user-agent as
 the shipped C++ app. Refresh tokens live in a keyring entry separate from the
-mock's, so a mock token can never be sent to GGG. The limiter is the same
-code in both modes and starts empty: the first job on an endpoint queues a
+mock's, so a mock token can never be sent to GGG. The limiter paces `Account`-scoped policies per account (rung 11: GGG
+counts them per account) and `Ip`-scoped ones — the token endpoint — as
+one shared counter; `acq dash` shows the state keys
+(`stash-request-limit@Alice#1234`, `token-request-limit`). The limiter is
+the same code in both modes and starts empty: the first job on an endpoint queues a
 `probe` (a HEAD, which GGG doesn't count) that teaches the policy and the
 account's current counters — including hits made by other tools — before
 anything real is sent. A probe that fails or comes back without rule
@@ -196,6 +199,9 @@ on the command that spawns it, or `acq daemon stop` first:
   Each daemon lifetime opens with `{"event":"open","pid","build","clock"}`
   — the git commit the binary was built from and whether time was the
   system's or a test's manual clock.
+  `route` is the limiter's endpoint key — `stash@Alice#1234` for a send
+  on an account, `oauth-token` for the account-blind token endpoint — so
+  the journal names the account of every send.
   A journal that cannot be opened is reported in `daemon status`, not
   silently dropped.
 - Misunderstood values (`ACQ_TRIPWIRE=maybe`, `ACQ_MAX_SENDS=ten`) are

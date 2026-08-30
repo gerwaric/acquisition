@@ -276,7 +276,7 @@ mod tests {
             account_path(&dir, "Alice#1234").file_name().unwrap(),
             "Alice_1234.db"
         );
-        std::fs::remove_dir_all(&dir).unwrap();
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
@@ -284,6 +284,6 @@ mod tests {
         let dir = tmp();
         std::fs::write(index_path(&dir), "{nope").unwrap();
         assert!(Index::load(&dir).is_err());
-        std::fs::remove_dir_all(&dir).unwrap();
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

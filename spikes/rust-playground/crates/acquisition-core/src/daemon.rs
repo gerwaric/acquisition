@@ -23,6 +23,7 @@ use crate::job::{JobId, JobInfo, JobState, Outcome, Priority, target_of};
 use crate::protocol::{ErrorRecord, Request, Response};
 use crate::provider::{CALLBACK_PATH, Provider, SCOPES, ggg_mode};
 use crate::rails::{BlockShape, Rails, RailsConfig};
+use crate::ratelimit::endpoint_key;
 use crate::ratelimit::{
     ChokePoint, Clock, EndpointState, RetryAfter, SendError, SystemClock, url_path,
 };
@@ -184,7 +185,7 @@ impl Shared {
         let entry = self.jobs.get(&id)?;
         let mut info = entry.info.clone();
         info.eta_seconds = if info.state == JobState::Waiting {
-            match daemon.route_for(&info.kind, &entry.params) {
+            match daemon.keyed_route_for(&info.kind, &entry.params, info.account.as_deref()) {
                 Some((route, _)) => {
                     // Only same-route jobs ahead of us compete for the same
                     // policy; counting them is what the estimate needs.
@@ -194,7 +195,13 @@ impl Shared {
                         .filter(|q| {
                             self.jobs
                                 .get(q)
-                                .and_then(|e| daemon.route_for(&e.info.kind, &e.params))
+                                .and_then(|e| {
+                                    daemon.keyed_route_for(
+                                        &e.info.kind,
+                                        &e.params,
+                                        e.info.account.as_deref(),
+                                    )
+                                })
                                 .is_some_and(|(r, _)| r == route)
                         })
                         .count();
@@ -442,6 +449,19 @@ impl Daemon {
         }
     }
 
+    /// `route_for`, keyed by the job's account: the limiter paces
+    /// `Account`-scoped policies per account (rung 11) and serializes per
+    /// `(account, policy)`; probes are per `(account, route)`.
+    fn keyed_route_for(
+        &self,
+        kind: &str,
+        params: &Value,
+        account: Option<&str>,
+    ) -> Option<(String, String)> {
+        let (route, url) = self.route_for(kind, params)?;
+        Some((endpoint_key(&route, account), url))
+    }
+
     /// Whether a route needs the bearer token. The mock's `fetch` is open;
     /// everything on the real API is not.
     fn needs_auth(&self, route: &str) -> bool {
@@ -455,7 +475,7 @@ impl Daemon {
         if e.info.kind == "probe" {
             return "probe".into();
         }
-        match self.route_for(&e.info.kind, &e.params) {
+        match self.keyed_route_for(&e.info.kind, &e.params, e.info.account.as_deref()) {
             Some((route, _)) => self.choke.serial_key(&route),
             None => format!("solo:{}", e.info.id),
         }
@@ -679,8 +699,11 @@ impl Daemon {
         for id in s.queue_order() {
             let entry = &s.jobs[&id];
             // A job whose route is still being probed has nothing to do yet.
-            if let Some((route, _)) = self.route_for(&entry.info.kind, &entry.params)
-                && self.choke.endpoint_state(&route) == EndpointState::Unknown
+            if let Some((route, _)) = self.keyed_route_for(
+                &entry.info.kind,
+                &entry.params,
+                entry.info.account.as_deref(),
+            ) && self.choke.endpoint_state(&route) == EndpointState::Unknown
                 && Self::probe_pending(&s, &route)
             {
                 continue;
@@ -710,7 +733,7 @@ impl Daemon {
             let s = self.shared.lock().unwrap();
             match s.jobs.get(&id) {
                 Some(e) => (
-                    self.route_for(&e.info.kind, &e.params),
+                    self.keyed_route_for(&e.info.kind, &e.params, e.info.account.as_deref()),
                     e.info.account.clone(),
                 ),
                 None => return,
