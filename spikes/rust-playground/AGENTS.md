@@ -5,6 +5,8 @@ Cargo workspace (`acquisition-core`, `acquisition-cli`) that is the
 **reference implementation** of the Rust daemon and rate limiter. The
 repository-level `AGENTS.md` describes the C++ app on `master`; its build
 and Qt guidance does not apply here.
+ADR 0003 (rewrite vs. evolve) is the owner's call and needs nothing from
+you — ignore it and `docs/redesign/`.
 
 Read, in this order, before changing anything:
 
