@@ -712,16 +712,24 @@ logged, so the shape is unrecorded). `GET /profile` → 200 in 136 ms
 with the account JSON (`uuid`, `name`, `realm`, …) and **no rate-limit
 header of any kind** (send journal `rate: {}`), three times on three
 daemons. Every other API endpoint sampled answers HEAD 204 or 200 with
-the full policy set. Whether `/profile` is rate-limited at all is
-unknown — an endpoint can be limited without advertising it, and layer
-1 applies regardless; the owner has asked GGG (Q12).
+the full policy set.
+
+**GGG's answer (Q12, 2026-08-30): `/profile` is not rate limited at
+present.** [GGG-EMAIL — Confirmed; GGG's web developer to the owner,
+2026-08-30] There is no hidden policy; the missing headers reflect the
+truth. "At present"
+is load-bearing: this can change without notice, and strict observation
+already covers that arm — a policy that ever appears in headers is
+learned and enforced.
 
 Consequence: a limiter that treats "2xx without a policy header" as a
 protocol failure (the strict reading N33 justified) cannot use this
-endpoint. The spike declares `/profile` policyless per route — accepted,
-not trusted: paced by the send gate alone, called at most once per
-login for the `uuid`, and the declaration is to be deleted if GGG adds
-the headers.
+endpoint. The spike declares `/profile` policyless per route — now
+confirmed rather than merely accepted: paced by the send gate alone
+(layer 1 applies regardless of GGG's answer), called at most once per
+login for the `uuid`. The declaration stays until GGG adds headers, at
+which point strict observation takes over and the declaration is
+deleted.
 
 **N39. `GET /account/leagues` is `league-request-limit`, `Account`,
 `5:10:60, 10:60:300` — and its HEAD is counted.** [OBSERVED — High;
@@ -734,13 +742,24 @@ HEAD itself was the hit; the GET 48 ms later read `2:10:0,2:60:0`.
 account's leagues are `/account/leagues[/{realm}]` under
 `account:leagues`.
 
+**GGG's answer (Q12, 2026-08-30): the counted HEAD is a defect; GGG
+will correct it in a future release.** [GGG-EMAIL — Confirmed; GGG's
+web developer to the owner, 2026-08-30] No release or date named. Until the fix is
+*observed* live (a HEAD answered 204 and uncounted, the N24 pattern),
+the current behavior stands and clients must treat the HEAD as
+counted — the correction is a promise, not an observation, and this
+document ranks observation first.
+
 Consequence: N24's uncounted HEAD is a property of particular
 endpoints, not of the API; a client must not assume a probe is free on
 an endpoint it has not sampled. Pacing is unaffected — the state
 headers are post-increment and include the HEAD's hit — but a probe
 there is a wasted hit, so the spike does not probe this route and lets
-the first GET teach the policy. One sample; the 200-vs-204 status is a
-candidate tell for "counted HEAD" until more endpoints say otherwise.
+the first GET teach the policy; when GGG's fix is observed, the
+no-probe declaration can be deleted and the probe restored (regaining
+learn-before-first-counted-send on this route). One sample; the
+200-vs-204 status is a candidate tell for "counted HEAD" until more
+endpoints say otherwise.
 
 **N40. `GET /character/{name}` is `character-request-limit`,
 `Account`, `5:10:60, 30:300:300`, with a free HEAD.** [OBSERVED —
@@ -852,11 +871,13 @@ exceptions.
 
 ---
 - **Q12. Is `/profile` rate-limited, and is the counted HEAD on
-  `/account/leagues` intended?** — N38 and N39. The owner asked GGG's
-  web developer on 2026-08-30 whether `/profile` can carry rate-limit
-  headers and accept HEAD, and whether HEAD on `/account/leagues` can
-  be uncounted like the other endpoints. Until answered, the spike
-  carries both as declared per-route knowledge; a "yes" deletes it.
+  `/account/leagues` intended? ANSWERED 2026-08-30** (same day, GGG's
+  web developer): `/profile` is **not rate limited at present** (N38 —
+  the policyless declaration is confirmed, kept until headers ever
+  appear), and the counted HEAD on `/account/leagues` **will be
+  corrected in a future release** (N39 — treat as counted until the
+  free HEAD is observed; then delete the no-probe declaration and
+  restore the probe). Neither answer changes any code today.
 
 ## Instrumentation
 
