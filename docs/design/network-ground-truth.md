@@ -677,6 +677,79 @@ is not evidence that the stash changed, and any future change-detection
 or conditional-fetch design should assume other fields may prove
 volatile until a wider sample says otherwise.
 
+**N37. `Account`-scoped rules count per account: two accounts on one
+machine and one IP do not share policy counters.** [OBSERVED — High;
+one run of two accounts, August 30, 2026]
+Two daemons, each logged into a different account, on one machine
+(spike rung 11; `spikes/rust-playground/LIVE-TESTING.md` run ledger,
+`runs/2026-08-30-r11/`). Account A's counted GET on
+`character-list-request-limit` read `1:10:0,1:300:0`; account B's HEAD
+probe on the same policy **4.1 s later** reported `0:10:0,0:300:0`, and
+B's GET was answered `1:10:0,1:300:0`. Then both daemons sent a GET
+**28 ms apart**; each was answered `1:10:0,2:300:0` — its own account's
+second hit in the long window, nothing from the other account. The
+same run's two code exchanges were 31 s apart, so `token-request-limit`
+(Ip-scoped, N33) was not sampled across accounts.
+
+Consequence: the rate-limit layer (layer 2) gives multiple accounts on
+one machine nothing to contend over; what they share is layer 1
+(Cloudflare, per IP) and the Ip-scoped token policy. A client that
+holds several accounts therefore needs its limiter keyed by
+`(account, policy)` for `Account` rules and by policy alone for `Ip`
+rules — and, because one account's response overwrites nothing of
+another's, a limiter keyed by policy alone would pace the second
+account from the first's counters (a flood path when both are live).
+The spike's daemon is one process with many sessions for the layer-1
+reason: two processes each bounding their own concurrency are four
+sends in flight to Cloudflare.
+
+**N38. `GET /profile` answers 200 with no `X-Rate-Limit-*` headers at
+all; `HEAD /profile` is answered 403.** [OBSERVED — High; three GET
+samples and one HEAD, August 30, 2026]
+Fresh daemons with a valid bearer (scope `account:profile` granted):
+`HEAD /profile` → 403 (the first sample; response headers were not yet
+logged, so the shape is unrecorded). `GET /profile` → 200 in 136 ms
+with the account JSON (`uuid`, `name`, `realm`, …) and **no rate-limit
+header of any kind** (send journal `rate: {}`), three times on three
+daemons. Every other API endpoint sampled answers HEAD 204 or 200 with
+the full policy set. Whether `/profile` is rate-limited at all is
+unknown — an endpoint can be limited without advertising it, and layer
+1 applies regardless; the owner has asked GGG (Q12).
+
+Consequence: a limiter that treats "2xx without a policy header" as a
+protocol failure (the strict reading N33 justified) cannot use this
+endpoint. The spike declares `/profile` policyless per route — accepted,
+not trusted: paced by the send gate alone, called at most once per
+login for the `uuid`, and the declaration is to be deleted if GGG adds
+the headers.
+
+**N39. `GET /account/leagues` is `league-request-limit`, `Account`,
+`5:10:60, 10:60:300` — and its HEAD is counted.** [OBSERVED — High;
+one sample, August 30, 2026]
+`HEAD /account/leagues` was answered **200** (the free HEADs of N24
+answer 204) with the full policy set and state `1:10:0,1:60:0` — the
+HEAD itself was the hit; the GET 48 ms later read `2:10:0,2:60:0`.
+`GET /league` (the public league list) requires `service:leagues`
+(`WWW-Authenticate: Bearer … error="insufficient_scope"`); the
+account's leagues are `/account/leagues[/{realm}]` under
+`account:leagues`.
+
+Consequence: N24's uncounted HEAD is a property of particular
+endpoints, not of the API; a client must not assume a probe is free on
+an endpoint it has not sampled. Pacing is unaffected — the state
+headers are post-increment and include the HEAD's hit — but a probe
+there is a wasted hit, so the spike does not probe this route and lets
+the first GET teach the policy. One sample; the 200-vs-204 status is a
+candidate tell for "counted HEAD" until more endpoints say otherwise.
+
+**N40. `GET /character/{name}` is `character-request-limit`,
+`Account`, `5:10:60, 30:300:300`, with a free HEAD.** [OBSERVED —
+High; one sample, August 30, 2026]
+Confirms the C++ capture's shape exactly: HEAD 204 with
+`0:10:0,0:300:0`, GET 200 with `1:10:0,1:300:0`, 180 ms end to end.
+Recorded as the ordinary pattern against which N38 and N39 are the
+exceptions.
+
 ## Open questions
 
 - **Q1. HEAD sanction verbatim. RESOLVED July 18, 2026** — Tom
@@ -778,6 +851,12 @@ volatile until a wider sample says otherwise.
   costly independently of the answer.
 
 ---
+- **Q12. Is `/profile` rate-limited, and is the counted HEAD on
+  `/account/leagues` intended?** — N38 and N39. The owner asked GGG's
+  web developer on 2026-08-30 whether `/profile` can carry rate-limit
+  headers and accept HEAD, and whether HEAD on `/account/leagues` can
+  be uncounted like the other endpoints. Until answered, the spike
+  carries both as declared per-route knowledge; a "yes" deletes it.
 
 ## Instrumentation
 
