@@ -150,18 +150,31 @@ impl Sessions {
     /// The session an operation is for: the named account's, or the sole
     /// one. No selector with several live is refused — the daemon does not
     /// guess whose stash to spend sends on.
-    /// Lookups go by each session's own `username`, never the map key, so
-    /// a session whose name is set after insertion is still found.
+    /// Invariant: a session's map key is its `username`. Every insert goes
+    /// through `replace`, and a refresh that renames goes through
+    /// `rename`, so lookups can trust the key.
     fn find(&self, username: &str) -> Option<&AuthSession> {
-        self.by_account
-            .values()
-            .find(|s| s.username.as_deref() == Some(username))
+        self.by_account.get(username)
     }
 
     fn find_mut(&mut self, username: &str) -> Option<&mut AuthSession> {
-        self.by_account
-            .values_mut()
-            .find(|s| s.username.as_deref() == Some(username))
+        self.by_account.get_mut(username)
+    }
+
+    /// Move a session to a new name (a refresh reported a different
+    /// username). The session keeps its state; only the key changes. A
+    /// session already under the new name is replaced.
+    fn rename(&mut self, from: &str, to: &str) {
+        if from == to {
+            return;
+        }
+        if let Some(mut session) = self.by_account.remove(from) {
+            session.username = Some(to.to_string());
+            self.by_account.insert(to.to_string(), session);
+            if self.last_login.as_deref() == Some(from) {
+                self.last_login = Some(to.to_string());
+            }
+        }
     }
 
     fn get(&self, account: Option<&str>) -> Result<&AuthSession, String> {
@@ -213,11 +226,7 @@ impl Sessions {
     /// session's generations so an in-flight refresh for it lands stale.
     fn replace(&mut self, mut session: AuthSession) -> &mut AuthSession {
         let key = session.username.clone().unwrap_or_default();
-        let old_key = self
-            .find(&key)
-            .and_then(|old| old.username.clone())
-            .map(|_| key.clone());
-        if let Some(old) = old_key.and_then(|k| self.by_account.remove(&k)) {
+        if let Some(old) = self.by_account.remove(&key) {
             session.generations = AuthGenerations {
                 session: old.generations.session.wrapping_add(1),
                 access_token: old.generations.access_token.wrapping_add(1),
@@ -1859,6 +1868,9 @@ impl Daemon {
                 }
             }
         };
+        if let Some(new_name) = &renamed {
+            self.shared.lock().unwrap().auth.rename(account, new_name);
+        }
         sender.send_replace(Some(outcome.clone()));
         if outcome.is_ok() {
             self.log(&format!("access token refreshed for {account}"));
@@ -3212,6 +3224,35 @@ mod auth_session_tests {
     }
 
     #[test]
+    fn session_keys_follow_renames_so_replace_finds_the_right_session() {
+        let mut sessions = Sessions::with(AuthSession {
+            username: Some("A#1".into()),
+            refresh_token: Some("rt-a".into()),
+            ..AuthSession::default()
+        });
+        let before = sessions.find("A#1").unwrap().generations;
+        // A refresh reported a new name: the session moves under it.
+        sessions.rename("A#1", "B#2");
+        assert!(sessions.find("A#1").is_none());
+        assert_eq!(
+            sessions.find("B#2").unwrap().refresh_token.as_deref(),
+            Some("rt-a")
+        );
+        assert_eq!(sessions.usernames(), vec!["B#2".to_string()]);
+        // A login as B now replaces that one session (generations advance)
+        // instead of leaving a stale twin behind.
+        sessions.replace(AuthSession {
+            username: Some("B#2".into()),
+            refresh_token: Some("rt-b".into()),
+            ..AuthSession::default()
+        });
+        assert_eq!(sessions.by_account.len(), 1);
+        let after = sessions.find("B#2").unwrap();
+        assert_eq!(after.refresh_token.as_deref(), Some("rt-b"));
+        assert_ne!(after.generations.session, before.session);
+    }
+
+    #[test]
     fn a_response_is_filed_under_the_job_account_not_the_session() {
         let (mut daemon, _, log_path) = test_daemon("http://127.0.0.1:1");
         let dir =
@@ -3858,6 +3899,9 @@ mod dispatcher_tests {
         );
         {
             let mut s = daemon.shared.lock().unwrap();
+            // Key == username is the map's invariant; the scenario daemon
+            // starts with one anonymous session.
+            s.auth.rename("", "scenario-user");
             daemon.install_tokens_locked(
                 s.auth.one_mut(),
                 auth::TokenResponse {
@@ -4149,7 +4193,7 @@ mod dispatcher_tests {
         {
             let mut shared = daemon.shared.lock().unwrap();
             shared.auth.one_mut().refresh_token = Some("rt-old".into());
-            shared.auth.one_mut().username = Some("old-user".into());
+            shared.auth.rename("", "old-user");
         }
         let dispatcher = tokio::spawn(daemon.clone().dispatcher());
         let first = daemon.submit("whoami".into(), json!({}), 0, "test".into(), None);
@@ -4268,7 +4312,7 @@ mod dispatcher_tests {
         {
             let mut shared = daemon.shared.lock().unwrap();
             shared.auth.one_mut().refresh_token = Some("rt-old".into());
-            shared.auth.one_mut().username = Some("old-user".into());
+            shared.auth.rename("", "old-user");
             shared.auth.one_mut().access_token = Some("at-established".into());
             shared.auth.one_mut().access_expires_at =
                 Some(clock.wall() + Duration::from_secs(3600));
@@ -4959,7 +5003,7 @@ mod dispatcher_tests {
             Arc::new(RecordingCredentialStore::default());
         let mut s = daemon.shared.lock().unwrap();
         s.auth.one_mut().refresh_token = Some("rt-old".into());
-        s.auth.one_mut().username = Some("test-user".into());
+        s.auth.rename("", "test-user");
         s.auth.keyring = "ok".into();
     }
 
