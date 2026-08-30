@@ -165,15 +165,18 @@ tokens live 60 seconds, so silent refresh is exercised constantly.
 relocates the shared store (`<dir>/<provider>/<account>.db` plus
 `accounts.json`; default `~/.local/share/acquisition-playground/store`).
 `--account <username|name|uuid>` (global; `ACQ_ACCOUNT` is the env form)
-names the account a command acts as: for the store reads (`accounts`,
-`tabs`, `items`, `store`) it picks the file; for job commands it travels
-on the submit, is validated against the daemon's live session (refused
-with both names if they differ), and is fixed on the job — a job runs
-with that account's token and its response lands in that account's file,
-even if someone logs in as another account while it waits. With one known
-account it is implicit; with several, the reads refuse and list them. A
-job whose account no longer matches the session when its token is taken
-(a re-login, or a logout) fails without a send, naming what happened. `ACQ_NO_SPAWN=1` makes
+names the account a command acts as. The daemon holds **one session per
+logged-in account** (log in again as someone else and both stay live;
+`acq auth status` lists them) and never picks one for you: with one
+session the selector is implicit, with several every job command and
+store read refuses and lists the choices. The account is fixed on the
+job at submit — it runs with that account's token and its response lands
+in that account's file — and is checked again when the token is taken,
+so a job whose account was logged out meanwhile fails without a send
+("no session for A"). `acq auth logout [--account A]` drops one session;
+a logged-out account stays listed (its store remains) as "not
+persisted". The rate limiter paces `Account`-scoped policies per account
+and the `Ip`-scoped token endpoint once for all (`acq dash`). `ACQ_NO_SPAWN=1` makes
 the CLI refuse to start or replace a daemon — for cron and other
 non-interactive callers, which on macOS would spawn a daemon with no
 keychain access and therefore no session.

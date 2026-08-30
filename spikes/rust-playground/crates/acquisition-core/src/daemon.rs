@@ -655,6 +655,19 @@ impl Daemon {
         }
     }
 
+    /// A client's selector (username, name without discriminator, or uuid)
+    /// as the live session's canonical username; `None` stays `None` (the
+    /// sole session, or a refusal downstream when several are live).
+    fn canonical_account(&self, selector: Option<&str>) -> Result<Option<String>, String> {
+        let Some(sel) = selector else { return Ok(None) };
+        let s = self.shared.lock().unwrap();
+        s.auth
+            .matching(sel)
+            .and_then(|x| x.username.clone())
+            .map(Some)
+            .ok_or_else(|| format!("no session for {sel} — run `acq auth`"))
+    }
+
     /// Every kind that sends with a token. `sleep` never sends; the mock's
     /// `fetch` is open.
     fn kind_needs_account(&self, kind: &str) -> bool {
@@ -2085,15 +2098,16 @@ impl Daemon {
                 Err(message) => Response::Error { message },
             },
             Request::AuthStatus => self.auth_status(),
-            Request::AuthCheck { account } => {
-                match self.valid_access_token(account.as_deref(), true).await {
+            Request::AuthCheck { account } => match self.canonical_account(account.as_deref()) {
+                Err(message) => Response::Error { message },
+                Ok(account) => match self.valid_access_token(account.as_deref(), true).await {
                     Ok(_) => self.auth_status(),
                     Err(message) => {
                         self.note_error(&format!("auth check failed: {message}"));
                         Response::Error { message }
                     }
-                }
-            }
+                },
+            },
             Request::AuthLogout { account } => {
                 // A live session (named, or the sole one) logs out; a known
                 // but not live account only loses its keyring entry.
