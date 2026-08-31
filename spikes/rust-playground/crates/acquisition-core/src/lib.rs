@@ -7,6 +7,7 @@
 //! single rate-limit choke point, with deliberately conservative buckets.
 
 pub mod auth;
+pub mod client;
 pub mod daemon;
 pub(crate) mod gate;
 pub mod job;

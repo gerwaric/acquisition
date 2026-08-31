@@ -1,10 +1,10 @@
-mod client;
 mod dash;
 mod store_cmd;
 
 use std::io::Write as _;
 use std::time::Duration;
 
+use acquisition_core::client::{Client, ConnectOptions};
 use acquisition_core::daemon;
 use acquisition_core::job::{JobInfo, JobState, Outcome};
 use acquisition_core::protocol::{Request, Response};
@@ -12,7 +12,11 @@ use anyhow::{Result, bail};
 use clap::{Parser, Subcommand};
 use serde_json::json;
 
-use client::Client;
+/// The CLI's connect policy: lazy-spawn as asked, and replace a version- or
+/// provider-mismatched daemon — the caller is the human expressing intent.
+pub(crate) async fn connect(spawn: bool) -> Result<Client> {
+    Client::connect(ConnectOptions::interactive(spawn)).await
+}
 
 #[derive(Parser)]
 #[command(
@@ -204,16 +208,43 @@ enum DaemonCmd {
 /// `--account`/`ACQ_ACCOUNT`, for every submit this process makes.
 static ACCOUNT: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
 
+/// The failure was already printed in the command's own output format (a
+/// failed job's `--json` outcome); main only sets the exit code.
+#[derive(Debug)]
+struct AlreadyReported;
+
+impl std::fmt::Display for AlreadyReported {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("already reported")
+    }
+}
+
+impl std::error::Error for AlreadyReported {}
+
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() {
     let cli = Cli::parse();
+    let json = cli.json;
     store_cmd::set_selector(cli.account.clone());
     let _ = ACCOUNT.set(cli.account.clone());
+    if let Err(e) = run(cli).await {
+        if e.downcast_ref::<AlreadyReported>().is_none() {
+            if json {
+                println!("{}", json!({ "error": format!("{e:#}") }));
+            } else {
+                eprintln!("Error: {e:#}");
+            }
+        }
+        std::process::exit(1);
+    }
+}
+
+async fn run(cli: Cli) -> Result<()> {
     match cli.cmd {
         Cmd::Auth { cmd, no_browser } => match cmd {
             None => login(no_browser, cli.json).await,
             Some(AuthCmd::Status) => {
-                let mut client = Client::connect(false).await?;
+                let mut client = connect(false).await?;
                 let status = client.request(&Request::AuthStatus).await?;
                 print_auth(&status, cli.json)?;
                 if !cli.json {
@@ -227,7 +258,7 @@ async fn main() -> Result<()> {
                 Ok(())
             }
             Some(AuthCmd::Check) => {
-                let mut client = Client::connect(true).await?;
+                let mut client = connect(true).await?;
                 let account = ACCOUNT.get().cloned().flatten();
                 match client.request(&Request::AuthCheck { account }).await? {
                     Response::Error { message } => bail!("auth check failed: {message}"),
@@ -240,30 +271,38 @@ async fn main() -> Result<()> {
                 }
             }
             Some(AuthCmd::Logout) => {
-                let mut client = Client::connect(false).await?;
+                let mut client = connect(false).await?;
                 let account = ACCOUNT.get().cloned().flatten();
-                client.expect_ack(&Request::AuthLogout { account }).await?;
-                println!("logged out (session dropped, keyring cleared)");
+                client
+                    .expect_ack(&Request::AuthLogout {
+                        account: account.clone(),
+                    })
+                    .await?;
+                if cli.json {
+                    println!("{}", json!({ "logged_out": true, "account": account }));
+                } else {
+                    println!("logged out (session dropped, keyring cleared)");
+                }
                 Ok(())
             }
         },
         Cmd::Profile => {
-            let mut client = Client::connect(true).await?;
+            let mut client = connect(true).await?;
             let id = submit(&mut client, "profile".into(), json!({}), 0).await?;
             block_on_job(&mut client, id, cli.json).await
         }
         Cmd::Characters => {
-            let mut client = Client::connect(true).await?;
+            let mut client = connect(true).await?;
             let id = submit(&mut client, "characters".into(), json!({}), 0).await?;
             block_on_job(&mut client, id, cli.json).await
         }
         Cmd::Character { name } => {
-            let mut client = Client::connect(true).await?;
+            let mut client = connect(true).await?;
             let id = submit(&mut client, "character".into(), json!({ "name": name }), 0).await?;
             block_on_job(&mut client, id, cli.json).await
         }
         Cmd::Leagues => {
-            let mut client = Client::connect(true).await?;
+            let mut client = connect(true).await?;
             let id = submit(&mut client, "leagues".into(), json!({}), 0).await?;
             block_on_job(&mut client, id, cli.json).await
         }
@@ -285,7 +324,7 @@ async fn main() -> Result<()> {
             StoreCmd::Import { path } => store_cmd::import(&path, cli.json),
         },
         Cmd::Stashes { league } => {
-            let mut client = Client::connect(true).await?;
+            let mut client = connect(true).await?;
             let id = submit(
                 &mut client,
                 "stashes".into(),
@@ -301,7 +340,7 @@ async fn main() -> Result<()> {
             deep,
             league,
         } => {
-            let mut client = Client::connect(true).await?;
+            let mut client = connect(true).await?;
             let id = submit(
                 &mut client,
                 "stash".into(),
@@ -320,7 +359,7 @@ async fn main() -> Result<()> {
             if !all && tabs.is_empty() {
                 bail!("refresh needs --all or --tabs <id,...>");
             }
-            let mut client = Client::connect(true).await?;
+            let mut client = connect(true).await?;
             let id = submit(
                 &mut client,
                 "refresh".into(),
@@ -337,7 +376,7 @@ async fn main() -> Result<()> {
             detach,
         } => {
             let params: serde_json::Value = serde_json::from_str(&params)?;
-            let mut client = Client::connect(true).await?;
+            let mut client = connect(true).await?;
             let id = submit(&mut client, kind, params, priority).await?;
             if detach {
                 if cli.json {
@@ -351,7 +390,7 @@ async fn main() -> Result<()> {
             }
         }
         Cmd::Demo { count } => {
-            let mut client = Client::connect(true).await?;
+            let mut client = connect(true).await?;
             let mut ids = Vec::new();
             for i in 0..count {
                 let id = submit(
@@ -369,7 +408,7 @@ async fn main() -> Result<()> {
         }
         Cmd::Dash => dash::run(cli.json).await,
         Cmd::Jobs { watch } => {
-            let mut client = Client::connect(false).await?;
+            let mut client = connect(false).await?;
             let jobs = list(&mut client).await?;
             if cli.json {
                 println!("{}", serde_json::to_string_pretty(&jobs)?);
@@ -394,7 +433,7 @@ async fn main() -> Result<()> {
             Ok(())
         }
         Cmd::Status { id } => {
-            let mut client = Client::connect(false).await?;
+            let mut client = connect(false).await?;
             let job = client.status(id).await?;
             if cli.json {
                 println!("{}", serde_json::to_string_pretty(&job)?);
@@ -404,27 +443,35 @@ async fn main() -> Result<()> {
             Ok(())
         }
         Cmd::Result { id } => {
-            let mut client = Client::connect(false).await?;
+            let mut client = connect(false).await?;
             print_result(&mut client, id, cli.json).await
         }
         Cmd::Cancel { id } => {
-            let mut client = Client::connect(false).await?;
+            let mut client = connect(false).await?;
             client.expect_ack(&Request::Cancel { id }).await?;
-            println!("job {id} cancel requested");
+            if cli.json {
+                println!("{}", json!({ "job_id": id, "cancel_requested": true }));
+            } else {
+                println!("job {id} cancel requested");
+            }
             Ok(())
         }
         Cmd::SetPriority { id, priority } => {
-            let mut client = Client::connect(false).await?;
+            let mut client = connect(false).await?;
             client
                 .expect_ack(&Request::SetPriority { id, priority })
                 .await?;
-            println!("job {id} priority -> {priority}");
+            if cli.json {
+                println!("{}", json!({ "job_id": id, "priority": priority }));
+            } else {
+                println!("job {id} priority -> {priority}");
+            }
             Ok(())
         }
         Cmd::Daemon { cmd } => match cmd {
             DaemonCmd::Run => daemon::run().await,
             DaemonCmd::Status => {
-                let mut client = match Client::connect(false).await {
+                let mut client = match connect(false).await {
                     Ok(c) => c,
                     Err(_) => {
                         if cli.json {
@@ -485,7 +532,7 @@ async fn main() -> Result<()> {
                 Ok(())
             }
             DaemonCmd::ResetTripwire => {
-                match Client::connect(false).await {
+                match connect(false).await {
                     Ok(mut client) => {
                         let resp = client.request(&Request::ResetTripwire).await?;
                         if cli.json {
@@ -505,14 +552,26 @@ async fn main() -> Result<()> {
                         let state =
                             daemon::socket_path().with_extension(format!("{provider}.rails.json"));
                         match std::fs::remove_file(&state) {
-                            Ok(()) => println!(
-                                "daemon is not running; cleared persisted rails state {}",
-                                state.display()
-                            ),
-                            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-                                println!("daemon is not running and no rails state is persisted")
+                            Ok(()) => {
+                                if cli.json {
+                                    println!("{}", json!({ "cleared": true, "state": state }));
+                                } else {
+                                    println!(
+                                        "daemon is not running; cleared persisted rails state {}",
+                                        state.display()
+                                    );
+                                }
                             }
-                            Err(e) => println!(
+                            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                                if cli.json {
+                                    println!("{}", json!({ "cleared": false, "state": null }));
+                                } else {
+                                    println!(
+                                        "daemon is not running and no rails state is persisted"
+                                    );
+                                }
+                            }
+                            Err(e) => bail!(
                                 "daemon is not running; could not clear {}: {e}",
                                 state.display()
                             ),
@@ -522,12 +581,22 @@ async fn main() -> Result<()> {
                 Ok(())
             }
             DaemonCmd::Stop => {
-                match Client::connect(false).await {
+                match connect(false).await {
                     Ok(mut client) => {
                         let _ = client.request(&Request::DaemonStop).await;
-                        println!("daemon stopped");
+                        if cli.json {
+                            println!("{}", json!({ "stopped": true }));
+                        } else {
+                            println!("daemon stopped");
+                        }
                     }
-                    Err(_) => println!("daemon is not running"),
+                    Err(_) => {
+                        if cli.json {
+                            println!("{}", json!({ "stopped": false, "running": false }));
+                        } else {
+                            println!("daemon is not running");
+                        }
+                    }
                 }
                 Ok(())
             }
@@ -538,13 +607,18 @@ async fn main() -> Result<()> {
 /// The interactive login flow: ask the daemon to start OAuth, hand the URL to
 /// the browser, then poll auth status until the flow resolves.
 async fn login(no_browser: bool, json: bool) -> Result<()> {
-    let mut client = Client::connect(true).await?;
+    let mut client = connect(true).await?;
     let url = match client.request(&Request::AuthStart).await? {
         Response::AuthUrl { authorize_url } => authorize_url,
         Response::Error { message } => bail!("{message}"),
         other => bail!("unexpected response: {other:?}"),
     };
-    if !json {
+    if json {
+        // First of two JSON lines (the final auth status is the second), so
+        // a scripted login can read the URL it must visit.
+        println!("{}", json!({ "authorize_url": url }));
+        std::io::stdout().flush().ok();
+    } else {
         println!("To log in, open:\n\n  {url}\n");
     }
     if !no_browser && open_browser(&url) && !json {
@@ -713,7 +787,12 @@ async fn print_result(client: &mut Client, id: u64, json: bool) -> Result<()> {
         Response::Result { outcome, .. } => {
             if json {
                 println!("{}", serde_json::to_string_pretty(&outcome)?);
-                return Ok(());
+                // A failed job exits 1 in both output modes; the outcome
+                // above is the report, so main adds no second message.
+                return match outcome {
+                    Outcome::Failure { .. } => Err(AlreadyReported.into()),
+                    _ => Ok(()),
+                };
             }
             match outcome {
                 Outcome::Success { payload } => {

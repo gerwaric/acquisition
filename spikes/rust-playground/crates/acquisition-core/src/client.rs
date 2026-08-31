@@ -1,15 +1,54 @@
 //! Client side of the daemon protocol: connect, lazy-spawn, version handshake.
+//!
+//! Every frontend (CLI, MCP, GUI) reaches the daemon through this module; the
+//! difference between them is the `ConnectOptions` policy. The interactive CLI
+//! kills and respawns a version- or provider-mismatched daemon because its
+//! caller is the human expressing intent. An autonomous client (the MCP
+//! server) must never do that — a mismatch could be a live GGG daemon under
+//! the rails — so it reports the mismatch and stops.
 
 use std::time::Duration;
 
-use acquisition_core::VERSION;
-use acquisition_core::daemon::{log_path, socket_path};
-use acquisition_core::job::JobInfo;
-use acquisition_core::protocol::{Request, Response};
+use crate::VERSION;
+use crate::daemon::{log_path, socket_path};
+use crate::job::JobInfo;
+use crate::protocol::{Request, Response};
 use anyhow::{Context, Result, bail};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, Lines};
 use tokio::net::UnixStream;
 use tokio::net::unix::{OwnedReadHalf, OwnedWriteHalf};
+
+/// What this client is allowed to do to a daemon that isn't the one it wants.
+/// `ACQ_NO_SPAWN=1` overrides both flags to false.
+#[derive(Clone, Copy, Debug)]
+pub struct ConnectOptions {
+    /// Start a daemon if none is listening (lazy spawn, via the calling
+    /// binary's own `daemon run`).
+    pub spawn: bool,
+    /// Kill and respawn a daemon whose version or provider doesn't match.
+    pub replace: bool,
+}
+
+impl ConnectOptions {
+    /// The interactive CLI's policy: the caller is the human, so replacing a
+    /// wrong-version or wrong-mode daemon is them expressing intent.
+    pub fn interactive(spawn: bool) -> Self {
+        Self {
+            spawn,
+            replace: true,
+        }
+    }
+
+    /// An autonomous client's policy (MCP): never kill or replace a daemon —
+    /// the mismatched daemon may be a human's live GGG run. Spawning into an
+    /// empty socket may still be allowed.
+    pub fn autonomous(spawn: bool) -> Self {
+        Self {
+            spawn,
+            replace: false,
+        }
+    }
+}
 
 pub struct Client {
     lines: Lines<BufReader<OwnedReadHalf>>,
@@ -23,11 +62,12 @@ fn no_spawn() -> bool {
 }
 
 impl Client {
-    /// Connect to the daemon, spawning one if needed (`spawn = true`) and
-    /// replacing it if the handshake reports a version or provider mismatch
-    /// (a mock-mode daemon can't serve an ACQ_GGG=1 client, or vice versa).
-    pub async fn connect(spawn: bool) -> Result<Client> {
-        let want_provider = if acquisition_core::provider::ggg_mode() {
+    /// Connect to the daemon, spawning or replacing one as `opts` allows.
+    /// A version or provider mismatch this client may not resolve (a
+    /// mock-mode daemon can't serve an `ACQ_GGG=1` client, or vice versa)
+    /// is an error naming the daemon it found.
+    pub async fn connect(opts: ConnectOptions) -> Result<Client> {
+        let want_provider = if crate::provider::ggg_mode() {
             "ggg"
         } else {
             "mock"
@@ -38,7 +78,8 @@ impl Client {
         // session and every job fails "not logged in" (re-soak, 2026-08-25,
         // caught by rail 7). The soak script sets this so cron can only
         // talk to a daemon a person started.
-        let spawn = spawn && !no_spawn();
+        let spawn = opts.spawn && !no_spawn();
+        let replace = opts.replace && !no_spawn();
         let mut respawned = false;
         // The spawned daemon, with where its log ended at spawn time: if it
         // exits instead of binding the socket, the lines after that offset
@@ -70,9 +111,14 @@ impl Client {
                             "daemon (pid {pid}) still reports version {daemon_version} / provider {provider} after respawn; wanted {VERSION} / {want_provider}"
                         );
                     }
-                    if no_spawn() {
+                    if !replace {
+                        let why = if no_spawn() {
+                            "ACQ_NO_SPAWN forbids replacing it"
+                        } else {
+                            "this client never replaces a daemon — resolve it with the CLI (`acq daemon stop`)"
+                        };
                         bail!(
-                            "daemon (pid {pid}) reports version {daemon_version} / provider {provider}; wanted {VERSION} / {want_provider}, and ACQ_NO_SPAWN forbids replacing it"
+                            "daemon (pid {pid}) reports version {daemon_version} / provider {provider}; wanted {VERSION} / {want_provider}, and {why}"
                         );
                     }
                     // Stale daemon (older build, or wrong mode): kill and respawn.
@@ -81,7 +127,10 @@ impl Client {
                     child = None;
                     tokio::time::sleep(Duration::from_millis(200)).await;
                 }
-                Err(_) if spawn => {
+                // Once we've killed a mismatched daemon we must respawn it
+                // even for a `spawn: false` caller — leaving nothing running
+                // would turn a read into a stop.
+                Err(_) if spawn || respawned => {
                     match child.as_mut() {
                         None => child = Some(spawn_daemon()?),
                         Some((c, log_from)) => {
@@ -122,6 +171,11 @@ impl Client {
             write,
             provider: String::new(),
         }
+    }
+
+    /// "mock" or "ggg", from the handshake of the daemon this client reached.
+    pub fn provider(&self) -> &str {
+        &self.provider
     }
 
     /// Send a request and return the next non-event response. Events arriving

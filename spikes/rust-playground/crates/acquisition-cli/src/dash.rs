@@ -19,7 +19,8 @@ use ratatui::style::{Style, Stylize as _};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Cell, Paragraph, Row, Table, Wrap};
 
-use crate::client::Client;
+use crate::connect;
+use acquisition_core::client::Client;
 
 const POLL: Duration = Duration::from_millis(250);
 /// Rows of policy detail visible at once when a policy is expanded; longer
@@ -60,7 +61,7 @@ struct Snap {
 }
 
 pub async fn run(json: bool) -> Result<()> {
-    let mut client = Client::connect(true).await?;
+    let mut client = connect(true).await?;
     if json {
         let resp = client.request(&Request::Dashboard).await?;
         println!("{}", serde_json::to_string_pretty(&resp)?);
