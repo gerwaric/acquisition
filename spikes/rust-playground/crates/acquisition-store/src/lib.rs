@@ -113,6 +113,20 @@ pub struct TabRow {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CharacterRow {
+    pub name: String,
+    pub league: Option<String>,
+    pub class: Option<String>,
+    pub level: Option<i64>,
+    pub listed_at: Option<i64>,
+    /// Set once the full character (equipment + inventory) has been fetched;
+    /// a listed-only character has items only if a fetch ever ran.
+    pub fetched_at: Option<i64>,
+    /// Live (not removed) items whose location is this character.
+    pub item_count: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ItemRow {
     pub id: String,
     pub league: Option<String>,
@@ -425,6 +439,30 @@ impl Store {
 
     /// Tabs of a league in listing order (folder children after their
     /// folder, substashes after their tab), removed ones excluded.
+    /// Characters known to the store (deleted ones excluded), with live item
+    /// counts. `league` restricts to one league; the list endpoint spans all.
+    pub fn characters(&self, league: Option<&str>) -> Result<Vec<CharacterRow>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT c.name, c.league, c.class, c.level, c.listed_at, c.fetched_at,
+                    (SELECT count(*) FROM items i WHERE i.location_kind = 'character' AND i.location_id = c.name AND i.removed_at IS NULL)
+               FROM characters c
+              WHERE c.removed_at IS NULL AND (?1 IS NULL OR c.league = ?1)
+              ORDER BY c.league, c.level DESC, c.name",
+        )?;
+        let rows = stmt.query_map([league], |r| {
+            Ok(CharacterRow {
+                name: r.get(0)?,
+                league: r.get(1)?,
+                class: r.get(2)?,
+                level: r.get(3)?,
+                listed_at: r.get(4)?,
+                fetched_at: r.get(5)?,
+                item_count: r.get(6)?,
+            })
+        })?;
+        Ok(rows.collect::<Result<_, _>>()?)
+    }
+
     pub fn tabs(&self, league: &str) -> Result<Vec<TabRow>> {
         let mut stmt = self.conn.prepare(
             "SELECT t.league, t.id, t.parent, COALESCE(t.name, ''), COALESCE(t.type, ''), t.idx, t.listed_at, t.fetched_at, t.removed_at,
@@ -998,6 +1036,56 @@ mod tests {
         )
         .unwrap();
         assert_eq!(s.status().unwrap().characters, 0);
+    }
+
+    #[test]
+    fn characters_query_lists_live_rows_with_item_counts() {
+        let mut s = Store::open_memory().unwrap();
+        s.record(
+            &Endpoint::Characters,
+            &json!({}),
+            200,
+            &json!({ "characters": [
+            { "name": "Hero", "class": "Witch", "level": 90, "league": "Standard" },
+            { "name": "Mule", "class": "Scion", "level": 3, "league": "Hardcore" },
+        ] }),
+            1,
+        )
+        .unwrap();
+        // Fetch fills fetched_at and lifts items into the character location.
+        s.record(
+            &Endpoint::Character {
+                name: "Hero".into(),
+            },
+            &json!({"name":"Hero"}),
+            200,
+            &json!({ "character": { "name": "Hero", "league": "Standard", "class": "Witch", "level": 90,
+                "equipment": [ item("eq1", "Bow", 0) ], "inventory": [ item("inv1", "Bag", 1) ] } }),
+            2,
+        )
+        .unwrap();
+        let all = s.characters(None).unwrap();
+        assert_eq!(
+            all.iter()
+                .map(|c| (c.name.as_str(), c.item_count, c.fetched_at.is_some()))
+                .collect::<Vec<_>>(),
+            vec![("Mule", 0, false), ("Hero", 2, true)]
+        );
+        let std_only = s.characters(Some("Standard")).unwrap();
+        assert_eq!(std_only.len(), 1);
+        assert_eq!(std_only[0].name, "Hero");
+        // A character no longer listed disappears from the query.
+        s.record(
+            &Endpoint::Characters,
+            &json!({}),
+            200,
+            &json!({ "characters": [
+            { "name": "Hero", "class": "Witch", "level": 90, "league": "Standard" },
+        ] }),
+            3,
+        )
+        .unwrap();
+        assert_eq!(s.characters(None).unwrap().len(), 1);
     }
 
     #[test]

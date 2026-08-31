@@ -98,8 +98,8 @@ bounded by `MAX_429_RETRIES`; a Cloudflare-shaped 403/503 is never retried.
   subcommand, which is what lazy spawn execs.
 - `crates/acquisition-mcp` — the `acq-mcp` binary: an MCP server over
   stdio (official `rmcp` SDK), the fourth thin client. Store-read tools
-  (`accounts`, `tabs`, `search_items`, `get_item`, `store_status`,
-  `item_events` — no daemon, no network) plus job tools (`submit_job`,
+  (`accounts`, `characters`, `tabs`, `search_items`, `get_item`,
+  `store_status`, `item_events` — no daemon, no network) plus job tools (`submit_job`,
   `list_jobs`, `job_status`, `job_result`, `cancel_job`, `daemon_status`).
   It **never kills or replaces a daemon** (a mismatch may be a human's
   live GGG run — it reports and stops), lazy-spawns only in mock mode,

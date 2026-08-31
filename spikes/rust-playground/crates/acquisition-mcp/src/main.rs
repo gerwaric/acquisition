@@ -65,6 +65,13 @@ struct TabsParams {
 }
 
 #[derive(Deserialize, schemars::JsonSchema)]
+struct CharactersParams {
+    /// Restrict to one league; omitted lists every league.
+    league: Option<String>,
+    account: Option<String>,
+}
+
+#[derive(Deserialize, schemars::JsonSchema)]
 struct SearchParams {
     /// Substring matched against item name, type line, and base type.
     text: String,
@@ -154,6 +161,20 @@ impl AcqMcp {
             .tabs(p.league.as_deref().unwrap_or("Standard"))
             .map_err(err)?;
         serde_json::to_value(tabs)
+            .map(Json)
+            .map_err(|e| err(e.into()))
+    }
+
+    #[tool(
+        description = "Characters known to the store, with class, level, league, item counts, and whether the full character (equipment + inventory) has been fetched (no daemon, no network). Fresh data is a `characters` or `character` job."
+    )]
+    fn characters(
+        &self,
+        Parameters(p): Parameters<CharactersParams>,
+    ) -> Result<Json<Value>, ErrorData> {
+        let store = open_store(p.account.as_deref()).map_err(err)?;
+        let rows = store.characters(p.league.as_deref()).map_err(err)?;
+        serde_json::to_value(rows)
             .map(Json)
             .map_err(|e| err(e.into()))
     }
