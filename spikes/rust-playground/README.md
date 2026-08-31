@@ -87,12 +87,24 @@ bounded by `MAX_429_RETRIES`; a Cloudflare-shaped 403/503 is never retried.
   dispatching (running jobs finish) until a restart finds a working
   `daemon.db`; a queue it cannot read at start is fatal. Finished rows
   stay for `acq result <id>` across restarts, pruned by age at start.
-- `crates/acquisition-cli` — the `acq` binary. Thin: clap parsing, a small
-  protocol client, output formatting, and `store_cmd.rs` — the reads of
-  the shared store (`tabs`, `items`, `store`). `acq pull` (client-side
-  snapshot + diff, 2026-08-24) is retired: the store's `item_events` answer
-  the same question for every consumer. The daemon is reached via the
-  hidden-ish `acq daemon run` subcommand, which is what lazy spawn execs.
+- `crates/acquisition-cli` — the `acq` binary. Thin: clap parsing, output
+  formatting, and `store_cmd.rs` — the reads of the shared store (`tabs`,
+  `items`, `store`). The protocol client (connect, lazy spawn, version
+  handshake) lives in `acquisition-core/src/client.rs` and is shared by
+  every frontend; the frontends differ only in connect *policy*
+  (`ConnectOptions`). `acq pull` (client-side snapshot + diff, 2026-08-24)
+  is retired: the store's `item_events` answer the same question for every
+  consumer. The daemon is reached via the hidden-ish `acq daemon run`
+  subcommand, which is what lazy spawn execs.
+- `crates/acquisition-mcp` — the `acq-mcp` binary: an MCP server over
+  stdio (official `rmcp` SDK), the fourth thin client. Store-read tools
+  (`accounts`, `tabs`, `search_items`, `get_item`, `store_status`,
+  `item_events` — no daemon, no network) plus job tools (`submit_job`,
+  `list_jobs`, `job_status`, `job_result`, `cancel_job`, `daemon_status`).
+  It **never kills or replaces a daemon** (a mismatch may be a human's
+  live GGG run — it reports and stops), lazy-spawns only in mock mode,
+  and **refuses `submit_job` in real-GGG mode** until the agent-traffic
+  deferral lifts (CONTEXT.md). Login is human, via `acq auth`.
 
 ## Try it
 
@@ -134,8 +146,15 @@ acq dash                                     # live TUI: rate limits, jobs, HTTP
 acq set-priority <id> 5                      # higher runs sooner; queue reorders live
 acq cancel <id>
 acq result <id> --json                       # every command takes --json; answers across daemon restarts
+                                             # (--json is total: errors are {"error":…} on stdout, and a
+                                             #  failed job exits 1 in both output modes; `acq auth
+                                             #  --no-browser --json` prints {"authorize_url":…} first)
 acq daemon status                            # debugging only
 ```
+
+To use the MCP server, point an MCP host at `target/debug/acq-mcp`
+(stdio); it shares the daemon and store with the CLI. Mock-only for
+job submission — see the layout note above.
 
 ## Real GGG mode (`ACQ_GGG=1`)
 
