@@ -1,0 +1,17 @@
+[package]
+name = "acquisition-mcp"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "acq-mcp"
+path = "src/main.rs"
+
+[dependencies]
+acquisition-core = { path = "../acquisition-core" }
+acquisition-store = { path = "../acquisition-store" }
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true
+rmcp = { version = "3.1", features = ["transport-io"] }

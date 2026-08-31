@@ -1,6 +1,11 @@
 [workspace]
 resolver = "2"
-members = ["crates/acquisition-core", "crates/acquisition-store", "crates/acquisition-cli"]
+members = [
+    "crates/acquisition-core",
+    "crates/acquisition-store",
+    "crates/acquisition-cli",
+    "crates/acquisition-mcp",
+]
 
 [workspace.package]
 version = "0.0.1"
