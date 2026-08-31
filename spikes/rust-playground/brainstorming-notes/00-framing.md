@@ -177,6 +177,47 @@ requirements.
   intent → store (shared by all frontends for free); live orchestration
   state → daemon. Deciding the home is a real design act each time.
 
+## Stress-tested: the two-surface rule (2026-08-31)
+
+Before the session, the owner deliberately pushed back on the "two
+surfaces, no third door" line, using product-scale item search — the one
+big capability the spike has only in miniature — as the test case. The
+rule survived, but came back better specified. The brainstorm inherits
+these conclusions rather than re-running the argument:
+
+- **The rule is two rules fused**: (1) shared semantics have exactly one
+  implementation, so every frontend sees the same results; (2) wire
+  contracts are minimized — a linked crate is a cheap contract, a wire
+  protocol is an expensive one (lifecycle, handshake, respawn story).
+- **The rule counts doors, not rooms.** Product-scale search stresses
+  the store *crate's* identity, not the surface count. Search may grow
+  into its own crate layered on the store's read API — a third leg of
+  code with zero new contract. Crate factoring behind door #2 is
+  internals.
+- **Search indexes can live in the store file.** Ingest already does
+  domain work (item lifting, column extraction); maintaining FTS or
+  canonicalized-mod tables at ingest is the same species. Readers then
+  get fast search with no warm-up, no cache, no coherence problem — and
+  the daemon still never reads the store.
+- **The schema is not a surface.** The store being a SQLite file means
+  raw SQL is an invisible third door already standing open; nobody has
+  agreed to hold the schema stable. Declare it internal, and defend it
+  by making door #2 expressive enough (query language, `--count-by`,
+  `--fields`) that going around it is never worth it. An agent-native
+  design makes this acute: agents will find `sqlite3` if the blessed
+  surface is weaker than the schema underneath.
+- **A cached search service would reintroduce, inside our own
+  architecture, the exact failure the essays warn about** — stale
+  results mistaken for current truth — where today "read the file" is
+  trivially coherent.
+- **Tripwires for reopening** (so refusal today never needs
+  re-arguing): a true third leg becomes discussable when multiple
+  long-lived frontends measurably duplicate an expensive in-memory
+  index, or when a concrete consumer shows latency that in-process
+  reads over the store file cannot meet. Until then, the door count
+  stays two — the forcing-function value is real: it is what turns a
+  frontend's workaround into a design event.
+
 ## Gravity warnings
 
 - **C++ detail gravity.** The C++ notes are the most detailed source by
