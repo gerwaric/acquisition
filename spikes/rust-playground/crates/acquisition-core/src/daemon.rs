@@ -779,7 +779,12 @@ resubmit if still wanted",
     /// Hand a successful API body to the shared store. The daemon's whole
     /// involvement: endpoint + params + body; what is inside is the store's
     /// business. A store failure is logged, never a job failure — the job's
-    /// payload still reaches the client that asked.
+    /// payload still reaches the client that asked. Malformed bodies are a
+    /// different case: the list-shaped jobs (`stashes`, `characters`,
+    /// `refresh`) validate their array before calling this and fail the
+    /// job instead, so a body the store would refuse as malformed
+    /// (`acquisition_store::MalformedBody`) normally never reaches here —
+    /// the store-side check is the structural backstop.
     fn record(&self, account: Option<&str>, kind: &str, params: &Value, body: &Value) {
         let Some(dir) = &self.store_dir else { return };
         let Some(endpoint) = Endpoint::from_job(kind, params) else {
@@ -1621,12 +1626,22 @@ resubmit if still wanted",
                 let url = format!("{}/character", self.provider.api_base);
                 let route = route.as_deref().expect("characters is a network kind");
                 let (v, rate) = self.api_get(route, &url, Some(&token), ready).await?;
+                // A 2xx without the `characters` array is a malformed
+                // response, not an empty account: the job fails and
+                // nothing is recorded (the store would refuse it too —
+                // ingesting it as empty would retire every character).
+                let Some(characters) = v.get("characters").and_then(Value::as_array) else {
+                    return Ok(Outcome::Failure {
+                        error: "characters response without a `characters` array".into(),
+                    });
+                };
+                let characters = json!(characters);
                 self.record(account, kind, &params, &v);
                 Outcome::Success {
                     payload: json!({
                         "provider": self.provider.name,
                         "username": username,
-                        "characters": v.get("characters").cloned().unwrap_or(v),
+                        "characters": characters,
                         "rate_limit": rate,
                     }),
                 }
@@ -1696,13 +1711,23 @@ resubmit if still wanted",
                 let url = format!("{}/stash/{league}", self.provider.api_base);
                 let route = route.as_deref().expect("stashes is a network kind");
                 let (v, rate) = self.api_get(route, &url, Some(&token), ready).await?;
+                // A 2xx without the `stashes` array is a malformed
+                // response, not an empty account: the job fails and
+                // nothing is recorded — ingested as empty it would retire
+                // every tab and mint a false listing basis.
+                let Some(stashes) = v.get("stashes").and_then(Value::as_array) else {
+                    return Ok(Outcome::Failure {
+                        error: "stashes response without a `stashes` array".into(),
+                    });
+                };
+                let stashes = json!(stashes);
                 self.record(account, kind, &params, &v);
                 Outcome::Success {
                     payload: json!({
                         "provider": self.provider.name,
                         "username": username,
                         "league": league,
-                        "stashes": v.get("stashes").cloned().unwrap_or(v),
+                        "stashes": stashes,
                         "rate_limit": rate,
                     }),
                 }
@@ -1798,6 +1823,14 @@ resubmit if still wanted",
                 let url = format!("{}/stash/{league}", self.provider.api_base);
                 let route = route.as_deref().expect("refresh is a network kind");
                 let (v, rate) = self.api_get(route, &url, Some(&token), ready).await?;
+                // A malformed listing fails the refresh whole, before the
+                // store sees it: converted to an empty list it would
+                // "succeed" with zero children over a retired tab set.
+                let Some(listed) = v.get("stashes").and_then(Value::as_array).cloned() else {
+                    return Ok(Outcome::Failure {
+                        error: "stashes response without a `stashes` array".into(),
+                    });
+                };
                 // The list a refresh fetches is the same response `stashes`
                 // records; the store wants it under that endpoint.
                 self.record(
@@ -1806,11 +1839,6 @@ resubmit if still wanted",
                     &json!({ "league": params.get("league").cloned().unwrap_or(json!("Standard")) }),
                     &v,
                 );
-                let listed = v
-                    .get("stashes")
-                    .and_then(Value::as_array)
-                    .cloned()
-                    .unwrap_or_default();
                 // Flatten: top-level tabs plus folder children; skip folders.
                 let mut tabs: Vec<(String, String, String)> = Vec::new();
                 for t in &listed {

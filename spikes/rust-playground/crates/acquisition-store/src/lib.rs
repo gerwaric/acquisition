@@ -26,12 +26,66 @@
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use anyhow::{Context, Result, anyhow};
-use rusqlite::{Connection, OptionalExtension, params};
+use anyhow::{Context, Result};
+use rusqlite::{Connection, OptionalExtension, TransactionBehavior, params};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 const SCHEMA: &str = include_str!("schema.sql");
+
+/// The fact-file schema this build reads and writes; a file stamped newer
+/// is refused (CONTEXT.md: schema versions and compatibility errors, never
+/// guessing). Version 2 added `tabs.listed_json` / `tabs.listed_response`;
+/// 0 is both "fresh file" and "pre-versioning file" — the DDL and column
+/// checks are idempotent, so one migration path serves both.
+const FACT_SCHEMA_VERSION: i64 = 2;
+
+/// A facts file written by a newer build than this one. Facts are
+/// refetchable, but guessing at an unknown schema is how a file gets
+/// silently misread — refuse instead.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SchemaTooNew {
+    pub found: i64,
+    pub supported: i64,
+}
+
+impl std::fmt::Display for SchemaTooNew {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "facts file uses schema v{}, newer than this build's v{}",
+            self.found, self.supported
+        )
+    }
+}
+
+impl std::error::Error for SchemaTooNew {}
+
+/// Malformed external input at the record boundary: a 2xx body that lacks
+/// the identity-bearing shape ingest depends on. A stable kind (downcast
+/// target) per CONTEXT.md's structured-error rule; nothing is written when
+/// `record` returns it — the transaction rolls back whole, so a malformed
+/// body can never retire tabs, characters, or items, and never mints a
+/// response row a snapshot could cite as a basis.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MalformedBody {
+    /// Endpoint whose body was malformed (`"stashes"`, `"characters"`, …).
+    pub endpoint: &'static str,
+    /// What was missing.
+    pub missing: &'static str,
+}
+
+impl std::fmt::Display for MalformedBody {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "malformed {} response: missing {}",
+            self.endpoint, self.missing
+        )
+    }
+}
+
+impl std::error::Error for MalformedBody {}
 
 /// Item fields the server re-randomizes per fetch (ground-truth N36), so
 /// they never count as a change.
@@ -216,33 +270,54 @@ impl Store {
         Self::init(Connection::open_in_memory()?, PathBuf::from(":memory:"))
     }
 
-    fn init(conn: Connection, path: PathBuf) -> Result<Store> {
+    fn init(mut conn: Connection, path: PathBuf) -> Result<Store> {
         // WAL: the daemon writes while any number of frontends read.
         conn.pragma_update(None, "journal_mode", "WAL")?;
         conn.pragma_update(None, "synchronous", "NORMAL")?;
         conn.busy_timeout(std::time::Duration::from_secs(5))?;
-        conn.execute_batch(SCHEMA)?;
-        // Facts are refetchable, but a live store is not discarded over a
-        // new column: files from before these columns get them in place.
-        for (column, ddl) in [
-            (
-                "listed_json",
-                "ALTER TABLE tabs ADD COLUMN listed_json TEXT",
-            ),
-            (
-                "listed_response",
-                "ALTER TABLE tabs ADD COLUMN listed_response INTEGER",
-            ),
-        ] {
-            let present: i64 = conn.query_row(
-                "SELECT count(*) FROM pragma_table_info('tabs') WHERE name = ?1",
-                [column],
-                |r| r.get(0),
-            )?;
-            if present == 0 {
-                conn.execute(ddl, [])?;
+        // Discovery and migration serialize under one immediate
+        // transaction: two processes opening the same legacy file must not
+        // both run the ALTERs (the loser would fail on a duplicate
+        // column); the loser waits here and then reads the stamped
+        // version. Facts are refetchable, but a live store is not
+        // discarded over a new column: pre-version files get them added in
+        // place.
+        let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let found: i64 = tx.query_row("PRAGMA user_version", [], |r| r.get(0))?;
+        match found {
+            v if v > FACT_SCHEMA_VERSION => {
+                return Err(SchemaTooNew {
+                    found: v,
+                    supported: FACT_SCHEMA_VERSION,
+                }
+                .into());
+            }
+            FACT_SCHEMA_VERSION => {}
+            _ => {
+                tx.execute_batch(SCHEMA)?;
+                for (column, ddl) in [
+                    (
+                        "listed_json",
+                        "ALTER TABLE tabs ADD COLUMN listed_json TEXT",
+                    ),
+                    (
+                        "listed_response",
+                        "ALTER TABLE tabs ADD COLUMN listed_response INTEGER",
+                    ),
+                ] {
+                    let present: i64 = tx.query_row(
+                        "SELECT count(*) FROM pragma_table_info('tabs') WHERE name = ?1",
+                        [column],
+                        |r| r.get(0),
+                    )?;
+                    if present == 0 {
+                        tx.execute(ddl, [])?;
+                    }
+                }
+                tx.pragma_update(None, "user_version", FACT_SCHEMA_VERSION)?;
             }
         }
+        tx.commit()?;
         Ok(Store { conn, path })
     }
 
@@ -305,18 +380,31 @@ impl Store {
                 // remove every character (CONTEXT.md: malformed external
                 // input is a structured error). An empty array is fine.
                 let Some(list) = body.get("characters").and_then(Value::as_array) else {
-                    return Err(anyhow!("characters response without a `characters` array"));
+                    return Err(MalformedBody {
+                        endpoint: "characters",
+                        missing: "a `characters` array",
+                    }
+                    .into());
                 };
                 for c in list {
-                    if let Some(name) = c.get("name").and_then(Value::as_str) {
-                        tx.execute(
-                            "INSERT INTO characters (name, league, class, level, json, listed_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)
-                             ON CONFLICT(name) DO UPDATE SET league = excluded.league, class = excluded.class,
-                               level = excluded.level, json = excluded.json, listed_at = excluded.listed_at, removed_at = NULL",
-                            params![name, c.get("league").and_then(Value::as_str), c.get("class").and_then(Value::as_str),
-                                    c.get("level").and_then(Value::as_i64), c.to_string(), at],
-                        )?;
-                    }
+                    // Identity-bearing entries error rather than skip: a
+                    // list of name-less entries must not read as an
+                    // authoritative empty and retire everyone (the error
+                    // rolls the whole transaction back).
+                    let Some(name) = c.get("name").and_then(Value::as_str) else {
+                        return Err(MalformedBody {
+                            endpoint: "characters",
+                            missing: "a `name` on a character entry",
+                        }
+                        .into());
+                    };
+                    tx.execute(
+                        "INSERT INTO characters (name, league, class, level, json, listed_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+                         ON CONFLICT(name) DO UPDATE SET league = excluded.league, class = excluded.class,
+                           level = excluded.level, json = excluded.json, listed_at = excluded.listed_at, removed_at = NULL",
+                        params![name, c.get("league").and_then(Value::as_str), c.get("class").and_then(Value::as_str),
+                                c.get("level").and_then(Value::as_i64), c.to_string(), at],
+                    )?;
                 }
                 // A character no longer listed is gone (deleted), with its items.
                 tx.execute(
@@ -327,7 +415,11 @@ impl Store {
             Endpoint::Character { name } => {
                 let Some(character) = envelope.get_mut("character").and_then(Value::as_object_mut)
                 else {
-                    return Err(anyhow!("character response without a `character` object"));
+                    return Err(MalformedBody {
+                        endpoint: "character",
+                        missing: "a `character` object",
+                    }
+                    .into());
                 };
                 let league = character
                     .get("league")
@@ -356,11 +448,24 @@ impl Store {
                 // snapshots (CONTEXT.md: malformed external input is a
                 // structured error). An empty array is fine.
                 let Some(list) = body.get("stashes").and_then(Value::as_array) else {
-                    return Err(anyhow!("stashes response without a `stashes` array"));
+                    return Err(MalformedBody {
+                        endpoint: "stashes",
+                        missing: "a `stashes` array",
+                    }
+                    .into());
                 };
                 let mut idx = 0;
                 for tab in list {
-                    upsert_listed_tab(&tx, league, tab, None, &mut idx, at, &mut listed_tabs)?;
+                    upsert_listed_tab(
+                        &tx,
+                        "stashes",
+                        league,
+                        tab,
+                        None,
+                        &mut idx,
+                        at,
+                        &mut listed_tabs,
+                    )?;
                     for child in tab
                         .get("children")
                         .and_then(Value::as_array)
@@ -370,6 +475,7 @@ impl Store {
                         let folder = tab.get("id").and_then(Value::as_str).map(str::to_string);
                         upsert_listed_tab(
                             &tx,
+                            "stashes",
                             league,
                             child,
                             folder,
@@ -383,7 +489,11 @@ impl Store {
             }
             Endpoint::Stash { league, id, sub } => {
                 let Some(stash) = envelope.get_mut("stash").and_then(Value::as_object_mut) else {
-                    return Err(anyhow!("stash response without a `stash` object"));
+                    return Err(MalformedBody {
+                        endpoint: "stash",
+                        missing: "a `stash` object",
+                    }
+                    .into());
                 };
                 let location = sub.clone().unwrap_or_else(|| id.clone());
                 let items = match stash.remove("items") {
@@ -401,6 +511,7 @@ impl Store {
                 for child in &children {
                     upsert_listed_tab(
                         &tx,
+                        "stash",
                         league,
                         child,
                         Some(id.clone()),
@@ -709,8 +820,10 @@ impl Store {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn upsert_listed_tab(
     tx: &Connection,
+    via: &'static str,
     league: &str,
     tab: &Value,
     parent: Option<String>,
@@ -718,8 +831,16 @@ fn upsert_listed_tab(
     at: i64,
     listed: &mut Vec<(String, String)>,
 ) -> Result<()> {
+    // Identity-bearing entries error rather than skip: an id-less entry
+    // silently dropped would let a malformed list read as an authoritative
+    // (near-)empty one and retire real tabs — the error rolls the whole
+    // transaction back instead.
     let Some(id) = tab.get("id").and_then(Value::as_str) else {
-        return Ok(());
+        return Err(MalformedBody {
+            endpoint: via,
+            missing: "an `id` on a listed tab entry",
+        }
+        .into());
     };
     let mut entry = tab.clone();
     if let Some(o) = entry.as_object_mut() {
@@ -1276,6 +1397,12 @@ mod tests {
         let mut s = Store::open(&path).unwrap();
         let tabs = s.tabs("Standard").unwrap();
         assert_eq!(tabs[0].id, "old1");
+        // The migrated file is stamped with the current schema version.
+        let v: i64 = s
+            .conn
+            .query_row("PRAGMA user_version", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(v, FACT_SCHEMA_VERSION);
         // The next listing stamps membership per response id and retires
         // the pre-migration row it dropped.
         s.record(
@@ -1295,6 +1422,17 @@ mod tests {
             .map(|t| t.id)
             .collect();
         assert_eq!(ids, vec!["new1"]);
+        // A file stamped newer than this build is refused, not guessed at.
+        s.conn.pragma_update(None, "user_version", 99).unwrap();
+        drop(s);
+        let err = Store::open(&path).err().unwrap();
+        assert_eq!(
+            err.downcast_ref::<SchemaTooNew>(),
+            Some(&SchemaTooNew {
+                found: 99,
+                supported: FACT_SCHEMA_VERSION
+            })
+        );
         let _ = std::fs::remove_dir_all(&dir);
     }
 

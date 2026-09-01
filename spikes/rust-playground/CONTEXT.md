@@ -188,12 +188,18 @@ policy rows, tab identities, freshness, listing basis — **done
 `Store::stash_snapshot`: one league's facts and the sync-policy row
 named together, nothing derived — the plan's fact basis is the
 `responses` row of the latest listing, its annotation basis the
-policy's revision; hardened 2026-09-01 on owner review: all fact reads
-in one transaction, listing membership stamped by response id — never
-the clock — malformed 2xx listings refused whole, the list entry kept
-beside the fetched body so metadata survives a fetch, and the snapshot
-bound to the account uuid, with the annotations handle required and a
-wrong-uuid file refused; the provider is deliberately not in the
+policy's revision; hardened 2026-09-01 over two owner reviews: all
+fact reads in one transaction; listing membership stamped by response
+id — never the clock; a malformed 2xx list — missing array, or any
+id-/name-less entry — is a typed `MalformedBody` refusal that writes
+nothing, and the list-shaped jobs (`stashes`/`characters`/`refresh`)
+fail rather than succeed over one; the list entry lives beside the
+fetched body so listed metadata survives a fetch; both store files are
+schema-versioned — newer refused, creation/migration serialized under
+an immediate transaction; and the pairing is bound to the account uuid
+carried *inside* the annotations file (`Annotations::open_for` stamps
+and verifies it, so a copied or renamed file keeps its owner and an
+unbound handle is refused). The provider is deliberately not in the
 snapshot — the store cannot verify it, the planner binds it from the
 directory it opened); (4) `RefreshPlan`
 built offline in `acquisition-plan`; (5) `quote` on the protocol +
@@ -202,7 +208,12 @@ optional plan enrichment — the quote names what it does not cover
 (6) `acq refresh --plan`, human + JSON, spends nothing; (7) apply: the
 exact action set through a parent that never expands it — the existing
 refresh parent re-lists, so it is constrained or replaced, recorded here
-first — with admission-time logical budget; (8) MCP exposure in mock
+first — with admission-time logical budget, and an explicit staleness
+ruling: annotation CAS guards policy *writes*, not plan application, so
+whether apply refuses a plan whose annotation revision is no longer
+current is its own check, decided and recorded at this step (the
+snapshot carries the revision so the comparison is possible);
+(8) MCP exposure in mock
 mode (real-mode `quote` is the open topic above); (9) owner live rung
 under `LIVE-TESTING.md`'s standing rule, friction notes collected as
 data.

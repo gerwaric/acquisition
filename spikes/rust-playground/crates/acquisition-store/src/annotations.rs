@@ -37,7 +37,10 @@ use crate::index::filename_safe;
 /// The schema this build reads and writes. A file stamped newer is refused
 /// (never auto-migrated: this is the one file that must not be damaged);
 /// additions like the deferred event log bump this and migrate forward.
-const SCHEMA_VERSION: i64 = 1;
+/// v2 added `meta`, which carries the account uuid *inside* the file so a
+/// copied or renamed database cannot silently pair with another account's
+/// facts — the filename convention alone was bypassable.
+const SCHEMA_VERSION: i64 = 2;
 
 const SCHEMA: &str = "
 CREATE TABLE IF NOT EXISTS annotations (
@@ -51,7 +54,14 @@ CREATE TABLE IF NOT EXISTS annotations (
     deleted_at  INTEGER,            -- tombstone; the revision keeps counting
     PRIMARY KEY (scope, key, kind)
 );
+CREATE TABLE IF NOT EXISTS meta (
+    key    TEXT PRIMARY KEY,        -- 'account_uuid'
+    value  TEXT NOT NULL
+);
 ";
+
+/// The `meta` key holding the owning account's uuid.
+const META_UUID: &str = "account_uuid";
 
 /// `<dir>/<uuid>.annotations.db` — beside the username-named fact files,
 /// but keyed by the identity that survives a rename.
@@ -85,6 +95,12 @@ pub enum AnnotationError {
         found: i64,
         supported: i64,
     },
+    /// The file carries another account's uuid: a copy or rename cannot
+    /// silently pair one account's intent with another account's facts.
+    WrongAccount {
+        stored: String,
+        requested: String,
+    },
     Db(rusqlite::Error),
     Io(std::io::Error),
     Json(serde_json::Error),
@@ -104,6 +120,10 @@ impl std::fmt::Display for AnnotationError {
             AnnotationError::SchemaTooNew { found, supported } => write!(
                 f,
                 "annotation file uses schema v{found}, newer than this build's v{supported}"
+            ),
+            AnnotationError::WrongAccount { stored, requested } => write!(
+                f,
+                "annotation file belongs to account uuid {stored}, not {requested}"
             ),
             AnnotationError::Db(e) => write!(f, "annotation store: {e}"),
             AnnotationError::Io(e) => write!(f, "annotation store: {e}"),
@@ -135,9 +155,35 @@ impl From<serde_json::Error> for AnnotationError {
 pub struct Annotations {
     conn: Connection,
     path: PathBuf,
+    /// The owning account's uuid as stored in the file's `meta` table;
+    /// `None` for a pre-v2 file never opened via [`Annotations::open_for`].
+    uuid: Option<String>,
 }
 
 impl Annotations {
+    /// Open (or create) the account's annotations file under `dir`, bound
+    /// to `uuid`: the uuid is stored inside the file, and a file already
+    /// carrying a different account's uuid is refused
+    /// ([`AnnotationError::WrongAccount`]) — a copy or rename cannot
+    /// silently pair another account's intent. A pre-v2 file has no stored
+    /// uuid; the uuid it is addressed by is stamped on this first open
+    /// (the filename convention was its only binding, upgraded here).
+    /// This is the way to open annotations for real use; [`Annotations::open`]
+    /// on a raw path yields a handle without a verified identity, which
+    /// [`crate::Store::stash_snapshot`] refuses.
+    pub fn open_for(dir: &Path, uuid: &str) -> Result<Annotations, AnnotationError> {
+        let mut a = Self::open(&annotations_path(dir, uuid))?;
+        a.bind(uuid)?;
+        Ok(a)
+    }
+
+    /// An in-memory file bound to `uuid`, for tests and ephemeral use.
+    pub fn open_memory_for(uuid: &str) -> Result<Annotations, AnnotationError> {
+        let mut a = Self::open_memory()?;
+        a.bind(uuid)?;
+        Ok(a)
+    }
+
     pub fn open(path: &Path) -> Result<Annotations, AnnotationError> {
         if let Some(dir) = path.parent() {
             std::fs::create_dir_all(dir)?;
@@ -149,16 +195,21 @@ impl Annotations {
         Self::init(Connection::open_in_memory()?, PathBuf::from(":memory:"))
     }
 
-    fn init(conn: Connection, path: PathBuf) -> Result<Annotations, AnnotationError> {
+    fn init(mut conn: Connection, path: PathBuf) -> Result<Annotations, AnnotationError> {
         // WAL like the fact store: one writer at a time, any number of readers.
         conn.pragma_update(None, "journal_mode", "WAL")?;
         conn.pragma_update(None, "synchronous", "NORMAL")?;
         conn.busy_timeout(std::time::Duration::from_secs(5))?;
-        let found: i64 = conn.query_row("PRAGMA user_version", [], |r| r.get(0))?;
+        // Creation and migration serialize under one immediate transaction
+        // so two processes opening the same file cannot interleave them.
+        let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let found: i64 = tx.query_row("PRAGMA user_version", [], |r| r.get(0))?;
         match found {
-            0 => {
-                conn.execute_batch(SCHEMA)?;
-                conn.pragma_update(None, "user_version", SCHEMA_VERSION)?;
+            // 0 is a fresh file; 1 gains the `meta` table (an addition —
+            // the annotation rows are not touched).
+            0 | 1 => {
+                tx.execute_batch(SCHEMA)?;
+                tx.pragma_update(None, "user_version", SCHEMA_VERSION)?;
             }
             v if v == SCHEMA_VERSION => {}
             v => {
@@ -168,7 +219,52 @@ impl Annotations {
                 });
             }
         }
-        Ok(Annotations { conn, path })
+        tx.commit()?;
+        let uuid: Option<String> = conn
+            .query_row("SELECT value FROM meta WHERE key = ?1", [META_UUID], |r| {
+                r.get(0)
+            })
+            .optional()?;
+        Ok(Annotations { conn, path, uuid })
+    }
+
+    /// Bind this handle to `uuid`: stamp it into a file that has none, or
+    /// verify it against the stored one.
+    fn bind(&mut self, uuid: &str) -> Result<(), AnnotationError> {
+        let tx = self
+            .conn
+            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let stored: Option<String> = tx
+            .query_row("SELECT value FROM meta WHERE key = ?1", [META_UUID], |r| {
+                r.get(0)
+            })
+            .optional()?;
+        match stored {
+            None => {
+                tx.execute(
+                    "INSERT INTO meta (key, value) VALUES (?1, ?2)",
+                    params![META_UUID, uuid],
+                )?;
+            }
+            Some(ref u) if u == uuid => {}
+            Some(u) => {
+                return Err(AnnotationError::WrongAccount {
+                    stored: u,
+                    requested: uuid.into(),
+                });
+            }
+        }
+        tx.commit()?;
+        self.uuid = Some(uuid.into());
+        Ok(())
+    }
+
+    /// The owning account's uuid, when the file (or this handle) carries
+    /// one. `None` means the pairing is uncheckable — a pre-v2 file opened
+    /// from a raw path — and consumers that pair intent with facts refuse
+    /// such handles.
+    pub fn uuid(&self) -> Option<&str> {
+        self.uuid.as_deref()
     }
 
     pub fn path(&self) -> &Path {
@@ -510,6 +606,66 @@ mod tests {
         assert_eq!(restored.list(None).unwrap().len(), 1);
         // A second export to the same path is refused, not an overwrite.
         assert!(a.export(&backup).is_err());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn open_for_stamps_the_uuid_and_refuses_a_foreign_file() {
+        let dir = std::env::temp_dir().join(format!(
+            "acq-ann-uuid-{}-{}",
+            std::process::id(),
+            crate::now()
+        ));
+        // First open stamps; reopening from the raw path still knows the
+        // owner, because the uuid lives inside the file.
+        {
+            let a = Annotations::open_for(&dir, "u-1").unwrap();
+            assert_eq!(a.uuid(), Some("u-1"));
+        }
+        let raw = Annotations::open(&annotations_path(&dir, "u-1")).unwrap();
+        assert_eq!(raw.uuid(), Some("u-1"));
+        // u-1's file copied over u-2's path: open_for(u-2) refuses to
+        // rebind it rather than adopting the copy.
+        std::fs::copy(annotations_path(&dir, "u-1"), annotations_path(&dir, "u-2")).unwrap();
+        match Annotations::open_for(&dir, "u-2").err() {
+            Some(AnnotationError::WrongAccount { stored, requested }) => {
+                assert_eq!((stored.as_str(), requested.as_str()), ("u-1", "u-2"));
+            }
+            other => panic!("expected WrongAccount, got {other:?}"),
+        }
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_v1_file_is_migrated_forward_with_its_rows_intact() {
+        let dir = std::env::temp_dir().join(format!(
+            "acq-ann-mig-{}-{}",
+            std::process::id(),
+            crate::now()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = annotations_path(&dir, "u-1");
+        {
+            // A v1 file: the annotations table alone, no meta.
+            let conn = Connection::open(&path).unwrap();
+            conn.execute_batch(
+                "CREATE TABLE annotations (
+                    scope TEXT NOT NULL, key TEXT NOT NULL, kind TEXT NOT NULL,
+                    value TEXT NOT NULL, revision INTEGER NOT NULL,
+                    created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL,
+                    deleted_at INTEGER, PRIMARY KEY (scope, key, kind));
+                 INSERT INTO annotations VALUES ('item', 'i1', 'buyout', '{}', 3, 1, 2, NULL);",
+            )
+            .unwrap();
+            conn.pragma_update(None, "user_version", 1).unwrap();
+        }
+        // open_for migrates (meta table added, rows untouched) and stamps
+        // the uuid the file is addressed by — the v1 filename convention
+        // was its only binding, upgraded on this first open.
+        let a = Annotations::open_for(&dir, "u-1").unwrap();
+        assert_eq!(a.uuid(), Some("u-1"));
+        let row = a.get("item", "i1", "buyout").unwrap().unwrap();
+        assert_eq!(row.revision, 3);
         let _ = std::fs::remove_dir_all(&dir);
     }
 

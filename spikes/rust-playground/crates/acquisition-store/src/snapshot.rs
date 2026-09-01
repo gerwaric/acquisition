@@ -7,15 +7,12 @@
 //! `acquisition-plan`, never here — the store exposes neutral snapshots,
 //! "never half a planner" (CONTEXT.md, decided 2026-08-31).
 
-use std::path::Path;
-
 use anyhow::{Context, Result, bail};
 use rusqlite::OptionalExtension;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::annotations::{AnnotationRow, Annotations};
-use crate::index::filename_safe;
 use crate::{Store, TAB_ORDER_SQL};
 
 /// The per-account sync policy's annotation address (scope `"account"`,
@@ -64,9 +61,10 @@ pub struct TabSnapshot {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct StashSnapshot {
     /// The account uuid the facts file records (`/profile` lands at every
-    /// login) — the identity annotation files are named by, so a plan can
-    /// carry it. Facts and intent are paired under this one uuid;
-    /// [`Store::stash_snapshot`] refuses a pairing it can see is wrong.
+    /// login) — the identity annotation files carry internally, so a plan
+    /// can cite it. Facts and intent are paired under this one uuid;
+    /// [`Store::stash_snapshot`] refuses an annotations handle whose
+    /// stored uuid differs or is absent.
     /// The provider is not here: the store cannot verify it — the caller
     /// binds it by the provider directory it opened.
     pub account_uuid: String,
@@ -118,7 +116,22 @@ impl Store {
                 many.len()
             ),
         };
-        check_pairing(annotations.path(), &account_uuid)?;
+        // Pairing is by the uuid the annotations file carries internally
+        // (v2 `meta`), not by filename — a copied or renamed file keeps its
+        // owner. A handle with no identity (a pre-v2 file opened from a
+        // raw path) is refused, never trusted.
+        match annotations.uuid() {
+            Some(u) if u == account_uuid => {}
+            Some(u) => bail!(
+                "annotations file {} belongs to account uuid {u}, not {account_uuid}",
+                annotations.path().display()
+            ),
+            None => bail!(
+                "annotations handle {} carries no account identity; open it with \
+                 Annotations::open_for so the pairing is checkable",
+                annotations.path().display()
+            ),
+        }
         // The league of a listing lives in its params; an omitted league
         // defaulted to "Standard" at record time (`Endpoint::from_job`),
         // so the match here defaults the same way.
@@ -228,28 +241,6 @@ impl Store {
     }
 }
 
-/// The annotations file is named by the account uuid — that naming *is*
-/// the pairing (identity decision, CONTEXT.md). A handle whose filename
-/// names a different uuid is another account's intent and is refused. A
-/// path without the convention (`:memory:`, an export opened directly)
-/// carries no name to check; there the caller owns the pairing.
-fn check_pairing(path: &Path, uuid: &str) -> Result<()> {
-    let Some(stem) = path
-        .file_name()
-        .and_then(|n| n.to_str())
-        .and_then(|n| n.strip_suffix(".annotations.db"))
-    else {
-        return Ok(());
-    };
-    if stem != filename_safe(uuid) {
-        bail!(
-            "annotations file {} does not belong to account uuid {uuid}",
-            path.display()
-        );
-    }
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -292,7 +283,7 @@ mod tests {
     #[test]
     fn the_snapshot_names_the_latest_listing_and_the_policy_revision() {
         let mut s = store();
-        let mut a = Annotations::open_memory().unwrap();
+        let mut a = Annotations::open_memory_for("u-1").unwrap();
         // A direct `stashes` job may record with no league in its params;
         // that listing defaulted to Standard and must be found as such.
         s.record(
@@ -345,7 +336,7 @@ mod tests {
     #[test]
     fn the_basis_is_per_league_and_absent_when_never_listed() {
         let mut s = store();
-        let a = Annotations::open_memory().unwrap();
+        let a = Annotations::open_memory_for("u-1").unwrap();
         s.record(
             &Endpoint::Stashes {
                 league: "Hardcore".into(),
@@ -385,7 +376,7 @@ mod tests {
     #[test]
     fn metadata_rides_verbatim_and_removed_tabs_leave_the_snapshot() {
         let mut s = store();
-        let a = Annotations::open_memory().unwrap();
+        let a = Annotations::open_memory_for("u-1").unwrap();
         s.record(
             &listing_ep(),
             &json!({}),
@@ -448,7 +439,7 @@ mod tests {
     #[test]
     fn a_fetch_never_clobbers_the_listed_metadata() {
         let mut s = store();
-        let a = Annotations::open_memory().unwrap();
+        let a = Annotations::open_memory_for("u-1").unwrap();
         s.record(
             &listing_ep(),
             &json!({}),
@@ -492,7 +483,7 @@ mod tests {
     #[test]
     fn two_listings_in_one_second_still_retire_dropped_tabs() {
         let mut s = store();
-        let a = Annotations::open_memory().unwrap();
+        let a = Annotations::open_memory_for("u-1").unwrap();
         let two = json!({ "stashes": [
             { "id": "t1", "name": "One", "type": "PremiumStash", "index": 0 },
             { "id": "t2", "name": "Two", "type": "PremiumStash", "index": 1 },
@@ -516,7 +507,7 @@ mod tests {
     #[test]
     fn a_listing_without_a_stashes_array_is_refused_whole() {
         let mut s = store();
-        let a = Annotations::open_memory().unwrap();
+        let a = Annotations::open_memory_for("u-1").unwrap();
         s.record(
             &listing_ep(),
             &json!({}),
@@ -526,7 +517,8 @@ mod tests {
         )
         .unwrap();
         // A 2xx with no `stashes` array (a maintenance page, a shape
-        // change) is an error: no tab removed, no basis minted.
+        // change) is an error of the stable kind: no tab removed, no
+        // basis minted.
         let err = s
             .record(
                 &listing_ep(),
@@ -536,11 +528,34 @@ mod tests {
                 200,
             )
             .unwrap_err();
-        assert!(err.to_string().contains("stashes"));
+        assert!(
+            err.downcast_ref::<crate::MalformedBody>().is_some(),
+            "{err:#}"
+        );
         let snap = s.stash_snapshot("Standard", &a).unwrap();
         assert_eq!(snap.listing.unwrap().fetched_at, 100);
         assert_eq!(snap.tabs.len(), 1);
-        // Same rule for the character list: malformed is never "empty".
+        // An array whose entries lack their identity is just as malformed:
+        // ingesting it would retire every real tab. The error rolls the
+        // whole transaction back — the id-less entry is not half-applied.
+        let err = s
+            .record(
+                &listing_ep(),
+                &json!({}),
+                200,
+                &json!({ "stashes": [ { "name": "NoId", "type": "PremiumStash" } ] }),
+                300,
+            )
+            .unwrap_err();
+        assert!(
+            err.downcast_ref::<crate::MalformedBody>().is_some(),
+            "{err:#}"
+        );
+        let snap = s.stash_snapshot("Standard", &a).unwrap();
+        assert_eq!(snap.listing.unwrap().fetched_at, 100);
+        assert_eq!(snap.tabs.len(), 1);
+        // Same rule for the character list: malformed is never "empty",
+        // and a name-less entry poisons nothing.
         s.record(
             &Endpoint::Characters,
             &json!({}),
@@ -553,13 +568,23 @@ mod tests {
             s.record(&Endpoint::Characters, &json!({}), 200, &json!({}), 200)
                 .is_err()
         );
+        assert!(
+            s.record(
+                &Endpoint::Characters,
+                &json!({}),
+                200,
+                &json!({ "characters": [ { "league": "Standard" } ] }),
+                200
+            )
+            .is_err()
+        );
         assert_eq!(s.characters(None).unwrap().len(), 1);
     }
 
     #[test]
     fn malformed_stored_listing_json_is_an_error_with_the_tab_address() {
         let mut s = store();
-        let a = Annotations::open_memory().unwrap();
+        let a = Annotations::open_memory_for("u-1").unwrap();
         s.record(
             &listing_ep(),
             &json!({}),
@@ -577,25 +602,47 @@ mod tests {
 
     #[test]
     fn the_snapshot_binds_facts_and_intent_to_one_account() {
-        let a = Annotations::open_memory().unwrap();
+        let a = Annotations::open_memory_for("u-1").unwrap();
         // A facts file with no recorded account cannot bind intent.
         let s = Store::open_memory().unwrap();
         let err = s.stash_snapshot("Standard", &a).unwrap_err();
         assert!(err.to_string().contains("no account identity"), "{err:#}");
-        // A named annotations file for a different uuid is refused; the
-        // account's own file is accepted.
+        // A handle bound to another account's uuid is refused; a handle
+        // never bound at all (raw open, no stored identity) is refused
+        // too — never trusted to the caller.
         let s = store(); // records uuid u-1
+        let other = Annotations::open_memory_for("u-2").unwrap();
+        let err = s.stash_snapshot("Standard", &other).unwrap_err();
+        assert!(err.to_string().contains("u-2"), "{err:#}");
+        let unbound = Annotations::open_memory().unwrap();
+        let err = s.stash_snapshot("Standard", &unbound).unwrap_err();
+        assert!(err.to_string().contains("no account identity"), "{err:#}");
+        // The account's own file is accepted — including when reopened
+        // from its raw path, because the uuid lives inside the file.
         let dir = std::env::temp_dir().join(format!(
             "acq-snap-bind-{}-{}",
             std::process::id(),
             crate::now()
         ));
-        let other = Annotations::open(&annotations_path(&dir, "u-2")).unwrap();
-        let err = s.stash_snapshot("Standard", &other).unwrap_err();
-        assert!(err.to_string().contains("u-1"), "{err:#}");
-        let own = Annotations::open(&annotations_path(&dir, "u-1")).unwrap();
-        let snap = s.stash_snapshot("Standard", &own).unwrap();
+        drop(Annotations::open_for(&dir, "u-1").unwrap());
+        let reopened = Annotations::open(&annotations_path(&dir, "u-1")).unwrap();
+        assert_eq!(reopened.uuid(), Some("u-1"));
+        let snap = s.stash_snapshot("Standard", &reopened).unwrap();
         assert_eq!(snap.account_uuid, "u-1");
+        // A copied/renamed file keeps its owner: u-2's database placed at
+        // u-1's path still says u-2 and is refused.
+        drop(Annotations::open_for(&dir, "u-2").unwrap());
+        let dir2 = dir.join("elsewhere");
+        std::fs::create_dir_all(&dir2).unwrap();
+        std::fs::copy(
+            annotations_path(&dir, "u-2"),
+            annotations_path(&dir2, "u-1"),
+        )
+        .unwrap();
+        let copied = Annotations::open(&annotations_path(&dir2, "u-1")).unwrap();
+        assert_eq!(copied.uuid(), Some("u-2"));
+        let err = s.stash_snapshot("Standard", &copied).unwrap_err();
+        assert!(err.to_string().contains("u-2"), "{err:#}");
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

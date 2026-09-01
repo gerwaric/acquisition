@@ -82,17 +82,23 @@ bounded by `MAX_429_RETRIES`; a Cloudflare-shaped 403/503 is never retried.
   ratchet (`unwrap_used`/`expect_used` denied).
   `Store::stash_snapshot` (`snapshot.rs`) is the planner's read, taken
   in one read transaction and bound to the account uuid the facts file
-  records (an annotations file named by another uuid is refused): one
-  league's listing basis (the `responses` row a plan cites — tab
-  membership is stamped with that id, so two listings in one second
-  cannot disagree), tab identities with freshness and the listing's
-  metadata verbatim (kept in its own column; a fetch never overwrites
-  it), and the sync-policy annotation row at its revision — facts and
-  intent named together, never a staleness verdict; compiling them into
-  requests is `acquisition-plan`'s job (tracer step 4, not yet built).
-  A 2xx stash listing without its `stashes` array (likewise a character
-  list without `characters`) is refused as malformed, never ingested as
-  an authoritative empty.
+  records: the annotations file carries its owner's uuid internally
+  (`Annotations::open_for` stamps and verifies it), so a copied or
+  renamed file keeps its owner and a mismatched or unbound handle is
+  refused. The snapshot is one league's listing basis (the `responses`
+  row a plan cites — tab membership is stamped with that id, so two
+  listings in one second cannot disagree), tab identities with
+  freshness and the listing's metadata verbatim (kept in its own
+  column; a fetch never overwrites it), and the sync-policy annotation
+  row at its revision — facts and intent named together, never a
+  staleness verdict; compiling them into requests is
+  `acquisition-plan`'s job (tracer step 4, not yet built).
+  A 2xx stash or character list without its array — or with an entry
+  missing its `id`/`name` — is a typed `MalformedBody` refusal that
+  writes nothing, and the `stashes`/`characters`/`refresh` jobs fail
+  rather than succeed over such a body. Both store files carry schema
+  versions: a newer file is refused, and migrations run serialized so
+  two openers cannot interleave them.
   Bodies are kept verbatim except at the item
   seams: each item array (tab `items`, character `inventory`/`equipment`/
   `jewels`/`rucksack`, and every `socketedItems`) is lifted into `items`,
