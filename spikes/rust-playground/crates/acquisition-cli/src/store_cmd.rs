@@ -334,12 +334,18 @@ pub fn import(path: &Path, json: bool) -> Result<()> {
     let mut store = open()?;
     let started = std::time::Instant::now();
     let mut total = acquisition_store::Ingest::default();
+    let mut skipped_no_id = 0usize;
     for (id, tab) in tabs {
-        let items: Vec<Value> = match tab.get("items") {
+        let mut items: Vec<Value> = match tab.get("items") {
             Some(Value::Object(m)) => m.values().cloned().collect(),
             Some(Value::Array(a)) => a.clone(),
             _ => Vec::new(),
         };
+        // Legacy tolerance lives here, at the import boundary, and is
+        // reported: the store's network ingest refuses an id-less item as
+        // malformed (it cannot be tracked, and dropped silently it would
+        // poison removal), but an old pull snapshot is what it is.
+        strip_idless_items(&mut items, &mut skipped_no_id);
         let body = json!({ "stash": { "id": id, "name": tab.get("name"), "type": tab.get("type"), "items": items } });
         let ep = Endpoint::Stash {
             league: league.clone(),
@@ -357,7 +363,8 @@ pub fn import(path: &Path, json: bool) -> Result<()> {
     if json {
         println!(
             "{}",
-            json!({ "tabs": tabs.len(), "ingest": total, "seconds": elapsed.as_secs_f64() })
+            json!({ "tabs": tabs.len(), "ingest": total, "seconds": elapsed.as_secs_f64(),
+                    "skipped_no_id": skipped_no_id })
         );
     } else {
         println!(
@@ -370,6 +377,29 @@ pub fn import(path: &Path, json: bool) -> Result<()> {
             total.removed,
             elapsed.as_secs_f64()
         );
+        if skipped_no_id > 0 {
+            println!("skipped {skipped_no_id} item(s) without ids (legacy snapshot tolerance)");
+        }
     }
     Ok(())
+}
+
+/// Drop items (and socketed gems) that carry no `id`, counting them, so a
+/// legacy snapshot imports with a report instead of failing — the store's
+/// own ingest refuses id-less items as malformed.
+fn strip_idless_items(items: &mut Vec<Value>, skipped: &mut usize) {
+    items.retain(|item| {
+        let ok = item.get("id").and_then(Value::as_str).is_some();
+        if !ok {
+            *skipped += 1;
+        }
+        ok
+    });
+    for item in items {
+        if let Some(gems) = item.get_mut("socketedItems").and_then(Value::as_array_mut) {
+            let before = gems.len();
+            gems.retain(|gem| gem.get("id").and_then(Value::as_str).is_some());
+            *skipped += before - gems.len();
+        }
+    }
 }

@@ -342,7 +342,7 @@ impl Store {
         let mut ingest = Ingest::default();
         let mut envelope = body.clone();
         // (league, location_kind, location_id, items) per seam.
-        let mut seams: Vec<(Option<String>, &str, String, Vec<Value>)> = Vec::new();
+        let mut seams: Vec<(Option<String>, &'static str, String, Vec<Value>)> = Vec::new();
         // (league, id) per tab this response listed; stamped with the
         // response id once the responses row exists, so listing membership
         // is linked to the response a snapshot cites, never to the clock.
@@ -917,15 +917,23 @@ fn ingest_item(
     response_id: i64,
     at: i64,
     league: Option<&str>,
-    kind: &str,
+    kind: &'static str,
     location_id: &str,
     socketed_in: Option<&str>,
     mut item: Value,
 ) -> Result<()> {
+    // Identity-bearing entries error rather than skip (same rule as tabs
+    // and characters): an id is what makes an item trackable, and a fetch
+    // full of id-less entries silently dropped would remove every real
+    // item at the location. The error rolls the whole ingest back. Legacy
+    // pull snapshots that need tolerance get it at the import boundary
+    // (`acq store import` strips and reports), never here.
     let Some(id) = item.get("id").and_then(Value::as_str).map(str::to_string) else {
-        // An item without an id cannot be tracked; it stays in nobody's
-        // table. Rare enough to just count.
-        return Ok(());
+        return Err(MalformedBody {
+            endpoint: kind,
+            missing: "an `id` on an item",
+        }
+        .into());
     };
     // Socketed gems are items: lift them out, same location, parented.
     let gems = match item.as_object_mut().and_then(|o| o.remove("socketedItems")) {
@@ -1111,6 +1119,42 @@ mod tests {
             .unwrap();
         assert_eq!((ing.moved, ing.changed), (1, 1));
         assert_eq!(s.status().unwrap().items, 2);
+    }
+
+    #[test]
+    fn an_item_without_an_id_is_malformed_and_poisons_nothing() {
+        let mut s = Store::open_memory().unwrap();
+        let p = json!({});
+        s.record(
+            &stash_ep("a"),
+            &p,
+            200,
+            &stash("a", vec![item("i1", "Foo", 0)]),
+            100,
+        )
+        .unwrap();
+        // A fetch whose items lack ids is refused whole: the held item is
+        // neither removed nor half-replaced, and no response row lands.
+        let err = s
+            .record(
+                &stash_ep("a"),
+                &p,
+                200,
+                &stash("a", vec![json!({ "name": "NoId", "typeLine": "?" })]),
+                200,
+            )
+            .unwrap_err();
+        assert!(err.downcast_ref::<MalformedBody>().is_some(), "{err:#}");
+        assert!(s.item("i1").unwrap().unwrap().removed_at.is_none());
+        assert_eq!(s.status().unwrap().responses, 1);
+        // Same for a socketed gem without an id.
+        let mut bow = item("bow", "Bow", 0);
+        bow["socketedItems"] = json!([{ "typeLine": "Nameless" }]);
+        let err = s
+            .record(&stash_ep("a"), &p, 200, &stash("a", vec![bow]), 300)
+            .unwrap_err();
+        assert!(err.downcast_ref::<MalformedBody>().is_some(), "{err:#}");
+        assert!(s.item("i1").unwrap().unwrap().removed_at.is_none());
     }
 
     #[test]

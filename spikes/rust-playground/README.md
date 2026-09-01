@@ -93,12 +93,16 @@ bounded by `MAX_429_RETRIES`; a Cloudflare-shaped 403/503 is never retried.
   row at its revision — facts and intent named together, never a
   staleness verdict; compiling them into requests is
   `acquisition-plan`'s job (tracer step 4, not yet built).
-  A 2xx stash or character list without its array — or with an entry
-  missing its `id`/`name` — is a typed `MalformedBody` refusal that
-  writes nothing, and the `stashes`/`characters`/`refresh` jobs fail
-  rather than succeed over such a body. Both store files carry schema
-  versions: a newer file is refused, and migrations run serialized so
-  two openers cannot interleave them.
+  A 2xx body missing its array/object or carrying an identity-less
+  entry (a tab or item without `id`, a character without `name`) is a
+  typed `MalformedBody` refusal that writes nothing — and it fails the
+  job: the daemon's `record` classifies the store's verdict, so a
+  malformed response is `Outcome::Failure` while genuine persistence
+  trouble stays logged-and-absorbed. `acq store import` keeps the
+  legacy tolerance at its own boundary (id-less snapshot items are
+  skipped and counted, never ingested silently). Both store files carry
+  schema versions: a newer file is refused, and migrations run
+  serialized so two openers cannot interleave them.
   Bodies are kept verbatim except at the item
   seams: each item array (tab `items`, character `inventory`/`equipment`/
   `jewels`/`rucksack`, and every `socketedItems`) is lifted into `items`,

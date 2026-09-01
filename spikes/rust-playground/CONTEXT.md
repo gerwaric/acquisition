@@ -190,10 +190,17 @@ named together, nothing derived — the plan's fact basis is the
 `responses` row of the latest listing, its annotation basis the
 policy's revision; hardened 2026-09-01 over two owner reviews: all
 fact reads in one transaction; listing membership stamped by response
-id — never the clock; a malformed 2xx list — missing array, or any
-id-/name-less entry — is a typed `MalformedBody` refusal that writes
-nothing, and the list-shaped jobs (`stashes`/`characters`/`refresh`)
-fail rather than succeed over one; the list entry lives beside the
+id — never the clock; a malformed 2xx body — missing array or object,
+or any id-/name-less entry, items included — is a typed
+`MalformedBody` refusal that writes nothing, and it fails the *job*:
+`Daemon::record` classifies the store's verdict (malformed →
+`Outcome::Failure`; genuine persistence trouble stays logged-and-
+absorbed, the send happened), with the list-shaped jobs also
+pre-checking their top-level array — pinned by a dispatcher-harness
+regression test. Legacy pull snapshots keep their tolerance
+*explicitly at the import boundary*: `acq store import` strips id-less
+items and reports the count, network ingest never weakens. The list
+entry lives beside the
 fetched body so listed metadata survives a fetch; both store files are
 schema-versioned — newer refused, creation/migration serialized under
 an immediate transaction; and the pairing is bound to the account uuid

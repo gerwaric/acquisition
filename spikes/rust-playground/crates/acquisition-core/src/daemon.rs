@@ -778,17 +778,28 @@ resubmit if still wanted",
 
     /// Hand a successful API body to the shared store. The daemon's whole
     /// involvement: endpoint + params + body; what is inside is the store's
-    /// business. A store failure is logged, never a job failure — the job's
-    /// payload still reaches the client that asked. Malformed bodies are a
-    /// different case: the list-shaped jobs (`stashes`, `characters`,
-    /// `refresh`) validate their array before calling this and fail the
-    /// job instead, so a body the store would refuse as malformed
-    /// (`acquisition_store::MalformedBody`) normally never reaches here —
-    /// the store-side check is the structural backstop.
-    fn record(&self, account: Option<&str>, kind: &str, params: &Value, body: &Value) {
-        let Some(dir) = &self.store_dir else { return };
+    /// business. The result is classified: a body the store refuses as
+    /// malformed (`acquisition_store::MalformedBody` — the response itself
+    /// is bad, and ingesting it would have poisoned facts) comes back as
+    /// the job's `Outcome::Failure`, so the caller returns it instead of
+    /// reporting success. Genuine persistence trouble (an unopenable file,
+    /// a write error) stays logged-and-absorbed — the send happened and
+    /// the payload still reaches the client that asked. The list-shaped
+    /// jobs also pre-check their top-level array (a nicer early failure,
+    /// and `refresh` needs the list anyway); entry-level judgment lives in
+    /// the store alone and propagates from here.
+    fn record(
+        &self,
+        account: Option<&str>,
+        kind: &str,
+        params: &Value,
+        body: &Value,
+    ) -> Result<(), Outcome> {
+        let Some(dir) = &self.store_dir else {
+            return Ok(());
+        };
         let Some(endpoint) = Endpoint::from_job(kind, params) else {
-            return;
+            return Ok(());
         };
         // The job's account — fixed at submit — selects the file, never the
         // session at landing time: a login as B while A's refresh is still
@@ -797,7 +808,7 @@ resubmit if still wanted",
             self.note_error(&format!(
                 "store: {kind} landed with no account; not recorded"
             ));
-            return;
+            return Ok(());
         };
         let mut guard = self.store.lock().unwrap();
         if guard.as_ref().is_none_or(|(u, _)| u != account) {
@@ -809,24 +820,35 @@ resubmit if still wanted",
                 }
                 Err(e) => {
                     self.note_error(&format!("store: could not open {}: {e:#}", path.display()));
-                    return;
+                    return Ok(());
                 }
             }
         }
         let (_, store) = guard.as_mut().expect("store opened above");
         let result = store.record(&endpoint, params, 200, body, acquisition_store::now());
         match result {
-            Ok(ingest) => self.log(&format!(
-                "store: {kind} {} -> response {} | {} items (+{} ~{} >{} -{})",
-                target_of(kind, params),
-                ingest.response_id,
-                ingest.items,
-                ingest.added,
-                ingest.changed,
-                ingest.moved,
-                ingest.removed
-            )),
-            Err(e) => self.note_error(&format!("store: recording {kind} failed: {e:#}")),
+            Ok(ingest) => {
+                self.log(&format!(
+                    "store: {kind} {} -> response {} | {} items (+{} ~{} >{} -{})",
+                    target_of(kind, params),
+                    ingest.response_id,
+                    ingest.items,
+                    ingest.added,
+                    ingest.changed,
+                    ingest.moved,
+                    ingest.removed
+                ));
+                Ok(())
+            }
+            Err(e) => match e.downcast_ref::<acquisition_store::MalformedBody>() {
+                Some(malformed) => Err(Outcome::Failure {
+                    error: malformed.to_string(),
+                }),
+                None => {
+                    self.note_error(&format!("store: recording {kind} failed: {e:#}"));
+                    Ok(())
+                }
+            },
         }
     }
 
@@ -1636,7 +1658,9 @@ resubmit if still wanted",
                     });
                 };
                 let characters = json!(characters);
-                self.record(account, kind, &params, &v);
+                if let Err(failure) = self.record(account, kind, &params, &v) {
+                    return Ok(failure);
+                }
                 Outcome::Success {
                     payload: json!({
                         "provider": self.provider.name,
@@ -1668,7 +1692,9 @@ resubmit if still wanted",
                 };
                 let route = route.as_deref().expect("network kind");
                 let (v, rate) = self.api_get(route, &url, Some(&token), ready).await?;
-                self.record(account, kind, &params, &v);
+                if let Err(failure) = self.record(account, kind, &params, &v) {
+                    return Ok(failure);
+                }
                 // The profile's uuid is the stable account identity,
                 // required at login (`complete_login` writes the index
                 // entry). Recording it whenever a later profile lands too
@@ -1721,7 +1747,9 @@ resubmit if still wanted",
                     });
                 };
                 let stashes = json!(stashes);
-                self.record(account, kind, &params, &v);
+                if let Err(failure) = self.record(account, kind, &params, &v) {
+                    return Ok(failure);
+                }
                 Outcome::Success {
                     payload: json!({
                         "provider": self.provider.name,
@@ -1744,7 +1772,9 @@ resubmit if still wanted",
                 };
                 let route = route.as_deref().expect("stash is a network kind");
                 let (v, rate) = self.api_get(route, &url, Some(&token), ready).await?;
-                self.record(account, kind, &params, &v);
+                if let Err(failure) = self.record(account, kind, &params, &v) {
+                    return Ok(failure);
+                }
                 let stash = v.get("stash").cloned().unwrap_or(v);
                 // Map/unique tabs carry their substashes as stubs; following
                 // them is opt-in per tab (--deep) because one map tab can
@@ -1833,12 +1863,14 @@ resubmit if still wanted",
                 };
                 // The list a refresh fetches is the same response `stashes`
                 // records; the store wants it under that endpoint.
-                self.record(
+                if let Err(failure) = self.record(
                     account,
                     "stashes",
                     &json!({ "league": params.get("league").cloned().unwrap_or(json!("Standard")) }),
                     &v,
-                );
+                ) {
+                    return Ok(failure);
+                }
                 // Flatten: top-level tabs plus folder children; skip folders.
                 let mut tabs: Vec<(String, String, String)> = Vec::new();
                 for t in &listed {
@@ -4159,16 +4191,21 @@ mod auth_session_tests {
         Arc::get_mut(&mut daemon).unwrap().store_dir = Some(dir.clone());
         // Session is "old-user"; the job was submitted as "A#1" (a login
         // happened in between). The body lands in A#1's file.
-        daemon.record(
-            Some("A#1"),
-            "stashes",
-            &json!({ "league": "Standard" }),
-            &json!({ "stashes": [ { "id": "t1", "name": "T", "type": "PremiumStash" } ] }),
-        );
+        daemon
+            .record(
+                Some("A#1"),
+                "stashes",
+                &json!({ "league": "Standard" }),
+                &json!({ "stashes": [ { "id": "t1", "name": "T", "type": "PremiumStash" } ] }),
+            )
+            .unwrap();
         assert!(acquisition_store::account_path(&dir, "A#1").exists());
         assert!(!acquisition_store::account_path(&dir, "old-user").exists());
-        // No account at all: nothing recorded, an error noted.
-        daemon.record(None, "stashes", &json!({}), &json!({ "stashes": [] }));
+        // No account at all: nothing recorded (absorbed, not a job
+        // failure), an error noted.
+        daemon
+            .record(None, "stashes", &json!({}), &json!({ "stashes": [] }))
+            .unwrap();
         assert!(
             daemon
                 .shared
@@ -4452,6 +4489,8 @@ mod dispatcher_tests {
 
     struct ScriptedResponse {
         method: &'static str,
+        /// The request path this response answers; the server asserts it.
+        path: &'static str,
         status: &'static str,
         headers: String,
         body: String,
@@ -4469,6 +4508,7 @@ mod dispatcher_tests {
                 .unwrap_or_default();
             ScriptedResponse {
                 method,
+                path: "/fetch",
                 status,
                 headers: format!(
                     "X-Rate-Limit-Policy: dispatcher-test-policy\r\nX-Rate-Limit-Rules: Account\r\nX-Rate-Limit-Account: 100:1:60\r\nX-Rate-Limit-Account-State: 0:1:0\r\n{retry_after}"
@@ -4480,6 +4520,7 @@ mod dispatcher_tests {
         fn malformed_head_429() -> Self {
             ScriptedResponse {
                 method: "HEAD",
+                path: "/fetch",
                 status: "429 Too Many Requests",
                 headers: "X-Rate-Limit-Policy: dispatcher-test-policy\r\nRetry-After: 0\r\n".into(),
                 body: String::new(),
@@ -4499,7 +4540,7 @@ mod dispatcher_tests {
                 let (mut stream, _) = listener.accept().await.unwrap();
                 let request = mockggg::read_request(&mut stream).await.unwrap();
                 assert_eq!(request.method, response.method);
-                assert_eq!(request.path, "/fetch");
+                assert_eq!(request.path, response.path);
                 captured.lock().unwrap().push(request.method);
                 mockggg::respond_with(
                     &mut stream,
@@ -5520,18 +5561,21 @@ mod dispatcher_tests {
         let responses = vec![
             ScriptedResponse {
                 method: "HEAD",
+                path: "/fetch",
                 status: "204 No Content",
                 headers: policy.into(),
                 body: String::new(),
             },
             ScriptedResponse {
                 method: "GET",
+                path: "/fetch",
                 status: "503 Service Unavailable",
                 headers: String::new(),
                 body: "<html><center>openresty</center></html>".into(),
             },
             ScriptedResponse {
                 method: "GET",
+                path: "/fetch",
                 status: "200 OK",
                 headers: policy.replace("0:10:0", "1:10:0"),
                 body: r#"{"items":["done"]}"#.into(),
@@ -5569,6 +5613,90 @@ mod dispatcher_tests {
         );
         server.await.unwrap();
         finish_harness_wire(dispatcher, &log_path, &requests);
+    }
+
+    /// Malformed listings fail the *job*, not just the store: a 2xx with
+    /// no `stashes` array is refused by the job's own guard, and a listing
+    /// whose entries lack ids is refused by the store (`MalformedBody`)
+    /// and propagated through `record` — neither reports success, and
+    /// neither leaves a response row a snapshot could cite as a basis.
+    #[tokio::test]
+    async fn malformed_listings_fail_the_job_not_just_the_store() {
+        let policy = "X-Rate-Limit-Policy: stash-list-test\r\nX-Rate-Limit-Rules: Account\r\nX-Rate-Limit-Account: 100:1:60\r\nX-Rate-Limit-Account-State: 0:1:0\r\n";
+        let responses = vec![
+            ScriptedResponse {
+                method: "HEAD",
+                path: "/stash/Standard",
+                status: "204 No Content",
+                headers: policy.into(),
+                body: String::new(),
+            },
+            ScriptedResponse {
+                method: "GET",
+                path: "/stash/Standard",
+                status: "200 OK",
+                headers: policy.replace("0:1:0", "1:1:0"),
+                body: r#"{"error":"maintenance"}"#.into(),
+            },
+            ScriptedResponse {
+                method: "GET",
+                path: "/stash/Standard",
+                status: "200 OK",
+                headers: policy.replace("0:1:0", "2:1:0"),
+                body: r#"{"stashes":[{"name":"NoId","type":"PremiumStash"}]}"#.into(),
+            },
+        ];
+        let (base, requests, server) = scripted_server(responses).await;
+        let clock = Arc::new(ManualClock::new());
+        let (mut daemon, log_path) = test_daemon(&base, clock);
+        let store_dir = std::env::temp_dir().join(format!(
+            "acq-malformed-job-{}-{}",
+            std::process::id(),
+            TEST_LOG_ID.fetch_add(1, Ordering::Relaxed)
+        ));
+        let _ = std::fs::remove_dir_all(&store_dir);
+        Arc::get_mut(&mut daemon).expect("fresh daemon").store_dir = Some(store_dir.clone());
+        {
+            let mut s = daemon.shared.lock().unwrap();
+            s.auth.rename("", "Alice#1234");
+            let session = s.auth.one_mut();
+            session.username = Some("Alice#1234".into());
+            session.access_token = Some("at-test.Alice#1234".into());
+            session.access_expires_at = Some(daemon.choke.wall() + Duration::from_secs(3600));
+        }
+        let dispatcher = tokio::spawn(daemon.clone().dispatcher());
+        let account = Some("Alice#1234".to_string());
+        let first = daemon
+            .submit(
+                "stashes".into(),
+                json!({}),
+                0,
+                "test".into(),
+                account.clone(),
+            )
+            .unwrap();
+        let (info, outcome) = wait_terminal(&daemon, first).await;
+        assert_eq!(info.state, JobState::Failed);
+        let Outcome::Failure { error } = outcome else {
+            panic!("missing array did not fail the job")
+        };
+        assert!(error.contains("stashes"), "{error}");
+        let second = daemon
+            .submit("stashes".into(), json!({}), 0, "test".into(), account)
+            .unwrap();
+        let (info, outcome) = wait_terminal(&daemon, second).await;
+        assert_eq!(info.state, JobState::Failed);
+        let Outcome::Failure { error } = outcome else {
+            panic!("id-less entry did not fail the job")
+        };
+        assert!(error.contains("malformed stashes response"), "{error}");
+        // Nothing recorded either way: no tabs retired, no false basis.
+        let store = Store::open(&account_path(&store_dir, "Alice#1234")).unwrap();
+        assert_eq!(store.status().unwrap().responses, 0);
+        drop(store);
+        server.await.unwrap();
+        finish_harness_wire(dispatcher, &log_path, &requests);
+        let _ = std::fs::remove_dir_all(&store_dir);
     }
 
     /// The route knowledge declared for `/profile` and `/account/leagues`
