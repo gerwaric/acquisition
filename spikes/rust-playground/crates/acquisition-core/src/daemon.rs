@@ -44,6 +44,15 @@ const IDLE_POLL: Duration = Duration::from_secs(5);
 const ERROR_HISTORY: usize = 50;
 /// Probes outrank everything: every job on that route is waiting on one.
 const PROBE_PRIORITY: Priority = u8::MAX;
+
+/// The login's own profile job: interactive, and nothing else on the
+/// account can run before the login completes anyway.
+const LOGIN_PRIORITY: Priority = u8::MAX - 1;
+
+/// How long a login waits for its profile job before failing whole. Room
+/// for a full token-endpoint hold; a rails-halted daemon fails the login
+/// rather than pinning the flow forever.
+const LOGIN_PROFILE_TIMEOUT: Duration = Duration::from_secs(120);
 /// How many times a job is re-queued after a 429 before it fails for good
 /// (ground truth P-A: violations are structural, so recovery is required;
 /// N10: frequent violations get the application revoked, so it is bounded).
@@ -206,6 +215,22 @@ struct RefreshFlight {
     result: watch::Sender<Option<AccessTokenResult>>,
 }
 
+/// A login whose token exchange succeeded but whose profile fetch has not
+/// landed the uuid yet (CONTEXT.md, identity decision). Held *outside* the
+/// session map: the previously live session for the same account keeps
+/// serving its jobs untouched, and no client lookup can reach these tokens
+/// — only the profile route hands them out (`staged_profile_token`). A
+/// login whose profile fetch fails drops this slot: it fails whole.
+struct Staging {
+    /// The flow that staged this; stale flows can neither complete nor
+    /// abort it.
+    flow: u64,
+    username: String,
+    access_token: String,
+    access_expires_at: SystemTime,
+    refresh_token: String,
+}
+
 #[derive(Default)]
 struct AuthSession {
     access_token: Option<String>,
@@ -215,6 +240,11 @@ struct AuthSession {
     access_expires_at: Option<SystemTime>,
     refresh_token: Option<String>,
     username: Option<String>,
+    /// The account uuid the login's profile fetch delivered (restored
+    /// sessions read it from the index). A refresh that renames the account
+    /// uses it to update the index mapping in place rather than minting a
+    /// uuid-less twin entry.
+    uuid: Option<String>,
     /// "ok" or an error description shown in `auth status`.
     keyring: String,
     generations: AuthGenerations,
@@ -231,6 +261,13 @@ struct Sessions {
     /// A login flow waiting on the browser (its flow generation).
     pending: Option<u64>,
     next_flow: u64,
+    /// A login past token exchange, waiting on its profile job's uuid.
+    staging: Option<Staging>,
+    /// How the most recent login flow ended: the username it registered, or
+    /// the error it failed with. Cleared when a new flow starts; this is
+    /// what `acq auth` reports, so a failed login is never mistaken for a
+    /// different account's live session.
+    flow_result: Option<Result<String, String>>,
     /// The account of the most recent login — reported, never used to pick.
     last_login: Option<String>,
     /// Keyring health from restore, shown when there is no session to ask.
@@ -304,12 +341,13 @@ impl Sessions {
     }
 
     /// The live session a selector names (username, name without
-    /// discriminator, or uuid), if any.
+    /// discriminator, or uuid), if any. A staged login is not a session and
+    /// cannot match: it lives outside this map.
     fn matching(&self, selector: &str) -> Option<&AuthSession> {
         self.by_account.values().find(|s| {
             s.username
                 .as_deref()
-                .is_some_and(|u| account_matches(selector, u, None))
+                .is_some_and(|u| account_matches(selector, u, s.uuid.as_deref()))
         })
     }
 
@@ -717,13 +755,24 @@ resubmit if still wanted",
         }
     }
 
+    /// Apply one change to the account index, reporting failure to the
+    /// caller. Safe under the shared lock (it never calls `note_error`).
+    /// No-op in tests (no store directory).
+    fn index_apply(&self, f: impl FnOnce(&mut Index) -> anyhow::Result<()>) -> Result<(), String> {
+        let Some(dir) = &self.store_dir else {
+            return Ok(());
+        };
+        Index::load(dir)
+            .and_then(|mut index| f(&mut index))
+            .map_err(|e| format!("accounts index: {e:#}"))
+    }
+
     /// Apply one change to the account index, logging (never failing) on
-    /// error. No-op in tests (no store directory).
+    /// error. Not for callers holding the shared lock (`note_error` takes
+    /// it) — those use `index_apply`.
     fn with_index(&self, f: impl FnOnce(&mut Index) -> anyhow::Result<()>) {
-        let Some(dir) = &self.store_dir else { return };
-        let result = Index::load(dir).and_then(|mut index| f(&mut index));
-        if let Err(e) = result {
-            self.note_error(&format!("accounts index: {e:#}"));
+        if let Err(e) = self.index_apply(f) {
+            self.note_error(&e);
         }
     }
 
@@ -1583,9 +1632,19 @@ resubmit if still wanted",
                 }
             }
             "character" | "leagues" | "profile" => {
-                let (token, username) = match self.valid_access_token(account, false).await {
-                    Ok(pair) => pair,
-                    Err(error) => return Ok(Outcome::Failure { error }),
+                // A profile job during a login runs on the staged tokens
+                // (`staged_profile_token`): the account may have no
+                // registered session yet, or a dead one being replaced —
+                // the new tokens are the ones being proven.
+                let staged = (kind == "profile")
+                    .then(|| self.staged_profile_token(account))
+                    .flatten();
+                let (token, username) = match staged {
+                    Some(pair) => pair,
+                    None => match self.valid_access_token(account, false).await {
+                        Ok(pair) => pair,
+                        Err(error) => return Ok(Outcome::Failure { error }),
+                    },
                 };
                 let Some((_, url)) = self.route_for(kind, &params) else {
                     return Ok(Outcome::Failure {
@@ -1595,13 +1654,21 @@ resubmit if still wanted",
                 let route = route.as_deref().expect("network kind");
                 let (v, rate) = self.api_get(route, &url, Some(&token), ready).await?;
                 self.record(account, kind, &params, &v);
-                // The profile's uuid is the stable account identity; it is
-                // recorded whenever a profile lands (opportunistic, never
-                // required — `CONTEXT.md`, "Multi-account design").
+                // The profile's uuid is the stable account identity,
+                // required at login (`complete_login` writes the index
+                // entry). Recording it whenever a later profile lands too
+                // keeps the mapping fresh across renames and backfills
+                // pre-uuid entries.
                 if kind == "profile"
                     && let (Some(account), Some(uuid)) =
                         (account, v.get("uuid").and_then(Value::as_str))
                 {
+                    {
+                        let mut s = self.shared.lock().unwrap();
+                        if let Some(session) = s.auth.find_mut(account) {
+                            session.uuid = Some(uuid.to_string());
+                        }
+                    }
                     self.with_index(|index| index.set_uuid(account, uuid));
                 }
                 Outcome::Success {
@@ -2017,17 +2084,12 @@ resubmit if still wanted",
                     )
                     .await
                     {
-                        Ok(tokens) => {
-                            let user = tokens.username.clone();
-                            if daemon.finish_auth_flow(flow_generation, tokens) {
-                                // A probe that failed for lack of a session would
-                                // succeed now; don't make the user sit out the cooldown.
-                                daemon.choke.forget_degraded();
-                                daemon.log(&format!("logged in as {user}"));
-                            } else {
-                                daemon.log("stale auth flow completion ignored");
+                        Ok(tokens) => match daemon.stage_auth_flow(flow_generation, tokens) {
+                            Some(staged) => {
+                                daemon.login_with_profile(flow_generation, staged).await;
                             }
-                        }
+                            None => daemon.log("stale auth flow completion ignored"),
+                        },
                         Err(e) => daemon.finish_auth_flow_error(
                             flow_generation,
                             &format!("token exchange failed: {e}"),
@@ -2051,33 +2113,249 @@ resubmit if still wanted",
         s.auth.next_flow = s.auth.next_flow.wrapping_add(1);
         let generation = s.auth.next_flow;
         s.auth.pending = Some(generation);
+        // A fresh flow owns the login state: an older flow's staged tokens
+        // and result must not leak into it.
+        s.auth.staging = None;
+        s.auth.flow_result = None;
         generation
     }
 
-    fn finish_auth_flow(&self, generation: u64, tokens: auth::TokenResponse) -> bool {
+    /// Token exchange succeeded: hold the tokens in the staging slot —
+    /// outside the session map, so clients cannot reach them and a live
+    /// session for the same account keeps serving its jobs untouched. The
+    /// flow stays pending; nothing is registered until
+    /// [`Self::complete_login`] has the uuid. `None`: the flow is stale (a
+    /// newer login superseded it).
+    fn stage_auth_flow(&self, generation: u64, tokens: auth::TokenResponse) -> Option<String> {
+        let mut s = self.shared.lock().unwrap();
+        if s.auth.pending != Some(generation) {
+            return None;
+        }
         let username = tokens.username.clone();
-        let warning = {
+        s.auth.staging = Some(Staging {
+            flow: generation,
+            username: username.clone(),
+            access_token: tokens.access_token,
+            access_expires_at: self.choke.wall() + Duration::from_secs(tokens.expires_in),
+            refresh_token: tokens.refresh_token,
+        });
+        Some(username)
+    }
+
+    /// The staged login's access token, handed out only for the profile
+    /// route of the account being logged in: the login's own profile job
+    /// must use the *new* tokens (the account may have no registered
+    /// session yet, or a dead one being replaced), and no other work can
+    /// reach them.
+    fn staged_profile_token(&self, account: Option<&str>) -> Option<(String, String)> {
+        let s = self.shared.lock().unwrap();
+        s.auth
+            .staging
+            .as_ref()
+            .filter(|st| Some(st.username.as_str()) == account)
+            .map(|st| (st.access_token.clone(), st.username.clone()))
+    }
+
+    /// The second half of a login (CONTEXT.md, identity decision): submit a
+    /// profile job as the staged account — causal service of the client's
+    /// `acq auth` — and register the session only when the uuid lands.
+    /// Any failure fails the login whole: the staged tokens are dropped and
+    /// nothing was written anywhere.
+    async fn login_with_profile(&self, generation: u64, username: String) {
+        let uuid = match self.submit(
+            "profile".into(),
+            json!({}),
+            LOGIN_PRIORITY,
+            "daemon".into(),
+            Some(username.clone()),
+        ) {
+            Err(e) => Err(format!("could not queue the profile fetch: {e}")),
+            Ok(id) => match self.wait_job_terminal(id, LOGIN_PROFILE_TIMEOUT).await {
+                None => {
+                    let _ = self.cancel(id);
+                    Err(format!(
+                        "profile fetch (job {id}) did not finish within {}s",
+                        LOGIN_PROFILE_TIMEOUT.as_secs()
+                    ))
+                }
+                Some(Outcome::Success { payload }) => payload
+                    .get("body")
+                    .and_then(|b| b.get("uuid"))
+                    .and_then(Value::as_str)
+                    .map(str::to_string)
+                    .ok_or_else(|| "profile response carried no uuid".to_string()),
+                Some(Outcome::Failure { error }) => Err(format!("profile fetch failed: {error}")),
+                Some(Outcome::Cancelled) => Err("profile fetch was cancelled".into()),
+            },
+        };
+        match uuid {
+            Ok(uuid) => {
+                self.complete_login(generation, &username, &uuid);
+            }
+            Err(error) => self.abort_login(generation, &username, &error),
+        }
+    }
+
+    /// The uuid landed: register the login in dependency order — keyring,
+    /// then the index mapping (a login the index cannot record **fails
+    /// whole**, keyring rolled back: a session without its uuid mapping
+    /// could neither be restored nor find its annotation file), and only
+    /// then the visible session and the flow's terminal result. A stale
+    /// flow registers nothing.
+    fn complete_login(&self, generation: u64, username: &str, uuid: &str) -> bool {
+        enum Done {
+            Stale,
+            Failed(String),
+            Registered { warning: Option<String> },
+        }
+        let done = {
             let mut s = self.shared.lock().unwrap();
             if s.auth.pending != Some(generation) {
-                return false;
+                Done::Stale
+            } else if let Some(staging) = s
+                .auth
+                .staging
+                .take_if(|st| st.flow == generation && st.username == username)
+            {
+                // Keyring and index writes happen under the auth lock so
+                // they are ordered with logout and re-login.
+                let saved = self.credential_store.save(
+                    self.provider.keyring_service,
+                    &staging.refresh_token,
+                    username,
+                );
+                let (keyring, warning) = match &saved {
+                    Ok(()) => ("ok".to_string(), None),
+                    Err(e) => (
+                        format!("unavailable: {e}"),
+                        Some(format!(
+                            "keyring save failed: {e} (session is in-memory only)"
+                        )),
+                    ),
+                };
+                let persisted = saved.is_ok();
+                let indexed = self.index_apply(|index| {
+                    index.record_login(username, uuid, persisted, acquisition_store::now())
+                });
+                match indexed {
+                    Err(e) => {
+                        let mut error =
+                            format!("could not record the login in the account index: {e}");
+                        if persisted
+                            && let Err(clear) = self
+                                .credential_store
+                                .clear(self.provider.keyring_service, username)
+                        {
+                            error = format!(
+                                "{error}; the keyring entry could not be rolled back either: {clear}"
+                            );
+                        }
+                        s.auth.pending = None;
+                        s.auth.flow_result = Some(Err(error.clone()));
+                        Done::Failed(error)
+                    }
+                    Ok(()) => {
+                        // A re-login replaces the account's old session here
+                        // — not before — so generations advance and an
+                        // in-flight refresh for it lands stale.
+                        let session = s.auth.replace(AuthSession {
+                            username: Some(username.to_string()),
+                            uuid: Some(uuid.to_string()),
+                            keyring,
+                            ..AuthSession::default()
+                        });
+                        session.access_token = Some(staging.access_token);
+                        session.access_expires_at = Some(staging.access_expires_at);
+                        session.refresh_token = Some(staging.refresh_token);
+                        session.advance_access_token();
+                        session.advance_refresh_token();
+                        s.auth.pending = None;
+                        s.auth.flow_result = Some(Ok(username.to_string()));
+                        Done::Registered { warning }
+                    }
+                }
+            } else {
+                let error = "the staged tokens disappeared before the profile landed".to_string();
+                s.auth.pending = None;
+                s.auth.flow_result = Some(Err(error.clone()));
+                Done::Failed(error)
             }
-            s.auth.pending = None;
-            // A re-login as an account that is already live replaces its
-            // session (generations advance, so a refresh in flight for the
-            // old one lands stale); any other account is untouched.
-            let session = s.auth.replace(AuthSession {
-                username: Some(username.clone()),
-                ..AuthSession::default()
-            });
-            self.install_tokens_locked(session, tokens)
         };
-        // Only a current flow that installed a new token clears the
-        // refresh-failed mark; a stale callback must not re-arm a dead one.
-        self.rails().clear_refresh_failed(&username);
-        if let Some(warning) = warning {
-            self.note_error(&warning);
+        match done {
+            Done::Stale => {
+                self.log("stale login completion ignored");
+                false
+            }
+            Done::Failed(error) => {
+                self.note_error(&format!("login failed for {username}: {error}"));
+                false
+            }
+            Done::Registered { warning } => {
+                // Only a completed login clears the dead-grant mark: until
+                // here the keyring still held the rejected token.
+                self.rails().clear_refresh_failed(username);
+                // A probe that failed for lack of a session would succeed
+                // now; don't make the user sit out the cooldown.
+                self.choke.forget_degraded();
+                self.log(&format!("logged in as {username} ({uuid})"));
+                if let Some(warning) = warning {
+                    self.note_error(&warning);
+                }
+                true
+            }
         }
-        true
+    }
+
+    /// A login failed after token exchange: drop the staged tokens (it
+    /// fails whole — no provisional identity) and, if the flow is still
+    /// current, close it with the error as its terminal result.
+    fn abort_login(&self, generation: u64, username: &str, error: &str) {
+        let current = {
+            let mut s = self.shared.lock().unwrap();
+            if s.auth
+                .staging
+                .as_ref()
+                .is_some_and(|st| st.flow == generation)
+            {
+                s.auth.staging = None;
+            }
+            if s.auth.pending == Some(generation) {
+                s.auth.pending = None;
+                s.auth.flow_result = Some(Err(error.to_string()));
+                true
+            } else {
+                false
+            }
+        };
+        if current {
+            self.note_error(&format!("login failed for {username}: {error}"));
+        }
+    }
+
+    /// Wait until job `id` is terminal, returning its outcome (`None` on
+    /// timeout). Daemon-internal; clients wait through the protocol.
+    async fn wait_job_terminal(&self, id: JobId, timeout: Duration) -> Option<Outcome> {
+        let mut rx = self.events.subscribe();
+        tokio::time::timeout(timeout, async {
+            loop {
+                let outcome = {
+                    let s = self.shared.lock().unwrap();
+                    s.jobs
+                        .get(&id)
+                        .filter(|e| e.info.state.is_terminal())
+                        .and_then(|e| e.outcome.clone())
+                };
+                if let Some(outcome) = outcome {
+                    return outcome;
+                }
+                match rx.recv().await {
+                    Ok(_) | Err(broadcast::error::RecvError::Lagged(_)) => {}
+                    Err(broadcast::error::RecvError::Closed) => std::future::pending().await,
+                }
+            }
+        })
+        .await
+        .ok()
     }
 
     fn finish_auth_flow_error(&self, generation: u64, error: &str) {
@@ -2085,6 +2363,7 @@ resubmit if still wanted",
             let mut s = self.shared.lock().unwrap();
             if s.auth.pending == Some(generation) {
                 s.auth.pending = None;
+                s.auth.flow_result = Some(Err(error.to_string()));
                 true
             } else {
                 false
@@ -2098,7 +2377,9 @@ resubmit if still wanted",
     /// Store fresh tokens in memory and mirror the refresh token (which the
     /// provider rotates on every grant) into the keyring. The caller holds
     /// the auth-state lock so keyring mutation is ordered with logout and
-    /// re-authentication.
+    /// re-authentication — and updates the account index *after* releasing
+    /// it (`with_index` reports errors through `note_error`, which takes
+    /// the same lock).
     fn install_tokens_locked(
         &self,
         session: &mut AuthSession,
@@ -2115,15 +2396,6 @@ resubmit if still wanted",
                 (format!("unavailable: {e}"), Some(warning))
             }
         };
-        // The account index lists this login either way; `persisted` says
-        // whether a restart will find it in the keyring.
-        self.with_index(|index| {
-            index.upsert(
-                &tokens.username,
-                warning.is_none(),
-                acquisition_store::now(),
-            )
-        });
         session.access_token = Some(tokens.access_token);
         session.access_expires_at =
             Some(self.choke.wall() + Duration::from_secs(tokens.expires_in));
@@ -2267,6 +2539,7 @@ resubmit if still wanted",
     ) -> AccessTokenResult {
         let mut warning = None;
         let mut renamed = None;
+        let mut index_update = None;
         let outcome = {
             let mut s = self.shared.lock().unwrap();
             let Some(session) = s.auth.find_mut(account) else {
@@ -2289,13 +2562,25 @@ resubmit if still wanted",
                             renamed = Some(tokens.username.clone());
                         }
                         let result = (tokens.access_token.clone(), tokens.username.clone());
+                        let username = tokens.username.clone();
                         warning = self.install_tokens_locked(session, tokens);
+                        index_update = Some((username, session.uuid.clone(), warning.is_none()));
                         Ok(result)
                     }
                     Err(error) => Err(error),
                 }
             }
         };
+        // With the session's uuid, a refresh that renamed the account
+        // updates the existing index mapping in place (`record_login`
+        // follows the uuid) instead of minting a uuid-less twin entry; a
+        // pre-uuid session falls back to plain bookkeeping.
+        if let Some((username, uuid, persisted)) = index_update {
+            self.with_index(|index| match &uuid {
+                Some(uuid) => index.record_login(&username, uuid, persisted, unix_now()),
+                None => index.upsert(&username, persisted, unix_now()),
+            });
+        }
         if let Some(new_name) = &renamed {
             self.shared.lock().unwrap().auth.rename(account, new_name);
         }
@@ -2403,6 +2688,16 @@ resubmit if still wanted",
         Response::Auth {
             logged_in: !s.auth.by_account.is_empty(),
             pending: s.auth.pending.is_some(),
+            login_ok: s
+                .auth
+                .flow_result
+                .as_ref()
+                .and_then(|r| r.as_ref().ok().cloned()),
+            login_error: s
+                .auth
+                .flow_result
+                .as_ref()
+                .and_then(|r| r.as_ref().err().cloned()),
             username: head.and_then(|h| h.username.clone()),
             access_expires_in_seconds: head.and_then(|h| h.access_expires_at).map(|t| {
                 t.duration_since(self.choke.wall())
@@ -2904,6 +3199,7 @@ async fn run_with_log(log: std::fs::File) -> Result<()> {
                         sessions.replace(AuthSession {
                             refresh_token: Some(refresh_token),
                             username: Some(entry.username.clone()),
+                            uuid: entry.uuid.clone(),
                             keyring: "ok".into(),
                             ..AuthSession::default()
                         });
@@ -3620,15 +3916,23 @@ mod auth_session_tests {
             tokio::spawn(async move { refresh_daemon.valid_access_token(None, false).await });
         delayed.arrived.await.unwrap();
         let flow_generation = daemon.begin_auth_flow();
-        assert!(daemon.finish_auth_flow(
-            flow_generation,
-            tokens("at-reauth", "rt-reauth", "old-user")
-        ));
+        let staged = daemon
+            .stage_auth_flow(
+                flow_generation,
+                tokens("at-reauth", "rt-reauth", "old-user"),
+            )
+            .expect("current flow stages");
+        assert!(daemon.complete_login(flow_generation, &staged, "u-old"));
         delayed.release.send(()).unwrap();
 
         assert_eq!(
             refresh.await.unwrap().unwrap_err(),
             SESSION_CHANGED_DURING_REFRESH
+        );
+        assert_eq!(
+            daemon.shared.lock().unwrap().auth.one().uuid.as_deref(),
+            Some("u-old"),
+            "the registered session carries its uuid"
         );
         {
             let s = daemon.shared.lock().unwrap();
@@ -3646,6 +3950,59 @@ mod auth_session_tests {
             )]
         );
         delayed.server.await.unwrap();
+        remove_test_log(&log_path);
+    }
+
+    /// A refresh that renames the account updates the existing index
+    /// mapping in place (the session carries its uuid, so `record_login`
+    /// follows it) — never a second, uuid-less entry that would make both
+    /// the username and uuid selectors ambiguous.
+    #[tokio::test]
+    async fn a_refresh_rename_updates_the_index_mapping_in_place() {
+        let delayed =
+            delayed_token_response("200 OK", token_body("at-new", "rt-new", "NewName#2")).await;
+        let (mut daemon, _, log_path) = test_daemon(&delayed.base);
+        let dir = std::env::temp_dir().join(format!(
+            "acq-rename-{}-{}",
+            std::process::id(),
+            AUTH_TEST_LOG_ID.fetch_add(1, Ordering::Relaxed)
+        ));
+        let _ = std::fs::remove_dir_all(&dir);
+        Arc::get_mut(&mut daemon).unwrap().store_dir = Some(dir.clone());
+        // As a completed login left things: indexed with the uuid, and the
+        // session carrying it.
+        {
+            let mut index = Index::load(&dir).unwrap();
+            index.record_login("old-user", "u-1", true, 1).unwrap();
+        }
+        daemon.shared.lock().unwrap().auth.one_mut().uuid = Some("u-1".into());
+
+        let refresh_daemon = daemon.clone();
+        let refresh =
+            tokio::spawn(async move { refresh_daemon.valid_access_token(None, false).await });
+        delayed.arrived.await.unwrap();
+        delayed.release.send(()).unwrap();
+        assert_eq!(
+            refresh.await.unwrap().unwrap(),
+            ("at-new".into(), "NewName#2".into())
+        );
+
+        let index = Index::load(&dir).unwrap();
+        assert_eq!(index.entries().len(), 1, "one entry, moved — no twin");
+        let entry = index.get("NewName#2").expect("the entry follows the name");
+        assert_eq!(entry.uuid.as_deref(), Some("u-1"));
+        assert!(
+            daemon
+                .shared
+                .lock()
+                .unwrap()
+                .auth
+                .find("NewName#2")
+                .is_some_and(|x| x.uuid.as_deref() == Some("u-1")),
+            "the session moved with its uuid"
+        );
+        delayed.server.await.unwrap();
+        let _ = std::fs::remove_dir_all(&dir);
         remove_test_log(&log_path);
     }
 
@@ -4046,6 +4403,7 @@ mod dispatcher_tests {
     #[derive(Default)]
     struct RecordingCredentialStore {
         saves: Mutex<Vec<(String, String, String)>>,
+        cleared: Mutex<Vec<String>>,
     }
 
     impl CredentialStore for RecordingCredentialStore {
@@ -4058,7 +4416,8 @@ mod dispatcher_tests {
             Ok(())
         }
 
-        fn clear(&self, _service: &str, _username: &str) -> Result<(), String> {
+        fn clear(&self, _service: &str, username: &str) -> Result<(), String> {
+            self.cleared.lock().unwrap().push(username.to_string());
             Ok(())
         }
     }
@@ -5250,6 +5609,302 @@ mod dispatcher_tests {
             EndpointState::Policy(ref name) if name.starts_with("league-request-limit")
         ));
         dispatcher.abort();
+        let _ = std::fs::remove_file(&log_path);
+    }
+
+    // ---- tracer step 2: uuid-at-login (CONTEXT.md, identity decision) ----
+
+    fn login_tokens(access: &str, user: &str) -> auth::TokenResponse {
+        auth::TokenResponse {
+            access_token: access.into(),
+            refresh_token: format!("rt-{user}"),
+            expires_in: 3600,
+            username: user.into(),
+        }
+    }
+
+    /// A daemon wired for login tests: a recording credential store, a
+    /// scratch store directory, and no pre-existing session.
+    fn login_daemon(base: &str) -> (Arc<Daemon>, Arc<RecordingCredentialStore>, PathBuf, PathBuf) {
+        let clock = Arc::new(ManualClock::new());
+        let rails = Arc::new(Rails::with_config_and_clock(
+            RailsConfig::default(),
+            clock.clone(),
+        ));
+        let credentials = Arc::new(RecordingCredentialStore::default());
+        let (mut daemon, log_path) = test_daemon_scenario(
+            Provider::mock(base),
+            clock,
+            rails,
+            credentials.clone() as Arc<dyn CredentialStore>,
+        );
+        let store_dir = std::env::temp_dir().join(format!(
+            "acq-login-{}-{}",
+            std::process::id(),
+            TEST_LOG_ID.fetch_add(1, Ordering::Relaxed)
+        ));
+        let _ = std::fs::remove_dir_all(&store_dir);
+        Arc::get_mut(&mut daemon).expect("fresh daemon").store_dir = Some(store_dir.clone());
+        // The harness pre-installs an empty legacy session; a login test
+        // starts logged out.
+        daemon.shared.lock().unwrap().auth.by_account.clear();
+        (daemon, credentials, store_dir, log_path)
+    }
+
+    async fn run_login(daemon: &Arc<Daemon>, access: &str, user: &str) {
+        let generation = daemon.begin_auth_flow();
+        let username = daemon
+            .stage_auth_flow(generation, login_tokens(access, user))
+            .expect("current flow stages");
+        daemon.login_with_profile(generation, username).await;
+    }
+
+    fn login_result(daemon: &Daemon) -> (bool, Option<String>, Option<String>) {
+        match daemon.auth_status() {
+            Response::Auth {
+                logged_in,
+                login_ok,
+                login_error,
+                ..
+            } => (logged_in, login_ok, login_error),
+            other => panic!("unexpected response: {other:?}"),
+        }
+    }
+
+    /// A login is not a login until the profile fetch delivers the account
+    /// uuid: until then nothing is registered — no session, no keyring
+    /// entry, no index row — and when it lands, everything is, with the
+    /// uuid (deterministic per username on the mock).
+    #[tokio::test]
+    async fn login_registers_the_session_only_when_the_profile_uuid_lands() {
+        let base = mockggg::start().await.unwrap();
+        let (daemon, credentials, store_dir, log_path) = login_daemon(&base);
+        let dispatcher = tokio::spawn(daemon.clone().dispatcher());
+
+        let generation = daemon.begin_auth_flow();
+        let username = daemon
+            .stage_auth_flow(generation, login_tokens("at-x.Alice#1234", "Alice#1234"))
+            .expect("current flow stages");
+        // Staged: the flow is still pending and nothing is registered —
+        // the tokens sit in the staging slot, outside the session map.
+        {
+            let s = daemon.shared.lock().unwrap();
+            assert_eq!(s.auth.pending, Some(generation));
+            assert!(s.auth.by_account.is_empty(), "no session exists yet");
+            assert!(s.auth.staging.is_some());
+        }
+        assert!(matches!(
+            daemon.auth_status(),
+            Response::Auth {
+                logged_in: false,
+                pending: true,
+                login_ok: None,
+                login_error: None,
+                ..
+            }
+        ));
+        assert!(credentials.saves.lock().unwrap().is_empty());
+        assert!(!acquisition_store::index_path(&store_dir).exists());
+
+        daemon.login_with_profile(generation, username).await;
+
+        // Registered: session visible, keyring written, index row with
+        // uuid, and the flow's own terminal result names the account.
+        let index = Index::load(&store_dir).unwrap();
+        let entry = index.get("Alice#1234").expect("indexed at login");
+        let uuid = entry.uuid.clone().expect("uuid recorded at login");
+        assert!(entry.persisted);
+        {
+            let s = daemon.shared.lock().unwrap();
+            assert_eq!(s.auth.pending, None);
+            assert!(s.auth.staging.is_none());
+            assert_eq!(s.auth.last_login.as_deref(), Some("Alice#1234"));
+            let session = s.auth.find("Alice#1234").expect("registered");
+            assert_eq!(session.keyring, "ok");
+            assert_eq!(session.uuid.as_deref(), Some(uuid.as_str()));
+        }
+        assert_eq!(credentials.saves.lock().unwrap().len(), 1);
+        assert_eq!(
+            login_result(&daemon),
+            (true, Some("Alice#1234".into()), None)
+        );
+
+        // A re-login as the same account lands the same uuid: the mock's
+        // uuids are deterministic per username, and the index keeps one
+        // entry per account.
+        run_login(&daemon, "at-y.Alice#1234", "Alice#1234").await;
+        let index = Index::load(&store_dir).unwrap();
+        assert_eq!(index.entries().len(), 1);
+        assert_eq!(
+            index.get("Alice#1234").unwrap().uuid.as_deref(),
+            Some(uuid.as_str())
+        );
+
+        dispatcher.abort();
+        let _ = std::fs::remove_dir_all(&store_dir);
+        let _ = std::fs::remove_file(&log_path);
+    }
+
+    /// A login whose profile fetch fails fails whole: no provisional
+    /// identity — the staged tokens are dropped, no keyring entry is
+    /// minted, the index is untouched, and the flow's terminal result is
+    /// the failure.
+    #[tokio::test]
+    async fn a_login_whose_profile_fetch_fails_fails_whole() {
+        // Nothing listens here: the profile GET dies in transport.
+        let (daemon, credentials, store_dir, log_path) = login_daemon("http://127.0.0.1:1");
+        let dispatcher = tokio::spawn(daemon.clone().dispatcher());
+
+        run_login(&daemon, "at-x.Alice#1234", "Alice#1234").await;
+
+        {
+            let s = daemon.shared.lock().unwrap();
+            assert_eq!(s.auth.pending, None, "the flow is closed");
+            assert!(s.auth.by_account.is_empty(), "no session appeared");
+            assert!(s.auth.staging.is_none(), "the staged tokens are gone");
+            assert!(
+                s.errors
+                    .iter()
+                    .any(|(_, m)| m.contains("login failed for Alice#1234")),
+                "the failure is reported"
+            );
+        }
+        let (logged_in, ok, error) = login_result(&daemon);
+        assert!(!logged_in && ok.is_none());
+        assert!(
+            error
+                .as_deref()
+                .is_some_and(|e| e.contains("profile fetch")),
+            "{error:?}"
+        );
+        assert!(credentials.saves.lock().unwrap().is_empty());
+        assert!(!acquisition_store::index_path(&store_dir).exists());
+
+        dispatcher.abort();
+        let _ = std::fs::remove_dir_all(&store_dir);
+        let _ = std::fs::remove_file(&log_path);
+    }
+
+    /// A failed *re-login* leaves the previously registered session exactly
+    /// as it was (staging never touches the session map), and the flow's
+    /// terminal result reports the failure even though `logged_in` stays
+    /// true — so `acq auth` cannot mistake the surviving session for this
+    /// login succeeding.
+    #[tokio::test]
+    async fn a_failed_relogin_keeps_the_old_session_and_reports_the_failure() {
+        let base = mockggg::start().await.unwrap();
+        let (daemon, credentials, store_dir, log_path) = login_daemon(&base);
+        let dispatcher = tokio::spawn(daemon.clone().dispatcher());
+        run_login(&daemon, "at-x.Alice#1234", "Alice#1234").await;
+        assert_eq!(login_result(&daemon).1.as_deref(), Some("Alice#1234"));
+        let old_token = {
+            let s = daemon.shared.lock().unwrap();
+            s.auth.find("Alice#1234").unwrap().access_token.clone()
+        };
+
+        // A re-login whose profile fetch fails (simulated at the abort
+        // step; the state machine is the same for every failure cause).
+        let g2 = daemon.begin_auth_flow();
+        daemon
+            .stage_auth_flow(g2, login_tokens("at-y.Alice#1234", "Alice#1234"))
+            .expect("current flow stages");
+        daemon.abort_login(g2, "Alice#1234", "profile fetch failed: simulated");
+
+        {
+            let s = daemon.shared.lock().unwrap();
+            let session = s.auth.find("Alice#1234").expect("old session survives");
+            assert_eq!(
+                session.access_token, old_token,
+                "the old session is untouched — the staged tokens never reached it"
+            );
+            assert!(s.auth.staging.is_none());
+        }
+        let (logged_in, ok, error) = login_result(&daemon);
+        assert!(logged_in, "the old session is still live");
+        assert!(ok.is_none(), "the failed flow claims no success");
+        assert!(error.as_deref().is_some_and(|e| e.contains("simulated")));
+        // The keyring still holds exactly the first login's entry.
+        assert_eq!(credentials.saves.lock().unwrap().len(), 1);
+
+        dispatcher.abort();
+        let _ = std::fs::remove_dir_all(&store_dir);
+        let _ = std::fs::remove_file(&log_path);
+    }
+
+    /// A login the account index cannot record fails whole: the session
+    /// never becomes visible and the keyring entry is rolled back — a
+    /// session without its uuid mapping could neither be restored nor find
+    /// its annotation file.
+    #[tokio::test]
+    async fn a_login_the_index_cannot_record_fails_whole_and_rolls_back_the_keyring() {
+        let base = mockggg::start().await.unwrap();
+        let (mut daemon, credentials, store_dir, log_path) = login_daemon(&base);
+        // A regular file where the store directory should be: every index
+        // read and write fails.
+        let blocker = store_dir.with_extension("blocker");
+        std::fs::write(&blocker, "not a directory").unwrap();
+        Arc::get_mut(&mut daemon).expect("fresh daemon").store_dir = Some(blocker.clone());
+        let dispatcher = tokio::spawn(daemon.clone().dispatcher());
+
+        run_login(&daemon, "at-x.Alice#1234", "Alice#1234").await;
+
+        {
+            let s = daemon.shared.lock().unwrap();
+            assert!(s.auth.by_account.is_empty(), "the session never appeared");
+            assert!(s.auth.staging.is_none());
+        }
+        let (logged_in, ok, error) = login_result(&daemon);
+        assert!(!logged_in && ok.is_none());
+        assert!(
+            error
+                .as_deref()
+                .is_some_and(|e| e.contains("account index")),
+            "{error:?}"
+        );
+        // The keyring write happened and was rolled back.
+        assert_eq!(credentials.saves.lock().unwrap().len(), 1);
+        assert_eq!(
+            credentials.cleared.lock().unwrap().as_slice(),
+            ["Alice#1234"]
+        );
+
+        dispatcher.abort();
+        let _ = std::fs::remove_file(&blocker);
+        let _ = std::fs::remove_dir_all(&store_dir);
+        let _ = std::fs::remove_file(&log_path);
+    }
+
+    /// A superseded flow can neither stage nor complete, and its staged
+    /// tokens do not linger.
+    #[tokio::test]
+    async fn a_superseded_login_cannot_complete_and_leaves_no_zombie() {
+        let (daemon, credentials, _store_dir, log_path) = login_daemon("http://127.0.0.1:1");
+
+        let g1 = daemon.begin_auth_flow();
+        daemon
+            .stage_auth_flow(g1, login_tokens("at-x.Alice#1234", "Alice#1234"))
+            .expect("current flow stages");
+        // The user restarted the login before the profile landed: the new
+        // flow owns the login state from here.
+        let g2 = daemon.begin_auth_flow();
+        assert!(!daemon.complete_login(g1, "Alice#1234", "u-stale"));
+        {
+            let s = daemon.shared.lock().unwrap();
+            assert!(s.auth.by_account.is_empty(), "no session appeared");
+            assert!(s.auth.staging.is_none(), "no staged tokens linger");
+            assert_eq!(s.auth.pending, Some(g2), "the new flow is untouched");
+            assert!(
+                s.auth.flow_result.is_none(),
+                "the new flow's result is its own"
+            );
+        }
+        assert!(credentials.saves.lock().unwrap().is_empty());
+        // A stale token exchange cannot stage either.
+        assert!(
+            daemon
+                .stage_auth_flow(g1, login_tokens("at-y.Alice#1234", "Alice#1234"))
+                .is_none()
+        );
         let _ = std::fs::remove_file(&log_path);
     }
 

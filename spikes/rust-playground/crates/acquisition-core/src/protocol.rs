@@ -121,8 +121,19 @@ pub enum Response {
     Auth {
         /// At least one session is live.
         logged_in: bool,
-        /// A login flow is in progress (waiting on the browser).
+        /// A login flow is in progress (waiting on the browser, or on the
+        /// login's own profile fetch).
         pending: bool,
+        /// The account the most recent login flow registered. At most one
+        /// of `login_ok`/`login_error` is set; both absent means no flow
+        /// has finished since the daemon started (or one just began).
+        /// Aggregate state cannot answer "did *my* login work" — another
+        /// account's live session must not read as this flow's success.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        login_ok: Option<String>,
+        /// Why the most recent login flow failed.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        login_error: Option<String>,
         /// The most recently logged-in account — informational; the daemon
         /// never selects by it.
         username: Option<String>,

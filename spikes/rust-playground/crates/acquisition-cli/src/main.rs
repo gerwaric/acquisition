@@ -632,9 +632,9 @@ async fn login(no_browser: bool, json: bool) -> Result<()> {
         tokio::time::sleep(Duration::from_millis(500)).await;
         let status = client.request(&Request::AuthStatus).await?;
         let Response::Auth {
-            logged_in,
             pending,
-            ref username,
+            ref login_ok,
+            ref login_error,
             ref keyring,
             ..
         } = status
@@ -647,16 +647,19 @@ async fn login(no_browser: bool, json: bool) -> Result<()> {
             }
             continue;
         }
-        if !logged_in {
-            bail!("login did not complete (see daemon log)");
+        // Only the flow's own terminal result counts: `logged_in` is
+        // aggregate state, and another account's live session must not be
+        // mistaken for this login succeeding.
+        if let Some(error) = login_error {
+            bail!("login failed: {error}");
         }
+        let Some(user) = login_ok else {
+            bail!("login did not complete (see daemon log)");
+        };
         if json {
             return print_auth(&status, true);
         }
-        println!(
-            "logged in as {}",
-            username.as_deref().unwrap_or("<unknown>")
-        );
+        println!("logged in as {user}");
         if keyring != "ok" {
             println!("warning: keyring {keyring}; session will not survive a daemon restart");
         }
