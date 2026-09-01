@@ -174,7 +174,7 @@ bounded by `MAX_429_RETRIES`; a Cloudflare-shaped 403/503 is never retried.
   The quote echoes the job tuples it priced (`work`), and attaching one
   (`with_quote`) validates it speaks about the plan's own provider,
   exactly its account, and exactly its actions in order — never just a
-  matching count; carrying it bumped the plan schema to v2. Same
+  matching count; carrying it bumped the plan schema (now v3). Same
   no-panic clippy ratchet as the store crate.
 - `crates/acquisition-cli` — the `acq` binary. Thin: clap parsing, output
   formatting, and `store_cmd.rs` — the reads of the shared store (`tabs`,

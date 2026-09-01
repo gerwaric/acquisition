@@ -40,10 +40,11 @@ use acquisition_store::{ListingBasis, StashSnapshot, TabSnapshot};
 /// The plan envelope schema this build writes ([`RefreshPlan::plan_schema`]).
 /// A consumer handed a plan stamped newer refuses it rather than guessing.
 /// History: v1 = the tracer-step-4 envelope; v2 (2026-09-01) added the
-/// optional `quote` enrichment — a shape change is a schema bump, so a v1
-/// reader reports "newer schema" instead of "malformed" on an enriched
-/// plan.
-pub const REFRESH_PLAN_SCHEMA: i64 = 2;
+/// optional `quote` enrichment; v3 (same day) added `Quote::work`, the
+/// quote's verifiable work basis. A shape change anywhere in the envelope —
+/// the embedded `Quote` included — is a schema bump, so an older reader
+/// reports "newer schema" instead of "malformed" on a newer plan.
+pub const REFRESH_PLAN_SCHEMA: i64 = 3;
 
 /// The sync-policy value schema this build reads ([`SyncPolicy::version`]).
 /// The store carries the row opaquely; its shape is this crate's business.

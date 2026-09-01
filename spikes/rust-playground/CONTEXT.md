@@ -274,9 +274,9 @@ requires them to be exactly its own actions rendered as jobs, in
 order, with scope totals that sum (checked, never a wrap or panic) to
 `logical_requests` — matching totals alone would let a quote for other
 work of the same size stand in; the `Quote` shape is part of the plan
-schema, and adding it
-**bumped `REFRESH_PLAN_SCHEMA` to 2** — a v1 reader reports "newer
-schema", never "malformed"); (6) `acq refresh --plan`, human + JSON,
+schema and each of its changes bumped `REFRESH_PLAN_SCHEMA` in turn —
+**now 3** (v2 = quote added, v3 = `work` added) — so an older reader
+reports "newer schema", never "malformed"); (6) `acq refresh --plan`, human + JSON,
 spends nothing; (7) apply: the
 exact action set through a parent that never expands it — the existing
 refresh parent re-lists, so it is constrained or replaced, recorded here
