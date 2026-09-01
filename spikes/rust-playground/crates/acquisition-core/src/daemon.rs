@@ -3,7 +3,7 @@
 //! Lifecycle follows the gpg-agent model: clients spawn it on demand, it exits
 //! on its own after a stretch with no connections and no live jobs.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::io::Write as _;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -21,13 +21,13 @@ use std::collections::VecDeque;
 
 use crate::VERSION;
 use crate::job::{JobId, JobInfo, JobState, Outcome, Priority, target_of};
-use crate::protocol::{ErrorRecord, Request, Response, SessionStatus};
+use crate::protocol::{ErrorRecord, Quote, QuoteJob, QuoteScope, Request, Response, SessionStatus};
 use crate::provider::{CALLBACK_PATH, Provider, SCOPES, ggg_mode};
 use crate::rails::{BlockShape, Rails, RailsConfig};
-use crate::ratelimit::endpoint_key;
 use crate::ratelimit::{
     ChokePoint, Clock, EndpointState, RetryAfter, SendError, SystemClock, url_path,
 };
+use crate::ratelimit::{endpoint_key, split_endpoint_key};
 use crate::{auth, mockggg};
 
 const IDLE_SHUTDOWN: Duration = Duration::from_secs(60);
@@ -2817,6 +2817,160 @@ resubmit if still wanted",
         s.last_activity = Instant::now();
     }
 
+    /// The `quote` request (CONTEXT.md, decided 2026-08-31): a read-only,
+    /// non-reserving projection of what the quoted work would meet at the
+    /// choke point right now. Reads the limiter and the queue, sends
+    /// nothing, reserves nothing, remembers nothing — two quotes about the
+    /// same work may disagree because the world moved. Account selection
+    /// follows `Submit`'s rules exactly (resolved here, refused when
+    /// ambiguous), so the quote keys the same limiter state a submit would.
+    fn quote(&self, jobs: &[QuoteJob], account: Option<&str>) -> Result<Quote, String> {
+        // Group the work by scheduling scope: the policy state key once the
+        // route is learned (same-name policies share counters, N6; `Account`
+        // rules count per account, rung 11), else the endpoint key itself.
+        let mut scopes: BTreeMap<String, (BTreeSet<String>, u64)> = BTreeMap::new();
+        let mut sends_nothing: BTreeMap<String, u64> = BTreeMap::new();
+        let mut resolved_account: Option<String> = None;
+        let mut needs_token = false;
+        for job in jobs {
+            let acct = self.resolve_account(&job.kind, account)?;
+            if let Some(a) = &acct {
+                resolved_account.get_or_insert_with(|| a.clone());
+            }
+            match self.keyed_route_for(&job.kind, &job.params, acct.as_deref()) {
+                None => *sends_nothing.entry(job.kind.clone()).or_insert(0) += 1,
+                Some((endpoint, _)) => {
+                    needs_token |= self.needs_auth(split_endpoint_key(&endpoint).0);
+                    let slot = scopes.entry(self.choke.serial_key(&endpoint)).or_default();
+                    slot.0.insert(endpoint);
+                    slot.1 += 1;
+                }
+            }
+        }
+        // Jobs already here compete for the same scopes; the estimate puts
+        // them ahead of the quoted work. Probes stay out (their own key, and
+        // named under `not_covered` instead).
+        let mut queued: HashMap<String, u64> = HashMap::new();
+        {
+            let s = self.shared.lock().unwrap();
+            for e in s.jobs.values() {
+                if e.info.state.is_terminal() || e.info.kind == "probe" {
+                    continue;
+                }
+                if let Some((endpoint, _)) =
+                    self.keyed_route_for(&e.info.kind, &e.params, e.info.account.as_deref())
+                {
+                    *queued.entry(self.choke.serial_key(&endpoint)).or_insert(0) += 1;
+                }
+            }
+        }
+        let statuses = self.choke.policy_statuses();
+        let mut unprobed: BTreeSet<String> = BTreeSet::new();
+        let mut out = Vec::new();
+        for (key, (endpoints, requests)) in scopes {
+            // Endpoints share a scope only through a learned common policy,
+            // so any one of them names the scope's state.
+            let sample = endpoints.iter().next().cloned().unwrap_or_default();
+            let queued_ahead = queued.get(&key).copied().unwrap_or(0);
+            let ahead = (queued_ahead + requests - 1) as u32;
+            let (policy, rules, eta_seconds, notes) = match self.choke.endpoint_state(&sample) {
+                EndpointState::Policy(name) => {
+                    let rules = statuses
+                        .iter()
+                        .find(|p| p.policy == name)
+                        .map(|p| p.rules.clone())
+                        .unwrap_or_default();
+                    let eta = self.choke.eta_for(&sample, ahead).as_secs();
+                    (Some(name), rules, Some(eta), Vec::new())
+                }
+                EndpointState::Policyless => (
+                    None,
+                    Vec::new(),
+                    Some(0),
+                    vec![
+                        "declared policyless: paced by the send gate alone; headers, if they \
+                         ever appear, are learned strictly"
+                            .into(),
+                    ],
+                ),
+                EndpointState::Unknown => {
+                    let route = split_endpoint_key(&sample).0.to_string();
+                    let note = if Self::route_probes(&sample) {
+                        unprobed.insert(route.clone());
+                        format!(
+                            "policy not yet learned: a HEAD probe (its own send) precedes the \
+                             first request on {route}"
+                        )
+                    } else {
+                        format!(
+                            "policy not yet learned: {route} is a declared no-probe route — \
+                             its first GET teaches the limiter"
+                        )
+                    };
+                    (None, Vec::new(), None, vec![note])
+                }
+                EndpointState::Degraded { until, reason } => (
+                    None,
+                    Vec::new(),
+                    None,
+                    vec![format!(
+                        "endpoint closed by a failed probe for another {}s: {reason}",
+                        until.saturating_duration_since(self.choke.now()).as_secs()
+                    )],
+                ),
+            };
+            out.push(QuoteScope {
+                key,
+                endpoints: endpoints.into_iter().collect(),
+                requests,
+                queued_ahead,
+                policy,
+                rules,
+                eta_seconds,
+                notes,
+            });
+        }
+        let total: u64 = out.iter().map(|s| s.requests).sum();
+        let mut not_covered = Vec::new();
+        if !unprobed.is_empty() {
+            not_covered.push(format!(
+                "a HEAD probe on first contact with {} this daemon lifetime (N16) — its own \
+                 send, outside every estimate",
+                unprobed.into_iter().collect::<Vec<_>>().join(", ")
+            ));
+        }
+        if needs_token {
+            not_covered.push(
+                "an OAuth token refresh if the access token expires first (N33) — paced by \
+                 the token policy, not quoted"
+                    .into(),
+            );
+        }
+        if total > 0 {
+            not_covered.push(format!(
+                "429 re-sends (up to {MAX_429_RETRIES} per request) — possible, never predicted"
+            ));
+        }
+        for (kind, n) in sends_nothing {
+            not_covered.push(format!(
+                "{n} `{kind}` job(s) send nothing and are outside every scope"
+            ));
+        }
+        Ok(Quote {
+            observed_at: self
+                .choke
+                .wall()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .map(|d| d.as_secs() as i64)
+                .unwrap_or(0),
+            provider: self.provider.name.to_string(),
+            account: resolved_account,
+            halted: self.rails().halted(),
+            scopes: out,
+            not_covered,
+        })
+    }
+
     async fn handle_request(
         self: &Arc<Self>,
         req: Request,
@@ -2945,6 +3099,10 @@ resubmit if still wanted",
                     (Err(message), None) => Response::Error { message },
                 }
             }
+            Request::Quote { jobs, account } => match self.quote(&jobs, account.as_deref()) {
+                Ok(quote) => Response::Quote { quote },
+                Err(message) => Response::Error { message },
+            },
             Request::DaemonStatus => {
                 let s = self.shared.lock().unwrap();
                 let (in_flight, max_in_flight) = self.choke.actual_send_occupancy();
@@ -7086,6 +7244,180 @@ mod dispatcher_tests {
         assert!(error.contains("mock-only"), "{error}");
         assert!(daemon.choke.recent_sends().is_empty());
         assert_journal_matches_wire(&log_path, &[]);
+        remove_harness_files(&log_path);
+    }
+
+    /// The `quote` protocol request (tracer step 5): a read-only,
+    /// non-reserving projection. A learned policy's scope carries
+    /// per-window headroom and a forward-simulated ETA; an unlearned
+    /// route is unquotable and says so; probes, OAuth, 429s, and
+    /// non-sending jobs are named as not covered instead of silently
+    /// omitted. Nothing is sent, enqueued, or remembered.
+    #[tokio::test]
+    async fn quote_projects_per_scope_reserves_nothing_and_names_what_it_cannot_see() {
+        let clock = Arc::new(ManualClock::new());
+        let base = mockggg::start_with_clock(clock.clone()).await.unwrap();
+        let (daemon, log_path) = test_daemon(&base, clock);
+        // Teach the mock's 5-per-10s fetch policy through the ordinary
+        // probe path; `character-list` stays unlearned.
+        daemon
+            .choke
+            .head("fetch", &format!("{base}/fetch"), None, daemon.choke.now())
+            .await
+            .unwrap();
+        let sends_before = daemon.choke.recent_sends().len();
+
+        let mut jobs: Vec<QuoteJob> = (0..8)
+            .map(|_| QuoteJob {
+                kind: "fetch".into(),
+                params: json!({}),
+            })
+            .collect();
+        jobs.push(QuoteJob {
+            kind: "characters".into(),
+            params: json!({}),
+        });
+        jobs.push(QuoteJob {
+            kind: "sleep".into(),
+            params: json!({ "seconds": 1.0 }),
+        });
+        let quote = match daemon
+            .handle_request(
+                Request::Quote {
+                    jobs,
+                    account: None,
+                },
+                &mut None,
+            )
+            .await
+        {
+            Response::Quote { quote } => quote,
+            other => panic!("{other:?}"),
+        };
+
+        assert_eq!(quote.provider, "mock");
+        assert!(quote.halted.is_none());
+        let [unknown, learned] = quote.scopes.as_slice() else {
+            panic!("expected two scopes: {:?}", quote.scopes);
+        };
+        // The learned route is keyed by its policy and quotes per-window
+        // headroom; 8 sends through 5-per-10s cannot be immediate.
+        assert_eq!(learned.key, "mock-fetch-request-limit");
+        assert_eq!(learned.policy.as_deref(), Some("mock-fetch-request-limit"));
+        assert_eq!(learned.endpoints, ["fetch"]);
+        assert_eq!((learned.requests, learned.queued_ahead), (8, 0));
+        let windows: Vec<(u32, u32)> = learned
+            .rules
+            .iter()
+            .flat_map(|r| r.windows.iter().map(|w| (w.hits, w.max_hits)))
+            .collect();
+        assert!(
+            windows.contains(&(0, 5)),
+            "per-window headroom: {windows:?}"
+        );
+        assert!(
+            learned.eta_seconds.is_some_and(|eta| eta >= 10),
+            "{:?}",
+            learned.eta_seconds
+        );
+        assert!(learned.notes.is_empty(), "{:?}", learned.notes);
+        // The unlearned route is unquotable and says so, never guessed.
+        assert_eq!(unknown.key, "character-list");
+        assert_eq!(unknown.policy, None);
+        assert_eq!(unknown.eta_seconds, None);
+        assert!(
+            unknown.notes[0].contains("HEAD probe"),
+            "{:?}",
+            unknown.notes
+        );
+        // What the quote does not cover is named.
+        let nc = quote.not_covered.join("\n");
+        assert!(nc.contains("character-list"), "{nc}");
+        assert!(nc.contains("OAuth token refresh"), "{nc}");
+        assert!(nc.contains("429 re-sends"), "{nc}");
+        assert!(nc.contains("`sleep` job(s) send nothing"), "{nc}");
+        // Read-only and non-reserving: no job exists, nothing was sent.
+        assert!(daemon.shared.lock().unwrap().jobs.is_empty());
+        assert_eq!(daemon.choke.recent_sends().len(), sends_before);
+        remove_harness_files(&log_path);
+    }
+
+    #[tokio::test]
+    async fn quote_counts_queued_jobs_ahead_and_keys_scopes_per_account() {
+        let clock = Arc::new(ManualClock::new());
+        let base = mockggg::start_with_clock(clock.clone()).await.unwrap();
+        let (daemon, log_path) = test_daemon(&base, clock);
+        daemon.shared.lock().unwrap().auth.rename("", "Alice#1234");
+        daemon
+            .choke
+            .head("fetch", &format!("{base}/fetch"), None, daemon.choke.now())
+            .await
+            .unwrap();
+        // Three fetch jobs sit waiting (no dispatcher runs here).
+        for _ in 0..3 {
+            daemon
+                .submit("fetch".into(), json!({}), 0, "test".into(), None)
+                .unwrap();
+        }
+        let quote = match daemon
+            .handle_request(
+                Request::Quote {
+                    jobs: vec![
+                        QuoteJob {
+                            kind: "fetch".into(),
+                            params: json!({}),
+                        },
+                        QuoteJob {
+                            kind: "stashes".into(),
+                            params: json!({ "league": "Standard" }),
+                        },
+                    ],
+                    account: None,
+                },
+                &mut None,
+            )
+            .await
+        {
+            Response::Quote { quote } => quote,
+            other => panic!("{other:?}"),
+        };
+        // The queue competes: waiting jobs on the scope go ahead of the
+        // quoted work.
+        let fetch = quote
+            .scopes
+            .iter()
+            .find(|s| s.key == "mock-fetch-request-limit")
+            .unwrap();
+        assert_eq!((fetch.requests, fetch.queued_ahead), (1, 3));
+        // An account-holding job keys its scope per account, exactly as
+        // the limiter and dispatcher would.
+        assert!(
+            quote
+                .scopes
+                .iter()
+                .any(|s| s.key == "stash-list@Alice#1234"),
+            "{:?}",
+            quote.scopes
+        );
+        assert_eq!(quote.account.as_deref(), Some("Alice#1234"));
+        // A selector naming no live session refuses the quote whole — the
+        // same rules as Submit, so a quote never keys the wrong state.
+        match daemon
+            .handle_request(
+                Request::Quote {
+                    jobs: vec![QuoteJob {
+                        kind: "stashes".into(),
+                        params: json!({}),
+                    }],
+                    account: Some("Bob".into()),
+                },
+                &mut None,
+            )
+            .await
+        {
+            Response::Error { message } => assert!(message.contains("Bob"), "{message}"),
+            other => panic!("{other:?}"),
+        }
         remove_harness_files(&log_path);
     }
 }

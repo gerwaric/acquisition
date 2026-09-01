@@ -1139,7 +1139,11 @@ fn next_safe_send(s: &PolicyState) -> Option<Instant> {
 
 // ---- dashboard views ------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+// `WindowStatus`/`RuleStatus` also travel inside a `Quote`, which a
+// `RefreshPlan` may embed — so they are `Eq` and parse strictly, like
+// everything else a serialized plan carries.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct WindowStatus {
     pub hits: u32,
     pub max_hits: u32,
@@ -1149,7 +1153,8 @@ pub struct WindowStatus {
     pub bucket_secs: u64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct RuleStatus {
     pub name: String,
     pub windows: Vec<WindowStatus>,

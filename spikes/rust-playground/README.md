@@ -160,7 +160,16 @@ bounded by `MAX_429_RETRIES`; a Cloudflare-shaped 403/503 is never retried.
   (`RefreshAction::job`), pinned by decoding through
   `Endpoint::from_job` — the store's production decoder of the job
   vocabulary — and by a plan→record→replan loop that proves applied
-  actions satisfy the plan. Same no-panic clippy ratchet as the store
+  actions satisfy the plan. A plan may carry the daemon's **quote** as
+  optional enrichment (tracer step 5, built 2026-09-01): `quote` is its
+  own protocol request — a read-only, non-reserving projection of the
+  work's `(kind, params)` tuples over current limiter state, per
+  scheduling scope with per-window headroom, the queue counted ahead,
+  and a forward-simulated ETA that is an estimate, never a promise;
+  unlearned routes, probes, OAuth refresh, 429 re-sends, and a rails
+  halt are named rather than silently omitted. Attaching one
+  (`with_quote`) validates it speaks about the plan's own provider and
+  account. Same no-panic clippy ratchet as the store
   crate.
 - `crates/acquisition-cli` — the `acq` binary. Thin: clap parsing, output
   formatting, and `store_cmd.rs` — the reads of the shared store (`tabs`,

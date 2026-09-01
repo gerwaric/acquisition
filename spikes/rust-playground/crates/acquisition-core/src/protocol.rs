@@ -9,7 +9,74 @@ use serde_json::Value;
 
 use crate::job::{JobId, JobInfo, Outcome, Priority};
 use crate::rails::RailsStatus;
-use crate::ratelimit::{DegradedEndpoint, PolicyStatus, SendRecord};
+use crate::ratelimit::{DegradedEndpoint, PolicyStatus, RuleStatus, SendRecord};
+
+/// One unit of work to quote, in the daemon's own job vocabulary — exactly
+/// the `(kind, params)` a `Submit` would carry (a plan action renders it).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct QuoteJob {
+    pub kind: String,
+    #[serde(default)]
+    pub params: Value,
+}
+
+/// A read-only, non-reserving projection over current daemon knowledge
+/// (CONTEXT.md, decided 2026-08-31): what the quoted work would meet at the
+/// choke point as of `observed_at`. Nothing is sent, reserved, or
+/// remembered — applying later may receive a different schedule (`eta_for`
+/// is an estimate, not a promise) — and the quote names what it does not
+/// cover (`not_covered`, per-scope `notes`) rather than claiming
+/// completeness. A `RefreshPlan` may embed one verbatim as optional
+/// enrichment, so this shape is part of the plan schema too: changing it
+/// is a plan-schema event, not a silent edit.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Quote {
+    /// Unix seconds when the daemon took this projection.
+    pub observed_at: i64,
+    pub provider: String,
+    /// The canonical account the work was keyed under, when any of it
+    /// resolved to one (the same selector rules as `Submit`).
+    pub account: Option<String>,
+    /// The live-test rails halt in force, if any: nothing sends until
+    /// `reset-tripwire`, so every estimate below is a floor.
+    pub halted: Option<String>,
+    /// One entry per scheduling scope. Estimates stay per policy/window
+    /// and scope, never one scalar.
+    pub scopes: Vec<QuoteScope>,
+    /// Sends and schedules deliberately outside every estimate, named.
+    pub not_covered: Vec<String>,
+}
+
+/// The quoted work on one scheduling scope — the dispatcher's key: a
+/// learned policy's state key (`stash-request-limit@Alice#1234`), or the
+/// bare endpoint key while the route's policy is unknown.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct QuoteScope {
+    pub key: String,
+    /// The endpoint keys of the quoted work under this scope.
+    pub endpoints: Vec<String>,
+    /// Quoted requests on this scope.
+    pub requests: u64,
+    /// Non-terminal jobs already in this daemon on the same scope; the
+    /// estimate puts them ahead of the quoted work.
+    pub queued_ahead: u64,
+    /// The governing policy's state key, once learned from headers.
+    pub policy: Option<String>,
+    /// The policy's rules as last reported — headroom is read per window
+    /// (`hits` against `max_hits`), never one scalar.
+    pub rules: Vec<RuleStatus>,
+    /// Seconds until the last quoted request on this scope could dispatch,
+    /// simulating the pacing rule forward over current limiter state and
+    /// the queue. An estimate, never a promise or a reservation. `None`:
+    /// unquotable until the policy is learned (see `notes`).
+    pub eta_seconds: Option<u64>,
+    /// What this scope's numbers cannot see, named: an unlearned policy,
+    /// a degraded probe cooldown, a declared-policyless route.
+    pub notes: Vec<String>,
+}
 
 /// A recent daemon-side error (job failures, auth/keyring trouble), for the
 /// dashboard. Everything in here is also in the daemon log.
@@ -79,6 +146,19 @@ pub enum Request {
     /// account: the live session. Another known account: only its keyring
     /// entry (the index marks it not persisted); the live session stays.
     AuthLogout {
+        #[serde(default)]
+        account: Option<String>,
+    },
+    /// A read-only, non-reserving projection: what would sending this
+    /// work cost and wait, as of now (see [`Quote`]). Deliberately its
+    /// own request, never a flag on `Submit` — `Submit`'s contract is
+    /// loaded with id/persistence/rollback semantics a projection must
+    /// not inherit.
+    Quote {
+        jobs: Vec<QuoteJob>,
+        /// The same selector rules as `Submit`: resolved before anything
+        /// is projected, refused when ambiguous — a quote must key the
+        /// same limiter state a submit would.
         #[serde(default)]
         account: Option<String>,
     },
@@ -166,6 +246,9 @@ pub enum Response {
         keyring: String,
     },
     Stopping,
+    Quote {
+        quote: Quote,
+    },
     Dashboard {
         pid: u32,
         version: String,

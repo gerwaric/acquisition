@@ -34,6 +34,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 use acquisition_core::daemon::MAX_429_RETRIES;
+use acquisition_core::protocol::Quote;
 use acquisition_store::{ListingBasis, StashSnapshot, TabSnapshot};
 
 /// The plan envelope schema this build writes ([`RefreshPlan::plan_schema`]).
@@ -431,6 +432,51 @@ pub struct RefreshPlan {
     /// Exact for a refresh: one logical request per action.
     pub logical_requests: u64,
     pub wire_sends: WireEstimate,
+    /// Optional enrichment: the daemon's quote for this plan's actions,
+    /// with its own observation time inside. An observation, not a
+    /// derivation — it cannot be recomputed at parse, only carried — so
+    /// validation checks it speaks about this plan's provider and account
+    /// and nothing more. Compiling never fills it (a plan needs no
+    /// daemon); [`RefreshPlan::with_quote`] attaches one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub quote: Option<Quote>,
+}
+
+/// The one consistency a carried quote must have with its envelope: it
+/// projects this plan's provider and account, not some other store's. A
+/// mismatched quote would mislead exactly the review the plan exists for.
+fn check_quote_matches(
+    quote: &Quote,
+    provider: &str,
+    account_name: Option<&str>,
+) -> Result<(), String> {
+    if quote.provider != provider {
+        return Err(format!(
+            "the quote projects provider {:?}, but the plan is for {provider:?}",
+            quote.provider
+        ));
+    }
+    if let (Some(qa), Some(pa)) = (quote.account.as_deref(), account_name)
+        && qa != pa
+    {
+        return Err(format!(
+            "the quote projects account {qa:?}, but the plan is for {pa:?}"
+        ));
+    }
+    Ok(())
+}
+
+impl RefreshPlan {
+    /// Enrich the plan with the daemon's quote (decided 2026-08-31: a plan
+    /// optionally carries one, with its own observation time). Consuming
+    /// on purpose — the enriched plan is a new value, not an edit of a
+    /// reviewed one.
+    pub fn with_quote(mut self, quote: Quote) -> Result<RefreshPlan, PlanError> {
+        check_quote_matches(&quote, &self.provider, self.account_name.as_deref())
+            .map_err(|detail| PlanError::MalformedPlan { detail })?;
+        self.quote = Some(quote);
+        Ok(self)
+    }
 }
 
 impl RefreshPlan {
@@ -477,6 +523,8 @@ struct RefreshPlanWire {
     unknown_tabs: Vec<String>,
     logical_requests: u64,
     wire_sends: WireEstimate,
+    #[serde(default)]
+    quote: Option<Quote>,
 }
 
 impl TryFrom<RefreshPlanWire> for RefreshPlan {
@@ -526,6 +574,11 @@ impl TryFrom<RefreshPlanWire> for RefreshPlan {
                 expected.prerequisites.len()
             ));
         }
+        // A carried quote is an observation and cannot recompute, but it
+        // must at least be *about* this plan.
+        if let Some(quote) = &wire.quote {
+            check_quote_matches(quote, &wire.provider, wire.account_name.as_deref())?;
+        }
         Ok(RefreshPlan {
             plan_schema: wire.plan_schema,
             operation: wire.operation,
@@ -541,6 +594,7 @@ impl TryFrom<RefreshPlanWire> for RefreshPlan {
             unknown_tabs: wire.unknown_tabs,
             logical_requests: wire.logical_requests,
             wire_sends: wire.wire_sends,
+            quote: wire.quote,
         })
     }
 }
@@ -650,6 +704,7 @@ fn compile(
         unknown_tabs,
         logical_requests,
         wire_sends,
+        quote: None,
     })
 }
 
@@ -1332,6 +1387,67 @@ mod tests {
         assert_eq!(RefreshPlan::from_value(&json).unwrap(), plan);
         let back: RefreshPlan = serde_json::from_value(json).unwrap();
         assert_eq!(back, plan);
+    }
+
+    #[test]
+    fn a_quote_enriches_a_plan_optionally_and_must_speak_about_it() {
+        use acquisition_core::protocol::QuoteScope;
+        let mut s = store();
+        list(
+            &mut s,
+            json!([{ "id": "t1", "name": "One", "type": "PremiumStash", "index": 0 }]),
+            1000,
+        );
+        let bare = plan(&s, &all_policy_value(60), 5000);
+        assert_eq!(bare.quote, None, "compiling never fills the quote");
+        let quote = Quote {
+            observed_at: 5000,
+            provider: bare.provider.clone(),
+            account: bare.account_name.clone(),
+            halted: None,
+            scopes: vec![QuoteScope {
+                key: "stash-list".into(),
+                endpoints: vec!["stash-list".into()],
+                requests: 1,
+                queued_ahead: 0,
+                policy: None,
+                rules: Vec::new(),
+                eta_seconds: None,
+                notes: vec!["policy not yet learned".into()],
+            }],
+            not_covered: vec!["a HEAD probe on first contact (N16)".into()],
+        };
+        let enriched = bare.clone().with_quote(quote.clone()).unwrap();
+        assert_eq!(enriched.quote.as_ref(), Some(&quote));
+        // The enriched plan round-trips like everything else it carries.
+        let json = serde_json::to_value(&enriched).unwrap();
+        assert_eq!(RefreshPlan::from_value(&json).unwrap(), enriched);
+        // A smuggled field inside the carried quote refuses at parse.
+        let mut nested = json.clone();
+        nested["quote"]["extra"] = json!(true);
+        assert!(RefreshPlan::from_value(&nested).is_err());
+        let mut nested = json.clone();
+        nested["quote"]["scopes"][0]["surprise"] = json!(true);
+        assert!(RefreshPlan::from_value(&nested).is_err());
+        // A quote about another provider or account refuses — at attach
+        // and at parse alike: it would mislead the review the plan is for.
+        let mut foreign = quote.clone();
+        foreign.provider = "ggg".into();
+        assert!(matches!(
+            bare.clone().with_quote(foreign),
+            Err(PlanError::MalformedPlan { .. })
+        ));
+        let mut tampered = json.clone();
+        tampered["quote"]["provider"] = json!("ggg");
+        assert!(RefreshPlan::from_value(&tampered).is_err());
+        let mut other_account = quote.clone();
+        other_account.account = Some("mallory#9999".into());
+        assert!(bare.clone().with_quote(other_account).is_err());
+        // An accountless quote (none of the work resolved to an account)
+        // still attaches: there is no claim to contradict.
+        let mut accountless = quote;
+        accountless.account = None;
+        assert!(bare.with_quote(accountless).is_ok());
     }
 
     #[test]

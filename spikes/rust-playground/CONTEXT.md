@@ -162,7 +162,7 @@ and store; (2) `account` on jobs, validated against the sole session;
 rule, uuid recorded opportunistically (superseded 2026-08-31: uuid is now
 required at login — identity bullet above).
 
-### Annotations & plans — the refresh tracer (decided 2026-08-31, building; steps 1–4 done)
+### Annotations & plans — the refresh tracer (decided 2026-08-31, building; steps 1–5 done)
 
 The one slice built next: refresh-with-`plan`, the smallest slice that
 touches all four layers (policy = intent, plan = derivation, apply =
@@ -238,9 +238,25 @@ prerequisite-wording change is a plan-schema event, not a silent edit; every act
 tuple, pinned through `Endpoint::from_job` — the store's production
 decoder of that vocabulary — plus a plan→record→replan loop, breakers
 verified); (5) `quote` on the protocol +
-optional plan enrichment — the quote names what it does not cover
-(listing policy, probe, OAuth) rather than claiming completeness;
-(6) `acq refresh --plan`, human + JSON, spends nothing; (7) apply: the
+optional plan enrichment — **done 2026-09-01** (`Request::Quote` takes
+work in the daemon's own job vocabulary — the `(kind, params)` tuples
+plan actions render — and answers a read-only, non-reserving
+projection, per the 2026-08-31 decision line: per scheduling scope (a
+learned policy's state key, else the bare endpoint key) the per-window
+headroom, the daemon's own queue counted ahead, and a
+forward-simulated ETA; an unlearned, degraded, or policyless route is
+labeled rather than guessed at, and probes, possible OAuth refresh,
+429 re-sends, a rails halt, and non-sending jobs are named under
+`not_covered`/`notes` instead of silently omitted; account selection
+follows `Submit`'s rules exactly — resolved before projecting, refused
+when ambiguous — so a quote keys the same limiter state the submit
+would; `RefreshPlan.quote` is the optional enrichment
+(`with_quote`) — an observation, not a derivation, so parse validation
+cannot recompute it and instead pins strict unknown-field parsing and
+that it speaks about the plan's own provider and account; the `Quote`
+shape is thereby part of the plan schema, so changing it is a
+plan-schema event); (6) `acq refresh --plan`, human + JSON, spends
+nothing; (7) apply: the
 exact action set through a parent that never expands it — the existing
 refresh parent re-lists, so it is constrained or replaced, recorded here
 first — with admission-time logical budget, and an explicit staleness
