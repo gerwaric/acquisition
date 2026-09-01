@@ -350,6 +350,8 @@ else
     NEED_LOGIN=1
 fi
 OFFSET=$(journal_size)
+LOG_OFFSET=0
+if [ -f "$LOG" ]; then LOG_OFFSET=$(wc -c <"$LOG" | tr -d ' '); fi
 LOGIN_LIFETIME=0
 
 # ---- phase 1: login (only when intent cannot bind without it) ---------------
@@ -609,10 +611,19 @@ else
 fi
 "$ACQ" store status 2>&1 | tee "$RUN_DIR/store-status.txt"
 # Everything since the run started (plus an hour of margin), not a fixed
-# hour: an `all` cycle alone is longer than that.
+# hour: an `all` cycle alone is longer than that. The CLI's default
+# limit (200, oldest first) would silently drop a big run's later
+# events, so the limit is explicit and hitting it is a failure.
 hours=$(python3 -c "import time; print((time.time() - $RUN_START) / 3600 + 1)")
-"$ACQ" store events --hours "$hours" >"$RUN_DIR/store-events.txt"
-echo "item events from this run: $(grep -c . "$RUN_DIR/store-events.txt" || true) line(s) in $RUN_DIR/store-events.txt"
+EVENT_LIMIT=1000000
+"$ACQ" store events --hours "$hours" --limit "$EVENT_LIMIT" >"$RUN_DIR/store-events.txt"
+"$ACQ" store events --hours "$hours" --limit "$EVENT_LIMIT" --json >"$RUN_DIR/store-events.json"
+events_n=$(jq 'length' "$RUN_DIR/store-events.json")
+if [ "$events_n" -ge "$EVENT_LIMIT" ]; then
+    echo "*** the item-event readback hit its limit ($EVENT_LIMIT): evidence would be truncated" >&2
+    exit 1
+fi
+echo "item events since the run started: $events_n, in $RUN_DIR/store-events.txt"
 "$ACQ" refresh --plan --league "$LEAGUE" >"$RUN_DIR/plan-final.txt" 2>&1
 if [ "$CLOSED" != 0 ] && ! grep -q "nothing to do" "$RUN_DIR/plan-final.txt"; then
     echo "*** the loop was recorded as closed but the final plan is not empty:" >&2
@@ -631,20 +642,28 @@ COMPLETED=1
 
 # ---- phase 5: evidence and verification -----------------------------------------
 
-# The evidence is this run's slice of the journal, and the verification
-# runs on that saved copy from byte 0 — so re-running the verifier on the
-# bundle later reproduces the verdict exactly.
+# The evidence is this run's slice of the journal and of the daemon log
+# (both files are cumulative on disk), plus the verifier as it was when
+# the run was checked — copied into the bundle with its checksum — and
+# the verification runs on the saved journal from byte 0 through that
+# copy, so re-running verify.sh later reproduces the verdict exactly,
+# wherever the bundle lives and whatever the working tree's verifier
+# becomes.
 tail -c +$((OFFSET + 1)) "$JOURNAL" >"$RUN_DIR/sends.jsonl"
-cp "$LOG" "$RUN_DIR/daemon.log" 2>/dev/null || true
+if [ -f "$LOG" ]; then tail -c +$((LOG_OFFSET + 1)) "$LOG" >"$RUN_DIR/daemon.log"; fi
+cp "$here/tools/tracer-verify.py" "$RUN_DIR/tracer-verify.py"
+(cd "$RUN_DIR" && shasum -a 256 tracer-verify.py sends.jsonl cycles.tsv >checksums.sha256)
 cat >"$RUN_DIR/verify.sh" <<EOS
 #!/bin/sh
-# Re-verify this bundle: $(basename "$RUN_DIR"), binary $ver
-cd "\$(dirname "\$0")" && python3 "$here/tools/tracer-verify.py" sends.jsonl 0 cycles.tsv $LOGIN_LIFETIME $CLOSED $MODE
+# Re-verify this bundle: $(basename "$RUN_DIR"), binary $ver, rung tip $tip.
+# Uses the verifier copied into the bundle, never the working tree's.
+cd "\$(dirname "\$0")" && shasum -a 256 -c checksums.sha256 >/dev/null &&
+    python3 ./tracer-verify.py sends.jsonl 0 cycles.tsv $LOGIN_LIFETIME $CLOSED $MODE
 EOS
 chmod +x "$RUN_DIR/verify.sh"
 
 verify() {
-    python3 "$here/tools/tracer-verify.py" "$RUN_DIR/sends.jsonl" 0 "$CYCLE_ROWS" "$LOGIN_LIFETIME" "$CLOSED" "$MODE"
+    python3 "$RUN_DIR/tracer-verify.py" "$RUN_DIR/sends.jsonl" 0 "$CYCLE_ROWS" "$LOGIN_LIFETIME" "$CLOSED" "$MODE"
 }
 if ! verify | tee "$RUN_DIR/summary.txt"; then
     echo ""
@@ -653,8 +672,8 @@ if ! verify | tee "$RUN_DIR/summary.txt"; then
 fi
 
 echo ""
-echo "evidence in $RUN_DIR (this run's journal slice, daemon logs, plans, apply results, store"
-echo "reads, summary; ./verify.sh re-runs the verification on the bundle)."
+echo "evidence in $RUN_DIR (this run's journal and daemon-log slices, plans, apply results,"
+echo "store reads, summary, the verifier copy and checksums; ./verify.sh re-runs the verification)."
 if [ -s "$FRICTION" ]; then
     echo ""
     echo "friction notes ($FRICTION):"

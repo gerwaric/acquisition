@@ -302,7 +302,11 @@ Prepared, not yet run (the run is the owner's, from a terminal):
    reproduces the verdict from byte 0, and a repeat run gets its own
    directory; the store-events readback covers the run's whole span;
    live preflight refuses working-tree changes to the rung's own files.
-   The run's outputs: a ledger
+   Round 5 (same day, three evidence gaps, fixed): the daemon log is
+   saved as this run's slice like the journal; the bundle carries its
+   own copy of the verifier with checksums and `verify.sh` runs that
+   copy, never the working tree's; the item-event readback sets an
+   explicit limit and fails on reaching it. The run's outputs: a ledger
    row, the friction notes in the rung section, and then the two
    rulings below — "Binding-plan friction" and the method-test verdict.
 
