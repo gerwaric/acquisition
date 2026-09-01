@@ -227,12 +227,18 @@ Built, each step gate-green and owner-reviewed:
    replaces, so an agent never clobbers intent it has not read; and
    ggg-mode quote enrichment attempts no connection, returning the plan
    with a note naming the open topic below. `apply_plan` is refused in
-   ggg mode alongside `submit_job`. Pinned at process level in
-   `acquisition-mcp/tests/plan_loop.rs`: login over the protocol (the
-   daemon rides inside `acq-mcp`), the tools carrying
-   policy→plan→apply→replan against a real daemon over the mock, and
-   the three gates — create-only CAS, admission budget, staleness —
-   firing through the MCP boundary.
+   ggg mode alongside `submit_job`. Pinned at process level (review
+   round 1 closed two coverage gaps): `acquisition-mcp/tests/
+   plan_loop.rs` — login over the protocol (the daemon rides inside
+   `acq-mcp`), the tools carrying policy→plan→apply→replan against a
+   real daemon over the mock, the create-only CAS and admission-budget
+   gates, and the offline claims proven offline (the daemon is stopped
+   before the staleness refusal and the empty-plan no-op, and the
+   socket checked dead afterwards, so a regression that contacted or
+   lazy-spawned a daemon cannot pass) — and `tests/ggg_refusal.rs`: an
+   `ACQ_GGG=1` server with no daemon, store, or login refuses
+   `apply_plan` and `submit_job` on the mode alone, before even the
+   envelope parse.
 
 Accepted residuals, recorded so they need no re-litigating:
 

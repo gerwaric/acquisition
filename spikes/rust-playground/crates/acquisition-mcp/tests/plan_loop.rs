@@ -5,50 +5,36 @@
 //! surface must carry the whole loop — declare intent, compile the plan,
 //! spend it, replan — and every gate must fire through it: the
 //! create-only CAS on a blind policy write, the daemon's admission
-//! budget, and the step-7 staleness refusal before any daemon contact.
+//! budget, and the step-7 staleness refusal. The offline claims are
+//! proven offline: the daemon is stopped before the staleness and
+//! empty-plan assertions, and the socket is checked afterwards so a
+//! regression that contacted (or spawned) a daemon cannot pass.
 //!
 //! Loop *closure* (bootstrap listing + two reconciliation cycles) is
 //! already pinned by the CLI's `apply_loop.rs`; this test pins the MCP
 //! boundary, not the loop again.
 
+mod harness;
+
 use std::collections::HashMap;
-use std::io::{BufRead, BufReader, Lines, Read, Write};
+use std::io::{Read, Write};
 use std::net::TcpStream;
-use std::path::Path;
-use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
+use std::process::Stdio;
 use std::time::{Duration, Instant};
 
 use acquisition_core::client::{Client, ConnectOptions};
 use acquisition_core::protocol::{Request, Response};
 use acquisition_plan::{RefreshAction, RefreshPlan};
+use harness::{Mcp, spawn};
 use serde_json::{Value, json};
 
 const POLICY: &str =
     r#"{"version":1,"leagues":{"Standard":{"tabs":"all","max_age_seconds":3600}}}"#;
 
-fn spawn(base: &Path, args: &[&str], stdio: fn() -> Stdio) -> Child {
-    let mut cmd = Command::new(env!("CARGO_BIN_EXE_acq-mcp"));
-    cmd.args(args)
-        // Short socket path (Unix sockets cap ~104 bytes).
-        .env("ACQ_SOCKET", base.join("d.sock"))
-        .env("ACQ_STORE_DIR", base.join("store"))
-        .env("ACQ_NO_KEYRING", "1")
-        .stdin(stdio())
-        .stdout(stdio())
-        .stderr(Stdio::null());
-    for var in [
-        "ACQ_GGG",
-        "ACQ_ACCOUNT",
-        "ACQ_TRIPWIRE",
-        "ACQ_MAX_SENDS",
-        "ACQ_JOURNAL",
-        "ACQ_IDLE_SHUTDOWN",
-        "ACQ_NO_SPAWN",
-    ] {
-        cmd.env_remove(var);
-    }
-    cmd.spawn().expect("spawning acq-mcp")
-}
+/// A valid policy covering nothing: the replan against it is an empty
+/// plan, which is how the no-op branch gets exercised with no daemon.
+const EMPTY_POLICY: &str =
+    r#"{"version":1,"leagues":{"Standard":{"tabs":[],"max_age_seconds":3600}}}"#;
 
 /// One plain loopback HTTP GET — enough to click the mock's approve link
 /// (same shape as `apply_loop.rs`).
@@ -126,100 +112,6 @@ async fn login() {
     }
 }
 
-/// A newline-delimited JSON-RPC conversation with the MCP server's stdio.
-struct Mcp {
-    child: Child,
-    stdin: ChildStdin,
-    lines: Lines<BufReader<ChildStdout>>,
-    next_id: i64,
-}
-
-impl Mcp {
-    fn start(base: &Path) -> Mcp {
-        let mut child = spawn(base, &[], Stdio::piped);
-        let stdin = child.stdin.take().unwrap();
-        let lines = BufReader::new(child.stdout.take().unwrap()).lines();
-        let mut mcp = Mcp {
-            child,
-            stdin,
-            lines,
-            next_id: 0,
-        };
-        let init = mcp.rpc(
-            "initialize",
-            json!({
-                "protocolVersion": "2025-06-18",
-                "capabilities": {},
-                "clientInfo": { "name": "plan-loop-test", "version": "0" }
-            }),
-        );
-        assert!(init.get("result").is_some(), "initialize failed: {init}");
-        mcp.send(&json!({ "jsonrpc": "2.0", "method": "notifications/initialized" }));
-        mcp
-    }
-
-    fn send(&mut self, msg: &Value) {
-        let mut line = msg.to_string();
-        line.push('\n');
-        self.stdin.write_all(line.as_bytes()).unwrap();
-        self.stdin.flush().unwrap();
-    }
-
-    fn rpc(&mut self, method: &str, params: Value) -> Value {
-        self.next_id += 1;
-        let id = self.next_id;
-        self.send(&json!({ "jsonrpc": "2.0", "id": id, "method": method, "params": params }));
-        loop {
-            let line = self
-                .lines
-                .next()
-                .expect("MCP server closed stdout")
-                .expect("reading MCP stdout");
-            let msg: Value = serde_json::from_str(&line)
-                .unwrap_or_else(|e| panic!("not JSON-RPC ({e}): {line}"));
-            if msg["id"] == json!(id) {
-                return msg;
-            }
-        }
-    }
-
-    /// Call one tool: `Ok(structured result)` or `Err(message)` whether
-    /// the failure came back as a JSON-RPC error or an isError result.
-    fn call(&mut self, tool: &str, args: Value) -> Result<Value, String> {
-        let resp = self.rpc("tools/call", json!({ "name": tool, "arguments": args }));
-        if let Some(error) = resp.get("error") {
-            return Err(error["message"].as_str().unwrap_or_default().to_string());
-        }
-        let result = &resp["result"];
-        let text = || {
-            result["content"][0]["text"]
-                .as_str()
-                .unwrap_or_default()
-                .to_string()
-        };
-        if result["isError"] == json!(true) {
-            return Err(text());
-        }
-        match result.get("structuredContent") {
-            Some(v) => Ok(v.clone()),
-            None => Ok(serde_json::from_str(&text())
-                .unwrap_or_else(|e| panic!("unstructured tool result ({e}): {resp}"))),
-        }
-    }
-
-    fn expect_ok(&mut self, tool: &str, args: Value) -> Value {
-        self.call(tool, args.clone())
-            .unwrap_or_else(|e| panic!("{tool} {args} failed: {e}"))
-    }
-
-    fn expect_err(&mut self, tool: &str, args: Value) -> String {
-        match self.call(tool, args) {
-            Err(e) => e,
-            Ok(v) => panic!("{tool} unexpectedly succeeded: {v}"),
-        }
-    }
-}
-
 /// Extract and re-validate the envelope a `refresh_plan` call returned:
 /// what crosses the MCP boundary must be the planner's own self-validating
 /// plan, not a lookalike.
@@ -264,7 +156,7 @@ fn the_mcp_tools_carry_the_plan_slice_and_its_gates() {
     // The daemon is spawned directly (`acq-mcp daemon run`) rather than
     // lazily: lazy spawn execs the calling binary, which here would be
     // the test harness.
-    let mut daemon = spawn(&base, &["daemon", "run"], Stdio::null);
+    let mut daemon = spawn(&base, &["daemon", "run"], &[], Stdio::null);
     let rt = tokio::runtime::Runtime::new().unwrap();
     rt.block_on(async {
         let deadline = Instant::now() + Duration::from_secs(10);
@@ -278,7 +170,7 @@ fn the_mcp_tools_carry_the_plan_slice_and_its_gates() {
         login().await;
     });
 
-    let mut mcp = Mcp::start(&base);
+    let mut mcp = Mcp::start(&base, &[]);
 
     // Intent: no policy yet; the first write creates revision 1; a second
     // blind write is refused naming the revision to review — an agent
@@ -335,26 +227,64 @@ fn the_mcp_tools_carry_the_plan_slice_and_its_gates() {
     );
     assert!(msg.contains("exceeds the budget"), "{msg}");
 
-    // The step-7 staleness gate, offline: intent moved to revision 2, so
-    // the revision-1 plan is refused with the remedy named — before any
-    // daemon contact.
+    // Everything below is claimed to happen with no daemon contact, so
+    // prove it with no daemon: stop it and wait for the socket to die.
+    rt.block_on(async {
+        let mut client = Client::connect(ConnectOptions::autonomous(false))
+            .await
+            .expect("daemon should still be up");
+        let _ = client.request(&Request::DaemonStop).await;
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while Client::connect(ConnectOptions::autonomous(false))
+            .await
+            .is_ok()
+        {
+            assert!(Instant::now() < deadline, "daemon never stopped");
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+    });
+
+    // Intent moves to revision 2 — coverage now empty, so the honest
+    // replan (compiled with the daemon down; the note says why there is
+    // no quote) authorizes nothing.
+    let empty_policy: Value = serde_json::from_str(EMPTY_POLICY).unwrap();
     let row = mcp.expect_ok(
         "set_sync_policy",
-        json!({ "value": policy, "if_revision": 1 }),
+        json!({ "value": empty_policy, "if_revision": 1 }),
     );
     assert_eq!(row["revision"], json!(2), "{row}");
+    let replanned = mcp.expect_ok("refresh_plan", json!({}));
+    let third = validated_plan(&replanned);
+    assert!(third.actions.is_empty(), "{:?}", third.actions);
+    assert!(third.quote.is_none());
+    let note = replanned["quote_note"].as_str().unwrap_or_default();
+    assert!(note.contains("no quote"), "{replanned}");
+
+    // The empty plan applies as a no-op with no daemon at all…
+    let applied = mcp.expect_ok("apply_plan", json!({ "plan": replanned["plan"] }));
+    assert_eq!(applied["applied"], json!(false), "{applied}");
+    assert_eq!(applied["requests"], json!(0), "{applied}");
+
+    // …and the step-7 staleness gate refuses the revision-1 plan with the
+    // remedy named, before any daemon contact.
     let msg = mcp.expect_err("apply_plan", json!({ "plan": planned["plan"] }));
     assert!(
         msg.contains("revision 1") && msg.contains("revision 2") && msg.contains("replan"),
         "{msg}"
     );
 
-    let _ = mcp.child.kill();
+    // Neither offline path may have contacted a daemon — which in mock
+    // mode would have lazy-spawned one. The socket must still be dead.
     rt.block_on(async {
-        if let Ok(mut client) = Client::connect(ConnectOptions::autonomous(false)).await {
-            let _ = client.request(&Request::DaemonStop).await;
-        }
+        assert!(
+            Client::connect(ConnectOptions::autonomous(false))
+                .await
+                .is_err(),
+            "an offline path raised a daemon"
+        );
     });
+
+    let _ = mcp.child.kill();
     let _ = daemon.kill();
     let _ = daemon.wait();
     let _ = std::fs::remove_dir_all(&base);

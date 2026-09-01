@@ -218,7 +218,9 @@ bounded by `MAX_429_RETRIES`; a Cloudflare-shaped 403/503 is never retried.
   poll). The slice shares its semantics with the CLI through
   `acquisition-plan` (validate-then-CAS policy writes, the validating
   parse, `check_spendable`, `apply_params`), and the whole loop is
-  pinned at process level in `tests/plan_loop.rs`.
+  pinned at process level in `tests/plan_loop.rs` (offline claims proven
+  with the daemon stopped) and `tests/ggg_refusal.rs` (the ggg-mode
+  refusals, with no daemon at all).
   It **never kills or replaces a daemon** (a mismatch may be a human's
   live GGG run — it reports and stops), lazy-spawns only in mock mode,
   and **refuses `submit_job` and `apply_plan` in real-GGG mode** until
