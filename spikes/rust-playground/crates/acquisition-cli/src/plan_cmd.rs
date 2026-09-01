@@ -198,18 +198,21 @@ pub async fn refresh_apply(
     check_plan_applies(&plan, provider, &entry, league_flag, &annotations)?;
     if plan.actions.is_empty() {
         // A strict subset of zero actions is satisfied by doing nothing;
-        // no daemon is contacted for it.
+        // no daemon is contacted for it. "Authorizes no requests" is the
+        // honest claim — a plan can be empty for reasons besides freshness
+        // (unknown ids, folders, orphaned substashes), and the plan's own
+        // skipped/unknown reporting says which.
         if json {
             println!(
                 "{}",
                 serde_json::json!({
                     "applied": false,
                     "requests": 0,
-                    "note": "nothing to do: everything the policy covers is fresh",
+                    "note": "nothing to do: the plan authorizes no requests",
                 })
             );
         } else {
-            println!("nothing to do: everything the policy covers is fresh");
+            println!("nothing to do: the plan authorizes no requests");
         }
         return Ok(());
     }
@@ -408,7 +411,10 @@ fn print_plan(plan: &RefreshPlan, quote_note: Option<&str>, now: i64) {
     }
     println!();
     if plan.actions.is_empty() {
-        println!("nothing to do: everything the policy covers is fresh");
+        // Same honesty as apply's no-op note: an empty plan is not
+        // necessarily "all fresh" — the skipped/unknown lines below carry
+        // the actual reasons.
+        println!("nothing to do: the plan authorizes no requests");
     } else {
         println!(
             "actions ({} request{}, {}..{} wire sends):",

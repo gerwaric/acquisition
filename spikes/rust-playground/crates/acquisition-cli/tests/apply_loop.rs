@@ -2,8 +2,8 @@
 //! daemon over the in-process mock provider, a scripted browserless login,
 //! and the CLI as the only interface — the loop must *close*: each apply
 //! executes exactly its plan's actions, discovery (substash stubs) waits
-//! for the next plan instead of expanding the current one, and after two
-//! reconciliation cycles the plan is empty.
+//! for the next plan instead of expanding the current one, and after a
+//! bootstrap listing plus two reconciliation cycles the plan is empty.
 //!
 //! Slow-ish on purpose (one daemon, ~17 mock sends, real waits): this is
 //! the one test that proves the whole slice through the real binaries.

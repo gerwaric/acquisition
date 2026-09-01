@@ -194,8 +194,8 @@ bounded by `MAX_429_RETRIES`; a Cloudflare-shaped 403/503 is never retried.
   only, plus the `--max-requests` logical budget), executing exactly
   the reviewed tuples and never expanding them; newly discovered tabs
   wait for the next plan, and the plan→apply→replan loop is pinned at
-  process level (`tests/apply_loop.rs`) to close in two reconciliation
-  cycles. The protocol client (connect, lazy spawn, version
+  process level (`tests/apply_loop.rs`) to close in a bootstrap
+  listing plus two reconciliation cycles. The protocol client (connect, lazy spawn, version
   handshake) lives in `acquisition-core/src/client.rs` and is shared by
   every frontend; the frontends differ only in connect *policy*
   (`ConnectOptions`). `acq pull` (client-side snapshot + diff, 2026-08-24)

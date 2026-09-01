@@ -206,7 +206,8 @@ Built, each step gate-green and owner-reviewed:
    `max_requests`); an empty plan is a no-op with no daemon contact.
    The loop is pinned at process level: `acquisition-cli/tests/
    apply_loop.rs` closes plan→apply→replan against a real daemon over
-   the mock in two reconciliation cycles, and `tests/plan_json.rs`
+   the mock in a bootstrap listing plus two reconciliation cycles, and
+   `tests/plan_json.rs`
    pins the offline gates (stale revision refused before any daemon;
    tampered envelope refused by the parse; empty plan spends nothing).
 

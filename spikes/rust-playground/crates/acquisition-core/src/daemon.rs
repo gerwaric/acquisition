@@ -6030,28 +6030,51 @@ mod dispatcher_tests {
         assert_eq!(payload["requests"], json!(2));
         assert_eq!(payload["child_jobs"].as_array().unwrap().len(), 2);
         assert_eq!(payload["children"]["done"], json!(2));
-        // Exactly the tuples became children — nothing more (the probes
-        // the routes needed are daemon jobs, not children of the apply).
-        let children: Vec<(String, Option<String>)> = {
+        // Exactly the tuples became children — same kinds, same params,
+        // same order (ids ascend in submission order), nothing more (the
+        // probes the routes needed are daemon jobs, not children of the
+        // apply) — and the payload's child_jobs echoes them in that order.
+        let children: Vec<(JobId, String, Value, Option<String>)> = {
             let s = daemon.shared.lock().unwrap();
-            s.jobs
+            let mut c: Vec<_> = s
+                .jobs
                 .values()
                 .filter(|e| e.info.parent == Some(id))
-                .map(|e| (e.info.kind.clone(), e.info.account.clone()))
-                .collect()
+                .map(|e| {
+                    (
+                        e.info.id,
+                        e.info.kind.clone(),
+                        e.params.clone(),
+                        e.info.account.clone(),
+                    )
+                })
+                .collect();
+            c.sort_by_key(|(id, ..)| *id);
+            c
         };
-        let kinds: Vec<&str> = {
-            let mut k: Vec<&str> = children.iter().map(|(k, _)| k.as_str()).collect();
-            k.sort_unstable();
-            k
-        };
-        assert_eq!(kinds, ["stash", "stashes"]);
+        let tuples: Vec<(&str, &Value)> = children
+            .iter()
+            .map(|(_, kind, params, _)| (kind.as_str(), params))
+            .collect();
+        assert_eq!(
+            tuples,
+            [
+                ("stashes", &json!({ "league": "Standard" })),
+                (
+                    "stash",
+                    &json!({ "league": "Standard", "id": "dump", "deep": false })
+                ),
+            ],
+            "children must be the admitted tuples verbatim, in order"
+        );
+        let child_ids: Vec<JobId> = children.iter().map(|(id, ..)| *id).collect();
+        assert_eq!(payload["child_jobs"], json!(child_ids));
         // Children run as the parent's account, and their responses landed
         // in that account's store file.
         assert!(
             children
                 .iter()
-                .all(|(_, a)| a.as_deref() == Some("Alice#1234"))
+                .all(|(_, _, _, a)| a.as_deref() == Some("Alice#1234"))
         );
         let store = Store::open(&account_path(&store_dir, "Alice#1234")).unwrap();
         assert_eq!(store.status().unwrap().responses, 2);
@@ -6121,7 +6144,8 @@ mod dispatcher_tests {
             );
         }
         // A budget the plan fits inside admits (no dispatcher runs here,
-        // so the job just sits waiting).
+        // so the job just sits waiting) — and it gets the daemon's first
+        // id, proving the refusals above consumed none.
         let id = daemon
             .submit(
                 "apply".into(),
@@ -6131,6 +6155,7 @@ mod dispatcher_tests {
                 None,
             )
             .unwrap();
+        assert_eq!(id, 1, "refused applies must not advance job ids");
         assert_eq!(
             daemon.shared.lock().unwrap().jobs[&id].info.state,
             JobState::Waiting
