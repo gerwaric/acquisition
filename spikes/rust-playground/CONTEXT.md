@@ -162,7 +162,7 @@ and store; (2) `account` on jobs, validated against the sole session;
 rule, uuid recorded opportunistically (superseded 2026-08-31: uuid is now
 required at login — identity bullet above).
 
-### Annotations & plans — the refresh tracer (decided 2026-08-31, building; steps 1–3 done)
+### Annotations & plans — the refresh tracer (decided 2026-08-31, building; steps 1–4 done)
 
 The one slice built next: refresh-with-`plan`, the smallest slice that
 touches all four layers (policy = intent, plan = derivation, apply =
@@ -208,8 +208,20 @@ carried *inside* the annotations file (`Annotations::open_for` stamps
 and verifies it, so a copied or renamed file keeps its owner and an
 unbound handle is refused). The provider is deliberately not in the
 snapshot — the store cannot verify it, the planner binds it from the
-directory it opened); (4) `RefreshPlan`
-built offline in `acquisition-plan`; (5) `quote` on the protocol +
+directory it opened); (4) `RefreshPlan` built offline in
+`acquisition-plan` — **done 2026-09-01** (linked by frontends only, so
+the daemon's blindness stays a dependency-graph fact; the sync-policy
+value's schema belongs to the planner: version-stamped and
+strict-parsed, so a typo'd field, a stray selection word, or a newer
+version is a structured refusal — intent is never half-honored; plans
+compile from facts on record only: a never-listed league plans the
+listing alone, substash actions come from stored stubs, and a policy
+id the facts lack is reported in the plan, never invented into an
+action; the `metadata.items` heuristic forces a fetch only when a
+listing newer than our fetch disagrees with the held count, and never
+skips one; every action renders the daemon's own `(kind, params)` job
+tuple — `RefreshAction::job`, pinned by test so plan and dispatcher
+vocabulary cannot drift); (5) `quote` on the protocol +
 optional plan enrichment — the quote names what it does not cover
 (listing policy, probe, OAuth) rather than claiming completeness;
 (6) `acq refresh --plan`, human + JSON, spends nothing; (7) apply: the

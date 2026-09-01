@@ -47,6 +47,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "acquisition-plan"
+version = "0.0.1"
+dependencies = [
+ "acquisition-core",
+ "acquisition-store",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "acquisition-store"
 version = "0.0.1"
 dependencies = [

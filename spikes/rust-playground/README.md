@@ -92,7 +92,7 @@ bounded by `MAX_429_RETRIES`; a Cloudflare-shaped 403/503 is never retried.
   column; a fetch never overwrites it), and the sync-policy annotation
   row at its revision — facts and intent named together, never a
   staleness verdict; compiling them into requests is
-  `acquisition-plan`'s job (tracer step 4, not yet built).
+  `acquisition-plan`'s job (tracer step 4, built 2026-09-01).
   A 2xx body missing its array/object or carrying an identity-less
   entry (a tab or item without `id`, a character without `name`) is a
   typed `MalformedBody` refusal that writes nothing — and it fails the
@@ -125,6 +125,30 @@ bounded by `MAX_429_RETRIES`; a Cloudflare-shaped 403/503 is never retried.
   dispatching (running jobs finish) until a restart finds a working
   `daemon.db`; a queue it cannot read at start is fatal. Finished rows
   stay for `acq result <id>` across restarts, pruned by age at start.
+- `crates/acquisition-plan` — the planner (tracer step 4): policy
+  compilation and `RefreshPlan` construction, linked by frontends only,
+  never the daemon — "the daemon never reads the store" is enforced by
+  the dependency graph. `plan_refresh(provider, &snapshot, now)` parses
+  the snapshot's sync-policy row (the planner owns that value's schema:
+  version-stamped and strict-parsed — a typo'd field is a structured
+  error, never intent half-honored; a newer version is refused as such)
+  and compiles it, with the daemon down, into a serializable
+  `RefreshPlan`: the explicit action set (re-list and/or per-tab
+  fetches, each carrying its reason — never fetched, stale, or a
+  count disagreement), covered-but-skipped tabs with reasons, policy
+  ids the facts lack reported rather than invented into actions, the
+  basis it cites (listing response id, policy revision, account uuid,
+  snapshot time), exact `logical_requests`, and a coarse `wire_sends`
+  range with named prerequisites (probe, OAuth refresh) — never a
+  precise wire accounting. Plans are binding and act only on facts on
+  record: a never-listed league plans the listing alone, substash
+  fetches come only from stubs already in the store (no dynamic deep
+  fan-out), and newly discovered tabs wait for the next plan. A listed
+  `metadata.items` count forces a fetch when a listing newer than our
+  fetch disagrees with what the store holds; it never skips one. Each
+  action renders the daemon's own `(kind, params)` job tuple
+  (`RefreshAction::job`), pinned by test against the dispatcher's
+  vocabulary. Same no-panic clippy ratchet as the store crate.
 - `crates/acquisition-cli` — the `acq` binary. Thin: clap parsing, output
   formatting, and `store_cmd.rs` — the reads of the shared store (`tabs`,
   `items`, `store`). The protocol client (connect, lazy spawn, version

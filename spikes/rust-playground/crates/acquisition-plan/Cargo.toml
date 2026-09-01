@@ -1,0 +1,10 @@
+[package]
+name = "acquisition-plan"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+acquisition-core = { path = "../acquisition-core" }
+acquisition-store = { path = "../acquisition-store" }
+serde.workspace = true
+serde_json.workspace = true
