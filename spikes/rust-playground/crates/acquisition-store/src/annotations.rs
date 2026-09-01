@@ -29,6 +29,7 @@
 use std::path::{Path, PathBuf};
 
 use rusqlite::{Connection, OptionalExtension, TransactionBehavior, params};
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::index::filename_safe;
@@ -58,7 +59,7 @@ pub fn annotations_path(dir: &Path, uuid: &str) -> PathBuf {
     dir.join(format!("{}.annotations.db", filename_safe(uuid)))
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AnnotationRow {
     pub scope: String,
     pub key: String,

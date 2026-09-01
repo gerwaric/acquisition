@@ -162,7 +162,7 @@ and store; (2) `account` on jobs, validated against the sole session;
 rule, uuid recorded opportunistically (superseded 2026-08-31: uuid is now
 required at login — identity bullet above).
 
-### Annotations & plans — the refresh tracer (decided 2026-08-31, building; steps 1–2 done)
+### Annotations & plans — the refresh tracer (decided 2026-08-31, building; steps 1–3 done)
 
 The one slice built next: refresh-with-`plan`, the smallest slice that
 touches all four layers (policy = intent, plan = derivation, apply =
@@ -183,7 +183,12 @@ profile job lands the uuid; any failure, an index write included, fails
 the login whole, and the flow's own terminal result is on the protocol
 so another account's live session never reads as success; a real login
 now costs one `GET /profile`, N38); (3) neutral store snapshots —
-policy rows, tab identities, freshness, listing basis; (4) `RefreshPlan`
+policy rows, tab identities, freshness, listing basis — **done
+2026-08-31** (`acquisition-store/src/snapshot.rs`,
+`Store::stash_snapshot`: one league's facts and the sync-policy row
+named together, nothing derived — the plan's fact basis is the
+`responses` row of the latest listing, its annotation basis the
+policy's revision); (4) `RefreshPlan`
 built offline in `acquisition-plan`; (5) `quote` on the protocol +
 optional plan enrichment — the quote names what it does not cover
 (listing policy, probe, OAuth) rather than claiming completeness;

@@ -80,6 +80,12 @@ bounded by `MAX_429_RETRIES`; a Cloudflare-shaped 403/503 is never retried.
   `VACUUM INTO` export. The only irreplaceable local state;
   the store crate's production code is held to no-panic by a clippy
   ratchet (`unwrap_used`/`expect_used` denied).
+  `Store::stash_snapshot` (`snapshot.rs`) is the planner's read: one
+  league's listing basis (the `responses` row a plan cites), tab
+  identities with freshness and listed metadata verbatim, and the
+  sync-policy annotation row at its revision — facts and intent named
+  together, never a staleness verdict; compiling them into requests is
+  `acquisition-plan`'s job (tracer step 4, not yet built).
   Bodies are kept verbatim except at the item
   seams: each item array (tab `items`, character `inventory`/`equipment`/
   `jewels`/`rucksack`, and every `socketedItems`) is lifted into `items`,

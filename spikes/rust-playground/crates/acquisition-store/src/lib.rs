@@ -179,10 +179,17 @@ pub struct Status {
 pub mod annotations;
 pub mod index;
 pub mod jobs;
+pub mod snapshot;
 pub use annotations::{AnnotationError, AnnotationRow, Annotations, annotations_path};
 pub use index::{
     AccountEntry, Index, Resolve, account_matches, account_path, index_path, store_dir,
 };
+pub use snapshot::{ListingBasis, SYNC_POLICY_KIND, StashSnapshot, TabSnapshot};
+
+/// Listing order shared by [`Store::tabs`] and [`Store::stash_snapshot`]:
+/// folder children after their folder, substashes after their tab.
+pub(crate) const TAB_ORDER_SQL: &str = "ORDER BY COALESCE((SELECT p.idx FROM tabs p WHERE p.league = t.league AND p.id = t.parent), t.idx, 1000000),
+                       t.parent IS NOT NULL, COALESCE(t.idx, 0), t.name";
 
 pub fn now() -> i64 {
     SystemTime::now()
@@ -474,13 +481,11 @@ impl Store {
     }
 
     pub fn tabs(&self, league: &str) -> Result<Vec<TabRow>> {
-        let mut stmt = self.conn.prepare(
+        let mut stmt = self.conn.prepare(&format!(
             "SELECT t.league, t.id, t.parent, COALESCE(t.name, ''), COALESCE(t.type, ''), t.idx, t.listed_at, t.fetched_at, t.removed_at,
                     (SELECT count(*) FROM items i WHERE i.location_kind = 'stash' AND i.location_id = t.id AND i.removed_at IS NULL)
-               FROM tabs t WHERE t.league = ?1 AND t.removed_at IS NULL
-              ORDER BY COALESCE((SELECT p.idx FROM tabs p WHERE p.league = t.league AND p.id = t.parent), t.idx, 1000000),
-                       t.parent IS NOT NULL, COALESCE(t.idx, 0), t.name",
-        )?;
+               FROM tabs t WHERE t.league = ?1 AND t.removed_at IS NULL {TAB_ORDER_SQL}"
+        ))?;
         let rows = stmt.query_map([league], |r| {
             Ok(TabRow {
                 league: r.get(0)?,
