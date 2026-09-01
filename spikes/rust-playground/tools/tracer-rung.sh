@@ -25,7 +25,9 @@
 #
 # Shape of the run (one fresh daemon per wire phase, each under an EXACT
 # send ceiling, stopped when its phase is over):
-#   0  preflight (no wire): provenance, leftover env, no daemon, account
+#   0  preflight (no wire): provenance (the binary's stamp is HEAD, and
+#      live refuses working-tree changes to the rung's own files, so the
+#      ledger's tip names what ran), leftover env, no daemon, account
 #   1  login, only if the account's index entry has no uuid (intent binds
 #      to the uuid; a login predating uuid-at-login has none) — 2 sends
 #   2  policy written, then `refresh --plan` with NO daemon: compiled
@@ -40,8 +42,11 @@
 #      confirmed, and THAT FILE is applied as one `apply` parent with
 #      `--max-requests` = its own count. The ceiling is exact, so the
 #      daemon halts on the bound right after the last planned send — the
-#      expected end of a cycle; a send the plan did not project would
-#      consume the bound and show as a planned child refused. Repeat until
+#      expected end of a cycle, and it is checked as such: the daemon
+#      must report the tripwire armed, the ceiling equal to the plan, that
+#      many sends counted, and a ceiling halt in force, with the journal
+#      agreeing. A send the plan did not project would consume the bound
+#      and show as a planned child refused. Repeat until
 #      the plan is empty (the loop closed) or --cycles is hit. An empty
 #      plan's `--apply` runs with no daemon at all: the no-op must contact
 #      nothing, and the socket is checked dead after it.
@@ -132,12 +137,30 @@ case "$ver" in
     exit 2 ;;
 esac
 
+# The ledger cites a tip; the tip must identify the rung that ran — the
+# driver, the verifier, the control documents, and the crates — not only
+# the binary. Live refuses working-tree changes there; mock only notes.
+dirty=$(git -C "$here" status --porcelain -- tools LIVE-TESTING.md CONTEXT.md crates Cargo.toml Cargo.lock)
+if [ -n "$dirty" ]; then
+    echo "working tree differs from $tip in the rung's own files:" >&2
+    echo "$dirty" >&2
+    if [ "$MODE" = live ]; then
+        echo "refusing: commit (and cargo build) first — the ledger's tip must name what ran" >&2
+        exit 2
+    fi
+    echo "(mock mode: continuing anyway)"
+fi
+
+RUN_START=$(date +%s)
 RUN_DIR="$here/runs/$(date -u +%F)-tracer"
 if [ "$MODE" = mock ]; then RUN_DIR="$RUN_DIR-mock"; fi
+# One directory per attempt: a repeated run the same day gets a time
+# suffix rather than overwriting or mixing with the earlier evidence.
+if [ -d "$RUN_DIR" ] && [ -n "$(ls -A "$RUN_DIR")" ]; then
+    RUN_DIR="$RUN_DIR-$(date -u +%H%M%S)"
+fi
 mkdir -p "$RUN_DIR"
 FRICTION="$RUN_DIR/friction.md"
-# A rehearsal starts from nothing every time: the mock store is this run's.
-if [ "$MODE" = mock ]; then rm -rf "$RUN_DIR/store"; fi
 
 if [ "$MODE" = live ]; then
     export ACQ_GGG=1
@@ -210,38 +233,40 @@ stop_daemon() {
     return 1
 }
 
-# The rails state after a wire phase. The ceiling is exact, so the bound
-# is REACHED at the last planned send (rails.rs trips on sends >= max) —
-# that is the expected end of a phase, provided the journal shows exactly
-# the ceiling's sends and nothing was refused. Any other halt ends the run:
-# a ceiling halt with fewer sends than planned means an unprojected send
-# consumed the bound; a tripwire trip is a real violation.
+# The rails state after a wire phase, read from the daemon that ran it.
+# The ceiling is exact, so the bound is REACHED at the last planned send
+# (rails.rs trips on sends >= max): the expected end of a phase is a
+# daemon that reports the tripwire armed, a ceiling equal to the plan,
+# exactly that many sends counted, a ceiling halt in force, and the
+# journal agreeing — every one of those, or the phase fails. A journal
+# count that merely matches is not evidence the rail was there.
 check_rails() { # <phase> <journal offset at phase start> <expected sends>
-    local halted sent
-    halted=$(status_json | jq -r '.rails.halted // empty')
-    sent=$(sends_since "$2")
-    if [ -z "$halted" ]; then
-        if [ "$sent" != "$3" ]; then
-            echo "*** $1: $sent send(s) journaled, $3 planned" >&2
-            return 1
-        fi
-        return 0
-    fi
+    local st armed max sends halted journaled
+    st=$(status_json)
+    armed=$(echo "$st" | jq -r '.rails.tripwire_enabled // false')
+    max=$(echo "$st" | jq -r '.rails.max_sends // "none"')
+    sends=$(echo "$st" | jq -r '.rails.sends // "unknown"')
+    halted=$(echo "$st" | jq -r '.rails.halted // empty')
+    journaled=$(sends_since "$2")
+    local ok=1
+    [ "$armed" = true ] || { echo "*** $1: the daemon reports the tripwire NOT armed" >&2; ok=0; }
+    [ "$max" = "$3" ] || { echo "*** $1: the daemon's ceiling is $max, the plan's is $3" >&2; ok=0; }
+    [ "$sends" = "$3" ] || { echo "*** $1: the daemon counted $sends send(s), $3 planned" >&2; ok=0; }
+    [ "$journaled" = "$3" ] || { echo "*** $1: $journaled send(s) journaled, $3 planned" >&2; ok=0; }
     case "$halted" in
-    *ceiling*)
-        if [ "$sent" = "$3" ]; then
-            echo "rails: bound reached exactly after the planned $3 send(s) ($halted) — nothing refused"
-            return 0
-        fi
-        echo "*** the ceiling halted the daemon during $1 after $sent send(s), $3 planned:" >&2
-        echo "*** a send the plan did not project consumed the bound; read $JOURNAL. acq jobs" >&2
-        echo "*** shows what was refused." >&2
-        return 1 ;;
+    "") echo "*** $1: no halt in force — the bound was not reached (or the rail was not read)" >&2; ok=0 ;;
+    *ceiling*) ;;
     *)
         echo "*** TRIPWIRE TRIP during $1: $halted" >&2
         echo "*** stop. Read the journal; observe the 360 s post-violation rule." >&2
         return 1 ;;
     esac
+    if [ "$ok" = 1 ]; then
+        echo "rails: armed, ceiling $max, bound reached exactly after the planned $3 send(s) ($halted) — nothing refused"
+        return 0
+    fi
+    echo "*** $1 did not end on the bound as planned; read $JOURNAL, and acq jobs for anything refused" >&2
+    return 1
 }
 
 confirm() {
@@ -473,7 +498,7 @@ for c in $(seq 1 "$CYCLES"); do
         # NEXT plan compiles, so the window must outlive the cycle with
         # margin: refuse unless it is at least twice the estimate.
         est=$(( (stash_gets / 30) * 343 + (stash_gets / 15) * 15 + 60 ))
-        if [ $((est * 2)) -ge "$MAX_AGE" ]; then
+        if [ $((est * 2)) -gt "$MAX_AGE" ]; then
             echo "*** cycle $c would take ~$est s on the wire but max_age_seconds is $MAX_AGE:" >&2
             echo "*** what it lands would be stale (or nearly) for the next plan, and the loop" >&2
             echo "*** could not close. Rerun with --max-age of at least $((est * 2)) (e.g. 86400)." >&2
@@ -583,7 +608,10 @@ else
     fi
 fi
 "$ACQ" store status 2>&1 | tee "$RUN_DIR/store-status.txt"
-"$ACQ" store events --hours 1 >"$RUN_DIR/store-events.txt"
+# Everything since the run started (plus an hour of margin), not a fixed
+# hour: an `all` cycle alone is longer than that.
+hours=$(python3 -c "import time; print((time.time() - $RUN_START) / 3600 + 1)")
+"$ACQ" store events --hours "$hours" >"$RUN_DIR/store-events.txt"
 echo "item events from this run: $(grep -c . "$RUN_DIR/store-events.txt" || true) line(s) in $RUN_DIR/store-events.txt"
 "$ACQ" refresh --plan --league "$LEAGUE" >"$RUN_DIR/plan-final.txt" 2>&1
 if [ "$CLOSED" != 0 ] && ! grep -q "nothing to do" "$RUN_DIR/plan-final.txt"; then
@@ -603,11 +631,20 @@ COMPLETED=1
 
 # ---- phase 5: evidence and verification -----------------------------------------
 
-cp "$JOURNAL" "$RUN_DIR/sends.jsonl"
+# The evidence is this run's slice of the journal, and the verification
+# runs on that saved copy from byte 0 — so re-running the verifier on the
+# bundle later reproduces the verdict exactly.
+tail -c +$((OFFSET + 1)) "$JOURNAL" >"$RUN_DIR/sends.jsonl"
 cp "$LOG" "$RUN_DIR/daemon.log" 2>/dev/null || true
+cat >"$RUN_DIR/verify.sh" <<EOS
+#!/bin/sh
+# Re-verify this bundle: $(basename "$RUN_DIR"), binary $ver
+cd "\$(dirname "\$0")" && python3 "$here/tools/tracer-verify.py" sends.jsonl 0 cycles.tsv $LOGIN_LIFETIME $CLOSED $MODE
+EOS
+chmod +x "$RUN_DIR/verify.sh"
 
 verify() {
-    python3 "$here/tools/tracer-verify.py" "$JOURNAL" "$OFFSET" "$CYCLE_ROWS" "$LOGIN_LIFETIME" "$CLOSED" "$MODE"
+    python3 "$here/tools/tracer-verify.py" "$RUN_DIR/sends.jsonl" 0 "$CYCLE_ROWS" "$LOGIN_LIFETIME" "$CLOSED" "$MODE"
 }
 if ! verify | tee "$RUN_DIR/summary.txt"; then
     echo ""
@@ -616,7 +653,8 @@ if ! verify | tee "$RUN_DIR/summary.txt"; then
 fi
 
 echo ""
-echo "evidence in $RUN_DIR (journal, daemon logs, plans, apply results, store reads, summary)."
+echo "evidence in $RUN_DIR (this run's journal slice, daemon logs, plans, apply results, store"
+echo "reads, summary; ./verify.sh re-runs the verification on the bundle)."
 if [ -s "$FRICTION" ]; then
     echo ""
     echo "friction notes ($FRICTION):"

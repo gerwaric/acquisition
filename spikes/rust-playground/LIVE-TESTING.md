@@ -405,7 +405,11 @@ friction notes below are the record. What it collects, on purpose:
    rails trip the moment the count reaches the ceiling (`rails.rs`,
    `sends >= max`), so the daemon halts on the bound right after the
    last planned send — that halt is the expected end of a cycle, and
-   the journal must show exactly the ceiling's sends. The bound is
+   it is checked as such after every wire phase: the daemon must report
+   the tripwire armed, a ceiling equal to the plan's, exactly that many
+   sends counted, and a ceiling halt in force, with the journal
+   agreeing — a journal count that merely matches is not evidence the
+   rail was there. The bound is
    counted as responses land while the gate admits two sends in flight
    (rail 1's caveat), so it can be overshot by one already-dispatched
    send at most; either way a send the plan did not project fails the
@@ -474,7 +478,9 @@ the window.
 (`tools/tracer-verify.py` is its journal verifier; `--self-test` runs
 the synthetic journals that pin the nonzero-hit branches the mock
 cannot reach). It
-refuses stale binaries, leftover isolation env, and a running daemon;
+refuses a stale binary, working-tree changes to the rung's own files
+(driver, verifier, control documents, crates — the ledger's tip must
+name what ran), leftover isolation env, and a running daemon;
 writes the policy from the selection; gates every wire phase on an
 explicit enter; derives each cycle's ceiling from the offline plan;
 checks and shows the envelope it applies; treats the bound reached
@@ -494,14 +500,14 @@ POST. The table stays the specification; the script implements it.
 
 | Step | Command | Expect | Stop if |
 | --- | --- | --- | --- |
-| 0 | preflight: `acq --version` = HEAD, no `ACQ_*` isolation leftovers, no daemon; `acq accounts` | `GERWARIC#7694` persisted, no uuid | a daemon is up; the binary is dirty or stale |
+| 0 | preflight: `acq --version` = HEAD, the rung's files clean at HEAD, no `ACQ_*` isolation leftovers, no daemon; `acq accounts` | `GERWARIC#7694` persisted, no uuid | a daemon is up; the binary is dirty or stale; uncommitted changes under `tools/`, the control documents, or `crates/` |
 | 1 | fresh daemon (ceiling 2), `ACQ_GGG=1 acq auth` in the browser as **the same account** | POST 200 (`token-request-limit` Ip `1:30:0`), `GET /profile` 200 with no rate headers (N38), `logged in as GERWARIC#7694`, the index now carries the uuid; bound reached at send 2; daemon stopped | the login lands as another account (intent would bind to the wrong identity); any non-2xx |
-| 2 | `acq policy set '{"version":1,"leagues":{"Standard":{"tabs":[…],"max_age_seconds":3600}}}'`, then `acq refresh --plan` with **no daemon** | revision 1; the plan is the stale listing (≈2 d) plus one fetch per selected tab, `n+1` requests, `n+1..3(n+1)` wire sends, the two prerequisites named; stderr `no quote: … plan compiled offline`; no daemon appeared | a daemon appeared; the note is anything but "no quote" |
+| 2 | `acq policy set '{"version":1,"leagues":{"Standard":{"tabs":[…],"max_age_seconds":3600}}}'` (the driver writes 3600 for an id list, 86400 for `all`, or `--max-age`), then `acq refresh --plan` with **no daemon** | revision 1; the plan is the stale listing (≈2 d) plus one fetch per selected tab, `n+1` requests, `n+1..3(n+1)` wire sends, the two prerequisites named; stderr `no quote: … plan compiled offline`; no daemon appeared | a daemon appeared; the note is anything but "no quote" |
 | 3 (cycle 1) | fresh daemon, ceiling `1 + 2 + (n+1)`; `acq refresh --plan --json` again (quoted) — checked equal to the offline envelope plus the quote, actions shown; `acq refresh --apply=<that file> --max-requests n+1` | the quote, or the discriminator note (record which); journal: POST, `HEAD /stash/Standard` 204 reporting **0 hits**, `GET` list 200, `HEAD /stash/Standard/{id}` 204 reporting **0 hits**, `n` tab GETs 200; parent `done`, children `n+1` done, 0 failed; the bound reached exactly at the last send; daemon stopped | the run's **first** probe on a route reports hits > 0 (standing rule: something else is on this account); any non-2xx; a child failed (a tab gone since 2026-08-30 is data — record it, then stop); the ceiling halts with sends missing, or the journal shows `ceiling + 1` (a send the plan did not project, either way) |
 | 4 (cycle 2) | plan offline again | **id list**: `nothing to do` — the substashes discovered under the map/unique tab are in `acq tabs` but outside the policy; `acq refresh --apply` with no daemon prints `requests: 0` and nothing appears on the socket. **`all`**: `fetch substash` lines, `m` requests, ceiling `1 + 1 + m`; the stash probe reports cycle 1's hits still inside each window — **ours, expected; the verifier bounds every reported window's hits by this run's own sends inside that window plus that window's timing bucket (N11/N12: 5 s on a rule's first window, 60 s on the later ones, as `bucket_for` in `ratelimit.rs`) at the probe's time, never by a cumulative total**; journal `1/1/m`; children `m` done | a daemon appeared on the no-op; hits beyond ours in any window; otherwise as step 3 |
 | 5 (cycle 3, `all` only) | plan offline again | empty; no-op apply with no daemon | a daemon appeared; the plan still has work (record what and why; not a failure) |
 | 6 | `acq tabs --league Standard`, `acq store status`, `acq store events --hours 1` (store reads) | every selected tab `fetched` moments ago (an id the first plan reported as unknown is the one exception); item events from this run; the final `refresh --plan` empty when the loop was recorded closed | a selected tab is missing from the store; a read errors; a closed loop whose final plan is not empty |
-| 7 | evidence: journal copied to `runs/<date>-tracer/`; ledger row; friction notes pasted below | | |
+| 7 | evidence: this run's slice of the journal, the plans, apply results, store reads, and a `verify.sh` that re-runs the verification on the bundle, in `runs/<date>-tracer/` (a repeat the same day gets a time suffix, never overwrites); ledger row; friction notes pasted below | the bundle's `verify.sh` does not reproduce the summary's verdict |
 
 Expected totals for `n` selected tabs: login `1/0/1`, cycle 1
 `1/2/(n+1)`, then nothing. `stash-request-limit` is `15:10:60,

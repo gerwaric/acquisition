@@ -284,13 +284,25 @@ Prepared, not yet run (the run is the owner's, from a terminal):
    `ceiling + 1` journal fails the cycle; the selector is
    case-insensitive like `account_matches`. Round 3 (same day, three
    findings, fixed): `all` defaults its freshness window to a day and
-   the driver refuses a cycle longer than the window (at 3600 s the
-   hour-long cycle would re-stale its own facts and never close); the
+   the driver refuses a cycle whose over-estimated wire duration is not
+   at most half the window (at 3600 s the hour-long cycle would
+   re-stale its own facts and never close); the
    timing bucket goes by window position (5 s first, 60 s later —
    `bucket_for`), not by period; the selector lowercases in Unicode; the
    verifier is its own file, `tools/tracer-verify.py`, whose
    `--self-test` pins the nonzero-hit branches the mock cannot reach
-   (checked in, green). The run's outputs: a ledger
+   (checked in, green). Round 4 (same day, six findings, fixed): every
+   wire phase must end with the daemon reporting the tripwire armed, the
+   ceiling equal to the plan, that many sends counted, and a ceiling
+   halt in force — a matching journal count alone is not evidence of
+   the rail; the verifier accepts only 2xx, keys probe-first ordering by
+   the account-qualified route, fails a probe with no state window or
+   an active restriction (self-test mutations added); the evidence
+   bundle holds only this run's journal slice plus a `verify.sh` that
+   reproduces the verdict from byte 0, and a repeat run gets its own
+   directory; the store-events readback covers the run's whole span;
+   live preflight refuses working-tree changes to the rung's own files.
+   The run's outputs: a ledger
    row, the friction notes in the rung section, and then the two
    rulings below — "Binding-plan friction" and the method-test verdict.
 

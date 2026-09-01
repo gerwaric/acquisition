@@ -6,8 +6,11 @@ called by tools/tracer-rung.sh after the wire phases:
                      <closed cycle or 0> <live|mock>
 
 Checks, per daemon lifetime in this run's slice of the journal: every
-route's first send is its probe (declared no-probe routes and the token
-endpoint excepted); no non-2xx; every probe's reported hits, per window,
+exact route's (account-qualified) first send is its probe (declared
+no-probe routes and the token endpoint excepted); every send answered
+2xx, nothing else; every probe carries at least one parseable
+`*-state` window (a probe without rules closes the endpoint — standing
+rule) with no active restriction, and its reported hits, per window,
 are at most this run's own GETs on that exact route inside that window
 plus GGG's timing bucket for the window's position (N11/N12: 5 s on a
 rule's first window, 60 s on the later ones — `bucket_for` in
@@ -18,10 +21,13 @@ Exit 0 with a draft ledger row, or 1 listing what failed.
 
     tracer-verify.py --self-test
 
-runs the synthetic journals that pin the nonzero-hit branch, which mock
-mode cannot reach (the mock's counters die with each daemon): own hits
-inside a window pass, hits beyond ours in either window fail, and the
-stash-list policy's second (60 s) window gets the 60 s bucket.
+runs the synthetic journals that pin the branches mock mode cannot
+reach (the mock's counters die with each daemon, and it never misbehaves):
+own hits inside a window pass; hits beyond ours in either window fail;
+the stash-list policy's second (60 s) window gets the 60 s bucket; and
+the mutations that must fail — a 3xx answer, a probe on one account
+covering a GET on another, a probe with no state header, an active
+restriction.
 """
 
 import json
@@ -39,16 +45,16 @@ def when(send):
 
 
 def reported_rules(rate):
-    """Every (hits, period_seconds, window index) triple in every
-    *-state header, index counted within its header — the position
+    """Every (hits, period_seconds, restricted_seconds, window index) in
+    every *-state header, index counted within its header — the position
     decides the timing bucket."""
     rules = []
     for key, value in (rate or {}).items():
         if key.endswith("-state"):
             for index, rule in enumerate(str(value).split(",")):
                 parts = rule.split(":")
-                if len(parts) >= 2 and parts[0].isdigit() and parts[1].isdigit():
-                    rules.append((int(parts[0]), int(parts[1]), index))
+                if len(parts) >= 3 and all(x.isdigit() for x in parts[:3]):
+                    rules.append((int(parts[0]), int(parts[1]), int(parts[2]), index))
     return rules
 
 
@@ -111,44 +117,51 @@ def verify(journal, offset, rows_path, login_lifetime, closed, mode, out=print):
         counts, first = {}, {}
         for s in lt["sends"]:
             m, r, st = s["method"], s["route"], s.get("status")
-            base = r.split("@", 1)[0]
             counts[m] = counts.get(m, 0) + 1
-            first.setdefault(base, m)
+            # Keyed by the exact route — the account is part of it, and a
+            # probe on one account teaches nothing about another's counters.
+            first.setdefault(r, m)
             flag = ""
-            if s.get("error") or st is None or st >= 400:
+            if s.get("error") or st is None or not 200 <= st < 300:
                 flag = "  <-- NOT OK"
-                fail.append(f"lifetime {i}: {m} {r} -> {st} error={s.get('error')}")
-            if st == 429:
-                fail.append(f"lifetime {i}: 429 on {r}")
+                fail.append(f"lifetime {i}: {m} {r} -> {st} error={s.get('error')} (only a 2xx is a pass)")
             if m == "HEAD":
                 t = when(s)
                 rules = reported_rules(s.get("rate"))
-                checks, over = [], False
-                for hits, period, index in rules:
+                checks, over, restricted = [], False, False
+                for hits, period, limited, index in rules:
                     mine = sum(1 for sent in ours.get(r, [])
                                if (t - sent).total_seconds() <= period + bucket(index))
                     checks.append(f"{hits} of ours {mine} in {period}s(+{bucket(index)})")
                     if hits > mine:
                         over = True
+                    if limited > 0:
+                        restricted = True
                 verdict = ""
-                if over:
+                if not rules:
+                    verdict = "  <-- no rate-limit state in the probe's answer (a probe without rules closes the endpoint)"
+                    fail.append(f"lifetime {i}: probe on {r} returned no parseable *-state window")
+                elif restricted:
+                    verdict = "  <-- an active restriction is reported: the account is already being limited"
+                    fail.append(f"lifetime {i}: probe on {r} reports an active restriction ({s.get('rate')})")
+                elif over:
                     verdict = (f"  <-- reports more hits than this run sent inside the window"
                                f" ({'; '.join(checks)}): someone else is on this account")
                     fail.append(f"lifetime {i}: probe on {r} reported {'; '.join(checks)}")
-                elif rules and not any(h for h, _, _ in rules):
+                elif not any(h for h, _, _, _ in rules):
                     verdict = "  (0 hits: nothing else on this account" + (
                         " — standing rule met)" if not ours.get(r)
                         else "; this run's earlier sends have aged out)")
-                elif rules:
+                else:
                     verdict = f"  (hits within this run's own sends in each window: {'; '.join(checks)} — expected)"
                 out(f"  HEAD {r} -> {st}  rate {json.dumps(s.get('rate'))}{flag}{verdict}")
             else:
                 out(f"  {m} {r} -> {st}  wait_ms {s.get('wait_ms')}{flag}")
                 if m == "GET":
                     ours.setdefault(r, []).append(when(s))
-        for base, m in first.items():
-            if base not in NO_PROBE and m != "HEAD":
-                fail.append(f"lifetime {i}: first send on {base} was {m}, not the probe")
+        for r, m in first.items():
+            if r.split("@", 1)[0] not in NO_PROBE and m != "HEAD":
+                fail.append(f"lifetime {i}: first send on {r} was {m}, not the probe")
         t = f"{counts.get('POST', 0)}/{counts.get('HEAD', 0)}/{counts.get('GET', 0)}"
         totals.append(f"{t} = {len(lt['sends'])}")
         out(f"  totals (POST/HEAD/GET): {totals[-1]}")
@@ -192,9 +205,10 @@ def verify(journal, offset, rows_path, login_lifetime, closed, mode, out=print):
         return False
     quotes = ", ".join(f"c{c['cycle']} {c['quote'].split(':')[0]}" for c in cycles)
     out("checks passed: every route probed before its first send in every lifetime,")
-    out("no probe reported hits beyond this run's own sends inside each window (the")
-    out("first probe on each route saw 0), no non-2xx, and each cycle's journal matches")
-    out("its plan exactly (no 429 re-sends: the estimate's minimum held). Quote outcomes: "
+    out("every probe answered with rate-limit state and no active restriction, no probe")
+    out("reported hits beyond this run's own sends inside each window (the first probe on")
+    out("each route saw 0), every send answered 2xx, and each cycle's journal matches its")
+    out("plan exactly (no 429 re-sends: the estimate's minimum held). Quote outcomes: "
         + (quotes or "none") + ".")
     out("")
     out("draft ledger row:")
@@ -208,19 +222,20 @@ def verify(journal, offset, rows_path, login_lifetime, closed, mode, out=print):
 
 # ---- self-test: the branches mock mode cannot reach --------------------------
 
-def synthetic(path, route, probe2_state, gap_seconds, first_window="10", second_window="300"):
+def synthetic(path, route, probe2_state, gap_seconds, first_window="10", second_window="300", mutate=None):
     """Two lifetimes: cycle 1 probes 0 hits and sends three GETs on `route`
     at T+1..3 s; cycle 2 opens `gap_seconds` later and its probe reports
     `probe2_state`, then two GETs. `first_window`/`second_window` name the
-    rule periods in the state header."""
+    rule periods in the state header. `mutate(lines)` may edit the journal
+    (a list of dicts) before it is written."""
     lines = []
 
     def send(pid, ts, method, r, status, rate=None):
-        lines.append(json.dumps({"pid": pid, "ts": ts, "method": method, "route": r, "status": status,
-                                 "ok": True, "error": None, "wait_ms": 0, "rate": rate or {}}))
+        lines.append({"pid": pid, "ts": ts, "method": method, "route": r, "status": status,
+                      "ok": True, "error": None, "wait_ms": 0, "rate": rate or {}})
 
     def opened(pid, ts):
-        lines.append(json.dumps({"event": "open", "pid": pid, "build": "x", "clock": "system", "ts": ts}))
+        lines.append({"event": "open", "pid": pid, "build": "x", "clock": "system", "ts": ts})
 
     base = datetime.fromisoformat("2026-09-01T12:00:00+00:00")
 
@@ -238,28 +253,56 @@ def synthetic(path, route, probe2_state, gap_seconds, first_window="10", second_
     send(2, at(gap_seconds + 0.2), "HEAD", route, 204, {"x-rate-limit-account-state": probe2_state})
     for i in range(2):
         send(2, at(gap_seconds + 1 + i), "GET", route, 200)
+    if mutate:
+        mutate(lines)
     with open(path, "w") as f:
-        f.write("\n".join(lines) + "\n")
+        f.write("\n".join(json.dumps(l) for l in lines) + "\n")
+
+
+def sends(lines, method, pid=None):
+    return [l for l in lines if l.get("method") == method and (pid is None or l["pid"] == pid)]
+
+
+def redirect(lines):
+    sends(lines, "GET", 2)[0]["status"] = 302
+
+
+def other_account(lines):
+    sends(lines, "GET", 2)[1]["route"] = "stash@B#2"
+
+
+def no_state(lines):
+    sends(lines, "HEAD", 2)[0]["rate"] = {"x-rate-limit-policy": "stash-request-limit"}
+
+
+def restricted(lines):
+    sends(lines, "HEAD", 2)[0]["rate"] = {"x-rate-limit-account-state": "0:10:0,3:300:120"}
 
 
 def self_test():
     cases = [
-        # (name, route, cycle-2 probe state, gap s, first window, second window, expect pass)
+        # (name, route, cycle-2 probe state, gap s, first window, second window, expect pass[, mutate])
         ("own hits inside the 300 s window pass", "stash@A#1", "0:10:0,3:300:0", 100, "10", "300", True),
         ("a fourth hit in 300 s is not ours", "stash@A#1", "0:10:0,4:300:0", 100, "10", "300", False),
         ("a hit in the 10 s window is not ours", "stash@A#1", "1:10:0,3:300:0", 100, "10", "300", False),
         ("ours aged out of 300 s + 60 s bucket: any hit is foreign", "stash@A#1", "0:10:0,1:300:0", 400, "10", "300", False),
         ("stash-list: 3 hits 100 s later sit in the 60 s window's 60 s bucket", "stash-list@A#1", "0:15:0,3:60:0", 100, "15", "60", True),
         ("stash-list: 3 hits 130 s later are past 60 s + 60 s", "stash-list@A#1", "0:15:0,3:60:0", 130, "15", "60", False),
+        ("a 302 is not a 2xx", "stash@A#1", "0:10:0,3:300:0", 100, "10", "300", False, redirect),
+        ("a GET on another account is not covered by this account's probe", "stash@A#1", "0:10:0,3:300:0", 100, "10", "300", False, other_account),
+        ("a probe with no rate-limit state is not a pass", "stash@A#1", "0:10:0,3:300:0", 100, "10", "300", False, no_state),
+        ("an active restriction fails even with our own hits", "stash@A#1", "0:10:0,3:300:120", 100, "10", "300", False, restricted),
     ]
     failures = 0
     with tempfile.TemporaryDirectory() as d:
         rows = f"{d}/cycles.tsv"
         with open(rows, "w") as f:
             f.write("1\t1\t3\t1\t5\tquoted\n2\t2\t2\t1\t4\tquoted\n")
-        for name, route, state, gap, w1, w2, expect in cases:
+        for case in cases:
+            name, route, state, gap, w1, w2, expect = case[:7]
+            mutate = case[7] if len(case) > 7 else None
             journal = f"{d}/j.jsonl"
-            synthetic(journal, route, state, gap, w1, w2)
+            synthetic(journal, route, state, gap, w1, w2, mutate)
             lines = []
             passed = verify(journal, 0, rows, 0, 3, "live", out=lines.append)
             ok = passed == expect
