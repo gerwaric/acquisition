@@ -2825,15 +2825,19 @@ resubmit if still wanted",
     /// follows `Submit`'s rules exactly (resolved here, refused when
     /// ambiguous), so the quote keys the same limiter state a submit would.
     fn quote(&self, jobs: &[QuoteJob], account: Option<&str>) -> Result<Quote, String> {
+        // The selector is judged before anything is projected — an unknown
+        // or ambiguous account refuses the quote whole even when the job
+        // list is empty, exactly as a submit would refuse it.
+        let account = self.canonical_account(account)?;
         // Group the work by scheduling scope: the policy state key once the
         // route is learned (same-name policies share counters, N6; `Account`
         // rules count per account, rung 11), else the endpoint key itself.
         let mut scopes: BTreeMap<String, (BTreeSet<String>, u64)> = BTreeMap::new();
         let mut sends_nothing: BTreeMap<String, u64> = BTreeMap::new();
-        let mut resolved_account: Option<String> = None;
+        let mut resolved_account: Option<String> = account.clone();
         let mut needs_token = false;
         for job in jobs {
-            let acct = self.resolve_account(&job.kind, account)?;
+            let acct = self.resolve_account(&job.kind, account.as_deref())?;
             if let Some(a) = &acct {
                 resolved_account.get_or_insert_with(|| a.clone());
             }
@@ -2849,12 +2853,14 @@ resubmit if still wanted",
         }
         // Jobs already here compete for the same scopes; the estimate puts
         // them ahead of the quoted work. Probes stay out (their own key, and
-        // named under `not_covered` instead).
+        // named under `not_covered` instead), and so does a parent holding a
+        // deferred result: its own request already happened — it is only
+        // waiting for its children, who count for themselves.
         let mut queued: HashMap<String, u64> = HashMap::new();
         {
             let s = self.shared.lock().unwrap();
             for e in s.jobs.values() {
-                if e.info.state.is_terminal() || e.info.kind == "probe" {
+                if e.info.state.is_terminal() || e.info.kind == "probe" || e.deferred.is_some() {
                     continue;
                 }
                 if let Some((endpoint, _)) =
@@ -2864,28 +2870,24 @@ resubmit if still wanted",
                 }
             }
         }
-        let statuses = self.choke.policy_statuses();
         let mut unprobed: BTreeSet<String> = BTreeSet::new();
         let mut out = Vec::new();
         for (key, (endpoints, requests)) in scopes {
             // Endpoints share a scope only through a learned common policy,
-            // so any one of them names the scope's state.
+            // so any one of them names the scope's state. The projection is
+            // taken under one limiter lock, so its rules, observation age,
+            // and ETA describe the same instant.
             let sample = endpoints.iter().next().cloned().unwrap_or_default();
             let queued_ahead = queued.get(&key).copied().unwrap_or(0);
             let ahead = (queued_ahead + requests - 1) as u32;
-            let (policy, rules, eta_seconds, notes) = match self.choke.endpoint_state(&sample) {
+            let projection = self.choke.project(&sample, ahead);
+            let (policy, eta_seconds, notes) = match projection.state {
                 EndpointState::Policy(name) => {
-                    let rules = statuses
-                        .iter()
-                        .find(|p| p.policy == name)
-                        .map(|p| p.rules.clone())
-                        .unwrap_or_default();
-                    let eta = self.choke.eta_for(&sample, ahead).as_secs();
-                    (Some(name), rules, Some(eta), Vec::new())
+                    let eta = projection.eta.unwrap_or_default().as_secs();
+                    (Some(name), Some(eta), Vec::new())
                 }
                 EndpointState::Policyless => (
                     None,
-                    Vec::new(),
                     Some(0),
                     vec![
                         "declared policyless: paced by the send gate alone; headers, if they \
@@ -2907,17 +2909,24 @@ resubmit if still wanted",
                              its first GET teaches the limiter"
                         )
                     };
-                    (None, Vec::new(), None, vec![note])
+                    (None, None, vec![note])
                 }
-                EndpointState::Degraded { until, reason } => (
-                    None,
-                    Vec::new(),
-                    None,
-                    vec![format!(
-                        "endpoint closed by a failed probe for another {}s: {reason}",
-                        until.saturating_duration_since(self.choke.now()).as_secs()
-                    )],
-                ),
+                EndpointState::Degraded { until, reason } => {
+                    // The cooldown expires into `Unknown`, so the eventual
+                    // replacement probe is a future send too.
+                    let route = split_endpoint_key(&sample).0.to_string();
+                    if Self::route_probes(&sample) {
+                        unprobed.insert(route);
+                    }
+                    (
+                        None,
+                        None,
+                        vec![format!(
+                            "endpoint closed by a failed probe for another {}s: {reason}",
+                            until.saturating_duration_since(self.choke.now()).as_secs()
+                        )],
+                    )
+                }
             };
             out.push(QuoteScope {
                 key,
@@ -2925,7 +2934,8 @@ resubmit if still wanted",
                 requests,
                 queued_ahead,
                 policy,
-                rules,
+                rules: projection.rules,
+                observed_seconds_ago: projection.observed_seconds_ago,
                 eta_seconds,
                 notes,
             });
@@ -2934,8 +2944,8 @@ resubmit if still wanted",
         let mut not_covered = Vec::new();
         if !unprobed.is_empty() {
             not_covered.push(format!(
-                "a HEAD probe on first contact with {} this daemon lifetime (N16) — its own \
-                 send, outside every estimate",
+                "a HEAD probe before the first request on {} (N16) — its own send, outside \
+                 every estimate",
                 unprobed.into_iter().collect::<Vec<_>>().join(", ")
             ));
         }
@@ -7320,11 +7330,15 @@ mod dispatcher_tests {
             "{:?}",
             learned.eta_seconds
         );
+        // The rules carry their own observation basis — they are as old
+        // as the probe, not as fresh as the quote.
+        assert!(learned.observed_seconds_ago.is_some());
         assert!(learned.notes.is_empty(), "{:?}", learned.notes);
         // The unlearned route is unquotable and says so, never guessed.
         assert_eq!(unknown.key, "character-list");
         assert_eq!(unknown.policy, None);
         assert_eq!(unknown.eta_seconds, None);
+        assert_eq!(unknown.observed_seconds_ago, None);
         assert!(
             unknown.notes[0].contains("HEAD probe"),
             "{:?}",
@@ -7359,6 +7373,24 @@ mod dispatcher_tests {
                 .submit("fetch".into(), json!({}), 0, "test".into(), None)
                 .unwrap();
         }
+        // A refresh parent that already made its listing request and now
+        // holds its deferred result while waiting for children: on the
+        // stash-list scope, but no longer a future send.
+        let parent = daemon
+            .submit(
+                "refresh".into(),
+                json!({ "league": "Standard" }),
+                0,
+                "test".into(),
+                Some("Alice#1234".into()),
+            )
+            .unwrap();
+        {
+            let mut s = daemon.shared.lock().unwrap();
+            let e = s.jobs.get_mut(&parent).unwrap();
+            e.info.state = JobState::Running;
+            e.deferred = Some(Outcome::Success { payload: json!({}) });
+        }
         let quote = match daemon
             .handle_request(
                 Request::Quote {
@@ -7390,25 +7422,23 @@ mod dispatcher_tests {
             .unwrap();
         assert_eq!((fetch.requests, fetch.queued_ahead), (1, 3));
         // An account-holding job keys its scope per account, exactly as
-        // the limiter and dispatcher would.
-        assert!(
-            quote
-                .scopes
-                .iter()
-                .any(|s| s.key == "stash-list@Alice#1234"),
-            "{:?}",
-            quote.scopes
-        );
+        // the limiter and dispatcher would — and the deferred parent on
+        // that scope is not counted ahead: its own send already happened.
+        let listing = quote
+            .scopes
+            .iter()
+            .find(|s| s.key == "stash-list@Alice#1234")
+            .unwrap_or_else(|| panic!("{:?}", quote.scopes));
+        assert_eq!(listing.queued_ahead, 0);
         assert_eq!(quote.account.as_deref(), Some("Alice#1234"));
         // A selector naming no live session refuses the quote whole — the
         // same rules as Submit, so a quote never keys the wrong state.
+        // Even an empty job list judges its selector: a zero-action quote
+        // must not launder an unknown account into `account: null`.
         match daemon
             .handle_request(
                 Request::Quote {
-                    jobs: vec![QuoteJob {
-                        kind: "stashes".into(),
-                        params: json!({}),
-                    }],
+                    jobs: Vec::new(),
                     account: Some("Bob".into()),
                 },
                 &mut None,

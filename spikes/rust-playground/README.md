@@ -164,13 +164,16 @@ bounded by `MAX_429_RETRIES`; a Cloudflare-shaped 403/503 is never retried.
   optional enrichment (tracer step 5, built 2026-09-01): `quote` is its
   own protocol request — a read-only, non-reserving projection of the
   work's `(kind, params)` tuples over current limiter state, per
-  scheduling scope with per-window headroom, the queue counted ahead,
-  and a forward-simulated ETA that is an estimate, never a promise;
-  unlearned routes, probes, OAuth refresh, 429 re-sends, and a rails
-  halt are named rather than silently omitted. Attaching one
-  (`with_quote`) validates it speaks about the plan's own provider and
-  account. Same no-panic clippy ratchet as the store
-  crate.
+  scheduling scope with per-window headroom (stamped with its own
+  observation age, read under one limiter lock with the ETA), the queue
+  counted ahead, and a forward-simulated ETA that is an estimate, never
+  a promise — seeded with server-reported hits the local history never
+  saw, so it over-waits rather than floods; unlearned routes, probes,
+  OAuth refresh, 429 re-sends, and a rails halt are named rather than
+  silently omitted. Attaching one (`with_quote`) validates it speaks
+  about the plan's own provider, exactly its account, and exactly its
+  request total; carrying it bumped the plan schema to v2. Same
+  no-panic clippy ratchet as the store crate.
 - `crates/acquisition-cli` — the `acq` binary. Thin: clap parsing, output
   formatting, and `store_cmd.rs` — the reads of the shared store (`tabs`,
   `items`, `store`). The protocol client (connect, lazy spawn, version

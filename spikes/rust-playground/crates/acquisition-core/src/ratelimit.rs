@@ -590,6 +590,34 @@ impl Limiter {
             return Duration::ZERO;
         };
         let mut history = state.history.clone();
+        // The server's reported counts are the truth (invariant 2) and the
+        // local arrival history can undercount them: a restart probe reads
+        // hits this daemon never sent (N24), and other tools share the
+        // account's windows (N23). Seed the simulation with the missing
+        // hits at the last response time — the latest they could have
+        // happened, `window_frees_at`'s own convention — so the forward
+        // estimate over-waits instead of predicting sends into a window
+        // the server already counts as fuller.
+        let deficit = state
+            .policy
+            .rules
+            .iter()
+            .flat_map(|rule| {
+                rule.limits.iter().enumerate().map(|(i, w)| {
+                    let period = Duration::from_secs(w.period_secs);
+                    let known = history
+                        .iter()
+                        .filter(|&&h| state.last_response.saturating_duration_since(h) < period)
+                        .count();
+                    let reported = rule.state.get(i).map_or(0, |s| s.hits as usize);
+                    reported.saturating_sub(known)
+                })
+            })
+            .max()
+            .unwrap_or(0);
+        for _ in 0..deficit {
+            push_history(&mut history, state.last_response);
+        }
         let mut t = now.checked_add(self.wait_for(endpoint, now)).unwrap_or(now);
         for _ in 0..ahead {
             history.push_back(t);
@@ -926,35 +954,7 @@ impl Limiter {
                     e.sort();
                     e
                 },
-                rules: s
-                    .policy
-                    .rules
-                    .iter()
-                    .map(|r| RuleStatus {
-                        name: r.name.clone(),
-                        windows: r
-                            .limits
-                            .iter()
-                            .enumerate()
-                            .map(|(i, w)| {
-                                let st = r.state.get(i);
-                                WindowStatus {
-                                    hits: st.map(|s| s.hits).unwrap_or(0),
-                                    max_hits: w.max_hits,
-                                    period_secs: w.period_secs,
-                                    restriction_secs: w.restriction_secs,
-                                    restricted_secs: st.map(|s| s.restricted_secs).unwrap_or(0),
-                                    bucket_secs: bucket_for_policy(
-                                        &s.policy.name,
-                                        r.limits.len(),
-                                        i,
-                                    )
-                                    .as_secs(),
-                                }
-                            })
-                            .collect(),
-                    })
-                    .collect(),
+                rules: rule_statuses(s),
                 next_safe_in_seconds: next_safe_send(s)
                     .map(|t| t.saturating_duration_since(now).as_secs_f64())
                     .unwrap_or(0.0),
@@ -995,6 +995,39 @@ impl Limiter {
                     .back()
                     .is_some_and(|&h| now.saturating_duration_since(h) < longest)
             })
+    }
+
+    /// Everything a quote needs about one endpoint, computed in a single
+    /// call so the rules, the observation age, and the ETA describe the
+    /// same instant — separate reads could straddle a landing response.
+    pub fn project(&self, endpoint: &str, ahead: u32, now: Instant) -> ScopeProjection {
+        let state = self.endpoint_state(endpoint, now);
+        let (rules, observed_seconds_ago, eta) = match &state {
+            EndpointState::Policy(name) => {
+                let (rules, observed) = self
+                    .policies
+                    .get(name)
+                    .map(|ps| {
+                        (
+                            rule_statuses(ps),
+                            now.saturating_duration_since(ps.last_response).as_secs(),
+                        )
+                    })
+                    .unwrap_or_default();
+                (
+                    rules,
+                    Some(observed),
+                    Some(self.eta_for(endpoint, ahead, now)),
+                )
+            }
+            _ => (Vec::new(), None, None),
+        };
+        ScopeProjection {
+            state,
+            rules,
+            observed_seconds_ago,
+            eta,
+        }
     }
 
     /// Endpoints that have answered without any policy header.
@@ -1138,6 +1171,52 @@ fn next_safe_send(s: &PolicyState) -> Option<Instant> {
 }
 
 // ---- dashboard views ------------------------------------------------------
+
+/// One endpoint's quote-relevant state, from `Limiter::project`: rules,
+/// observation age, and ETA taken together, describing one instant.
+#[derive(Debug, Clone)]
+pub struct ScopeProjection {
+    pub state: EndpointState,
+    /// The governing policy's windows as last reported; empty unless
+    /// `state` is `Policy`.
+    pub rules: Vec<RuleStatus>,
+    /// Seconds since the policy's headers were last observed — the basis
+    /// of `rules`, older than any "as of now" the caller stamps.
+    pub observed_seconds_ago: Option<u64>,
+    /// Forward-simulated wait for a request with `ahead` others before
+    /// it; `None` unless `state` is `Policy` (a `Policyless` route is the
+    /// caller's call — the limiter has nothing to say about it).
+    pub eta: Option<Duration>,
+}
+
+/// A policy's rules and window states as `RuleStatus` rows — the one
+/// renderer, shared by the dashboard's `statuses` and a quote's scopes.
+fn rule_statuses(ps: &PolicyState) -> Vec<RuleStatus> {
+    ps.policy
+        .rules
+        .iter()
+        .map(|r| RuleStatus {
+            name: r.name.clone(),
+            windows: r
+                .limits
+                .iter()
+                .enumerate()
+                .map(|(i, w)| {
+                    let st = r.state.get(i);
+                    WindowStatus {
+                        hits: st.map(|s| s.hits).unwrap_or(0),
+                        max_hits: w.max_hits,
+                        period_secs: w.period_secs,
+                        restriction_secs: w.restriction_secs,
+                        restricted_secs: st.map(|s| s.restricted_secs).unwrap_or(0),
+                        bucket_secs: bucket_for_policy(&ps.policy.name, r.limits.len(), i)
+                            .as_secs(),
+                    }
+                })
+                .collect(),
+        })
+        .collect()
+}
 
 // `WindowStatus`/`RuleStatus` also travel inside a `Quote`, which a
 // `RefreshPlan` may embed — so they are `Eq` and parse strictly, like
@@ -1509,6 +1588,15 @@ impl ChokePoint {
 
     pub fn policy_statuses(&self) -> Vec<PolicyStatus> {
         self.limiter.lock().unwrap().statuses(self.now())
+    }
+
+    /// One endpoint's quote-relevant state under a single limiter lock —
+    /// see `Limiter::project`.
+    pub fn project(&self, route: &str, ahead: u32) -> ScopeProjection {
+        self.limiter
+            .lock()
+            .unwrap()
+            .project(route, ahead, self.now())
     }
 
     /// Requests holding N4's live send gate and its global bound.
@@ -2757,6 +2845,28 @@ mod tests {
             limiter.eta_for("/generic", 59, now),
             30.0 + 5.0 + 1.0,
         );
+    }
+
+    /// Reported hits the local history never saw — a restart probe reads
+    /// counters this daemon didn't produce (N24), and other tools share
+    /// the account's windows (N23) — must pace the forward simulation
+    /// too, not only the head-of-queue wait. Breaker: drop the deficit
+    /// seeding in `eta_for` and "one ahead" reads 0.
+    #[test]
+    fn eta_counts_reported_hits_the_local_history_never_saw() {
+        let now = far_future();
+        let mut l = Limiter::new();
+        // A probe teaches 1-of-2 used in the 10s window; history is empty.
+        l.observe_probe(
+            "/character",
+            Ok(parse(&with_state(CHAR_LIST, "1:10:0,1:300:0")).unwrap()),
+            serde_json::Value::Null,
+            now,
+        );
+        assert_wait("head goes now", l.eta_for("/character", 0, now), 0.0);
+        // The second request meets a window holding the probe-reported
+        // hit plus the head's own: 10 + 5 + 1 = 16s, never 0.
+        assert_wait("one ahead", l.eta_for("/character", 1, now), 16.0);
     }
 
     #[test]

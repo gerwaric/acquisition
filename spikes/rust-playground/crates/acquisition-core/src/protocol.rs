@@ -68,6 +68,11 @@ pub struct QuoteScope {
     /// The policy's rules as last reported — headroom is read per window
     /// (`hits` against `max_hits`), never one scalar.
     pub rules: Vec<RuleStatus>,
+    /// Seconds (at `observed_at`) since the policy's headers were last
+    /// seen — the basis of `rules`, which is that much older than the
+    /// quote itself. Rules, this age, and the ETA are read under one
+    /// limiter lock, so they describe the same instant.
+    pub observed_seconds_ago: Option<u64>,
     /// Seconds until the last quoted request on this scope could dispatch,
     /// simulating the pacing rule forward over current limiter state and
     /// the queue. An estimate, never a promise or a reservation. `None`:

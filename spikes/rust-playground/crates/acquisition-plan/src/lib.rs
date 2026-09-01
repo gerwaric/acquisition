@@ -39,7 +39,11 @@ use acquisition_store::{ListingBasis, StashSnapshot, TabSnapshot};
 
 /// The plan envelope schema this build writes ([`RefreshPlan::plan_schema`]).
 /// A consumer handed a plan stamped newer refuses it rather than guessing.
-pub const REFRESH_PLAN_SCHEMA: i64 = 1;
+/// History: v1 = the tracer-step-4 envelope; v2 (2026-09-01) added the
+/// optional `quote` enrichment — a shape change is a schema bump, so a v1
+/// reader reports "newer schema" instead of "malformed" on an enriched
+/// plan.
+pub const REFRESH_PLAN_SCHEMA: i64 = 2;
 
 /// The sync-policy value schema this build reads ([`SyncPolicy::version`]).
 /// The store carries the row opaquely; its shape is this crate's business.
@@ -435,20 +439,29 @@ pub struct RefreshPlan {
     /// Optional enrichment: the daemon's quote for this plan's actions,
     /// with its own observation time inside. An observation, not a
     /// derivation — it cannot be recomputed at parse, only carried — so
-    /// validation checks it speaks about this plan's provider and account
-    /// and nothing more. Compiling never fills it (a plan needs no
-    /// daemon); [`RefreshPlan::with_quote`] attaches one.
+    /// validation pins what *is* checkable: the plan's provider, exactly
+    /// its account, and a projected request total equal to
+    /// `logical_requests` ([`check_quote_matches`]). Compiling never
+    /// fills it (a plan needs no daemon); [`RefreshPlan::with_quote`]
+    /// attaches one.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub quote: Option<Quote>,
 }
 
-/// The one consistency a carried quote must have with its envelope: it
-/// projects this plan's provider and account, not some other store's. A
-/// mismatched quote would mislead exactly the review the plan exists for.
+/// What a carried quote must have in common with its envelope. The quote
+/// is an observation and cannot be recomputed, but it must at least be
+/// *about* this plan: the same provider, exactly the plan's account
+/// (`None` matches only a plan bound to no account — an accountless quote
+/// on an account-bound plan is a quote for someone else's limiter state),
+/// and a projected request total equal to the plan's logical bound, so a
+/// quote for less (or other) work cannot dress up a bigger plan. A
+/// mismatch on any of these would mislead exactly the review the plan
+/// exists for.
 fn check_quote_matches(
     quote: &Quote,
     provider: &str,
     account_name: Option<&str>,
+    logical_requests: u64,
 ) -> Result<(), String> {
     if quote.provider != provider {
         return Err(format!(
@@ -456,11 +469,16 @@ fn check_quote_matches(
             quote.provider
         ));
     }
-    if let (Some(qa), Some(pa)) = (quote.account.as_deref(), account_name)
-        && qa != pa
-    {
+    if quote.account.as_deref() != account_name {
         return Err(format!(
-            "the quote projects account {qa:?}, but the plan is for {pa:?}"
+            "the quote projects account {:?}, but the plan is for {:?}",
+            quote.account, account_name
+        ));
+    }
+    let quoted: u64 = quote.scopes.iter().map(|s| s.requests).sum();
+    if quoted != logical_requests {
+        return Err(format!(
+            "the quote projects {quoted} request(s), but the plan authorizes {logical_requests}"
         ));
     }
     Ok(())
@@ -472,8 +490,13 @@ impl RefreshPlan {
     /// on purpose — the enriched plan is a new value, not an edit of a
     /// reviewed one.
     pub fn with_quote(mut self, quote: Quote) -> Result<RefreshPlan, PlanError> {
-        check_quote_matches(&quote, &self.provider, self.account_name.as_deref())
-            .map_err(|detail| PlanError::MalformedPlan { detail })?;
+        check_quote_matches(
+            &quote,
+            &self.provider,
+            self.account_name.as_deref(),
+            self.logical_requests,
+        )
+        .map_err(|detail| PlanError::MalformedPlan { detail })?;
         self.quote = Some(quote);
         Ok(self)
     }
@@ -575,9 +598,15 @@ impl TryFrom<RefreshPlanWire> for RefreshPlan {
             ));
         }
         // A carried quote is an observation and cannot recompute, but it
-        // must at least be *about* this plan.
+        // must at least be *about* this plan — provider, account, and the
+        // plan's own request total.
         if let Some(quote) = &wire.quote {
-            check_quote_matches(quote, &wire.provider, wire.account_name.as_deref())?;
+            check_quote_matches(
+                quote,
+                &wire.provider,
+                wire.account_name.as_deref(),
+                wire.logical_requests,
+            )?;
         }
         Ok(RefreshPlan {
             plan_schema: wire.plan_schema,
@@ -1400,6 +1429,8 @@ mod tests {
         );
         let bare = plan(&s, &all_policy_value(60), 5000);
         assert_eq!(bare.quote, None, "compiling never fills the quote");
+        assert_eq!(bare.logical_requests, 2, "{:?}", bare.actions);
+        assert!(bare.account_name.is_some(), "the plan is account-bound");
         let quote = Quote {
             observed_at: 5000,
             provider: bare.provider.clone(),
@@ -1407,15 +1438,16 @@ mod tests {
             halted: None,
             scopes: vec![QuoteScope {
                 key: "stash-list".into(),
-                endpoints: vec!["stash-list".into()],
-                requests: 1,
+                endpoints: vec!["stash-list".into(), "stash".into()],
+                requests: 2,
                 queued_ahead: 0,
                 policy: None,
                 rules: Vec::new(),
+                observed_seconds_ago: None,
                 eta_seconds: None,
                 notes: vec!["policy not yet learned".into()],
             }],
-            not_covered: vec!["a HEAD probe on first contact (N16)".into()],
+            not_covered: vec!["a HEAD probe before the first request (N16)".into()],
         };
         let enriched = bare.clone().with_quote(quote.clone()).unwrap();
         assert_eq!(enriched.quote.as_ref(), Some(&quote));
@@ -1443,11 +1475,21 @@ mod tests {
         let mut other_account = quote.clone();
         other_account.account = Some("mallory#9999".into());
         assert!(bare.clone().with_quote(other_account).is_err());
-        // An accountless quote (none of the work resolved to an account)
-        // still attaches: there is no claim to contradict.
-        let mut accountless = quote;
+        // An accountless quote on an account-bound plan refuses too: it
+        // projects someone else's limiter state (`null` is not a wildcard).
+        let mut accountless = quote.clone();
         accountless.account = None;
-        assert!(bare.with_quote(accountless).is_ok());
+        assert!(bare.clone().with_quote(accountless).is_err());
+        // A quote that projects fewer requests than the plan authorizes
+        // cannot dress the plan up — at attach and at parse alike.
+        let mut partial = quote;
+        partial.scopes[0].requests = 1;
+        let err = bare.with_quote(partial).unwrap_err();
+        assert!(err.to_string().contains("authorizes 2"), "{err}");
+        let mut shrunk = json.clone();
+        shrunk["quote"]["scopes"][0]["requests"] = json!(1);
+        let err = RefreshPlan::from_value(&shrunk).unwrap_err();
+        assert!(err.to_string().contains("authorizes 2"), "{err}");
     }
 
     #[test]
@@ -1466,12 +1508,12 @@ mod tests {
         // and raw serde refuses it too (the validation is in the type,
         // not only in from_value).
         let mut newer = good.clone();
-        newer["plan_schema"] = json!(2);
+        newer["plan_schema"] = json!(REFRESH_PLAN_SCHEMA + 1);
         assert_eq!(
             RefreshPlan::from_value(&newer).unwrap_err(),
             PlanError::PlanSchemaUnsupported {
-                found: 2,
-                supported: 1
+                found: REFRESH_PLAN_SCHEMA + 1,
+                supported: REFRESH_PLAN_SCHEMA
             }
         );
         assert!(serde_json::from_value::<RefreshPlan>(newer).is_err());

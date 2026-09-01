@@ -238,25 +238,38 @@ prerequisite-wording change is a plan-schema event, not a silent edit; every act
 tuple, pinned through `Endpoint::from_job` — the store's production
 decoder of that vocabulary — plus a plan→record→replan loop, breakers
 verified); (5) `quote` on the protocol +
-optional plan enrichment — **done 2026-09-01** (`Request::Quote` takes
-work in the daemon's own job vocabulary — the `(kind, params)` tuples
-plan actions render — and answers a read-only, non-reserving
-projection, per the 2026-08-31 decision line: per scheduling scope (a
-learned policy's state key, else the bare endpoint key) the per-window
-headroom, the daemon's own queue counted ahead, and a
-forward-simulated ETA; an unlearned, degraded, or policyless route is
-labeled rather than guessed at, and probes, possible OAuth refresh,
-429 re-sends, a rails halt, and non-sending jobs are named under
-`not_covered`/`notes` instead of silently omitted; account selection
-follows `Submit`'s rules exactly — resolved before projecting, refused
-when ambiguous — so a quote keys the same limiter state the submit
-would; `RefreshPlan.quote` is the optional enrichment
-(`with_quote`) — an observation, not a derivation, so parse validation
-cannot recompute it and instead pins strict unknown-field parsing and
-that it speaks about the plan's own provider and account; the `Quote`
-shape is thereby part of the plan schema, so changing it is a
-plan-schema event); (6) `acq refresh --plan`, human + JSON, spends
-nothing; (7) apply: the
+optional plan enrichment — **done 2026-09-01, hardened same day per
+owner review (seven issues)** (`Request::Quote` takes work in the
+daemon's own job vocabulary — the `(kind, params)` tuples plan actions
+render — and answers a read-only, non-reserving projection, per the
+2026-08-31 decision line: per scheduling scope (a learned policy's
+state key, else the bare endpoint key) the per-window headroom **with
+its own observation age**, the daemon's own queue counted ahead
+(excluding probes and a parent holding a deferred result — its send
+already happened), and a forward-simulated ETA — all read under one
+limiter lock so they describe one instant, and the simulation seeds
+reported hits the local history never saw (a restart probe's counters,
+N24; other tools on the account, N23) at the last response time, so it
+over-waits rather than predicts sends into a fuller window; an
+unlearned, degraded, or policyless route is labeled rather than
+guessed at, and probes (a degraded route's eventual re-probe
+included), possible OAuth refresh, 429 re-sends, a rails halt, and
+non-sending jobs are named under `not_covered`/`notes` instead of
+silently omitted; account selection follows `Submit`'s rules exactly —
+the selector is judged before anything is projected, an empty job list
+included, so a zero-action quote cannot launder an unknown account —
+and a quote keys the same limiter state the submit would;
+`RefreshPlan.quote` is the optional enrichment (`with_quote`) — an
+observation, not a derivation, so parse validation cannot recompute it
+and instead pins what is checkable: strict unknown-field parsing, the
+plan's provider, **exactly** its account (`null` is not a wildcard —
+an accountless quote on an account-bound plan is someone else's
+limiter state), and a projected request total equal to
+`logical_requests`, so a quote for less work cannot dress up a bigger
+plan; the `Quote` shape is part of the plan schema, and adding it
+**bumped `REFRESH_PLAN_SCHEMA` to 2** — a v1 reader reports "newer
+schema", never "malformed"); (6) `acq refresh --plan`, human + JSON,
+spends nothing; (7) apply: the
 exact action set through a parent that never expands it — the existing
 refresh parent re-lists, so it is constrained or replaced, recorded here
 first — with admission-time logical budget, and an explicit staleness
