@@ -13,7 +13,7 @@ use crate::ratelimit::{DegradedEndpoint, PolicyStatus, RuleStatus, SendRecord};
 
 /// One unit of work to quote, in the daemon's own job vocabulary — exactly
 /// the `(kind, params)` a `Submit` would carry (a plan action renders it).
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct QuoteJob {
     pub kind: String,
@@ -42,6 +42,13 @@ pub struct Quote {
     /// The live-test rails halt in force, if any: nothing sends until
     /// `reset-tripwire`, so every estimate below is a floor.
     pub halted: Option<String>,
+    /// The work this quote projects: the request's job tuples echoed
+    /// verbatim, in order. This is the quote's verifiable basis — a
+    /// carrier can check it names exactly the work it claims to price
+    /// (a plan accepts a quote only when this is its own action list),
+    /// where matching totals alone would let a quote for other work of
+    /// the same size stand in.
+    pub work: Vec<QuoteJob>,
     /// One entry per scheduling scope. Estimates stay per policy/window
     /// and scope, never one scalar.
     pub scopes: Vec<QuoteScope>,

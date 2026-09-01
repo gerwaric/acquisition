@@ -2827,8 +2827,22 @@ resubmit if still wanted",
     fn quote(&self, jobs: &[QuoteJob], account: Option<&str>) -> Result<Quote, String> {
         // The selector is judged before anything is projected — an unknown
         // or ambiguous account refuses the quote whole even when the job
-        // list is empty, exactly as a submit would refuse it.
-        let account = self.canonical_account(account)?;
+        // list is empty, exactly as a submit would refuse it. Omitted with
+        // several sessions live is ambiguous too: a quote is one projection
+        // under one headline account, and the daemon never guesses whose.
+        // The judged selector is what each job resolves against, so a
+        // quoted job keys exactly what the same submit would key (an
+        // omitted selector still runs accountless kinds accountless).
+        let account = match account {
+            Some(_) => self.canonical_account(account)?,
+            None => {
+                let s = self.shared.lock().unwrap();
+                if !s.auth.by_account.is_empty() {
+                    s.auth.get(None)?;
+                }
+                None
+            }
+        };
         // Group the work by scheduling scope: the policy state key once the
         // route is learned (same-name policies share counters, N6; `Account`
         // rules count per account, rung 11), else the endpoint key itself.
@@ -2976,6 +2990,9 @@ resubmit if still wanted",
             provider: self.provider.name.to_string(),
             account: resolved_account,
             halted: self.rails().halted(),
+            // Echoed verbatim: the quote's verifiable basis — a carrier
+            // checks these tuples name exactly the work it cares about.
+            work: jobs.to_vec(),
             scopes: out,
             not_covered,
         })
@@ -7307,6 +7324,12 @@ mod dispatcher_tests {
 
         assert_eq!(quote.provider, "mock");
         assert!(quote.halted.is_none());
+        // The work is echoed verbatim, in order — the quote's verifiable
+        // basis for any carrier (a plan checks it against its actions).
+        assert_eq!(quote.work.len(), 10);
+        assert_eq!(quote.work[0].kind, "fetch");
+        assert_eq!(quote.work[8].kind, "characters");
+        assert_eq!(quote.work[9].kind, "sleep");
         let [unknown, learned] = quote.scopes.as_slice() else {
             panic!("expected two scopes: {:?}", quote.scopes);
         };
@@ -7446,6 +7469,28 @@ mod dispatcher_tests {
             .await
         {
             Response::Error { message } => assert!(message.contains("Bob"), "{message}"),
+            other => panic!("{other:?}"),
+        }
+        // Omitted with several sessions live is ambiguous too — even an
+        // empty quote never guesses its headline account.
+        daemon.shared.lock().unwrap().auth.by_account.insert(
+            "Bob#9".into(),
+            AuthSession {
+                username: Some("Bob#9".into()),
+                ..Default::default()
+            },
+        );
+        match daemon
+            .handle_request(
+                Request::Quote {
+                    jobs: Vec::new(),
+                    account: None,
+                },
+                &mut None,
+            )
+            .await
+        {
+            Response::Error { message } => assert!(message.contains("several"), "{message}"),
             other => panic!("{other:?}"),
         }
         remove_harness_files(&log_path);

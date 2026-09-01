@@ -593,12 +593,16 @@ impl Limiter {
         // The server's reported counts are the truth (invariant 2) and the
         // local arrival history can undercount them: a restart probe reads
         // hits this daemon never sent (N24), and other tools share the
-        // account's windows (N23). Seed the simulation with the missing
-        // hits at the last response time — the latest they could have
-        // happened, `window_frees_at`'s own convention — so the forward
-        // estimate over-waits instead of predicting sends into a window
-        // the server already counts as fuller.
-        let deficit = state
+        // account's windows (N23). The missing hits enter the simulation
+        // as a *count* pinned at the last response time — the latest they
+        // could have happened, `window_frees_at`'s own convention — so the
+        // forward estimate over-waits instead of predicting sends into a
+        // window the server already counts as fuller. A count, never
+        // materialized entries: reported hits are an arbitrary `u32` from
+        // headers, so materializing would loop unboundedly and overflow
+        // `HISTORY_CAP` (truncating a 299-of-300 state into "free").
+        let seed_at = state.last_response;
+        let seed_n = state
             .policy
             .rules
             .iter()
@@ -607,17 +611,21 @@ impl Limiter {
                     let period = Duration::from_secs(w.period_secs);
                     let known = history
                         .iter()
-                        .filter(|&&h| state.last_response.saturating_duration_since(h) < period)
-                        .count();
-                    let reported = rule.state.get(i).map_or(0, |s| s.hits as usize);
+                        .filter(|&&h| seed_at.saturating_duration_since(h) < period)
+                        .count() as u64;
+                    let reported = rule.state.get(i).map_or(0, |s| u64::from(s.hits));
                     reported.saturating_sub(known)
                 })
             })
             .max()
             .unwrap_or(0);
-        for _ in 0..deficit {
-            push_history(&mut history, state.last_response);
-        }
+        let seeded_in = |t: Instant, period: Duration| {
+            if t.saturating_duration_since(seed_at) < period {
+                seed_n
+            } else {
+                0
+            }
+        };
         let mut t = now.checked_add(self.wait_for(endpoint, now)).unwrap_or(now);
         for _ in 0..ahead {
             history.push_back(t);
@@ -629,10 +637,18 @@ impl Limiter {
                     let in_window = history
                         .iter()
                         .filter(|&&h| t.duration_since(h) < period)
-                        .count();
-                    if in_window >= w.max_hits as usize
-                        && let Some(deadline) =
-                            window_frees_at(&history, t, w.max_hits, period, bucket)
+                        .count() as u64
+                        + seeded_in(t, period);
+                    if in_window >= u64::from(w.max_hits)
+                        && let Some(deadline) = window_frees_at_seeded(
+                            &history,
+                            t,
+                            w.max_hits,
+                            period,
+                            bucket,
+                            seed_at,
+                            seeded_in(t, period),
+                        )
                     {
                         next = next.max(deadline);
                     }
@@ -1107,14 +1123,61 @@ fn window_frees_at(
     period: Duration,
     bucket: Duration,
 ) -> Option<Instant> {
+    window_frees_at_seeded(history, as_of, max_hits, period, bucket, as_of, 0)
+}
+
+/// `window_frees_at` with `seed_n` extra hits pinned at `seed_at` — the
+/// ETA simulation's compact stand-in for server-reported hits the local
+/// history never saw. A count, not entries: reported hits are an
+/// arbitrary `u32`, and the synthetic block is indexed into rather than
+/// materialized, so a huge (or malformed) header can neither loop nor
+/// overflow `HISTORY_CAP`.
+fn window_frees_at_seeded(
+    history: &VecDeque<Instant>,
+    as_of: Instant,
+    max_hits: u32,
+    period: Duration,
+    bucket: Duration,
+    seed_at: Instant,
+    seed_n: u64,
+) -> Option<Instant> {
     let known: Vec<Instant> = history
         .iter()
         .copied()
         .filter(|&h| as_of.saturating_duration_since(h) < period)
         .collect();
-    let oldest = match known.len().checked_sub(max_hits as usize) {
-        Some(idx) => known[idx],
-        None => known.first().copied().unwrap_or(as_of),
+    let seeded = if as_of.saturating_duration_since(seed_at) < period {
+        seed_n
+    } else {
+        0
+    };
+    let total = known.len() as u64 + seeded;
+    let oldest = match total.checked_sub(u64::from(max_hits)) {
+        Some(idx) if total > 0 => {
+            // The merged chronological list is known[..cut], then `seeded`
+            // synthetic hits at `seed_at`, then known[cut..]; index into
+            // it without building the synthetic block. Clamped so a
+            // zero-max window cannot index past the end.
+            let idx = idx.min(total - 1);
+            let cut = known.iter().filter(|&&h| h <= seed_at).count() as u64;
+            if idx < cut {
+                known[idx as usize]
+            } else if idx < cut + seeded {
+                seed_at
+            } else {
+                known[(idx - seeded) as usize]
+            }
+        }
+        _ => {
+            let first = known.first().copied();
+            let seed = (seeded > 0).then_some(seed_at);
+            match (first, seed) {
+                (Some(a), Some(b)) => a.min(b),
+                (Some(a), None) => a,
+                (None, Some(b)) => b,
+                (None, None) => as_of,
+            }
+        }
     };
     checked_deadline(oldest, [period, bucket, BUFFER])
 }
@@ -2867,6 +2930,50 @@ mod tests {
         // The second request meets a window holding the probe-reported
         // hit plus the head's own: 10 + 5 + 1 = 16s, never 0.
         assert_wait("one ahead", l.eta_for("/character", 1, now), 16.0);
+        // The deficit rides as a count, never materialized entries: a
+        // reported 299-of-300 must not truncate at the 256-entry history
+        // cap (pre-fix the second request read "free"), and a
+        // pathological u32 count must neither loop nor stall. Single
+        // 300-per-60s window, 299 used, empty history: the head goes now
+        // and the second request waits 60 + 5 + 1.
+        let mut l = Limiter::new();
+        let big = [
+            ("x-rate-limit-policy", "big-window"),
+            ("x-rate-limit-rules", "Account"),
+            ("x-rate-limit-account", "300:60:60"),
+            ("x-rate-limit-account-state", "299:60:0"),
+        ];
+        l.observe_probe(
+            "/big",
+            Ok(parse(&big).unwrap()),
+            serde_json::Value::Null,
+            now,
+        );
+        assert_wait("head under 299/300", l.eta_for("/big", 0, now), 0.0);
+        assert_wait("second under 299/300", l.eta_for("/big", 1, now), 66.0);
+        let mut l = Limiter::new();
+        let absurd = [
+            ("x-rate-limit-policy", "absurd-window"),
+            ("x-rate-limit-rules", "Account"),
+            ("x-rate-limit-account", "4000000000:60:60"),
+            ("x-rate-limit-account-state", "3999999999:60:0"),
+        ];
+        l.observe_probe(
+            "/absurd",
+            Ok(parse(&absurd).unwrap()),
+            serde_json::Value::Null,
+            now,
+        );
+        assert_wait(
+            "head under an absurd count",
+            l.eta_for("/absurd", 0, now),
+            0.0,
+        );
+        assert_wait(
+            "second under an absurd count",
+            l.eta_for("/absurd", 1, now),
+            66.0,
+        );
     }
 
     #[test]

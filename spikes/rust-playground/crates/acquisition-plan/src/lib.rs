@@ -440,28 +440,32 @@ pub struct RefreshPlan {
     /// with its own observation time inside. An observation, not a
     /// derivation — it cannot be recomputed at parse, only carried — so
     /// validation pins what *is* checkable: the plan's provider, exactly
-    /// its account, and a projected request total equal to
-    /// `logical_requests` ([`check_quote_matches`]). Compiling never
-    /// fills it (a plan needs no daemon); [`RefreshPlan::with_quote`]
-    /// attaches one.
+    /// its account, the quote's echoed `work` being exactly this plan's
+    /// actions as job tuples, and scope totals that sum (checked) to the
+    /// logical bound ([`check_quote_matches`]). Compiling never fills it
+    /// (a plan needs no daemon); [`RefreshPlan::with_quote`] attaches
+    /// one.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub quote: Option<Quote>,
 }
 
 /// What a carried quote must have in common with its envelope. The quote
-/// is an observation and cannot be recomputed, but it must at least be
-/// *about* this plan: the same provider, exactly the plan's account
-/// (`None` matches only a plan bound to no account — an accountless quote
-/// on an account-bound plan is a quote for someone else's limiter state),
-/// and a projected request total equal to the plan's logical bound, so a
-/// quote for less (or other) work cannot dress up a bigger plan. A
-/// mismatch on any of these would mislead exactly the review the plan
+/// is an observation and cannot be recomputed, but it must be *about*
+/// this plan: the same provider; exactly the plan's account (`None`
+/// matches only a plan bound to no account — an accountless quote on an
+/// account-bound plan is a quote for someone else's limiter state); the
+/// quote's echoed `work` must be exactly the plan's actions rendered as
+/// job tuples, in order — the verifiable work basis, where matching
+/// totals alone would let a quote for other work of the same size stand
+/// in; and the scope totals must still sum (checked — a malformed
+/// envelope must not wrap past validation) to the plan's logical bound.
+/// A mismatch on any of these would mislead exactly the review the plan
 /// exists for.
 fn check_quote_matches(
     quote: &Quote,
     provider: &str,
     account_name: Option<&str>,
-    logical_requests: u64,
+    actions: &[RefreshAction],
 ) -> Result<(), String> {
     if quote.provider != provider {
         return Err(format!(
@@ -475,10 +479,31 @@ fn check_quote_matches(
             quote.account, account_name
         ));
     }
-    let quoted: u64 = quote.scopes.iter().map(|s| s.requests).sum();
-    if quoted != logical_requests {
+    if quote.work.len() != actions.len() {
         return Err(format!(
-            "the quote projects {quoted} request(s), but the plan authorizes {logical_requests}"
+            "the quote projects {} job(s), but the plan authorizes {} action(s)",
+            quote.work.len(),
+            actions.len()
+        ));
+    }
+    for (i, (job, action)) in quote.work.iter().zip(actions).enumerate() {
+        let (kind, params) = action.job();
+        if job.kind != kind || job.params != params {
+            return Err(format!(
+                "quoted job {i} ({} {}) is not the plan's action {i} ({kind} {params})",
+                job.kind, job.params
+            ));
+        }
+    }
+    let quoted = quote
+        .scopes
+        .iter()
+        .try_fold(0u64, |sum, s| sum.checked_add(s.requests))
+        .ok_or_else(|| "the quote's scope request total overflows".to_string())?;
+    if quoted != actions.len() as u64 {
+        return Err(format!(
+            "the quote's scopes project {quoted} request(s), but the plan authorizes {}",
+            actions.len()
         ));
     }
     Ok(())
@@ -494,7 +519,7 @@ impl RefreshPlan {
             &quote,
             &self.provider,
             self.account_name.as_deref(),
-            self.logical_requests,
+            &self.actions,
         )
         .map_err(|detail| PlanError::MalformedPlan { detail })?;
         self.quote = Some(quote);
@@ -598,14 +623,14 @@ impl TryFrom<RefreshPlanWire> for RefreshPlan {
             ));
         }
         // A carried quote is an observation and cannot recompute, but it
-        // must at least be *about* this plan — provider, account, and the
-        // plan's own request total.
+        // must be *about* this plan — provider, account, and the plan's
+        // own actions as its work basis.
         if let Some(quote) = &wire.quote {
             check_quote_matches(
                 quote,
                 &wire.provider,
                 wire.account_name.as_deref(),
-                wire.logical_requests,
+                &wire.actions,
             )?;
         }
         Ok(RefreshPlan {
@@ -1420,7 +1445,7 @@ mod tests {
 
     #[test]
     fn a_quote_enriches_a_plan_optionally_and_must_speak_about_it() {
-        use acquisition_core::protocol::QuoteScope;
+        use acquisition_core::protocol::{QuoteJob, QuoteScope};
         let mut s = store();
         list(
             &mut s,
@@ -1431,11 +1456,25 @@ mod tests {
         assert_eq!(bare.quote, None, "compiling never fills the quote");
         assert_eq!(bare.logical_requests, 2, "{:?}", bare.actions);
         assert!(bare.account_name.is_some(), "the plan is account-bound");
+        // The quote's verifiable work basis: exactly the plan's actions
+        // rendered as job tuples, in order.
+        let work: Vec<QuoteJob> = bare
+            .actions
+            .iter()
+            .map(|a| {
+                let (kind, params) = a.job();
+                QuoteJob {
+                    kind: kind.into(),
+                    params,
+                }
+            })
+            .collect();
         let quote = Quote {
             observed_at: 5000,
             provider: bare.provider.clone(),
             account: bare.account_name.clone(),
             halted: None,
+            work: work.clone(),
             scopes: vec![QuoteScope {
                 key: "stash-list".into(),
                 endpoints: vec!["stash-list".into(), "stash".into()],
@@ -1482,14 +1521,47 @@ mod tests {
         assert!(bare.clone().with_quote(accountless).is_err());
         // A quote that projects fewer requests than the plan authorizes
         // cannot dress the plan up — at attach and at parse alike.
-        let mut partial = quote;
+        let mut partial = quote.clone();
         partial.scopes[0].requests = 1;
-        let err = bare.with_quote(partial).unwrap_err();
+        let err = bare.clone().with_quote(partial).unwrap_err();
         assert!(err.to_string().contains("authorizes 2"), "{err}");
         let mut shrunk = json.clone();
         shrunk["quote"]["scopes"][0]["requests"] = json!(1);
         let err = RefreshPlan::from_value(&shrunk).unwrap_err();
         assert!(err.to_string().contains("authorizes 2"), "{err}");
+        // Equal counts are not coverage: a quote for two *other* jobs of
+        // the same size — or the right jobs in a different order — is not
+        // a quote for this plan.
+        let mut foreign_work = quote.clone();
+        foreign_work.work = vec![
+            QuoteJob {
+                kind: "fetch".into(),
+                params: json!({}),
+            },
+            QuoteJob {
+                kind: "fetch".into(),
+                params: json!({}),
+            },
+        ];
+        let err = bare.clone().with_quote(foreign_work).unwrap_err();
+        assert!(err.to_string().contains("not the plan's action"), "{err}");
+        let mut reordered = quote.clone();
+        reordered.work.swap(0, 1);
+        assert!(bare.clone().with_quote(reordered).is_err());
+        let mut swapped = json.clone();
+        swapped["quote"]["work"] = serde_json::to_value([&work[1], &work[0]]).unwrap();
+        assert!(RefreshPlan::from_value(&swapped).is_err());
+        // Scope totals that overflow are a structured refusal, never a
+        // wrap past validation or a panic (the no-panic rule covers a
+        // malformed envelope too).
+        let mut overflowing = quote;
+        let extra = QuoteScope {
+            requests: u64::MAX,
+            ..overflowing.scopes[0].clone()
+        };
+        overflowing.scopes.push(extra);
+        let err = bare.with_quote(overflowing).unwrap_err();
+        assert!(err.to_string().contains("overflows"), "{err}");
     }
 
     #[test]

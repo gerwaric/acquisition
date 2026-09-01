@@ -167,12 +167,14 @@ bounded by `MAX_429_RETRIES`; a Cloudflare-shaped 403/503 is never retried.
   scheduling scope with per-window headroom (stamped with its own
   observation age, read under one limiter lock with the ETA), the queue
   counted ahead, and a forward-simulated ETA that is an estimate, never
-  a promise — seeded with server-reported hits the local history never
-  saw, so it over-waits rather than floods; unlearned routes, probes,
-  OAuth refresh, 429 re-sends, and a rails halt are named rather than
-  silently omitted. Attaching one (`with_quote`) validates it speaks
-  about the plan's own provider, exactly its account, and exactly its
-  request total; carrying it bumped the plan schema to v2. Same
+  a promise — seeded (as a count, safe against absurd headers) with
+  server-reported hits the local history never saw, so it over-waits
+  rather than floods; unlearned routes, probes, OAuth refresh, 429
+  re-sends, and a rails halt are named rather than silently omitted.
+  The quote echoes the job tuples it priced (`work`), and attaching one
+  (`with_quote`) validates it speaks about the plan's own provider,
+  exactly its account, and exactly its actions in order — never just a
+  matching count; carrying it bumped the plan schema to v2. Same
   no-panic clippy ratchet as the store crate.
 - `crates/acquisition-cli` — the `acq` binary. Thin: clap parsing, output
   formatting, and `store_cmd.rs` — the reads of the shared store (`tabs`,
