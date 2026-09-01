@@ -1064,6 +1064,12 @@ resubmit if still wanted",
         submitted_by: String,
         account: Option<String>,
     ) -> Result<JobId, String> {
+        // An `apply` is admitted or refused whole, before a job id exists
+        // (CONTEXT.md, decided 2026-09-01): vocabulary and budget checked
+        // here, so a refusal admits nothing.
+        if kind == "apply" {
+            validate_apply(&params)?;
+        }
         self.submit_with_parent(kind, params, priority, submitted_by, account, None)
     }
 
@@ -1933,6 +1939,41 @@ resubmit if still wanted",
                     }),
                 }
             }
+            // A plan's action set, executed exactly (tracer step 7): a pure
+            // fan-out parent. Each admitted tuple becomes one child job; the
+            // parent sends nothing itself, so it has no route and no token —
+            // children authenticate and pace themselves. Admission validated
+            // the vocabulary at submit; it is checked again here because a
+            // restored `daemon.db` row was admitted by an earlier lifetime,
+            // possibly an earlier build.
+            "apply" => {
+                if let Err(error) = validate_apply(&params) {
+                    return Ok(Outcome::Failure { error });
+                }
+                let jobs = params
+                    .get("jobs")
+                    .and_then(Value::as_array)
+                    .cloned()
+                    .unwrap_or_default();
+                let mut submitted = Vec::new();
+                for job in &jobs {
+                    let kind = job.get("kind").and_then(Value::as_str).unwrap_or_default();
+                    let child_params = job.get("params").cloned().unwrap_or_else(|| json!({}));
+                    match self.submit_child(id, kind, child_params) {
+                        Ok(cid) => submitted.push(cid),
+                        Err(e) => {
+                            return Ok(fan_out_stopped(self.cancelled(id), submitted.len(), &e));
+                        }
+                    }
+                }
+                Outcome::Success {
+                    payload: json!({
+                        "provider": self.provider.name,
+                        "requests": submitted.len(),
+                        "child_jobs": submitted,
+                    }),
+                }
+            }
             "sleep" => {
                 let seconds = params.get("seconds").and_then(Value::as_f64).unwrap_or(3.0);
                 let deadline = Instant::now() + Duration::from_secs_f64(seconds);
@@ -2059,7 +2100,7 @@ resubmit if still wanted",
             }
             other => Outcome::Failure {
                 error: format!(
-                    "unknown job kind '{other}' (kinds: sleep, fetch, whoami, profile, characters, character, leagues, stashes, stash, refresh, probe)"
+                    "unknown job kind '{other}' (kinds: sleep, fetch, whoami, profile, characters, character, leagues, stashes, stash, refresh, apply, probe)"
                 ),
             },
         })
@@ -3237,6 +3278,66 @@ resubmit if still wanted",
 /// parent was cancelled, or the queue failed. Already-submitted children
 /// run either way (their sends are theirs); the parent never claims
 /// success over a partial set.
+/// The `apply` admission check (CONTEXT.md, decided 2026-09-01): the
+/// vocabulary a plan-blind daemon can enforce. `params.jobs` must be a
+/// non-empty array of `(kind, params)` tuples in which every kind is a
+/// single-request one that submits no children — `stashes`, or `stash`
+/// with `deep` absent/false — so no child can expand the reviewed set;
+/// and when the caller declares `max_requests`, the tuple count must not
+/// exceed it. Runs at submit, before a job id exists, so a refusal
+/// admits nothing (mid-fan-out terminalization is never the budget's
+/// mechanism); a misread budget refuses too — a limit half-honored by
+/// ignoring it would spend exactly what the caller tried to cap.
+fn validate_apply(params: &Value) -> Result<(), String> {
+    let Some(jobs) = params.get("jobs").and_then(Value::as_array) else {
+        return Err(
+            "apply needs a `jobs` array of {kind, params} tuples (a plan's actions)".into(),
+        );
+    };
+    if jobs.is_empty() {
+        return Err(
+            "apply with an empty `jobs` array: a plan with no actions has nothing to execute"
+                .into(),
+        );
+    }
+    for (i, job) in jobs.iter().enumerate() {
+        let kind = job.get("kind").and_then(Value::as_str).unwrap_or("");
+        let params = job.get("params").cloned().unwrap_or(Value::Null);
+        match kind {
+            "stashes" => {}
+            "stash" => {
+                if params.get("deep").and_then(Value::as_bool).unwrap_or(false) {
+                    return Err(format!(
+                        "apply job {i}: a plan's stash fetch never fans out (`deep` must be false)"
+                    ));
+                }
+                if params.get("id").and_then(Value::as_str).is_none() {
+                    return Err(format!("apply job {i}: stash needs an id"));
+                }
+            }
+            other => {
+                return Err(format!(
+                    "apply job {i}: kind {other:?} is not in the plan vocabulary (stashes, stash)"
+                ));
+            }
+        }
+    }
+    if let Some(max) = params.get("max_requests") {
+        let Some(max) = max.as_u64() else {
+            return Err(format!(
+                "max_requests must be a non-negative integer, not {max}"
+            ));
+        };
+        if jobs.len() as u64 > max {
+            return Err(format!(
+                "plan exceeds the budget: {} logical request(s) against max_requests {max} — nothing was submitted",
+                jobs.len()
+            ));
+        }
+    }
+    Ok(())
+}
+
 fn fan_out_stopped(cancelled: bool, submitted: usize, why: &str) -> Outcome {
     if cancelled {
         Outcome::Cancelled
@@ -5882,6 +5983,159 @@ mod dispatcher_tests {
         server.await.unwrap();
         finish_harness_wire(dispatcher, &log_path, &requests);
         let _ = std::fs::remove_dir_all(&store_dir);
+    }
+
+    /// The apply parent (tracer step 7): a plan's action set executed
+    /// exactly — one child per admitted tuple, no send of its own, no
+    /// expansion — with the children's responses recorded through the
+    /// store like any other fetch.
+    #[tokio::test]
+    async fn apply_fans_out_exactly_its_tuples_and_records_through_the_store() {
+        let base = mockggg::start().await.unwrap();
+        let clock = Arc::new(ManualClock::new());
+        let (mut daemon, log_path) = test_daemon(&base, clock);
+        let store_dir = std::env::temp_dir().join(format!(
+            "acq-apply-{}-{}",
+            std::process::id(),
+            TEST_LOG_ID.fetch_add(1, Ordering::Relaxed)
+        ));
+        let _ = std::fs::remove_dir_all(&store_dir);
+        Arc::get_mut(&mut daemon).expect("fresh daemon").store_dir = Some(store_dir.clone());
+        {
+            let mut s = daemon.shared.lock().unwrap();
+            s.auth.rename("", "Alice#1234");
+            let session = s.auth.one_mut();
+            session.username = Some("Alice#1234".into());
+            session.access_token = Some("at-test.Alice#1234".into());
+            session.access_expires_at = Some(daemon.choke.wall() + Duration::from_secs(3600));
+        }
+        let dispatcher = tokio::spawn(daemon.clone().dispatcher());
+        let id = daemon
+            .submit(
+                "apply".into(),
+                json!({ "jobs": [
+                    { "kind": "stashes", "params": { "league": "Standard" } },
+                    { "kind": "stash", "params": { "league": "Standard", "id": "dump", "deep": false } },
+                ] }),
+                0,
+                "test".into(),
+                Some("Alice#1234".into()),
+            )
+            .unwrap();
+        let (info, outcome) = wait_terminal(&daemon, id).await;
+        let Outcome::Success { payload } = outcome else {
+            panic!("apply failed: {outcome:?}")
+        };
+        assert_eq!(info.state, JobState::Done);
+        assert_eq!(payload["requests"], json!(2));
+        assert_eq!(payload["child_jobs"].as_array().unwrap().len(), 2);
+        assert_eq!(payload["children"]["done"], json!(2));
+        // Exactly the tuples became children — nothing more (the probes
+        // the routes needed are daemon jobs, not children of the apply).
+        let children: Vec<(String, Option<String>)> = {
+            let s = daemon.shared.lock().unwrap();
+            s.jobs
+                .values()
+                .filter(|e| e.info.parent == Some(id))
+                .map(|e| (e.info.kind.clone(), e.info.account.clone()))
+                .collect()
+        };
+        let kinds: Vec<&str> = {
+            let mut k: Vec<&str> = children.iter().map(|(k, _)| k.as_str()).collect();
+            k.sort_unstable();
+            k
+        };
+        assert_eq!(kinds, ["stash", "stashes"]);
+        // Children run as the parent's account, and their responses landed
+        // in that account's store file.
+        assert!(
+            children
+                .iter()
+                .all(|(_, a)| a.as_deref() == Some("Alice#1234"))
+        );
+        let store = Store::open(&account_path(&store_dir, "Alice#1234")).unwrap();
+        assert_eq!(store.status().unwrap().responses, 2);
+        drop(store);
+        finish_harness(dispatcher, &log_path);
+        let _ = std::fs::remove_dir_all(&store_dir);
+    }
+
+    /// Apply's admission (CONTEXT.md, decided 2026-09-01): vocabulary and
+    /// budget are checked at submit, before a job id exists, so a refusal
+    /// admits nothing — never a partial fan-out, and ids never advance.
+    #[tokio::test]
+    async fn apply_admission_refuses_bad_vocabulary_and_blown_budgets_whole() {
+        let clock = Arc::new(ManualClock::new());
+        let (daemon, log_path) = test_daemon("http://127.0.0.1:9", clock);
+        let ok_jobs = json!([
+            { "kind": "stashes", "params": { "league": "Standard" } },
+            { "kind": "stash", "params": { "league": "Standard", "id": "t1", "deep": false } },
+        ]);
+        let refusals: Vec<(Value, &str)> = vec![
+            // The tuple list itself is required and non-empty.
+            (json!({}), "needs a `jobs` array"),
+            (json!({ "jobs": [] }), "empty"),
+            // Only single-request kinds: a nested parent (refresh, apply)
+            // or any other kind would expand or sidestep the reviewed set.
+            (
+                json!({ "jobs": [{ "kind": "refresh", "params": { "all": true } }] }),
+                "not in the plan vocabulary",
+            ),
+            (
+                json!({ "jobs": [{ "kind": "apply", "params": { "jobs": [] } }] }),
+                "not in the plan vocabulary",
+            ),
+            (
+                json!({ "jobs": [{ "kind": "sleep", "params": {} }] }),
+                "not in the plan vocabulary",
+            ),
+            // A stash fetch that fans out expands the set; one without an
+            // id could not have come from a plan.
+            (
+                json!({ "jobs": [{ "kind": "stash", "params": { "league": "Standard", "id": "m1", "deep": true } }] }),
+                "never fans out",
+            ),
+            (
+                json!({ "jobs": [{ "kind": "stash", "params": { "league": "Standard" } }] }),
+                "needs an id",
+            ),
+            // The budget: a bound under the tuple count refuses; a misread
+            // bound refuses too, never "the limit was ignored".
+            (
+                json!({ "jobs": ok_jobs.clone(), "max_requests": 1 }),
+                "exceeds the budget",
+            ),
+            (
+                json!({ "jobs": ok_jobs.clone(), "max_requests": "ten" }),
+                "non-negative integer",
+            ),
+        ];
+        for (params, expected) in refusals {
+            let err = daemon
+                .submit("apply".into(), params.clone(), 0, "test".into(), None)
+                .unwrap_err();
+            assert!(err.contains(expected), "{params}: {err}");
+            assert!(
+                daemon.shared.lock().unwrap().jobs.is_empty(),
+                "{params}: a refused apply must admit nothing"
+            );
+        }
+        // A budget the plan fits inside admits (no dispatcher runs here,
+        // so the job just sits waiting).
+        let id = daemon
+            .submit(
+                "apply".into(),
+                json!({ "jobs": ok_jobs, "max_requests": 2 }),
+                0,
+                "test".into(),
+                None,
+            )
+            .unwrap();
+        assert_eq!(
+            daemon.shared.lock().unwrap().jobs[&id].info.state,
+            JobState::Waiting
+        );
+        remove_harness_files(&log_path);
     }
 
     /// The route knowledge declared for `/profile` and `/account/leagues`

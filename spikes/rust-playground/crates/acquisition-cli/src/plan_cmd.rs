@@ -124,8 +124,8 @@ fn write_policy(
 /// `acq refresh --plan`: compile the stored sync policy into the explicit
 /// action set and print it, human or JSON. Nothing is submitted and
 /// nothing is sent; the JSON form is the serialized plan envelope itself
-/// (self-validating on parse), so it can be reviewed, stored, or handed to
-/// apply when step 7 lands.
+/// (self-validating on parse), so it can be reviewed, stored, or handed
+/// to `--apply`.
 pub async fn refresh_plan(league: &str, json: bool) -> Result<()> {
     let (dir, entry, annotations) = open_intent()?;
     let store = Store::open(&account_path(&dir, &entry.username))?;
@@ -152,6 +152,159 @@ pub async fn refresh_plan(league: &str, json: bool) -> Result<()> {
     }
     print_plan(&plan, quote_note.as_deref(), now);
     Ok(())
+}
+
+/// `acq refresh --apply`: execute a plan — exactly its actions, as one
+/// `apply` parent job the daemon admits or refuses whole (tracer step 7).
+/// With no source, the stored policy is compiled right now (the normal
+/// one-keyboard loop); a source is a reviewed plan envelope from
+/// `refresh --plan --json`, re-validated by the planner's own parse. The
+/// staleness gate runs before any daemon contact, and an empty plan never
+/// contacts one — there is nothing to spend.
+pub async fn refresh_apply(
+    league_flag: Option<&str>,
+    plan_source: Option<&str>,
+    max_requests: Option<u64>,
+    json: bool,
+) -> Result<()> {
+    let (dir, entry, annotations) = open_intent()?;
+    let provider = store_cmd::provider();
+    let plan = match plan_source {
+        Some(source) => {
+            let text = match source {
+                "-" => std::io::read_to_string(std::io::stdin())
+                    .context("reading the plan from stdin")?,
+                path => std::fs::read_to_string(path).with_context(|| format!("reading {path}"))?,
+            };
+            let value: Value = serde_json::from_str(&text).context(
+                "the plan must be JSON — the envelope `acq refresh --plan --json` prints",
+            )?;
+            RefreshPlan::from_value(&value)?
+        }
+        None => {
+            let league = league_flag.unwrap_or("Standard");
+            let store = Store::open(&account_path(&dir, &entry.username))?;
+            let snapshot = store.stash_snapshot(league, &annotations)?;
+            match plan_refresh(provider, &snapshot, acquisition_store::now()) {
+                Err(PlanError::NoSyncPolicy) => bail!(
+                    "no sync policy is set for {} — declare one first, e.g. \
+                     `acq policy set '{POLICY_EXAMPLE}'`",
+                    entry.username
+                ),
+                other => other?,
+            }
+        }
+    };
+    check_plan_applies(&plan, provider, &entry, league_flag, &annotations)?;
+    if plan.actions.is_empty() {
+        // A strict subset of zero actions is satisfied by doing nothing;
+        // no daemon is contacted for it.
+        if json {
+            println!(
+                "{}",
+                serde_json::json!({
+                    "applied": false,
+                    "requests": 0,
+                    "note": "nothing to do: everything the policy covers is fresh",
+                })
+            );
+        } else {
+            println!("nothing to do: everything the policy covers is fresh");
+        }
+        return Ok(());
+    }
+    let jobs: Vec<Value> = plan
+        .actions
+        .iter()
+        .map(|action| {
+            let (kind, params) = action.job();
+            serde_json::json!({ "kind": kind, "params": params })
+        })
+        .collect();
+    let mut params = serde_json::json!({ "jobs": jobs });
+    if let Some(max) = max_requests {
+        params["max_requests"] = serde_json::json!(max);
+    }
+    // Applying spends, so the interactive connect policy (lazy spawn
+    // included) is the right one here — unlike the quote path, which
+    // promises to spend nothing.
+    let mut client = crate::connect(true).await?;
+    let account = entry.username.clone();
+    let id = match client
+        .request(&Request::Submit {
+            kind: "apply".into(),
+            params,
+            priority: 0,
+            submitted_by: format!("cli:{}", std::process::id()),
+            account: Some(account),
+        })
+        .await?
+    {
+        Response::Submitted { id } => id,
+        Response::Error { message } => bail!("{message}"),
+        other => bail!("unexpected response: {other:?}"),
+    };
+    if !json {
+        println!(
+            "applying plan: {} request(s) as job {id}",
+            plan.logical_requests
+        );
+    }
+    crate::block_on_job(&mut client, id, json).await
+}
+
+/// The step-7 staleness gate (CONTEXT.md, decided 2026-09-01): a plan is
+/// spent only while the intent it derives from still stands, and only on
+/// the identity it names. The daemon is intent-blind, so this comparison
+/// can only happen here, against a fresh read of the policy row. A
+/// concurrent policy write between this read and the submit is the
+/// accepted human-boundary race (the same register as `policy set`
+/// without `--if-revision`); fact drift deliberately does not refuse —
+/// the authorization is the bounded action set, and the next plan
+/// reconciles.
+fn check_plan_applies(
+    plan: &RefreshPlan,
+    provider: &str,
+    entry: &AccountEntry,
+    league_flag: Option<&str>,
+    annotations: &Annotations,
+) -> Result<()> {
+    if plan.provider != provider {
+        bail!(
+            "the plan is for provider {:?}, but this command runs against {provider:?}",
+            plan.provider
+        );
+    }
+    if entry.uuid.as_deref() != Some(plan.account_uuid.as_str()) {
+        bail!(
+            "the plan is for account uuid {}, but {} is {} — replan as the right account",
+            plan.account_uuid,
+            entry.username,
+            entry.uuid.as_deref().unwrap_or("unmapped")
+        );
+    }
+    if let Some(league) = league_flag
+        && league != plan.league
+    {
+        bail!(
+            "--league {league} conflicts with the plan's league {:?}",
+            plan.league
+        );
+    }
+    match annotations.get(SCOPE, KEY, SYNC_POLICY_KIND)? {
+        None => bail!(
+            "the sync policy is gone (the plan cites revision {}); declare one and replan \
+             with `acq refresh --plan`",
+            plan.basis.policy_revision
+        ),
+        Some(row) if row.revision != plan.basis.policy_revision => bail!(
+            "the sync policy moved: the plan cites revision {}, but revision {} is stored — \
+             review and replan with `acq refresh --plan`",
+            plan.basis.policy_revision,
+            row.revision
+        ),
+        Some(_) => Ok(()),
+    }
 }
 
 /// The quote attempt is bounded: the plan in hand is the deliverable, and
@@ -535,6 +688,50 @@ mod tests {
             }),
         };
         plan_refresh("mock", &snapshot, 2_000).unwrap()
+    }
+
+    #[test]
+    fn the_staleness_gate_refuses_moved_intent_and_wrong_identity() {
+        let plan = tiny_plan();
+        assert_eq!(plan.basis.policy_revision, 1);
+        let entry = AccountEntry {
+            username: "Alice#1234".into(),
+            last_login: 0,
+            persisted: true,
+            uuid: Some("u-cli".into()),
+        };
+        let mut a = annotations();
+        // Intent deleted since the plan: refused, citing the revision the
+        // plan derived from.
+        let err = check_plan_applies(&plan, "mock", &entry, None, &a).unwrap_err();
+        assert!(err.to_string().contains("gone"), "{err}");
+        // Intent standing at the plan's revision: applies — and an
+        // explicit --league that agrees is fine.
+        write_policy(&mut a, &example(), None).unwrap();
+        check_plan_applies(&plan, "mock", &entry, None, &a).unwrap();
+        check_plan_applies(&plan, "mock", &entry, Some("Standard"), &a).unwrap();
+        let err = check_plan_applies(&plan, "mock", &entry, Some("Hardcore"), &a).unwrap_err();
+        assert!(err.to_string().contains("Standard"), "{err}");
+        // Intent moved since the plan (the step-7 ruling): refused with
+        // both revisions named, remedy = replan.
+        write_policy(&mut a, &example(), None).unwrap();
+        let err = check_plan_applies(&plan, "mock", &entry, None, &a).unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("revision 1") && msg.contains("revision 2"),
+            "{msg}"
+        );
+        assert!(msg.contains("replan"), "{msg}");
+        // A plan for another identity is never spent here: wrong uuid,
+        // wrong provider.
+        let other = AccountEntry {
+            uuid: Some("u-other".into()),
+            ..entry.clone()
+        };
+        let err = check_plan_applies(&plan, "mock", &other, None, &a).unwrap_err();
+        assert!(err.to_string().contains("u-cli"), "{err}");
+        let err = check_plan_applies(&plan, "ggg", &entry, None, &a).unwrap_err();
+        assert!(err.to_string().contains("mock"), "{err}");
     }
 
     #[tokio::test]

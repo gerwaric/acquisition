@@ -110,8 +110,24 @@ enum Cmd {
         /// the serializable plan envelope.
         #[arg(long, conflicts_with_all = ["all", "tabs", "deep"])]
         plan: bool,
-        #[arg(long, default_value = "Standard")]
-        league: String,
+        /// Execute the plan: exactly its actions, as one `apply` parent
+        /// job that never expands the set. Bare `--apply` compiles the
+        /// stored policy now; `--apply=FILE` (or `--apply=-` for stdin)
+        /// reads a reviewed plan envelope from `refresh --plan --json`.
+        /// Refused if the stored policy revision no longer matches the
+        /// plan's.
+        #[arg(long, value_name = "FILE", num_args = 0..=1, require_equals = true,
+              default_missing_value = "", conflicts_with_all = ["all", "tabs", "deep", "plan"])]
+        apply: Option<String>,
+        /// Refuse the apply before anything runs if the plan authorizes
+        /// more than this many requests (checked by the daemon at
+        /// admission, before any child job exists).
+        #[arg(long, requires = "apply")]
+        max_requests: Option<u64>,
+        /// Defaults to Standard. With `--apply=FILE`, the plan's own
+        /// league governs; giving --league too asserts they agree.
+        #[arg(long)]
+        league: Option<String>,
     },
     /// The per-account sync policy: the declared coverage and freshness
     /// that `acq refresh --plan` compiles into requests.
@@ -119,7 +135,7 @@ enum Cmd {
         #[command(subcommand)]
         cmd: Option<PolicyCmd>,
     },
-    /// Submit a job (kinds: sleep, fetch, whoami, profile, characters, character, leagues, stashes, stash, refresh).
+    /// Submit a job (kinds: sleep, fetch, whoami, profile, characters, character, leagues, stashes, stash, refresh, apply).
     Submit {
         kind: String,
         /// JSON params, e.g. '{"seconds": 5}'.
@@ -387,14 +403,30 @@ async fn run(cli: Cli) -> Result<()> {
             tabs,
             deep,
             plan,
+            apply,
+            max_requests,
             league,
         } => {
             if plan {
-                return plan_cmd::refresh_plan(&league, cli.json).await;
+                return plan_cmd::refresh_plan(league.as_deref().unwrap_or("Standard"), cli.json)
+                    .await;
+            }
+            if let Some(source) = apply {
+                // Bare `--apply` (clap's empty default_missing_value)
+                // means "compile the stored policy now and run that".
+                let source = (!source.is_empty()).then_some(source);
+                return plan_cmd::refresh_apply(
+                    league.as_deref(),
+                    source.as_deref(),
+                    max_requests,
+                    cli.json,
+                )
+                .await;
             }
             if !all && tabs.is_empty() {
-                bail!("refresh needs --all, --tabs <id,...>, or --plan");
+                bail!("refresh needs --all, --tabs <id,...>, --plan, or --apply");
             }
+            let league = league.as_deref().unwrap_or("Standard");
             let mut client = connect(true).await?;
             let id = submit(
                 &mut client,
@@ -797,7 +829,7 @@ async fn list(client: &mut Client) -> Result<Vec<JobInfo>> {
 
 /// Default CLI mode: block with progress until the job finishes, then print
 /// its result. This is where "rate limited, retrying in 4m37s..." UX lives.
-async fn block_on_job(client: &mut Client, id: u64, json: bool) -> Result<()> {
+pub(crate) async fn block_on_job(client: &mut Client, id: u64, json: bool) -> Result<()> {
     let mut last = String::new();
     loop {
         let job = client.status(id).await?;
@@ -932,5 +964,36 @@ mod tests {
         assert!(Cli::try_parse_from(["acq", "refresh", "--plan"]).is_ok());
         assert!(Cli::try_parse_from(["acq", "refresh", "--plan", "--league", "Hardcore"]).is_ok());
         assert!(Cli::try_parse_from(["acq", "policy", "set", "{}", "--if-revision", "4"]).is_ok());
+    }
+
+    #[test]
+    fn refresh_apply_conflicts_with_every_other_mode_and_owns_max_requests() {
+        // `--apply` executes a plan; the ad-hoc selectors and `--plan`
+        // are different modes, and `--max-requests` is meaningless
+        // without an apply to budget.
+        for bad in [
+            vec!["acq", "refresh", "--apply", "--all"],
+            vec!["acq", "refresh", "--apply", "--tabs", "a,b"],
+            vec!["acq", "refresh", "--apply", "--deep"],
+            vec!["acq", "refresh", "--apply", "--plan"],
+            vec!["acq", "refresh", "--max-requests", "5"],
+        ] {
+            assert!(Cli::try_parse_from(&bad).is_err(), "{bad:?} must not parse");
+        }
+        assert!(Cli::try_parse_from(["acq", "refresh", "--apply"]).is_ok());
+        assert!(Cli::try_parse_from(["acq", "refresh", "--apply=plan.json"]).is_ok());
+        assert!(Cli::try_parse_from(["acq", "refresh", "--apply=-"]).is_ok());
+        assert!(Cli::try_parse_from(["acq", "refresh", "--apply", "--max-requests", "5"]).is_ok());
+        // The optional value takes `=` only, so a following flag can never
+        // be swallowed as the FILE.
+        let cli = Cli::try_parse_from(["acq", "refresh", "--apply", "--json"]).unwrap();
+        match cli.cmd {
+            Cmd::Refresh { apply, .. } => assert_eq!(apply.as_deref(), Some("")),
+            other => panic!("parsed into the wrong command: {}", other_name(&other)),
+        }
+    }
+
+    fn other_name(_: &Cmd) -> &'static str {
+        "not refresh"
     }
 }

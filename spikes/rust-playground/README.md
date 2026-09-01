@@ -183,7 +183,19 @@ bounded by `MAX_429_RETRIES`; a Cloudflare-shaped 403/503 is never retried.
   `acq refresh --plan` (tracer step 6): compiles the stored policy via
   `acquisition-plan` into a `RefreshPlan`, offline, spending nothing; a
   *running* daemon enriches it with its quote (never spawned for this),
-  and `--json` emits the plan envelope verbatim. The protocol client (connect, lazy spawn, version
+  and `--json` emits the plan envelope verbatim. `acq refresh --apply`
+  (tracer step 7) executes a plan — compiled fresh, or a reviewed
+  envelope from `--plan --json` re-validated by the planner's parse:
+  the staleness gate (the stored policy revision must still be the
+  plan's — CONTEXT.md's step-7 ruling) runs offline before any daemon
+  contact, an empty plan applies as a no-op with no daemon at all, and
+  the actions go out as one `apply` parent job — a pure fan-out the
+  daemon admits or refuses whole at submit (single-request vocabulary
+  only, plus the `--max-requests` logical budget), executing exactly
+  the reviewed tuples and never expanding them; newly discovered tabs
+  wait for the next plan, and the plan→apply→replan loop is pinned at
+  process level (`tests/apply_loop.rs`) to close in two reconciliation
+  cycles. The protocol client (connect, lazy spawn, version
   handshake) lives in `acquisition-core/src/client.rs` and is shared by
   every frontend; the frontends differ only in connect *policy*
   (`ConnectOptions`). `acq pull` (client-side snapshot + diff, 2026-08-24)
@@ -230,6 +242,12 @@ acq policy set '<json>' [--if-revision N]    # validated through the planner's s
 acq refresh --plan                           # compile policy + facts into the explicit action set — sends nothing;
                                              #  a running daemon adds its read-only quote (never spawned for this),
                                              #  and --json prints the serialized plan envelope itself
+acq refresh --apply[=plan.json]              # execute the plan: exactly its actions, as one `apply` parent job
+                                             #  (bare --apply compiles the stored policy now; =FILE applies a
+                                             #  reviewed envelope, =- reads stdin). Refused before any daemon
+                                             #  contact if the stored policy revision moved since the plan;
+                                             #  --max-requests N makes the daemon refuse at admission if the
+                                             #  plan authorizes more, before any child job exists
 acq cancel <parent-id>                       # cascades to every descendant still waiting
 acq accounts                                 # accounts this machine has logged into, from the store's index (no daemon)
 acq tabs [--league L]                        # from the shared store: tab tree with live item counts (no daemon)
@@ -383,14 +401,6 @@ regression (N20) so the degraded path can be exercised.
 
 ## Known gaps
 
-- **Refresh's delta/selection smarts exist but are not yet applied.**
-  `acq refresh --plan` computes the minimal action set from the sync
-  policy, per-tab freshness, and the `metadata.items` heuristic — but
-  until apply lands (tracer step 7), executing a refresh still means
-  `--all`, which fetches every listed tab every time. A refresh that
-  loses tabs (a 503, a rails halt) leaves those tabs' rows at their
-  previous state; the next `--plan` names exactly the stale set, but
-  nothing yet refetches it as a bounded apply.
 - **Two endpoints carry declared route knowledge** (`/profile`
   policyless, `/account/leagues` no-probe). GGG answered Q12
   (2026-08-30): `/profile` is not rate limited at present — its

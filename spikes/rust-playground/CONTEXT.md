@@ -59,6 +59,8 @@ Short one-liners with rationale, optimized for agents to reason from. Kept curre
 - **`quote` is its own protocol request: a read-only, non-reserving projection over current daemon knowledge** — observation time, basis, per-policy/per-scope estimates, and unknown prerequisites; applying may receive a different schedule (`eta_for` is "an estimate, not a promise"). Headroom is per policy/window and scope, never one scalar. Never a flag on `Submit`, whose contract is loaded with id/persistence/rollback semantics. Decided 2026-08-31.
 - **Reads observe, assertions plan, apply spends.** Store reads never initiate network traffic, and stale facts stay readable with freshness/completeness metadata; only a caller-asserted freshness condition fails — a stable structured error carrying the exact `RefreshPlan` it would take — and explicit frontend orchestration (refresh → await → read) is workflow, not a fused read. Plans-as-remedies are a store-side idiom only: the daemon cannot compute plans and its errors keep their shapes. Decided 2026-08-31.
 - **v1 request budget is logical work, enforced at admission: the daemon refuses a plan before any child submission if its logical bound exceeds `max_requests`.** Mid-fan-out terminalization is never the normal path. An actual-wire-send budget (a causal operation id through probes, OAuth, retries) is a separate, deferred feature. The live-test rails are not promoted wholesale: the tripwire and lifetime ceiling stay what `LIVE-TESTING.md` says they are; product budget *visibility* is the quote + the journal. Decided 2026-08-31.
+- **Apply is its own pure fan-out parent job kind (`apply`), never the `refresh` parent.** The refresh parent re-lists by construction — it fans out from the listing it just fetched — which contradicts "executes exactly the listed actions": a plan's listing is an optional action and its fetches derive from reviewed facts. So `apply`'s params carry the plan's actions as explicit `(kind, params)` child tuples; the parent performs no send of its own, submits exactly one child per tuple, and holds for them. "Never expands" is structural, not disciplinary: the daemon stays plan-blind (it cannot link the store or plan crates), so what it admits is **vocabulary, not meaning** — only single-request kinds (`stashes`, or `stash` with `deep` false), each of which submits no children. Admission is at submit, before a job id exists: a malformed tuple list, an empty one, or a logical bound over the caller's `max_requests` refuses the submit whole — the mid-fan-out terminalization path is never the budget's normal mechanism (D8). Plan validation, the staleness check, and rendering actions to tuples are the frontend's (`acq refresh --apply`, through the planner's validating parse). The ad-hoc `refresh` kind (`--all`/`--tabs`) stays untouched as the explicit client-stated-selection surface; whether it retires rides on step 9's friction notes. Decided 2026-09-01.
+- **Step 7's staleness ruling: apply refuses a plan whose sync-policy revision is no longer the stored one.** A plan is authorization *derived from intent at a revision*; intent edited since revokes the derivation — the CAS reasoning extended from writing intent to spending it, and the refusal is cheap because replanning is offline and free. Checked frontend-side against a fresh read of the policy row immediately before submit (the daemon is intent-blind by the four-layer decision, so only a frontend can compare); a missing row, a different revision, a mismatched account uuid, or a mismatched provider each refuse with the remedy named. Two accepted residuals: the check races a concurrent policy write between read and submit (the same human-boundary register as `policy set` without `--if-revision`), and **fact drift does not refuse** — the authorization is the bounded action set, not a world-state assertion; the actions stay idempotent GETs of exactly the reviewed tuples (a since-vanished tab's fetch fails its own child honestly) and the next plan reconciles what a newer listing changed. Decided 2026-09-01.
 - **The effects ledger is frontend-readable through a read-only facade in the store crate** — not the open `JobDb`; write methods stay out of the frontend surface. An offline orientation distinguishes "daemon offline, zero sends in flight" from persisted waiting or recorded-running work; "daemon offline" never collapses into "no outstanding work". Decided 2026-08-31.
 - **Shared semantics live in Rust; every frontend has a Rust adapter** (clap CLI, `rmcp` MCP, Tauri backend — the webview is presentation, never a second implementation — `dash` TUI). A proposed non-Rust frontend is a design event, recorded here first. Rationale: this premise is what makes "built once, inherited by every frontend" true; unstated premises erode silently. Decided 2026-08-31.
 - **Panics are for broken internal invariants only; malformed external input — a GGG body, a store row, a protocol message — is a structured error with stable kinds and context.** The store crate enforces this mechanically (`clippy::unwrap_used`/`expect_used`; its production code is at zero); not workspace-wide — the daemon's `.lock().unwrap()` poisoning idiom and checked-invariant `.expect`s are the correct register. Rationale: the persisted queue makes crashes recoverable, which turns a *reproducible* panic on bad input into a crash loop — the one failure persistence cannot absorb. Decided 2026-08-31.
@@ -162,7 +164,7 @@ and store; (2) `account` on jobs, validated against the sole session;
 rule, uuid recorded opportunistically (superseded 2026-08-31: uuid is now
 required at login — identity bullet above).
 
-### Annotations & plans — the refresh tracer (decided 2026-08-31; steps 1–6 built, step 7 next)
+### Annotations & plans — the refresh tracer (decided 2026-08-31; steps 1–7 built, step 8 next)
 
 The one slice built next: refresh-with-`plan`, the smallest slice that
 touches all four layers (policy = intent, plan = derivation, apply =
@@ -196,6 +198,17 @@ Built, each step gate-green and owner-reviewed:
    `--json` stdout contract is pinned at the process level in
    `acquisition-cli/tests/plan_json.rs` — step 7's apply consumes that
    envelope).
+7. Apply (2026-09-01; the two `apply` decision lines above — the
+   fan-out parent and the staleness ruling). `acq refresh
+   --apply[=FILE]` runs the offline gates (planner's validating parse,
+   identity, policy revision), then submits the actions as one `apply`
+   parent the daemon admits or refuses whole at submit (vocabulary +
+   `max_requests`); an empty plan is a no-op with no daemon contact.
+   The loop is pinned at process level: `acquisition-cli/tests/
+   apply_loop.rs` closes plan→apply→replan against a real daemon over
+   the mock in two reconciliation cycles, and `tests/plan_json.rs`
+   pins the offline gates (stale revision refused before any daemon;
+   tampered envelope refused by the parse; empty plan spends nothing).
 
 Accepted residuals, recorded so they need no re-litigating:
 
@@ -209,14 +222,6 @@ Accepted residuals, recorded so they need no re-litigating:
 
 Still to build:
 
-7. Apply: the exact action set through a parent that never expands it —
-   the existing refresh parent re-lists, so it is constrained or
-   replaced, recorded here first — with admission-time logical budget,
-   and an explicit staleness ruling: annotation CAS guards policy
-   *writes*, not plan application, so whether apply refuses a plan
-   whose annotation revision is no longer current is its own check,
-   decided and recorded at this step (the snapshot carries the revision
-   so the comparison is possible).
 8. MCP exposure in mock mode (real-mode `quote` is the open topic
    above).
 9. Owner live rung under `LIVE-TESTING.md`'s standing rule, friction

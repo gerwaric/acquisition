@@ -172,5 +172,81 @@ fn json_stdout_is_the_contract_surface() {
     let stderr = String::from_utf8(out.stderr).unwrap();
     assert!(stderr.contains("no quote"), "{stderr}");
 
+    // ---- the apply gates that run before any daemon contact ----
+    // (ACQ_NO_SPAWN=1 stands for the whole test, so any path that reached
+    // the daemon would fail with its distinct "forbids starting" error —
+    // the assertions below prove each gate fires first.)
+
+    // The step-7 staleness ruling, end to end: the reviewed envelope cites
+    // revision 1; a policy write moves intent to revision 2; applying the
+    // stale plan is a structured refusal naming both revisions.
+    let stale_plan = base.join("stale-plan.json");
+    std::fs::write(&stale_plan, serde_json::to_vec(&envelope).unwrap()).unwrap();
+    let out = acq(&base, &["policy", "set", policy, "--json"]);
+    assert!(out.status.success(), "{out:?}");
+    assert_eq!(sole_json(&out)["revision"], json!(2));
+    let apply_arg = format!("--apply={}", stale_plan.display());
+    let out = acq(&base, &["refresh", &apply_arg, "--json"]);
+    assert_eq!(out.status.code(), Some(1), "{out:?}");
+    let err = sole_json(&out);
+    let msg = err["error"].as_str().unwrap();
+    assert!(
+        msg.contains("revision 1") && msg.contains("revision 2") && msg.contains("replan"),
+        "{msg}"
+    );
+
+    // A plan at the current revision passes the gate — and then needs the
+    // daemon, which this harness forbids: the refusal is the connect
+    // policy's, proving apply spends only through a daemon.
+    let out = acq(&base, &["refresh", "--apply", "--json"]);
+    assert_eq!(out.status.code(), Some(1), "{out:?}");
+    let msg = sole_json(&out);
+    let msg = msg["error"].as_str().unwrap();
+    assert!(msg.contains("ACQ_NO_SPAWN"), "{msg}");
+
+    // A tampered envelope never reaches the daemon either: the planner's
+    // validating parse refuses it whole (forged counts are exactly what
+    // admission budgeting must not trust).
+    let mut forged: Value = envelope.clone();
+    forged["logical_requests"] = json!(0);
+    let forged_path = base.join("forged-plan.json");
+    std::fs::write(&forged_path, serde_json::to_vec(&forged).unwrap()).unwrap();
+    let apply_arg = format!("--apply={}", forged_path.display());
+    let out = acq(&base, &["refresh", &apply_arg, "--json"]);
+    assert_eq!(out.status.code(), Some(1), "{out:?}");
+    let err = sole_json(&out);
+    assert!(
+        err["error"].as_str().unwrap().contains("malformed"),
+        "{err}"
+    );
+
+    // An empty plan applies as a no-op without any daemon at all: fetch
+    // the one tab through the store crate (as the daemon would record it),
+    // and the compiled plan has nothing to do.
+    let mock = base.join("mock");
+    let mut store = Store::open(&account_path(&mock, USER)).unwrap();
+    store
+        .record(
+            &Endpoint::Stash {
+                league: "Standard".into(),
+                id: "t1".into(),
+                sub: None,
+            },
+            &json!({ "league": "Standard", "id": "t1", "deep": false }),
+            200,
+            &json!({ "stash": { "id": "t1", "name": "One", "type": "PremiumStash", "items": [] } }),
+            acquisition_store::now(),
+        )
+        .unwrap();
+    drop(store);
+    let out = acq(&base, &["refresh", "--apply", "--json"]);
+    assert!(out.status.success(), "{out:?}");
+    let done = sole_json(&out);
+    assert_eq!(done["requests"], json!(0));
+    assert!(
+        done["note"].as_str().unwrap().contains("nothing to do"),
+        "{done}"
+    );
+
     let _ = std::fs::remove_dir_all(&base);
 }

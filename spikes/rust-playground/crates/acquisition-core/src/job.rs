@@ -101,6 +101,10 @@ pub fn target_of(kind: &str, p: &Value) -> String {
                     )
                 }
             }
+            "apply" => format!(
+                "plan ({} requests)",
+                p.get("jobs").and_then(Value::as_array).map_or(0, Vec::len)
+            ),
             "probe" => s("route").unwrap_or("").to_string(),
             _ => String::new(),
         }
