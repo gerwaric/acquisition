@@ -205,12 +205,25 @@ bounded by `MAX_429_RETRIES`; a Cloudflare-shaped 403/503 is never retried.
 - `crates/acquisition-mcp` — the `acq-mcp` binary: an MCP server over
   stdio (official `rmcp` SDK), the fourth thin client. Store-read tools
   (`accounts`, `characters`, `tabs`, `search_items`, `get_item`,
-  `store_status`, `item_events` — no daemon, no network) plus job tools (`submit_job`,
-  `list_jobs`, `job_status`, `job_result`, `cancel_job`, `daemon_status`).
+  `store_status`, `item_events` — no daemon, no network), job tools (`submit_job`,
+  `list_jobs`, `job_status`, `job_result`, `cancel_job`, `daemon_status`),
+  and the plan slice (tracer step 8): `sync_policy` / `set_sync_policy`
+  (the intent annotation — local, sends nothing, allowed in either mode;
+  replacing an existing policy must name the revision it replaces, so an
+  agent never clobbers intent it has not read), `refresh_plan` (the
+  offline compile, quote-enriched by a *running* mock daemon — in ggg
+  mode no connection is attempted, an open owner call in CONTEXT.md),
+  and `apply_plan` (the reviewed envelope as one `apply` parent, the
+  staleness gate run before any daemon contact; returns the job id to
+  poll). The slice shares its semantics with the CLI through
+  `acquisition-plan` (validate-then-CAS policy writes, the validating
+  parse, `check_spendable`, `apply_params`), and the whole loop is
+  pinned at process level in `tests/plan_loop.rs`.
   It **never kills or replaces a daemon** (a mismatch may be a human's
   live GGG run — it reports and stops), lazy-spawns only in mock mode,
-  and **refuses `submit_job` in real-GGG mode** until the agent-traffic
-  deferral lifts (CONTEXT.md). Login is human, via `acq auth`.
+  and **refuses `submit_job` and `apply_plan` in real-GGG mode** until
+  the agent-traffic deferral lifts (CONTEXT.md). Login is human, via
+  `acq auth`.
 
 ## Try it
 

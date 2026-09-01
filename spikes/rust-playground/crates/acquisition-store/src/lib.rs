@@ -238,7 +238,9 @@ pub use annotations::{AnnotationError, AnnotationRow, Annotations, annotations_p
 pub use index::{
     AccountEntry, Index, Resolve, account_matches, account_path, index_path, store_dir,
 };
-pub use snapshot::{ListingBasis, SYNC_POLICY_KIND, StashSnapshot, TabSnapshot};
+pub use snapshot::{
+    ListingBasis, SYNC_POLICY_KEY, SYNC_POLICY_KIND, SYNC_POLICY_SCOPE, StashSnapshot, TabSnapshot,
+};
 
 /// Listing order shared by [`Store::tabs`] and [`Store::stash_snapshot`]:
 /// folder children after their folder, substashes after their tab.

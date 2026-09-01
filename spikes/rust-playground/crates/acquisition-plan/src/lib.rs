@@ -35,7 +35,10 @@ use serde_json::{Value, json};
 
 use acquisition_core::daemon::MAX_429_RETRIES;
 use acquisition_core::protocol::Quote;
-use acquisition_store::{ListingBasis, StashSnapshot, TabSnapshot};
+use acquisition_store::{
+    AnnotationError, AnnotationRow, Annotations, ListingBasis, SYNC_POLICY_KEY, SYNC_POLICY_KIND,
+    SYNC_POLICY_SCOPE, StashSnapshot, TabSnapshot,
+};
 
 /// The plan envelope schema this build writes ([`RefreshPlan::plan_schema`]).
 /// A consumer handed a plan stamped newer refuses it rather than guessing.
@@ -227,6 +230,56 @@ impl SyncPolicy {
             detail: e.to_string(),
         })
     }
+}
+
+/// Why a sync-policy write was refused: the value is not a policy this
+/// build compiles, or the store's compare-and-swap (or the store itself)
+/// refused the put. Split so a caller can render a CAS conflict — which
+/// carries the current row to re-read — differently from a typo.
+#[derive(Debug)]
+pub enum PutPolicyError {
+    Invalid(PlanError),
+    Store(AnnotationError),
+}
+
+impl std::fmt::Display for PutPolicyError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            PutPolicyError::Invalid(e) => write!(f, "{e}"),
+            PutPolicyError::Store(e) => write!(f, "{e}"),
+        }
+    }
+}
+
+impl std::error::Error for PutPolicyError {}
+
+/// Write the sync policy, validated first — the one shared write path for
+/// every frontend's policy surface. Validation precedes the put on
+/// purpose: the policy is intent, and the planner refuses a typo'd or
+/// newer-versioned value on every parse — storing one anyway would just
+/// move that error to plan time, with the typo now on disk.
+///
+/// `expected_revision` is the store's compare-and-swap, verbatim:
+/// `Some(r)` replaces exactly the revision the caller reviewed, `None`
+/// creates (refused if a policy exists). A frontend that wants a softer
+/// default (the CLI's "replace whatever is stored") reads the current
+/// revision itself and passes it here — the blind form is a frontend
+/// policy, not this function's.
+pub fn put_sync_policy(
+    annotations: &mut Annotations,
+    value: &Value,
+    expected_revision: Option<i64>,
+) -> Result<AnnotationRow, PutPolicyError> {
+    SyncPolicy::from_value(value).map_err(PutPolicyError::Invalid)?;
+    annotations
+        .put(
+            SYNC_POLICY_SCOPE,
+            SYNC_POLICY_KEY,
+            SYNC_POLICY_KIND,
+            value,
+            expected_revision,
+        )
+        .map_err(PutPolicyError::Store)
 }
 
 /// Why the plan re-lists the league.
@@ -525,6 +578,136 @@ impl RefreshPlan {
         .map_err(|detail| PlanError::MalformedPlan { detail })?;
         self.quote = Some(quote);
         Ok(self)
+    }
+}
+
+/// Why a plan must not be spent — the step-7 staleness/identity gate
+/// (CONTEXT.md, decided 2026-09-01), shared by every frontend's apply
+/// surface. A plan is authorization *derived from intent at a revision*;
+/// intent edited since revokes the derivation, and a plan for another
+/// identity is never spent here. Fact drift deliberately does not refuse:
+/// the authorization is the bounded action set, not a world-state
+/// assertion, and the next plan reconciles.
+#[derive(Debug)]
+pub enum SpendError {
+    /// The plan names a different provider than this frontend runs against.
+    WrongProvider { plan: String, running: String },
+    /// The plan names a different account uuid than the selected account
+    /// (`None`: the selected account has no recorded uuid at all).
+    WrongAccount {
+        plan_uuid: String,
+        selected_uuid: Option<String>,
+    },
+    /// The sync policy the plan derives from no longer exists.
+    PolicyGone { plan_revision: i64 },
+    /// The sync policy moved since the plan was compiled.
+    PolicyMoved {
+        plan_revision: i64,
+        stored_revision: i64,
+    },
+    /// The policy row could not be read — an error, never "no policy".
+    Annotations(AnnotationError),
+}
+
+impl std::fmt::Display for SpendError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SpendError::WrongProvider { plan, running } => write!(
+                f,
+                "the plan is for provider {plan:?}, but this frontend runs against {running:?}"
+            ),
+            SpendError::WrongAccount {
+                plan_uuid,
+                selected_uuid,
+            } => write!(
+                f,
+                "the plan is for account uuid {plan_uuid}, but the selected account is {} — \
+                 replan as the right account",
+                selected_uuid.as_deref().unwrap_or("unmapped")
+            ),
+            SpendError::PolicyGone { plan_revision } => write!(
+                f,
+                "the sync policy is gone (the plan cites revision {plan_revision}); \
+                 declare one and replan"
+            ),
+            SpendError::PolicyMoved {
+                plan_revision,
+                stored_revision,
+            } => write!(
+                f,
+                "the sync policy moved: the plan cites revision {plan_revision}, but revision \
+                 {stored_revision} is stored — review and replan"
+            ),
+            SpendError::Annotations(e) => write!(f, "{e}"),
+        }
+    }
+}
+
+impl std::error::Error for SpendError {}
+
+impl RefreshPlan {
+    /// The apply-time gate, run frontend-side immediately before submit
+    /// (the daemon is intent-blind, so only a frontend can compare):
+    /// this plan may be spent only against the provider it names, the
+    /// account uuid it was derived for, and the sync-policy revision it
+    /// cites — checked against a fresh read of the stored row. The check
+    /// races a concurrent policy write between read and submit; that is
+    /// the accepted human-boundary residual, same register as an
+    /// unconditional `policy set`.
+    pub fn check_spendable(
+        &self,
+        provider: &str,
+        selected_uuid: Option<&str>,
+        annotations: &Annotations,
+    ) -> Result<(), SpendError> {
+        if self.provider != provider {
+            return Err(SpendError::WrongProvider {
+                plan: self.provider.clone(),
+                running: provider.into(),
+            });
+        }
+        if selected_uuid != Some(self.account_uuid.as_str()) {
+            return Err(SpendError::WrongAccount {
+                plan_uuid: self.account_uuid.clone(),
+                selected_uuid: selected_uuid.map(String::from),
+            });
+        }
+        match annotations
+            .get(SYNC_POLICY_SCOPE, SYNC_POLICY_KEY, SYNC_POLICY_KIND)
+            .map_err(SpendError::Annotations)?
+        {
+            None => Err(SpendError::PolicyGone {
+                plan_revision: self.basis.policy_revision,
+            }),
+            Some(row) if row.revision != self.basis.policy_revision => {
+                Err(SpendError::PolicyMoved {
+                    plan_revision: self.basis.policy_revision,
+                    stored_revision: row.revision,
+                })
+            }
+            Some(_) => Ok(()),
+        }
+    }
+
+    /// The plan's actions rendered as the `apply` parent's params — the
+    /// explicit `(kind, params)` child tuples the daemon admits or
+    /// refuses whole at submit, plus the caller's logical budget. One
+    /// rendering for every frontend, so what apply submits cannot drift
+    /// from what the plan authorized.
+    pub fn apply_params(&self, max_requests: Option<u64>) -> Value {
+        let jobs: Vec<Value> = self
+            .actions
+            .iter()
+            .map(|action| {
+                let (kind, params) = action.job();
+                json!({ "kind": kind, "params": params })
+            })
+            .collect();
+        let mut params = json!({ "jobs": jobs });
+        if let Some(max) = max_requests {
+            params["max_requests"] = json!(max);
+        }
+        params
     }
 }
 
@@ -1642,5 +1825,86 @@ mod tests {
         stray["actions"][0]["league"] = json!("Hardcore");
         let err = RefreshPlan::from_value(&stray).unwrap_err();
         assert!(err.to_string().contains("Hardcore"), "{err}");
+    }
+
+    #[test]
+    fn put_sync_policy_validates_before_it_stores_and_is_a_cas() {
+        let mut a = Annotations::open_memory_for("u-1").unwrap();
+        // A typo'd value is refused by the strict parse and nothing lands:
+        // intent is never half-honored, on any frontend's write surface.
+        let typo = json!({
+            "version": 1,
+            "leagues": { "Standard": { "tabs": "all", "max_age_secs": 60 } }
+        });
+        let err = put_sync_policy(&mut a, &typo, None).unwrap_err();
+        assert!(matches!(err, PutPolicyError::Invalid(_)), "{err}");
+        assert!(a.get("account", "", SYNC_POLICY_KIND).unwrap().is_none());
+        // `None` creates; a second `None` over a live row is a conflict
+        // naming the current revision — a caller (an agent especially)
+        // never replaces intent it has not read.
+        let value = all_policy_value(3600);
+        let first = put_sync_policy(&mut a, &value, None).unwrap();
+        assert_eq!(first.revision, 1);
+        let err = put_sync_policy(&mut a, &value, None).unwrap_err();
+        assert!(matches!(err, PutPolicyError::Store(_)), "{err}");
+        assert!(err.to_string().contains("revision 1"), "{err}");
+        // Naming the reviewed revision replaces it; naming a stale one
+        // conflicts and the stored value is untouched.
+        let second = put_sync_policy(&mut a, &value, Some(1)).unwrap();
+        assert_eq!(second.revision, 2);
+        let err = put_sync_policy(&mut a, &all_policy_value(60), Some(1)).unwrap_err();
+        assert!(err.to_string().contains("revision 2"), "{err}");
+        let held = a.get("account", "", SYNC_POLICY_KIND).unwrap().unwrap();
+        assert_eq!(held.value, value);
+    }
+
+    #[test]
+    fn check_spendable_is_the_shared_staleness_and_identity_gate() {
+        // The plan derives from a rev-1 policy for account u-1 on mock.
+        let plan = plan(&store(), &all_policy_value(3600), 2_000);
+        assert_eq!(plan.basis.policy_revision, 1);
+        let mut a = Annotations::open_memory_for("u-1").unwrap();
+        // Intent gone since the plan: refused, citing the derivation.
+        let err = plan.check_spendable("mock", Some("u-1"), &a).unwrap_err();
+        assert!(matches!(err, SpendError::PolicyGone { .. }), "{err}");
+        // Intent standing at the plan's revision: spendable.
+        put_sync_policy(&mut a, &all_policy_value(3600), None).unwrap();
+        plan.check_spendable("mock", Some("u-1"), &a).unwrap();
+        // Intent moved since the plan (the step-7 ruling): refused with
+        // both revisions named, remedy = replan.
+        put_sync_policy(&mut a, &all_policy_value(60), Some(1)).unwrap();
+        let err = plan.check_spendable("mock", Some("u-1"), &a).unwrap_err();
+        assert!(matches!(err, SpendError::PolicyMoved { .. }), "{err}");
+        let msg = err.to_string();
+        assert!(
+            msg.contains("revision 1") && msg.contains("revision 2") && msg.contains("replan"),
+            "{msg}"
+        );
+        // A plan for another identity is never spent: wrong uuid (or no
+        // uuid at all), wrong provider.
+        let err = plan
+            .check_spendable("mock", Some("u-other"), &a)
+            .unwrap_err();
+        assert!(matches!(err, SpendError::WrongAccount { .. }), "{err}");
+        let err = plan.check_spendable("mock", None, &a).unwrap_err();
+        assert!(err.to_string().contains("unmapped"), "{err}");
+        let err = plan.check_spendable("ggg", Some("u-1"), &a).unwrap_err();
+        assert!(matches!(err, SpendError::WrongProvider { .. }), "{err}");
+    }
+
+    #[test]
+    fn apply_params_renders_exactly_the_plans_actions() {
+        let plan = plan(&store(), &all_policy_value(3600), 2_000);
+        assert!(!plan.actions.is_empty());
+        let params = plan.apply_params(None);
+        let jobs = params["jobs"].as_array().unwrap();
+        assert_eq!(jobs.len(), plan.actions.len());
+        for (job, action) in jobs.iter().zip(&plan.actions) {
+            let (kind, action_params) = action.job();
+            assert_eq!(job["kind"], json!(kind));
+            assert_eq!(job["params"], action_params);
+        }
+        assert!(params.get("max_requests").is_none());
+        assert_eq!(plan.apply_params(Some(3))["max_requests"], json!(3));
     }
 }

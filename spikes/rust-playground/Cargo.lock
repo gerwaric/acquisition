@@ -39,6 +39,7 @@ name = "acquisition-mcp"
 version = "0.0.1"
 dependencies = [
  "acquisition-core",
+ "acquisition-plan",
  "acquisition-store",
  "anyhow",
  "rmcp",

@@ -20,6 +20,11 @@ use crate::{Store, TAB_ORDER_SQL};
 /// value's shape is the planner's business; the store only carries it.
 pub const SYNC_POLICY_KIND: &str = "sync-policy";
 
+/// The address's other two components, named once so every frontend's
+/// read and write surface resolves the same row this snapshot reads.
+pub const SYNC_POLICY_SCOPE: &str = "account";
+pub const SYNC_POLICY_KEY: &str = "";
+
 /// The stash listing this snapshot's tab set derives from — the fact
 /// basis a plan cites. Strict on parse (it is embedded in serialized
 /// plan envelopes, which refuse unknown fields whole).
@@ -230,7 +235,7 @@ impl Store {
                 },
             )
             .collect::<Result<Vec<_>>>()?;
-        let policy = annotations.get("account", "", SYNC_POLICY_KIND)?;
+        let policy = annotations.get(SYNC_POLICY_SCOPE, SYNC_POLICY_KEY, SYNC_POLICY_KIND)?;
         Ok(StashSnapshot {
             account_uuid,
             account_name,

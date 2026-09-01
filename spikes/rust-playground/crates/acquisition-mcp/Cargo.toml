@@ -10,6 +10,7 @@ path = "src/main.rs"
 [dependencies]
 acquisition-core = { path = "../acquisition-core" }
 acquisition-store = { path = "../acquisition-store" }
+acquisition-plan = { path = "../acquisition-plan" }
 tokio.workspace = true
 serde.workspace = true
 serde_json.workspace = true

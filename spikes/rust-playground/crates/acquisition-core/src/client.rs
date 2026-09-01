@@ -218,6 +218,21 @@ impl Client {
             other => bail!("unexpected response: {other:?}"),
         }
     }
+
+    /// The daemon's read-only, non-reserving projection over `jobs`
+    /// (see [`crate::protocol::Quote`]). Sends nothing; shared here so
+    /// every frontend's quote surface speaks the same request.
+    pub async fn quote(
+        &mut self,
+        jobs: Vec<crate::protocol::QuoteJob>,
+        account: Option<String>,
+    ) -> Result<crate::protocol::Quote> {
+        match self.request(&Request::Quote { jobs, account }).await? {
+            Response::Quote { quote } => Ok(quote),
+            Response::Error { message } => bail!("{message}"),
+            other => bail!("unexpected response: {other:?}"),
+        }
+    }
 }
 
 fn spawn_daemon() -> Result<(std::process::Child, u64)> {

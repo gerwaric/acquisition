@@ -14,10 +14,29 @@
 //!   GGG is deferred until GGG's policy stance on it is verified
 //!   (CONTEXT.md, "Explicitly deferred"). Store reads and observing a live
 //!   daemon are allowed in either mode — they send nothing.
+//!
+//! The refresh tracer's plan slice (step 8) is exposed as tools —
+//! `sync_policy` / `set_sync_policy` (intent), `refresh_plan`
+//! (derivation), `apply_plan` (effect) — through the same shared
+//! semantics the CLI uses (`acquisition-plan`: validate-then-CAS policy
+//! writes, the validating plan parse, the step-7 staleness gate).
+//! Mode rules for the slice: intent reads/writes and offline plan
+//! compilation send nothing and work in either mode (a policy write must
+//! name the revision it replaces — an agent never clobbers intent it has
+//! not read); `apply_plan` submits jobs and is refused in ggg mode like
+//! `submit_job`; quote enrichment in ggg mode is *skipped with a note*
+//! because whether `quote` is allowed over MCP there is an open owner
+//! call (CONTEXT.md, open topics).
+
+use std::path::PathBuf;
 
 use acquisition_core::client::{Client, ConnectOptions};
-use acquisition_core::protocol::{Request, Response};
-use acquisition_store::{Index, Store, account_path, store_dir};
+use acquisition_core::protocol::{QuoteJob, Request, Response};
+use acquisition_plan::{PlanError, RefreshPlan, plan_refresh, put_sync_policy};
+use acquisition_store::{
+    AccountEntry, Annotations, Index, SYNC_POLICY_KEY, SYNC_POLICY_KIND, SYNC_POLICY_SCOPE, Store,
+    account_path, store_dir,
+};
 use anyhow::Result;
 use rmcp::handler::server::wrapper::{Json, Parameters};
 use rmcp::model::{ServerCapabilities, ServerInfo};
@@ -41,10 +60,116 @@ fn err(e: anyhow::Error) -> ErrorData {
 /// Open one account's store file, resolved against the non-secret index —
 /// no daemon involved (the store is the second frontend surface).
 fn open_store(account: Option<&str>) -> Result<Store> {
+    let (dir, entry) = resolve(account)?;
+    Store::open(&account_path(&dir, &entry.username))
+}
+
+fn resolve(account: Option<&str>) -> Result<(PathBuf, AccountEntry)> {
     let dir = store_dir(provider());
     let index = Index::load(&dir)?;
     let entry = index.resolve(account).map_err(anyhow::Error::from)?.clone();
-    Store::open(&account_path(&dir, &entry.username))
+    Ok((dir, entry))
+}
+
+/// The selected account's provider directory, index entry, and annotations
+/// file — the latter addressed by the uuid the index maps the account to
+/// (an entry without one predates uuid-at-login; intent cannot be bound
+/// to it). Same shape as the CLI's `open_intent`.
+fn open_intent(account: Option<&str>) -> Result<(PathBuf, AccountEntry, Annotations)> {
+    let (dir, entry) = resolve(account)?;
+    let Some(uuid) = entry.uuid.as_deref() else {
+        anyhow::bail!(
+            "account {} has no recorded uuid (a login predating uuid-at-login); \
+             a human can fix it with one `acq auth` login",
+            entry.username
+        );
+    };
+    let annotations = Annotations::open_for(&dir, uuid)?;
+    Ok((dir, entry, annotations))
+}
+
+/// The agent-traffic deferral (CONTEXT.md, "Explicitly deferred"): nothing
+/// this server does may spend requests against real GGG. Checked before
+/// any daemon contact.
+fn refuse_ggg_submission(what: &str) -> Result<(), ErrorData> {
+    if acquisition_core::provider::ggg_mode() {
+        return Err(ErrorData::internal_error(
+            format!(
+                "refused: {what} against real GGG is deferred until GGG's policy stance \
+                 is verified (CONTEXT.md). Unset ACQ_GGG to work against the mock provider."
+            ),
+            None,
+        ));
+    }
+    Ok(())
+}
+
+/// The quote attempt is bounded and best-effort, same as the CLI's: the
+/// offline plan is the deliverable, and a wedged daemon must not keep it
+/// from returning.
+const QUOTE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
+
+/// Try to enrich the plan with a *running* daemon's read-only quote. In
+/// ggg mode no connection is attempted at all: whether `quote` is allowed
+/// over MCP in real-GGG mode is an open owner call (CONTEXT.md, open
+/// topics), so the conservative default is to skip and say so. In mock
+/// mode the connection never spawns or replaces a daemon — the plan
+/// promises to spend nothing, and a kill-and-respawn is a spend (the
+/// successor resumes the persisted queue).
+async fn try_quote(plan: RefreshPlan) -> (RefreshPlan, Option<String>) {
+    if acquisition_core::provider::ggg_mode() {
+        return (
+            plan,
+            Some(
+                "no quote: whether quote is allowed over MCP in real-GGG mode is an open \
+                 owner call (CONTEXT.md, open topics); plan compiled offline"
+                    .into(),
+            ),
+        );
+    }
+    let Some(account) = plan.account_name.clone() else {
+        return (
+            plan,
+            Some("no quote: the facts record no account name to quote as".into()),
+        );
+    };
+    let jobs: Vec<QuoteJob> = plan
+        .actions
+        .iter()
+        .map(|action| {
+            let (kind, params) = action.job();
+            QuoteJob {
+                kind: kind.into(),
+                params,
+            }
+        })
+        .collect();
+    let attempt = async {
+        let mut client = Client::connect(ConnectOptions::autonomous(false))
+            .await
+            .map_err(|e| format!("{e:#}"))?;
+        client
+            .quote(jobs, Some(account))
+            .await
+            .map_err(|e| format!("{e:#}"))
+    };
+    match tokio::time::timeout(QUOTE_TIMEOUT, attempt).await {
+        Err(_) => (
+            plan,
+            Some(format!(
+                "no quote: the daemon did not answer within {QUOTE_TIMEOUT:?} — plan \
+                 compiled offline"
+            )),
+        ),
+        Ok(Err(why)) => (
+            plan,
+            Some(format!("no quote: {why} — plan compiled offline")),
+        ),
+        Ok(Ok(quote)) => match plan.clone().with_quote(quote) {
+            Ok(enriched) => (enriched, None),
+            Err(e) => (plan, Some(format!("daemon quote rejected: {e}"))),
+        },
+    }
 }
 
 /// Connect to the daemon under the autonomous policy: never kill or
@@ -123,6 +248,40 @@ struct SubmitParams {
 struct JobParams {
     /// The job id, as returned by submit_job.
     id: u64,
+}
+
+#[derive(Deserialize, schemars::JsonSchema)]
+struct SetPolicyParams {
+    /// The sync-policy value, e.g.
+    /// {"version":1,"leagues":{"Standard":{"tabs":"all","max_age_seconds":3600}}}.
+    /// Validated strictly before anything lands — a typo'd field is
+    /// refused, never half-honored.
+    value: Value,
+    /// The revision this write replaces, from sync_policy. Required when a
+    /// policy exists (replacing intent you have not read is refused as a
+    /// conflict naming the current revision); omit only to create the
+    /// first policy.
+    if_revision: Option<i64>,
+    account: Option<String>,
+}
+
+#[derive(Deserialize, schemars::JsonSchema)]
+struct PlanParams {
+    /// League name; defaults to "Standard".
+    league: Option<String>,
+    account: Option<String>,
+}
+
+#[derive(Deserialize, schemars::JsonSchema)]
+struct ApplyParams {
+    /// The plan envelope exactly as refresh_plan returned it (the `plan`
+    /// field). Re-validated here; a tampered or hand-built envelope will
+    /// not parse.
+    plan: Value,
+    /// Refuse at admission — before any child job exists — if the plan
+    /// authorizes more logical requests than this.
+    max_requests: Option<u64>,
+    account: Option<String>,
 }
 
 struct AcqMcp;
@@ -240,6 +399,115 @@ impl AcqMcp {
             .map_err(|e| err(e.into()))
     }
 
+    // ---- the intent/plan slice (tracer step 8): policy → plan → apply ----
+
+    #[tool(
+        description = "The per-account sync policy (declared coverage + freshness, an annotation) with its revision — the intent refresh_plan compiles. Reads the store; no daemon, no network. `policy` is null when none is set."
+    )]
+    fn sync_policy(
+        &self,
+        Parameters(p): Parameters<StoreParams>,
+    ) -> Result<Json<Value>, ErrorData> {
+        let (_, _, annotations) = open_intent(p.account.as_deref()).map_err(err)?;
+        let row = annotations
+            .get(SYNC_POLICY_SCOPE, SYNC_POLICY_KEY, SYNC_POLICY_KIND)
+            .map_err(|e| err(e.into()))?;
+        Ok(Json(json!({ "policy": row })))
+    }
+
+    #[tool(
+        description = "Write the per-account sync policy (validated strictly, compare-and-swap on if_revision). Sends nothing — intent is local; the network cost appears only when a plan is applied. Replacing an existing policy requires if_revision (from sync_policy); a stale or missing revision is a conflict, never a clobber."
+    )]
+    fn set_sync_policy(
+        &self,
+        Parameters(p): Parameters<SetPolicyParams>,
+    ) -> Result<Json<Value>, ErrorData> {
+        let (_, _, mut annotations) = open_intent(p.account.as_deref()).map_err(err)?;
+        let row = put_sync_policy(&mut annotations, &p.value, p.if_revision)
+            .map_err(|e| err(e.into()))?;
+        serde_json::to_value(row)
+            .map(Json)
+            .map_err(|e| err(e.into()))
+    }
+
+    #[tool(
+        description = "Compile the stored sync policy + facts on record into a RefreshPlan: the explicit, bounded action set applying would execute, with per-action reasons, skipped tabs, and a coarse wire estimate. Offline — sends nothing, spends nothing. A running mock-mode daemon adds its read-only quote (ETA + rate-limit headroom); `quote_note` says why one is absent. Review the plan, then hand `plan` to apply_plan."
+    )]
+    async fn refresh_plan(
+        &self,
+        Parameters(p): Parameters<PlanParams>,
+    ) -> Result<Json<Value>, ErrorData> {
+        let (dir, entry, annotations) = open_intent(p.account.as_deref()).map_err(err)?;
+        let store = Store::open(&account_path(&dir, &entry.username)).map_err(err)?;
+        let snapshot = store
+            .stash_snapshot(p.league.as_deref().unwrap_or("Standard"), &annotations)
+            .map_err(err)?;
+        let plan = match plan_refresh(provider(), &snapshot, acquisition_store::now()) {
+            Err(PlanError::NoSyncPolicy) => {
+                return Err(ErrorData::internal_error(
+                    format!(
+                        "no sync policy is set for {} — declare one with set_sync_policy first",
+                        entry.username
+                    ),
+                    None,
+                ));
+            }
+            other => other.map_err(|e| err(e.into()))?,
+        };
+        let (plan, quote_note) = try_quote(plan).await;
+        let mut out = json!({ "plan": plan });
+        if let Some(note) = quote_note {
+            out["quote_note"] = json!(note);
+        }
+        Ok(Json(out))
+    }
+
+    #[tool(
+        description = "Execute a reviewed plan: exactly its actions, as one `apply` parent job the daemon admits or refuses whole at submit (single-request vocabulary + the max_requests budget). Refused offline — before any daemon contact — if the stored sync-policy revision moved since the plan (replan with refresh_plan), and refused in real-GGG mode (agent traffic is deferred). An empty plan is a no-op with no daemon contact. Returns the parent job id; poll job_status, then job_result."
+    )]
+    async fn apply_plan(
+        &self,
+        Parameters(p): Parameters<ApplyParams>,
+    ) -> Result<Json<Value>, ErrorData> {
+        refuse_ggg_submission("applying a plan")?;
+        let (_, entry, annotations) = open_intent(p.account.as_deref()).map_err(err)?;
+        let plan = RefreshPlan::from_value(&p.plan).map_err(|e| err(e.into()))?;
+        plan.check_spendable(provider(), entry.uuid.as_deref(), &annotations)
+            .map_err(|e| err(e.into()))?;
+        if plan.actions.is_empty() {
+            // A strict subset of zero actions is satisfied by doing
+            // nothing; the plan's own skipped/unknown reporting says why
+            // it is empty.
+            return Ok(Json(json!({
+                "applied": false,
+                "requests": 0,
+                "note": "nothing to do: the plan authorizes no requests",
+            })));
+        }
+        let mut client = connect(true).await.map_err(err)?;
+        let resp = client
+            .request(&Request::Submit {
+                kind: "apply".into(),
+                params: plan.apply_params(p.max_requests),
+                priority: 0,
+                submitted_by: format!("mcp:{}", std::process::id()),
+                account: Some(entry.username),
+            })
+            .await
+            .map_err(err)?;
+        match resp {
+            Response::Submitted { id } => Ok(Json(json!({
+                "job_id": id,
+                "requests": plan.logical_requests,
+            }))),
+            Response::Error { message } => Err(ErrorData::internal_error(message, None)),
+            other => Err(ErrorData::internal_error(
+                format!("unexpected response: {other:?}"),
+                None,
+            )),
+        }
+    }
+
     // ---- daemon jobs ----
 
     #[tool(
@@ -249,13 +517,7 @@ impl AcqMcp {
         &self,
         Parameters(p): Parameters<SubmitParams>,
     ) -> Result<Json<Value>, ErrorData> {
-        if acquisition_core::provider::ggg_mode() {
-            return Err(ErrorData::internal_error(
-                "refused: agent traffic against real GGG is deferred until GGG's policy stance \
-                 is verified (CONTEXT.md). Unset ACQ_GGG to work against the mock provider.",
-                None,
-            ));
-        }
+        refuse_ggg_submission("agent traffic")?;
         let mut client = connect(true).await.map_err(err)?;
         let resp = client
             .request(&Request::Submit {
@@ -371,8 +633,12 @@ impl ServerHandler for AcqMcp {
         info.instructions = Some(format!(
             "Acquisition playground (provider: {}). Store tools (accounts, tabs, \
              search_items, get_item, store_status, item_events) read the shared SQLite \
-             store directly — no daemon, no network. Job tools talk to the local daemon; \
-             API requests are jobs (submit_job returns an id; poll job_status, then \
+             store directly — no daemon, no network. The refresh slice: sync_policy / \
+             set_sync_policy declare intent (local, sends nothing; replacing a policy \
+             must name the revision it replaces), refresh_plan compiles it offline into \
+             the explicit bounded action set for review, and apply_plan spends exactly \
+             that plan as one parent job. Job tools talk to the local daemon; API \
+             requests are jobs (submit_job returns an id; poll job_status, then \
              job_result). Rate-limit holds can reach ~5 minutes — a waiting job is the \
              limiter working. Login is done by the human via the `acq` CLI; this server \
              never replaces a running daemon and refuses submissions in real-GGG mode.",

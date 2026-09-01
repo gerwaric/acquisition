@@ -164,7 +164,7 @@ and store; (2) `account` on jobs, validated against the sole session;
 rule, uuid recorded opportunistically (superseded 2026-08-31: uuid is now
 required at login — identity bullet above).
 
-### Annotations & plans — the refresh tracer (decided 2026-08-31; steps 1–7 built, step 8 next)
+### Annotations & plans — the refresh tracer (decided 2026-08-31; steps 1–8 built, step 9 next)
 
 The one slice built next: refresh-with-`plan`, the smallest slice that
 touches all four layers (policy = intent, plan = derivation, apply =
@@ -210,6 +210,29 @@ Built, each step gate-green and owner-reviewed:
    `tests/plan_json.rs`
    pins the offline gates (stale revision refused before any daemon;
    tampered envelope refused by the parse; empty plan spends nothing).
+8. MCP exposure (2026-09-01): `acq-mcp` carries the slice as tools —
+   `sync_policy` / `set_sync_policy` (intent), `refresh_plan`
+   (derivation, quote-enriched by a running mock daemon), `apply_plan`
+   (effect, returning the parent id for the MCP's submit-then-poll
+   idiom). The second consumer's arrival triggered the factoring rule:
+   the shared semantics moved to `acquisition-plan` —
+   `put_sync_policy` (validate-then-CAS), `RefreshPlan::check_spendable`
+   (the step-7 staleness/identity gate), `RefreshPlan::apply_params`
+   (action→tuple rendering) — and the store names the policy's
+   annotation address once (`SYNC_POLICY_SCOPE`/`KEY`/`KIND`); the CLI
+   now goes through the same functions. Two agent-boundary defaults,
+   owner-revisable: `set_sync_policy` works in either mode (intent is
+   local — the deferral is about traffic) but has no blind-replace
+   form — replacing an existing policy must name the revision it
+   replaces, so an agent never clobbers intent it has not read; and
+   ggg-mode quote enrichment attempts no connection, returning the plan
+   with a note naming the open topic below. `apply_plan` is refused in
+   ggg mode alongside `submit_job`. Pinned at process level in
+   `acquisition-mcp/tests/plan_loop.rs`: login over the protocol (the
+   daemon rides inside `acq-mcp`), the tools carrying
+   policy→plan→apply→replan against a real daemon over the mock, and
+   the three gates — create-only CAS, admission budget, staleness —
+   firing through the MCP boundary.
 
 Accepted residuals, recorded so they need no re-litigating:
 
@@ -223,8 +246,6 @@ Accepted residuals, recorded so they need no re-litigating:
 
 Still to build:
 
-8. MCP exposure in mock mode (real-mode `quote` is the open topic
-   above).
 9. Owner live rung under `LIVE-TESTING.md`'s standing rule, friction
    notes collected as data.
 
@@ -252,7 +273,7 @@ What a real consumer needed from the protocol and did not get. Facts, not decisi
 ## Open topics
 
 - Priority levels: how many, and named or numeric? (Interactive > background is the intuition, *regardless of frontend* — an agent in a live conversation is interactive; the caller states its urgency, the frontend doesn't imply it.)
-- Whether `quote` is allowed over MCP in real-GGG mode — it sends nothing, but it is a daemon interaction in ggg mode; owner call at tracer step (8).
+- Whether `quote` is allowed over MCP in real-GGG mode — it sends nothing, but it is a daemon interaction in ggg mode; owner call. Step 8 built the conservative default (no connection attempted; the plan comes back with a note naming this topic), so the ruling stays open with nothing blocked on it.
 - Binding-plan friction: D-line "plans are binding" is revisable on tracer evidence — the owner's live-use friction notes against subset-only reconciliation are the data; re-ruled (or confirmed) after the live rung.
 
 (2026-08-31: "delta/selection for refresh" and "user state on items" are resolved into the sync-policy / annotations / Plan decisions above; the tracer below builds them.)

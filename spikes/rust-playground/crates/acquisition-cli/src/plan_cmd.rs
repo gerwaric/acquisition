@@ -11,19 +11,17 @@ use std::path::PathBuf;
 use acquisition_core::client::{Client, ConnectOptions};
 use acquisition_core::protocol::{Quote, QuoteJob, QuoteScope, Request, Response};
 use acquisition_plan::{
-    FetchReason, ListingReason, PlanError, RefreshAction, RefreshPlan, SkipReason, SyncPolicy,
-    plan_refresh,
+    FetchReason, ListingReason, PlanError, RefreshAction, RefreshPlan, SkipReason, plan_refresh,
+    put_sync_policy,
 };
-use acquisition_store::{AccountEntry, Annotations, SYNC_POLICY_KIND, Store, account_path};
+use acquisition_store::{
+    AccountEntry, Annotations, SYNC_POLICY_KEY, SYNC_POLICY_KIND, SYNC_POLICY_SCOPE, Store,
+    account_path,
+};
 use anyhow::{Context, Result, bail};
 use serde_json::Value;
 
 use crate::store_cmd;
-
-/// The sync policy's annotation address: per account, so scope `"account"`
-/// with an empty key (`snapshot.rs` documents the convention).
-const SCOPE: &str = "account";
-const KEY: &str = "";
 
 /// A shape hint for humans; the planner's strict parse is the authority.
 const POLICY_EXAMPLE: &str =
@@ -48,7 +46,7 @@ fn open_intent() -> Result<(PathBuf, AccountEntry, Annotations)> {
 
 pub fn policy_show(json: bool) -> Result<()> {
     let (_, _, annotations) = open_intent()?;
-    let row = annotations.get(SCOPE, KEY, SYNC_POLICY_KIND)?;
+    let row = annotations.get(SYNC_POLICY_SCOPE, SYNC_POLICY_KEY, SYNC_POLICY_KIND)?;
     if json {
         println!("{}", serde_json::to_string_pretty(&row)?);
         return Ok(());
@@ -92,18 +90,17 @@ pub fn policy_set(value: &str, if_revision: Option<i64>, json: bool) -> Result<(
     Ok(())
 }
 
-/// Validate, then write under compare-and-swap. Validation first: the
-/// policy is intent, and the planner refuses a typo'd or newer-versioned
-/// value on every parse — storing one anyway would just move that error to
-/// plan time, with the typo now on disk.
+/// The CLI's policy write: validate-then-CAS through the planner's shared
+/// [`put_sync_policy`] (built once, inherited by every frontend).
 ///
 /// `if_revision` is the CAS at the human boundary: given, the write lands
 /// only if the stored revision is exactly that — what the caller reviewed
 /// (`acq policy show` prints it) is what they replace, and another
 /// frontend's write in between is a structured conflict. Omitted, the
 /// write blindly replaces the revision read here, just before the put —
-/// the right default for one human at one keyboard — but it is still a
-/// CAS underneath: a write landing between the read and the put is a
+/// the right default for one human at one keyboard, and deliberately this
+/// frontend's default rather than the shared function's — but it is still
+/// a CAS underneath: a write landing between the read and the put is a
 /// structured conflict to retry, never a silent clobber in either
 /// direction.
 fn write_policy(
@@ -111,14 +108,13 @@ fn write_policy(
     value: &Value,
     if_revision: Option<i64>,
 ) -> Result<acquisition_store::AnnotationRow> {
-    SyncPolicy::from_value(value)?;
     let expected = match if_revision {
         Some(revision) => Some(revision),
         None => annotations
-            .get(SCOPE, KEY, SYNC_POLICY_KIND)?
+            .get(SYNC_POLICY_SCOPE, SYNC_POLICY_KEY, SYNC_POLICY_KIND)?
             .map(|row| row.revision),
     };
-    Ok(annotations.put(SCOPE, KEY, SYNC_POLICY_KIND, value, expected)?)
+    Ok(put_sync_policy(annotations, value, expected)?)
 }
 
 /// `acq refresh --plan`: compile the stored sync policy into the explicit
@@ -216,18 +212,7 @@ pub async fn refresh_apply(
         }
         return Ok(());
     }
-    let jobs: Vec<Value> = plan
-        .actions
-        .iter()
-        .map(|action| {
-            let (kind, params) = action.job();
-            serde_json::json!({ "kind": kind, "params": params })
-        })
-        .collect();
-    let mut params = serde_json::json!({ "jobs": jobs });
-    if let Some(max) = max_requests {
-        params["max_requests"] = serde_json::json!(max);
-    }
+    let params = plan.apply_params(max_requests);
     // Applying spends, so the interactive connect policy (lazy spawn
     // included) is the right one here — unlike the quote path, which
     // promises to spend nothing.
@@ -256,15 +241,13 @@ pub async fn refresh_apply(
     crate::block_on_job(&mut client, id, json).await
 }
 
-/// The step-7 staleness gate (CONTEXT.md, decided 2026-09-01): a plan is
-/// spent only while the intent it derives from still stands, and only on
-/// the identity it names. The daemon is intent-blind, so this comparison
-/// can only happen here, against a fresh read of the policy row. A
-/// concurrent policy write between this read and the submit is the
-/// accepted human-boundary race (the same register as `policy set`
-/// without `--if-revision`); fact drift deliberately does not refuse —
-/// the authorization is the bounded action set, and the next plan
-/// reconciles.
+/// The step-7 staleness gate (CONTEXT.md, decided 2026-09-01), via the
+/// planner's shared [`RefreshPlan::check_spendable`]: a plan is spent only
+/// while the intent it derives from still stands, and only on the identity
+/// it names. The daemon is intent-blind, so the comparison happens
+/// frontend-side, against a fresh read of the policy row; the CLI adds
+/// only its own flag-conflict check (`--league` naming a different league
+/// than the reviewed envelope is caller confusion, refused before spend).
 fn check_plan_applies(
     plan: &RefreshPlan,
     provider: &str,
@@ -272,20 +255,6 @@ fn check_plan_applies(
     league_flag: Option<&str>,
     annotations: &Annotations,
 ) -> Result<()> {
-    if plan.provider != provider {
-        bail!(
-            "the plan is for provider {:?}, but this command runs against {provider:?}",
-            plan.provider
-        );
-    }
-    if entry.uuid.as_deref() != Some(plan.account_uuid.as_str()) {
-        bail!(
-            "the plan is for account uuid {}, but {} is {} — replan as the right account",
-            plan.account_uuid,
-            entry.username,
-            entry.uuid.as_deref().unwrap_or("unmapped")
-        );
-    }
     if let Some(league) = league_flag
         && league != plan.league
     {
@@ -294,20 +263,15 @@ fn check_plan_applies(
             plan.league
         );
     }
-    match annotations.get(SCOPE, KEY, SYNC_POLICY_KIND)? {
-        None => bail!(
-            "the sync policy is gone (the plan cites revision {}); declare one and replan \
-             with `acq refresh --plan`",
-            plan.basis.policy_revision
-        ),
-        Some(row) if row.revision != plan.basis.policy_revision => bail!(
-            "the sync policy moved: the plan cites revision {}, but revision {} is stored — \
-             review and replan with `acq refresh --plan`",
-            plan.basis.policy_revision,
-            row.revision
-        ),
-        Some(_) => Ok(()),
-    }
+    plan.check_spendable(provider, entry.uuid.as_deref(), annotations)
+        .map_err(|e| match e {
+            // The shared message names the remedy; the CLI names its verb.
+            acquisition_plan::SpendError::PolicyGone { .. }
+            | acquisition_plan::SpendError::PolicyMoved { .. } => {
+                anyhow::anyhow!("{e} with `acq refresh --plan`")
+            }
+            other => anyhow::anyhow!(other),
+        })
 }
 
 /// The quote attempt is bounded: the plan in hand is the deliverable, and
@@ -360,16 +324,10 @@ async fn try_quote_within(
         let mut client = Client::connect(quote_connect_options())
             .await
             .map_err(|e| format!("{e:#}"))?;
-        let request = Request::Quote {
-            jobs,
-            account: Some(account),
-        };
-        match client.request(&request).await {
-            Ok(Response::Quote { quote }) => Ok(quote),
-            Ok(Response::Error { message }) => Err(message),
-            Ok(other) => Err(format!("unexpected response {other:?}")),
-            Err(e) => Err(format!("{e:#}")),
-        }
+        client
+            .quote(jobs, Some(account))
+            .await
+            .map_err(|e| format!("{e:#}"))
     };
     match tokio::time::timeout(limit, attempt).await {
         Err(_) => (
@@ -632,7 +590,11 @@ mod tests {
             "leagues": { "Standard": { "tabs": "all", "max_age_secs": 60 } }
         });
         assert!(write_policy(&mut a, &typo, None).is_err());
-        assert!(a.get(SCOPE, KEY, SYNC_POLICY_KIND).unwrap().is_none());
+        assert!(
+            a.get(SYNC_POLICY_SCOPE, SYNC_POLICY_KEY, SYNC_POLICY_KIND)
+                .unwrap()
+                .is_none()
+        );
         // The example the CLI prints must itself be a valid policy.
         let first = write_policy(&mut a, &example(), None).unwrap();
         assert_eq!(first.revision, 1);
@@ -656,7 +618,10 @@ mod tests {
         )
         .unwrap_err();
         assert!(err.to_string().contains("revision 2"), "{err}");
-        let held = a.get(SCOPE, KEY, SYNC_POLICY_KIND).unwrap().unwrap();
+        let held = a
+            .get(SYNC_POLICY_SCOPE, SYNC_POLICY_KEY, SYNC_POLICY_KIND)
+            .unwrap()
+            .unwrap();
         assert_eq!(held.value, example());
         // The reviewed revision, when it still stands, is replaceable.
         let third = write_policy(&mut a, &example(), Some(held.revision)).unwrap();
@@ -684,8 +649,8 @@ mod tests {
             listing: None,
             tabs: Vec::new(),
             policy: Some(AnnotationRow {
-                scope: SCOPE.into(),
-                key: KEY.into(),
+                scope: SYNC_POLICY_SCOPE.into(),
+                key: SYNC_POLICY_KEY.into(),
                 kind: SYNC_POLICY_KIND.into(),
                 value: example(),
                 revision: 1,
