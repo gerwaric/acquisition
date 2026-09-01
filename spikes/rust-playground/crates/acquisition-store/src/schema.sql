@@ -44,8 +44,10 @@ CREATE TABLE IF NOT EXISTS tabs (
     name        TEXT,
     type        TEXT,
     idx         INTEGER,
-    json        TEXT NOT NULL,      -- list entry / stub / fetched tab minus items and children
+    json        TEXT NOT NULL,      -- the fetched tab minus items and children; the first list entry until a fetch lands
+    listed_json TEXT,               -- the latest list entry / substash stub, verbatim (a fetch never touches it)
     listed_at   INTEGER,
+    listed_response INTEGER,        -- responses.id of the listing (or parent fetch) that last listed this tab
     fetched_at  INTEGER,
     removed_at  INTEGER,
     PRIMARY KEY (league, id)

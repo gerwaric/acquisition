@@ -282,13 +282,14 @@ mod tests {
     use super::*;
 
     fn tmp() -> PathBuf {
+        // A counter, not a clock: two parallel tests can share a
+        // nanosecond, and the loser's directory gets deleted under it by
+        // the winner's cleanup (seen intermittently 2026-09-01).
+        static N: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
         let dir = std::env::temp_dir().join(format!(
             "acq-index-{}-{}",
             std::process::id(),
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
+            N.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
         ));
         std::fs::create_dir_all(&dir).unwrap();
         dir

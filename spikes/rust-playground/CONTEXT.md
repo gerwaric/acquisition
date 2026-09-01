@@ -188,7 +188,14 @@ policy rows, tab identities, freshness, listing basis — **done
 `Store::stash_snapshot`: one league's facts and the sync-policy row
 named together, nothing derived — the plan's fact basis is the
 `responses` row of the latest listing, its annotation basis the
-policy's revision); (4) `RefreshPlan`
+policy's revision; hardened 2026-09-01 on owner review: all fact reads
+in one transaction, listing membership stamped by response id — never
+the clock — malformed 2xx listings refused whole, the list entry kept
+beside the fetched body so metadata survives a fetch, and the snapshot
+bound to the account uuid, with the annotations handle required and a
+wrong-uuid file refused; the provider is deliberately not in the
+snapshot — the store cannot verify it, the planner binds it from the
+directory it opened); (4) `RefreshPlan`
 built offline in `acquisition-plan`; (5) `quote` on the protocol +
 optional plan enrichment — the quote names what it does not cover
 (listing policy, probe, OAuth) rather than claiming completeness;

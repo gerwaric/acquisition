@@ -222,6 +222,27 @@ impl Store {
         conn.pragma_update(None, "synchronous", "NORMAL")?;
         conn.busy_timeout(std::time::Duration::from_secs(5))?;
         conn.execute_batch(SCHEMA)?;
+        // Facts are refetchable, but a live store is not discarded over a
+        // new column: files from before these columns get them in place.
+        for (column, ddl) in [
+            (
+                "listed_json",
+                "ALTER TABLE tabs ADD COLUMN listed_json TEXT",
+            ),
+            (
+                "listed_response",
+                "ALTER TABLE tabs ADD COLUMN listed_response INTEGER",
+            ),
+        ] {
+            let present: i64 = conn.query_row(
+                "SELECT count(*) FROM pragma_table_info('tabs') WHERE name = ?1",
+                [column],
+                |r| r.get(0),
+            )?;
+            if present == 0 {
+                conn.execute(ddl, [])?;
+            }
+        }
         Ok(Store { conn, path })
     }
 
@@ -247,6 +268,10 @@ impl Store {
         let mut envelope = body.clone();
         // (league, location_kind, location_id, items) per seam.
         let mut seams: Vec<(Option<String>, &str, String, Vec<Value>)> = Vec::new();
+        // (league, id) per tab this response listed; stamped with the
+        // response id once the responses row exists, so listing membership
+        // is linked to the response a snapshot cites, never to the clock.
+        let mut listed_tabs: Vec<(String, String)> = Vec::new();
 
         match endpoint {
             Endpoint::Leagues => {
@@ -275,12 +300,14 @@ impl Store {
                 }
             }
             Endpoint::Characters => {
-                let list = body
-                    .get("characters")
-                    .and_then(Value::as_array)
-                    .cloned()
-                    .unwrap_or_default();
-                for c in &list {
+                // A 2xx body without a `characters` array is malformed
+                // input, not an empty account: treating it as empty would
+                // remove every character (CONTEXT.md: malformed external
+                // input is a structured error). An empty array is fine.
+                let Some(list) = body.get("characters").and_then(Value::as_array) else {
+                    return Err(anyhow!("characters response without a `characters` array"));
+                };
+                for c in list {
                     if let Some(name) = c.get("name").and_then(Value::as_str) {
                         tx.execute(
                             "INSERT INTO characters (name, league, class, level, json, listed_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)
@@ -323,14 +350,17 @@ impl Store {
                 )?;
             }
             Endpoint::Stashes { league } => {
-                let list = body
-                    .get("stashes")
-                    .and_then(Value::as_array)
-                    .cloned()
-                    .unwrap_or_default();
+                // A 2xx body without a `stashes` array is malformed input,
+                // not an empty account: treating it as empty would remove
+                // every listed tab and mint a false listing basis for later
+                // snapshots (CONTEXT.md: malformed external input is a
+                // structured error). An empty array is fine.
+                let Some(list) = body.get("stashes").and_then(Value::as_array) else {
+                    return Err(anyhow!("stashes response without a `stashes` array"));
+                };
                 let mut idx = 0;
-                for tab in &list {
-                    upsert_listed_tab(&tx, league, tab, None, &mut idx, at)?;
+                for tab in list {
+                    upsert_listed_tab(&tx, league, tab, None, &mut idx, at, &mut listed_tabs)?;
                     for child in tab
                         .get("children")
                         .and_then(Value::as_array)
@@ -338,17 +368,18 @@ impl Store {
                         .flatten()
                     {
                         let folder = tab.get("id").and_then(Value::as_str).map(str::to_string);
-                        upsert_listed_tab(&tx, league, child, folder, &mut idx, at)?;
+                        upsert_listed_tab(
+                            &tx,
+                            league,
+                            child,
+                            folder,
+                            &mut idx,
+                            at,
+                            &mut listed_tabs,
+                        )?;
                     }
                 }
-                // Not in this list → removed (top-level and folder children;
-                // substashes are only known from fetches and keep their own row).
-                tx.execute(
-                    "UPDATE tabs SET removed_at = ?2 WHERE league = ?1 AND removed_at IS NULL
-                       AND (listed_at IS NULL OR listed_at < ?2)
-                       AND (parent IS NULL OR parent IN (SELECT id FROM tabs t2 WHERE t2.league = ?1 AND t2.type = 'Folder'))",
-                    params![league, at],
-                )?;
+                // Removal happens below, keyed to this response's id.
             }
             Endpoint::Stash { league, id, sub } => {
                 let Some(stash) = envelope.get_mut("stash").and_then(Value::as_object_mut) else {
@@ -368,7 +399,15 @@ impl Store {
                 };
                 let mut idx = 0;
                 for child in &children {
-                    upsert_listed_tab(&tx, league, child, Some(id.clone()), &mut idx, at)?;
+                    upsert_listed_tab(
+                        &tx,
+                        league,
+                        child,
+                        Some(id.clone()),
+                        &mut idx,
+                        at,
+                        &mut listed_tabs,
+                    )?;
                 }
                 let fetched = Value::Object(stash.clone());
                 tx.execute(
@@ -391,6 +430,29 @@ impl Store {
         )?;
         let response_id = tx.last_insert_rowid();
         ingest.response_id = response_id;
+
+        // Listing membership is per response, never per second: stamp the
+        // tabs this response listed, then retire the rest. Two listings
+        // recorded within one clock second still retire dropped tabs,
+        // and a snapshot's tab set can be checked against the basis it
+        // cites (`TabSnapshot::listed_response`).
+        for (tab_league, tab_id) in &listed_tabs {
+            tx.execute(
+                "UPDATE tabs SET listed_response = ?3 WHERE league = ?1 AND id = ?2",
+                params![tab_league, tab_id, response_id],
+            )?;
+        }
+        if let Endpoint::Stashes { league } = endpoint {
+            // Not stamped by this listing → removed (top-level and folder
+            // children; substashes are only known from fetches and keep
+            // their own row).
+            tx.execute(
+                "UPDATE tabs SET removed_at = ?2 WHERE league = ?1 AND removed_at IS NULL
+                   AND (listed_response IS NULL OR listed_response <> ?3)
+                   AND (parent IS NULL OR parent IN (SELECT id FROM tabs t2 WHERE t2.league = ?1 AND t2.type = 'Folder'))",
+                params![league, at, response_id],
+            )?;
+        }
 
         // Every seam of one response is one location; a character's four
         // arrays share `character/<name>`, so removal runs once per location.
@@ -654,6 +716,7 @@ fn upsert_listed_tab(
     parent: Option<String>,
     idx: &mut i64,
     at: i64,
+    listed: &mut Vec<(String, String)>,
 ) -> Result<()> {
     let Some(id) = tab.get("id").and_then(Value::as_str) else {
         return Ok(());
@@ -664,13 +727,18 @@ fn upsert_listed_tab(
     }
     let position = tab.get("index").and_then(Value::as_i64).unwrap_or(*idx);
     *idx += 1;
+    // The list entry lives in `listed_json`, which a fetch never touches —
+    // the listing's metadata (the heuristic `items` count on stubs) must
+    // survive the fetched body landing in `json`. On insert the entry
+    // doubles as `json` until a fetch replaces it.
     tx.execute(
-        "INSERT INTO tabs (league, id, parent, name, type, idx, json, listed_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+        "INSERT INTO tabs (league, id, parent, name, type, idx, json, listed_json, listed_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?7, ?8)
          ON CONFLICT(league, id) DO UPDATE SET parent = excluded.parent, name = excluded.name, type = excluded.type,
-           idx = excluded.idx, json = excluded.json, listed_at = excluded.listed_at, removed_at = NULL",
+           idx = excluded.idx, listed_json = excluded.listed_json, listed_at = excluded.listed_at, removed_at = NULL",
         params![league, id, parent, tab.get("name").and_then(Value::as_str), tab.get("type").and_then(Value::as_str),
                 position, entry.to_string(), at],
     )?;
+    listed.push((league.to_string(), id.to_string()));
     Ok(())
 }
 
@@ -1183,6 +1251,51 @@ mod tests {
         // An annotation on an item this store never saw is orphaned too.
         a.put("item", "ghost", "note", &json!("?"), None).unwrap();
         assert_eq!(s.orphaned_item_annotations(&a).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn files_from_before_the_listing_columns_are_migrated_in_place() {
+        let dir =
+            std::env::temp_dir().join(format!("acq-store-mig-{}-{}", std::process::id(), now()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("old.db");
+        {
+            // A tabs table as the schema had it before listed_json /
+            // listed_response, with one live row.
+            let conn = Connection::open(&path).unwrap();
+            conn.execute_batch(
+                "CREATE TABLE tabs (
+                    league TEXT NOT NULL, id TEXT NOT NULL, parent TEXT, name TEXT, type TEXT,
+                    idx INTEGER, json TEXT NOT NULL, listed_at INTEGER, fetched_at INTEGER,
+                    removed_at INTEGER, PRIMARY KEY (league, id));
+                 INSERT INTO tabs (league, id, name, type, idx, json, listed_at)
+                 VALUES ('Standard', 'old1', 'Old', 'PremiumStash', 0, '{}', 5);",
+            )
+            .unwrap();
+        }
+        let mut s = Store::open(&path).unwrap();
+        let tabs = s.tabs("Standard").unwrap();
+        assert_eq!(tabs[0].id, "old1");
+        // The next listing stamps membership per response id and retires
+        // the pre-migration row it dropped.
+        s.record(
+            &Endpoint::Stashes {
+                league: "Standard".into(),
+            },
+            &json!({}),
+            200,
+            &json!({ "stashes": [ { "id": "new1", "name": "New", "type": "PremiumStash", "index": 0 } ] }),
+            10,
+        )
+        .unwrap();
+        let ids: Vec<String> = s
+            .tabs("Standard")
+            .unwrap()
+            .into_iter()
+            .map(|t| t.id)
+            .collect();
+        assert_eq!(ids, vec!["new1"]);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
