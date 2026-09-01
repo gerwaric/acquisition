@@ -162,167 +162,65 @@ and store; (2) `account` on jobs, validated against the sole session;
 rule, uuid recorded opportunistically (superseded 2026-08-31: uuid is now
 required at login — identity bullet above).
 
-### Annotations & plans — the refresh tracer (decided 2026-08-31, building; steps 1–6 done)
+### Annotations & plans — the refresh tracer (decided 2026-08-31; steps 1–6 built, step 7 next)
 
 The one slice built next: refresh-with-`plan`, the smallest slice that
 touches all four layers (policy = intent, plan = derivation, apply =
 effect, the next read = facts). Full deliberation is history in
 `brainstorming-notes/` 00–06; the binding text is the 2026-08-31
-decision lines above.
+decision lines above. The built steps' properties are pinned in the
+named code and its tests — the review-round narratives that used to
+live here are in git history (pruned 2026-09-01, the section at
+`35fb35d9` holds the full text).
 
-Build order, each step gate-green, observable behaviour unchanged
-through (5): (1) semantics recorded in this doc — done, the 2026-08-31
-lines; (2) uuid-at-login (identity bullet above) + the annotation file:
-revisioned writes, orphan retention, store-managed export, the
-store-crate lint ratchet, mock uuids — **done 2026-08-31**
-(`acquisition-store/src/annotations.rs`; login holds the exchanged
-tokens in a staging slot outside the session map — a re-login's old
-session keeps serving until the switch — and registers keyring, uuid
-index mapping, then visibility, in that order, only when its own
-profile job lands the uuid; any failure, an index write included, fails
-the login whole, and the flow's own terminal result is on the protocol
-so another account's live session never reads as success; a real login
-now costs one `GET /profile`, N38); (3) neutral store snapshots —
-policy rows, tab identities, freshness, listing basis — **done
-2026-08-31** (`acquisition-store/src/snapshot.rs`,
-`Store::stash_snapshot`: one league's facts and the sync-policy row
-named together, nothing derived — the plan's fact basis is the
-`responses` row of the latest listing, its annotation basis the
-policy's revision; hardened 2026-09-01 over two owner reviews: all
-fact reads in one transaction; listing membership stamped by response
-id — never the clock; a malformed 2xx body — missing array or object,
-or any id-/name-less entry, items included — is a typed
-`MalformedBody` refusal that writes nothing, and it fails the *job*:
-`Daemon::record` classifies the store's verdict (malformed →
-`Outcome::Failure`; genuine persistence trouble stays logged-and-
-absorbed, the send happened), with the list-shaped jobs also
-pre-checking their top-level array — pinned by a dispatcher-harness
-regression test. Legacy pull snapshots keep their tolerance
-*explicitly at the import boundary*: `acq store import` strips id-less
-items and reports the count, network ingest never weakens. The list
-entry lives beside the
-fetched body so listed metadata survives a fetch; both store files are
-schema-versioned — newer refused, creation/migration serialized under
-an immediate transaction; and the pairing is bound to the account uuid
-carried *inside* the annotations file (`Annotations::open_for` stamps
-and verifies it, so a copied or renamed file keeps its owner and an
-unbound handle is refused). The provider is deliberately not in the
-snapshot — the store cannot verify it, the planner binds it from the
-directory it opened); (4) `RefreshPlan` built offline in
-`acquisition-plan` — **done 2026-09-01, hardened same day per owner
-review (six issues)** (linked by frontends only, so the daemon's
-blindness stays a dependency-graph fact; the sync-policy value's
-schema belongs to the planner: version-stamped and strict-parsed
-through a validating deserialization funnel, so a typo'd field, a
-stray selection word, or a newer version is a structured refusal on
-*every* parse path — intent is never half-honored; plans always
-compile from the stored policy row and carry its revision, no ad-hoc
-path until a consumer demonstrably needs one; plans compile from facts
-on record only: a never-listed league plans the listing **alone** —
-covered tabs skip as `awaiting_listing`, since without a basis the
-plan has no membership authority — substash actions come from stored
-stubs, an orphaned substash (parent retired by a later listing, row
-kept) is skipped with its reason rather than rendered on the wrong
-endpoint, and a policy id the facts lack is reported, never invented
-into an action; the `metadata.items` heuristic forces a fetch only
-when a listing newer than our fetch disagrees with the held count, and
-never skips one; ages saturate, so a corrupt store timestamp reads as
-very stale, never as fresh and never a panic; a serialized plan
-re-validates on parse — unknown fields at any depth (the nested types
-are strict too), a wrong operation, an action whose league is not the
-envelope's, or derived quantities that do not recompute refuse whole;
-the wire projection, prerequisites included, is reviewed content
-recomputed by the same `wire_estimate` the compiler used — so apply
-can trust what it reads back, and a `MAX_429_RETRIES` or
-prerequisite-wording change is a plan-schema event, not a silent edit; every action renders the daemon's own `(kind, params)` job
-tuple, pinned through `Endpoint::from_job` — the store's production
-decoder of that vocabulary — plus a plan→record→replan loop, breakers
-verified); (5) `quote` on the protocol +
-optional plan enrichment — **done 2026-09-01, hardened same day over
-two owner reviews (seven issues, then four)** (`Request::Quote` takes work in the
-daemon's own job vocabulary — the `(kind, params)` tuples plan actions
-render — and answers a read-only, non-reserving projection, per the
-2026-08-31 decision line: per scheduling scope (a learned policy's
-state key, else the bare endpoint key) the per-window headroom **with
-its own observation age**, the daemon's own queue counted ahead
-(excluding probes and a parent holding a deferred result — its send
-already happened), and a forward-simulated ETA — all read under one
-limiter lock so they describe one instant, and the simulation seeds
-reported hits the local history never saw (a restart probe's counters,
-N24; other tools on the account, N23) at the last response time — as a
-count, indexed rather than materialized, so an arbitrary `u32` header
-can neither loop the daemon nor truncate at the history cap — and it
-over-waits rather than predicts sends into a fuller window; an
-unlearned, degraded, or policyless route is labeled rather than
-guessed at, and probes (a degraded route's eventual re-probe
-included), possible OAuth refresh, 429 re-sends, a rails halt, and
-non-sending jobs are named under `not_covered`/`notes` instead of
-silently omitted; account selection follows `Submit`'s rules exactly —
-the selector is judged before anything is projected, an empty job list
-included, so a zero-action quote cannot launder an unknown account,
-and an omitted selector with several sessions live refuses as
-ambiguous — while each job resolves against the judged selector, so a
-quoted job keys exactly what the same submit would key;
-`RefreshPlan.quote` is the optional enrichment (`with_quote`) — an
-observation, not a derivation, so parse validation cannot recompute it
-and instead pins what is checkable: strict unknown-field parsing, the
-plan's provider, **exactly** its account (`null` is not a wildcard —
-an accountless quote on an account-bound plan is someone else's
-limiter state), and the quote's **work basis**: the daemon echoes the
-request's job tuples verbatim into `Quote::work`, and the plan
-requires them to be exactly its own actions rendered as jobs, in
-order, with scope totals that sum (checked, never a wrap or panic) to
-`logical_requests` — matching totals alone would let a quote for other
-work of the same size stand in; the `Quote` shape is part of the plan
-schema and each of its changes bumped `REFRESH_PLAN_SCHEMA` in turn —
-**now 3** (v2 = quote added, v3 = `work` added) — so an older reader
-reports "newer schema", never "malformed"); (6) `acq refresh --plan`, human + JSON,
-spends nothing — **done 2026-09-01, hardened same day after owner
-review (4 issues)** (`acquisition-cli/src/plan_cmd.rs`; came with the
-policy's first write surface, `acq policy show|set`, since without one
-no human could exercise the tracer: `set` funnels the value through the
-planner's own strict parse *before* the write, so a typo'd policy is
-refused at the keyboard and never lands on disk — inline JSON, `-` for
-stdin, `@file` for a file — and `--if-revision <n>` is the CAS at the
-human boundary: given, the write lands only over exactly the revision
-the human reviewed; omitted, the write replaces the revision read just
-before the put, but stays a CAS underneath — an overlapping write is a
-structured conflict, never a clobber.
-`refresh --plan` resolves the account from the index (uuid-bound
-annotations via `Annotations::open_for`), compiles offline, and prints
-human output or — with `--json` — exactly the serialized plan envelope
-on stdout, ready to pipe to step 7's apply. Quote enrichment is
-best-effort from a *running* daemon only, on
-`ConnectOptions::autonomous(false)` — never spawn and never **replace**:
-the interactive policy's kill-and-respawn is itself a spend, since the
-successor resumes the persisted queue — pinned by a breaker-verified
-test; the whole attempt is bounded (5 s) so a wedged socket cannot keep
-an already-compiled plan from printing, the real connect error is
-reported rather than a guessed "not running", and a rails halt is
-reported by cause without prescribing `reset-tripwire` (a ceiling halt
-cannot be reset mid-lifetime; `LIVE-TESTING.md` governs clearing);
-attach goes through `with_quote`, and a daemon quote the plan refuses
-is a printed note, never silently dropped — proven attached against
-the live mock daemon, account-keyed scopes and all. The `--json`
-stdout is pinned at the process level
-(`acquisition-cli/tests/plan_json.rs`, seeded through the store crate,
-no daemon): each command emits exactly one JSON document — the plan
-envelope re-accepted by `RefreshPlan::from_value`, refusals as
-`{"error":…}` with exit 1, quote-absence reasons on stderr only —
-because step 7's apply consumes this surface; the one gap accepted
-knowingly is a process-level mismatched-daemon test — the structural
-connect-options pin covers lifecycle safety); (7) apply: the
-exact action set through a parent that never expands it — the existing
-refresh parent re-lists, so it is constrained or replaced, recorded here
-first — with admission-time logical budget, and an explicit staleness
-ruling: annotation CAS guards policy *writes*, not plan application, so
-whether apply refuses a plan whose annotation revision is no longer
-current is its own check, decided and recorded at this step (the
-snapshot carries the revision so the comparison is possible);
-(8) MCP exposure in mock
-mode (real-mode `quote` is the open topic above); (9) owner live rung
-under `LIVE-TESTING.md`'s standing rule, friction notes collected as
-data.
+Built, each step gate-green and owner-reviewed:
+
+1. Semantics — the 2026-08-31 decision lines above.
+2. uuid-at-login + the annotation file (2026-08-31,
+   `acquisition-store/src/annotations.rs` and the daemon's staged login
+   flow — a login fails whole, and only its own flow-terminal result on
+   the protocol counts as success).
+3. Neutral store snapshots (2026-08-31, `Store::stash_snapshot` in
+   `acquisition-store/src/snapshot.rs`) — with the malformed-2xx
+   ruling: a malformed body is a typed refusal that writes nothing and
+   fails the *job*; only `acq store import` keeps the legacy tolerance,
+   at its own boundary.
+4. `RefreshPlan` compiled offline in `acquisition-plan` (2026-09-01).
+   `REFRESH_PLAN_SCHEMA` is **3**; any shape change anywhere in the
+   envelope — the embedded `Quote` included — is a schema bump, so an
+   older reader reports "newer schema", never "malformed".
+5. `quote` on the protocol + `with_quote` plan enrichment (2026-09-01;
+   `Daemon::quote`, protocol `Quote`/`QuoteScope`).
+6. `acq refresh --plan` + the policy's first write surface, `acq policy
+   show|set` (2026-09-01; `acquisition-cli/src/plan_cmd.rs`; the
+   `--json` stdout contract is pinned at the process level in
+   `acquisition-cli/tests/plan_json.rs` — step 7's apply consumes that
+   envelope).
+
+Accepted residuals, recorded so they need no re-litigating:
+
+- No process-level mismatched-daemon test; the structural
+  connect-options pin covers lifecycle safety (the quote path never
+  spawns or replaces a daemon).
+- Real GGG's `/profile` `name` may lack the `#discriminator` the
+  session username carries; if so, `--plan`'s quote enrichment surfaces
+  it at step (9) as a graceful "daemon quote rejected" note — an
+  observation to collect on the live rung, not a bug to pre-fix.
+
+Still to build:
+
+7. Apply: the exact action set through a parent that never expands it —
+   the existing refresh parent re-lists, so it is constrained or
+   replaced, recorded here first — with admission-time logical budget,
+   and an explicit staleness ruling: annotation CAS guards policy
+   *writes*, not plan application, so whether apply refuses a plan
+   whose annotation revision is no longer current is its own check,
+   decided and recorded at this step (the snapshot carries the revision
+   so the comparison is possible).
+8. MCP exposure in mock mode (real-mode `quote` is the open topic
+   above).
+9. Owner live rung under `LIVE-TESTING.md`'s standing rule, friction
+   notes collected as data.
 
 Done = **pin the refresh Plan/quote/apply slice and the annotation API
 it exercised** — a CLI tracer cannot close the whole GUI/MCP/TUI
