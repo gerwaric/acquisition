@@ -282,7 +282,15 @@ Prepared, not yet run (the run is the owner's, from a terminal):
    no-hold bound is `n ≤ 15` (the 10 s window), not 30; the ceiling can
    be overshot by one in-flight send (rail 1's caveat) and a
    `ceiling + 1` journal fails the cycle; the selector is
-   case-insensitive like `account_matches`. The run's outputs: a ledger
+   case-insensitive like `account_matches`. Round 3 (same day, three
+   findings, fixed): `all` defaults its freshness window to a day and
+   the driver refuses a cycle longer than the window (at 3600 s the
+   hour-long cycle would re-stale its own facts and never close); the
+   timing bucket goes by window position (5 s first, 60 s later —
+   `bucket_for`), not by period; the selector lowercases in Unicode; the
+   verifier is its own file, `tools/tracer-verify.py`, whose
+   `--self-test` pins the nonzero-hit branches the mock cannot reach
+   (checked in, green). The run's outputs: a ledger
    row, the friction notes in the rung section, and then the two
    rulings below — "Binding-plan friction" and the method-test verdict.
 

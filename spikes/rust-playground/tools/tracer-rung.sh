@@ -18,7 +18,10 @@
 # uncovered, and the loop closes after one working cycle); `all` covers
 # them and runs the discovery cycle. Live, `all` on a 322-tab account is a
 # 323-request plan with ~343 s limiter holds every 30 sends (rung 10's
-# shape) and then every substash — the owner's call, not this script's.
+# shape) and then every substash — the owner's call, not this script's;
+# `all` defaults max_age_seconds to a day so the hour-long cycle does not
+# make its own facts stale before the next plan (the driver refuses a
+# window shorter than the cycle it projects).
 #
 # Shape of the run (one fresh daemon per wire phase, each under an EXACT
 # send ceiling, stopped when its phase is over):
@@ -45,11 +48,13 @@
 #   4  the next read = facts: `acq tabs`, `acq store status/events`; a
 #      selected tab missing from the store, or a read that fails, fails
 #      the run — the readback is part of what the rung tests
-#   5  evidence + verification: per lifetime, probe before first send per
-#      route, no non-2xx; every probe's reported hits are at most this
-#      run's own earlier sends on that route (so the run's FIRST probe on
-#      a route must report 0 — the standing rule — and a later cycle's
-#      probe may carry the earlier cycle's hits, which are ours); GET
+#   5  evidence + verification (tools/tracer-verify.py; its --self-test
+#      pins the branches the mock cannot reach): per lifetime, probe
+#      before first send per route, no non-2xx; every probe's reported
+#      hits, per window, are at most this run's own GETs on that route
+#      inside the window plus its timing bucket (so the run's FIRST probe
+#      on a route must report 0 — the standing rule — and a later cycle's
+#      probe may carry only the earlier cycle's hits, which are ours); GET
 #      count == the applied plan's logical count (zero 429 re-sends: the
 #      estimate's minimum held); ledger row draft and the friction notes.
 # Mock mode proves the script on the in-process provider with the same
@@ -69,7 +74,7 @@ ACQ="$here/target/debug/acq"
 MODE=live
 ACCOUNT=
 LEAGUE=Standard
-MAX_AGE=3600
+MAX_AGE=
 CYCLES=4
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -84,6 +89,13 @@ done
 SELECTION=${1:?usage: tracer-rung.sh [--mock] [--account SEL] [--league L] [--max-age S] [--cycles K] <tab1,...|all>}
 command -v jq >/dev/null || { echo "jq is required" >&2; exit 2; }
 command -v python3 >/dev/null || { echo "python3 is required" >&2; exit 2; }
+# The freshness window must outlive the cycle that fills it, or the next
+# plan re-lists and re-fetches what the previous one just landed: an id
+# list's cycle is seconds, `all` on a real account is an hour (rung 10),
+# so `all` defaults to a day. Checked again per cycle against the plan.
+if [ -z "$MAX_AGE" ]; then
+    if [ "$SELECTION" = all ]; then MAX_AGE=86400; else MAX_AGE=3600; fi
+fi
 INTERACTIVE=0
 if [ -t 0 ]; then INTERACTIVE=1; fi
 if [ "$MODE" = live ] && [ "$INTERACTIVE" = 0 ]; then
@@ -261,15 +273,18 @@ echo "league $LEAGUE | selection $SELECTION | max_age_seconds $MAX_AGE | up to $
 
 # The selector resolves the way `acq` resolves it (index.rs
 # `account_matches`): the username or the username without its
-# #discriminator, both case-insensitive, or the exact uuid; exactly one
-# hit. The exact username is what gets exported.
+# #discriminator, both case-insensitive (Unicode lowercasing, as Rust's
+# `to_lowercase`), or the exact uuid; exactly one hit. The exact username
+# is what gets exported.
 resolve_account() { # <selector>
-    "$ACQ" accounts --json | jq -r --arg s "$1" '
-        ($s | ascii_downcase) as $l
-        | [.[] | select((.username | ascii_downcase) == $l
-                        or (.username | ascii_downcase | split("#")[0]) == $l
-                        or .uuid == $s)]
-        | if length == 1 then .[0].username else "AMBIGUOUS_OR_NONE:\(length)" end'
+    "$ACQ" accounts --json | python3 -c '
+import json, sys
+sel = sys.argv[1]; low = sel.lower()
+hits = [e["username"] for e in json.load(sys.stdin)
+        if e["username"].lower() == low
+        or e["username"].lower().split("#", 1)[0] == low
+        or e.get("uuid") == sel]
+print(hits[0] if len(hits) == 1 else f"AMBIGUOUS_OR_NONE:{len(hits)}")' "$1"
 }
 account_uuid() { "$ACQ" accounts --json | jq -r --arg u "$ACQ_ACCOUNT" '.[] | select(.username == $u) | .uuid // empty'; }
 
@@ -451,8 +466,21 @@ for c in $(seq 1 "$CYCLES"); do
     pace=""
     if [ "$MODE" = live ]; then
         stash_gets=$((fetches + subs))
+        # Duration of this cycle on the wire, over-estimated on purpose:
+        # a ~343 s hold per 30 stash GETs and a ~15 s hold per 15 (rungs
+        # 10 and 7b; 323 GETs took 61 min live) plus a minute of slack.
+        # The facts a cycle lands at its start are the oldest when the
+        # NEXT plan compiles, so the window must outlive the cycle with
+        # margin: refuse unless it is at least twice the estimate.
+        est=$(( (stash_gets / 30) * 343 + (stash_gets / 15) * 15 + 60 ))
+        if [ $((est * 2)) -ge "$MAX_AGE" ]; then
+            echo "*** cycle $c would take ~$est s on the wire but max_age_seconds is $MAX_AGE:" >&2
+            echo "*** what it lands would be stale (or nearly) for the next plan, and the loop" >&2
+            echo "*** could not close. Rerun with --max-age of at least $((est * 2)) (e.g. 86400)." >&2
+            exit 2
+        fi
         if [ "$stash_gets" -gt 30 ]; then
-            pace=" — more than 30 stash GETs: a ~15 s hold after each 15 and a ~343 s hold after each 30 (rung 10's shape); that is the limiter working"
+            pace=" — more than 30 stash GETs: a ~15 s hold after each 15 and a ~343 s hold after each 30 (rung 10's shape), ~$est s in all; that is the limiter working"
         elif [ "$stash_gets" -gt 15 ]; then
             pace=" — more than 15 stash GETs: expect one ~15 s limiter hold before the 16th (rung 7b); that is the limiter working"
         fi
@@ -578,167 +606,8 @@ COMPLETED=1
 cp "$JOURNAL" "$RUN_DIR/sends.jsonl"
 cp "$LOG" "$RUN_DIR/daemon.log" 2>/dev/null || true
 
-verify() { python3 - "$JOURNAL" "$OFFSET" "$CYCLE_ROWS" "$LOGIN_LIFETIME" "$CLOSED" "$MODE" <<'PY'
-import json, sys
-
-journal, offset, rows_path, login_lifetime, closed, mode = sys.argv[1:7]
-login_lifetime, closed = int(login_lifetime), int(closed)
-
-f = open(journal); f.seek(int(offset))
-lifetimes, cur = [], None
-for raw in f:
-    if not raw.strip():
-        continue
-    l = json.loads(raw)
-    if l.get("event") == "open":
-        cur = {"pid": l["pid"], "build": l["build"], "clock": l["clock"], "sends": []}
-        lifetimes.append(cur)
-        continue
-    if cur is None:
-        cur = {"pid": l.get("pid"), "build": "?", "clock": "?", "sends": []}
-        lifetimes.append(cur)
-    cur["sends"].append(l)
-
-cycles = []
-for line in open(rows_path):
-    if line.strip():
-        c, lt, logical, probes, ceiling, quote = line.rstrip("\n").split("\t")
-        cycles.append({"cycle": int(c), "lifetime": int(lt), "logical": int(logical),
-                       "probes": int(probes), "ceiling": int(ceiling), "quote": quote})
-
-# Routes taught by their first GET rather than a probe (declared route
-# knowledge in daemon.rs), plus the token endpoint, which has no probe.
-NO_PROBE = {"oauth-token", "profile", "league"}
-fail, totals = [], []
-expected = login_lifetime + len(cycles)
-if mode == "mock" and len(lifetimes) == expected + 1 and not lifetimes[-1]["sends"]:
-    # Mock mode ends with a throwaway daemon for the logout; it sends nothing.
-    lifetimes.pop()
-    print("(the mock-mode logout daemon, 0 sends, is left out of the count)")
-
-from datetime import datetime
-
-def when(s):
-    return datetime.fromisoformat(s["ts"].replace("Z", "+00:00"))
-
-def reported_rules(rate):
-    """Every (hits, period_seconds) pair in every *-state header."""
-    rules = []
-    for k, v in (rate or {}).items():
-        if k.endswith("-state"):
-            for rule in str(v).split(","):
-                parts = rule.split(":")
-                if len(parts) >= 2 and parts[0].isdigit() and parts[1].isdigit():
-                    rules.append((int(parts[0]), int(parts[1])))
-    return rules
-
-def bucket(period):
-    """GGG's timing bucket past a window (N11/N12; rung 7b: +5 s on the
-    10 s window, rung 10: +60 s on the 300 s window) — a send that old
-    may still be counted, so it is still 'ours'."""
-    return 60 if period >= 300 else 5
-
-# This run's own counted GETs per exact route (account included), with
-# their times, so a probe's reported hits per window can be bounded by
-# what we ourselves sent inside that window (plus its bucket) — never by
-# the run's cumulative total, which would let outside traffic hide
-# behind aged-out sends of ours.
-ours = {}
-for i, lt in enumerate(lifetimes, 1):
-    label = "login" if (login_lifetime and i == 1) else f"cycle {i - login_lifetime}"
-    print(f"lifetime {i} ({label}): pid {lt['pid']}  build {lt['build']}  clock {lt['clock']}")
-    counts, first = {}, {}
-    for s in lt["sends"]:
-        m, r, st = s["method"], s["route"], s.get("status")
-        base = r.split("@", 1)[0]
-        counts[m] = counts.get(m, 0) + 1
-        first.setdefault(base, m)
-        flag = ""
-        if s.get("error") or st is None or st >= 400:
-            flag = "  <-- NOT OK"
-            fail.append(f"lifetime {i}: {m} {r} -> {st} error={s.get('error')}")
-        if st == 429:
-            fail.append(f"lifetime {i}: 429 on {r}")
-        if m == "HEAD":
-            t = when(s)
-            rules = reported_rules(s.get("rate"))
-            checks, over = [], False
-            for hits, period in rules:
-                mine = sum(1 for sent in ours.get(r, []) if (t - sent).total_seconds() <= period + bucket(period))
-                checks.append(f"{hits} of ours {mine} in {period}s")
-                if hits > mine:
-                    over = True
-            verdict = ""
-            if over:
-                verdict = f"  <-- reports more hits than this run sent inside the window ({'; '.join(checks)}): someone else is on this account"
-                fail.append(f"lifetime {i}: probe on {r} reported {'; '.join(checks)}")
-            elif rules and not any(h for h, _ in rules):
-                verdict = "  (0 hits: nothing else on this account" + (
-                    " — standing rule met)" if not ours.get(r) else "; this run's earlier sends have aged out)")
-            elif rules:
-                verdict = f"  (hits within this run's own sends in each window: {'; '.join(checks)} — expected)"
-            print(f"  HEAD {r} -> {st}  rate {json.dumps(s.get('rate'))}{flag}{verdict}")
-        else:
-            print(f"  {m} {r} -> {st}  wait_ms {s.get('wait_ms')}{flag}")
-            if m == "GET":
-                ours.setdefault(r, []).append(when(s))
-    for base, m in first.items():
-        if base not in NO_PROBE and m != "HEAD":
-            fail.append(f"lifetime {i}: first send on {base} was {m}, not the probe")
-    t = f"{counts.get('POST',0)}/{counts.get('HEAD',0)}/{counts.get('GET',0)}"
-    totals.append(f"{t} = {len(lt['sends'])}")
-    print(f"  totals (POST/HEAD/GET): {totals[-1]}")
-
-if len(lifetimes) != expected:
-    fail.append(f"expected {expected} daemon lifetime(s) in this run's journal, saw {len(lifetimes)}")
-if login_lifetime and lifetimes:
-    login = lifetimes[0]["sends"]
-    posts = sum(1 for s in login if s["method"] == "POST")
-    gets = sum(1 for s in login if s["method"] == "GET" and s["route"].startswith("profile"))
-    if posts != 1 or gets != 1 or len(login) != 2:
-        fail.append(f"login lifetime: expected exactly one code-exchange POST and one GET /profile, saw {len(login)} sends")
-
-print()
-print("plan vs journal, per cycle (the wire estimate's minimum should hold exactly):")
-for c in cycles:
-    idx = c["lifetime"] - 1
-    if idx >= len(lifetimes):
-        fail.append(f"cycle {c['cycle']}: no journal lifetime for it")
-        continue
-    sends = lifetimes[idx]["sends"]
-    gets = sum(1 for s in sends if s["method"] == "GET")
-    heads = sum(1 for s in sends if s["method"] == "HEAD")
-    posts = sum(1 for s in sends if s["method"] == "POST")
-    ok = gets == c["logical"] and heads == c["probes"] and posts == 1 and len(sends) == c["ceiling"]
-    print(f"  cycle {c['cycle']}: plan {c['logical']} request(s) + {c['probes']} probe(s) + 1 token POST"
-          f" -> journal {posts} POST / {heads} HEAD / {gets} GET (ceiling {c['ceiling']}); {c['quote']}"
-          + ("" if ok else "  <-- MISMATCH"))
-    if not ok:
-        fail.append(f"cycle {c['cycle']}: journal {posts}/{heads}/{gets} vs plan {c['logical']} + {c['probes']} probes + 1 POST")
-if closed:
-    print(f"  cycle {closed}: empty plan, no-op apply, no daemon, nothing journaled — the loop closed")
-else:
-    print("  the loop did not close within the cycle budget (recorded, not a failure)")
-
-print()
-if fail:
-    print("CHECKS FAILED — a ledger row still gets written, saying what happened:")
-    for x in fail:
-        print(f"  - {x}")
-    sys.exit(1)
-quotes = ", ".join(f"c{c['cycle']} {c['quote'].split(':')[0]}" for c in cycles)
-print("checks passed: every route probed before its first send in every lifetime,")
-print("no probe reported hits beyond this run's own sends inside each window (the")
-print("first probe on each route saw 0), no non-2xx, and each cycle's journal matches its plan")
-print("exactly (no 429 re-sends: the estimate's minimum held). Quote outcomes: " + (quotes or "none") + ".")
-print()
-print("draft ledger row:")
-lt = ", ".join(f"L{i+1} {t}" for i, t in enumerate(totals))
-cyc = "; ".join(f"c{c['cycle']} {c['logical']} req" for c in cycles)
-print(f"| <date> | tracer | <tip> | pass | {lt} | 0 | policy → plan → apply → replan"
-      f" ({cyc}{'; closed' if closed else '; not closed'}); each cycle's sends == its plan + probes + POST;"
-      f" quote: {quotes or 'n/a'}; friction notes in the rung section; runs/<date>-tracer/ |")
-PY
+verify() {
+    python3 "$here/tools/tracer-verify.py" "$JOURNAL" "$OFFSET" "$CYCLE_ROWS" "$LOGIN_LIFETIME" "$CLOSED" "$MODE"
 }
 if ! verify | tee "$RUN_DIR/summary.txt"; then
     echo ""

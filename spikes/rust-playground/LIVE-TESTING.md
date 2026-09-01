@@ -435,7 +435,7 @@ Preconditions: the standing rule's rails and binary provenance; from a
 terminal (keychain, browser). Two accounts are persisted, so every
 command carries `--account GERWARIC#7694` (the selector resolves as
 `acq` does: username or username without `#discriminator`, both
-case-insensitive, or the exact uuid). That account's index entry predates uuid-at-login and has no
+case-insensitive with Unicode lowercasing, or the exact uuid). That account's index entry predates uuid-at-login and has no
 uuid; intent binds to the uuid, so the run opens with a re-login as the
 same account (a code-exchange POST and the login's own `GET /profile`,
 ceiling 2, exactly). One fresh daemon per wire phase, stopped when the
@@ -460,10 +460,20 @@ Pick the tabs from `acq --account GERWARIC#7694 tabs --league Standard`
 (a store read; no daemon): a handful, including one map or unique tab
 so the uncovered-discovery observation is real. `all` is allowed and is
 the owner's call — 323 requests with ~343 s holds per 30, then every
-substash a second cycle (a map tab may expose hundreds).
+substash a second cycle (a map tab may expose hundreds). Its freshness
+window must outlive the cycle: at the default 3600 s the hour-long
+cycle 1 (rung 10: 61 min) would leave its own listing and early fetches
+stale for cycle 2, which would re-list and re-fetch instead of planning
+only substashes, and the loop could never close. `all` therefore
+defaults `max_age_seconds` to 86400, and the driver refuses any cycle
+whose (deliberately over-estimated) wire duration is not at most half
+the window.
 
 `tools/tracer-rung.sh [--account SEL] [--league L] [--max-age S]
-[--cycles K] <tab1,...|all>` drives the table from one terminal: it
+[--cycles K] <tab1,...|all>` drives the table from one terminal
+(`tools/tracer-verify.py` is its journal verifier; `--self-test` runs
+the synthetic journals that pin the nonzero-hit branches the mock
+cannot reach). It
 refuses stale binaries, leftover isolation env, and a running daemon;
 writes the policy from the selection; gates every wire phase on an
 explicit enter; derives each cycle's ceiling from the offline plan;
@@ -488,7 +498,7 @@ POST. The table stays the specification; the script implements it.
 | 1 | fresh daemon (ceiling 2), `ACQ_GGG=1 acq auth` in the browser as **the same account** | POST 200 (`token-request-limit` Ip `1:30:0`), `GET /profile` 200 with no rate headers (N38), `logged in as GERWARIC#7694`, the index now carries the uuid; bound reached at send 2; daemon stopped | the login lands as another account (intent would bind to the wrong identity); any non-2xx |
 | 2 | `acq policy set '{"version":1,"leagues":{"Standard":{"tabs":[…],"max_age_seconds":3600}}}'`, then `acq refresh --plan` with **no daemon** | revision 1; the plan is the stale listing (≈2 d) plus one fetch per selected tab, `n+1` requests, `n+1..3(n+1)` wire sends, the two prerequisites named; stderr `no quote: … plan compiled offline`; no daemon appeared | a daemon appeared; the note is anything but "no quote" |
 | 3 (cycle 1) | fresh daemon, ceiling `1 + 2 + (n+1)`; `acq refresh --plan --json` again (quoted) — checked equal to the offline envelope plus the quote, actions shown; `acq refresh --apply=<that file> --max-requests n+1` | the quote, or the discriminator note (record which); journal: POST, `HEAD /stash/Standard` 204 reporting **0 hits**, `GET` list 200, `HEAD /stash/Standard/{id}` 204 reporting **0 hits**, `n` tab GETs 200; parent `done`, children `n+1` done, 0 failed; the bound reached exactly at the last send; daemon stopped | the run's **first** probe on a route reports hits > 0 (standing rule: something else is on this account); any non-2xx; a child failed (a tab gone since 2026-08-30 is data — record it, then stop); the ceiling halts with sends missing, or the journal shows `ceiling + 1` (a send the plan did not project, either way) |
-| 4 (cycle 2) | plan offline again | **id list**: `nothing to do` — the substashes discovered under the map/unique tab are in `acq tabs` but outside the policy; `acq refresh --apply` with no daemon prints `requests: 0` and nothing appears on the socket. **`all`**: `fetch substash` lines, `m` requests, ceiling `1 + 1 + m`; the stash probe reports cycle 1's hits still inside each window — **ours, expected; the verifier bounds every reported window's hits by this run's own sends inside that window (plus GGG's timing bucket, N11/N12) at the probe's time, never by a cumulative total**; journal `1/1/m`; children `m` done | a daemon appeared on the no-op; hits beyond ours in any window; otherwise as step 3 |
+| 4 (cycle 2) | plan offline again | **id list**: `nothing to do` — the substashes discovered under the map/unique tab are in `acq tabs` but outside the policy; `acq refresh --apply` with no daemon prints `requests: 0` and nothing appears on the socket. **`all`**: `fetch substash` lines, `m` requests, ceiling `1 + 1 + m`; the stash probe reports cycle 1's hits still inside each window — **ours, expected; the verifier bounds every reported window's hits by this run's own sends inside that window plus that window's timing bucket (N11/N12: 5 s on a rule's first window, 60 s on the later ones, as `bucket_for` in `ratelimit.rs`) at the probe's time, never by a cumulative total**; journal `1/1/m`; children `m` done | a daemon appeared on the no-op; hits beyond ours in any window; otherwise as step 3 |
 | 5 (cycle 3, `all` only) | plan offline again | empty; no-op apply with no daemon | a daemon appeared; the plan still has work (record what and why; not a failure) |
 | 6 | `acq tabs --league Standard`, `acq store status`, `acq store events --hours 1` (store reads) | every selected tab `fetched` moments ago (an id the first plan reported as unknown is the one exception); item events from this run; the final `refresh --plan` empty when the loop was recorded closed | a selected tab is missing from the store; a read errors; a closed loop whose final plan is not empty |
 | 7 | evidence: journal copied to `runs/<date>-tracer/`; ledger row; friction notes pasted below | | |
@@ -499,9 +509,10 @@ Expected totals for `n` selected tabs: login `1/0/1`, cycle 1
 `16 ≤ n ≤ 30` costs one ~15 s hold before the 16th (rung 7b); above 30
 the ~343 s holds begin (rung 10). The listing GET is on its own policy
 and never holds here. For `all`: cycle 1 `1/2/323` with ten ~343 s
-holds, cycle 2 `1/1/m` for `m` substashes with its own holds, and cycle
-2's probe carries cycle 1's hits still inside the windows, which the
-fresh daemon reads and paces on (it over-waits, never floods — the
+holds, cycle 2 `1/1/m` for `m` substashes with its own holds (under
+the day-long window; cycle 1's listing and fetches stay fresh), and
+cycle 2's probe carries cycle 1's hits still inside the windows, which
+the fresh daemon reads and paces on (it over-waits, never floods — the
 seeding the quote also uses). Residuals stated plainly: the listing and the
 fetches share one plan by design, so a tab renamed or removed since
 2026-08-30 surfaces as a failed child or an `unknown_tabs` id — that is
