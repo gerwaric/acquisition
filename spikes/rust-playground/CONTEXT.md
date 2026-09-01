@@ -285,7 +285,9 @@ planner's own strict parse *before* the write, so a typo'd policy is
 refused at the keyboard and never lands on disk — inline JSON, `-` for
 stdin, `@file` for a file — and `--if-revision <n>` is the CAS at the
 human boundary: given, the write lands only over exactly the revision
-the human reviewed; omitted, the write is documented last-writer-wins.
+the human reviewed; omitted, the write replaces the revision read just
+before the put, but stays a CAS underneath — an overlapping write is a
+structured conflict, never a clobber.
 `refresh --plan` resolves the account from the index (uuid-bound
 annotations via `Annotations::open_for`), compiles offline, and prints
 human output or — with `--json` — exactly the serialized plan envelope
@@ -301,7 +303,15 @@ reported by cause without prescribing `reset-tripwire` (a ceiling halt
 cannot be reset mid-lifetime; `LIVE-TESTING.md` governs clearing);
 attach goes through `with_quote`, and a daemon quote the plan refuses
 is a printed note, never silently dropped — proven attached against
-the live mock daemon, account-keyed scopes and all); (7) apply: the
+the live mock daemon, account-keyed scopes and all. The `--json`
+stdout is pinned at the process level
+(`acquisition-cli/tests/plan_json.rs`, seeded through the store crate,
+no daemon): each command emits exactly one JSON document — the plan
+envelope re-accepted by `RefreshPlan::from_value`, refusals as
+`{"error":…}` with exit 1, quote-absence reasons on stderr only —
+because step 7's apply consumes this surface; the one gap accepted
+knowingly is a process-level mismatched-daemon test — the structural
+connect-options pin covers lifecycle safety); (7) apply: the
 exact action set through a parent that never expands it — the existing
 refresh parent re-lists, so it is constrained or replaced, recorded here
 first — with admission-time logical budget, and an explicit staleness

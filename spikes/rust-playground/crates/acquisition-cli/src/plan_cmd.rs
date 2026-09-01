@@ -101,9 +101,11 @@ pub fn policy_set(value: &str, if_revision: Option<i64>, json: bool) -> Result<(
 /// only if the stored revision is exactly that — what the caller reviewed
 /// (`acq policy show` prints it) is what they replace, and another
 /// frontend's write in between is a structured conflict. Omitted, the
-/// write is deliberately unconditional (the revision is read here, just
-/// before the put): the last writer wins, which is the right default for
-/// one human at one keyboard and is what the command's help says.
+/// write blindly replaces the revision read here, just before the put —
+/// the right default for one human at one keyboard — but it is still a
+/// CAS underneath: a write landing between the read and the put is a
+/// structured conflict to retry, never a silent clobber in either
+/// direction.
 fn write_policy(
     annotations: &mut Annotations,
     value: &Value,
@@ -550,8 +552,17 @@ mod tests {
         // concurrently.
         unsafe { std::env::set_var("ACQ_SOCKET", &sock) };
         let plan = tiny_plan();
-        let (back, note) =
-            try_quote_within(plan.clone(), std::time::Duration::from_millis(200)).await;
+        // The outer watchdog outlives the tested bound on purpose: if the
+        // production timeout is ever removed, this test must fail cleanly
+        // instead of hanging the quality gate.
+        let (back, note) = tokio::time::timeout(
+            std::time::Duration::from_secs(10),
+            try_quote_within(plan.clone(), std::time::Duration::from_millis(200)),
+        )
+        .await
+        .expect(
+            "the bounded quote attempt itself never returned — is the production timeout gone?",
+        );
         assert_eq!(back, plan, "the compiled plan must come back untouched");
         let note = note.expect("a timed-out quote must say why it is absent");
         assert!(note.contains("did not answer"), "{note}");

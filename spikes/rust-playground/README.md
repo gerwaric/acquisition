@@ -225,7 +225,8 @@ acq refresh --tabs a,b,c | --all [--deep]    # list, then one `stash` child per 
 acq policy [show]                            # the per-account sync policy: declared coverage + freshness (an annotation)
 acq policy set '<json>' [--if-revision N]    # validated through the planner's strict parse before anything lands;
                                              #  `-` reads stdin, `@file` reads a file; --if-revision writes only
-                                             #  over exactly the revision you reviewed (else last writer wins)
+                                             #  over exactly the revision you reviewed (without it, the currently
+                                             #  stored revision is replaced; racing writes conflict, never clobber)
 acq refresh --plan                           # compile policy + facts into the explicit action set — sends nothing;
                                              #  a running daemon adds its read-only quote (never spawned for this),
                                              #  and --json prints the serialized plan envelope itself
