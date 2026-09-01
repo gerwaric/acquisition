@@ -1,4 +1,5 @@
 mod dash;
+mod plan_cmd;
 mod store_cmd;
 
 use std::io::Write as _;
@@ -103,8 +104,20 @@ enum Cmd {
         /// Also follow map/unique substashes (per tab, as child jobs).
         #[arg(long)]
         deep: bool,
+        /// Compile the stored sync policy (`acq policy`) into the explicit
+        /// action set and print it — nothing is submitted or sent. A
+        /// running daemon adds its read-only quote. With --json, prints
+        /// the serializable plan envelope.
+        #[arg(long, conflicts_with_all = ["all", "tabs", "deep"])]
+        plan: bool,
         #[arg(long, default_value = "Standard")]
         league: String,
+    },
+    /// The per-account sync policy: the declared coverage and freshness
+    /// that `acq refresh --plan` compiles into requests.
+    Policy {
+        #[command(subcommand)]
+        cmd: Option<PolicyCmd>,
     },
     /// Submit a job (kinds: sleep, fetch, whoami, profile, characters, character, leagues, stashes, stash, refresh).
     Submit {
@@ -180,6 +193,24 @@ enum StoreCmd {
     Rebuild,
     /// Replay a snapshot file from the retired `acq pull` into the store (no GGG traffic).
     Import { path: std::path::PathBuf },
+}
+
+#[derive(Subcommand)]
+enum PolicyCmd {
+    /// Print the stored policy value and its revision (the default).
+    Show,
+    /// Write the policy: inline JSON, `-` to read stdin, or `@<path>` to
+    /// read a file. Validated before it is stored — a typo'd field or an
+    /// unknown version is refused, never half-honored.
+    Set {
+        value: String,
+        /// Only write if the stored policy is at exactly this revision
+        /// (what `acq policy show` printed when you reviewed it); refused
+        /// with the current revision otherwise. Without it the write is
+        /// unconditional — the last writer wins.
+        #[arg(long)]
+        if_revision: Option<i64>,
+    },
 }
 
 #[derive(Subcommand)]
@@ -354,10 +385,14 @@ async fn run(cli: Cli) -> Result<()> {
             all,
             tabs,
             deep,
+            plan,
             league,
         } => {
+            if plan {
+                return plan_cmd::refresh_plan(&league, cli.json).await;
+            }
             if !all && tabs.is_empty() {
-                bail!("refresh needs --all or --tabs <id,...>");
+                bail!("refresh needs --all, --tabs <id,...>, or --plan");
             }
             let mut client = connect(true).await?;
             let id = submit(
@@ -369,6 +404,12 @@ async fn run(cli: Cli) -> Result<()> {
             .await?;
             block_on_job(&mut client, id, cli.json).await
         }
+        Cmd::Policy { cmd } => match cmd {
+            None | Some(PolicyCmd::Show) => plan_cmd::policy_show(cli.json),
+            Some(PolicyCmd::Set { value, if_revision }) => {
+                plan_cmd::policy_set(&value, if_revision, cli.json)
+            }
+        },
         Cmd::Submit {
             kind,
             params,
@@ -868,5 +909,27 @@ async fn watch_table_until_done(client: &mut Client, ids: &[u64]) -> Result<()> 
             return Ok(());
         }
         tokio::time::sleep(Duration::from_secs(1)).await;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn refresh_plan_conflicts_with_the_execute_selectors() {
+        // `--plan` compiles the stored policy; --all/--tabs/--deep are the
+        // ad-hoc execution path. Mixing them must be a parse error, not a
+        // silently ignored flag.
+        for bad in [
+            vec!["acq", "refresh", "--plan", "--all"],
+            vec!["acq", "refresh", "--plan", "--tabs", "a,b"],
+            vec!["acq", "refresh", "--plan", "--deep"],
+        ] {
+            assert!(Cli::try_parse_from(&bad).is_err(), "{bad:?} must not parse");
+        }
+        assert!(Cli::try_parse_from(["acq", "refresh", "--plan"]).is_ok());
+        assert!(Cli::try_parse_from(["acq", "refresh", "--plan", "--league", "Hardcore"]).is_ok());
+        assert!(Cli::try_parse_from(["acq", "policy", "set", "{}", "--if-revision", "4"]).is_ok());
     }
 }

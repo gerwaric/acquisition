@@ -14,5 +14,6 @@ serde.workspace = true
 serde_json.workspace = true
 anyhow.workspace = true
 acquisition-store = { path = "../acquisition-store" }
+acquisition-plan = { path = "../acquisition-plan" }
 clap.workspace = true
 ratatui = "0.29"

@@ -177,8 +177,13 @@ bounded by `MAX_429_RETRIES`; a Cloudflare-shaped 403/503 is never retried.
   matching count; carrying it bumped the plan schema (now v3). Same
   no-panic clippy ratchet as the store crate.
 - `crates/acquisition-cli` — the `acq` binary. Thin: clap parsing, output
-  formatting, and `store_cmd.rs` — the reads of the shared store (`tabs`,
-  `items`, `store`). The protocol client (connect, lazy spawn, version
+  formatting, `store_cmd.rs` — the reads of the shared store (`tabs`,
+  `items`, `store`) — and `plan_cmd.rs` — the intent surface (`acq policy`,
+  writing the sync-policy annotation through the store crate) and
+  `acq refresh --plan` (tracer step 6): compiles the stored policy via
+  `acquisition-plan` into a `RefreshPlan`, offline, spending nothing; a
+  *running* daemon enriches it with its quote (never spawned for this),
+  and `--json` emits the plan envelope verbatim. The protocol client (connect, lazy spawn, version
   handshake) lives in `acquisition-core/src/client.rs` and is shared by
   every frontend; the frontends differ only in connect *policy*
   (`ConnectOptions`). `acq pull` (client-side snapshot + diff, 2026-08-24)
@@ -217,6 +222,13 @@ acq character <name>                         # GET /character/{name}: equipment 
 acq leagues                                  # GET /account/leagues (account:leagues)
 acq stash <id> [--sub <id>] [--deep]         # one tab; --deep follows a map/unique tab's substashes as child jobs
 acq refresh --tabs a,b,c | --all [--deep]    # list, then one `stash` child per tab; parent finishes last
+acq policy [show]                            # the per-account sync policy: declared coverage + freshness (an annotation)
+acq policy set '<json>' [--if-revision N]    # validated through the planner's strict parse before anything lands;
+                                             #  `-` reads stdin, `@file` reads a file; --if-revision writes only
+                                             #  over exactly the revision you reviewed (else last writer wins)
+acq refresh --plan                           # compile policy + facts into the explicit action set — sends nothing;
+                                             #  a running daemon adds its read-only quote (never spawned for this),
+                                             #  and --json prints the serialized plan envelope itself
 acq cancel <parent-id>                       # cascades to every descendant still waiting
 acq accounts                                 # accounts this machine has logged into, from the store's index (no daemon)
 acq tabs [--league L]                        # from the shared store: tab tree with live item counts (no daemon)
@@ -370,12 +382,14 @@ regression (N20) so the degraded path can be exercised.
 
 ## Known gaps
 
-- **Refresh has no delta/selection smarts.** `--all` fetches every listed
-  tab every time; the store's per-tab `fetched_at` plus the real API's
-  `metadata.items` counts on substash stubs (free) are the obvious lever
-  for skipping, not used yet. A refresh that loses tabs (a 503, a rails
-  halt) leaves those tabs' rows at their previous state; nothing yet
-  refetches only the failed set.
+- **Refresh's delta/selection smarts exist but are not yet applied.**
+  `acq refresh --plan` computes the minimal action set from the sync
+  policy, per-tab freshness, and the `metadata.items` heuristic — but
+  until apply lands (tracer step 7), executing a refresh still means
+  `--all`, which fetches every listed tab every time. A refresh that
+  loses tabs (a 503, a rails halt) leaves those tabs' rows at their
+  previous state; the next `--plan` names exactly the stale set, but
+  nothing yet refetches it as a bounded apply.
 - **Two endpoints carry declared route knowledge** (`/profile`
   policyless, `/account/leagues` no-probe). GGG answered Q12
   (2026-08-30): `/profile` is not rate limited at present — its

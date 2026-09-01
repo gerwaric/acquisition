@@ -162,7 +162,7 @@ and store; (2) `account` on jobs, validated against the sole session;
 rule, uuid recorded opportunistically (superseded 2026-08-31: uuid is now
 required at login — identity bullet above).
 
-### Annotations & plans — the refresh tracer (decided 2026-08-31, building; steps 1–5 done)
+### Annotations & plans — the refresh tracer (decided 2026-08-31, building; steps 1–6 done)
 
 The one slice built next: refresh-with-`plan`, the smallest slice that
 touches all four layers (policy = intent, plan = derivation, apply =
@@ -277,7 +277,31 @@ work of the same size stand in; the `Quote` shape is part of the plan
 schema and each of its changes bumped `REFRESH_PLAN_SCHEMA` in turn —
 **now 3** (v2 = quote added, v3 = `work` added) — so an older reader
 reports "newer schema", never "malformed"); (6) `acq refresh --plan`, human + JSON,
-spends nothing; (7) apply: the
+spends nothing — **done 2026-09-01, hardened same day after owner
+review (4 issues)** (`acquisition-cli/src/plan_cmd.rs`; came with the
+policy's first write surface, `acq policy show|set`, since without one
+no human could exercise the tracer: `set` funnels the value through the
+planner's own strict parse *before* the write, so a typo'd policy is
+refused at the keyboard and never lands on disk — inline JSON, `-` for
+stdin, `@file` for a file — and `--if-revision <n>` is the CAS at the
+human boundary: given, the write lands only over exactly the revision
+the human reviewed; omitted, the write is documented last-writer-wins.
+`refresh --plan` resolves the account from the index (uuid-bound
+annotations via `Annotations::open_for`), compiles offline, and prints
+human output or — with `--json` — exactly the serialized plan envelope
+on stdout, ready to pipe to step 7's apply. Quote enrichment is
+best-effort from a *running* daemon only, on
+`ConnectOptions::autonomous(false)` — never spawn and never **replace**:
+the interactive policy's kill-and-respawn is itself a spend, since the
+successor resumes the persisted queue — pinned by a breaker-verified
+test; the whole attempt is bounded (5 s) so a wedged socket cannot keep
+an already-compiled plan from printing, the real connect error is
+reported rather than a guessed "not running", and a rails halt is
+reported by cause without prescribing `reset-tripwire` (a ceiling halt
+cannot be reset mid-lifetime; `LIVE-TESTING.md` governs clearing);
+attach goes through `with_quote`, and a daemon quote the plan refuses
+is a printed note, never silently dropped — proven attached against
+the live mock daemon, account-keyed scopes and all); (7) apply: the
 exact action set through a parent that never expands it — the existing
 refresh parent re-lists, so it is constrained or replaced, recorded here
 first — with admission-time logical budget, and an explicit staleness

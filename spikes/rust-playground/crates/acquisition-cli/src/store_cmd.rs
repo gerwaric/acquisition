@@ -17,14 +17,14 @@ pub fn set_selector(selector: Option<String>) {
     let _ = SELECTOR.set(selector);
 }
 
-fn provider() -> &'static str {
+pub(crate) fn provider() -> &'static str {
     if ggg_mode() { "ggg" } else { "mock" }
 }
 
 /// Which account's store: `ACQ_ACCOUNT` (exact username, name without
 /// discriminator, or uuid), else the sole known account. Resolved against
 /// the index file, so no daemon is involved.
-fn resolve() -> Result<(PathBuf, AccountEntry)> {
+pub(crate) fn resolve() -> Result<(PathBuf, AccountEntry)> {
     let dir = store_dir(provider());
     let index = Index::load(&dir)?;
     let selector = SELECTOR.get().cloned().flatten();
@@ -109,7 +109,7 @@ pub fn accounts(json: bool) -> Result<()> {
     Ok(())
 }
 
-fn ago(now: i64, t: Option<i64>) -> String {
+pub(crate) fn ago(now: i64, t: Option<i64>) -> String {
     match t {
         None => "never".into(),
         Some(t) => {
