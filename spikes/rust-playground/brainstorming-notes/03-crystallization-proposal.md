@@ -27,7 +27,7 @@ and fact-ledger reads with no daemon running — a dead daemon implies
 nothing in flight, so orientation degrades gracefully rather than
 failing. Rationale: structurally true today; recording it prevents
 protocol-only thinking about job visibility.
-**Ruling:** accept
+**Ruling:**
 
 **A2. Rails graduate to product features by exposure, not new
 machinery.** Budget *visibility* is the quote (D6) plus the journal;
@@ -35,7 +35,7 @@ machinery.** Budget *visibility* is the quote (D6) plus the journal;
 Per-operation enforcement is separately priced (D8). Rationale: the
 trust mechanism and the product feature are the same object (framing's
 synthesis seed, confirmed in 02).
-**Ruling:** accept
+**Ruling:**
 
 ### Bucket (b) — the heart: landings on open topics
 
@@ -47,7 +47,7 @@ derivations (computed, recomputable); the daemon alone writes the
 effects ledger. Rationale: "a sync can never clobber intent" becomes a
 structural property, the way the choke point made rate-limit discipline
 structural.
-**Ruling:** accept
+**Ruling:**
 
 **D2. Annotations are the only irreplaceable local state, and the store
 treats them that way.** They live in a **separate per-account file**
@@ -62,7 +62,7 @@ also gives zero daemon/frontend write contention and immunity to
 fact-schema migrations. This **amends** the recorded "written by the
 daemon and read directly by every frontend" line to: *frontends read
 facts and read/write intent, all through the store crate*.
-**Ruling:** accept
+**Ruling:**
 
 **D3. The daemon never initiates GGG traffic; every job has a
 submitting client.** Rationale: true today, and it is what makes the
@@ -70,7 +70,7 @@ daemon's permanent blindness to annotations safe to pin — scheduled or
 policy-driven syncs are small frontends (a cron/login-session process
 running plan→apply), never daemon capabilities. On macOS a cron-spawned
 daemon has no keychain anyway; the architecture and the platform agree.
-**Ruling:** accept
+**Ruling:**
 
 **D4. The sync policy is the first annotation.** A per-account,
 inspectable declaration of what should be kept fresh, compiled by a
@@ -79,7 +79,7 @@ convergence (C++ tracked-set/clean-refresh semantics, the
 delta/selection open topic, both essays' declarative sync policy) is
 three descriptions of this one object; per-account scope makes it the
 easy first row of the new layer.
-**Ruling:** accept
+**Ruling:**
 
 **D5. A Plan is a frontend-side derivation, composed from both
 surfaces, living in a shared crate.** Inputs: facts and annotations
@@ -90,7 +90,7 @@ and a Plan must say so rather than guess. Rationale: neither surface
 can compute a plan alone, and no third door is needed; a Plan that
 pretends to know an ETA it doesn't have violates the design's own first
 principle.
-**Ruling:** accept
+**Ruling:**
 
 **D6. The daemon answers a pure cost question: `quote` — requests, ETA,
 headroom after — as its own protocol request, not a flag on `Submit`.**
@@ -102,7 +102,7 @@ persistence, rollback-on-write-failure); a dry run that allocates no id
 and persists nothing is a different verb wearing a flag. *(Owner taste
 explicitly solicited — a `--plan` flag on submit is the equally valid
 alternative.)*
-**Ruling:** accept
+**Ruling:**
 
 **D7. "An error's remedy is a plan" is a door-2 idiom, not a
 system-wide law.** Stale-read refusals and planner errors carry Plans;
@@ -110,7 +110,7 @@ daemon protocol errors keep their current shapes. Rationale: the daemon
 cannot compute plans — it is blind to facts and annotations by design —
 and scoping the unification removes the one pressure that would
 otherwise argue for un-blinding it.
-**Ruling:** accept
+**Ruling:**
 
 **D8. Per-operation budget enforcement (`--max-requests` on a plan) is
 new daemon machinery, priced as such.** A counter scoped to a parent's
@@ -120,7 +120,7 @@ template already exists in the restart rules). Budget *visibility*
 (D6/A2) is nearly free; enforcement is a real feature and a late tracer
 step. Rationale: honesty about cost — this is a promotion in concept
 but not in code.
-**Ruling:** accept
+**Ruling:**
 
 **D9. "Built once, inherited by every frontend" rests on a premise now
 made explicit: all frontends are Rust linking the shared crates.** CLI
@@ -129,7 +129,7 @@ wrap the shared crates), TUI (`acq dash`). A proposed non-Rust frontend
 is a design event, recorded before built. Rationale: the load-bearing
 fact under every "ergonomics are built once" claim; unstated premises
 erode silently.
-**Ruling:** accept
+**Ruling:**
 
 **D10. The planner lives in its own crate (`acquisition-plan`),
 depending on core's client/protocol types and the store, linked by
@@ -138,7 +138,7 @@ frontends only.** Rationale: `acquisition-core` already links the store
 but it would erode "the daemon never reads the store" from structural
 to disciplinary. A separate crate keeps the blindness enforced by the
 dependency graph.
-**Ruling:** accept
+**Ruling:**
 
 **D11. Panics are for broken internal invariants only; malformed
 external input — a GGG body, a store row, a protocol message — is
@@ -150,14 +150,14 @@ code is at zero today). Not workspace-wide: the daemon's
 them. Rationale: the persisted queue makes crashes recoverable, which
 turns a *reproducible* panic on bad input into a crash loop — the one
 failure persistence cannot absorb.
-**Ruling:** accept
+**Ruling:**
 
 ### Bucket (c) — new scope: goes to the parking lot (§4), not built now
 
 Pricing-as-document, shop, currency ratios, saved searches, `user.db`,
 PoB export, catalogs, the annotation change-log, the five-verb grammar
 surface. Each has a named landing and trigger in §4.
-**Ruling (that these are parked, not scoped in):** accept
+**Ruling (that these are parked, not scoped in):**
 
 ### Bucket (d) — recorded rejections (with rationale, so they stay dead)
 
@@ -166,27 +166,27 @@ the property that store reads are daemon-free and network-free by
 construction — the architectural boundary and the epistemic one are the
 same boundary. The idiom instead: the read *refuses with the exact plan
 it would take* (D5/D7), and the caller decides to spend.
-**Ruling:** accept
+**Ruling:**
 
 **R2. No daemon-readable annotations.** Blindness is load-bearing (D1,
 D3, D10). The scenario that would break it — daemon-resident scheduled
 syncs — is foreclosed by D3 and by the platform (no keychain off a
 login session). Reopening requires a concrete consumer that a
 frontend-side scheduler demonstrably cannot serve.
-**Ruling:** accept
+**Ruling:**
 
 **R3. No cached search service; no third surface.** Inherited from the
 framing's stress test with its tripwires for reopening (duplicated
 expensive indexes across long-lived frontends, or a measured latency
 floor in-process reads cannot meet). Restated here so the brainstorm's
 adoption is explicit.
-**Ruling:** accept
+**Ruling:**
 
 **R4. The SQLite schema is internal; raw SQL is not a surface.**
 Defended by making door 2 expressive enough that going around it is
 never worth it — which the annotations write API and planner extend to
 the write side.
-**Ruling:** accept
+**Ruling:**
 
 ---
 
@@ -335,16 +335,16 @@ recorded where it worked.
 each new session waits for a new evidence pile. Crystallize before
 building: rulings land in `CONTEXT.md`; session notes are disposable
 history, never a second authority.
-**Ruling:** accept
+**Ruling:**
 
 **P2.** In product scope, the validating consumer is the owner's real
 use; "did it feel simple" is evidence, and friction notes are data.
-**Ruling:** accept
+**Ruling:**
 
 **P3.** Generalize at the second consumer, never at the first.
-**Ruling:** accept
+**Ruling:**
 
 **P4.** Tactical taste is settled by a lint where mechanical and a
 recorded property where stakes are real — never adjudicated in prose;
 everything else is agent-owned internals.
-**Ruling:** accept
+**Ruling:**
