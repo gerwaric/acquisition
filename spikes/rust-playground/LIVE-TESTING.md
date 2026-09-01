@@ -405,9 +405,12 @@ friction notes below are the record. What it collects, on purpose:
    rails trip the moment the count reaches the ceiling (`rails.rs`,
    `sends >= max`), so the daemon halts on the bound right after the
    last planned send — that halt is the expected end of a cycle, and
-   the journal must show exactly the ceiling's sends. The bound cannot
-   be exceeded; a send the plan did not project would consume it and
-   show as a planned child refused, which fails the cycle.
+   the journal must show exactly the ceiling's sends. The bound is
+   counted as responses land while the gate admits two sends in flight
+   (rail 1's caveat), so it can be overshot by one already-dispatched
+   send at most; either way a send the plan did not project fails the
+   cycle — it consumes the bound and shows as a planned child refused,
+   or it lands as a `ceiling + 1` journal the verifier rejects.
 2. **The quote on the wire.** With a real daemon up, `refresh --plan`
    either carries its quote (headroom, queue, ETA per scope) or prints
    why not. The accepted residual is collected here: real GGG's
@@ -417,9 +420,11 @@ friction notes below are the record. What it collects, on purpose:
 3. **What is applied is what was reviewed.** The envelope applied is
    the quoted file itself, checked to be the offline envelope (the
    ceiling's source) plus the quote — actions in order, listing basis,
-   identity, policy revision, counts — and its action list is rendered
-   from that file and confirmed before the apply. Facts moving between
-   the two compiles is a stop.
+   identity, policy revision, counts; the derived `age_seconds` inside
+   reasons is ignored (it advances with the clock between compiles)
+   while the reason kinds are compared — and its action list is
+   rendered from that file and confirmed before the apply. Facts moving
+   between the two compiles is a stop.
 4. **Friction notes** — the product-side data (`CONTEXT.md`, "Binding-plan
    friction"; the method test). Taken at the moment, not recalled: the
    driver prompts after every phase and writes them to
@@ -429,8 +434,8 @@ friction notes below are the record. What it collects, on purpose:
 Preconditions: the standing rule's rails and binary provenance; from a
 terminal (keychain, browser). Two accounts are persisted, so every
 command carries `--account GERWARIC#7694` (the selector resolves as
-`acq` does: exact username, username without `#discriminator`, or
-uuid). That account's index entry predates uuid-at-login and has no
+`acq` does: username or username without `#discriminator`, both
+case-insensitive, or the exact uuid). That account's index entry predates uuid-at-login and has no
 uuid; intent binds to the uuid, so the run opens with a re-login as the
 same account (a code-exchange POST and the login's own `GET /profile`,
 ceiling 2, exactly). One fresh daemon per wire phase, stopped when the
@@ -482,19 +487,22 @@ POST. The table stays the specification; the script implements it.
 | 0 | preflight: `acq --version` = HEAD, no `ACQ_*` isolation leftovers, no daemon; `acq accounts` | `GERWARIC#7694` persisted, no uuid | a daemon is up; the binary is dirty or stale |
 | 1 | fresh daemon (ceiling 2), `ACQ_GGG=1 acq auth` in the browser as **the same account** | POST 200 (`token-request-limit` Ip `1:30:0`), `GET /profile` 200 with no rate headers (N38), `logged in as GERWARIC#7694`, the index now carries the uuid; bound reached at send 2; daemon stopped | the login lands as another account (intent would bind to the wrong identity); any non-2xx |
 | 2 | `acq policy set '{"version":1,"leagues":{"Standard":{"tabs":[…],"max_age_seconds":3600}}}'`, then `acq refresh --plan` with **no daemon** | revision 1; the plan is the stale listing (≈2 d) plus one fetch per selected tab, `n+1` requests, `n+1..3(n+1)` wire sends, the two prerequisites named; stderr `no quote: … plan compiled offline`; no daemon appeared | a daemon appeared; the note is anything but "no quote" |
-| 3 (cycle 1) | fresh daemon, ceiling `1 + 2 + (n+1)`; `acq refresh --plan --json` again (quoted) — checked equal to the offline envelope plus the quote, actions shown; `acq refresh --apply=<that file> --max-requests n+1` | the quote, or the discriminator note (record which); journal: POST, `HEAD /stash/Standard` 204 reporting **0 hits**, `GET` list 200, `HEAD /stash/Standard/{id}` 204 reporting **0 hits**, `n` tab GETs 200; parent `done`, children `n+1` done, 0 failed; the bound reached exactly at the last send; daemon stopped | the run's **first** probe on a route reports hits > 0 (standing rule: something else is on this account); any non-2xx; a child failed (a tab gone since 2026-08-30 is data — record it, then stop); the ceiling halts with sends missing (a send the plan did not project) |
-| 4 (cycle 2) | plan offline again | **id list**: `nothing to do` — the substashes discovered under the map/unique tab are in `acq tabs` but outside the policy; `acq refresh --apply` with no daemon prints `requests: 0` and nothing appears on the socket. **`all`**: `fetch substash` lines, `m` requests, ceiling `1 + 1 + m`; the stash probe reports cycle 1's `n` hits still inside the 300 s window — **ours, expected; the verifier bounds every probe's hits by this run's own earlier sends on that route**; journal `1/1/m`; children `m` done | a daemon appeared on the no-op; hits beyond ours; otherwise as step 3 |
+| 3 (cycle 1) | fresh daemon, ceiling `1 + 2 + (n+1)`; `acq refresh --plan --json` again (quoted) — checked equal to the offline envelope plus the quote, actions shown; `acq refresh --apply=<that file> --max-requests n+1` | the quote, or the discriminator note (record which); journal: POST, `HEAD /stash/Standard` 204 reporting **0 hits**, `GET` list 200, `HEAD /stash/Standard/{id}` 204 reporting **0 hits**, `n` tab GETs 200; parent `done`, children `n+1` done, 0 failed; the bound reached exactly at the last send; daemon stopped | the run's **first** probe on a route reports hits > 0 (standing rule: something else is on this account); any non-2xx; a child failed (a tab gone since 2026-08-30 is data — record it, then stop); the ceiling halts with sends missing, or the journal shows `ceiling + 1` (a send the plan did not project, either way) |
+| 4 (cycle 2) | plan offline again | **id list**: `nothing to do` — the substashes discovered under the map/unique tab are in `acq tabs` but outside the policy; `acq refresh --apply` with no daemon prints `requests: 0` and nothing appears on the socket. **`all`**: `fetch substash` lines, `m` requests, ceiling `1 + 1 + m`; the stash probe reports cycle 1's hits still inside each window — **ours, expected; the verifier bounds every reported window's hits by this run's own sends inside that window (plus GGG's timing bucket, N11/N12) at the probe's time, never by a cumulative total**; journal `1/1/m`; children `m` done | a daemon appeared on the no-op; hits beyond ours in any window; otherwise as step 3 |
 | 5 (cycle 3, `all` only) | plan offline again | empty; no-op apply with no daemon | a daemon appeared; the plan still has work (record what and why; not a failure) |
 | 6 | `acq tabs --league Standard`, `acq store status`, `acq store events --hours 1` (store reads) | every selected tab `fetched` moments ago (an id the first plan reported as unknown is the one exception); item events from this run; the final `refresh --plan` empty when the loop was recorded closed | a selected tab is missing from the store; a read errors; a closed loop whose final plan is not empty |
 | 7 | evidence: journal copied to `runs/<date>-tracer/`; ledger row; friction notes pasted below | | |
 
 Expected totals for `n` selected tabs: login `1/0/1`, cycle 1
-`1/2/(n+1)`, then nothing — no hold while `n ≤ 30` (the listing GET is
-on its own policy). For `all`: cycle 1 `1/2/323` with ten ~343 s holds
-(rung 10's shape), cycle 2 `1/1/m` for `m` substashes with its own
-holds, and cycle 2's probe carries cycle 1's hits, which the fresh
-daemon reads and paces on (it over-waits, never floods — the seeding
-the quote also uses). Residuals stated plainly: the listing and the
+`1/2/(n+1)`, then nothing. `stash-request-limit` is `15:10:60,
+30:300:300`, so with a zero-hit probe there is no hold while `n ≤ 15`;
+`16 ≤ n ≤ 30` costs one ~15 s hold before the 16th (rung 7b); above 30
+the ~343 s holds begin (rung 10). The listing GET is on its own policy
+and never holds here. For `all`: cycle 1 `1/2/323` with ten ~343 s
+holds, cycle 2 `1/1/m` for `m` substashes with its own holds, and cycle
+2's probe carries cycle 1's hits still inside the windows, which the
+fresh daemon reads and paces on (it over-waits, never floods — the
+seeding the quote also uses). Residuals stated plainly: the listing and the
 fetches share one plan by design, so a tab renamed or removed since
 2026-08-30 surfaces as a failed child or an `unknown_tabs` id — that is
 D5a's eventual reconciliation being seen live, and a friction note, not

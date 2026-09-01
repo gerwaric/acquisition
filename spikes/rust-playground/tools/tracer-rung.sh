@@ -259,12 +259,16 @@ echo "league $LEAGUE | selection $SELECTION | max_age_seconds $MAX_AGE | up to $
 
 # ---- phase 0: the account ---------------------------------------------------
 
-# The selector resolves the way `acq` resolves it (index.rs): the exact
-# username, the username without its #discriminator, or the exact uuid;
-# exactly one hit. The exact username is what gets exported.
+# The selector resolves the way `acq` resolves it (index.rs
+# `account_matches`): the username or the username without its
+# #discriminator, both case-insensitive, or the exact uuid; exactly one
+# hit. The exact username is what gets exported.
 resolve_account() { # <selector>
     "$ACQ" accounts --json | jq -r --arg s "$1" '
-        [.[] | select(.username == $s or (.username | split("#")[0]) == $s or .uuid == $s)]
+        ($s | ascii_downcase) as $l
+        | [.[] | select((.username | ascii_downcase) == $l
+                        or (.username | ascii_downcase | split("#")[0]) == $l
+                        or .uuid == $s)]
         | if length == 1 then .[0].username else "AMBIGUOUS_OR_NONE:\(length)" end'
 }
 account_uuid() { "$ACQ" accounts --json | jq -r --arg u "$ACQ_ACCOUNT" '.[] | select(.username == $u) | .uuid // empty'; }
@@ -384,8 +388,13 @@ offline_plan() { # <tag>
 }
 
 # What two envelopes must agree on to be "the same plan": everything but
-# the quote and the two timestamps a re-read stamps afresh.
-plan_identity() { jq -S 'del(.quote, .generated_at, .basis.snapshot_taken_at)' "$1"; }
+# the quote, the two timestamps a re-read stamps afresh, and the derived
+# ages inside reasons (`age_seconds` advances with the clock between two
+# compiles; the reason KIND stays and is compared).
+plan_identity() {
+    jq -S 'del(.quote, .generated_at, .basis.snapshot_taken_at)
+           | walk(if type == "object" then del(.age_seconds) else . end)' "$1"
+}
 # The action list of an envelope, one line each — rendered from the file
 # that will be applied, so what is confirmed is what goes out.
 render_actions() {
@@ -440,8 +449,13 @@ for c in $(seq 1 "$CYCLES"); do
     [ $((fetches + subs)) -gt 0 ] && probes=$((probes + 1))
     ceiling=$((1 + probes + logical))
     pace=""
-    if [ "$MODE" = live ] && [ $((fetches + subs)) -gt 30 ]; then
-        pace=" — more than 30 stash GETs: expect a ~343 s limiter hold per 30 (rung 10's shape); that is the limiter working"
+    if [ "$MODE" = live ]; then
+        stash_gets=$((fetches + subs))
+        if [ "$stash_gets" -gt 30 ]; then
+            pace=" — more than 30 stash GETs: a ~15 s hold after each 15 and a ~343 s hold after each 30 (rung 10's shape); that is the limiter working"
+        elif [ "$stash_gets" -gt 15 ]; then
+            pace=" — more than 15 stash GETs: expect one ~15 s limiter hold before the 16th (rung 7b); that is the limiter working"
+        fi
     fi
     confirm "cycle $c: fresh daemon with ceiling $ceiling = 1 token POST + $probes probe HEAD(s) + $logical GET(s) ($lists listing, $fetches tab, $subs substash; plan says $wire_min..$wire_max wire sends)$pace"
     cycle_offset=$(journal_size)
@@ -507,6 +521,7 @@ done
 if [ "$CLOSED" = 0 ]; then
     echo ""
     echo "note: $CYCLES cycle(s) run and the plan is still not empty — the loop did not close within --cycles;"
+    # shellcheck disable=SC2016  # the backticks are literal
     echo 'the next `acq refresh --plan` says what is left. Recorded as such, not as a failure.'
 fi
 
@@ -601,19 +616,33 @@ if mode == "mock" and len(lifetimes) == expected + 1 and not lifetimes[-1]["send
     lifetimes.pop()
     print("(the mock-mode logout daemon, 0 sends, is left out of the count)")
 
-def reported_hits(rate):
-    """Every hit count in every *-state header of a probe's response."""
-    hits = []
+from datetime import datetime
+
+def when(s):
+    return datetime.fromisoformat(s["ts"].replace("Z", "+00:00"))
+
+def reported_rules(rate):
+    """Every (hits, period_seconds) pair in every *-state header."""
+    rules = []
     for k, v in (rate or {}).items():
         if k.endswith("-state"):
             for rule in str(v).split(","):
                 parts = rule.split(":")
-                if parts and parts[0].isdigit():
-                    hits.append(int(parts[0]))
-    return hits
+                if len(parts) >= 2 and parts[0].isdigit() and parts[1].isdigit():
+                    rules.append((int(parts[0]), int(parts[1])))
+    return rules
 
-# This run's own counted sends per exact route (account included), so a
-# probe's reported hits can be bounded by what we ourselves sent earlier.
+def bucket(period):
+    """GGG's timing bucket past a window (N11/N12; rung 7b: +5 s on the
+    10 s window, rung 10: +60 s on the 300 s window) — a send that old
+    may still be counted, so it is still 'ours'."""
+    return 60 if period >= 300 else 5
+
+# This run's own counted GETs per exact route (account included), with
+# their times, so a probe's reported hits per window can be bounded by
+# what we ourselves sent inside that window (plus its bucket) — never by
+# the run's cumulative total, which would let outside traffic hide
+# behind aged-out sends of ours.
 ours = {}
 for i, lt in enumerate(lifetimes, 1):
     label = "login" if (login_lifetime and i == 1) else f"cycle {i - login_lifetime}"
@@ -631,22 +660,28 @@ for i, lt in enumerate(lifetimes, 1):
         if st == 429:
             fail.append(f"lifetime {i}: 429 on {r}")
         if m == "HEAD":
-            hits = reported_hits(s.get("rate"))
-            mine = ours.get(r, 0)
+            t = when(s)
+            rules = reported_rules(s.get("rate"))
+            checks, over = [], False
+            for hits, period in rules:
+                mine = sum(1 for sent in ours.get(r, []) if (t - sent).total_seconds() <= period + bucket(period))
+                checks.append(f"{hits} of ours {mine} in {period}s")
+                if hits > mine:
+                    over = True
             verdict = ""
-            if any(h > mine for h in hits):
-                verdict = f"  <-- reports more hits than this run sent on {r} ({mine}): someone else is on this account"
-                fail.append(f"lifetime {i}: probe on {r} reported hits {hits}, this run had sent {mine}")
-            elif hits and not any(hits):
+            if over:
+                verdict = f"  <-- reports more hits than this run sent inside the window ({'; '.join(checks)}): someone else is on this account"
+                fail.append(f"lifetime {i}: probe on {r} reported {'; '.join(checks)}")
+            elif rules and not any(h for h, _ in rules):
                 verdict = "  (0 hits: nothing else on this account" + (
-                    " — standing rule met)" if mine == 0 else f"; this run's {mine} earlier send(s) on {r} have aged out)")
-            elif hits:
-                verdict = f"  (hits within this run's own earlier sends on {r}: {mine} so far — expected)"
+                    " — standing rule met)" if not ours.get(r) else "; this run's earlier sends have aged out)")
+            elif rules:
+                verdict = f"  (hits within this run's own sends in each window: {'; '.join(checks)} — expected)"
             print(f"  HEAD {r} -> {st}  rate {json.dumps(s.get('rate'))}{flag}{verdict}")
         else:
             print(f"  {m} {r} -> {st}  wait_ms {s.get('wait_ms')}{flag}")
             if m == "GET":
-                ours[r] = ours.get(r, 0) + 1
+                ours.setdefault(r, []).append(when(s))
     for base, m in first.items():
         if base not in NO_PROBE and m != "HEAD":
             fail.append(f"lifetime {i}: first send on {base} was {m}, not the probe")
@@ -693,8 +728,8 @@ if fail:
     sys.exit(1)
 quotes = ", ".join(f"c{c['cycle']} {c['quote'].split(':')[0]}" for c in cycles)
 print("checks passed: every route probed before its first send in every lifetime,")
-print("no probe reported hits beyond this run's own earlier sends (the first probe")
-print("on each route saw 0), no non-2xx, and each cycle's journal matches its plan")
+print("no probe reported hits beyond this run's own sends inside each window (the")
+print("first probe on each route saw 0), no non-2xx, and each cycle's journal matches its plan")
 print("exactly (no 429 re-sends: the estimate's minimum held). Quote outcomes: " + (quotes or "none") + ".")
 print()
 print("draft ledger row:")

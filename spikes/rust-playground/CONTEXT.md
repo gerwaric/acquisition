@@ -274,9 +274,17 @@ Prepared, not yet run (the run is the owner's, from a terminal):
    should cover its substashes is a friction question. `--mock`
    rehearsal green in both shapes (`all`: listing, seven fetches, seven
    substashes, empty; ids: listing, three fetches, empty with four
-   uncovered substashes reported). The run's outputs: a ledger row, the
-   friction notes in the rung section, and then the two rulings below —
-   "Binding-plan friction" and the method-test verdict.
+   uncovered substashes reported). Round 2 (same day, five findings,
+   fixed): the same-plan check ignores the derived `age_seconds` that
+   drift between compiles (reason kinds still compared); probe hits are
+   bounded per reported window by the run's own sends inside that
+   window plus GGG's timing bucket, not by a cumulative total; the
+   no-hold bound is `n ≤ 15` (the 10 s window), not 30; the ceiling can
+   be overshot by one in-flight send (rail 1's caveat) and a
+   `ceiling + 1` journal fails the cycle; the selector is
+   case-insensitive like `account_matches`. The run's outputs: a ledger
+   row, the friction notes in the rung section, and then the two
+   rulings below — "Binding-plan friction" and the method-test verdict.
 
 Done = **pin the refresh Plan/quote/apply slice and the annotation API
 it exercised** — a CLI tracer cannot close the whole GUI/MCP/TUI
