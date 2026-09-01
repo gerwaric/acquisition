@@ -209,19 +209,33 @@ and verifies it, so a copied or renamed file keeps its owner and an
 unbound handle is refused). The provider is deliberately not in the
 snapshot — the store cannot verify it, the planner binds it from the
 directory it opened); (4) `RefreshPlan` built offline in
-`acquisition-plan` — **done 2026-09-01** (linked by frontends only, so
-the daemon's blindness stays a dependency-graph fact; the sync-policy
-value's schema belongs to the planner: version-stamped and
-strict-parsed, so a typo'd field, a stray selection word, or a newer
-version is a structured refusal — intent is never half-honored; plans
-compile from facts on record only: a never-listed league plans the
-listing alone, substash actions come from stored stubs, and a policy
-id the facts lack is reported in the plan, never invented into an
-action; the `metadata.items` heuristic forces a fetch only when a
-listing newer than our fetch disagrees with the held count, and never
-skips one; every action renders the daemon's own `(kind, params)` job
-tuple — `RefreshAction::job`, pinned by test so plan and dispatcher
-vocabulary cannot drift); (5) `quote` on the protocol +
+`acquisition-plan` — **done 2026-09-01, hardened same day per owner
+review (six issues)** (linked by frontends only, so the daemon's
+blindness stays a dependency-graph fact; the sync-policy value's
+schema belongs to the planner: version-stamped and strict-parsed
+through a validating deserialization funnel, so a typo'd field, a
+stray selection word, or a newer version is a structured refusal on
+*every* parse path — intent is never half-honored; plans always
+compile from the stored policy row and carry its revision, no ad-hoc
+path until a consumer demonstrably needs one; plans compile from facts
+on record only: a never-listed league plans the listing **alone** —
+covered tabs skip as `awaiting_listing`, since without a basis the
+plan has no membership authority — substash actions come from stored
+stubs, an orphaned substash (parent retired by a later listing, row
+kept) is skipped with its reason rather than rendered on the wrong
+endpoint, and a policy id the facts lack is reported, never invented
+into an action; the `metadata.items` heuristic forces a fetch only
+when a listing newer than our fetch disagrees with the held count, and
+never skips one; ages saturate, so a corrupt store timestamp reads as
+very stale, never as fresh and never a panic; a serialized plan
+re-validates on parse — unknown fields, a wrong operation, an action
+whose league is not the envelope's, or derived counts that do not
+recompute refuse whole, so apply can trust what it reads back, and a
+`MAX_429_RETRIES` change is a plan-schema event, not a silent constant
+bump; every action renders the daemon's own `(kind, params)` job
+tuple, pinned through `Endpoint::from_job` — the store's production
+decoder of that vocabulary — plus a plan→record→replan loop, breakers
+verified); (5) `quote` on the protocol +
 optional plan enrichment — the quote names what it does not cover
 (listing policy, probe, OAuth) rather than claiming completeness;
 (6) `acq refresh --plan`, human + JSON, spends nothing; (7) apply: the

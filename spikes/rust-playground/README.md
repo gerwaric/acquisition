@@ -140,15 +140,27 @@ bounded by `MAX_429_RETRIES`; a Cloudflare-shaped 403/503 is never retried.
   basis it cites (listing response id, policy revision, account uuid,
   snapshot time), exact `logical_requests`, and a coarse `wire_sends`
   range with named prerequisites (probe, OAuth refresh) — never a
-  precise wire accounting. Plans are binding and act only on facts on
-  record: a never-listed league plans the listing alone, substash
+  precise wire accounting. Plans always derive from the stored policy
+  row and carry its revision (no ad-hoc path), and a serialized plan
+  re-validates on parse — unknown fields, a newer schema stamp, a wrong
+  operation, an action outside the envelope's league, or derived counts
+  that do not recompute are refused whole — so apply can trust what it
+  reads back. Plans are binding and act only on facts on
+  record: a never-listed league plans the listing alone (covered tabs
+  are reported as awaiting the listing — without a basis the plan has
+  no membership authority), substash
   fetches come only from stubs already in the store (no dynamic deep
-  fan-out), and newly discovered tabs wait for the next plan. A listed
+  fan-out; one whose recorded parent has been retired is skipped with
+  its reason, never fetched by a guessed path), and newly discovered
+  tabs wait for the next plan. A listed
   `metadata.items` count forces a fetch when a listing newer than our
   fetch disagrees with what the store holds; it never skips one. Each
   action renders the daemon's own `(kind, params)` job tuple
-  (`RefreshAction::job`), pinned by test against the dispatcher's
-  vocabulary. Same no-panic clippy ratchet as the store crate.
+  (`RefreshAction::job`), pinned by decoding through
+  `Endpoint::from_job` — the store's production decoder of the job
+  vocabulary — and by a plan→record→replan loop that proves applied
+  actions satisfy the plan. Same no-panic clippy ratchet as the store
+  crate.
 - `crates/acquisition-cli` — the `acq` binary. Thin: clap parsing, output
   formatting, and `store_cmd.rs` — the reads of the shared store (`tabs`,
   `items`, `store`). The protocol client (connect, lazy spawn, version

@@ -62,6 +62,14 @@ pub enum PlanError {
     /// The policy declares nothing for the snapshot's league; there is no
     /// authorized work to derive.
     LeagueNotCovered { league: String },
+    /// A serialized plan failed validation: unknown fields, a wrong
+    /// operation, a league its envelope does not name, or derived counts
+    /// that do not recompute. A plan that will not parse is a plan apply
+    /// must not trust.
+    MalformedPlan { detail: String },
+    /// A serialized plan carries a schema stamp this build does not
+    /// read. Refused, never guessed at.
+    PlanSchemaUnsupported { found: i64, supported: i64 },
 }
 
 impl std::fmt::Display for PlanError {
@@ -80,6 +88,13 @@ impl std::fmt::Display for PlanError {
             PlanError::LeagueNotCovered { league } => {
                 write!(f, "the sync policy does not cover league {league}")
             }
+            PlanError::MalformedPlan { detail } => {
+                write!(f, "malformed refresh plan: {detail}")
+            }
+            PlanError::PlanSchemaUnsupported { found, supported } => write!(
+                f,
+                "refresh plan declares schema {found}, not this build's v{supported}"
+            ),
         }
     }
 }
@@ -91,13 +106,39 @@ impl std::error::Error for PlanError {}
 /// `("account", "", "sync-policy")` annotation; written by frontends,
 /// compiled here into minimal requests.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(try_from = "SyncPolicyWire")]
 pub struct SyncPolicy {
-    /// [`SYNC_POLICY_VERSION`]; a newer stamp is refused at parse.
+    /// [`SYNC_POLICY_VERSION`]; a different stamp is refused at parse.
     pub version: i64,
     /// Coverage per league. A league not named here compiles to
     /// [`PlanError::LeagueNotCovered`], never to implicit work.
     pub leagues: BTreeMap<String, LeaguePolicy>,
+}
+
+/// The raw JSON shape. Every deserialization path funnels through the
+/// `TryFrom` below, so the version gate and the unknown-field refusal
+/// cannot be bypassed by deserializing around [`SyncPolicy::from_value`].
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SyncPolicyWire {
+    version: i64,
+    leagues: BTreeMap<String, LeaguePolicy>,
+}
+
+impl TryFrom<SyncPolicyWire> for SyncPolicy {
+    type Error = String;
+    fn try_from(wire: SyncPolicyWire) -> Result<Self, String> {
+        if wire.version != SYNC_POLICY_VERSION {
+            return Err(format!(
+                "sync policy declares version {}, not this build's v{SYNC_POLICY_VERSION}",
+                wire.version
+            ));
+        }
+        Ok(SyncPolicy {
+            version: wire.version,
+            leagues: wire.leagues,
+        })
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -216,6 +257,15 @@ pub enum SkipReason {
     /// Folders hold tabs, never items, and are never fetched — their
     /// children are covered individually.
     Folder,
+    /// The league has never been listed, so the plan is the listing
+    /// alone: membership is unconfirmed, and every fetch waits for the
+    /// facts the listing lands (D5a's eventual reconciliation).
+    AwaitingListing,
+    /// The tab's recorded parent is no longer on record (the store keeps
+    /// substash rows when a listing retires their parent), so the fetch
+    /// path under it cannot be rendered with confidence. The next listing
+    /// or parent re-fetch reconciles it.
+    OrphanedParent { parent: String },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -254,6 +304,16 @@ pub enum RefreshAction {
 }
 
 impl RefreshAction {
+    /// The league this action touches — validated against the envelope's
+    /// on deserialization.
+    pub fn league(&self) -> &str {
+        match self {
+            RefreshAction::ListStashes { league, .. }
+            | RefreshAction::FetchTab { league, .. }
+            | RefreshAction::FetchSubstash { league, .. } => league,
+        }
+    }
+
     /// The action in the daemon's job vocabulary: `(kind, params)` exactly
     /// as `Submit` wants them. `deep` is always false — a plan's actions
     /// are the reviewed set, and a fetch that fanned out would expand it.
@@ -282,11 +342,13 @@ pub struct PlanBasis {
     /// When the snapshot was taken (facts as of this read).
     pub snapshot_taken_at: i64,
     /// The listing the tab set derives from; `None` when the league was
-    /// never listed (which is itself the first action).
+    /// never listed (which is itself the plan's only action).
     pub listing: Option<ListingBasis>,
-    /// The sync-policy annotation revision compiled from; `None` when the
-    /// policy was supplied ad hoc rather than read from the store.
-    pub policy_revision: Option<i64>,
+    /// The sync-policy annotation revision compiled from. Plans always
+    /// derive from stored intent — there is no ad-hoc path — so apply can
+    /// always check this against the current row (the step-7 staleness
+    /// ruling needs the comparison to be possible).
+    pub policy_revision: i64,
 }
 
 /// The coarse wire projection. The range covers the authorized requests
@@ -304,7 +366,16 @@ pub struct WireEstimate {
 /// from one snapshot of facts + intent. Immutable by convention — new
 /// facts produce a new plan, never an edit — and serializable so it can
 /// cross a socket, land in a journal, or be read back by apply.
+///
+/// Deserialization validates: every path funnels through
+/// `TryFrom<RefreshPlanWire>`, which refuses unknown fields, a schema
+/// stamp other than [`REFRESH_PLAN_SCHEMA`], an operation other than
+/// `"refresh"`, an action whose league is not the envelope's, and
+/// derived counts that do not recompute — so a tampered or hand-built
+/// envelope will not parse into this type. [`RefreshPlan::from_value`]
+/// is the friendly entry (a newer schema reports as such).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(try_from = "RefreshPlanWire")]
 pub struct RefreshPlan {
     /// [`REFRESH_PLAN_SCHEMA`].
     pub plan_schema: i64,
@@ -336,8 +407,116 @@ pub struct RefreshPlan {
     pub wire_sends: WireEstimate,
 }
 
-/// Compile the snapshot's own sync-policy row into a plan. This is the
-/// normal path: the annotation basis is the row's revision.
+impl RefreshPlan {
+    /// Parse a serialized plan back into a trusted envelope. The schema
+    /// stamp is checked before the shape so a genuinely newer plan
+    /// reports [`PlanError::PlanSchemaUnsupported`], not a spurious
+    /// unknown-field complaint; everything else is the `TryFrom`
+    /// validation below.
+    pub fn from_value(value: &Value) -> Result<RefreshPlan, PlanError> {
+        let found = value
+            .get("plan_schema")
+            .and_then(Value::as_i64)
+            .ok_or_else(|| PlanError::MalformedPlan {
+                detail: "missing integer `plan_schema`".into(),
+            })?;
+        if found != REFRESH_PLAN_SCHEMA {
+            return Err(PlanError::PlanSchemaUnsupported {
+                found,
+                supported: REFRESH_PLAN_SCHEMA,
+            });
+        }
+        serde_json::from_value(value.clone()).map_err(|e| PlanError::MalformedPlan {
+            detail: e.to_string(),
+        })
+    }
+}
+
+/// The raw JSON shape of a plan; deserialization validates through the
+/// `TryFrom` below on every path.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RefreshPlanWire {
+    plan_schema: i64,
+    operation: String,
+    provider: String,
+    account_uuid: String,
+    account_name: Option<String>,
+    league: String,
+    generated_at: i64,
+    basis: PlanBasis,
+    max_age_seconds: u32,
+    actions: Vec<RefreshAction>,
+    skipped: Vec<SkippedTab>,
+    unknown_tabs: Vec<String>,
+    logical_requests: u64,
+    wire_sends: WireEstimate,
+}
+
+impl TryFrom<RefreshPlanWire> for RefreshPlan {
+    type Error = String;
+    fn try_from(wire: RefreshPlanWire) -> Result<Self, String> {
+        if wire.plan_schema != REFRESH_PLAN_SCHEMA {
+            return Err(format!(
+                "refresh plan declares schema {}, not this build's v{REFRESH_PLAN_SCHEMA}",
+                wire.plan_schema
+            ));
+        }
+        if wire.operation != "refresh" {
+            return Err(format!(
+                "a RefreshPlan's operation must be \"refresh\", not {:?}",
+                wire.operation
+            ));
+        }
+        if let Some(stray) = wire.actions.iter().find(|a| a.league() != wire.league) {
+            return Err(format!(
+                "action for league {:?} inside a plan for league {:?}",
+                stray.league(),
+                wire.league
+            ));
+        }
+        // The derived quantities are recomputed, never taken on faith:
+        // admission-time budgeting (D8) trusts `logical_requests`, and a
+        // forged wire range would mislead the review the plan exists for.
+        // A change to MAX_429_RETRIES changes what schema-1 plans claim,
+        // so it is a plan-schema event, not a silent constant bump.
+        let logical = wire.actions.len() as u64;
+        if wire.logical_requests != logical {
+            return Err(format!(
+                "logical_requests says {} but the plan lists {logical} actions",
+                wire.logical_requests
+            ));
+        }
+        let max = logical * (1 + u64::from(MAX_429_RETRIES));
+        if (wire.wire_sends.min, wire.wire_sends.max) != (logical, max) {
+            return Err(format!(
+                "wire_sends {}..{} does not recompute from {logical} actions (expected {logical}..{max})",
+                wire.wire_sends.min, wire.wire_sends.max
+            ));
+        }
+        Ok(RefreshPlan {
+            plan_schema: wire.plan_schema,
+            operation: wire.operation,
+            provider: wire.provider,
+            account_uuid: wire.account_uuid,
+            account_name: wire.account_name,
+            league: wire.league,
+            generated_at: wire.generated_at,
+            basis: wire.basis,
+            max_age_seconds: wire.max_age_seconds,
+            actions: wire.actions,
+            skipped: wire.skipped,
+            unknown_tabs: wire.unknown_tabs,
+            logical_requests: wire.logical_requests,
+            wire_sends: wire.wire_sends,
+        })
+    }
+}
+
+/// Compile the snapshot's own sync-policy row into a plan. The one way
+/// in: plans always derive from stored intent and carry its revision —
+/// an ad-hoc selection that bypasses the policy waits for a consumer
+/// that demonstrably needs it.
 pub fn plan_refresh(
     provider: &str,
     snapshot: &StashSnapshot,
@@ -345,17 +524,14 @@ pub fn plan_refresh(
 ) -> Result<RefreshPlan, PlanError> {
     let row = snapshot.policy.as_ref().ok_or(PlanError::NoSyncPolicy)?;
     let policy = SyncPolicy::from_value(&row.value)?;
-    compile_refresh(provider, snapshot, &policy, Some(row.revision), now)
+    compile(provider, snapshot, &policy, row.revision, now)
 }
 
-/// Compile an explicit policy against a snapshot — the ad-hoc path for a
-/// frontend that builds its selection in hand (`policy_revision: None`
-/// records that no stored intent was cited).
-pub fn compile_refresh(
+fn compile(
     provider: &str,
     snapshot: &StashSnapshot,
     policy: &SyncPolicy,
-    policy_revision: Option<i64>,
+    policy_revision: i64,
     now: i64,
 ) -> Result<RefreshPlan, PlanError> {
     let league_policy =
@@ -367,36 +543,45 @@ pub fn compile_refresh(
             })?;
     let max_age = i64::from(league_policy.max_age_seconds);
     let mut actions = Vec::new();
-    match &snapshot.listing {
-        None => actions.push(RefreshAction::ListStashes {
-            league: snapshot.league.clone(),
-            reason: ListingReason::NeverListed,
-        }),
+    // A league with no listing plans the listing **alone** — even tabs on
+    // record from direct fetches wait: without a listing basis the plan
+    // has no membership authority, so fetches defer to the next plan
+    // (D5a's eventual reconciliation). Ages saturate: a corrupt store
+    // timestamp must misread as "very stale", never wrap into "fresh"
+    // (and never panic — the no-panic-on-store-rows rule).
+    let listing_alone = match &snapshot.listing {
+        None => {
+            actions.push(RefreshAction::ListStashes {
+                league: snapshot.league.clone(),
+                reason: ListingReason::NeverListed,
+            });
+            true
+        }
         Some(basis) => {
-            let age = (now - basis.fetched_at).max(0);
+            let age = now.saturating_sub(basis.fetched_at).max(0);
             if age > max_age {
                 actions.push(RefreshAction::ListStashes {
                     league: snapshot.league.clone(),
                     reason: ListingReason::Stale { age_seconds: age },
                 });
             }
+            false
         }
-    }
+    };
     let mut skipped = Vec::new();
     for tab in &snapshot.tabs {
         if !league_policy.tabs.selects(&tab.id) {
             continue;
         }
-        if tab.r#type == "Folder" {
-            skipped.push(SkippedTab {
-                id: tab.id.clone(),
-                name: tab.name.clone(),
-                reason: SkipReason::Folder,
-            });
-            continue;
-        }
-        match fetch_verdict(tab, max_age, now) {
-            Ok(reason) => actions.push(fetch_action(snapshot, tab, reason)),
+        let verdict = if listing_alone {
+            Err(SkipReason::AwaitingListing)
+        } else if tab.r#type == "Folder" {
+            Err(SkipReason::Folder)
+        } else {
+            fetch_verdict(tab, max_age, now).and_then(|reason| fetch_action(snapshot, tab, reason))
+        };
+        match verdict {
+            Ok(action) => actions.push(action),
             Err(reason) => skipped.push(SkippedTab {
                 id: tab.id.clone(),
                 name: tab.name.clone(),
@@ -457,7 +642,7 @@ fn fetch_verdict(tab: &TabSnapshot, max_age: i64, now: i64) -> Result<FetchReaso
     let Some(fetched_at) = tab.fetched_at else {
         return Ok(FetchReason::NeverFetched);
     };
-    let age = (now - fetched_at).max(0);
+    let age = now.saturating_sub(fetched_at).max(0);
     if age > max_age {
         return Ok(FetchReason::Stale { age_seconds: age });
     }
@@ -478,19 +663,30 @@ fn fetch_verdict(tab: &TabSnapshot, max_age: i64, now: i64) -> Result<FetchReaso
 }
 
 /// A fetch action for `tab`: under its parent when the parent is a
-/// map/unique tab on record (a substash), by its own id otherwise (a
-/// top-level tab or a folder child — folders group, they don't contain).
-fn fetch_action(snapshot: &StashSnapshot, tab: &TabSnapshot, reason: FetchReason) -> RefreshAction {
-    let substash_parent = tab.parent.as_deref().filter(|p| {
-        snapshot
-            .tabs
-            .iter()
-            .any(|t| &t.id == p && matches!(t.r#type.as_str(), "MapStash" | "UniqueStash"))
-    });
-    match substash_parent {
+/// map/unique tab on record (a substash), by its own id when the parent
+/// is anything else on record (a folder child — folders group, they
+/// don't contain) or absent entirely (a top-level tab). `Err` is the one
+/// unrenderable case: a recorded parent that is no longer on record —
+/// the store keeps substash rows when a listing retires their parent, so
+/// guessing an endpoint here would fetch the wrong path.
+fn fetch_action(
+    snapshot: &StashSnapshot,
+    tab: &TabSnapshot,
+    reason: FetchReason,
+) -> Result<RefreshAction, SkipReason> {
+    let parent = match tab.parent.as_deref() {
+        None => None,
+        Some(p) => match snapshot.tabs.iter().find(|t| t.id == p) {
+            None => return Err(SkipReason::OrphanedParent { parent: p.into() }),
+            Some(row) => {
+                matches!(row.r#type.as_str(), "MapStash" | "UniqueStash").then_some(&row.id)
+            }
+        },
+    };
+    Ok(match parent {
         Some(parent) => RefreshAction::FetchSubstash {
             league: snapshot.league.clone(),
-            parent: parent.into(),
+            parent: parent.clone(),
             id: tab.id.clone(),
             name: tab.name.clone(),
             tab_type: tab.r#type.clone(),
@@ -503,7 +699,7 @@ fn fetch_action(snapshot: &StashSnapshot, tab: &TabSnapshot, reason: FetchReason
             tab_type: tab.r#type.clone(),
             reason,
         },
-    }
+    })
 }
 
 #[cfg(test)]
@@ -563,16 +759,29 @@ mod tests {
         SyncPolicy::from_value(&value).unwrap()
     }
 
-    fn all_policy(max_age_seconds: u32) -> SyncPolicy {
-        policy(json!({
+    fn all_policy_value(max_age_seconds: u32) -> Value {
+        json!({
             "version": 1,
             "leagues": { "Standard": { "tabs": "all", "max_age_seconds": max_age_seconds } }
-        }))
+        })
     }
 
     fn snapshot(s: &Store) -> StashSnapshot {
         let a = Annotations::open_memory_for("u-1").unwrap();
         s.stash_snapshot("Standard", &a).unwrap()
+    }
+
+    /// Snapshot with `policy` installed as the stored sync-policy row —
+    /// the only way plans are made: from stored intent, at its revision.
+    fn snapshot_with(s: &Store, policy: &Value) -> StashSnapshot {
+        let mut a = Annotations::open_memory_for("u-1").unwrap();
+        a.put("account", "", SYNC_POLICY_KIND, policy, None)
+            .unwrap();
+        s.stash_snapshot("Standard", &a).unwrap()
+    }
+
+    fn plan(s: &Store, policy: &Value, now: i64) -> RefreshPlan {
+        plan_refresh("mock", &snapshot_with(s, policy), now).unwrap()
     }
 
     #[test]
@@ -634,30 +843,59 @@ mod tests {
         let err = plan_refresh("mock", &snapshot(&s), 1000).unwrap_err();
         assert_eq!(err, PlanError::NoSyncPolicy);
         // A policy that does not name the league authorizes nothing there.
-        let p = policy(json!({
+        let hc_only = json!({
             "version": 1,
             "leagues": { "Hardcore": { "tabs": "all", "max_age_seconds": 60 } }
-        }));
-        let err = compile_refresh("mock", &snapshot(&s), &p, None, 1000).unwrap_err();
+        });
+        let err = plan_refresh("mock", &snapshot_with(&s, &hc_only), 1000).unwrap_err();
         assert_eq!(
             err,
             PlanError::LeagueNotCovered {
                 league: "Standard".into()
             }
         );
+        // A stored policy row a newer build wrote surfaces its version,
+        // and the version gate is not bypassable by deserializing the
+        // type directly instead of calling from_value.
+        let v2 = json!({ "version": 2, "leagues": {} });
+        let err = plan_refresh("mock", &snapshot_with(&s, &v2), 1000).unwrap_err();
+        assert_eq!(
+            err,
+            PlanError::PolicyVersionUnsupported {
+                found: 2,
+                supported: 1
+            }
+        );
+        let err = serde_json::from_value::<SyncPolicy>(v2).unwrap_err();
+        assert!(err.to_string().contains("version 2"), "{err}");
     }
 
     #[test]
-    fn a_never_listed_league_plans_the_listing_and_only_known_facts() {
-        let s = store();
-        let plan = compile_refresh("mock", &snapshot(&s), &all_policy(3600), None, 1000).unwrap();
-        // No invention: the one action is the listing; tabs wait for the
-        // facts it will land (D5a's eventual reconciliation).
+    fn a_never_listed_league_plans_the_listing_alone() {
+        let mut s = store();
+        // A tab on record from a direct fetch, stale by any window — and
+        // still not fetched: with no listing basis the plan has no
+        // membership authority, so the listing goes alone and the tab is
+        // reported as waiting (D5a's eventual reconciliation).
+        fetch(
+            &mut s,
+            json!({ "id": "x1", "name": "Fetched", "type": "PremiumStash", "items": [item("i1")] }),
+            10,
+        );
+        let plan = plan(&s, &all_policy_value(3600), 100_000);
         assert_eq!(
             plan.actions,
             vec![RefreshAction::ListStashes {
                 league: "Standard".into(),
                 reason: ListingReason::NeverListed,
+            }]
+        );
+        assert_eq!(
+            plan.skipped,
+            vec![SkippedTab {
+                id: "x1".into(),
+                name: "Fetched".into(),
+                reason: SkipReason::AwaitingListing,
             }]
         );
         assert_eq!(plan.basis.listing, None);
@@ -708,7 +946,7 @@ mod tests {
         assert_eq!(plan.account_uuid, "u-1");
         assert_eq!(plan.provider, "mock");
         assert_eq!(plan.basis.listing, snap.listing);
-        assert_eq!(plan.basis.policy_revision, Some(row.revision));
+        assert_eq!(plan.basis.policy_revision, row.revision);
         assert_eq!(plan.basis.snapshot_taken_at, snap.taken_at);
         assert_eq!(plan.plan_schema, REFRESH_PLAN_SCHEMA);
         assert_eq!(plan.operation, "refresh");
@@ -732,7 +970,7 @@ mod tests {
         );
         // At t=5000 with a 3600s window: the listing (age 4000) is stale,
         // t1 (age 3990) is stale, t2 was never fetched.
-        let plan = compile_refresh("mock", &snapshot(&s), &all_policy(3600), None, 5000).unwrap();
+        let plan = plan(&s, &all_policy_value(3600), 5000);
         assert_eq!(
             plan.actions,
             vec![
@@ -791,8 +1029,8 @@ mod tests {
         .unwrap();
         // Everything is fresh at t=1100 — the stub's count (2 vs 1 held)
         // predates our fetch, so it proves nothing.
-        let plan = compile_refresh("mock", &snapshot(&s), &all_policy(3600), None, 1100).unwrap();
-        assert!(plan.actions.is_empty(), "{:?}", plan.actions);
+        let quiet = plan(&s, &all_policy_value(3600), 1100);
+        assert!(quiet.actions.is_empty(), "{:?}", quiet.actions);
         // Re-fetching the parent stamps a newer stub whose count disagrees
         // with what we hold: proof of change, fetched though fresh by age —
         // and under the parent, as a substash.
@@ -803,9 +1041,9 @@ mod tests {
                   "metadata": { "items": 3, "map": { "name": "Tier 16" } } } ] }),
             1050,
         );
-        let plan = compile_refresh("mock", &snapshot(&s), &all_policy(3600), None, 1100).unwrap();
+        let changed = plan(&s, &all_policy_value(3600), 1100);
         assert_eq!(
-            plan.actions,
+            changed.actions,
             vec![RefreshAction::FetchSubstash {
                 league: "Standard".into(),
                 parent: "m1".into(),
@@ -818,10 +1056,88 @@ mod tests {
         // An agreeing count cannot skip a stale fetch: at t=9000 the
         // substash is fetched again even if the counts matched — the
         // heuristic proves change, never freshness.
-        let plan = compile_refresh("mock", &snapshot(&s), &all_policy(3600), None, 9000).unwrap();
-        assert!(plan.actions.iter().any(|a| matches!(
+        let stale = plan(&s, &all_policy_value(3600), 9000);
+        assert!(stale.actions.iter().any(|a| matches!(
             a,
             RefreshAction::FetchSubstash { id, reason: FetchReason::Stale { .. }, .. } if id == "s1"
+        )));
+    }
+
+    #[test]
+    fn an_orphaned_substash_is_skipped_never_rendered_by_the_wrong_path() {
+        let mut s = store();
+        list(
+            &mut s,
+            json!([{ "id": "m1", "name": "Maps", "type": "MapStash", "index": 0 }]),
+            1000,
+        );
+        fetch(
+            &mut s,
+            json!({ "id": "m1", "name": "Maps", "type": "MapStash", "items": [], "children": [
+                { "id": "s1", "name": "", "type": "MapStash", "parent": "m1",
+                  "metadata": { "items": 2 } } ] }),
+            1010,
+        );
+        // A later listing retires m1; the store keeps the never-listed
+        // substash row, whose recorded parent is now off the record. A
+        // fetch by its own id would hit /stash/{league}/s1 — the wrong
+        // endpoint — so the plan reports it instead of guessing.
+        list(
+            &mut s,
+            json!([{ "id": "t1", "name": "One", "type": "PremiumStash", "index": 0 }]),
+            2000,
+        );
+        let plan = plan(&s, &all_policy_value(3600), 2100);
+        assert!(
+            !plan
+                .actions
+                .iter()
+                .any(|a| matches!(a, RefreshAction::FetchTab { id, .. } if id == "s1")),
+            "orphaned substash must not become a top-level fetch: {:?}",
+            plan.actions
+        );
+        assert!(
+            plan.skipped.contains(&SkippedTab {
+                id: "s1".into(),
+                name: "".into(),
+                reason: SkipReason::OrphanedParent {
+                    parent: "m1".into()
+                },
+            }),
+            "{:?}",
+            plan.skipped
+        );
+    }
+
+    #[test]
+    fn corrupt_store_timestamps_read_as_stale_never_panic_or_wrap() {
+        let mut s = store();
+        // Absurd timestamps a damaged file could hold: pre-fix, the age
+        // subtraction overflowed (panic in debug, wrap-to-fresh in
+        // release). They must saturate into "very stale".
+        list(
+            &mut s,
+            json!([{ "id": "t1", "name": "One", "type": "PremiumStash", "index": 0 }]),
+            i64::MIN,
+        );
+        fetch(
+            &mut s,
+            json!({ "id": "t1", "name": "One", "type": "PremiumStash", "items": [] }),
+            i64::MIN,
+        );
+        let plan = plan(&s, &all_policy_value(3600), 100);
+        assert!(matches!(
+            plan.actions[0],
+            RefreshAction::ListStashes {
+                reason: ListingReason::Stale {
+                    age_seconds: i64::MAX
+                },
+                ..
+            }
+        ));
+        assert!(plan.actions.iter().any(|a| matches!(
+            a,
+            RefreshAction::FetchTab { id, reason: FetchReason::Stale { age_seconds: i64::MAX }, .. } if id == "t1"
         )));
     }
 
@@ -836,7 +1152,7 @@ mod tests {
             ]),
             1000,
         );
-        let plan = compile_refresh("mock", &snapshot(&s), &all_policy(3600), None, 1100).unwrap();
+        let plan = plan(&s, &all_policy_value(3600), 1100);
         // The folder is skipped with its reason; the child is a plain tab
         // fetch by its own id (folders group, they don't contain).
         assert_eq!(
@@ -867,11 +1183,11 @@ mod tests {
             json!([{ "id": "t1", "name": "One", "type": "PremiumStash", "index": 0 }]),
             1000,
         );
-        let p = policy(json!({
+        let p = json!({
             "version": 1,
             "leagues": { "Standard": { "tabs": ["t1", "ghost"], "max_age_seconds": 3600 } }
-        }));
-        let plan = compile_refresh("mock", &snapshot(&s), &p, None, 1100).unwrap();
+        });
+        let plan = plan(&s, &p, 1100);
         // The known tab gets its action; the vanished (or mistyped) id is
         // reported, and no action names it (D5a: reported skipped).
         assert_eq!(plan.actions.len(), 1);
@@ -883,14 +1199,23 @@ mod tests {
     }
 
     #[test]
-    fn actions_speak_the_daemons_job_vocabulary() {
-        // These tuples are exactly what the daemon's own code submits —
-        // pinned here so the plan and the dispatcher cannot drift apart.
+    fn actions_decode_through_the_stores_job_vocabulary_decoder() {
+        // Not literals-vs-literals: `Endpoint::from_job` is the store's
+        // production decoder of the daemon's job vocabulary (it is what
+        // `Daemon::record` classifies through), so a vocabulary change
+        // that moves the store breaks this test even if this crate's
+        // strings were left behind.
         let listing = RefreshAction::ListStashes {
             league: "Standard".into(),
             reason: ListingReason::NeverListed,
         };
-        assert_eq!(listing.job(), ("stashes", json!({ "league": "Standard" })));
+        let (kind, params) = listing.job();
+        assert_eq!(
+            Endpoint::from_job(kind, &params),
+            Some(Endpoint::Stashes {
+                league: "Standard".into()
+            })
+        );
         let tab = RefreshAction::FetchTab {
             league: "Standard".into(),
             id: "t1".into(),
@@ -898,13 +1223,18 @@ mod tests {
             tab_type: "PremiumStash".into(),
             reason: FetchReason::NeverFetched,
         };
+        let (kind, params) = tab.job();
         assert_eq!(
-            tab.job(),
-            (
-                "stash",
-                json!({ "league": "Standard", "id": "t1", "deep": false })
-            )
+            Endpoint::from_job(kind, &params),
+            Some(Endpoint::Stash {
+                league: "Standard".into(),
+                id: "t1".into(),
+                sub: None,
+            })
         );
+        // `deep` is not part of the endpoint; assert it separately — a
+        // plan's fetch must never fan out (D5a).
+        assert_eq!(params["deep"], json!(false));
         let substash = RefreshAction::FetchSubstash {
             league: "Standard".into(),
             parent: "m1".into(),
@@ -913,13 +1243,49 @@ mod tests {
             tab_type: "MapStash".into(),
             reason: FetchReason::NeverFetched,
         };
+        let (kind, params) = substash.job();
         assert_eq!(
-            substash.job(),
-            (
-                "stash",
-                json!({ "league": "Standard", "id": "m1", "sub": "s1", "deep": false })
-            )
+            Endpoint::from_job(kind, &params),
+            Some(Endpoint::Stash {
+                league: "Standard".into(),
+                id: "m1".into(),
+                sub: Some("s1".into()),
+            })
         );
+        assert_eq!(params["deep"], json!(false));
+    }
+
+    #[test]
+    fn applying_a_plans_actions_through_the_store_satisfies_the_plan() {
+        // The offline half of apply: each action's job tuple, decoded by
+        // the store's own vocabulary and recorded, produces facts that
+        // the next plan finds fresh. If job() rendered anything the
+        // record pipeline does not recognize as the planned tab, the
+        // replan would still want work.
+        let mut s = store();
+        list(
+            &mut s,
+            json!([{ "id": "t1", "name": "One", "type": "PremiumStash", "index": 0 }]),
+            1000,
+        );
+        let p = all_policy_value(3600);
+        let first = plan(&s, &p, 8000);
+        assert_eq!(first.logical_requests, 2, "{:?}", first.actions);
+        for action in &first.actions {
+            let (kind, params) = action.job();
+            let endpoint = Endpoint::from_job(kind, &params).unwrap();
+            let body = match action {
+                RefreshAction::ListStashes { .. } => {
+                    json!({ "stashes": [ { "id": "t1", "name": "One", "type": "PremiumStash", "index": 0 } ] })
+                }
+                _ => {
+                    json!({ "stash": { "id": "t1", "name": "One", "type": "PremiumStash", "items": [item("i1")] } })
+                }
+            };
+            s.record(&endpoint, &params, 200, &body, 8000).unwrap();
+        }
+        let second = plan(&s, &p, 8000);
+        assert!(second.actions.is_empty(), "{:?}", second.actions);
     }
 
     #[test]
@@ -934,15 +1300,65 @@ mod tests {
             ]),
             1000,
         );
-        let p = policy(json!({
+        let p = json!({
             "version": 1,
             "leagues": { "Standard": { "tabs": ["t1", "f1", "c1", "ghost"], "max_age_seconds": 60 } }
-        }));
-        let plan = compile_refresh("mock", &snapshot(&s), &p, Some(7), 5000).unwrap();
+        });
+        let plan = plan(&s, &p, 5000);
         // A plan crosses sockets and lands in journals; serialization is
         // part of its contract, not a debug convenience.
         let json = serde_json::to_value(&plan).unwrap();
+        assert_eq!(RefreshPlan::from_value(&json).unwrap(), plan);
         let back: RefreshPlan = serde_json::from_value(json).unwrap();
         assert_eq!(back, plan);
+    }
+
+    #[test]
+    fn a_tampered_or_newer_plan_does_not_parse_into_a_trusted_envelope() {
+        let mut s = store();
+        list(
+            &mut s,
+            json!([{ "id": "t1", "name": "One", "type": "PremiumStash", "index": 0 }]),
+            1000,
+        );
+        let good = serde_json::to_value(plan(&s, &all_policy_value(60), 5000)).unwrap();
+        // Sanity: 2 actions (re-list + fetch), and the untampered form parses.
+        assert_eq!(good["logical_requests"], json!(2));
+        assert!(RefreshPlan::from_value(&good).is_ok());
+        // A newer schema reports as such — before any shape complaint —
+        // and raw serde refuses it too (the validation is in the type,
+        // not only in from_value).
+        let mut newer = good.clone();
+        newer["plan_schema"] = json!(2);
+        assert_eq!(
+            RefreshPlan::from_value(&newer).unwrap_err(),
+            PlanError::PlanSchemaUnsupported {
+                found: 2,
+                supported: 1
+            }
+        );
+        assert!(serde_json::from_value::<RefreshPlan>(newer).is_err());
+        // Derived counts recompute or the envelope is refused: a forged
+        // logical bound is exactly what admission-time budgeting (D8)
+        // must not be able to trust away.
+        let mut forged = good.clone();
+        forged["logical_requests"] = json!(1);
+        let err = RefreshPlan::from_value(&forged).unwrap_err();
+        assert!(matches!(err, PlanError::MalformedPlan { .. }), "{err}");
+        let mut forged = good.clone();
+        forged["wire_sends"]["max"] = json!(999);
+        assert!(RefreshPlan::from_value(&forged).is_err());
+        // A stray operation, a smuggled field, and an action for another
+        // league are each refused whole.
+        let mut wrong_op = good.clone();
+        wrong_op["operation"] = json!("delete-everything");
+        assert!(RefreshPlan::from_value(&wrong_op).is_err());
+        let mut smuggled = good.clone();
+        smuggled["extra_authorization"] = json!(true);
+        assert!(RefreshPlan::from_value(&smuggled).is_err());
+        let mut stray = good.clone();
+        stray["actions"][0]["league"] = json!("Hardcore");
+        let err = RefreshPlan::from_value(&stray).unwrap_err();
+        assert!(err.to_string().contains("Hardcore"), "{err}");
     }
 }
