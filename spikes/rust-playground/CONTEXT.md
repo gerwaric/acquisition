@@ -164,7 +164,7 @@ and store; (2) `account` on jobs, validated against the sole session;
 rule, uuid recorded opportunistically (superseded 2026-08-31: uuid is now
 required at login — identity bullet above).
 
-### Annotations & plans — the refresh tracer (decided 2026-08-31; steps 1–8 built, step 9 next)
+### Annotations & plans — the refresh tracer (decided 2026-08-31; steps 1–8 built, step 9 prepared — owner run pending)
 
 The one slice built next: refresh-with-`plan`, the smallest slice that
 touches all four layers (policy = intent, plan = derivation, apply =
@@ -250,10 +250,33 @@ Accepted residuals, recorded so they need no re-litigating:
   it at step (9) as a graceful "daemon quote rejected" note — an
   observation to collect on the live rung, not a bug to pre-fix.
 
-Still to build:
+Prepared, not yet run (the run is the owner's, from a terminal):
 
 9. Owner live rung under `LIVE-TESTING.md`'s standing rule, friction
-   notes collected as data.
+   notes collected as data. Prepared 2026-09-01: the rung section in
+   `LIVE-TESTING.md` ("Tracer rung") — the step table, expected totals,
+   residuals, and the friction-note prompts — and `tools/tracer-rung.sh`,
+   which drives it (one fresh daemon per wire phase under a ceiling
+   derived from the plan's own wire estimate; the offline claims checked
+   with the socket dead; the journal verified per cycle against the plan;
+   friction notes prompted at each phase). Review round 1 (2026-09-01,
+   six findings, all fixed before any live run): the ceiling is exact
+   and the rails trip on `sends >= max`, so the bound reached right
+   after the last planned send is a cycle's expected end, not a failure;
+   the envelope applied is the quoted file, checked equal to the offline
+   one plus the quote and shown before apply; every probe's hits are
+   bounded by the run's own earlier sends (the first probe on a route
+   must see 0); readback failures fail the run. One planner fact the
+   review surfaced, recorded for the owner rather than pre-fixed: policy
+   ids match exactly, so an id list never covers the substashes a
+   map/unique fetch discovers — the loop closes with them uncovered
+   (reported), and only `all` runs the discovery cycle; whether a parent
+   should cover its substashes is a friction question. `--mock`
+   rehearsal green in both shapes (`all`: listing, seven fetches, seven
+   substashes, empty; ids: listing, three fetches, empty with four
+   uncovered substashes reported). The run's outputs: a ledger row, the
+   friction notes in the rung section, and then the two rulings below —
+   "Binding-plan friction" and the method-test verdict.
 
 Done = **pin the refresh Plan/quote/apply slice and the annotation API
 it exercised** — a CLI tracer cannot close the whole GUI/MCP/TUI

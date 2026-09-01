@@ -387,6 +387,150 @@ hits, read back from GGG's counters by a daemon that never sent them.
 The rail-5 ceremony was exercised as written and nothing in the run
 argued for more.
 
+## Tracer rung — policy → plan → apply → replan (prepared 2026-09-01, review round 1 same day; owner run pending)
+
+The refresh tracer's step 9 (`CONTEXT.md`, "Annotations & plans"): the
+owner's first real use of the slice on the real account. It asks nothing
+new of GGG — every route it touches is well-trodden
+(`stash-list-request-limit`, `stash-request-limit`, the token endpoint),
+and the `apply` kind is a fan-out parent of kinds that have had first
+contact — so no hypothesis document: this section, a ledger row, and the
+friction notes below are the record. What it collects, on purpose:
+
+1. **The plan's projection against the wire.** A plan states its own
+   wire estimate (`min..max` sends plus named prerequisites: one probe
+   per route this lifetime, a token refresh). Each cycle runs on a fresh
+   daemon whose ceiling is *derived from the plan, exactly*: one token
+   POST, one HEAD per route the plan touches, one GET per action. The
+   rails trip the moment the count reaches the ceiling (`rails.rs`,
+   `sends >= max`), so the daemon halts on the bound right after the
+   last planned send — that halt is the expected end of a cycle, and
+   the journal must show exactly the ceiling's sends. The bound cannot
+   be exceeded; a send the plan did not project would consume it and
+   show as a planned child refused, which fails the cycle.
+2. **The quote on the wire.** With a real daemon up, `refresh --plan`
+   either carries its quote (headroom, queue, ETA per scope) or prints
+   why not. The accepted residual is collected here: real GGG's
+   `/profile` `name` may lack the `#discriminator` the session username
+   carries, in which case the note reads "daemon quote rejected" — an
+   observation to record, not a fault; the plan applies unquoted.
+3. **What is applied is what was reviewed.** The envelope applied is
+   the quoted file itself, checked to be the offline envelope (the
+   ceiling's source) plus the quote — actions in order, listing basis,
+   identity, policy revision, counts — and its action list is rendered
+   from that file and confirmed before the apply. Facts moving between
+   the two compiles is a stop.
+4. **Friction notes** — the product-side data (`CONTEXT.md`, "Binding-plan
+   friction"; the method test). Taken at the moment, not recalled: the
+   driver prompts after every phase and writes them to
+   `runs/<date>-tracer/friction.md`; they are pasted into the
+   subsection below.
+
+Preconditions: the standing rule's rails and binary provenance; from a
+terminal (keychain, browser). Two accounts are persisted, so every
+command carries `--account GERWARIC#7694` (the selector resolves as
+`acq` does: exact username, username without `#discriminator`, or
+uuid). That account's index entry predates uuid-at-login and has no
+uuid; intent binds to the uuid, so the run opens with a re-login as the
+same account (a code-exchange POST and the login's own `GET /profile`,
+ceiling 2, exactly). One fresh daemon per wire phase, stopped when the
+phase is over, `ACQ_NO_SPAWN=1` throughout: the offline claims (plan
+compiled with no daemon; an empty plan's apply contacts nothing) are
+checked with the socket dead. The league's listing on record is from
+the persistence check (2026-08-30), so the first plan is the stale
+listing **plus** the selected tabs' fetches in one plan — the fetches on
+the old listing's membership (D5a: a plan never expands itself; the new
+listing's facts land for the next plan).
+
+**Selection decides the shape of the run.** The planner matches policy
+ids exactly and a substash's id is its own (`TabSelection::selects`),
+so an id list never covers the substashes a map/unique fetch discovers:
+they land in the store, uncovered, and the loop closes after one
+working cycle — the driver reports them as an observation ("n
+substashes discovered under selected tabs are not covered by the id
+list"). `all` covers them and runs the discovery cycle one plan later.
+Whether "a parent covers its substashes" belongs in the policy shape is
+a friction question for the owner, not something the rung pre-decides.
+Pick the tabs from `acq --account GERWARIC#7694 tabs --league Standard`
+(a store read; no daemon): a handful, including one map or unique tab
+so the uncovered-discovery observation is real. `all` is allowed and is
+the owner's call — 323 requests with ~343 s holds per 30, then every
+substash a second cycle (a map tab may expose hundreds).
+
+`tools/tracer-rung.sh [--account SEL] [--league L] [--max-age S]
+[--cycles K] <tab1,...|all>` drives the table from one terminal: it
+refuses stale binaries, leftover isolation env, and a running daemon;
+writes the policy from the selection; gates every wire phase on an
+explicit enter; derives each cycle's ceiling from the offline plan;
+checks and shows the envelope it applies; treats the bound reached
+exactly after the planned sends as the cycle's end and any other halt
+(a tripwire trip, a ceiling with sends missing, a child not done) as a
+stop; reads the facts back and fails on a selected tab missing from the
+store or a read that errors; verifies the journal; drafts the ledger
+row; and prints the friction notes. `--mock` rehearses the identical
+flow, exact ceilings included, against the mock — run green 2026-09-01
+in both shapes: `all` = login `1/0/1`, cycles `1/1/1` (bootstrap
+listing), `1/1/7` (seven tab fetches), `1/1/7` (seven substashes
+discovered one plan later), then an empty plan applied as a no-op with
+no daemon; ids `cur1,dump,maps` = login, `1/1/1`, `1/1/3`, then empty,
+with four substashes under `maps` reported as uncovered. Every cycle
+quoted; every cycle's sends equal to its plan plus probes plus the
+POST. The table stays the specification; the script implements it.
+
+| Step | Command | Expect | Stop if |
+| --- | --- | --- | --- |
+| 0 | preflight: `acq --version` = HEAD, no `ACQ_*` isolation leftovers, no daemon; `acq accounts` | `GERWARIC#7694` persisted, no uuid | a daemon is up; the binary is dirty or stale |
+| 1 | fresh daemon (ceiling 2), `ACQ_GGG=1 acq auth` in the browser as **the same account** | POST 200 (`token-request-limit` Ip `1:30:0`), `GET /profile` 200 with no rate headers (N38), `logged in as GERWARIC#7694`, the index now carries the uuid; bound reached at send 2; daemon stopped | the login lands as another account (intent would bind to the wrong identity); any non-2xx |
+| 2 | `acq policy set '{"version":1,"leagues":{"Standard":{"tabs":[…],"max_age_seconds":3600}}}'`, then `acq refresh --plan` with **no daemon** | revision 1; the plan is the stale listing (≈2 d) plus one fetch per selected tab, `n+1` requests, `n+1..3(n+1)` wire sends, the two prerequisites named; stderr `no quote: … plan compiled offline`; no daemon appeared | a daemon appeared; the note is anything but "no quote" |
+| 3 (cycle 1) | fresh daemon, ceiling `1 + 2 + (n+1)`; `acq refresh --plan --json` again (quoted) — checked equal to the offline envelope plus the quote, actions shown; `acq refresh --apply=<that file> --max-requests n+1` | the quote, or the discriminator note (record which); journal: POST, `HEAD /stash/Standard` 204 reporting **0 hits**, `GET` list 200, `HEAD /stash/Standard/{id}` 204 reporting **0 hits**, `n` tab GETs 200; parent `done`, children `n+1` done, 0 failed; the bound reached exactly at the last send; daemon stopped | the run's **first** probe on a route reports hits > 0 (standing rule: something else is on this account); any non-2xx; a child failed (a tab gone since 2026-08-30 is data — record it, then stop); the ceiling halts with sends missing (a send the plan did not project) |
+| 4 (cycle 2) | plan offline again | **id list**: `nothing to do` — the substashes discovered under the map/unique tab are in `acq tabs` but outside the policy; `acq refresh --apply` with no daemon prints `requests: 0` and nothing appears on the socket. **`all`**: `fetch substash` lines, `m` requests, ceiling `1 + 1 + m`; the stash probe reports cycle 1's `n` hits still inside the 300 s window — **ours, expected; the verifier bounds every probe's hits by this run's own earlier sends on that route**; journal `1/1/m`; children `m` done | a daemon appeared on the no-op; hits beyond ours; otherwise as step 3 |
+| 5 (cycle 3, `all` only) | plan offline again | empty; no-op apply with no daemon | a daemon appeared; the plan still has work (record what and why; not a failure) |
+| 6 | `acq tabs --league Standard`, `acq store status`, `acq store events --hours 1` (store reads) | every selected tab `fetched` moments ago (an id the first plan reported as unknown is the one exception); item events from this run; the final `refresh --plan` empty when the loop was recorded closed | a selected tab is missing from the store; a read errors; a closed loop whose final plan is not empty |
+| 7 | evidence: journal copied to `runs/<date>-tracer/`; ledger row; friction notes pasted below | | |
+
+Expected totals for `n` selected tabs: login `1/0/1`, cycle 1
+`1/2/(n+1)`, then nothing — no hold while `n ≤ 30` (the listing GET is
+on its own policy). For `all`: cycle 1 `1/2/323` with ten ~343 s holds
+(rung 10's shape), cycle 2 `1/1/m` for `m` substashes with its own
+holds, and cycle 2's probe carries cycle 1's hits, which the fresh
+daemon reads and paces on (it over-waits, never floods — the seeding
+the quote also uses). Residuals stated plainly: the listing and the
+fetches share one plan by design, so a tab renamed or removed since
+2026-08-30 surfaces as a failed child or an `unknown_tabs` id — that is
+D5a's eventual reconciliation being seen live, and a friction note, not
+a rail failure; and the rung samples the slice, not the frontier — a
+whole-league policy is a second run, if the notes ask for it.
+
+### Friction notes (owner, filled during the run)
+
+Data the way the send journal is data; each note is one line, taken when
+it happened (`friction.md` in the run directory, pasted here). The
+prompts are the questions the notes are for, not a form to complete:
+
+- **Intent** — writing the policy by hand: were tab ids the right handle,
+  or did you want names, types, "everything but", or "this tab and its
+  substashes"? Did the uuid re-login and the `--account` selector cost
+  anything?
+- **Plan** — did the plan read as your intent? Was "listing + fetches in
+  one plan" what you expected, or did the stale listing surprise you?
+  The quote: useful, noise, or absent?
+- **Apply** — the wait, the feedback during it, the `--max-requests`
+  ceremony, the result payload: what did you want to see that you did
+  not?
+- **Replan / binding** — the discovered substashes an id list leaves
+  uncovered, the two-cycle discovery under `all`, subset-only
+  reconciliation, an empty plan as the closing signal: did any of it
+  hurt? (D5a is revisable on exactly this.)
+- **Facts** — reading the store back: did the tabs/events answer "what
+  changed"?
+- **Anything that made you reach for `acq refresh --tabs` instead.**
+
+Notes: *(pending the run)*
+
+Ruled on after the run, in `CONTEXT.md`: the "Binding-plan friction" open
+topic (re-ruled or confirmed) and the method-test verdict that the pricing
+session opens with.
+
 ## Status: ladder closed (2026-08-27)
 
 Every rung has passed except rung 9, deferred on purpose (each attempt is
