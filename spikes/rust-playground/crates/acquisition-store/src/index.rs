@@ -21,8 +21,10 @@ pub struct AccountEntry {
     /// one-off sessions (`ACQ_NO_KEYRING`, a failed keyring save) and after
     /// logout; the account stays listed because its store file remains.
     pub persisted: bool,
-    /// From `GET /profile`, recorded opportunistically; stable across name
-    /// changes. Not used as a key yet.
+    /// From `GET /profile`; stable across name changes. Required at login
+    /// since 2026-08-31 (`record_login`) and the key that names the
+    /// account's annotation file. Entries from before then may lack it:
+    /// one re-auth fixes that, no migration.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub uuid: Option<String>,
 }
@@ -86,8 +88,11 @@ pub fn store_dir(provider: &str) -> PathBuf {
 /// `<dir>/<username>.db`, with the username made filename-safe
 /// (`GERWARIC#7694` → `GERWARIC_7694.db`).
 pub fn account_path(dir: &Path, username: &str) -> PathBuf {
-    let safe: String = username
-        .chars()
+    dir.join(format!("{}.db", filename_safe(username)))
+}
+
+pub(crate) fn filename_safe(s: &str) -> String {
+    s.chars()
         .map(|c| {
             if c.is_ascii_alphanumeric() || c == '-' || c == '.' {
                 c
@@ -95,8 +100,7 @@ pub fn account_path(dir: &Path, username: &str) -> PathBuf {
                 '_'
             }
         })
-        .collect();
-    dir.join(format!("{safe}.db"))
+        .collect()
 }
 
 pub fn index_path(dir: &Path) -> PathBuf {
@@ -136,7 +140,55 @@ impl Index {
         self.entries.iter().find(|e| e.username == username)
     }
 
-    /// Record a login. Rewrites the file.
+    /// Record a completed login. The uuid is required at login (CONTEXT.md,
+    /// identity decision): a login only reaches the index once the profile
+    /// fetch delivered it. If the uuid is already listed under a different
+    /// username, the account was renamed — the entry follows the new name
+    /// (a mapping update; the uuid-named annotation file is untouched, the
+    /// old username-named fact file is orphaned and refetchable).
+    pub fn record_login(
+        &mut self,
+        username: &str,
+        uuid: &str,
+        persisted: bool,
+        at: i64,
+    ) -> Result<()> {
+        // A rename would otherwise leave two entries for one uuid, which no
+        // selector could tell apart.
+        if let Some(e) = self
+            .entries
+            .iter_mut()
+            .find(|e| e.uuid.as_deref() == Some(uuid))
+        {
+            e.username = username.to_string();
+            e.last_login = at;
+            e.persisted = persisted;
+            // A uuid-less entry already wearing this name is a pre-uuid
+            // leftover for the same account: drop it rather than leave an
+            // ambiguous twin. Entries with another uuid keep their row —
+            // they point at a different account's annotations.
+            self.entries
+                .retain(|e| e.username != username || e.uuid.is_some());
+            return self.save();
+        }
+        match self.entries.iter_mut().find(|e| e.username == username) {
+            Some(e) => {
+                e.last_login = at;
+                e.persisted = persisted;
+                e.uuid = Some(uuid.to_string());
+            }
+            None => self.entries.push(AccountEntry {
+                username: username.to_string(),
+                last_login: at,
+                persisted,
+                uuid: Some(uuid.to_string()),
+            }),
+        }
+        self.save()
+    }
+
+    /// Refresh-path bookkeeping (last login / keyring state) for an entry a
+    /// completed login already created. Never invents a uuid.
     pub fn upsert(&mut self, username: &str, persisted: bool, at: i64) -> Result<()> {
         match self.entries.iter_mut().find(|e| e.username == username) {
             Some(e) => {
@@ -281,6 +333,43 @@ mod tests {
             account_path(&dir, "Alice#1234").file_name().unwrap(),
             "Alice_1234.db"
         );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn record_login_requires_the_uuid_and_follows_renames() {
+        let dir = tmp();
+        let mut idx = Index::load(&dir).unwrap();
+        idx.record_login("Alice#1234", "u-alice", true, 10).unwrap();
+        let e = idx.get("Alice#1234").unwrap();
+        assert_eq!((e.uuid.as_deref(), e.persisted), (Some("u-alice"), true));
+        assert_eq!(idx.resolve(Some("u-alice")).unwrap().username, "Alice#1234");
+        // A later login with the same uuid under a new name is a rename:
+        // the mapping updates, no second entry appears.
+        idx.record_login("Alicia#9999", "u-alice", true, 20)
+            .unwrap();
+        assert_eq!(idx.entries().len(), 1);
+        assert_eq!(
+            idx.resolve(Some("u-alice")).unwrap().username,
+            "Alicia#9999"
+        );
+        assert!(idx.get("Alice#1234").is_none());
+        // A pre-uuid leftover entry gains its uuid in place.
+        idx.upsert("Bob#0001", true, 30).unwrap();
+        assert!(idx.get("Bob#0001").unwrap().uuid.is_none());
+        idx.record_login("Bob#0001", "u-bob", true, 40).unwrap();
+        assert_eq!(idx.entries().len(), 2);
+        assert_eq!(idx.get("Bob#0001").unwrap().uuid.as_deref(), Some("u-bob"));
+        // A rename onto a name a uuid-less leftover holds drops the twin.
+        idx.upsert("Cleo#0002", false, 50).unwrap();
+        idx.record_login("Cleo#0002", "u-alice", true, 60).unwrap();
+        let cleos: Vec<_> = idx
+            .entries()
+            .iter()
+            .filter(|e| e.username == "Cleo#0002")
+            .collect();
+        assert_eq!(cleos.len(), 1);
+        assert_eq!(cleos[0].uuid.as_deref(), Some("u-alice"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 

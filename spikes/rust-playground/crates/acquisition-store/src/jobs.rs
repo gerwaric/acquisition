@@ -114,6 +114,7 @@ impl JobDb {
     /// the `test-hooks` feature (acquisition-core's dev-dependency);
     /// production builds have no way to call this.
     #[cfg(feature = "test-hooks")]
+    #[allow(clippy::unwrap_used)] // a test hook, exempt from the crate's ratchet
     pub fn break_for_tests(&self) {
         self.conn.execute_batch("DROP TABLE jobs").unwrap();
     }

@@ -14,6 +14,14 @@
 //! Every derived column (`name`, `type_line`, …) comes from the row's own
 //! `json`, so a wrong extraction is repaired by re-extracting, never by
 //! refetching.
+//!
+//! Facts are one of four layers (CONTEXT.md, 2026-08-31); `annotations` is
+//! the intent layer, the only irreplaceable local state.
+
+// The lint ratchet (CONTEXT.md, "Panics are for broken internal invariants
+// only"): the store crate's production code panics on nothing external — a
+// malformed body, row, or file is a structured error. Tests may unwrap.
+#![cfg_attr(not(test), deny(clippy::unwrap_used, clippy::expect_used))]
 
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -168,8 +176,10 @@ pub struct Status {
     pub events: i64,
 }
 
+pub mod annotations;
 pub mod index;
 pub mod jobs;
+pub use annotations::{AnnotationError, AnnotationRow, Annotations, annotations_path};
 pub use index::{
     AccountEntry, Index, Resolve, account_matches, account_path, index_path, store_dir,
 };
@@ -603,6 +613,32 @@ impl Store {
         }
         tx.commit()?;
         Ok(n)
+    }
+
+    /// Item annotations whose item this fact store no longer has live
+    /// (removed, or never seen). No fact-side event ever deletes intent
+    /// (CONTEXT.md): this is how kept-but-detached intent stays visible so
+    /// a frontend can surface it instead of it silently rotting.
+    pub fn orphaned_item_annotations(
+        &self,
+        annotations: &Annotations,
+    ) -> Result<Vec<AnnotationRow>> {
+        let mut orphaned = Vec::new();
+        for row in annotations.list(Some("item"))? {
+            let live: Option<Option<i64>> = self
+                .conn
+                .query_row(
+                    "SELECT removed_at FROM items WHERE id = ?1",
+                    [&row.key],
+                    |r| r.get(0),
+                )
+                .optional()?;
+            match live {
+                Some(None) => {} // the item is live; the annotation is attached
+                _ => orphaned.push(row),
+            }
+        }
+        Ok(orphaned)
     }
 }
 
@@ -1104,6 +1140,44 @@ mod tests {
             .unwrap();
         assert_eq!(s.rebuild().unwrap(), 1);
         assert_eq!(s.item("i1").unwrap().unwrap().name, "Foo");
+    }
+
+    #[test]
+    fn intent_survives_fact_removal_and_surfaces_as_orphaned() {
+        let mut s = Store::open_memory().unwrap();
+        let mut a = Annotations::open_memory().unwrap();
+        s.record(
+            &stash_ep("a"),
+            &json!({}),
+            200,
+            &stash("a", vec![item("i1", "Foo", 0)]),
+            100,
+        )
+        .unwrap();
+        a.put("item", "i1", "buyout", &json!({"price": "1 divine"}), None)
+            .unwrap();
+        assert!(s.orphaned_item_annotations(&a).unwrap().is_empty());
+        // The item disappears from its tab: the fact side records a removal
+        // and touches no intent — the annotation stays, now orphaned.
+        s.record(&stash_ep("a"), &json!({}), 200, &stash("a", vec![]), 200)
+            .unwrap();
+        let orphaned = s.orphaned_item_annotations(&a).unwrap();
+        assert_eq!(orphaned.len(), 1);
+        assert_eq!(orphaned[0].key, "i1");
+        assert_eq!(a.get("item", "i1", "buyout").unwrap().unwrap().revision, 1);
+        // The item comes back: the same annotation is attached again.
+        s.record(
+            &stash_ep("a"),
+            &json!({}),
+            200,
+            &stash("a", vec![item("i1", "Foo", 0)]),
+            300,
+        )
+        .unwrap();
+        assert!(s.orphaned_item_annotations(&a).unwrap().is_empty());
+        // An annotation on an item this store never saw is orphaned too.
+        a.put("item", "ghost", "note", &json!("?"), None).unwrap();
+        assert_eq!(s.orphaned_item_annotations(&a).unwrap().len(), 1);
     }
 
     #[test]
