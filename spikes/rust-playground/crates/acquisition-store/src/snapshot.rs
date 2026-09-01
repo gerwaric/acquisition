@@ -21,8 +21,10 @@ use crate::{Store, TAB_ORDER_SQL};
 pub const SYNC_POLICY_KIND: &str = "sync-policy";
 
 /// The stash listing this snapshot's tab set derives from — the fact
-/// basis a plan cites.
+/// basis a plan cites. Strict on parse (it is embedded in serialized
+/// plan envelopes, which refuse unknown fields whole).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ListingBasis {
     /// Row id in `responses`, stable for the life of the file.
     pub response_id: i64,

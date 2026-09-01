@@ -228,11 +228,13 @@ into an action; the `metadata.items` heuristic forces a fetch only
 when a listing newer than our fetch disagrees with the held count, and
 never skips one; ages saturate, so a corrupt store timestamp reads as
 very stale, never as fresh and never a panic; a serialized plan
-re-validates on parse — unknown fields, a wrong operation, an action
-whose league is not the envelope's, or derived counts that do not
-recompute refuse whole, so apply can trust what it reads back, and a
-`MAX_429_RETRIES` change is a plan-schema event, not a silent constant
-bump; every action renders the daemon's own `(kind, params)` job
+re-validates on parse — unknown fields at any depth (the nested types
+are strict too), a wrong operation, an action whose league is not the
+envelope's, or derived quantities that do not recompute refuse whole;
+the wire projection, prerequisites included, is reviewed content
+recomputed by the same `wire_estimate` the compiler used — so apply
+can trust what it reads back, and a `MAX_429_RETRIES` or
+prerequisite-wording change is a plan-schema event, not a silent edit; every action renders the daemon's own `(kind, params)` job
 tuple, pinned through `Endpoint::from_job` — the store's production
 decoder of that vocabulary — plus a plan→record→replan loop, breakers
 verified); (5) `quote` on the protocol +

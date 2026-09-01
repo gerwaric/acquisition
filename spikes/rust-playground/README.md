@@ -142,10 +142,11 @@ bounded by `MAX_429_RETRIES`; a Cloudflare-shaped 403/503 is never retried.
   range with named prerequisites (probe, OAuth refresh) — never a
   precise wire accounting. Plans always derive from the stored policy
   row and carry its revision (no ad-hoc path), and a serialized plan
-  re-validates on parse — unknown fields, a newer schema stamp, a wrong
-  operation, an action outside the envelope's league, or derived counts
-  that do not recompute are refused whole — so apply can trust what it
-  reads back. Plans are binding and act only on facts on
+  re-validates on parse — unknown fields at any depth, a newer schema
+  stamp, a wrong operation, an action outside the envelope's league, or
+  derived quantities that do not recompute (the wire projection,
+  prerequisites included) are refused whole — so apply can trust what
+  it reads back. Plans are binding and act only on facts on
   record: a never-listed league plans the listing alone (covered tabs
   are reported as awaiting the listing — without a basis the plan has
   no membership authority), substash

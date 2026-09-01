@@ -225,7 +225,7 @@ impl SyncPolicy {
 
 /// Why the plan re-lists the league.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "snake_case")]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum ListingReason {
     NeverListed,
     Stale { age_seconds: i64 },
@@ -233,7 +233,7 @@ pub enum ListingReason {
 
 /// Why the plan fetches a tab.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "snake_case")]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum FetchReason {
     NeverFetched,
     Stale {
@@ -250,7 +250,7 @@ pub enum FetchReason {
 
 /// Why a covered tab is not in the action set.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "snake_case")]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum SkipReason {
     /// Fetched within the policy's window and nothing proved a change.
     Fresh { age_seconds: i64 },
@@ -269,6 +269,7 @@ pub enum SkipReason {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct SkippedTab {
     pub id: String,
     pub name: String,
@@ -278,7 +279,7 @@ pub struct SkippedTab {
 /// One authorized request. Self-contained on purpose: an action can be
 /// rendered, reviewed, or turned into a daemon job without the envelope.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "action", rename_all = "snake_case")]
+#[serde(tag = "action", rename_all = "snake_case", deny_unknown_fields)]
 pub enum RefreshAction {
     ListStashes {
         league: String,
@@ -338,6 +339,7 @@ impl RefreshAction {
 /// snapshot carries the revision so the comparison is possible) and for a
 /// human to see how old the inputs were.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PlanBasis {
     /// When the snapshot was taken (facts as of this read).
     pub snapshot_taken_at: i64,
@@ -354,12 +356,36 @@ pub struct PlanBasis {
 /// The coarse wire projection. The range covers the authorized requests
 /// and their bounded 429 retries; `prerequisites` names sends the range
 /// deliberately does not count — a precise accounting is the deferred
-/// wire-budget feature, and pretending to one here would be false.
+/// wire-budget feature, and pretending to one here would be false. The
+/// whole of it, prerequisites included, is part of the reviewed
+/// projection: deserialization recomputes it ([`wire_estimate`]) and
+/// refuses a mismatch.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct WireEstimate {
     pub min: u64,
     pub max: u64,
     pub prerequisites: Vec<String>,
+}
+
+/// The one place the wire projection is computed — the compiler builds
+/// it and the deserialization validator compares against it, so the two
+/// cannot drift. Any change here (the retry bound, the prerequisite
+/// wording) changes what serialized schema-1 plans claim, so it is a
+/// plan-schema event, not a silent edit.
+fn wire_estimate(logical_requests: u64) -> WireEstimate {
+    WireEstimate {
+        min: logical_requests,
+        max: logical_requests * (1 + u64::from(MAX_429_RETRIES)),
+        prerequisites: if logical_requests == 0 {
+            Vec::new()
+        } else {
+            vec![
+                "a HEAD probe on first contact with each route this daemon lifetime (N16)".into(),
+                "an OAuth token refresh if the access token has expired (N33)".into(),
+            ]
+        },
+    }
 }
 
 /// A refresh authorization: the bounded work the user reviewed, derived
@@ -477,9 +503,9 @@ impl TryFrom<RefreshPlanWire> for RefreshPlan {
         }
         // The derived quantities are recomputed, never taken on faith:
         // admission-time budgeting (D8) trusts `logical_requests`, and a
-        // forged wire range would mislead the review the plan exists for.
-        // A change to MAX_429_RETRIES changes what schema-1 plans claim,
-        // so it is a plan-schema event, not a silent constant bump.
+        // forged range or prerequisite list would mislead the review the
+        // plan exists for. `wire_estimate` is the same function the
+        // compiler used, so nothing here can drift from it.
         let logical = wire.actions.len() as u64;
         if wire.logical_requests != logical {
             return Err(format!(
@@ -487,11 +513,17 @@ impl TryFrom<RefreshPlanWire> for RefreshPlan {
                 wire.logical_requests
             ));
         }
-        let max = logical * (1 + u64::from(MAX_429_RETRIES));
-        if (wire.wire_sends.min, wire.wire_sends.max) != (logical, max) {
+        let expected = wire_estimate(logical);
+        if wire.wire_sends != expected {
             return Err(format!(
-                "wire_sends {}..{} does not recompute from {logical} actions (expected {logical}..{max})",
-                wire.wire_sends.min, wire.wire_sends.max
+                "wire_sends does not recompute from {logical} actions \
+                 (got {}..{} with {} prerequisites, expected {}..{} with {})",
+                wire.wire_sends.min,
+                wire.wire_sends.max,
+                wire.wire_sends.prerequisites.len(),
+                expected.min,
+                expected.max,
+                expected.prerequisites.len()
             ));
         }
         Ok(RefreshPlan {
@@ -598,18 +630,7 @@ fn compile(
             .collect(),
     };
     let logical_requests = actions.len() as u64;
-    let wire_sends = WireEstimate {
-        min: logical_requests,
-        max: logical_requests * (1 + u64::from(MAX_429_RETRIES)),
-        prerequisites: if logical_requests == 0 {
-            Vec::new()
-        } else {
-            vec![
-                "a HEAD probe on first contact with each route this daemon lifetime (N16)".into(),
-                "an OAuth token refresh if the access token has expired (N33)".into(),
-            ]
-        },
-    };
+    let wire_sends = wire_estimate(logical_requests);
     Ok(RefreshPlan {
         plan_schema: REFRESH_PLAN_SCHEMA,
         operation: "refresh".into(),
@@ -1348,6 +1369,12 @@ mod tests {
         let mut forged = good.clone();
         forged["wire_sends"]["max"] = json!(999);
         assert!(RefreshPlan::from_value(&forged).is_err());
+        // The prerequisites are part of the reviewed wire projection, not
+        // display text: an emptied (or reworded) list refuses too.
+        let mut forged = good.clone();
+        forged["wire_sends"]["prerequisites"] = json!([]);
+        let err = RefreshPlan::from_value(&forged).unwrap_err();
+        assert!(err.to_string().contains("prerequisites"), "{err}");
         // A stray operation, a smuggled field, and an action for another
         // league are each refused whole.
         let mut wrong_op = good.clone();
@@ -1356,6 +1383,30 @@ mod tests {
         let mut smuggled = good.clone();
         smuggled["extra_authorization"] = json!(true);
         assert!(RefreshPlan::from_value(&smuggled).is_err());
+        // Unknown fields refuse at every depth, not only the top level:
+        // inside the wire estimate, an action, a reason, and the basis
+        // (its listing included).
+        for path in [
+            &["wire_sends", "extra"][..],
+            &["actions", "0", "surprise"],
+            &["actions", "0", "reason", "surprise"],
+            &["basis", "extra"],
+            &["basis", "listing", "extra"],
+        ] {
+            let mut nested = good.clone();
+            let mut spot = &mut nested;
+            for key in &path[..path.len() - 1] {
+                spot = match key.parse::<usize>() {
+                    Ok(i) => &mut spot[i],
+                    Err(_) => &mut spot[*key],
+                };
+            }
+            spot[*path.last().unwrap()] = json!(true);
+            assert!(
+                RefreshPlan::from_value(&nested).is_err(),
+                "smuggled field at {path:?} was accepted"
+            );
+        }
         let mut stray = good.clone();
         stray["actions"][0]["league"] = json!("Hardcore");
         let err = RefreshPlan::from_value(&stray).unwrap_err();
