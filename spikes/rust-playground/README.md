@@ -65,7 +65,22 @@ bounded by `MAX_429_RETRIES`; a Cloudflare-shaped 403/503 is never retried.
   to the files is the non-secret account index: written at login/logout,
   read by frontends to resolve `ACQ_ACCOUNT` without a daemon, and read by
   the daemon at start to know which keyring entries (one per account) to
-  load. Bodies are kept verbatim except at the item
+  load. Every entry carries the account **uuid**, required at login: after
+  token exchange the daemon submits a profile job (visible in `acq jobs`),
+  and only when the uuid lands is the session registered, the keyring
+  written, and the index updated — a login whose profile fetch fails
+  **fails whole**. A rename (same uuid, new username) is a mapping update.
+  `<uuid>.annotations.db` beside the fact files is the **intent layer**
+  (`annotations.rs`): buyouts, notes, the sync policy — keyed on stable
+  GGG ids, written only through the store crate under integer-revision
+  compare-and-swap, never deleted by any fact-side event (an annotation
+  whose item is gone is kept and surfaceable as orphaned; a frontend
+  delete is a tombstone under the same compare-and-swap, so revisions
+  never reset across delete/recreate), backed up via store-managed
+  `VACUUM INTO` export. The only irreplaceable local state;
+  the store crate's production code is held to no-panic by a clippy
+  ratchet (`unwrap_used`/`expect_used` denied).
+  Bodies are kept verbatim except at the item
   seams: each item array (tab `items`, character `inventory`/`equipment`/
   `jewels`/`rucksack`, and every `socketedItems`) is lifted into `items`,
   one row per GGG item id, so `items` is the only place to look for an
@@ -114,7 +129,8 @@ alias acq=./target/debug/acq
 
 acq auth                                     # OAuth login: opens a fake provider page in your browser
                                              # (the page takes any username, so two accounts are one login apart;
-                                             #  scripted: curl the printed URL with /authorize?→/approve?&user=NAME)
+                                             #  scripted: curl the printed URL with /authorize?→/approve?&user=NAME;
+                                             #  login completes only once its own profile job lands the account uuid)
 acq auth status                              # session, token expiry, keyring health (local belief)
 acq auth check                               # preflight: proves the session via a forced token round-trip
 acq submit whoami                            # mock-only auth job; refreshes the access token silently
@@ -160,6 +176,8 @@ job submission — see the layout note above.
 
 ```sh
 ACQ_GGG=1 acq auth          # real OAuth against pathofexile.com in your browser
+                            # (also sends one GET /profile — the login's own
+                            #  profile job; uuid-at-login, N38: not rate limited)
 ACQ_GGG=1 acq characters    # GET api.pathofexile.com/character
 ACQ_GGG=1 acq stashes       # GET api.pathofexile.com/stash/Standard
 ```
