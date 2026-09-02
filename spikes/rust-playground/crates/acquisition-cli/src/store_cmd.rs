@@ -6,6 +6,7 @@ use std::path::Path;
 use std::path::PathBuf;
 
 use acquisition_core::provider::ggg_mode;
+use acquisition_core::realm::Realm;
 use acquisition_store::{AccountEntry, Endpoint, Index, Store, account_path, store_dir};
 use anyhow::{Context, Result, bail};
 use serde_json::{Value, json};
@@ -127,16 +128,25 @@ pub(crate) fn ago(now: i64, t: Option<i64>) -> String {
     }
 }
 
-pub fn tabs(league: &str, json: bool) -> Result<()> {
+/// `xbox/` before a league in a message; nothing for pc, as on the wire.
+pub(crate) fn realm_prefix(realm: Realm) -> String {
+    match realm.segment() {
+        Some(seg) => format!("{seg}/"),
+        None => String::new(),
+    }
+}
+
+pub fn tabs(realm: Realm, league: &str, json: bool) -> Result<()> {
     let store = open()?;
-    let tabs = store.tabs("pc", league)?;
+    let tabs = store.tabs(realm.as_str(), league)?;
     if json {
         println!("{}", serde_json::to_string_pretty(&tabs)?);
         return Ok(());
     }
     if tabs.is_empty() {
         println!(
-            "no tabs known for {league} in {} (run `acq stashes` or `acq refresh --all`)",
+            "no tabs known for {}{league} in {} (run `acq stashes` or `acq refresh --all`)",
+            realm_prefix(realm),
             store.path().display()
         );
         return Ok(());
@@ -176,13 +186,14 @@ pub fn tabs(league: &str, json: bool) -> Result<()> {
 
 pub fn search(
     text: &str,
+    realm: Option<Realm>,
     league: Option<&str>,
     removed: bool,
     limit: usize,
     json: bool,
 ) -> Result<()> {
     let store = open()?;
-    let items = store.search(text, None, league, removed, limit)?;
+    let items = store.search(text, realm.map(Realm::as_str), league, removed, limit)?;
     if json {
         println!("{}", serde_json::to_string_pretty(&items)?);
         return Ok(());

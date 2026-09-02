@@ -70,6 +70,11 @@ bounded by `MAX_429_RETRIES`; a Cloudflare-shaped 403/503 is never retried.
   and only when the uuid lands is the session registered, the keyring
   written, and the index updated — a login whose profile fetch fails
   **fails whole**. A rename (same uuid, new username) is a mapping update.
+  Facts carry **realm** beside league (schema v3, 2026-09-02 — PoE2
+  shares league names with PoE1): `tabs` is keyed `(realm, league, id)`,
+  characters and items carry the *request's* realm (never a body's
+  field), a listing retires only its own realm's rows, and a pre-realm
+  file is rebuilt in place as pc.
   `<uuid>.annotations.db` beside the fact files is the **intent layer**
   (`annotations.rs`): buyouts, notes, the sync policy — keyed on stable
   GGG ids, written only through the store crate under integer-revision
@@ -131,7 +136,10 @@ bounded by `MAX_429_RETRIES`; a Cloudflare-shaped 403/503 is never retried.
   the dependency graph. `plan_refresh(provider, &snapshot, now)` parses
   the snapshot's sync-policy row (the planner owns that value's schema:
   version-stamped and strict-parsed — a typo'd field is a structured
-  error, never intent half-honored; a newer version is refused as such)
+  error, never intent half-honored; a newer version is refused as such;
+  **v2** nests leagues under realms, `realms.<R>.leagues.<L>`, a v1
+  `leagues.<L>` value still parses as realm pc, and tabs under `poe2`
+  are a parse error because the stash endpoints are PoE1 only)
   and compiles it, with the daemon down, into a serializable
   `RefreshPlan`: the explicit action set (re-list and/or per-tab
   fetches, each carrying its reason — never fetched, stale, or a
@@ -175,7 +183,9 @@ bounded by `MAX_429_RETRIES`; a Cloudflare-shaped 403/503 is never retried.
   (`with_quote`) validates it speaks about the plan's own provider,
   exactly its account, and exactly its actions in order — never just a
   matching count; carrying it bumped the plan schema (v3; the `empty_stub`
-  skip kind made v4 on 2026-09-01). Same
+  skip kind made v4 on 2026-09-01; realm beside league on the envelope
+  and on every action made v5 on 2026-09-02 — every tuple names its
+  realm explicitly, pc included). Same
   no-panic clippy ratchet as the store crate.
 - `crates/acquisition-cli` — the `acq` binary. Thin: clap parsing, output
   formatting, `store_cmd.rs` — the reads of the shared store (`tabs`,
@@ -243,20 +253,26 @@ acq auth status                              # session, token expiry, keyring he
 acq auth check                               # preflight: proves the session via a forced token round-trip
 acq submit whoami                            # mock-only auth job; refreshes the access token silently
 acq profile                                  # GET /profile (account:profile)
-acq characters                               # auth-required; GET /character against the mock
+acq characters [--realm poe2]                # auth-required; GET /character[/{realm}] against the mock
                                              # (first use of a route queues a visible `probe` job:
-                                             #  one HEAD that learns the policy + current counters)
-acq stashes --league Standard                # GET /stash/{league}: a second policy, runs in parallel
-acq character <name>                         # GET /character/{name}: equipment + inventory
+                                             #  one HEAD that learns the policy + current counters;
+                                             #  --realm: pc by default and omitted on the wire, else
+                                             #  xbox|sony|poe2 as a segment — and its own probe)
+acq stashes --league Standard [--realm xbox] # GET /stash[/{realm}]/{league}: a second policy, runs in parallel
+                                             # (stashes are PoE1 only: --realm poe2 is refused at admission)
+acq character <name> [--realm R]             # GET /character[/{realm}]/{name}: equipment + inventory
 acq leagues                                  # GET /account/leagues (account:leagues)
 acq stash <id> [--sub <id>] [--deep]         # one tab; --deep follows a map/unique tab's substashes as child jobs
 acq refresh --tabs a,b,c | --all [--deep]    # list, then one `stash` child per tab; parent finishes last
 acq policy [show]                            # the per-account sync policy: declared coverage + freshness (an annotation)
 acq policy set '<json>' [--if-revision N]    # validated through the planner's strict parse before anything lands;
+                                             #  v2 shape: {"version":2,"realms":{"pc":{"leagues":{"Standard":
+                                             #  {"tabs":"all","max_age_seconds":3600}}}}} (a v1 `leagues` value
+                                             #  still parses, as realm pc);
                                              #  `-` reads stdin, `@file` reads a file; --if-revision writes only
                                              #  over exactly the revision you reviewed (without it, the currently
                                              #  stored revision is replaced; racing writes conflict, never clobber)
-acq refresh --plan                           # compile policy + facts into the explicit action set — sends nothing;
+acq refresh --plan [--realm R] [--league L]  # compile policy + facts into the explicit action set — sends nothing;
                                              #  a running daemon adds its read-only quote (never spawned for this),
                                              #  and --json prints the serialized plan envelope itself
 acq refresh --apply[=plan.json]              # execute the plan: exactly its actions, as one `apply` parent job
@@ -267,8 +283,8 @@ acq refresh --apply[=plan.json]              # execute the plan: exactly its act
                                              #  plan authorizes more, before any child job exists
 acq cancel <parent-id>                       # cascades to every descendant still waiting
 acq accounts                                 # accounts this machine has logged into, from the store's index (no daemon)
-acq tabs [--league L]                        # from the shared store: tab tree with live item counts (no daemon)
-acq items search <text> [--removed]          # substring search over name/type/base; socketed gems are rows too
+acq tabs [--league L] [--realm R]            # from the shared store: tab tree with live item counts (no daemon)
+acq items search <text> [--removed] [--realm R]  # substring search over name/type/base; socketed gems are rows too
 acq items show <id>                          # one item, verbatim
 acq store status | events [--hours N]        # row counts; what recent ingests concluded
 acq store import <snapshot.json> | rebuild   # replay a retired-pull snapshot (no GGG traffic); re-extract columns
@@ -302,6 +318,9 @@ ACQ_GGG=1 acq auth          # real OAuth against pathofexile.com in your browser
                             #  profile job; uuid-at-login, N38: not rate limited)
 ACQ_GGG=1 acq characters    # GET api.pathofexile.com/character
 ACQ_GGG=1 acq stashes       # GET api.pathofexile.com/stash/Standard
+ACQ_GGG=1 acq characters --realm poe2   # GET …/character/poe2 — PoE2 first contact, pending:
+                                        # documented live today, unobserved by us; standing rule
+                                        # (rails on, ceiling 3) applies (CONTEXT.md, characters plan)
 ```
 
 `ACQ_GGG=1` on any command selects the real provider; the CLI kills and
@@ -402,7 +421,10 @@ on the command that spawns it, or `acq daemon stop` first:
   system's or a test's manual clock.
   `route` is the limiter's endpoint key — `stash@Alice#1234` for a send
   on an account, `oauth-token` for the account-blind token endpoint — so
-  the journal names the account of every send.
+  the journal names the account of every send. A realm other than pc
+  suffixes the route (`stash-list/xbox@Alice#1234`): each realm's URL
+  shape gets its own free HEAD probe, and whether it shares the pc
+  policy is learned from its headers; pc routes are unchanged.
   A journal that cannot be opened is reported in `daemon status`, not
   silently dropped.
   The path's directory is created on demand. A non-2xx response adds a

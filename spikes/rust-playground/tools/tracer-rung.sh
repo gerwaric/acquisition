@@ -7,8 +7,8 @@
 # keychain, and the login needs your browser), and every wire phase waits
 # for an explicit enter.
 #
-#   tools/tracer-rung.sh [--account SEL] [--league L] [--max-age S] \
-#                        [--cycles K] <tab1,...,tabN | all>       # live
+#   tools/tracer-rung.sh [--account SEL] [--realm R] [--league L] \
+#                        [--max-age S] [--cycles K] <tab1,...,tabN | all>  # live
 #   tools/tracer-rung.sh --mock [--cycles K] <tab1,...|all>        # rehearsal
 #
 # The selection becomes the sync policy (`acq policy set`): the named tab
@@ -80,6 +80,7 @@ ACQ="$here/target/debug/acq"
 
 MODE=live
 ACCOUNT=
+REALM=pc
 LEAGUE=Standard
 MAX_AGE=
 CYCLES=4
@@ -87,13 +88,14 @@ while [ $# -gt 0 ]; do
     case "$1" in
     --mock) MODE=mock; shift ;;
     --account) ACCOUNT=${2:?--account needs a value}; shift 2 ;;
+    --realm) REALM=${2:?--realm needs a value}; shift 2 ;;
     --league) LEAGUE=${2:?--league needs a value}; shift 2 ;;
     --max-age) MAX_AGE=${2:?--max-age needs a value}; shift 2 ;;
     --cycles) CYCLES=${2:?--cycles needs a value}; shift 2 ;;
     *) break ;;
     esac
 done
-SELECTION=${1:?usage: tracer-rung.sh [--mock] [--account SEL] [--league L] [--max-age S] [--cycles K] <tab1,...|all>}
+SELECTION=${1:?usage: tracer-rung.sh [--mock] [--account SEL] [--realm R] [--league L] [--max-age S] [--cycles K] <tab1,...|all>}
 command -v jq >/dev/null || { echo "jq is required" >&2; exit 2; }
 command -v python3 >/dev/null || { echo "python3 is required" >&2; exit 2; }
 # The freshness window must outlive the cycle that fills it, or the next
@@ -294,7 +296,7 @@ note() { # <phase>
 
 echo "tracer rung ($MODE) — binary $ver"
 echo "socket $SOCK | journal $JOURNAL | evidence -> $RUN_DIR"
-echo "league $LEAGUE | selection $SELECTION | max_age_seconds $MAX_AGE | up to $CYCLES cycle(s)"
+echo "realm $REALM | league $LEAGUE | selection $SELECTION | max_age_seconds $MAX_AGE | up to $CYCLES cycle(s)"
 
 # ---- phase 0: the account ---------------------------------------------------
 
@@ -403,8 +405,9 @@ if [ "$SELECTION" = all ]; then
 else
     tabs_json=$(echo "$SELECTION" | tr ',' '\n' | grep . | jq -R . | jq -sc .)
 fi
-POLICY=$(jq -nc --arg l "$LEAGUE" --argjson t "$tabs_json" --argjson a "$MAX_AGE" \
-    '{version: 1, leagues: {($l): {tabs: $t, max_age_seconds: $a}}}')
+# Policy v2 (CONTEXT.md, 2026-09-02): leagues under realms.
+POLICY=$(jq -nc --arg r "$REALM" --arg l "$LEAGUE" --argjson t "$tabs_json" --argjson a "$MAX_AGE" \
+    '{version: 2, realms: {($r): {leagues: {($l): {tabs: $t, max_age_seconds: $a}}}}}')
 echo ""
 echo "phase 2: writing the sync policy (no daemon, no wire):"
 echo "  $POLICY"
@@ -417,9 +420,9 @@ echo "  revision $REVISION"
 # note says, it must be "no quote" — a plan compiled with no daemon.
 offline_plan() { # <tag>
     daemon_up && { echo "a daemon is up before the offline plan — not offline" >&2; return 1; }
-    "$ACQ" refresh --plan --league "$LEAGUE" >"$RUN_DIR/plan-$1-offline.txt" 2>&1 || {
+    "$ACQ" refresh --plan --realm "$REALM" --league "$LEAGUE" >"$RUN_DIR/plan-$1-offline.txt" 2>&1 || {
         cat "$RUN_DIR/plan-$1-offline.txt" >&2; return 1; }
-    "$ACQ" refresh --plan --league "$LEAGUE" --json \
+    "$ACQ" refresh --plan --realm "$REALM" --league "$LEAGUE" --json \
         >"$RUN_DIR/plan-$1-offline.json" 2>"$RUN_DIR/plan-$1-offline.note" || {
         cat "$RUN_DIR/plan-$1-offline.note" >&2; return 1; }
     daemon_up && { echo "*** a daemon appeared during the offline plan — the quote path spawned one" >&2; return 1; }
@@ -481,7 +484,7 @@ for c in $(seq 1 "$CYCLES"); do
         # nothing. No daemon is up, and none may appear.
         echo ""
         echo "cycle $c: the plan is empty — applying it with no daemon (must contact nothing):"
-        "$ACQ" refresh --apply --league "$LEAGUE" --json | tee "$RUN_DIR/apply-$tag-noop.json"
+        "$ACQ" refresh --apply --realm "$REALM" --league "$LEAGUE" --json | tee "$RUN_DIR/apply-$tag-noop.json"
         [ "$(jq -r '.requests' "$RUN_DIR/apply-$tag-noop.json")" = 0 ] || { echo "no-op apply reported requests != 0" >&2; exit 1; }
         daemon_up && { echo "*** the no-op apply spawned a daemon" >&2; exit 1; }
         CLOSED=$c
@@ -535,8 +538,8 @@ for c in $(seq 1 "$CYCLES"); do
 
     echo ""
     echo "the same plan, now with the daemon up (quote attempt; nothing is sent):"
-    "$ACQ" refresh --plan --league "$LEAGUE" 2>&1 | tee "$RUN_DIR/plan-$tag.txt"
-    "$ACQ" refresh --plan --league "$LEAGUE" --json \
+    "$ACQ" refresh --plan --realm "$REALM" --league "$LEAGUE" 2>&1 | tee "$RUN_DIR/plan-$tag.txt"
+    "$ACQ" refresh --plan --realm "$REALM" --league "$LEAGUE" --json \
         >"$RUN_DIR/plan-$tag.json" 2>"$RUN_DIR/plan-$tag.note" || {
         cat "$RUN_DIR/plan-$tag.note" >&2; exit 1; }
     if [ "$(jq -r '.quote != null' "$RUN_DIR/plan-$tag.json")" = true ]; then
@@ -600,8 +603,8 @@ fi
 
 echo ""
 echo "phase 4: the facts, read back from the store (no daemon):"
-"$ACQ" tabs --league "$LEAGUE" >"$RUN_DIR/tabs.txt"
-"$ACQ" tabs --league "$LEAGUE" --json >"$RUN_DIR/tabs.json"
+"$ACQ" tabs --realm "$REALM" --league "$LEAGUE" >"$RUN_DIR/tabs.txt"
+"$ACQ" tabs --realm "$REALM" --league "$LEAGUE" --json >"$RUN_DIR/tabs.json"
 if [ "$SELECTION" = all ]; then
     head -40 "$RUN_DIR/tabs.txt"
 else
@@ -625,7 +628,7 @@ else
     n_unfetched=$(echo "$children" | jq '[.[] | select(.fetched_at == null)] | length')
     echo "children of selected tabs on record: $n_children (substashes and folder children), $n_unfetched never fetched"
     if [ "$CLOSED" != 0 ] && [ "$n_unfetched" -gt 0 ]; then
-        "$ACQ" refresh --plan --league "$LEAGUE" --json >"$RUN_DIR/plan-final.json" 2>/dev/null || true
+        "$ACQ" refresh --plan --realm "$REALM" --league "$LEAGUE" --json >"$RUN_DIR/plan-final.json" 2>/dev/null || true
         n_empty=$(jq '[.skipped[]? | select(.reason.kind == "empty_stub")] | length' "$RUN_DIR/plan-final.json" 2>/dev/null || echo 0)
         if [ "$n_unfetched" != "$n_empty" ]; then
             echo "*** $n_unfetched covered child(ren) never fetched but only $n_empty skipped as empty stubs — the loop closed with covered work undone" >&2
@@ -649,7 +652,7 @@ if [ "$events_n" -ge "$EVENT_LIMIT" ]; then
     exit 1
 fi
 echo "item events since the run started: $events_n, in $RUN_DIR/store-events.txt"
-"$ACQ" refresh --plan --league "$LEAGUE" >"$RUN_DIR/plan-final.txt" 2>&1
+"$ACQ" refresh --plan --realm "$REALM" --league "$LEAGUE" >"$RUN_DIR/plan-final.txt" 2>&1
 if [ "$CLOSED" != 0 ] && ! grep -q "nothing to do" "$RUN_DIR/plan-final.txt"; then
     echo "*** the loop was recorded as closed but the final plan is not empty:" >&2
     cat "$RUN_DIR/plan-final.txt" >&2

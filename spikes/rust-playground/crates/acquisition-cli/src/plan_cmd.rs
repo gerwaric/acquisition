@@ -10,6 +10,7 @@ use std::path::PathBuf;
 
 use acquisition_core::client::{Client, ConnectOptions};
 use acquisition_core::protocol::{Quote, QuoteJob, QuoteScope, Request, Response};
+use acquisition_core::realm::Realm;
 use acquisition_plan::{
     FetchReason, ListingReason, PlanError, RefreshAction, RefreshPlan, SkipReason, plan_refresh,
     put_sync_policy,
@@ -24,8 +25,7 @@ use serde_json::Value;
 use crate::store_cmd;
 
 /// A shape hint for humans; the planner's strict parse is the authority.
-const POLICY_EXAMPLE: &str =
-    r#"{"version":1,"leagues":{"Standard":{"tabs":"all","max_age_seconds":3600}}}"#;
+const POLICY_EXAMPLE: &str = r#"{"version":2,"realms":{"pc":{"leagues":{"Standard":{"tabs":"all","max_age_seconds":3600}}}}}"#;
 
 /// The selected account's provider directory, index entry, and annotations
 /// file — the latter addressed by the uuid the index maps the account to.
@@ -122,10 +122,10 @@ fn write_policy(
 /// nothing is sent; the JSON form is the serialized plan envelope itself
 /// (self-validating on parse), so it can be reviewed, stored, or handed
 /// to `--apply`.
-pub async fn refresh_plan(league: &str, json: bool) -> Result<()> {
+pub async fn refresh_plan(realm: Realm, league: &str, json: bool) -> Result<()> {
     let (dir, entry, annotations) = open_intent()?;
     let store = Store::open(&account_path(&dir, &entry.username))?;
-    let snapshot = store.stash_snapshot("pc", league, &annotations)?;
+    let snapshot = store.stash_snapshot(realm.as_str(), league, &annotations)?;
     let provider = store_cmd::provider();
     let now = acquisition_store::now();
     let plan = match plan_refresh(provider, &snapshot, now) {
@@ -158,6 +158,7 @@ pub async fn refresh_plan(league: &str, json: bool) -> Result<()> {
 /// staleness gate runs before any daemon contact, and an empty plan never
 /// contacts one — there is nothing to spend.
 pub async fn refresh_apply(
+    realm_flag: Option<Realm>,
     league_flag: Option<&str>,
     plan_source: Option<&str>,
     max_requests: Option<u64>,
@@ -179,8 +180,9 @@ pub async fn refresh_apply(
         }
         None => {
             let league = league_flag.unwrap_or("Standard");
+            let realm = realm_flag.unwrap_or(Realm::DEFAULT);
             let store = Store::open(&account_path(&dir, &entry.username))?;
-            let snapshot = store.stash_snapshot("pc", league, &annotations)?;
+            let snapshot = store.stash_snapshot(realm.as_str(), league, &annotations)?;
             match plan_refresh(provider, &snapshot, acquisition_store::now()) {
                 Err(PlanError::NoSyncPolicy) => bail!(
                     "no sync policy is set for {} — declare one first, e.g. \
@@ -191,7 +193,14 @@ pub async fn refresh_apply(
             }
         }
     };
-    check_plan_applies(&plan, provider, &entry, league_flag, &annotations)?;
+    check_plan_applies(
+        &plan,
+        provider,
+        &entry,
+        realm_flag,
+        league_flag,
+        &annotations,
+    )?;
     if plan.actions.is_empty() {
         // A strict subset of zero actions is satisfied by doing nothing;
         // no daemon is contacted for it. "Authorizes no requests" is the
@@ -252,9 +261,18 @@ fn check_plan_applies(
     plan: &RefreshPlan,
     provider: &str,
     entry: &AccountEntry,
+    realm_flag: Option<Realm>,
     league_flag: Option<&str>,
     annotations: &Annotations,
 ) -> Result<()> {
+    if let Some(realm) = realm_flag
+        && realm != plan.realm
+    {
+        bail!(
+            "--realm {realm} conflicts with the plan's realm {}",
+            plan.realm
+        );
+    }
     if let Some(league) = league_flag
         && league != plan.league
     {
@@ -352,7 +370,8 @@ async fn try_quote_within(
 fn print_plan(plan: &RefreshPlan, quote_note: Option<&str>, now: i64) {
     let account = plan.account_name.as_deref().unwrap_or(&plan.account_uuid);
     println!(
-        "refresh plan: {} on {} as {} (policy revision {}, facts as of {})",
+        "refresh plan: {}{} on {} as {} (policy revision {}, facts as of {})",
+        store_cmd::realm_prefix(plan.realm),
         plan.league,
         plan.provider,
         account,
@@ -410,7 +429,7 @@ fn print_plan(plan: &RefreshPlan, quote_note: Option<&str>, now: i64) {
 
 fn describe_action(action: &RefreshAction) -> String {
     match action {
-        RefreshAction::ListStashes { league, reason } => {
+        RefreshAction::ListStashes { league, reason, .. } => {
             let why = match reason {
                 ListingReason::NeverListed => "never listed".into(),
                 ListingReason::Stale { age_seconds } => stale(*age_seconds),
@@ -680,19 +699,24 @@ mod tests {
         let mut a = annotations();
         // Intent deleted since the plan: refused, citing the revision the
         // plan derived from.
-        let err = check_plan_applies(&plan, "mock", &entry, None, &a).unwrap_err();
+        let err = check_plan_applies(&plan, "mock", &entry, None, None, &a).unwrap_err();
         assert!(err.to_string().contains("gone"), "{err}");
-        // Intent standing at the plan's revision: applies — and an
-        // explicit --league that agrees is fine.
+        // Intent standing at the plan's revision: applies — and explicit
+        // --realm / --league flags that agree are fine; ones that do not
+        // are caller confusion, refused before spend.
         write_policy(&mut a, &example(), None).unwrap();
-        check_plan_applies(&plan, "mock", &entry, None, &a).unwrap();
-        check_plan_applies(&plan, "mock", &entry, Some("Standard"), &a).unwrap();
-        let err = check_plan_applies(&plan, "mock", &entry, Some("Hardcore"), &a).unwrap_err();
+        check_plan_applies(&plan, "mock", &entry, None, None, &a).unwrap();
+        check_plan_applies(&plan, "mock", &entry, Some(Realm::Pc), Some("Standard"), &a).unwrap();
+        let err =
+            check_plan_applies(&plan, "mock", &entry, None, Some("Hardcore"), &a).unwrap_err();
         assert!(err.to_string().contains("Standard"), "{err}");
+        let err =
+            check_plan_applies(&plan, "mock", &entry, Some(Realm::Xbox), None, &a).unwrap_err();
+        assert!(err.to_string().contains("--realm xbox"), "{err}");
         // Intent moved since the plan (the step-7 ruling): refused with
         // both revisions named, remedy = replan.
         write_policy(&mut a, &example(), None).unwrap();
-        let err = check_plan_applies(&plan, "mock", &entry, None, &a).unwrap_err();
+        let err = check_plan_applies(&plan, "mock", &entry, None, None, &a).unwrap_err();
         let msg = err.to_string();
         assert!(
             msg.contains("revision 1") && msg.contains("revision 2"),
@@ -705,9 +729,9 @@ mod tests {
             uuid: Some("u-other".into()),
             ..entry.clone()
         };
-        let err = check_plan_applies(&plan, "mock", &other, None, &a).unwrap_err();
+        let err = check_plan_applies(&plan, "mock", &other, None, None, &a).unwrap_err();
         assert!(err.to_string().contains("u-cli"), "{err}");
-        let err = check_plan_applies(&plan, "ggg", &entry, None, &a).unwrap_err();
+        let err = check_plan_applies(&plan, "ggg", &entry, None, None, &a).unwrap_err();
         assert!(err.to_string().contains("mock"), "{err}");
     }
 

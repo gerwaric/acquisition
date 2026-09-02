@@ -43,6 +43,7 @@ use serde_json::{Value, json};
 
 use acquisition_core::daemon::MAX_429_RETRIES;
 use acquisition_core::protocol::Quote;
+use acquisition_core::realm::{Family, Realm};
 use acquisition_store::{
     AnnotationError, AnnotationRow, Annotations, ListingBasis, SYNC_POLICY_KEY, SYNC_POLICY_KIND,
     SYNC_POLICY_SCOPE, StashSnapshot, TabSnapshot,
@@ -55,11 +56,16 @@ use acquisition_store::{
 /// quote's verifiable work basis. A shape change anywhere in the envelope —
 /// the embedded `Quote` included — is a schema bump, so an older reader
 /// reports "newer schema" instead of "malformed" on a newer plan.
-pub const REFRESH_PLAN_SCHEMA: i64 = 4;
+/// v4 added the `empty_stub` skip kind; v5 (2026-09-02) put `realm`
+/// beside `league` on the envelope and on every action.
+pub const REFRESH_PLAN_SCHEMA: i64 = 5;
 
 /// The sync-policy value schema this build reads ([`SyncPolicy::version`]).
 /// The store carries the row opaquely; its shape is this crate's business.
-pub const SYNC_POLICY_VERSION: i64 = 1;
+/// v2 (2026-09-02) nests leagues under realms
+/// (`realms.<R>.leagues.<L>`); a v1 policy (`leagues.<L>`) still parses,
+/// upgraded on the way in as realm pc — the only realm v1 could mean.
+pub const SYNC_POLICY_VERSION: i64 = 2;
 
 /// A planner failure with a stable kind (CONTEXT.md: malformed external
 /// input is a structured error, never a panic and never a bare string).
@@ -76,9 +82,13 @@ pub enum PlanError {
     /// The policy declares a version this build does not read. Refused,
     /// never guessed at — same rule as the store's schema stamps.
     PolicyVersionUnsupported { found: i64, supported: i64 },
-    /// The policy declares nothing for the snapshot's league; there is no
-    /// authorized work to derive.
-    LeagueNotCovered { league: String },
+    /// The policy declares nothing for the snapshot's (realm, league);
+    /// there is no authorized work to derive.
+    LeagueNotCovered { realm: Realm, league: String },
+    /// The snapshot names a realm this build does not know. Facts are
+    /// stamped with the request's realm, so this is a store written by a
+    /// build with a wider table — refused, never guessed at.
+    UnknownRealm { realm: String },
     /// A serialized plan failed validation: unknown fields, a wrong
     /// operation, a league its envelope does not name, or derived counts
     /// that do not recompute. A plan that will not parse is a plan apply
@@ -102,8 +112,17 @@ impl std::fmt::Display for PlanError {
                 f,
                 "sync policy declares version {found}, newer than this build's v{supported}"
             ),
-            PlanError::LeagueNotCovered { league } => {
-                write!(f, "the sync policy does not cover league {league}")
+            PlanError::LeagueNotCovered { realm, league } => {
+                write!(
+                    f,
+                    "the sync policy does not cover league {league} on realm {realm}"
+                )
+            }
+            PlanError::UnknownRealm { realm } => {
+                write!(
+                    f,
+                    "the snapshot names realm {realm:?}, which this build does not know"
+                )
             }
             PlanError::MalformedPlan { detail } => {
                 write!(f, "malformed refresh plan: {detail}")
@@ -121,39 +140,86 @@ impl std::error::Error for PlanError {}
 /// The per-account sync policy: an inspectable declaration of desired
 /// coverage and freshness — not a scheduler. Stored as the
 /// `("account", "", "sync-policy")` annotation; written by frontends,
-/// compiled here into minimal requests.
+/// compiled here into minimal requests. In memory it is always the v2
+/// shape; a stored v1 value is upgraded on parse (realm pc) and stays
+/// stored as written — what the human typed is what `policy show` shows.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(try_from = "SyncPolicyWire")]
 pub struct SyncPolicy {
-    /// [`SYNC_POLICY_VERSION`]; a different stamp is refused at parse.
+    /// [`SYNC_POLICY_VERSION`] once parsed (a v1 value reads as v2).
     pub version: i64,
-    /// Coverage per league. A league not named here compiles to
-    /// [`PlanError::LeagueNotCovered`], never to implicit work.
+    /// Coverage per realm, then per league. A (realm, league) not named
+    /// here compiles to [`PlanError::LeagueNotCovered`], never to
+    /// implicit work.
+    pub realms: BTreeMap<Realm, RealmPolicy>,
+}
+
+/// One realm's coverage: its leagues. The realm key is what the requests
+/// are rendered with; a league entry that names work an endpoint family
+/// does not take on this realm (tabs under `poe2`, PoE1-only stashes) is
+/// a parse error, so no policy can ask for an unobserved URL shape.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RealmPolicy {
     pub leagues: BTreeMap<String, LeaguePolicy>,
 }
 
-/// The raw JSON shape. Every deserialization path funnels through the
-/// `TryFrom` below, so the version gate and the unknown-field refusal
-/// cannot be bypassed by deserializing around [`SyncPolicy::from_value`].
+/// The raw JSON shapes. Every deserialization path funnels through the
+/// `TryFrom` below, so the version gate, the unknown-field refusal, and
+/// the per-realm family check cannot be bypassed by deserializing around
+/// [`SyncPolicy::from_value`].
 #[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct SyncPolicyWire {
-    version: i64,
-    leagues: BTreeMap<String, LeaguePolicy>,
+#[serde(untagged)]
+enum SyncPolicyWire {
+    V2 {
+        version: i64,
+        realms: BTreeMap<Realm, RealmPolicy>,
+    },
+    V1 {
+        version: i64,
+        leagues: BTreeMap<String, LeaguePolicy>,
+    },
 }
 
 impl TryFrom<SyncPolicyWire> for SyncPolicy {
     type Error = String;
     fn try_from(wire: SyncPolicyWire) -> Result<Self, String> {
-        if wire.version != SYNC_POLICY_VERSION {
-            return Err(format!(
-                "sync policy declares version {}, not this build's v{SYNC_POLICY_VERSION}",
-                wire.version
-            ));
+        // The stamp must match the shape it came with: a v1 stamp on a
+        // `realms` body (or v2 on `leagues`) is a policy that half-parses.
+        let realms = match wire {
+            SyncPolicyWire::V2 { version: 2, realms } => realms,
+            SyncPolicyWire::V1 {
+                version: 1,
+                leagues,
+            } => BTreeMap::from([(Realm::Pc, RealmPolicy { leagues })]),
+            SyncPolicyWire::V2 { version, .. } | SyncPolicyWire::V1 { version, .. }
+                if version > SYNC_POLICY_VERSION =>
+            {
+                return Err(format!(
+                    "sync policy declares version {version}, not this build's v{SYNC_POLICY_VERSION}"
+                ));
+            }
+            SyncPolicyWire::V2 { version, .. } => {
+                return Err(format!(
+                    "a version {version} sync policy has `leagues`, not `realms`"
+                ));
+            }
+            SyncPolicyWire::V1 { version, .. } => {
+                return Err(format!(
+                    "a version {version} sync policy has `realms`, not `leagues`"
+                ));
+            }
+        };
+        for (realm, policy) in &realms {
+            if !Family::Stashes.accepts(*realm) && !policy.leagues.is_empty() {
+                return Err(format!(
+                    "tabs under realm {realm}: the stash endpoints do not take it (PoE1 only)"
+                ));
+            }
         }
         Ok(SyncPolicy {
-            version: wire.version,
-            leagues: wire.leagues,
+            version: SYNC_POLICY_VERSION,
+            realms,
         })
     }
 }
@@ -224,7 +290,8 @@ impl SyncPolicy {
     /// Parse a stored sync-policy value. The version stamp is checked
     /// before the full shape so a genuinely newer policy reports
     /// [`PlanError::PolicyVersionUnsupported`], not a spurious
-    /// unknown-field complaint.
+    /// unknown-field complaint. v1 and v2 both parse (v1 upgrades to
+    /// realm pc).
     pub fn from_value(value: &Value) -> Result<SyncPolicy, PlanError> {
         let found = value
             .get("version")
@@ -232,15 +299,55 @@ impl SyncPolicy {
             .ok_or_else(|| PlanError::MalformedPolicy {
                 detail: "missing integer `version`".into(),
             })?;
-        if found != SYNC_POLICY_VERSION {
+        if found > SYNC_POLICY_VERSION {
             return Err(PlanError::PolicyVersionUnsupported {
                 found,
                 supported: SYNC_POLICY_VERSION,
             });
         }
-        serde_json::from_value(value.clone()).map_err(|e| PlanError::MalformedPolicy {
-            detail: e.to_string(),
+        // An untagged enum's own error message is uninformative
+        // ("did not match any variant"), so shape errors are re-derived
+        // against the variant the stamp names.
+        serde_json::from_value(value.clone()).map_err(|_| PlanError::MalformedPolicy {
+            detail: policy_shape_error(value),
         })
+    }
+}
+
+/// The specific reason a policy value failed the strict parse, derived
+/// from the shape its `version` stamp names (the untagged wire enum only
+/// says "no variant matched").
+fn policy_shape_error(value: &Value) -> String {
+    #[derive(Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct V2 {
+        #[allow(dead_code)]
+        version: i64,
+        realms: BTreeMap<Realm, RealmPolicy>,
+    }
+    #[derive(Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct V1 {
+        #[allow(dead_code)]
+        version: i64,
+        leagues: BTreeMap<String, LeaguePolicy>,
+    }
+    let version = value.get("version").and_then(Value::as_i64).unwrap_or(0);
+    let shape = match version {
+        1 => serde_json::from_value::<V1>(value.clone()).map(|v| SyncPolicyWire::V1 {
+            version,
+            leagues: v.leagues,
+        }),
+        _ => serde_json::from_value::<V2>(value.clone()).map(|v| SyncPolicyWire::V2 {
+            version,
+            realms: v.realms,
+        }),
+    };
+    match shape {
+        Err(e) => e.to_string(),
+        Ok(wire) => SyncPolicy::try_from(wire)
+            .err()
+            .unwrap_or_else(|| "did not parse".into()),
     }
 }
 
@@ -359,10 +466,12 @@ pub struct SkippedTab {
 #[serde(tag = "action", rename_all = "snake_case", deny_unknown_fields)]
 pub enum RefreshAction {
     ListStashes {
+        realm: Realm,
         league: String,
         reason: ListingReason,
     },
     FetchTab {
+        realm: Realm,
         league: String,
         id: String,
         name: String,
@@ -372,6 +481,7 @@ pub enum RefreshAction {
     /// A map/unique substash, fetched under its parent tab. Its stub is
     /// already on record — v1 plans never fan out dynamically.
     FetchSubstash {
+        realm: Realm,
         league: String,
         parent: String,
         id: String,
@@ -382,6 +492,16 @@ pub enum RefreshAction {
 }
 
 impl RefreshAction {
+    /// The realm this action touches — validated against the envelope's
+    /// on deserialization.
+    pub fn realm(&self) -> Realm {
+        match self {
+            RefreshAction::ListStashes { realm, .. }
+            | RefreshAction::FetchTab { realm, .. }
+            | RefreshAction::FetchSubstash { realm, .. } => *realm,
+        }
+    }
+
     /// The league this action touches — validated against the envelope's
     /// on deserialization.
     pub fn league(&self) -> &str {
@@ -393,20 +513,30 @@ impl RefreshAction {
     }
 
     /// The action in the daemon's job vocabulary: `(kind, params)` exactly
-    /// as `Submit` wants them. `deep` is always false — a plan's actions
-    /// are the reviewed set, and a fetch that fanned out would expand it.
+    /// as `Submit` wants them. The realm is always explicit — pc included
+    /// — so a tuple says where it goes without a decode default; `deep`
+    /// is always false — a plan's actions are the reviewed set, and a
+    /// fetch that fanned out would expand it.
     pub fn job(&self) -> (&'static str, Value) {
         match self {
-            RefreshAction::ListStashes { league, .. } => ("stashes", json!({ "league": league })),
-            RefreshAction::FetchTab { league, id, .. } => (
-                "stash",
-                json!({ "league": league, "id": id, "deep": false }),
-            ),
-            RefreshAction::FetchSubstash {
-                league, parent, id, ..
+            RefreshAction::ListStashes { realm, league, .. } => {
+                ("stashes", json!({ "realm": realm, "league": league }))
+            }
+            RefreshAction::FetchTab {
+                realm, league, id, ..
             } => (
                 "stash",
-                json!({ "league": league, "id": parent, "sub": id, "deep": false }),
+                json!({ "realm": realm, "league": league, "id": id, "deep": false }),
+            ),
+            RefreshAction::FetchSubstash {
+                realm,
+                league,
+                parent,
+                id,
+                ..
+            } => (
+                "stash",
+                json!({ "realm": realm, "league": league, "id": parent, "sub": id, "deep": false }),
             ),
         }
     }
@@ -490,6 +620,8 @@ pub struct RefreshPlan {
     pub provider: String,
     pub account_uuid: String,
     pub account_name: Option<String>,
+    /// The coordinate above league; every action is on this realm.
+    pub realm: Realm,
     pub league: String,
     pub generated_at: i64,
     pub basis: PlanBasis,
@@ -764,6 +896,7 @@ struct RefreshPlanWire {
     provider: String,
     account_uuid: String,
     account_name: Option<String>,
+    realm: Realm,
     league: String,
     generated_at: i64,
     basis: PlanBasis,
@@ -792,10 +925,16 @@ impl TryFrom<RefreshPlanWire> for RefreshPlan {
                 wire.operation
             ));
         }
-        if let Some(stray) = wire.actions.iter().find(|a| a.league() != wire.league) {
+        if let Some(stray) = wire
+            .actions
+            .iter()
+            .find(|a| a.realm() != wire.realm || a.league() != wire.league)
+        {
             return Err(format!(
-                "action for league {:?} inside a plan for league {:?}",
+                "action for {}/{:?} inside a plan for {}/{:?}",
+                stray.realm(),
                 stray.league(),
+                wire.realm,
                 wire.league
             ));
         }
@@ -841,6 +980,7 @@ impl TryFrom<RefreshPlanWire> for RefreshPlan {
             provider: wire.provider,
             account_uuid: wire.account_uuid,
             account_name: wire.account_name,
+            realm: wire.realm,
             league: wire.league,
             generated_at: wire.generated_at,
             basis: wire.basis,
@@ -876,13 +1016,17 @@ fn compile(
     policy_revision: i64,
     now: i64,
 ) -> Result<RefreshPlan, PlanError> {
-    let league_policy =
-        policy
-            .leagues
-            .get(&snapshot.league)
-            .ok_or_else(|| PlanError::LeagueNotCovered {
-                league: snapshot.league.clone(),
-            })?;
+    let realm = Realm::parse(&snapshot.realm).ok_or_else(|| PlanError::UnknownRealm {
+        realm: snapshot.realm.clone(),
+    })?;
+    let league_policy = policy
+        .realms
+        .get(&realm)
+        .and_then(|r| r.leagues.get(&snapshot.league))
+        .ok_or_else(|| PlanError::LeagueNotCovered {
+            realm,
+            league: snapshot.league.clone(),
+        })?;
     let max_age = i64::from(league_policy.max_age_seconds);
     let mut actions = Vec::new();
     // A league with no listing plans the listing **alone** — even tabs on
@@ -894,6 +1038,7 @@ fn compile(
     let listing_alone = match &snapshot.listing {
         None => {
             actions.push(RefreshAction::ListStashes {
+                realm,
                 league: snapshot.league.clone(),
                 reason: ListingReason::NeverListed,
             });
@@ -903,6 +1048,7 @@ fn compile(
             let age = now.saturating_sub(basis.fetched_at).max(0);
             if age > max_age {
                 actions.push(RefreshAction::ListStashes {
+                    realm,
                     league: snapshot.league.clone(),
                     reason: ListingReason::Stale { age_seconds: age },
                 });
@@ -922,7 +1068,8 @@ fn compile(
         } else if is_empty_substash(snapshot, tab) {
             Err(SkipReason::EmptyStub)
         } else {
-            fetch_verdict(tab, max_age, now).and_then(|reason| fetch_action(snapshot, tab, reason))
+            fetch_verdict(tab, max_age, now)
+                .and_then(|reason| fetch_action(realm, snapshot, tab, reason))
         };
         match verdict {
             Ok(action) => actions.push(action),
@@ -949,6 +1096,7 @@ fn compile(
         provider: provider.into(),
         account_uuid: snapshot.account_uuid.clone(),
         account_name: snapshot.account_name.clone(),
+        realm,
         league: snapshot.league.clone(),
         generated_at: now,
         basis: PlanBasis {
@@ -1021,6 +1169,7 @@ fn fetch_verdict(tab: &TabSnapshot, max_age: i64, now: i64) -> Result<FetchReaso
 /// the store keeps substash rows when a listing retires their parent, so
 /// guessing an endpoint here would fetch the wrong path.
 fn fetch_action(
+    realm: Realm,
     snapshot: &StashSnapshot,
     tab: &TabSnapshot,
     reason: FetchReason,
@@ -1036,6 +1185,7 @@ fn fetch_action(
     };
     Ok(match parent {
         Some(parent) => RefreshAction::FetchSubstash {
+            realm,
             league: snapshot.league.clone(),
             parent: parent.clone(),
             id: tab.id.clone(),
@@ -1044,6 +1194,7 @@ fn fetch_action(
             reason,
         },
         None => RefreshAction::FetchTab {
+            realm,
             league: snapshot.league.clone(),
             id: tab.id.clone(),
             name: tab.name.clone(),
@@ -1147,11 +1298,47 @@ mod tests {
                 "Hardcore": { "tabs": ["t1", "s1"], "max_age_seconds": 60 },
             }
         }));
-        assert_eq!(p.leagues["Standard"].tabs, TabSelection::All);
+        // A v1 policy reads as v2 on realm pc — the only realm it could
+        // have meant — while the stored value stays what was written.
+        assert_eq!(p.version, SYNC_POLICY_VERSION);
+        let pc = &p.realms[&Realm::Pc].leagues;
+        assert_eq!(pc["Standard"].tabs, TabSelection::All);
         assert_eq!(
-            p.leagues["Hardcore"].tabs,
+            pc["Hardcore"].tabs,
             TabSelection::Ids(vec!["t1".into(), "s1".into()])
         );
+        // The v2 shape: leagues under realms.
+        let v2 = policy(json!({
+            "version": 2,
+            "realms": {
+                "pc": { "leagues": { "Standard": { "tabs": "all", "max_age_seconds": 3600 } } },
+                "xbox": { "leagues": { "Standard": { "tabs": ["x1"], "max_age_seconds": 60 } } },
+            }
+        }));
+        assert_eq!(
+            v2.realms[&Realm::Xbox].leagues["Standard"].tabs,
+            TabSelection::Ids(vec!["x1".into()])
+        );
+        // Tabs under poe2 name a URL shape the stash endpoints do not
+        // have (PoE1 only): a parse error, never a request.
+        let err = SyncPolicy::from_value(&json!({
+            "version": 2,
+            "realms": { "poe2": { "leagues": { "Standard": { "tabs": "all", "max_age_seconds": 60 } } } }
+        }))
+        .unwrap_err();
+        assert!(err.to_string().contains("poe2"), "{err}");
+        // An unknown realm key, and a v1 stamp on a v2 body, are malformed.
+        for bad in [
+            json!({ "version": 2, "realms": { "ps5": { "leagues": {} } } }),
+            json!({ "version": 1, "realms": { "pc": { "leagues": {} } } }),
+            json!({ "version": 2, "leagues": {} }),
+        ] {
+            let err = SyncPolicy::from_value(&bad).unwrap_err();
+            assert!(
+                matches!(err, PlanError::MalformedPolicy { .. }),
+                "{bad}: {err}"
+            );
+        }
         // A typo'd field is malformed, never silently ignored — the policy
         // is intent, and intent that half-parses is worse than an error.
         let err = SyncPolicy::from_value(&json!({
@@ -1170,21 +1357,22 @@ mod tests {
         let err = SyncPolicy::from_value(&json!({ "leagues": {} })).unwrap_err();
         assert!(matches!(err, PlanError::MalformedPolicy { .. }), "{err}");
         // A newer version is refused as such — checked before the shape,
-        // so a v2 policy with v2 fields is not misreported as a typo.
+        // so a v3 policy with v3 fields is not misreported as a typo.
         let err = SyncPolicy::from_value(&json!({
-            "version": 2,
-            "leagues": {},
-            "some_v2_field": true
+            "version": 3,
+            "realms": {},
+            "some_v3_field": true
         }))
         .unwrap_err();
         assert_eq!(
             err,
             PlanError::PolicyVersionUnsupported {
-                found: 2,
-                supported: 1
+                found: 3,
+                supported: 2
             }
         );
-        // The policy round-trips: what a frontend writes is inspectable.
+        // The policy round-trips (in its v2 form): what a frontend writes
+        // is inspectable.
         let back: SyncPolicy = serde_json::from_value(serde_json::to_value(&p).unwrap()).unwrap();
         assert_eq!(back, p);
     }
@@ -1204,23 +1392,41 @@ mod tests {
         assert_eq!(
             err,
             PlanError::LeagueNotCovered {
+                realm: Realm::Pc,
                 league: "Standard".into()
             }
+        );
+        // Coverage is per (realm, league): Standard on xbox does not cover
+        // Standard on pc.
+        let xbox_only = json!({
+            "version": 2,
+            "realms": { "xbox": { "leagues": { "Standard": { "tabs": "all", "max_age_seconds": 60 } } } }
+        });
+        let err = plan_refresh("mock", &snapshot_with(&s, &xbox_only), 1000).unwrap_err();
+        assert!(
+            matches!(
+                err,
+                PlanError::LeagueNotCovered {
+                    realm: Realm::Pc,
+                    ..
+                }
+            ),
+            "{err}"
         );
         // A stored policy row a newer build wrote surfaces its version,
         // and the version gate is not bypassable by deserializing the
         // type directly instead of calling from_value.
-        let v2 = json!({ "version": 2, "leagues": {} });
-        let err = plan_refresh("mock", &snapshot_with(&s, &v2), 1000).unwrap_err();
+        let v3 = json!({ "version": 3, "realms": {} });
+        let err = plan_refresh("mock", &snapshot_with(&s, &v3), 1000).unwrap_err();
         assert_eq!(
             err,
             PlanError::PolicyVersionUnsupported {
-                found: 2,
-                supported: 1
+                found: 3,
+                supported: 2
             }
         );
-        let err = serde_json::from_value::<SyncPolicy>(v2).unwrap_err();
-        assert!(err.to_string().contains("version 2"), "{err}");
+        let err = serde_json::from_value::<SyncPolicy>(v3).unwrap_err();
+        assert!(err.to_string().contains("version 3"), "{err}");
     }
 
     #[test]
@@ -1239,6 +1445,7 @@ mod tests {
         assert_eq!(
             plan.actions,
             vec![RefreshAction::ListStashes {
+                realm: Realm::Pc,
                 league: "Standard".into(),
                 reason: ListingReason::NeverListed,
             }]
@@ -1328,10 +1535,12 @@ mod tests {
             plan.actions,
             vec![
                 RefreshAction::ListStashes {
+                    realm: Realm::Pc,
                     league: "Standard".into(),
                     reason: ListingReason::Stale { age_seconds: 4000 },
                 },
                 RefreshAction::FetchTab {
+                    realm: Realm::Pc,
                     league: "Standard".into(),
                     id: "t1".into(),
                     name: "One".into(),
@@ -1339,6 +1548,7 @@ mod tests {
                     reason: FetchReason::Stale { age_seconds: 3990 },
                 },
                 RefreshAction::FetchTab {
+                    realm: Realm::Pc,
                     league: "Standard".into(),
                     id: "t2".into(),
                     name: "Two".into(),
@@ -1398,6 +1608,7 @@ mod tests {
         assert_eq!(
             changed.actions,
             vec![RefreshAction::FetchSubstash {
+                realm: Realm::Pc,
                 league: "Standard".into(),
                 parent: "m1".into(),
                 id: "s1".into(),
@@ -1482,6 +1693,7 @@ mod tests {
         assert!(matches!(
             plan.actions[0],
             RefreshAction::ListStashes {
+                realm: Realm::Pc,
                 reason: ListingReason::Stale {
                     age_seconds: i64::MAX
                 },
@@ -1519,6 +1731,7 @@ mod tests {
         assert_eq!(
             plan1.actions,
             vec![RefreshAction::FetchTab {
+                realm: Realm::Pc,
                 league: "Standard".into(),
                 id: "m1".into(),
                 name: "Maps".into(),
@@ -1543,6 +1756,7 @@ mod tests {
         assert_eq!(
             plan2.actions,
             vec![RefreshAction::FetchSubstash {
+                realm: Realm::Pc,
                 league: "Standard".into(),
                 parent: "m1".into(),
                 id: "s1".into(),
@@ -1639,6 +1853,7 @@ mod tests {
         assert_eq!(
             plan.actions,
             vec![RefreshAction::FetchTab {
+                realm: Realm::Pc,
                 league: "Standard".into(),
                 id: "c1".into(),
                 name: "In folder".into(),
@@ -1674,6 +1889,7 @@ mod tests {
         assert_eq!(
             plan.actions,
             vec![RefreshAction::FetchTab {
+                realm: Realm::Pc,
                 league: "Standard".into(),
                 id: "c1".into(),
                 name: "In folder".into(),
@@ -1722,6 +1938,7 @@ mod tests {
         // that moves the store breaks this test even if this crate's
         // strings were left behind.
         let listing = RefreshAction::ListStashes {
+            realm: Realm::Pc,
             league: "Standard".into(),
             reason: ListingReason::NeverListed,
         };
@@ -1734,6 +1951,7 @@ mod tests {
             })
         );
         let tab = RefreshAction::FetchTab {
+            realm: Realm::Pc,
             league: "Standard".into(),
             id: "t1".into(),
             name: "One".into(),
@@ -1754,6 +1972,7 @@ mod tests {
         // plan's fetch must never fan out (D5a).
         assert_eq!(params["deep"], json!(false));
         let substash = RefreshAction::FetchSubstash {
+            realm: Realm::Pc,
             league: "Standard".into(),
             parent: "m1".into(),
             id: "s1".into(),
@@ -2030,6 +2249,15 @@ mod tests {
         stray["actions"][0]["league"] = json!("Hardcore");
         let err = RefreshPlan::from_value(&stray).unwrap_err();
         assert!(err.to_string().contains("Hardcore"), "{err}");
+        // …and an action for another realm: the envelope's realm binds
+        // every action, so a pc plan cannot smuggle a console fetch.
+        let mut stray = good.clone();
+        stray["actions"][0]["realm"] = json!("xbox");
+        let err = RefreshPlan::from_value(&stray).unwrap_err();
+        assert!(err.to_string().contains("xbox"), "{err}");
+        let mut unknown = good.clone();
+        unknown["realm"] = json!("ps5");
+        assert!(RefreshPlan::from_value(&unknown).is_err());
     }
 
     #[test]
@@ -2111,5 +2339,76 @@ mod tests {
         }
         assert!(params.get("max_requests").is_none());
         assert_eq!(plan.apply_params(Some(3))["max_requests"], json!(3));
+    }
+
+    /// Realm rides through: a plan for Standard on xbox lists and fetches
+    /// under xbox and its tuples say so explicitly; the pc snapshot of
+    /// the same league is not covered by an xbox-only policy.
+    #[test]
+    fn a_plan_is_for_one_realm_and_its_tuples_say_which() {
+        let mut s = store();
+        s.record(
+            &Endpoint::Stashes {
+                realm: "xbox".into(),
+                league: "Standard".into(),
+            },
+            &json!({ "realm": "xbox", "league": "Standard" }),
+            200,
+            &json!({ "stashes": [ { "id": "x1", "name": "Console", "type": "PremiumStash", "index": 0 } ] }),
+            1000,
+        )
+        .unwrap();
+        let policy = json!({
+            "version": 2,
+            "realms": { "xbox": { "leagues": { "Standard": { "tabs": "all", "max_age_seconds": 60 } } } }
+        });
+        let mut a = Annotations::open_memory_for("u-1").unwrap();
+        a.put("account", "", SYNC_POLICY_KIND, &policy, None)
+            .unwrap();
+        let snap = s.stash_snapshot("xbox", "Standard", &a).unwrap();
+        let plan = plan_refresh("mock", &snap, 1500).unwrap();
+        assert_eq!(plan.realm, Realm::Xbox);
+        let jobs: Vec<(String, Value)> = plan
+            .actions
+            .iter()
+            .map(|a| {
+                let (k, p) = a.job();
+                (k.into(), p)
+            })
+            .collect();
+        assert_eq!(
+            jobs,
+            vec![
+                (
+                    "stashes".into(),
+                    json!({ "realm": "xbox", "league": "Standard" })
+                ),
+                (
+                    "stash".into(),
+                    json!({ "realm": "xbox", "league": "Standard", "id": "x1", "deep": false })
+                ),
+            ]
+        );
+        assert_eq!(
+            Endpoint::from_job(&jobs[1].0, &jobs[1].1),
+            Some(Endpoint::Stash {
+                realm: "xbox".into(),
+                league: "Standard".into(),
+                id: "x1".into(),
+                sub: None
+            })
+        );
+        let pc = s.stash_snapshot("pc", "Standard", &a).unwrap();
+        assert!(matches!(
+            plan_refresh("mock", &pc, 1500).unwrap_err(),
+            PlanError::LeagueNotCovered {
+                realm: Realm::Pc,
+                ..
+            }
+        ));
+        // The envelope round-trips with its realm.
+        let json = serde_json::to_value(&plan).unwrap();
+        assert_eq!(json["realm"], "xbox");
+        assert_eq!(RefreshPlan::from_value(&json).unwrap(), plan);
     }
 }

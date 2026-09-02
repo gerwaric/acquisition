@@ -33,6 +33,7 @@ use std::path::PathBuf;
 
 use acquisition_core::client::{Client, ConnectOptions};
 use acquisition_core::protocol::{QuoteJob, Request, Response};
+use acquisition_core::realm::Realm;
 use acquisition_plan::{PlanError, RefreshPlan, plan_refresh, put_sync_policy};
 use acquisition_store::{
     AccountEntry, Annotations, Index, SYNC_POLICY_KEY, SYNC_POLICY_KIND, SYNC_POLICY_SCOPE, Store,
@@ -153,10 +154,29 @@ async fn connect(spawn: bool) -> Result<Client> {
     Client::connect(ConnectOptions::autonomous(spawn)).await
 }
 
+/// A `realm` tool parameter: pc when omitted (as on the wire), else one
+/// of the documented realms; anything else is a structured error.
+fn realm_param(realm: Option<&str>) -> Result<Realm, ErrorData> {
+    match realm {
+        None => Ok(Realm::DEFAULT),
+        Some(s) => Realm::parse(s).ok_or_else(|| {
+            ErrorData::invalid_params(
+                format!(
+                    "unknown realm {s:?} (one of {})",
+                    Realm::ALL.map(Realm::as_str).join(", ")
+                ),
+                None,
+            )
+        }),
+    }
+}
+
 #[derive(Deserialize, schemars::JsonSchema)]
 struct TabsParams {
     /// League name; defaults to "Standard".
     league: Option<String>,
+    /// Realm: pc (default), xbox, or sony.
+    realm: Option<String>,
     /// Account selector (username with or without `#discriminator`, or
     /// uuid); required only when several accounts are known.
     account: Option<String>,
@@ -166,6 +186,8 @@ struct TabsParams {
 struct CharactersParams {
     /// Restrict to one league; omitted lists every league.
     league: Option<String>,
+    /// Restrict to one realm (pc, xbox, sony, poe2); omitted lists every realm.
+    realm: Option<String>,
     account: Option<String>,
 }
 
@@ -175,6 +197,8 @@ struct SearchParams {
     text: String,
     /// Restrict to one league.
     league: Option<String>,
+    /// Restrict to one realm (pc, xbox, sony, poe2).
+    realm: Option<String>,
     /// Include items no longer seen at their last location.
     include_removed: Option<bool>,
     /// Maximum rows (default 50).
@@ -226,7 +250,9 @@ struct JobParams {
 #[derive(Deserialize, schemars::JsonSchema)]
 struct SetPolicyParams {
     /// The sync-policy value, e.g.
-    /// {"version":1,"leagues":{"Standard":{"tabs":"all","max_age_seconds":3600}}}.
+    /// {"version":2,"realms":{"pc":{"leagues":{"Standard":{"tabs":"all","max_age_seconds":3600}}}}}
+    /// (a version-1 value with a top-level `leagues` map still parses, as
+    /// realm pc).
     /// Validated strictly before anything lands — a typo'd field is
     /// refused, never half-honored.
     value: Value,
@@ -242,6 +268,8 @@ struct SetPolicyParams {
 struct PlanParams {
     /// League name; defaults to "Standard".
     league: Option<String>,
+    /// Realm: pc (default), xbox, or sony.
+    realm: Option<String>,
     account: Option<String>,
 }
 
@@ -290,7 +318,10 @@ impl AcqMcp {
     fn tabs(&self, Parameters(p): Parameters<TabsParams>) -> Result<Json<Value>, ErrorData> {
         let store = open_store(p.account.as_deref()).map_err(err)?;
         let tabs = store
-            .tabs("pc", p.league.as_deref().unwrap_or("Standard"))
+            .tabs(
+                realm_param(p.realm.as_deref())?.as_str(),
+                p.league.as_deref().unwrap_or("Standard"),
+            )
             .map_err(err)?;
         serde_json::to_value(tabs)
             .map(Json)
@@ -305,7 +336,14 @@ impl AcqMcp {
         Parameters(p): Parameters<CharactersParams>,
     ) -> Result<Json<Value>, ErrorData> {
         let store = open_store(p.account.as_deref()).map_err(err)?;
-        let rows = store.characters(None, p.league.as_deref()).map_err(err)?;
+        let realm = p
+            .realm
+            .as_deref()
+            .map(|r| realm_param(Some(r)))
+            .transpose()?;
+        let rows = store
+            .characters(realm.map(Realm::as_str), p.league.as_deref())
+            .map_err(err)?;
         serde_json::to_value(rows)
             .map(Json)
             .map_err(|e| err(e.into()))
@@ -322,7 +360,11 @@ impl AcqMcp {
         let items = store
             .search(
                 &p.text,
-                None,
+                p.realm
+                    .as_deref()
+                    .map(|r| realm_param(Some(r)))
+                    .transpose()?
+                    .map(Realm::as_str),
                 p.league.as_deref(),
                 p.include_removed.unwrap_or(false),
                 p.limit.unwrap_or(50),
@@ -415,7 +457,7 @@ impl AcqMcp {
         let store = Store::open(&account_path(&dir, &entry.username)).map_err(err)?;
         let snapshot = store
             .stash_snapshot(
-                "pc",
+                realm_param(p.realm.as_deref())?.as_str(),
                 p.league.as_deref().unwrap_or("Standard"),
                 &annotations,
             )

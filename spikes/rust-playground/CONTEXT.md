@@ -482,9 +482,12 @@ Shape (falls out of the rulings):
   { realm, id, name, league, reason }` → `("characters", {realm})`,
   `("character", {realm, name})`; skip reasons `Fresh`,
   `AwaitingListing`, `Deleted`, `Expired`; separate `skipped_characters`
-  / `unknown_characters` lists. **Plan schema 5** (one bump covers realm
-  and characters). The apply vocabulary widens to `characters` and
-  `character`, both single-request; the daemon stays plan-blind.
+  / `unknown_characters` lists. **Plan schema 6** (realm took 5 on
+  2026-09-02; a new action set is its own bump — one integer, and a
+  realm-only plan file read by the characters build then says "newer
+  schema", never "malformed"). The apply vocabulary widens to
+  `characters` and `character`, both single-request; the daemon stays
+  plan-blind.
 - Store: `characters` mirrors `tabs` — `id` PK, `realm`, `name`,
   `league` (nullable), `json` (fetched), `listed_json` (a fetch never
   touches it), `listed_at`, `listed_response`, `fetched_at`,
@@ -516,6 +519,40 @@ character and one first-contact sample under the standing rule (fresh
 daemon, ceiling 3: POST, HEAD, GET) answers what `Character.realm` says
 for a PoE2 character, whether the pc list omits it, and what `skills`
 items look like (ids present?).
+
+**Realm step (1) built 2026-09-02** — three commits (`959e7fea` core,
+`a0b2561b` store, and the planner/frontends), gate green, mock rehearsal
+green in the `all`, ids, and `--realm xbox all` shapes; the pc journals
+carry exactly the pre-realm routes (`stash-list@…`, `stash@…`) and URLs
+(`/stash/Standard/…`), the xbox run probed `stash-list/xbox` first and
+closed on the mock's empty console listing. Calls made inside the
+ruling, revisable:
+
+- **The realm table is one type in core** (`realm.rs`: `Realm`,
+  `Family::accepts`), read by the daemon (rendering + admission), the
+  mock (path classification), and the planner (policy parse) — the
+  `declare_route_knowledge` mold, linkable by all three because the
+  planner already depends on core. The store stays string-typed: it
+  records the request's realm and never validates it.
+- **A non-pc realm suffixes the limiter's route label**
+  (`character-list/poe2`, `stash-list/xbox`) as well as the URL, so each
+  realm's URL shape gets its own free HEAD before its first counted
+  send; whether it shares the pc policy is learned from headers (N6
+  already shares state by name). One extra HEAD per realm per lifetime.
+- **Admission refuses a realm a family does not take** (`admit_realm`
+  at submit and per apply tuple, before a job id exists) — the daemon
+  side of "no code path renders a stash URL with poe2"; the planner
+  side is the policy parse.
+- **Items carry realm beside league** (stamped from the seam); the
+  ad-hoc `refresh` kind forwards realm to its children; `leagues`
+  stays realm-less (no consumer, not in the plan).
+- **Mock consoles are truthful, not colliding**: an xbox/sony stash
+  listing is empty and a tab fetch 404s (tab and item ids are
+  GGG-unique, so pc's are never reused under another realm); the
+  character list is per realm, with one poe2 character carrying a
+  `skills` array (a hypothesis until PoE2 first contact).
+- Policy v2 parses v1 in place; the stored value stays what was
+  written (`policy show` shows what the human typed).
 
 Pending ground-truth claims (documented facts read 2026-09-02, to be
 authored master-side and then cited here by number): realm segment

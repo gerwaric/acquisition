@@ -9,9 +9,22 @@ use acquisition_core::client::{Client, ConnectOptions};
 use acquisition_core::daemon;
 use acquisition_core::job::{JobInfo, JobState, Outcome};
 use acquisition_core::protocol::{Request, Response};
+use acquisition_core::realm::Realm;
 use anyhow::{Result, bail};
 use clap::{Parser, Subcommand};
 use serde_json::json;
+
+/// `--realm`: the coordinate above league (CONTEXT.md, 2026-09-02). pc by
+/// default, as on the wire; a typo is refused by clap before any daemon
+/// or store is touched.
+fn parse_realm(s: &str) -> Result<Realm, String> {
+    Realm::parse(s).ok_or_else(|| {
+        format!(
+            "unknown realm {s:?} (one of {})",
+            Realm::ALL.map(Realm::as_str).join(", ")
+        )
+    })
+}
 
 /// The CLI's connect policy: lazy-spawn as asked, and replace a version- or
 /// provider-mismatched daemon — the caller is the human expressing intent.
@@ -53,9 +66,18 @@ enum Cmd {
     /// The account profile (account:profile).
     Profile,
     /// List characters on the logged-in account.
-    Characters,
+    Characters {
+        /// pc (default), xbox, sony, or poe2.
+        #[arg(long, default_value = "pc", value_parser = parse_realm)]
+        realm: Realm,
+    },
     /// Fetch one character with its equipment and inventory.
-    Character { name: String },
+    Character {
+        name: String,
+        /// pc (default), xbox, sony, or poe2.
+        #[arg(long, default_value = "pc", value_parser = parse_realm)]
+        realm: Realm,
+    },
     /// List the account's leagues.
     Leagues,
     /// Accounts this machine has logged into (the store's index; no daemon).
@@ -64,6 +86,9 @@ enum Cmd {
     Tabs {
         #[arg(long, default_value = "Standard")]
         league: String,
+        /// pc (default), xbox, or sony.
+        #[arg(long, default_value = "pc", value_parser = parse_realm)]
+        realm: Realm,
     },
     /// Items in the shared store.
     Items {
@@ -79,6 +104,9 @@ enum Cmd {
     Stashes {
         #[arg(long, default_value = "Standard")]
         league: String,
+        /// pc (default), xbox, or sony — the stash endpoints are PoE1 only.
+        #[arg(long, default_value = "pc", value_parser = parse_realm)]
+        realm: Realm,
     },
     /// Fetch one stash tab (or one substash of a map/unique tab).
     Stash {
@@ -91,6 +119,9 @@ enum Cmd {
         deep: bool,
         #[arg(long, default_value = "Standard")]
         league: String,
+        /// pc (default), xbox, or sony — the stash endpoints are PoE1 only.
+        #[arg(long, default_value = "pc", value_parser = parse_realm)]
+        realm: Realm,
     },
     /// Refresh tabs: one stash-list request, then one `stash` child job per
     /// selected tab. Selection is explicit — there is no default.
@@ -128,6 +159,10 @@ enum Cmd {
         /// league governs; giving --league too asserts they agree.
         #[arg(long)]
         league: Option<String>,
+        /// pc (default), xbox, or sony. With `--apply=FILE`, the plan's
+        /// own realm governs; giving --realm too asserts they agree.
+        #[arg(long, value_parser = parse_realm)]
+        realm: Option<Realm>,
     },
     /// The per-account sync policy: the declared coverage and freshness
     /// that `acq refresh --plan` compiles into requests.
@@ -184,6 +219,9 @@ enum ItemsCmd {
         text: String,
         #[arg(long)]
         league: Option<String>,
+        /// Restrict to one realm (pc, xbox, sony, poe2).
+        #[arg(long, value_parser = parse_realm)]
+        realm: Option<Realm>,
         /// Include items no longer seen at their last location.
         #[arg(long)]
         removed: bool,
@@ -339,14 +377,26 @@ async fn run(cli: Cli) -> Result<()> {
             let id = submit(&mut client, "profile".into(), json!({}), 0).await?;
             block_on_job(&mut client, id, cli.json).await
         }
-        Cmd::Characters => {
+        Cmd::Characters { realm } => {
             let mut client = connect(true).await?;
-            let id = submit(&mut client, "characters".into(), json!({}), 0).await?;
+            let id = submit(
+                &mut client,
+                "characters".into(),
+                json!({ "realm": realm }),
+                0,
+            )
+            .await?;
             block_on_job(&mut client, id, cli.json).await
         }
-        Cmd::Character { name } => {
+        Cmd::Character { name, realm } => {
             let mut client = connect(true).await?;
-            let id = submit(&mut client, "character".into(), json!({ "name": name }), 0).await?;
+            let id = submit(
+                &mut client,
+                "character".into(),
+                json!({ "realm": realm, "name": name }),
+                0,
+            )
+            .await?;
             block_on_job(&mut client, id, cli.json).await
         }
         Cmd::Leagues => {
@@ -355,14 +405,15 @@ async fn run(cli: Cli) -> Result<()> {
             block_on_job(&mut client, id, cli.json).await
         }
         Cmd::Accounts => store_cmd::accounts(cli.json),
-        Cmd::Tabs { league } => store_cmd::tabs(&league, cli.json),
+        Cmd::Tabs { league, realm } => store_cmd::tabs(realm, &league, cli.json),
         Cmd::Items { cmd } => match cmd {
             ItemsCmd::Search {
                 text,
                 league,
+                realm,
                 removed,
                 limit,
-            } => store_cmd::search(&text, league.as_deref(), removed, limit, cli.json),
+            } => store_cmd::search(&text, realm, league.as_deref(), removed, limit, cli.json),
             ItemsCmd::Show { id } => store_cmd::show(&id, cli.json),
         },
         Cmd::Store { cmd } => match cmd {
@@ -371,12 +422,12 @@ async fn run(cli: Cli) -> Result<()> {
             StoreCmd::Rebuild => store_cmd::rebuild(cli.json),
             StoreCmd::Import { path } => store_cmd::import(&path, cli.json),
         },
-        Cmd::Stashes { league } => {
+        Cmd::Stashes { league, realm } => {
             let mut client = connect(true).await?;
             let id = submit(
                 &mut client,
                 "stashes".into(),
-                json!({ "league": league }),
+                json!({ "realm": realm, "league": league }),
                 0,
             )
             .await?;
@@ -387,12 +438,13 @@ async fn run(cli: Cli) -> Result<()> {
             sub,
             deep,
             league,
+            realm,
         } => {
             let mut client = connect(true).await?;
             let id = submit(
                 &mut client,
                 "stash".into(),
-                json!({ "league": league, "id": id, "sub": sub, "deep": deep }),
+                json!({ "realm": realm, "league": league, "id": id, "sub": sub, "deep": deep }),
                 0,
             )
             .await?;
@@ -406,16 +458,22 @@ async fn run(cli: Cli) -> Result<()> {
             apply,
             max_requests,
             league,
+            realm,
         } => {
             if plan {
-                return plan_cmd::refresh_plan(league.as_deref().unwrap_or("Standard"), cli.json)
-                    .await;
+                return plan_cmd::refresh_plan(
+                    realm.unwrap_or(Realm::DEFAULT),
+                    league.as_deref().unwrap_or("Standard"),
+                    cli.json,
+                )
+                .await;
             }
             if let Some(source) = apply {
                 // Bare `--apply` (clap's empty default_missing_value)
                 // means "compile the stored policy now and run that".
                 let source = (!source.is_empty()).then_some(source);
                 return plan_cmd::refresh_apply(
+                    realm,
                     league.as_deref(),
                     source.as_deref(),
                     max_requests,
@@ -427,11 +485,12 @@ async fn run(cli: Cli) -> Result<()> {
                 bail!("refresh needs --all, --tabs <id,...>, --plan, or --apply");
             }
             let league = league.as_deref().unwrap_or("Standard");
+            let realm = realm.unwrap_or(Realm::DEFAULT);
             let mut client = connect(true).await?;
             let id = submit(
                 &mut client,
                 "refresh".into(),
-                json!({ "league": league, "all": all, "tabs": tabs, "deep": deep }),
+                json!({ "realm": realm, "league": league, "all": all, "tabs": tabs, "deep": deep }),
                 0,
             )
             .await?;
