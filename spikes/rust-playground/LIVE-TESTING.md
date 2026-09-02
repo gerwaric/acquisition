@@ -628,7 +628,7 @@ id covers the tab and its children (planner change is the follow-up build
 item); the method-test verdict — pass on correctness, owner-truth channel
 under-exercised — is recorded in the tracer section there.
 
-## Characters rung — the refresh plan with characters (prepared 2026-09-02; row 1 run 2026-09-02: pass; row 2 run 2026-09-02: both first contacts pass; PoE2 item-granted skills are id-less — owner ruling pending)
+## Characters rung — the refresh plan with characters (prepared 2026-09-02; row 1 run 2026-09-02: pass; row 2 run 2026-09-02: both first contacts pass; PoE2 item-granted skills are id-less — ruled (a), rerun to close)
 
 Order-of-work steps (4) and (5) of `CONTEXT.md`, "Characters in the
 refresh plan": the same driver, the same rails, the same verifier, with
@@ -735,9 +735,10 @@ error names the array and index, and the same invocation was rerun to
 read them (ceiling 6, the four refused characters). Read: the id-less
 entries are **item-granted skills** and everything socketed into them,
 duplicated verbatim under `skills` — a documented-optional `Item.id`
-that PoE2 actually omits, not a malformed body. The loop does not close
-until the store has a rule for them (owner ruling, `CONTEXT.md`); the
-rails, probes, and policies for both poe2 routes are done.
+that PoE2 actually omits, not a malformed body. Ruled the same day
+(`CONTEXT.md`, (a): the subtree stays in place, never a row); the rerun
+below closes the loop. The rails, probes, and policies for both poe2
+routes were done by the first pass.
 
 ## Status: ladder closed (2026-08-27)
 

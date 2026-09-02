@@ -411,9 +411,22 @@ fn mock_character(realm: crate::realm::Realm, name: &str) -> serde_json::Value {
     }
     if realm == crate::realm::Realm::Poe2 {
         character["class"] = json!("Monk");
+        // An item-granted skill (live sample 2026-09-02): the weapon
+        // carries it id-less in its `socketedItems` with no socket of its
+        // own, and the identical object is repeated as `skills[0]`; a
+        // support socketed into it is id-less too. Never a row.
+        let granted = json!({ "typeLine": "Skeletal Warrior", "baseType": "Skeletal Warrior", "frameType": 4, "frameTypeId": "Gem",
+            "support": false, "realm": "poe2", "sockets": [ { "group": 0, "type": "gem" } ],
+            "socketedItems": [ { "typeLine": "Meat Shield I", "baseType": "Meat Shield I", "frameType": 4, "frameTypeId": "Gem", "support": true, "realm": "poe2" } ] });
+        character["equipment"].as_array_mut().unwrap().push(json!(
+            { "id": format!("{name}-sceptre"), "name": "", "typeLine": "Rattling Sceptre", "baseType": "Rattling Sceptre",
+              "w": 2, "h": 3, "x": 0, "y": 0, "inventoryId": "Weapon", "league": "Standard", "realm": "poe2", "frameType": 0, "frameTypeId": "Normal",
+              "sockets": [], "socketedItems": [ granted.clone() ] }
+        ));
         character["skills"] = json!([
+            granted,
             { "id": format!("{name}-skill0"), "typeLine": "Falling Thunder", "baseType": "Falling Thunder",
-              "w": 1, "h": 1, "x": 0, "y": 0, "inventoryId": "Skills", "league": "Standard", "frameType": 4 },
+              "w": 1, "h": 1, "x": 0, "y": 0, "inventoryId": "SkillSlots", "league": "Standard", "realm": "poe2", "frameType": 4, "frameTypeId": "Gem" },
         ]);
     }
     json!({ "character": character })

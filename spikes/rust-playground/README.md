@@ -107,7 +107,13 @@ bounded by `MAX_429_RETRIES`; a Cloudflare-shaped 403/503 is never retried.
   its animate guardian is a `changed` event even with identical json.
   An item-shaped array a character body carries under any other name
   is the **drift tripwire**: counted into the envelope (`_unlifted`) and
-  `acq store status`, never lifted, never a failure.
+  `acq store status`, never lifted, never a failure. A PoE2 **item-granted
+  skill** (ruled 2026-09-02) — the id-less gem a weapon or shield carries
+  in its own `socketedItems`, repeated verbatim as `skills[0]`, with any
+  support socketed into it id-less too — is a property of its host, not an
+  item: the subtree stays in the host's json and in the envelope under
+  `skills`, counted (`_granted`, `store status`), never a row and never
+  a refusal; every other id-less item is still refused.
   `<uuid>.annotations.db` beside the fact files is the **intent layer**
   (`annotations.rs`): buyouts, notes, the sync policy — keyed on stable
   GGG ids, written only through the store crate under integer-revision

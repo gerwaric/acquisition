@@ -328,6 +328,12 @@ pub fn status(json: bool) -> Result<()> {
                 st.unlifted_items
             );
         }
+        if st.granted_skills > 0 {
+            println!(
+                "granted: {} item-granted skill(s) left in place on live characters (PoE2; `_granted` in the character json, never rows)",
+                st.granted_skills
+            );
+        }
         if st.refused_bodies > 0 {
             println!(
                 "refused: {} body(ies) the store would not ingest, kept verbatim as evidence (`acq store refused`)",

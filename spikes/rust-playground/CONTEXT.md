@@ -822,7 +822,8 @@ names, so the realms' counters are separate (N6); `Character.realm` is
 `poe2` (the mock was right, the docs wrong); the pc list omits PoE2
 characters; every PoE2 item carries `realm: "poe2"` (pc items never
 do); `skills` entries carry ids and `inventoryId`
-`DefaultAttackSkills`/`SkillSlots`. Open, **the owner's ruling**: an
+`DefaultAttackSkills`/`SkillSlots`. And one ruling, **decided 2026-09-02
+(owner: (a), until GGG changes how granted skills are reported)**: an
 **item-granted skill has no `id`**. A weapon or shield that grants a
 skill (Rattling Sceptre → Skeletal Warrior, a wand → Mana Drain or
 Chaos Bolt, a tower shield → Raise Shield) carries it as an id-less
@@ -830,19 +831,21 @@ gem-shaped entry in its `socketedItems` (the host's `sockets` is `[]`),
 the identical object is repeated as `skills[0]`, and a real support gem
 the player socketed into the granted skill is id-less as well — the
 whole subtree under a granted skill. The store refused four of five
-bodies for it (and, since facts v7, keeps them in `refused` 1–4). It is
-not a malformed body: `Item.id` is documented optional and this is the
-case that omits it. Candidate rules, for Tom: (a) a granted-skill
-subtree is a property of its host, not an item fact — left verbatim in
-the host's json and, under `skills`, in the envelope with a count
-(nothing lifted, nothing invented); (b) a synthetic identity
-(`<host id>/granted/<typeLine>`) so the tree is queryable, at the cost
-of breaking "one row per GGG item id" and doubling the entry; (c) keep
-refusing. The agent's recommendation is (a): the entry is untradeable,
-unmovable, and exists only while the host is equipped, so it has no
-life the host's row does not already record; the id-less rule stays
-strict everywhere else. Until ruled, a PoE2 character with a granting
-weapon never lands and its `fetch_character` child fails each cycle.
+bodies for it (kept in `refused` 1–4 since facts v7). It is not a
+malformed body: `Item.id` is documented optional and this is the case
+that omits it. **Rule (a): a granted-skill subtree is a property of its
+host, never an item fact** — left verbatim in the host's json (a
+support swapped inside it is a `changed` event on the host, the only
+row that records it) and, under `skills`, in the envelope; counted
+(`_granted` per array, `Ingest::granted`, `store status`); nothing
+lifted, nothing invented; the id-less rule stays strict for every other
+shape (an id-less gem at the top of `equipment`, an id-less rune). The
+discriminator is `is_granted_skill`: no `id` and gem-framed
+(`frameTypeId` `Gem` or `frameType` 4), at a socketed position or at
+the top of `skills`. Rejected: a synthetic identity (breaks one row per
+GGG item id and doubles the entry); keep refusing (no PoE2 character
+with a granting weapon would ever land). The mock's poe2 body carries
+the shape. Built the same day; the poe2 rung rerun closes the loop.
 
 **Step (4) ran live 2026-09-02 and passed** (`LIVE-TESTING.md`, run
 ledger `characters rung, pc` and the "Characters rung" section): the

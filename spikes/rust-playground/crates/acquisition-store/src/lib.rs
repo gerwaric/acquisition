@@ -263,6 +263,11 @@ pub struct Ingest {
     /// Item-shaped objects left in a character envelope in an array this
     /// build does not lift (the drift tripwire): surfaced, never a failure.
     pub unlifted: usize,
+    /// Item-granted skills left in place (PoE2, ruled 2026-09-02): id-less
+    /// gem entries a weapon or shield grants, each kept verbatim inside
+    /// its host's `socketedItems` and, under `skills`, in the envelope —
+    /// a property of the host, never an item fact.
+    pub granted: usize,
     /// `Some(n)` when the fetch was of a location a listing has retired:
     /// the whole body stays verbatim in the response row and nothing
     /// else lands — membership belongs to the listing, and only a listing
@@ -366,6 +371,10 @@ pub struct Status {
     /// Bodies `record` refused as malformed and kept verbatim in
     /// `refused` — evidence, never facts (`acq store refused`).
     pub refused_bodies: i64,
+    /// Item-granted skills left in place (`_granted`), as of each live
+    /// character's latest fetch — PoE2's id-less gem entries, a property
+    /// of their host, never rows.
+    pub granted_skills: i64,
 }
 
 pub mod annotations;
@@ -770,14 +779,32 @@ impl Store {
                         .and_then(Value::as_str)
                         .map(str::to_string);
                     let mut split = serde_json::Map::new();
+                    let mut granted = serde_json::Map::new();
                     let mut arrays: Vec<(&'static str, Vec<Value>)> = Vec::new();
                     for key in CHARACTER_ITEM_ARRAYS {
                         if let Some(Value::Array(items)) = character.remove(*key) {
-                            split.insert((*key).into(), json!(items.len()));
-                            arrays.push((key, items));
+                            let n = count_granted(Some(&Value::Array(items.clone())));
+                            if n > 0 {
+                                granted.insert((*key).into(), json!(n));
+                            }
+                            // A granted skill at the top of `skills` stays
+                            // in the envelope, where GGG put it; the rest
+                            // of the array is lifted and counted.
+                            let (kept, lifted): (Vec<Value>, Vec<Value>) =
+                                items.into_iter().partition(is_granted_skill);
+                            if !kept.is_empty() {
+                                character.insert((*key).into(), Value::Array(kept));
+                            }
+                            split.insert((*key).into(), json!(lifted.len()));
+                            arrays.push((key, lifted));
                         }
                     }
                     character.insert("_split".into(), Value::Object(split));
+                    if !granted.is_empty() {
+                        ingest.granted =
+                            granted.values().filter_map(Value::as_u64).sum::<u64>() as usize;
+                        character.insert("_granted".into(), Value::Object(granted));
+                    }
                     // The drift tripwire: GGG adds fields most leagues, and
                     // a new item array would otherwise go un-lifted
                     // silently. Whatever item-shaped array is left is
@@ -785,6 +812,7 @@ impl Store {
                     // never a failure.
                     let unlifted: serde_json::Map<String, Value> = character
                         .iter()
+                        .filter(|(key, _)| !CHARACTER_ITEM_ARRAYS.contains(&key.as_str()))
                         .filter_map(|(key, value)| {
                             let n = value
                                 .as_array()
@@ -1250,6 +1278,10 @@ impl Store {
             withheld_responses: count("SELECT count(*) FROM responses WHERE withheld IS NOT NULL")?,
             withheld_items: count("SELECT COALESCE(SUM(withheld), 0) FROM responses")?,
             refused_bodies: count("SELECT count(*) FROM refused")?,
+            granted_skills: count(
+                "SELECT COALESCE(SUM(value), 0) FROM characters c, json_each(json_extract(c.json, '$._granted'))
+                  WHERE c.removed_at IS NULL",
+            )?,
             unlifted_items: count(
                 "SELECT COALESCE(SUM(value), 0) FROM characters c, json_each(json_extract(c.json, '$._unlifted'))
                   WHERE c.removed_at IS NULL",
@@ -1537,6 +1569,10 @@ struct Previous {
 /// holds for a withheld body too: an id-less item anywhere in `array`
 /// (socketed gems included) is malformed, and nothing is written. The
 /// error names the position, so a refused body can be read at the spot.
+/// The one id-less shape that is not malformed is an **item-granted
+/// skill** (`is_granted_skill`): it may sit socketed in any item, or at
+/// the top of `skills` (where GGG repeats it), and whatever is socketed
+/// into it is part of it — the subtree is skipped whole.
 fn check_item_ids(
     items: Option<&Value>,
     endpoint: &'static str,
@@ -1555,6 +1591,9 @@ fn check_item_ids(
             socketed: None,
         };
         if id_less(item) {
+            if array == "skills" && is_granted_skill(item) {
+                continue;
+            }
             return Err(MalformedBody {
                 at: Some(at),
                 ..MalformedBody::new(endpoint, "an `id` on an item")
@@ -1568,7 +1607,7 @@ fn check_item_ids(
             .flatten()
             .enumerate()
         {
-            if id_less(socketed) {
+            if id_less(socketed) && !is_granted_skill(socketed) {
                 at.socketed = Some(gem);
                 return Err(MalformedBody {
                     at: Some(at),
@@ -1581,14 +1620,56 @@ fn check_item_ids(
     Ok(())
 }
 
+/// An item-granted skill (PoE2; owner ruling 2026-09-02): a gem-shaped
+/// entry with no `id`. A weapon or shield that grants a skill carries it
+/// this way inside its own `socketedItems` (the host's `sockets` stays
+/// empty), GGG repeats the identical object as `skills[0]`, and a real
+/// support the player socketed into the granted skill is id-less too.
+/// It is untradeable, unmovable, and exists only while the host is
+/// equipped, so it is a property of the host and never an item fact:
+/// ingest leaves the whole subtree in place — inside the host's json, or
+/// in the envelope under `skills` — and counts it (`_granted`,
+/// `Ingest::granted`). Nothing is invented for it, and the id-less rule
+/// stays strict for every other shape. The documented-optional `Item.id`
+/// is this case. Until GGG changes how granted skills are reported.
+fn is_granted_skill(v: &Value) -> bool {
+    v.get("id").and_then(Value::as_str).is_none()
+        && (v.get("frameTypeId").and_then(Value::as_str) == Some("Gem")
+            || v.get("frameType").and_then(Value::as_i64) == Some(4))
+}
+
 /// How many item facts an array carries, the way ingest would count
-/// them: every item plus every socketed gem, recursively.
+/// them: every item plus every socketed gem, recursively — a granted
+/// skill and its subtree are not item facts and count for nothing.
 fn count_item_facts(items: Option<&Value>) -> usize {
     items
         .and_then(Value::as_array)
         .into_iter()
         .flatten()
+        .filter(|item| !is_granted_skill(item))
         .map(|item| 1 + count_item_facts(item.get("socketedItems")))
+        .sum()
+}
+
+/// How many granted skills an array carries at the positions ingest
+/// leaves them: at its top level (`skills`) or socketed in its items.
+fn count_granted(items: Option<&Value>) -> usize {
+    items
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .map(|item| {
+            if is_granted_skill(item) {
+                1
+            } else {
+                item.get("socketedItems")
+                    .and_then(Value::as_array)
+                    .into_iter()
+                    .flatten()
+                    .filter(|gem| is_granted_skill(gem))
+                    .count()
+            }
+        })
         .sum()
 }
 
@@ -1765,9 +1846,19 @@ fn ingest_item(
     let Some(id) = item.get("id").and_then(Value::as_str).map(str::to_string) else {
         return Err(MalformedBody::new(kind, "an `id` on an item").into());
     };
-    // Socketed gems are items: lift them out, same location, parented.
+    // Socketed gems are items: lift them out, same location, parented. A
+    // granted skill is not (`is_granted_skill`): it stays in the host's
+    // json, subtree and all, so a support swapped inside it is a `changed`
+    // event on the host — the only row that records it.
     let gems = match item.as_object_mut().and_then(|o| o.remove("socketedItems")) {
-        Some(Value::Array(g)) => g,
+        Some(Value::Array(g)) => {
+            let (kept, lifted): (Vec<Value>, Vec<Value>) =
+                g.into_iter().partition(is_granted_skill);
+            if let Some(o) = item.as_object_mut().filter(|_| !kept.is_empty()) {
+                o.insert("socketedItems".into(), Value::Array(kept));
+            }
+            lifted
+        }
         _ => Vec::new(),
     };
     let to = address(
@@ -2876,6 +2967,125 @@ mod tests {
     /// The drift tripwire: an item-shaped array the store does not lift
     /// is counted into the envelope and the status — never a failure, and
     /// never an item row. Arrays of non-items are left alone.
+    /// PoE2 first contact (2026-09-02): a weapon that grants a skill
+    /// carries it as an id-less gem in its `socketedItems`, GGG repeats
+    /// the identical object as `skills[0]`, and a support socketed into
+    /// the granted skill is id-less too. Ruled (a): the subtree is a
+    /// property of the host — left in place, counted, never a row, never
+    /// a refusal — and every other id-less shape is still malformed.
+    #[test]
+    fn an_item_granted_skill_stays_in_place_and_is_not_an_item() {
+        let mut s = Store::open_memory().unwrap();
+        let ep = Endpoint::Character {
+            realm: "poe2".into(),
+            name: "Necro".into(),
+        };
+        let p = json!({ "realm": "poe2", "name": "Necro" });
+        let granted = json!({ "typeLine": "Skeletal Warrior", "baseType": "Skeletal Warrior", "frameType": 4, "frameTypeId": "Gem",
+            "support": false, "sockets": [ { "group": 0, "type": "gem" } ],
+            "socketedItems": [ { "typeLine": "Meat Shield I", "frameType": 4, "frameTypeId": "Gem", "support": true } ] });
+        let mut sceptre = item("sceptre", "Rattling Sceptre", 0);
+        sceptre["sockets"] = json!([]);
+        sceptre["socketedItems"] = json!([granted.clone()]);
+        let mut focus = item("focus", "Woven Focus", 1);
+        focus["socketedItems"] = json!([ { "id": "rune", "typeLine": "Desert Rune", "frameType": 5, "frameTypeId": "Currency" } ]);
+        let mut spark = item("spark", "Spark", 0);
+        spark["inventoryId"] = json!("SkillSlots");
+        spark["socketedItems"] = json!([item("sup", "Pierce I", 0)]);
+        let body = json!({ "character": { "id": "n1", "name": "Necro", "league": "Standard", "realm": "poe2",
+            "equipment": [ sceptre, focus ],
+            "skills": [ granted.clone(), spark ] } });
+        let ing = s.record(&ep, &p, 200, &body, 10).unwrap();
+        // Rows: the sceptre, the focus and its rune, the real skill gem
+        // and its support. Nothing for the granted skill or its support.
+        assert_eq!((ing.items, ing.added, ing.granted), (5, 5, 2));
+        assert_eq!(
+            s.item("rune").unwrap().unwrap().socketed_in.as_deref(),
+            Some("focus")
+        );
+        assert_eq!(
+            s.item("sup").unwrap().unwrap().socketed_in.as_deref(),
+            Some("spark")
+        );
+        assert!(
+            s.search("skeletal", None, None, false, 10)
+                .unwrap()
+                .is_empty()
+        );
+        assert!(
+            s.search("meat shield", None, None, false, 10)
+                .unwrap()
+                .is_empty()
+        );
+        // The host's json keeps the granted subtree; the rune was lifted
+        // out of the focus as usual.
+        let sceptre_row = s.item("sceptre").unwrap().unwrap();
+        assert_eq!(sceptre_row.json["socketedItems"], json!([granted]));
+        assert!(
+            s.item("focus")
+                .unwrap()
+                .unwrap()
+                .json
+                .get("socketedItems")
+                .is_none()
+        );
+        // The envelope keeps the granted copy under `skills`, splits the
+        // lifted one, and counts both positions; the drift tripwire does
+        // not mistake the kept array for an unknown one.
+        let stored: String = s
+            .conn
+            .query_row("SELECT json FROM characters WHERE id = 'n1'", [], |r| {
+                r.get(0)
+            })
+            .unwrap();
+        let c: Value = serde_json::from_str(&stored).unwrap();
+        assert_eq!(c["skills"], json!([granted]));
+        assert_eq!(c["_split"], json!({ "equipment": 2, "skills": 1 }));
+        assert_eq!(c["_granted"], json!({ "equipment": 1, "skills": 1 }));
+        assert!(c.get("_unlifted").is_none());
+        let st = s.status().unwrap();
+        assert_eq!((st.items, st.granted_skills, st.refused_bodies), (5, 2, 0));
+        // A support swapped inside the granted skill is a change on the
+        // host — the only row that records it.
+        let mut body2 = body.clone();
+        body2["character"]["equipment"][0]["socketedItems"][0]["socketedItems"][0]["typeLine"] =
+            json!("Feeding Frenzy I");
+        let ing = s.record(&ep, &p, 200, &body2, 20).unwrap();
+        assert_eq!((ing.items, ing.changed, ing.granted), (5, 1, 2));
+        // Strictness elsewhere is untouched: an id-less gem at the top of
+        // `equipment` (not a socketed position, not `skills`) and an
+        // id-less non-gem socketed anywhere are still refused.
+        let mut loose = body.clone();
+        loose["character"]["equipment"]
+            .as_array_mut()
+            .unwrap()
+            .push(granted.clone());
+        let err = s.record(&ep, &p, 200, &loose, 30).unwrap_err();
+        let m = err
+            .downcast_ref::<MalformedBody>()
+            .unwrap_or_else(|| panic!("{err:#}"));
+        assert_eq!(
+            m.at.map(|a| (a.array, a.index, a.socketed)),
+            Some(("equipment", 2, None))
+        );
+        let mut junk = body.clone();
+        junk["character"]["equipment"][1]["socketedItems"][0] =
+            json!({ "typeLine": "No Id Rune", "frameTypeId": "Currency" });
+        let err = s.record(&ep, &p, 200, &junk, 31).unwrap_err();
+        let m = err
+            .downcast_ref::<MalformedBody>()
+            .unwrap_or_else(|| panic!("{err:#}"));
+        assert_eq!(
+            m.at.map(|a| (a.array, a.index, a.socketed)),
+            Some(("equipment", 1, Some(0)))
+        );
+        assert_eq!(s.status().unwrap().refused_bodies, 2);
+        // A withheld body counts item facts the same way: the granted
+        // subtree is not one.
+        assert_eq!(count_item_facts(body["character"].get("equipment")), 3);
+        assert_eq!(count_item_facts(body["character"].get("skills")), 2);
+    }
+
     #[test]
     fn an_unknown_item_array_trips_the_drift_counter_without_failing() {
         let mut s = Store::open_memory().unwrap();
