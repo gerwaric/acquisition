@@ -508,6 +508,20 @@ for c in $(seq 1 "$CYCLES"); do
             echo "*** could not close. Rerun with --max-age of at least $((est * 2)) (e.g. 86400)." >&2
             exit 2
         fi
+        # The facts this plan leaves alone as fresh keep ageing while the
+        # cycle runs: if the oldest of them plus the cycle's duration
+        # exceeds the window, the NEXT plan refetches them — a refetch
+        # cycle (seen 2026-09-02: 51 min old at start + a 13 min cycle
+        # against 3600 s bought a 6-request cycle 2). Harmless, the loop
+        # still closes, so this warns rather than refuses.
+        oldest=$(jq -r --argjson now "$(date +%s)" '
+            [ (.skipped[] | select(.reason.kind == "fresh") | .reason.age_seconds),
+              (if (.basis.listing != null) and ([.actions[] | select(.action == "list_stashes")] | length) == 0
+               then ($now - .basis.listing.fetched_at) else empty end) ] | max // 0' "$plan")
+        if [ $((oldest + est)) -gt "$MAX_AGE" ]; then
+            echo "note: the oldest fact this plan keeps as fresh is ${oldest}s old and the cycle is ~${est}s;"
+            echo "      together they pass the ${MAX_AGE}s window, so expect the next plan to refetch it (a refetch cycle, not a fault)."
+        fi
         if [ "$stash_gets" -gt 30 ]; then
             pace=" — more than 30 stash GETs: a ~15 s hold after each 15 and a ~343 s hold after each 30 (rung 10's shape), ~$est s in all; that is the limiter working"
         elif [ "$stash_gets" -gt 15 ]; then

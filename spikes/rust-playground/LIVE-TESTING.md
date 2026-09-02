@@ -605,8 +605,9 @@ the owner entered no notes):
   next plan's, when their age at the cycle's start plus the cycle's
   duration exceeds the window — here 51 min + 13 min against 3600 s
   bought a 6-request cycle 2. Inherent to a freshness window, harmless
-  (the loop closed), and the driver's guard could add the facts' age at
-  start to its estimate; the product question is whether a window is the
+  (the loop closed); the driver now warns when the oldest fact a plan
+  keeps as fresh plus the cycle's estimate passes the window (added
+  2026-09-02); the product question is whether a window is the
   right handle at all for "keep these fresh" when cycles are long.
 - **Substash names**: GGG names a map substash by its tier ("1", "2")
   and a unique substash not at all, and the parent's "(Remove-only)"
