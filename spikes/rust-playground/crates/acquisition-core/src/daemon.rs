@@ -1555,6 +1555,9 @@ resubmit if still wanted",
                 }
             }
             let total = children.len();
+            // Sorted for every reader: the ids are the remedy's handles
+            // (`acq result <id>`), and a HashMap's order is noise.
+            failed_ids.sort_unstable();
             let summary = json!({ "done": done, "failed": failed, "cancelled": cancelled, "failed_ids": failed_ids });
             let deferred = s.jobs.get_mut(&pid).unwrap().deferred.take().unwrap();
             match deferred {

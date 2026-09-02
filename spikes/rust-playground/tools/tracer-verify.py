@@ -3,7 +3,11 @@
 called by tools/tracer-rung.sh after the wire phases:
 
     tracer-verify.py <journal> <byte offset> <cycles.tsv> <login lifetimes 0|1>
-                     <closed cycle or 0> <live|mock>
+                     <closed cycle or 0> <live|mock> [realm] [brief]
+
+`brief` prints one line per lifetime (send totals, probe verdicts, the
+limiter holds seen per route) instead of one line per send — the
+terminal form; the driver keeps the per-send form in summary.txt.
 
 Checks, per daemon lifetime in this run's slice of the journal: every
 exact route's (account-qualified) first send is its probe (declared
@@ -111,7 +115,7 @@ def route_realm_ok(route, realm):
     return suffix == ("" if realm == "pc" else realm)
 
 
-def verify(journal, offset, rows_path, login_lifetime, closed, mode, out=print, realm="pc"):
+def verify(journal, offset, rows_path, login_lifetime, closed, mode, out=print, realm="pc", brief=False):
     lifetimes = read_lifetimes(journal, offset)
     cycles = read_cycles(rows_path)
     fail, totals = [], []
@@ -129,8 +133,12 @@ def verify(journal, offset, rows_path, login_lifetime, closed, mode, out=print, 
     ours = {}
     for i, lt in enumerate(lifetimes, 1):
         label = "login" if (login_lifetime and i == 1) else f"cycle {i - login_lifetime}"
-        out(f"lifetime {i} ({label}): pid {lt['pid']}  build {lt['build']}  clock {lt['clock']}")
+        if not brief:
+            out(f"lifetime {i} ({label}): pid {lt['pid']}  build {lt['build']}  clock {lt['clock']}")
         counts, first = {}, {}
+        # Brief form: probe verdicts and limiter holds per short route
+        # (the account stripped), instead of one line per send.
+        probes, holds, not_ok = [], {}, 0
         for s in lt["sends"]:
             m, r, st = s["method"], s["route"], s.get("status")
             counts[m] = counts.get(m, 0) + 1
@@ -138,8 +146,10 @@ def verify(journal, offset, rows_path, login_lifetime, closed, mode, out=print, 
             # probe on one account teaches nothing about another's counters.
             first.setdefault(r, m)
             flag = ""
+            short = r.split("@", 1)[0]
             if s.get("error") or st is None or not 200 <= st < 300:
                 flag = "  <-- NOT OK"
+                not_ok += 1
                 fail.append(f"lifetime {i}: {m} {r} -> {st} error={s.get('error')} (only a 2xx is a pass)")
             if m == "HEAD":
                 t = when(s)
@@ -156,23 +166,33 @@ def verify(journal, offset, rows_path, login_lifetime, closed, mode, out=print, 
                 verdict = ""
                 if not rules:
                     verdict = "  <-- no rate-limit state in the probe's answer (a probe without rules closes the endpoint)"
+                    short_verdict = "NO STATE"
                     fail.append(f"lifetime {i}: probe on {r} returned no parseable *-state window")
                 elif restricted:
                     verdict = "  <-- an active restriction is reported: the account is already being limited"
+                    short_verdict = "RESTRICTED"
                     fail.append(f"lifetime {i}: probe on {r} reports an active restriction ({s.get('rate')})")
                 elif over:
                     verdict = (f"  <-- reports more hits than this run sent inside the window"
                                f" ({'; '.join(checks)}): someone else is on this account")
+                    short_verdict = "MORE HITS THAN OURS"
                     fail.append(f"lifetime {i}: probe on {r} reported {'; '.join(checks)}")
                 elif not any(h for h, _, _, _ in rules):
                     verdict = "  (0 hits: nothing else on this account" + (
                         " — standing rule met)" if not ours.get(r)
                         else "; this run's earlier sends have aged out)")
+                    short_verdict = "0 hits"
                 else:
                     verdict = f"  (hits within this run's own sends in each window: {'; '.join(checks)} — expected)"
-                out(f"  HEAD {r} -> {st}  rate {json.dumps(s.get('rate'))}{flag}{verdict}")
+                    short_verdict = "hits are ours (" + "; ".join(c.split(" of ours")[0] for c in checks) + ")"
+                probes.append(f"{short} {short_verdict}")
+                if not brief:
+                    out(f"  HEAD {r} -> {st}  rate {json.dumps(s.get('rate'))}{flag}{verdict}")
             else:
-                out(f"  {m} {r} -> {st}  wait_ms {s.get('wait_ms')}{flag}")
+                if not brief:
+                    out(f"  {m} {r} -> {st}  wait_ms {s.get('wait_ms')}{flag}")
+                if (s.get("wait_ms") or 0) >= 1000:
+                    holds.setdefault(short, []).append(s["wait_ms"] / 1000)
                 if m == "GET":
                     ours.setdefault(r, []).append(when(s))
         for r, m in first.items():
@@ -182,7 +202,32 @@ def verify(journal, offset, rows_path, login_lifetime, closed, mode, out=print, 
                 fail.append(f"lifetime {i}: route {r} is not on realm {realm}")
         t = f"{counts.get('POST', 0)}/{counts.get('HEAD', 0)}/{counts.get('GET', 0)}"
         totals.append(f"{t} = {len(lt['sends'])}")
-        out(f"  totals (POST/HEAD/GET): {totals[-1]}")
+        if brief:
+            status = "all 2xx" if not not_ok else f"{not_ok} NOT 2xx"
+            out(f"lifetime {i} ({label}): pid {lt['pid']}  build {lt['build']} — "
+                f"{counts.get('POST', 0)} POST / {counts.get('HEAD', 0)} HEAD / {counts.get('GET', 0)} GET"
+                f" = {len(lt['sends'])}, {status}")
+            if probes:
+                first_probe = all(v.endswith("0 hits") for v in probes)
+                out("  probes: " + ", ".join(probes) + (" (standing rule met)" if first_probe else ""))
+            if holds:
+                parts = []
+                for route, waits in holds.items():
+                    runs, last, n = [], None, 0
+                    for w in waits:
+                        key = round(w)
+                        if last is not None and abs(key - last) <= 1:
+                            n += 1
+                        else:
+                            if last is not None:
+                                runs.append(f"{last}s" + (f" ×{n}" if n > 1 else ""))
+                            last, n = key, 1
+                    if last is not None:
+                        runs.append(f"{last}s" + (f" ×{n}" if n > 1 else ""))
+                    parts.append(f"{route} " + ", ".join(runs))
+                out("  holds (limiter waits of 1 s or more, in order): " + "; ".join(parts))
+        else:
+            out(f"  totals (POST/HEAD/GET): {totals[-1]}")
 
     if len(lifetimes) != expected:
         fail.append(f"expected {expected} daemon lifetime(s) in this run's journal, saw {len(lifetimes)}")
@@ -337,9 +382,12 @@ def self_test():
 if __name__ == "__main__":
     if len(sys.argv) == 2 and sys.argv[1] == "--self-test":
         sys.exit(0 if self_test() else 1)
-    if len(sys.argv) not in (7, 8):
+    if len(sys.argv) not in (7, 8, 9):
         print(__doc__)
         sys.exit(2)
     journal, offset, rows, login, closed, mode = sys.argv[1:7]
-    realm = sys.argv[7] if len(sys.argv) == 8 else "pc"
-    sys.exit(0 if verify(journal, offset, rows, int(login), int(closed), mode, realm=realm) else 1)
+    realm = sys.argv[7] if len(sys.argv) >= 8 else "pc"
+    # `brief`: one line per lifetime (totals, probe verdicts, holds) for the
+    # terminal; the default is the per-send evidence form.
+    brief = len(sys.argv) == 9 and sys.argv[8] == "brief"
+    sys.exit(0 if verify(journal, offset, rows, int(login), int(closed), mode, realm=realm, brief=brief) else 1)

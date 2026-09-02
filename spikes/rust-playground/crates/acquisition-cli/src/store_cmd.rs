@@ -1,8 +1,8 @@
 //! Frontend-side reads of the shared store: no daemon round-trip. The CLI
 //! opens the same SQLite file the daemon writes; WAL makes that safe.
 
+use std::collections::{BTreeMap, HashMap};
 use std::path::Path;
-
 use std::path::PathBuf;
 
 use acquisition_core::provider::ggg_mode;
@@ -136,6 +136,27 @@ pub(crate) fn realm_prefix(realm: Realm) -> String {
     }
 }
 
+/// Cut a label to `max` characters with a marker, never silently.
+fn clip(s: &str, max: usize) -> String {
+    if s.chars().count() <= max {
+        s.to_string()
+    } else {
+        let mut out: String = s.chars().take(max - 1).collect();
+        out.push('…');
+        out
+    }
+}
+
+/// The items column: `-` when never fetched (nothing is known), the live
+/// count otherwise — a fetched-empty body reads `0`, never the same as
+/// unfetched (legibility ruling, 2026-09-02).
+fn items_cell(fetched_at: Option<i64>, item_count: i64) -> String {
+    match fetched_at {
+        None => "-".into(),
+        Some(_) => item_count.to_string(),
+    }
+}
+
 pub fn tabs(realm: Realm, league: &str, json: bool) -> Result<()> {
     let store = open()?;
     let tabs = store.tabs(realm.as_str(), league)?;
@@ -152,33 +173,62 @@ pub fn tabs(realm: Realm, league: &str, json: bool) -> Result<()> {
         return Ok(());
     }
     let now = acquisition_store::now();
+    let names: Vec<String> = tabs
+        .iter()
+        .map(|t| {
+            let name = if t.name.is_empty() {
+                "(unnamed)"
+            } else {
+                t.name.as_str()
+            };
+            let indent = if t.parent.is_some() { "  " } else { "" };
+            clip(&format!("{indent}{name}"), 40)
+        })
+        .collect();
+    let name_w = names
+        .iter()
+        .map(|n| n.chars().count())
+        .max()
+        .unwrap_or(4)
+        .max(4);
+    let type_w = tabs
+        .iter()
+        .map(|t| t.r#type.chars().count())
+        .max()
+        .unwrap_or(4)
+        .max(4);
     println!(
-        "{:<12} {:<28} {:<14} {:>6}  {:<12} parent",
+        "{:<12} {:<name_w$} {:<type_w$} {:>6}  {:<12} parent",
         "id", "name", "type", "items", "fetched"
     );
-    for t in &tabs {
-        let name = if t.name.is_empty() {
-            "(unnamed)".to_string()
-        } else {
-            t.name.clone()
-        };
-        let indent = if t.parent.is_some() { "  " } else { "" };
+    for (t, name) in tabs.iter().zip(&names) {
         println!(
-            "{:<12} {:<28} {:<14} {:>6}  {:<12} {}",
+            "{:<12} {:<name_w$} {:<type_w$} {:>6}  {:<12} {}",
             t.id,
-            format!("{indent}{name}")
-                .chars()
-                .take(28)
-                .collect::<String>(),
+            name,
             t.r#type,
-            t.item_count,
+            items_cell(t.fetched_at, t.item_count),
             ago(now, t.fetched_at),
             t.parent.as_deref().unwrap_or("")
         );
     }
+    let fetched = tabs.iter().filter(|t| t.fetched_at.is_some()).count();
+    let folders = tabs.iter().filter(|t| t.r#type == "Folder").count();
+    let never = tabs.len() - fetched - folders;
+    let mut parts = vec![format!("{fetched} fetched")];
+    if never > 0 {
+        parts.push(format!("{never} never fetched"));
+    }
+    if folders > 0 {
+        parts.push(format!(
+            "{folders} folder{} (never fetched)",
+            if folders == 1 { "" } else { "s" }
+        ));
+    }
     println!(
-        "{} tabs, {} items",
+        "{} tabs: {}; {} items",
         tabs.len(),
+        parts.join(", "),
         tabs.iter().map(|t| t.item_count).sum::<i64>()
     );
     Ok(())
@@ -186,7 +236,8 @@ pub fn tabs(realm: Realm, league: &str, json: bool) -> Result<()> {
 
 /// `acq store characters`: the characters on record, from the shared
 /// store (no daemon, no network) — the CLI's twin of the MCP `characters`
-/// tool. The full id: policy ids match exactly (CONTEXT.md, 2026-09-02).
+/// tool. The readable columns first; the full id last (policy ids match
+/// exactly, CONTEXT.md 2026-09-02, so it is never cut).
 pub fn characters(realm: Option<Realm>, league: Option<&str>, json: bool) -> Result<()> {
     let store = open()?;
     let characters = store.characters(realm.map(Realm::as_str), league)?;
@@ -202,25 +253,50 @@ pub fn characters(realm: Option<Realm>, league: Option<&str>, json: bool) -> Res
         return Ok(());
     }
     let now = acquisition_store::now();
+    let name_w = characters
+        .iter()
+        .map(|c| c.name.chars().count())
+        .max()
+        .unwrap_or(4)
+        .clamp(4, 32);
+    let league_w = characters
+        .iter()
+        .map(|c| c.league.as_deref().unwrap_or("-").chars().count())
+        .max()
+        .unwrap_or(6)
+        .max(6);
     println!(
-        "{:<64} {:<24} {:<5} {:<16} {:<5} {:>6}  {:<12} fetched",
-        "id", "name", "realm", "league", "level", "items", "listed"
+        "{:<name_w$} {:<5} {:<league_w$} {:>5} {:>6}  {:<9} {:<9} id",
+        "name", "realm", "league", "level", "items", "fetched", "listed"
     );
     for c in &characters {
         println!(
-            "{:<64} {:<24} {:<5} {:<16} {:<5} {:>6}  {:<12} {}",
-            c.id,
-            c.name.chars().take(24).collect::<String>(),
+            "{:<name_w$} {:<5} {:<league_w$} {:>5} {:>6}  {:<9} {:<9} {}",
+            clip(&c.name, 32),
             c.realm,
             c.league.as_deref().unwrap_or("-"),
             c.level.map(|l| l.to_string()).unwrap_or_default(),
-            c.item_count,
-            ago(now, c.listed_at),
+            items_cell(c.fetched_at, c.item_count),
             ago(now, c.fetched_at),
+            ago(now, c.listed_at),
+            c.id,
         );
     }
+    let fetched = characters.iter().filter(|c| c.fetched_at.is_some()).count();
+    let empty = characters
+        .iter()
+        .filter(|c| c.fetched_at.is_some() && c.fetched_items == Some(0))
+        .count();
+    let never = characters.len() - fetched;
+    let mut summary = format!("{fetched} fetched");
+    if empty > 0 {
+        summary.push_str(&format!(" ({empty} with empty bodies)"));
+    }
+    if never > 0 {
+        summary.push_str(&format!(", {never} never fetched"));
+    }
     println!(
-        "{} characters, {} items",
+        "{} characters: {summary}; {} items",
         characters.len(),
         characters.iter().map(|c| c.item_count).sum::<i64>()
     );
@@ -355,8 +431,12 @@ pub fn refused(id: Option<i64>, limit: usize, json: bool) -> Result<()> {
             println!("{}", serde_json::to_string_pretty(&row)?);
         } else {
             println!(
-                "refused {}  {} {}  fetched_at {}  status {}",
-                row.id, row.endpoint, row.params, row.fetched_at, row.status
+                "refused {}  {} {}  fetched {}  status {}",
+                row.id,
+                row.endpoint,
+                row.params,
+                ago(acquisition_store::now(), Some(row.fetched_at)),
+                row.status
             );
             println!("reason: {}", row.reason);
             println!("{}", serde_json::to_string_pretty(&row.body)?);
@@ -368,24 +448,253 @@ pub fn refused(id: Option<i64>, limit: usize, json: bool) -> Result<()> {
         println!("{}", serde_json::to_string_pretty(&rows)?);
         return Ok(());
     }
+    let now = acquisition_store::now();
     for r in &rows {
         println!(
-            "{:>5}  {:<10} {:<40} {}  {}",
+            "{:>5}  {:<10} {:<40} {:<9}  {}",
             r.id,
             r.endpoint,
-            r.params.to_string().chars().take(40).collect::<String>(),
-            r.fetched_at,
+            clip(&r.params.to_string(), 40),
+            ago(now, Some(r.fetched_at)),
             r.reason
         );
     }
-    println!("{} refused body(ies)", rows.len());
+    println!(
+        "{} refused body(ies){}",
+        rows.len(),
+        if rows.is_empty() {
+            ""
+        } else {
+            " — `acq store refused <id>` prints one in full"
+        }
+    );
     Ok(())
 }
 
-pub fn events(since_hours: f64, limit: usize, json: bool) -> Result<()> {
+/// One location's share of the events since a time: the counts a person
+/// asks for ("what changed where"), with the location's name resolved
+/// from the store's tab and character rows.
+#[derive(Debug, Default, Clone, serde::Serialize)]
+pub(crate) struct LocationChanges {
+    pub location: String,
+    pub name: Option<String>,
+    pub added: usize,
+    pub changed: usize,
+    pub moved_in: usize,
+    pub moved_out: usize,
+    pub removed: usize,
+    pub first: i64,
+    pub last: i64,
+}
+
+impl LocationChanges {
+    fn counts(&self) -> String {
+        let mut parts = Vec::new();
+        if self.added > 0 {
+            parts.push(format!("+{} added", self.added));
+        }
+        if self.changed > 0 {
+            parts.push(format!("~{} changed", self.changed));
+        }
+        if self.moved_in > 0 {
+            parts.push(format!(">{} moved in", self.moved_in));
+        }
+        if self.moved_out > 0 {
+            parts.push(format!("<{} moved out", self.moved_out));
+        }
+        if self.removed > 0 {
+            parts.push(format!("-{} removed", self.removed));
+        }
+        parts.join(", ")
+    }
+}
+
+/// Group events by location, newest activity first. `names` resolves a
+/// location string to what a person calls it.
+pub(crate) fn summarize_events(
+    events: &[acquisition_store::EventRow],
+    names: &mut dyn FnMut(&str) -> Option<String>,
+) -> Vec<LocationChanges> {
+    let mut by: BTreeMap<String, LocationChanges> = BTreeMap::new();
+    let touch = |by: &mut BTreeMap<String, LocationChanges>, loc: &str, at: i64| {
+        let e = by
+            .entry(loc.to_string())
+            .or_insert_with(|| LocationChanges {
+                location: loc.to_string(),
+                first: at,
+                last: at,
+                ..Default::default()
+            });
+        e.first = e.first.min(at);
+        e.last = e.last.max(at);
+    };
+    for ev in events {
+        match ev.kind.as_str() {
+            "moved" => {
+                if let Some(from) = &ev.from_location {
+                    touch(&mut by, from, ev.at);
+                    if let Some(e) = by.get_mut(from) {
+                        e.moved_out += 1;
+                    }
+                }
+                if let Some(to) = &ev.to_location {
+                    touch(&mut by, to, ev.at);
+                    if let Some(e) = by.get_mut(to) {
+                        e.moved_in += 1;
+                    }
+                }
+            }
+            "removed" => {
+                if let Some(from) = &ev.from_location {
+                    touch(&mut by, from, ev.at);
+                    if let Some(e) = by.get_mut(from) {
+                        e.removed += 1;
+                    }
+                }
+            }
+            kind => {
+                if let Some(to) = &ev.to_location {
+                    touch(&mut by, to, ev.at);
+                    if let Some(e) = by.get_mut(to) {
+                        if kind == "added" {
+                            e.added += 1;
+                        } else {
+                            e.changed += 1;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    let mut out: Vec<LocationChanges> = by.into_values().collect();
+    for e in &mut out {
+        e.name = names(&e.location);
+    }
+    out.sort_by(|a, b| {
+        b.last
+            .cmp(&a.last)
+            .then_with(|| a.location.cmp(&b.location))
+    });
+    out
+}
+
+/// `stash/<realm>/<league>/<id>` → the tab's name; `character/<realm>/<id>`
+/// → the character's — through the store's own row reads, cached per
+/// listing so a thousand events cost a handful of queries.
+fn location_namer(store: &Store) -> impl FnMut(&str) -> Option<String> + '_ {
+    let mut tabs: HashMap<(String, String), HashMap<String, String>> = HashMap::new();
+    let mut characters: HashMap<String, HashMap<String, String>> = HashMap::new();
+    move |location: &str| {
+        let parts: Vec<&str> = location.split('/').collect();
+        match parts.as_slice() {
+            ["stash", realm, league, id] => {
+                let key = (realm.to_string(), league.to_string());
+                let map = tabs.entry(key).or_insert_with(|| {
+                    store
+                        .tabs(realm, league)
+                        .map(|rows| rows.into_iter().map(|t| (t.id, t.name)).collect())
+                        .unwrap_or_default()
+                });
+                map.get(*id).cloned()
+            }
+            ["character", realm, id] => {
+                let map = characters.entry(realm.to_string()).or_insert_with(|| {
+                    store
+                        .characters(Some(realm), None)
+                        .map(|rows| rows.into_iter().map(|c| (c.id, c.name)).collect())
+                        .unwrap_or_default()
+                });
+                map.get(*id).cloned()
+            }
+            _ => None,
+        }
+    }
+}
+
+/// `acq store events`: the text default is one line per location with
+/// counts; the JSON default is the event list (what the driver reads).
+/// `--expand` / `--summary` select either form in either mode (the
+/// legibility ruling's one stated divergence).
+pub fn events(
+    since_hours: f64,
+    limit: usize,
+    expand: bool,
+    summary: bool,
+    json: bool,
+) -> Result<()> {
     let store = open()?;
-    let since = acquisition_store::now() - (since_hours * 3600.0) as i64;
+    let now = acquisition_store::now();
+    let since = now - (since_hours * 3600.0) as i64;
     let ev = store.events_since(since, limit)?;
+    let summarize = summary || (!expand && !json);
+    if summarize {
+        let mut namer = location_namer(&store);
+        let rows = summarize_events(&ev, &mut namer);
+        if json {
+            println!("{}", serde_json::to_string_pretty(&rows)?);
+            return Ok(());
+        }
+        let total = LocationChanges {
+            added: rows.iter().map(|r| r.added).sum(),
+            changed: rows.iter().map(|r| r.changed).sum(),
+            moved_in: rows.iter().map(|r| r.moved_in).sum(),
+            moved_out: 0,
+            removed: rows.iter().map(|r| r.removed).sum(),
+            ..Default::default()
+        };
+        let hours = if since_hours == since_hours.trunc() {
+            format!("{}", since_hours as i64)
+        } else {
+            format!("{since_hours:.1}")
+        };
+        if ev.is_empty() {
+            println!("0 events in the last {hours} h");
+            return Ok(());
+        }
+        let counts = total.counts().replace(" moved in", " moved");
+        println!(
+            "{} event{} at {} location{} in the last {hours} h: {counts}{}",
+            ev.len(),
+            if ev.len() == 1 { "" } else { "s" },
+            rows.len(),
+            if rows.len() == 1 { "" } else { "s" },
+            if ev.len() == limit {
+                " (limit reached)"
+            } else {
+                ""
+            }
+        );
+        let loc_w = rows
+            .iter()
+            .map(|r| r.location.chars().count())
+            .max()
+            .unwrap_or(0);
+        let name_w = rows
+            .iter()
+            .map(|r| {
+                r.name
+                    .as_deref()
+                    .map_or(0, |n| n.chars().count().max(7) + 2)
+            })
+            .max()
+            .unwrap_or(0);
+        for r in &rows {
+            let name = match r.name.as_deref() {
+                Some("") => "(unnamed)".to_string(),
+                Some(n) => format!("{n:?}"),
+                None => String::new(),
+            };
+            println!(
+                "  {:<loc_w$}  {:<name_w$}  {:<28}  {}",
+                r.location,
+                name,
+                r.counts(),
+                ago(now, Some(r.last))
+            );
+        }
+        println!("(--expand lists every event)");
+        return Ok(());
+    }
     if json {
         println!("{}", serde_json::to_string_pretty(&ev)?);
         return Ok(());
@@ -406,13 +715,21 @@ pub fn events(since_hours: f64, limit: usize, json: bool) -> Result<()> {
             _ => format!("at {}", e.to_location.as_deref().unwrap_or("?")),
         };
         println!(
-            "{} {:<8} {:<40} {loc}",
-            e.at,
+            "{:<9} {:<8} {:<40} {loc}",
+            ago(now, Some(e.at)),
             e.kind,
-            label.chars().take(40).collect::<String>()
+            clip(&label, 40)
         );
     }
-    println!("{} event(s)", ev.len());
+    println!(
+        "{} event(s){}",
+        ev.len(),
+        if ev.len() == limit {
+            " (limit reached)"
+        } else {
+            ""
+        }
+    );
     Ok(())
 }
 
@@ -527,5 +844,64 @@ fn strip_idless_items(items: &mut Vec<Value>, skipped: &mut usize) {
             gems.retain(|gem| gem.get("id").and_then(Value::as_str).is_some());
             *skipped += before - gems.len();
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use acquisition_store::EventRow;
+
+    fn ev(at: i64, kind: &str, from: Option<&str>, to: Option<&str>) -> EventRow {
+        EventRow {
+            at,
+            item_id: "i".into(),
+            kind: kind.into(),
+            from_location: from.map(str::to_string),
+            to_location: to.map(str::to_string),
+            name: None,
+            type_line: None,
+        }
+    }
+
+    #[test]
+    fn events_group_by_location_newest_first_with_names() {
+        let events = vec![
+            ev(10, "added", None, Some("character/pc/c1")),
+            ev(11, "added", None, Some("character/pc/c1")),
+            ev(
+                12,
+                "moved",
+                Some("stash/pc/Standard/t1"),
+                Some("character/pc/c1"),
+            ),
+            ev(13, "removed", Some("stash/pc/Standard/t1"), None),
+            ev(20, "changed", None, Some("stash/pc/Standard/t2")),
+        ];
+        let mut namer = |loc: &str| match loc {
+            "character/pc/c1" => Some("Exile".to_string()),
+            "stash/pc/Standard/t1" => Some("Dump".to_string()),
+            _ => None,
+        };
+        let rows = summarize_events(&events, &mut namer);
+        assert_eq!(rows.len(), 3);
+        assert_eq!(rows[0].location, "stash/pc/Standard/t2");
+        assert_eq!(rows[0].changed, 1);
+        assert!(rows[0].name.is_none());
+        let t1 = rows.iter().find(|r| r.location.ends_with("t1")).unwrap();
+        assert_eq!((t1.moved_out, t1.removed), (1, 1));
+        assert_eq!(t1.name.as_deref(), Some("Dump"));
+        let c1 = rows.iter().find(|r| r.location.ends_with("c1")).unwrap();
+        assert_eq!((c1.added, c1.moved_in, c1.first, c1.last), (2, 1, 10, 12));
+        assert_eq!(c1.counts(), "+2 added, >1 moved in");
+    }
+
+    #[test]
+    fn the_items_cell_tells_unfetched_from_empty() {
+        assert_eq!(items_cell(None, 0), "-");
+        assert_eq!(items_cell(Some(1), 0), "0");
+        assert_eq!(items_cell(Some(1), 7), "7");
+        assert_eq!(clip("abcdef", 4), "abc…");
+        assert_eq!(clip("abc", 4), "abc");
     }
 }

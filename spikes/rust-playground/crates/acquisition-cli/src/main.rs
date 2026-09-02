@@ -2,8 +2,8 @@ mod dash;
 mod plan_cmd;
 mod store_cmd;
 
-use std::io::Write as _;
-use std::time::Duration;
+use std::io::{IsTerminal as _, Write as _};
+use std::time::{Duration, Instant};
 
 use acquisition_core::client::{Client, ConnectOptions};
 use acquisition_core::daemon;
@@ -138,9 +138,16 @@ enum Cmd {
         /// Compile the stored sync policy (`acq policy`) into the explicit
         /// action set and print it — nothing is submitted or sent. A
         /// running daemon adds its read-only quote. With --json, prints
-        /// the serializable plan envelope.
-        #[arg(long, conflicts_with_all = ["all", "tabs", "deep"])]
-        plan: bool,
+        /// the serializable plan envelope. `--plan=FILE` (or `=-` for
+        /// stdin) renders a reviewed envelope instead, through the same
+        /// renderer, with the quote it carries.
+        #[arg(long, value_name = "FILE", num_args = 0..=1, require_equals = true,
+              default_missing_value = "", conflicts_with_all = ["all", "tabs", "deep"])]
+        plan: Option<String>,
+        /// With --plan: one line per action and every quote note, instead
+        /// of the grouped view (groups over ten entities are counted).
+        #[arg(long, requires = "plan")]
+        expand: bool,
         /// Execute the plan: exactly its actions, as one `apply` parent
         /// job that never expands the set. Bare `--apply` compiles the
         /// stored policy now; `--apply=FILE` (or `--apply=-` for stdin)
@@ -247,12 +254,20 @@ enum StoreCmd {
         #[arg(long)]
         league: Option<String>,
     },
-    /// Item events (added/moved/changed/removed) from recent ingests.
+    /// Item events (added/moved/changed/removed) from recent ingests: by
+    /// default one line per location with counts (text) or the event list
+    /// (--json); --expand / --summary pick either form in both modes.
     Events {
         #[arg(long, default_value_t = 24.0)]
         hours: f64,
         #[arg(long, default_value_t = 200)]
         limit: usize,
+        /// Every event, one per line (the JSON default).
+        #[arg(long, conflicts_with = "summary")]
+        expand: bool,
+        /// One line per location with counts (the text default).
+        #[arg(long)]
+        summary: bool,
     },
     /// Bodies the store refused as malformed, kept verbatim as evidence:
     /// the list (newest first), or one body in full by its row id.
@@ -440,7 +455,12 @@ async fn run(cli: Cli) -> Result<()> {
             StoreCmd::Characters { realm, league } => {
                 store_cmd::characters(realm, league.as_deref(), cli.json)
             }
-            StoreCmd::Events { hours, limit } => store_cmd::events(hours, limit, cli.json),
+            StoreCmd::Events {
+                hours,
+                limit,
+                expand,
+                summary,
+            } => store_cmd::events(hours, limit, expand, summary, cli.json),
             StoreCmd::Refused { id, limit } => store_cmd::refused(id, limit, cli.json),
             StoreCmd::Rebuild => store_cmd::rebuild(cli.json),
             StoreCmd::Import { path } => store_cmd::import(&path, cli.json),
@@ -478,16 +498,22 @@ async fn run(cli: Cli) -> Result<()> {
             tabs,
             deep,
             plan,
+            expand,
             apply,
             max_requests,
             league,
             realm,
         } => {
-            if plan {
+            if let Some(source) = plan {
+                // Bare `--plan` compiles the stored policy; `=FILE` renders
+                // a reviewed envelope.
+                let source = (!source.is_empty()).then_some(source);
                 return plan_cmd::refresh_plan(
                     realm.unwrap_or(Realm::DEFAULT),
                     league.as_deref().unwrap_or("Standard"),
+                    source.as_deref(),
                     cli.json,
+                    expand,
                 )
                 .await;
             }
@@ -912,59 +938,256 @@ async fn list(client: &mut Client) -> Result<Vec<JobInfo>> {
 /// Default CLI mode: block with progress until the job finishes, then print
 /// its result. This is where "rate limited, retrying in 4m37s..." UX lives.
 pub(crate) async fn block_on_job(client: &mut Client, id: u64, json: bool) -> Result<()> {
+    wait_for_job(client, id, json).await?;
+    print_result(client, id, json).await
+}
+
+/// Progress is redrawn in place only on a tty; captured output (the
+/// driver's `.out` files, an agent's shell) gets a plain line per change,
+/// at most every this often — a 13-minute apply is not 1,500 lines.
+const PROGRESS_EVERY: Duration = Duration::from_secs(10);
+
+/// Block until the job is terminal and return its outcome. `quiet` skips
+/// the progress line (JSON mode: stdout is the outcome, nothing else).
+pub(crate) async fn wait_for_job(client: &mut Client, id: u64, quiet: bool) -> Result<Outcome> {
+    let tty = std::io::stdout().is_terminal();
     let mut last = String::new();
+    let mut last_print: Option<Instant> = None;
     loop {
         let job = client.status(id).await?;
-        if !json {
-            let line = match (job.state, job.eta_seconds) {
-                (JobState::Waiting, Some(eta)) if eta > 0 && job.retries > 0 => {
-                    format!("job {id}: got a 429, retry {} in ~{eta}s...", job.retries)
+        let terminal = job.state.is_terminal();
+        if !quiet {
+            let line = progress_line(client, &job).await?;
+            let due = last_print.is_none_or(|t| t.elapsed() >= PROGRESS_EVERY);
+            if line != last && (tty || terminal || due) {
+                if tty {
+                    print!("\r\x1b[2K{line}");
+                    std::io::stdout().flush().ok();
+                } else {
+                    println!("{line}");
                 }
-                (JobState::Waiting, Some(eta)) if eta > 0 => {
-                    format!("job {id}: rate limited, starting in ~{eta}s...")
-                }
-                (state, _) => format!("job {id}: {state}"),
-            };
-            if line != last {
-                print!("\r\x1b[2K{line}");
-                std::io::stdout().flush().ok();
                 last = line;
+                last_print = Some(Instant::now());
             }
         }
-        if job.state.is_terminal() {
-            if !json {
+        if terminal {
+            if !quiet && tty {
                 println!();
             }
-            return print_result(client, id, json).await;
+            return match client.request(&Request::Result { id }).await? {
+                Response::Result { outcome, .. } => Ok(outcome),
+                Response::Error { message } => bail!("{message}"),
+                other => bail!("unexpected response: {other:?}"),
+            };
         }
         tokio::time::sleep(Duration::from_millis(500)).await;
     }
 }
 
-async fn print_result(client: &mut Client, id: u64, json: bool) -> Result<()> {
-    match client.request(&Request::Result { id }).await? {
-        Response::Result { outcome, .. } => {
-            if json {
-                println!("{}", serde_json::to_string_pretty(&outcome)?);
-                // A failed job exits 1 in both output modes; the outcome
-                // above is the report, so main adds no second message.
-                return match outcome {
-                    Outcome::Failure { .. } => Err(AlreadyReported.into()),
-                    _ => Ok(()),
-                };
-            }
-            match outcome {
-                Outcome::Success { payload } => {
-                    println!("{}", serde_json::to_string_pretty(&payload)?)
-                }
-                Outcome::Failure { error } => bail!("job {id} failed: {error}"),
-                Outcome::Cancelled => println!("job {id} was cancelled"),
-            }
-            Ok(())
+/// What the children of a parent job are doing right now.
+#[derive(Default)]
+struct ChildTally {
+    total: usize,
+    done: usize,
+    failed: usize,
+    cancelled: usize,
+    waiting: usize,
+    running: usize,
+    /// The soonest predicted start among waiting children, with its kind.
+    next: Option<(u64, String)>,
+}
+
+async fn tally_children(client: &mut Client, parent: u64) -> Result<ChildTally> {
+    let mut tally = ChildTally::default();
+    for job in list(client).await? {
+        if job.parent != Some(parent) {
+            continue;
         }
+        tally.total += 1;
+        match job.state {
+            JobState::Done => tally.done += 1,
+            JobState::Failed => tally.failed += 1,
+            JobState::Cancelled => tally.cancelled += 1,
+            JobState::Running => tally.running += 1,
+            JobState::Waiting => {
+                tally.waiting += 1;
+                if let Some(eta) = job.eta_seconds
+                    && eta > 0
+                    && tally.next.as_ref().is_none_or(|(e, _)| eta < *e)
+                {
+                    tally.next = Some((eta, job.kind.clone()));
+                }
+            }
+        }
+    }
+    Ok(tally)
+}
+
+/// One line of progress: a parent reports its children (`30/112 done, 82
+/// waiting, next in ~343s (limiter hold on stash)`), any other job its
+/// own state and ETA.
+async fn progress_line(client: &mut Client, job: &JobInfo) -> Result<String> {
+    let id = job.id;
+    if matches!(job.kind.as_str(), "apply" | "refresh") && job.state != JobState::Waiting {
+        let t = tally_children(client, id).await?;
+        if t.total > 0 {
+            let mut line = format!("job {id}: {}/{} done", t.done, t.total);
+            if t.failed > 0 {
+                line.push_str(&format!(", {} failed", t.failed));
+            }
+            if t.cancelled > 0 {
+                line.push_str(&format!(", {} cancelled", t.cancelled));
+            }
+            if t.running > 0 {
+                line.push_str(&format!(", {} running", t.running));
+            }
+            if t.waiting > 0 {
+                line.push_str(&format!(", {} waiting", t.waiting));
+            }
+            if let Some((eta, kind)) = t.next {
+                line.push_str(&format!(", next in ~{eta}s (limiter hold on {kind})"));
+            }
+            return Ok(line);
+        }
+    }
+    Ok(match (job.state, job.eta_seconds) {
+        (JobState::Waiting, Some(eta)) if eta > 0 && job.retries > 0 => {
+            format!("job {id}: got a 429, retry {} in ~{eta}s...", job.retries)
+        }
+        (JobState::Waiting, Some(eta)) if eta > 0 => {
+            format!("job {id}: rate limited, starting in ~{eta}s...")
+        }
+        (state, _) => format!("job {id}: {state}"),
+    })
+}
+
+/// The daemon's parent failure line, `k of n child jobs failed: [ids]
+/// (acq result <id> for each)`, read back into its parts. The shape is the
+/// daemon's (`maybe_finish_parent`); a change there must change this too,
+/// and the unit test below pins the coupling.
+fn parse_children_failure(error: &str) -> Option<(usize, usize, Vec<u64>)> {
+    let (head, rest) = error.split_once(" child jobs failed: [")?;
+    let (k, n) = head.split_once(" of ")?;
+    let ids_text = rest.split_once(']')?.0;
+    let ids = ids_text
+        .split(',')
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(|s| s.parse::<u64>().ok())
+        .collect::<Option<Vec<u64>>>()?;
+    Some((k.trim().parse().ok()?, n.trim().parse().ok()?, ids))
+}
+
+/// At most this many failed children are expanded inline; the rest are
+/// counted and `acq jobs` named.
+const FAILED_CHILDREN_SHOWN: usize = 10;
+
+/// The text report for an `apply` parent (rule 4 of the legibility
+/// ruling): success as one line with the child range; failure as the
+/// count, then one line per failed child — its id, kind, target, and
+/// the error that names its evidence.
+pub(crate) async fn report_apply(client: &mut Client, id: u64, outcome: &Outcome) -> String {
+    match outcome {
+        Outcome::Success { payload } => {
+            let requests = payload["requests"].as_u64().unwrap_or(0);
+            let done = payload["children"]["done"].as_u64().unwrap_or(0);
+            let ids: Vec<u64> = payload["child_jobs"]
+                .as_array()
+                .map(|a| a.iter().filter_map(serde_json::Value::as_u64).collect())
+                .unwrap_or_default();
+            let range = match (ids.iter().min(), ids.iter().max()) {
+                (Some(a), Some(b)) if a == b => format!(" (job {a})"),
+                (Some(a), Some(b)) => format!(" (jobs {a}–{b})"),
+                _ => String::new(),
+            };
+            format!(
+                "job {id} done: {requests} request{}, {done} done{range}\n",
+                if requests == 1 { "" } else { "s" }
+            )
+        }
+        Outcome::Failure { error } => {
+            let Some((k, n, ids)) = parse_children_failure(error) else {
+                return format!("job {id} failed: {error}\n");
+            };
+            let mut out = format!(
+                "job {id} failed: {k} of {n} request{} failed, {} done\n",
+                if n == 1 { "" } else { "s" },
+                n.saturating_sub(k)
+            );
+            // The children as the daemon lists them this lifetime; after
+            // a restart only their ids (from the message) remain.
+            let listed: Vec<JobInfo> = list(client)
+                .await
+                .unwrap_or_default()
+                .into_iter()
+                .filter(|j| j.parent == Some(id) && j.state == JobState::Failed)
+                .collect();
+            let mut rows: Vec<(String, String, String)> = Vec::new();
+            for cid in ids.iter().take(FAILED_CHILDREN_SHOWN) {
+                let label = match listed.iter().find(|j| j.id == *cid) {
+                    Some(j) => format!("{} {}", j.kind, j.target()),
+                    None => String::new(),
+                };
+                let cause = match client.request(&Request::Result { id: *cid }).await {
+                    Ok(Response::Result {
+                        outcome: Outcome::Failure { error },
+                        ..
+                    }) => error,
+                    _ => format!("(acq result {cid})"),
+                };
+                rows.push((format!("job {cid}"), label, cause));
+            }
+            let w1 = rows.iter().map(|r| r.0.len()).max().unwrap_or(0);
+            let w2 = rows.iter().map(|r| r.1.chars().count()).max().unwrap_or(0);
+            for (a, b, c) in &rows {
+                out.push_str(&format!("  {a:<w1$}  {b:<w2$}  {c}\n"));
+            }
+            if ids.len() > FAILED_CHILDREN_SHOWN {
+                out.push_str(&format!(
+                    "  and {} more failed: acq jobs\n",
+                    ids.len() - FAILED_CHILDREN_SHOWN
+                ));
+            }
+            out
+        }
+        Outcome::Cancelled => format!("job {id} was cancelled\n"),
+    }
+}
+
+async fn print_result(client: &mut Client, id: u64, json: bool) -> Result<()> {
+    let outcome = match client.request(&Request::Result { id }).await? {
+        Response::Result { outcome, .. } => outcome,
         Response::Error { message } => bail!("{message}"),
         other => bail!("unexpected response: {other:?}"),
+    };
+    if json {
+        println!("{}", serde_json::to_string_pretty(&outcome)?);
+        // A failed job exits 1 in both output modes; the outcome above is
+        // the report, so main adds no second message.
+        return match outcome {
+            Outcome::Failure { .. } => Err(AlreadyReported.into()),
+            _ => Ok(()),
+        };
     }
+    // An apply parent's payload is a child-id list and a tally; a person
+    // wants the report, not the array. (Status may be gone after a daemon
+    // restart; then the generic rendering serves.)
+    let kind = client.status(id).await.map(|j| j.kind).unwrap_or_default();
+    if kind == "apply" {
+        print!("{}", report_apply(client, id, &outcome).await);
+        return match outcome {
+            Outcome::Failure { .. } => Err(AlreadyReported.into()),
+            _ => Ok(()),
+        };
+    }
+    match outcome {
+        Outcome::Success { payload } => {
+            println!("{}", serde_json::to_string_pretty(&payload)?)
+        }
+        Outcome::Failure { error } => bail!("job {id} failed: {error}"),
+        Outcome::Cancelled => println!("job {id} was cancelled"),
+    }
+    Ok(())
 }
 
 fn print_table(jobs: &[JobInfo]) {
@@ -972,32 +1195,97 @@ fn print_table(jobs: &[JobInfo]) {
         println!("no jobs");
         return;
     }
-    println!(
-        "{:>4}  {:>6}  {:<10}  {:<22}  {:<10}  {:>4}  {:<16}  {:<12}  eta",
-        "id", "parent", "kind", "target", "state", "prio", "account", "by"
-    );
-    for job in jobs {
-        let eta = job
-            .eta_seconds
-            .map(|s| format!("~{s}s"))
-            .unwrap_or_default();
+    // Widths from the data: a route label or an account name must never
+    // push the columns out of line or be cut.
+    let rows: Vec<[String; 9]> = jobs
+        .iter()
+        .map(|job| {
+            [
+                job.id.to_string(),
+                job.parent.map(|p| p.to_string()).unwrap_or_default(),
+                job.kind.clone(),
+                job.target(),
+                if job.retries > 0 {
+                    format!("{} ↻{}", job.state, job.retries)
+                } else {
+                    job.state.to_string()
+                },
+                job.priority.to_string(),
+                job.account.clone().unwrap_or_else(|| "-".into()),
+                job.submitted_by.clone(),
+                job.eta_seconds
+                    .map(|s| format!("~{s}s"))
+                    .unwrap_or_default(),
+            ]
+        })
+        .collect();
+    let heads = [
+        "id", "parent", "kind", "target", "state", "prio", "account", "by", "eta",
+    ];
+    let mut w = [0usize; 9];
+    for (i, h) in heads.iter().enumerate() {
+        w[i] = h.len();
+    }
+    for r in &rows {
+        for (i, cell) in r.iter().enumerate() {
+            w[i] = w[i].max(cell.chars().count());
+        }
+    }
+    let line = |cells: [&str; 9]| {
+        format!(
+            "{:>w0$}  {:>w1$}  {:<w2$}  {:<w3$}  {:<w4$}  {:>w5$}  {:<w6$}  {:<w7$}  {}",
+            cells[0],
+            cells[1],
+            cells[2],
+            cells[3],
+            cells[4],
+            cells[5],
+            cells[6],
+            cells[7],
+            cells[8],
+            w0 = w[0],
+            w1 = w[1],
+            w2 = w[2],
+            w3 = w[3],
+            w4 = w[4],
+            w5 = w[5],
+            w6 = w[6],
+            w7 = w[7],
+        )
+    };
+    println!("{}", line(heads).trim_end());
+    for r in &rows {
         println!(
-            "{:>4}  {:>6}  {:<10}  {:<22}  {:<10}  {:>4}  {:<16}  {:<12}  {}",
-            job.id,
-            job.parent.map(|p| p.to_string()).unwrap_or_default(),
-            job.kind,
-            job.target(),
-            if job.retries > 0 {
-                format!("{} ↻{}", job.state, job.retries)
-            } else {
-                job.state.to_string()
-            },
-            job.priority,
-            job.account.as_deref().unwrap_or("-"),
-            job.submitted_by,
-            eta
+            "{}",
+            line([
+                &r[0], &r[1], &r[2], &r[3], &r[4], &r[5], &r[6], &r[7], &r[8]
+            ])
+            .trim_end()
         );
     }
+    let count = |s: JobState| jobs.iter().filter(|j| j.state == s).count();
+    let mut parts = vec![format!("{} running", count(JobState::Running))];
+    let waiting = count(JobState::Waiting);
+    let next = jobs
+        .iter()
+        .filter(|j| j.state == JobState::Waiting)
+        .filter_map(|j| j.eta_seconds)
+        .filter(|e| *e > 0)
+        .min();
+    parts.push(match next {
+        Some(eta) => format!("{waiting} waiting (next in ~{eta}s)"),
+        None => format!("{waiting} waiting"),
+    });
+    parts.push(format!("{} done", count(JobState::Done)));
+    let failed = count(JobState::Failed);
+    if failed > 0 {
+        parts.push(format!("{failed} failed"));
+    }
+    let cancelled = count(JobState::Cancelled);
+    if cancelled > 0 {
+        parts.push(format!("{cancelled} cancelled"));
+    }
+    println!("{} jobs: {}", jobs.len(), parts.join(", "));
 }
 
 /// Re-render the job table once a second until every listed job is terminal.
@@ -1077,5 +1365,31 @@ mod tests {
 
     fn other_name(_: &Cmd) -> &'static str {
         "not refresh"
+    }
+
+    #[test]
+    fn plan_takes_an_optional_file_and_expand_needs_it() {
+        assert!(Cli::try_parse_from(["acq", "refresh", "--plan=plan.json"]).is_ok());
+        assert!(Cli::try_parse_from(["acq", "refresh", "--plan", "--expand"]).is_ok());
+        assert!(Cli::try_parse_from(["acq", "refresh", "--expand"]).is_err());
+        let cli = Cli::try_parse_from(["acq", "refresh", "--plan", "--json"]).unwrap();
+        match cli.cmd {
+            Cmd::Refresh { plan, .. } => assert_eq!(plan.as_deref(), Some("")),
+            other => panic!("parsed into the wrong command: {}", other_name(&other)),
+        }
+    }
+
+    #[test]
+    fn the_daemons_parent_failure_line_is_read_back_whole() {
+        // The exact shape `maybe_finish_parent` emits (daemon.rs), ids
+        // sorted at the source.
+        let (k, n, ids) = parse_children_failure(
+            "4 of 5 child jobs failed: [222, 223, 224, 226] (acq result <id> for each)",
+        )
+        .unwrap();
+        assert_eq!((k, n), (4, 5));
+        assert_eq!(ids, vec![222, 223, 224, 226]);
+        assert!(parse_children_failure("2 of 3 child jobs were cancelled").is_none());
+        assert!(parse_children_failure("GET /stash/x returned 404").is_none());
     }
 }

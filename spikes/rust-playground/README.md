@@ -351,7 +351,10 @@ acq policy set '<json>' [--if-revision N]    # validated through the planner's s
 acq refresh --plan [--realm R] [--league L]  # compile policy + facts into the explicit action set — sends nothing;
                                              #  a running daemon adds its read-only quote (never spawned for this),
                                              #  and --json prints the serialized plan envelope itself
-                                             #  (--realm poe2 plans a character-only entry)
+                                             #  (--realm poe2 plans a character-only entry). The text groups the
+                                             #  actions by kind and parent and counts by reason (a group of more
+                                             #  than ten is counted, never listed); --expand is one line per
+                                             #  action; --plan=FILE renders a reviewed envelope the same way
 acq refresh --apply[=plan.json]              # execute the plan: exactly its actions, as one `apply` parent job
                                              #  (bare --apply compiles the stored policy now; =FILE applies a
                                              #  reviewed envelope, =- reads stdin). Refused before any daemon
@@ -365,7 +368,9 @@ acq store characters [--realm R] [--league L]  # from the shared store: characte
                                              #  listed/fetched age, live item count (no daemon)
 acq items search <text> [--removed] [--realm R]  # substring search over name/type/base; socketed gems are rows too
 acq items show <id>                          # one item, verbatim
-acq store status | events [--hours N]        # row counts; what recent ingests concluded
+acq store status | events [--hours N]        # row counts; what recent ingests concluded — events as one line per
+                                             #  location with counts (text) or the event list (--json);
+                                             #  --expand / --summary pick either form in either mode
 acq store refused [id]                       # bodies the store refused as malformed, kept verbatim: the list, or one in full
 acq store import <snapshot.json> | rebuild   # replay a retired-pull snapshot (no GGG traffic); re-extract columns
 acq auth logout                              # drops session + keyring entry
@@ -385,6 +390,15 @@ acq result <id> --json                       # every command takes --json; answe
                                              #  --no-browser --json` prints {"authorize_url":…} first)
 acq daemon status                            # debugging only
 ```
+
+Reading the plan as an agent: the text is a function of the envelope, so
+count with `jq` rather than parsing prose —
+`jq '.logical_requests'`, `jq '[.actions[] | .action] | group_by(.) | map({(.[0]): length}) | add'`
+(requests by kind), `jq '[.actions[] | select(.action == "fetch_substash") | .parent] | group_by(.) | map({(.[0]): length}) | add'`
+(substashes per parent), `jq '[.skipped_tabs[], .skipped_characters[] | .reason.kind] | group_by(.) | map({(.[0]): length}) | add'`
+(skips by reason). `acq refresh --apply --json` adds `store_changes`
+beside the outcome; `acq store events --summary --json` is the
+per-location summary.
 
 To use the MCP server, point an MCP host at `target/debug/acq-mcp`
 (stdio); it shares the daemon and store with the CLI. It submits, applies
@@ -551,6 +565,7 @@ regression (N20) so the degraded path can be exercised.
   use (CONTEXT.md parking lot).
 - **A failed fetch child's result carries only the error string.** The
   body it refused is in `acq store refused <id>` (the error names the
-  id), not in `acq result`.
+  id), not in `acq result`; the parent's report (`acq refresh --apply`,
+  `acq result <parent>`) expands each failed child's line inline.
 - **Unix only.** No Windows named pipes yet; the protocol doesn't care.
 - Everything in CONTEXT.md's "Explicitly deferred" list.

@@ -292,6 +292,10 @@ pub struct TabRow {
     pub removed_at: Option<i64>,
     /// Live (not removed) items whose location is this tab.
     pub item_count: i64,
+    /// Item facts the last landed body carried (its `_split` count);
+    /// `None` when never fetched — so a reader can tell "fetched, and the
+    /// body was empty" from "never fetched" (legibility ruling, 2026-09-02).
+    pub fetched_items: Option<i64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -310,6 +314,11 @@ pub struct CharacterRow {
     pub fetched_at: Option<i64>,
     /// Live (not removed) items whose location is this character.
     pub item_count: i64,
+    /// Item facts the last landed body carried (the sum of its `_split`
+    /// counts, socketed gems excluded); `None` when never fetched or
+    /// revived without a standing fetch. A stripped character is
+    /// `Some(0)` beside `fetched_at`; a never-fetched one is `None`.
+    pub fetched_items: Option<i64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1300,7 +1309,9 @@ impl Store {
     ) -> Result<Vec<CharacterRow>> {
         let mut stmt = self.conn.prepare(
             "SELECT c.id, c.name, c.realm, c.league, c.class, c.level, c.listed_at, c.fetched_at,
-                    (SELECT count(*) FROM items i WHERE i.realm = c.realm AND i.location_kind = 'character' AND i.location_id = c.id AND i.removed_at IS NULL)
+                    (SELECT count(*) FROM items i WHERE i.realm = c.realm AND i.location_kind = 'character' AND i.location_id = c.id AND i.removed_at IS NULL),
+                    CASE WHEN c.fetched_at IS NULL OR json_type(c.json, '$._split') IS NULL THEN NULL
+                         ELSE (SELECT COALESCE(SUM(value), 0) FROM json_each(json_extract(c.json, '$._split'))) END
                FROM characters c
               WHERE c.removed_at IS NULL AND (?1 IS NULL OR c.realm = ?1) AND (?2 IS NULL OR c.league = ?2)
               ORDER BY c.realm, c.league, c.level DESC, c.name",
@@ -1316,6 +1327,7 @@ impl Store {
                 listed_at: r.get(6)?,
                 fetched_at: r.get(7)?,
                 item_count: r.get(8)?,
+                fetched_items: r.get(9)?,
             })
         })?;
         Ok(rows.collect::<Result<_, _>>()?)
@@ -1324,7 +1336,9 @@ impl Store {
     pub fn tabs(&self, realm: &str, league: &str) -> Result<Vec<TabRow>> {
         let mut stmt = self.conn.prepare(&format!(
             "SELECT t.realm, t.league, t.id, t.parent, COALESCE(t.name, ''), COALESCE(t.type, ''), t.idx, t.listed_at, t.fetched_at, t.removed_at,
-                    (SELECT count(*) FROM items i WHERE i.realm = t.realm AND i.league = t.league AND i.location_kind = 'stash' AND i.location_id = t.id AND i.removed_at IS NULL)
+                    (SELECT count(*) FROM items i WHERE i.realm = t.realm AND i.league = t.league AND i.location_kind = 'stash' AND i.location_id = t.id AND i.removed_at IS NULL),
+                    CASE WHEN t.fetched_at IS NULL THEN NULL
+                         ELSE COALESCE(json_extract(t.json, '$.stash._split.items'), json_extract(t.json, '$._split.items')) END
                FROM tabs t WHERE t.realm = ?1 AND t.league = ?2 AND t.removed_at IS NULL {TAB_ORDER_SQL}"
         ))?;
         let rows = stmt.query_map([realm, league], |r| {
@@ -1340,6 +1354,7 @@ impl Store {
                 fetched_at: r.get(8)?,
                 removed_at: r.get(9)?,
                 item_count: r.get(10)?,
+                fetched_items: r.get(11)?,
             })
         })?;
         Ok(rows.collect::<Result<_, _>>()?)

@@ -463,17 +463,24 @@ plan_identity() {
     jq -S 'del(.quote, .generated_at, .basis.snapshot_taken_at)
            | walk(if type == "object" then del(.age_seconds) else . end)' "$1"
 }
-# The action list of an envelope, one line each — rendered from the file
-# that will be applied, so what is confirmed is what goes out.
+# The action block of an envelope — rendered from the file that will be
+# applied, through the CLI's own renderer (`acq refresh --plan=FILE`: the
+# grouped view, the same text a human reviewing the file would read), so
+# what is confirmed is what goes out. The verdict line through the blank
+# line before the quote.
 render_actions() {
-    jq -r '.actions[] | "  \(.action)  \(.league // "(realm-wide)")  \(.parent // "")\(if .parent then "/" else "" end)\(.id // "")  \(.name // "")  \(.reason.kind)"' "$1"
+    "$ACQ" refresh --plan="$1" | awk '/^[0-9]+ requests?,/ { on = 1 } on && /^$/ { exit } on { print }'
+}
+# The quote block of a rendered plan (or the one-line reason there is none).
+quote_block() {
+    if grep -q '^quote (' "$1"; then sed -n '/^quote (/,/^next:/p' "$1" | grep -v '^next:'
+    else grep -E '^(no quote|daemon quote)' "$1" || true; fi
 }
 
 echo ""
-echo "the plan, compiled offline (no daemon is running):"
+echo "the plan, compiled offline (no daemon is running; checked):"
 offline_plan c1
 cat "$RUN_DIR/plan-c1-offline.txt"
-echo "(stderr) $(cat "$RUN_DIR/plan-c1-offline.note")"
 note "writing the policy and reading the first plan"
 
 # ---- phase 3: the cycles ----------------------------------------------------
@@ -573,8 +580,9 @@ for c in $(seq 1 "$CYCLES"); do
     echo "daemon $tag: pid $PID (ceiling $ceiling)"
 
     echo ""
-    echo "the same plan, now with the daemon up (quote attempt; nothing is sent):"
-    "$ACQ" refresh --plan --realm "$REALM" --league "$LEAGUE" 2>&1 | tee "$RUN_DIR/plan-$tag.txt"
+    echo "the same plan, now with the daemon up (quote attempt; nothing is sent) — its quote:"
+    "$ACQ" refresh --plan --realm "$REALM" --league "$LEAGUE" >"$RUN_DIR/plan-$tag.txt" 2>&1
+    quote_block "$RUN_DIR/plan-$tag.txt"
     "$ACQ" refresh --plan --realm "$REALM" --league "$LEAGUE" --json \
         >"$RUN_DIR/plan-$tag.json" 2>"$RUN_DIR/plan-$tag.note" || {
         cat "$RUN_DIR/plan-$tag.note" >&2; exit 1; }
@@ -596,7 +604,7 @@ for c in $(seq 1 "$CYCLES"); do
     fi
     [ "$(sends_since "$cycle_offset")" = 0 ] || { echo "*** the quote sent something" >&2; exit 1; }
     echo ""
-    echo "the envelope about to be applied ($RUN_DIR/plan-$tag.json), its $logical action(s) in order:"
+    echo "the envelope about to be applied ($RUN_DIR/plan-$tag.json), rendered from that file:"
     render_actions "$RUN_DIR/plan-$tag.json"
     confirm "apply exactly these $logical request(s) as one apply parent (--max-requests $logical); long waits are the limiter"
     "$ACQ" refresh --apply="$RUN_DIR/plan-$tag.json" --max-requests "$logical" --json \
@@ -764,14 +772,22 @@ cd "\$(dirname "\$0")" && shasum -a 256 -c checksums.sha256 >/dev/null &&
 EOS
 chmod +x "$RUN_DIR/verify.sh"
 
-verify() {
-    python3 "$RUN_DIR/tracer-verify.py" "$RUN_DIR/sends.jsonl" 0 "$CYCLE_ROWS" "$LOGIN_LIFETIME" "$CLOSED" "$MODE" "$REALM"
+# The full per-send form is the evidence (`summary.txt`, what verify.sh
+# reproduces); the terminal gets the brief form — one line per lifetime
+# with its totals, probe verdicts, and the limiter holds it saw — and the
+# verdict is the full run's.
+verify() { # [brief]
+    python3 "$RUN_DIR/tracer-verify.py" "$RUN_DIR/sends.jsonl" 0 "$CYCLE_ROWS" "$LOGIN_LIFETIME" "$CLOSED" "$MODE" "$REALM" ${1:+brief}
 }
-if ! verify | tee "$RUN_DIR/summary.txt"; then
+if verify >"$RUN_DIR/summary.txt"; then
+    verify brief
+else
+    cat "$RUN_DIR/summary.txt"
     echo ""
     echo "*** verification FAILED — see above; evidence in $RUN_DIR" >&2
     exit 1
 fi
+echo "(per-send detail in $RUN_DIR/summary.txt)"
 
 echo ""
 echo "evidence in $RUN_DIR (this run's journal and daemon-log slices, plans, apply results,"

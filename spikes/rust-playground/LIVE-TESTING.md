@@ -499,7 +499,13 @@ exactly after the planned sends as the cycle's end and any other halt
 (a tripwire trip, a ceiling with sends missing, a child not done) as a
 stop; reads the facts back and fails on a selected tab missing from the
 store or a read that errors; verifies the journal; drafts the ledger
-row; and prints the friction notes. `--mock` rehearses the identical
+row; and prints the friction notes. Its terminal output follows the
+legibility ruling (CONTEXT.md, 2026-09-02): the plan once per cycle
+(the offline compile, grouped), then only the quote block from the
+daemon-up compile, then the actions rendered from the file about to be
+applied (`acq refresh --plan=FILE`), and a brief verifier summary — one
+line per lifetime with send totals, probe verdicts, and the limiter
+holds seen — with the per-send form kept in `summary.txt`. `--mock` rehearses the identical
 flow, exact ceilings included, against the mock — run green 2026-09-01
 in both shapes (re-run green the same day after the handle ruling):
 `all` = login `1/0/1`, cycles `1/1/1` (bootstrap listing), `1/1/7`
