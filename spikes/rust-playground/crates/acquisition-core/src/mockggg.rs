@@ -638,11 +638,14 @@ async fn handle(
                 .await;
                 return;
             }
-            // The same tabs under every realm the stash family takes: tab
-            // ids collide across realms on purpose, so a store keyed by
-            // league alone would be caught mixing them.
+            // The mock account's stashes live on pc, as the owner's do:
+            // a console listing is empty and a console tab is 404. Tab
+            // and item ids are GGG-unique, so the mock never reuses pc's
+            // under another realm.
             let body = if policy_key == "/stash/tab" {
-                match mock_stash(parts[1], parts.get(2).copied()) {
+                match mock_stash(parts[1], parts.get(2).copied())
+                    .filter(|_| realm == crate::realm::Realm::Pc)
+                {
                     Some(v) => v,
                     None => {
                         respond(
@@ -656,7 +659,11 @@ async fn handle(
                     }
                 }
             } else if policy_key == "/stash" {
-                mock_stash_list(parts[0])
+                if realm == crate::realm::Realm::Pc {
+                    mock_stash_list(parts[0])
+                } else {
+                    json!({ "stashes": [] })
+                }
             } else if policy_key == "/character/name" {
                 mock_character(realm, parts[0])
             } else if req.path == "/account/leagues" {

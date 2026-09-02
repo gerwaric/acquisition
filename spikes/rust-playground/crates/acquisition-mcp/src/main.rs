@@ -290,7 +290,7 @@ impl AcqMcp {
     fn tabs(&self, Parameters(p): Parameters<TabsParams>) -> Result<Json<Value>, ErrorData> {
         let store = open_store(p.account.as_deref()).map_err(err)?;
         let tabs = store
-            .tabs(p.league.as_deref().unwrap_or("Standard"))
+            .tabs("pc", p.league.as_deref().unwrap_or("Standard"))
             .map_err(err)?;
         serde_json::to_value(tabs)
             .map(Json)
@@ -305,7 +305,7 @@ impl AcqMcp {
         Parameters(p): Parameters<CharactersParams>,
     ) -> Result<Json<Value>, ErrorData> {
         let store = open_store(p.account.as_deref()).map_err(err)?;
-        let rows = store.characters(p.league.as_deref()).map_err(err)?;
+        let rows = store.characters(None, p.league.as_deref()).map_err(err)?;
         serde_json::to_value(rows)
             .map(Json)
             .map_err(|e| err(e.into()))
@@ -322,6 +322,7 @@ impl AcqMcp {
         let items = store
             .search(
                 &p.text,
+                None,
                 p.league.as_deref(),
                 p.include_removed.unwrap_or(false),
                 p.limit.unwrap_or(50),
@@ -413,7 +414,11 @@ impl AcqMcp {
         let (dir, entry, annotations) = open_intent(p.account.as_deref()).map_err(err)?;
         let store = Store::open(&account_path(&dir, &entry.username)).map_err(err)?;
         let snapshot = store
-            .stash_snapshot(p.league.as_deref().unwrap_or("Standard"), &annotations)
+            .stash_snapshot(
+                "pc",
+                p.league.as_deref().unwrap_or("Standard"),
+                &annotations,
+            )
             .map_err(err)?;
         let plan = match plan_refresh(provider(), &snapshot, acquisition_store::now()) {
             Err(PlanError::NoSyncPolicy) => {

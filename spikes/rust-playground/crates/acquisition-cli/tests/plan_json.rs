@@ -70,6 +70,7 @@ fn seed_store(base: &Path) -> PathBuf {
     store
         .record(
             &Endpoint::Stashes {
+                realm: "pc".into(),
                 league: "Standard".into(),
             },
             &json!({ "league": "Standard" }),
@@ -228,6 +229,7 @@ fn json_stdout_is_the_contract_surface() {
     store
         .record(
             &Endpoint::Stash {
+                realm: "pc".into(),
                 league: "Standard".into(),
                 id: "t1".into(),
                 sub: None,

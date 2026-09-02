@@ -2,6 +2,10 @@
 -- via `record`) and by every frontend (readers). Raw responses are kept
 -- verbatim except at the item seams: every item array is lifted out into
 -- `items`, one row per GGG item id, socketed gems included.
+--
+-- `realm` is the coordinate above league (CONTEXT.md, 2026-09-02): PoE2
+-- shares league names with PoE1. It is the *request's* realm, stamped from
+-- the job params (pc when omitted), never read from a body.
 
 CREATE TABLE IF NOT EXISTS responses (
     id          INTEGER PRIMARY KEY,
@@ -28,6 +32,7 @@ CREATE TABLE IF NOT EXISTS account (
 
 CREATE TABLE IF NOT EXISTS characters (
     name        TEXT PRIMARY KEY,
+    realm       TEXT    NOT NULL DEFAULT 'pc',
     league      TEXT,
     class       TEXT,
     level       INTEGER,
@@ -38,6 +43,7 @@ CREATE TABLE IF NOT EXISTS characters (
 );
 
 CREATE TABLE IF NOT EXISTS tabs (
+    realm       TEXT NOT NULL DEFAULT 'pc',
     league      TEXT NOT NULL,
     id          TEXT NOT NULL,
     parent      TEXT,               -- folder id (from the list) or parent tab id (substash)
@@ -50,11 +56,12 @@ CREATE TABLE IF NOT EXISTS tabs (
     listed_response INTEGER,        -- responses.id of the listing (or parent fetch) that last listed this tab
     fetched_at  INTEGER,
     removed_at  INTEGER,
-    PRIMARY KEY (league, id)
+    PRIMARY KEY (realm, league, id)
 );
 
 CREATE TABLE IF NOT EXISTS items (
     id             TEXT PRIMARY KEY,   -- GGG item id, stable across moves
+    realm          TEXT,
     league         TEXT,
     location_kind  TEXT NOT NULL,      -- stash | character
     location_id    TEXT NOT NULL,      -- tab/substash id, or character name

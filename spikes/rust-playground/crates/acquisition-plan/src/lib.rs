@@ -1080,6 +1080,7 @@ mod tests {
     fn list(s: &mut Store, stashes: Value, at: i64) {
         s.record(
             &Endpoint::Stashes {
+                realm: "pc".into(),
                 league: "Standard".into(),
             },
             &json!({ "league": "Standard" }),
@@ -1094,6 +1095,7 @@ mod tests {
         let id = stash["id"].as_str().unwrap().to_string();
         s.record(
             &Endpoint::Stash {
+                realm: "pc".into(),
                 league: "Standard".into(),
                 id,
                 sub: None,
@@ -1119,7 +1121,7 @@ mod tests {
 
     fn snapshot(s: &Store) -> StashSnapshot {
         let a = Annotations::open_memory_for("u-1").unwrap();
-        s.stash_snapshot("Standard", &a).unwrap()
+        s.stash_snapshot("pc", "Standard", &a).unwrap()
     }
 
     /// Snapshot with `policy` installed as the stored sync-policy row —
@@ -1128,7 +1130,7 @@ mod tests {
         let mut a = Annotations::open_memory_for("u-1").unwrap();
         a.put("account", "", SYNC_POLICY_KIND, policy, None)
             .unwrap();
-        s.stash_snapshot("Standard", &a).unwrap()
+        s.stash_snapshot("pc", "Standard", &a).unwrap()
     }
 
     fn plan(s: &Store, policy: &Value, now: i64) -> RefreshPlan {
@@ -1278,7 +1280,7 @@ mod tests {
                 None,
             )
             .unwrap();
-        let snap = s.stash_snapshot("Standard", &a).unwrap();
+        let snap = s.stash_snapshot("pc", "Standard", &a).unwrap();
         let plan = plan_refresh("mock", &snap, 1100).unwrap();
         assert!(plan.actions.is_empty());
         assert_eq!(plan.logical_requests, 0);
@@ -1367,7 +1369,7 @@ mod tests {
             1010,
         );
         s.record(
-            &Endpoint::Stash {
+            &Endpoint::Stash { realm: "pc".into(),
                 league: "Standard".into(),
                 id: "m1".into(),
                 sub: Some("s1".into()),
@@ -1588,6 +1590,7 @@ mod tests {
         );
         s2.record(
             &Endpoint::Stash {
+                realm: "pc".into(),
                 league: "Standard".into(),
                 id: "m1".into(),
                 sub: Some("s0".into()),
@@ -1726,6 +1729,7 @@ mod tests {
         assert_eq!(
             Endpoint::from_job(kind, &params),
             Some(Endpoint::Stashes {
+                realm: "pc".into(),
                 league: "Standard".into()
             })
         );
@@ -1740,6 +1744,7 @@ mod tests {
         assert_eq!(
             Endpoint::from_job(kind, &params),
             Some(Endpoint::Stash {
+                realm: "pc".into(),
                 league: "Standard".into(),
                 id: "t1".into(),
                 sub: None,
@@ -1760,6 +1765,7 @@ mod tests {
         assert_eq!(
             Endpoint::from_job(kind, &params),
             Some(Endpoint::Stash {
+                realm: "pc".into(),
                 league: "Standard".into(),
                 id: "m1".into(),
                 sub: Some("s1".into()),

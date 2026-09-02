@@ -125,7 +125,7 @@ fn write_policy(
 pub async fn refresh_plan(league: &str, json: bool) -> Result<()> {
     let (dir, entry, annotations) = open_intent()?;
     let store = Store::open(&account_path(&dir, &entry.username))?;
-    let snapshot = store.stash_snapshot(league, &annotations)?;
+    let snapshot = store.stash_snapshot("pc", league, &annotations)?;
     let provider = store_cmd::provider();
     let now = acquisition_store::now();
     let plan = match plan_refresh(provider, &snapshot, now) {
@@ -180,7 +180,7 @@ pub async fn refresh_apply(
         None => {
             let league = league_flag.unwrap_or("Standard");
             let store = Store::open(&account_path(&dir, &entry.username))?;
-            let snapshot = store.stash_snapshot(league, &annotations)?;
+            let snapshot = store.stash_snapshot("pc", league, &annotations)?;
             match plan_refresh(provider, &snapshot, acquisition_store::now()) {
                 Err(PlanError::NoSyncPolicy) => bail!(
                     "no sync policy is set for {} — declare one first, e.g. \
@@ -649,6 +649,7 @@ mod tests {
         let snapshot = StashSnapshot {
             account_uuid: "u-cli".into(),
             account_name: Some("Alice#1234".into()),
+            realm: "pc".into(),
             league: "Standard".into(),
             taken_at: 1_000,
             listing: None,

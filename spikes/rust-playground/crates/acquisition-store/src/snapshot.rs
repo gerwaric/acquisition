@@ -63,8 +63,8 @@ pub struct TabSnapshot {
     pub item_count: i64,
 }
 
-/// A named snapshot of one league's stash facts plus the account's sync
-/// policy, taken with no daemon involved.
+/// A named snapshot of one (realm, league)'s stash facts plus the
+/// account's sync policy, taken with no daemon involved.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct StashSnapshot {
     /// The account uuid the facts file records (`/profile` lands at every
@@ -77,6 +77,9 @@ pub struct StashSnapshot {
     pub account_uuid: String,
     /// Display name beside the uuid, when the profile carried one.
     pub account_name: Option<String>,
+    /// The coordinate above league (CONTEXT.md, 2026-09-02): `Standard`
+    /// exists in both games, so facts are read per (realm, league).
+    pub realm: String,
     pub league: String,
     pub taken_at: i64,
     /// `None`: this league was never listed (tabs may still exist from
@@ -94,10 +97,15 @@ pub struct StashSnapshot {
 }
 
 impl Store {
-    /// Snapshot one league's stash facts and the account's sync-policy
-    /// row, so a plan's fact basis and annotation revision come from one
-    /// read, bound to one account.
-    pub fn stash_snapshot(&self, league: &str, annotations: &Annotations) -> Result<StashSnapshot> {
+    /// Snapshot one (realm, league)'s stash facts and the account's
+    /// sync-policy row, so a plan's fact basis and annotation revision
+    /// come from one read, bound to one account.
+    pub fn stash_snapshot(
+        &self,
+        realm: &str,
+        league: &str,
+        annotations: &Annotations,
+    ) -> Result<StashSnapshot> {
         // All fact reads share one read transaction: under WAL the daemon
         // commits while frontends read, and a listing landing between the
         // basis query and the tab query would pair the old response id
@@ -139,16 +147,18 @@ impl Store {
                 annotations.path().display()
             ),
         }
-        // The league of a listing lives in its params; an omitted league
-        // defaulted to "Standard" at record time (`Endpoint::from_job`),
-        // so the match here defaults the same way.
+        // The realm and league of a listing live in its params; omitted,
+        // they defaulted to pc / "Standard" at record time
+        // (`Endpoint::from_job`), so the match here defaults the same way
+        // — which is also how pre-realm rows keep answering for pc.
         let listing = tx
             .query_row(
                 "SELECT id, fetched_at FROM responses
                   WHERE endpoint = 'stashes' AND status BETWEEN 200 AND 299
-                    AND COALESCE(json_extract(params, '$.league'), 'Standard') = ?1
+                    AND COALESCE(json_extract(params, '$.realm'), 'pc') = ?1
+                    AND COALESCE(json_extract(params, '$.league'), 'Standard') = ?2
                   ORDER BY id DESC LIMIT 1",
-                [league],
+                [realm, league],
                 |r| {
                     Ok(ListingBasis {
                         response_id: r.get(0)?,
@@ -173,9 +183,9 @@ impl Store {
             let mut stmt = tx.prepare(&format!(
                 "SELECT t.id, t.parent, COALESCE(t.name, ''), COALESCE(t.type, ''), t.idx, t.listed_at, t.listed_response, t.fetched_at, t.listed_json,
                         (SELECT count(*) FROM items i WHERE i.location_kind = 'stash' AND i.location_id = t.id AND i.removed_at IS NULL)
-                   FROM tabs t WHERE t.league = ?1 AND t.removed_at IS NULL {TAB_ORDER_SQL}"
+                   FROM tabs t WHERE t.realm = ?1 AND t.league = ?2 AND t.removed_at IS NULL {TAB_ORDER_SQL}"
             ))?;
-            let rows = stmt.query_map([league], |r| {
+            let rows = stmt.query_map([realm, league], |r| {
                 Ok((
                     r.get(0)?,
                     r.get(1)?,
@@ -214,7 +224,9 @@ impl Store {
                         None => Value::Null,
                         Some(raw) => serde_json::from_str::<Value>(raw)
                             .with_context(|| {
-                                format!("tab {league}/{id}: malformed listing entry in store")
+                                format!(
+                                    "tab {realm}/{league}/{id}: malformed listing entry in store"
+                                )
                             })?
                             .get("metadata")
                             .cloned()
@@ -239,6 +251,7 @@ impl Store {
         Ok(StashSnapshot {
             account_uuid,
             account_name,
+            realm: realm.into(),
             league: league.into(),
             taken_at: crate::now(),
             listing,
@@ -256,12 +269,14 @@ mod tests {
 
     fn listing_ep() -> Endpoint {
         Endpoint::Stashes {
+            realm: "pc".into(),
             league: "Standard".into(),
         }
     }
 
     fn stash_ep(id: &str, sub: Option<&str>) -> Endpoint {
         Endpoint::Stash {
+            realm: "pc".into(),
             league: "Standard".into(),
             id: id.into(),
             sub: sub.map(str::to_string),
@@ -301,7 +316,7 @@ mod tests {
             100,
         )
         .unwrap();
-        let first = s.stash_snapshot("Standard", &a).unwrap();
+        let first = s.stash_snapshot("pc", "Standard", &a).unwrap();
         let basis = first.listing.unwrap();
         assert_eq!(basis.fetched_at, 100);
         assert!(first.policy.is_none());
@@ -327,7 +342,7 @@ mod tests {
                 None,
             )
             .unwrap();
-        let snap = s.stash_snapshot("Standard", &a).unwrap();
+        let snap = s.stash_snapshot("pc", "Standard", &a).unwrap();
         let later = snap.listing.unwrap();
         assert!(later.response_id > basis.response_id);
         assert_eq!(later.fetched_at, 200);
@@ -337,7 +352,12 @@ mod tests {
         // A tombstoned policy is no policy — but its revision still gates
         // the next write, which is the annotation layer's business.
         a.delete("account", "", SYNC_POLICY_KIND, 1).unwrap();
-        assert!(s.stash_snapshot("Standard", &a).unwrap().policy.is_none());
+        assert!(
+            s.stash_snapshot("pc", "Standard", &a)
+                .unwrap()
+                .policy
+                .is_none()
+        );
     }
 
     #[test]
@@ -345,7 +365,7 @@ mod tests {
         let mut s = store();
         let a = Annotations::open_memory_for("u-1").unwrap();
         s.record(
-            &Endpoint::Stashes {
+            &Endpoint::Stashes { realm: "pc".into(),
                 league: "Hardcore".into(),
             },
             &json!({ "league": "Hardcore" }),
@@ -364,7 +384,7 @@ mod tests {
             60,
         )
         .unwrap();
-        let std = s.stash_snapshot("Standard", &a).unwrap();
+        let std = s.stash_snapshot("pc", "Standard", &a).unwrap();
         assert!(std.listing.is_none());
         assert_eq!(std.tabs.len(), 1);
         let x1 = &std.tabs[0];
@@ -374,7 +394,7 @@ mod tests {
         );
         assert_eq!((x1.listed_response, x1.item_count), (None, 1));
         assert_eq!(x1.metadata, Value::Null);
-        let hc = s.stash_snapshot("Hardcore", &a).unwrap();
+        let hc = s.stash_snapshot("pc", "Hardcore", &a).unwrap();
         assert_eq!(hc.listing.unwrap().fetched_at, 50);
         assert_eq!(hc.tabs.len(), 1);
         assert_eq!(hc.tabs[0].id, "h1");
@@ -408,7 +428,7 @@ mod tests {
             110,
         )
         .unwrap();
-        let snap = s.stash_snapshot("Standard", &a).unwrap();
+        let snap = s.stash_snapshot("pc", "Standard", &a).unwrap();
         assert_eq!(
             snap.tabs.iter().map(|t| t.id.as_str()).collect::<Vec<_>>(),
             vec!["t1", "m1", "s1", "gone"]
@@ -434,7 +454,7 @@ mod tests {
         )
         .unwrap();
         let ids: Vec<String> = s
-            .stash_snapshot("Standard", &a)
+            .stash_snapshot("pc", "Standard", &a)
             .unwrap()
             .tabs
             .into_iter()
@@ -468,7 +488,7 @@ mod tests {
             110,
         )
         .unwrap();
-        let snap = s.stash_snapshot("Standard", &a).unwrap();
+        let snap = s.stash_snapshot("pc", "Standard", &a).unwrap();
         let t1 = &snap.tabs[0];
         assert_eq!(t1.metadata, json!({ "colour": "7c5436" }));
         assert_eq!((t1.fetched_at, t1.item_count), (Some(110), 1));
@@ -483,7 +503,7 @@ mod tests {
             120,
         )
         .unwrap();
-        let snap = s.stash_snapshot("Standard", &a).unwrap();
+        let snap = s.stash_snapshot("pc", "Standard", &a).unwrap();
         assert_eq!(snap.tabs[0].metadata, json!({ "colour": "ffffff" }));
     }
 
@@ -502,7 +522,7 @@ mod tests {
         // clock tick, or t2 stays live while the basis says otherwise.
         s.record(&listing_ep(), &json!({}), 200, &two, 100).unwrap();
         s.record(&listing_ep(), &json!({}), 200, &one, 100).unwrap();
-        let snap = s.stash_snapshot("Standard", &a).unwrap();
+        let snap = s.stash_snapshot("pc", "Standard", &a).unwrap();
         let basis = snap.listing.unwrap();
         assert_eq!(
             snap.tabs.iter().map(|t| t.id.as_str()).collect::<Vec<_>>(),
@@ -539,7 +559,7 @@ mod tests {
             err.downcast_ref::<crate::MalformedBody>().is_some(),
             "{err:#}"
         );
-        let snap = s.stash_snapshot("Standard", &a).unwrap();
+        let snap = s.stash_snapshot("pc", "Standard", &a).unwrap();
         assert_eq!(snap.listing.unwrap().fetched_at, 100);
         assert_eq!(snap.tabs.len(), 1);
         // An array whose entries lack their identity is just as malformed:
@@ -558,13 +578,13 @@ mod tests {
             err.downcast_ref::<crate::MalformedBody>().is_some(),
             "{err:#}"
         );
-        let snap = s.stash_snapshot("Standard", &a).unwrap();
+        let snap = s.stash_snapshot("pc", "Standard", &a).unwrap();
         assert_eq!(snap.listing.unwrap().fetched_at, 100);
         assert_eq!(snap.tabs.len(), 1);
         // Same rule for the character list: malformed is never "empty",
         // and a name-less entry poisons nothing.
         s.record(
-            &Endpoint::Characters,
+            &Endpoint::Characters { realm: "pc".into() },
             &json!({}),
             200,
             &json!({ "characters": [ { "name": "Hero", "league": "Standard" } ] }),
@@ -572,12 +592,18 @@ mod tests {
         )
         .unwrap();
         assert!(
-            s.record(&Endpoint::Characters, &json!({}), 200, &json!({}), 200)
-                .is_err()
+            s.record(
+                &Endpoint::Characters { realm: "pc".into() },
+                &json!({}),
+                200,
+                &json!({}),
+                200
+            )
+            .is_err()
         );
         assert!(
             s.record(
-                &Endpoint::Characters,
+                &Endpoint::Characters { realm: "pc".into() },
                 &json!({}),
                 200,
                 &json!({ "characters": [ { "league": "Standard" } ] }),
@@ -585,7 +611,7 @@ mod tests {
             )
             .is_err()
         );
-        assert_eq!(s.characters(None).unwrap().len(), 1);
+        assert_eq!(s.characters(None, None).unwrap().len(), 1);
     }
 
     #[test]
@@ -603,7 +629,7 @@ mod tests {
         s.conn
             .execute("UPDATE tabs SET listed_json = 'not json'", [])
             .unwrap();
-        let err = s.stash_snapshot("Standard", &a).unwrap_err();
+        let err = s.stash_snapshot("pc", "Standard", &a).unwrap_err();
         assert!(err.to_string().contains("Standard/t1"), "{err:#}");
     }
 
@@ -612,17 +638,17 @@ mod tests {
         let a = Annotations::open_memory_for("u-1").unwrap();
         // A facts file with no recorded account cannot bind intent.
         let s = Store::open_memory().unwrap();
-        let err = s.stash_snapshot("Standard", &a).unwrap_err();
+        let err = s.stash_snapshot("pc", "Standard", &a).unwrap_err();
         assert!(err.to_string().contains("no account identity"), "{err:#}");
         // A handle bound to another account's uuid is refused; a handle
         // never bound at all (raw open, no stored identity) is refused
         // too — never trusted to the caller.
         let s = store(); // records uuid u-1
         let other = Annotations::open_memory_for("u-2").unwrap();
-        let err = s.stash_snapshot("Standard", &other).unwrap_err();
+        let err = s.stash_snapshot("pc", "Standard", &other).unwrap_err();
         assert!(err.to_string().contains("u-2"), "{err:#}");
         let unbound = Annotations::open_memory().unwrap();
-        let err = s.stash_snapshot("Standard", &unbound).unwrap_err();
+        let err = s.stash_snapshot("pc", "Standard", &unbound).unwrap_err();
         assert!(err.to_string().contains("no account identity"), "{err:#}");
         // The account's own file is accepted — including when reopened
         // from its raw path, because the uuid lives inside the file.
@@ -634,7 +660,7 @@ mod tests {
         drop(Annotations::open_for(&dir, "u-1").unwrap());
         let reopened = Annotations::open(&annotations_path(&dir, "u-1")).unwrap();
         assert_eq!(reopened.uuid(), Some("u-1"));
-        let snap = s.stash_snapshot("Standard", &reopened).unwrap();
+        let snap = s.stash_snapshot("pc", "Standard", &reopened).unwrap();
         assert_eq!(snap.account_uuid, "u-1");
         // A copied/renamed file keeps its owner: u-2's database placed at
         // u-1's path still says u-2 and is refused.
@@ -648,8 +674,54 @@ mod tests {
         .unwrap();
         let copied = Annotations::open(&annotations_path(&dir2, "u-1")).unwrap();
         assert_eq!(copied.uuid(), Some("u-2"));
-        let err = s.stash_snapshot("Standard", &copied).unwrap_err();
+        let err = s.stash_snapshot("pc", "Standard", &copied).unwrap_err();
         assert!(err.to_string().contains("u-2"), "{err:#}");
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The basis and the tab set are per (realm, league): a pre-realm
+    /// listing row (no realm in its params) answers for pc, and the
+    /// console realm's listing is its own.
+    #[test]
+    fn the_basis_and_the_tab_set_are_per_realm() {
+        let mut s = store();
+        let a = Annotations::open_memory_for("u-1").unwrap();
+        s.record(
+            &listing_ep(),
+            &json!({ "league": "Standard" }),
+            200,
+            &json!({ "stashes": [ { "id": "t1", "name": "One", "type": "PremiumStash", "index": 0 } ] }),
+            100,
+        )
+        .unwrap();
+        s.record(
+            &Endpoint::Stashes {
+                realm: "xbox".into(),
+                league: "Standard".into(),
+            },
+            &json!({ "realm": "xbox", "league": "Standard" }),
+            200,
+            &json!({ "stashes": [ { "id": "t1", "name": "Console", "type": "PremiumStash", "index": 0 } ] }),
+            200,
+        )
+        .unwrap();
+        let pc = s.stash_snapshot("pc", "Standard", &a).unwrap();
+        let xbox = s.stash_snapshot("xbox", "Standard", &a).unwrap();
+        assert_eq!(
+            (pc.realm.as_str(), pc.listing.unwrap().fetched_at),
+            ("pc", 100)
+        );
+        assert_eq!(
+            (xbox.realm.as_str(), xbox.listing.unwrap().fetched_at),
+            ("xbox", 200)
+        );
+        assert_eq!(pc.tabs[0].name, "One");
+        assert_eq!(xbox.tabs[0].name, "Console");
+        assert!(
+            s.stash_snapshot("sony", "Standard", &a)
+                .unwrap()
+                .listing
+                .is_none()
+        );
     }
 }

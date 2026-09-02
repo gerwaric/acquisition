@@ -129,7 +129,7 @@ pub(crate) fn ago(now: i64, t: Option<i64>) -> String {
 
 pub fn tabs(league: &str, json: bool) -> Result<()> {
     let store = open()?;
-    let tabs = store.tabs(league)?;
+    let tabs = store.tabs("pc", league)?;
     if json {
         println!("{}", serde_json::to_string_pretty(&tabs)?);
         return Ok(());
@@ -182,7 +182,7 @@ pub fn search(
     json: bool,
 ) -> Result<()> {
     let store = open()?;
-    let items = store.search(text, league, removed, limit)?;
+    let items = store.search(text, None, league, removed, limit)?;
     if json {
         println!("{}", serde_json::to_string_pretty(&items)?);
         return Ok(());
@@ -347,12 +347,21 @@ pub fn import(path: &Path, json: bool) -> Result<()> {
         // poison removal), but an old pull snapshot is what it is.
         strip_idless_items(&mut items, &mut skipped_no_id);
         let body = json!({ "stash": { "id": id, "name": tab.get("name"), "type": tab.get("type"), "items": items } });
+        // A retired-pull snapshot predates realms: pc, the only realm it
+        // could have been taken on.
         let ep = Endpoint::Stash {
+            realm: "pc".into(),
             league: league.clone(),
             id: id.clone(),
             sub: None,
         };
-        let ing = store.record(&ep, &json!({ "league": league, "id": id }), 200, &body, at)?;
+        let ing = store.record(
+            &ep,
+            &json!({ "realm": "pc", "league": league, "id": id }),
+            200,
+            &body,
+            at,
+        )?;
         total.items += ing.items;
         total.added += ing.added;
         total.moved += ing.moved;

@@ -36,9 +36,12 @@ const SCHEMA: &str = include_str!("schema.sql");
 /// The fact-file schema this build reads and writes; a file stamped newer
 /// is refused (CONTEXT.md: schema versions and compatibility errors, never
 /// guessing). Version 2 added `tabs.listed_json` / `tabs.listed_response`;
-/// 0 is both "fresh file" and "pre-versioning file" — the DDL and column
-/// checks are idempotent, so one migration path serves both.
-const FACT_SCHEMA_VERSION: i64 = 2;
+/// version 3 added `realm` (the coordinate above league, 2026-09-02) to
+/// `tabs` (rekeyed `(realm, league, id)` — the table is rebuilt, every
+/// existing row as pc), `characters`, and `items`. 0 is both "fresh file"
+/// and "pre-versioning file" — the DDL and column checks are idempotent,
+/// so one migration path serves both.
+const FACT_SCHEMA_VERSION: i64 = 3;
 
 /// A facts file written by a newer build than this one. Facts are
 /// refetchable, but guessing at an unknown schema is how a file gets
@@ -100,15 +103,23 @@ const CHARACTER_ITEM_ARRAYS: &[&str] = &["inventory", "equipment", "jewels", "ru
 pub enum Endpoint {
     Leagues,
     Profile,
-    Characters,
+    /// `realm` on the four data endpoints is the request's realm — what
+    /// the URL was rendered with — and is what the facts are stamped
+    /// with; a body's own `realm` field stays verbatim in its json.
+    Characters {
+        realm: String,
+    },
     Character {
+        realm: String,
         name: String,
     },
     Stashes {
+        realm: String,
         league: String,
     },
     /// One tab or one substash; `sub` is the substash id under tab `id`.
     Stash {
+        realm: String,
         league: String,
         id: String,
         sub: Option<String>,
@@ -117,17 +128,28 @@ pub enum Endpoint {
 
 impl Endpoint {
     /// The daemon's job vocabulary → endpoint. `None` for kinds that carry
-    /// no storable response (probe, sleep, fetch, refresh…).
+    /// no storable response (probe, sleep, fetch, refresh…). This is the
+    /// decode boundary where an omitted realm means pc and an omitted
+    /// league means Standard, so persisted pre-realm jobs still decode;
+    /// the daemon sends both explicitly.
     pub fn from_job(kind: &str, params: &Value) -> Option<Endpoint> {
         let s = |k: &str| params.get(k).and_then(Value::as_str).map(str::to_string);
+        let realm = || s("realm").unwrap_or_else(|| "pc".into());
         let league = || s("league").unwrap_or_else(|| "Standard".into());
         Some(match kind {
             "leagues" => Endpoint::Leagues,
             "profile" => Endpoint::Profile,
-            "characters" => Endpoint::Characters,
-            "character" => Endpoint::Character { name: s("name")? },
-            "stashes" => Endpoint::Stashes { league: league() },
+            "characters" => Endpoint::Characters { realm: realm() },
+            "character" => Endpoint::Character {
+                realm: realm(),
+                name: s("name")?,
+            },
+            "stashes" => Endpoint::Stashes {
+                realm: realm(),
+                league: league(),
+            },
             "stash" => Endpoint::Stash {
+                realm: realm(),
                 league: league(),
                 id: s("id")?,
                 sub: s("sub"),
@@ -140,7 +162,7 @@ impl Endpoint {
         match self {
             Endpoint::Leagues => "leagues",
             Endpoint::Profile => "profile",
-            Endpoint::Characters => "characters",
+            Endpoint::Characters { .. } => "characters",
             Endpoint::Character { .. } => "character",
             Endpoint::Stashes { .. } => "stashes",
             Endpoint::Stash { .. } => "stash",
@@ -161,6 +183,7 @@ pub struct Ingest {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TabRow {
+    pub realm: String,
     pub league: String,
     pub id: String,
     pub parent: Option<String>,
@@ -177,6 +200,7 @@ pub struct TabRow {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CharacterRow {
     pub name: String,
+    pub realm: String,
     pub league: Option<String>,
     pub class: Option<String>,
     pub level: Option<i64>,
@@ -191,6 +215,7 @@ pub struct CharacterRow {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ItemRow {
     pub id: String,
+    pub realm: Option<String>,
     pub league: Option<String>,
     pub location_kind: String,
     pub location_id: String,
@@ -244,7 +269,7 @@ pub use snapshot::{
 
 /// Listing order shared by [`Store::tabs`] and [`Store::stash_snapshot`]:
 /// folder children after their folder, substashes after their tab.
-pub(crate) const TAB_ORDER_SQL: &str = "ORDER BY COALESCE((SELECT p.idx FROM tabs p WHERE p.league = t.league AND p.id = t.parent), t.idx, 1000000),
+pub(crate) const TAB_ORDER_SQL: &str = "ORDER BY COALESCE((SELECT p.idx FROM tabs p WHERE p.realm = t.realm AND p.league = t.league AND p.id = t.parent), t.idx, 1000000),
                        t.parent IS NOT NULL, COALESCE(t.idx, 0), t.name";
 
 pub fn now() -> i64 {
@@ -297,24 +322,44 @@ impl Store {
             FACT_SCHEMA_VERSION => {}
             _ => {
                 tx.execute_batch(SCHEMA)?;
-                for (column, ddl) in [
+                for (table, column, ddl) in [
                     (
+                        "tabs",
                         "listed_json",
                         "ALTER TABLE tabs ADD COLUMN listed_json TEXT",
                     ),
                     (
+                        "tabs",
                         "listed_response",
                         "ALTER TABLE tabs ADD COLUMN listed_response INTEGER",
                     ),
+                    // v3: realm, the coordinate above league. Existing
+                    // rows are pc — the only realm anything ever fetched.
+                    ("items", "realm", "ALTER TABLE items ADD COLUMN realm TEXT"),
+                    (
+                        "characters",
+                        "realm",
+                        "ALTER TABLE characters ADD COLUMN realm TEXT NOT NULL DEFAULT 'pc'",
+                    ),
                 ] {
-                    let present: i64 = tx.query_row(
-                        "SELECT count(*) FROM pragma_table_info('tabs') WHERE name = ?1",
-                        [column],
-                        |r| r.get(0),
-                    )?;
-                    if present == 0 {
+                    if !has_column(&tx, table, column)? {
                         tx.execute(ddl, [])?;
                     }
+                }
+                // v3 rekeys `tabs` as (realm, league, id). A primary key
+                // cannot be altered in place, so a pre-v3 table is rebuilt
+                // row for row (the listing columns above exist by now, so
+                // v0 and v2 files take the same path); items and events
+                // are untouched.
+                if !has_column(&tx, "tabs", "realm")? {
+                    tx.execute("ALTER TABLE tabs RENAME TO tabs_pre_realm", [])?;
+                    tx.execute_batch(SCHEMA)?;
+                    tx.execute(
+                        "INSERT INTO tabs (realm, league, id, parent, name, type, idx, json, listed_json, listed_at, listed_response, fetched_at, removed_at)
+                         SELECT 'pc', league, id, parent, name, type, idx, json, listed_json, listed_at, listed_response, fetched_at, removed_at FROM tabs_pre_realm",
+                        [],
+                    )?;
+                    tx.execute("DROP TABLE tabs_pre_realm", [])?;
                 }
                 tx.pragma_update(None, "user_version", FACT_SCHEMA_VERSION)?;
             }
@@ -343,12 +388,12 @@ impl Store {
         let tx = self.conn.transaction()?;
         let mut ingest = Ingest::default();
         let mut envelope = body.clone();
-        // (league, location_kind, location_id, items) per seam.
-        let mut seams: Vec<(Option<String>, &'static str, String, Vec<Value>)> = Vec::new();
-        // (league, id) per tab this response listed; stamped with the
-        // response id once the responses row exists, so listing membership
-        // is linked to the response a snapshot cites, never to the clock.
-        let mut listed_tabs: Vec<(String, String)> = Vec::new();
+        let mut seams: Vec<Seam> = Vec::new();
+        // (realm, league, id) per tab this response listed; stamped with
+        // the response id once the responses row exists, so listing
+        // membership is linked to the response a snapshot cites, never to
+        // the clock.
+        let mut listed_tabs: Vec<(String, String, String)> = Vec::new();
 
         match endpoint {
             Endpoint::Leagues => {
@@ -376,7 +421,7 @@ impl Store {
                     )?;
                 }
             }
-            Endpoint::Characters => {
+            Endpoint::Characters { realm } => {
                 // A 2xx body without a `characters` array is malformed
                 // input, not an empty account: treating it as empty would
                 // remove every character (CONTEXT.md: malformed external
@@ -401,20 +446,24 @@ impl Store {
                         .into());
                     };
                     tx.execute(
-                        "INSERT INTO characters (name, league, class, level, json, listed_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)
-                         ON CONFLICT(name) DO UPDATE SET league = excluded.league, class = excluded.class,
+                        "INSERT INTO characters (name, realm, league, class, level, json, listed_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+                         ON CONFLICT(name) DO UPDATE SET realm = excluded.realm, league = excluded.league, class = excluded.class,
                            level = excluded.level, json = excluded.json, listed_at = excluded.listed_at, removed_at = NULL",
-                        params![name, c.get("league").and_then(Value::as_str), c.get("class").and_then(Value::as_str),
+                        params![name, realm, c.get("league").and_then(Value::as_str), c.get("class").and_then(Value::as_str),
                                 c.get("level").and_then(Value::as_i64), c.to_string(), at],
                     )?;
                 }
-                // A character no longer listed is gone (deleted), with its items.
+                // A character no longer listed is gone (deleted), with its
+                // items. Realm-scoped: whether a list spans realms is
+                // undocumented, so a realm-R listing retires only realm-R
+                // rows — under-retires if lists span realms, never
+                // over-retires (CONTEXT.md, 2026-09-02).
                 tx.execute(
-                    "UPDATE characters SET removed_at = ?1 WHERE removed_at IS NULL AND (listed_at IS NULL OR listed_at < ?1)",
-                    params![at],
+                    "UPDATE characters SET removed_at = ?1 WHERE realm = ?2 AND removed_at IS NULL AND (listed_at IS NULL OR listed_at < ?1)",
+                    params![at, realm],
                 )?;
             }
-            Endpoint::Character { name } => {
+            Endpoint::Character { realm, name } => {
                 let Some(character) = envelope.get_mut("character").and_then(Value::as_object_mut)
                 else {
                     return Err(MalformedBody {
@@ -431,19 +480,25 @@ impl Store {
                 for key in CHARACTER_ITEM_ARRAYS {
                     if let Some(Value::Array(items)) = character.remove(*key) {
                         split.insert((*key).into(), json!(items.len()));
-                        seams.push((league.clone(), "character", name.clone(), items));
+                        seams.push(Seam {
+                            realm: realm.clone(),
+                            league: league.clone(),
+                            kind: "character",
+                            location_id: name.clone(),
+                            items,
+                        });
                     }
                 }
                 character.insert("_split".into(), Value::Object(split));
                 let c = Value::Object(character.clone());
                 tx.execute(
-                    "INSERT INTO characters (name, league, class, level, json, fetched_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)
-                     ON CONFLICT(name) DO UPDATE SET league = excluded.league, class = excluded.class,
+                    "INSERT INTO characters (name, realm, league, class, level, json, fetched_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+                     ON CONFLICT(name) DO UPDATE SET realm = excluded.realm, league = excluded.league, class = excluded.class,
                        level = excluded.level, json = excluded.json, fetched_at = excluded.fetched_at, removed_at = NULL",
-                    params![name, league, c.get("class").and_then(Value::as_str), c.get("level").and_then(Value::as_i64), c.to_string(), at],
+                    params![name, realm, league, c.get("class").and_then(Value::as_str), c.get("level").and_then(Value::as_i64), c.to_string(), at],
                 )?;
             }
-            Endpoint::Stashes { league } => {
+            Endpoint::Stashes { realm, league } => {
                 // A 2xx body without a `stashes` array is malformed input,
                 // not an empty account: treating it as empty would remove
                 // every listed tab and mint a false listing basis for later
@@ -461,6 +516,7 @@ impl Store {
                     upsert_listed_tab(
                         &tx,
                         "stashes",
+                        realm,
                         league,
                         tab,
                         None,
@@ -478,6 +534,7 @@ impl Store {
                         upsert_listed_tab(
                             &tx,
                             "stashes",
+                            realm,
                             league,
                             child,
                             folder,
@@ -489,7 +546,12 @@ impl Store {
                 }
                 // Removal happens below, keyed to this response's id.
             }
-            Endpoint::Stash { league, id, sub } => {
+            Endpoint::Stash {
+                realm,
+                league,
+                id,
+                sub,
+            } => {
                 let Some(stash) = envelope.get_mut("stash").and_then(Value::as_object_mut) else {
                     return Err(MalformedBody {
                         endpoint: "stash",
@@ -514,6 +576,7 @@ impl Store {
                     upsert_listed_tab(
                         &tx,
                         "stash",
+                        realm,
                         league,
                         child,
                         Some(id.clone()),
@@ -524,19 +587,25 @@ impl Store {
                 }
                 let fetched = Value::Object(stash.clone());
                 tx.execute(
-                    "INSERT INTO tabs (league, id, parent, name, type, json, fetched_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
-                     ON CONFLICT(league, id) DO UPDATE SET name = excluded.name, type = excluded.type,
+                    "INSERT INTO tabs (realm, league, id, parent, name, type, json, fetched_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+                     ON CONFLICT(realm, league, id) DO UPDATE SET name = excluded.name, type = excluded.type,
                        json = excluded.json, fetched_at = excluded.fetched_at, removed_at = NULL,
                        parent = COALESCE(excluded.parent, tabs.parent)",
-                    params![league, location, sub.as_ref().map(|_| id.clone()),
+                    params![realm, league, location, sub.as_ref().map(|_| id.clone()),
                             fetched.get("name").and_then(Value::as_str), fetched.get("type").and_then(Value::as_str),
                             fetched.to_string(), at],
                 )?;
-                seams.push((Some(league.clone()), "stash", location, items));
+                seams.push(Seam {
+                    realm: realm.clone(),
+                    league: Some(league.clone()),
+                    kind: "stash",
+                    location_id: location,
+                    items,
+                });
             }
         }
 
-        let item_count: usize = seams.iter().map(|s| s.3.len()).sum();
+        let item_count: usize = seams.iter().map(|s| s.items.len()).sum();
         tx.execute(
             "INSERT INTO responses (endpoint, params, fetched_at, status, envelope, item_count) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
             params![endpoint.name(), params.to_string(), at, status, envelope.to_string(), item_count as i64],
@@ -549,34 +618,42 @@ impl Store {
         // recorded within one clock second still retire dropped tabs,
         // and a snapshot's tab set can be checked against the basis it
         // cites (`TabSnapshot::listed_response`).
-        for (tab_league, tab_id) in &listed_tabs {
+        for (tab_realm, tab_league, tab_id) in &listed_tabs {
             tx.execute(
-                "UPDATE tabs SET listed_response = ?3 WHERE league = ?1 AND id = ?2",
-                params![tab_league, tab_id, response_id],
+                "UPDATE tabs SET listed_response = ?4 WHERE realm = ?1 AND league = ?2 AND id = ?3",
+                params![tab_realm, tab_league, tab_id, response_id],
             )?;
         }
-        if let Endpoint::Stashes { league } = endpoint {
+        if let Endpoint::Stashes { realm, league } = endpoint {
             // Not stamped by this listing → removed (top-level and folder
             // children; substashes are only known from fetches and keep
-            // their own row).
+            // their own row). A listing is one (realm, league)'s.
             tx.execute(
-                "UPDATE tabs SET removed_at = ?2 WHERE league = ?1 AND removed_at IS NULL
-                   AND (listed_response IS NULL OR listed_response <> ?3)
-                   AND (parent IS NULL OR parent IN (SELECT id FROM tabs t2 WHERE t2.league = ?1 AND t2.type = 'Folder'))",
-                params![league, at, response_id],
+                "UPDATE tabs SET removed_at = ?3 WHERE realm = ?1 AND league = ?2 AND removed_at IS NULL
+                   AND (listed_response IS NULL OR listed_response <> ?4)
+                   AND (parent IS NULL OR parent IN (SELECT id FROM tabs t2 WHERE t2.realm = ?1 AND t2.league = ?2 AND t2.type = 'Folder'))",
+                params![realm, league, at, response_id],
             )?;
         }
 
         // Every seam of one response is one location; a character's four
         // arrays share `character/<name>`, so removal runs once per location.
         let mut locations: Vec<(String, String)> = Vec::new();
-        for (league, kind, location_id, items) in seams {
+        for Seam {
+            realm,
+            league,
+            kind,
+            location_id,
+            items,
+        } in seams
+        {
             for item in items {
                 ingest_item(
                     &tx,
                     &mut ingest,
                     response_id,
                     at,
+                    &realm,
                     league.as_deref(),
                     kind,
                     &location_id,
@@ -633,46 +710,52 @@ impl Store {
     /// folder, substashes after their tab), removed ones excluded.
     /// Characters known to the store (deleted ones excluded), with live item
     /// counts. `league` restricts to one league; the list endpoint spans all.
-    pub fn characters(&self, league: Option<&str>) -> Result<Vec<CharacterRow>> {
+    pub fn characters(
+        &self,
+        realm: Option<&str>,
+        league: Option<&str>,
+    ) -> Result<Vec<CharacterRow>> {
         let mut stmt = self.conn.prepare(
-            "SELECT c.name, c.league, c.class, c.level, c.listed_at, c.fetched_at,
+            "SELECT c.name, c.realm, c.league, c.class, c.level, c.listed_at, c.fetched_at,
                     (SELECT count(*) FROM items i WHERE i.location_kind = 'character' AND i.location_id = c.name AND i.removed_at IS NULL)
                FROM characters c
-              WHERE c.removed_at IS NULL AND (?1 IS NULL OR c.league = ?1)
-              ORDER BY c.league, c.level DESC, c.name",
+              WHERE c.removed_at IS NULL AND (?1 IS NULL OR c.realm = ?1) AND (?2 IS NULL OR c.league = ?2)
+              ORDER BY c.realm, c.league, c.level DESC, c.name",
         )?;
-        let rows = stmt.query_map([league], |r| {
+        let rows = stmt.query_map([realm, league], |r| {
             Ok(CharacterRow {
                 name: r.get(0)?,
-                league: r.get(1)?,
-                class: r.get(2)?,
-                level: r.get(3)?,
-                listed_at: r.get(4)?,
-                fetched_at: r.get(5)?,
-                item_count: r.get(6)?,
+                realm: r.get(1)?,
+                league: r.get(2)?,
+                class: r.get(3)?,
+                level: r.get(4)?,
+                listed_at: r.get(5)?,
+                fetched_at: r.get(6)?,
+                item_count: r.get(7)?,
             })
         })?;
         Ok(rows.collect::<Result<_, _>>()?)
     }
 
-    pub fn tabs(&self, league: &str) -> Result<Vec<TabRow>> {
+    pub fn tabs(&self, realm: &str, league: &str) -> Result<Vec<TabRow>> {
         let mut stmt = self.conn.prepare(&format!(
-            "SELECT t.league, t.id, t.parent, COALESCE(t.name, ''), COALESCE(t.type, ''), t.idx, t.listed_at, t.fetched_at, t.removed_at,
+            "SELECT t.realm, t.league, t.id, t.parent, COALESCE(t.name, ''), COALESCE(t.type, ''), t.idx, t.listed_at, t.fetched_at, t.removed_at,
                     (SELECT count(*) FROM items i WHERE i.location_kind = 'stash' AND i.location_id = t.id AND i.removed_at IS NULL)
-               FROM tabs t WHERE t.league = ?1 AND t.removed_at IS NULL {TAB_ORDER_SQL}"
+               FROM tabs t WHERE t.realm = ?1 AND t.league = ?2 AND t.removed_at IS NULL {TAB_ORDER_SQL}"
         ))?;
-        let rows = stmt.query_map([league], |r| {
+        let rows = stmt.query_map([realm, league], |r| {
             Ok(TabRow {
-                league: r.get(0)?,
-                id: r.get(1)?,
-                parent: r.get(2)?,
-                name: r.get(3)?,
-                r#type: r.get(4)?,
-                idx: r.get(5)?,
-                listed_at: r.get(6)?,
-                fetched_at: r.get(7)?,
-                removed_at: r.get(8)?,
-                item_count: r.get(9)?,
+                realm: r.get(0)?,
+                league: r.get(1)?,
+                id: r.get(2)?,
+                parent: r.get(3)?,
+                name: r.get(4)?,
+                r#type: r.get(5)?,
+                idx: r.get(6)?,
+                listed_at: r.get(7)?,
+                fetched_at: r.get(8)?,
+                removed_at: r.get(9)?,
+                item_count: r.get(10)?,
             })
         })?;
         Ok(rows.collect::<Result<_, _>>()?)
@@ -683,6 +766,7 @@ impl Store {
     pub fn search(
         &self,
         text: &str,
+        realm: Option<&str>,
         league: Option<&str>,
         include_removed: bool,
         limit: usize,
@@ -690,20 +774,22 @@ impl Store {
         let pattern = format!("%{}%", text.replace('%', "\\%").replace('_', "\\_"));
         let mut stmt = self.conn.prepare(
             "SELECT id, league, location_kind, location_id, socketed_in, COALESCE(name, ''), COALESCE(type_line, ''),
-                    COALESCE(base_type, ''), rarity, stack_size, first_seen, last_seen, removed_at, json
+                    COALESCE(base_type, ''), rarity, stack_size, first_seen, last_seen, removed_at, json, realm
                FROM items
               WHERE (name LIKE ?1 ESCAPE '\\' OR type_line LIKE ?1 ESCAPE '\\' OR base_type LIKE ?1 ESCAPE '\\')
+                AND (?5 IS NULL OR realm = ?5)
                 AND (?2 IS NULL OR league = ?2)
                 AND (?3 OR removed_at IS NULL)
               ORDER BY location_kind, location_id, y, x
               LIMIT ?4",
         )?;
         let rows = stmt.query_map(
-            params![pattern, league, include_removed, limit as i64],
+            params![pattern, league, include_removed, limit as i64, realm],
             |r| {
                 let json: String = r.get(13)?;
                 Ok(ItemRow {
                     id: r.get(0)?,
+                    realm: r.get(14)?,
                     league: r.get(1)?,
                     location_kind: r.get(2)?,
                     location_id: r.get(3)?,
@@ -727,13 +813,14 @@ impl Store {
     pub fn item(&self, id: &str) -> Result<Option<ItemRow>> {
         let mut stmt = self.conn.prepare(
             "SELECT id, league, location_kind, location_id, socketed_in, COALESCE(name, ''), COALESCE(type_line, ''),
-                    COALESCE(base_type, ''), rarity, stack_size, first_seen, last_seen, removed_at, json FROM items WHERE id = ?1",
+                    COALESCE(base_type, ''), rarity, stack_size, first_seen, last_seen, removed_at, json, realm FROM items WHERE id = ?1",
         )?;
         Ok(stmt
             .query_row([id], |r| {
                 let json: String = r.get(13)?;
                 Ok(ItemRow {
                     id: r.get(0)?,
+                    realm: r.get(14)?,
                     league: r.get(1)?,
                     location_kind: r.get(2)?,
                     location_id: r.get(3)?,
@@ -823,15 +910,39 @@ impl Store {
 }
 
 #[allow(clippy::too_many_arguments)]
+/// One item array of a response and where its items live: the realm and
+/// league the request was made under, and the location (`kind`, `id`)
+/// the items are filed at. A character's arrays are several seams at one
+/// location.
+struct Seam {
+    realm: String,
+    league: Option<String>,
+    kind: &'static str,
+    location_id: String,
+    items: Vec<Value>,
+}
+
+/// Whether `table` has `column` — the migration's idempotence check.
+fn has_column(tx: &Connection, table: &str, column: &str) -> Result<bool> {
+    let present: i64 = tx.query_row(
+        "SELECT count(*) FROM pragma_table_info(?1) WHERE name = ?2",
+        [table, column],
+        |r| r.get(0),
+    )?;
+    Ok(present > 0)
+}
+
+#[allow(clippy::too_many_arguments)]
 fn upsert_listed_tab(
     tx: &Connection,
     via: &'static str,
+    realm: &str,
     league: &str,
     tab: &Value,
     parent: Option<String>,
     idx: &mut i64,
     at: i64,
-    listed: &mut Vec<(String, String)>,
+    listed: &mut Vec<(String, String, String)>,
 ) -> Result<()> {
     // Identity-bearing entries error rather than skip: an id-less entry
     // silently dropped would let a malformed list read as an authoritative
@@ -855,13 +966,13 @@ fn upsert_listed_tab(
     // survive the fetched body landing in `json`. On insert the entry
     // doubles as `json` until a fetch replaces it.
     tx.execute(
-        "INSERT INTO tabs (league, id, parent, name, type, idx, json, listed_json, listed_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?7, ?8)
-         ON CONFLICT(league, id) DO UPDATE SET parent = excluded.parent, name = excluded.name, type = excluded.type,
+        "INSERT INTO tabs (realm, league, id, parent, name, type, idx, json, listed_json, listed_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?8, ?9)
+         ON CONFLICT(realm, league, id) DO UPDATE SET parent = excluded.parent, name = excluded.name, type = excluded.type,
            idx = excluded.idx, listed_json = excluded.listed_json, listed_at = excluded.listed_at, removed_at = NULL",
-        params![league, id, parent, tab.get("name").and_then(Value::as_str), tab.get("type").and_then(Value::as_str),
+        params![realm, league, id, parent, tab.get("name").and_then(Value::as_str), tab.get("type").and_then(Value::as_str),
                 position, entry.to_string(), at],
     )?;
-    listed.push((league.to_string(), id.to_string()));
+    listed.push((realm.to_string(), league.to_string(), id.to_string()));
     Ok(())
 }
 
@@ -918,6 +1029,7 @@ fn ingest_item(
     ingest: &mut Ingest,
     response_id: i64,
     at: i64,
+    realm: &str,
     league: Option<&str>,
     kind: &'static str,
     location_id: &str,
@@ -955,9 +1067,9 @@ fn ingest_item(
     match &previous {
         None => {
             tx.execute(
-                "INSERT INTO items (id, league, location_kind, location_id, socketed_in, name, type_line, base_type, rarity, stack_size, x, y, w, h, json, first_seen, last_seen)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?16)",
-                params![id, league, kind, location_id, socketed_in, c.name, c.type_line, c.base_type, c.rarity, c.stack_size, c.x, c.y, c.w, c.h, json, at],
+                "INSERT INTO items (id, league, location_kind, location_id, socketed_in, name, type_line, base_type, rarity, stack_size, x, y, w, h, json, first_seen, last_seen, realm)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?16, ?17)",
+                params![id, league, kind, location_id, socketed_in, c.name, c.type_line, c.base_type, c.rarity, c.stack_size, c.x, c.y, c.w, c.h, json, at, realm],
             )?;
             tx.execute(
                 "INSERT INTO item_events (response_id, at, item_id, kind, to_location) VALUES (?1, ?2, ?3, 'added', ?4)",
@@ -972,9 +1084,9 @@ fn ingest_item(
             let changed = !same_item(&old, &item);
             tx.execute(
                 "UPDATE items SET league = ?2, location_kind = ?3, location_id = ?4, socketed_in = ?5, name = ?6, type_line = ?7, base_type = ?8,
-                        rarity = ?9, stack_size = ?10, x = ?11, y = ?12, w = ?13, h = ?14, json = ?15, last_seen = ?16, removed_at = NULL
+                        rarity = ?9, stack_size = ?10, x = ?11, y = ?12, w = ?13, h = ?14, json = ?15, last_seen = ?16, removed_at = NULL, realm = ?17
                   WHERE id = ?1",
-                params![id, league, kind, location_id, socketed_in, c.name, c.type_line, c.base_type, c.rarity, c.stack_size, c.x, c.y, c.w, c.h, json, at],
+                params![id, league, kind, location_id, socketed_in, c.name, c.type_line, c.base_type, c.rarity, c.stack_size, c.x, c.y, c.w, c.h, json, at, realm],
             )?;
             if moved {
                 tx.execute(
@@ -999,6 +1111,7 @@ fn ingest_item(
             ingest,
             response_id,
             at,
+            realm,
             league,
             kind,
             location_id,
@@ -1023,6 +1136,7 @@ mod tests {
 
     fn stash_ep(id: &str) -> Endpoint {
         Endpoint::Stash {
+            realm: "pc".into(),
             league: "Standard".into(),
             id: id.into(),
             sub: None,
@@ -1054,10 +1168,10 @@ mod tests {
         assert!(env["stash"].get("items").is_none());
         assert_eq!(env["stash"]["_split"]["items"], 2);
         assert_eq!(env["stash"]["metadata"]["colour"], "7c5436");
-        let tabs = s.tabs("Standard").unwrap();
+        let tabs = s.tabs("pc", "Standard").unwrap();
         assert_eq!(tabs.len(), 1);
         assert_eq!((tabs[0].id.as_str(), tabs[0].item_count), ("a", 2));
-        assert_eq!(s.search("foo", None, false, 10).unwrap().len(), 1);
+        assert_eq!(s.search("foo", None, None, false, 10).unwrap().len(), 1);
     }
 
     #[test]
@@ -1107,8 +1221,8 @@ mod tests {
             .unwrap();
         assert_eq!(ing.removed, 1);
         assert_eq!(s.item("i1").unwrap().unwrap().removed_at, Some(300));
-        assert!(s.search("foo", None, false, 10).unwrap().is_empty());
-        assert_eq!(s.search("foo", None, true, 10).unwrap().len(), 1);
+        assert!(s.search("foo", None, None, false, 10).unwrap().is_empty());
+        assert_eq!(s.search("foo", None, None, true, 10).unwrap().len(), 1);
         // And comes back: a move event from its removed state.
         let ing = s
             .record(
@@ -1194,7 +1308,12 @@ mod tests {
                 .get("socketedItems")
                 .is_none()
         );
-        assert_eq!(s.search("determination", None, false, 10).unwrap().len(), 1);
+        assert_eq!(
+            s.search("determination", None, None, false, 10)
+                .unwrap()
+                .len(),
+            1
+        );
         // Re-fetch with the gem unsocketed and gone: the gem is removed, the bow unchanged.
         let ing = s
             .record(
@@ -1217,10 +1336,11 @@ mod tests {
             { "id": "gone", "name": "Old", "type": "PremiumStash", "index": 3 },
         ]});
         let ep = Endpoint::Stashes {
+            realm: "pc".into(),
             league: "Standard".into(),
         };
         s.record(&ep, &json!({}), 200, &list, 10).unwrap();
-        let tabs = s.tabs("Standard").unwrap();
+        let tabs = s.tabs("pc", "Standard").unwrap();
         assert_eq!(
             tabs.iter().map(|t| t.id.as_str()).collect::<Vec<_>>(),
             vec!["f1", "c1", "m1", "gone"]
@@ -1232,20 +1352,21 @@ mod tests {
         s.record(&stash_ep("m1"), &json!({}), 200, &map, 11)
             .unwrap();
         let sub = Endpoint::Stash {
+            realm: "pc".into(),
             league: "Standard".into(),
             id: "m1".into(),
             sub: Some("s1".into()),
         };
         let ing = s.record(&sub, &json!({}), 200, &json!({ "stash": { "id": "s1", "name": "", "type": "MapStash", "parent": "m1", "items": [item("map1", "", 0)] } }), 12).unwrap();
         assert_eq!(ing.added, 1);
-        let tabs = s.tabs("Standard").unwrap();
+        let tabs = s.tabs("pc", "Standard").unwrap();
         let s1 = tabs.iter().find(|t| t.id == "s1").unwrap();
         assert_eq!((s1.parent.as_deref(), s1.item_count), (Some("m1"), 1));
         // The next list drops "gone": removed, but the substash (never listed) survives.
         let list2 = json!({ "stashes": [ { "id": "f1", "name": "Folder", "type": "Folder", "index": 0, "children": [ { "id": "c1", "name": "In folder", "type": "PremiumStash", "index": 1 } ] }, { "id": "m1", "name": "Maps", "type": "MapStash", "index": 2 } ] });
         s.record(&ep, &json!({}), 200, &list2, 20).unwrap();
         let ids: Vec<_> = s
-            .tabs("Standard")
+            .tabs("pc", "Standard")
             .unwrap()
             .into_iter()
             .map(|t| t.id)
@@ -1259,6 +1380,7 @@ mod tests {
         let body = json!({ "character": { "name": "Hero", "league": "Standard", "class": "Witch", "level": 90,
             "inventory": [ item("inv1", "Bag", 0) ], "equipment": [ item("eq1", "Helm", 0) ], "jewels": [] } });
         let ep = Endpoint::Character {
+            realm: "pc".into(),
             name: "Hero".into(),
         };
         let ing = s
@@ -1300,11 +1422,11 @@ mod tests {
             1,
         )
         .unwrap();
-        s.record(&Endpoint::Characters, &json!({}), 200, &json!({ "characters": [ { "name": "A", "class": "Witch", "level": 3, "league": "Standard" } ] }), 1).unwrap();
+        s.record(&Endpoint::Characters { realm: "pc".into() }, &json!({}), 200, &json!({ "characters": [ { "name": "A", "class": "Witch", "level": 3, "league": "Standard" } ] }), 1).unwrap();
         let st = s.status().unwrap();
         assert_eq!((st.leagues, st.characters, st.responses), (2, 1, 3));
         s.record(
-            &Endpoint::Characters,
+            &Endpoint::Characters { realm: "pc".into() },
             &json!({}),
             200,
             &json!({ "characters": [] }),
@@ -1318,7 +1440,7 @@ mod tests {
     fn characters_query_lists_live_rows_with_item_counts() {
         let mut s = Store::open_memory().unwrap();
         s.record(
-            &Endpoint::Characters,
+            &Endpoint::Characters { realm: "pc".into() },
             &json!({}),
             200,
             &json!({ "characters": [
@@ -1330,7 +1452,7 @@ mod tests {
         .unwrap();
         // Fetch fills fetched_at and lifts items into the character location.
         s.record(
-            &Endpoint::Character {
+            &Endpoint::Character { realm: "pc".into(),
                 name: "Hero".into(),
             },
             &json!({"name":"Hero"}),
@@ -1340,19 +1462,19 @@ mod tests {
             2,
         )
         .unwrap();
-        let all = s.characters(None).unwrap();
+        let all = s.characters(None, None).unwrap();
         assert_eq!(
             all.iter()
                 .map(|c| (c.name.as_str(), c.item_count, c.fetched_at.is_some()))
                 .collect::<Vec<_>>(),
             vec![("Mule", 0, false), ("Hero", 2, true)]
         );
-        let std_only = s.characters(Some("Standard")).unwrap();
+        let std_only = s.characters(None, Some("Standard")).unwrap();
         assert_eq!(std_only.len(), 1);
         assert_eq!(std_only[0].name, "Hero");
         // A character no longer listed disappears from the query.
         s.record(
-            &Endpoint::Characters,
+            &Endpoint::Characters { realm: "pc".into() },
             &json!({}),
             200,
             &json!({ "characters": [
@@ -1361,7 +1483,7 @@ mod tests {
             3,
         )
         .unwrap();
-        assert_eq!(s.characters(None).unwrap().len(), 1);
+        assert_eq!(s.characters(None, None).unwrap().len(), 1);
     }
 
     #[test]
@@ -1441,8 +1563,11 @@ mod tests {
             .unwrap();
         }
         let mut s = Store::open(&path).unwrap();
-        let tabs = s.tabs("Standard").unwrap();
-        assert_eq!(tabs[0].id, "old1");
+        let tabs = s.tabs("pc", "Standard").unwrap();
+        assert_eq!(
+            (tabs[0].id.as_str(), tabs[0].realm.as_str()),
+            ("old1", "pc")
+        );
         // The migrated file is stamped with the current schema version.
         let v: i64 = s
             .conn
@@ -1452,7 +1577,7 @@ mod tests {
         // The next listing stamps membership per response id and retires
         // the pre-migration row it dropped.
         s.record(
-            &Endpoint::Stashes {
+            &Endpoint::Stashes { realm: "pc".into(),
                 league: "Standard".into(),
             },
             &json!({}),
@@ -1462,7 +1587,7 @@ mod tests {
         )
         .unwrap();
         let ids: Vec<String> = s
-            .tabs("Standard")
+            .tabs("pc", "Standard")
             .unwrap()
             .into_iter()
             .map(|t| t.id)
@@ -1487,6 +1612,7 @@ mod tests {
         assert_eq!(
             Endpoint::from_job("stash", &json!({"league":"Standard","id":"a","sub":"b"})),
             Some(Endpoint::Stash {
+                realm: "pc".into(),
                 league: "Standard".into(),
                 id: "a".into(),
                 sub: Some("b".into())
@@ -1497,6 +1623,7 @@ mod tests {
         assert_eq!(
             Endpoint::from_job("stashes", &json!({})),
             Some(Endpoint::Stashes {
+                realm: "pc".into(),
                 league: "Standard".into()
             })
         );
@@ -1531,5 +1658,102 @@ mod tests {
             second < std::time::Duration::from_secs(5),
             "re-ingest took {second:?}"
         );
+    }
+
+    /// Realm is the coordinate above league (CONTEXT.md, 2026-09-02): the
+    /// same league and tab id under two realms are two rows, a listing
+    /// retires only its own realm's tabs, items carry the request's
+    /// realm, and a character listing never retires another realm's.
+    #[test]
+    fn realms_keep_the_same_league_and_id_apart() {
+        let mut s = Store::open_memory().unwrap();
+        let list = |realm: &str| Endpoint::Stashes {
+            realm: realm.into(),
+            league: "Standard".into(),
+        };
+        let body = json!({ "stashes": [ { "id": "t1", "name": "One", "type": "PremiumStash", "index": 0 } ] });
+        s.record(&list("pc"), &json!({}), 200, &body, 10).unwrap();
+        s.record(
+            &list("xbox"),
+            &json!({ "realm": "xbox", "league": "Standard" }),
+            200,
+            &body,
+            11,
+        )
+        .unwrap();
+        assert_eq!(s.tabs("pc", "Standard").unwrap().len(), 1);
+        assert_eq!(s.tabs("xbox", "Standard").unwrap()[0].realm, "xbox");
+        // An empty xbox listing retires the xbox row only.
+        s.record(
+            &list("xbox"),
+            &json!({ "realm": "xbox" }),
+            200,
+            &json!({ "stashes": [] }),
+            12,
+        )
+        .unwrap();
+        assert!(s.tabs("xbox", "Standard").unwrap().is_empty());
+        assert_eq!(s.tabs("pc", "Standard").unwrap()[0].id, "t1");
+        // Items are stamped with the request's realm; search filters on it.
+        let ing = s
+            .record(
+                &Endpoint::Stash {
+                    realm: "sony".into(),
+                    league: "Standard".into(),
+                    id: "s9".into(),
+                    sub: None,
+                },
+                &json!({ "realm": "sony", "league": "Standard", "id": "s9" }),
+                200,
+                &json!({ "stash": { "id": "s9", "name": "Sony", "type": "PremiumStash", "items": [ item("i1", "Foo", 0) ] } }),
+                13,
+            )
+            .unwrap();
+        assert_eq!(ing.added, 1);
+        assert_eq!(
+            s.item("i1").unwrap().unwrap().realm.as_deref(),
+            Some("sony")
+        );
+        assert_eq!(
+            s.search("foo", Some("sony"), None, false, 10)
+                .unwrap()
+                .len(),
+            1
+        );
+        assert!(
+            s.search("foo", Some("pc"), None, false, 10)
+                .unwrap()
+                .is_empty()
+        );
+        // A poe2 character listing leaves pc's characters alone.
+        s.record(
+            &Endpoint::Characters { realm: "pc".into() },
+            &json!({}),
+            200,
+            &json!({ "characters": [ { "name": "A", "league": "Standard" } ] }),
+            20,
+        )
+        .unwrap();
+        s.record(
+            &Endpoint::Characters {
+                realm: "poe2".into(),
+            },
+            &json!({ "realm": "poe2" }),
+            200,
+            &json!({ "characters": [ { "name": "B", "league": "Standard" } ] }),
+            21,
+        )
+        .unwrap();
+        let names: Vec<(String, String)> = s
+            .characters(None, None)
+            .unwrap()
+            .into_iter()
+            .map(|c| (c.realm, c.name))
+            .collect();
+        assert_eq!(
+            names,
+            vec![("pc".into(), "A".into()), ("poe2".into(), "B".into())]
+        );
+        assert_eq!(s.characters(Some("poe2"), None).unwrap().len(), 1);
     }
 }
