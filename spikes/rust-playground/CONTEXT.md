@@ -358,7 +358,7 @@ unchanged. The live rerun of the same five-id policy — the first
 two-cycle discovery sample (64 substashes, ~15 min of holds) — is the
 owner's, under the rung section.
 
-### Characters in the refresh plan — next session (agreed 2026-09-02, before pricing)
+### Characters in the refresh plan — next session (agreed 2026-09-02; design ruled 2026-09-02, before pricing)
 
 Why now: tabs and characters are the only two paths items take into
 the store, so this closes the ingest map ("the store holds what the C++
@@ -373,37 +373,157 @@ evidence on the grammar question pricing will ask (a near-sibling is a
 weak test, but it comes almost free, and strain here would be worth
 knowing first).
 
-**Decision the session opens with (owner): character identity.** The
-store keys characters by `name` today (`schema.sql`, `characters.name
-PRIMARY KEY`); the API's character object carries an `id`, and the
-fetch endpoint is `GET /character/{name}` — so names can change while
-ids do not, and a rename between the listing and the fetch fails that
-child honestly (D5a, the vanished-tab shape). Proposed: key on the id,
-carry the name as a fact that can move, render the fetch by the name
-the basis listing recorded. Confirm the `id` field against a stored
-list response before the schema moves (a facts-file migration; facts
-are refetchable).
+**Rulings (owner, 2026-09-02 design session).** Evidence: the run-ledger
+row `2026-09-02 characters sample` (`LIVE-TESTING.md`) and the official
+API reference, read the same day (documented facts below are pending
+ground-truth claims, master-side).
 
-Shape choices, proposed so the session does not re-derive them:
+- **Identity is the character `id`; the name is the address.** `id` is
+  a unique 64-hex string (documented; observed equal between list entry
+  and fetched body). The fetch endpoint takes the name, so a plan action
+  carries both: id for identity, coverage and reasons; name for the
+  request, taken from the basis listing. Same shape as a substash
+  fetched by `(parent, id)` from a cited basis: a name that moved fails
+  its child honestly (404) or lands a different id (a recreated name) —
+  the store records what the server said, keyed by the **body's** id,
+  the intended character stays stale, and the next listing reconciles
+  (D5a; fact drift does not refuse — the step-7 ruling). No expected-id
+  check on the fetch: a 200 under a stale name is a true fact, and
+  refusing it discards facts and wastes a paid send. Why the key must
+  move — three failures of name-keying, only the first about renames:
+  policy ids break on rename (intent references identity: the uuid
+  precedent, first-consumer treatment); a deleted-and-recreated name
+  inherits the old row's freshness and is never fetched (a planner
+  hole); a rename moves every item (false events). Items locate at the
+  character id.
+- **Realm is a coordinate above league, everywhere.** PoE2 1.0 ships
+  December 2026 (announced late August); league names collide across
+  realms (Standard exists in both games). Policy becomes
+  `realms.<R>.leagues.<L>.{tabs, characters, max_age_seconds}`
+  (**policy version 2**; a v1 policy upgrades on parse as realm pc); the
+  plan envelope carries realm beside league; the snapshot is taken per
+  `(realm, league)`; `tabs` and `characters` facts carry a realm column
+  (existing rows pc); realm is an explicit param on all four data kinds
+  (`stashes`, `stash`, `characters`, `character`), defaulted to pc only
+  at the decode boundary (`Endpoint::from_job`) so persisted pre-realm
+  jobs still decode. On the wire realm is a path segment and **pc is
+  expressed by omission — `pc` is not a legal segment value**
+  (documented), so pc URLs stay byte-identical to every live send so
+  far: the realm step costs no live spend, and the mock rehearsal
+  journal proves the URLs did not move.
+- **Which realms each route accepts is declared in one place, never one
+  shared list** (the `declare_route_knowledge` mold). Documented today:
+  `/character` and `/character/{name}` take `xbox|sony|poe2`;
+  `/stash…` and `/account/leagues` take `xbox|sony` and are titled
+  "PoE1 only". A policy naming `tabs` under `poe2` is a structured parse
+  error; no code path renders a stash URL with `poe2`. GGG is expected
+  to extend PoE2 to the other endpoints (almost certainly the same
+  segment): when it ships, the change is one row in that table plus a
+  first-contact sample under the standing rule. Not pre-enabled — an
+  unobserved URL shape is never sent.
+- **The store's realm is the request's realm**, stamped from the params
+  (the listing's or the fetch's), not the entry's `realm` field: the
+  docs give that field as `pc|xbox|sony` while the endpoint accepts
+  `poe2` (a contradiction, open until a PoE2 body is seen; the field
+  stays verbatim in the json). Observed: a pc list's 59 entries all
+  carry `realm: "pc"`. The address a plan renders is (request realm,
+  listed name) — the one combination guaranteed to fetch. Whether a
+  list spans realms is undocumented; the removal rule is realm-scoped
+  (a realm-R listing retires only realm-R characters it did not stamp):
+  under-retires if lists span realms, never over-retires.
+- **Listed `deleted` or `expired` characters are skipped with a named
+  reason, not fetched**, until evidence says otherwise. The docs define
+  neither beyond "always `true` if present", and the invalid-request
+  threshold (too many 4xx restricts the app, independent of rate
+  limits) makes a 404 hunt a real cost. Observed: characters in ended
+  leagues (Ancestors, Phrecia 2.0, an event) are listed with **no
+  `expired` flag**, so `expired` does not mean "league ended", and
+  **league names on characters are not restricted to
+  `/account/leagues`** — the planner treats the league key as an opaque
+  string. `Character.league` is optional (documented): a character with
+  none is reported as uncovered, never a failure.
+- **`skills` (PoE2) and `guardian` (PoE1: the inventory of an animate
+  guardian — untradeable, still worth knowing) join the lifted arrays,
+  and every item row records the array it came from** — a `container`
+  ingest fact beside `location_kind`/`location_id`, not a derived
+  column: it is not in the item's json, so `rebuild` cannot recompute
+  it, exactly like location. Necessity, not convenience: the live
+  guardian's five items carry `inventoryId` `Helm`/`BodyArmour`/
+  `Gloves`/`Boots`/`Weapon` with `x`/`y` 0 — the character's own slot
+  names — so the item alone cannot say which array it sits in, and
+  `inventoryId` has no documented values at all. Location stays the
+  character id (one removal pass per character); moving between arrays
+  stays a `changed` event. All five guardian items carried ids
+  (documented `Item.id` is optional; the store's id-less refusal
+  stands — check the same on the first PoE2 `skills` body).
+- **Drift tripwire at ingest.** GGG adds fields most leagues; a new item
+  array on `Character` would go un-lifted silently. After the declared
+  arrays are lifted, an array of item-shaped objects left in a character
+  envelope is counted and surfaced in `store status` — never a failure.
+- **`acq characters` and the MCP `characters` tool print the id beside
+  the name** (full 64-hex: matching is exact, a prefix cannot be pasted
+  into a policy). Name→id resolution at `policy set` is parked
+  (trigger: authoring friction) — it would make the stored policy
+  differ from what the human typed.
+- **Freshness heuristic, owner's call for v1:** the list entry carries
+  `experience` (observed on all 59), monotone for a character's life; a
+  listing newer than our fetch reporting a different `experience` proves
+  play since — the sibling of `ListedCountDisagrees`. A `league`
+  disagreement (a Hardcore death landing in Standard) is the same arm.
 
-- One policy, one plan, one loop: `leagues.<L>.characters: "all" |
-  [ids]` beside `tabs` — the list is account-wide with a league per
-  character, so a character is covered when its league's policy names
-  it. A separate character plan would be the "family" answer; not for
-  something this similar.
-- Plan actions `list_characters` and `fetch_character { id, name }`
-  (plan schema 5); the policy gains an additive field the strict parser
-  learns (policy version stays 1 unless the field's absence must mean
-  something other than "no characters"). The apply vocabulary widens
-  to `characters` and `character` — both single-request kinds; the
-  daemon stays plan-blind.
-- `Store::stash_snapshot` gains a sibling or a superset for characters
-  (facts named, nothing derived; the neutral-snapshot rule).
-- The same tests the tabs have: coverage, freshness, disagreement,
-  strict parse round trip, the process-level loop against the mock.
-- Live: one row under the tracer rung's standing rule — the account's
-  characters, list + fetches, two probes; the tight list window (2 per
-  10 s) is the limiter's, not the plan's.
+Shape (falls out of the rulings):
+
+- One policy, one plan, one loop: `characters: "all" | [ids]` beside
+  `tabs` under `realms.<R>.leagues.<L>`. The character list is per realm
+  (`list_characters { realm }`, no league — the envelope's league check
+  treats realm-wide actions as in-envelope); a character is covered when
+  its `(realm, league)` policy names it.
+- Actions `list_characters { realm, reason }` and `fetch_character
+  { realm, id, name, league, reason }` → `("characters", {realm})`,
+  `("character", {realm, name})`; skip reasons `Fresh`,
+  `AwaitingListing`, `Deleted`, `Expired`; separate `skipped_characters`
+  / `unknown_characters` lists. **Plan schema 5** (one bump covers realm
+  and characters). The apply vocabulary widens to `characters` and
+  `character`, both single-request; the daemon stays plan-blind.
+- Store: `characters` mirrors `tabs` — `id` PK, `realm`, `name`,
+  `league` (nullable), `json` (fetched), `listed_json` (a fetch never
+  touches it), `listed_at`, `listed_response`, `fetched_at`,
+  `removed_at`; membership stamped per listing response id. `tabs`
+  gains `realm` (PK `(realm, league, id)`). One facts-schema bump; the
+  character migration remaps through each row's json (`id` is there)
+  and drops rows whose json lacks it (facts are refetchable).
+- `Store::stash_snapshot` becomes the `(realm, league)` refresh
+  snapshot: stash listing basis + tabs, character listing basis (per
+  realm) + that league's characters, the policy row — one read
+  transaction, nothing derived.
+- Mock: realm paths on all four routes; one `poe2` character with a
+  `skills` array; a `guardian` array on a pc character with slot-named
+  `inventoryId`s; `frameTypeId` on items.
+- Tests: coverage, freshness, disagreement, deleted/expired skips, the
+  policy v1→v2 upgrade and strict round trip, the container column, the
+  drift tripwire, and the process-level loop against the mock with tabs
+  and characters in one policy.
+
+Order of work: (1) realm as its own gate-green step — it touches the tab
+slice already pinned live, which must stay green with pc throughout;
+(2) the character key, columns, lifted arrays, container, tripwire;
+(3) snapshot, planner, vocabulary, CLI/MCP; (4) live: one row under the
+tracer rung's standing rule — the account's characters, list + fetches,
+two probes (the tight list window, 2 per 10 s, is the limiter's, not the
+plan's); (5) **PoE2 first contact**: `GET /character/poe2` is documented
+live today — once the realm step exists, the owner creates a PoE2
+character and one first-contact sample under the standing rule (fresh
+daemon, ceiling 3: POST, HEAD, GET) answers what `Character.realm` says
+for a PoE2 character, whether the pc list omits it, and what `skills`
+items look like (ids present?).
+
+Pending ground-truth claims (documented facts read 2026-09-02, to be
+authored master-side and then cited here by number): realm segment
+semantics per endpoint and pc-by-omission; PoE2 on the character
+endpoints only; `Character.id` unique 64-hex, `Item.id` optional;
+`inventoryId` undocumented; the invalid-request (4xx) threshold; the
+`Character.realm` contradiction. Observed (this run): guardian slot
+names; ended-league names without `expired`.
 
 Exit: the loop closes on a policy naming tabs and characters together,
 live, with the driver's checks green; then pricing.
@@ -430,7 +550,7 @@ What a real consumer needed from the protocol and did not get. Facts, not decisi
 
 ## Explicitly deferred (do not build yet)
 
-- ~~Multi-account build steps~~ — built 2026-08-30, steps (1)–(6) of "Multi-account design"; step (7)'s first contacts are in `LIVE-TESTING.md`'s run ledger (`/profile`, `/account/leagues` done; `/character/{name}` pending). GGG answered Q12 (2026-08-30): `/profile` is not rate limited at present (declaration confirmed, kept), and `/account/leagues`' counted HEAD will be corrected in a future release — its no-probe declaration stays until the free HEAD is observed live, then it goes and the probe returns.
+- ~~Multi-account build steps~~ — built 2026-08-30, steps (1)–(6) of "Multi-account design"; step (7)'s first contacts are in `LIVE-TESTING.md`'s run ledger (`/profile`, `/account/leagues`, `/character/{name}` all done 2026-08-30). GGG answered Q12 (2026-08-30): `/profile` is not rate limited at present (declaration confirmed, kept), and `/account/leagues`' counted HEAD will be corrected in a future release — its no-probe declaration stays until the free HEAD is observed live, then it goes and the probe returns.
 - Queue-management UI (drag-to-reorder, per-job progress bars). v1.0 only guarantees the architecture makes this a rendering problem.
 - ~~Agent/MCP traffic against GGG~~ — deferral lifted 2026-09-01 (decision "Agent traffic against GGG is allowed; the daemon is the single gate"): GGG permits agent use under the API rules; `acq-mcp` now spends through a running daemon in either mode and never spawns one in real mode.
 - **Parking lot (2026-08-31, each with its trigger so deferral never needs re-arguing):**
