@@ -254,6 +254,14 @@ enum StoreCmd {
         #[arg(long, default_value_t = 200)]
         limit: usize,
     },
+    /// Bodies the store refused as malformed, kept verbatim as evidence:
+    /// the list (newest first), or one body in full by its row id.
+    Refused {
+        /// Row id from the list (or from the failed job's error).
+        id: Option<i64>,
+        #[arg(long, default_value_t = 50)]
+        limit: usize,
+    },
     /// Re-extract derived columns from each item's own JSON.
     Rebuild,
     /// Replay a snapshot file from the retired `acq pull` into the store (no GGG traffic).
@@ -433,6 +441,7 @@ async fn run(cli: Cli) -> Result<()> {
                 store_cmd::characters(realm, league.as_deref(), cli.json)
             }
             StoreCmd::Events { hours, limit } => store_cmd::events(hours, limit, cli.json),
+            StoreCmd::Refused { id, limit } => store_cmd::refused(id, limit, cli.json),
             StoreCmd::Rebuild => store_cmd::rebuild(cli.json),
             StoreCmd::Import { path } => store_cmd::import(&path, cli.json),
         },

@@ -44,10 +44,12 @@ const SCHEMA: &str = include_str!("schema.sql");
 /// columns to characters, `items.container`, and `items.seen_response`;
 /// version 5 (same day) added `responses.withheld` as a count, and
 /// version 6 (same day) made it nullable — NULL is "not withheld", so an
-/// empty withheld fetch is still marked. 0 is both "fresh file" and
-/// "pre-versioning file" — the DDL and column checks are idempotent, so
-/// one migration path serves both.
-const FACT_SCHEMA_VERSION: i64 = 6;
+/// empty withheld fetch is still marked; version 7 (same day) added the
+/// `refused` table — a body `record` refuses as malformed is kept there
+/// verbatim, as evidence, in a table no basis query reads. 0 is both
+/// "fresh file" and "pre-versioning file" — the DDL and column checks are
+/// idempotent, so one migration path serves both.
+const FACT_SCHEMA_VERSION: i64 = 7;
 
 /// A facts file written by a newer build than this one. Facts are
 /// refetchable, but guessing at an unknown schema is how a file gets
@@ -72,16 +74,44 @@ impl std::error::Error for SchemaTooNew {}
 
 /// Malformed external input at the record boundary: a 2xx body that lacks
 /// the identity-bearing shape ingest depends on. A stable kind (downcast
-/// target) per CONTEXT.md's structured-error rule; nothing is written when
-/// `record` returns it — the transaction rolls back whole, so a malformed
-/// body can never retire tabs, characters, or items, and never mints a
-/// response row a snapshot could cite as a basis.
+/// target) per CONTEXT.md's structured-error rule; no fact is written when
+/// `record` returns it — the ingest transaction rolls back whole, so a
+/// malformed body can never retire tabs, characters, or items, and never
+/// mints a response row a snapshot could cite as a basis. What it does
+/// leave (since 2026-09-02, PoE2 first contact: four of five character
+/// bodies refused for an id-less item, and nothing to read afterwards) is
+/// the body itself, verbatim, in `refused` — a table no basis query
+/// reads — so the finding can be inspected instead of re-fetched.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct MalformedBody {
     /// Endpoint whose body was malformed (`"stashes"`, `"characters"`, …).
     pub endpoint: &'static str,
     /// What was missing.
     pub missing: &'static str,
+    /// Where, when the missing thing is an item's id: the array and index.
+    pub at: Option<ItemAt>,
+    /// The `refused` row that kept the body, once `record` has written it
+    /// (`None` inside ingest, before the refusal is recorded).
+    pub kept: Option<i64>,
+}
+
+/// The position of an item in a body: `array[index]`, or a gem socketed
+/// in it, `array[index].socketedItems[socketed]`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ItemAt {
+    pub array: &'static str,
+    pub index: usize,
+    pub socketed: Option<usize>,
+}
+
+impl std::fmt::Display for ItemAt {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}[{}]", self.array, self.index)?;
+        if let Some(gem) = self.socketed {
+            write!(f, ".socketedItems[{gem}]")?;
+        }
+        Ok(())
+    }
 }
 
 impl std::fmt::Display for MalformedBody {
@@ -90,11 +120,46 @@ impl std::fmt::Display for MalformedBody {
             f,
             "malformed {} response: missing {}",
             self.endpoint, self.missing
-        )
+        )?;
+        if let Some(at) = self.at {
+            write!(f, " at `{at}`")?;
+        }
+        if let Some(id) = self.kept {
+            write!(f, " — body kept verbatim (`acq store refused {id}`)")?;
+        }
+        Ok(())
     }
 }
 
 impl std::error::Error for MalformedBody {}
+
+impl MalformedBody {
+    const fn new(endpoint: &'static str, missing: &'static str) -> Self {
+        Self {
+            endpoint,
+            missing,
+            at: None,
+            kept: None,
+        }
+    }
+}
+
+/// A body `record` refused as malformed, kept verbatim as evidence.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Refused {
+    pub id: i64,
+    pub endpoint: String,
+    pub params: Value,
+    pub fetched_at: i64,
+    pub status: u16,
+    /// The refusal, as `MalformedBody` displayed it (array and index
+    /// included when an item's id was the missing thing).
+    pub reason: String,
+    /// The whole body, untouched. `None` from `refused_list` (the listing
+    /// leaves bodies on disk); `Some` from `refused`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub body: Option<Value>,
+}
 
 /// Item fields the server re-randomizes per fetch (ground-truth N36), so
 /// they never count as a change.
@@ -298,6 +363,9 @@ pub struct Status {
     /// item facts they carried in total (`responses.withheld`).
     pub withheld_responses: i64,
     pub withheld_items: i64,
+    /// Bodies `record` refused as malformed and kept verbatim in
+    /// `refused` — evidence, never facts (`acq store refused`).
+    pub refused_bodies: i64,
 }
 
 pub mod annotations;
@@ -512,7 +580,10 @@ impl Store {
 
     /// Record one API response at time `at` (unix seconds). One transaction
     /// per response: the envelope, every lifted item, and the events the
-    /// comparison with what was already known produced.
+    /// comparison with what was already known produced. A body ingest
+    /// refuses as malformed rolls that transaction back whole and is then
+    /// kept verbatim in `refused`, in its own transaction, so the error
+    /// returned names the row holding the evidence (`MalformedBody::kept`).
     pub fn record(
         &mut self,
         endpoint: &Endpoint,
@@ -522,6 +593,40 @@ impl Store {
         at: i64,
     ) -> Result<Ingest> {
         let tx = self.conn.transaction()?;
+        match Self::record_in(&tx, endpoint, params, status, body, at) {
+            Ok(ingest) => {
+                tx.commit()?;
+                Ok(ingest)
+            }
+            Err(err) => {
+                tx.rollback()?;
+                match err.downcast::<MalformedBody>() {
+                    Ok(malformed) => {
+                        let reason = malformed.to_string();
+                        self.conn.execute(
+                            "INSERT INTO refused (endpoint, params, fetched_at, status, reason, body) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                            params![endpoint.name(), params.to_string(), at, status, reason, body.to_string()],
+                        )?;
+                        Err(MalformedBody {
+                            kept: Some(self.conn.last_insert_rowid()),
+                            ..malformed
+                        }
+                        .into())
+                    }
+                    Err(err) => Err(err),
+                }
+            }
+        }
+    }
+
+    fn record_in(
+        tx: &rusqlite::Transaction<'_>,
+        endpoint: &Endpoint,
+        params: &Value,
+        status: u16,
+        body: &Value,
+        at: i64,
+    ) -> Result<Ingest> {
         let mut ingest = Ingest::default();
         let mut envelope = body.clone();
         let mut seams: Vec<Seam> = Vec::new();
@@ -571,11 +676,7 @@ impl Store {
                 // remove every character (CONTEXT.md: malformed external
                 // input is a structured error). An empty array is fine.
                 let Some(list) = body.get("characters").and_then(Value::as_array) else {
-                    return Err(MalformedBody {
-                        endpoint: "characters",
-                        missing: "a `characters` array",
-                    }
-                    .into());
+                    return Err(MalformedBody::new("characters", "a `characters` array").into());
                 };
                 for c in list {
                     // Identity-bearing entries error rather than skip: a
@@ -585,17 +686,17 @@ impl Store {
                     // identity, `name` the address a plan renders — both
                     // documented required.
                     let Some(id) = c.get("id").and_then(Value::as_str) else {
-                        return Err(MalformedBody {
-                            endpoint: "characters",
-                            missing: "an `id` on a character entry",
-                        }
+                        return Err(MalformedBody::new(
+                            "characters",
+                            "an `id` on a character entry",
+                        )
                         .into());
                     };
                     let Some(name) = c.get("name").and_then(Value::as_str) else {
-                        return Err(MalformedBody {
-                            endpoint: "characters",
-                            missing: "a `name` on a character entry",
-                        }
+                        return Err(MalformedBody::new(
+                            "characters",
+                            "a `name` on a character entry",
+                        )
                         .into());
                     };
                     // The listing owns `league` (the coverage coordinate)
@@ -618,11 +719,7 @@ impl Store {
             }
             Endpoint::Character { realm, name } => {
                 let Some(character) = envelope.get("character").and_then(Value::as_object) else {
-                    return Err(MalformedBody {
-                        endpoint: "character",
-                        missing: "a `character` object",
-                    }
-                    .into());
+                    return Err(MalformedBody::new("character", "a `character` object").into());
                 };
                 // The body's id keys the row — a 200 under a stale name is
                 // a true fact about whoever holds that name now (CONTEXT.md:
@@ -633,17 +730,13 @@ impl Store {
                     .and_then(Value::as_str)
                     .map(str::to_string)
                 else {
-                    return Err(MalformedBody {
-                        endpoint: "character",
-                        missing: "an `id` on the character",
-                    }
-                    .into());
+                    return Err(MalformedBody::new("character", "an `id` on the character").into());
                 };
                 // The malformed-body contract holds whatever happens next:
                 // an id-less item is refused before the store decides
                 // whether the body lands or is withheld.
                 for key in CHARACTER_ITEM_ARRAYS {
-                    check_item_ids(character.get(*key), "character")?;
+                    check_item_ids(character.get(*key), "character", key)?;
                 }
                 // Membership is the listing's: at a location a listing has
                 // retired, the whole body stays verbatim in the response
@@ -748,16 +841,12 @@ impl Store {
                 // snapshots (CONTEXT.md: malformed external input is a
                 // structured error). An empty array is fine.
                 let Some(list) = body.get("stashes").and_then(Value::as_array) else {
-                    return Err(MalformedBody {
-                        endpoint: "stashes",
-                        missing: "a `stashes` array",
-                    }
-                    .into());
+                    return Err(MalformedBody::new("stashes", "a `stashes` array").into());
                 };
                 let mut idx = 0;
                 for tab in list {
                     upsert_listed_tab(
-                        &tx,
+                        tx,
                         "stashes",
                         realm,
                         league,
@@ -775,7 +864,7 @@ impl Store {
                     {
                         let folder = tab.get("id").and_then(Value::as_str).map(str::to_string);
                         upsert_listed_tab(
-                            &tx,
+                            tx,
                             "stashes",
                             realm,
                             league,
@@ -796,17 +885,13 @@ impl Store {
                 sub,
             } => {
                 let Some(stash) = envelope.get("stash").and_then(Value::as_object) else {
-                    return Err(MalformedBody {
-                        endpoint: "stash",
-                        missing: "a `stash` object",
-                    }
-                    .into());
+                    return Err(MalformedBody::new("stash", "a `stash` object").into());
                 };
                 let location = sub.clone().unwrap_or_else(|| id.clone());
                 // The malformed-body contract holds whatever happens next:
                 // an id-less item or substash stub is refused before the
                 // store decides whether the body lands or is withheld.
-                check_item_ids(stash.get("items"), "stash")?;
+                check_item_ids(stash.get("items"), "stash", "items")?;
                 for child in stash
                     .get("children")
                     .and_then(Value::as_array)
@@ -814,11 +899,9 @@ impl Store {
                     .flatten()
                 {
                     if child.get("id").and_then(Value::as_str).is_none() {
-                        return Err(MalformedBody {
-                            endpoint: "stash",
-                            missing: "an `id` on a listed tab entry",
-                        }
-                        .into());
+                        return Err(
+                            MalformedBody::new("stash", "an `id` on a listed tab entry").into()
+                        );
                     }
                 }
                 // A tab a listing retired — or a substash whose parent is —
@@ -858,7 +941,7 @@ impl Store {
                     let mut idx = 0;
                     for child in &children {
                         upsert_listed_tab(
-                            &tx,
+                            tx,
                             "stash",
                             realm,
                             league,
@@ -1023,7 +1106,7 @@ impl Store {
         {
             for item in items {
                 ingest_item(
-                    &tx,
+                    tx,
                     &mut ingest,
                     response_id,
                     at,
@@ -1077,11 +1160,80 @@ impl Store {
             }
             ingest.removed += removed.len();
         }
-        tx.commit()?;
         Ok(ingest)
     }
 
     // ---- the read side (frontends) ---------------------------------------
+
+    /// Bodies `record` refused as malformed, newest first, without their
+    /// bodies (`Refused::body` is `None`); `refused` reads one with it.
+    pub fn refused_list(&self, limit: usize) -> Result<Vec<Refused>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, endpoint, params, fetched_at, status, reason FROM refused ORDER BY id DESC LIMIT ?1",
+        )?;
+        let rows = stmt.query_map([limit as i64], |r| {
+            Ok((
+                r.get::<_, i64>(0)?,
+                r.get::<_, String>(1)?,
+                r.get::<_, String>(2)?,
+                r.get::<_, i64>(3)?,
+                r.get::<_, u16>(4)?,
+                r.get::<_, String>(5)?,
+            ))
+        })?;
+        let mut out = Vec::new();
+        for row in rows {
+            let (id, endpoint, params, fetched_at, status, reason) = row?;
+            out.push(Refused {
+                id,
+                endpoint,
+                params: serde_json::from_str(&params)
+                    .with_context(|| format!("refused row {id}: malformed stored params"))?,
+                fetched_at,
+                status,
+                reason,
+                body: None,
+            });
+        }
+        Ok(out)
+    }
+
+    /// One refused body, verbatim, by its `refused` row id.
+    pub fn refused(&self, id: i64) -> Result<Option<Refused>> {
+        let row = self
+            .conn
+            .query_row(
+                "SELECT endpoint, params, fetched_at, status, reason, body FROM refused WHERE id = ?1",
+                [id],
+                |r| {
+                    Ok((
+                        r.get::<_, String>(0)?,
+                        r.get::<_, String>(1)?,
+                        r.get::<_, i64>(2)?,
+                        r.get::<_, u16>(3)?,
+                        r.get::<_, String>(4)?,
+                        r.get::<_, String>(5)?,
+                    ))
+                },
+            )
+            .optional()?;
+        let Some((endpoint, params, fetched_at, status, reason, body)) = row else {
+            return Ok(None);
+        };
+        Ok(Some(Refused {
+            id,
+            endpoint,
+            params: serde_json::from_str(&params)
+                .with_context(|| format!("refused row {id}: malformed stored params"))?,
+            fetched_at,
+            status,
+            reason,
+            body: Some(
+                serde_json::from_str(&body)
+                    .with_context(|| format!("refused row {id}: malformed stored body"))?,
+            ),
+        }))
+    }
 
     pub fn status(&self) -> Result<Status> {
         let count = |sql: &str| -> Result<i64> { Ok(self.conn.query_row(sql, [], |r| r.get(0))?) };
@@ -1097,6 +1249,7 @@ impl Store {
             events: count("SELECT count(*) FROM item_events")?,
             withheld_responses: count("SELECT count(*) FROM responses WHERE withheld IS NOT NULL")?,
             withheld_items: count("SELECT COALESCE(SUM(withheld), 0) FROM responses")?,
+            refused_bodies: count("SELECT count(*) FROM refused")?,
             unlifted_items: count(
                 "SELECT COALESCE(SUM(value), 0) FROM characters c, json_each(json_extract(c.json, '$._unlifted'))
                   WHERE c.removed_at IS NULL",
@@ -1381,18 +1534,49 @@ struct Previous {
 }
 
 /// The identity check ingest applies to every item, run up front so it
-/// holds for a withheld body too: an id-less item anywhere in `items`
-/// (socketed gems included) is malformed, and nothing is written.
-fn check_item_ids(items: Option<&Value>, endpoint: &'static str) -> Result<()> {
-    for item in items.and_then(Value::as_array).into_iter().flatten() {
-        if item.get("id").and_then(Value::as_str).is_none() {
+/// holds for a withheld body too: an id-less item anywhere in `array`
+/// (socketed gems included) is malformed, and nothing is written. The
+/// error names the position, so a refused body can be read at the spot.
+fn check_item_ids(
+    items: Option<&Value>,
+    endpoint: &'static str,
+    array: &'static str,
+) -> Result<()> {
+    let id_less = |item: &Value| item.get("id").and_then(Value::as_str).is_none();
+    for (index, item) in items
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .enumerate()
+    {
+        let mut at = ItemAt {
+            array,
+            index,
+            socketed: None,
+        };
+        if id_less(item) {
             return Err(MalformedBody {
-                endpoint,
-                missing: "an `id` on an item",
+                at: Some(at),
+                ..MalformedBody::new(endpoint, "an `id` on an item")
             }
             .into());
         }
-        check_item_ids(item.get("socketedItems"), endpoint)?;
+        for (gem, socketed) in item
+            .get("socketedItems")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .enumerate()
+        {
+            if id_less(socketed) {
+                at.socketed = Some(gem);
+                return Err(MalformedBody {
+                    at: Some(at),
+                    ..MalformedBody::new(endpoint, "an `id` on an item")
+                }
+                .into());
+            }
+        }
     }
     Ok(())
 }
@@ -1486,11 +1670,7 @@ fn upsert_listed_tab(
     // clears its `fetched_at`: the facts at that location were retired
     // with it, so the next plan must fetch again.
     let Some(id) = tab.get("id").and_then(Value::as_str) else {
-        return Err(MalformedBody {
-            endpoint: via,
-            missing: "an `id` on a listed tab entry",
-        }
-        .into());
+        return Err(MalformedBody::new(via, "an `id` on a listed tab entry").into());
     };
     let mut entry = tab.clone();
     if let Some(o) = entry.as_object_mut() {
@@ -1583,11 +1763,7 @@ fn ingest_item(
     // pull snapshots that need tolerance get it at the import boundary
     // (`acq store import` strips and reports), never here.
     let Some(id) = item.get("id").and_then(Value::as_str).map(str::to_string) else {
-        return Err(MalformedBody {
-            endpoint: kind,
-            missing: "an `id` on an item",
-        }
-        .into());
+        return Err(MalformedBody::new(kind, "an `id` on an item").into());
     };
     // Socketed gems are items: lift them out, same location, parented.
     let gems = match item.as_object_mut().and_then(|o| o.remove("socketedItems")) {
@@ -1836,26 +2012,99 @@ mod tests {
         .unwrap();
         // A fetch whose items lack ids is refused whole: the held item is
         // neither removed nor half-replaced, and no response row lands.
+        // What does land is the body itself, verbatim, in `refused` — the
+        // error names the row and the item's position — so the finding
+        // can be read without another fetch (PoE2 first contact,
+        // 2026-09-02: four refusals and nothing to look at).
+        let body = stash("a", vec![json!({ "name": "NoId", "typeLine": "?" })]);
+        let err = s.record(&stash_ep("a"), &p, 200, &body, 200).unwrap_err();
+        let malformed = err
+            .downcast_ref::<MalformedBody>()
+            .unwrap_or_else(|| panic!("{err:#}"));
+        assert_eq!(
+            malformed.at,
+            Some(ItemAt {
+                array: "items",
+                index: 0,
+                socketed: None
+            })
+        );
+        assert_eq!(malformed.kept, Some(1));
+        assert_eq!(
+            err.to_string(),
+            "malformed stash response: missing an `id` on an item at `items[0]` — body kept verbatim (`acq store refused 1`)"
+        );
+        assert!(s.item("i1").unwrap().unwrap().removed_at.is_none());
+        let st = s.status().unwrap();
+        assert_eq!((st.responses, st.refused_bodies), (1, 1));
+        let kept = s.refused(1).unwrap().unwrap();
+        assert_eq!(kept.body, Some(body));
+        assert_eq!(
+            (kept.endpoint.as_str(), kept.fetched_at, kept.status),
+            ("stash", 200, 200)
+        );
+        assert_eq!(
+            kept.reason,
+            "malformed stash response: missing an `id` on an item at `items[0]`"
+        );
+        let listed = s.refused_list(10).unwrap();
+        assert_eq!(listed.len(), 1);
+        assert!(listed[0].body.is_none());
+        assert!(s.refused(2).unwrap().is_none());
+        // Same for a socketed gem without an id, at its own position.
+        let mut bow = item("bow", "Bow", 0);
+        bow["socketedItems"] = json!([{ "id": "g0" }, { "typeLine": "Nameless" }]);
         let err = s
             .record(
                 &stash_ep("a"),
                 &p,
                 200,
-                &stash("a", vec![json!({ "name": "NoId", "typeLine": "?" })]),
-                200,
+                &stash("a", vec![item("i1", "Foo", 0), bow]),
+                300,
             )
             .unwrap_err();
-        assert!(err.downcast_ref::<MalformedBody>().is_some(), "{err:#}");
+        let malformed = err
+            .downcast_ref::<MalformedBody>()
+            .unwrap_or_else(|| panic!("{err:#}"));
+        assert_eq!(
+            malformed.at,
+            Some(ItemAt {
+                array: "items",
+                index: 1,
+                socketed: Some(1)
+            })
+        );
+        assert_eq!(malformed.kept, Some(2));
         assert!(s.item("i1").unwrap().unwrap().removed_at.is_none());
-        assert_eq!(s.status().unwrap().responses, 1);
-        // Same for a socketed gem without an id.
-        let mut bow = item("bow", "Bow", 0);
-        bow["socketedItems"] = json!([{ "typeLine": "Nameless" }]);
+        assert!(s.item("bow").unwrap().is_none());
+        // A refused character body names the array it was in — the
+        // question a PoE2 `skills` refusal left open.
         let err = s
-            .record(&stash_ep("a"), &p, 200, &stash("a", vec![bow]), 300)
+            .record(
+                &Endpoint::Character {
+                    realm: "poe2".into(),
+                    name: "Hero".into(),
+                },
+                &json!({ "realm": "poe2", "name": "Hero" }),
+                200,
+                &json!({ "character": { "id": "c1", "name": "Hero", "equipment": [ item("eq1", "Helm", 0) ], "skills": [ item("s0", "Spark", 0), { "typeLine": "Default Attack" } ] } }),
+                400,
+            )
             .unwrap_err();
-        assert!(err.downcast_ref::<MalformedBody>().is_some(), "{err:#}");
-        assert!(s.item("i1").unwrap().unwrap().removed_at.is_none());
+        let malformed = err
+            .downcast_ref::<MalformedBody>()
+            .unwrap_or_else(|| panic!("{err:#}"));
+        assert_eq!(
+            malformed.at,
+            Some(ItemAt {
+                array: "skills",
+                index: 1,
+                socketed: None
+            })
+        );
+        assert_eq!(s.status().unwrap().refused_bodies, 3);
+        assert!(s.characters(None, None).unwrap().is_empty());
+        assert_eq!(s.refused(3).unwrap().unwrap().params["realm"], "poe2");
     }
 
     #[test]

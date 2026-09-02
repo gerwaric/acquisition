@@ -328,7 +328,51 @@ pub fn status(json: bool) -> Result<()> {
                 st.unlifted_items
             );
         }
+        if st.refused_bodies > 0 {
+            println!(
+                "refused: {} body(ies) the store would not ingest, kept verbatim as evidence (`acq store refused`)",
+                st.refused_bodies
+            );
+        }
     }
+    Ok(())
+}
+
+/// Bodies the store refused as malformed: the list, or one body in full.
+pub fn refused(id: Option<i64>, limit: usize, json: bool) -> Result<()> {
+    let store = open()?;
+    if let Some(id) = id {
+        let Some(row) = store.refused(id)? else {
+            anyhow::bail!("no refused body with id {id} (see `acq store refused`)");
+        };
+        if json {
+            println!("{}", serde_json::to_string_pretty(&row)?);
+        } else {
+            println!(
+                "refused {}  {} {}  fetched_at {}  status {}",
+                row.id, row.endpoint, row.params, row.fetched_at, row.status
+            );
+            println!("reason: {}", row.reason);
+            println!("{}", serde_json::to_string_pretty(&row.body)?);
+        }
+        return Ok(());
+    }
+    let rows = store.refused_list(limit)?;
+    if json {
+        println!("{}", serde_json::to_string_pretty(&rows)?);
+        return Ok(());
+    }
+    for r in &rows {
+        println!(
+            "{:>5}  {:<10} {:<40} {}  {}",
+            r.id,
+            r.endpoint,
+            r.params.to_string().chars().take(40).collect::<String>(),
+            r.fetched_at,
+            r.reason
+        );
+    }
+    println!("{} refused body(ies)", rows.len());
     Ok(())
 }
 

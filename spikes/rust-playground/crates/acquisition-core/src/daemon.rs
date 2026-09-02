@@ -783,7 +783,9 @@ resubmit if still wanted",
     /// malformed (`acquisition_store::MalformedBody` — the response itself
     /// is bad, and ingesting it would have poisoned facts) comes back as
     /// the job's `Outcome::Failure`, so the caller returns it instead of
-    /// reporting success. Genuine persistence trouble (an unopenable file,
+    /// reporting success; the store keeps that body verbatim in its
+    /// `refused` table and the failure names the row, so the finding is
+    /// readable without a re-fetch. Genuine persistence trouble (an unopenable file,
     /// a write error) stays logged-and-absorbed — the send happened and
     /// the payload still reaches the client that asked. The list-shaped
     /// jobs also pre-check their top-level array (a nicer early failure,

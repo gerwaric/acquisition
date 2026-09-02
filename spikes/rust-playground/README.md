@@ -72,7 +72,13 @@ bounded by `MAX_429_RETRIES`; a Cloudflare-shaped 403/503 is never retried.
   and `store status`) and nothing else lands, until a listing names the
   location again, which also clears its `fetched_at` — and its retained
   substashes' — so the next plan fetches them. A withheld body is
-  validated like any other: an id-less item is still refused whole. A location is its full coordinate (realm, league for
+  validated like any other: an id-less item is still refused whole. A
+  **refused body is kept verbatim** in `refused` (facts v7, 2026-09-02 —
+  PoE2 first contact refused four of five character bodies and left
+  nothing to read): the ingest transaction rolls back whole, no basis
+  query reads that table, the failure names the row and the item's
+  position (`skills[1]`), and `acq store refused [id]` shows the list or
+  one body in full. A location is its full coordinate (realm, league for
   a stash, kind, id), and events carry it whole. `accounts.json` next
   to the files is the non-secret account index: written at login/logout,
   read by frontends to resolve `ACQ_ACCOUNT` without a daemon, and read by
@@ -351,6 +357,7 @@ acq store characters [--realm R] [--league L]  # from the shared store: characte
 acq items search <text> [--removed] [--realm R]  # substring search over name/type/base; socketed gems are rows too
 acq items show <id>                          # one item, verbatim
 acq store status | events [--hours N]        # row counts; what recent ingests concluded
+acq store refused [id]                       # bodies the store refused as malformed, kept verbatim: the list, or one in full
 acq store import <snapshot.json> | rebuild   # replay a retired-pull snapshot (no GGG traffic); re-extract columns
 acq auth logout                              # drops session + keyring entry
 acq submit sleep --params '{"seconds": 5}'   # blocks with progress; daemon lazy-spawns

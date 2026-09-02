@@ -23,6 +23,21 @@ CREATE TABLE IF NOT EXISTS responses (
                                             -- of an empty location.
 );
 
+-- Bodies `record` refused as malformed (an id-less item, a listing
+-- without its array, …): the ingest transaction rolled back whole and
+-- nothing above cites these rows — no basis query reads this table. The
+-- body is kept verbatim so the refusal can be inspected (`acq store
+-- refused`) instead of re-fetched (facts v7, PoE2 first contact 2026-09-02).
+CREATE TABLE IF NOT EXISTS refused (
+    id          INTEGER PRIMARY KEY,
+    endpoint    TEXT    NOT NULL,
+    params      TEXT    NOT NULL,   -- the job params, verbatim JSON
+    fetched_at  INTEGER NOT NULL,
+    status      INTEGER NOT NULL,
+    reason      TEXT    NOT NULL,   -- the refusal as reported, position included
+    body        TEXT    NOT NULL    -- the whole body, untouched
+);
+
 CREATE TABLE IF NOT EXISTS leagues (
     id       TEXT PRIMARY KEY,
     json     TEXT    NOT NULL,
