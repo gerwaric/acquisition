@@ -1075,7 +1075,11 @@ without an OS error, the event grouping, the `-`/`0` items cell) and by
 the mock rehearsals of `tools/tracer-rung.sh` in both shapes (`all
 --characters all` and `--realm poe2 --characters all none`, green). The
 live run that judges it is the owner's, under `LIVE-TESTING.md`'s
-standing rule; its friction notes are this session's verdict.
+standing rule; its friction notes are this session's verdict. The
+owner's reading of the mock output before that run (2026-09-02):
+approved, and "still dense, verbose output" — density is the open
+item this build did not close, to be judged against the live run's
+notes, not pre-fixed.
 
 ## Frontend boundary findings (from `acq pull`, 2026-08-24; `pull` itself was retired 2026-08-29 in favor of the store)
 
