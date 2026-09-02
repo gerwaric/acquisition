@@ -88,7 +88,9 @@ CREATE TABLE IF NOT EXISTS items (
     json           TEXT    NOT NULL,   -- verbatim, minus socketedItems
     first_seen     INTEGER NOT NULL,
     last_seen      INTEGER NOT NULL,
-    removed_at     INTEGER             -- set when a fetch of its location no longer had it
+    seen_response  INTEGER,            -- responses.id of the fetch that last saw the item at its location:
+                                       -- membership is per response, never per clock second
+    removed_at     INTEGER             -- set when a fetch of its location no longer had it, or the location was retired
 );
 CREATE INDEX IF NOT EXISTS items_location ON items (location_kind, location_id);
 CREATE INDEX IF NOT EXISTS items_socketed_in ON items (socketed_in);

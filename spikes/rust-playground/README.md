@@ -61,7 +61,11 @@ bounded by `MAX_429_RETRIES`; a Cloudflare-shaped 403/503 is never retried.
   **account** under one directory per provider, named by the GGG username
   the token response reports): the daemon records every storable API
   response through one call, `Store::record(endpoint, params, status,
-  body)`, and every frontend reads the file directly. `accounts.json` next
+  body)`, and every frontend reads the file directly. Item membership is per
+  response, like listing membership: a fetch retires what it did not
+  carry at its location whatever the clock says, and a character or tab
+  a listing no longer names takes its items with it (retired, with
+  `removed` events). `accounts.json` next
   to the files is the non-secret account index: written at login/logout,
   read by frontends to resolve `ACQ_ACCOUNT` without a daemon, and read by
   the daemon at start to know which keyring entries (one per account) to
@@ -114,7 +118,8 @@ bounded by `MAX_429_RETRIES`; a Cloudflare-shaped 403/503 is never retried.
   staleness verdict; compiling them into requests is
   `acquisition-plan`'s job (tracer step 4, built 2026-09-01).
   A 2xx body missing its array/object or carrying an identity-less
-  entry (a tab or item without `id`, a character without `name`) is a
+  entry (a tab or item without `id`, a listed character without `id`
+  or `name`, a fetched character without `id`) is a
   typed `MalformedBody` refusal that writes nothing — and it fails the
   job: the daemon's `record` classifies the store's verdict, so a
   malformed response is `Outcome::Failure` while genuine persistence
@@ -322,8 +327,10 @@ acq daemon status                            # debugging only
 ```
 
 To use the MCP server, point an MCP host at `target/debug/acq-mcp`
-(stdio); it shares the daemon and store with the CLI. Mock-only for
-job submission — see the layout note above.
+(stdio); it shares the daemon and store with the CLI. It submits, applies
+and quotes in either mode against a *running* daemon (agent-traffic
+ruling, 2026-09-01) and never spawns or replaces one in real mode —
+see the layout note above.
 
 ## Real GGG mode (`ACQ_GGG=1`)
 
@@ -333,11 +340,10 @@ ACQ_GGG=1 acq auth          # real OAuth against pathofexile.com in your browser
                             #  profile job; uuid-at-login, N38: not rate limited)
 ACQ_GGG=1 acq characters    # GET api.pathofexile.com/character
 ACQ_GGG=1 acq stashes       # GET api.pathofexile.com/stash/Standard
-ACQ_GGG=1 acq characters --realm poe2   # GET …/character/poe2 — PoE2 first contact: NOT YET.
-                                        # Character rows and item locations are still name-keyed,
-                                        # so a PoE2 name colliding with a pc one would overwrite
-                                        # it; waits for the character-key step (CONTEXT.md, order
-                                        # of work (2) then (5)), then the standing rule applies
+ACQ_GGG=1 acq characters --realm poe2   # GET …/character/poe2 — PoE2 first contact (unobserved by
+                                        # us; documented live). The store is ready for it since the
+                                        # character key (id-keyed, realm-scoped); the sample is the
+                                        # owner's, under the standing rule (CONTEXT.md, order (5))
 ```
 
 `ACQ_GGG=1` on any command selects the real provider; the CLI kills and

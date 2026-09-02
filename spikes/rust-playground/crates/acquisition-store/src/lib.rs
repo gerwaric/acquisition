@@ -276,10 +276,11 @@ pub struct Status {
     pub items: i64,
     pub items_removed: i64,
     pub events: i64,
-    /// The drift tripwire's count: item-shaped objects that character
-    /// responses carried in arrays this build does not lift, summed over
-    /// every character response on record. Non-zero means GGG added an
-    /// item array the store does not know — a code change, not a fault.
+    /// The drift tripwire's count: item-shaped objects in arrays this
+    /// build does not lift, as of each live character's latest fetch (so
+    /// it clears once a build that lifts them has fetched). Non-zero
+    /// means GGG added an item array the store does not know — a code
+    /// change, not a fault.
     pub unlifted_items: i64,
 }
 
@@ -381,6 +382,14 @@ impl Store {
                         "container",
                         "ALTER TABLE items ADD COLUMN container TEXT",
                     ),
+                    // v4: item membership per response, like listings —
+                    // a pre-v4 row (NULL) counts as unseen by any later
+                    // fetch of its location, which is exactly right.
+                    (
+                        "items",
+                        "seen_response",
+                        "ALTER TABLE items ADD COLUMN seen_response INTEGER",
+                    ),
                 ] {
                     if !has_column(&tx, table, column)? {
                         tx.execute(ddl, [])?;
@@ -432,6 +441,14 @@ impl Store {
                         [now()],
                     )?;
                     tx.execute("DROP TABLE characters_pre_id", [])?;
+                    // The listing basis a planner would cite must have
+                    // rows stamped to it: re-stamp membership from the
+                    // latest character listing on record per realm. The
+                    // envelope is the verbatim list (character lists carry
+                    // no items), so each named row gets its entry and the
+                    // response id back; rows it does not name stay
+                    // unstamped and the next listing retires them.
+                    restamp_character_listings(&tx)?;
                 }
                 tx.execute(
                     "UPDATE items SET container = 'items' WHERE location_kind = 'stash' AND container IS NULL",
@@ -615,12 +632,20 @@ impl Store {
                     character.insert("_unlifted".into(), Value::Object(unlifted));
                 }
                 let c = Value::Object(character.clone());
-                // `league` lands on insert only (a never-listed character
-                // takes the body's); the listing owns it otherwise.
+                // Once a listing has named this row, the listing owns the
+                // address and display fields (`name`, `league`, `class`,
+                // `level`): a fetch authorized under an old address can
+                // land after a newer listing (separate routes, concurrent
+                // sends), and must not roll the address back. The body's
+                // own say stays verbatim in `json`. A never-listed row
+                // takes the body's values on insert.
                 tx.execute(
                     "INSERT INTO characters (id, realm, name, league, class, level, json, fetched_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
-                     ON CONFLICT(id) DO UPDATE SET realm = excluded.realm, name = excluded.name, class = excluded.class,
-                       level = excluded.level, json = excluded.json, fetched_at = excluded.fetched_at, removed_at = NULL",
+                     ON CONFLICT(id) DO UPDATE SET realm = excluded.realm,
+                       name = CASE WHEN characters.listed_response IS NULL THEN excluded.name ELSE characters.name END,
+                       class = CASE WHEN characters.listed_response IS NULL THEN excluded.class ELSE characters.class END,
+                       level = CASE WHEN characters.listed_response IS NULL THEN excluded.level ELSE characters.level END,
+                       json = excluded.json, fetched_at = excluded.fetched_at, removed_at = NULL",
                     params![id, realm, body_name, league, c.get("class").and_then(Value::as_str), c.get("level").and_then(Value::as_i64), c.to_string(), at],
                 )?;
             }
@@ -757,6 +782,11 @@ impl Store {
                 params![id, response_id],
             )?;
         }
+        // Locations this response retired (a character or tab the listing
+        // no longer names): their items go with them — the location
+        // vanishing is the strongest "no longer had it" — through the
+        // same per-location removal below.
+        let mut retired_locations: Vec<(String, String)> = Vec::new();
         if let Endpoint::Characters { realm } = endpoint {
             // A character this listing did not stamp is gone (deleted).
             // Realm-scoped: whether a list spans realms is undocumented,
@@ -768,6 +798,13 @@ impl Store {
                    AND (listed_response IS NULL OR listed_response <> ?3)",
                 params![realm, at, response_id],
             )?;
+            let mut stmt = tx.prepare(
+                "SELECT id FROM characters WHERE realm = ?1 AND removed_at = ?2 AND listed_response IS NOT ?3",
+            )?;
+            let ids = stmt.query_map(params![realm, at, response_id], |r| r.get::<_, String>(0))?;
+            for id in ids {
+                retired_locations.push(("character".into(), id?));
+            }
         }
         if let Endpoint::Stashes { realm, league } = endpoint {
             // Not stamped by this listing → removed (top-level and folder
@@ -779,11 +816,24 @@ impl Store {
                    AND (parent IS NULL OR parent IN (SELECT id FROM tabs t2 WHERE t2.realm = ?1 AND t2.league = ?2 AND t2.type = 'Folder'))",
                 params![realm, league, at, response_id],
             )?;
+            let mut stmt = tx.prepare(
+                "SELECT id FROM tabs WHERE realm = ?1 AND league = ?2 AND removed_at = ?3 AND listed_response IS NOT ?4",
+            )?;
+            let ids = stmt.query_map(params![realm, league, at, response_id], |r| {
+                r.get::<_, String>(0)
+            })?;
+            for id in ids {
+                retired_locations.push(("stash".into(), id?));
+            }
         }
 
-        // Every seam of one response is one location; a character's four
-        // arrays share `character/<name>`, so removal runs once per location.
-        let mut locations: Vec<(String, String)> = Vec::new();
+        // Every seam of one response is one location; a character's
+        // arrays share `character/<id>`, so removal runs once per location.
+        // Membership is per response: an item this response did not stamp
+        // at a location it fetched — or at a location it retired — is
+        // removed, whatever the clock says (two fetches in one second are
+        // two responses).
+        let mut locations: Vec<(String, String)> = retired_locations;
         for Seam {
             realm,
             league,
@@ -818,8 +868,8 @@ impl Store {
         for (kind, location_id) in locations {
             let removed = tx.execute(
                 "UPDATE items SET removed_at = ?3 WHERE location_kind = ?1 AND location_id = ?2
-                   AND removed_at IS NULL AND last_seen < ?3",
-                params![kind, location_id, at],
+                   AND removed_at IS NULL AND (seen_response IS NULL OR seen_response <> ?4)",
+                params![kind, location_id, at, response_id],
             )?;
             if removed > 0 {
                 let from = format!("{kind}/{location_id}");
@@ -851,8 +901,8 @@ impl Store {
             items_removed: count("SELECT count(*) FROM items WHERE removed_at IS NOT NULL")?,
             events: count("SELECT count(*) FROM item_events")?,
             unlifted_items: count(
-                "SELECT COALESCE(SUM(value), 0) FROM responses r, json_each(json_extract(r.envelope, '$.character._unlifted'))
-                  WHERE r.endpoint = 'character'",
+                "SELECT COALESCE(SUM(value), 0) FROM characters c, json_each(json_extract(c.json, '$._unlifted'))
+                  WHERE c.removed_at IS NULL",
             )?,
         })
     }
@@ -1092,6 +1142,48 @@ fn is_item_shaped(v: &Value) -> bool {
     v.as_object().is_some_and(|o| o.contains_key("typeLine"))
 }
 
+/// The v4 migration's membership repair: for each realm, the latest 2xx
+/// character listing on record re-stamps the rows it names (`listed_json`,
+/// `listed_at`, `listed_response`), so a snapshot taken after the
+/// migration cites a basis its rows are actually stamped to.
+fn restamp_character_listings(tx: &Connection) -> Result<()> {
+    let latest: Vec<(String, i64)> = {
+        let mut stmt = tx.prepare(
+            "SELECT COALESCE(json_extract(params, '$.realm'), 'pc'), MAX(id) FROM responses
+              WHERE endpoint = 'characters' AND status BETWEEN 200 AND 299
+              GROUP BY 1",
+        )?;
+        let rows = stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?;
+        rows.collect::<Result<_, _>>()?
+    };
+    for (realm, response_id) in latest {
+        let (fetched_at, envelope): (i64, String) = tx.query_row(
+            "SELECT fetched_at, envelope FROM responses WHERE id = ?1",
+            [response_id],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )?;
+        // A row this store wrote that no longer parses is a damaged file,
+        // reported — never silently skipped.
+        let body: Value = serde_json::from_str(&envelope)
+            .with_context(|| format!("response {response_id}: malformed envelope in store"))?;
+        for entry in body
+            .get("characters")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+        {
+            if let Some(id) = entry.get("id").and_then(Value::as_str) {
+                tx.execute(
+                    "UPDATE characters SET listed_json = ?2, listed_at = ?3, listed_response = ?4
+                      WHERE id = ?1 AND realm = ?5",
+                    params![id, entry.to_string(), fetched_at, response_id, realm],
+                )?;
+            }
+        }
+    }
+    Ok(())
+}
+
 /// Whether `table` has `column` — the migration's idempotence check.
 fn has_column(tx: &Connection, table: &str, column: &str) -> Result<bool> {
     let present: i64 = tx.query_row(
@@ -1246,9 +1338,9 @@ fn ingest_item(
     match &previous {
         None => {
             tx.execute(
-                "INSERT INTO items (id, league, location_kind, location_id, socketed_in, name, type_line, base_type, rarity, stack_size, x, y, w, h, json, first_seen, last_seen, realm, container)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?16, ?17, ?18)",
-                params![id, league, kind, location_id, socketed_in, c.name, c.type_line, c.base_type, c.rarity, c.stack_size, c.x, c.y, c.w, c.h, json, at, realm, container],
+                "INSERT INTO items (id, league, location_kind, location_id, socketed_in, name, type_line, base_type, rarity, stack_size, x, y, w, h, json, first_seen, last_seen, realm, container, seen_response)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?16, ?17, ?18, ?19)",
+                params![id, league, kind, location_id, socketed_in, c.name, c.type_line, c.base_type, c.rarity, c.stack_size, c.x, c.y, c.w, c.h, json, at, realm, container, response_id],
             )?;
             tx.execute(
                 "INSERT INTO item_events (response_id, at, item_id, kind, to_location) VALUES (?1, ?2, ?3, 'added', ?4)",
@@ -1277,9 +1369,9 @@ fn ingest_item(
             tx.execute(
                 "UPDATE items SET league = ?2, location_kind = ?3, location_id = ?4, socketed_in = ?5, name = ?6, type_line = ?7, base_type = ?8,
                         rarity = ?9, stack_size = ?10, x = ?11, y = ?12, w = ?13, h = ?14, json = ?15, last_seen = ?16, removed_at = NULL, realm = ?17,
-                        container = ?18
+                        container = ?18, seen_response = ?19
                   WHERE id = ?1",
-                params![id, league, kind, location_id, socketed_in, c.name, c.type_line, c.base_type, c.rarity, c.stack_size, c.x, c.y, c.w, c.h, json, at, realm, container],
+                params![id, league, kind, location_id, socketed_in, c.name, c.type_line, c.base_type, c.rarity, c.stack_size, c.x, c.y, c.w, c.h, json, at, realm, container, response_id],
             )?;
             if moved {
                 tx.execute(
@@ -1770,7 +1862,11 @@ mod tests {
                  INSERT INTO items (id, league, location_kind, location_id, name, type_line, base_type, json, first_seen, last_seen)
                  VALUES ('hero-item', 'Standard', 'character', 'Hero', 'Bar', 'Bow', 'Bow', '{\"id\":\"hero-item\"}', 6, 6);
                  INSERT INTO items (id, league, location_kind, location_id, name, type_line, base_type, json, first_seen, last_seen)
-                 VALUES ('ghost-item', 'Standard', 'character', 'Ghost', 'Baz', 'Bow', 'Bow', '{\"id\":\"ghost-item\"}', 6, 6);",
+                 VALUES ('ghost-item', 'Standard', 'character', 'Ghost', 'Baz', 'Bow', 'Bow', '{\"id\":\"ghost-item\"}', 6, 6);
+                 CREATE TABLE responses (id INTEGER PRIMARY KEY, endpoint TEXT NOT NULL, params TEXT NOT NULL,
+                    fetched_at INTEGER NOT NULL, status INTEGER NOT NULL, envelope TEXT NOT NULL, item_count INTEGER NOT NULL);
+                 INSERT INTO responses (id, endpoint, params, fetched_at, status, envelope, item_count)
+                 VALUES (7, 'characters', '{}', 5, 200, '{\"characters\":[{\"id\":\"c-hero\",\"name\":\"Hero\",\"league\":\"Standard\"}]}', 0);",
             )
             .unwrap();
         }
@@ -1817,6 +1913,18 @@ mod tests {
             ("c-hero", None)
         );
         assert!(s.item("ghost-item").unwrap().unwrap().removed_at.is_some());
+        // Membership is re-stamped from the latest listing on record, so
+        // a basis a planner cites has its rows stamped to it.
+        let (listed_response, listed_json): (Option<i64>, Option<String>) = s
+            .conn
+            .query_row(
+                "SELECT listed_response, listed_json FROM characters WHERE id = 'c-hero'",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(listed_response, Some(7));
+        assert!(listed_json.unwrap().contains("\"Hero\""));
         // The migrated file is stamped with the current schema version.
         let v: i64 = s
             .conn
@@ -2055,6 +2163,27 @@ mod tests {
             (0, 0, 0, 0)
         );
         assert_eq!(s.item("eq1").unwrap().unwrap().location_id, "c1");
+        // A fetch authorized under the old address that lands after the
+        // rename (separate routes, concurrent sends) must not roll the
+        // address back: the listing owns name/class/level once it has
+        // named the row; the body's own say stays in json.
+        s.record(
+            &fetch("Hero"),
+            &json!({ "name": "Hero" }),
+            200,
+            &json!({ "character": { "id": "c1", "name": "Hero", "league": "Standard", "level": 90, "equipment": [ item("eq1", "Helm", 0) ] } }),
+            22,
+        )
+        .unwrap();
+        let row = &s.characters(None, None).unwrap()[0];
+        assert_eq!((row.name.as_str(), row.level), ("Champion", Some(91)));
+        let json: String = s
+            .conn
+            .query_row("SELECT json FROM characters WHERE id = 'c1'", [], |r| {
+                r.get(0)
+            })
+            .unwrap();
+        assert!(json.contains("\"Hero\""));
         // The listing owns league: a later fetch saying otherwise does not
         // move the coverage coordinate (its body keeps its own say).
         s.record(
@@ -2081,19 +2210,43 @@ mod tests {
         // fetched, and the old row retired — a name-keyed store would have
         // inherited c1's freshness and never fetched the new one.
         s.record(
-            &list,
-            &json!({}),
+            &fetch("Champion"),
+            &json!({ "name": "Champion" }),
             200,
-            &json!({ "characters": [ { "id": "c2", "name": "Hero", "league": "Standard" } ] }),
-            40,
+            &json!({ "character": { "id": "c1", "name": "Champion", "league": "Standard", "equipment": [ item("eq1", "Helm", 0) ] } }),
+            35,
         )
         .unwrap();
+        let ing = s
+            .record(
+                &list,
+                &json!({}),
+                200,
+                &json!({ "characters": [ { "id": "c2", "name": "Hero", "league": "Standard" } ] }),
+                40,
+            )
+            .unwrap();
         let rows = s.characters(None, None).unwrap();
         assert_eq!(rows.len(), 1);
         assert_eq!(
             (rows[0].id.as_str(), rows[0].fetched_at, rows[0].item_count),
             ("c2", None, 0)
         );
+        // The retired character's items went with it: retired, with a
+        // removed event, and no longer live in search.
+        assert_eq!(ing.removed, 1);
+        assert!(s.item("eq1").unwrap().unwrap().removed_at.is_some());
+        assert!(s.search("helm", None, None, false, 10).unwrap().is_empty());
+        assert_eq!(s.search("helm", None, None, true, 10).unwrap().len(), 1);
+        let removed_events: i64 = s
+            .conn
+            .query_row(
+                "SELECT count(*) FROM item_events WHERE item_id = 'eq1' AND kind = 'removed' AND from_location = 'character/c1' AND at = 40",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(removed_events, 1);
         let err = s
             .record(
                 &fetch("Hero"),
@@ -2202,5 +2355,26 @@ mod tests {
         assert_eq!(v["_unlifted"], json!({ "pets": 2 }));
         assert_eq!(v["_split"], json!({ "equipment": 1 }));
         assert_eq!(v["passives"], json!([1, 2, 3]));
+        // The count is the latest fetch's, per live character — a repeat
+        // does not double it, and a fetch without the array clears it.
+        s.record(
+            &ep,
+            &json!({ "name": "Hero" }),
+            200,
+            &json!({ "character": { "id": "c1", "name": "Hero",
+                "equipment": [ item("eq1", "Helm", 0) ], "pets": [ item("p1", "Cat", 0), item("p2", "Dog", 0) ] } }),
+            2,
+        )
+        .unwrap();
+        assert_eq!(s.status().unwrap().unlifted_items, 2);
+        s.record(
+            &ep,
+            &json!({ "name": "Hero" }),
+            200,
+            &json!({ "character": { "id": "c1", "name": "Hero", "equipment": [ item("eq1", "Helm", 0) ] } }),
+            3,
+        )
+        .unwrap();
+        assert_eq!(s.status().unwrap().unlifted_items, 0);
     }
 }

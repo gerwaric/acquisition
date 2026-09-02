@@ -190,9 +190,10 @@ Built, each step gate-green and owner-reviewed:
    fails the *job*; only `acq store import` keeps the legacy tolerance,
    at its own boundary.
 4. `RefreshPlan` compiled offline in `acquisition-plan` (2026-09-01).
-   `REFRESH_PLAN_SCHEMA` is **3**; any shape change anywhere in the
-   envelope — the embedded `Quote` included — is a schema bump, so an
-   older reader reports "newer schema", never "malformed".
+   `REFRESH_PLAN_SCHEMA` was **3** here (5 since the realm step, 6 with
+   characters); any shape change anywhere in the envelope — the
+   embedded `Quote` included — is a schema bump, so an older reader
+   reports "newer schema", never "malformed".
 5. `quote` on the protocol + `with_quote` plan enrichment (2026-09-01;
    `Daemon::quote`, protocol `Quote`/`QuoteScope`).
 6. `acq refresh --plan` + the policy's first write surface, `acq policy
@@ -611,6 +612,19 @@ against the run's `--realm`.
   is stamped per listing response id and retired per realm, exactly as
   tabs are.
 
+**Policy v3 shape (agreed 2026-09-02, for step (3)) — coverage per
+facet:** `realms.<R>.leagues.<L>.{tabs?, characters?, max_age_seconds}`
+where each facet is `"all"` or an id list and **absent means no coverage
+of that facet** (an empty list is the same, explicitly); an entry naming
+neither facet is malformed ("names no work"), never a silent no-op.
+Validation is per facet against `Family::accepts`: `tabs` is refused
+under a realm the stash family does not take (poe2), `characters` is
+accepted under every realm — so a character-only PoE2 entry is the
+ordinary v3 shape. v1 and v2 upgrade to their tab coverage plus no
+character coverage; the stored value stays as written. (Review
+finding 2026-09-02: v2's required `tabs` and entry-level realm check
+could not express the ruled PoE2 policy.)
+
 **Step (2) built 2026-09-02** (facts v4): `characters` keyed by `id`
 with `listed_json`/`listed_response` and the realm-scoped, response-
 stamped retirement tabs have; `items.container` (compared explicitly;
@@ -629,6 +643,23 @@ and moves nothing; a recreated name is a never-fetched new row with the
 old one retired; the listing owns `league`; a fetched body without an
 id is malformed; the guardian swap is `changed`, not `moved`; the
 tripwire counts and never fails.
+
+Second review (same day, `953be323`..`e188c86f`) found three more
+defects, fixed before step (3): a character or tab a listing dropped
+left its items live (search showed a recreated character's inventory
+beside the old one's — the very case the id key exists for; now the
+retired location's items are retired with `removed` events, through the
+same per-location removal); a fetch authorized under an old address
+that landed after a newer listing rolled `name`/`class`/`level` back
+(now listing-owned once a listing has named the row — the body's say
+stays in `json`); and item removal keyed on `last_seen < at`, so two
+fetches in one second left the second's omissions live (now
+`items.seen_response`, membership per response like listings). Plus:
+the drift count is per live character's latest fetch, not cumulative
+(so it clears once a build that lifts the array has fetched); the v4
+migration re-stamps character membership from the latest listing on
+record per realm, so a basis a planner cites has its rows stamped to
+it (pinned in the migration test); and the policy v3 shape above.
 
 Pending ground-truth claims (documented facts read 2026-09-02, to be
 authored master-side and then cited here by number): realm segment
