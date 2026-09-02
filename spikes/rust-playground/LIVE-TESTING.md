@@ -54,7 +54,8 @@ Replaces the preconditions and the "new hypothesis first" requirement.
 
 Every job kind has had first contact as of 2026-08-30 (run ledger:
 `profile`, `leagues`, `character`; `leagues` was routed to `/league` until
-that day). A new kind gets the same treatment under this rule. What the
+that day), and the two poe2 character routes had theirs on 2026-09-02
+(N41: poe2-suffixed policy names, free HEAD). A new kind gets the same treatment under this rule. What the
 samples found that headers could not teach (`/profile`: no rate headers,
 HEAD 403; `/account/leagues`: HEAD counted) is carried as declared route
 knowledge (`CONTEXT.md` decisions; ground truth N38/N39, Q12).
@@ -683,7 +684,9 @@ both the owner's, from a terminal, under the standing rule:
    both); what `skills` items look like — ids present? (`acq items
    search <skill name> --realm poe2` shows the lifted rows with
    container `skills`; an id-less item is a `MalformedBody` refusal
-   that fails the fetch child, which is itself the finding); and
+   that fails the fetch child, which is itself the finding — and was:
+   four of five, kept since facts v7, ruled and built the same day,
+   N44); and
    whether `HEAD /character/poe2` is the free probe (204, uncounted) pc
    is. Record the policy names and windows the poe2 routes report
    (N6: same name shares state) as a ledger row and a ground-truth
@@ -741,6 +744,13 @@ that PoE2 actually omits, not a malformed body. Ruled the same day
 rerun closed the loop: four characters, 83 items, 8 granted skills
 counted, cycle 2 empty. Both rows of this rung have passed.
 
+Driver observation from the two aborted passes: on an apply failure
+the driver stops with the daemon **up** (halted on its ceiling) so the
+jobs and results stay readable, and prints what to do; both times the
+reading took under a minute and `acq daemon stop` by hand ended it.
+Right for a rung; a scripted caller would want the stop automated
+once the evidence is copied — noted, not changed.
+
 ## Status: ladder closed (2026-08-27)
 
 Every rung has passed except rung 9, deferred on purpose (each attempt is
@@ -773,5 +783,5 @@ is what deletes the no-probe declaration and restores the probe.
 `/character/{name}` (same day) is the ordinary pattern: free HEAD, full
 policy, the C++ capture's shape.
 
-The frontier is the frontend boundary and the multi-account build
-(`CONTEXT.md`).
+The multi-account build and the characters rungs (pc and PoE2) are
+done; the frontier is pricing (`CONTEXT.md`, parking lot).

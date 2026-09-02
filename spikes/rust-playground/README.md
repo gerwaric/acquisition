@@ -142,9 +142,11 @@ bounded by `MAX_429_RETRIES`; a Cloudflare-shaped 403/503 is never retried.
   verdict; compiling them into requests is `acquisition-plan`'s job
   (tracer step 4, built 2026-09-01; characters 2026-09-02).
   A 2xx body missing its array/object or carrying an identity-less
-  entry (a tab or item without `id`, a listed character without `id`
-  or `name`, a fetched character without `id`) is a
-  typed `MalformedBody` refusal that writes nothing — and it fails the
+  entry (a tab or item without `id` — a PoE2 item-granted skill
+  excepted, below — a listed character without `id` or `name`, a
+  fetched character without `id`) is a typed `MalformedBody` refusal
+  that writes no fact (the body is kept verbatim in `refused`, facts
+  v7, and the error names the position) — and it fails the
   job: the daemon's `record` classifies the store's verdict, so a
   malformed response is `Outcome::Failure` while genuine persistence
   trouble stays logged-and-absorbed. `acq store import` keeps the
@@ -156,7 +158,8 @@ bounded by `MAX_429_RETRIES`; a Cloudflare-shaped 403/503 is never retried.
   seams: each item array (tab `items`, character `inventory`/`equipment`/
   `jewels`/`rucksack`/`guardian`/`skills`, and every `socketedItems`) is lifted into `items`,
   one row per GGG item id, so `items` is the only place to look for an
-  item. Each ingest compares with what was known and writes
+  item (the one thing left in place is a PoE2 item-granted skill's
+  subtree, which has no id and is not an item — see the store bullet). Each ingest compares with what was known and writes
   `item_events` (added/moved/changed/removed; `veiledMods` ignored, N36).
   Its tests are the spec; `acq store import <snapshot>` replays a
   retired-`acq pull` snapshot through it with no GGG traffic (19,210 rows
@@ -541,5 +544,13 @@ regression (N20) so the degraded path can be exercised.
 - **The mock reports an active restriction on every window of the rule,**
   so the limiter picks the larger bucket after a 429. Whether real GGG
   flags only the violated window is unobserved.
+- **`acq policy set` replaces the whole policy.** A poe2 run's policy
+  erases the pc one (seen 2026-09-02: revision 4 carried poe2 alone),
+  so the pc tabs-and-characters policy must be set again before pc
+  work. A per-realm merge is unbuilt; trigger: a second realm in daily
+  use (CONTEXT.md parking lot).
+- **A failed fetch child's result carries only the error string.** The
+  body it refused is in `acq store refused <id>` (the error names the
+  id), not in `acq result`.
 - **Unix only.** No Windows named pipes yet; the protocol doesn't care.
 - Everything in CONTEXT.md's "Explicitly deferred" list.

@@ -360,7 +360,7 @@ unchanged. The live rerun of the same five-id policy — the first
 two-cycle discovery sample (64 substashes, ~15 min of holds) — is the
 owner's, under the rung section.
 
-### Characters in the refresh plan — next session (agreed 2026-09-02; design ruled 2026-09-02, before pricing)
+### Characters in the refresh plan (agreed and ruled 2026-09-02; built and run live the same day — steps (1)–(5) done, N41–N45 authored; pricing next)
 
 Why now: tabs and characters are the only two paths items take into
 the store, so this closes the ingest map ("the store holds what the C++
@@ -556,7 +556,9 @@ ruling, revisable:
   listing is empty and a tab fetch 404s (tab and item ids are
   GGG-unique, so pc's are never reused under another realm); the
   character list is per realm, with one poe2 character carrying a
-  `skills` array (a hypothesis until PoE2 first contact).
+  `skills` array (confirmed live 2026-09-02, N42–N44; the mock body
+  now also carries an item-granted skill, the id-less shape N44
+  records).
 - Policy v2 parses v1 in place; the stored value stays what was
   written (`policy show` shows what the human typed).
 
@@ -870,7 +872,8 @@ gap); guardian lifted (4 characters, 18 items); 1081 `added` events at
 
 Exit: the loop closes on a policy naming tabs and characters together,
 live, with the driver's checks green — **met 2026-09-02**; (5) PoE2
-first contact waits on the owner creating a PoE2 character; then pricing.
+first contact ran and closed the same day (the paragraph above;
+N41–N45). Next is pricing.
 
 ## Frontend boundary findings (from `acq pull`, 2026-08-24; `pull` itself was retired 2026-08-29 in favor of the store)
 
@@ -909,6 +912,7 @@ What a real consumer needed from the protocol and did not get. Facts, not decisi
   - Type-level sync-policy filters ("skip map tabs", "include unique tabs", "fetch folder children") → trigger: a policy author who needs a type exclusion the parent-covers-children rule cannot express; a policy-shape change (planner owns the schema).
   - Human-legible CLI output for the plan slice (the offline "no quote" note prints twice and carries a raw `os error 2`; the readback has no one-line "n tabs refetched, m items changed"; the folder child's `acq tabs` row is indented and truncated) → trigger: before the pricing session's live run, so the owner's friction notes — not the agent's reading — are that run's truth (method verdict above).
   - Fact-path migration to uuid naming → opportunistic, or never (facts are refetchable).
+  - Per-realm merge at `policy set` (today a set replaces the whole policy, so a poe2 run erases the pc policy — seen 2026-09-02) → trigger: a second realm in daily use; until then the author re-sets the pc policy, one command.
   - Search-at-scale (FTS at ingest, search-crate factoring behind the store API) → trigger per the two-surface stress test: a real consumer with a measured latency or duplication case.
 
 ## Working style
