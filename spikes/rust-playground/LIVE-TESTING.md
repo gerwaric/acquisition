@@ -591,9 +591,10 @@ the re-ruling has them):
   preceded them in the same lifetime. Consistent with the journal
   order; noted, not investigated.
 
-Ruled on after the run, in `CONTEXT.md`: the "Binding-plan friction" open
-topic (re-ruled or confirmed) and the method-test verdict that the pricing
-session opens with.
+Ruled 2026-09-01, in `CONTEXT.md`: binding confirmed as written; a policy
+id covers the tab and its children (planner change is the follow-up build
+item); the method-test verdict — pass on correctness, owner-truth channel
+under-exercised — is recorded in the tracer section there.
 
 ## Status: ladder closed (2026-08-27)
 

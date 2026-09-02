@@ -308,7 +308,12 @@ provider name), so mock and real never mix on one daemon. Real mode uses the
 existing "acquisition" registration — same client id, callback path
 (`/auth/path-of-exile` on a random loopback port), scopes, and user-agent as
 the shipped C++ app. Refresh tokens live in a keyring entry separate from the
-mock's, so a mock token can never be sent to GGG. The limiter paces `Account`-scoped policies per account (rung 11: GGG
+mock's, so a mock token can never be sent to GGG. Trap: the debug binary
+is unsigned, so macOS Keychain treats every rebuild as a new program and
+asks for the login-keychain password on first access — typically twice
+per login (the stored session read, then the rotated token saved). A
+known cost of debug builds, not a stop condition; a signed build would
+ask once. The limiter paces `Account`-scoped policies per account (rung 11: GGG
 counts them per account) and `Ip`-scoped ones — the token endpoint — as
 one shared counter; `acq dash` shows the state keys
 (`stash-request-limit@Alice#1234`, `token-request-limit`). The limiter is

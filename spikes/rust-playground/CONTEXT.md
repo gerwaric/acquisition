@@ -54,7 +54,8 @@ Short one-liners with rationale, optimized for agents to reason from. Kept curre
 - **The system is four layers — facts, intent (annotations), derivations, effects — each with one authoritative mutation path, not one physical writer.** Facts mutate only through the store crate's ingest surface (daemon `record`; `store import`); intent only through the store crate's annotation write API (frontends); the effects ledger only through the daemon; derivations have no independent authority — computed or materialized, always reproducible from declared inputs (`rebuild` is their maintenance, not fact ingestion). The daemon is permanently blind to intent, and it creates work only in causal service of client-submitted work (probes, children, retries) — never spontaneously: no schedules, no policy execution, no annotation reads; scheduled syncs are small frontends. Rationale: "a sync can never clobber intent" becomes structural, the way the choke point made rate-limit discipline structural — and blindness is safe exactly because the daemon never initiates. Decided 2026-08-31 (brainstorming-notes 06, ruled).
 - **Annotations are the only irreplaceable local state.** A separate per-account file named by the account uuid (identity decision in "Multi-account design"), keyed on stable GGG ids, written only through the store crate with integer-revision compare-and-swap; no fact-side event ever deletes intent — an annotation whose item is removed is kept and surfaceable as orphaned; export/backup is a store-managed consistent snapshot (`VACUUM INTO` / SQLite backup API — a raw file copy under WAL is not a backup). Rationale: facts are refetchable at the cost of requests; intent has no server to refetch from — the C++ legacy-buyout saga is the full price of getting this wrong. Decided 2026-08-31.
 - **The sync policy is the first annotation: a per-account, inspectable declaration of desired coverage and freshness — not a scheduler — compiled by the frontend-side planner into minimal requests.** `metadata.items` counts are heuristic evidence: they can prove a tab changed, never that it didn't. Rationale: C++ tracked-set/clean-refresh semantics, the old delta/selection topic, and both redesign essays independently describe this one object. Decided 2026-08-31.
-- **A Plan is a serializable, immutable authorization envelope, and plans are binding.** Derived from a named snapshot of facts + intent, computable with the daemon down; it carries provider + account uuid, operation kind + plan schema version, fact basis (response/listing ids or timestamps), annotation revision, the explicit action set (or a declared upper bound), generated-at, freshness assumptions, and optionally a quote with its own observation time. Work has two dimensions: `logical_requests` (exact or bounded) and `wire_sends` (a coarse range plus named prerequisites — probe, token refresh, possible 429 retries — never a precise accounting). Applying a Plan executes exactly the listed actions or a strict subset, never an unreviewed addition; new facts produce a new Plan; v1 excludes dynamic `--deep` fan-out (a vanished tab fails or is reported skipped; newly discovered tabs wait for the next plan). Operation-specific types first (`RefreshPlan`); a universal grammar waits for the second plan-bearing consumer. Binding is revisable on tracer evidence (the owner's live-use friction notes are the data). Decided 2026-08-31.
+- **A tab id in the sync policy covers that tab and its children.** A tab is covered when its own id is listed or its parent's id is; one rule, no per-type logic, and it gives every case the owner meant (tracer rung, 2026-09-01): a map or unique tab's substashes are planned once their stubs are on record — the cycle after the parent's first fetch, since discovery still waits for facts (binding untouched: every action stays an explicit reviewed tuple, nothing is added at apply); a folder's children are planned at once, because the listing already carries them (folders themselves are never fetched); a child named directly still works. A substash stub whose `metadata.items` is 0 is skipped with a named reason rather than fetched — GGG appears to list only non-empty substashes (64 of 64 stubs on the real account carry a count ≥ 1), so this is a guard, not a saving; in-flight change is not designed around (a count is still never proof of freshness). Type-level filters ("skip map tabs", "include unique tabs", "fetch folder children") are parked with a trigger. Evidence: the rung's five-id run left 64 substashes under the two selected parents in the store and outside the policy, closed the loop after one cycle, and the owner's intent for a named map tab was its contents. Consequence: the same policy rerun plans those 64 as cycle 2 (~15 min of limiter holds) — the first live two-cycle discovery sample. Planner change (`TabSelection::selects` walking to the parent; an `EmptyStub` skip) is the next build item under the tracer section. Decided 2026-09-01.
+- **A Plan is a serializable, immutable authorization envelope, and plans are binding.** Derived from a named snapshot of facts + intent, computable with the daemon down; it carries provider + account uuid, operation kind + plan schema version, fact basis (response/listing ids or timestamps), annotation revision, the explicit action set (or a declared upper bound), generated-at, freshness assumptions, and optionally a quote with its own observation time. Work has two dimensions: `logical_requests` (exact or bounded) and `wire_sends` (a coarse range plus named prerequisites — probe, token refresh, possible 429 retries — never a precise accounting). Applying a Plan executes exactly the listed actions or a strict subset, never an unreviewed addition; new facts produce a new Plan; v1 excludes dynamic `--deep` fan-out (a vanished tab fails or is reported skipped; newly discovered tabs wait for the next plan). Operation-specific types first (`RefreshPlan`); a universal grammar waits for the second plan-bearing consumer. Binding was revisable on tracer evidence (the owner's live-use friction notes are the data). Decided 2026-08-31. **Confirmed 2026-09-01** on the tracer rung's live run (`LIVE-TESTING.md`, run ledger and friction notes): subset-only reconciliation produced no owner friction, the two-cycle discovery of substashes cost nothing observable, and the parking-lot trigger for dynamic fan-out ("two-cycle reconciliation genuinely hurts") did not fire. What the run did surface was a *coverage* question, ruled separately below (a policy id covers the tab and its children); binding itself stands as written.
 - **The planner lives in `acquisition-plan`** — depends on core's client/protocol types + the store, linked by frontends only — and owns policy compilation and Plan construction; the store exposes neutral snapshots (policy rows, tab identities, freshness, listing basis, metadata), never half a planner. Rationale: keeps "the daemon never reads the store" enforced by the dependency graph, not discipline. Decided 2026-08-31.
 - **`quote` is its own protocol request: a read-only, non-reserving projection over current daemon knowledge** — observation time, basis, per-policy/per-scope estimates, and unknown prerequisites; applying may receive a different schedule (`eta_for` is "an estimate, not a promise"). Headroom is per policy/window and scope, never one scalar. Never a flag on `Submit`, whose contract is loaded with id/persistence/rollback semantics. Decided 2026-08-31.
 - **Reads observe, assertions plan, apply spends.** Store reads never initiate network traffic, and stale facts stay readable with freshness/completeness metadata; only a caller-asserted freshness condition fails — a stable structured error carrying the exact `RefreshPlan` it would take — and explicit frontend orchestration (refresh → await → read) is workflow, not a fused read. Plans-as-remedies are a store-side idiom only: the daemon cannot compute plans and its errors keep their shapes. Decided 2026-08-31.
@@ -164,7 +165,7 @@ and store; (2) `account` on jobs, validated against the sole session;
 rule, uuid recorded opportunistically (superseded 2026-08-31: uuid is now
 required at login — identity bullet above).
 
-### Annotations & plans — the refresh tracer (decided 2026-08-31; steps 1–8 built, step 9 prepared — owner run pending)
+### Annotations & plans — the refresh tracer (decided 2026-08-31; steps 1–9 done — step 9 run live 2026-09-01, pass; follow-up: the policy-handle planner change)
 
 The one slice built next: refresh-with-`plan`, the smallest slice that
 touches all four layers (policy = intent, plan = derivation, apply =
@@ -317,6 +318,38 @@ pin-after-the-consumer survives product scope, where truth is the
 owner's real use rather than a header; the verdict is recorded before
 the pricing session and is its first input.
 
+**Step 9 ran live 2026-09-01 and passed** (`LIVE-TESTING.md`, run
+ledger: login `1/0/1`, cycle 1 `1/2/6` on an exact ceiling of 9, cycle
+2 empty, no-op apply with no daemon; both probes 0 hits, zero non-2xx;
+the plan quoted on the real account — the `/profile` discriminator
+residual did not bite, so that accepted wart is closed). Rulings from
+the run, both in Decisions: binding confirmed as written; a policy id
+covers the tab and its children (the planner change is the follow-up
+below).
+
+**Method-test verdict (2026-09-01):** *pass on correctness, with the
+owner-truth channel under-exercised.* The slice ran live first time with
+no code change; every rail and check fired as designed, and the five
+review rounds before the run did the catching rather than the run. But
+the method's truth is the owner's experience, and the owner's one
+friction note plus the remark that the driver's output was too dense to
+read means the run was judged through the agent's reading, not the
+owner's. Not a failure of pin-after-the-consumer — a caveat it carries
+into the pricing session: budget for legibility (the parked output items
+below) before that session's own live run, or say explicitly that agent
+observations stand in for owner notes.
+
+**Follow-up build item (from the handle ruling):** `TabSelection::selects`
+takes the tab, not the id, and covers a tab whose parent's id is listed;
+substash stubs with `metadata.items == 0` skip as `EmptyStub`; tests pin
+all three cases (map/unique substashes planned the cycle after the parent's
+first fetch, folder children planned immediately, direct child id still
+covered) and the empty-stub skip; `tools/tracer-rung.sh --mock` in the
+id shape must then plan the mock's substashes in cycle 2 instead of
+reporting them uncovered (the driver's "uncovered" observation becomes
+"covered via parent"). A live rerun of the same five-id policy is the
+first two-cycle discovery sample and is the owner's call.
+
 ## Frontend boundary findings (from `acq pull`, 2026-08-24; `pull` itself was retired 2026-08-29 in favor of the store)
 
 What a real consumer needed from the protocol and did not get. Facts, not decisions; each is a candidate protocol change for Tom to accept or refuse. Resolved ones become decisions above and are deleted here.
@@ -335,7 +368,6 @@ What a real consumer needed from the protocol and did not get. Facts, not decisi
 
 - Priority levels: how many, and named or numeric? (Interactive > background is the intuition, *regardless of frontend* — an agent in a live conversation is interactive; the caller states its urgency, the frontend doesn't imply it.)
 - Whether `quote` is allowed over MCP in real-GGG mode — it sends nothing, but it is a daemon interaction in ggg mode; owner call. Step 8 built the conservative default (no connection attempted; the plan comes back with a note naming this topic), so the ruling stays open with nothing blocked on it.
-- Binding-plan friction: D-line "plans are binding" is revisable on tracer evidence — the owner's live-use friction notes against subset-only reconciliation are the data; re-ruled (or confirmed) after the live rung.
 
 (2026-08-31: "delta/selection for refresh" and "user state on items" are resolved into the sync-policy / annotations / Plan decisions above; the tracer below builds them.)
 
@@ -352,7 +384,9 @@ What a real consumer needed from the protocol and did not get. Facts, not decisi
   - Annotation event log → trigger: `diff --since` needs "what got repriced," or conflicts need history (row revisions exist from day one; the schema is shaped so the log is an addition, not a migration).
   - Wire-send budget → trigger: a consumer that needs enforcement over actual sends, not logical work.
   - Universal Plan grammar / five-verb surface → direction only; evidence at pricing.
-  - Dynamic `--deep` fan-out under plans → trigger: tracer evidence that two-cycle reconciliation genuinely hurts.
+  - Dynamic `--deep` fan-out under plans → trigger: tracer evidence that two-cycle reconciliation genuinely hurts (2026-09-01: the tracer rung produced none; stays parked).
+  - Type-level sync-policy filters ("skip map tabs", "include unique tabs", "fetch folder children") → trigger: a policy author who needs a type exclusion the parent-covers-children rule cannot express; a policy-shape change (planner owns the schema).
+  - Human-legible CLI output for the plan slice (the offline "no quote" note prints twice and carries a raw `os error 2`; the readback has no one-line "n tabs refetched, m items changed"; the folder child's `acq tabs` row is indented and truncated) → trigger: before the pricing session's live run, so the owner's friction notes — not the agent's reading — are that run's truth (method verdict above).
   - Fact-path migration to uuid naming → opportunistic, or never (facts are refetchable).
   - Search-at-scale (FTS at ingest, search-crate factoring behind the store API) → trigger per the two-surface stress test: a real consumer with a measured latency or duplication case.
 
