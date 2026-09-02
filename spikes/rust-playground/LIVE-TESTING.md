@@ -195,6 +195,8 @@ One row per rung execution. Journal files are copied to
 
 | 2026-08-30 | persistence check | `ee494e3249c3` | **pass** | L1 1/2/3 = 6, L2 1/1/3 = 5 | 0 | pids 44737/44828, driven by `tools/persist-check.sh` (account `GERWARIC#7694`). Ceiling halt at send 6 left 3 `stash` children waiting and the parent held, none failed; **kill -9 mid-halt**; the successor restored the queue and its probe answered **`0:10:0,2:300:0` before any GET** — lifetime 1's own two stash hits, read from GGG's counters by a daemon that never sent them (the restart-replay premise, live). Remaining children resumed under the fresh ceiling; parent finished **done across two daemon lifetimes**; result served after. One requested id was absent from the 322-tab list (a typo picking ids) and reported in `unknown_tab_ids` — 5 children by input, not a drop. Zero non-2xx. `runs/2026-08-30-persist/` |
 
+| 2026-09-01 | tracer | `7cc77a252d38` | **pass** — loop closed in 2 cycles | L1 1/0/1 = 2, L2 1/2/6 = 9 | 0 | pids 37648 (login) / 37964 (cycle 1), 23:52–00:04 UTC, driven by `tools/tracer-rung.sh --account GERWARIC#7694 <5 ids>` (Dump Tab, Maps (Remove-only), Uniques 1 (Remove-only), Winter Orb (Remove-only), the folder child 3.12 Pathfinder — the persistence check's five). Login: code-exchange POST 200, `GET /profile` 200, uuid recorded, bound reached at 2. Policy revision 1; offline plan = stale listing + 5 fetches, 6 req / 6..18 wire, `no quote` with the socket dead. Cycle 1 (ceiling 9): the plan **quoted** with the daemon up (the `/profile` discriminator residual did not bite), envelope identical to the offline one; HEAD `/stash/Standard` 204 `0:15:0,0:60:0` and HEAD `/stash/Standard/{id}` 204 `0:10:0,0:300:0` (both probes 0 hits, standing rule met); listing GET `1:15:0,1:60:0`; 5 stash GETs `1..5:10:0` in 0.5 s; parent `done`, 6/6 children done; bound reached exactly at send 9, nothing refused. Cycle 2 offline: `nothing to do` (5 covered tabs fresh); no-op apply `requests: 0`, no daemon appeared. Readback: all 5 tabs `fetched 59s ago`; **64 substashes** under the map/unique tabs in the store and outside the id list (the predicted uncovered-discovery observation); **0 item events** — nothing in those tabs changed since 2026-08-30. `verify.sh` reproduces the verdict. Friction notes in the rung section. `runs/2026-09-01-tracer/` |
+
 ### Re-soak postmortem (2026-08-27)
 
 What the re-soak had to show, it showed: the R8 fix live (twice, once
@@ -387,7 +389,7 @@ hits, read back from GGG's counters by a daemon that never sent them.
 The rail-5 ceremony was exercised as written and nothing in the run
 argued for more.
 
-## Tracer rung — policy → plan → apply → replan (prepared 2026-09-01, review round 1 same day; owner run pending)
+## Tracer rung — policy → plan → apply → replan (prepared 2026-09-01; run 2026-09-01: pass)
 
 The refresh tracer's step 9 (`CONTEXT.md`, "Annotations & plans"): the
 owner's first real use of the slice on the real account. It asks nothing
@@ -550,7 +552,44 @@ prompts are the questions the notes are for, not a form to complete:
   changed"?
 - **Anything that made you reach for `acq refresh --tabs` instead.**
 
-Notes: *(pending the run)*
+Notes (owner, 2026-09-01):
+
+- **logging in**: I had to enter my keyring password twice.
+
+The owner's only other remark, made to the agent rather than into the
+prompt: the driver's output is dense and confusing to a human reader,
+and that is accepted for now — the agent reads it, and wordsmithing the
+output before the tracer has proven its worth would be wasted effort.
+
+Agent observations from the same run (not owner friction; recorded so
+the re-ruling has them):
+
+- **Quote**: on a fresh daemon the quote can only say "no ETA until the
+  policy is learned" for every scope, and every cycle here runs on a
+  fresh daemon by design — so the quote was structurally uninformative
+  in this rung. Whether it is useful in a long-lived daemon is untested.
+- **Plan note**: the offline "no quote" line prints twice (once in the
+  plan text, once as the driver's echo) and carries a raw
+  `No such file or directory (os error 2)` where "no daemon running"
+  would do.
+- **Facts**: "what changed" was answered with 0 item events and five
+  `fetched 59s ago` rows; the readback never says "5 tabs refetched,
+  0 items changed" in one line. The folder child's row is indented and
+  its name truncated, pushing the columns out of line.
+- **Binding**: the 64 uncovered substashes were reported as predicted;
+  the owner did not reach for `acq refresh --tabs` and wrote no note on
+  whether "this tab and its substashes" is the handle wanted — that is
+  the open question for the `CONTEXT.md` re-ruling, not answered by this
+  run.
+- **Keyring**: the debug binary is unsigned, so macOS Keychain treats
+  every rebuild as a new program and prompts on first access; two
+  prompts is two keychain operations (read the stored session, save the
+  rotated token, or client and daemon each once). Not a stop; a
+  rebuild will do it again.
+- **Probe timing**: the two HEADs carry `wait_ms` 191 and 117 while
+  every GET carries 0 — the probes queued behind the token POST that
+  preceded them in the same lifetime. Consistent with the journal
+  order; noted, not investigated.
 
 Ruled on after the run, in `CONTEXT.md`: the "Binding-plan friction" open
 topic (re-ruled or confirmed) and the method-test verdict that the pricing
