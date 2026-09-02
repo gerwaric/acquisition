@@ -29,7 +29,7 @@ Short one-liners with rationale, optimized for agents to reason from. Kept curre
 - **A job's `params` travel on `JobInfo`, verbatim and public.** Every connected client sees them, so a job's params must never carry a secret (tokens are obtained inside the daemon, never passed in). Rationale: a job a person cannot identify (`stash`, `stash`, `stash`) cannot be managed — queue management, when it comes, needs this row; and a client labelling a failed child otherwise has to zip parent payload arrays by position. Rendering (`acq jobs`' `target` column, `JobInfo::target`) is the client's business. Decided 2026-08-24.
 - **Daemon protocol includes a subscribe/event channel from the start** (job-state-changed events over the same socket). Rationale: GUI push updates and `jobs --watch` come nearly free; bolting on later is painful.
 - **Protocol transport: JSON lines over Unix socket / named pipe** (tokio + serde). Rationale: boring, debuggable, cross-platform.
-- **Version handshake in the protocol; the protocol is single-version on purpose.** Kill-and-respawn is the entire migration mechanism — no deprecation, no compat matrix. Replacing is the *interactive CLI's* policy only (`ConnectOptions::interactive` — the caller is the human expressing intent); an autonomous client (MCP) never kills or replaces a daemon: the mismatch it sees may be a human's live GGG run, so it reports and stops (`ConnectOptions::autonomous`, `client.rs`). Known caveat, accepted: two frontends built from different commits would thrash by respawning each other's daemons — theoretical in a one-workspace playground, recorded so it isn't relearned live. Rationale: CLI and running daemon may be from different builds; three frontends with a compat matrix is the reconciliation swamp, three frontends with respawn is a one-line diff. Amended 2026-08-30 (autonomous policy).
+- **Version handshake in the protocol; the protocol is single-version on purpose.** Kill-and-respawn is the entire migration mechanism — no deprecation, no compat matrix. The stamp compared is the **build** (`VERSION_WITH_BUILD`: package version + git commit), not the package version: the latter is fixed at `0.0.1` across the playground, and comparing it let a daemon from an older commit serve a newer client silently (review finding 2026-09-02: a pre-realm daemon accepted a console job and rendered the pc URL). A `-dirty` stamp is the same for any dirty tree — the standing rule "never rebuild under a live daemon" covers it. Replacing is the *interactive CLI's* policy only (`ConnectOptions::interactive` — the caller is the human expressing intent); an autonomous client (MCP) never kills or replaces a daemon: the mismatch it sees may be a human's live GGG run, so it reports and stops (`ConnectOptions::autonomous`, `client.rs`). Known caveat, accepted: two frontends built from different commits would thrash by respawning each other's daemons — theoretical in a one-workspace playground, recorded so it isn't relearned live. Rationale: CLI and running daemon may be from different builds; three frontends with a compat matrix is the reconciliation swamp, three frontends with respawn is a one-line diff. Amended 2026-08-30 (autonomous policy).
 - **CLI emits structured output** (`--json` on every command, the error path included: failures are `{"error": …}` on stdout with exit 1, and a failed job's outcome exits 1 in both output modes). Rationale: the CLI is itself an API; makes MCP and agent use nearly free. Trued up 2026-08-30 (four commands ignored the flag; `--json` mode exited 0 on a failed job).
 - **A frontend consumes exactly two surfaces: the daemon protocol and the store crate's read API — no third door.** This pins the boundary's *location*, not its content: the verbs stay revisable until a consumer validates them (TESTING-NOTES.md, "pin after the consumer"). A frontend that wants a third channel is a protocol or store change, recorded here first. Rationale: bespoke per-frontend channels are what turns three frontends into a review burden; two shared surfaces keep the contract in exactly two places, enforced by what frontends link against rather than by process. Decided 2026-08-30.
 - **The MCP server is a fourth thin client (`acquisition-mcp`, binary `acq-mcp`, official `rmcp` SDK over stdio), never in-process with the daemon.** Same reasoning that moved reads to the store: daemon-hosted queries make the daemon an application server. The binary embeds `daemon run` like `acq` (lazy spawn execs `current_exe`). Two structural rules in the rail-6 mold: it never kills or replaces a daemon (autonomous connect policy above), and, while the agent-traffic deferral stood (2026-08-30 → 2026-09-01), it refused `submit_job` in real-GGG mode — store reads and observing a live daemon were always allowed, they send nothing. In real mode it still never spawns a daemon (a human's act: keychain, browser); it talks to the one that is running. It lazy-spawns only in mock mode; login stays human, via the CLI. The tracer is the consumer that validates the protocol: when it has proven the shape, the protocol gets pinned — the GUI arrives to a pinned boundary and proposes changes against it, rather than reopening the question. Decided 2026-08-30.
@@ -400,7 +400,10 @@ ground-truth claims, master-side).
   December 2026 (announced late August); league names collide across
   realms (Standard exists in both games). Policy becomes
   `realms.<R>.leagues.<L>.{tabs, characters, max_age_seconds}`
-  (**policy version 2**; a v1 policy upgrades on parse as realm pc); the
+  (the realm nesting is **policy v2**, built; `characters` beside `tabs`
+  makes **v3** — a new sibling field is a shape change, so a v2 reader
+  says "newer version", never "malformed"; each older version upgrades
+  on parse, v1 as realm pc); the
   plan envelope carries realm beside league; the snapshot is taken per
   `(realm, league)`; `tabs` and `characters` facts carry a realm column
   (existing rows pc); realm is an explicit param on all four data kinds
@@ -492,9 +495,10 @@ Shape (falls out of the rulings):
   `league` (nullable), `json` (fetched), `listed_json` (a fetch never
   touches it), `listed_at`, `listed_response`, `fetched_at`,
   `removed_at`; membership stamped per listing response id. `tabs`
-  gains `realm` (PK `(realm, league, id)`). One facts-schema bump; the
-  character migration remaps through each row's json (`id` is there)
-  and drops rows whose json lacks it (facts are refetchable).
+  gained `realm` (PK `(realm, league, id)`) at **facts v3**, the realm
+  step; the character key is **facts v4**: its migration remaps through
+  each row's json (`id` is there) and drops rows whose json lacks it
+  (facts are refetchable), and remaps item locations from name to id.
 - `Store::stash_snapshot` becomes the `(realm, league)` refresh
   snapshot: stash listing basis + tabs, character listing basis (per
   realm) + that league's characters, the policy row — one read
@@ -553,6 +557,31 @@ ruling, revisable:
   `skills` array (a hypothesis until PoE2 first contact).
 - Policy v2 parses v1 in place; the stored value stays what was
   written (`policy show` shows what the human typed).
+
+External review of the three commits (2026-09-02, Codex via the owner)
+found four defects, fixed the same day before step (2): the handshake
+compared the fixed package version (decision line above; a pre-realm
+daemon would have sent a console job to pc — the one silent failure the
+respawn mechanism exists to prevent); migrated items had a null realm
+(now `NOT NULL DEFAULT 'pc'`, and the migration test carries an item);
+the v2 policy parser had become an untagged enum and lost top-level
+strictness (a v1 value with a stray field, or a v2 with both `realms`
+and `leagues`, was stored half-honored — now the stamp dispatches into
+one strict shape); and the version story was implicit (now: facts v4 and
+policy v3 for characters, plan schema 6). One caution it stated, which
+the order of work already implied and is now explicit: **until the
+character key lands, cross-realm character ingestion is unsafe** —
+character rows and item locations are name-keyed, so a PoE2 name that
+collides with a pc name overwrites it; PoE2 first contact stays at (5),
+after (2). It also asked for the realm boundary to be pinned at process
+level, not only through the private `route_for`:
+`acquisition-cli/tests/realm_wire.rs` proves, through the real binaries
+and the send journal, that explicit pc and omitted realm are the same
+route, that xbox work goes out on `stash-list/xbox` / `stash/xbox` with
+their own probes first, that the mock's empty console listing lands no
+pc tab under xbox, and that a poe2 stash job is refused with nothing
+journaled; the tracer verifier checks every data route's realm suffix
+against the run's `--realm`.
 
 Pending ground-truth claims (documented facts read 2026-09-02, to be
 authored master-side and then cited here by number): realm segment

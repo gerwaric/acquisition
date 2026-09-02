@@ -686,12 +686,12 @@ cat >"$RUN_DIR/verify.sh" <<EOS
 # Re-verify this bundle: $(basename "$RUN_DIR"), binary $ver, rung tip $tip.
 # Uses the verifier copied into the bundle, never the working tree's.
 cd "\$(dirname "\$0")" && shasum -a 256 -c checksums.sha256 >/dev/null &&
-    python3 ./tracer-verify.py sends.jsonl 0 cycles.tsv $LOGIN_LIFETIME $CLOSED $MODE
+    python3 ./tracer-verify.py sends.jsonl 0 cycles.tsv $LOGIN_LIFETIME $CLOSED $MODE $REALM
 EOS
 chmod +x "$RUN_DIR/verify.sh"
 
 verify() {
-    python3 "$RUN_DIR/tracer-verify.py" "$RUN_DIR/sends.jsonl" 0 "$CYCLE_ROWS" "$LOGIN_LIFETIME" "$CLOSED" "$MODE"
+    python3 "$RUN_DIR/tracer-verify.py" "$RUN_DIR/sends.jsonl" 0 "$CYCLE_ROWS" "$LOGIN_LIFETIME" "$CLOSED" "$MODE" "$REALM"
 }
 if ! verify | tee "$RUN_DIR/summary.txt"; then
     echo ""

@@ -9,7 +9,7 @@
 
 use std::time::Duration;
 
-use crate::VERSION;
+use crate::VERSION_WITH_BUILD;
 use crate::daemon::{log_path, socket_path};
 use crate::job::JobInfo;
 use crate::protocol::{Request, Response};
@@ -61,6 +61,14 @@ fn no_spawn() -> bool {
     std::env::var_os("ACQ_NO_SPAWN").is_some_and(|v| v == "1")
 }
 
+/// Whether a daemon's handshake makes it this client's daemon: the same
+/// build stamp (package version + git commit — a daemon from another
+/// commit is stale, whatever its package version says) and the provider
+/// this process wants.
+fn handshake_matches(daemon_version: &str, provider: &str, want_provider: &str) -> bool {
+    daemon_version == VERSION_WITH_BUILD && provider == want_provider
+}
+
 impl Client {
     /// Connect to the daemon, spawning or replacing one as `opts` allows.
     /// A version or provider mismatch this client may not resolve (a
@@ -91,7 +99,7 @@ impl Client {
                     let mut client = Client::from_stream(stream);
                     let hello = client
                         .request(&Request::Hello {
-                            client_version: VERSION.to_string(),
+                            client_version: VERSION_WITH_BUILD.to_string(),
                         })
                         .await?;
                     let Response::Hello {
@@ -102,13 +110,13 @@ impl Client {
                     else {
                         bail!("unexpected handshake response: {hello:?}");
                     };
-                    if daemon_version == VERSION && provider == want_provider {
+                    if handshake_matches(&daemon_version, &provider, want_provider) {
                         client.provider = provider;
                         return Ok(client);
                     }
                     if respawned {
                         bail!(
-                            "daemon (pid {pid}) still reports version {daemon_version} / provider {provider} after respawn; wanted {VERSION} / {want_provider}"
+                            "daemon (pid {pid}) still reports version {daemon_version} / provider {provider} after respawn; wanted {VERSION_WITH_BUILD} / {want_provider}"
                         );
                     }
                     if !replace {
@@ -118,7 +126,7 @@ impl Client {
                             "this client never replaces a daemon — resolve it with the CLI (`acq daemon stop`)"
                         };
                         bail!(
-                            "daemon (pid {pid}) reports version {daemon_version} / provider {provider}; wanted {VERSION} / {want_provider}, and {why}"
+                            "daemon (pid {pid}) reports version {daemon_version} / provider {provider}; wanted {VERSION_WITH_BUILD} / {want_provider}, and {why}"
                         );
                     }
                     // Stale daemon (older build, or wrong mode): kill and respawn.
@@ -270,5 +278,24 @@ fn startup_log_excerpt(log_from: u64) -> String {
             "; its log ({}) has nothing new — it may have failed before opening it",
             path.display()
         ),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The handshake compares the build stamp, not the package version:
+    /// a daemon reporting the bare `0.0.1` (every build before this
+    /// check, and every other commit's build) is stale and gets replaced
+    /// rather than silently serving a client whose job vocabulary it
+    /// does not know.
+    #[test]
+    fn a_daemon_from_another_build_is_not_this_clients_daemon() {
+        assert!(handshake_matches(VERSION_WITH_BUILD, "mock", "mock"));
+        assert!(!handshake_matches(VERSION_WITH_BUILD, "ggg", "mock"));
+        assert!(!handshake_matches(crate::VERSION, "mock", "mock"));
+        assert!(!handshake_matches("0.0.1 (deadbeef)", "mock", "mock"));
+        assert!(VERSION_WITH_BUILD.contains(crate::BUILD));
     }
 }

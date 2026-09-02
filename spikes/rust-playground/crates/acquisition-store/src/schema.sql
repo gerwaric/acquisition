@@ -61,7 +61,7 @@ CREATE TABLE IF NOT EXISTS tabs (
 
 CREATE TABLE IF NOT EXISTS items (
     id             TEXT PRIMARY KEY,   -- GGG item id, stable across moves
-    realm          TEXT,
+    realm          TEXT    NOT NULL DEFAULT 'pc',
     league         TEXT,
     location_kind  TEXT NOT NULL,      -- stash | character
     location_id    TEXT NOT NULL,      -- tab/substash id, or character name

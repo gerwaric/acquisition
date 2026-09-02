@@ -3079,13 +3079,17 @@ resubmit if still wanted",
     ) -> Response {
         match req {
             Request::Hello { client_version } => {
-                if client_version != VERSION {
+                // The build stamp, not the package version: the client
+                // decides staleness from this and replaces (or refuses) a
+                // daemon from another commit.
+                if client_version != crate::VERSION_WITH_BUILD {
                     self.log(&format!(
-                        "version mismatch: client {client_version}, daemon {VERSION}"
+                        "version mismatch: client {client_version}, daemon {}",
+                        crate::VERSION_WITH_BUILD
                     ));
                 }
                 Response::Hello {
-                    daemon_version: VERSION.to_string(),
+                    daemon_version: crate::VERSION_WITH_BUILD.to_string(),
                     pid: std::process::id(),
                     provider: self.provider.name.to_string(),
                 }
@@ -3217,7 +3221,7 @@ resubmit if still wanted",
                         });
                 Response::DaemonStatus {
                     pid: std::process::id(),
-                    version: VERSION.to_string(),
+                    version: crate::VERSION_WITH_BUILD.to_string(),
                     provider: self.provider.name.to_string(),
                     uptime_seconds: self.started.elapsed().as_secs(),
                     connections: s.connections,
@@ -3240,7 +3244,7 @@ resubmit if still wanted",
                 let (in_flight, max_in_flight) = self.choke.actual_send_occupancy();
                 Response::Dashboard {
                     pid: std::process::id(),
-                    version: VERSION.to_string(),
+                    version: crate::VERSION_WITH_BUILD.to_string(),
                     provider: self.provider.name.to_string(),
                     uptime_seconds: self.started.elapsed().as_secs(),
                     connections: s.connections,

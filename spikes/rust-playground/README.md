@@ -318,14 +318,18 @@ ACQ_GGG=1 acq auth          # real OAuth against pathofexile.com in your browser
                             #  profile job; uuid-at-login, N38: not rate limited)
 ACQ_GGG=1 acq characters    # GET api.pathofexile.com/character
 ACQ_GGG=1 acq stashes       # GET api.pathofexile.com/stash/Standard
-ACQ_GGG=1 acq characters --realm poe2   # GET …/character/poe2 — PoE2 first contact, pending:
-                                        # documented live today, unobserved by us; standing rule
-                                        # (rails on, ceiling 3) applies (CONTEXT.md, characters plan)
+ACQ_GGG=1 acq characters --realm poe2   # GET …/character/poe2 — PoE2 first contact: NOT YET.
+                                        # Character rows and item locations are still name-keyed,
+                                        # so a PoE2 name colliding with a pc one would overwrite
+                                        # it; waits for the character-key step (CONTEXT.md, order
+                                        # of work (2) then (5)), then the standing rule applies
 ```
 
 `ACQ_GGG=1` on any command selects the real provider; the CLI kills and
-respawns a daemon running in the wrong mode (the handshake carries the
-provider name), so mock and real never mix on one daemon. Real mode uses the
+respawns a daemon running in the wrong mode or from another build (the
+handshake carries the provider name and the build stamp `acq --version`
+prints), so mock and real never mix on one daemon and a stale daemon
+never serves a newer client's jobs. Real mode uses the
 existing "acquisition" registration — same client id, callback path
 (`/auth/path-of-exile` on a random loopback port), scopes, and user-agent as
 the shipped C++ app. Refresh tokens live in a keyring entry separate from the

@@ -143,8 +143,7 @@ impl std::error::Error for PlanError {}
 /// compiled here into minimal requests. In memory it is always the v2
 /// shape; a stored v1 value is upgraded on parse (realm pc) and stays
 /// stored as written — what the human typed is what `policy show` shows.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(try_from = "SyncPolicyWire")]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct SyncPolicy {
     /// [`SYNC_POLICY_VERSION`] once parsed (a v1 value reads as v2).
     pub version: i64,
@@ -164,64 +163,77 @@ pub struct RealmPolicy {
     pub leagues: BTreeMap<String, LeaguePolicy>,
 }
 
-/// The raw JSON shapes. Every deserialization path funnels through the
-/// `TryFrom` below, so the version gate, the unknown-field refusal, and
-/// the per-realm family check cannot be bypassed by deserializing around
-/// [`SyncPolicy::from_value`].
+/// The raw JSON shapes, one strict struct per version — `deny_unknown_fields`
+/// on each, so a stray top-level field is refused whatever the stamp (an
+/// untagged enum would lose that: review finding 2026-09-02). The stamp
+/// picks exactly one shape ([`parse_policy`]), and `SyncPolicy`'s
+/// `Deserialize` goes through the same function, so the version gate, the
+/// unknown-field refusal, and the per-realm family check cannot be
+/// bypassed by deserializing around [`SyncPolicy::from_value`].
 #[derive(Deserialize)]
-#[serde(untagged)]
-enum SyncPolicyWire {
-    V2 {
-        version: i64,
-        realms: BTreeMap<Realm, RealmPolicy>,
-    },
-    V1 {
-        version: i64,
-        leagues: BTreeMap<String, LeaguePolicy>,
-    },
+#[serde(deny_unknown_fields)]
+struct SyncPolicyWireV1 {
+    #[allow(dead_code)]
+    version: i64,
+    leagues: BTreeMap<String, LeaguePolicy>,
 }
 
-impl TryFrom<SyncPolicyWire> for SyncPolicy {
-    type Error = String;
-    fn try_from(wire: SyncPolicyWire) -> Result<Self, String> {
-        // The stamp must match the shape it came with: a v1 stamp on a
-        // `realms` body (or v2 on `leagues`) is a policy that half-parses.
-        let realms = match wire {
-            SyncPolicyWire::V2 { version: 2, realms } => realms,
-            SyncPolicyWire::V1 {
-                version: 1,
-                leagues,
-            } => BTreeMap::from([(Realm::Pc, RealmPolicy { leagues })]),
-            SyncPolicyWire::V2 { version, .. } | SyncPolicyWire::V1 { version, .. }
-                if version > SYNC_POLICY_VERSION =>
-            {
-                return Err(format!(
-                    "sync policy declares version {version}, not this build's v{SYNC_POLICY_VERSION}"
-                ));
-            }
-            SyncPolicyWire::V2 { version, .. } => {
-                return Err(format!(
-                    "a version {version} sync policy has `leagues`, not `realms`"
-                ));
-            }
-            SyncPolicyWire::V1 { version, .. } => {
-                return Err(format!(
-                    "a version {version} sync policy has `realms`, not `leagues`"
-                ));
-            }
-        };
-        for (realm, policy) in &realms {
-            if !Family::Stashes.accepts(*realm) && !policy.leagues.is_empty() {
-                return Err(format!(
-                    "tabs under realm {realm}: the stash endpoints do not take it (PoE1 only)"
-                ));
-            }
-        }
-        Ok(SyncPolicy {
-            version: SYNC_POLICY_VERSION,
-            realms,
-        })
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SyncPolicyWireV2 {
+    #[allow(dead_code)]
+    version: i64,
+    realms: BTreeMap<Realm, RealmPolicy>,
+}
+
+impl<'de> Deserialize<'de> for SyncPolicy {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let value = Value::deserialize(d)?;
+        parse_policy(&value).map_err(serde::de::Error::custom)
     }
+}
+
+/// The one parse: the `version` stamp selects the strict shape, the
+/// shape is validated whole, a v1 value upgrades to realm pc, and no
+/// realm may name work its endpoint family does not take.
+fn parse_policy(value: &Value) -> Result<SyncPolicy, String> {
+    let version = value
+        .get("version")
+        .and_then(Value::as_i64)
+        .ok_or_else(|| "missing integer `version`".to_string())?;
+    let realms = match version {
+        1 => {
+            let wire: SyncPolicyWireV1 =
+                serde_json::from_value(value.clone()).map_err(|e| e.to_string())?;
+            BTreeMap::from([(
+                Realm::Pc,
+                RealmPolicy {
+                    leagues: wire.leagues,
+                },
+            )])
+        }
+        2 => {
+            let wire: SyncPolicyWireV2 =
+                serde_json::from_value(value.clone()).map_err(|e| e.to_string())?;
+            wire.realms
+        }
+        other => {
+            return Err(format!(
+                "sync policy declares version {other}, not this build's v{SYNC_POLICY_VERSION}"
+            ));
+        }
+    };
+    for (realm, policy) in &realms {
+        if !Family::Stashes.accepts(*realm) && !policy.leagues.is_empty() {
+            return Err(format!(
+                "tabs under realm {realm}: the stash endpoints do not take it (PoE1 only)"
+            ));
+        }
+    }
+    Ok(SyncPolicy {
+        version: SYNC_POLICY_VERSION,
+        realms,
+    })
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -305,49 +317,7 @@ impl SyncPolicy {
                 supported: SYNC_POLICY_VERSION,
             });
         }
-        // An untagged enum's own error message is uninformative
-        // ("did not match any variant"), so shape errors are re-derived
-        // against the variant the stamp names.
-        serde_json::from_value(value.clone()).map_err(|_| PlanError::MalformedPolicy {
-            detail: policy_shape_error(value),
-        })
-    }
-}
-
-/// The specific reason a policy value failed the strict parse, derived
-/// from the shape its `version` stamp names (the untagged wire enum only
-/// says "no variant matched").
-fn policy_shape_error(value: &Value) -> String {
-    #[derive(Deserialize)]
-    #[serde(deny_unknown_fields)]
-    struct V2 {
-        #[allow(dead_code)]
-        version: i64,
-        realms: BTreeMap<Realm, RealmPolicy>,
-    }
-    #[derive(Deserialize)]
-    #[serde(deny_unknown_fields)]
-    struct V1 {
-        #[allow(dead_code)]
-        version: i64,
-        leagues: BTreeMap<String, LeaguePolicy>,
-    }
-    let version = value.get("version").and_then(Value::as_i64).unwrap_or(0);
-    let shape = match version {
-        1 => serde_json::from_value::<V1>(value.clone()).map(|v| SyncPolicyWire::V1 {
-            version,
-            leagues: v.leagues,
-        }),
-        _ => serde_json::from_value::<V2>(value.clone()).map(|v| SyncPolicyWire::V2 {
-            version,
-            realms: v.realms,
-        }),
-    };
-    match shape {
-        Err(e) => e.to_string(),
-        Ok(wire) => SyncPolicy::try_from(wire)
-            .err()
-            .unwrap_or_else(|| "did not parse".into()),
+        parse_policy(value).map_err(|detail| PlanError::MalformedPolicy { detail })
     }
 }
 
@@ -1327,11 +1297,15 @@ mod tests {
         }))
         .unwrap_err();
         assert!(err.to_string().contains("poe2"), "{err}");
-        // An unknown realm key, and a v1 stamp on a v2 body, are malformed.
+        // An unknown realm key, a v1 stamp on a v2 body, and a stray
+        // top-level field under either stamp are all malformed — the
+        // strict parse is per stamped shape, top level included.
         for bad in [
             json!({ "version": 2, "realms": { "ps5": { "leagues": {} } } }),
             json!({ "version": 1, "realms": { "pc": { "leagues": {} } } }),
             json!({ "version": 2, "leagues": {} }),
+            json!({ "version": 1, "leagues": {}, "typo": true }),
+            json!({ "version": 2, "realms": {}, "leagues": {} }),
         ] {
             let err = SyncPolicy::from_value(&bad).unwrap_err();
             assert!(

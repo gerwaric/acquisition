@@ -215,7 +215,7 @@ pub struct CharacterRow {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ItemRow {
     pub id: String,
-    pub realm: Option<String>,
+    pub realm: String,
     pub league: Option<String>,
     pub location_kind: String,
     pub location_id: String,
@@ -335,7 +335,11 @@ impl Store {
                     ),
                     // v3: realm, the coordinate above league. Existing
                     // rows are pc — the only realm anything ever fetched.
-                    ("items", "realm", "ALTER TABLE items ADD COLUMN realm TEXT"),
+                    (
+                        "items",
+                        "realm",
+                        "ALTER TABLE items ADD COLUMN realm TEXT NOT NULL DEFAULT 'pc'",
+                    ),
                     (
                         "characters",
                         "realm",
@@ -1558,7 +1562,14 @@ mod tests {
                     idx INTEGER, json TEXT NOT NULL, listed_at INTEGER, fetched_at INTEGER,
                     removed_at INTEGER, PRIMARY KEY (league, id));
                  INSERT INTO tabs (league, id, name, type, idx, json, listed_at)
-                 VALUES ('Standard', 'old1', 'Old', 'PremiumStash', 0, '{}', 5);",
+                 VALUES ('Standard', 'old1', 'Old', 'PremiumStash', 0, '{}', 5);
+                 CREATE TABLE items (
+                    id TEXT PRIMARY KEY, league TEXT, location_kind TEXT NOT NULL, location_id TEXT NOT NULL,
+                    socketed_in TEXT, name TEXT, type_line TEXT, base_type TEXT, rarity TEXT, stack_size INTEGER,
+                    x INTEGER, y INTEGER, w INTEGER, h INTEGER, json TEXT NOT NULL,
+                    first_seen INTEGER NOT NULL, last_seen INTEGER NOT NULL, removed_at INTEGER);
+                 INSERT INTO items (id, league, location_kind, location_id, name, type_line, base_type, json, first_seen, last_seen)
+                 VALUES ('old-item', 'Standard', 'stash', 'old1', 'Foo', 'Imperial Bow', 'Imperial Bow', '{\"id\":\"old-item\"}', 5, 5);",
             )
             .unwrap();
         }
@@ -1567,6 +1578,14 @@ mod tests {
         assert_eq!(
             (tabs[0].id.as_str(), tabs[0].realm.as_str()),
             ("old1", "pc")
+        );
+        // Pre-realm items are pc too — not null: a realm-filtered search
+        // and the item's own row both say so (review finding 2026-09-02).
+        assert_eq!(tabs[0].item_count, 1);
+        assert_eq!(s.item("old-item").unwrap().unwrap().realm, "pc");
+        assert_eq!(
+            s.search("foo", Some("pc"), None, false, 10).unwrap().len(),
+            1
         );
         // The migrated file is stamped with the current schema version.
         let v: i64 = s
@@ -1710,10 +1729,7 @@ mod tests {
             )
             .unwrap();
         assert_eq!(ing.added, 1);
-        assert_eq!(
-            s.item("i1").unwrap().unwrap().realm.as_deref(),
-            Some("sony")
-        );
+        assert_eq!(s.item("i1").unwrap().unwrap().realm, "sony");
         assert_eq!(
             s.search("foo", Some("sony"), None, false, 10)
                 .unwrap()

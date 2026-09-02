@@ -95,7 +95,23 @@ def read_cycles(path):
     return cycles
 
 
-def verify(journal, offset, rows_path, login_lifetime, closed, mode, out=print):
+# Routes whose label carries the realm: `<family>[/<realm>]@<account>`;
+# pc adds nothing (CONTEXT.md, realm step 2026-09-02).
+REALM_ROUTES = {"stash-list", "stash", "character-list", "character"}
+
+
+def route_realm_ok(route, realm):
+    """Whether a journal route is on the run's realm: a data route's label
+    must carry `/<realm>` exactly when the realm is not pc, and nothing
+    when it is — a send that went to another realm's URL shape is the
+    failure this catches (the daemon rendered the wrong path)."""
+    family, _, suffix = route.split("@", 1)[0].partition("/")
+    if family not in REALM_ROUTES:
+        return True
+    return suffix == ("" if realm == "pc" else realm)
+
+
+def verify(journal, offset, rows_path, login_lifetime, closed, mode, out=print, realm="pc"):
     lifetimes = read_lifetimes(journal, offset)
     cycles = read_cycles(rows_path)
     fail, totals = [], []
@@ -162,6 +178,8 @@ def verify(journal, offset, rows_path, login_lifetime, closed, mode, out=print):
         for r, m in first.items():
             if r.split("@", 1)[0] not in NO_PROBE and m != "HEAD":
                 fail.append(f"lifetime {i}: first send on {r} was {m}, not the probe")
+            if not route_realm_ok(r, realm):
+                fail.append(f"lifetime {i}: route {r} is not on realm {realm}")
         t = f"{counts.get('POST', 0)}/{counts.get('HEAD', 0)}/{counts.get('GET', 0)}"
         totals.append(f"{t} = {len(lt['sends'])}")
         out(f"  totals (POST/HEAD/GET): {totals[-1]}")
@@ -292,6 +310,7 @@ def self_test():
         ("a GET on another account is not covered by this account's probe", "stash@A#1", "0:10:0,3:300:0", 100, "10", "300", False, other_account),
         ("a probe with no rate-limit state is not a pass", "stash@A#1", "0:10:0,3:300:0", 100, "10", "300", False, no_state),
         ("an active restriction fails even with our own hits", "stash@A#1", "0:10:0,3:300:120", 100, "10", "300", False, restricted),
+        ("a pc run whose sends went out on the xbox route fails", "stash/xbox@A#1", "0:10:0,3:300:0", 100, "10", "300", False),
     ]
     failures = 0
     with tempfile.TemporaryDirectory() as d:
@@ -318,8 +337,9 @@ def self_test():
 if __name__ == "__main__":
     if len(sys.argv) == 2 and sys.argv[1] == "--self-test":
         sys.exit(0 if self_test() else 1)
-    if len(sys.argv) != 7:
+    if len(sys.argv) not in (7, 8):
         print(__doc__)
         sys.exit(2)
     journal, offset, rows, login, closed, mode = sys.argv[1:7]
-    sys.exit(0 if verify(journal, offset, rows, int(login), int(closed), mode) else 1)
+    realm = sys.argv[7] if len(sys.argv) == 8 else "pc"
+    sys.exit(0 if verify(journal, offset, rows, int(login), int(closed), mode, realm=realm) else 1)
