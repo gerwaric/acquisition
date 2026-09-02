@@ -805,13 +805,19 @@ made inside the ruling, agreed with the owner before building):
   order-of-work (5), PoE2 first contact, can run as that invocation
   (`LIVE-TESTING.md`, "Characters rung").
 
-Pending ground-truth claims (documented facts read 2026-09-02, to be
-authored master-side and then cited here by number): realm segment
-semantics per endpoint and pc-by-omission; PoE2 on the character
-endpoints only; `Character.id` unique 64-hex, `Item.id` optional;
-`inventoryId` undocumented; the invalid-request (4xx) threshold; the
-`Character.realm` contradiction. Observed (this run): guardian slot
-names; ended-league names without `expired`.
+Ground-truth claims authored master-side 2026-09-02 (cherry-picked
+here): **N41** the poe2 character policies (`-poe2` names, pc's
+windows, free HEAD, separate counters), **N42** per-realm lists and
+`Character.realm` `poe2` (the documented `pc|xbox|sony` enum is
+incomplete; no `deleted`/`expired` flags even in ended leagues),
+**N43** item `realm` on PoE2 only, PoE2 body arrays and `skills`
+`inventoryId`s, the guardian array's slot names, stripped characters,
+**N44** id-less item-granted skills (the documented-optional `Item.id`,
+observed), **N45** two policies pacing independently and a hold ending
+at the window's expiry. Still pending from the documentation read
+(not observed, so not yet claims): realm segment semantics per
+endpoint and pc-by-omission; PoE2 on the character endpoints only;
+`inventoryId` undocumented; the invalid-request (4xx) threshold.
 
 **Step (5) ran live 2026-09-02 — both poe2 routes pass, and one ruling
 is open** (`LIVE-TESTING.md`, run ledger, three rows). Answered: HEAD is
