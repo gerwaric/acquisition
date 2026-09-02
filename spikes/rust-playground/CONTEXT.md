@@ -358,6 +358,56 @@ unchanged. The live rerun of the same five-id policy — the first
 two-cycle discovery sample (64 substashes, ~15 min of holds) — is the
 owner's, under the rung section.
 
+### Characters in the refresh plan — next session (agreed 2026-09-02, before pricing)
+
+Why now: tabs and characters are the only two paths items take into
+the store, so this closes the ingest map ("the store holds what the C++
+app shows" — evidence for ADR 0003 more than for pricing); the shape is
+the same (a listing, one fetch per entity, a freshness window, binding
+plan, apply parent, staleness gate, driver); both routes had first
+contact 2026-08-30 with their policies recorded (N40 and the run
+ledger: list `character-list-request-limit` `2:10:60,5:300:300`, fetch
+`character-request-limit` `5:10:60,30:300:300`, both with a free HEAD);
+the mock serves both under the real policy shapes; and it is cheap
+evidence on the grammar question pricing will ask (a near-sibling is a
+weak test, but it comes almost free, and strain here would be worth
+knowing first).
+
+**Decision the session opens with (owner): character identity.** The
+store keys characters by `name` today (`schema.sql`, `characters.name
+PRIMARY KEY`); the API's character object carries an `id`, and the
+fetch endpoint is `GET /character/{name}` — so names can change while
+ids do not, and a rename between the listing and the fetch fails that
+child honestly (D5a, the vanished-tab shape). Proposed: key on the id,
+carry the name as a fact that can move, render the fetch by the name
+the basis listing recorded. Confirm the `id` field against a stored
+list response before the schema moves (a facts-file migration; facts
+are refetchable).
+
+Shape choices, proposed so the session does not re-derive them:
+
+- One policy, one plan, one loop: `leagues.<L>.characters: "all" |
+  [ids]` beside `tabs` — the list is account-wide with a league per
+  character, so a character is covered when its league's policy names
+  it. A separate character plan would be the "family" answer; not for
+  something this similar.
+- Plan actions `list_characters` and `fetch_character { id, name }`
+  (plan schema 5); the policy gains an additive field the strict parser
+  learns (policy version stays 1 unless the field's absence must mean
+  something other than "no characters"). The apply vocabulary widens
+  to `characters` and `character` — both single-request kinds; the
+  daemon stays plan-blind.
+- `Store::stash_snapshot` gains a sibling or a superset for characters
+  (facts named, nothing derived; the neutral-snapshot rule).
+- The same tests the tabs have: coverage, freshness, disagreement,
+  strict parse round trip, the process-level loop against the mock.
+- Live: one row under the tracer rung's standing rule — the account's
+  characters, list + fetches, two probes; the tight list window (2 per
+  10 s) is the limiter's, not the plan's.
+
+Exit: the loop closes on a policy naming tabs and characters together,
+live, with the driver's checks green; then pricing.
+
 ## Frontend boundary findings (from `acq pull`, 2026-08-24; `pull` itself was retired 2026-08-29 in favor of the store)
 
 What a real consumer needed from the protocol and did not get. Facts, not decisions; each is a candidate protocol change for Tom to accept or refuse. Resolved ones become decisions above and are deleted here.
@@ -384,7 +434,7 @@ What a real consumer needed from the protocol and did not get. Facts, not decisi
 - Queue-management UI (drag-to-reorder, per-job progress bars). v1.0 only guarantees the architecture makes this a rendering problem.
 - ~~Agent/MCP traffic against GGG~~ — deferral lifted 2026-09-01 (decision "Agent traffic against GGG is allowed; the daemon is the single gate"): GGG permits agent use under the API rules; `acq-mcp` now spends through a running daemon in either mode and never spawns one in real mode.
 - **Parking lot (2026-08-31, each with its trigger so deferral never needs re-arguing):**
-  - Pricing-as-document → lands on the annotations layer + plan/apply after the tracer; the second plan-bearing consumer, and the test of whether Plan is one grammar or a family of operation-specific documents.
+  - Pricing-as-document → lands on the annotations layer + plan/apply after the tracer and after characters join the refresh plan (agreed 2026-09-02); the second plan-bearing consumer, and the test of whether Plan is one grammar or a family of operation-specific documents.
   - Legacy buyout import → a patch generator into the ordinary annotation plan/apply path; the wizard dissolves.
   - Shop / forum publishing → outward credentialed traffic (POESESSID) **outside the API choke-point invariant**; requires its own equally structural ownership/rate/safety boundary session before any implementation.
   - User-scoped annotations home (`user.db`) + scope taxonomy → trigger: the first user-scoped kind (currency ratios, saved searches).
