@@ -197,6 +197,8 @@ One row per rung execution. Journal files are copied to
 
 | 2026-09-01 | tracer | `7cc77a252d38` | **pass** — loop closed in 2 cycles | L1 1/0/1 = 2, L2 1/2/6 = 9 | 0 | pids 37648 (login) / 37964 (cycle 1), 23:52–00:04 UTC, driven by `tools/tracer-rung.sh --account GERWARIC#7694 <5 ids>` (Dump Tab, Maps (Remove-only), Uniques 1 (Remove-only), Winter Orb (Remove-only), the folder child 3.12 Pathfinder — the persistence check's five). Login: code-exchange POST 200, `GET /profile` 200, uuid recorded, bound reached at 2. Policy revision 1; offline plan = stale listing + 5 fetches, 6 req / 6..18 wire, `no quote` with the socket dead. Cycle 1 (ceiling 9): the plan **quoted** with the daemon up (the `/profile` discriminator residual did not bite), envelope identical to the offline one; HEAD `/stash/Standard` 204 `0:15:0,0:60:0` and HEAD `/stash/Standard/{id}` 204 `0:10:0,0:300:0` (both probes 0 hits, standing rule met); listing GET `1:15:0,1:60:0`; 5 stash GETs `1..5:10:0` in 0.5 s; parent `done`, 6/6 children done; bound reached exactly at send 9, nothing refused. Cycle 2 offline: `nothing to do` (5 covered tabs fresh); no-op apply `requests: 0`, no daemon appeared. Readback: all 5 tabs `fetched 59s ago`; **64 substashes** under the map/unique tabs in the store and outside the id list (the predicted uncovered-discovery observation); **0 item events** — nothing in those tabs changed since 2026-08-30. `verify.sh` reproduces the verdict. Friction notes in the rung section. `runs/2026-09-01-tracer/` |
 
+| 2026-09-02 | tracer (rerun after the handle ruling) | `3d685c6d6603` | **pass** — loop closed in 3 cycles | L1 1/1/64 = 66, L2 1/2/6 = 9 | 0 | pids 45022 / 45233, 00:54–01:07 UTC, the same five ids, policy revision 2, no login (uuid on record). **Cycle 1: the 64 substashes** (46 under Maps (Remove-only), 18 under Uniques 1) already on record from the first run, planned through their parents — the first live discovery sample under "a policy id covers its children"; quoted; probe `0:10:0,0:300:0`; 15 GETs per 10 s, then holds of **14.98 s, 343.9 s, 14.84 s, 343.9 s** (rungs 7b and 10 exactly), every first send after a hold answered `1:10:0,…`, windows peaked at `15:10:0,30:300:0` and never exceeded; 64/64 children done; bound reached at 66. **Cycle 2: a refetch cycle** — the listing and the five parents were 51 min old at the start and the 13-minute cycle carried them past the 3600 s window (4033 s at compile), so the plan re-listed and re-fetched the five (6 req, ceiling 9); **its stash probe read `0:10:0,4:300:0` — cycle 1's last four GETs, verified as ours by the per-window bound: the verifier's nonzero-hit branch seen live for the first time**; the listing probe 0 hits; all 2xx. Cycle 3 empty; no-op with no daemon. Readback: 64 children of the selected tabs on record, 0 never fetched; items 168 → 816, 648 item events (all `added`, the substash contents). Zero 429, no trip. `verify.sh` reproduces. Observation for the rung: the driver's window guard compares the cycle's duration to the window, not the covered facts' **age at start** plus the duration — that gap is what bought the refetch cycle; the loop still closed. No owner friction notes entered. `runs/2026-09-02-tracer/` |
+
 ### Re-soak postmortem (2026-08-27)
 
 What the re-soak had to show, it showed: the R8 fix live (twice, once
@@ -595,6 +597,25 @@ the re-ruling has them):
   every GET carries 0 — the probes queued behind the token POST that
   preceded them in the same lifetime. Consistent with the journal
   order; noted, not investigated.
+
+Agent observations from the rerun (2026-09-02, after the handle ruling;
+the owner entered no notes):
+
+- **Refetch cycle**: facts fresh at a plan's compile can be stale by the
+  next plan's, when their age at the cycle's start plus the cycle's
+  duration exceeds the window — here 51 min + 13 min against 3600 s
+  bought a 6-request cycle 2. Inherent to a freshness window, harmless
+  (the loop closed), and the driver's guard could add the facts' age at
+  start to its estimate; the product question is whether a window is the
+  right handle at all for "keep these fresh" when cycles are long.
+- **Substash names**: GGG names a map substash by its tier ("1", "2")
+  and a unique substash not at all, and the parent's "(Remove-only)"
+  suffix rides along, so the plan renders `" (Remove-only)"` — the
+  frontend finding "nameless substashes" surfacing in plan text.
+- **Quote**: the same fresh-daemon shape as the first run; nothing new.
+- **The wall of 64 action lines** is the plan doing what binding
+  requires (every action explicit); whether a reviewer wants it grouped
+  ("64 substashes under 2 tabs") is a legibility item.
 
 Ruled 2026-09-01, in `CONTEXT.md`: binding confirmed as written; a policy
 id covers the tab and its children (planner change is the follow-up build
