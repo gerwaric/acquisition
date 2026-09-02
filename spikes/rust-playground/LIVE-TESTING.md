@@ -205,6 +205,7 @@ One row per rung execution. Journal files are copied to
 | 2026-09-02 | first contact: `/character/poe2/{name}` (row 2, cycle 2) | `6caa07bfd1dc` | **pass on the wire; 4 of 5 bodies refused by the store** | 1/1/5 = 7 | 0 | pid 4923, 15:48 UTC, ceiling 7 exact, nothing refused by the rails. **HEAD `/character/poe2/pilatesinstructor` 204, uncounted**; 5 × GET 200, state `1..5:10:0`. Policy **`character-request-limit-poe2`**, `Account`, `5:10:60,30:300:300` — again pc's windows under the poe2 name. Then the finding the rung section predicted: the store refused four bodies (pilatesinstructor L33, flamdomrando L16, boomsplam L15 — Witches — and gerwarsmash L4 Warrior) with `missing an id on an item`; those children failed, the apply parent failed, the driver aborted (daemon stopped by hand with every job done or failed; journal and log slices copied into the run directory). The fifth, gerwarshot L5 Ranger, landed: `equipment` 8, `skills` 4 (+3 socketed supports), no `inventory` key, `metadata.version` `4.5.4f`, **every item with an id, the default `Bow Shot` attack included** — so `skills` items *can* carry ids. Which array carried the id-less ones is unknown: a refused body was dropped whole, and the job result keeps only the error string. Fixed the same day (facts v7: `refused` keeps the body verbatim, the error names `array[index]`, `acq store refused`) and rerun on the next row. |
 | 2026-09-02 | `/character/poe2/{name}` rerun after facts v7 (row 2, cycle 2 again) | `b9e236eb298e` | **pass on the wire; 4 of 4 bodies refused — and kept** | 1/1/4 = 6 | 0 | pid 9749, 16:02 UTC, ceiling 6 exact; HEAD 204 uncounted, 0 hits; 4 × GET 200. The four refused bodies are in `refused` 1–4 and read: **every id-less entry is an item-granted skill.** A PoE2 weapon or shield that grants a skill (Rattling Sceptre → Skeletal Warrior, Attuned Wand → Mana Drain, Withered Wand → Chaos Bolt, Splintered Tower Shield → Raise Shield) carries that skill as a gem-shaped entry (`frameTypeId: "Gem"`, `support: false`) in its `socketedItems` with **no `id`**, while the host's own `sockets` is `[]`; the identical object appears again as `skills[0]` (deep-equal, no `inventoryId`); and a real support the player socketed into the granted skill (Meat Shield I, itself with `sockets`) is id-less too — the whole subtree under a granted skill has no ids. Nothing else lacks one: a rune socketed in a Focus (Desert Rune, `frameTypeId` `Currency`, `sockets[].type` `rune`) has an id, and gerwarshot's Crude Bow grants nothing, which is why it landed. Also read: **every PoE2 item carries `realm: "poe2"`** (pc bodies never carry the field, 0 of 1962 rows); `skills` entries carry `inventoryId` `DefaultAttackSkills` / `SkillSlots` (supports none); bodies `metadata.version` `4.5.4f`. Daemon stopped by hand, all jobs done/failed; `runs/2026-09-02-tracer-160139/` (journal, log, `refused-1..4.json`). What the store should do with a granted skill is an owner ruling (CONTEXT.md, "Characters in the refresh plan", open). |
 | 2026-09-02 | characters rung, poe2 (row 2, closing run after the granted-skill ruling) | `21f1c515b39b` | **pass** — loop closed in 2 cycles | L1 1/1/4 = 6 | 0 | 16:14 UTC, the same invocation; listing fresh (30 min), gerwarshot fresh, plan = the four refused characters, ceiling 6 exact; HEAD 204 uncounted 0 hits, 4 × GET 200; apply `success` 4/4. All four landed: pilatesinstructor 30 items, flamdomrando 22, boomsplam 20, gerwarsmash 11 (83 `added` events at `character/poe2/<id>`); **8 granted skills left in place** (`_granted` `{equipment: 1, skills: 1}` per character; `store status` `granted: 8`), no refusal, no drift. Cycle 2 offline `nothing to do` (5 covered characters fresh; Runes of Aldur outside the policy), no-op apply, no daemon. Readback `acq store characters --realm poe2`: 6 rows, 98 items, every Standard character fetched. `verify.sh` reproduces the verdict. Order-of-work (5) is complete: both poe2 routes sampled and recorded, the shape that blocked ingest ruled and built the same day. `runs/2026-09-02-tracer-161419/` |
+| 2026-09-02 | legibility run — the refresh slice read from the terminal (pc, five tabs + all characters; the characters-row shape rerun on the legible-output build) | `695c1ec131f9` | **pass** — loop closed in 2 cycles; owner verdict in the section below | L1 1/4/112 = 117 | 0 | pid 26435, 19:04–19:16 UTC (cycle 1, 12 min); policy revision 7 (`5ba2e1880a,421496994e,0b4c8308d2,ad19966e17,3351947d46` + `characters: all`, 3600 s). Every fact 3 h old, so one plan: 1 stash listing, 5 tabs, 64 substashes (46 + 18), 1 character listing, 41 characters — the first live plan rendered **grouped** (`fetch 64 substashes under 2 of those tabs`) rather than as 112 lines. Ceiling 117 exact; four probes, each 204 with 0 hits; 112 × GET 200; quoted (the fresh-daemon `no ETA until its policy is learned` shape). Holds: character 8 (7 × ~15.5 s, one **280 s** after the 30th), stash 4 (2 × ~14.7 s, 2 × ~343.7 s) — two policies pacing independently, as row 1 saw. Apply `success` 112/112; `store_changes` all zero over 112 responses (nothing moved on the account). Cycle 2 offline `nothing to do` (69 tabs and 41 characters fresh), no-op apply with no daemon. Readback footers: `402 tabs: 69 fetched, 317 never fetched, 16 folders (never fetched); 816 items`; `59 characters: 42 fetched (10 with empty bodies), 17 never fetched; 1146 items`; `0 events in the last 1.4 h`. No friction notes typed at the prompts; the owner's verdict was given to the agent and recorded later the same day. `runs/2026-09-02-tracer-190328/` |
 
 ### Re-soak postmortem (2026-08-27)
 
@@ -756,6 +757,41 @@ jobs and results stay readable, and prints what to do; both times the
 reading took under a minute and `acq daemon stop` by hand ended it.
 Right for a rung; a scripted caller would want the stop automated
 once the evidence is copied — noted, not changed.
+
+## Legibility run — the refresh slice read from the terminal (run 2026-09-02: pass; output approved, density open)
+
+The live run `CONTEXT.md`'s "Legible output for the refresh slice"
+named as its judge: the characters-row shape
+(`tools/tracer-rung.sh --account GERWARIC#7694 --characters all <the
+five tab ids>`) on the legibility build (`695c1ec1`), the owner at the
+terminal, under the standing rule. Not a first contact — every route it
+touched was well-trodden — so the ledger row and this note are the
+record.
+
+**Owner verdict (2026-09-02, given to the agent rather than typed at
+the prompts; no `friction.md` exists for this run): the output is
+approved, and it is "still dense, verbose output".** Density stays the
+open item: cut words before adding structure, judged against the next
+run a person reads live, not pre-fixed. `CONTEXT.md` carries the same
+verdict in the ruling's closing paragraph.
+
+Agent observations from the bundle (not owner friction):
+
+- **The wall is gone.** The 112-request plan rendered in 14 lines; the
+  tracer rerun's 64 substash lines are `fetch 64 substashes under 2 of
+  those tabs` over `46 under 421496994e, 18 under 0b4c8308d2`.
+- **The failure report was not exercised live.** Nothing failed, so the
+  parent-failure expansion (rule 4) stands on its unit tests and the
+  mock rehearsal only.
+- **All-zero change lines.** `changed:` reported nothing over 112
+  refetched bodies and the events readback said `0 events in the last
+  1.4 h` — correct, and the case where "what did it do" and "what
+  changed" give different answers. Whether a row of zeros reads as
+  reassurance or as "did it work" is a question for the next reader.
+- **Holds as before.** The character facet's 280 s hold after its 30th
+  send repeats row 1's finding (a hold ends at the window, not at
+  343 s); the stash facet, which filled its window in bursts, held
+  343.7 s twice.
 
 ## Status: ladder closed (2026-08-27)
 

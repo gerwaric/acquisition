@@ -342,7 +342,9 @@ read means the run was judged through the agent's reading, not the
 owner's. Not a failure of pin-after-the-consumer — a caveat it carries
 into the pricing session: budget for legibility (the parked output items
 below) before that session's own live run, or say explicitly that agent
-observations stand in for owner notes.
+observations stand in for owner notes. Discharged 2026-09-02: the
+legible output was built and read live by the owner ("Legible output for
+the refresh slice" below).
 
 **Handle ruling built 2026-09-01:** `TabSelection::covers(tab)` (since step (3): `covers_tab` over the shared `Selection`) — own id
 or parent's id; `SkipReason::EmptyStub` for a map/unique stub counting 0
@@ -875,7 +877,7 @@ live, with the driver's checks green — **met 2026-09-02**; (5) PoE2
 first contact ran and closed the same day (the paragraph above;
 N41–N45). Next is pricing.
 
-### Legible output for the refresh slice (ruled 2026-09-02; build follows owner review)
+### Legible output for the refresh slice (ruled, built and run live 2026-09-02: approved; density open)
 
 Why now: the method-test verdict above — the tracer's truth was the
 agent's reading of the journal, not the owner's reading of the terminal
@@ -1073,13 +1075,16 @@ hold. Pinned by unit tests on the renderer (threshold, parent counts,
 reason ranges, the expanded form, the empty plan, the no-quote line
 without an OS error, the event grouping, the `-`/`0` items cell) and by
 the mock rehearsals of `tools/tracer-rung.sh` in both shapes (`all
---characters all` and `--realm poe2 --characters all none`, green). The
-live run that judges it is the owner's, under `LIVE-TESTING.md`'s
-standing rule; its friction notes are this session's verdict. The
-owner's reading of the mock output before that run (2026-09-02):
-approved, and "still dense, verbose output" — density is the open
-item this build did not close, to be judged against the live run's
-notes, not pre-fixed.
+--characters all` and `--realm poe2 --characters all none`, green). **Run
+live 2026-09-02** (`LIVE-TESTING.md`: the `legibility run` ledger row
+and the section of that name): the characters-row shape on build
+`695c1ec1`, 112 requests in one grouped plan, pass, loop closed in two
+cycles. The owner read it at the terminal and gave the verdict to the
+agent (no notes typed at the prompts): **approved**, and "still dense,
+verbose output". Density is the open item this build did not close:
+cut words before adding structure, judged against the next live
+reading, not pre-fixed. The method-test caveat carried into the pricing
+session (budget for legibility before its live run) is discharged.
 
 ## Frontend boundary findings (from `acq pull`, 2026-08-24; `pull` itself was retired 2026-08-29 in favor of the store)
 
@@ -1116,7 +1121,7 @@ What a real consumer needed from the protocol and did not get. Facts, not decisi
   - Universal Plan grammar / five-verb surface → direction only; evidence at pricing.
   - Dynamic `--deep` fan-out under plans → trigger: tracer evidence that two-cycle reconciliation genuinely hurts (2026-09-01: the tracer rung produced none; stays parked).
   - Type-level sync-policy filters ("skip map tabs", "include unique tabs", "fetch folder children") → trigger: a policy author who needs a type exclusion the parent-covers-children rule cannot express; a policy-shape change (planner owns the schema).
-  - ~~Human-legible CLI output for the plan slice~~ → ruled 2026-09-02 ("Legible output for the refresh slice" above); the build follows the owner's review of the ruling, before the pricing session's live run.
+  - ~~Human-legible CLI output for the plan slice~~ → ruled, built and run live 2026-09-02 ("Legible output for the refresh slice" above), approved; what stays open there is density (fewer words), not structure.
   - Fact-path migration to uuid naming → opportunistic, or never (facts are refetchable).
   - Per-realm merge at `policy set` (today a set replaces the whole policy, so a poe2 run erases the pc policy — seen 2026-09-02) → trigger: a second realm in daily use; until then the author re-sets the pc policy, one command.
   - Search-at-scale (FTS at ingest, search-crate factoring behind the store API) → trigger per the two-surface stress test: a real consumer with a measured latency or duplication case.
