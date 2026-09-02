@@ -569,7 +569,8 @@ the v2 policy parser had become an untagged enum and lost top-level
 strictness (a v1 value with a stray field, or a v2 with both `realms`
 and `leagues`, was stored half-honored — now the stamp dispatches into
 one strict shape); and the version story was implicit (now: facts v4 and
-policy v3 for characters, plan schema 6). One caution it stated, which
+policy v3 for characters, and plan schema 6 as the ruled stamp for
+step (3) — the code writes 5 until characters join the plan). One caution it stated, which
 the order of work already implied and is now explicit: **until the
 character key lands, cross-realm character ingestion is unsafe** —
 character rows and item locations are name-keyed, so a PoE2 name that
@@ -621,9 +622,11 @@ Validation is per facet against `Family::accepts`: `tabs` is refused
 under a realm the stash family does not take (poe2), `characters` is
 accepted under every realm — so a character-only PoE2 entry is the
 ordinary v3 shape. v1 and v2 upgrade to their tab coverage plus no
-character coverage; the stored value stays as written. (Review
-finding 2026-09-02: v2's required `tabs` and entry-level realm check
-could not express the ruled PoE2 policy.)
+character coverage; the stored value stays as written. "Names no work"
+is judged after normalization: `tabs: []` with characters absent or
+empty fails the same way. (Review finding 2026-09-02: v2's required
+`tabs` and entry-level realm check could not express the ruled PoE2
+policy.)
 
 **Step (2) built 2026-09-02** (facts v4): `characters` keyed by `id`
 with `listed_json`/`listed_response` and the realm-scoped, response-
@@ -660,6 +663,22 @@ the drift count is per live character's latest fetch, not cumulative
 migration re-stamps character membership from the latest listing on
 record per realm, so a basis a planner cites has its rows stamped to
 it (pinned in the migration test); and the policy v3 shape above.
+
+Third review (same day) found the same class once more, fixed: **a
+fetch never revives a location a listing retired** — the row's
+`removed_at` is listing-owned like its address, and a late fetch of a
+retired character or tab records the body but *withholds* its item
+facts (`Ingest::withheld`) until a listing names the location again,
+when the next fetch lands them as a reappearance; **a location is its
+full coordinate** (`Location`: realm, league for a stash, kind, id), so
+item removal, counts, and move detection never collapse the same tab id
+under two realms into one place; **a parent tab's fetch is its
+substashes' listing** — a stub it no longer carries is retired with its
+items, and a listing that retires the parent retires the substashes'
+items while keeping their rows for the planner's orphan report; removal
+events take their ids from the update itself (`RETURNING`), never from
+a timestamp match; and a character's items take the row's listing-owned
+league, not the body's.
 
 Pending ground-truth claims (documented facts read 2026-09-02, to be
 authored master-side and then cited here by number): realm segment

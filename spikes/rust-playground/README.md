@@ -63,9 +63,13 @@ bounded by `MAX_429_RETRIES`; a Cloudflare-shaped 403/503 is never retried.
   response through one call, `Store::record(endpoint, params, status,
   body)`, and every frontend reads the file directly. Item membership is per
   response, like listing membership: a fetch retires what it did not
-  carry at its location whatever the clock says, and a character or tab
-  a listing no longer names takes its items with it (retired, with
-  `removed` events). `accounts.json` next
+  carry at its location whatever the clock says, a character or tab a
+  listing no longer names takes its items with it (retired, with
+  `removed` events), a parent tab's fetch is its substashes' listing,
+  and a fetch never revives a location a listing retired — the body is
+  recorded, the item facts are withheld until a listing names it again.
+  A location is its full coordinate (realm, league for a stash, kind,
+  id). `accounts.json` next
   to the files is the non-secret account index: written at login/logout,
   read by frontends to resolve `ACQ_ACCOUNT` without a daemon, and read by
   the daemon at start to know which keyring entries (one per account) to
