@@ -16,8 +16,11 @@ CREATE TABLE IF NOT EXISTS responses (
     envelope    TEXT    NOT NULL,   -- the body with item arrays removed; `_split` lists their counts —
                                     -- or the whole body verbatim when the fetch was withheld
     item_count  INTEGER NOT NULL,
-    withheld    INTEGER NOT NULL DEFAULT 0  -- items this fetch carried for a location a listing had retired:
-                                            -- kept here, landed nowhere (membership is the listing's)
+    withheld    INTEGER                     -- NULL: an ordinary response. Else this fetch was of a location a
+                                            -- listing had retired, and the value is how many item facts
+                                            -- (socketed gems included) it carried and kept here, landing
+                                            -- nowhere — membership is the listing's. 0 is a withheld fetch
+                                            -- of an empty location.
 );
 
 CREATE TABLE IF NOT EXISTS leagues (

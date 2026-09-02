@@ -838,13 +838,11 @@ resubmit if still wanted",
                     ingest.changed,
                     ingest.moved,
                     ingest.removed,
-                    if ingest.withheld > 0 {
-                        format!(
-                            " | {} withheld: the location was retired by a listing (body kept on the response row)",
-                            ingest.withheld
-                        )
-                    } else {
-                        String::new()
+                    match ingest.withheld {
+                        Some(n) => format!(
+                            " | WITHHELD: the location was retired by a listing; {n} item fact(s) kept on the response row, nothing landed"
+                        ),
+                        None => String::new(),
                     }
                 ));
                 Ok(())

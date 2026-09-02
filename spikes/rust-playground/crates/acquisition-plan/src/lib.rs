@@ -2411,4 +2411,60 @@ mod tests {
             plan.actions
         );
     }
+
+    /// A map tab a listing dropped and a later listing revived: its
+    /// substashes kept their rows (orphaned, then re-parented) but lost
+    /// their facts with the parent, so the plan fetches the parent *and*
+    /// each substash again — nothing waits out a freshness window empty.
+    #[test]
+    fn a_revived_parent_replans_its_substashes() {
+        let mut s = store();
+        let m1 = json!([{ "id": "m1", "name": "Maps", "type": "MapStash", "index": 0 }]);
+        list(&mut s, m1.clone(), 1000);
+        fetch(
+            &mut s,
+            json!({ "id": "m1", "name": "Maps", "type": "MapStash", "items": [],
+                "children": [ { "id": "s1", "name": "", "type": "MapStash", "parent": "m1", "metadata": { "items": 1 } } ] }),
+            1100,
+        );
+        s.record(
+            &Endpoint::Stash {
+                realm: "pc".into(),
+                league: "Standard".into(),
+                id: "m1".into(),
+                sub: Some("s1".into()),
+            },
+            &json!({ "league": "Standard", "id": "m1", "sub": "s1" }),
+            200,
+            &json!({ "stash": { "id": "s1", "name": "", "type": "MapStash", "parent": "m1", "items": [item("map1")] } }),
+            1200,
+        )
+        .unwrap();
+        list(&mut s, json!([]), 1300);
+        list(&mut s, m1, 1400);
+        let plan = plan(&s, &all_policy_value(3600), 1500);
+        let mut kinds: Vec<(String, String)> = plan
+            .actions
+            .iter()
+            .map(|a| match a {
+                RefreshAction::FetchTab { id, reason, .. } => {
+                    (format!("tab {id}"), format!("{reason:?}"))
+                }
+                RefreshAction::FetchSubstash { id, reason, .. } => {
+                    (format!("sub {id}"), format!("{reason:?}"))
+                }
+                RefreshAction::ListStashes { .. } => ("list".into(), String::new()),
+            })
+            .collect();
+        kinds.sort();
+        assert_eq!(
+            kinds,
+            vec![
+                ("sub s1".to_string(), "NeverFetched".to_string()),
+                ("tab m1".to_string(), "NeverFetched".to_string()),
+            ],
+            "{:?}",
+            plan.actions
+        );
+    }
 }

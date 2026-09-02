@@ -272,10 +272,10 @@ pub fn status(json: bool) -> Result<()> {
             "responses {}  leagues {}  characters {}  tabs {}  items {} (+{} removed)  events {}",
             st.responses, st.leagues, st.characters, st.tabs, st.items, st.items_removed, st.events
         );
-        if st.withheld > 0 {
+        if st.withheld_responses > 0 {
             println!(
-                "withheld: {} item(s) fetched for locations a listing had retired (kept on their response rows, landed nowhere)",
-                st.withheld
+                "withheld: {} response(s) fetched for locations a listing had retired, {} item fact(s) kept on their response rows and landed nowhere",
+                st.withheld_responses, st.withheld_items
             );
         }
         if st.unlifted_items > 0 {

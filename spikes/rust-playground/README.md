@@ -67,10 +67,12 @@ bounded by `MAX_429_RETRIES`; a Cloudflare-shaped 403/503 is never retried.
   listing no longer names takes its items with it (retired, with
   `removed` events), a parent tab's fetch is its substashes' listing,
   and a fetch never revives a location a listing retired — the whole
-  body stays verbatim on its response row (`withheld`, in the daemon
-  log and `store status`) and nothing else lands, until a listing names
-  the location again, which also clears its `fetched_at` so the next
-  plan fetches it. A location is its full coordinate (realm, league for
+  body stays verbatim on its response row (`withheld`: the count of item
+  facts it carried, NULL for an ordinary response; in the daemon log
+  and `store status`) and nothing else lands, until a listing names the
+  location again, which also clears its `fetched_at` — and its retained
+  substashes' — so the next plan fetches them. A withheld body is
+  validated like any other: an id-less item is still refused whole. A location is its full coordinate (realm, league for
   a stash, kind, id), and events carry it whole. `accounts.json` next
   to the files is the non-secret account index: written at login/logout,
   read by frontends to resolve `ACQ_ACCOUNT` without a daemon, and read by

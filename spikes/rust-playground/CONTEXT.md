@@ -695,6 +695,19 @@ included; nothing split off and lost), the count is on the row and in
 the daemon log and `store status`. Event addresses carry the full
 coordinate (`stash/<realm>/<league>/<id>`, `character/<realm>/<id>`).
 
+Fifth review (same day): three edge cases, fixed (facts **v6**). A
+listing that retires a parent clears its retained substashes'
+`fetched_at` along with their facts, so when the parent returns the
+plan fetches the parent *and* each substash again (pinned planner-side:
+a revived parent replans its substashes). `responses.withheld` is
+nullable — NULL is an ordinary response, so a withheld fetch of an
+empty location is still marked (`Some(0)`) — and counts every item fact
+the body carried, socketed gems included; `store status` reports both
+withheld responses and items. The malformed-body contract holds for a
+withheld body too: identity is checked before the store decides whether
+a body lands or is withheld, so an id-less item or stub is refused and
+nothing is written, whatever the location's liveness.
+
 Pending ground-truth claims (documented facts read 2026-09-02, to be
 authored master-side and then cited here by number): realm segment
 semantics per endpoint and pc-by-omission; PoE2 on the character

@@ -42,10 +42,12 @@ const SCHEMA: &str = include_str!("schema.sql");
 /// rekeyed `characters` by the GGG `id` (rebuilt through each row's json;
 /// item locations move from the name to the id), added the listing
 /// columns to characters, `items.container`, and `items.seen_response`;
-/// version 5 (same day) added `responses.withheld`. 0 is both "fresh
-/// file" and "pre-versioning file" — the DDL and column checks are
-/// idempotent, so one migration path serves both.
-const FACT_SCHEMA_VERSION: i64 = 5;
+/// version 5 (same day) added `responses.withheld` as a count, and
+/// version 6 (same day) made it nullable — NULL is "not withheld", so an
+/// empty withheld fetch is still marked. 0 is both "fresh file" and
+/// "pre-versioning file" — the DDL and column checks are idempotent, so
+/// one migration path serves both.
+const FACT_SCHEMA_VERSION: i64 = 6;
 
 /// A facts file written by a newer build than this one. Facts are
 /// refetchable, but guessing at an unknown schema is how a file gets
@@ -196,12 +198,14 @@ pub struct Ingest {
     /// Item-shaped objects left in a character envelope in an array this
     /// build does not lift (the drift tripwire): surfaced, never a failure.
     pub unlifted: usize,
-    /// Items the response carried for a location a listing has retired:
+    /// `Some(n)` when the fetch was of a location a listing has retired:
     /// the whole body stays verbatim in the response row and nothing
     /// else lands — membership belongs to the listing, and only a listing
     /// revives a location (clearing its `fetched_at`, so the next plan
-    /// fetches it again).
-    pub withheld: usize,
+    /// fetches it again). `n` counts every item fact the body carried,
+    /// socketed gems included; `Some(0)` is a withheld fetch of an empty
+    /// location. `None`: an ordinary response.
+    pub withheld: Option<usize>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -289,9 +293,11 @@ pub struct Status {
     /// means GGG added an item array the store does not know — a code
     /// change, not a fault.
     pub unlifted_items: i64,
-    /// Items fetched for locations a listing had retired, kept on their
-    /// response rows and landed nowhere (`responses.withheld`, summed).
-    pub withheld: i64,
+    /// Responses withheld — fetches of locations a listing had retired,
+    /// their bodies kept on the response row and landed nowhere — and the
+    /// item facts they carried in total (`responses.withheld`).
+    pub withheld_responses: i64,
+    pub withheld_items: i64,
 }
 
 pub mod annotations;
@@ -400,16 +406,36 @@ impl Store {
                         "seen_response",
                         "ALTER TABLE items ADD COLUMN seen_response INTEGER",
                     ),
-                    // v5: a withheld fetch's count on its response row.
+                    // v6: a withheld fetch's count on its response row,
+                    // NULL for an ordinary response.
                     (
                         "responses",
                         "withheld",
-                        "ALTER TABLE responses ADD COLUMN withheld INTEGER NOT NULL DEFAULT 0",
+                        "ALTER TABLE responses ADD COLUMN withheld INTEGER",
                     ),
                 ] {
                     if !has_column(&tx, table, column)? {
                         tx.execute(ddl, [])?;
                     }
+                }
+                // A v5 file has the column NOT NULL DEFAULT 0, where 0 meant
+                // both "not withheld" and "withheld, empty": rebuild it as
+                // nullable, reading a positive count as withheld and 0 as
+                // ordinary (v5 could not tell an empty withheld fetch
+                // apart, so that information is gone; it never lived past
+                // this branch's own day).
+                let v5_not_null: bool = tx.query_row(
+                    "SELECT \"notnull\" FROM pragma_table_info('responses') WHERE name = 'withheld'",
+                    [],
+                    |r| r.get::<_, i64>(0).map(|n| n != 0),
+                )?;
+                if v5_not_null {
+                    tx.execute_batch(
+                        "ALTER TABLE responses RENAME COLUMN withheld TO withheld_v5;
+                         ALTER TABLE responses ADD COLUMN withheld INTEGER;
+                         UPDATE responses SET withheld = CASE WHEN withheld_v5 > 0 THEN withheld_v5 END;
+                         ALTER TABLE responses DROP COLUMN withheld_v5;",
+                    )?;
                 }
                 // v3 rekeys `tabs` as (realm, league, id). A primary key
                 // cannot be altered in place, so a pre-v3 table is rebuilt
@@ -508,8 +534,9 @@ impl Store {
         // A fetched tab whose substash stubs this response is the listing
         // of: (realm, league, parent id).
         let mut relist_children_of: Option<(String, String, String)> = None;
-        // Items this fetch carried for a location a listing has retired.
-        let mut withheld: usize = 0;
+        // `Some(n)` once this fetch turns out to be of a location a listing
+        // has retired: nothing lands but the response row.
+        let mut withheld: Option<usize> = None;
 
         match endpoint {
             Endpoint::Leagues => {
@@ -611,6 +638,12 @@ impl Store {
                     }
                     .into());
                 };
+                // The malformed-body contract holds whatever happens next:
+                // an id-less item is refused before the store decides
+                // whether the body lands or is withheld.
+                for key in CHARACTER_ITEM_ARRAYS {
+                    check_item_ids(character.get(*key), "character")?;
+                }
                 // Membership is the listing's: at a location a listing has
                 // retired, the whole body stays verbatim in the response
                 // row (arrays included — nothing is split off and lost)
@@ -625,15 +658,12 @@ impl Store {
                     )
                     .optional()?;
                 if matches!(retired, Some(Some(_))) {
-                    withheld = CHARACTER_ITEM_ARRAYS
-                        .iter()
-                        .map(|k| {
-                            character
-                                .get(*k)
-                                .and_then(Value::as_array)
-                                .map_or(0, Vec::len)
-                        })
-                        .sum();
+                    withheld = Some(
+                        CHARACTER_ITEM_ARRAYS
+                            .iter()
+                            .map(|k| count_item_facts(character.get(*k)))
+                            .sum(),
+                    );
                 } else if let Some(character) =
                     envelope.get_mut("character").and_then(Value::as_object_mut)
                 {
@@ -772,6 +802,24 @@ impl Store {
                     .into());
                 };
                 let location = sub.clone().unwrap_or_else(|| id.clone());
+                // The malformed-body contract holds whatever happens next:
+                // an id-less item or substash stub is refused before the
+                // store decides whether the body lands or is withheld.
+                check_item_ids(stash.get("items"), "stash")?;
+                for child in stash
+                    .get("children")
+                    .and_then(Value::as_array)
+                    .into_iter()
+                    .flatten()
+                {
+                    if child.get("id").and_then(Value::as_str).is_none() {
+                        return Err(MalformedBody {
+                            endpoint: "stash",
+                            missing: "an `id` on a listed tab entry",
+                        }
+                        .into());
+                    }
+                }
                 // A tab a listing retired — or a substash whose parent is —
                 // is not a live location: membership is the listing's (the
                 // parent's fetch, for a substash). The body stays verbatim
@@ -791,10 +839,7 @@ impl Store {
                 };
                 let retired = retired_row(&location)? || (sub.is_some() && retired_row(id)?);
                 if retired {
-                    withheld = stash
-                        .get("items")
-                        .and_then(Value::as_array)
-                        .map_or(0, Vec::len);
+                    withheld = Some(count_item_facts(stash.get("items")));
                 } else if let Some(stash) = envelope.get_mut("stash").and_then(Value::as_object_mut)
                 {
                     let items = match stash.remove("items") {
@@ -857,7 +902,7 @@ impl Store {
         let item_count: usize = seams.iter().map(|s| s.items.len()).sum();
         tx.execute(
             "INSERT INTO responses (endpoint, params, fetched_at, status, envelope, item_count, withheld) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-            params![endpoint.name(), params.to_string(), at, status, envelope.to_string(), item_count as i64, withheld as i64],
+            params![endpoint.name(), params.to_string(), at, status, envelope.to_string(), item_count as i64, withheld.map(|n| n as i64)],
         )?;
         let response_id = tx.last_insert_rowid();
         ingest.withheld = withheld;
@@ -928,6 +973,14 @@ impl Store {
                 for id in ids {
                     orphaned.push(id?);
                 }
+                // Their facts go with the parent's, so their freshness
+                // does too: when the parent returns, its refetch re-lists
+                // them and the plan fetches each again (a "fresh" empty
+                // substash would otherwise wait out the window).
+                tx.execute(
+                    "UPDATE tabs SET fetched_at = NULL WHERE realm = ?1 AND league = ?2 AND removed_at IS NULL AND parent = ?3",
+                    params![realm, league, parent],
+                )?;
             }
             for id in retired.into_iter().chain(orphaned) {
                 retired_locations.push(Location::stash(realm, league, id));
@@ -1041,7 +1094,8 @@ impl Store {
             items: count("SELECT count(*) FROM items WHERE removed_at IS NULL")?,
             items_removed: count("SELECT count(*) FROM items WHERE removed_at IS NOT NULL")?,
             events: count("SELECT count(*) FROM item_events")?,
-            withheld: count("SELECT COALESCE(SUM(withheld), 0) FROM responses")?,
+            withheld_responses: count("SELECT count(*) FROM responses WHERE withheld IS NOT NULL")?,
+            withheld_items: count("SELECT COALESCE(SUM(withheld), 0) FROM responses")?,
             unlifted_items: count(
                 "SELECT COALESCE(SUM(value), 0) FROM characters c, json_each(json_extract(c.json, '$._unlifted'))
                   WHERE c.removed_at IS NULL",
@@ -1323,6 +1377,34 @@ struct Previous {
     json: String,
     removed_at: Option<i64>,
     container: Option<String>,
+}
+
+/// The identity check ingest applies to every item, run up front so it
+/// holds for a withheld body too: an id-less item anywhere in `items`
+/// (socketed gems included) is malformed, and nothing is written.
+fn check_item_ids(items: Option<&Value>, endpoint: &'static str) -> Result<()> {
+    for item in items.and_then(Value::as_array).into_iter().flatten() {
+        if item.get("id").and_then(Value::as_str).is_none() {
+            return Err(MalformedBody {
+                endpoint,
+                missing: "an `id` on an item",
+            }
+            .into());
+        }
+        check_item_ids(item.get("socketedItems"), endpoint)?;
+    }
+    Ok(())
+}
+
+/// How many item facts an array carries, the way ingest would count
+/// them: every item plus every socketed gem, recursively.
+fn count_item_facts(items: Option<&Value>) -> usize {
+    items
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .map(|item| 1 + count_item_facts(item.get("socketedItems")))
+        .sum()
 }
 
 /// Whether a value looks like a GGG item: an object with a `typeLine`
@@ -2624,7 +2706,7 @@ mod tests {
             .unwrap();
         assert_eq!(
             (ing.items, ing.added, ing.moved, ing.withheld),
-            (0, 0, 0, 1)
+            (0, 0, 0, Some(1))
         );
         assert!(s.characters(None, None).unwrap().is_empty());
         assert!(s.item("eq1").unwrap().unwrap().removed_at.is_some());
@@ -2653,7 +2735,8 @@ mod tests {
         let envelope: Value = serde_json::from_str(&envelope).unwrap();
         assert_eq!(envelope["character"]["equipment"][0]["id"], "eq1");
         assert!(envelope["character"].get("_split").is_none());
-        assert_eq!(s.status().unwrap().withheld, 1);
+        let st = s.status().unwrap();
+        assert_eq!((st.withheld_responses, st.withheld_items), (1, 1));
         // A listing naming it again revives the row — with no fetch on
         // record, since its facts were retired with it — and the next
         // fetch lands the items (a reappearance is a move).
@@ -2663,7 +2746,7 @@ mod tests {
         let ing = s
             .record(&fetch, &json!({ "name": "Hero" }), 200, &body, 31)
             .unwrap();
-        assert_eq!((ing.items, ing.moved, ing.withheld), (1, 1, 0));
+        assert_eq!((ing.items, ing.moved, ing.withheld), (1, 1, None));
         let row = &s.characters(None, None).unwrap()[0];
         assert_eq!((row.fetched_at, row.item_count), (Some(31), 1));
         // The same rule for a tab.
@@ -2692,7 +2775,7 @@ mod tests {
                 51,
             )
             .unwrap();
-        assert_eq!((ing.items, ing.withheld), (0, 1));
+        assert_eq!((ing.items, ing.withheld), (0, Some(1)));
         assert!(s.tabs("pc", "Standard").unwrap().is_empty());
         assert!(s.item("i1").unwrap().unwrap().removed_at.is_some());
         // Revived by a listing: no fetch on record, so the next plan
@@ -2826,7 +2909,9 @@ mod tests {
             .collect();
         assert_eq!(ids, vec!["s2"]);
         assert!(s.item("map2").unwrap().unwrap().removed_at.is_some());
-        assert_eq!(s.tabs("pc", "Standard").unwrap()[0].item_count, 0);
+        let s2 = &s.tabs("pc", "Standard").unwrap()[0];
+        // …and its freshness went with its facts: no fetch on record.
+        assert_eq!((s2.item_count, s2.fetched_at), (0, None));
         // With the parent retired, a late fetch of the substash is
         // withheld (its parent is not live), and a late fetch of the
         // parent neither revives it nor rewrites its children: the orphan
@@ -2834,12 +2919,12 @@ mod tests {
         let ing = s
             .record(&sub("s2"), &json!({}), 200, &sub_body("s2", "map2"), 7)
             .unwrap();
-        assert_eq!((ing.items, ing.withheld), (0, 1));
+        assert_eq!((ing.items, ing.withheld), (0, Some(1)));
         assert!(s.item("map2").unwrap().unwrap().removed_at.is_some());
         let ing = s
             .record(&stash_ep("m1"), &json!({}), 200, &parent(&["s9"]), 8)
             .unwrap();
-        assert_eq!((ing.items, ing.withheld), (0, 0));
+        assert_eq!((ing.items, ing.withheld), (0, Some(0)));
         let ids: Vec<String> = s
             .tabs("pc", "Standard")
             .unwrap()
@@ -2874,5 +2959,108 @@ mod tests {
             rows.collect::<Result<_, _>>().unwrap()
         };
         assert_eq!(removed, vec![("i3".to_string(), 2), ("i2".to_string(), 3)]);
+    }
+
+    /// `withheld` is a marker as well as a count: a withheld fetch of an
+    /// empty location is still marked (`Some(0)`), the count is every item
+    /// fact the body carried (socketed gems included), and the
+    /// malformed-body contract holds for a withheld body too — an id-less
+    /// item is refused and nothing is written, not even the response row.
+    #[test]
+    fn a_withheld_fetch_is_marked_counted_exactly_and_still_validated() {
+        let mut s = Store::open_memory().unwrap();
+        let listing = Endpoint::Stashes {
+            realm: "pc".into(),
+            league: "Standard".into(),
+        };
+        s.record(
+            &listing,
+            &json!({}),
+            200,
+            &json!({ "stashes": [ { "id": "t1", "name": "One", "type": "PremiumStash", "index": 0 } ] }),
+            1,
+        )
+        .unwrap();
+        s.record(&listing, &json!({}), 200, &json!({ "stashes": [] }), 2)
+            .unwrap();
+        // Empty, withheld: marked, count 0.
+        let ing = s
+            .record(&stash_ep("t1"), &json!({}), 200, &stash("t1", vec![]), 3)
+            .unwrap();
+        assert_eq!(ing.withheld, Some(0));
+        // A bow with a socketed gem: two item facts withheld.
+        let mut bow = item("bow", "Bow", 0);
+        bow["socketedItems"] = json!([ { "id": "gem", "typeLine": "Gem", "baseType": "Gem" } ]);
+        let ing = s
+            .record(&stash_ep("t1"), &json!({}), 200, &stash("t1", vec![bow]), 4)
+            .unwrap();
+        assert_eq!(ing.withheld, Some(2));
+        let st = s.status().unwrap();
+        assert_eq!((st.withheld_responses, st.withheld_items), (2, 2));
+        // An ordinary response is not marked.
+        let ing = s
+            .record(&listing, &json!({}), 200, &json!({ "stashes": [] }), 5)
+            .unwrap();
+        assert_eq!(ing.withheld, None);
+        // Malformed stays malformed at a retired location.
+        let responses_before = s.status().unwrap().responses;
+        let err = s
+            .record(
+                &stash_ep("t1"),
+                &json!({}),
+                200,
+                &json!({ "stash": { "id": "t1", "items": [ { "typeLine": "NoId" } ] } }),
+                6,
+            )
+            .unwrap_err();
+        assert!(err.downcast_ref::<MalformedBody>().is_some(), "{err:#}");
+        let err = s
+            .record(
+                &stash_ep("t1"),
+                &json!({}),
+                200,
+                &json!({ "stash": { "id": "t1", "items": [], "children": [ { "name": "NoId" } ] } }),
+                7,
+            )
+            .unwrap_err();
+        assert!(err.downcast_ref::<MalformedBody>().is_some(), "{err:#}");
+        assert_eq!(s.status().unwrap().responses, responses_before);
+    }
+
+    /// A v5 file's `withheld` (NOT NULL DEFAULT 0) is rebuilt nullable:
+    /// a positive count stays a withheld mark, 0 becomes an ordinary
+    /// response (v5 could not tell an empty withheld fetch apart).
+    #[test]
+    fn a_v5_withheld_column_is_rebuilt_nullable() {
+        let dir =
+            std::env::temp_dir().join(format!("acq-store-v5-{}-{}", std::process::id(), now()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("v5.db");
+        {
+            let conn = Connection::open(&path).unwrap();
+            conn.execute_batch(
+                "CREATE TABLE responses (id INTEGER PRIMARY KEY, endpoint TEXT NOT NULL, params TEXT NOT NULL,
+                    fetched_at INTEGER NOT NULL, status INTEGER NOT NULL, envelope TEXT NOT NULL, item_count INTEGER NOT NULL,
+                    withheld INTEGER NOT NULL DEFAULT 0);
+                 INSERT INTO responses (endpoint, params, fetched_at, status, envelope, item_count, withheld)
+                 VALUES ('stash', '{}', 1, 200, '{}', 0, 2), ('stash', '{}', 2, 200, '{}', 3, 0);
+                 PRAGMA user_version = 5;",
+            )
+            .unwrap();
+        }
+        let s = Store::open(&path).unwrap();
+        let rows: Vec<Option<i64>> = {
+            let mut stmt = s
+                .conn
+                .prepare("SELECT withheld FROM responses ORDER BY id")
+                .unwrap();
+            let rows = stmt.query_map([], |r| r.get(0)).unwrap();
+            rows.collect::<Result<_, _>>().unwrap()
+        };
+        assert_eq!(rows, vec![Some(2), None]);
+        let st = s.status().unwrap();
+        assert_eq!((st.withheld_responses, st.withheld_items), (1, 2));
+        drop(s);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }
