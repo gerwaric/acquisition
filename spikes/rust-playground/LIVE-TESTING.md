@@ -199,6 +199,7 @@ One row per rung execution. Journal files are copied to
 
 | 2026-09-02 | tracer (rerun after the handle ruling) | `3d685c6d6603` | **pass** — loop closed in 3 cycles | L1 1/1/64 = 66, L2 1/2/6 = 9 | 0 | pids 45022 / 45233, 00:54–01:07 UTC, the same five ids, policy revision 2, no login (uuid on record). **Cycle 1: the 64 substashes** (46 under Maps (Remove-only), 18 under Uniques 1) already on record from the first run, planned through their parents — the first live discovery sample under "a policy id covers its children"; quoted; probe `0:10:0,0:300:0`; 15 GETs per 10 s, then holds of **14.98 s, 343.9 s, 14.84 s, 343.9 s** (rungs 7b and 10 exactly), every first send after a hold answered `1:10:0,…`, windows peaked at `15:10:0,30:300:0` and never exceeded; 64/64 children done; bound reached at 66. **Cycle 2: a refetch cycle** — the listing and the five parents were 51 min old at the start and the 13-minute cycle carried them past the 3600 s window (4033 s at compile), so the plan re-listed and re-fetched the five (6 req, ceiling 9); **its stash probe read `0:10:0,4:300:0` — cycle 1's last four GETs, verified as ours by the per-window bound: the verifier's nonzero-hit branch seen live for the first time**; the listing probe 0 hits; all 2xx. Cycle 3 empty; no-op with no daemon. Readback: 64 children of the selected tabs on record, 0 never fetched; items 168 → 816, 648 item events (all `added`, the substash contents). Zero 429, no trip. `verify.sh` reproduces. Observation for the rung: the driver's window guard compares the cycle's duration to the window, not the covered facts' **age at start** plus the duration — that gap is what bought the refetch cycle; the loop still closed. No owner friction notes entered. `runs/2026-09-02-tracer/` |
 | 2026-09-02 | characters sample (guardian shape) | `953be323af82` | **pass** | 1/2/2 = 5 | 0 | pid 51350, 02:00 UTC, account `GERWARIC#7694`, `acq characters` then `acq character TheAbsenceOfPatience` under `ACQ_TRIPWIRE=1 ACQ_MAX_SENDS=5`; ceiling reached exactly at send 5, no trip. Both probes **0 hits** (`character-list-request-limit` `2:10:60,5:300:300`, `character-request-limit` `5:10:60,30:300:300` — N40 and the rung-3 sample, unchanged); both GETs `1:10:0,1:300:0`. Not a first contact — the **shape evidence the characters design needed** (CONTEXT.md, "Characters in the refresh plan"): the list (59 entries, every one `realm: "pc"`) carries exactly `class current experience id league level name realm` per entry — `id` is the 64-hex form and equals the fetched body's; league names include ended leagues (Ancestors, Phrecia 2.0, an SSF gauntlet event) with **no `expired` flag** on any entry, no `deleted` anywhere, one `current`; the fetched body carries a **`guardian` array of 5 items**, all with ids, none `lockedTo*`, whose `inventoryId` values (`Helm`, `BodyArmour`, `Gloves`, `Boots`, `Weapon`, `x`/`y` 0) are the character's own equipment slot names — an item's json cannot say which array it came from; `_split` equipment 17 / inventory 9 / jewels 7, guardian left in the envelope (not yet lifted); all 65 lifted items carry `frameTypeId` beside the deprecated `frameType`, none carry `realm`. `runs/2026-09-02-characters/` |
+| 2026-09-02 | characters rung, pc (row 1) | `13fead8d4933` | **pass** — loop closed in 2 cycles | L1 1/4/112 = 117 | 0 | pid 1136, 15:08–15:22 UTC, `tools/tracer-rung.sh --account GERWARIC#7694 --characters all <the tracer's 5 ids>`, policy v3 revision 3. Offline plan: both listings 13 h stale → 1 stash listing + 5 tabs + 64 substashes + 1 character listing (pc, realm-wide) + **41 Standard characters** (of 59 listed; the other 18 sit in six other leagues, outside a Standard policy — not planned and not "skipped"), 112 req, 112..336 wire; quoted with the daemon up, envelope identical to the offline one. Ceiling 117 = POST + 4 probes + 112. **All four probes 0 hits** (`stash-list` `0:15:0,0:60:0`, `stash` `0:10:0,0:300:0`, `character-list` `0:10:0,0:300:0`, `character` `0:10:0,0:300:0`; every policy unchanged from the sample), 112 × 200, bound reached exactly at send 117, nothing refused; apply parent `success`, 112/112 children done. **The two facets paced independently**: stash 69 GETs with ~15 s holds after 15 and ~343 s after 30 and 60, done 15:22; characters 41 GETs with ~15 s holds after every 5 (its short window is 5 per 10 s) and a **280 s** hold after 30 (its 300 s window had opened before the 30th send, so the hold ended at the window's expiry, not 343 s), done 15:16 — the cycle lasted the longer facet, ~13 min. Cycle 2 offline: `nothing to do` (69 tabs and 41 characters fresh), no-op apply `requests: 0`, no daemon appeared. Readback: `acq store characters --realm pc` 59 rows, all 41 Standard fetched, none unfetched; **10 Standard characters (L86–L100) fetched with 0 items** — genuine, not a lifting gap: their bodies carry empty `equipment`/`inventory`/`jewels` (`_split` 0/0/0), stripped characters; all 41 bodies `metadata.version` `3.29.3`; 1081 `added` events, every one at `character/pc/<id>`, 0 stash events (nothing in the five tabs changed); guardian lifted for 4 characters (18 items, container `guardian`). One note: the first probe (HEAD `/stash`) waited 4.5 s behind the token POST, the other three 130–180 ms. `verify.sh` reproduces the verdict; the owner entered no friction notes. `runs/2026-09-02-tracer-150553/` |
 
 ### Re-soak postmortem (2026-08-27)
 
@@ -624,7 +625,7 @@ id covers the tab and its children (planner change is the follow-up build
 item); the method-test verdict — pass on correctness, owner-truth channel
 under-exercised — is recorded in the tracer section there.
 
-## Characters rung — the refresh plan with characters (prepared 2026-09-02; not yet run)
+## Characters rung — the refresh plan with characters (prepared 2026-09-02; row 1 run 2026-09-02: pass; row 2 waits on a PoE2 character)
 
 Order-of-work steps (4) and (5) of `CONTEXT.md`, "Characters in the
 refresh plan": the same driver, the same rails, the same verifier, with
@@ -690,6 +691,34 @@ non-2xx, any trip — wait 360 s, read, then `reset-tripwire`, never
 reset-and-retry. A `fetch_character` child failing 404 under a name that
 moved between the listing and the fetch is the D5a residual (the next
 listing reconciles), recorded, not a stop.
+
+Row 1 ran 2026-09-02 and passed (run ledger: `characters rung, pc`).
+The exit criterion is met: a policy naming tabs and characters together
+closed its loop live with every driver check green. What the run added
+beyond the prediction (agent observations; the owner entered no notes):
+
+- **Two facets, two paces.** The stash and character policies share a
+  shape (30 per 300 s) but not a short window (15 vs 5 per 10 s), and
+  the limiter ran them side by side: the character facet held ~15 s
+  after every 5 sends and finished six minutes before the stash facet;
+  the cycle lasted the longer one, as the driver's estimate assumes.
+- **A hold ends at the window, not at 343 s.** The character facet's
+  hold after its 30th send was 280 s: its 300 s window had opened at
+  the first character GET, some 60 s before the 30th, so the wait was
+  the remainder. The 343 s figure is the worst case (a burst that fills
+  the window at once), not a constant.
+- **Stripped characters are a real shape.** 10 of the 41 Standard
+  characters, levels 86–100, came back with empty `equipment`,
+  `inventory` and `jewels` arrays. The store records them as fetched
+  with 0 items and `_split` 0/0/0; a reader of `acq store characters`
+  cannot tell a stripped character from a fetch that lifted nothing
+  without looking at the envelope — a legibility item, not a defect.
+- **Probe queueing.** The first probe of the lifetime waited 4.5 s
+  behind the token POST (the tracer rung saw 191 ms); the other three
+  130–180 ms. Noted, not investigated.
+- **The plan text is a wall again**: 64 substash lines plus 41
+  character lines, each explicit as binding requires — the same
+  grouping item the tracer rerun recorded.
 
 ## Status: ladder closed (2026-08-27)
 

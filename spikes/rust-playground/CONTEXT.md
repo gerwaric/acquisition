@@ -812,8 +812,21 @@ endpoints only; `Character.id` unique 64-hex, `Item.id` optional;
 `Character.realm` contradiction. Observed (this run): guardian slot
 names; ended-league names without `expired`.
 
+**Step (4) ran live 2026-09-02 and passed** (`LIVE-TESTING.md`, run
+ledger `characters rung, pc` and the "Characters rung" section): the
+tracer's five ids plus `--characters all` on pc — one 112-request cycle
+(both listings, 5 tabs, 64 substashes, 41 Standard characters of 59
+listed; the 18 in other leagues are outside a Standard policy), ceiling
+117 exact, four probes at 0 hits, zero non-2xx, loop closed in 2 cycles.
+The two facets paced independently (stash ~13 min, characters ~6.5 min;
+the cycle is the longer). Facts: 10 of the 41 are stripped characters
+(empty item arrays, `_split` 0/0/0 — the body's truth, not a lifting
+gap); guardian lifted (4 characters, 18 items); 1081 `added` events at
+`character/pc/<id>`; every body `metadata.version` `3.29.3`.
+
 Exit: the loop closes on a policy naming tabs and characters together,
-live, with the driver's checks green; then pricing.
+live, with the driver's checks green — **met 2026-09-02**; (5) PoE2
+first contact waits on the owner creating a PoE2 character; then pricing.
 
 ## Frontend boundary findings (from `acq pull`, 2026-08-24; `pull` itself was retired 2026-08-29 in favor of the store)
 
