@@ -769,6 +769,126 @@ Confirms the C++ capture's shape exactly: HEAD 204 with
 Recorded as the ordinary pattern against which N38 and N39 are the
 exceptions.
 
+### Characters and PoE2 claims (September 2, 2026)
+
+Source for all five: the Rust spike's characters rung
+(`spikes/rust-playground/LIVE-TESTING.md`, run ledger rows dated
+2026-09-02; journals and bodies under `runs/2026-09-02-characters/`,
+`runs/2026-09-02-tracer-150553/`, `-154145/`, `-160139/`, `-161419/`).
+One account (`GERWARIC#7694`), one machine, rails on, every probe at 0
+hits, zero non-2xx across the day.
+
+**N41. The PoE2 character endpoints carry their own policies —
+`character-list-request-limit-poe2` and `character-request-limit-poe2`
+— with pc's windows, `Account` rules, and a free HEAD.** [OBSERVED —
+Confirmed; four fresh daemons, September 2, 2026]
+`HEAD /character/poe2` → 204, uncounted (`0:10:0,0:300:0` after it),
+policy `character-list-request-limit-poe2`, `Account`,
+`2:10:60, 5:300:300`; `GET /character/poe2` → 200, `1:10:0,1:300:0`.
+`HEAD /character/poe2/{name}` → 204, uncounted, policy
+`character-request-limit-poe2`, `Account`, `5:10:60, 30:300:300`; the
+GETs that followed read `1:10:0` … `5:10:0`. The names differ from
+the pc policies of N23 by the `-poe2` suffix only; the windows are
+identical. By N6 (same name shares state, different name does not)
+the pc and PoE2 counters are separate: a client can list or fetch on
+both realms without one realm's hits pacing the other's. The realm
+segment sits in the path (`/character/poe2`, `/character/poe2/{name}`);
+the pc routes are the unsuffixed ones, and the two are distinct routes
+for probing (one HEAD each per daemon lifetime).
+
+Consequence: a limiter that keys policy state by the reported name
+(N6, the spike's `ratelimit.rs`) needs nothing new; one that assumed
+"character-list-request-limit" for every realm would under-count
+nothing but would pace PoE2 sends against pc's counters, wasting
+capacity. N24's free-HEAD pattern holds on both PoE2 routes (against
+N39's counted HEAD on `/account/leagues`).
+
+**N42. The character list is per realm and reports `realm` as
+`"poe2"` for PoE2 characters; the pc list omits them.** [OBSERVED —
+High; two pc listings and two PoE2 listings, September 2, 2026]
+`GET /character` returned 59 entries, every one `realm: "pc"`;
+`GET /character/poe2` returned 6, every one `realm: "poe2"`; no id or
+name appeared in both. The documented `Character.realm` enumeration
+(`pc | xbox | sony`) is incomplete — PoE2 characters report `poe2`,
+matching the path segment. Each entry carries exactly
+`class current experience id league level name realm` on both realms:
+`id` is the 64-hex form and equals the fetched body's `id`; one entry
+is `current: true`; **no `deleted` or `expired` flag appeared on any
+entry**, including characters in ended leagues (Ancestors, Phrecia
+2.0, an SSF gauntlet event, `Runes of Aldur`), so the documented
+optional flags are not how ended-league characters are marked — the
+league name is.
+
+Consequence: a client keyed by name across realms will collide (PoE1
+and PoE2 share league names and could share character names); the
+spike keys characters by `id` and stores the *request's* realm beside
+the body's. A "which characters are gone" question cannot be answered
+from flags — only a listing that no longer names the id says so.
+
+**N43. PoE2 items carry `realm: "poe2"`; pc items carry no `realm`
+field. A PoE2 character body has `equipment`, `jewels`, and `skills`
+(no `inventory`), and its skill-panel gems have ids and slot-named
+`inventoryId`s.** [OBSERVED — High; five PoE2 bodies and 42 pc bodies,
+September 2, 2026]
+All items in the five PoE2 bodies carry `realm: "poe2"`; none of the
+1,962 items lifted from pc bodies carry `realm` at all. Every item on
+both realms carries `frameTypeId` (a string: `Gem`, `Currency`,
+`Magic`, …) beside the deprecated numeric `frameType`. PoE2 bodies
+report `metadata.version` `4.5.4f` (pc: `3.29.3`). `skills` entries
+that are real gems have ids and `inventoryId` `DefaultAttackSkills`
+(the weapon's default attack, e.g. `Bow Shot`) or `SkillSlots`;
+supports socketed into them have ids and no `inventoryId`. PoE1's
+animate-guardian gear arrives as its own `guardian` array whose
+entries carry the character's own slot names as `inventoryId`
+(`Helm`, `BodyArmour`, `Gloves`, `Boots`, `Weapon`, `x`/`y` 0) — an
+item's json cannot say which array it came from. Ten of 41 pc
+Standard characters (levels 86–100) answered with empty `equipment`,
+`inventory`, and `jewels` — stripped characters are an ordinary body,
+not an error.
+
+**N44. An item-granted skill has no `id` — the documented-optional
+`Item.id`, observed. A PoE2 weapon or shield that grants a skill
+carries it as an id-less gem in its own `socketedItems`, the identical
+object is repeated as `skills[0]`, and a support socketed into the
+granted skill is id-less too.** [OBSERVED — Confirmed; four bodies
+twice, September 2, 2026]
+Rattling Sceptre → `Skeletal Warrior` (with a player-socketed `Meat
+Shield I` support, also id-less, under it), Attuned Wand → `Mana
+Drain`, Withered Wand → `Chaos Bolt`, Splintered Tower Shield → `Raise
+Shield`. In each body the host item's `sockets` is `[]` and its
+`socketedItems` holds the granted skill (`frameTypeId: "Gem"`,
+`frameType: 4`, `support: false`, its own `sockets` and
+`socketedItems`); `skills[0]` is deep-equal to that object and has no
+`inventoryId`. Nothing else in any body lacked an id: a `Desert Rune`
+socketed in a focus (`frameTypeId: "Currency"`, `sockets[].type`
+`rune`) has one; a Crude Bow grants nothing and its character's body
+was fully id-bearing. The four bodies were refused by the spike's
+store on first contact for exactly this and are kept verbatim
+(`refused` rows 1–4).
+
+Consequence: an ingest that requires an id on every item cannot land a
+PoE2 character wielding a granting weapon. The spike's ruling
+(2026-09-02): a granted skill is a property of its host, never an item
+fact — its subtree stays in the host's json and, under `skills`, in
+the envelope, counted and never lifted; every other id-less shape is
+still refused. Whether GGG ever assigns ids to granted skills is
+unknown; if it does, the shape simply stops matching and the entries
+become ordinary socketed gems.
+
+**N45. Two policies on one account pace independently, and a hold
+ends when the window expires, not at a fixed length.** [OBSERVED —
+High; one 112-request cycle, September 2, 2026]
+A cycle of 69 `stash-request-limit` GETs and 41
+`character-request-limit` GETs ran side by side from one daemon: the
+stash facet held ~15 s after 15 and ~343 s after 30 and 60; the
+character facet held ~15 s after every 5 (its short window is 5 per
+10 s) and **280 s** after its 30th — its 300 s window had opened at
+its first GET, about a minute before the 30th, so the wait was the
+remainder. The cycle lasted as long as the longer facet (~13 min), not
+the sum. Extends N26 (pacing arithmetic exact) to two concurrent
+policies and bounds the "~343 s" figure of the spike's estimates as
+the worst case (a window filled at once), not a constant.
+
 ## Open questions
 
 - **Q1. HEAD sanction verbatim. RESOLVED July 18, 2026** — Tom
