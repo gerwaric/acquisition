@@ -583,6 +583,34 @@ pc tab under xbox, and that a poe2 stash job is refused with nothing
 journaled; the tracer verifier checks every data route's realm suffix
 against the run's `--realm`.
 
+**Step (2) mechanism, agreed before building (2026-09-02):**
+
+- `characters.league` is **listing-owned**: the coverage coordinate is
+  what the basis listing said, so a fetch never overwrites it (the same
+  rule as `listed_json` on tabs); a fetched body's league lives in its
+  json and is the disagreement arm's other side. A character fetched
+  directly, never listed, takes the body's league on insert only.
+- **Container is compared explicitly at ingest**: a helm moving from the
+  character's own `equipment` to its `guardian` has byte-identical json
+  (`inventoryId` `Helm`, x/y 0), so "moving between arrays is a
+  `changed` event" needs the column in the comparison, not only the json.
+  A pre-v4 character item has no container on record (NULL — the value
+  is not in the json, so no migration can recompute it); the first fetch
+  after the migration sets it without an event.
+- **Facts v4 migration**: `characters` is rebuilt keyed by `id`, taken
+  from each row's json (list entries and fetched bodies both carry it);
+  a row whose json lacks an id is dropped and its items retired (facts
+  are refetchable); item locations move from `character/<name>` to
+  `character/<id>` through the same json, so the first post-migration
+  fetch produces no false `moved` events; `item_events` history keeps
+  its old location strings (history is history). Stash items get
+  container `items`.
+- **Listing entries need `id` and `name`** (both documented required):
+  `id` is the identity that makes retirement safe, `name` the address a
+  plan renders; a fetched body without `id` is malformed too. Membership
+  is stamped per listing response id and retired per realm, exactly as
+  tabs are.
+
 Pending ground-truth claims (documented facts read 2026-09-02, to be
 authored master-side and then cited here by number): realm segment
 semantics per endpoint and pc-by-omission; PoE2 on the character
