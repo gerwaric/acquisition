@@ -8,11 +8,20 @@
 # for an explicit enter.
 #
 #   tools/tracer-rung.sh [--account SEL] [--realm R] [--league L] \
-#                        [--max-age S] [--cycles K] <tab1,...,tabN | all>  # live
-#   tools/tracer-rung.sh --mock [--cycles K] <tab1,...|all>        # rehearsal
+#                        [--max-age S] [--cycles K] [--characters all|id,...] \
+#                        <tab1,...,tabN | all | none>                       # live
+#   tools/tracer-rung.sh --mock [--cycles K] [--characters …] <tabs|all|none>  # rehearsal
 #
-# The selection becomes the sync policy (`acq policy set`): the named tab
-# ids, or `all` for every tab the league lists. A policy id covers the tab
+# The selection becomes the sync policy (`acq policy set`, policy v3): the
+# named tab ids, or `all` for every tab the league lists, or `none` for no
+# tab coverage at all; `--characters` adds the character facet the same
+# way (`all`, or GGG character ids — the full 64-hex, from `acq store
+# characters`). A character-only run (`none` plus `--characters`) is how
+# the PoE2 realm is driven: stashes are PoE1 only, so `--realm poe2` takes
+# no tab selection. The character list is realm-wide and gets its own
+# probe; each character fetch is one GET on `character-request-limit`
+# (5 per 10 s, 30 per 300 s — the stash policy's shape).
+# A policy id covers the tab
 # and its children (CONTEXT.md, decided 2026-09-01): a map/unique tab's
 # substashes are planned the cycle after the parent's first fetch lands
 # their stubs (a plan never expands itself), a folder's children at once.
@@ -84,6 +93,7 @@ REALM=pc
 LEAGUE=Standard
 MAX_AGE=
 CYCLES=4
+CHARACTERS=
 while [ $# -gt 0 ]; do
     case "$1" in
     --mock) MODE=mock; shift ;;
@@ -92,10 +102,15 @@ while [ $# -gt 0 ]; do
     --league) LEAGUE=${2:?--league needs a value}; shift 2 ;;
     --max-age) MAX_AGE=${2:?--max-age needs a value}; shift 2 ;;
     --cycles) CYCLES=${2:?--cycles needs a value}; shift 2 ;;
+    --characters) CHARACTERS=${2:?--characters needs a value}; shift 2 ;;
     *) break ;;
     esac
 done
-SELECTION=${1:?usage: tracer-rung.sh [--mock] [--account SEL] [--realm R] [--league L] [--max-age S] [--cycles K] <tab1,...|all>}
+SELECTION=${1:?usage: tracer-rung.sh [--mock] [--account SEL] [--realm R] [--league L] [--max-age S] [--cycles K] [--characters all|id,...] <tab1,...|all|none>}
+if [ "$SELECTION" = none ] && [ -z "$CHARACTERS" ]; then
+    echo "refusing: tabs 'none' with no --characters names no work (the policy would be refused)" >&2
+    exit 2
+fi
 command -v jq >/dev/null || { echo "jq is required" >&2; exit 2; }
 command -v python3 >/dev/null || { echo "python3 is required" >&2; exit 2; }
 # The freshness window must outlive the cycle that fills it, or the next
@@ -400,14 +415,20 @@ fi
 
 # ---- phase 2: intent, then the plan with no daemon --------------------------
 
-if [ "$SELECTION" = all ]; then
-    tabs_json='"all"'
-else
-    tabs_json=$(echo "$SELECTION" | tr ',' '\n' | grep . | jq -R . | jq -sc .)
-fi
-# Policy v2 (CONTEXT.md, 2026-09-02): leagues under realms.
-POLICY=$(jq -nc --arg r "$REALM" --arg l "$LEAGUE" --argjson t "$tabs_json" --argjson a "$MAX_AGE" \
-    '{version: 2, realms: {($r): {leagues: {($l): {tabs: $t, max_age_seconds: $a}}}}}')
+selection_json() { # <all|id,...> → "all" or a JSON id array
+    if [ "$1" = all ]; then echo '"all"'; else echo "$1" | tr ',' '\n' | grep . | jq -R . | jq -sc .; fi
+}
+# Policy v3 (CONTEXT.md, 2026-09-02): leagues under realms, and per league
+# the facets it covers — `tabs` and/or `characters`; an absent facet is no
+# coverage of it (`none` leaves `tabs` out).
+tabs_json='[]'
+[ "$SELECTION" != none ] && tabs_json=$(selection_json "$SELECTION")
+chars_json='[]'
+[ -n "$CHARACTERS" ] && chars_json=$(selection_json "$CHARACTERS")
+POLICY=$(jq -nc --arg r "$REALM" --arg l "$LEAGUE" --argjson t "$tabs_json" --argjson c "$chars_json" --argjson a "$MAX_AGE" \
+    '{version: 3, realms: {($r): {leagues: {($l): ({max_age_seconds: $a}
+        + (if $t != [] then {tabs: $t} else {} end)
+        + (if $c != [] then {characters: $c} else {} end))}}}}')
 echo ""
 echo "phase 2: writing the sync policy (no daemon, no wire):"
 echo "  $POLICY"
@@ -445,7 +466,7 @@ plan_identity() {
 # The action list of an envelope, one line each — rendered from the file
 # that will be applied, so what is confirmed is what goes out.
 render_actions() {
-    jq -r '.actions[] | "  \(.action)  \(.league)  \(.parent // "")\(if .parent then "/" else "" end)\(.id // "")  \(.name // "")  \(.reason.kind)"' "$1"
+    jq -r '.actions[] | "  \(.action)  \(.league // "(realm-wide)")  \(.parent // "")\(if .parent then "/" else "" end)\(.id // "")  \(.name // "")  \(.reason.kind)"' "$1"
 }
 
 echo ""
@@ -475,6 +496,9 @@ for c in $(seq 1 "$CYCLES"); do
     lists=$(jq '[.actions[] | select(.action == "list_stashes")] | length' "$plan")
     fetches=$(jq '[.actions[] | select(.action == "fetch_tab")] | length' "$plan")
     subs=$(jq '[.actions[] | select(.action == "fetch_substash")] | length' "$plan")
+    clists=$(jq '[.actions[] | select(.action == "list_characters")] | length' "$plan")
+    cfetches=$(jq '[.actions[] | select(.action == "fetch_character")] | length' "$plan")
+    [ $((lists + fetches + subs + clists + cfetches)) = "$logical" ] || { echo "plan carries an action kind this driver does not count" >&2; exit 1; }
     wire_min=$(jq -r '.wire_sends.min' "$plan")
     wire_max=$(jq -r '.wire_sends.max' "$plan")
     [ "$wire_min" = "$logical" ] || { echo "plan's wire minimum $wire_min != logical $logical" >&2; exit 1; }
@@ -491,9 +515,14 @@ for c in $(seq 1 "$CYCLES"); do
         break
     fi
 
+    # One free HEAD per route this lifetime: the stash list, the stash
+    # fetch, the character list, the character fetch — each its own route
+    # (and, off pc, its own realm-suffixed route).
     probes=0
     [ "$lists" -gt 0 ] && probes=$((probes + 1))
     [ $((fetches + subs)) -gt 0 ] && probes=$((probes + 1))
+    [ "$clists" -gt 0 ] && probes=$((probes + 1))
+    [ "$cfetches" -gt 0 ] && probes=$((probes + 1))
     ceiling=$((1 + probes + logical))
     pace=""
     if [ "$MODE" = live ]; then
@@ -501,10 +530,15 @@ for c in $(seq 1 "$CYCLES"); do
         # Duration of this cycle on the wire, over-estimated on purpose:
         # a ~343 s hold per 30 stash GETs and a ~15 s hold per 15 (rungs
         # 10 and 7b; 323 GETs took 61 min live) plus a minute of slack.
+        # The character policy has the same windows (5:10, 30:300) and is
+        # paced independently, so the two facets run side by side and the
+        # cycle lasts as long as the longer one, not the sum.
         # The facts a cycle lands at its start are the oldest when the
         # NEXT plan compiles, so the window must outlive the cycle with
         # margin: refuse unless it is at least twice the estimate.
-        est=$(( (stash_gets / 30) * 343 + (stash_gets / 15) * 15 + 60 ))
+        gets=$stash_gets
+        [ "$cfetches" -gt "$gets" ] && gets=$cfetches
+        est=$(( (gets / 30) * 343 + (gets / 15) * 15 + 60 ))
         if [ $((est * 2)) -gt "$MAX_AGE" ]; then
             echo "*** cycle $c would take ~$est s on the wire but max_age_seconds is $MAX_AGE:" >&2
             echo "*** what it lands would be stale (or nearly) for the next plan, and the loop" >&2
@@ -518,20 +552,22 @@ for c in $(seq 1 "$CYCLES"); do
         # against 3600 s bought a 6-request cycle 2). Harmless, the loop
         # still closes, so this warns rather than refuses.
         oldest=$(jq -r --argjson now "$(date +%s)" '
-            [ (.skipped[] | select(.reason.kind == "fresh") | .reason.age_seconds),
-              (if (.basis.listing != null) and ([.actions[] | select(.action == "list_stashes")] | length) == 0
-               then ($now - .basis.listing.fetched_at) else empty end) ] | max // 0' "$plan")
+            [ ((.skipped_tabs[], .skipped_characters[]) | select(.reason.kind == "fresh") | .reason.age_seconds),
+              (if (.basis.stash_listing != null) and ([.actions[] | select(.action == "list_stashes")] | length) == 0
+               then ($now - .basis.stash_listing.fetched_at) else empty end),
+              (if (.basis.character_listing != null) and ([.actions[] | select(.action == "list_characters")] | length) == 0
+               then ($now - .basis.character_listing.fetched_at) else empty end) ] | max // 0' "$plan")
         if [ $((oldest + est)) -gt "$MAX_AGE" ]; then
             echo "note: the oldest fact this plan keeps as fresh is ${oldest}s old and the cycle is ~${est}s;"
             echo "      together they pass the ${MAX_AGE}s window, so expect the next plan to refetch it (a refetch cycle, not a fault)."
         fi
-        if [ "$stash_gets" -gt 30 ]; then
-            pace=" — more than 30 stash GETs: a ~15 s hold after each 15 and a ~343 s hold after each 30 (rung 10's shape), ~$est s in all; that is the limiter working"
-        elif [ "$stash_gets" -gt 15 ]; then
-            pace=" — more than 15 stash GETs: expect one ~15 s limiter hold before the 16th (rung 7b); that is the limiter working"
+        if [ "$gets" -gt 30 ]; then
+            pace=" — more than 30 GETs on one policy: a ~15 s hold after each 15 and a ~343 s hold after each 30 (rung 10's shape), ~$est s in all; that is the limiter working"
+        elif [ "$gets" -gt 15 ]; then
+            pace=" — more than 15 GETs on one policy: expect one ~15 s limiter hold before the 16th (rung 7b); that is the limiter working"
         fi
     fi
-    confirm "cycle $c: fresh daemon with ceiling $ceiling = 1 token POST + $probes probe HEAD(s) + $logical GET(s) ($lists listing, $fetches tab, $subs substash; plan says $wire_min..$wire_max wire sends)$pace"
+    confirm "cycle $c: fresh daemon with ceiling $ceiling = 1 token POST + $probes probe HEAD(s) + $logical GET(s) ($lists stash listing, $fetches tab, $subs substash, $clists character listing, $cfetches character; plan says $wire_min..$wire_max wire sends)$pace"
     cycle_offset=$(journal_size)
     PID=$(spawn_daemon "$ceiling" "daemon-$tag.out")
     echo "daemon $tag: pid $PID (ceiling $ceiling)"
@@ -603,9 +639,13 @@ fi
 
 echo ""
 echo "phase 4: the facts, read back from the store (no daemon):"
+if [ "$SELECTION" != none ]; then
 "$ACQ" tabs --realm "$REALM" --league "$LEAGUE" >"$RUN_DIR/tabs.txt"
 "$ACQ" tabs --realm "$REALM" --league "$LEAGUE" --json >"$RUN_DIR/tabs.json"
-if [ "$SELECTION" = all ]; then
+fi
+if [ "$SELECTION" = none ]; then
+    echo "(no tab coverage in this run)"
+elif [ "$SELECTION" = all ]; then
     head -40 "$RUN_DIR/tabs.txt"
 else
     head -1 "$RUN_DIR/tabs.txt"
@@ -629,12 +669,46 @@ else
     echo "children of selected tabs on record: $n_children (substashes and folder children), $n_unfetched never fetched"
     if [ "$CLOSED" != 0 ] && [ "$n_unfetched" -gt 0 ]; then
         "$ACQ" refresh --plan --realm "$REALM" --league "$LEAGUE" --json >"$RUN_DIR/plan-final.json" 2>/dev/null || true
-        n_empty=$(jq '[.skipped[]? | select(.reason.kind == "empty_stub")] | length' "$RUN_DIR/plan-final.json" 2>/dev/null || echo 0)
+        n_empty=$(jq '[.skipped_tabs[]? | select(.reason.kind == "empty_stub")] | length' "$RUN_DIR/plan-final.json" 2>/dev/null || echo 0)
         if [ "$n_unfetched" != "$n_empty" ]; then
             echo "*** $n_unfetched covered child(ren) never fetched but only $n_empty skipped as empty stubs — the loop closed with covered work undone" >&2
             exit 1
         fi
         echo "(all $n_unfetched are empty stubs the final plan skips — nothing to fetch)"
+    fi
+fi
+if [ -n "$CHARACTERS" ]; then
+    # The character facet's readback: every covered character on record in
+    # this (realm, league) must have been fetched by the time the loop
+    # closed, unless the final plan skips it for a reason that never
+    # fetches (deleted, expired, no league). Coverage is exact by id.
+    "$ACQ" store characters --realm "$REALM" >"$RUN_DIR/characters.txt"
+    "$ACQ" store characters --realm "$REALM" --json >"$RUN_DIR/characters.json"
+    head -20 "$RUN_DIR/characters.txt"
+    if [ "$CHARACTERS" = all ]; then
+        covered=$(jq -c --arg l "$LEAGUE" '[.[] | select(.league == $l)]' "$RUN_DIR/characters.json")
+    else
+        covered=$(jq -c --argjson sel "$chars_json" '[.[] | select(.id as $i | $sel | index($i) != null)]' "$RUN_DIR/characters.json")
+        unknown=$(jq -r '.unknown_characters | join(" ")' "$RUN_DIR/plan-c1-offline.json")
+        for id in $(echo "$CHARACTERS" | tr ',' ' '); do
+            if [ "$(echo "$covered" | jq --arg i "$id" '[.[] | select(.id == $i)] | length')" = 1 ]; then continue; fi
+            case " $unknown " in
+            *" $id "*) echo "$id: not in the store — the first plan reported it as unknown (a typo, or a character that is gone); never fetched" ;;
+            *) echo "*** $id: selected, planned, but not in the store's character list after the run" >&2; exit 1 ;;
+            esac
+        done
+    fi
+    n_covered=$(echo "$covered" | jq 'length')
+    n_unfetched=$(echo "$covered" | jq '[.[] | select(.fetched_at == null)] | length')
+    echo "covered characters on record: $n_covered, $n_unfetched never fetched"
+    if [ "$CLOSED" != 0 ] && [ "$n_unfetched" -gt 0 ]; then
+        "$ACQ" refresh --plan --realm "$REALM" --league "$LEAGUE" --json >"$RUN_DIR/plan-final.json" 2>/dev/null || true
+        n_never=$(jq '[.skipped_characters[]? | select(.reason.kind == "deleted" or .reason.kind == "expired" or .reason.kind == "no_league")] | length' "$RUN_DIR/plan-final.json" 2>/dev/null || echo 0)
+        if [ "$n_unfetched" != "$n_never" ]; then
+            echo "*** $n_unfetched covered character(s) never fetched but only $n_never skipped as deleted/expired/no-league — the loop closed with covered work undone" >&2
+            exit 1
+        fi
+        echo "(all $n_unfetched are skips the final plan never fetches — deleted, expired, or no league)"
     fi
 fi
 "$ACQ" store status 2>&1 | tee "$RUN_DIR/store-status.txt"

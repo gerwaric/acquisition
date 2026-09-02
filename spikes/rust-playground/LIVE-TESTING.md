@@ -457,7 +457,7 @@ the old listing's membership (D5a: a plan never expands itself; the new
 listing's facts land for the next plan).
 
 **Selection decides the shape of the run.** A policy id covers the tab
-and its children (`TabSelection::covers`; decided 2026-09-01 on this
+and its children (`covers_tab` on the planner's `Selection`; decided 2026-09-01 on this
 rung's first run, which had left 64 substashes uncovered under an exact
 id match): a map/unique tab's substashes are planned the cycle after
 the parent's first fetch lands their stubs — a plan never expands
@@ -623,6 +623,73 @@ Ruled 2026-09-01, in `CONTEXT.md`: binding confirmed as written; a policy
 id covers the tab and its children (planner change is the follow-up build
 item); the method-test verdict — pass on correctness, owner-truth channel
 under-exercised — is recorded in the tracer section there.
+
+## Characters rung — the refresh plan with characters (prepared 2026-09-02; not yet run)
+
+Order-of-work steps (4) and (5) of `CONTEXT.md`, "Characters in the
+refresh plan": the same driver, the same rails, the same verifier, with
+the character facet in the policy (`--characters`). Two invocations,
+both the owner's, from a terminal, under the standing rule:
+
+1. **The characters row, pc** — the exit criterion is a policy naming
+   tabs and characters together, live, with the driver's checks green:
+
+   ```sh
+   tools/tracer-rung.sh --account GERWARIC#7694 --characters all <tab1,...>
+   ```
+
+   with the same handful of tab ids as the tracer rung. Expected shape:
+   cycle 1 re-lists both routes if the listings on record are stale
+   (or lists characters alone if the stash listing is fresh) — the
+   character listing is one GET on `character-list-request-limit` (2 per
+   10 s: one per cycle, never a hold); cycle 2 fetches the selected tabs
+   plus **every Standard-league character the list carries** (the
+   2026-09-02 sample listed 59 across leagues; only Standard's are
+   covered by a Standard policy, and any listed `deleted`/`expired`
+   character is skipped, never fetched) on `character-request-limit`
+   (5 per 10 s, 30 per 300 s — a ~15 s hold after 15 and a ~343 s hold
+   after 30, the stash policy's shape, paced independently of the tab
+   fetches); a discovery cycle for any selected map tab's substashes;
+   then empty. Two probes per new route per lifetime, each 0 hits (the
+   standing rule); ceilings exact. Readback: `acq store characters
+   --realm pc` shows every Standard character fetched with items, and
+   the run fails if a covered character is neither fetched nor skipped
+   for a never-fetch reason. Mock rehearsal green 2026-09-02
+   (`all --characters all`: `1/2/2`, `1/2/9`, `1/1/7`, closed).
+
+2. **PoE2 first contact** (`GET /character/poe2`, then
+   `/character/poe2/{name}` — unobserved by us; documented live) — once
+   the owner has a PoE2 character:
+
+   ```sh
+   tools/tracer-rung.sh --account GERWARIC#7694 --realm poe2 --characters all none
+   ```
+
+   Cycle 1 is exactly the standing rule's first-contact shape: a fresh
+   daemon under ceiling **3** — token POST, `HEAD /character/poe2`
+   (its own route, `character-list/poe2@…`), `GET /character/poe2` —
+   with the tripwire armed; cycle 2 is the same shape on
+   `character/poe2@…` for each listed character; then empty. What it
+   answers (CONTEXT.md, order (5)): what `Character.realm` says for a
+   PoE2 character (the docs give `pc|xbox|sony`; the mock hypothesizes
+   `poe2`); whether the pc list omits it (compare `acq store characters
+   --realm pc` before and after — a realm-R listing retires only
+   realm-R rows, so a character listed under both would show under
+   both); what `skills` items look like — ids present? (`acq items
+   search <skill name> --realm poe2` shows the lifted rows with
+   container `skills`; an id-less item is a `MalformedBody` refusal
+   that fails the fetch child, which is itself the finding); and
+   whether `HEAD /character/poe2` is the free probe (204, uncounted) pc
+   is. Record the policy names and windows the poe2 routes report
+   (N6: same name shares state) as a ledger row and a ground-truth
+   claim. Mock rehearsal green 2026-09-02 (`--realm poe2 --characters
+   all none`: `1/1/1`, `1/1/1`, closed).
+
+Stop conditions are the standing rule's: a probe reporting hits > 0, any
+non-2xx, any trip — wait 360 s, read, then `reset-tripwire`, never
+reset-and-retry. A `fetch_character` child failing 404 under a name that
+moved between the listing and the fetch is the D5a residual (the next
+listing reconciles), recorded, not a stop.
 
 ## Status: ladder closed (2026-08-27)
 

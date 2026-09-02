@@ -55,7 +55,7 @@ Short one-liners with rationale, optimized for agents to reason from. Kept curre
 - **The system is four layers — facts, intent (annotations), derivations, effects — each with one authoritative mutation path, not one physical writer.** Facts mutate only through the store crate's ingest surface (daemon `record`; `store import`); intent only through the store crate's annotation write API (frontends); the effects ledger only through the daemon; derivations have no independent authority — computed or materialized, always reproducible from declared inputs (`rebuild` is their maintenance, not fact ingestion). The daemon is permanently blind to intent, and it creates work only in causal service of client-submitted work (probes, children, retries) — never spontaneously: no schedules, no policy execution, no annotation reads; scheduled syncs are small frontends. Rationale: "a sync can never clobber intent" becomes structural, the way the choke point made rate-limit discipline structural — and blindness is safe exactly because the daemon never initiates. Decided 2026-08-31 (brainstorming-notes 06, ruled).
 - **Annotations are the only irreplaceable local state.** A separate per-account file named by the account uuid (identity decision in "Multi-account design"), keyed on stable GGG ids, written only through the store crate with integer-revision compare-and-swap; no fact-side event ever deletes intent — an annotation whose item is removed is kept and surfaceable as orphaned; export/backup is a store-managed consistent snapshot (`VACUUM INTO` / SQLite backup API — a raw file copy under WAL is not a backup). Rationale: facts are refetchable at the cost of requests; intent has no server to refetch from — the C++ legacy-buyout saga is the full price of getting this wrong. Decided 2026-08-31.
 - **The sync policy is the first annotation: a per-account, inspectable declaration of desired coverage and freshness — not a scheduler — compiled by the frontend-side planner into minimal requests.** `metadata.items` counts are heuristic evidence: they can prove a tab changed, never that it didn't. Rationale: C++ tracked-set/clean-refresh semantics, the old delta/selection topic, and both redesign essays independently describe this one object. Decided 2026-08-31.
-- **A tab id in the sync policy covers that tab and its children.** A tab is covered when its own id is listed or its parent's id is; one rule, no per-type logic, and it gives every case the owner meant (tracer rung, 2026-09-01): a map or unique tab's substashes are planned once their stubs are on record — the cycle after the parent's first fetch, since discovery still waits for facts (binding untouched: every action stays an explicit reviewed tuple, nothing is added at apply); a folder's children are planned at once, because the listing already carries them (folders themselves are never fetched); a child named directly still works. A substash stub whose `metadata.items` is 0 is skipped with a named reason rather than fetched — GGG appears to list only non-empty substashes (64 of 64 stubs on the real account carry a count ≥ 1), so this is a guard, not a saving; in-flight change is not designed around (a count is still never proof of freshness). Type-level filters ("skip map tabs", "include unique tabs", "fetch folder children") are parked with a trigger. Evidence: the rung's five-id run left 64 substashes under the two selected parents in the store and outside the policy, closed the loop after one cycle, and the owner's intent for a named map tab was its contents. Consequence: the same policy rerun plans those 64 as cycle 2 (~15 min of limiter holds) — the first live two-cycle discovery sample. Built the same day: `TabSelection::covers` (own id or parent's), `SkipReason::EmptyStub`, plan schema **v4** (a new skip kind is an envelope shape change). Decided 2026-09-01.
+- **A tab id in the sync policy covers that tab and its children.** A tab is covered when its own id is listed or its parent's id is; one rule, no per-type logic, and it gives every case the owner meant (tracer rung, 2026-09-01): a map or unique tab's substashes are planned once their stubs are on record — the cycle after the parent's first fetch, since discovery still waits for facts (binding untouched: every action stays an explicit reviewed tuple, nothing is added at apply); a folder's children are planned at once, because the listing already carries them (folders themselves are never fetched); a child named directly still works. A substash stub whose `metadata.items` is 0 is skipped with a named reason rather than fetched — GGG appears to list only non-empty substashes (64 of 64 stubs on the real account carry a count ≥ 1), so this is a guard, not a saving; in-flight change is not designed around (a count is still never proof of freshness). Type-level filters ("skip map tabs", "include unique tabs", "fetch folder children") are parked with a trigger. Evidence: the rung's five-id run left 64 substashes under the two selected parents in the store and outside the policy, closed the loop after one cycle, and the owner's intent for a named map tab was its contents. Consequence: the same policy rerun plans those 64 as cycle 2 (~15 min of limiter holds) — the first live two-cycle discovery sample. Built the same day: `TabSelection::covers` (own id or parent's; `covers_tab` over `Selection` since step (3) of the characters work), `SkipReason::EmptyStub`, plan schema **v4** (a new skip kind is an envelope shape change). Decided 2026-09-01.
 - **A Plan is a serializable, immutable authorization envelope, and plans are binding.** Derived from a named snapshot of facts + intent, computable with the daemon down; it carries provider + account uuid, operation kind + plan schema version, fact basis (response/listing ids or timestamps), annotation revision, the explicit action set (or a declared upper bound), generated-at, freshness assumptions, and optionally a quote with its own observation time. Work has two dimensions: `logical_requests` (exact or bounded) and `wire_sends` (a coarse range plus named prerequisites — probe, token refresh, possible 429 retries — never a precise accounting). Applying a Plan executes exactly the listed actions or a strict subset, never an unreviewed addition; new facts produce a new Plan; v1 excludes dynamic `--deep` fan-out (a vanished tab fails or is reported skipped; newly discovered tabs wait for the next plan). Operation-specific types first (`RefreshPlan`); a universal grammar waits for the second plan-bearing consumer. Binding was revisable on tracer evidence (the owner's live-use friction notes are the data). Decided 2026-08-31. **Confirmed 2026-09-01** on the tracer rung's live run (`LIVE-TESTING.md`, run ledger and friction notes): subset-only reconciliation produced no owner friction, the two-cycle discovery of substashes cost nothing observable, and the parking-lot trigger for dynamic fan-out ("two-cycle reconciliation genuinely hurts") did not fire. What the run did surface was a *coverage* question, ruled separately below (a policy id covers the tab and its children); binding itself stands as written.
 - **The planner lives in `acquisition-plan`** — depends on core's client/protocol types + the store, linked by frontends only — and owns policy compilation and Plan construction; the store exposes neutral snapshots (policy rows, tab identities, freshness, listing basis, metadata), never half a planner. Rationale: keeps "the daemon never reads the store" enforced by the dependency graph, not discipline. Decided 2026-08-31.
 - **`quote` is its own protocol request: a read-only, non-reserving projection over current daemon knowledge** — observation time, basis, per-policy/per-scope estimates, and unknown prerequisites; applying may receive a different schedule (`eta_for` is "an estimate, not a promise"). Headroom is per policy/window and scope, never one scalar. Never a flag on `Submit`, whose contract is loaded with id/persistence/rollback semantics. Decided 2026-08-31.
@@ -184,7 +184,7 @@ Built, each step gate-green and owner-reviewed:
    `acquisition-store/src/annotations.rs` and the daemon's staged login
    flow — a login fails whole, and only its own flow-terminal result on
    the protocol counts as success).
-3. Neutral store snapshots (2026-08-31, `Store::stash_snapshot` in
+3. Neutral store snapshots (2026-08-31, `Store::refresh_snapshot` — then `stash_snapshot` — in
    `acquisition-store/src/snapshot.rs`) — with the malformed-2xx
    ruling: a malformed body is a typed refusal that writes nothing and
    fails the *job*; only `acq store import` keeps the legacy tolerance,
@@ -343,7 +343,7 @@ into the pricing session: budget for legibility (the parked output items
 below) before that session's own live run, or say explicitly that agent
 observations stand in for owner notes.
 
-**Handle ruling built 2026-09-01:** `TabSelection::covers(tab)` — own id
+**Handle ruling built 2026-09-01:** `TabSelection::covers(tab)` (since step (3): `covers_tab` over the shared `Selection`) — own id
 or parent's id; `SkipReason::EmptyStub` for a map/unique stub counting 0
 with nothing held (a held item against a 0 count stays the disagreement
 arm and fetches); `REFRESH_PLAN_SCHEMA` 3 → 4. Tests pin the three cases
@@ -570,7 +570,7 @@ strictness (a v1 value with a stray field, or a v2 with both `realms`
 and `leagues`, was stored half-honored — now the stamp dispatches into
 one strict shape); and the version story was implicit (now: facts v4 and
 policy v3 for characters, and plan schema 6 as the ruled stamp for
-step (3) — the code writes 5 until characters join the plan). One caution it stated, which
+step (3) — written since step (3) landed the same day). One caution it stated, which
 the order of work already implied and is now explicit: **until the
 character key lands, cross-realm character ingestion is unsafe** —
 character rows and item locations are name-keyed, so a PoE2 name that
@@ -707,6 +707,102 @@ withheld responses and items. The malformed-body contract holds for a
 withheld body too: identity is checked before the store decides whether
 a body lands or is withheld, so an id-less item or stub is refused and
 nothing is written, whatever the location's liveness.
+
+**Step (3) built 2026-09-02** (policy **v3**, plan schema **6**; calls
+made inside the ruling, agreed with the owner before building):
+
+- **The planner is facet-symmetric, not character-aware.** `Selection`
+  (`all` | ids) serves both facets; `LeaguePolicy { tabs?, characters?,
+  max_age_seconds }` with `None` meaning no coverage of that facet (an
+  empty list normalizes to `None`); each facet compiles on its own —
+  its listing verdict, its covered entities, its skips, its unknowns —
+  and the actions are the tab facet's then the character facet's. The
+  freshness rules are one function for both (`window_verdict`: never
+  fetched, older than the window) plus each facet's own disagreement
+  arm: `ListedCountDisagrees` for tabs; `ListedExperienceDisagrees`
+  (judged only when the entry and the fetched body both carry
+  `experience`) and `ListedLeagueDisagrees` (the row's listing-owned
+  league against the body's — a Hardcore death) for characters, on the
+  shared `FetchReason`. Skips are their own enum,
+  `CharacterSkipReason { Fresh, AwaitingListing, NoLeague, Deleted,
+  Expired }`, so a tab kind on a character skip is malformed.
+- **"Names no work" applies after normalization to every version.** A
+  stored v2 `tabs: []` now reads as malformed instead of compiling to an
+  empty plan; nothing stored that (the MCP loop test's "empty coverage"
+  fixture became an id the facts lack, which is the honest empty plan).
+- **League-less characters are reported in every league plan of their
+  realm** as a `no_league` skip (by id too — never as unknown, the facts
+  know them): the ruling said "reported as uncovered", and a realm fact
+  no league key reaches needs somewhere to appear. The snapshot carries
+  them beside the league's own rows.
+- **The store's liveness rule is consumed, not restated.**
+  `CharacterSnapshot` offers exactly `fetched_at` (None for never
+  fetched *or revived*), the listed entry verbatim, and the fetched
+  envelope only while a fetch stands (`Null` after revival — the column
+  still holds the disowned body). The planner reads those three facts
+  and has no liveness logic. `Store::stash_snapshot` is
+  `Store::refresh_snapshot`: `stash_listing` + `tabs`,
+  `character_listing` (per realm) + `characters`, the policy row, one
+  read transaction.
+- **Envelope renames under the bump** (free now, never again):
+  `basis.stash_listing` + `basis.character_listing` (both carried as
+  the facts of the read, whichever facets the policy covers),
+  `skipped_tabs` / `unknown_tabs` beside `skipped_characters` /
+  `unknown_characters`; `list_characters { realm, reason }` carries no
+  league and is in-envelope for any league of its realm
+  (`RefreshAction::league()` is an `Option`); `fetch_character { realm,
+  league, id, name, reason }` renders `("character", {realm, name})` —
+  the listed name, no `class`/`level` (the ruled five fields).
+- **A strictness hole the character skip test found, closed:** serde
+  ignores extra fields beside an internally tagged *unit* variant's
+  `kind` (`never_fetched`, `folder`, `deleted`…), `deny_unknown_fields`
+  or not — "unknown fields at any depth are refused" held only for
+  struct variants. `RefreshPlan::from_value` now requires the derived
+  envelope (the quote aside — an observation with its own strict shape)
+  to re-serialize to exactly what was read. The same shape as the
+  store's five rounds: a rule honored on the main path, lost on one
+  serde path.
+- **Apply vocabulary**: `characters`, and `character` with a name; both
+  single-request. `acq store characters` is new: the CLI had no
+  store-side read of the character rows (only the MCP tool), and the
+  driver's readback needs one. The mock's list entries and bodies carry
+  `experience` (one constant: the mock account never plays).
+- **Accepted residual:** the character list is realm-wide while plans
+  are per league, so two league plans on one realm applied together
+  each authorize their own `list_characters` — the same register as two
+  realm plans listing separately; v1 lives with it.
+- **Tests** (planner, each on the six-path checklist): v3 per-facet
+  parse and every malformed shape; the character listing alone on a
+  never-listed realm with no stash work; exact-id coverage and unknown
+  ids; the experience arm forward-only (same-second and body-without-
+  experience prove nothing) and the window; a league move fetching in
+  the new league and leaving the old; deleted / expired / no-league
+  skips, by `all` and by id, and in the realm's other league; the
+  revived character as never fetched with a withheld late fetch in
+  between; a recreated name planning the new id only; a row without a
+  listed entry planning by the window; the mixed loop closing through
+  `Endpoint::from_job`; realm-wide actions in-envelope and character
+  skips parsing strictly. Store: the per-realm character basis with the
+  league's rows plus league-less ones, revival clearing the body, two
+  listings in one second, malformed stored json with its address.
+  Process level: `acquisition-cli/tests/apply_loop.rs` now runs the
+  mixed policy (two listings, then 7 tabs + 2 characters, then 7
+  substashes, then empty, character rows fetched with items);
+  `tests/characters_wire.rs` closes a character-only poe2 policy on
+  `character-list/poe2` / `character/poe2` with probes first, nothing
+  on any other data route, the `skills` item at the character under
+  poe2 only, and a `tabs` facet under poe2 refused at `policy set`.
+- **Driver and verifier**: `--characters all|id,...` and a `none` tab
+  selection (a character-only run; how poe2 is driven), one probe per
+  route the plan touches (four at most), pacing by the longer facet
+  (the two policies run side by side), a character readback (every
+  covered character fetched, or skipped for a reason that never
+  fetches). Mock rehearsals green 2026-09-02: `all --characters all` =
+  login, `1/2/2`, `1/2/9`, `1/1/7`, closed; `--realm poe2 --characters
+  all none` = `1/1/1`, `1/1/1`, closed — that first cycle is exactly the
+  standing rule's first-contact shape (ceiling 3: POST, HEAD, GET), so
+  order-of-work (5), PoE2 first contact, can run as that invocation
+  (`LIVE-TESTING.md`, "Characters rung").
 
 Pending ground-truth claims (documented facts read 2026-09-02, to be
 authored master-side and then cited here by number): realm segment

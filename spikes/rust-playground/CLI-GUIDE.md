@@ -294,6 +294,7 @@ Each of these submits a job and blocks with progress; all take `--json`.
 |---|---|
 | `acq accounts` | Accounts this machine has logged into, from the index: username, last login, keyring persistence, store size, uuid. |
 | `acq tabs [--league L]` | Tab tree with live item counts and per-tab fetch age. |
+| `acq store characters [--realm R] [--league L]` | Characters on record by GGG id: address (name), realm, league, level, live item count, listed/fetched age. |
 | `acq items search <text> [--league L] [--removed] [--limit N]` | Substring search over name/type/base; socketed gems are rows too. |
 | `acq items show <id>` | One item, verbatim JSON plus location/first-seen/last-seen. |
 | `acq store status` | Store path, size, row counts. |
