@@ -38,10 +38,13 @@ const SCHEMA: &str = include_str!("schema.sql");
 /// guessing). Version 2 added `tabs.listed_json` / `tabs.listed_response`;
 /// version 3 added `realm` (the coordinate above league, 2026-09-02) to
 /// `tabs` (rekeyed `(realm, league, id)` — the table is rebuilt, every
-/// existing row as pc), `characters`, and `items`. 0 is both "fresh file"
+/// existing row as pc), `characters`, and `items`; version 4 (same day)
+/// rekeyed `characters` by the GGG `id` (rebuilt through each row's json;
+/// item locations move from the name to the id), added the listing
+/// columns to characters, and `items.container`. 0 is both "fresh file"
 /// and "pre-versioning file" — the DDL and column checks are idempotent,
 /// so one migration path serves both.
-const FACT_SCHEMA_VERSION: i64 = 3;
+const FACT_SCHEMA_VERSION: i64 = 4;
 
 /// A facts file written by a newer build than this one. Facts are
 /// refetchable, but guessing at an unknown schema is how a file gets
@@ -94,8 +97,18 @@ impl std::error::Error for MalformedBody {}
 /// they never count as a change.
 pub const VOLATILE_ITEM_FIELDS: &[&str] = &["veiledMods"];
 
-/// Where the character response keeps its items.
-const CHARACTER_ITEM_ARRAYS: &[&str] = &["inventory", "equipment", "jewels", "rucksack"];
+/// Where the character response keeps its items (documented arrays;
+/// `guardian` is the animate guardian's gear on PoE1, `skills` PoE2's).
+/// An array of item-shaped objects that is *not* named here is the drift
+/// tripwire's business: counted, surfaced, never lifted.
+const CHARACTER_ITEM_ARRAYS: &[&str] = &[
+    "inventory",
+    "equipment",
+    "jewels",
+    "rucksack",
+    "guardian",
+    "skills",
+];
 
 /// Which API response a body is. The daemon maps a job kind onto this; the
 /// store maps it onto tables.
@@ -179,6 +192,9 @@ pub struct Ingest {
     pub moved: usize,
     pub changed: usize,
     pub removed: usize,
+    /// Item-shaped objects left in a character envelope in an array this
+    /// build does not lift (the drift tripwire): surfaced, never a failure.
+    pub unlifted: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -199,6 +215,9 @@ pub struct TabRow {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CharacterRow {
+    /// The GGG character id — identity, stable across renames; the full
+    /// 64-hex string, since policy ids match exactly.
+    pub id: String,
     pub name: String,
     pub realm: String,
     pub league: Option<String>,
@@ -219,6 +238,10 @@ pub struct ItemRow {
     pub league: Option<String>,
     pub location_kind: String,
     pub location_id: String,
+    /// The array the item came from (`items` for a stash; a character's
+    /// `inventory`, `equipment`, `jewels`, `rucksack`, `guardian`, or
+    /// `skills`). `None`: recorded before facts v4.
+    pub container: Option<String>,
     pub socketed_in: Option<String>,
     pub name: String,
     pub type_line: String,
@@ -253,6 +276,11 @@ pub struct Status {
     pub items: i64,
     pub items_removed: i64,
     pub events: i64,
+    /// The drift tripwire's count: item-shaped objects that character
+    /// responses carried in arrays this build does not lift, summed over
+    /// every character response on record. Non-zero means GGG added an
+    /// item array the store does not know — a code change, not a fault.
+    pub unlifted_items: i64,
 }
 
 pub mod annotations;
@@ -345,6 +373,14 @@ impl Store {
                         "realm",
                         "ALTER TABLE characters ADD COLUMN realm TEXT NOT NULL DEFAULT 'pc'",
                     ),
+                    // v4: the array an item came from — not in its json,
+                    // so pre-v4 character items stay NULL; stash items
+                    // are backfilled below (theirs is always `items`).
+                    (
+                        "items",
+                        "container",
+                        "ALTER TABLE items ADD COLUMN container TEXT",
+                    ),
                 ] {
                     if !has_column(&tx, table, column)? {
                         tx.execute(ddl, [])?;
@@ -365,6 +401,42 @@ impl Store {
                     )?;
                     tx.execute("DROP TABLE tabs_pre_realm", [])?;
                 }
+                // v4 rekeys `characters` by the GGG id, taken from each
+                // row's json (list entries and fetched bodies both carry
+                // it); a row whose json lacks one is dropped and its items
+                // retired (facts are refetchable). Item locations move
+                // from the name to the id through the same json, so the
+                // first post-migration fetch produces no false moves;
+                // event history keeps its old location strings.
+                if !has_column(&tx, "characters", "id")? {
+                    tx.execute("ALTER TABLE characters RENAME TO characters_pre_id", [])?;
+                    tx.execute_batch(SCHEMA)?;
+                    tx.execute(
+                        "INSERT OR IGNORE INTO characters (id, realm, name, league, class, level, json, listed_json, listed_at, fetched_at, removed_at)
+                         SELECT json_extract(json, '$.id'), realm, name, league, class, level, json,
+                                CASE WHEN fetched_at IS NULL THEN json END, listed_at, fetched_at, removed_at
+                           FROM characters_pre_id
+                          WHERE json_extract(json, '$.id') IS NOT NULL
+                          ORDER BY COALESCE(fetched_at, 0) DESC, COALESCE(listed_at, 0) DESC",
+                        [],
+                    )?;
+                    tx.execute(
+                        "UPDATE items SET location_id = (SELECT json_extract(p.json, '$.id') FROM characters_pre_id p WHERE p.name = items.location_id)
+                          WHERE location_kind = 'character'
+                            AND EXISTS (SELECT 1 FROM characters_pre_id p WHERE p.name = items.location_id AND json_extract(p.json, '$.id') IS NOT NULL)",
+                        [],
+                    )?;
+                    tx.execute(
+                        "UPDATE items SET removed_at = ?1 WHERE location_kind = 'character' AND removed_at IS NULL
+                            AND location_id IN (SELECT name FROM characters_pre_id WHERE json_extract(json, '$.id') IS NULL)",
+                        [now()],
+                    )?;
+                    tx.execute("DROP TABLE characters_pre_id", [])?;
+                }
+                tx.execute(
+                    "UPDATE items SET container = 'items' WHERE location_kind = 'stash' AND container IS NULL",
+                    [],
+                )?;
                 tx.pragma_update(None, "user_version", FACT_SCHEMA_VERSION)?;
             }
         }
@@ -398,6 +470,8 @@ impl Store {
         // membership is linked to the response a snapshot cites, never to
         // the clock.
         let mut listed_tabs: Vec<(String, String, String)> = Vec::new();
+        // Character ids this response listed, stamped the same way.
+        let mut listed_characters: Vec<String> = Vec::new();
 
         match endpoint {
             Endpoint::Leagues => {
@@ -439,9 +513,18 @@ impl Store {
                 };
                 for c in list {
                     // Identity-bearing entries error rather than skip: a
-                    // list of name-less entries must not read as an
+                    // list of id-less entries must not read as an
                     // authoritative empty and retire everyone (the error
-                    // rolls the whole transaction back).
+                    // rolls the whole transaction back). `id` is the
+                    // identity, `name` the address a plan renders — both
+                    // documented required.
+                    let Some(id) = c.get("id").and_then(Value::as_str) else {
+                        return Err(MalformedBody {
+                            endpoint: "characters",
+                            missing: "an `id` on a character entry",
+                        }
+                        .into());
+                    };
                     let Some(name) = c.get("name").and_then(Value::as_str) else {
                         return Err(MalformedBody {
                             endpoint: "characters",
@@ -449,23 +532,21 @@ impl Store {
                         }
                         .into());
                     };
+                    // The listing owns `league` (the coverage coordinate)
+                    // and `listed_json`; `json` is the entry until a fetch
+                    // replaces it, exactly as a tab's is.
                     tx.execute(
-                        "INSERT INTO characters (name, realm, league, class, level, json, listed_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
-                         ON CONFLICT(name) DO UPDATE SET realm = excluded.realm, league = excluded.league, class = excluded.class,
-                           level = excluded.level, json = excluded.json, listed_at = excluded.listed_at, removed_at = NULL",
-                        params![name, realm, c.get("league").and_then(Value::as_str), c.get("class").and_then(Value::as_str),
+                        "INSERT INTO characters (id, realm, name, league, class, level, json, listed_json, listed_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?7, ?8)
+                         ON CONFLICT(id) DO UPDATE SET realm = excluded.realm, name = excluded.name, league = excluded.league,
+                           class = excluded.class, level = excluded.level, listed_json = excluded.listed_json,
+                           listed_at = excluded.listed_at, removed_at = NULL",
+                        params![id, realm, name, c.get("league").and_then(Value::as_str), c.get("class").and_then(Value::as_str),
                                 c.get("level").and_then(Value::as_i64), c.to_string(), at],
                     )?;
+                    listed_characters.push(id.to_string());
                 }
-                // A character no longer listed is gone (deleted), with its
-                // items. Realm-scoped: whether a list spans realms is
-                // undocumented, so a realm-R listing retires only realm-R
-                // rows — under-retires if lists span realms, never
-                // over-retires (CONTEXT.md, 2026-09-02).
-                tx.execute(
-                    "UPDATE characters SET removed_at = ?1 WHERE realm = ?2 AND removed_at IS NULL AND (listed_at IS NULL OR listed_at < ?1)",
-                    params![at, realm],
-                )?;
+                // Removal happens below, keyed to this response's id and
+                // scoped to this realm.
             }
             Endpoint::Character { realm, name } => {
                 let Some(character) = envelope.get_mut("character").and_then(Value::as_object_mut)
@@ -476,6 +557,25 @@ impl Store {
                     }
                     .into());
                 };
+                // The body's id keys the row — a 200 under a stale name is
+                // a true fact about whoever holds that name now (CONTEXT.md:
+                // no expected-id check); without an id there is no row to
+                // file it under.
+                let Some(id) = character
+                    .get("id")
+                    .and_then(Value::as_str)
+                    .map(str::to_string)
+                else {
+                    return Err(MalformedBody {
+                        endpoint: "character",
+                        missing: "an `id` on the character",
+                    }
+                    .into());
+                };
+                let body_name = character
+                    .get("name")
+                    .and_then(Value::as_str)
+                    .map_or_else(|| name.clone(), str::to_string);
                 let league = character
                     .get("league")
                     .and_then(Value::as_str)
@@ -488,18 +588,40 @@ impl Store {
                             realm: realm.clone(),
                             league: league.clone(),
                             kind: "character",
-                            location_id: name.clone(),
+                            location_id: id.clone(),
+                            container: key,
                             items,
                         });
                     }
                 }
                 character.insert("_split".into(), Value::Object(split));
+                // The drift tripwire: GGG adds fields most leagues, and a
+                // new item array would otherwise go un-lifted silently.
+                // Whatever item-shaped array is left is counted into the
+                // envelope and the ingest — surfaced, never a failure.
+                let unlifted: serde_json::Map<String, Value> = character
+                    .iter()
+                    .filter_map(|(key, value)| {
+                        let n = value
+                            .as_array()
+                            .filter(|a| !a.is_empty() && a.iter().all(is_item_shaped))
+                            .map(Vec::len)?;
+                        Some((key.clone(), json!(n)))
+                    })
+                    .collect();
+                if !unlifted.is_empty() {
+                    ingest.unlifted =
+                        unlifted.values().filter_map(Value::as_u64).sum::<u64>() as usize;
+                    character.insert("_unlifted".into(), Value::Object(unlifted));
+                }
                 let c = Value::Object(character.clone());
+                // `league` lands on insert only (a never-listed character
+                // takes the body's); the listing owns it otherwise.
                 tx.execute(
-                    "INSERT INTO characters (name, realm, league, class, level, json, fetched_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
-                     ON CONFLICT(name) DO UPDATE SET realm = excluded.realm, league = excluded.league, class = excluded.class,
+                    "INSERT INTO characters (id, realm, name, league, class, level, json, fetched_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+                     ON CONFLICT(id) DO UPDATE SET realm = excluded.realm, name = excluded.name, class = excluded.class,
                        level = excluded.level, json = excluded.json, fetched_at = excluded.fetched_at, removed_at = NULL",
-                    params![name, realm, league, c.get("class").and_then(Value::as_str), c.get("level").and_then(Value::as_i64), c.to_string(), at],
+                    params![id, realm, body_name, league, c.get("class").and_then(Value::as_str), c.get("level").and_then(Value::as_i64), c.to_string(), at],
                 )?;
             }
             Endpoint::Stashes { realm, league } => {
@@ -604,6 +726,7 @@ impl Store {
                     league: Some(league.clone()),
                     kind: "stash",
                     location_id: location,
+                    container: "items",
                     items,
                 });
             }
@@ -628,6 +751,24 @@ impl Store {
                 params![tab_realm, tab_league, tab_id, response_id],
             )?;
         }
+        for id in &listed_characters {
+            tx.execute(
+                "UPDATE characters SET listed_response = ?2 WHERE id = ?1",
+                params![id, response_id],
+            )?;
+        }
+        if let Endpoint::Characters { realm } = endpoint {
+            // A character this listing did not stamp is gone (deleted).
+            // Realm-scoped: whether a list spans realms is undocumented,
+            // so a realm-R listing retires only realm-R rows — under-
+            // retires if lists span realms, never over-retires
+            // (CONTEXT.md, 2026-09-02).
+            tx.execute(
+                "UPDATE characters SET removed_at = ?2 WHERE realm = ?1 AND removed_at IS NULL
+                   AND (listed_response IS NULL OR listed_response <> ?3)",
+                params![realm, at, response_id],
+            )?;
+        }
         if let Endpoint::Stashes { realm, league } = endpoint {
             // Not stamped by this listing → removed (top-level and folder
             // children; substashes are only known from fetches and keep
@@ -648,6 +789,7 @@ impl Store {
             league,
             kind,
             location_id,
+            container,
             items,
         } in seams
         {
@@ -659,6 +801,7 @@ impl Store {
                     at,
                     &realm,
                     league.as_deref(),
+                    container,
                     kind,
                     &location_id,
                     None,
@@ -707,6 +850,10 @@ impl Store {
             items: count("SELECT count(*) FROM items WHERE removed_at IS NULL")?,
             items_removed: count("SELECT count(*) FROM items WHERE removed_at IS NOT NULL")?,
             events: count("SELECT count(*) FROM item_events")?,
+            unlifted_items: count(
+                "SELECT COALESCE(SUM(value), 0) FROM responses r, json_each(json_extract(r.envelope, '$.character._unlifted'))
+                  WHERE r.endpoint = 'character'",
+            )?,
         })
     }
 
@@ -720,22 +867,23 @@ impl Store {
         league: Option<&str>,
     ) -> Result<Vec<CharacterRow>> {
         let mut stmt = self.conn.prepare(
-            "SELECT c.name, c.realm, c.league, c.class, c.level, c.listed_at, c.fetched_at,
-                    (SELECT count(*) FROM items i WHERE i.location_kind = 'character' AND i.location_id = c.name AND i.removed_at IS NULL)
+            "SELECT c.id, c.name, c.realm, c.league, c.class, c.level, c.listed_at, c.fetched_at,
+                    (SELECT count(*) FROM items i WHERE i.location_kind = 'character' AND i.location_id = c.id AND i.removed_at IS NULL)
                FROM characters c
               WHERE c.removed_at IS NULL AND (?1 IS NULL OR c.realm = ?1) AND (?2 IS NULL OR c.league = ?2)
               ORDER BY c.realm, c.league, c.level DESC, c.name",
         )?;
         let rows = stmt.query_map([realm, league], |r| {
             Ok(CharacterRow {
-                name: r.get(0)?,
-                realm: r.get(1)?,
-                league: r.get(2)?,
-                class: r.get(3)?,
-                level: r.get(4)?,
-                listed_at: r.get(5)?,
-                fetched_at: r.get(6)?,
-                item_count: r.get(7)?,
+                id: r.get(0)?,
+                name: r.get(1)?,
+                realm: r.get(2)?,
+                league: r.get(3)?,
+                class: r.get(4)?,
+                level: r.get(5)?,
+                listed_at: r.get(6)?,
+                fetched_at: r.get(7)?,
+                item_count: r.get(8)?,
             })
         })?;
         Ok(rows.collect::<Result<_, _>>()?)
@@ -778,7 +926,7 @@ impl Store {
         let pattern = format!("%{}%", text.replace('%', "\\%").replace('_', "\\_"));
         let mut stmt = self.conn.prepare(
             "SELECT id, league, location_kind, location_id, socketed_in, COALESCE(name, ''), COALESCE(type_line, ''),
-                    COALESCE(base_type, ''), rarity, stack_size, first_seen, last_seen, removed_at, json, realm
+                    COALESCE(base_type, ''), rarity, stack_size, first_seen, last_seen, removed_at, json, realm, container
                FROM items
               WHERE (name LIKE ?1 ESCAPE '\\' OR type_line LIKE ?1 ESCAPE '\\' OR base_type LIKE ?1 ESCAPE '\\')
                 AND (?5 IS NULL OR realm = ?5)
@@ -797,6 +945,7 @@ impl Store {
                     league: r.get(1)?,
                     location_kind: r.get(2)?,
                     location_id: r.get(3)?,
+                    container: r.get(15)?,
                     socketed_in: r.get(4)?,
                     name: r.get(5)?,
                     type_line: r.get(6)?,
@@ -817,7 +966,7 @@ impl Store {
     pub fn item(&self, id: &str) -> Result<Option<ItemRow>> {
         let mut stmt = self.conn.prepare(
             "SELECT id, league, location_kind, location_id, socketed_in, COALESCE(name, ''), COALESCE(type_line, ''),
-                    COALESCE(base_type, ''), rarity, stack_size, first_seen, last_seen, removed_at, json, realm FROM items WHERE id = ?1",
+                    COALESCE(base_type, ''), rarity, stack_size, first_seen, last_seen, removed_at, json, realm, container FROM items WHERE id = ?1",
         )?;
         Ok(stmt
             .query_row([id], |r| {
@@ -828,6 +977,7 @@ impl Store {
                     league: r.get(1)?,
                     location_kind: r.get(2)?,
                     location_id: r.get(3)?,
+                    container: r.get(15)?,
                     socketed_in: r.get(4)?,
                     name: r.get(5)?,
                     type_line: r.get(6)?,
@@ -913,17 +1063,33 @@ impl Store {
     }
 }
 
-#[allow(clippy::too_many_arguments)]
 /// One item array of a response and where its items live: the realm and
-/// league the request was made under, and the location (`kind`, `id`)
-/// the items are filed at. A character's arrays are several seams at one
-/// location.
+/// league the request was made under, the location (`kind`, `id`) the
+/// items are filed at, and the array they came from. A character's arrays
+/// are several seams at one location.
 struct Seam {
     realm: String,
     league: Option<String>,
     kind: &'static str,
     location_id: String,
+    container: &'static str,
     items: Vec<Value>,
+}
+
+/// What the store already knew about an item, for the comparison.
+struct Previous {
+    kind: String,
+    location_id: String,
+    json: String,
+    removed_at: Option<i64>,
+    container: Option<String>,
+}
+
+/// Whether a value looks like a GGG item: an object with a `typeLine`
+/// (documented required on `Item`). The drift tripwire's test for an
+/// un-lifted array in a character envelope.
+fn is_item_shaped(v: &Value) -> bool {
+    v.as_object().is_some_and(|o| o.contains_key("typeLine"))
 }
 
 /// Whether `table` has `column` — the migration's idempotence check.
@@ -1035,6 +1201,7 @@ fn ingest_item(
     at: i64,
     realm: &str,
     league: Option<&str>,
+    container: &'static str,
     kind: &'static str,
     location_id: &str,
     socketed_in: Option<&str>,
@@ -1059,11 +1226,19 @@ fn ingest_item(
         _ => Vec::new(),
     };
     let to = format!("{kind}/{location_id}");
-    let previous: Option<(String, String, String, Option<i64>)> = tx
+    let previous: Option<Previous> = tx
         .query_row(
-            "SELECT location_kind, location_id, json, removed_at FROM items WHERE id = ?1",
+            "SELECT location_kind, location_id, json, removed_at, container FROM items WHERE id = ?1",
             [&id],
-            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
+            |r| {
+                Ok(Previous {
+                    kind: r.get(0)?,
+                    location_id: r.get(1)?,
+                    json: r.get(2)?,
+                    removed_at: r.get(3)?,
+                    container: r.get(4)?,
+                })
+            },
         )
         .optional()?;
     let c = Columns::of(&item);
@@ -1071,9 +1246,9 @@ fn ingest_item(
     match &previous {
         None => {
             tx.execute(
-                "INSERT INTO items (id, league, location_kind, location_id, socketed_in, name, type_line, base_type, rarity, stack_size, x, y, w, h, json, first_seen, last_seen, realm)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?16, ?17)",
-                params![id, league, kind, location_id, socketed_in, c.name, c.type_line, c.base_type, c.rarity, c.stack_size, c.x, c.y, c.w, c.h, json, at, realm],
+                "INSERT INTO items (id, league, location_kind, location_id, socketed_in, name, type_line, base_type, rarity, stack_size, x, y, w, h, json, first_seen, last_seen, realm, container)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?16, ?17, ?18)",
+                params![id, league, kind, location_id, socketed_in, c.name, c.type_line, c.base_type, c.rarity, c.stack_size, c.x, c.y, c.w, c.h, json, at, realm, container],
             )?;
             tx.execute(
                 "INSERT INTO item_events (response_id, at, item_id, kind, to_location) VALUES (?1, ?2, ?3, 'added', ?4)",
@@ -1081,16 +1256,30 @@ fn ingest_item(
             )?;
             ingest.added += 1;
         }
-        Some((old_kind, old_loc, old_json, removed_at)) => {
+        Some(Previous {
+            kind: old_kind,
+            location_id: old_loc,
+            json: old_json,
+            removed_at,
+            container: old_container,
+        }) => {
             let from = format!("{old_kind}/{old_loc}");
             let moved = from != to || removed_at.is_some();
             let old: Value = serde_json::from_str(old_json).unwrap_or(Value::Null);
-            let changed = !same_item(&old, &item);
+            // The container is compared explicitly: a helm moving from the
+            // character's own equipment to its guardian has identical json
+            // (`inventoryId` Helm, x/y 0). A row recorded before the
+            // column existed (NULL) is unknown, not different.
+            let changed = !same_item(&old, &item)
+                || old_container
+                    .as_deref()
+                    .is_some_and(|previous| previous != container);
             tx.execute(
                 "UPDATE items SET league = ?2, location_kind = ?3, location_id = ?4, socketed_in = ?5, name = ?6, type_line = ?7, base_type = ?8,
-                        rarity = ?9, stack_size = ?10, x = ?11, y = ?12, w = ?13, h = ?14, json = ?15, last_seen = ?16, removed_at = NULL, realm = ?17
+                        rarity = ?9, stack_size = ?10, x = ?11, y = ?12, w = ?13, h = ?14, json = ?15, last_seen = ?16, removed_at = NULL, realm = ?17,
+                        container = ?18
                   WHERE id = ?1",
-                params![id, league, kind, location_id, socketed_in, c.name, c.type_line, c.base_type, c.rarity, c.stack_size, c.x, c.y, c.w, c.h, json, at, realm],
+                params![id, league, kind, location_id, socketed_in, c.name, c.type_line, c.base_type, c.rarity, c.stack_size, c.x, c.y, c.w, c.h, json, at, realm, container],
             )?;
             if moved {
                 tx.execute(
@@ -1117,6 +1306,7 @@ fn ingest_item(
             at,
             realm,
             league,
+            container,
             kind,
             location_id,
             Some(&id),
@@ -1381,7 +1571,7 @@ mod tests {
     #[test]
     fn character_arrays_share_one_location() {
         let mut s = Store::open_memory().unwrap();
-        let body = json!({ "character": { "name": "Hero", "league": "Standard", "class": "Witch", "level": 90,
+        let body = json!({ "character": { "id": "c-hero", "name": "Hero", "league": "Standard", "class": "Witch", "level": 90,
             "inventory": [ item("inv1", "Bag", 0) ], "equipment": [ item("eq1", "Helm", 0) ], "jewels": [] } });
         let ep = Endpoint::Character {
             realm: "pc".into(),
@@ -1394,13 +1584,14 @@ mod tests {
         let inv = s.item("inv1").unwrap().unwrap();
         assert_eq!(
             (inv.location_kind.as_str(), inv.location_id.as_str()),
-            ("character", "Hero")
+            ("character", "c-hero")
         );
-        let ing = s.record(&ep, &json!({"name":"Hero"}), 200, &json!({ "character": { "name": "Hero", "league": "Standard", "inventory": [ item("inv1", "Bag", 0) ], "equipment": [] } }), 2).unwrap();
+        assert_eq!(inv.container.as_deref(), Some("inventory"));
+        let ing = s.record(&ep, &json!({"name":"Hero"}), 200, &json!({ "character": { "id": "c-hero", "name": "Hero", "league": "Standard", "inventory": [ item("inv1", "Bag", 0) ], "equipment": [] } }), 2).unwrap();
         assert_eq!(ing.removed, 1);
         let json: String = s
             .conn
-            .query_row("SELECT json FROM characters WHERE name = 'Hero'", [], |r| {
+            .query_row("SELECT json FROM characters WHERE id = 'c-hero'", [], |r| {
                 r.get(0)
             })
             .unwrap();
@@ -1426,7 +1617,7 @@ mod tests {
             1,
         )
         .unwrap();
-        s.record(&Endpoint::Characters { realm: "pc".into() }, &json!({}), 200, &json!({ "characters": [ { "name": "A", "class": "Witch", "level": 3, "league": "Standard" } ] }), 1).unwrap();
+        s.record(&Endpoint::Characters { realm: "pc".into() }, &json!({}), 200, &json!({ "characters": [ { "id": "c-a", "name": "A", "class": "Witch", "level": 3, "league": "Standard" } ] }), 1).unwrap();
         let st = s.status().unwrap();
         assert_eq!((st.leagues, st.characters, st.responses), (2, 1, 3));
         s.record(
@@ -1448,8 +1639,8 @@ mod tests {
             &json!({}),
             200,
             &json!({ "characters": [
-            { "name": "Hero", "class": "Witch", "level": 90, "league": "Standard" },
-            { "name": "Mule", "class": "Scion", "level": 3, "league": "Hardcore" },
+            { "id": "c-hero", "name": "Hero", "class": "Witch", "level": 90, "league": "Standard" },
+            { "id": "c-mule", "name": "Mule", "class": "Scion", "level": 3, "league": "Hardcore" },
         ] }),
             1,
         )
@@ -1461,7 +1652,7 @@ mod tests {
             },
             &json!({"name":"Hero"}),
             200,
-            &json!({ "character": { "name": "Hero", "league": "Standard", "class": "Witch", "level": 90,
+            &json!({ "character": { "id": "c-hero", "name": "Hero", "league": "Standard", "class": "Witch", "level": 90,
                 "equipment": [ item("eq1", "Bow", 0) ], "inventory": [ item("inv1", "Bag", 1) ] } }),
             2,
         )
@@ -1482,7 +1673,7 @@ mod tests {
             &json!({}),
             200,
             &json!({ "characters": [
-            { "name": "Hero", "class": "Witch", "level": 90, "league": "Standard" },
+            { "id": "c-hero", "name": "Hero", "class": "Witch", "level": 90, "league": "Standard" },
         ] }),
             3,
         )
@@ -1569,7 +1760,17 @@ mod tests {
                     x INTEGER, y INTEGER, w INTEGER, h INTEGER, json TEXT NOT NULL,
                     first_seen INTEGER NOT NULL, last_seen INTEGER NOT NULL, removed_at INTEGER);
                  INSERT INTO items (id, league, location_kind, location_id, name, type_line, base_type, json, first_seen, last_seen)
-                 VALUES ('old-item', 'Standard', 'stash', 'old1', 'Foo', 'Imperial Bow', 'Imperial Bow', '{\"id\":\"old-item\"}', 5, 5);",
+                 VALUES ('old-item', 'Standard', 'stash', 'old1', 'Foo', 'Imperial Bow', 'Imperial Bow', '{\"id\":\"old-item\"}', 5, 5);
+                 CREATE TABLE characters (
+                    name TEXT PRIMARY KEY, league TEXT, class TEXT, level INTEGER, json TEXT NOT NULL,
+                    listed_at INTEGER, fetched_at INTEGER, removed_at INTEGER);
+                 INSERT INTO characters (name, league, json, listed_at, fetched_at)
+                 VALUES ('Hero', 'Standard', '{\"id\":\"c-hero\",\"name\":\"Hero\",\"_split\":{}}', 5, 6);
+                 INSERT INTO characters (name, league, json, listed_at) VALUES ('Ghost', 'Standard', '{\"name\":\"Ghost\"}', 5);
+                 INSERT INTO items (id, league, location_kind, location_id, name, type_line, base_type, json, first_seen, last_seen)
+                 VALUES ('hero-item', 'Standard', 'character', 'Hero', 'Bar', 'Bow', 'Bow', '{\"id\":\"hero-item\"}', 6, 6);
+                 INSERT INTO items (id, league, location_kind, location_id, name, type_line, base_type, json, first_seen, last_seen)
+                 VALUES ('ghost-item', 'Standard', 'character', 'Ghost', 'Baz', 'Bow', 'Bow', '{\"id\":\"ghost-item\"}', 6, 6);",
             )
             .unwrap();
         }
@@ -1587,6 +1788,35 @@ mod tests {
             s.search("foo", Some("pc"), None, false, 10).unwrap().len(),
             1
         );
+        assert_eq!(
+            s.item("old-item").unwrap().unwrap().container.as_deref(),
+            Some("items")
+        );
+        // v4: characters rekeyed by the id in their json — the row without
+        // one is dropped and its items retired; the other's items move to
+        // its id (container unknown: not in the json, so left NULL).
+        let chars = s.characters(None, None).unwrap();
+        assert_eq!(chars.len(), 1);
+        let hero = &chars[0];
+        assert_eq!(
+            (
+                hero.id.as_str(),
+                hero.name.as_str(),
+                hero.realm.as_str(),
+                hero.fetched_at,
+                hero.item_count
+            ),
+            ("c-hero", "Hero", "pc", Some(6), 1)
+        );
+        let hero_item = s.item("hero-item").unwrap().unwrap();
+        assert_eq!(
+            (
+                hero_item.location_id.as_str(),
+                hero_item.container.as_deref()
+            ),
+            ("c-hero", None)
+        );
+        assert!(s.item("ghost-item").unwrap().unwrap().removed_at.is_some());
         // The migrated file is stamped with the current schema version.
         let v: i64 = s
             .conn
@@ -1746,7 +1976,7 @@ mod tests {
             &Endpoint::Characters { realm: "pc".into() },
             &json!({}),
             200,
-            &json!({ "characters": [ { "name": "A", "league": "Standard" } ] }),
+            &json!({ "characters": [ { "id": "c-a", "name": "A", "league": "Standard" } ] }),
             20,
         )
         .unwrap();
@@ -1756,7 +1986,7 @@ mod tests {
             },
             &json!({ "realm": "poe2" }),
             200,
-            &json!({ "characters": [ { "name": "B", "league": "Standard" } ] }),
+            &json!({ "characters": [ { "id": "c-b", "name": "B", "league": "Standard" } ] }),
             21,
         )
         .unwrap();
@@ -1771,5 +2001,206 @@ mod tests {
             vec![("pc".into(), "A".into()), ("poe2".into(), "B".into())]
         );
         assert_eq!(s.characters(Some("poe2"), None).unwrap().len(), 1);
+    }
+
+    /// Identity is the id; the name is the address (CONTEXT.md,
+    /// 2026-09-02): a rename keeps the row and its items (no false moves),
+    /// a deleted-and-recreated name is a new row that has never been
+    /// fetched with the old one retired, the listing owns `league`, and a
+    /// fetched body without an id has no row to land on.
+    #[test]
+    fn the_character_key_is_the_id_and_the_name_is_the_address() {
+        let mut s = Store::open_memory().unwrap();
+        let list = Endpoint::Characters { realm: "pc".into() };
+        let fetch = |name: &str| Endpoint::Character {
+            realm: "pc".into(),
+            name: name.into(),
+        };
+        s.record(&list, &json!({}), 200, &json!({ "characters": [ { "id": "c1", "name": "Hero", "league": "Standard", "level": 90 } ] }), 10).unwrap();
+        let ing = s
+            .record(
+                &fetch("Hero"),
+                &json!({ "name": "Hero" }),
+                200,
+                &json!({ "character": { "id": "c1", "name": "Hero", "league": "Standard", "equipment": [ item("eq1", "Helm", 0) ] } }),
+                11,
+            )
+            .unwrap();
+        assert_eq!(ing.added, 1);
+        // Renamed: the listing names the same id under a new name.
+        s.record(&list, &json!({}), 200, &json!({ "characters": [ { "id": "c1", "name": "Champion", "league": "Standard", "level": 91 } ] }), 20).unwrap();
+        let rows = s.characters(None, None).unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(
+            (
+                rows[0].id.as_str(),
+                rows[0].name.as_str(),
+                rows[0].item_count,
+                rows[0].fetched_at
+            ),
+            ("c1", "Champion", 1, Some(11))
+        );
+        // Fetching by the new name lands on the same row; nothing moved.
+        let ing = s
+            .record(
+                &fetch("Champion"),
+                &json!({ "name": "Champion" }),
+                200,
+                &json!({ "character": { "id": "c1", "name": "Champion", "league": "Standard", "equipment": [ item("eq1", "Helm", 0) ] } }),
+                21,
+            )
+            .unwrap();
+        assert_eq!(
+            (ing.added, ing.moved, ing.changed, ing.removed),
+            (0, 0, 0, 0)
+        );
+        assert_eq!(s.item("eq1").unwrap().unwrap().location_id, "c1");
+        // The listing owns league: a later fetch saying otherwise does not
+        // move the coverage coordinate (its body keeps its own say).
+        s.record(
+            &list,
+            &json!({}),
+            200,
+            &json!({ "characters": [ { "id": "c1", "name": "Champion", "league": "Hardcore" } ] }),
+            30,
+        )
+        .unwrap();
+        s.record(
+            &fetch("Champion"),
+            &json!({ "name": "Champion" }),
+            200,
+            &json!({ "character": { "id": "c1", "name": "Champion", "league": "Standard", "equipment": [] } }),
+            31,
+        )
+        .unwrap();
+        assert_eq!(
+            s.characters(None, None).unwrap()[0].league.as_deref(),
+            Some("Hardcore")
+        );
+        // Deleted and recreated under the old name: a new id, never
+        // fetched, and the old row retired — a name-keyed store would have
+        // inherited c1's freshness and never fetched the new one.
+        s.record(
+            &list,
+            &json!({}),
+            200,
+            &json!({ "characters": [ { "id": "c2", "name": "Hero", "league": "Standard" } ] }),
+            40,
+        )
+        .unwrap();
+        let rows = s.characters(None, None).unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(
+            (rows[0].id.as_str(), rows[0].fetched_at, rows[0].item_count),
+            ("c2", None, 0)
+        );
+        let err = s
+            .record(
+                &fetch("Hero"),
+                &json!({ "name": "Hero" }),
+                200,
+                &json!({ "character": { "name": "Hero" } }),
+                41,
+            )
+            .unwrap_err();
+        assert!(err.downcast_ref::<MalformedBody>().is_some(), "{err:#}");
+    }
+
+    /// Every item row records the array it came from: a guardian's helm
+    /// and the character's own are distinguishable only by that, and a
+    /// move between arrays is a `changed` event even with identical json.
+    #[test]
+    fn container_is_an_ingest_fact_and_moving_between_arrays_is_a_change() {
+        let mut s = Store::open_memory().unwrap();
+        let ep = Endpoint::Character {
+            realm: "pc".into(),
+            name: "Hero".into(),
+        };
+        let helm = |id: &str| json!({ "id": id, "name": "", "typeLine": "Iron Hat", "baseType": "Iron Hat", "inventoryId": "Helm", "x": 0, "y": 0 });
+        s.record(
+            &ep,
+            &json!({ "name": "Hero" }),
+            200,
+            &json!({ "character": { "id": "c1", "name": "Hero",
+                "equipment": [ helm("own") ], "guardian": [ helm("pet") ], "skills": [ item("sk", "Skill", 0) ] } }),
+            1,
+        )
+        .unwrap();
+        let own = s.item("own").unwrap().unwrap();
+        let pet = s.item("pet").unwrap().unwrap();
+        assert_eq!(own.container.as_deref(), Some("equipment"));
+        assert_eq!(pet.container.as_deref(), Some("guardian"));
+        assert_eq!(
+            s.item("sk").unwrap().unwrap().container.as_deref(),
+            Some("skills")
+        );
+        assert_eq!(own.location_id, pet.location_id);
+        // Swap the helms between the arrays: json identical, containers
+        // differ — changed, not moved (one location).
+        let ing = s
+            .record(
+                &ep,
+                &json!({ "name": "Hero" }),
+                200,
+                &json!({ "character": { "id": "c1", "name": "Hero",
+                    "equipment": [ helm("pet") ], "guardian": [ helm("own") ], "skills": [ item("sk", "Skill", 0) ] } }),
+                2,
+            )
+            .unwrap();
+        assert_eq!((ing.moved, ing.changed, ing.removed), (0, 2, 0));
+        assert_eq!(
+            s.item("own").unwrap().unwrap().container.as_deref(),
+            Some("guardian")
+        );
+        // A stash item's container is `items`.
+        s.record(
+            &stash_ep("t1"),
+            &json!({}),
+            200,
+            &stash("t1", vec![item("i1", "Foo", 0)]),
+            3,
+        )
+        .unwrap();
+        assert_eq!(
+            s.item("i1").unwrap().unwrap().container.as_deref(),
+            Some("items")
+        );
+    }
+
+    /// The drift tripwire: an item-shaped array the store does not lift
+    /// is counted into the envelope and the status — never a failure, and
+    /// never an item row. Arrays of non-items are left alone.
+    #[test]
+    fn an_unknown_item_array_trips_the_drift_counter_without_failing() {
+        let mut s = Store::open_memory().unwrap();
+        let ep = Endpoint::Character {
+            realm: "pc".into(),
+            name: "Hero".into(),
+        };
+        let ing = s
+            .record(
+                &ep,
+                &json!({ "name": "Hero" }),
+                200,
+                &json!({ "character": { "id": "c1", "name": "Hero",
+                    "equipment": [ item("eq1", "Helm", 0) ],
+                    "pets": [ item("p1", "Cat", 0), item("p2", "Dog", 0) ],
+                    "passives": [1, 2, 3], "notes": [] } }),
+                1,
+            )
+            .unwrap();
+        assert_eq!((ing.items, ing.unlifted), (1, 2));
+        assert!(s.item("p1").unwrap().is_none());
+        assert_eq!(s.status().unwrap().unlifted_items, 2);
+        let json: String = s
+            .conn
+            .query_row("SELECT json FROM characters WHERE id = 'c1'", [], |r| {
+                r.get(0)
+            })
+            .unwrap();
+        let v: Value = serde_json::from_str(&json).unwrap();
+        assert_eq!(v["_unlifted"], json!({ "pets": 2 }));
+        assert_eq!(v["_split"], json!({ "equipment": 1 }));
+        assert_eq!(v["passives"], json!([1, 2, 3]));
     }
 }

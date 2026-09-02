@@ -611,6 +611,25 @@ against the run's `--realm`.
   is stamped per listing response id and retired per realm, exactly as
   tabs are.
 
+**Step (2) built 2026-09-02** (facts v4): `characters` keyed by `id`
+with `listed_json`/`listed_response` and the realm-scoped, response-
+stamped retirement tabs have; `items.container` (compared explicitly;
+NULL for pre-v4 character items, `items` backfilled for stash rows);
+`guardian` and `skills` lifted; the drift tripwire (`_unlifted` in the
+envelope, `Ingest::unlifted`, `Status::unlifted_items`, printed by
+`acq store status`); the v4 migration proven on a v0-shaped file with a
+row that has an id (rekeyed, items relocated) and one that does not
+(dropped, items retired). The mock's fetched character now carries the
+list's id for its name (a fetch of an unlisted name mints a new one —
+the recreated-character shape) and `StashHoarder` has a two-item
+`guardian` with slot-named `inventoryId`s. `acq characters` already
+prints the id beside the name (the list payload is verbatim) and the
+MCP `characters` tool's rows carry `id`. Tests pin: rename keeps the row
+and moves nothing; a recreated name is a never-fetched new row with the
+old one retired; the listing owns `league`; a fetched body without an
+id is malformed; the guardian swap is `changed`, not `moved`; the
+tripwire counts and never fails.
+
 Pending ground-truth claims (documented facts read 2026-09-02, to be
 authored master-side and then cited here by number): realm segment
 semantics per endpoint and pc-by-omission; PoE2 on the character

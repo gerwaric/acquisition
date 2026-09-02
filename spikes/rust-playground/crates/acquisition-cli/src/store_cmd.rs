@@ -272,6 +272,13 @@ pub fn status(json: bool) -> Result<()> {
             "responses {}  leagues {}  characters {}  tabs {}  items {} (+{} removed)  events {}",
             st.responses, st.leagues, st.characters, st.tabs, st.items, st.items_removed, st.events
         );
+        if st.unlifted_items > 0 {
+            // The drift tripwire: an item array the store does not lift.
+            println!(
+                "drift: {} item-shaped object(s) in character arrays this build does not lift (see `_unlifted` in the responses)",
+                st.unlifted_items
+            );
+        }
     }
     Ok(())
 }

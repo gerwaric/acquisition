@@ -74,7 +74,22 @@ bounded by `MAX_429_RETRIES`; a Cloudflare-shaped 403/503 is never retried.
   shares league names with PoE1): `tabs` is keyed `(realm, league, id)`,
   characters and items carry the *request's* realm (never a body's
   field), a listing retires only its own realm's rows, and a pre-realm
-  file is rebuilt in place as pc.
+  file is rebuilt in place as pc. **Characters are keyed by the GGG
+  character `id`** (facts v4, 2026-09-02): the name is the address the
+  fetch takes and can move, a rename keeps the row and its items, a
+  deleted-and-recreated name is a new row, `league` is what the basis
+  listing said (a fetch never overwrites it), and membership is stamped
+  per listing response and retired per realm exactly as tabs are. A
+  pre-v4 file rekeys through each row's json (a row without an id is
+  dropped, its items retired) and moves item locations from the name to
+  the id. Every item row records the **array it came from**
+  (`container`: `items` for a stash; a character's `inventory`,
+  `equipment`, `jewels`, `rucksack`, `guardian`, or `skills`) — an
+  ingest fact, not in the json, so a helm moving from the character to
+  its animate guardian is a `changed` event even with identical json.
+  An item-shaped array a character body carries under any other name
+  is the **drift tripwire**: counted into the envelope (`_unlifted`) and
+  `acq store status`, never lifted, never a failure.
   `<uuid>.annotations.db` beside the fact files is the **intent layer**
   (`annotations.rs`): buyouts, notes, the sync policy — keyed on stable
   GGG ids, written only through the store crate under integer-revision
@@ -110,7 +125,7 @@ bounded by `MAX_429_RETRIES`; a Cloudflare-shaped 403/503 is never retried.
   serialized so two openers cannot interleave them.
   Bodies are kept verbatim except at the item
   seams: each item array (tab `items`, character `inventory`/`equipment`/
-  `jewels`/`rucksack`, and every `socketedItems`) is lifted into `items`,
+  `jewels`/`rucksack`/`guardian`/`skills`, and every `socketedItems`) is lifted into `items`,
   one row per GGG item id, so `items` is the only place to look for an
   item. Each ingest compares with what was known and writes
   `item_events` (added/moved/changed/removed; `veiledMods` ignored, N36).

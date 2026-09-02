@@ -30,14 +30,21 @@ CREATE TABLE IF NOT EXISTS account (
     seen_at  INTEGER NOT NULL
 );
 
+-- Characters are keyed by the GGG character `id` (identity; stable across
+-- renames); `name` is the address the fetch endpoint takes and can move.
+-- `league` is listing-owned — the coverage coordinate as the basis listing
+-- said it — and a fetch never overwrites it (CONTEXT.md, 2026-09-02).
 CREATE TABLE IF NOT EXISTS characters (
-    name        TEXT PRIMARY KEY,
+    id          TEXT PRIMARY KEY,
     realm       TEXT    NOT NULL DEFAULT 'pc',
+    name        TEXT    NOT NULL,
     league      TEXT,
     class       TEXT,
     level       INTEGER,
-    json        TEXT    NOT NULL,   -- list entry, or the fetched character minus its item arrays
+    json        TEXT    NOT NULL,   -- the fetched character minus its item arrays; the list entry until a fetch lands
+    listed_json TEXT,               -- the latest list entry, verbatim (a fetch never touches it)
     listed_at   INTEGER,
+    listed_response INTEGER,        -- responses.id of the listing that last listed this character
     fetched_at  INTEGER,
     removed_at  INTEGER
 );
@@ -64,7 +71,10 @@ CREATE TABLE IF NOT EXISTS items (
     realm          TEXT    NOT NULL DEFAULT 'pc',
     league         TEXT,
     location_kind  TEXT NOT NULL,      -- stash | character
-    location_id    TEXT NOT NULL,      -- tab/substash id, or character name
+    location_id    TEXT NOT NULL,      -- tab/substash id, or character id
+    container      TEXT,               -- the array the item came from: `items` (stash), or a character's
+                                       -- inventory|equipment|jewels|rucksack|guardian|skills; an ingest fact,
+                                       -- not in the item's json (NULL: recorded before facts v4)
     socketed_in    TEXT,               -- parent item id for socketed gems
     name           TEXT,
     type_line      TEXT,

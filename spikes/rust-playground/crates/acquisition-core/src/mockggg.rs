@@ -369,18 +369,39 @@ fn mock_character_list(realm: crate::realm::Realm) -> serde_json::Value {
 /// `GET /character[/realm]/{name}`: equipment + inventory (+ `skills`
 /// for a PoE2 character, the array the docs add there).
 fn mock_character(realm: crate::realm::Realm, name: &str) -> serde_json::Value {
+    // The id is the listed one for a listed name, so a fetch lands on the
+    // list's row; a name the list does not carry gets its own id — a
+    // recreated character, as the real API would answer.
+    let listed = mock_character_list(realm);
+    let id = listed["characters"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .find(|c| c["name"] == name)
+        .and_then(|c| c["id"].as_str().map(str::to_string))
+        .unwrap_or_else(|| format!("fake-{name}"));
     let mut character = json!({
-        "id": "fake0001", "name": name, "realm": realm.as_str(), "class": "Scion", "league": "Standard", "level": 97,
+        "id": id, "name": name, "realm": realm.as_str(), "class": "Scion", "league": "Standard", "level": 97,
         "equipment": [
             { "id": format!("{name}-helm"), "name": "Starkonja's Head", "typeLine": "Silken Hood", "baseType": "Silken Hood",
-              "w": 2, "h": 2, "x": 0, "y": 0, "inventoryId": "Helm", "league": "Standard", "frameType": 3, "identified": true,
-              "socketedItems": [ { "id": format!("{name}-gem0"), "typeLine": "Determination", "baseType": "Determination", "socket": 0, "colour": "S", "frameType": 4 } ] },
+              "w": 2, "h": 2, "x": 0, "y": 0, "inventoryId": "Helm", "league": "Standard", "frameType": 3, "frameTypeId": "rare", "identified": true,
+              "socketedItems": [ { "id": format!("{name}-gem0"), "typeLine": "Determination", "baseType": "Determination", "socket": 0, "colour": "S", "frameType": 4, "frameTypeId": "gem" } ] },
         ],
         "inventory": mock_items(&format!("{name}-inv"), 4),
         "jewels": [],
     });
+    if realm == crate::realm::Realm::Pc && name == "StashHoarder" {
+        // The animate guardian's gear (live sample 2026-09-02): its own
+        // array, slot-named `inventoryId`s at x/y 0 — the item alone
+        // cannot say which array it sits in.
+        character["guardian"] = json!([
+            { "id": format!("{name}-guardian-helm"), "name": "", "typeLine": "Iron Hat", "baseType": "Iron Hat",
+              "w": 2, "h": 2, "x": 0, "y": 0, "inventoryId": "Helm", "league": "Standard", "frameType": 0, "frameTypeId": "normal", "identified": true },
+            { "id": format!("{name}-guardian-weapon"), "name": "", "typeLine": "Rusted Sword", "baseType": "Rusted Sword",
+              "w": 1, "h": 3, "x": 0, "y": 0, "inventoryId": "Weapon", "league": "Standard", "frameType": 0, "frameTypeId": "normal", "identified": true },
+        ]);
+    }
     if realm == crate::realm::Realm::Poe2 {
-        character["id"] = json!("fake2001");
         character["class"] = json!("Monk");
         character["skills"] = json!([
             { "id": format!("{name}-skill0"), "typeLine": "Falling Thunder", "baseType": "Falling Thunder",

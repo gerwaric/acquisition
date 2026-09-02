@@ -582,12 +582,12 @@ mod tests {
         assert_eq!(snap.listing.unwrap().fetched_at, 100);
         assert_eq!(snap.tabs.len(), 1);
         // Same rule for the character list: malformed is never "empty",
-        // and a name-less entry poisons nothing.
+        // and an id-less (or name-less) entry poisons nothing.
         s.record(
             &Endpoint::Characters { realm: "pc".into() },
             &json!({}),
             200,
-            &json!({ "characters": [ { "name": "Hero", "league": "Standard" } ] }),
+            &json!({ "characters": [ { "id": "c-hero", "name": "Hero", "league": "Standard" } ] }),
             100,
         )
         .unwrap();
@@ -607,6 +607,16 @@ mod tests {
                 &json!({}),
                 200,
                 &json!({ "characters": [ { "league": "Standard" } ] }),
+                200
+            )
+            .is_err()
+        );
+        assert!(
+            s.record(
+                &Endpoint::Characters { realm: "pc".into() },
+                &json!({}),
+                200,
+                &json!({ "characters": [ { "id": "c-x", "league": "Standard" } ] }),
                 200
             )
             .is_err()
