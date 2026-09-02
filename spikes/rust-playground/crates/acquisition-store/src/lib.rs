@@ -41,10 +41,11 @@ const SCHEMA: &str = include_str!("schema.sql");
 /// existing row as pc), `characters`, and `items`; version 4 (same day)
 /// rekeyed `characters` by the GGG `id` (rebuilt through each row's json;
 /// item locations move from the name to the id), added the listing
-/// columns to characters, and `items.container`. 0 is both "fresh file"
-/// and "pre-versioning file" — the DDL and column checks are idempotent,
-/// so one migration path serves both.
-const FACT_SCHEMA_VERSION: i64 = 4;
+/// columns to characters, `items.container`, and `items.seen_response`;
+/// version 5 (same day) added `responses.withheld`. 0 is both "fresh
+/// file" and "pre-versioning file" — the DDL and column checks are
+/// idempotent, so one migration path serves both.
+const FACT_SCHEMA_VERSION: i64 = 5;
 
 /// A facts file written by a newer build than this one. Facts are
 /// refetchable, but guessing at an unknown schema is how a file gets
@@ -196,8 +197,10 @@ pub struct Ingest {
     /// build does not lift (the drift tripwire): surfaced, never a failure.
     pub unlifted: usize,
     /// Items the response carried for a location a listing has retired:
-    /// the body is recorded, but no item fact lands live — membership
-    /// belongs to the listing, and only a listing revives a location.
+    /// the whole body stays verbatim in the response row and nothing
+    /// else lands — membership belongs to the listing, and only a listing
+    /// revives a location (clearing its `fetched_at`, so the next plan
+    /// fetches it again).
     pub withheld: usize,
 }
 
@@ -286,6 +289,9 @@ pub struct Status {
     /// means GGG added an item array the store does not know — a code
     /// change, not a fault.
     pub unlifted_items: i64,
+    /// Items fetched for locations a listing had retired, kept on their
+    /// response rows and landed nowhere (`responses.withheld`, summed).
+    pub withheld: i64,
 }
 
 pub mod annotations;
@@ -394,6 +400,12 @@ impl Store {
                         "seen_response",
                         "ALTER TABLE items ADD COLUMN seen_response INTEGER",
                     ),
+                    // v5: a withheld fetch's count on its response row.
+                    (
+                        "responses",
+                        "withheld",
+                        "ALTER TABLE responses ADD COLUMN withheld INTEGER NOT NULL DEFAULT 0",
+                    ),
                 ] {
                     if !has_column(&tx, table, column)? {
                         tx.execute(ddl, [])?;
@@ -496,6 +508,8 @@ impl Store {
         // A fetched tab whose substash stubs this response is the listing
         // of: (realm, league, parent id).
         let mut relist_children_of: Option<(String, String, String)> = None;
+        // Items this fetch carried for a location a listing has retired.
+        let mut withheld: usize = 0;
 
         match endpoint {
             Endpoint::Leagues => {
@@ -563,7 +577,9 @@ impl Store {
                         "INSERT INTO characters (id, realm, name, league, class, level, json, listed_json, listed_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?7, ?8)
                          ON CONFLICT(id) DO UPDATE SET realm = excluded.realm, name = excluded.name, league = excluded.league,
                            class = excluded.class, level = excluded.level, listed_json = excluded.listed_json,
-                           listed_at = excluded.listed_at, removed_at = NULL",
+                           listed_at = excluded.listed_at,
+                           fetched_at = CASE WHEN characters.removed_at IS NOT NULL THEN NULL ELSE characters.fetched_at END,
+                           removed_at = NULL",
                         params![id, realm, name, c.get("league").and_then(Value::as_str), c.get("class").and_then(Value::as_str),
                                 c.get("level").and_then(Value::as_i64), c.to_string(), at],
                     )?;
@@ -573,8 +589,7 @@ impl Store {
                 // scoped to this realm.
             }
             Endpoint::Character { realm, name } => {
-                let Some(character) = envelope.get_mut("character").and_then(Value::as_object_mut)
-                else {
+                let Some(character) = envelope.get("character").and_then(Value::as_object) else {
                     return Err(MalformedBody {
                         endpoint: "character",
                         missing: "a `character` object",
@@ -596,84 +611,103 @@ impl Store {
                     }
                     .into());
                 };
-                let body_name = character
-                    .get("name")
-                    .and_then(Value::as_str)
-                    .map_or_else(|| name.clone(), str::to_string);
-                let body_league = character
-                    .get("league")
-                    .and_then(Value::as_str)
-                    .map(str::to_string);
-                let mut split = serde_json::Map::new();
-                let mut arrays: Vec<(&'static str, Vec<Value>)> = Vec::new();
-                for key in CHARACTER_ITEM_ARRAYS {
-                    if let Some(Value::Array(items)) = character.remove(*key) {
-                        split.insert((*key).into(), json!(items.len()));
-                        arrays.push((key, items));
+                // Membership is the listing's: at a location a listing has
+                // retired, the whole body stays verbatim in the response
+                // row (arrays included — nothing is split off and lost)
+                // and nothing else lands: not the row, not its item facts.
+                // Only a listing revives the location, and it clears the
+                // row's `fetched_at` doing so, so the next plan fetches.
+                let retired: Option<Option<i64>> = tx
+                    .query_row(
+                        "SELECT removed_at FROM characters WHERE id = ?1",
+                        [&id],
+                        |r| r.get(0),
+                    )
+                    .optional()?;
+                if matches!(retired, Some(Some(_))) {
+                    withheld = CHARACTER_ITEM_ARRAYS
+                        .iter()
+                        .map(|k| {
+                            character
+                                .get(*k)
+                                .and_then(Value::as_array)
+                                .map_or(0, Vec::len)
+                        })
+                        .sum();
+                } else if let Some(character) =
+                    envelope.get_mut("character").and_then(Value::as_object_mut)
+                {
+                    let body_name = character
+                        .get("name")
+                        .and_then(Value::as_str)
+                        .map_or_else(|| name.clone(), str::to_string);
+                    let body_league = character
+                        .get("league")
+                        .and_then(Value::as_str)
+                        .map(str::to_string);
+                    let mut split = serde_json::Map::new();
+                    let mut arrays: Vec<(&'static str, Vec<Value>)> = Vec::new();
+                    for key in CHARACTER_ITEM_ARRAYS {
+                        if let Some(Value::Array(items)) = character.remove(*key) {
+                            split.insert((*key).into(), json!(items.len()));
+                            arrays.push((key, items));
+                        }
                     }
-                }
-                character.insert("_split".into(), Value::Object(split));
-                // The drift tripwire: GGG adds fields most leagues, and a
-                // new item array would otherwise go un-lifted silently.
-                // Whatever item-shaped array is left is counted into the
-                // envelope and the ingest — surfaced, never a failure.
-                let unlifted: serde_json::Map<String, Value> = character
-                    .iter()
-                    .filter_map(|(key, value)| {
-                        let n = value
-                            .as_array()
-                            .filter(|a| !a.is_empty() && a.iter().all(is_item_shaped))
-                            .map(Vec::len)?;
-                        Some((key.clone(), json!(n)))
-                    })
-                    .collect();
-                if !unlifted.is_empty() {
-                    ingest.unlifted =
-                        unlifted.values().filter_map(Value::as_u64).sum::<u64>() as usize;
-                    character.insert("_unlifted".into(), Value::Object(unlifted));
-                }
-                let c = Value::Object(character.clone());
-                // Once a listing has named this row, the listing owns the
-                // address and display fields (`name`, `league`, `class`,
-                // `level`) and its membership (`removed_at`): a fetch
-                // authorized under an old address can land after a newer
-                // listing (separate routes, concurrent sends), and must
-                // neither roll the address back nor revive a location the
-                // listing retired. The body's own say stays verbatim in
-                // `json`. A never-listed row takes the body's values on
-                // insert.
-                tx.execute(
-                    "INSERT INTO characters (id, realm, name, league, class, level, json, fetched_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
-                     ON CONFLICT(id) DO UPDATE SET realm = excluded.realm,
-                       name = CASE WHEN characters.listed_response IS NULL THEN excluded.name ELSE characters.name END,
-                       class = CASE WHEN characters.listed_response IS NULL THEN excluded.class ELSE characters.class END,
-                       level = CASE WHEN characters.listed_response IS NULL THEN excluded.level ELSE characters.level END,
-                       json = excluded.json, fetched_at = excluded.fetched_at",
-                    params![id, realm, body_name, body_league, c.get("class").and_then(Value::as_str), c.get("level").and_then(Value::as_i64), c.to_string(), at],
-                )?;
-                // The items take the row's coordinate (the listing-owned
-                // league, not the body's) — and land only if the location
-                // is live: at a retired one the body is kept and the item
-                // facts are withheld, so a late fetch cannot resurrect
-                // what a newer listing removed.
-                let (row_league, retired): (Option<String>, Option<i64>) = tx.query_row(
-                    "SELECT league, removed_at FROM characters WHERE id = ?1",
-                    [&id],
-                    |r| Ok((r.get(0)?, r.get(1)?)),
-                )?;
-                for (key, items) in arrays {
-                    if retired.is_some() {
-                        ingest.withheld += items.len();
-                        continue;
+                    character.insert("_split".into(), Value::Object(split));
+                    // The drift tripwire: GGG adds fields most leagues, and
+                    // a new item array would otherwise go un-lifted
+                    // silently. Whatever item-shaped array is left is
+                    // counted into the envelope and the ingest — surfaced,
+                    // never a failure.
+                    let unlifted: serde_json::Map<String, Value> = character
+                        .iter()
+                        .filter_map(|(key, value)| {
+                            let n = value
+                                .as_array()
+                                .filter(|a| !a.is_empty() && a.iter().all(is_item_shaped))
+                                .map(Vec::len)?;
+                            Some((key.clone(), json!(n)))
+                        })
+                        .collect();
+                    if !unlifted.is_empty() {
+                        ingest.unlifted =
+                            unlifted.values().filter_map(Value::as_u64).sum::<u64>() as usize;
+                        character.insert("_unlifted".into(), Value::Object(unlifted));
                     }
-                    seams.push(Seam {
-                        realm: realm.clone(),
-                        league: row_league.clone(),
-                        kind: "character",
-                        location_id: id.clone(),
-                        container: key,
-                        items,
-                    });
+                    let c = Value::Object(character.clone());
+                    // Once a listing has named this row, the listing owns
+                    // the address and display fields (`name`, `league`,
+                    // `class`, `level`): a fetch authorized under an old
+                    // address can land after a newer listing (separate
+                    // routes, concurrent sends) and must not roll the
+                    // address back. The body's own say stays verbatim in
+                    // `json`. A never-listed row takes the body's values
+                    // on insert.
+                    tx.execute(
+                        "INSERT INTO characters (id, realm, name, league, class, level, json, fetched_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+                         ON CONFLICT(id) DO UPDATE SET realm = excluded.realm,
+                           name = CASE WHEN characters.listed_response IS NULL THEN excluded.name ELSE characters.name END,
+                           class = CASE WHEN characters.listed_response IS NULL THEN excluded.class ELSE characters.class END,
+                           level = CASE WHEN characters.listed_response IS NULL THEN excluded.level ELSE characters.level END,
+                           json = excluded.json, fetched_at = excluded.fetched_at",
+                        params![id, realm, body_name, body_league, c.get("class").and_then(Value::as_str), c.get("level").and_then(Value::as_i64), c.to_string(), at],
+                    )?;
+                    // The items take the row's coordinate: the
+                    // listing-owned league, not the body's.
+                    let row_league: Option<String> =
+                        tx.query_row("SELECT league FROM characters WHERE id = ?1", [&id], |r| {
+                            r.get(0)
+                        })?;
+                    for (key, items) in arrays {
+                        seams.push(Seam {
+                            realm: realm.clone(),
+                            league: row_league.clone(),
+                            kind: "character",
+                            location_id: id.clone(),
+                            container: key,
+                            items,
+                        });
+                    }
                 }
             }
             Endpoint::Stashes { realm, league } => {
@@ -730,7 +764,7 @@ impl Store {
                 id,
                 sub,
             } => {
-                let Some(stash) = envelope.get_mut("stash").and_then(Value::as_object_mut) else {
+                let Some(stash) = envelope.get("stash").and_then(Value::as_object) else {
                     return Err(MalformedBody {
                         endpoint: "stash",
                         missing: "a `stash` object",
@@ -738,52 +772,69 @@ impl Store {
                     .into());
                 };
                 let location = sub.clone().unwrap_or_else(|| id.clone());
-                let items = match stash.remove("items") {
-                    Some(Value::Array(items)) => items,
-                    _ => Vec::new(),
+                // A tab a listing retired — or a substash whose parent is —
+                // is not a live location: membership is the listing's (the
+                // parent's fetch, for a substash). The body stays verbatim
+                // in the response row and nothing else lands: not the row,
+                // not its item facts, and for a retired parent not its
+                // substash stubs either, which would rewrite the orphan
+                // report the retirement left for the planner.
+                let retired_row = |tab: &str| -> Result<bool> {
+                    Ok(tx
+                        .query_row(
+                            "SELECT removed_at IS NOT NULL FROM tabs WHERE realm = ?1 AND league = ?2 AND id = ?3",
+                            params![realm, league, tab],
+                            |r| r.get::<_, bool>(0),
+                        )
+                        .optional()?
+                        .unwrap_or(false))
                 };
-                stash.insert("_split".into(), json!({ "items": items.len() }));
-                // Substash stubs of a map/unique tab: each becomes a tab row
-                // whose parent is this tab. The fetched tab's own row too.
-                let children = match stash.remove("children") {
-                    Some(Value::Array(c)) => c,
-                    _ => Vec::new(),
-                };
-                let mut idx = 0;
-                for child in &children {
-                    upsert_listed_tab(
-                        &tx,
-                        "stash",
-                        realm,
-                        league,
-                        child,
-                        Some(id.clone()),
-                        &mut idx,
-                        at,
-                        &mut listed_tabs,
+                let retired = retired_row(&location)? || (sub.is_some() && retired_row(id)?);
+                if retired {
+                    withheld = stash
+                        .get("items")
+                        .and_then(Value::as_array)
+                        .map_or(0, Vec::len);
+                } else if let Some(stash) = envelope.get_mut("stash").and_then(Value::as_object_mut)
+                {
+                    let items = match stash.remove("items") {
+                        Some(Value::Array(items)) => items,
+                        _ => Vec::new(),
+                    };
+                    stash.insert("_split".into(), json!({ "items": items.len() }));
+                    // Substash stubs of a map/unique tab: each becomes a tab
+                    // row whose parent is this tab. The fetched tab's own
+                    // row too.
+                    let children = match stash.remove("children") {
+                        Some(Value::Array(c)) => c,
+                        _ => Vec::new(),
+                    };
+                    let mut idx = 0;
+                    for child in &children {
+                        upsert_listed_tab(
+                            &tx,
+                            "stash",
+                            realm,
+                            league,
+                            child,
+                            Some(id.clone()),
+                            &mut idx,
+                            at,
+                            &mut listed_tabs,
+                        )?;
+                    }
+                    let fetched = Value::Object(stash.clone());
+                    // A fetch never revives a tab (only a listing — or, for
+                    // a substash, its parent's fetch — owns membership).
+                    tx.execute(
+                        "INSERT INTO tabs (realm, league, id, parent, name, type, json, fetched_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+                         ON CONFLICT(realm, league, id) DO UPDATE SET name = excluded.name, type = excluded.type,
+                           json = excluded.json, fetched_at = excluded.fetched_at,
+                           parent = COALESCE(excluded.parent, tabs.parent)",
+                        params![realm, league, location, sub.as_ref().map(|_| id.clone()),
+                                fetched.get("name").and_then(Value::as_str), fetched.get("type").and_then(Value::as_str),
+                                fetched.to_string(), at],
                     )?;
-                }
-                let fetched = Value::Object(stash.clone());
-                // A fetch never revives a tab a listing retired (only a
-                // listing — or, for a substash, its parent's fetch — owns
-                // membership); the body is kept either way.
-                tx.execute(
-                    "INSERT INTO tabs (realm, league, id, parent, name, type, json, fetched_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
-                     ON CONFLICT(realm, league, id) DO UPDATE SET name = excluded.name, type = excluded.type,
-                       json = excluded.json, fetched_at = excluded.fetched_at,
-                       parent = COALESCE(excluded.parent, tabs.parent)",
-                    params![realm, league, location, sub.as_ref().map(|_| id.clone()),
-                            fetched.get("name").and_then(Value::as_str), fetched.get("type").and_then(Value::as_str),
-                            fetched.to_string(), at],
-                )?;
-                let retired: Option<i64> = tx.query_row(
-                    "SELECT removed_at FROM tabs WHERE realm = ?1 AND league = ?2 AND id = ?3",
-                    params![realm, league, location],
-                    |r| r.get(0),
-                )?;
-                if retired.is_some() {
-                    ingest.withheld += items.len();
-                } else {
                     seams.push(Seam {
                         realm: realm.clone(),
                         league: Some(league.clone()),
@@ -792,23 +843,24 @@ impl Store {
                         container: "items",
                         items,
                     });
-                }
-                // A tab's own fetch is the listing of its substashes: the
-                // stubs it carries are stamped above, and the ones it no
-                // longer carries are retired below, once this response
-                // has its id.
-                if sub.is_none() {
-                    relist_children_of = Some((realm.clone(), league.clone(), id.clone()));
+                    // A tab's own fetch is the listing of its substashes:
+                    // the stubs it carries are stamped above, and the ones
+                    // it no longer carries are retired below, once this
+                    // response has its id.
+                    if sub.is_none() {
+                        relist_children_of = Some((realm.clone(), league.clone(), id.clone()));
+                    }
                 }
             }
         }
 
         let item_count: usize = seams.iter().map(|s| s.items.len()).sum();
         tx.execute(
-            "INSERT INTO responses (endpoint, params, fetched_at, status, envelope, item_count) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-            params![endpoint.name(), params.to_string(), at, status, envelope.to_string(), item_count as i64],
+            "INSERT INTO responses (endpoint, params, fetched_at, status, envelope, item_count, withheld) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            params![endpoint.name(), params.to_string(), at, status, envelope.to_string(), item_count as i64, withheld as i64],
         )?;
         let response_id = tx.last_insert_rowid();
+        ingest.withheld = withheld;
         ingest.response_id = response_id;
 
         // Listing membership is per response, never per second: stamp the
@@ -962,7 +1014,7 @@ impl Store {
                 |r| r.get::<_, String>(0),
             )?;
             let removed: Vec<String> = ids.collect::<Result<_, _>>()?;
-            let from = format!("{}/{}", location.kind, location.id);
+            let from = location.address();
             for id in &removed {
                 tx.execute(
                     "INSERT INTO item_events (response_id, at, item_id, kind, from_location) VALUES (?1, ?2, ?3, 'removed', ?4)",
@@ -989,6 +1041,7 @@ impl Store {
             items: count("SELECT count(*) FROM items WHERE removed_at IS NULL")?,
             items_removed: count("SELECT count(*) FROM items WHERE removed_at IS NOT NULL")?,
             events: count("SELECT count(*) FROM item_events")?,
+            withheld: count("SELECT COALESCE(SUM(withheld), 0) FROM responses")?,
             unlifted_items: count(
                 "SELECT COALESCE(SUM(value), 0) FROM characters c, json_each(json_extract(c.json, '$._unlifted'))
                   WHERE c.removed_at IS NULL",
@@ -1228,6 +1281,13 @@ struct Location {
 }
 
 impl Location {
+    /// The address events carry: `stash/<realm>/<league>/<id>` or
+    /// `character/<realm>/<id>` — the full coordinate, so a move across
+    /// realms is recoverable from the event alone.
+    fn address(&self) -> String {
+        address(self.kind, &self.realm, self.league.as_deref(), &self.id)
+    }
+
     fn character(realm: &str, id: String) -> Location {
         Location {
             realm: realm.into(),
@@ -1244,6 +1304,13 @@ impl Location {
             kind: "stash",
             id,
         }
+    }
+}
+
+fn address(kind: &str, realm: &str, league: Option<&str>, id: &str) -> String {
+    match (kind, league) {
+        ("stash", Some(league)) => format!("{kind}/{realm}/{league}/{id}"),
+        _ => format!("{kind}/{realm}/{id}"),
     }
 }
 
@@ -1332,7 +1399,9 @@ fn upsert_listed_tab(
     // Identity-bearing entries error rather than skip: an id-less entry
     // silently dropped would let a malformed list read as an authoritative
     // (near-)empty one and retire real tabs — the error rolls the whole
-    // transaction back instead.
+    // transaction back instead. A listing that revives a retired row
+    // clears its `fetched_at`: the facts at that location were retired
+    // with it, so the next plan must fetch again.
     let Some(id) = tab.get("id").and_then(Value::as_str) else {
         return Err(MalformedBody {
             endpoint: via,
@@ -1353,7 +1422,9 @@ fn upsert_listed_tab(
     tx.execute(
         "INSERT INTO tabs (realm, league, id, parent, name, type, idx, json, listed_json, listed_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?8, ?9)
          ON CONFLICT(realm, league, id) DO UPDATE SET parent = excluded.parent, name = excluded.name, type = excluded.type,
-           idx = excluded.idx, listed_json = excluded.listed_json, listed_at = excluded.listed_at, removed_at = NULL",
+           idx = excluded.idx, listed_json = excluded.listed_json, listed_at = excluded.listed_at,
+           fetched_at = CASE WHEN tabs.removed_at IS NOT NULL THEN NULL ELSE tabs.fetched_at END,
+           removed_at = NULL",
         params![realm, league, id, parent, tab.get("name").and_then(Value::as_str), tab.get("type").and_then(Value::as_str),
                 position, entry.to_string(), at],
     )?;
@@ -1440,7 +1511,12 @@ fn ingest_item(
         Some(Value::Array(g)) => g,
         _ => Vec::new(),
     };
-    let to = format!("{kind}/{location_id}");
+    let to = address(
+        kind,
+        realm,
+        (kind == "stash").then_some(league).flatten(),
+        location_id,
+    );
     let previous: Option<Previous> = tx
         .query_row(
             "SELECT location_kind, location_id, json, removed_at, container, realm, league FROM items WHERE id = ?1",
@@ -1482,7 +1558,14 @@ fn ingest_item(
             removed_at,
             container: old_container,
         }) => {
-            let from = format!("{old_kind}/{old_loc}");
+            let from = address(
+                old_kind,
+                old_realm,
+                (old_kind == "stash")
+                    .then_some(old_league.as_deref())
+                    .flatten(),
+                old_loc,
+            );
             // A move is a change of the full coordinate (realm; league too
             // for a stash location), or a reappearance after removal.
             let moved = old_realm != realm
@@ -1633,7 +1716,7 @@ mod tests {
             kinds,
             vec![("i2", "moved"), ("i2", "changed"), ("i1", "changed")]
         );
-        assert_eq!(ev[0].from_location.as_deref(), Some("stash/a"));
+        assert_eq!(ev[0].from_location.as_deref(), Some("stash/pc/Standard/a"));
         // Now i1 disappears from a entirely.
         let ing = s
             .record(&stash_ep("a"), &p, 200, &stash("a", vec![]), 300)
@@ -2379,7 +2462,7 @@ mod tests {
         let removed_events: i64 = s
             .conn
             .query_row(
-                "SELECT count(*) FROM item_events WHERE item_id = 'eq1' AND kind = 'removed' AND from_location = 'character/c1' AND at = 40",
+                "SELECT count(*) FROM item_events WHERE item_id = 'eq1' AND kind = 'removed' AND from_location = 'character/pc/c1' AND at = 40",
                 [],
                 |r| r.get(0),
             )
@@ -2546,7 +2629,9 @@ mod tests {
         assert!(s.characters(None, None).unwrap().is_empty());
         assert!(s.item("eq1").unwrap().unwrap().removed_at.is_some());
         assert!(s.search("helm", None, None, false, 10).unwrap().is_empty());
-        // The body itself was recorded.
+        // The row was not touched (its fetched_at is still the live
+        // fetch's), and the whole body — arrays included — sits verbatim
+        // on the response row, marked withheld.
         let fetched_at: i64 = s
             .conn
             .query_row(
@@ -2555,15 +2640,32 @@ mod tests {
                 |r| r.get(0),
             )
             .unwrap();
-        assert_eq!(fetched_at, 21);
-        // A listing naming it again revives the row; the next fetch lands
-        // the items (a reappearance is a move).
+        assert_eq!(fetched_at, 11);
+        let (held, envelope): (i64, String) = s
+            .conn
+            .query_row(
+                "SELECT withheld, envelope FROM responses WHERE endpoint = 'character' AND fetched_at = 21",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(held, 1);
+        let envelope: Value = serde_json::from_str(&envelope).unwrap();
+        assert_eq!(envelope["character"]["equipment"][0]["id"], "eq1");
+        assert!(envelope["character"].get("_split").is_none());
+        assert_eq!(s.status().unwrap().withheld, 1);
+        // A listing naming it again revives the row — with no fetch on
+        // record, since its facts were retired with it — and the next
+        // fetch lands the items (a reappearance is a move).
         s.record(&list, &json!({}), 200, &named, 30).unwrap();
+        let revived = &s.characters(None, None).unwrap()[0];
+        assert_eq!((revived.fetched_at, revived.item_count), (None, 0));
         let ing = s
             .record(&fetch, &json!({ "name": "Hero" }), 200, &body, 31)
             .unwrap();
         assert_eq!((ing.items, ing.moved, ing.withheld), (1, 1, 0));
-        assert_eq!(s.characters(None, None).unwrap()[0].item_count, 1);
+        let row = &s.characters(None, None).unwrap()[0];
+        assert_eq!((row.fetched_at, row.item_count), (Some(31), 1));
         // The same rule for a tab.
         let listing = Endpoint::Stashes {
             realm: "pc".into(),
@@ -2593,6 +2695,11 @@ mod tests {
         assert_eq!((ing.items, ing.withheld), (0, 1));
         assert!(s.tabs("pc", "Standard").unwrap().is_empty());
         assert!(s.item("i1").unwrap().unwrap().removed_at.is_some());
+        // Revived by a listing: no fetch on record, so the next plan
+        // fetches it.
+        s.record(&listing, &json!({}), 200, &one, 60).unwrap();
+        let revived = &s.tabs("pc", "Standard").unwrap()[0];
+        assert_eq!((revived.fetched_at, revived.item_count), (None, 0));
     }
 
     /// A location is its full coordinate: the same tab id under two realms
@@ -2641,6 +2748,19 @@ mod tests {
         assert_eq!(ing.moved, 1);
         assert_eq!(s.tabs("pc", "Standard").unwrap()[0].item_count, 0);
         assert_eq!(s.tabs("xbox", "Standard").unwrap()[0].item_count, 2);
+        // The event names both coordinates in full.
+        let (from, to): (String, String) = s
+            .conn
+            .query_row(
+                "SELECT from_location, to_location FROM item_events WHERE item_id = 'i1' AND kind = 'moved'",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(
+            (from.as_str(), to.as_str()),
+            ("stash/pc/Standard/t1", "stash/xbox/Standard/t1")
+        );
     }
 
     /// A parent tab's fetch is the listing of its substashes: a stub it no
@@ -2707,6 +2827,26 @@ mod tests {
         assert_eq!(ids, vec!["s2"]);
         assert!(s.item("map2").unwrap().unwrap().removed_at.is_some());
         assert_eq!(s.tabs("pc", "Standard").unwrap()[0].item_count, 0);
+        // With the parent retired, a late fetch of the substash is
+        // withheld (its parent is not live), and a late fetch of the
+        // parent neither revives it nor rewrites its children: the orphan
+        // report stays exactly as the listing left it.
+        let ing = s
+            .record(&sub("s2"), &json!({}), 200, &sub_body("s2", "map2"), 7)
+            .unwrap();
+        assert_eq!((ing.items, ing.withheld), (0, 1));
+        assert!(s.item("map2").unwrap().unwrap().removed_at.is_some());
+        let ing = s
+            .record(&stash_ep("m1"), &json!({}), 200, &parent(&["s9"]), 8)
+            .unwrap();
+        assert_eq!((ing.items, ing.withheld), (0, 0));
+        let ids: Vec<String> = s
+            .tabs("pc", "Standard")
+            .unwrap()
+            .into_iter()
+            .map(|t| t.id)
+            .collect();
+        assert_eq!(ids, vec!["s2"]);
     }
 
     /// Removal events name exactly the items this response retired: two

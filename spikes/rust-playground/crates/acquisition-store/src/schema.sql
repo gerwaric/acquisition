@@ -13,8 +13,11 @@ CREATE TABLE IF NOT EXISTS responses (
     params      TEXT    NOT NULL,   -- the job params, verbatim JSON
     fetched_at  INTEGER NOT NULL,   -- unix seconds
     status      INTEGER NOT NULL,
-    envelope    TEXT    NOT NULL,   -- the body with item arrays removed; `_split` lists their counts
-    item_count  INTEGER NOT NULL
+    envelope    TEXT    NOT NULL,   -- the body with item arrays removed; `_split` lists their counts —
+                                    -- or the whole body verbatim when the fetch was withheld
+    item_count  INTEGER NOT NULL,
+    withheld    INTEGER NOT NULL DEFAULT 0  -- items this fetch carried for a location a listing had retired:
+                                            -- kept here, landed nowhere (membership is the listing's)
 );
 
 CREATE TABLE IF NOT EXISTS leagues (

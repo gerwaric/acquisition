@@ -272,6 +272,12 @@ pub fn status(json: bool) -> Result<()> {
             "responses {}  leagues {}  characters {}  tabs {}  items {} (+{} removed)  events {}",
             st.responses, st.leagues, st.characters, st.tabs, st.items, st.items_removed, st.events
         );
+        if st.withheld > 0 {
+            println!(
+                "withheld: {} item(s) fetched for locations a listing had retired (kept on their response rows, landed nowhere)",
+                st.withheld
+            );
+        }
         if st.unlifted_items > 0 {
             // The drift tripwire: an item array the store does not lift.
             println!(

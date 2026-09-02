@@ -830,14 +830,22 @@ resubmit if still wanted",
         match result {
             Ok(ingest) => {
                 self.log(&format!(
-                    "store: {kind} {} -> response {} | {} items (+{} ~{} >{} -{})",
+                    "store: {kind} {} -> response {} | {} items (+{} ~{} >{} -{}){}",
                     target_of(kind, params),
                     ingest.response_id,
                     ingest.items,
                     ingest.added,
                     ingest.changed,
                     ingest.moved,
-                    ingest.removed
+                    ingest.removed,
+                    if ingest.withheld > 0 {
+                        format!(
+                            " | {} withheld: the location was retired by a listing (body kept on the response row)",
+                            ingest.withheld
+                        )
+                    } else {
+                        String::new()
+                    }
                 ));
                 Ok(())
             }

@@ -2385,4 +2385,30 @@ mod tests {
         assert_eq!(json["realm"], "xbox");
         assert_eq!(RefreshPlan::from_value(&json).unwrap(), plan);
     }
+
+    /// A tab a listing dropped and a later listing revived has no live
+    /// facts (they were retired with it) and no fetch on record, so the
+    /// plan fetches it again — the loop, not a manual step, restores it.
+    #[test]
+    fn a_revived_tab_is_planned_as_never_fetched() {
+        let mut s = store();
+        let t1 = json!([{ "id": "t1", "name": "One", "type": "PremiumStash", "index": 0 }]);
+        list(&mut s, t1.clone(), 1000);
+        fetch(
+            &mut s,
+            json!({ "id": "t1", "name": "One", "type": "PremiumStash", "items": [item("i1")] }),
+            1100,
+        );
+        list(&mut s, json!([]), 1200);
+        list(&mut s, t1, 1300);
+        let plan = plan(&s, &all_policy_value(3600), 1400);
+        assert!(
+            matches!(
+                plan.actions[..],
+                [RefreshAction::FetchTab { ref id, reason: FetchReason::NeverFetched, .. }] if id == "t1"
+            ),
+            "{:?}",
+            plan.actions
+        );
+    }
 }
