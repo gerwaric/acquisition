@@ -845,7 +845,10 @@ discriminator is `is_granted_skill`: no `id` and gem-framed
 the top of `skills`. Rejected: a synthetic identity (breaks one row per
 GGG item id and doubles the entry); keep refusing (no PoE2 character
 with a granting weapon would ever land). The mock's poe2 body carries
-the shape. Built the same day; the poe2 rung rerun closes the loop.
+the shape. Built the same day, and the poe2 rung's rerun **closed the
+loop** (run ledger, 16:14 UTC: four characters landed, 8 granted
+skills counted, cycle 2 empty). Steps (4) and (5) are done; next is
+pricing.
 
 **Step (4) ran live 2026-09-02 and passed** (`LIVE-TESTING.md`, run
 ledger `characters rung, pc` and the "Characters rung" section): the
