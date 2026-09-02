@@ -15,6 +15,14 @@
 //!   for the next plan (honest eventual reconciliation). Dynamic `--deep`
 //!   fan-out is excluded: substashes get actions only once their stubs are
 //!   in the store.
+//! - A policy id covers the tab **and its children** (decided
+//!   2026-09-01, tracer rung): a map/unique tab's substashes are planned
+//!   once their stubs are on record — the cycle after the parent's first
+//!   fetch — and a folder's children at once, since the listing carries
+//!   them. One rule, no per-type logic; binding is untouched (every action
+//!   is still an explicit tuple). A substash stub reporting 0 items with
+//!   nothing held is skipped as `empty_stub` (GGG appears to list only
+//!   non-empty substashes; a guard, not a saving).
 //! - `metadata.items` counts are heuristic evidence: they can prove a tab
 //!   changed (a disagreeing count on a listing newer than our fetch forces
 //!   a fetch), never that it didn't (an agreeing count never skips one —
@@ -47,7 +55,7 @@ use acquisition_store::{
 /// quote's verifiable work basis. A shape change anywhere in the envelope —
 /// the embedded `Quote` included — is a schema bump, so an older reader
 /// reports "newer schema" instead of "malformed" on a newer plan.
-pub const REFRESH_PLAN_SCHEMA: i64 = 3;
+pub const REFRESH_PLAN_SCHEMA: i64 = 4;
 
 /// The sync-policy value schema this build reads ([`SyncPolicy::version`]).
 /// The store carries the row opaquely; its shape is this crate's business.
@@ -159,9 +167,10 @@ pub struct LeaguePolicy {
     pub max_age_seconds: u32,
 }
 
-/// Which tabs the policy covers: `"all"` or an explicit id list (substash
-/// ids included — their identity is their own GGG id; the `parent/id`
-/// display convention is a frontend matter).
+/// Which tabs the policy covers: `"all"` or an explicit id list. An id
+/// covers the tab and its children: a map/unique tab's substashes (their
+/// own GGG ids; the `parent/id` display convention is a frontend matter)
+/// and a folder's children. A child named directly is covered too.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(try_from = "TabSelectionRepr", into = "TabSelectionRepr")]
 pub enum TabSelection {
@@ -170,10 +179,13 @@ pub enum TabSelection {
 }
 
 impl TabSelection {
-    fn selects(&self, id: &str) -> bool {
+    /// Covered when the tab's own id is listed or its parent's is.
+    fn covers(&self, tab: &TabSnapshot) -> bool {
         match self {
             TabSelection::All => true,
-            TabSelection::Ids(ids) => ids.iter().any(|i| i == id),
+            TabSelection::Ids(ids) => ids
+                .iter()
+                .any(|i| i == &tab.id || Some(i.as_str()) == tab.parent.as_deref()),
         }
     }
 }
@@ -325,6 +337,12 @@ pub enum SkipReason {
     /// path under it cannot be rendered with confidence. The next listing
     /// or parent re-fetch reconciles it.
     OrphanedParent { parent: String },
+    /// A map/unique substash whose stub reports 0 items while the store
+    /// holds none: there is nothing to fetch. A guard — GGG appears to list
+    /// only non-empty substashes — not a freshness claim (a count never
+    /// proves a tab unchanged; a held item against a 0 count is the
+    /// disagreement arm, which fetches).
+    EmptyStub,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -894,13 +912,15 @@ fn compile(
     };
     let mut skipped = Vec::new();
     for tab in &snapshot.tabs {
-        if !league_policy.tabs.selects(&tab.id) {
+        if !league_policy.tabs.covers(tab) {
             continue;
         }
         let verdict = if listing_alone {
             Err(SkipReason::AwaitingListing)
         } else if tab.r#type == "Folder" {
             Err(SkipReason::Folder)
+        } else if is_empty_substash(snapshot, tab) {
+            Err(SkipReason::EmptyStub)
         } else {
             fetch_verdict(tab, max_age, now).and_then(|reason| fetch_action(snapshot, tab, reason))
         };
@@ -944,6 +964,23 @@ fn compile(
         wire_sends,
         quote: None,
     })
+}
+
+/// A substash (its recorded parent is a map/unique tab on record) whose
+/// stub counts 0 items while the store holds none at it. Only substash
+/// stubs carry the count; a listing entry or a folder child never trips
+/// this.
+fn is_empty_substash(snapshot: &StashSnapshot, tab: &TabSnapshot) -> bool {
+    let Some(parent) = tab.parent.as_deref() else {
+        return false;
+    };
+    let parent_is_container = snapshot
+        .tabs
+        .iter()
+        .any(|t| t.id == parent && matches!(t.r#type.as_str(), "MapStash" | "UniqueStash"));
+    parent_is_container
+        && tab.metadata.get("items").and_then(Value::as_i64) == Some(0)
+        && tab.item_count == 0
 }
 
 /// Fetch or skip, for one covered non-folder tab. `Err` is the skip
@@ -1453,6 +1490,168 @@ mod tests {
             a,
             RefreshAction::FetchTab { id, reason: FetchReason::Stale { age_seconds: i64::MAX }, .. } if id == "t1"
         )));
+    }
+
+    fn ids_policy_value(ids: &[&str], max_age_seconds: u32) -> Value {
+        json!({
+            "version": 1,
+            "leagues": { "Standard": { "tabs": ids, "max_age_seconds": max_age_seconds } }
+        })
+    }
+
+    #[test]
+    fn a_named_map_tab_covers_its_substashes_the_cycle_after_its_first_fetch() {
+        let mut s = store();
+        list(
+            &mut s,
+            json!([
+                { "id": "m1", "name": "Maps", "type": "MapStash", "index": 0 },
+                { "id": "t1", "name": "Other", "type": "PremiumStash", "index": 1 },
+            ]),
+            1000,
+        );
+        let policy = ids_policy_value(&["m1"], 3600);
+        // Cycle 1: the parent alone — no stubs are on record yet, and a
+        // plan never expands itself (binding). t1 is outside the policy.
+        let plan1 = plan(&s, &policy, 1100);
+        assert_eq!(
+            plan1.actions,
+            vec![RefreshAction::FetchTab {
+                league: "Standard".into(),
+                id: "m1".into(),
+                name: "Maps".into(),
+                tab_type: "MapStash".into(),
+                reason: FetchReason::NeverFetched,
+            }]
+        );
+        // The parent's fetch lands two stubs: one with items, one empty.
+        fetch(
+            &mut s,
+            json!({ "id": "m1", "name": "Maps", "type": "MapStash", "items": [], "children": [
+                { "id": "s1", "name": "", "type": "MapStash", "parent": "m1",
+                  "metadata": { "items": 2, "map": { "name": "Tier 16" } } },
+                { "id": "s0", "name": "", "type": "MapStash", "parent": "m1",
+                  "metadata": { "items": 0, "map": { "name": "Tier 1" } } } ] }),
+            1100,
+        );
+        // Cycle 2: the same policy now covers the substashes through their
+        // parent; the empty stub is skipped with its reason, the parent is
+        // fresh.
+        let plan2 = plan(&s, &policy, 1200);
+        assert_eq!(
+            plan2.actions,
+            vec![RefreshAction::FetchSubstash {
+                league: "Standard".into(),
+                parent: "m1".into(),
+                id: "s1".into(),
+                name: "".into(),
+                tab_type: "MapStash".into(),
+                reason: FetchReason::NeverFetched,
+            }]
+        );
+        assert_eq!(
+            plan2.skipped,
+            vec![
+                SkippedTab {
+                    id: "m1".into(),
+                    name: "Maps".into(),
+                    reason: SkipReason::Fresh { age_seconds: 100 },
+                },
+                SkippedTab {
+                    id: "s0".into(),
+                    name: "".into(),
+                    reason: SkipReason::EmptyStub,
+                },
+            ]
+        );
+        // The new skip kind travels through the strict wire parse.
+        let round = RefreshPlan::from_value(&serde_json::to_value(&plan2).unwrap()).unwrap();
+        assert_eq!(round, plan2);
+        // A child named directly is covered as before.
+        let direct = plan(&s, &ids_policy_value(&["s1"], 3600), 1200);
+        assert_eq!(direct.actions, plan2.actions);
+        assert!(direct.skipped.is_empty());
+        // An empty stub that nevertheless holds items (a stale 0 against a
+        // real fetch) is not "empty": the disagreement arm decides.
+        let mut s2 = store();
+        list(
+            &mut s2,
+            json!([{ "id": "m1", "name": "Maps", "type": "MapStash", "index": 0 }]),
+            1000,
+        );
+        fetch(
+            &mut s2,
+            json!({ "id": "m1", "name": "Maps", "type": "MapStash", "items": [], "children": [
+                { "id": "s0", "name": "", "type": "MapStash", "parent": "m1",
+                  "metadata": { "items": 1 } } ] }),
+            1100,
+        );
+        s2.record(
+            &Endpoint::Stash {
+                league: "Standard".into(),
+                id: "m1".into(),
+                sub: Some("s0".into()),
+            },
+            &json!({ "league": "Standard" }),
+            200,
+            &json!({ "stash": { "id": "s0", "name": "", "type": "MapStash", "parent": "m1",
+                                "metadata": { "items": 1 }, "items": [item("x")] } }),
+            1110,
+        )
+        .unwrap();
+        fetch(
+            &mut s2,
+            json!({ "id": "m1", "name": "Maps", "type": "MapStash", "items": [], "children": [
+                { "id": "s0", "name": "", "type": "MapStash", "parent": "m1",
+                  "metadata": { "items": 0 } } ] }),
+            1120,
+        );
+        let p = plan(&s2, &ids_policy_value(&["m1"], 3600), 1200);
+        assert!(
+            matches!(
+                p.actions.as_slice(),
+                [RefreshAction::FetchSubstash { id, reason: FetchReason::ListedCountDisagrees { listed: 0, held: 1 }, .. }] if id == "s0"
+            ),
+            "{:?}",
+            p.actions
+        );
+    }
+
+    #[test]
+    fn a_named_folder_covers_its_children_at_once() {
+        let mut s = store();
+        list(
+            &mut s,
+            json!([
+                { "id": "f1", "name": "Folder", "type": "Folder", "index": 0,
+                  "children": [ { "id": "c1", "name": "In folder", "type": "PremiumStash", "index": 1 } ] },
+                { "id": "t1", "name": "Other", "type": "PremiumStash", "index": 2 },
+            ]),
+            1000,
+        );
+        // Folder children are in the listing, so naming the folder plans
+        // them in the same cycle; the folder itself is skipped as before
+        // and t1 stays outside the policy.
+        let plan = plan(&s, &ids_policy_value(&["f1"], 3600), 1100);
+        assert_eq!(
+            plan.actions,
+            vec![RefreshAction::FetchTab {
+                league: "Standard".into(),
+                id: "c1".into(),
+                name: "In folder".into(),
+                tab_type: "PremiumStash".into(),
+                reason: FetchReason::NeverFetched,
+            }]
+        );
+        assert_eq!(
+            plan.skipped,
+            vec![SkippedTab {
+                id: "f1".into(),
+                name: "Folder".into(),
+                reason: SkipReason::Folder,
+            }]
+        );
+        assert!(plan.unknown_tabs.is_empty());
     }
 
     #[test]

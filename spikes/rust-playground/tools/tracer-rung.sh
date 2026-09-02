@@ -12,16 +12,18 @@
 #   tools/tracer-rung.sh --mock [--cycles K] <tab1,...|all>        # rehearsal
 #
 # The selection becomes the sync policy (`acq policy set`): the named tab
-# ids, or `all` for every tab the league lists. The planner matches ids
-# exactly, and a substash's id is its own — so an id list never covers the
-# substashes a map/unique fetch discovers (they show up in `acq tabs`,
-# uncovered, and the loop closes after one working cycle); `all` covers
-# them and runs the discovery cycle. Live, `all` on a 322-tab account is a
-# 323-request plan with ~343 s limiter holds every 30 sends (rung 10's
-# shape) and then every substash — the owner's call, not this script's;
-# `all` defaults max_age_seconds to a day so the hour-long cycle does not
-# make its own facts stale before the next plan (the driver refuses a
-# window shorter than the cycle it projects).
+# ids, or `all` for every tab the league lists. A policy id covers the tab
+# and its children (CONTEXT.md, decided 2026-09-01): a map/unique tab's
+# substashes are planned the cycle after the parent's first fetch lands
+# their stubs (a plan never expands itself), a folder's children at once.
+# So an id list that names a map tab runs the discovery cycle too, and the
+# loop closes when every covered substash is fetched or skipped as an
+# empty stub. Live, `all` on a 322-tab account is a 323-request plan with
+# ~343 s limiter holds every 30 sends (rung 10's shape) and then every
+# substash — the owner's call, not this script's; `all` defaults
+# max_age_seconds to a day so the hour-long cycle does not make its own
+# facts stale before the next plan (the driver refuses a window shorter
+# than the cycle it projects).
 #
 # Shape of the run (one fresh daemon per wire phase, each under an EXACT
 # send ceiling, stopped when its phase is over):
@@ -601,12 +603,21 @@ else
     done
     tail -1 "$RUN_DIR/tabs.txt"
     [ "$missing" = 0 ] || exit 1
-    # Discovery the id list cannot cover: substashes under a selected
-    # parent, present in the store but outside the policy.
-    uncovered=$(jq -r --argjson sel "$tabs_json" '[.[] | .parent as $p | .id as $i | select($p != null and ($sel | index($p)) != null and ($sel | index($i)) == null) | $i] | length' "$RUN_DIR/tabs.json")
-    if [ "$uncovered" -gt 0 ]; then
-        echo "observation: $uncovered substash(es) discovered under selected tabs are NOT covered by the id list —"
-        echo "the planner matches ids exactly. Naming them (a policy revision) or 'all' would plan them next."
+    # Children of a selected parent are covered through it: every one on
+    # record must have been fetched by the time the loop closed, except a
+    # substash stub the final plan skips as empty (nothing to fetch).
+    children=$(jq -c --argjson sel "$tabs_json" '[.[] | .parent as $p | select($p != null and ($sel | index($p)) != null)]' "$RUN_DIR/tabs.json")
+    n_children=$(echo "$children" | jq 'length')
+    n_unfetched=$(echo "$children" | jq '[.[] | select(.fetched_at == null)] | length')
+    echo "children of selected tabs on record: $n_children (substashes and folder children), $n_unfetched never fetched"
+    if [ "$CLOSED" != 0 ] && [ "$n_unfetched" -gt 0 ]; then
+        "$ACQ" refresh --plan --league "$LEAGUE" --json >"$RUN_DIR/plan-final.json" 2>/dev/null || true
+        n_empty=$(jq '[.skipped[]? | select(.reason.kind == "empty_stub")] | length' "$RUN_DIR/plan-final.json" 2>/dev/null || echo 0)
+        if [ "$n_unfetched" != "$n_empty" ]; then
+            echo "*** $n_unfetched covered child(ren) never fetched but only $n_empty skipped as empty stubs — the loop closed with covered work undone" >&2
+            exit 1
+        fi
+        echo "(all $n_unfetched are empty stubs the final plan skips — nothing to fetch)"
     fi
 fi
 "$ACQ" store status 2>&1 | tee "$RUN_DIR/store-status.txt"

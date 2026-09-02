@@ -482,13 +482,15 @@ fn fetch_why(reason: &FetchReason) -> String {
 /// One line of counts by reason — a real league skips hundreds of fresh
 /// tabs, and the full per-tab detail is in the JSON envelope.
 fn summarize_skipped(plan: &RefreshPlan) -> String {
-    let (mut fresh, mut folders, mut awaiting, mut orphaned) = (0usize, 0usize, 0usize, 0usize);
+    let (mut fresh, mut folders, mut awaiting, mut orphaned, mut empty) =
+        (0usize, 0usize, 0usize, 0usize, 0usize);
     for tab in &plan.skipped {
         match tab.reason {
             SkipReason::Fresh { .. } => fresh += 1,
             SkipReason::Folder => folders += 1,
             SkipReason::AwaitingListing => awaiting += 1,
             SkipReason::OrphanedParent { .. } => orphaned += 1,
+            SkipReason::EmptyStub => empty += 1,
         }
     }
     let mut parts = Vec::new();
@@ -503,6 +505,9 @@ fn summarize_skipped(plan: &RefreshPlan) -> String {
     }
     if orphaned > 0 {
         parts.push(format!("{orphaned} with an off-record parent"));
+    }
+    if empty > 0 {
+        parts.push(format!("{empty} empty substash stub(s) — nothing to fetch"));
     }
     format!(
         "skipped {} covered tab(s): {} (per-tab reasons in --json)",

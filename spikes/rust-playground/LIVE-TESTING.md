@@ -453,18 +453,18 @@ listing **plus** the selected tabs' fetches in one plan — the fetches on
 the old listing's membership (D5a: a plan never expands itself; the new
 listing's facts land for the next plan).
 
-**Selection decides the shape of the run.** The planner matches policy
-ids exactly and a substash's id is its own (`TabSelection::selects`),
-so an id list never covers the substashes a map/unique fetch discovers:
-they land in the store, uncovered, and the loop closes after one
-working cycle — the driver reports them as an observation ("n
-substashes discovered under selected tabs are not covered by the id
-list"). `all` covers them and runs the discovery cycle one plan later.
-Whether "a parent covers its substashes" belongs in the policy shape is
-a friction question for the owner, not something the rung pre-decides.
-Pick the tabs from `acq --account GERWARIC#7694 tabs --league Standard`
-(a store read; no daemon): a handful, including one map or unique tab
-so the uncovered-discovery observation is real. `all` is allowed and is
+**Selection decides the shape of the run.** A policy id covers the tab
+and its children (`TabSelection::covers`; decided 2026-09-01 on this
+rung's first run, which had left 64 substashes uncovered under an exact
+id match): a map/unique tab's substashes are planned the cycle after
+the parent's first fetch lands their stubs — a plan never expands
+itself — and a folder's children at once. So an id list that names a
+map or unique tab runs the discovery cycle too, and the loop closes
+when every covered child is fetched or skipped as an empty stub (the
+driver checks exactly that at readback). Pick the tabs from `acq
+--account GERWARIC#7694 tabs --league Standard` (a store read; no
+daemon): a handful, including one map or unique tab so the discovery
+cycle is real. `all` is allowed and is
 the owner's call — 323 requests with ~343 s holds per 30, then every
 substash a second cycle (a map tab may expose hundreds). Its freshness
 window must outlive the cycle: at the default 3600 s the hour-long
@@ -492,11 +492,12 @@ stop; reads the facts back and fails on a selected tab missing from the
 store or a read that errors; verifies the journal; drafts the ledger
 row; and prints the friction notes. `--mock` rehearses the identical
 flow, exact ceilings included, against the mock — run green 2026-09-01
-in both shapes: `all` = login `1/0/1`, cycles `1/1/1` (bootstrap
-listing), `1/1/7` (seven tab fetches), `1/1/7` (seven substashes
-discovered one plan later), then an empty plan applied as a no-op with
-no daemon; ids `cur1,dump,maps` = login, `1/1/1`, `1/1/3`, then empty,
-with four substashes under `maps` reported as uncovered. Every cycle
+in both shapes (re-run green the same day after the handle ruling):
+`all` = login `1/0/1`, cycles `1/1/1` (bootstrap listing), `1/1/7`
+(seven tab fetches), `1/1/7` (seven substashes discovered one plan
+later), then an empty plan applied as a no-op with no daemon; ids
+`cur1,dump,maps` = login, `1/1/1`, `1/1/3`, `1/1/4` (the four
+substashes under `maps`, covered through their parent), then empty. Every cycle
 quoted; every cycle's sends equal to its plan plus probes plus the
 POST. The table stays the specification; the script implements it.
 
@@ -506,13 +507,17 @@ POST. The table stays the specification; the script implements it.
 | 1 | fresh daemon (ceiling 2), `ACQ_GGG=1 acq auth` in the browser as **the same account** | POST 200 (`token-request-limit` Ip `1:30:0`), `GET /profile` 200 with no rate headers (N38), `logged in as GERWARIC#7694`, the index now carries the uuid; bound reached at send 2; daemon stopped | the login lands as another account (intent would bind to the wrong identity); any non-2xx |
 | 2 | `acq policy set '{"version":1,"leagues":{"Standard":{"tabs":[…],"max_age_seconds":3600}}}'` (the driver writes 3600 for an id list, 86400 for `all`, or `--max-age`), then `acq refresh --plan` with **no daemon** | revision 1; the plan is the stale listing (≈2 d) plus one fetch per selected tab, `n+1` requests, `n+1..3(n+1)` wire sends, the two prerequisites named; stderr `no quote: … plan compiled offline`; no daemon appeared | a daemon appeared; the note is anything but "no quote" |
 | 3 (cycle 1) | fresh daemon, ceiling `1 + 2 + (n+1)`; `acq refresh --plan --json` again (quoted) — checked equal to the offline envelope plus the quote, actions shown; `acq refresh --apply=<that file> --max-requests n+1` | the quote, or the discriminator note (record which); journal: POST, `HEAD /stash/Standard` 204 reporting **0 hits**, `GET` list 200, `HEAD /stash/Standard/{id}` 204 reporting **0 hits**, `n` tab GETs 200; parent `done`, children `n+1` done, 0 failed; the bound reached exactly at the last send; daemon stopped | the run's **first** probe on a route reports hits > 0 (standing rule: something else is on this account); any non-2xx; a child failed (a tab gone since 2026-08-30 is data — record it, then stop); the ceiling halts with sends missing, or the journal shows `ceiling + 1` (a send the plan did not project, either way) |
-| 4 (cycle 2) | plan offline again | **id list**: `nothing to do` — the substashes discovered under the map/unique tab are in `acq tabs` but outside the policy; `acq refresh --apply` with no daemon prints `requests: 0` and nothing appears on the socket. **`all`**: `fetch substash` lines, `m` requests, ceiling `1 + 1 + m`; the stash probe reports cycle 1's hits still inside each window — **ours, expected; the verifier bounds every reported window's hits by this run's own sends inside that window plus that window's timing bucket (N11/N12: 5 s on a rule's first window, 60 s on the later ones, as `bucket_for` in `ratelimit.rs`) at the probe's time, never by a cumulative total**; journal `1/1/m`; children `m` done | a daemon appeared on the no-op; hits beyond ours in any window; otherwise as step 3 |
-| 5 (cycle 3, `all` only) | plan offline again | empty; no-op apply with no daemon | a daemon appeared; the plan still has work (record what and why; not a failure) |
+| 4 (cycle 2) | plan offline again | **no map/unique tab selected**: `nothing to do`; `acq refresh --apply` with no daemon prints `requests: 0` and nothing appears on the socket. **a map/unique tab selected, or `all`**: `fetch substash` lines, `m` requests, ceiling `1 + 1 + m`; the stash probe reports cycle 1's hits still inside each window — **ours, expected; the verifier bounds every reported window's hits by this run's own sends inside that window plus that window's timing bucket (N11/N12: 5 s on a rule's first window, 60 s on the later ones, as `bucket_for` in `ratelimit.rs`) at the probe's time, never by a cumulative total**; journal `1/1/m`; children `m` done | a daemon appeared on the no-op; hits beyond ours in any window; otherwise as step 3 |
+| 5 (cycle 3, when cycle 2 had work) | plan offline again | empty; no-op apply with no daemon | a daemon appeared; the plan still has work (record what and why; not a failure) |
 | 6 | `acq tabs --league Standard`, `acq store status`, `acq store events --hours <the run's span + 1> --limit 1000000` (store reads; hitting the limit fails the run) | every selected tab `fetched` moments ago (an id the first plan reported as unknown is the one exception); item events from this run; the final `refresh --plan` empty when the loop was recorded closed | a selected tab is missing from the store; a read errors; a closed loop whose final plan is not empty |
 | 7 | evidence: this run's slices of the journal and the daemon log, the plans, apply results, store reads, a copy of the verifier with checksums, and a `verify.sh` that re-runs the verification through that copy, in `runs/<date>-tracer/` (a repeat the same day gets a time suffix, never overwrites); ledger row; friction notes pasted below | the bundle's `verify.sh` does not reproduce the summary's verdict |
 
 Expected totals for `n` selected tabs: login `1/0/1`, cycle 1
-`1/2/(n+1)`, then nothing. `stash-request-limit` is `15:10:60,
+`1/2/(n+1)`, then — when a selected tab is a map or unique tab — cycle
+2 `1/1/m` for its `m` non-empty substashes (covered through the parent,
+2026-09-01), then nothing. On the real account the five-id selection has
+`m` = 64, so cycle 2 is 64 stash GETs: ~15 s holds after the 15th and
+45th, ~343 s holds after the 30th and 60th, ~15 min in all. `stash-request-limit` is `15:10:60,
 30:300:300`, so with a zero-hit probe there is no hold while `n ≤ 15`;
 `16 ≤ n ≤ 30` costs one ~15 s hold before the 16th (rung 7b); above 30
 the ~343 s holds begin (rung 10). The listing GET is on its own policy

@@ -10,10 +10,12 @@
 //!   A version or provider mismatch may be a human's live GGG run; the MCP
 //!   reports it and stops. It lazy-spawns only in mock mode, into an empty
 //!   socket.
-//! - **It refuses to submit jobs in real-GGG mode.** Agent traffic against
-//!   GGG is deferred until GGG's policy stance on it is verified
-//!   (CONTEXT.md, "Explicitly deferred"). Store reads and observing a live
-//!   daemon are allowed in either mode — they send nothing.
+//! - **It never spawns a daemon in real-GGG mode.** A real-mode daemon is
+//!   a human's act, via the CLI (it needs the keychain and the browser);
+//!   the MCP talks to the one that is running or reports that none is.
+//!   Agent traffic against GGG itself is allowed (owner ruling 2026-09-01,
+//!   CONTEXT.md): humans, scripts and agents are all clients of the one
+//!   daemon, and the daemon is the single gate that enforces GGG's rules.
 //!
 //! The refresh tracer's plan slice (step 8) is exposed as tools —
 //! `sync_policy` / `set_sync_policy` (intent), `refresh_plan`
@@ -23,10 +25,9 @@
 //! Mode rules for the slice: intent reads/writes and offline plan
 //! compilation send nothing and work in either mode (a policy write must
 //! name the revision it replaces — an agent never clobbers intent it has
-//! not read); `apply_plan` submits jobs and is refused in ggg mode like
-//! `submit_job`; quote enrichment in ggg mode is *skipped with a note*
-//! because whether `quote` is allowed over MCP there is an open owner
-//! call (CONTEXT.md, open topics).
+//! not read); `apply_plan` and `submit_job` spend through the running
+//! daemon in either mode; quote enrichment asks the running daemon in
+//! either mode (read-only, never spawning).
 
 use std::path::PathBuf;
 
@@ -88,45 +89,17 @@ fn open_intent(account: Option<&str>) -> Result<(PathBuf, AccountEntry, Annotati
     Ok((dir, entry, annotations))
 }
 
-/// The agent-traffic deferral (CONTEXT.md, "Explicitly deferred"): nothing
-/// this server does may spend requests against real GGG. Checked before
-/// any daemon contact.
-fn refuse_ggg_submission(what: &str) -> Result<(), ErrorData> {
-    if acquisition_core::provider::ggg_mode() {
-        return Err(ErrorData::internal_error(
-            format!(
-                "refused: {what} against real GGG is deferred until GGG's policy stance \
-                 is verified (CONTEXT.md). Unset ACQ_GGG to work against the mock provider."
-            ),
-            None,
-        ));
-    }
-    Ok(())
-}
-
 /// The quote attempt is bounded and best-effort, same as the CLI's: the
 /// offline plan is the deliverable, and a wedged daemon must not keep it
 /// from returning.
 const QUOTE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
 
-/// Try to enrich the plan with a *running* daemon's read-only quote. In
-/// ggg mode no connection is attempted at all: whether `quote` is allowed
-/// over MCP in real-GGG mode is an open owner call (CONTEXT.md, open
-/// topics), so the conservative default is to skip and say so. In mock
-/// mode the connection never spawns or replaces a daemon — the plan
-/// promises to spend nothing, and a kill-and-respawn is a spend (the
-/// successor resumes the persisted queue).
+/// Try to enrich the plan with a *running* daemon's read-only quote, in
+/// either mode (owner ruling 2026-09-01: a quote sends nothing, and agent
+/// use of the gate is allowed). The connection never spawns or replaces a
+/// daemon — the plan promises to spend nothing, and a kill-and-respawn is
+/// a spend (the successor resumes the persisted queue).
 async fn try_quote(plan: RefreshPlan) -> (RefreshPlan, Option<String>) {
-    if acquisition_core::provider::ggg_mode() {
-        return (
-            plan,
-            Some(
-                "no quote: whether quote is allowed over MCP in real-GGG mode is an open \
-                 owner call (CONTEXT.md, open topics); plan compiled offline"
-                    .into(),
-            ),
-        );
-    }
     let Some(account) = plan.account_name.clone() else {
         return (
             plan,
@@ -431,7 +404,7 @@ impl AcqMcp {
     }
 
     #[tool(
-        description = "Compile the stored sync policy + facts on record into a RefreshPlan: the explicit, bounded action set applying would execute, with per-action reasons, skipped tabs, and a coarse wire estimate. Offline — sends nothing, spends nothing. A running mock-mode daemon adds its read-only quote (ETA + rate-limit headroom); `quote_note` says why one is absent. Review the plan, then hand `plan` to apply_plan."
+        description = "Compile the stored sync policy + facts on record into a RefreshPlan: the explicit, bounded action set applying would execute, with per-action reasons, skipped tabs, and a coarse wire estimate. Offline — sends nothing, spends nothing. A running daemon adds its read-only quote (ETA + rate-limit headroom; never spawned for this); `quote_note` says why one is absent. Review the plan, then hand `plan` to apply_plan."
     )]
     async fn refresh_plan(
         &self,
@@ -463,13 +436,12 @@ impl AcqMcp {
     }
 
     #[tool(
-        description = "Execute a reviewed plan: exactly its actions, as one `apply` parent job the daemon admits or refuses whole at submit (single-request vocabulary + the max_requests budget). Refused offline — before any daemon contact — if the stored sync-policy revision moved since the plan (replan with refresh_plan), and refused in real-GGG mode (agent traffic is deferred). An empty plan is a no-op with no daemon contact. Returns the parent job id; poll job_status, then job_result."
+        description = "Execute a reviewed plan: exactly its actions, as one `apply` parent job the daemon admits or refuses whole at submit (single-request vocabulary + the max_requests budget). Refused offline — before any daemon contact — if the stored sync-policy revision moved since the plan (replan with refresh_plan). In real-GGG mode the daemon must already be running (a human starts it; this server never spawns one there). An empty plan is a no-op with no daemon contact. Returns the parent job id; poll job_status, then job_result."
     )]
     async fn apply_plan(
         &self,
         Parameters(p): Parameters<ApplyParams>,
     ) -> Result<Json<Value>, ErrorData> {
-        refuse_ggg_submission("applying a plan")?;
         let (_, entry, annotations) = open_intent(p.account.as_deref()).map_err(err)?;
         let plan = RefreshPlan::from_value(&p.plan).map_err(|e| err(e.into()))?;
         plan.check_spendable(provider(), entry.uuid.as_deref(), &annotations)
@@ -511,13 +483,12 @@ impl AcqMcp {
     // ---- daemon jobs ----
 
     #[tool(
-        description = "Submit a job to the daemon and return its id immediately; poll job_status then fetch job_result. Refused in real-GGG mode (agent traffic against GGG is deferred)."
+        description = "Submit a job to the daemon and return its id immediately; poll job_status then fetch job_result. In real-GGG mode the daemon must already be running (a human starts it; this server never spawns one there)."
     )]
     async fn submit_job(
         &self,
         Parameters(p): Parameters<SubmitParams>,
     ) -> Result<Json<Value>, ErrorData> {
-        refuse_ggg_submission("agent traffic")?;
         let mut client = connect(true).await.map_err(err)?;
         let resp = client
             .request(&Request::Submit {

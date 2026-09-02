@@ -174,7 +174,8 @@ bounded by `MAX_429_RETRIES`; a Cloudflare-shaped 403/503 is never retried.
   The quote echoes the job tuples it priced (`work`), and attaching one
   (`with_quote`) validates it speaks about the plan's own provider,
   exactly its account, and exactly its actions in order — never just a
-  matching count; carrying it bumped the plan schema (now v3). Same
+  matching count; carrying it bumped the plan schema (v3; the `empty_stub`
+  skip kind made v4 on 2026-09-01). Same
   no-panic clippy ratchet as the store crate.
 - `crates/acquisition-cli` — the `acq` binary. Thin: clap parsing, output
   formatting, `store_cmd.rs` — the reads of the shared store (`tabs`,
@@ -211,21 +212,22 @@ bounded by `MAX_429_RETRIES`; a Cloudflare-shaped 403/503 is never retried.
   (the intent annotation — local, sends nothing, allowed in either mode;
   replacing an existing policy must name the revision it replaces, so an
   agent never clobbers intent it has not read), `refresh_plan` (the
-  offline compile, quote-enriched by a *running* mock daemon — in ggg
-  mode no connection is attempted, an open owner call in CONTEXT.md),
+  offline compile, quote-enriched by a *running* daemon in either mode,
+  never spawned for it),
   and `apply_plan` (the reviewed envelope as one `apply` parent, the
   staleness gate run before any daemon contact; returns the job id to
   poll). The slice shares its semantics with the CLI through
   `acquisition-plan` (validate-then-CAS policy writes, the validating
   parse, `check_spendable`, `apply_params`), and the whole loop is
   pinned at process level in `tests/plan_loop.rs` (offline claims proven
-  with the daemon stopped) and `tests/ggg_refusal.rs` (the ggg-mode
-  refusals, with no daemon at all).
+  with the daemon stopped) and `tests/ggg_refusal.rs` (real mode never
+  spawns a daemon, proven with none present).
   It **never kills or replaces a daemon** (a mismatch may be a human's
-  live GGG run — it reports and stops), lazy-spawns only in mock mode,
-  and **refuses `submit_job` and `apply_plan` in real-GGG mode** until
-  the agent-traffic deferral lifts (CONTEXT.md). Login is human, via
-  `acq auth`.
+  live GGG run — it reports and stops) and lazy-spawns only in mock mode:
+  a real-GGG daemon is a human's act. Agent traffic through the daemon is
+  allowed in either mode (owner ruling 2026-09-01, CONTEXT.md) — the
+  daemon is the single gate, and every client is paced by the same code.
+  Login is human, via `acq auth`.
 
 ## Try it
 

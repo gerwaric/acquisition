@@ -1,11 +1,11 @@
-//! The agent-traffic deferral at the MCP boundary (CONTEXT.md,
-//! "Explicitly deferred"), pinned in the mode it protects: an `acq-mcp`
-//! started with `ACQ_GGG=1` refuses the spending tools immediately.
-//! Nothing else exists here — no daemon, no store, no login — so the
-//! refusal must be the *first* gate: a regression that consulted the
-//! account index or contacted a daemon before refusing would answer with
-//! that failure instead of the deferral, and the assertions would catch
-//! the swap.
+//! The one real-GGG-mode rule left at the MCP boundary after the agent
+//! traffic ruling (CONTEXT.md, 2026-09-01: agents may use the gate; the
+//! daemon enforces GGG's rules): `acq-mcp` **never spawns a daemon in ggg
+//! mode**. A real-mode daemon is a human's act via the CLI (keychain,
+//! browser). Pinned in the mode it protects, with nothing else present —
+//! no daemon, no store, no login — so the spending tools must fail by
+//! reporting the absent daemon, and the scratch socket must never come
+//! into existence (a regression that lazy-spawned here would create it).
 
 mod harness;
 
@@ -13,27 +13,32 @@ use harness::Mcp;
 use serde_json::json;
 
 #[test]
-fn ggg_mode_refuses_the_spending_tools_before_anything_else() {
+fn ggg_mode_never_spawns_a_daemon_for_the_spending_tools() {
     let base = std::env::temp_dir().join(format!("acq-m8g-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&base);
     std::fs::create_dir_all(&base).unwrap();
 
     let mut mcp = Mcp::start(&base, &[("ACQ_GGG", "1")]);
 
-    // apply_plan: refused on the mode alone — the deliberately absurd
-    // "plan" proves not even the envelope parse ran first.
-    let msg = mcp.expect_err("apply_plan", json!({ "plan": "not even an object" }));
-    assert!(msg.contains("deferred") && msg.contains("ACQ_GGG"), "{msg}");
-
-    // submit_job: the same deferral, same wording.
+    // submit_job: no daemon is running and none may be started here, so
+    // the call fails on the absent daemon — not on the mode.
     let msg = mcp.expect_err("submit_job", json!({ "kind": "stashes" }));
-    assert!(msg.contains("deferred") && msg.contains("ACQ_GGG"), "{msg}");
-
-    // No daemon was contacted or spawned for either refusal: the scratch
-    // socket was never even created.
+    assert!(
+        !msg.contains("deferred"),
+        "the lifted deferral is still being cited: {msg}"
+    );
     assert!(
         !base.join("d.sock").exists(),
-        "a ggg-mode refusal touched the daemon socket"
+        "submit_job in ggg mode spawned a daemon (socket appeared): {msg}"
+    );
+
+    // apply_plan: the offline gates run first (no account is known here),
+    // and whatever refuses it, no daemon appears.
+    let msg = mcp.expect_err("apply_plan", json!({ "plan": "not even an object" }));
+    assert!(!msg.contains("deferred"), "{msg}");
+    assert!(
+        !base.join("d.sock").exists(),
+        "apply_plan in ggg mode spawned a daemon (socket appeared): {msg}"
     );
 
     let _ = mcp.child.kill();
