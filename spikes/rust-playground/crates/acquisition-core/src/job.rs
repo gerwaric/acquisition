@@ -79,24 +79,33 @@ impl JobInfo {
 }
 
 /// `JobInfo::target` for a kind and params without a `JobInfo`.
+/// A realm other than pc leads the label (`xbox/Standard/cur1`,
+/// `poe2/Exile`); pc is silent, as on the wire.
 pub fn target_of(kind: &str, p: &Value) -> String {
     {
         let s = |k: &str| p.get(k).and_then(Value::as_str);
+        // `pc` and an absent or unparseable realm all show nothing: the
+        // label is for a person, and admission already refused bad values.
+        let r = match s("realm") {
+            Some(realm) if realm != "pc" => format!("{realm}/"),
+            _ => String::new(),
+        };
         match kind {
             "stash" => match (s("league"), s("id"), s("sub")) {
-                (Some(l), Some(id), Some(sub)) => format!("{l}/{id}/{sub}"),
-                (Some(l), Some(id), None) => format!("{l}/{id}"),
+                (Some(l), Some(id), Some(sub)) => format!("{r}{l}/{id}/{sub}"),
+                (Some(l), Some(id), None) => format!("{r}{l}/{id}"),
                 _ => String::new(),
             },
-            "stashes" => s("league").unwrap_or("").to_string(),
-            "character" => s("name").unwrap_or("").to_string(),
+            "stashes" => format!("{r}{}", s("league").unwrap_or("")),
+            "characters" => r.trim_end_matches('/').to_string(),
+            "character" => format!("{r}{}", s("name").unwrap_or("")),
             "refresh" => {
                 let l = s("league").unwrap_or("");
                 if p.get("all").and_then(Value::as_bool).unwrap_or(false) {
-                    format!("{l} (all)")
+                    format!("{r}{l} (all)")
                 } else {
                     format!(
-                        "{l} ({} tabs)",
+                        "{r}{l} ({} tabs)",
                         p.get("tabs").and_then(Value::as_array).map_or(0, Vec::len)
                     )
                 }
@@ -117,4 +126,55 @@ pub enum Outcome {
     Success { payload: Value },
     Failure { error: String },
     Cancelled,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    /// pc is silent in a job's label, as on the wire; any other realm
+    /// leads it.
+    #[test]
+    fn target_labels_lead_with_a_non_pc_realm_only() {
+        assert_eq!(
+            target_of(
+                "stash",
+                &json!({ "league": "Standard", "id": "t1", "sub": "s1" })
+            ),
+            "Standard/t1/s1"
+        );
+        assert_eq!(
+            target_of(
+                "stash",
+                &json!({ "realm": "pc", "league": "Standard", "id": "t1" })
+            ),
+            "Standard/t1"
+        );
+        assert_eq!(
+            target_of(
+                "stash",
+                &json!({ "realm": "xbox", "league": "Standard", "id": "t1" })
+            ),
+            "xbox/Standard/t1"
+        );
+        assert_eq!(
+            target_of("stashes", &json!({ "realm": "sony", "league": "Standard" })),
+            "sony/Standard"
+        );
+        assert_eq!(target_of("characters", &json!({})), "");
+        assert_eq!(target_of("characters", &json!({ "realm": "poe2" })), "poe2");
+        assert_eq!(target_of("character", &json!({ "name": "Exile" })), "Exile");
+        assert_eq!(
+            target_of("character", &json!({ "realm": "poe2", "name": "Exile" })),
+            "poe2/Exile"
+        );
+        assert_eq!(
+            target_of(
+                "refresh",
+                &json!({ "realm": "xbox", "league": "Standard", "all": true })
+            ),
+            "xbox/Standard (all)"
+        );
+    }
 }

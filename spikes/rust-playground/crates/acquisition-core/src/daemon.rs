@@ -28,6 +28,7 @@ use crate::ratelimit::{
     ChokePoint, Clock, EndpointState, RetryAfter, SendError, SystemClock, url_path,
 };
 use crate::ratelimit::{endpoint_key, split_endpoint_key};
+use crate::realm::{Family, Realm};
 use crate::{auth, mockggg};
 
 const IDLE_SHUTDOWN: Duration = Duration::from_secs(60);
@@ -866,51 +867,67 @@ resubmit if still wanted",
     }
 
     /// The route label and URL a job sends on, if it sends at all. Routes,
-    /// not URLs, key the limiter: every league shares `stash-list`. `fetch`
-    /// is a fake data endpoint that exists only on the mock.
+    /// not URLs, key the limiter: every league shares `stash-list`. A
+    /// realm other than pc is a segment on the URL *and* on the label
+    /// (`stash-list/xbox`): a realm's URL shape gets its own free HEAD
+    /// probe before its first counted send, and whether it shares the pc
+    /// policy is learned from its headers (same-name policies already
+    /// share state, N6). pc adds nothing to either, so every pc URL and
+    /// journal route is byte-identical to the pre-realm ones. `fetch` is a
+    /// fake data endpoint that exists only on the mock.
     fn route_for(&self, kind: &str, params: &Value) -> Option<(String, String)> {
         let base = &self.provider.api_base;
+        // Admission (`admit_realm`) refused anything a family does not
+        // take before a job existed; a row that still fails here (a
+        // persisted job from a build with a different table) sends nothing.
+        let realm = |family: Family| family.realm_of(params).ok().map(Realm::infix);
         match kind {
-            "characters" => Some(("character-list".into(), format!("{base}/character"))),
+            "characters" => {
+                let r = realm(Family::Characters)?;
+                Some((format!("character-list{r}"), format!("{base}/character{r}")))
+            }
             // One character with its inventory/equipment: its own policy.
             "character" => {
+                let r = realm(Family::Characters)?;
                 let name = params.get("name").and_then(Value::as_str)?;
-                Some(("character".into(), format!("{base}/character/{name}")))
+                Some((
+                    format!("character{r}"),
+                    format!("{base}/character{r}/{name}"),
+                ))
             }
             // The account's leagues: `GET /account/leagues` (account:leagues).
             // `/league` is the public league list and needs `service:leagues`,
             // which the registration does not have (first contact
-            // 2026-08-30: 403 `insufficient_scope`).
+            // 2026-08-30: 403 `insufficient_scope`). Not realm-aware: no
+            // consumer asks, and the plan never lists leagues.
             "leagues" => Some(("league".into(), format!("{base}/account/leagues"))),
             // The account profile (account:profile).
             "profile" => Some(("profile".into(), format!("{base}/profile"))),
-            "stashes" => {
+            "stashes" | "refresh" => {
+                let r = realm(Family::Stashes)?;
                 let league = params
                     .get("league")
                     .and_then(Value::as_str)
                     .unwrap_or("Standard");
-                Some(("stash-list".into(), format!("{base}/stash/{league}")))
+                Some((
+                    format!("stash-list{r}"),
+                    format!("{base}/stash{r}/{league}"),
+                ))
             }
             // One tab, or one substash of a map/unique tab: same route, same
             // policy (stash-request-limit), one probe for all of them.
             "stash" => {
+                let r = realm(Family::Stashes)?;
                 let league = params
                     .get("league")
                     .and_then(Value::as_str)
                     .unwrap_or("Standard");
                 let id = params.get("id").and_then(Value::as_str)?;
                 let url = match params.get("sub").and_then(Value::as_str) {
-                    Some(sub) => format!("{base}/stash/{league}/{id}/{sub}"),
-                    None => format!("{base}/stash/{league}/{id}"),
+                    Some(sub) => format!("{base}/stash{r}/{league}/{id}/{sub}"),
+                    None => format!("{base}/stash{r}/{league}/{id}"),
                 };
-                Some(("stash".into(), url))
-            }
-            "refresh" => {
-                let league = params
-                    .get("league")
-                    .and_then(Value::as_str)
-                    .unwrap_or("Standard");
-                Some(("stash-list".into(), format!("{base}/stash/{league}")))
+                Some((format!("stash{r}"), url))
             }
             "fetch" if !self.provider.is_real() => Some(("fetch".into(), format!("{base}/fetch"))),
             _ => None,
@@ -1066,10 +1083,12 @@ resubmit if still wanted",
     ) -> Result<JobId, String> {
         // An `apply` is admitted or refused whole, before a job id exists
         // (CONTEXT.md, decided 2026-09-01): vocabulary and budget checked
-        // here, so a refusal admits nothing.
+        // here, so a refusal admits nothing. A realm a kind's family does
+        // not take is refused the same way, before an id exists.
         if kind == "apply" {
             validate_apply(&params)?;
         }
+        admit_realm(&kind, &params)?;
         self.submit_with_parent(kind, params, priority, submitted_by, account, None)
     }
 
@@ -1651,7 +1670,11 @@ resubmit if still wanted",
                     Ok(pair) => pair,
                     Err(error) => return Ok(Outcome::Failure { error }),
                 };
-                let url = format!("{}/character", self.provider.api_base);
+                let Some((_, url)) = self.route_for(kind, &params) else {
+                    return Ok(Outcome::Failure {
+                        error: "characters: unrenderable realm".into(),
+                    });
+                };
                 let route = route.as_deref().expect("characters is a network kind");
                 let (v, rate) = self.api_get(route, &url, Some(&token), ready).await?;
                 // A 2xx without the `characters` array is a malformed
@@ -1740,7 +1763,11 @@ resubmit if still wanted",
                     .and_then(Value::as_str)
                     .unwrap_or("Standard")
                     .to_string();
-                let url = format!("{}/stash/{league}", self.provider.api_base);
+                let Some((_, url)) = self.route_for(kind, &params) else {
+                    return Ok(Outcome::Failure {
+                        error: "stashes: unrenderable realm".into(),
+                    });
+                };
                 let route = route.as_deref().expect("stashes is a network kind");
                 let (v, rate) = self.api_get(route, &url, Some(&token), ready).await?;
                 // A 2xx without the `stashes` array is a malformed
@@ -1793,6 +1820,7 @@ resubmit if still wanted",
                     .unwrap_or_default();
                 let mut submitted = Vec::new();
                 if deep {
+                    let realm = Realm::from_params(&params).unwrap_or(Realm::DEFAULT);
                     let league = params.get("league").cloned().unwrap_or(json!("Standard"));
                     let tab = params.get("id").cloned().unwrap_or(Value::Null);
                     for child in &children {
@@ -1802,7 +1830,7 @@ resubmit if still wanted",
                         match self.submit_child(
                             id,
                             "stash",
-                            json!({ "league": league, "id": tab, "sub": sub, "deep": false }),
+                            json!({ "realm": realm, "league": league, "id": tab, "sub": sub, "deep": false }),
                         ) {
                             Ok(cid) => submitted.push(cid),
                             Err(e) => {
@@ -1856,7 +1884,12 @@ resubmit if still wanted",
                         error: "refresh needs --all or --tabs <id,...>".into(),
                     });
                 }
-                let url = format!("{}/stash/{league}", self.provider.api_base);
+                let realm = Realm::from_params(&params).unwrap_or(Realm::DEFAULT);
+                let Some((_, url)) = self.route_for(kind, &params) else {
+                    return Ok(Outcome::Failure {
+                        error: "refresh: unrenderable realm".into(),
+                    });
+                };
                 let route = route.as_deref().expect("refresh is a network kind");
                 let (v, rate) = self.api_get(route, &url, Some(&token), ready).await?;
                 // A malformed listing fails the refresh whole, before the
@@ -1872,7 +1905,7 @@ resubmit if still wanted",
                 if let Err(failure) = self.record(
                     account,
                     "stashes",
-                    &json!({ "league": params.get("league").cloned().unwrap_or(json!("Standard")) }),
+                    &json!({ "realm": realm, "league": params.get("league").cloned().unwrap_or(json!("Standard")) }),
                     &v,
                 ) {
                     return Ok(failure);
@@ -1918,7 +1951,7 @@ resubmit if still wanted",
                     match self.submit_child(
                         id,
                         "stash",
-                        json!({ "league": league, "id": tid, "deep": follow }),
+                        json!({ "realm": realm, "league": league, "id": tid, "deep": follow }),
                     ) {
                         Ok(cid) => submitted.push(cid),
                         Err(e) => {
@@ -3278,6 +3311,21 @@ resubmit if still wanted",
 /// parent was cancelled, or the queue failed. Already-submitted children
 /// run either way (their sends are theirs); the parent never claims
 /// success over a partial set.
+/// Realm admission: a kind in a realm family (`crate::realm`) must name a
+/// realm that family takes — or none, meaning pc. Runs at submit for
+/// every kind and per tuple inside `validate_apply`, so a job that would
+/// render a stash URL under `poe2` never gets an id (CONTEXT.md,
+/// 2026-09-02: no code path renders an unobserved URL shape). Kinds
+/// outside the families ignore the param.
+fn admit_realm(kind: &str, params: &Value) -> Result<(), String> {
+    let family = match kind {
+        "characters" | "character" => Family::Characters,
+        "stashes" | "stash" | "refresh" => Family::Stashes,
+        _ => return Ok(()),
+    };
+    family.realm_of(params).map(|_| ())
+}
+
 /// The `apply` admission check (CONTEXT.md, decided 2026-09-01): the
 /// vocabulary a plan-blind daemon can enforce. `params.jobs` must be a
 /// non-empty array of `(kind, params)` tuples in which every kind is a
@@ -3303,6 +3351,7 @@ fn validate_apply(params: &Value) -> Result<(), String> {
     for (i, job) in jobs.iter().enumerate() {
         let kind = job.get("kind").and_then(Value::as_str).unwrap_or("");
         let params = job.get("params").cloned().unwrap_or(Value::Null);
+        admit_realm(kind, &params).map_err(|e| format!("apply job {i}: {e}"))?;
         match kind {
             "stashes" => {}
             "stash" => {
@@ -3869,6 +3918,136 @@ mod auth_session_tests {
             queue_failure: Mutex::new(None),
         });
         (daemon, credential_store, log_path)
+    }
+
+    /// Realm on the wire (CONTEXT.md, 2026-09-02): pc is omitted, so a pc
+    /// URL and route label are byte-identical whether the param is absent
+    /// or explicit — every live send so far stays the same; any other
+    /// realm is a segment before the league or name on the URL and a
+    /// suffix on the label, so it gets its own probe; a realm a family
+    /// does not take renders nothing and is refused at admission.
+    #[test]
+    fn realm_is_a_segment_before_league_or_name_and_pc_is_silent() {
+        let (daemon, _, _) = test_daemon("http://mock");
+        let route = |kind: &str, params: Value| daemon.route_for(kind, &params);
+        for (kind, absent, explicit) in [
+            ("characters", json!({}), json!({ "realm": "pc" })),
+            (
+                "character",
+                json!({ "name": "Exile" }),
+                json!({ "realm": "pc", "name": "Exile" }),
+            ),
+            (
+                "stashes",
+                json!({ "league": "Standard" }),
+                json!({ "realm": "pc", "league": "Standard" }),
+            ),
+            (
+                "stash",
+                json!({ "league": "Standard", "id": "t1", "sub": "s1" }),
+                json!({ "realm": "pc", "league": "Standard", "id": "t1", "sub": "s1" }),
+            ),
+            (
+                "refresh",
+                json!({ "league": "Standard", "all": true }),
+                json!({ "realm": "pc", "league": "Standard", "all": true }),
+            ),
+        ] {
+            let a = route(kind, absent).unwrap();
+            assert_eq!(
+                a,
+                route(kind, explicit).unwrap(),
+                "{kind}: pc must add nothing"
+            );
+            assert!(
+                !a.0.contains('/'),
+                "{kind}: pc label {:?} carries no realm",
+                a.0
+            );
+        }
+        assert_eq!(
+            route("characters", json!({ "realm": "poe2" })).unwrap(),
+            (
+                "character-list/poe2".into(),
+                "http://mock/character/poe2".into()
+            )
+        );
+        assert_eq!(
+            route("character", json!({ "realm": "poe2", "name": "Exile" })).unwrap(),
+            (
+                "character/poe2".into(),
+                "http://mock/character/poe2/Exile".into()
+            )
+        );
+        assert_eq!(
+            route("stashes", json!({ "realm": "xbox", "league": "Standard" })).unwrap(),
+            (
+                "stash-list/xbox".into(),
+                "http://mock/stash/xbox/Standard".into()
+            )
+        );
+        assert_eq!(
+            route(
+                "stash",
+                json!({ "realm": "sony", "league": "Standard", "id": "t1", "sub": "s1" })
+            )
+            .unwrap(),
+            (
+                "stash/sony".into(),
+                "http://mock/stash/sony/Standard/t1/s1".into()
+            )
+        );
+        // PoE1-only families never render a poe2 URL.
+        assert_eq!(
+            route("stashes", json!({ "realm": "poe2", "league": "Standard" })),
+            None
+        );
+        assert_eq!(
+            route(
+                "stash",
+                json!({ "realm": "poe2", "league": "Standard", "id": "t1" })
+            ),
+            None
+        );
+        // Admission refuses before a job id exists — and inside an apply's
+        // tuple list, where the vocabulary check already lives.
+        let refused = daemon
+            .submit(
+                "stashes".into(),
+                json!({ "realm": "poe2", "league": "Standard" }),
+                0,
+                "test".into(),
+                None,
+            )
+            .unwrap_err();
+        assert!(
+            refused.contains("stashes endpoints do not take realm poe2"),
+            "{refused}"
+        );
+        let refused = daemon
+            .submit(
+                "characters".into(),
+                json!({ "realm": "ps5" }),
+                0,
+                "test".into(),
+                None,
+            )
+            .unwrap_err();
+        assert!(refused.contains("unknown realm \"ps5\""), "{refused}");
+        let refused = validate_apply(&json!({ "jobs": [
+            { "kind": "stashes", "params": { "realm": "xbox", "league": "Standard" } },
+            { "kind": "stash", "params": { "realm": "poe2", "league": "Standard", "id": "t1" } },
+        ] }))
+        .unwrap_err();
+        assert!(
+            refused.starts_with("apply job 1: the stashes endpoints"),
+            "{refused}"
+        );
+        assert_eq!(
+            daemon.shared.lock().unwrap().jobs.len(),
+            0,
+            "refusals admit nothing"
+        );
     }
 
     fn remove_test_log(path: &PathBuf) {

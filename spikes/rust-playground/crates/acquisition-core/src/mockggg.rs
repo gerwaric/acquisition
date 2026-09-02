@@ -275,6 +275,121 @@ fn mock_children_stubs(parent: &str) -> Vec<serde_json::Value> {
 }
 
 /// The stash list: top-level tabs, folders with nested children, no items.
+/// A data path as GGG reads it: the policy it falls under, the realm (pc
+/// by omission — the second segment of `/character/...` or `/stash/...`
+/// is a realm only when it is a legal segment value, so a character
+/// named `pc` is a name), and the segments after the realm.
+struct DataRoute<'a> {
+    policy_key: &'a str,
+    realm: crate::realm::Realm,
+    parts: Vec<&'a str>,
+}
+
+/// `None` for a realm the family does not take: GGG has no such route
+/// (the stash endpoints are PoE1 only), so the mock answers 404 rather
+/// than inventing one — a daemon that renders it is the bug this catches.
+fn classify_data_path(path: &str) -> Option<DataRoute<'_>> {
+    use crate::realm::{Family, Realm};
+    fn split(rest: &str) -> (Realm, Vec<&str>) {
+        let mut parts: Vec<&str> = rest.split('/').filter(|s| !s.is_empty()).collect();
+        match parts.first().and_then(|s| Realm::parse(s)) {
+            Some(realm) if realm.segment().is_some() => {
+                parts.remove(0);
+                (realm, parts)
+            }
+            _ => (Realm::Pc, parts),
+        }
+    }
+    if let Some(rest) = path.strip_prefix("/character") {
+        let (realm, parts) = split(rest);
+        if !Family::Characters.accepts(realm) {
+            return None;
+        }
+        // `/character[/realm]` lists; `/character[/realm]/{name}` fetches.
+        let policy_key = if parts.is_empty() {
+            "/character"
+        } else {
+            "/character/name"
+        };
+        return Some(DataRoute {
+            policy_key,
+            realm,
+            parts,
+        });
+    }
+    if let Some(rest) = path.strip_prefix("/stash") {
+        let (realm, parts) = split(rest);
+        if !Family::Stashes.accepts(realm) || parts.is_empty() {
+            return None;
+        }
+        // `/stash[/realm]/{league}` is the list; `/stash[/realm]/{league}/{id}[/{sub}]`
+        // is one tab, under its own policy (N7).
+        let policy_key = if parts.len() >= 2 {
+            "/stash/tab"
+        } else {
+            "/stash"
+        };
+        return Some(DataRoute {
+            policy_key,
+            realm,
+            parts,
+        });
+    }
+    Some(DataRoute {
+        policy_key: path,
+        realm: Realm::Pc,
+        parts: Vec::new(),
+    })
+}
+
+/// `GET /character[/realm]`. The mock account plays PoE1 on pc and has
+/// one PoE2 character; the console realms list nothing. Each entry's
+/// `realm` field says the realm it was listed under — a hypothesis for
+/// PoE2 (the docs give the field as `pc|xbox|sony`), open until the
+/// first PoE2 body is seen live (CONTEXT.md, "Characters in the refresh
+/// plan").
+fn mock_character_list(realm: crate::realm::Realm) -> serde_json::Value {
+    use crate::realm::Realm;
+    let characters = match realm {
+        Realm::Pc => json!([
+            { "id": "fake0001", "name": "StashHoarder", "realm": "pc",
+              "class": "Scion", "league": "Standard", "level": 97 },
+            { "id": "fake0002", "name": "MuleQuadTab", "realm": "pc",
+              "class": "Witch", "league": "Standard", "level": 12 },
+        ]),
+        Realm::Poe2 => json!([
+            { "id": "fake2001", "name": "SecondExile", "realm": "poe2",
+              "class": "Monk", "league": "Standard", "level": 41 },
+        ]),
+        Realm::Xbox | Realm::Sony => json!([]),
+    };
+    json!({ "characters": characters })
+}
+
+/// `GET /character[/realm]/{name}`: equipment + inventory (+ `skills`
+/// for a PoE2 character, the array the docs add there).
+fn mock_character(realm: crate::realm::Realm, name: &str) -> serde_json::Value {
+    let mut character = json!({
+        "id": "fake0001", "name": name, "realm": realm.as_str(), "class": "Scion", "league": "Standard", "level": 97,
+        "equipment": [
+            { "id": format!("{name}-helm"), "name": "Starkonja's Head", "typeLine": "Silken Hood", "baseType": "Silken Hood",
+              "w": 2, "h": 2, "x": 0, "y": 0, "inventoryId": "Helm", "league": "Standard", "frameType": 3, "identified": true,
+              "socketedItems": [ { "id": format!("{name}-gem0"), "typeLine": "Determination", "baseType": "Determination", "socket": 0, "colour": "S", "frameType": 4 } ] },
+        ],
+        "inventory": mock_items(&format!("{name}-inv"), 4),
+        "jewels": [],
+    });
+    if realm == crate::realm::Realm::Poe2 {
+        character["id"] = json!("fake2001");
+        character["class"] = json!("Monk");
+        character["skills"] = json!([
+            { "id": format!("{name}-skill0"), "typeLine": "Falling Thunder", "baseType": "Falling Thunder",
+              "w": 1, "h": 1, "x": 0, "y": 0, "inventoryId": "Skills", "league": "Standard", "frameType": 4 },
+        ]);
+    }
+    json!({ "character": character })
+}
+
 fn mock_stash_list(league: &str) -> serde_json::Value {
     let top: Vec<serde_json::Value> = MOCK_TABS
         .iter()
@@ -430,19 +545,21 @@ async fn handle(
                 || path.starts_with("/character/")
                 || path.starts_with("/stash/") =>
         {
-            // `/stash/{league}` is the list; `/stash/{league}/{id}[/{sub}]` is
-            // one tab, under its own policy (N7).
-            let stash_parts: Vec<&str> = path.trim_start_matches("/stash/").split('/').collect();
-            let policy_key = if path.starts_with("/stash/") {
-                if stash_parts.len() >= 2 {
-                    "/stash/tab"
-                } else {
-                    "/stash"
-                }
-            } else if path.starts_with("/character/") {
-                "/character/name"
-            } else {
-                path
+            // A realm a family does not take is a route GGG does not have.
+            let Some(DataRoute {
+                policy_key,
+                realm,
+                parts,
+            }) = classify_data_path(path)
+            else {
+                respond(
+                    &mut stream,
+                    "404 Not Found",
+                    "application/json",
+                    &json!({ "error": "Resource not found" }).to_string(),
+                )
+                .await;
+                return;
             };
             let bearer_user = req
                 .headers
@@ -521,8 +638,11 @@ async fn handle(
                 .await;
                 return;
             }
+            // The same tabs under every realm the stash family takes: tab
+            // ids collide across realms on purpose, so a store keyed by
+            // league alone would be caught mixing them.
             let body = if policy_key == "/stash/tab" {
-                match mock_stash(stash_parts[1], stash_parts.get(2).copied()) {
+                match mock_stash(parts[1], parts.get(2).copied()) {
                     Some(v) => v,
                     None => {
                         respond(
@@ -536,33 +656,16 @@ async fn handle(
                     }
                 }
             } else if policy_key == "/stash" {
-                mock_stash_list(stash_parts[0])
+                mock_stash_list(parts[0])
             } else if policy_key == "/character/name" {
-                let name = req.path.trim_start_matches("/character/");
-                json!({ "character": {
-                    "id": "fake0001", "name": name, "realm": "pc", "class": "Scion", "league": "Standard", "level": 97,
-                    "equipment": [
-                        { "id": format!("{name}-helm"), "name": "Starkonja's Head", "typeLine": "Silken Hood", "baseType": "Silken Hood",
-                          "w": 2, "h": 2, "x": 0, "y": 0, "inventoryId": "Helm", "league": "Standard", "frameType": 3, "identified": true,
-                          "socketedItems": [ { "id": format!("{name}-gem0"), "typeLine": "Determination", "baseType": "Determination", "socket": 0, "colour": "S", "frameType": 4 } ] },
-                    ],
-                    "inventory": mock_items(&format!("{name}-inv"), 4),
-                    "jewels": [],
-                }})
+                mock_character(realm, parts[0])
             } else if req.path == "/account/leagues" {
                 json!({ "leagues": [
                     { "id": "Standard", "realm": "pc", "description": "The default game mode.", "category": { "id": "Standard" } },
                     { "id": "Hardcore", "realm": "pc", "description": "A character killed in Hardcore is moved to Standard.", "category": { "id": "Standard" } },
                 ]})
-            } else if req.path == "/character" {
-                json!({
-                    "characters": [
-                        { "id": "fake0001", "name": "StashHoarder", "realm": "pc",
-                          "class": "Scion", "league": "Standard", "level": 97 },
-                        { "id": "fake0002", "name": "MuleQuadTab", "realm": "pc",
-                          "class": "Witch", "league": "Standard", "level": 12 },
-                    ],
-                })
+            } else if policy_key == "/character" {
+                mock_character_list(realm)
             } else {
                 json!({
                     "items": [
@@ -761,4 +864,78 @@ pub async fn respond_with(
 
 pub fn urlencode(s: &str) -> String {
     url::form_urlencoded::byte_serialize(s.as_bytes()).collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::realm::Realm;
+
+    /// The mock reads realm segments the way the documented API does: pc
+    /// by omission, a legal segment before the league or name, and no
+    /// route at all for a realm the family does not take.
+    #[test]
+    fn data_paths_classify_with_realm_before_league_or_name() {
+        fn c(path: &str) -> Option<(String, Realm, String)> {
+            classify_data_path(path).map(|r| (r.policy_key.to_string(), r.realm, r.parts.join("/")))
+        }
+        assert_eq!(
+            c("/character"),
+            Some(("/character".into(), Realm::Pc, String::new()))
+        );
+        assert_eq!(
+            c("/character/poe2"),
+            Some(("/character".into(), Realm::Poe2, String::new()))
+        );
+        assert_eq!(
+            c("/character/Exile"),
+            Some(("/character/name".into(), Realm::Pc, "Exile".into()))
+        );
+        assert_eq!(
+            c("/character/poe2/Exile"),
+            Some(("/character/name".into(), Realm::Poe2, "Exile".into()))
+        );
+        // `pc` is not a legal segment: it reads as a character's name.
+        assert_eq!(
+            c("/character/pc"),
+            Some(("/character/name".into(), Realm::Pc, "pc".into()))
+        );
+        assert_eq!(
+            c("/stash/Standard"),
+            Some(("/stash".into(), Realm::Pc, "Standard".into()))
+        );
+        assert_eq!(
+            c("/stash/xbox/Standard"),
+            Some(("/stash".into(), Realm::Xbox, "Standard".into()))
+        );
+        assert_eq!(
+            c("/stash/sony/Standard/t1/s1"),
+            Some(("/stash/tab".into(), Realm::Sony, "Standard/t1/s1".into()))
+        );
+        assert_eq!(c("/stash/poe2/Standard"), None, "stashes are PoE1 only");
+        assert_eq!(c("/stash/"), None);
+        assert_eq!(
+            c("/profile"),
+            Some(("/profile".into(), Realm::Pc, String::new()))
+        );
+    }
+
+    #[test]
+    fn the_character_list_is_per_realm() {
+        let names = |realm| {
+            mock_character_list(realm)["characters"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|c| c["name"].as_str().unwrap().to_string())
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(names(Realm::Pc), ["StashHoarder", "MuleQuadTab"]);
+        assert_eq!(names(Realm::Poe2), ["SecondExile"]);
+        assert!(names(Realm::Xbox).is_empty());
+        let poe2 = mock_character(Realm::Poe2, "SecondExile");
+        assert_eq!(poe2["character"]["realm"], "poe2");
+        assert!(poe2["character"]["skills"].is_array());
+        assert!(mock_character(Realm::Pc, "StashHoarder")["character"]["skills"].is_null());
+    }
 }

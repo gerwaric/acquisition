@@ -16,6 +16,7 @@ pub mod protocol;
 pub mod provider;
 pub mod rails;
 pub mod ratelimit;
+pub mod realm;
 
 /// Shared version used for the client/daemon handshake. Both binaries link
 /// this crate, so a rebuilt CLI with a changed core will detect a stale daemon.
