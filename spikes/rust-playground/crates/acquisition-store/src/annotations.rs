@@ -170,7 +170,7 @@ impl Annotations {
     /// (the filename convention was its only binding, upgraded here).
     /// This is the way to open annotations for real use; [`Annotations::open`]
     /// on a raw path yields a handle without a verified identity, which
-    /// [`crate::Store::stash_snapshot`] refuses.
+    /// [`crate::Store::refresh_snapshot`] refuses.
     pub fn open_for(dir: &Path, uuid: &str) -> Result<Annotations, AnnotationError> {
         let mut a = Self::open(&annotations_path(dir, uuid))?;
         a.bind(uuid)?;

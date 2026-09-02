@@ -1,11 +1,18 @@
 //! Neutral snapshots: the read the planner (`acquisition-plan`) compiles
 //! plans from. A snapshot names facts and intent together — the listing
-//! basis a plan cites, tab identities with their freshness and listed
-//! metadata, the sync-policy annotation row at its revision, and the
-//! account uuid the pairing is bound to — and carries nothing derived:
-//! no staleness verdicts, no request lists. Policy compilation lives in
-//! `acquisition-plan`, never here — the store exposes neutral snapshots,
-//! "never half a planner" (CONTEXT.md, decided 2026-08-31).
+//! bases a plan cites (the league's stash listing, the realm's character
+//! listing), tab and character identities with their freshness and their
+//! listed entries, the sync-policy annotation row at its revision, and
+//! the account uuid the pairing is bound to — and carries nothing
+//! derived: no staleness verdicts, no request lists. Policy compilation
+//! lives in `acquisition-plan`, never here — the store exposes neutral
+//! snapshots, "never half a planner" (CONTEXT.md, decided 2026-08-31).
+//!
+//! Liveness is settled here, not in the planner (CONTEXT.md, the
+//! 2026-09-02 review rounds): a row in the snapshot is live by the latest
+//! listing's say, `fetched_at` is `None` for a never-fetched *or revived*
+//! location, and the listed entry is the listing's verbatim. The planner
+//! reads those three facts and adds no liveness logic of its own.
 
 use anyhow::{Context, Result, bail};
 use rusqlite::OptionalExtension;
@@ -63,14 +70,43 @@ pub struct TabSnapshot {
     pub item_count: i64,
 }
 
-/// A named snapshot of one (realm, league)'s stash facts plus the
-/// account's sync policy, taken with no daemon involved.
+/// One character as the planner sees it: identity (the GGG `id`), the
+/// address a fetch takes (`name`, listing-owned), the coverage coordinate
+/// (`league`, listing-owned; `None` when the listing gave none), freshness,
+/// and what the server said on each route — verbatim, nothing derived.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct StashSnapshot {
+pub struct CharacterSnapshot {
+    pub id: String,
+    pub name: String,
+    pub league: Option<String>,
+    pub listed_at: Option<i64>,
+    /// `responses.id` of the listing that last listed this character;
+    /// `None`: fetched directly, never listed.
+    pub listed_response: Option<i64>,
+    /// `None`: never fetched — or retired by a listing and revived by a
+    /// later one, which clears it (the store's rule, not the planner's).
+    pub fetched_at: Option<i64>,
+    /// The listing entry, verbatim (`experience`, `deleted`, `expired`,
+    /// the entry's own `league`…); `Null` when never listed or recorded
+    /// before the entry was kept (facts v4).
+    pub listed: Value,
+    /// The fetched character's envelope (the body minus its item arrays),
+    /// verbatim, only while `fetched_at` is set; `Null` otherwise — a
+    /// revived row still holds its old body in the store, and the planner
+    /// must not read a body the listing has disowned.
+    pub fetched: Value,
+}
+
+/// A named snapshot of one (realm, league)'s refresh facts — the stash
+/// listing and its tabs, the realm's character listing and this league's
+/// characters — plus the account's sync policy, taken with no daemon
+/// involved.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RefreshSnapshot {
     /// The account uuid the facts file records (`/profile` lands at every
     /// login) — the identity annotation files carry internally, so a plan
     /// can cite it. Facts and intent are paired under this one uuid;
-    /// [`Store::stash_snapshot`] refuses an annotations handle whose
+    /// [`Store::refresh_snapshot`] refuses an annotations handle whose
     /// stored uuid differs or is absent.
     /// The provider is not here: the store cannot verify it — the caller
     /// binds it by the provider directory it opened.
@@ -85,10 +121,18 @@ pub struct StashSnapshot {
     /// `None`: this league was never listed (tabs may still exist from
     /// direct fetches). A plan that needs a listing says so; the snapshot
     /// does not invent one.
-    pub listing: Option<ListingBasis>,
+    pub stash_listing: Option<ListingBasis>,
     /// Live tabs in listing order (same order as [`Store::tabs`]),
-    /// consistent with `listing` — both are read in one transaction.
+    /// consistent with `stash_listing` — both are read in one transaction.
     pub tabs: Vec<TabSnapshot>,
+    /// The realm's character listing (the list endpoint is per realm, not
+    /// per league); `None` when the realm was never listed.
+    pub character_listing: Option<ListingBasis>,
+    /// Live characters whose listing-owned league is this league — plus
+    /// the realm's characters with no league at all, which no
+    /// (realm, league) policy can cover and every league plan of the
+    /// realm therefore reports. Read in the same transaction.
+    pub characters: Vec<CharacterSnapshot>,
     /// The sync-policy annotation at its revision — the annotation basis
     /// a plan cites. `None` means exactly "no sync policy": the
     /// annotations handle is required, so absent intent is never
@@ -97,15 +141,15 @@ pub struct StashSnapshot {
 }
 
 impl Store {
-    /// Snapshot one (realm, league)'s stash facts and the account's
-    /// sync-policy row, so a plan's fact basis and annotation revision
+    /// Snapshot one (realm, league)'s refresh facts and the account's
+    /// sync-policy row, so a plan's fact bases and annotation revision
     /// come from one read, bound to one account.
-    pub fn stash_snapshot(
+    pub fn refresh_snapshot(
         &self,
         realm: &str,
         league: &str,
         annotations: &Annotations,
-    ) -> Result<StashSnapshot> {
+    ) -> Result<RefreshSnapshot> {
         // All fact reads share one read transaction: under WAL the daemon
         // commits while frontends read, and a listing landing between the
         // basis query and the tab query would pair the old response id
@@ -151,7 +195,13 @@ impl Store {
         // they defaulted to pc / "Standard" at record time
         // (`Endpoint::from_job`), so the match here defaults the same way
         // — which is also how pre-realm rows keep answering for pc.
-        let listing = tx
+        let basis = |r: &rusqlite::Row| {
+            Ok(ListingBasis {
+                response_id: r.get(0)?,
+                fetched_at: r.get(1)?,
+            })
+        };
+        let stash_listing = tx
             .query_row(
                 "SELECT id, fetched_at FROM responses
                   WHERE endpoint = 'stashes' AND status BETWEEN 200 AND 299
@@ -159,12 +209,20 @@ impl Store {
                     AND COALESCE(json_extract(params, '$.league'), 'Standard') = ?2
                   ORDER BY id DESC LIMIT 1",
                 [realm, league],
-                |r| {
-                    Ok(ListingBasis {
-                        response_id: r.get(0)?,
-                        fetched_at: r.get(1)?,
-                    })
-                },
+                basis,
+            )
+            .optional()?;
+        // The character list is per realm; the same query the v4
+        // migration's membership re-stamp uses, so the basis cited here
+        // is the one the rows are stamped to.
+        let character_listing = tx
+            .query_row(
+                "SELECT id, fetched_at FROM responses
+                  WHERE endpoint = 'characters' AND status BETWEEN 200 AND 299
+                    AND COALESCE(json_extract(params, '$.realm'), 'pc') = ?1
+                  ORDER BY id DESC LIMIT 1",
+                [realm],
+                basis,
             )
             .optional()?;
         type RawTab = (
@@ -201,7 +259,68 @@ impl Store {
             })?;
             rows.collect::<Result<_, _>>()?
         };
+        // This league's live characters, in the same order `acq
+        // characters` prints, plus the realm's league-less ones. `json` is
+        // read only when a fetch stands: after revival the column still
+        // holds the disowned body.
+        type RawCharacter = (
+            String,
+            String,
+            Option<String>,
+            Option<i64>,
+            Option<i64>,
+            Option<i64>,
+            Option<String>,
+            Option<String>,
+        );
+        let character_rows: Vec<RawCharacter> = {
+            let mut stmt = tx.prepare(
+                "SELECT c.id, c.name, c.league, c.listed_at, c.listed_response, c.fetched_at, c.listed_json,
+                        CASE WHEN c.fetched_at IS NULL THEN NULL ELSE c.json END
+                   FROM characters c
+                  WHERE c.realm = ?1 AND c.removed_at IS NULL AND (c.league = ?2 OR c.league IS NULL)
+                  ORDER BY c.league, c.level DESC, c.name",
+            )?;
+            let rows = stmt.query_map([realm, league], |r| {
+                Ok((
+                    r.get(0)?,
+                    r.get(1)?,
+                    r.get(2)?,
+                    r.get(3)?,
+                    r.get(4)?,
+                    r.get(5)?,
+                    r.get(6)?,
+                    r.get(7)?,
+                ))
+            })?;
+            rows.collect::<Result<_, _>>()?
+        };
         tx.finish()?;
+        let characters = character_rows
+            .into_iter()
+            .map(
+                |(id, name, league, listed_at, listed_response, fetched_at, listed, fetched)| {
+                    let parse = |raw: Option<String>, what: &str| -> Result<Value> {
+                        match raw {
+                            None => Ok(Value::Null),
+                            Some(raw) => serde_json::from_str::<Value>(&raw).with_context(|| {
+                                format!("character {realm}/{id}: malformed {what} in store")
+                            }),
+                        }
+                    };
+                    Ok(CharacterSnapshot {
+                        listed: parse(listed, "listing entry")?,
+                        fetched: parse(fetched, "fetched character")?,
+                        id,
+                        name,
+                        league,
+                        listed_at,
+                        listed_response,
+                        fetched_at,
+                    })
+                },
+            )
+            .collect::<Result<Vec<_>>>()?;
         let tabs = rows
             .into_iter()
             .map(
@@ -248,14 +367,16 @@ impl Store {
             )
             .collect::<Result<Vec<_>>>()?;
         let policy = annotations.get(SYNC_POLICY_SCOPE, SYNC_POLICY_KEY, SYNC_POLICY_KIND)?;
-        Ok(StashSnapshot {
+        Ok(RefreshSnapshot {
             account_uuid,
             account_name,
             realm: realm.into(),
             league: league.into(),
             taken_at: crate::now(),
-            listing,
+            stash_listing,
             tabs,
+            character_listing,
+            characters,
             policy,
         })
     }
@@ -316,8 +437,8 @@ mod tests {
             100,
         )
         .unwrap();
-        let first = s.stash_snapshot("pc", "Standard", &a).unwrap();
-        let basis = first.listing.unwrap();
+        let first = s.refresh_snapshot("pc", "Standard", &a).unwrap();
+        let basis = first.stash_listing.unwrap();
         assert_eq!(basis.fetched_at, 100);
         assert!(first.policy.is_none());
         assert_eq!(first.account_uuid, "u-1");
@@ -342,8 +463,8 @@ mod tests {
                 None,
             )
             .unwrap();
-        let snap = s.stash_snapshot("pc", "Standard", &a).unwrap();
-        let later = snap.listing.unwrap();
+        let snap = s.refresh_snapshot("pc", "Standard", &a).unwrap();
+        let later = snap.stash_listing.unwrap();
         assert!(later.response_id > basis.response_id);
         assert_eq!(later.fetched_at, 200);
         assert_eq!(snap.tabs[0].listed_response, Some(later.response_id));
@@ -353,7 +474,7 @@ mod tests {
         // the next write, which is the annotation layer's business.
         a.delete("account", "", SYNC_POLICY_KIND, 1).unwrap();
         assert!(
-            s.stash_snapshot("pc", "Standard", &a)
+            s.refresh_snapshot("pc", "Standard", &a)
                 .unwrap()
                 .policy
                 .is_none()
@@ -384,8 +505,8 @@ mod tests {
             60,
         )
         .unwrap();
-        let std = s.stash_snapshot("pc", "Standard", &a).unwrap();
-        assert!(std.listing.is_none());
+        let std = s.refresh_snapshot("pc", "Standard", &a).unwrap();
+        assert!(std.stash_listing.is_none());
         assert_eq!(std.tabs.len(), 1);
         let x1 = &std.tabs[0];
         assert_eq!(
@@ -394,8 +515,8 @@ mod tests {
         );
         assert_eq!((x1.listed_response, x1.item_count), (None, 1));
         assert_eq!(x1.metadata, Value::Null);
-        let hc = s.stash_snapshot("pc", "Hardcore", &a).unwrap();
-        assert_eq!(hc.listing.unwrap().fetched_at, 50);
+        let hc = s.refresh_snapshot("pc", "Hardcore", &a).unwrap();
+        assert_eq!(hc.stash_listing.unwrap().fetched_at, 50);
         assert_eq!(hc.tabs.len(), 1);
         assert_eq!(hc.tabs[0].id, "h1");
     }
@@ -428,7 +549,7 @@ mod tests {
             110,
         )
         .unwrap();
-        let snap = s.stash_snapshot("pc", "Standard", &a).unwrap();
+        let snap = s.refresh_snapshot("pc", "Standard", &a).unwrap();
         assert_eq!(
             snap.tabs.iter().map(|t| t.id.as_str()).collect::<Vec<_>>(),
             vec!["t1", "m1", "s1", "gone"]
@@ -454,7 +575,7 @@ mod tests {
         )
         .unwrap();
         let ids: Vec<String> = s
-            .stash_snapshot("pc", "Standard", &a)
+            .refresh_snapshot("pc", "Standard", &a)
             .unwrap()
             .tabs
             .into_iter()
@@ -488,7 +609,7 @@ mod tests {
             110,
         )
         .unwrap();
-        let snap = s.stash_snapshot("pc", "Standard", &a).unwrap();
+        let snap = s.refresh_snapshot("pc", "Standard", &a).unwrap();
         let t1 = &snap.tabs[0];
         assert_eq!(t1.metadata, json!({ "colour": "7c5436" }));
         assert_eq!((t1.fetched_at, t1.item_count), (Some(110), 1));
@@ -503,7 +624,7 @@ mod tests {
             120,
         )
         .unwrap();
-        let snap = s.stash_snapshot("pc", "Standard", &a).unwrap();
+        let snap = s.refresh_snapshot("pc", "Standard", &a).unwrap();
         assert_eq!(snap.tabs[0].metadata, json!({ "colour": "ffffff" }));
     }
 
@@ -522,8 +643,8 @@ mod tests {
         // clock tick, or t2 stays live while the basis says otherwise.
         s.record(&listing_ep(), &json!({}), 200, &two, 100).unwrap();
         s.record(&listing_ep(), &json!({}), 200, &one, 100).unwrap();
-        let snap = s.stash_snapshot("pc", "Standard", &a).unwrap();
-        let basis = snap.listing.unwrap();
+        let snap = s.refresh_snapshot("pc", "Standard", &a).unwrap();
+        let basis = snap.stash_listing.unwrap();
         assert_eq!(
             snap.tabs.iter().map(|t| t.id.as_str()).collect::<Vec<_>>(),
             vec!["t1"]
@@ -559,8 +680,8 @@ mod tests {
             err.downcast_ref::<crate::MalformedBody>().is_some(),
             "{err:#}"
         );
-        let snap = s.stash_snapshot("pc", "Standard", &a).unwrap();
-        assert_eq!(snap.listing.unwrap().fetched_at, 100);
+        let snap = s.refresh_snapshot("pc", "Standard", &a).unwrap();
+        assert_eq!(snap.stash_listing.unwrap().fetched_at, 100);
         assert_eq!(snap.tabs.len(), 1);
         // An array whose entries lack their identity is just as malformed:
         // ingesting it would retire every real tab. The error rolls the
@@ -578,8 +699,8 @@ mod tests {
             err.downcast_ref::<crate::MalformedBody>().is_some(),
             "{err:#}"
         );
-        let snap = s.stash_snapshot("pc", "Standard", &a).unwrap();
-        assert_eq!(snap.listing.unwrap().fetched_at, 100);
+        let snap = s.refresh_snapshot("pc", "Standard", &a).unwrap();
+        assert_eq!(snap.stash_listing.unwrap().fetched_at, 100);
         assert_eq!(snap.tabs.len(), 1);
         // Same rule for the character list: malformed is never "empty",
         // and an id-less (or name-less) entry poisons nothing.
@@ -639,7 +760,7 @@ mod tests {
         s.conn
             .execute("UPDATE tabs SET listed_json = 'not json'", [])
             .unwrap();
-        let err = s.stash_snapshot("pc", "Standard", &a).unwrap_err();
+        let err = s.refresh_snapshot("pc", "Standard", &a).unwrap_err();
         assert!(err.to_string().contains("Standard/t1"), "{err:#}");
     }
 
@@ -648,17 +769,17 @@ mod tests {
         let a = Annotations::open_memory_for("u-1").unwrap();
         // A facts file with no recorded account cannot bind intent.
         let s = Store::open_memory().unwrap();
-        let err = s.stash_snapshot("pc", "Standard", &a).unwrap_err();
+        let err = s.refresh_snapshot("pc", "Standard", &a).unwrap_err();
         assert!(err.to_string().contains("no account identity"), "{err:#}");
         // A handle bound to another account's uuid is refused; a handle
         // never bound at all (raw open, no stored identity) is refused
         // too — never trusted to the caller.
         let s = store(); // records uuid u-1
         let other = Annotations::open_memory_for("u-2").unwrap();
-        let err = s.stash_snapshot("pc", "Standard", &other).unwrap_err();
+        let err = s.refresh_snapshot("pc", "Standard", &other).unwrap_err();
         assert!(err.to_string().contains("u-2"), "{err:#}");
         let unbound = Annotations::open_memory().unwrap();
-        let err = s.stash_snapshot("pc", "Standard", &unbound).unwrap_err();
+        let err = s.refresh_snapshot("pc", "Standard", &unbound).unwrap_err();
         assert!(err.to_string().contains("no account identity"), "{err:#}");
         // The account's own file is accepted — including when reopened
         // from its raw path, because the uuid lives inside the file.
@@ -670,7 +791,7 @@ mod tests {
         drop(Annotations::open_for(&dir, "u-1").unwrap());
         let reopened = Annotations::open(&annotations_path(&dir, "u-1")).unwrap();
         assert_eq!(reopened.uuid(), Some("u-1"));
-        let snap = s.stash_snapshot("pc", "Standard", &reopened).unwrap();
+        let snap = s.refresh_snapshot("pc", "Standard", &reopened).unwrap();
         assert_eq!(snap.account_uuid, "u-1");
         // A copied/renamed file keeps its owner: u-2's database placed at
         // u-1's path still says u-2 and is refused.
@@ -684,7 +805,7 @@ mod tests {
         .unwrap();
         let copied = Annotations::open(&annotations_path(&dir2, "u-1")).unwrap();
         assert_eq!(copied.uuid(), Some("u-2"));
-        let err = s.stash_snapshot("pc", "Standard", &copied).unwrap_err();
+        let err = s.refresh_snapshot("pc", "Standard", &copied).unwrap_err();
         assert!(err.to_string().contains("u-2"), "{err:#}");
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -715,23 +836,230 @@ mod tests {
             200,
         )
         .unwrap();
-        let pc = s.stash_snapshot("pc", "Standard", &a).unwrap();
-        let xbox = s.stash_snapshot("xbox", "Standard", &a).unwrap();
+        let pc = s.refresh_snapshot("pc", "Standard", &a).unwrap();
+        let xbox = s.refresh_snapshot("xbox", "Standard", &a).unwrap();
         assert_eq!(
-            (pc.realm.as_str(), pc.listing.unwrap().fetched_at),
+            (pc.realm.as_str(), pc.stash_listing.unwrap().fetched_at),
             ("pc", 100)
         );
         assert_eq!(
-            (xbox.realm.as_str(), xbox.listing.unwrap().fetched_at),
+            (xbox.realm.as_str(), xbox.stash_listing.unwrap().fetched_at),
             ("xbox", 200)
         );
         assert_eq!(pc.tabs[0].name, "One");
         assert_eq!(xbox.tabs[0].name, "Console");
         assert!(
-            s.stash_snapshot("sony", "Standard", &a)
+            s.refresh_snapshot("sony", "Standard", &a)
                 .unwrap()
-                .listing
+                .stash_listing
                 .is_none()
         );
+    }
+
+    fn characters_ep(realm: &str) -> Endpoint {
+        Endpoint::Characters {
+            realm: realm.into(),
+        }
+    }
+
+    fn list_characters(s: &mut Store, realm: &str, entries: Value, at: i64) {
+        s.record(
+            &characters_ep(realm),
+            &json!({ "realm": realm }),
+            200,
+            &json!({ "characters": entries }),
+            at,
+        )
+        .unwrap();
+    }
+
+    fn fetch_character(s: &mut Store, realm: &str, character: Value, at: i64) {
+        let name = character["name"].as_str().unwrap().to_string();
+        s.record(
+            &Endpoint::Character {
+                realm: realm.into(),
+                name: name.clone(),
+            },
+            &json!({ "realm": realm, "name": name }),
+            200,
+            &json!({ "character": character }),
+            at,
+        )
+        .unwrap();
+    }
+
+    /// The character basis is the realm's latest listing; the rows are
+    /// this league's plus the realm's league-less ones (no (realm, league)
+    /// policy can cover those, so every league plan of the realm sees
+    /// them); another realm's characters and basis are its own.
+    #[test]
+    fn the_character_basis_is_per_realm_and_the_rows_are_per_league_plus_league_less() {
+        let mut s = store();
+        let a = Annotations::open_memory_for("u-1").unwrap();
+        list_characters(
+            &mut s,
+            "pc",
+            json!([
+                { "id": "c-std", "name": "Std", "league": "Standard", "level": 90, "experience": 100 },
+                { "id": "c-hc", "name": "Hc", "league": "Hardcore", "level": 80 },
+                { "id": "c-none", "name": "Nowhere", "level": 1 },
+            ]),
+            100,
+        );
+        list_characters(
+            &mut s,
+            "poe2",
+            json!([ { "id": "c-p2", "name": "Second", "league": "Standard", "level": 41 } ]),
+            200,
+        );
+        let std = s.refresh_snapshot("pc", "Standard", &a).unwrap();
+        let basis = std.character_listing.unwrap();
+        assert_eq!((basis.fetched_at, std.stash_listing), (100, None));
+        assert_eq!(
+            std.characters
+                .iter()
+                .map(|c| c.id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["c-none", "c-std"]
+        );
+        let c = std.characters.iter().find(|c| c.id == "c-std").unwrap();
+        assert_eq!(
+            (
+                c.name.as_str(),
+                c.league.as_deref(),
+                c.listed_at,
+                c.fetched_at
+            ),
+            ("Std", Some("Standard"), Some(100), None)
+        );
+        assert_eq!(c.listed_response, Some(basis.response_id));
+        assert_eq!(c.listed["experience"], 100);
+        assert_eq!(c.fetched, Value::Null);
+        assert_eq!(
+            std.characters
+                .iter()
+                .find(|c| c.id == "c-none")
+                .unwrap()
+                .league,
+            None
+        );
+        let hc = s.refresh_snapshot("pc", "Hardcore", &a).unwrap();
+        assert_eq!(
+            hc.characters
+                .iter()
+                .map(|c| c.id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["c-none", "c-hc"]
+        );
+        assert_eq!(hc.character_listing, Some(basis));
+        let poe2 = s.refresh_snapshot("poe2", "Standard", &a).unwrap();
+        assert_eq!(poe2.character_listing.unwrap().fetched_at, 200);
+        assert_eq!(
+            poe2.characters
+                .iter()
+                .map(|c| c.id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["c-p2"]
+        );
+        let xbox = s.refresh_snapshot("xbox", "Standard", &a).unwrap();
+        assert!(xbox.character_listing.is_none() && xbox.characters.is_empty());
+    }
+
+    /// A fetch fills `fetched` and never touches the listed entry; a drop
+    /// and revival by two listings (no fetch between) leaves the row
+    /// never-fetched with no body to read — the store's liveness rule,
+    /// visible to the planner as exactly three facts.
+    #[test]
+    fn a_character_fetch_fills_the_body_and_revival_clears_it() {
+        let mut s = store();
+        let a = Annotations::open_memory_for("u-1").unwrap();
+        let hero = json!([{ "id": "c1", "name": "Hero", "league": "Standard", "level": 90, "experience": 100 }]);
+        list_characters(&mut s, "pc", hero.clone(), 100);
+        fetch_character(
+            &mut s,
+            "pc",
+            json!({ "id": "c1", "name": "Hero", "league": "Standard", "level": 90, "experience": 150,
+                    "inventory": [ item("i1") ] }),
+            110,
+        );
+        let snap = s.refresh_snapshot("pc", "Standard", &a).unwrap();
+        let c = &snap.characters[0];
+        assert_eq!(c.fetched_at, Some(110));
+        assert_eq!(
+            (&c.listed["experience"], &c.fetched["experience"]),
+            (&json!(100), &json!(150))
+        );
+        assert_eq!(c.fetched["_split"]["inventory"], 1);
+        assert!(
+            c.fetched.get("inventory").is_none(),
+            "the envelope, not the body"
+        );
+        // Dropped, then revived: never fetched, and no body offered.
+        list_characters(&mut s, "pc", json!([]), 120);
+        assert!(
+            s.refresh_snapshot("pc", "Standard", &a)
+                .unwrap()
+                .characters
+                .is_empty()
+        );
+        list_characters(&mut s, "pc", hero, 130);
+        let snap = s.refresh_snapshot("pc", "Standard", &a).unwrap();
+        let c = &snap.characters[0];
+        assert_eq!((c.fetched_at, &c.fetched), (None, &Value::Null));
+        assert_eq!(c.listed_at, Some(130));
+        assert_eq!(
+            c.listed_response,
+            Some(snap.character_listing.unwrap().response_id)
+        );
+    }
+
+    /// Two character listings in one second: membership is per response,
+    /// and the rows are stamped to the basis the snapshot cites.
+    #[test]
+    fn two_character_listings_in_one_second_still_retire_dropped_characters() {
+        let mut s = store();
+        let a = Annotations::open_memory_for("u-1").unwrap();
+        list_characters(
+            &mut s,
+            "pc",
+            json!([
+                { "id": "c1", "name": "One", "league": "Standard" },
+                { "id": "c2", "name": "Two", "league": "Standard" },
+            ]),
+            100,
+        );
+        list_characters(
+            &mut s,
+            "pc",
+            json!([ { "id": "c1", "name": "One", "league": "Standard" } ]),
+            100,
+        );
+        let snap = s.refresh_snapshot("pc", "Standard", &a).unwrap();
+        let basis = snap.character_listing.unwrap();
+        assert_eq!(
+            snap.characters
+                .iter()
+                .map(|c| c.id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["c1"]
+        );
+        assert_eq!(snap.characters[0].listed_response, Some(basis.response_id));
+    }
+
+    #[test]
+    fn malformed_stored_character_json_is_an_error_with_the_address() {
+        let mut s = store();
+        let a = Annotations::open_memory_for("u-1").unwrap();
+        list_characters(
+            &mut s,
+            "pc",
+            json!([ { "id": "c1", "name": "One", "league": "Standard" } ]),
+            100,
+        );
+        s.conn
+            .execute("UPDATE characters SET listed_json = 'not json'", [])
+            .unwrap();
+        let err = s.refresh_snapshot("pc", "Standard", &a).unwrap_err();
+        assert!(err.to_string().contains("pc/c1"), "{err:#}");
     }
 }

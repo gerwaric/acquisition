@@ -184,6 +184,49 @@ pub fn tabs(realm: Realm, league: &str, json: bool) -> Result<()> {
     Ok(())
 }
 
+/// `acq store characters`: the characters on record, from the shared
+/// store (no daemon, no network) — the CLI's twin of the MCP `characters`
+/// tool. The full id: policy ids match exactly (CONTEXT.md, 2026-09-02).
+pub fn characters(realm: Option<Realm>, league: Option<&str>, json: bool) -> Result<()> {
+    let store = open()?;
+    let characters = store.characters(realm.map(Realm::as_str), league)?;
+    if json {
+        println!("{}", serde_json::to_string_pretty(&characters)?);
+        return Ok(());
+    }
+    if characters.is_empty() {
+        println!(
+            "no characters known in {} (run `acq characters` or cover them in the sync policy)",
+            store.path().display()
+        );
+        return Ok(());
+    }
+    let now = acquisition_store::now();
+    println!(
+        "{:<64} {:<24} {:<5} {:<16} {:<5} {:>6}  {:<12} fetched",
+        "id", "name", "realm", "league", "level", "items", "listed"
+    );
+    for c in &characters {
+        println!(
+            "{:<64} {:<24} {:<5} {:<16} {:<5} {:>6}  {:<12} {}",
+            c.id,
+            c.name.chars().take(24).collect::<String>(),
+            c.realm,
+            c.league.as_deref().unwrap_or("-"),
+            c.level.map(|l| l.to_string()).unwrap_or_default(),
+            c.item_count,
+            ago(now, c.listed_at),
+            ago(now, c.fetched_at),
+        );
+    }
+    println!(
+        "{} characters, {} items",
+        characters.len(),
+        characters.iter().map(|c| c.item_count).sum::<i64>()
+    );
+    Ok(())
+}
+
 pub fn search(
     text: &str,
     realm: Option<Realm>,

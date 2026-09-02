@@ -309,10 +309,11 @@ pub use index::{
     AccountEntry, Index, Resolve, account_matches, account_path, index_path, store_dir,
 };
 pub use snapshot::{
-    ListingBasis, SYNC_POLICY_KEY, SYNC_POLICY_KIND, SYNC_POLICY_SCOPE, StashSnapshot, TabSnapshot,
+    CharacterSnapshot, ListingBasis, RefreshSnapshot, SYNC_POLICY_KEY, SYNC_POLICY_KIND,
+    SYNC_POLICY_SCOPE, TabSnapshot,
 };
 
-/// Listing order shared by [`Store::tabs`] and [`Store::stash_snapshot`]:
+/// Listing order shared by [`Store::tabs`] and [`Store::refresh_snapshot`]:
 /// folder children after their folder, substashes after their tab.
 pub(crate) const TAB_ORDER_SQL: &str = "ORDER BY COALESCE((SELECT p.idx FROM tabs p WHERE p.realm = t.realm AND p.league = t.league AND p.id = t.parent), t.idx, 1000000),
                        t.parent IS NOT NULL, COALESCE(t.idx, 0), t.name";

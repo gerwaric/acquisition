@@ -4,8 +4,11 @@
 //! executes exactly its plan's actions, discovery (substash stubs) waits
 //! for the next plan instead of expanding the current one, and after a
 //! bootstrap listing plus two reconciliation cycles the plan is empty.
+//! The policy names tabs and characters together (characters joined the
+//! plan 2026-09-02): both listings in the bootstrap cycle, both facets'
+//! fetches in the next, and the character facts on record at the end.
 //!
-//! Slow-ish on purpose (one daemon, ~17 mock sends, real waits): this is
+//! Slow-ish on purpose (one daemon, ~21 mock sends, real waits): this is
 //! the one test that proves the whole slice through the real binaries.
 
 use std::collections::HashMap;
@@ -129,42 +132,55 @@ fn the_plan_apply_replan_loop_closes_against_the_mock() {
         &[
             "policy",
             "set",
-            r#"{"version":1,"leagues":{"Standard":{"tabs":"all","max_age_seconds":3600}}}"#,
+            r#"{"version":3,"realms":{"pc":{"leagues":{"Standard":{"tabs":"all","characters":"all","max_age_seconds":3600}}}}}"#,
             "--json",
         ],
     );
     assert!(out.status.success(), "{out:?}");
     assert_eq!(sole_json(&out)["revision"], json!(1));
 
-    // Cycle 1 — never listed: the plan is the listing alone (no membership
-    // authority without a basis), and applying it runs exactly one request.
+    // Cycle 1 — never listed on either route: the plan is the two
+    // listings alone (no membership authority without a basis), and
+    // applying it runs exactly two requests.
     let first = plan(&base);
     assert!(
-        matches!(first.actions[..], [RefreshAction::ListStashes { .. }]),
+        matches!(
+            first.actions[..],
+            [
+                RefreshAction::ListStashes { .. },
+                RefreshAction::ListCharacters { .. }
+            ]
+        ),
         "{:?}",
         first.actions
     );
     let payload = apply(&base, &["refresh", "--apply", "--json"]);
-    assert_eq!(payload["requests"], json!(1));
-    assert_eq!(payload["children"]["done"], json!(1));
+    assert_eq!(payload["requests"], json!(2));
+    assert_eq!(payload["children"]["done"], json!(2));
 
-    // Cycle 2 — the listing is on record: every listed tab wants its first
-    // fetch (the mock lists 5 top-level tabs plus 2 folder children; the
-    // folder itself is skipped, never fetched), and nothing re-lists.
+    // Cycle 2 — both listings are on record: every listed tab wants its
+    // first fetch (the mock lists 5 top-level tabs plus 2 folder children;
+    // the folder itself is skipped, never fetched), so does each of the
+    // mock's 2 pc characters, and nothing re-lists.
     let second = plan(&base);
-    assert_eq!(second.logical_requests, 7, "{:?}", second.actions);
+    assert_eq!(second.logical_requests, 9, "{:?}", second.actions);
+    let (tabs, characters): (Vec<_>, Vec<_>) = second
+        .actions
+        .iter()
+        .partition(|a| matches!(a, RefreshAction::FetchTab { .. }));
+    assert_eq!(tabs.len(), 7, "{:?}", second.actions);
     assert!(
-        second
-            .actions
+        characters
             .iter()
-            .all(|a| matches!(a, RefreshAction::FetchTab { .. })),
+            .all(|a| matches!(a, RefreshAction::FetchCharacter { .. }))
+            && characters.len() == 2,
         "{:?}",
         second.actions
     );
 
     // The admission budget refuses this plan whole, before any child runs:
     // the daemon's error comes back through the CLI as a structured
-    // failure, and the next plan still owes all 7 fetches.
+    // failure, and the next plan still owes all 9 fetches.
     let out = acq(
         &base,
         &["refresh", "--apply", "--max-requests", "1", "--json"],
@@ -178,15 +194,27 @@ fn the_plan_apply_replan_loop_closes_against_the_mock() {
             .contains("exceeds the budget"),
         "{err}"
     );
-    assert_eq!(plan(&base).logical_requests, 7);
+    assert_eq!(plan(&base).logical_requests, 9);
 
     // The reviewed-envelope path: apply the exact plan that was printed.
     let reviewed = base.join("cycle2.json");
     std::fs::write(&reviewed, serde_json::to_vec(&second).unwrap()).unwrap();
     let apply_arg = format!("--apply={}", reviewed.display());
     let payload = apply(&base, &["refresh", &apply_arg, "--json"]);
-    assert_eq!(payload["requests"], json!(7));
-    assert_eq!(payload["children"]["done"], json!(7));
+    assert_eq!(payload["requests"], json!(9));
+    assert_eq!(payload["children"]["done"], json!(9));
+
+    // The character facts landed under the id-keyed rows: both fetched,
+    // with items, readable with no daemon.
+    let out = acq(&base, &["store", "characters", "--realm", "pc", "--json"]);
+    assert!(out.status.success(), "{out:?}");
+    let rows = sole_json(&out);
+    let rows = rows.as_array().unwrap();
+    assert_eq!(rows.len(), 2, "{rows:?}");
+    for row in rows {
+        assert!(row["fetched_at"].is_i64(), "{row}");
+        assert!(row["item_count"].as_i64().unwrap() > 0, "{row}");
+    }
 
     // Cycle 3 — fetching the map/unique parents landed their substash
     // stubs, so discovery arrives one plan later (never as an expansion of
@@ -205,10 +233,16 @@ fn the_plan_apply_replan_loop_closes_against_the_mock() {
     let payload = apply(&base, &["refresh", "--apply", "--json"]);
     assert_eq!(payload["children"]["done"], json!(7));
 
-    // Cycle 4 — closed: everything covered is fresh, and the no-op apply
-    // spends nothing.
+    // Cycle 4 — closed: everything covered is fresh on both facets, and
+    // the no-op apply spends nothing.
     let fourth = plan(&base);
     assert!(fourth.actions.is_empty(), "{:?}", fourth.actions);
+    assert_eq!(
+        fourth.skipped_characters.len(),
+        2,
+        "{:?}",
+        fourth.skipped_characters
+    );
     let out = acq(&base, &["refresh", "--apply", "--json"]);
     assert!(out.status.success(), "{out:?}");
     assert_eq!(sole_json(&out)["requests"], json!(0));

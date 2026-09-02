@@ -31,10 +31,12 @@ use serde_json::{Value, json};
 const POLICY: &str =
     r#"{"version":1,"leagues":{"Standard":{"tabs":"all","max_age_seconds":3600}}}"#;
 
-/// A valid policy covering nothing: the replan against it is an empty
-/// plan, which is how the no-op branch gets exercised with no daemon.
+/// A valid policy whose one id the facts lack (reported as unknown, never
+/// fetched): the replan against it is an empty plan, which is how the
+/// no-op branch gets exercised with no daemon. (An empty id list is not a
+/// policy — it names no work and is refused since policy v3.)
 const EMPTY_POLICY: &str =
-    r#"{"version":1,"leagues":{"Standard":{"tabs":[],"max_age_seconds":3600}}}"#;
+    r#"{"version":1,"leagues":{"Standard":{"tabs":["no-such-tab"],"max_age_seconds":3600}}}"#;
 
 /// One plain loopback HTTP GET — enough to click the mock's approve link
 /// (same shape as `apply_loop.rs`).
@@ -244,7 +246,8 @@ fn the_mcp_tools_carry_the_plan_slice_and_its_gates() {
         }
     });
 
-    // Intent moves to revision 2 — coverage now empty, so the honest
+    // Intent moves to revision 2 — coverage now names only an id the facts
+    // lack (reported, never fetched), so the honest
     // replan (compiled with the daemon down; the note says why there is
     // no quote) authorizes nothing.
     let empty_policy: Value = serde_json::from_str(EMPTY_POLICY).unwrap();

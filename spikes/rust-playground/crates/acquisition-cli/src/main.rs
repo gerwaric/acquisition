@@ -159,8 +159,9 @@ enum Cmd {
         /// league governs; giving --league too asserts they agree.
         #[arg(long)]
         league: Option<String>,
-        /// pc (default), xbox, or sony. With `--apply=FILE`, the plan's
-        /// own realm governs; giving --realm too asserts they agree.
+        /// pc (default), xbox, sony, or poe2 (a poe2 policy entry can
+        /// cover characters only). With `--apply=FILE`, the plan's own
+        /// realm governs; giving --realm too asserts they agree.
         #[arg(long, value_parser = parse_realm)]
         realm: Option<Realm>,
     },
@@ -236,6 +237,16 @@ enum ItemsCmd {
 enum StoreCmd {
     /// Path, size, and row counts.
     Status,
+    /// Characters on record (no daemon): id, address, league, freshness,
+    /// live item count. `acq characters` (the job) fetches the list anew.
+    Characters {
+        /// Restrict to one realm (pc, xbox, sony, poe2); every realm otherwise.
+        #[arg(long, value_parser = parse_realm)]
+        realm: Option<Realm>,
+        /// Restrict to one league; every league otherwise.
+        #[arg(long)]
+        league: Option<String>,
+    },
     /// Item events (added/moved/changed/removed) from recent ingests.
     Events {
         #[arg(long, default_value_t = 24.0)]
@@ -418,6 +429,9 @@ async fn run(cli: Cli) -> Result<()> {
         },
         Cmd::Store { cmd } => match cmd {
             StoreCmd::Status => store_cmd::status(cli.json),
+            StoreCmd::Characters { realm, league } => {
+                store_cmd::characters(realm, league.as_deref(), cli.json)
+            }
             StoreCmd::Events { hours, limit } => store_cmd::events(hours, limit, cli.json),
             StoreCmd::Rebuild => store_cmd::rebuild(cli.json),
             StoreCmd::Import { path } => store_cmd::import(&path, cli.json),

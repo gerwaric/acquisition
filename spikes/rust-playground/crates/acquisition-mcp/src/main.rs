@@ -250,9 +250,13 @@ struct JobParams {
 #[derive(Deserialize, schemars::JsonSchema)]
 struct SetPolicyParams {
     /// The sync-policy value, e.g.
-    /// {"version":2,"realms":{"pc":{"leagues":{"Standard":{"tabs":"all","max_age_seconds":3600}}}}}
-    /// (a version-1 value with a top-level `leagues` map still parses, as
-    /// realm pc).
+    /// {"version":3,"realms":{"pc":{"leagues":{"Standard":{"tabs":"all","characters":"all","max_age_seconds":3600}}}}}
+    /// — per league, `tabs` and/or `characters` ("all" or an id list;
+    /// absent means no coverage of that facet; an entry covering neither is
+    /// refused). `tabs` is refused under realm poe2 (stashes are PoE1
+    /// only); `characters` is taken under every realm. Older values still
+    /// parse: a version-1 top-level `leagues` map as realm pc, and version
+    /// 1/2 as tab coverage only.
     /// Validated strictly before anything lands — a typo'd field is
     /// refused, never half-honored.
     value: Value,
@@ -268,7 +272,8 @@ struct SetPolicyParams {
 struct PlanParams {
     /// League name; defaults to "Standard".
     league: Option<String>,
-    /// Realm: pc (default), xbox, or sony.
+    /// Realm: pc (default), xbox, sony, or poe2 (a poe2 plan can carry
+    /// character work only).
     realm: Option<String>,
     account: Option<String>,
 }
@@ -447,7 +452,7 @@ impl AcqMcp {
     }
 
     #[tool(
-        description = "Compile the stored sync policy + facts on record into a RefreshPlan: the explicit, bounded action set applying would execute, with per-action reasons, skipped tabs, and a coarse wire estimate. Offline — sends nothing, spends nothing. A running daemon adds its read-only quote (ETA + rate-limit headroom; never spawned for this); `quote_note` says why one is absent. Review the plan, then hand `plan` to apply_plan."
+        description = "Compile the stored sync policy + facts on record into a RefreshPlan for one (realm, league): the explicit, bounded action set applying would execute — stash listing and tab fetches, the realm's character listing and character fetches, each facet as the policy covers it — with per-action reasons, skipped tabs and characters, unknown ids, and a coarse wire estimate. Offline — sends nothing, spends nothing. A running daemon adds its read-only quote (ETA + rate-limit headroom; never spawned for this); `quote_note` says why one is absent. Review the plan, then hand `plan` to apply_plan."
     )]
     async fn refresh_plan(
         &self,
@@ -456,7 +461,7 @@ impl AcqMcp {
         let (dir, entry, annotations) = open_intent(p.account.as_deref()).map_err(err)?;
         let store = Store::open(&account_path(&dir, &entry.username)).map_err(err)?;
         let snapshot = store
-            .stash_snapshot(
+            .refresh_snapshot(
                 realm_param(p.realm.as_deref())?.as_str(),
                 p.league.as_deref().unwrap_or("Standard"),
                 &annotations,

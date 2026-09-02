@@ -350,21 +350,28 @@ fn classify_data_path(path: &str) -> Option<DataRoute<'_>> {
 /// plan").
 fn mock_character_list(realm: crate::realm::Realm) -> serde_json::Value {
     use crate::realm::Realm;
+    // `experience` rides on every entry as it does live (59 of 59 on the
+    // 2026-09-02 sample), matching the fetched body's, so a plan's
+    // freshness heuristic sees an agreeing listing and the loop closes.
     let characters = match realm {
         Realm::Pc => json!([
             { "id": "fake0001", "name": "StashHoarder", "realm": "pc",
-              "class": "Scion", "league": "Standard", "level": 97 },
+              "class": "Scion", "league": "Standard", "level": 97, "experience": MOCK_EXPERIENCE },
             { "id": "fake0002", "name": "MuleQuadTab", "realm": "pc",
-              "class": "Witch", "league": "Standard", "level": 12 },
+              "class": "Witch", "league": "Standard", "level": 12, "experience": MOCK_EXPERIENCE },
         ]),
         Realm::Poe2 => json!([
             { "id": "fake2001", "name": "SecondExile", "realm": "poe2",
-              "class": "Monk", "league": "Standard", "level": 41 },
+              "class": "Monk", "league": "Standard", "level": 41, "experience": MOCK_EXPERIENCE },
         ]),
         Realm::Xbox | Realm::Sony => json!([]),
     };
     json!({ "characters": characters })
 }
+
+/// One experience value for every mock character, list entry and body
+/// alike: the mock account never plays, so nothing ever proves change.
+const MOCK_EXPERIENCE: u64 = 4_250_334_444;
 
 /// `GET /character[/realm]/{name}`: equipment + inventory (+ `skills`
 /// for a PoE2 character, the array the docs add there).
@@ -382,6 +389,7 @@ fn mock_character(realm: crate::realm::Realm, name: &str) -> serde_json::Value {
         .unwrap_or_else(|| format!("fake-{name}"));
     let mut character = json!({
         "id": id, "name": name, "realm": realm.as_str(), "class": "Scion", "league": "Standard", "level": 97,
+        "experience": MOCK_EXPERIENCE,
         "equipment": [
             { "id": format!("{name}-helm"), "name": "Starkonja's Head", "typeLine": "Silken Hood", "baseType": "Silken Hood",
               "w": 2, "h": 2, "x": 0, "y": 0, "inventoryId": "Helm", "league": "Standard", "frameType": 3, "frameTypeId": "rare", "identified": true,

@@ -12,8 +12,8 @@ use acquisition_core::client::{Client, ConnectOptions};
 use acquisition_core::protocol::{Quote, QuoteJob, QuoteScope, Request, Response};
 use acquisition_core::realm::Realm;
 use acquisition_plan::{
-    FetchReason, ListingReason, PlanError, RefreshAction, RefreshPlan, SkipReason, plan_refresh,
-    put_sync_policy,
+    CharacterSkipReason, FetchReason, ListingReason, PlanError, RefreshAction, RefreshPlan,
+    SkipReason, plan_refresh, put_sync_policy,
 };
 use acquisition_store::{
     AccountEntry, Annotations, SYNC_POLICY_KEY, SYNC_POLICY_KIND, SYNC_POLICY_SCOPE, Store,
@@ -25,7 +25,7 @@ use serde_json::Value;
 use crate::store_cmd;
 
 /// A shape hint for humans; the planner's strict parse is the authority.
-const POLICY_EXAMPLE: &str = r#"{"version":2,"realms":{"pc":{"leagues":{"Standard":{"tabs":"all","max_age_seconds":3600}}}}}"#;
+const POLICY_EXAMPLE: &str = r#"{"version":3,"realms":{"pc":{"leagues":{"Standard":{"tabs":"all","characters":"all","max_age_seconds":3600}}}}}"#;
 
 /// The selected account's provider directory, index entry, and annotations
 /// file — the latter addressed by the uuid the index maps the account to.
@@ -125,7 +125,7 @@ fn write_policy(
 pub async fn refresh_plan(realm: Realm, league: &str, json: bool) -> Result<()> {
     let (dir, entry, annotations) = open_intent()?;
     let store = Store::open(&account_path(&dir, &entry.username))?;
-    let snapshot = store.stash_snapshot(realm.as_str(), league, &annotations)?;
+    let snapshot = store.refresh_snapshot(realm.as_str(), league, &annotations)?;
     let provider = store_cmd::provider();
     let now = acquisition_store::now();
     let plan = match plan_refresh(provider, &snapshot, now) {
@@ -182,7 +182,7 @@ pub async fn refresh_apply(
             let league = league_flag.unwrap_or("Standard");
             let realm = realm_flag.unwrap_or(Realm::DEFAULT);
             let store = Store::open(&account_path(&dir, &entry.username))?;
-            let snapshot = store.stash_snapshot(realm.as_str(), league, &annotations)?;
+            let snapshot = store.refresh_snapshot(realm.as_str(), league, &annotations)?;
             match plan_refresh(provider, &snapshot, acquisition_store::now()) {
                 Err(PlanError::NoSyncPolicy) => bail!(
                     "no sync policy is set for {} — declare one first, e.g. \
@@ -378,13 +378,23 @@ fn print_plan(plan: &RefreshPlan, quote_note: Option<&str>, now: i64) {
         plan.basis.policy_revision,
         store_cmd::ago(now, Some(plan.basis.snapshot_taken_at)),
     );
-    match &plan.basis.listing {
+    // Both bases are the facts as of the read; which facets the policy
+    // covers shows in the actions and skips, not here.
+    match &plan.basis.stash_listing {
         Some(listing) => println!(
-            "basis: listing response {} (fetched {})",
+            "basis: stash listing response {} (fetched {})",
             listing.response_id,
             store_cmd::ago(now, Some(listing.fetched_at))
         ),
-        None => println!("basis: league never listed — the listing itself is the plan"),
+        None => println!("basis: league's stashes never listed"),
+    }
+    match &plan.basis.character_listing {
+        Some(listing) => println!(
+            "basis: character listing response {} (fetched {})",
+            listing.response_id,
+            store_cmd::ago(now, Some(listing.fetched_at))
+        ),
+        None => println!("basis: realm's characters never listed"),
     }
     println!();
     if plan.actions.is_empty() {
@@ -407,14 +417,24 @@ fn print_plan(plan: &RefreshPlan, quote_note: Option<&str>, now: i64) {
     for prerequisite in &plan.wire_sends.prerequisites {
         println!("  + {prerequisite}");
     }
-    if !plan.skipped.is_empty() {
-        println!("{}", summarize_skipped(plan));
+    if !plan.skipped_tabs.is_empty() {
+        println!("{}", summarize_skipped_tabs(plan));
     }
     if !plan.unknown_tabs.is_empty() {
         println!(
-            "policy names {} id(s) the facts lack (reported, never fetched): {}",
+            "policy names {} tab id(s) the facts lack (reported, never fetched): {}",
             plan.unknown_tabs.len(),
             plan.unknown_tabs.join(", ")
+        );
+    }
+    if !plan.skipped_characters.is_empty() {
+        println!("{}", summarize_skipped_characters(plan));
+    }
+    if !plan.unknown_characters.is_empty() {
+        println!(
+            "policy names {} character id(s) the facts lack (reported, never fetched): {}",
+            plan.unknown_characters.len(),
+            plan.unknown_characters.join(", ")
         );
     }
     println!();
@@ -459,6 +479,25 @@ fn describe_action(action: &RefreshAction) -> String {
             format!("{parent}/{id} {} ({tab_type})", label(name)),
             fetch_why(reason)
         ),
+        RefreshAction::ListCharacters { realm, reason } => {
+            let why = match reason {
+                ListingReason::NeverListed => "never listed".into(),
+                ListingReason::Stale { age_seconds } => stale(*age_seconds),
+            };
+            format!(
+                "list characters {:<27} {why}",
+                format!("({realm}, realm-wide)")
+            )
+        }
+        // The full id: matching is exact, and a prefix cannot be pasted
+        // into a policy (CONTEXT.md, 2026-09-02).
+        RefreshAction::FetchCharacter {
+            id, name, reason, ..
+        } => format!(
+            "fetch character {:<28} {}",
+            format!("{id} {}", label(name)),
+            fetch_why(reason)
+        ),
     }
 }
 
@@ -495,15 +534,60 @@ fn fetch_why(reason: &FetchReason) -> String {
         FetchReason::ListedCountDisagrees { listed, held } => {
             format!("listing says {listed} item(s), store holds {held}")
         }
+        FetchReason::ListedExperienceDisagrees { listed, held } => {
+            format!("listing says experience {listed}, last fetch had {held} — played since")
+        }
+        FetchReason::ListedLeagueDisagrees { listed, held } => {
+            format!("listing says league {listed}, last fetch said {held}")
+        }
     }
+}
+
+/// One line of counts by reason — a real account skips dozens of fresh
+/// characters, and the full per-character detail is in the JSON envelope.
+fn summarize_skipped_characters(plan: &RefreshPlan) -> String {
+    let (mut fresh, mut awaiting, mut no_league, mut deleted, mut expired) =
+        (0usize, 0usize, 0usize, 0usize, 0usize);
+    for c in &plan.skipped_characters {
+        match c.reason {
+            CharacterSkipReason::Fresh { .. } => fresh += 1,
+            CharacterSkipReason::AwaitingListing => awaiting += 1,
+            CharacterSkipReason::NoLeague => no_league += 1,
+            CharacterSkipReason::Deleted => deleted += 1,
+            CharacterSkipReason::Expired => expired += 1,
+        }
+    }
+    let mut parts = Vec::new();
+    if fresh > 0 {
+        parts.push(format!("{fresh} fresh"));
+    }
+    if awaiting > 0 {
+        parts.push(format!("{awaiting} awaiting the listing"));
+    }
+    if no_league > 0 {
+        parts.push(format!(
+            "{no_league} with no league — outside every league's coverage"
+        ));
+    }
+    if deleted > 0 {
+        parts.push(format!("{deleted} listed as deleted — never fetched"));
+    }
+    if expired > 0 {
+        parts.push(format!("{expired} listed as expired — never fetched"));
+    }
+    format!(
+        "skipped {} covered character(s): {} (per-character reasons in --json)",
+        plan.skipped_characters.len(),
+        parts.join(", ")
+    )
 }
 
 /// One line of counts by reason — a real league skips hundreds of fresh
 /// tabs, and the full per-tab detail is in the JSON envelope.
-fn summarize_skipped(plan: &RefreshPlan) -> String {
+fn summarize_skipped_tabs(plan: &RefreshPlan) -> String {
     let (mut fresh, mut folders, mut awaiting, mut orphaned, mut empty) =
         (0usize, 0usize, 0usize, 0usize, 0usize);
-    for tab in &plan.skipped {
+    for tab in &plan.skipped_tabs {
         match tab.reason {
             SkipReason::Fresh { .. } => fresh += 1,
             SkipReason::Folder => folders += 1,
@@ -530,7 +614,7 @@ fn summarize_skipped(plan: &RefreshPlan) -> String {
     }
     format!(
         "skipped {} covered tab(s): {} (per-tab reasons in --json)",
-        plan.skipped.len(),
+        plan.skipped_tabs.len(),
         parts.join(", ")
     )
 }
@@ -592,7 +676,7 @@ fn print_scope(scope: &QuoteScope) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use acquisition_store::{AnnotationRow, StashSnapshot};
+    use acquisition_store::{AnnotationRow, RefreshSnapshot};
     use serde_json::json;
 
     fn annotations() -> Annotations {
@@ -665,14 +749,16 @@ mod tests {
 
     /// A plan with no store behind it, for exercising the quote attempt.
     fn tiny_plan() -> RefreshPlan {
-        let snapshot = StashSnapshot {
+        let snapshot = RefreshSnapshot {
             account_uuid: "u-cli".into(),
             account_name: Some("Alice#1234".into()),
             realm: "pc".into(),
             league: "Standard".into(),
             taken_at: 1_000,
-            listing: None,
+            stash_listing: None,
             tabs: Vec::new(),
+            character_listing: None,
+            characters: Vec::new(),
             policy: Some(AnnotationRow {
                 scope: SYNC_POLICY_SCOPE.into(),
                 key: SYNC_POLICY_KEY.into(),

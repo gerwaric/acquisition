@@ -1,6 +1,6 @@
 //! The planner: policy compilation and Plan construction (CONTEXT.md,
 //! decided 2026-08-31). This crate turns a neutral store snapshot
-//! ([`acquisition_store::StashSnapshot`] — facts and intent named together,
+//! ([`acquisition_store::RefreshSnapshot`] — facts and intent named together,
 //! nothing derived) plus the sync policy into a [`RefreshPlan`]: a
 //! serializable, immutable authorization envelope, computable with the
 //! daemon down.
@@ -45,8 +45,8 @@ use acquisition_core::daemon::MAX_429_RETRIES;
 use acquisition_core::protocol::Quote;
 use acquisition_core::realm::{Family, Realm};
 use acquisition_store::{
-    AnnotationError, AnnotationRow, Annotations, ListingBasis, SYNC_POLICY_KEY, SYNC_POLICY_KIND,
-    SYNC_POLICY_SCOPE, StashSnapshot, TabSnapshot,
+    AnnotationError, AnnotationRow, Annotations, CharacterSnapshot, ListingBasis, RefreshSnapshot,
+    SYNC_POLICY_KEY, SYNC_POLICY_KIND, SYNC_POLICY_SCOPE, TabSnapshot,
 };
 
 /// The plan envelope schema this build writes ([`RefreshPlan::plan_schema`]).
@@ -57,15 +57,24 @@ use acquisition_store::{
 /// the embedded `Quote` included — is a schema bump, so an older reader
 /// reports "newer schema" instead of "malformed" on a newer plan.
 /// v4 added the `empty_stub` skip kind; v5 (2026-09-02) put `realm`
-/// beside `league` on the envelope and on every action.
-pub const REFRESH_PLAN_SCHEMA: i64 = 5;
+/// beside `league` on the envelope and on every action; v6 (same day)
+/// brought characters in: the `list_characters` and `fetch_character`
+/// actions, the character listing basis (`basis.character_listing`,
+/// beside the renamed `basis.stash_listing`), `skipped_characters` and
+/// `unknown_characters` beside the renamed `skipped_tabs` and
+/// `unknown_tabs`, and two character disagreement arms on `FetchReason`.
+pub const REFRESH_PLAN_SCHEMA: i64 = 6;
 
 /// The sync-policy value schema this build reads ([`SyncPolicy::version`]).
 /// The store carries the row opaquely; its shape is this crate's business.
 /// v2 (2026-09-02) nests leagues under realms
 /// (`realms.<R>.leagues.<L>`); a v1 policy (`leagues.<L>`) still parses,
-/// upgraded on the way in as realm pc — the only realm v1 could mean.
-pub const SYNC_POLICY_VERSION: i64 = 2;
+/// upgraded on the way in as realm pc — the only realm v1 could mean. v3
+/// (same day) puts `characters` beside `tabs` under each league, each
+/// facet optional — absent (or an empty list) means no coverage of that
+/// facet, and an entry covering neither is malformed ("names no work").
+/// v1 and v2 upgrade to their tab coverage plus no character coverage.
+pub const SYNC_POLICY_VERSION: i64 = 3;
 
 /// A planner failure with a stable kind (CONTEXT.md: malformed external
 /// input is a structured error, never a panic and never a bare string).
@@ -140,12 +149,13 @@ impl std::error::Error for PlanError {}
 /// The per-account sync policy: an inspectable declaration of desired
 /// coverage and freshness — not a scheduler. Stored as the
 /// `("account", "", "sync-policy")` annotation; written by frontends,
-/// compiled here into minimal requests. In memory it is always the v2
-/// shape; a stored v1 value is upgraded on parse (realm pc) and stays
-/// stored as written — what the human typed is what `policy show` shows.
+/// compiled here into minimal requests. In memory it is always the v3
+/// shape; a stored v1 or v2 value is upgraded on parse (v1 as realm pc,
+/// both as tab coverage only) and stays stored as written — what the
+/// human typed is what `policy show` shows.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct SyncPolicy {
-    /// [`SYNC_POLICY_VERSION`] once parsed (a v1 value reads as v2).
+    /// [`SYNC_POLICY_VERSION`] once parsed (older values read as v3).
     pub version: i64,
     /// Coverage per realm, then per league. A (realm, league) not named
     /// here compiles to [`PlanError::LeagueNotCovered`], never to
@@ -157,25 +167,41 @@ pub struct SyncPolicy {
 /// are rendered with; a league entry that names work an endpoint family
 /// does not take on this realm (tabs under `poe2`, PoE1-only stashes) is
 /// a parse error, so no policy can ask for an unobserved URL shape.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct RealmPolicy {
     pub leagues: BTreeMap<String, LeaguePolicy>,
 }
 
+/// One league's coverage: per facet — tabs, characters — plus the
+/// freshness window they share. `None` is exactly "no coverage of that
+/// facet": no listing, no fetches, nothing skipped or reported for it.
+/// (An empty id list normalizes to `None` on parse.) At least one facet
+/// is `Some`; the parse refuses an entry that names no work.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct LeaguePolicy {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tabs: Option<Selection>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub characters: Option<Selection>,
+    /// The freshness declaration: facts older than this want refreshing.
+    /// Applies to each facet's listing and to each covered fetch alike.
+    pub max_age_seconds: u32,
+}
+
 /// The raw JSON shapes, one strict struct per version — `deny_unknown_fields`
-/// on each, so a stray top-level field is refused whatever the stamp (an
-/// untagged enum would lose that: review finding 2026-09-02). The stamp
-/// picks exactly one shape ([`parse_policy`]), and `SyncPolicy`'s
+/// on each, at every depth, so a stray field is refused whatever the stamp
+/// (an untagged enum would lose that: review finding 2026-09-02). The
+/// stamp picks exactly one shape ([`parse_policy`]), and `SyncPolicy`'s
 /// `Deserialize` goes through the same function, so the version gate, the
-/// unknown-field refusal, and the per-realm family check cannot be
-/// bypassed by deserializing around [`SyncPolicy::from_value`].
+/// unknown-field refusal, the names-no-work rule, and the per-facet
+/// family check cannot be bypassed by deserializing around
+/// [`SyncPolicy::from_value`].
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct SyncPolicyWireV1 {
     #[allow(dead_code)]
     version: i64,
-    leagues: BTreeMap<String, LeaguePolicy>,
+    leagues: BTreeMap<String, LeagueWireV2>,
 }
 
 #[derive(Deserialize)]
@@ -183,7 +209,64 @@ struct SyncPolicyWireV1 {
 struct SyncPolicyWireV2 {
     #[allow(dead_code)]
     version: i64,
-    realms: BTreeMap<Realm, RealmPolicy>,
+    realms: BTreeMap<Realm, RealmWire<LeagueWireV2>>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SyncPolicyWireV3 {
+    #[allow(dead_code)]
+    version: i64,
+    realms: BTreeMap<Realm, RealmWire<LeagueWireV3>>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RealmWire<L> {
+    leagues: BTreeMap<String, L>,
+}
+
+/// v1 and v2 league entries: `tabs` required, characters unknown.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct LeagueWireV2 {
+    tabs: Selection,
+    max_age_seconds: u32,
+}
+
+impl From<LeagueWireV2> for LeaguePolicy {
+    fn from(w: LeagueWireV2) -> LeaguePolicy {
+        LeaguePolicy {
+            tabs: w.tabs.normalize(),
+            characters: None,
+            max_age_seconds: w.max_age_seconds,
+        }
+    }
+}
+
+/// v3 league entries: each facet optional.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct LeagueWireV3 {
+    tabs: Option<Selection>,
+    characters: Option<Selection>,
+    max_age_seconds: u32,
+}
+
+impl From<LeagueWireV3> for LeaguePolicy {
+    fn from(w: LeagueWireV3) -> LeaguePolicy {
+        LeaguePolicy {
+            tabs: w.tabs.and_then(Selection::normalize),
+            characters: w.characters.and_then(Selection::normalize),
+            max_age_seconds: w.max_age_seconds,
+        }
+    }
+}
+
+fn realm_policy<L: Into<LeaguePolicy>>(leagues: BTreeMap<String, L>) -> RealmPolicy {
+    RealmPolicy {
+        leagues: leagues.into_iter().map(|(l, e)| (l, e.into())).collect(),
+    }
 }
 
 impl<'de> Deserialize<'de> for SyncPolicy {
@@ -194,28 +277,36 @@ impl<'de> Deserialize<'de> for SyncPolicy {
 }
 
 /// The one parse: the `version` stamp selects the strict shape, the
-/// shape is validated whole, a v1 value upgrades to realm pc, and no
-/// realm may name work its endpoint family does not take.
+/// shape is validated whole, older values upgrade (v1 to realm pc; v1
+/// and v2 to tab coverage only), every entry must name work, and no
+/// facet may name work its endpoint family does not take on that realm
+/// (`tabs` under poe2; `characters` is taken everywhere).
 fn parse_policy(value: &Value) -> Result<SyncPolicy, String> {
     let version = value
         .get("version")
         .and_then(Value::as_i64)
         .ok_or_else(|| "missing integer `version`".to_string())?;
-    let realms = match version {
+    let realms: BTreeMap<Realm, RealmPolicy> = match version {
         1 => {
             let wire: SyncPolicyWireV1 =
                 serde_json::from_value(value.clone()).map_err(|e| e.to_string())?;
-            BTreeMap::from([(
-                Realm::Pc,
-                RealmPolicy {
-                    leagues: wire.leagues,
-                },
-            )])
+            BTreeMap::from([(Realm::Pc, realm_policy(wire.leagues))])
         }
         2 => {
             let wire: SyncPolicyWireV2 =
                 serde_json::from_value(value.clone()).map_err(|e| e.to_string())?;
             wire.realms
+                .into_iter()
+                .map(|(r, p)| (r, realm_policy(p.leagues)))
+                .collect()
+        }
+        3 => {
+            let wire: SyncPolicyWireV3 =
+                serde_json::from_value(value.clone()).map_err(|e| e.to_string())?;
+            wire.realms
+                .into_iter()
+                .map(|(r, p)| (r, realm_policy(p.leagues)))
+                .collect()
         }
         other => {
             return Err(format!(
@@ -224,10 +315,21 @@ fn parse_policy(value: &Value) -> Result<SyncPolicy, String> {
         }
     };
     for (realm, policy) in &realms {
-        if !Family::Stashes.accepts(*realm) && !policy.leagues.is_empty() {
-            return Err(format!(
-                "tabs under realm {realm}: the stash endpoints do not take it (PoE1 only)"
-            ));
+        for (league, entry) in &policy.leagues {
+            // Judged after normalization: `tabs: []` with characters
+            // absent or empty names no work either — an entry that
+            // covers nothing is a mistake to report, never a silent no-op.
+            if entry.tabs.is_none() && entry.characters.is_none() {
+                return Err(format!(
+                    "{realm}/{league}: names no work — neither `tabs` nor `characters` \
+                     covers anything (absent, or an empty list)"
+                ));
+            }
+            if entry.tabs.is_some() && !Family::Stashes.accepts(*realm) {
+                return Err(format!(
+                    "tabs under realm {realm}: the stash endpoints do not take it (PoE1 only)"
+                ));
+            }
         }
     }
     Ok(SyncPolicy {
@@ -236,64 +338,72 @@ fn parse_policy(value: &Value) -> Result<SyncPolicy, String> {
     })
 }
 
+/// What a facet covers: `"all"` or an explicit id list. For tabs an id
+/// covers the tab and its children ([`covers_tab`]): a map/unique tab's
+/// substashes (their own GGG ids; the `parent/id` display convention is a
+/// frontend matter) and a folder's children. For characters an id is the
+/// GGG character id, matched exactly.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct LeaguePolicy {
-    pub tabs: TabSelection,
-    /// The freshness declaration: facts older than this want refreshing.
-    /// Applies to the listing and to each selected tab's fetch alike.
-    pub max_age_seconds: u32,
-}
-
-/// Which tabs the policy covers: `"all"` or an explicit id list. An id
-/// covers the tab and its children: a map/unique tab's substashes (their
-/// own GGG ids; the `parent/id` display convention is a frontend matter)
-/// and a folder's children. A child named directly is covered too.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(try_from = "TabSelectionRepr", into = "TabSelectionRepr")]
-pub enum TabSelection {
+#[serde(try_from = "SelectionRepr", into = "SelectionRepr")]
+pub enum Selection {
     All,
     Ids(Vec<String>),
 }
 
-impl TabSelection {
-    /// Covered when the tab's own id is listed or its parent's is.
-    fn covers(&self, tab: &TabSnapshot) -> bool {
+impl Selection {
+    /// An empty id list covers nothing, which is the same declaration as
+    /// leaving the facet out.
+    fn normalize(self) -> Option<Selection> {
         match self {
-            TabSelection::All => true,
-            TabSelection::Ids(ids) => ids
-                .iter()
-                .any(|i| i == &tab.id || Some(i.as_str()) == tab.parent.as_deref()),
+            Selection::Ids(ids) if ids.is_empty() => None,
+            some => Some(some),
         }
     }
+
+    /// Whether `id` itself is named.
+    pub fn covers_id(&self, id: &str) -> bool {
+        match self {
+            Selection::All => true,
+            Selection::Ids(ids) => ids.iter().any(|i| i == id),
+        }
+    }
+}
+
+/// A tab is covered when its own id is named or its parent's is.
+fn covers_tab(selection: &Selection, tab: &TabSnapshot) -> bool {
+    selection.covers_id(&tab.id)
+        || tab
+            .parent
+            .as_deref()
+            .is_some_and(|p| selection.covers_id(p))
 }
 
 /// The JSON shape: the string `"all"` or an array of ids.
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(untagged)]
-enum TabSelectionRepr {
+enum SelectionRepr {
     Word(String),
     Ids(Vec<String>),
 }
 
-impl TryFrom<TabSelectionRepr> for TabSelection {
+impl TryFrom<SelectionRepr> for Selection {
     type Error = String;
-    fn try_from(repr: TabSelectionRepr) -> Result<Self, String> {
+    fn try_from(repr: SelectionRepr) -> Result<Self, String> {
         match repr {
-            TabSelectionRepr::Word(w) if w == "all" => Ok(TabSelection::All),
-            TabSelectionRepr::Word(w) => Err(format!(
-                "tabs must be \"all\" or a list of tab ids, not \"{w}\""
+            SelectionRepr::Word(w) if w == "all" => Ok(Selection::All),
+            SelectionRepr::Word(w) => Err(format!(
+                "coverage must be \"all\" or a list of ids, not \"{w}\""
             )),
-            TabSelectionRepr::Ids(ids) => Ok(TabSelection::Ids(ids)),
+            SelectionRepr::Ids(ids) => Ok(Selection::Ids(ids)),
         }
     }
 }
 
-impl From<TabSelection> for TabSelectionRepr {
-    fn from(sel: TabSelection) -> TabSelectionRepr {
+impl From<Selection> for SelectionRepr {
+    fn from(sel: Selection) -> SelectionRepr {
         match sel {
-            TabSelection::All => TabSelectionRepr::Word("all".into()),
-            TabSelection::Ids(ids) => TabSelectionRepr::Ids(ids),
+            Selection::All => SelectionRepr::Word("all".into()),
+            Selection::Ids(ids) => SelectionRepr::Ids(ids),
         }
     }
 }
@@ -302,8 +412,8 @@ impl SyncPolicy {
     /// Parse a stored sync-policy value. The version stamp is checked
     /// before the full shape so a genuinely newer policy reports
     /// [`PlanError::PolicyVersionUnsupported`], not a spurious
-    /// unknown-field complaint. v1 and v2 both parse (v1 upgrades to
-    /// realm pc).
+    /// unknown-field complaint. v1, v2 and v3 all parse (older values
+    /// upgrade in memory).
     pub fn from_value(value: &Value) -> Result<SyncPolicy, PlanError> {
         let found = value
             .get("version")
@@ -379,7 +489,9 @@ pub enum ListingReason {
     Stale { age_seconds: i64 },
 }
 
-/// Why the plan fetches a tab.
+/// Why the plan fetches a tab or a character. The first two arms are
+/// facet-blind; the disagreement arms are each facet's own evidence that a
+/// listing newer than our fetch proves change (never that nothing changed).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum FetchReason {
@@ -387,12 +499,25 @@ pub enum FetchReason {
     Stale {
         age_seconds: i64,
     },
-    /// The heuristic arm: a listing newer than our fetch reported a
-    /// different item count, which proves the tab changed (`listed` is the
-    /// listing's count, `held` what the store holds from the last fetch).
+    /// The tab arm: a listing newer than our fetch reported a different
+    /// item count, which proves the tab changed (`listed` is the listing's
+    /// count, `held` what the store holds from the last fetch).
     ListedCountDisagrees {
         listed: i64,
         held: i64,
+    },
+    /// The character arm: a listing newer than our fetch reported a
+    /// different `experience` — monotone for a character's life, so a
+    /// difference proves play since (`held` is the fetched body's).
+    ListedExperienceDisagrees {
+        listed: i64,
+        held: i64,
+    },
+    /// The character arm's sibling: the listing's league differs from the
+    /// fetched body's — a Hardcore death landing in Standard.
+    ListedLeagueDisagrees {
+        listed: String,
+        held: String,
     },
 }
 
@@ -430,6 +555,36 @@ pub struct SkippedTab {
     pub reason: SkipReason,
 }
 
+/// Why a covered character is not in the action set. Its own enum: a
+/// `folder` reason on a character is malformed, and the strict parse
+/// should say so.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum CharacterSkipReason {
+    /// Fetched within the policy's window and nothing proved a change.
+    Fresh { age_seconds: i64 },
+    /// The realm's characters were never listed, so the plan is the
+    /// listing alone — membership and addresses are unconfirmed.
+    AwaitingListing,
+    /// The listing gave this character no league, so no (realm, league)
+    /// policy can cover it; reported by every league plan of the realm
+    /// (CONTEXT.md, 2026-09-02: uncovered, never a failure).
+    NoLeague,
+    /// The listing flags it deleted: not fetched — a 404 hunt counts
+    /// against the invalid-request threshold.
+    Deleted,
+    /// The listing flags it expired: not fetched, same reasoning.
+    Expired,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SkippedCharacter {
+    pub id: String,
+    pub name: String,
+    pub reason: CharacterSkipReason,
+}
+
 /// One authorized request. Self-contained on purpose: an action can be
 /// rendered, reviewed, or turned into a daemon job without the envelope.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -459,6 +614,21 @@ pub enum RefreshAction {
         tab_type: String,
         reason: FetchReason,
     },
+    /// The realm's character list — realm-wide (the endpoint has no
+    /// league), so it carries none and sits in any league's plan.
+    ListCharacters { realm: Realm, reason: ListingReason },
+    /// One character: `id` is its identity (coverage, reasons, the store
+    /// row), `name` the address the request takes — the listed name, the
+    /// one combination guaranteed to fetch. A name that moved fails its
+    /// child honestly or lands a different id; the next listing
+    /// reconciles (CONTEXT.md, 2026-09-02).
+    FetchCharacter {
+        realm: Realm,
+        league: String,
+        id: String,
+        name: String,
+        reason: FetchReason,
+    },
 }
 
 impl RefreshAction {
@@ -468,17 +638,22 @@ impl RefreshAction {
         match self {
             RefreshAction::ListStashes { realm, .. }
             | RefreshAction::FetchTab { realm, .. }
-            | RefreshAction::FetchSubstash { realm, .. } => *realm,
+            | RefreshAction::FetchSubstash { realm, .. }
+            | RefreshAction::ListCharacters { realm, .. }
+            | RefreshAction::FetchCharacter { realm, .. } => *realm,
         }
     }
 
     /// The league this action touches — validated against the envelope's
-    /// on deserialization.
-    pub fn league(&self) -> &str {
+    /// on deserialization. `None` for a realm-wide action (the character
+    /// list), which is in-envelope for any league of its realm.
+    pub fn league(&self) -> Option<&str> {
         match self {
             RefreshAction::ListStashes { league, .. }
             | RefreshAction::FetchTab { league, .. }
-            | RefreshAction::FetchSubstash { league, .. } => league,
+            | RefreshAction::FetchSubstash { league, .. }
+            | RefreshAction::FetchCharacter { league, .. } => Some(league),
+            RefreshAction::ListCharacters { .. } => None,
         }
     }
 
@@ -491,6 +666,12 @@ impl RefreshAction {
         match self {
             RefreshAction::ListStashes { realm, league, .. } => {
                 ("stashes", json!({ "realm": realm, "league": league }))
+            }
+            RefreshAction::ListCharacters { realm, .. } => {
+                ("characters", json!({ "realm": realm }))
+            }
+            RefreshAction::FetchCharacter { realm, name, .. } => {
+                ("character", json!({ "realm": realm, "name": name }))
             }
             RefreshAction::FetchTab {
                 realm, league, id, ..
@@ -520,9 +701,14 @@ impl RefreshAction {
 pub struct PlanBasis {
     /// When the snapshot was taken (facts as of this read).
     pub snapshot_taken_at: i64,
-    /// The listing the tab set derives from; `None` when the league was
-    /// never listed (which is itself the plan's only action).
-    pub listing: Option<ListingBasis>,
+    /// The stash listing the tab set derives from; `None` when the league
+    /// was never listed (then the listing is the tab facet's only action).
+    /// Carried whenever the snapshot had one, whether or not the policy
+    /// covers tabs — the basis is the facts as of the read.
+    pub stash_listing: Option<ListingBasis>,
+    /// The realm's character listing the character set derives from;
+    /// `None` when the realm was never listed. Same carrying rule.
+    pub character_listing: Option<ListingBasis>,
     /// The sync-policy annotation revision compiled from. Plans always
     /// derive from stored intent — there is no ad-hoc path — so apply can
     /// always check this against the current row (the step-7 staleness
@@ -603,10 +789,14 @@ pub struct RefreshPlan {
     pub actions: Vec<RefreshAction>,
     /// Covered tabs left out, each with why — the plan shows its
     /// reasoning, not just its conclusions.
-    pub skipped: Vec<SkippedTab>,
-    /// Ids the policy names that the facts on record do not: vanished
+    pub skipped_tabs: Vec<SkippedTab>,
+    /// Tab ids the policy names that the facts on record do not: vanished
     /// tabs (or typos). Reported, never invented into actions.
     pub unknown_tabs: Vec<String>,
+    /// Covered characters left out, each with why.
+    pub skipped_characters: Vec<SkippedCharacter>,
+    /// Character ids the policy names that the facts on record do not.
+    pub unknown_characters: Vec<String>,
     /// Exact for a refresh: one logical request per action.
     pub logical_requests: u64,
     pub wire_sends: WireEstimate,
@@ -850,9 +1040,39 @@ impl RefreshPlan {
                 supported: REFRESH_PLAN_SCHEMA,
             });
         }
-        serde_json::from_value(value.clone()).map_err(|e| PlanError::MalformedPlan {
-            detail: e.to_string(),
+        let plan: RefreshPlan =
+            serde_json::from_value(value.clone()).map_err(|e| PlanError::MalformedPlan {
+                detail: e.to_string(),
+            })?;
+        // "Unknown fields at any depth are refused" has one hole serde
+        // cannot close: an internally tagged *unit* variant (`never_fetched`,
+        // `folder`, `deleted`, …) ignores extra fields beside its `kind`,
+        // `deny_unknown_fields` or not. So the derived part of the envelope
+        // must be byte-for-byte what this build would write for it: the
+        // parsed plan re-serializes to exactly the input (the quote aside —
+        // it is an observation with its own strict shape, never rewritten
+        // here). A field smuggled into a reason or a skip fails this even
+        // though the type accepted it.
+        let mut given = value.clone();
+        if let Some(o) = given.as_object_mut() {
+            o.remove("quote");
+        }
+        let expected = serde_json::to_value(RefreshPlan {
+            quote: None,
+            ..plan.clone()
         })
+        .map_err(|e| PlanError::MalformedPlan {
+            detail: e.to_string(),
+        })?;
+        if given != expected {
+            return Err(PlanError::MalformedPlan {
+                detail: "the envelope carries content this build would not write (a field on a \
+                         reason or skip entry this build does not know, or a field it always \
+                         writes left out)"
+                    .into(),
+            });
+        }
+        Ok(plan)
     }
 }
 
@@ -872,8 +1092,10 @@ struct RefreshPlanWire {
     basis: PlanBasis,
     max_age_seconds: u32,
     actions: Vec<RefreshAction>,
-    skipped: Vec<SkippedTab>,
+    skipped_tabs: Vec<SkippedTab>,
     unknown_tabs: Vec<String>,
+    skipped_characters: Vec<SkippedCharacter>,
+    unknown_characters: Vec<String>,
     logical_requests: u64,
     wire_sends: WireEstimate,
     #[serde(default)]
@@ -895,15 +1117,18 @@ impl TryFrom<RefreshPlanWire> for RefreshPlan {
                 wire.operation
             ));
         }
+        // Every action is on the envelope's realm, and every league-bearing
+        // action on its league; a realm-wide action (the character list)
+        // carries no league and is in-envelope for any league of its realm.
         if let Some(stray) = wire
             .actions
             .iter()
-            .find(|a| a.realm() != wire.realm || a.league() != wire.league)
+            .find(|a| a.realm() != wire.realm || a.league().is_some_and(|l| l != wire.league))
         {
             return Err(format!(
                 "action for {}/{:?} inside a plan for {}/{:?}",
                 stray.realm(),
-                stray.league(),
+                stray.league().unwrap_or("<realm-wide>"),
                 wire.realm,
                 wire.league
             ));
@@ -956,8 +1181,10 @@ impl TryFrom<RefreshPlanWire> for RefreshPlan {
             basis: wire.basis,
             max_age_seconds: wire.max_age_seconds,
             actions: wire.actions,
-            skipped: wire.skipped,
+            skipped_tabs: wire.skipped_tabs,
             unknown_tabs: wire.unknown_tabs,
+            skipped_characters: wire.skipped_characters,
+            unknown_characters: wire.unknown_characters,
             logical_requests: wire.logical_requests,
             wire_sends: wire.wire_sends,
             quote: wire.quote,
@@ -971,7 +1198,7 @@ impl TryFrom<RefreshPlanWire> for RefreshPlan {
 /// that demonstrably needs it.
 pub fn plan_refresh(
     provider: &str,
-    snapshot: &StashSnapshot,
+    snapshot: &RefreshSnapshot,
     now: i64,
 ) -> Result<RefreshPlan, PlanError> {
     let row = snapshot.policy.as_ref().ok_or(PlanError::NoSyncPolicy)?;
@@ -981,7 +1208,7 @@ pub fn plan_refresh(
 
 fn compile(
     provider: &str,
-    snapshot: &StashSnapshot,
+    snapshot: &RefreshSnapshot,
     policy: &SyncPolicy,
     policy_revision: i64,
     now: i64,
@@ -998,66 +1225,19 @@ fn compile(
             league: snapshot.league.clone(),
         })?;
     let max_age = i64::from(league_policy.max_age_seconds);
-    let mut actions = Vec::new();
-    // A league with no listing plans the listing **alone** — even tabs on
-    // record from direct fetches wait: without a listing basis the plan
-    // has no membership authority, so fetches defer to the next plan
-    // (D5a's eventual reconciliation). Ages saturate: a corrupt store
-    // timestamp must misread as "very stale", never wrap into "fresh"
-    // (and never panic — the no-panic-on-store-rows rule).
-    let listing_alone = match &snapshot.listing {
-        None => {
-            actions.push(RefreshAction::ListStashes {
-                realm,
-                league: snapshot.league.clone(),
-                reason: ListingReason::NeverListed,
-            });
-            true
-        }
-        Some(basis) => {
-            let age = now.saturating_sub(basis.fetched_at).max(0);
-            if age > max_age {
-                actions.push(RefreshAction::ListStashes {
-                    realm,
-                    league: snapshot.league.clone(),
-                    reason: ListingReason::Stale { age_seconds: age },
-                });
-            }
-            false
-        }
+    // Each facet compiles on its own: an absent facet contributes no
+    // listing, no fetches, nothing skipped, nothing unknown. Tab work
+    // first, then character work — deterministic, nothing more (the
+    // daemon paces the two policies independently anyway).
+    let tabs = match &league_policy.tabs {
+        Some(selection) => compile_tabs(realm, snapshot, selection, max_age, now),
+        None => Facet::empty(),
     };
-    let mut skipped = Vec::new();
-    for tab in &snapshot.tabs {
-        if !league_policy.tabs.covers(tab) {
-            continue;
-        }
-        let verdict = if listing_alone {
-            Err(SkipReason::AwaitingListing)
-        } else if tab.r#type == "Folder" {
-            Err(SkipReason::Folder)
-        } else if is_empty_substash(snapshot, tab) {
-            Err(SkipReason::EmptyStub)
-        } else {
-            fetch_verdict(tab, max_age, now)
-                .and_then(|reason| fetch_action(realm, snapshot, tab, reason))
-        };
-        match verdict {
-            Ok(action) => actions.push(action),
-            Err(reason) => skipped.push(SkippedTab {
-                id: tab.id.clone(),
-                name: tab.name.clone(),
-                reason,
-            }),
-        }
-    }
-    let unknown_tabs = match &league_policy.tabs {
-        TabSelection::All => Vec::new(),
-        TabSelection::Ids(ids) => ids
-            .iter()
-            .filter(|w| !snapshot.tabs.iter().any(|t| &t.id == *w))
-            .cloned()
-            .collect(),
+    let characters = match &league_policy.characters {
+        Some(selection) => compile_characters(realm, snapshot, selection, max_age, now),
+        None => Facet::empty(),
     };
+    let actions: Vec<RefreshAction> = tabs.actions.into_iter().chain(characters.actions).collect();
     let logical_requests = actions.len() as u64;
     let wire_sends = wire_estimate(logical_requests);
     Ok(RefreshPlan {
@@ -1071,24 +1251,171 @@ fn compile(
         generated_at: now,
         basis: PlanBasis {
             snapshot_taken_at: snapshot.taken_at,
-            listing: snapshot.listing,
+            stash_listing: snapshot.stash_listing,
+            character_listing: snapshot.character_listing,
             policy_revision,
         },
         max_age_seconds: league_policy.max_age_seconds,
         actions,
-        skipped,
-        unknown_tabs,
+        skipped_tabs: tabs.skipped,
+        unknown_tabs: tabs.unknown,
+        skipped_characters: characters.skipped,
+        unknown_characters: characters.unknown,
         logical_requests,
         wire_sends,
         quote: None,
     })
 }
 
+/// One facet's compiled output: its actions (listing first), the covered
+/// entities it left out with why, and the policy ids the facts lack.
+struct Facet<S> {
+    actions: Vec<RefreshAction>,
+    skipped: Vec<S>,
+    unknown: Vec<String>,
+}
+
+impl<S> Facet<S> {
+    fn empty() -> Facet<S> {
+        Facet {
+            actions: Vec::new(),
+            skipped: Vec::new(),
+            unknown: Vec::new(),
+        }
+    }
+}
+
+/// Whether a facet's listing is wanted, and whether the facet is the
+/// listing **alone**: with no basis on record the plan has no membership
+/// authority, so every fetch defers to the next plan (D5a's eventual
+/// reconciliation) — even entities on record from direct fetches. Ages
+/// saturate: a corrupt store timestamp must misread as "very stale",
+/// never wrap into "fresh" (and never panic — the no-panic-on-store-rows
+/// rule).
+fn listing_verdict(basis: Option<&ListingBasis>, max_age: i64, now: i64) -> Option<ListingReason> {
+    match basis {
+        None => Some(ListingReason::NeverListed),
+        Some(basis) => {
+            let age = now.saturating_sub(basis.fetched_at).max(0);
+            (age > max_age).then_some(ListingReason::Stale { age_seconds: age })
+        }
+    }
+}
+
+fn compile_tabs(
+    realm: Realm,
+    snapshot: &RefreshSnapshot,
+    selection: &Selection,
+    max_age: i64,
+    now: i64,
+) -> Facet<SkippedTab> {
+    let mut facet = Facet::empty();
+    let listing_alone = snapshot.stash_listing.is_none();
+    if let Some(reason) = listing_verdict(snapshot.stash_listing.as_ref(), max_age, now) {
+        facet.actions.push(RefreshAction::ListStashes {
+            realm,
+            league: snapshot.league.clone(),
+            reason,
+        });
+    }
+    for tab in &snapshot.tabs {
+        if !covers_tab(selection, tab) {
+            continue;
+        }
+        let verdict = if listing_alone {
+            Err(SkipReason::AwaitingListing)
+        } else if tab.r#type == "Folder" {
+            Err(SkipReason::Folder)
+        } else if is_empty_substash(snapshot, tab) {
+            Err(SkipReason::EmptyStub)
+        } else {
+            tab_verdict(tab, max_age, now)
+                .and_then(|reason| fetch_action(realm, snapshot, tab, reason))
+        };
+        match verdict {
+            Ok(action) => facet.actions.push(action),
+            Err(reason) => facet.skipped.push(SkippedTab {
+                id: tab.id.clone(),
+                name: tab.name.clone(),
+                reason,
+            }),
+        }
+    }
+    if let Selection::Ids(ids) = selection {
+        facet.unknown = ids
+            .iter()
+            .filter(|w| !snapshot.tabs.iter().any(|t| &t.id == *w))
+            .cloned()
+            .collect();
+    }
+    facet
+}
+
+fn compile_characters(
+    realm: Realm,
+    snapshot: &RefreshSnapshot,
+    selection: &Selection,
+    max_age: i64,
+    now: i64,
+) -> Facet<SkippedCharacter> {
+    let mut facet = Facet::empty();
+    let listing_alone = snapshot.character_listing.is_none();
+    if let Some(reason) = listing_verdict(snapshot.character_listing.as_ref(), max_age, now) {
+        facet
+            .actions
+            .push(RefreshAction::ListCharacters { realm, reason });
+    }
+    for c in &snapshot.characters {
+        if !selection.covers_id(&c.id) {
+            continue;
+        }
+        let verdict = if listing_alone {
+            Err(CharacterSkipReason::AwaitingListing)
+        } else if c.league.is_none() {
+            Err(CharacterSkipReason::NoLeague)
+        } else if listed_flag(c, "deleted") {
+            Err(CharacterSkipReason::Deleted)
+        } else if listed_flag(c, "expired") {
+            Err(CharacterSkipReason::Expired)
+        } else {
+            character_verdict(c, max_age, now).map(|reason| RefreshAction::FetchCharacter {
+                realm,
+                league: snapshot.league.clone(),
+                id: c.id.clone(),
+                name: c.name.clone(),
+                reason,
+            })
+        };
+        match verdict {
+            Ok(action) => facet.actions.push(action),
+            Err(reason) => facet.skipped.push(SkippedCharacter {
+                id: c.id.clone(),
+                name: c.name.clone(),
+                reason,
+            }),
+        }
+    }
+    if let Selection::Ids(ids) = selection {
+        facet.unknown = ids
+            .iter()
+            .filter(|w| !snapshot.characters.iter().any(|c| &c.id == *w))
+            .cloned()
+            .collect();
+    }
+    facet
+}
+
+/// A listing-entry flag (`deleted`, `expired`): documented as "always
+/// `true` if present", read as exactly that.
+fn listed_flag(c: &CharacterSnapshot, key: &str) -> bool {
+    c.listed.get(key).and_then(Value::as_bool) == Some(true)
+}
+
 /// A substash (its recorded parent is a map/unique tab on record) whose
 /// stub counts 0 items while the store holds none at it. Only substash
 /// stubs carry the count; a listing entry or a folder child never trips
 /// this.
-fn is_empty_substash(snapshot: &StashSnapshot, tab: &TabSnapshot) -> bool {
+fn is_empty_substash(snapshot: &RefreshSnapshot, tab: &TabSnapshot) -> bool {
     let Some(parent) = tab.parent.as_deref() else {
         return false;
     };
@@ -1101,26 +1428,42 @@ fn is_empty_substash(snapshot: &StashSnapshot, tab: &TabSnapshot) -> bool {
         && tab.item_count == 0
 }
 
-/// Fetch or skip, for one covered non-folder tab. `Err` is the skip
-/// reason — the one place the freshness rules live:
-/// never fetched → fetch; older than the window → fetch; a listing newer
-/// than our fetch counting differently → fetch (proof of change); fresh
-/// with no such proof → skip. An agreeing count is not proof of
-/// freshness and cannot skip anything on its own.
-fn fetch_verdict(tab: &TabSnapshot, max_age: i64, now: i64) -> Result<FetchReason, SkipReason> {
-    let Some(fetched_at) = tab.fetched_at else {
+/// The facet-blind half of the freshness rules, the one place they live:
+/// never fetched → fetch; older than the window → fetch. `Err(age)` is a
+/// fetch inside the window, handed to the facet's own disagreement check
+/// — the only thing that can still force a fetch. `fetched_at` is the
+/// store's word: `None` covers a location a listing revived, whose old
+/// facts went with the retirement.
+fn window_verdict(fetched_at: Option<i64>, max_age: i64, now: i64) -> Result<FetchReason, i64> {
+    let Some(fetched_at) = fetched_at else {
         return Ok(FetchReason::NeverFetched);
     };
     let age = now.saturating_sub(fetched_at).max(0);
     if age > max_age {
         return Ok(FetchReason::Stale { age_seconds: age });
     }
-    // The heuristic only reads forward: a listing older than (or racing,
-    // same-second) our fetch says nothing about the fetch's contents.
-    if let (Some(listed_at), Some(listed)) = (
-        tab.listed_at,
-        tab.metadata.get("items").and_then(Value::as_i64),
-    ) && listed_at > fetched_at
+    Err(age)
+}
+
+/// Whether a listing is *newer* than the fetch it is being read against.
+/// The heuristics only read forward: a listing older than (or racing,
+/// same-second) our fetch says nothing about the fetch's contents.
+fn listing_is_newer(listed_at: Option<i64>, fetched_at: Option<i64>) -> bool {
+    matches!((listed_at, fetched_at), (Some(l), Some(f)) if l > f)
+}
+
+/// Fetch or skip, for one covered non-folder tab. `Err` is the skip
+/// reason. The tab's own arm: a listing newer than our fetch counting
+/// differently → fetch (proof of change); fresh with no such proof →
+/// skip. An agreeing count is not proof of freshness and cannot skip
+/// anything on its own.
+fn tab_verdict(tab: &TabSnapshot, max_age: i64, now: i64) -> Result<FetchReason, SkipReason> {
+    let age = match window_verdict(tab.fetched_at, max_age, now) {
+        Ok(reason) => return Ok(reason),
+        Err(age) => age,
+    };
+    if listing_is_newer(tab.listed_at, tab.fetched_at)
+        && let Some(listed) = tab.metadata.get("items").and_then(Value::as_i64)
         && listed != tab.item_count
     {
         return Ok(FetchReason::ListedCountDisagrees {
@@ -1129,6 +1472,43 @@ fn fetch_verdict(tab: &TabSnapshot, max_age: i64, now: i64) -> Result<FetchReaso
         });
     }
     Err(SkipReason::Fresh { age_seconds: age })
+}
+
+/// Fetch or skip, for one covered, listed, league-bearing, live character.
+/// The character's own arms (CONTEXT.md, 2026-09-02): a listing newer
+/// than our fetch reporting a different `experience` proves play since —
+/// judged only when both the entry and the fetched body carry it; and
+/// the listing's league (the row's, listing-owned) differing from the
+/// fetched body's is the same arm. Fresh with no such proof → skip.
+fn character_verdict(
+    c: &CharacterSnapshot,
+    max_age: i64,
+    now: i64,
+) -> Result<FetchReason, CharacterSkipReason> {
+    let age = match window_verdict(c.fetched_at, max_age, now) {
+        Ok(reason) => return Ok(reason),
+        Err(age) => age,
+    };
+    if listing_is_newer(c.listed_at, c.fetched_at) {
+        if let (Some(listed), Some(held)) = (
+            c.listed.get("experience").and_then(Value::as_i64),
+            c.fetched.get("experience").and_then(Value::as_i64),
+        ) && listed != held
+        {
+            return Ok(FetchReason::ListedExperienceDisagrees { listed, held });
+        }
+        if let (Some(listed), Some(held)) = (
+            c.league.as_deref(),
+            c.fetched.get("league").and_then(Value::as_str),
+        ) && listed != held
+        {
+            return Ok(FetchReason::ListedLeagueDisagrees {
+                listed: listed.into(),
+                held: held.into(),
+            });
+        }
+    }
+    Err(CharacterSkipReason::Fresh { age_seconds: age })
 }
 
 /// A fetch action for `tab`: under its parent when the parent is a
@@ -1140,7 +1520,7 @@ fn fetch_verdict(tab: &TabSnapshot, max_age: i64, now: i64) -> Result<FetchReaso
 /// guessing an endpoint here would fetch the wrong path.
 fn fetch_action(
     realm: Realm,
-    snapshot: &StashSnapshot,
+    snapshot: &RefreshSnapshot,
     tab: &TabSnapshot,
     reason: FetchReason,
 ) -> Result<RefreshAction, SkipReason> {
@@ -1240,18 +1620,18 @@ mod tests {
         })
     }
 
-    fn snapshot(s: &Store) -> StashSnapshot {
+    fn snapshot(s: &Store) -> RefreshSnapshot {
         let a = Annotations::open_memory_for("u-1").unwrap();
-        s.stash_snapshot("pc", "Standard", &a).unwrap()
+        s.refresh_snapshot("pc", "Standard", &a).unwrap()
     }
 
     /// Snapshot with `policy` installed as the stored sync-policy row —
     /// the only way plans are made: from stored intent, at its revision.
-    fn snapshot_with(s: &Store, policy: &Value) -> StashSnapshot {
+    fn snapshot_with(s: &Store, policy: &Value) -> RefreshSnapshot {
         let mut a = Annotations::open_memory_for("u-1").unwrap();
         a.put("account", "", SYNC_POLICY_KIND, policy, None)
             .unwrap();
-        s.stash_snapshot("pc", "Standard", &a).unwrap()
+        s.refresh_snapshot("pc", "Standard", &a).unwrap()
     }
 
     fn plan(s: &Store, policy: &Value, now: i64) -> RefreshPlan {
@@ -1272,10 +1652,10 @@ mod tests {
         // have meant — while the stored value stays what was written.
         assert_eq!(p.version, SYNC_POLICY_VERSION);
         let pc = &p.realms[&Realm::Pc].leagues;
-        assert_eq!(pc["Standard"].tabs, TabSelection::All);
+        assert_eq!(pc["Standard"].tabs, Some(Selection::All));
         assert_eq!(
             pc["Hardcore"].tabs,
-            TabSelection::Ids(vec!["t1".into(), "s1".into()])
+            Some(Selection::Ids(vec!["t1".into(), "s1".into()]))
         );
         // The v2 shape: leagues under realms.
         let v2 = policy(json!({
@@ -1287,7 +1667,7 @@ mod tests {
         }));
         assert_eq!(
             v2.realms[&Realm::Xbox].leagues["Standard"].tabs,
-            TabSelection::Ids(vec!["x1".into()])
+            Some(Selection::Ids(vec!["x1".into()]))
         );
         // Tabs under poe2 name a URL shape the stash endpoints do not
         // have (PoE1 only): a parse error, never a request.
@@ -1333,16 +1713,16 @@ mod tests {
         // A newer version is refused as such — checked before the shape,
         // so a v3 policy with v3 fields is not misreported as a typo.
         let err = SyncPolicy::from_value(&json!({
-            "version": 3,
+            "version": 4,
             "realms": {},
-            "some_v3_field": true
+            "some_v4_field": true
         }))
         .unwrap_err();
         assert_eq!(
             err,
             PlanError::PolicyVersionUnsupported {
-                found: 3,
-                supported: 2
+                found: 4,
+                supported: 3
             }
         );
         // The policy round-trips (in its v2 form): what a frontend writes
@@ -1390,17 +1770,17 @@ mod tests {
         // A stored policy row a newer build wrote surfaces its version,
         // and the version gate is not bypassable by deserializing the
         // type directly instead of calling from_value.
-        let v3 = json!({ "version": 3, "realms": {} });
-        let err = plan_refresh("mock", &snapshot_with(&s, &v3), 1000).unwrap_err();
+        let v4 = json!({ "version": 4, "realms": {} });
+        let err = plan_refresh("mock", &snapshot_with(&s, &v4), 1000).unwrap_err();
         assert_eq!(
             err,
             PlanError::PolicyVersionUnsupported {
-                found: 3,
-                supported: 2
+                found: 4,
+                supported: 3
             }
         );
-        let err = serde_json::from_value::<SyncPolicy>(v3).unwrap_err();
-        assert!(err.to_string().contains("version 3"), "{err}");
+        let err = serde_json::from_value::<SyncPolicy>(v4).unwrap_err();
+        assert!(err.to_string().contains("version 4"), "{err}");
     }
 
     #[test]
@@ -1425,14 +1805,14 @@ mod tests {
             }]
         );
         assert_eq!(
-            plan.skipped,
+            plan.skipped_tabs,
             vec![SkippedTab {
                 id: "x1".into(),
                 name: "Fetched".into(),
                 reason: SkipReason::AwaitingListing,
             }]
         );
-        assert_eq!(plan.basis.listing, None);
+        assert_eq!(plan.basis.stash_listing, None);
         assert_eq!(plan.logical_requests, 1);
         assert_eq!((plan.wire_sends.min, plan.wire_sends.max), (1, 3));
         assert_eq!(plan.wire_sends.prerequisites.len(), 2);
@@ -1461,7 +1841,7 @@ mod tests {
                 None,
             )
             .unwrap();
-        let snap = s.stash_snapshot("pc", "Standard", &a).unwrap();
+        let snap = s.refresh_snapshot("pc", "Standard", &a).unwrap();
         let plan = plan_refresh("mock", &snap, 1100).unwrap();
         assert!(plan.actions.is_empty());
         assert_eq!(plan.logical_requests, 0);
@@ -1469,7 +1849,7 @@ mod tests {
         assert!(plan.wire_sends.prerequisites.is_empty());
         // The plan shows its reasoning: the fresh tab is named as skipped.
         assert_eq!(
-            plan.skipped,
+            plan.skipped_tabs,
             vec![SkippedTab {
                 id: "t1".into(),
                 name: "One".into(),
@@ -1479,7 +1859,7 @@ mod tests {
         // And its basis: uuid, provider, listing row, policy revision.
         assert_eq!(plan.account_uuid, "u-1");
         assert_eq!(plan.provider, "mock");
-        assert_eq!(plan.basis.listing, snap.listing);
+        assert_eq!(plan.basis.stash_listing, snap.stash_listing);
         assert_eq!(plan.basis.policy_revision, row.revision);
         assert_eq!(plan.basis.snapshot_taken_at, snap.taken_at);
         assert_eq!(plan.plan_schema, REFRESH_PLAN_SCHEMA);
@@ -1635,7 +2015,7 @@ mod tests {
             plan.actions
         );
         assert!(
-            plan.skipped.contains(&SkippedTab {
+            plan.skipped_tabs.contains(&SkippedTab {
                 id: "s1".into(),
                 name: "".into(),
                 reason: SkipReason::OrphanedParent {
@@ -1643,7 +2023,7 @@ mod tests {
                 },
             }),
             "{:?}",
-            plan.skipped
+            plan.skipped_tabs
         );
     }
 
@@ -1740,7 +2120,7 @@ mod tests {
             }]
         );
         assert_eq!(
-            plan2.skipped,
+            plan2.skipped_tabs,
             vec![
                 SkippedTab {
                     id: "m1".into(),
@@ -1760,7 +2140,7 @@ mod tests {
         // A child named directly is covered as before.
         let direct = plan(&s, &ids_policy_value(&["s1"], 3600), 1200);
         assert_eq!(direct.actions, plan2.actions);
-        assert!(direct.skipped.is_empty());
+        assert!(direct.skipped_tabs.is_empty());
         // An empty stub that nevertheless holds items (a stale 0 against a
         // real fetch) is not "empty": the disagreement arm decides.
         let mut s2 = store();
@@ -1836,7 +2216,7 @@ mod tests {
             }]
         );
         assert_eq!(
-            plan.skipped,
+            plan.skipped_tabs,
             vec![SkippedTab {
                 id: "f1".into(),
                 name: "Folder".into(),
@@ -1872,7 +2252,7 @@ mod tests {
             }]
         );
         assert_eq!(
-            plan.skipped,
+            plan.skipped_tabs,
             vec![SkippedTab {
                 id: "f1".into(),
                 name: "Folder".into(),
@@ -2203,7 +2583,7 @@ mod tests {
             &["actions", "0", "surprise"],
             &["actions", "0", "reason", "surprise"],
             &["basis", "extra"],
-            &["basis", "listing", "extra"],
+            &["basis", "stash_listing", "extra"],
         ] {
             let mut nested = good.clone();
             let mut spot = &mut nested;
@@ -2339,7 +2719,7 @@ mod tests {
         let mut a = Annotations::open_memory_for("u-1").unwrap();
         a.put("account", "", SYNC_POLICY_KIND, &policy, None)
             .unwrap();
-        let snap = s.stash_snapshot("xbox", "Standard", &a).unwrap();
+        let snap = s.refresh_snapshot("xbox", "Standard", &a).unwrap();
         let plan = plan_refresh("mock", &snap, 1500).unwrap();
         assert_eq!(plan.realm, Realm::Xbox);
         let jobs: Vec<(String, Value)> = plan
@@ -2372,7 +2752,7 @@ mod tests {
                 sub: None
             })
         );
-        let pc = s.stash_snapshot("pc", "Standard", &a).unwrap();
+        let pc = s.refresh_snapshot("pc", "Standard", &a).unwrap();
         assert!(matches!(
             plan_refresh("mock", &pc, 1500).unwrap_err(),
             PlanError::LeagueNotCovered {
@@ -2454,6 +2834,7 @@ mod tests {
                     (format!("sub {id}"), format!("{reason:?}"))
                 }
                 RefreshAction::ListStashes { .. } => ("list".into(), String::new()),
+                other => panic!("no character work in a tabs-only policy: {other:?}"),
             })
             .collect();
         kinds.sort();
@@ -2466,5 +2847,694 @@ mod tests {
             "{:?}",
             plan.actions
         );
+    }
+
+    // ---- characters (step 3, 2026-09-02) ------------------------------------
+
+    fn list_characters(s: &mut Store, realm: &str, entries: Value, at: i64) {
+        s.record(
+            &Endpoint::Characters {
+                realm: realm.into(),
+            },
+            &json!({ "realm": realm }),
+            200,
+            &json!({ "characters": entries }),
+            at,
+        )
+        .unwrap();
+    }
+
+    fn fetch_character(s: &mut Store, realm: &str, character: Value, at: i64) {
+        let name = character["name"].as_str().unwrap().to_string();
+        s.record(
+            &Endpoint::Character {
+                realm: realm.into(),
+                name: name.clone(),
+            },
+            &json!({ "realm": realm, "name": name }),
+            200,
+            &json!({ "character": character }),
+            at,
+        )
+        .unwrap();
+    }
+
+    fn entry(id: &str, name: &str, league: &str, experience: i64) -> Value {
+        json!({ "id": id, "name": name, "league": league, "class": "Witch", "level": 90, "experience": experience })
+    }
+
+    fn body(id: &str, name: &str, league: &str, experience: i64) -> Value {
+        let mut b = entry(id, name, league, experience);
+        b["inventory"] = json!([item(&format!("{id}-i1"))]);
+        b["equipment"] = json!([]);
+        b
+    }
+
+    /// A v3 policy for pc/Standard with the given facets (`None` leaves
+    /// the facet out).
+    fn v3_policy_value(
+        tabs: Option<Value>,
+        characters: Option<Value>,
+        max_age_seconds: u32,
+    ) -> Value {
+        let mut league = json!({ "max_age_seconds": max_age_seconds });
+        if let Some(t) = tabs {
+            league["tabs"] = t;
+        }
+        if let Some(c) = characters {
+            league["characters"] = c;
+        }
+        json!({ "version": 3, "realms": { "pc": { "leagues": { "Standard": league } } } })
+    }
+
+    fn character_actions(plan: &RefreshPlan) -> Vec<(String, String)> {
+        plan.actions
+            .iter()
+            .filter_map(|a| match a {
+                RefreshAction::ListCharacters { reason, .. } => {
+                    Some(("list".to_string(), format!("{reason:?}")))
+                }
+                RefreshAction::FetchCharacter { id, reason, .. } => {
+                    Some((id.clone(), format!("{reason:?}")))
+                }
+                _ => None,
+            })
+            .collect()
+    }
+
+    fn character_skips(plan: &RefreshPlan) -> Vec<(String, CharacterSkipReason)> {
+        plan.skipped_characters
+            .iter()
+            .map(|s| (s.id.clone(), s.reason.clone()))
+            .collect()
+    }
+
+    #[test]
+    fn policy_v3_covers_per_facet_and_refuses_an_entry_that_names_no_work() {
+        // Both facets; a character-only entry; a tab-only entry — and a
+        // character-only PoE2 entry is the ordinary shape.
+        let p = policy(json!({
+            "version": 3,
+            "realms": {
+                "pc": { "leagues": {
+                    "Standard": { "tabs": "all", "characters": ["c1"], "max_age_seconds": 60 },
+                    "Hardcore": { "characters": "all", "max_age_seconds": 60 },
+                    "Ruthless": { "tabs": ["t1"], "max_age_seconds": 60 },
+                } },
+                "poe2": { "leagues": { "Standard": { "characters": "all", "max_age_seconds": 60 } } },
+            }
+        }));
+        assert_eq!(p.version, SYNC_POLICY_VERSION);
+        let pc = &p.realms[&Realm::Pc].leagues;
+        assert_eq!(
+            (&pc["Standard"].tabs, &pc["Standard"].characters),
+            (
+                &Some(Selection::All),
+                &Some(Selection::Ids(vec!["c1".into()]))
+            )
+        );
+        assert_eq!(
+            (&pc["Hardcore"].tabs, &pc["Hardcore"].characters),
+            (&None, &Some(Selection::All))
+        );
+        assert_eq!(
+            (&pc["Ruthless"].tabs, &pc["Ruthless"].characters),
+            (&Some(Selection::Ids(vec!["t1".into()])), &None)
+        );
+        assert_eq!(p.realms[&Realm::Poe2].leagues["Standard"].tabs, None);
+        // The in-memory form serializes as v3 without the absent facets,
+        // and parses back equal.
+        let json = serde_json::to_value(&p).unwrap();
+        assert_eq!(json["version"], 3);
+        assert!(
+            json["realms"]["pc"]["leagues"]["Hardcore"]
+                .get("tabs")
+                .is_none()
+        );
+        assert_eq!(serde_json::from_value::<SyncPolicy>(json).unwrap(), p);
+        // v1 and v2 upgrade to tab coverage plus no character coverage.
+        let v1 = policy(all_policy_value(60));
+        assert_eq!(v1.realms[&Realm::Pc].leagues["Standard"].characters, None);
+        // Malformed shapes, each a structured error and never half-honored.
+        for (bad, why) in [
+            // Tabs under poe2 name a URL shape the stash endpoints lack,
+            // whether alone or beside characters.
+            (
+                json!({ "version": 3, "realms": { "poe2": { "leagues": { "Standard": { "tabs": "all", "max_age_seconds": 60 } } } } }),
+                "poe2",
+            ),
+            (
+                json!({ "version": 3, "realms": { "poe2": { "leagues": { "Standard": { "tabs": ["t"], "characters": "all", "max_age_seconds": 60 } } } } }),
+                "poe2",
+            ),
+            // Names no work: neither facet, both empty, one empty and the
+            // other absent — judged after normalization; and a v2 entry
+            // with an empty list is the same declaration.
+            (
+                json!({ "version": 3, "realms": { "pc": { "leagues": { "Standard": { "max_age_seconds": 60 } } } } }),
+                "names no work",
+            ),
+            (
+                json!({ "version": 3, "realms": { "pc": { "leagues": { "Standard": { "tabs": [], "characters": [], "max_age_seconds": 60 } } } } }),
+                "names no work",
+            ),
+            (
+                json!({ "version": 3, "realms": { "pc": { "leagues": { "Standard": { "tabs": [], "max_age_seconds": 60 } } } } }),
+                "names no work",
+            ),
+            (
+                json!({ "version": 2, "realms": { "pc": { "leagues": { "Standard": { "tabs": [], "max_age_seconds": 60 } } } } }),
+                "names no work",
+            ),
+            // A selection word other than "all", a stray field in the
+            // entry, and `characters` on a v2 stamp (unknown there).
+            (
+                json!({ "version": 3, "realms": { "pc": { "leagues": { "Standard": { "characters": "everything", "max_age_seconds": 60 } } } } }),
+                "everything",
+            ),
+            (
+                json!({ "version": 3, "realms": { "pc": { "leagues": { "Standard": { "characters": "all", "max_age_secs": 60 } } } } }),
+                "max_age_secs",
+            ),
+            (
+                json!({ "version": 2, "realms": { "pc": { "leagues": { "Standard": { "tabs": "all", "characters": "all", "max_age_seconds": 60 } } } } }),
+                "characters",
+            ),
+        ] {
+            let err = SyncPolicy::from_value(&bad).unwrap_err();
+            assert!(
+                matches!(&err, PlanError::MalformedPolicy { detail } if detail.contains(why)),
+                "{bad}: {err}"
+            );
+        }
+    }
+
+    /// Facets are independent: a character-only policy on a never-listed
+    /// league plans the character listing alone — no stash listing, and a
+    /// character on record from a direct fetch waits for the basis.
+    #[test]
+    fn a_never_listed_realm_plans_the_character_listing_alone() {
+        let mut s = store();
+        fetch_character(&mut s, "pc", body("c1", "Hero", "Standard", 100), 500);
+        let p = v3_policy_value(None, Some(json!("all")), 60);
+        let plan = plan(&s, &p, 9000);
+        assert_eq!(
+            character_actions(&plan),
+            vec![("list".to_string(), "NeverListed".to_string())]
+        );
+        assert_eq!(plan.actions.len(), 1, "{:?}", plan.actions);
+        assert_eq!(
+            character_skips(&plan),
+            vec![("c1".to_string(), CharacterSkipReason::AwaitingListing)]
+        );
+        assert!(plan.skipped_tabs.is_empty() && plan.unknown_tabs.is_empty());
+        assert_eq!(
+            (plan.basis.stash_listing, plan.basis.character_listing),
+            (None, None)
+        );
+    }
+
+    #[test]
+    fn characters_are_covered_by_exact_id_and_unknown_ids_are_reported() {
+        let mut s = store();
+        list_characters(
+            &mut s,
+            "pc",
+            json!([
+                entry("c1", "Hero", "Standard", 100),
+                entry("c2", "Mule", "Standard", 5)
+            ]),
+            1000,
+        );
+        let p = v3_policy_value(None, Some(json!(["c1", "ghost"])), 3600);
+        let plan = plan(&s, &p, 1500);
+        assert_eq!(
+            character_actions(&plan),
+            vec![("c1".to_string(), "NeverFetched".to_string())]
+        );
+        assert!(
+            character_skips(&plan).is_empty(),
+            "{:?}",
+            plan.skipped_characters
+        );
+        assert_eq!(plan.unknown_characters, vec!["ghost".to_string()]);
+        assert_eq!(plan.basis.character_listing.unwrap().fetched_at, 1000);
+        // The action's tuple is the listed name on the character route.
+        let RefreshAction::FetchCharacter { name, league, .. } = &plan.actions[0] else {
+            panic!("{:?}", plan.actions);
+        };
+        assert_eq!((name.as_str(), league.as_str()), ("Hero", "Standard"));
+    }
+
+    /// The three arms and the window, for a character: fresh inside the
+    /// window with an agreeing listing; a newer listing whose
+    /// `experience` differs proves play since; a same-second listing
+    /// proves nothing; a body without `experience` proves nothing; past
+    /// the window is stale whatever the listing says.
+    #[test]
+    fn character_freshness_reads_experience_forward_from_a_newer_listing() {
+        let mut s = store();
+        let p = v3_policy_value(None, Some(json!("all")), 3600);
+        list_characters(
+            &mut s,
+            "pc",
+            json!([entry("c1", "Hero", "Standard", 100)]),
+            1000,
+        );
+        fetch_character(&mut s, "pc", body("c1", "Hero", "Standard", 100), 1100);
+        assert_eq!(
+            character_skips(&plan(&s, &p, 1200)),
+            vec![(
+                "c1".to_string(),
+                CharacterSkipReason::Fresh { age_seconds: 100 }
+            )]
+        );
+        // A newer listing reporting more experience: play since the fetch.
+        list_characters(
+            &mut s,
+            "pc",
+            json!([entry("c1", "Hero", "Standard", 150)]),
+            1300,
+        );
+        assert_eq!(
+            character_actions(&plan(&s, &p, 1400)),
+            vec![(
+                "c1".to_string(),
+                "ListedExperienceDisagrees { listed: 150, held: 100 }".to_string()
+            )]
+        );
+        // Fetched again, the listing agrees: fresh.
+        fetch_character(&mut s, "pc", body("c1", "Hero", "Standard", 150), 1500);
+        list_characters(
+            &mut s,
+            "pc",
+            json!([entry("c1", "Hero", "Standard", 150)]),
+            1600,
+        );
+        assert!(character_actions(&plan(&s, &p, 1700)).is_empty());
+        // Same second as the fetch: the listing is not newer, so a
+        // different value is no proof (the fetch may have landed after).
+        list_characters(
+            &mut s,
+            "pc",
+            json!([entry("c1", "Hero", "Standard", 999)]),
+            1500,
+        );
+        assert!(character_actions(&plan(&s, &p, 1700)).is_empty());
+        // A body without `experience` (an older build's fetch, a field GGG
+        // dropped): no comparison, no proof.
+        let mut no_exp = body("c1", "Hero", "Standard", 0);
+        no_exp.as_object_mut().unwrap().remove("experience");
+        fetch_character(&mut s, "pc", no_exp, 1800);
+        list_characters(
+            &mut s,
+            "pc",
+            json!([entry("c1", "Hero", "Standard", 1234)]),
+            1900,
+        );
+        assert!(character_actions(&plan(&s, &p, 2000)).is_empty());
+        // Past the window: stale, plainly.
+        assert_eq!(
+            character_actions(&plan(&s, &p, 1800 + 3601)),
+            vec![("c1".to_string(), "Stale { age_seconds: 3601 }".to_string())]
+        );
+    }
+
+    /// A Hardcore death: the listing moves the character to Standard (the
+    /// row's league is listing-owned), so the Hardcore plan no longer
+    /// sees it and the Standard plan fetches it — the body still says
+    /// Hardcore, and that disagreement is the arm.
+    #[test]
+    fn a_league_move_forces_a_fetch_in_the_new_league_and_leaves_the_old() {
+        let mut s = store();
+        let both = json!({ "version": 3, "realms": { "pc": { "leagues": {
+            "Standard": { "characters": "all", "max_age_seconds": 3600 },
+            "Hardcore": { "characters": "all", "max_age_seconds": 3600 },
+        } } } });
+        list_characters(
+            &mut s,
+            "pc",
+            json!([entry("c1", "Hero", "Hardcore", 100)]),
+            1000,
+        );
+        fetch_character(&mut s, "pc", body("c1", "Hero", "Hardcore", 100), 1100);
+        list_characters(
+            &mut s,
+            "pc",
+            json!([entry("c1", "Hero", "Standard", 100)]),
+            1200,
+        );
+        let mut a = Annotations::open_memory_for("u-1").unwrap();
+        a.put("account", "", SYNC_POLICY_KIND, &both, None).unwrap();
+        let hc = plan_refresh(
+            "mock",
+            &s.refresh_snapshot("pc", "Hardcore", &a).unwrap(),
+            1300,
+        )
+        .unwrap();
+        assert!(
+            hc.actions.is_empty() && hc.skipped_characters.is_empty(),
+            "{hc:?}"
+        );
+        let std = plan_refresh(
+            "mock",
+            &s.refresh_snapshot("pc", "Standard", &a).unwrap(),
+            1300,
+        )
+        .unwrap();
+        assert_eq!(
+            character_actions(&std),
+            vec![(
+                "c1".to_string(),
+                "ListedLeagueDisagrees { listed: \"Standard\", held: \"Hardcore\" }".to_string()
+            )]
+        );
+        let RefreshAction::FetchCharacter { league, .. } = &std.actions[0] else {
+            panic!("{:?}", std.actions);
+        };
+        assert_eq!(league, "Standard");
+    }
+
+    /// Listed `deleted` / `expired` flags skip with a named reason, never
+    /// a fetch (a 404 hunt counts against the invalid-request threshold);
+    /// a character the listing gave no league is outside every league's
+    /// coverage and is reported as such — by id too, never as unknown.
+    #[test]
+    fn deleted_expired_and_league_less_characters_are_skipped_never_fetched() {
+        let mut s = store();
+        let mut gone = entry("c-del", "Gone", "Standard", 1);
+        gone["deleted"] = json!(true);
+        let mut old = entry("c-exp", "Old", "Standard", 1);
+        old["expired"] = json!(true);
+        let nowhere = json!({ "id": "c-none", "name": "Nowhere", "level": 1 });
+        list_characters(
+            &mut s,
+            "pc",
+            json!([entry("c1", "Hero", "Standard", 100), gone, old, nowhere]),
+            1000,
+        );
+        let plan_all = plan(&s, &v3_policy_value(None, Some(json!("all")), 3600), 1500);
+        assert_eq!(
+            character_actions(&plan_all),
+            vec![("c1".to_string(), "NeverFetched".to_string())]
+        );
+        let mut skips = character_skips(&plan_all);
+        skips.sort_by(|a, b| a.0.cmp(&b.0));
+        assert_eq!(
+            skips,
+            vec![
+                ("c-del".to_string(), CharacterSkipReason::Deleted),
+                ("c-exp".to_string(), CharacterSkipReason::Expired),
+                ("c-none".to_string(), CharacterSkipReason::NoLeague),
+            ]
+        );
+        let by_id = plan(
+            &s,
+            &v3_policy_value(None, Some(json!(["c-none"])), 3600),
+            1500,
+        );
+        assert!(by_id.actions.is_empty());
+        assert_eq!(
+            character_skips(&by_id),
+            vec![("c-none".to_string(), CharacterSkipReason::NoLeague)]
+        );
+        assert!(by_id.unknown_characters.is_empty());
+        // The Hardcore plan of the same realm reports the league-less
+        // character too — it is a realm fact no league key reaches.
+        let mut a = Annotations::open_memory_for("u-1").unwrap();
+        let hc_policy = json!({ "version": 3, "realms": { "pc": { "leagues": {
+            "Hardcore": { "characters": "all", "max_age_seconds": 3600 } } } } });
+        a.put("account", "", SYNC_POLICY_KIND, &hc_policy, None)
+            .unwrap();
+        let hc = plan_refresh(
+            "mock",
+            &s.refresh_snapshot("pc", "Hardcore", &a).unwrap(),
+            1500,
+        )
+        .unwrap();
+        assert_eq!(
+            character_skips(&hc),
+            vec![("c-none".to_string(), CharacterSkipReason::NoLeague)]
+        );
+    }
+
+    /// Dropped by one listing, revived by the next, no fetch between: the
+    /// store cleared `fetched_at`, so the plan fetches again — the loop
+    /// restores the facts, not a manual step. And a late fetch under the
+    /// retired row's name meanwhile is withheld and changes nothing here.
+    #[test]
+    fn a_revived_character_is_planned_as_never_fetched() {
+        let mut s = store();
+        let p = v3_policy_value(None, Some(json!("all")), 3600);
+        list_characters(
+            &mut s,
+            "pc",
+            json!([entry("c1", "Hero", "Standard", 100)]),
+            1000,
+        );
+        fetch_character(&mut s, "pc", body("c1", "Hero", "Standard", 100), 1100);
+        list_characters(&mut s, "pc", json!([]), 1200);
+        let gone = plan(&s, &p, 1250);
+        assert!(
+            gone.actions.is_empty() && gone.skipped_characters.is_empty(),
+            "{gone:?}"
+        );
+        // The late fetch at the retired location: withheld by the store.
+        fetch_character(&mut s, "pc", body("c1", "Hero", "Standard", 120), 1260);
+        let still_gone = plan(&s, &p, 1270);
+        assert!(still_gone.actions.is_empty(), "{:?}", still_gone.actions);
+        list_characters(
+            &mut s,
+            "pc",
+            json!([entry("c1", "Hero", "Standard", 120)]),
+            1300,
+        );
+        assert_eq!(
+            character_actions(&plan(&s, &p, 1400)),
+            vec![("c1".to_string(), "NeverFetched".to_string())]
+        );
+    }
+
+    /// A deleted-and-recreated name: the listing names a new id, the old
+    /// row is retired with its facts, and the plan fetches the new id
+    /// (never fetched) by the same name — the old id is gone, and a
+    /// policy still naming it reports it unknown.
+    #[test]
+    fn a_recreated_name_plans_the_new_id_only() {
+        let mut s = store();
+        list_characters(
+            &mut s,
+            "pc",
+            json!([entry("c1", "Hero", "Standard", 100)]),
+            1000,
+        );
+        fetch_character(&mut s, "pc", body("c1", "Hero", "Standard", 100), 1100);
+        list_characters(
+            &mut s,
+            "pc",
+            json!([entry("c2", "Hero", "Standard", 0)]),
+            1200,
+        );
+        let all = plan(&s, &v3_policy_value(None, Some(json!("all")), 3600), 1300);
+        assert_eq!(
+            character_actions(&all),
+            vec![("c2".to_string(), "NeverFetched".to_string())]
+        );
+        let RefreshAction::FetchCharacter { name, .. } = &all.actions[0] else {
+            panic!("{:?}", all.actions);
+        };
+        assert_eq!(name, "Hero");
+        let old = plan(&s, &v3_policy_value(None, Some(json!(["c1"])), 3600), 1300);
+        assert!(old.actions.is_empty());
+        assert_eq!(old.unknown_characters, vec!["c1".to_string()]);
+    }
+
+    /// A pre-v4 row: no listed entry on record (the migration could not
+    /// recompute one), a fetched body present. It plans by the window
+    /// alone — no flags to read, no experience to compare — and panics on
+    /// nothing.
+    #[test]
+    fn a_character_row_without_a_listed_entry_plans_by_the_window_alone() {
+        let mut s = store();
+        list_characters(
+            &mut s,
+            "pc",
+            json!([entry("c1", "Hero", "Standard", 100)]),
+            1000,
+        );
+        fetch_character(&mut s, "pc", body("c1", "Hero", "Standard", 100), 1100);
+        let p = v3_policy_value(None, Some(json!("all")), 3600);
+        let mut snap = snapshot_with(&s, &p);
+        snap.characters[0].listed = Value::Null;
+        snap.characters[0].listed_at = Some(1200);
+        let fresh = plan_refresh("mock", &snap, 1300).unwrap();
+        assert_eq!(
+            character_skips(&fresh),
+            vec![(
+                "c1".to_string(),
+                CharacterSkipReason::Fresh { age_seconds: 200 }
+            )]
+        );
+        let stale = plan_refresh("mock", &snap, 1100 + 3601).unwrap();
+        assert_eq!(
+            character_actions(&stale),
+            vec![
+                (
+                    "list".to_string(),
+                    "Stale { age_seconds: 3701 }".to_string()
+                ),
+                ("c1".to_string(), "Stale { age_seconds: 3601 }".to_string()),
+            ]
+        );
+    }
+
+    /// The character actions decode through the store's own job
+    /// vocabulary decoder, and a mixed plan's loop closes through the
+    /// store: two listings, then the fetches each facet owes, then empty.
+    #[test]
+    fn a_mixed_plan_closes_through_the_stores_vocabulary() {
+        let list = RefreshAction::ListCharacters {
+            realm: Realm::Poe2,
+            reason: ListingReason::NeverListed,
+        };
+        let (kind, params) = list.job();
+        assert_eq!(
+            Endpoint::from_job(kind, &params),
+            Some(Endpoint::Characters {
+                realm: "poe2".into()
+            })
+        );
+        let fetch = RefreshAction::FetchCharacter {
+            realm: Realm::Pc,
+            league: "Standard".into(),
+            id: "c1".into(),
+            name: "Hero".into(),
+            reason: FetchReason::NeverFetched,
+        };
+        let (kind, params) = fetch.job();
+        assert_eq!(params, json!({ "realm": "pc", "name": "Hero" }));
+        assert_eq!(
+            Endpoint::from_job(kind, &params),
+            Some(Endpoint::Character {
+                realm: "pc".into(),
+                name: "Hero".into()
+            })
+        );
+
+        let mut s = store();
+        let p = v3_policy_value(Some(json!("all")), Some(json!("all")), 3600);
+        let first = plan(&s, &p, 1000);
+        assert!(
+            matches!(
+                first.actions[..],
+                [
+                    RefreshAction::ListStashes { .. },
+                    RefreshAction::ListCharacters { .. }
+                ]
+            ),
+            "{:?}",
+            first.actions
+        );
+        let answer = |action: &RefreshAction| match action {
+            RefreshAction::ListStashes { .. } => {
+                json!({ "stashes": [ { "id": "t1", "name": "One", "type": "PremiumStash", "index": 0 } ] })
+            }
+            RefreshAction::ListCharacters { .. } => {
+                json!({ "characters": [ entry("c1", "Hero", "Standard", 100) ] })
+            }
+            RefreshAction::FetchTab { .. } | RefreshAction::FetchSubstash { .. } => {
+                json!({ "stash": { "id": "t1", "name": "One", "type": "PremiumStash", "items": [item("i1")] } })
+            }
+            RefreshAction::FetchCharacter { .. } => {
+                json!({ "character": body("c1", "Hero", "Standard", 100) })
+            }
+        };
+        let apply = |s: &mut Store, plan: &RefreshPlan, at: i64| {
+            for action in &plan.actions {
+                let (kind, params) = action.job();
+                let endpoint = Endpoint::from_job(kind, &params).unwrap();
+                s.record(&endpoint, &params, 200, &answer(action), at)
+                    .unwrap();
+            }
+        };
+        apply(&mut s, &first, 1000);
+        let second = plan(&s, &p, 1001);
+        assert!(
+            matches!(
+                second.actions[..],
+                [
+                    RefreshAction::FetchTab { .. },
+                    RefreshAction::FetchCharacter { .. }
+                ]
+            ),
+            "{:?}",
+            second.actions
+        );
+        // The envelope round-trips with both facets' bases and lists.
+        let json = serde_json::to_value(&second).unwrap();
+        assert!(
+            json["basis"]["stash_listing"].is_object()
+                && json["basis"]["character_listing"].is_object()
+        );
+        assert_eq!(RefreshPlan::from_value(&json).unwrap(), second);
+        apply(&mut s, &second, 1001);
+        let third = plan(&s, &p, 1002);
+        assert!(third.actions.is_empty(), "{:?}", third.actions);
+        assert_eq!(third.skipped_tabs.len(), 1);
+        assert_eq!(third.skipped_characters.len(), 1);
+    }
+
+    /// The envelope's league check: a realm-wide `list_characters` is in
+    /// envelope for any league of its realm; a `fetch_character` for
+    /// another league is refused; a tab skip kind on a character skip is
+    /// malformed, as is a smuggled field there.
+    #[test]
+    fn realm_wide_actions_are_in_envelope_and_character_skips_parse_strictly() {
+        let mut s = store();
+        let mut gone = entry("c-del", "Gone", "Standard", 1);
+        gone["deleted"] = json!(true);
+        list_characters(
+            &mut s,
+            "pc",
+            json!([entry("c1", "Hero", "Standard", 100), gone]),
+            1000,
+        );
+        let p = v3_policy_value(None, Some(json!("all")), 60);
+        let plan = plan(&s, &p, 5000);
+        let good = serde_json::to_value(&plan).unwrap();
+        assert_eq!(good["actions"][0]["action"], "list_characters");
+        assert!(good["actions"][0].get("league").is_none());
+        assert_eq!(good["skipped_characters"][0]["reason"]["kind"], "deleted");
+        assert!(RefreshPlan::from_value(&good).is_ok());
+        let mut stray = good.clone();
+        stray["actions"][1]["league"] = json!("Hardcore");
+        let err = RefreshPlan::from_value(&stray).unwrap_err();
+        assert!(err.to_string().contains("Hardcore"), "{err}");
+        let mut stray = good.clone();
+        stray["actions"][0]["realm"] = json!("poe2");
+        assert!(RefreshPlan::from_value(&stray).is_err());
+        let mut wrong_kind = good.clone();
+        wrong_kind["skipped_characters"][0]["reason"] = json!({ "kind": "folder" });
+        assert!(RefreshPlan::from_value(&wrong_kind).is_err());
+        for path in [
+            &["skipped_characters", "0", "surprise"][..],
+            &["skipped_characters", "0", "reason", "surprise"],
+            &["basis", "character_listing", "extra"],
+            &["actions", "0", "surprise"],
+        ] {
+            let mut nested = good.clone();
+            let mut spot = &mut nested;
+            for key in &path[..path.len() - 1] {
+                spot = match key.parse::<usize>() {
+                    Ok(i) => &mut spot[i],
+                    Err(_) => &mut spot[*key],
+                };
+            }
+            spot[*path.last().unwrap()] = json!(true);
+            assert!(
+                RefreshPlan::from_value(&nested).is_err(),
+                "smuggled field at {path:?} was accepted"
+            );
+        }
     }
 }

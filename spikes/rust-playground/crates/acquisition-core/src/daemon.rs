@@ -3339,8 +3339,9 @@ fn admit_realm(kind: &str, params: &Value) -> Result<(), String> {
 /// The `apply` admission check (CONTEXT.md, decided 2026-09-01): the
 /// vocabulary a plan-blind daemon can enforce. `params.jobs` must be a
 /// non-empty array of `(kind, params)` tuples in which every kind is a
-/// single-request one that submits no children — `stashes`, or `stash`
-/// with `deep` absent/false — so no child can expand the reviewed set;
+/// single-request one that submits no children — `stashes`, `stash` with
+/// `deep` absent/false, `characters`, or `character` with a name
+/// (characters joined 2026-09-02) — so no child can expand the reviewed set;
 /// and when the caller declares `max_requests`, the tuple count must not
 /// exceed it. Runs at submit, before a job id exists, so a refusal
 /// admits nothing (mid-fan-out terminalization is never the budget's
@@ -3374,9 +3375,16 @@ fn validate_apply(params: &Value) -> Result<(), String> {
                     return Err(format!("apply job {i}: stash needs an id"));
                 }
             }
+            "characters" => {}
+            "character" => {
+                if params.get("name").and_then(Value::as_str).is_none() {
+                    return Err(format!("apply job {i}: character needs a name"));
+                }
+            }
             other => {
                 return Err(format!(
-                    "apply job {i}: kind {other:?} is not in the plan vocabulary (stashes, stash)"
+                    "apply job {i}: kind {other:?} is not in the plan vocabulary \
+                     (stashes, stash, characters, character)"
                 ));
             }
         }
@@ -6279,9 +6287,13 @@ mod dispatcher_tests {
     async fn apply_admission_refuses_bad_vocabulary_and_blown_budgets_whole() {
         let clock = Arc::new(ManualClock::new());
         let (daemon, log_path) = test_daemon("http://127.0.0.1:9", clock);
+        // The whole vocabulary (characters joined 2026-09-02): a character
+        // list under poe2 is a legal tuple — the character family takes it.
         let ok_jobs = json!([
             { "kind": "stashes", "params": { "league": "Standard" } },
             { "kind": "stash", "params": { "league": "Standard", "id": "t1", "deep": false } },
+            { "kind": "characters", "params": { "realm": "poe2" } },
+            { "kind": "character", "params": { "realm": "pc", "name": "Exile" } },
         ]);
         let refusals: Vec<(Value, &str)> = vec![
             // The tuple list itself is required and non-empty.
@@ -6311,6 +6323,12 @@ mod dispatcher_tests {
                 json!({ "jobs": [{ "kind": "stash", "params": { "league": "Standard" } }] }),
                 "needs an id",
             ),
+            // A character fetch without a name could not have come from a
+            // plan either.
+            (
+                json!({ "jobs": [{ "kind": "character", "params": { "realm": "pc" } }] }),
+                "needs a name",
+            ),
             // The budget: a bound under the tuple count refuses; a misread
             // bound refuses too, never "the limit was ignored".
             (
@@ -6338,7 +6356,7 @@ mod dispatcher_tests {
         let id = daemon
             .submit(
                 "apply".into(),
-                json!({ "jobs": ok_jobs, "max_requests": 2 }),
+                json!({ "jobs": ok_jobs, "max_requests": 4 }),
                 0,
                 "test".into(),
                 None,
