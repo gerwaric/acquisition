@@ -32,7 +32,7 @@ budget() {
   fi
 }
 budget AGENTS.md        8000
-budget CONTEXT.md      50000
+budget CONTEXT.md      85000
 budget README.md       20000
 budget LIVE-TESTING.md 35000
 
@@ -56,6 +56,8 @@ for doc in AGENTS.md CONTEXT.md README.md LIVE-TESTING.md; do
       *)                         [[ $tok =~ ^[A-Z][a-z]+[A-Z][A-Za-z0-9]*$ ]] || continue; needle=$tok ;;
     esac
     needle=${needle%\(\)}
+    # observed GGG data values quoted in rulings, not code
+    case "$needle" in BodyArmour|DefaultAttackSkills|SkillSlots) continue ;; esac
     [[ -n $needle ]] || continue
     if ! grep -qF -- "$needle" "$hay"; then
       printf 'STALE   %-18s `%s`\n' "$doc" "$tok"

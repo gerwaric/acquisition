@@ -83,7 +83,7 @@ ETA is computed from limiter state + queue depth ahead of the job — the daemon
 
 The live verb list is `acq --help` and the README's "Try it" block. Properties: default mode is blocking-with-progress ("rate limited, starting in ~4m37s..."), `--detach` is the async/job mode, every command takes `--json`, and `daemon status|stop` exist for debugging only.
 
-### Multi-account design (decided 2026-08-30, built through step 6; step 7's live samples partial)
+### Multi-account design (decided 2026-08-30)
 
 **Complexity rule:** the only code that interprets accounts is the
 session layer. Everywhere else account is data — a field on the job, a
@@ -157,180 +157,47 @@ path segment for the store, an opaque key component for the limiter
   two-account tests can distinguish per-account from shared counting —
   the property rung 11 established for GGG.
 
-Build order, each step gate-green, single-session behaviour unchanged
-through (5): (1) identity — username key, index file, per-account keyring
-and store; (2) `account` on jobs, validated against the sole session;
-(3) the selector; (4) mock any-username login and per-username counting;
-(5) limiter and probe scope keying as test-table rows, verified on (4);
-(6) the session map; (7) cheap live samples of `/profile`,
-`/character/{name}`, `/account/leagues` under `LIVE-TESTING.md`'s replacement
-rule, uuid recorded opportunistically (superseded 2026-08-31: uuid is now
-required at login — identity bullet above).
+### Annotations & plans — the refresh tracer (decided 2026-08-31)
 
-### Annotations & plans — the refresh tracer (decided 2026-08-31; steps 1–9 done — step 9 run live 2026-09-01, pass; follow-up: the policy-handle planner change)
-
-The one slice built next: refresh-with-`plan`, the smallest slice that
+The one slice built first: refresh-with-`plan`, the smallest slice that
 touches all four layers (policy = intent, plan = derivation, apply =
 effect, the next read = facts). Full deliberation is history in
 `brainstorming-notes/` 00–06; the binding text is the 2026-08-31
-decision lines above. The built steps' properties are pinned in the
-named code and its tests — the review-round narratives that used to
-live here are in git history (pruned 2026-09-01, the section at
-`35fb35d9` holds the full text).
+decision lines above; the build, its review rounds and its live runs
+are `REFRESH-SLICE.md` (the narrative that stood here is in git at
+`d660d1f5`). Steps 1–9 are done; step 9 ran live 2026-09-01 and again
+2026-09-02 (run ledger), pass.
 
-Built, each step gate-green and owner-reviewed:
+Where the slice lives:
 
-1. Semantics — the 2026-08-31 decision lines above.
-2. uuid-at-login + the annotation file (2026-08-31,
-   `acquisition-store/src/annotations.rs` and the daemon's staged login
-   flow — a login fails whole, and only its own flow-terminal result on
-   the protocol counts as success).
-3. Neutral store snapshots (2026-08-31, `Store::refresh_snapshot` — then `stash_snapshot` — in
-   `acquisition-store/src/snapshot.rs`) — with the malformed-2xx
-   ruling: a malformed body is a typed refusal that writes nothing and
-   fails the *job*; only `acq store import` keeps the legacy tolerance,
-   at its own boundary.
-4. `RefreshPlan` compiled offline in `acquisition-plan` (2026-09-01).
-   `REFRESH_PLAN_SCHEMA` was **3** here (5 since the realm step, 6 with
-   characters); any shape change anywhere in the envelope — the
-   embedded `Quote` included — is a schema bump, so an older reader
-   reports "newer schema", never "malformed".
-5. `quote` on the protocol + `with_quote` plan enrichment (2026-09-01;
-   `Daemon::quote`, protocol `Quote`/`QuoteScope`).
-6. `acq refresh --plan` + the policy's first write surface, `acq policy
-   show|set` (2026-09-01; `acquisition-cli/src/plan_cmd.rs`; the
-   `--json` stdout contract is pinned at the process level in
-   `acquisition-cli/tests/plan_json.rs` — step 7's apply consumes that
-   envelope).
-7. Apply (2026-09-01; the two `apply` decision lines above — the
-   fan-out parent and the staleness ruling). `acq refresh
-   --apply[=FILE]` runs the offline gates (planner's validating parse,
-   identity, policy revision), then submits the actions as one `apply`
-   parent the daemon admits or refuses whole at submit (vocabulary +
-   `max_requests`); an empty plan is a no-op with no daemon contact.
-   The loop is pinned at process level: `acquisition-cli/tests/
-   apply_loop.rs` closes plan→apply→replan against a real daemon over
-   the mock in a bootstrap listing plus two reconciliation cycles, and
-   `tests/plan_json.rs`
-   pins the offline gates (stale revision refused before any daemon;
-   tampered envelope refused by the parse; empty plan spends nothing).
-8. MCP exposure (2026-09-01): `acq-mcp` carries the slice as tools —
-   `sync_policy` / `set_sync_policy` (intent), `refresh_plan`
-   (derivation, quote-enriched by a running mock daemon), `apply_plan`
-   (effect, returning the parent id for the MCP's submit-then-poll
-   idiom). The second consumer's arrival triggered the factoring rule:
-   the shared semantics moved to `acquisition-plan` —
-   `put_sync_policy` (validate-then-CAS), `RefreshPlan::check_spendable`
-   (the step-7 staleness/identity gate), `RefreshPlan::apply_params`
-   (action→tuple rendering) — and the store names the policy's
-   annotation address once (`SYNC_POLICY_SCOPE`/`KEY`/`KIND`); the CLI
-   now goes through the same functions. Two agent-boundary defaults,
-   owner-revisable: `set_sync_policy` works in either mode (intent is
-   local — the deferral is about traffic) but has no blind-replace
-   form — replacing an existing policy must name the revision it
-   replaces, so an agent never clobbers intent it has not read; and
-   — until the 2026-09-01 agent-traffic ruling — ggg-mode quote
-   enrichment attempted no connection and `apply_plan` was refused in
-   ggg mode alongside `submit_job`; both now work in either mode against
-   a running daemon, and what `tests/ggg_refusal.rs` pins is the rule
-   that remains: real mode never spawns a daemon. Pinned at process level (review
-   round 1 closed two coverage gaps): `acquisition-mcp/tests/
-   plan_loop.rs` — login over the protocol (the daemon rides inside
-   `acq-mcp`), the tools carrying policy→plan→apply→replan against a
-   real daemon over the mock, the create-only CAS and admission-budget
-   gates, and the offline claims proven offline (the daemon is stopped
-   before the staleness refusal and the empty-plan no-op, and the
-   socket checked dead afterwards, so a regression that contacted or
-   lazy-spawned a daemon cannot pass) — and `tests/ggg_refusal.rs`: an
-   `ACQ_GGG=1` server with no daemon, store, or login refuses
-   `apply_plan` and `submit_job` on the mode alone, before even the
-   envelope parse.
+- Intent: `acquisition-store/src/annotations.rs`; uuid-at-login in the
+  daemon's staged login flow (a login fails whole).
+- Facts for the planner: `Store::refresh_snapshot` (`snapshot.rs`) — one
+  read transaction, nothing derived.
+- Derivation: `acquisition-plan` — `plan_refresh`,
+  `RefreshPlan::from_value` (strict: the derived envelope must
+  re-serialize to exactly what was read), `check_spendable` (the
+  staleness/identity gate), `apply_params` (action → job tuple),
+  `put_sync_policy` (validate-then-CAS) — shared by every frontend.
+- Effect: the `apply` parent kind and `quote` (Decisions above;
+  `Daemon::quote`).
+- Surfaces: `acq policy show|set`, `acq refresh --plan|--apply`
+  (`acquisition-cli/src/plan_cmd.rs`); `acq-mcp`'s `sync_policy`,
+  `set_sync_policy`, `refresh_plan`, `apply_plan`.
+- Pinned at process level: `acquisition-cli/tests/plan_json.rs` (the
+  offline gates), `tests/apply_loop.rs` (plan→apply→replan against a
+  real daemon over the mock), `acquisition-mcp/tests/plan_loop.rs` (the
+  same over MCP, the offline claims proven with the socket dead),
+  `tests/ggg_refusal.rs` (real mode never spawns a daemon).
 
-Accepted residuals, recorded so they need no re-litigating:
+Agent-boundary default, owner-revisable: `set_sync_policy` has no
+blind-replace form — replacing an existing policy must name the
+revision it replaces, so an agent never clobbers intent it has not
+read.
 
-- No process-level mismatched-daemon test; the structural
-  connect-options pin covers lifecycle safety (the quote path never
-  spawns or replaces a daemon).
-- Real GGG's `/profile` `name` may lack the `#discriminator` the
-  session username carries; if so, `--plan`'s quote enrichment surfaces
-  it at step (9) as a graceful "daemon quote rejected" note — an
-  observation to collect on the live rung, not a bug to pre-fix.
-
-Prepared, not yet run (the run is the owner's, from a terminal):
-
-9. Owner live rung under `LIVE-TESTING.md`'s standing rule, friction
-   notes collected as data. Prepared 2026-09-01: the rung section in
-   `LIVE-TESTING.md` ("Tracer rung") — the step table, expected totals,
-   residuals, and the friction-note prompts — and `tools/tracer-rung.sh`,
-   which drives it (one fresh daemon per wire phase under a ceiling
-   derived from the plan's own wire estimate; the offline claims checked
-   with the socket dead; the journal verified per cycle against the plan;
-   friction notes prompted at each phase). Review round 1 (2026-09-01,
-   six findings, all fixed before any live run): the ceiling is exact
-   and the rails trip on `sends >= max`, so the bound reached right
-   after the last planned send is a cycle's expected end, not a failure;
-   the envelope applied is the quoted file, checked equal to the offline
-   one plus the quote and shown before apply; every probe's hits are
-   bounded by the run's own earlier sends (the first probe on a route
-   must see 0); readback failures fail the run. One planner fact the
-   review surfaced, recorded for the owner rather than pre-fixed: policy
-   ids match exactly, so an id list never covers the substashes a
-   map/unique fetch discovers — the loop closes with them uncovered
-   (reported), and only `all` runs the discovery cycle; whether a parent
-   should cover its substashes is a friction question. `--mock`
-   rehearsal green in both shapes (`all`: listing, seven fetches, seven
-   substashes, empty; ids: listing, three fetches, empty with four
-   uncovered substashes reported). Round 2 (same day, five findings,
-   fixed): the same-plan check ignores the derived `age_seconds` that
-   drift between compiles (reason kinds still compared); probe hits are
-   bounded per reported window by the run's own sends inside that
-   window plus GGG's timing bucket, not by a cumulative total; the
-   no-hold bound is `n ≤ 15` (the 10 s window), not 30; the ceiling can
-   be overshot by one in-flight send (rail 1's caveat) and a
-   `ceiling + 1` journal fails the cycle; the selector is
-   case-insensitive like `account_matches`. Round 3 (same day, three
-   findings, fixed): `all` defaults its freshness window to a day and
-   the driver refuses a cycle whose over-estimated wire duration is not
-   at most half the window (at 3600 s the hour-long cycle would
-   re-stale its own facts and never close); the
-   timing bucket goes by window position (5 s first, 60 s later —
-   `bucket_for`), not by period; the selector lowercases in Unicode; the
-   verifier is its own file, `tools/tracer-verify.py`, whose
-   `--self-test` pins the nonzero-hit branches the mock cannot reach
-   (checked in, green). Round 4 (same day, six findings, fixed): every
-   wire phase must end with the daemon reporting the tripwire armed, the
-   ceiling equal to the plan, that many sends counted, and a ceiling
-   halt in force — a matching journal count alone is not evidence of
-   the rail; the verifier accepts only 2xx, keys probe-first ordering by
-   the account-qualified route, fails a probe with no state window or
-   an active restriction (self-test mutations added); the evidence
-   bundle holds only this run's journal slice plus a `verify.sh` that
-   reproduces the verdict from byte 0, and a repeat run gets its own
-   directory; the store-events readback covers the run's whole span;
-   live preflight refuses working-tree changes to the rung's own files.
-   Round 5 (same day, three evidence gaps, fixed): the daemon log is
-   saved as this run's slice like the journal; the bundle carries its
-   own copy of the verifier with checksums and `verify.sh` runs that
-   copy, never the working tree's; the item-event readback sets an
-   explicit limit and fails on reaching it. The run's outputs: a ledger
-   row, the friction notes in the rung section, and then the two
-   rulings below — "Binding-plan friction" and the method-test verdict.
-
-Done = **pin the refresh Plan/quote/apply slice and the annotation API
-it exercised** — a CLI tracer cannot close the whole GUI/MCP/TUI
-frontier. The slice also tests the method itself: whether
-pin-after-the-consumer survives product scope, where truth is the
-owner's real use rather than a header; the verdict is recorded before
-the pricing session and is its first input.
-
-**Step 9 ran live 2026-09-01 and passed** (`LIVE-TESTING.md`, run
-ledger: login `1/0/1`, cycle 1 `1/2/6` on an exact ceiling of 9, cycle
-2 empty, no-op apply with no daemon; both probes 0 hits, zero non-2xx;
-the plan quoted on the real account — the `/profile` discriminator
-residual did not bite, so that accepted wart is closed). Rulings from
-the run, both in Decisions: binding confirmed as written; a policy id
-covers the tab and its children (the planner change is the follow-up
-below).
+Accepted residual: no process-level mismatched-daemon test; the
+structural connect-options pin covers lifecycle safety (the quote path
+never spawns or replaces a daemon).
 
 **Method-test verdict (2026-09-01):** *pass on correctness, with the
 owner-truth channel under-exercised.* The slice ran live first time with
@@ -346,36 +213,13 @@ observations stand in for owner notes. Discharged 2026-09-02: the
 legible output was built and read live by the owner ("Legible output for
 the refresh slice" below).
 
-**Handle ruling built 2026-09-01:** `TabSelection::covers(tab)` (since step (3): `covers_tab` over the shared `Selection`) — own id
-or parent's id; `SkipReason::EmptyStub` for a map/unique stub counting 0
-with nothing held (a held item against a 0 count stays the disagreement
-arm and fetches); `REFRESH_PLAN_SCHEMA` 3 → 4. Tests pin the three cases
-(a named map tab plans its substashes the cycle after its first fetch,
-with the empty stub skipped and the new kind surviving the strict parse;
-a named folder plans its children at once; a child named directly is
-still covered). The driver's readback now checks that every child of a
-selected tab on record is fetched by the time the loop closes, or is an
-`empty_stub` skip in the final plan. Mock rehearsal green in both
-shapes: ids `cur1,dump,maps` = login, `1/1/1`, `1/1/3`, `1/1/4` (the
-four substashes under `maps`, through their parent), empty; `all`
-unchanged. The live rerun of the same five-id policy — the first
-two-cycle discovery sample (64 substashes, ~15 min of holds) — is the
-owner's, under the rung section.
+### Characters in the refresh plan (ruled 2026-09-02)
 
-### Characters in the refresh plan (agreed and ruled 2026-09-02; built and run live the same day — steps (1)–(5) done, N41–N45 authored; pricing next)
-
-Why now: tabs and characters are the only two paths items take into
-the store, so this closes the ingest map ("the store holds what the C++
-app shows" — evidence for ADR 0003 more than for pricing); the shape is
-the same (a listing, one fetch per entity, a freshness window, binding
-plan, apply parent, staleness gate, driver); both routes had first
-contact 2026-08-30 with their policies recorded (N40 and the run
-ledger: list `character-list-request-limit` `2:10:60,5:300:300`, fetch
-`character-request-limit` `5:10:60,30:300:300`, both with a free HEAD);
-the mock serves both under the real policy shapes; and it is cheap
-evidence on the grammar question pricing will ask (a near-sibling is a
-weak test, but it comes almost free, and strain here would be worth
-knowing first).
+Tabs and characters are the only two paths items take into the store;
+this closed the ingest map. Built and run live the same day (steps
+(1)–(5); `REFRESH-SLICE.md` for the build and the review findings;
+run ledger rows `characters rung` and the `/character/poe2` first
+contacts; claims N41–N45).
 
 **Rulings (owner, 2026-09-02 design session).** Evidence: the run-ledger
 row `2026-09-02 characters sample` (`LIVE-TESTING.md`) and the official
@@ -478,63 +322,8 @@ ground-truth claims, master-side).
   play since — the sibling of `ListedCountDisagrees`. A `league`
   disagreement (a Hardcore death landing in Standard) is the same arm.
 
-Shape (falls out of the rulings):
-
-- One policy, one plan, one loop: `characters: "all" | [ids]` beside
-  `tabs` under `realms.<R>.leagues.<L>`. The character list is per realm
-  (`list_characters { realm }`, no league — the envelope's league check
-  treats realm-wide actions as in-envelope); a character is covered when
-  its `(realm, league)` policy names it.
-- Actions `list_characters { realm, reason }` and `fetch_character
-  { realm, id, name, league, reason }` → `("characters", {realm})`,
-  `("character", {realm, name})`; skip reasons `Fresh`,
-  `AwaitingListing`, `Deleted`, `Expired`; separate `skipped_characters`
-  / `unknown_characters` lists. **Plan schema 6** (realm took 5 on
-  2026-09-02; a new action set is its own bump — one integer, and a
-  realm-only plan file read by the characters build then says "newer
-  schema", never "malformed"). The apply vocabulary widens to
-  `characters` and `character`, both single-request; the daemon stays
-  plan-blind.
-- Store: `characters` mirrors `tabs` — `id` PK, `realm`, `name`,
-  `league` (nullable), `json` (fetched), `listed_json` (a fetch never
-  touches it), `listed_at`, `listed_response`, `fetched_at`,
-  `removed_at`; membership stamped per listing response id. `tabs`
-  gained `realm` (PK `(realm, league, id)`) at **facts v3**, the realm
-  step; the character key is **facts v4**: its migration remaps through
-  each row's json (`id` is there) and drops rows whose json lacks it
-  (facts are refetchable), and remaps item locations from name to id.
-- `Store::stash_snapshot` becomes the `(realm, league)` refresh
-  snapshot: stash listing basis + tabs, character listing basis (per
-  realm) + that league's characters, the policy row — one read
-  transaction, nothing derived.
-- Mock: realm paths on all four routes; one `poe2` character with a
-  `skills` array; a `guardian` array on a pc character with slot-named
-  `inventoryId`s; `frameTypeId` on items.
-- Tests: coverage, freshness, disagreement, deleted/expired skips, the
-  policy v1→v2 upgrade and strict round trip, the container column, the
-  drift tripwire, and the process-level loop against the mock with tabs
-  and characters in one policy.
-
-Order of work: (1) realm as its own gate-green step — it touches the tab
-slice already pinned live, which must stay green with pc throughout;
-(2) the character key, columns, lifted arrays, container, tripwire;
-(3) snapshot, planner, vocabulary, CLI/MCP; (4) live: one row under the
-tracer rung's standing rule — the account's characters, list + fetches,
-two probes (the tight list window, 2 per 10 s, is the limiter's, not the
-plan's); (5) **PoE2 first contact**: `GET /character/poe2` is documented
-live today — once the realm step exists, the owner creates a PoE2
-character and one first-contact sample under the standing rule (fresh
-daemon, ceiling 3: POST, HEAD, GET) answers what `Character.realm` says
-for a PoE2 character, whether the pc list omits it, and what `skills`
-items look like (ids present?).
-
-**Realm step (1) built 2026-09-02** — three commits (`959e7fea` core,
-`a0b2561b` store, and the planner/frontends), gate green, mock rehearsal
-green in the `all`, ids, and `--realm xbox all` shapes; the pc journals
-carry exactly the pre-realm routes (`stash-list@…`, `stash@…`) and URLs
-(`/stash/Standard/…`), the xbox run probed `stash-list/xbox` first and
-closed on the mock's empty console listing. Calls made inside the
-ruling, revisable:
+Properties fixed inside the ruling while building, each pinned by a
+test (findings that bought them: `REFRESH-SLICE.md`):
 
 - **The realm table is one type in core** (`realm.rs`: `Realm`,
   `Family::accepts`), read by the daemon (rendering + admission), the
@@ -563,32 +352,6 @@ ruling, revisable:
   records).
 - Policy v2 parses v1 in place; the stored value stays what was
   written (`policy show` shows what the human typed).
-
-External review of the three commits (2026-09-02, Codex via the owner)
-found four defects, fixed the same day before step (2): the handshake
-compared the fixed package version (decision line above; a pre-realm
-daemon would have sent a console job to pc — the one silent failure the
-respawn mechanism exists to prevent); migrated items had a null realm
-(now `NOT NULL DEFAULT 'pc'`, and the migration test carries an item);
-the v2 policy parser had become an untagged enum and lost top-level
-strictness (a v1 value with a stray field, or a v2 with both `realms`
-and `leagues`, was stored half-honored — now the stamp dispatches into
-one strict shape); and the version story was implicit (now: facts v4 and
-policy v3 for characters, and plan schema 6 as the ruled stamp for
-step (3) — written since step (3) landed the same day). One caution it stated, which
-the order of work already implied and is now explicit: **until the
-character key lands, cross-realm character ingestion is unsafe** —
-character rows and item locations are name-keyed, so a PoE2 name that
-collides with a pc name overwrites it; PoE2 first contact stays at (5),
-after (2). It also asked for the realm boundary to be pinned at process
-level, not only through the private `route_for`:
-`acquisition-cli/tests/realm_wire.rs` proves, through the real binaries
-and the send journal, that explicit pc and omitted realm are the same
-route, that xbox work goes out on `stash-list/xbox` / `stash/xbox` with
-their own probes first, that the mock's empty console listing lands no
-pc tab under xbox, and that a poe2 stash job is refused with nothing
-journaled; the tracer verifier checks every data route's realm suffix
-against the run's `--realm`.
 
 **Step (2) mechanism, agreed before building (2026-09-02):**
 
@@ -633,88 +396,20 @@ empty fails the same way. (Review finding 2026-09-02: v2's required
 `tabs` and entry-level realm check could not express the ruled PoE2
 policy.)
 
-**Step (2) built 2026-09-02** (facts v4): `characters` keyed by `id`
-with `listed_json`/`listed_response` and the realm-scoped, response-
-stamped retirement tabs have; `items.container` (compared explicitly;
-NULL for pre-v4 character items, `items` backfilled for stash rows);
-`guardian` and `skills` lifted; the drift tripwire (`_unlifted` in the
-envelope, `Ingest::unlifted`, `Status::unlifted_items`, printed by
-`acq store status`); the v4 migration proven on a v0-shaped file with a
-row that has an id (rekeyed, items relocated) and one that does not
-(dropped, items retired). The mock's fetched character now carries the
-list's id for its name (a fetch of an unlisted name mints a new one —
-the recreated-character shape) and `StashHoarder` has a two-item
-`guardian` with slot-named `inventoryId`s. `acq characters` already
-prints the id beside the name (the list payload is verbatim) and the
-MCP `characters` tool's rows carry `id`. Tests pin: rename keeps the row
-and moves nothing; a recreated name is a never-fetched new row with the
-old one retired; the listing owns `league`; a fetched body without an
-id is malformed; the guardian swap is `changed`, not `moved`; the
-tripwire counts and never fails.
+Store liveness, as the five review rounds left it (the same class of
+gap each time; stated once in the "Bodies are stored verbatim"
+decision above): **a fetch never revives a location a listing
+retired**; **a location is its full coordinate** (`Location`: realm,
+league for a stash, kind, id); **a parent tab's fetch is its
+substashes' listing**; **a listing that revives a retired row clears
+its `fetched_at`** (planner-side: a revived tab is planned as never
+fetched, and a revived parent replans its substashes); a substash's
+liveness includes its parent's; membership is per response
+(`items.seen_response`), never a timestamp match; a character's
+`name`/`class`/`level` and `league` are listing-owned once a listing
+has named the row.
 
-Second review (same day, `953be323`..`e188c86f`) found three more
-defects, fixed before step (3): a character or tab a listing dropped
-left its items live (search showed a recreated character's inventory
-beside the old one's — the very case the id key exists for; now the
-retired location's items are retired with `removed` events, through the
-same per-location removal); a fetch authorized under an old address
-that landed after a newer listing rolled `name`/`class`/`level` back
-(now listing-owned once a listing has named the row — the body's say
-stays in `json`); and item removal keyed on `last_seen < at`, so two
-fetches in one second left the second's omissions live (now
-`items.seen_response`, membership per response like listings). Plus:
-the drift count is per live character's latest fetch, not cumulative
-(so it clears once a build that lifts the array has fetched); the v4
-migration re-stamps character membership from the latest listing on
-record per realm, so a basis a planner cites has its rows stamped to
-it (pinned in the migration test); and the policy v3 shape above.
-
-Third review (same day) found the same class once more, fixed: **a
-fetch never revives a location a listing retired** — the row's
-`removed_at` is listing-owned like its address, and a late fetch of a
-retired character or tab records the body but *withholds* its item
-facts (`Ingest::withheld`) until a listing names the location again,
-when the next fetch lands them as a reappearance; **a location is its
-full coordinate** (`Location`: realm, league for a stash, kind, id), so
-item removal, counts, and move detection never collapse the same tab id
-under two realms into one place; **a parent tab's fetch is its
-substashes' listing** — a stub it no longer carries is retired with its
-items, and a listing that retires the parent retires the substashes'
-items while keeping their rows for the planner's orphan report; removal
-events take their ids from the update itself (`RETURNING`), never from
-a timestamp match; and a character's items take the row's listing-owned
-league, not the body's.
-
-Fourth review (same day): the withholding model's second-order gaps,
-fixed (facts **v5**: `responses.withheld`). A withheld fetch no longer
-touches the row at all — and, independently, **a listing that revives a
-retired row clears its `fetched_at`**, because a plain drop-then-revive
-by two listings (no late fetch anywhere) also left a live, empty
-location the planner called fresh; pinned planner-side (`a revived tab
-is planned as never fetched`). A substash's liveness includes its
-parent's (a late substash fetch under a retired parent is withheld, and
-a late fetch of the retired parent neither revives it nor rewrites its
-children — the orphan report stays as the listing left it). A withheld
-fetch keeps the *whole* body verbatim on its response row (arrays
-included; nothing split off and lost), the count is on the row and in
-the daemon log and `store status`. Event addresses carry the full
-coordinate (`stash/<realm>/<league>/<id>`, `character/<realm>/<id>`).
-
-Fifth review (same day): three edge cases, fixed (facts **v6**). A
-listing that retires a parent clears its retained substashes'
-`fetched_at` along with their facts, so when the parent returns the
-plan fetches the parent *and* each substash again (pinned planner-side:
-a revived parent replans its substashes). `responses.withheld` is
-nullable — NULL is an ordinary response, so a withheld fetch of an
-empty location is still marked (`Some(0)`) — and counts every item fact
-the body carried, socketed gems included; `store status` reports both
-withheld responses and items. The malformed-body contract holds for a
-withheld body too: identity is checked before the store decides whether
-a body lands or is withheld, so an id-less item or stub is refused and
-nothing is written, whatever the location's liveness.
-
-**Step (3) built 2026-09-02** (policy **v3**, plan schema **6**; calls
-made inside the ruling, agreed with the owner before building):
+Planner calls made inside the ruling (step (3)):
 
 - **The planner is facet-symmetric, not character-aware.** `Selection`
   (`all` | ids) serves both facets; `LeaguePolicy { tabs?, characters?,
@@ -745,19 +440,10 @@ made inside the ruling, agreed with the owner before building):
   fetched *or revived*), the listed entry verbatim, and the fetched
   envelope only while a fetch stands (`Null` after revival — the column
   still holds the disowned body). The planner reads those three facts
-  and has no liveness logic. `Store::stash_snapshot` is
-  `Store::refresh_snapshot`: `stash_listing` + `tabs`,
+  and has no liveness logic. `Store::refresh_snapshot` is
+  `stash_listing` + `tabs`,
   `character_listing` (per realm) + `characters`, the policy row, one
   read transaction.
-- **Envelope renames under the bump** (free now, never again):
-  `basis.stash_listing` + `basis.character_listing` (both carried as
-  the facts of the read, whichever facets the policy covers),
-  `skipped_tabs` / `unknown_tabs` beside `skipped_characters` /
-  `unknown_characters`; `list_characters { realm, reason }` carries no
-  league and is in-envelope for any league of its realm
-  (`RefreshAction::league()` is an `Option`); `fetch_character { realm,
-  league, id, name, reason }` renders `("character", {realm, name})` —
-  the listed name, no `class`/`level` (the ruled five fields).
 - **A strictness hole the character skip test found, closed:** serde
   ignores extra fields beside an internally tagged *unit* variant's
   `kind` (`never_fetched`, `folder`, `deleted`…), `deny_unknown_fields`
@@ -776,64 +462,15 @@ made inside the ruling, agreed with the owner before building):
   are per league, so two league plans on one realm applied together
   each authorize their own `list_characters` — the same register as two
   realm plans listing separately; v1 lives with it.
-- **Tests** (planner, each on the six-path checklist): v3 per-facet
-  parse and every malformed shape; the character listing alone on a
-  never-listed realm with no stash work; exact-id coverage and unknown
-  ids; the experience arm forward-only (same-second and body-without-
-  experience prove nothing) and the window; a league move fetching in
-  the new league and leaving the old; deleted / expired / no-league
-  skips, by `all` and by id, and in the realm's other league; the
-  revived character as never fetched with a withheld late fetch in
-  between; a recreated name planning the new id only; a row without a
-  listed entry planning by the window; the mixed loop closing through
-  `Endpoint::from_job`; realm-wide actions in-envelope and character
-  skips parsing strictly. Store: the per-realm character basis with the
-  league's rows plus league-less ones, revival clearing the body, two
-  listings in one second, malformed stored json with its address.
-  Process level: `acquisition-cli/tests/apply_loop.rs` now runs the
-  mixed policy (two listings, then 7 tabs + 2 characters, then 7
-  substashes, then empty, character rows fetched with items);
-  `tests/characters_wire.rs` closes a character-only poe2 policy on
-  `character-list/poe2` / `character/poe2` with probes first, nothing
-  on any other data route, the `skills` item at the character under
-  poe2 only, and a `tabs` facet under poe2 refused at `policy set`.
-- **Driver and verifier**: `--characters all|id,...` and a `none` tab
-  selection (a character-only run; how poe2 is driven), one probe per
-  route the plan touches (four at most), pacing by the longer facet
-  (the two policies run side by side), a character readback (every
-  covered character fetched, or skipped for a reason that never
-  fetches). Mock rehearsals green 2026-09-02: `all --characters all` =
-  login, `1/2/2`, `1/2/9`, `1/1/7`, closed; `--realm poe2 --characters
-  all none` = `1/1/1`, `1/1/1`, closed — that first cycle is exactly the
-  standing rule's first-contact shape (ceiling 3: POST, HEAD, GET), so
-  order-of-work (5), PoE2 first contact, can run as that invocation
-  (`LIVE-TESTING.md`, "Characters rung").
 
-Ground-truth claims authored master-side 2026-09-02 (cherry-picked
-here): **N41** the poe2 character policies (`-poe2` names, pc's
-windows, free HEAD, separate counters), **N42** per-realm lists and
-`Character.realm` `poe2` (the documented `pc|xbox|sony` enum is
-incomplete; no `deleted`/`expired` flags even in ended leagues),
-**N43** item `realm` on PoE2 only, PoE2 body arrays and `skills`
-`inventoryId`s, the guardian array's slot names, stripped characters,
-**N44** id-less item-granted skills (the documented-optional `Item.id`,
-observed), **N45** two policies pacing independently and a hold ending
-at the window's expiry. Still pending from the documentation read
+Ground-truth claims N41–N45 were authored master-side 2026-09-02 and
+cherry-picked here. Still pending from the documentation read
 (not observed, so not yet claims): realm segment semantics per
 endpoint and pc-by-omission; PoE2 on the character endpoints only;
 `inventoryId` undocumented; the invalid-request (4xx) threshold.
 
-**Step (5) ran live 2026-09-02 — both poe2 routes pass, and one ruling
-is open** (`LIVE-TESTING.md`, run ledger, three rows). Answered: HEAD is
-the free probe on `/character/poe2` and `/character/poe2/{name}`; the
-policies are **`character-list-request-limit-poe2`** and
-**`character-request-limit-poe2`** — pc's windows under poe2-suffixed
-names, so the realms' counters are separate (N6); `Character.realm` is
-`poe2` (the mock was right, the docs wrong); the pc list omits PoE2
-characters; every PoE2 item carries `realm: "poe2"` (pc items never
-do); `skills` entries carry ids and `inventoryId`
-`DefaultAttackSkills`/`SkillSlots`. And one ruling, **decided 2026-09-02
-(owner: (a), until GGG changes how granted skills are reported)**: an
+**Ruled 2026-09-02 (owner: (a), until GGG changes how granted skills
+are reported):** an
 **item-granted skill has no `id`**. A weapon or shield that grants a
 skill (Rattling Sceptre → Skeletal Warrior, a wand → Mana Drain or
 Chaos Bolt, a tower shield → Raise Shield) carries it as an id-less
@@ -854,51 +491,13 @@ discriminator is `is_granted_skill`: no `id` and gem-framed
 (`frameTypeId` `Gem` or `frameType` 4), at a socketed position or at
 the top of `skills`. Rejected: a synthetic identity (breaks one row per
 GGG item id and doubles the entry); keep refusing (no PoE2 character
-with a granting weapon would ever land). The mock's poe2 body carries
-the shape. Built the same day, and the poe2 rung's rerun **closed the
-loop** (run ledger, 16:14 UTC: four characters landed, 8 granted
-skills counted, cycle 2 empty). Steps (4) and (5) are done; next is
-pricing.
+with a granting weapon would ever land).
 
-**Step (4) ran live 2026-09-02 and passed** (`LIVE-TESTING.md`, run
-ledger `characters rung, pc` and the "Characters rung" section): the
-tracer's five ids plus `--characters all` on pc — one 112-request cycle
-(both listings, 5 tabs, 64 substashes, 41 Standard characters of 59
-listed; the 18 in other leagues are outside a Standard policy), ceiling
-117 exact, four probes at 0 hits, zero non-2xx, loop closed in 2 cycles.
-The two facets paced independently (stash ~13 min, characters ~6.5 min;
-the cycle is the longer). Facts: 10 of the 41 are stripped characters
-(empty item arrays, `_split` 0/0/0 — the body's truth, not a lifting
-gap); guardian lifted (4 characters, 18 items); 1081 `added` events at
-`character/pc/<id>`; every body `metadata.version` `3.29.3`.
+### Legible output for the refresh slice (ruled 2026-09-02)
 
-Exit: the loop closes on a policy naming tabs and characters together,
-live, with the driver's checks green — **met 2026-09-02**; (5) PoE2
-first contact ran and closed the same day (the paragraph above;
-N41–N45). Next is pricing.
-
-### Legible output for the refresh slice (ruled, built and run live 2026-09-02: approved; density open)
-
-Why now: the method-test verdict above — the tracer's truth was the
-agent's reading of the journal, not the owner's reading of the terminal
-— and the parking-lot item it names. The next live run's friction notes
-must come from output a person can read once, top to bottom.
-
-Evidence read before ruling (not designed from memory): the tracer
-rung's friction notes and agent observations (2026-09-01, the 2026-09-02
-rerun) and the characters rung's (both rows) in `LIVE-TESTING.md`; the
-run bundles on disk — `runs/2026-09-01-tracer`, the 112-action
-`runs/2026-09-02-tracer-150553` (64 substash + 41 character lines,
-`characters.txt` with seventeen never-fetched rows showing `0` items
-beside ten fetched-empty rows showing `0`, 1081-line
-`store-events.txt`), the failed apply in `runs/2026-09-02-tracer-154145`
-(`apply-c2.err` and `daemon-c2.out` are **empty**; the only failure
-text is `4 of 5 child jobs failed: [224, 226, 222, 223]`, unsorted, the
-cause only in the daemon log), and the closing run
-`runs/2026-09-02-tracer-161419`; plus every surface run against the
-mock in this session, including a deliberately failing apply (a
-fetched tab id the mock 404s) and captured, non-tty output — which is
-how the driver's `.out` files and any agent see it.
+Built and run live 2026-09-02 (`REFRESH-SLICE.md`; run ledger
+`legibility run`). What each surface prints is the renderer's and the
+README's one-liners; the binding text is below.
 
 **Two consumers, read differently.** The owner at a terminal reads once,
 top to bottom, and needs five answers in order: what will this do, what
@@ -959,76 +558,6 @@ and decided.
    `--summary` and `--expand` select either form in both modes. `acq
    refresh --plan`: text default is grouped, JSON is the envelope.
 
-**What each surface says, at each level:**
-
-- `acq refresh --plan` (text): header (`refresh plan: <realm/>league on
-  provider as account — policy revision N`), one basis line with both
-  listings' ages, then the verdict line `N requests (min..max wire
-  sends; plus a HEAD probe per new route this daemon lifetime and a
-  token refresh if the token has expired)` over the grouped actions:
-  each listing on its own line; `fetch N tabs` (listed or counted per
-  rule 2, each line `id "name" (type)  reason`, a parent line noting
-  `+ k substashes below`); `fetch N substashes under k of those tabs`
-  with per-parent counts; `list characters (realm-wide)`; `fetch N
-  characters in <league>` (listed with id and name, or counted). Then
-  the skip and unknown-id lines (one per facet, as today), the quote
-  compressed to one line per scope plus one `not covered` line, and a
-  closing `next:` line (`acq refresh --apply`, or `--apply=FILE` when
-  rendered from a file; `--expand` and `--json` named). `--expand`: one
-  line per action under the same header (today's form). `--json`: the
-  envelope, unchanged. `--plan=FILE`: the same, from a reviewed file.
-- `acq refresh --apply` (text): `applying N requests as job J`; while
-  it runs, a progress line `job J: d/N done, w waiting, next in ~Ss
-  (limiter hold on <route>)` — redrawn in place on a tty, printed on
-  change and at most every 10 s otherwise; then the report rule 4
-  shapes: success `job J done: N requests, N done (jobs a–b)` followed
-  by `changed: +x items, ~y changed, >z moved, -w removed at k locations
-  since the apply started (acq store events)` from the store read the
-  CLI does after the parent finishes (a frontend read, no daemon);
-  failure `job J failed: k of N requests failed, m done`, one line per
-  failed child (`job 224  character poe2/boomsplam  <its error>` — the
-  malformed-body error already names `acq store refused <id>`), the
-  same `changed:` line for what did land, and `daemon log: <path>`. An
-  empty plan: `nothing to do: 69 covered tabs and 41 characters are
-  fresh (within 3600 s); the plan authorizes no requests`. `--json`:
-  the outcome as today plus `store_changes` (additive).
-- `acq result <id>`: an `apply` parent renders as the apply report
-  above (success summary with the child range, or the failure
-  expansion); a failed child prints its error (already evidence-
-  bearing); a done data child prints its payload verbatim (an ad-hoc
-  `acq stash` reader asked for the body).
-- `acq jobs`: widths from the data; a footer `n jobs: r running, w
-  waiting (next ~Ss), d done, f failed, c cancelled`.
-- `acq store characters`: columns `name league level items fetched
-  listed id` (the full id last — the handle stays, the readable columns
-  come first); `items` is `-` when never fetched and `0` when the
-  landed body carried none; footer `59 characters: 42 fetched (10 with
-  empty bodies), 17 never fetched; 1146 items`, plus granted skills
-  when any.
-- `acq tabs`: the name column sized to the data (cap 40, `…`), the
-  child indent kept; `items` `-` when never fetched; footer counts
-  fetched / never fetched.
-- `acq store events`: text default = one line per location, newest
-  first — `character/pc/<id> "OnlyCircles"  +66 added  19m ago` — with
-  a total line (`1081 events at 41 locations: +1081 added`), names
-  resolved from the store's tab and character rows; `--expand` = every
-  event with an age (today's form, ages instead of epochs). JSON as
-  rule 9.
-- `acq store refused`: ages instead of epochs; the list ends with `acq
-  store refused <id> prints one body`.
-- `acq store status`, `acq daemon status`, the daemon log: unchanged —
-  the log is the agent's evidence and the failure lines now point at
-  it.
-- The driver (`tools/tracer-rung.sh`): the plan text once per cycle
-  (offline), then only the quote block from the daemon-up compile
-  (identity is checked, not reprinted), then the grouped actions from
-  the file about to be applied via `acq refresh --plan=FILE` at the
-  confirm; the offline check's stderr echo is dropped (the check
-  stays); the verifier prints a **brief** summary to the terminal — one
-  line per lifetime with its send totals, probe verdicts, and the
-  limiter holds it saw per route — and writes the full per-send form
-  to `summary.txt` (the evidence bundle is unchanged).
-
 **Considered and rejected:**
 
 - A `summary` block inside the plan envelope: a schema bump and one
@@ -1053,38 +582,11 @@ and decided.
   list and resolve names with the reads it has; a shared function
   waits for the second consumer (MCP) to ask for it.
 
-Two touches outside the CLI, named for the owner: `failed_ids` sorted
-in the daemon's parent summary (`daemon.rs`, the JSON array and the
-error string), and the additive `fetched_items` on the store's
-`CharacterRow` / `TabRow`. Everything else is CLI rendering, the driver,
-and the verifier.
-
-**Built 2026-09-02**, as ruled, after the owner's approval of the
-before/after renderings. Calls made inside the ruling: the substash
-group says `under k of those tabs` only when every parent is itself
-fetched in the plan, else `under k tabs`; the no-op apply's JSON gains
-`skipped: {tabs, characters}` (additive); the quote's `not covered`
-phrases are the daemon's own, cut at their explanatory tail (whole in
-`--expand`); the parent failure report reads the daemon's own
-`k of n child jobs failed: [ids]` line back (a coupling pinned by a
-unit test, `parse_children_failure`) and lists the children the daemon
-still holds this lifetime, falling back to the ids alone after a
-restart; `acq result <parent>` renders the same report; the progress
-line for a parent counts its children and names the soonest limiter
-hold. Pinned by unit tests on the renderer (threshold, parent counts,
-reason ranges, the expanded form, the empty plan, the no-quote line
-without an OS error, the event grouping, the `-`/`0` items cell) and by
-the mock rehearsals of `tools/tracer-rung.sh` in both shapes (`all
---characters all` and `--realm poe2 --characters all none`, green). **Run
-live 2026-09-02** (`LIVE-TESTING.md`: the `legibility run` ledger row
-and the section of that name): the characters-row shape on build
-`695c1ec1`, 112 requests in one grouped plan, pass, loop closed in two
-cycles. The owner read it at the terminal and gave the verdict to the
+The owner read it at the terminal and gave the verdict to the
 agent (no notes typed at the prompts): **approved**, and "still dense,
 verbose output". Density is the open item this build did not close:
 cut words before adding structure, judged against the next live
-reading, not pre-fixed. The method-test caveat carried into the pricing
-session (budget for legibility before its live run) is discharged.
+reading, not pre-fixed.
 
 ## Frontend boundary findings (from `acq pull`, 2026-08-24; `pull` itself was retired 2026-08-29 in favor of the store)
 
@@ -1092,25 +594,18 @@ What a real consumer needed from the protocol and did not get. Facts, not decisi
 
 - **Collecting a subtree is N+1 round trips** (`list`, then `result` per child; 15 for a deep pull of the mock, hundreds for a real map tab). Fine over a Unix socket; shape-wise it wants either results delivered on the event channel as jobs finish, or a `results` verb over a subtree. Waits for a second consumer (GUI or MCP) to show which.
 - **The denominator grows.** Children exist only once their parent runs, so progress reads "0/1" and then "8/8"; a deep pull grows again when each map/unique tab lands. Any progress UI must expect the tree to widen while it watches. A property, not a change request.
-- **Some item fields are volatile.** `veiledMods` placeholder ids change
-  on every fetch (N36; rung 10, 2026-08-25: 10 items "changed" between two
-  pulls an hour apart with nothing touched). The store's ingest ignores them
-  (`acquisition_store::VOLATILE_ITEM_FIELDS`), so every consumer shares the
-  list. Resolved 2026-08-29.
 - **Nameless substashes.** Map/unique substashes carry an empty `name` (map ones have `metadata.map.name`); a frontend labels them `parent/id`. Tab identity for a substash is `(parent, id)`. Client-side; the returned JSON is not to be changed.
-
 
 ## Open topics
 
 - Priority levels: how many, and named or numeric? (Interactive > background is the intuition, *regardless of frontend* — an agent in a live conversation is interactive; the caller states its urgency, the frontend doesn't imply it.)
+- The ad-hoc `refresh --tabs`/`--all` kind beside the plan path: two doors to one task. Evidence in: across four live runs nobody reached for it (the tracer's friction prompt asked). Retiring it needs one design answer first — how a human fetches exactly one tab without authoring a policy (an explicit selection compiled as a policy-less plan through the same envelope and apply?). A candidate line for the pricing packet; the kind stays until then.
 
-(2026-08-31: "delta/selection for refresh" and "user state on items" are resolved into the sync-policy / annotations / Plan decisions above; the tracer below builds them.)
+(2026-08-31: "delta/selection for refresh" and "user state on items" are resolved into the sync-policy / annotations / Plan decisions above; the tracer section above built them.)
 
 ## Explicitly deferred (do not build yet)
 
-- ~~Multi-account build steps~~ — built 2026-08-30, steps (1)–(6) of "Multi-account design"; step (7)'s first contacts are in `LIVE-TESTING.md`'s run ledger (`/profile`, `/account/leagues`, `/character/{name}` all done 2026-08-30). GGG answered Q12 (2026-08-30): `/profile` is not rate limited at present (declaration confirmed, kept), and `/account/leagues`' counted HEAD will be corrected in a future release — its no-probe declaration stays until the free HEAD is observed live, then it goes and the probe returns.
 - Queue-management UI (drag-to-reorder, per-job progress bars). v1.0 only guarantees the architecture makes this a rendering problem.
-- ~~Agent/MCP traffic against GGG~~ — deferral lifted 2026-09-01 (decision "Agent traffic against GGG is allowed; the daemon is the single gate"): GGG permits agent use under the API rules; `acq-mcp` now spends through a running daemon in either mode and never spawns one in real mode.
 - **Parking lot (2026-08-31, each with its trigger so deferral never needs re-arguing):**
   - Pricing-as-document → lands on the annotations layer + plan/apply after the tracer and after characters join the refresh plan (agreed 2026-09-02); the second plan-bearing consumer, and the test of whether Plan is one grammar or a family of operation-specific documents.
   - Legacy buyout import → a patch generator into the ordinary annotation plan/apply path; the wizard dissolves.
@@ -1121,7 +616,6 @@ What a real consumer needed from the protocol and did not get. Facts, not decisi
   - Universal Plan grammar / five-verb surface → direction only; evidence at pricing.
   - Dynamic `--deep` fan-out under plans → trigger: tracer evidence that two-cycle reconciliation genuinely hurts (2026-09-01: the tracer rung produced none; stays parked).
   - Type-level sync-policy filters ("skip map tabs", "include unique tabs", "fetch folder children") → trigger: a policy author who needs a type exclusion the parent-covers-children rule cannot express; a policy-shape change (planner owns the schema).
-  - ~~Human-legible CLI output for the plan slice~~ → ruled, built and run live 2026-09-02 ("Legible output for the refresh slice" above), approved; what stays open there is density (fewer words), not structure.
   - Fact-path migration to uuid naming → opportunistic, or never (facts are refetchable).
   - Per-realm merge at `policy set` (today a set replaces the whole policy, so a poe2 run erases the pc policy — seen 2026-09-02) → trigger: a second realm in daily use; until then the author re-sets the pc policy, one command.
   - Search-at-scale (FTS at ingest, search-crate factoring behind the store API) → trigger per the two-surface stress test: a real consumer with a measured latency or duplication case.
