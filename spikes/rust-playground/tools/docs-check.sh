@@ -32,7 +32,7 @@ budget() {
   fi
 }
 budget AGENTS.md        8000
-budget CONTEXT.md      45000
+budget CONTEXT.md      20000
 budget README.md       30000
 budget LIVE-TESTING.md 60000
 
@@ -43,8 +43,18 @@ budget LIVE-TESTING.md 60000
 # either a lint, a test, or a smell).
 ENTRY_LIMIT=800
 reg=$(mktemp)
-# entries are single lines in the registry (one bullet, no continuation)
-grep -E '^- \*\*C[0-9]+ ' CONTEXT.md >"$reg"
+# entries are single lines in the registry (one bullet, no continuation),
+# spread over CONTEXT.md (cross-cutting only) and decisions/*.md (per area)
+grep -hE '^- \*\*C[0-9]+ ' CONTEXT.md decisions/*.md >"$reg"
+dups=$(grep -oE '^- \*\*C[0-9]+' "$reg" | sort | uniq -d | sed 's/^- \*\*//' | tr '\n' ' ')
+if [[ -n $dups ]]; then echo "DUPLICATE decision id across registry files: $dups"; fail=1; fi
+CROSS_LIMIT=15
+cross=$(grep -cE '^- \*\*C[0-9]+ ' CONTEXT.md)
+if ((cross > CROSS_LIMIT)); then
+  printf 'CROSS   %-18s %5d always-loaded decisions > %d — move area rulings to decisions/<area>.md\n' CONTEXT.md "$cross" "$CROSS_LIMIT"; fail=1
+else
+  printf 'ok      %-18s %5d always-loaded decisions (limit %d)\n' CONTEXT.md "$cross" "$CROSS_LIMIT"
+fi
 over=0
 while IFS= read -r line; do
   n=$(printf '%s' "$line" | wc -c | tr -d ' ')

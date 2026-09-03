@@ -13,8 +13,9 @@ owner's call and needs nothing from you — ignore it and `docs/redesign/`.
 Always, in this order:
 
 1. `README.md` — what exists, how to run it, knobs, known gaps.
-2. `CONTEXT.md` — invariants, decisions with rationale, boundary-level
-   interfaces, open topics, the parking lot, and the working style.
+2. `CONTEXT.md` — invariants, the cross-cutting decisions, the index of
+   the area decision files, open topics, the parking lot, and the working
+   style.
    Owner (Tom) holds the boundaries (invariants, protocol, core API
    surface); agents own internals.
 
@@ -27,6 +28,12 @@ Then, only when the work touches it:
 - Before touching tests or the harness: `TESTING-NOTES.md` — the send
   journal is the contract surface; tests pin boundaries, never mechanisms.
 - Before touching the network layer: `NETWORK-CLEANUP.md` (closed record).
+- Before touching an area, its decisions: `decisions/daemon.md` (daemon,
+  jobs, protocol, accounts), `decisions/network.md` (limiter, gate, rails,
+  OAuth traffic), `decisions/store.md` (ingest, facts, realm, characters),
+  `decisions/plans.md` (sync policy, planner, quote, apply),
+  `decisions/frontends.md` (CLI, MCP, rendering). Each module's doc names
+  its file and ids at the top.
 - Before touching the store, planner, or plan slice: `REFRESH-SLICE.md`
   (closed record; its findings table is the review checklist) and the
   crates' module docs (`src/lib.rs`, "As built").
@@ -68,7 +75,7 @@ budget trips, something landed where it does not belong.
 
 | Kind of fact | Home |
 | --- | --- |
-| a ruling, invariant, or boundary property | `CONTEXT.md`'s registry: one entry, a stable `C<n>` id, the ruling verbatim, *Why:*, and pointers (under the check's length limit) |
+| a ruling, invariant, or boundary property | the registry: one entry, a stable `C<n>` id, the ruling verbatim, *Why:*, and pointers (under the check's length limit) — in `decisions/<area>.md`, or in `CONTEXT.md` only if every area must know it |
 | a property pinned by a test | the test cites the decision id (`c6_…`, or a comment); the entry's *Pinned:* names the file |
 | a review finding | a row in the slice's closed record, with its fix commit |
 | a build step's narrative | the commit message |

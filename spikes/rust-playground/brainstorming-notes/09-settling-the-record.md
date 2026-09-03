@@ -151,3 +151,17 @@ id. `CONTEXT.md` is 37 KB, gate 45 KB. The check refuses an id cited
 anywhere that the registry lacks and reports the decisions nothing
 cites — 32 at the start, the clause audit's input, to be worked per
 area when the area is next touched (pricing first: intent and plans).
+
+## Step three: the registry split by area
+
+The owner's question: byte size is a proxy; the budget that governs an
+agent's behaviour is the number of rules it must hold before it knows
+which area it is in (rule-count sensitivity, recency, and compaction —
+an always-loaded document is what gets lossy-summarized in a long
+session, while a file on disk is re-read whole). So `CONTEXT.md` keeps
+the invariants and 12 cross-cutting decisions (capped at 15 by the
+check) plus an index; the other 51 live in `decisions/{daemon, network,
+store, plans, frontends}.md`, read before touching the area and named
+at the top of each module's doc so the reminder sits where the hand
+goes. `CONTEXT.md` 37 KB → 17 KB, gate 20 KB; always-loaded path
+(AGENTS + README + CONTEXT) 153 KB → 47 KB across the three steps.

@@ -26,7 +26,7 @@ For every item the session produced, exactly one of:
 
 | It is | It goes to |
 | --- | --- |
-| a ruling by the owner, or a boundary property | `CONTEXT.md`'s registry: the next `C<n>` (never reuse an id), the ruling verbatim, *Why:* in a sentence, *Details:*/*Pinned:*/*Evidence:* pointers — one bullet under the length limit; the mechanism it implies goes to the code's doc comment under its id |
+| a ruling by the owner, or a boundary property | the registry, in `decisions/<area>.md` (or `CONTEXT.md` only if every area must know it): the next `C<n>` (never reuse an id), the ruling verbatim, *Why:* in a sentence, *Details:*/*Pinned:*/*Evidence:* pointers — one bullet under the length limit; the mechanism it implies goes to the code's doc comment under its id |
 | a property now pinned by a test | the test's name carries the id (`c44_stale_revision_refused`), or a comment cites it; the entry's *Pinned:* names the file |
 | a review finding | a row in the slice's closed record (`REFRESH-SLICE.md` is the shape), with the fix commit |
 | the story of what was built and why | the commit message |
