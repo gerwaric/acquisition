@@ -1,181 +1,171 @@
-The packet has the right architectural backbone, but I would not harvest it verbatim yet. Pricing is correctly placed in intent + derivations, the plan/apply loop fits, and render-before-publish is exactly the right slice. The weak point is the domain model between stored intent and rendered publication: the packet currently collapses game observations, manual forum intent, effective price, and publication eligibility into one precedence function. That is where inherited C++ assumptions are still steering the design.
+# Pricing design review — convergence reassessment
 
-## Overall judgment
+## Verdict
 
-Keep these foundations:
+The packet is converged in substance. I recommend **one final, narrow revision
+and then acceptance**, without another general design round.
 
-- Pricing is offline intent; no daemon or job.
-- Store explicit assertions only; derive inheritance.
-- Strict, versioned intent types before the first real price.
-- Atomic `PricePlan` application with row-level preconditions.
-- Pricing never edits refresh policy.
-- Legacy import is a producer of desired state, not a privileged writer.
-- `shop render` is in scope; forum publishing is not.
-- A mutation receipt lands atomically with the intent mutation.
-- CLI and MCP are thin adapters over the same Rust semantics.
+C64–C78 now form a coherent system. The revision has resolved every earlier
+architectural objection: the layers are separate, uncertainty lands in
+replaceable knowledge rather than intent, the stored amount is broad enough for
+the experiment, the experiment precedes and is independent of production
+rendering, reference-data evolution is semantic, legacy identity is
+evidence-graded, and detailed import non-actions survive in the reviewed plan.
 
-Before ruling, I would amend the packet around five issues: publication channels, target identity, provenance, concurrency semantics, and the deliberately open Plan-family experiment.
+Only two clauses still cross the threshold from “development detail” into
+“boundary decision”:
 
-## 1. Do not force game and manual prices into one scalar “effective price”
+1. C79 must say that permission attaches to an **access method**, not merely to
+   a registered surface or to being off the runtime path.
+2. C73 must not treat lack of overlap as proof that the source belongs to a
+   different account.
 
-C69 says a game-set price wins at equal grain because it is “already public” ([packet](/Users/tom/Development/GitHub/gerwaric/acquisition/spikes/rust-playground/brainstorming-notes/10-pricing-design-packet.md:135)). That premise is conditional. Current stash facts expose `metadata.public`; a price-like tab name or item note can exist without the stash being public. The official API documents both the public flag and item notes. [GGG API reference](https://www.pathofexile.com/developer/docs/reference)
+Make those two edits, harvest the packet, and let the slice learn the rest.
 
-More fundamentally, these are different statements:
+## What is now ready to accept
 
-- Game price: an observed fact about an in-game note.
-- Manual price: intent for Acquisition’s forum-shop output.
-- Ignore/no-price: publication disposition, not really a price.
-- Renderability: whether the item can be represented safely in a forum post.
-- Public visibility: whether GGG already exposes the item through a public stash.
+The packet reads as one stacked design rather than a collection of pricing
+features:
 
-I recommend deriving the game and manual sides independently, then reconciling them into an explainable listing state:
+- **Facts** retain game observations verbatim and remain re-derivable under new
+  parsers.
+- **Intent** stores only explicit manual assertions, with typed values,
+  revisions, provenance, and receipts.
+- **Reference data** is reviewed, enumerable, cited, and compatible by stable
+  semantic identity rather than by an unnecessarily global digest lock.
+- **Derivations** own inheritance, game-note interpretation, the relation
+  between game and manual prices, eligibility, and rendering.
+- **Effects** remain absent from this slice; manual forum use is an experiment,
+  while automated publishing still requires its own boundary design.
+- **Plans** preserve the shared observe → compile → review → apply loop without
+  forcing refresh and pricing into one action grammar.
+- **Frontends** remain adapters over the Rust semantics rather than alternate
+  implementations.
 
-- Resolve manual inheritance by specificity: item → substash → parent tab or character.
-- Resolve game pricing by specificity: item note → tab name.
-- If both exist, report whether they agree or conflict.
-- Let each consumer decide what that means. A price display can show both; `shop render` can suppress, include, or refuse based on public visibility and the ruled duplication policy.
-- `ignore` should suppress forum rendering without pretending the observed game price ceased to exist.
+This arrangement is resilient to the specific risk posed by the C++ evidence.
+If the census or forum matrix disproves an inherited assumption, the affected
+parser, claim, reference row, or derivation changes. The user's intent and the
+plan/apply safety model do not.
 
-This is better than both proposed options in question 1. I would neither refuse the manual write nor silently call it shadowed. Store the intent and return a first-class conflict/corroboration state. Refusal protects only one ordering; unconditional shadowing invents an authority rule that the evidence has not established.
+The following previous concerns are fully resolved and should not be reopened
+during harvest:
 
-C64 should therefore say “manual listing intent is stored; game pricing and effective/listing states are derived,” rather than implying one universal effective-price scalar.
+- separate manual and game resolutions with an explicit relation;
+- typed, realm-aware targets;
+- exact rational storage with emitted and accepted syntax learned separately;
+- malformed-note precedence and a format-drift tripwire;
+- structured writer, actor, plan, and receipt provenance;
+- tombstone generations and atomic intent preconditions;
+- fact drift reported across the separate files rather than falsely made
+  transactional;
+- a consistent logical snapshot of the WAL-backed legacy database;
+- a conditional inverse compiled from an atomic receipt;
+- explicit eligibility and omission reasons;
+- an experimental fixture before the production renderer;
+- a separate trade/forum ground-truth file;
+- retaining the reviewed import plan because receipt counts intentionally do
+  not preserve every non-action.
 
-## 2. C67’s target identity contradicts the Rust store’s learned coordinate model
+## The one material revision
 
-C67 proposes keys based on GGG IDs alone. That imports a C++ storage shape precisely where the Rust work already found it unsafe.
+### C79: govern the access method, not just the surface
 
-The Rust store deliberately keys stash locations by `(realm, league, id)` and records that “a location is its full coordinate” ([store decisions](/Users/tom/Development/GitHub/gerwaric/acquisition/spikes/rust-playground/decisions/store.md:10)). Realm is explicitly “above league, everywhere” ([store decisions](/Users/tom/Development/GitHub/gerwaric/acquisition/spikes/rust-playground/decisions/store.md:17)). Meanwhile, the C++ userstore reverted stash identity to `id` alone to fit its upsert machinery; that is evidence of its implementation constraints, not a new-system invariant.
+The new cross-cutting boundary is justified. The API choke point does not cover
+browser observations, forum experiments, or future third-party feeds, and the
+system needs an explicit home for governing them.
 
-Use a typed `PriceTarget`, even if the annotation table internally encodes it into `scope` and `key`:
+The current wording nevertheless grants too much merely because a surface is
+registered, human-run, and outside the runtime path. Those properties control
+operational coupling; they do not establish permission. GGG's developer policy
+says only documented APIs and data exports are supported and specifically
+warns against reverse-engineering internal website endpoints. At the same
+time, manually reading the public trade site and manually using a forum are
+ordinary intended uses. The important distinction is therefore the method of
+access, not whether “the trade site” as a whole is sanctioned:
 
-- `Item { id }`
-- `Tab { realm, id }`
-- `Substash { realm, parent, id }`
-- `Character { realm, id }`, unless C55’s global character identity is deliberately ruled sufficient
+- <https://www.pathofexile.com/developer/docs/index>
+- <https://www.pathofexile.com/developer/docs/reference>
+- <https://www.pathofexile.com/forum/view-thread/3444007>
 
-League can remain absent so intent follows a tab through league migration. Realm should not be discarded without evidence that identifiers are globally collision-free across realms.
+I recommend replacing C79 with this boundary, or its concise equivalent:
 
-This target type should be part of the public pricing API; frontends should never construct raw annotation keys.
+> **C79 — External non-API surfaces are registered, permission-scoped inputs,
+> never runtime dependencies.** No store read, plan compile, or apply depends
+> on one. Each registration names the operator, permitted access method, terms
+> exposure, and cadence; Acquisition consults it only by a method the operator
+> permits. Human observations and permitted human-run tools land as claims or
+> reviewed reference data, source cited. Unsupported internal endpoints are
+> not automated or reverse-engineered without explicit permission. Using a
+> surface as an effect requires its own boundary session first.
 
-## 3. The amount grammar is not ready to freeze
+C68 then needs only a corresponding phrase: a tool may propose rows **when the
+registered access method permits tooling**. Otherwise the evidence is gathered
+by a human browser reading. A human commit is the authority for the reference
+table, but human review does not retroactively permit an impermissible fetch.
 
-“Positive decimal string” is directionally better than a float, but underspecified:
+This is not a pricing-model objection. It is the minimum correction needed to
+make C79 protect the GGG relationship rather than accidentally authorize a way
+around its API rules.
 
-- Are ratios allowed?
-- Is exponent notation refused?
-- What precision and length limits apply?
-- Are `1`, `1.0`, and `01.00` equal?
-- Does the system preserve a lexeme or a mathematical value?
-- How does import convert a C++ `REAL`, where the original text is already lost?
+### C73: absence of overlap is not contradiction
 
-The old parser accepts only a narrow decimal regex, and the old store holds `REAL`. Neither proves the current forum grammar. The packet’s claim that the forum tag remains exactly what the human typed cannot hold for imported values.
+Accept the four-state binding model, with one correction to its mechanism.
+Positive evidence that a source name maps to another known UUID can establish
+`contradicted`. A large source overlapping none of the current facts cannot:
+the source may be old, the relevant realm may not be refreshed completely, or
+the account's holdings may have changed.
 
-I would rule “no binary floating point; validated exact amount representation” now, but leave the precise decimal/rational grammar to a small evidence step before finalizing Buyout v1. Equality must be semantic and deterministic so a second import is truly `unchanged`.
+Classify zero overlap as `unverified`, perhaps with a prominent warning. It then
+requires the explicit acknowledgement C73 already defines. Reserve
+`contradicted` for affirmative evidence of another identity. This keeps the
+import conservative without converting incomplete, replaceable facts into an
+identity oracle.
 
-Retire `current_offer` from Buyout v1, but preserve every encountered row as an import non-action. A read-only census of the owner’s source store should occur before finalizing this; real absence is better evidence than the C++ warning.
+## Disposition of the packet
 
-## 4. Provenance needs three names, not one overloaded `source`
-
-C65 currently calls the adapter the `author`, while `source` simultaneously means plan hash and import path/hash. Those have different meanings and cardinalities.
-
-I would model:
-
-- `written_via`: `cli`, `mcp`, `gui`, `import`.
-- `actor`: optional claimed actor/client identity, when one actually exists.
-- `applied_plan`: the canonical plan/application hash on the row.
-- Receipt-level `origin`: import artifact metadata, including its consistent-snapshot digest and legacy timestamps.
-
-`acq` is not an author; it is a channel. An absolute source path also should not be repeated on thousands of rows.
-
-There is a further C++ trap: the source userstore uses WAL. A SHA-256 of the main `.db` file can omit uncheckpointed WAL content and is not a digest of the logical snapshot being imported. The importer must read under a consistent SQLite snapshot—or import from a backup—and hash that logical/captured artifact. The C++ userstore is also filename-bound to a username, not internally UUID-bound, so C73 must explicitly report the strength of its source-account binding. Multi-account import cannot quietly infer identity from a selected file.
-
-Existing v2 rows will need honest migrated provenance such as `written_via = unknown_legacy`; migration must not manufacture an author.
-
-## 5. C71 needs an explicit fact-drift ruling
-
-Atomic annotation CAS is right, but the packet overclaims that the driver “never re-reads to learn whether the world moved” ([packet](/Users/tom/Development/GitHub/gerwaric/acquisition/spikes/rust-playground/brainstorming-notes/10-pricing-design-packet.md:64)). Facts and annotations are separate SQLite files; the existing refresh snapshot already acknowledges that they cannot share one transaction.
-
-The plan needs to say what its preconditions protect:
-
-- Intent preconditions are binding and checked atomically.
-- Fact basis is provenance unless explicitly made a precondition.
-- Fact drift does not change the authorized row mutation—but it may change whether that mutation is effective, conflicted, public, or renderable.
-- The apply result should therefore return rows-as-written plus enough current-basis information to tell the caller whether a new observation is required.
-
-Also tighten “revision-or-absent.” Tombstones exist specifically to close ABA holes, but the current create path allows recreation over any tombstone when the caller expects absence ([annotations](/Users/tom/Development/GitHub/gerwaric/acquisition/spikes/rust-playground/crates/acquisition-store/src/annotations.rs:286)). Decide whether a price plan cares only about semantic absence or about the tombstone generation as well; “one moved revision refuses” is not true otherwise.
-
-The compiler should also reject duplicate mutations for one target and expose mutation counts—creates, updates, clears, unchanged, refused—as pricing’s operation-specific “cost.” Local intent writes have no wire cost, but they still have blast radius.
-
-## 6. C78 is justified, but it is not “its own inverse”
-
-I agree that pricing fires the history trigger. A receipt stored atomically with the batch is worth doing before the first import.
-
-Amend the wording:
-
-- An applied plan contains sufficient preimage and result data to compile a conditional inverse.
-- Revert is a new plan against current revisions.
-- If any affected row subsequently moved, revert refuses atomically rather than pretending history can be replayed blindly.
-- Call this an intent mutation receipt or audit ledger, not the “effects ledger,” because C34 already uses that term for daemon-owned job effects.
-- Specify canonical plan hashing and whether receipts retain the complete reviewed plan, only applied mutations, or both plan and outcome.
-- Do not repeatedly store giant no-op import plans without an explicit reason or retention policy.
-
-The plan is not mathematically its own inverse; it is evidence from which an inverse can be compiled.
-
-## 7. Shop rendering needs an eligibility derivation
-
-C74 is right in scope but overcommits to C++ rendering details before validation.
-
-The Rust store contains more item rows than “things safely linkable in a forum shop”: socketed items, several character containers, guardian equipment, possibly locked items, and rows lacking coordinates. The C++ shop iterates its flattened item collection and silently skips missing stash indexes; that behavior should not become the new rule.
-
-Add a derived `renderability`/`publication eligibility` result with named reasons:
-
-- socketed in another item
-- unsupported character container
-- missing position or inventory address
-- removed/orphaned
-- locked to character/account
-- unknown currency
-- conflicting game/manual listing
-- public game listing already covers it
-- missing tab index or parent relationship
-
-Every omitted item should be counted and inspectable. No silent skip.
-
-Accept the pure-render boundary now. Treat link syntax, post-size measurement, page splitting, and exact public/private behavior as hypotheses validated by the owner’s forum reading. GGG’s historical announcement confirms that forum-linked items were supported, but that is historical evidence, not a permanent current contract. [GGG trade announcement](https://www.pathofexile.com/forum/view-thread/2392556)
-
-Also correct the driver’s-seat description of future publishing: split output means potentially multiple credentialed forum mutations, not “one post.”
-
-## Proposed rulings
-
-| Candidate | Recommendation |
+| Lines | Recommendation |
 |---|---|
-| C64 | Accept, amended to distinguish manual listing intent from observed game pricing and consumer-specific listing state. |
-| C65 | Amend to structured writer/actor/plan/origin provenance. |
-| C66 | Accept. Clarify that exact round-trip applies to current-schema input; older values may upgrade in memory while raw stored JSON remains untouched. |
-| C67 | Do not accept as written. Amend target identity and exact-amount grammar; retire `current_offer` from v1. |
-| C68 | Accept the enumerable, versioned input concept. Call it versioned reference data rather than forcing it into account facts; give the dataset its own version/hash and carry that basis in plans/renders. |
-| C69 | Replace with separate manual inheritance, game observation, and reconciliation/publication-state rules. Store conflicting intent; neither unconditional refusal nor unconditional shadowing. |
-| C70 | Accept parent/child inheritance, amended to typed realm-aware targets and separated from renderability. |
-| C71 | Accept with explicit fact-drift semantics, absence-generation semantics, duplicate-target rejection, and operation-specific mutation counts. |
-| C72 | Accept. This is one of the strongest lines in the packet. |
-| C73 | Amend for source-account ambiguity, WAL-consistent provenance, exact numeric conversion, unknown-target policy, and per-source-row preservation. |
-| C74 | Accept the render/publish boundary; keep detailed forum mechanics provisional until validation. |
-| C75 | Do not rule the final answer yet. Build operation-specific `PricePlan`, then record what is genuinely shared. “Never a grammar” prejudges the method test it claims to run. |
-| C76 | Accept only the one-door architectural direction. Defer listing/freshness/two-cycle semantics to its own slice; four tracer runs not using the old command are weak evidence about one-off user workflows. |
-| C77 | Accept that freshness is evaluated at compile time and a later replan may correctly refetch. Do not require the `aging` warning yet: an offline plan lacks a trustworthy cycle estimate and quotes are optional. |
-| C78 | Accept an atomic receipt ledger, amended as above; reject “its own inverse.” |
-| C79 | Keep as a slice hypothesis under C53, not a new ruling yet. Enumerability belongs in C68; summary/filter/pagination shape should be validated through MCP use. “Complete JSON under the filter” may itself be too expensive at thousands of rows. |
+| C64–C67 | Accept as written. |
+| C68 | Accept, with the C79 access-method qualification on tooling. |
+| C69–C72 | Accept as written. |
+| C73 | Accept after zero overlap is classified as `unverified`, not `contradicted`. |
+| C74–C78 | Accept as written. |
+| C79 | Accept after permission is made access-method-specific as above. |
 
-## Answers to the owner questions
+The slice order is also ready. In particular, broad rational storage removes
+the grammar dependency from the schema sequence, and the step-8 instrument →
+claims → policy → production-render order removes the evidentiary circle. I
+would not reorder it again.
 
-1. Neither unconditional shadowing nor refusal. Store the manual assertion and derive a conflict/corroboration state; make publication behavior consumer-specific and public-aware.
-2. Yes, render belongs in scope because it is pure and gives pricing its real validating consumer.
-3. Rule the freshness-window semantics; park the `aging` warning until quote evidence makes it honest.
-4. Yes, import before render—but add a read-only source census before the Buyout schema is frozen.
-5. Retire `current_offer` from Buyout v1; preserve imported occurrences as explicit non-actions.
-6. Keep the plan-granularity receipt ledger, narrowed to an atomic audit/undo substrate with conditional inverse compilation.
-7. Treat C79 as surface design under C53 until the CLI/MCP run validates it; do not promote it prematurely.
+## Answers to the current owner questions
 
-My suggested slice order is therefore: targeted annotations audit → read-only census of the real C++ source and current fact shapes → finalize target/amount/publication semantics → annotations v3 and typed intent → effective listing state → PricePlan/apply/receipts → import → render → MCP → only then rule what Plan abstractions and read shapes actually generalized.
+1. Accept C79 as a cross-cutting line after the access-method amendment. The
+   trade site can be its first registered surface with two distinct methods:
+   human browser observation permitted; unsupported internal API automation
+   not permitted absent explicit authorization.
+2. Accept C68's evidence-cited v1 table drafted from the C++ list, census, and
+   dated browser observations. Tool output is eligible only from a method C79
+   records as permitted.
+3. Accept the exact rational stored type and learn emitted/accepted forms from
+   claims. This is the clean separation between durable meaning and volatile
+   syntax.
+4. Accept the binding model after changing no-overlap from `contradicted` to
+   `unverified`; acknowledgement is the correct gate for uncertainty.
+5. Accept the step-8 split exactly as proposed.
+6. Accept mandatory pre-apply retention of import plans and receipt linkage.
+   Filename layout, relative versus absolute paths, pruning, and relocation are
+   implementation findings unless real use shows they affect recoverability.
 
-That preserves the packet’s best insight—the shared observe/compile/review/apply loop—while leaving the product semantics open to the evidence the new system, rather than the C++ implementation, produces.
+## What should be left to development
+
+Do not hold harvest for exact integer representation, digit limits, parser
+types, SQLite indexes, busy-timeout tuning, receipt compaction, plan-file
+directory layout, command spelling, output grouping thresholds, or the numeric
+threshold for `corroborated`. The audit, census, tests, and two validation
+readings exist precisely to settle those matters.
+
+Reopen a ruling only if development produces evidence against a boundary:
+target identity, durable value meaning, mutation authority, atomicity,
+reference-tag identity, source permission, or the render/publish separation.
+Everything else is an implementation finding. That is the stopping rule that
+keeps this design from spiraling after convergence.
