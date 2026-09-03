@@ -388,7 +388,7 @@ the granted-skill ruling, and closed after the rerun. Ledger rows
 `characters rung, pc`, the three `/character/poe2` rows; claims
 N41–N45; the findings in `REFRESH-SLICE.md`.
 
-## Legibility run — the refresh slice read from the terminal (run 2026-09-02: pass; approved, density open)
+## Legibility run — the refresh slice read from the terminal (run 2026-09-02: pass; approved — density closed by the run below)
 
 The characters-row shape rerun on the legible-output build (`695c1ec1`),
 the owner at the terminal. Not a first contact; the ledger row and this
