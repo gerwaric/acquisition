@@ -20,6 +20,10 @@ git diff --check
 tools/docs-check.sh
 ```
 
+Run each command bare and read its exit status. A check piped through
+`grep` or `tail` reports the filter's exit, not the check's: on
+2026-09-03 an over-length registry entry was committed that way.
+
 ## 2. Route each thing learned
 
 For every item the session produced, exactly one of:
