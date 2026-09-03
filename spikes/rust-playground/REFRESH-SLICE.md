@@ -2,7 +2,7 @@
 
 The refresh slice (policy → plan → apply → replan, then characters in
 the plan, then legible output) was built and run live between
-2026-08-31 and 2026-09-02 and is closed. This file is its permanent
+2026-08-31 and 2026-09-03 and is closed. This file is its permanent
 short record in the mold of `NETWORK-CLEANUP.md`: what landed, in which
 commits, what the reviews found, and what the runs taught. The
 narratives that used to sit in `CONTEXT.md` live in git: the file at
@@ -44,6 +44,7 @@ GGG are ground-truth claims N38–N45. Nothing here is a second authority.
 | Characters | (5) PoE2 | `b9e236eb`, `c27c0b0f`, `21f1c515`, `c4c798ba`, `b37d3f93` | first contact; refused bodies kept (facts v7); granted-skill ruling; N41–N45 |
 | Legibility | ruling + build | `695c1ec1` | grouped plan text, `--expand`, `--plan=FILE`, apply/result reports, store footers, brief driver summary |
 | Legibility | live | `3d1c8936`, `d660d1f5` | read at the terminal 2026-09-02: approved; density open |
+| Legibility | density | `7a03a36f`, `1707f304`, `3e6757dd`, `efc70288`, `28db97c6` | decision/audit/contract views; mock and live readings; driver extractors fail closed; tab ids at right; approved 2026-09-03 |
 
 ## Findings
 
@@ -71,6 +72,7 @@ text is at `35fb35d9`.
 | step (3) build | `263b5ada` | serde ignores extra fields beside a unit variant's `kind`; `tabs: []` compiled to an empty plan | the envelope must re-serialize to exactly what was read; "names no work" after normalization |
 | PoE2 first contact | `b9e236eb`, `21f1c515` | a refusal that destroys its evidence turns every malformed body into a re-fetch; item-granted skills are id-less by design | `refused` table (facts v7, Decisions); granted-skill subtree is a property of its host |
 | legibility | `695c1ec1` | the only failure text was an unsorted id list, the cause only in the daemon log; the plan was a wall of explicit lines | rule 4 (failure lines name job, target, cause, evidence); grouping with `--expand` |
+| density reading | `1707f304`, `3e6757dd`, `efc70288`, `28db97c6` | renderer changes hid the driver's approval block and quote; “never listed” conflated with “never fetched”; a mixed no-op was vague; stash ids led the readback | fail-closed driver extractors; C53 renderer tests; tab ids pinned as the final column |
 
 ## What the runs taught
 
@@ -96,9 +98,9 @@ Properties, each now a line in `CONTEXT.md` or a claim in ground truth:
   `Character.realm` `poe2`, per-realm lists, item `realm` on PoE2 only,
   id-less item-granted skills (N41–N44).
 - Legible output: the 112-request plan rendered in 14 lines and was
-  approved. C53 now defines the density model — default text is the
-  decision view, `--expand` the audit view, JSON the contract — for the
-  next live reading to validate.
+  approved. The 2026-09-03 live reading validated C53's density model;
+  the owner's only adjustment put stash tab ids at the right like
+  character ids (`28db97c6`).
 
 ## Observations still open
 
