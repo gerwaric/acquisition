@@ -210,7 +210,12 @@ impl Annotations {
     fn init(mut conn: Connection, path: PathBuf) -> Result<Annotations, AnnotationError> {
         // WAL like the fact store: one writer at a time, any number of readers.
         conn.pragma_update(None, "journal_mode", "WAL")?;
-        conn.pragma_update(None, "synchronous", "NORMAL")?;
+        // FULL, not the fact store's NORMAL: under WAL, NORMAL keeps the
+        // file consistent but lets the last commits before a power loss
+        // roll back, and this is the one file with no server to refetch
+        // from (C35). Writes here are human-paced and a batch is one
+        // commit, so the fsync per commit costs nothing that matters.
+        conn.pragma_update(None, "synchronous", "FULL")?;
         conn.busy_timeout(std::time::Duration::from_secs(5))?;
         // Creation and migration serialize under one immediate transaction
         // so two processes opening the same file cannot interleave them.
@@ -421,15 +426,58 @@ impl Annotations {
             .collect()
     }
 
-    /// Store-managed backup: a consistent snapshot of this file at `dest`,
-    /// via SQLite's `VACUUM INTO`. Fails if `dest` already exists — a
-    /// backup never overwrites another backup silently.
+    /// Store-managed backup (C35): a consistent snapshot of this file at
+    /// `dest`, via SQLite's `VACUUM INTO`, published atomically. `VACUUM
+    /// INTO` writes `dest` directly and never fsyncs it, so an interrupted
+    /// export would leave a partial file that both looks like a backup and
+    /// blocks every retry. The copy is therefore written to
+    /// `<dest>.partial` (a stale partial from an earlier interruption is
+    /// replaced), checked with `quick_check`, fsynced, then linked into
+    /// place; the partial is removed either way. Fails if `dest` already
+    /// exists, before anything is written — a backup never overwrites
+    /// another backup silently.
     pub fn export(&self, dest: &Path) -> Result<(), AnnotationError> {
         if let Some(dir) = dest.parent() {
             std::fs::create_dir_all(dir)?;
         }
+        if dest.exists() {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::AlreadyExists,
+                format!(
+                    "{} exists; a backup never overwrites another backup",
+                    dest.display()
+                ),
+            )
+            .into());
+        }
+        let mut partial = dest.as_os_str().to_owned();
+        partial.push(".partial");
+        let partial = PathBuf::from(partial);
+        let _ = std::fs::remove_file(&partial);
+        let published = self.export_to(&partial).and_then(|()| {
+            std::fs::hard_link(&partial, dest)
+                .or_else(|_| std::fs::rename(&partial, dest))
+                .map_err(AnnotationError::Io)
+        });
+        let _ = std::fs::remove_file(&partial);
+        published
+    }
+
+    /// The copy itself: vacuumed into `partial`, integrity-checked through
+    /// a fresh connection, and fsynced.
+    fn export_to(&self, partial: &Path) -> Result<(), AnnotationError> {
         self.conn
-            .execute("VACUUM INTO ?1", [dest.to_string_lossy()])?;
+            .execute("VACUUM INTO ?1", [partial.to_string_lossy()])?;
+        let verdict: String =
+            Connection::open(partial)?.query_row("PRAGMA quick_check", [], |r| r.get(0))?;
+        if verdict != "ok" {
+            return Err(std::io::Error::other(format!(
+                "backup {} failed its integrity check: {verdict}",
+                partial.display()
+            ))
+            .into());
+        }
+        std::fs::File::open(partial)?.sync_all()?;
         Ok(())
     }
 }
@@ -616,12 +664,43 @@ mod tests {
         a.put("item", "i1", "buyout", &json!({"price": "1c"}), None)
             .unwrap();
         let backup = dir.join("backup.db");
+        // A partial left by an interrupted earlier export is replaced,
+        // never published: after the export only the backup exists.
+        let partial = dir.join("backup.db.partial");
+        std::fs::write(&partial, b"garbage from an interrupted export").unwrap();
         a.export(&backup).unwrap();
+        assert!(!partial.exists(), "the partial must not outlive the export");
         // The snapshot is a complete, standalone annotation file.
         let restored = Annotations::open(&backup).unwrap();
         assert_eq!(restored.list(None).unwrap().len(), 1);
-        // A second export to the same path is refused, not an overwrite.
+        // A second export to the same path is refused, not an overwrite —
+        // and refused before anything is written.
         assert!(a.export(&backup).is_err());
+        assert!(!partial.exists());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// C35 — the intent file is fully synchronous: a commit that returned
+    /// survives a power loss, not only a process crash (the fact store's
+    /// NORMAL is fine for refetchable facts, not here).
+    #[test]
+    fn c35_the_intent_file_is_fully_synchronous() {
+        let dir = std::env::temp_dir().join(format!(
+            "acq-ann-sync-{}-{}",
+            std::process::id(),
+            crate::now()
+        ));
+        let a = Annotations::open_for(&dir, "u-1").unwrap();
+        let sync: i64 = a
+            .conn
+            .query_row("PRAGMA synchronous", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(sync, 2, "PRAGMA synchronous must be FULL (2)");
+        let mode: String = a
+            .conn
+            .query_row("PRAGMA journal_mode", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(mode, "wal");
         let _ = std::fs::remove_dir_all(&dir);
     }
 
