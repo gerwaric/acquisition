@@ -128,6 +128,22 @@ finding; each is data for the next slice that touches it.
 - The debug binary is unsigned, so macOS Keychain prompts twice per
   login after every rebuild.
 
+## The method-test verdict, as recorded in CONTEXT
+
+**Method-test verdict (2026-09-01):** *pass on correctness, with the
+owner-truth channel under-exercised.* The slice ran live first time with
+no code change; every rail and check fired as designed, and the five
+review rounds before the run did the catching rather than the run. But
+the method's truth is the owner's experience, and the owner's one
+friction note plus the remark that the driver's output was too dense to
+read means the run was judged through the agent's reading, not the
+owner's. Not a failure of pin-after-the-consumer — a caveat it carries
+into the pricing session: budget for legibility (the parked output items
+below) before that session's own live run, or say explicitly that agent
+observations stand in for owner notes. Discharged 2026-09-02: the
+legible output was built and read live by the owner ("Legible output for
+the refresh slice" below).
+
 ## Process used
 
 Build / owner review / fix, one step at a time, with rulings written in

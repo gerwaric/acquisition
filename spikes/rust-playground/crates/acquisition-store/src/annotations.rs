@@ -25,6 +25,17 @@
 //!
 //! Backup is store-managed: [`Annotations::export`] writes a consistent
 //! snapshot via `VACUUM INTO` — a raw file copy under WAL is not a backup.
+//!
+//! # Decisions as recorded
+//!
+//! The rulings are `CONTEXT.md`'s registry (`C<n>`); what follows is each
+//! entry's full text as recorded there, moved here on 2026-09-02 because
+//! the mechanism it describes is this module's. The registry is current;
+//! this is the mechanism as decided, kept beside the code that implements it.
+//!
+//! ## C35 — Annotations are the only irreplaceable local state.
+//!
+//! **Annotations are the only irreplaceable local state.** A separate per-account file named by the account uuid (identity decision in "Multi-account design"), keyed on stable GGG ids, written only through the store crate with integer-revision compare-and-swap; no fact-side event ever deletes intent — an annotation whose item is removed is kept and surfaceable as orphaned; export/backup is a store-managed consistent snapshot (`VACUUM INTO` / SQLite backup API — a raw file copy under WAL is not a backup). Rationale: facts are refetchable at the cost of requests; intent has no server to refetch from — the C++ legacy-buyout saga is the full price of getting this wrong. Decided 2026-08-31.
 
 use std::path::{Path, PathBuf};
 

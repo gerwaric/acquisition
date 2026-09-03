@@ -136,6 +136,158 @@
 //! dispatching (running jobs finish) until a restart finds a working
 //! `daemon.db`; a queue it cannot read at start is fatal. Finished rows
 //! stay for `acq result <id>` across restarts, pruned by age at start.
+//!
+//! # Decisions as recorded
+//!
+//! The rulings are `CONTEXT.md`'s registry (`C<n>`); what follows is each
+//! entry's full text as recorded there, moved here on 2026-09-02 because
+//! the mechanism it describes is this module's. The registry is current;
+//! this is the mechanism as decided, kept beside the code that implements it.
+//!
+//! ## C29 — Bodies are stored verbatim except at the item seams; `items` is the only place to look …
+//!
+//! **Bodies are stored verbatim except at the item seams; `items` is the only place to look for an item.** Every item array (tab `items`, character `inventory`/`equipment`/`jewels`/`rucksack`/`guardian`/`skills`, each `socketedItems`) is lifted into `items`, one row per GGG item id (stable across moves), keyed by its location's **full coordinate** — realm, league for a stash, kind, id (2026-09-02: the same tab id under two realms is two locations, and events carry the whole address); the envelope keeps the counts under `_split`, so envelope + rows is the response exactly — with one ruled exception: a fetch of a location a listing has retired is **withheld** (2026-09-02): its whole body stays verbatim on the response row (`responses.withheld`, the daemon log, `store status`) and nothing else lands, because membership is the listing's — only a listing revives a location, and it clears the row's `fetched_at` doing so, so the next plan fetches again. Derived columns come from the row's own JSON (`rebuild` re-extracts; never a refetch). Ingest compares with the previous state and records `item_events` — this replaces `pull`'s snapshot diff. Rationale: raw-plus-parsed duplicated every body (a league spans 1000× in size); raw-only made every query a body scan and gave user state (buyouts, notes) no key. Decided 2026-08-29; the real-snapshot replay (322 tabs, 19,210 rows, 2.3 s, zero false changes 8 h apart) is the evidence.
+//!
+//! ## C30 — A refused body is evidence, never a fact.
+//!
+//! **A refused body is evidence, never a fact.** A 2xx body `record` refuses as malformed (an id-less item, a listing without its array) still rolls its ingest back whole — no row, no retirement, no response row a snapshot could cite — and is then kept verbatim in its own table, `refused` (facts v7), which no basis query reads; the failure names the row and the item's position (`array[index]`, socketed gem included), and `acq store refused [id]` reads it. Rationale: PoE2 first contact (2026-09-02) refused four of five character bodies for an id-less item and dropped them, leaving "which array?" unanswerable without spending four more counted GETs — a refusal that destroys its own evidence turns every malformed body into a re-fetch. Decided 2026-09-02.
+//!
+//! ## C55 — Identity is the character id; the name is the address
+//!
+//! **Identity is the character `id`; the name is the address.** `id` is
+//!   a unique 64-hex string (documented; observed equal between list entry
+//!   and fetched body). The fetch endpoint takes the name, so a plan action
+//!   carries both: id for identity, coverage and reasons; name for the
+//!   request, taken from the basis listing. Same shape as a substash
+//!   fetched by `(parent, id)` from a cited basis: a name that moved fails
+//!   its child honestly (404) or lands a different id (a recreated name) —
+//!   the store records what the server said, keyed by the **body's** id,
+//!   the intended character stays stale, and the next listing reconciles
+//!   (D5a; fact drift does not refuse — the step-7 ruling). No expected-id
+//!   check on the fetch: a 200 under a stale name is a true fact, and
+//!   refusing it discards facts and wastes a paid send. Why the key must
+//!   move — three failures of name-keying, only the first about renames:
+//!   policy ids break on rename (intent references identity: the uuid
+//!   precedent, first-consumer treatment); a deleted-and-recreated name
+//!   inherits the old row's freshness and is never fetched (a planner
+//!   hole); a rename moves every item (false events). Items locate at the
+//!   character id.
+//!
+//! ## C60 — The store's realm is the request's realm
+//!
+//! **The store's realm is the request's realm**, stamped from the params
+//!   (the listing's or the fetch's), not the entry's `realm` field: the
+//!   docs give that field as `pc|xbox|sony` while the endpoint accepts
+//!   `poe2` (a contradiction, open until a PoE2 body is seen; the field
+//!   stays verbatim in the json). Observed: a pc list's 59 entries all
+//!   carry `realm: "pc"`. The address a plan renders is (request realm,
+//!   listed name) — the one combination guaranteed to fetch. Whether a
+//!   list spans realms is undocumented; the removal rule is realm-scoped
+//!   (a realm-R listing retires only realm-R characters it did not stamp):
+//!   under-retires if lists span realms, never over-retires.
+//!
+//! ## C56 — skills and guardian join the lifted arrays; every item row records its array
+//!
+//! **`skills` (PoE2) and `guardian` (PoE1: the inventory of an animate
+//!   guardian — untradeable, still worth knowing) join the lifted arrays,
+//!   and every item row records the array it came from** — a `container`
+//!   ingest fact beside `location_kind`/`location_id`, not a derived
+//!   column: it is not in the item's json, so `rebuild` cannot recompute
+//!   it, exactly like location. Necessity, not convenience: the live
+//!   guardian's five items carry `inventoryId` `Helm`/`BodyArmour`/
+//!   `Gloves`/`Boots`/`Weapon` with `x`/`y` 0 — the character's own slot
+//!   names — so the item alone cannot say which array it sits in, and
+//!   `inventoryId` has no documented values at all. Location stays the
+//!   character id (one removal pass per character); moving between arrays
+//!   stays a `changed` event. All five guardian items carried ids
+//!   (documented `Item.id` is optional; the store's id-less refusal
+//!   stands — check the same on the first PoE2 `skills` body).
+//!
+//! ## C56 — Drift tripwire at ingest
+//!
+//! **Drift tripwire at ingest.** GGG adds fields most leagues; a new item
+//!   array on `Character` would go un-lifted silently. After the declared
+//!   arrays are lifted, an array of item-shaped objects left in a character
+//!   envelope is counted and surfaced in `store status` — never a failure.
+//!
+//! ## C63 — The id is printed beside the name
+//!
+//! **`acq characters` and the MCP `characters` tool print the id beside
+//!   the name** (full 64-hex: matching is exact, a prefix cannot be pasted
+//!   into a policy). Name→id resolution at `policy set` is parked
+//!   (trigger: authoring friction) — it would make the stored policy
+//!   differ from what the human typed.
+//!
+//! ## C55 — The character key, as agreed before building (2026-09-02)
+//!
+//! **Step (2) mechanism, agreed before building (2026-09-02):**
+//!
+//! - `characters.league` is **listing-owned**: the coverage coordinate is
+//!   what the basis listing said, so a fetch never overwrites it (the same
+//!   rule as `listed_json` on tabs); a fetched body's league lives in its
+//!   json and is the disagreement arm's other side. A character fetched
+//!   directly, never listed, takes the body's league on insert only.
+//! - **Container is compared explicitly at ingest**: a helm moving from the
+//!   character's own `equipment` to its `guardian` has byte-identical json
+//!   (`inventoryId` `Helm`, x/y 0), so "moving between arrays is a
+//!   `changed` event" needs the column in the comparison, not only the json.
+//!   A pre-v4 character item has no container on record (NULL — the value
+//!   is not in the json, so no migration can recompute it); the first fetch
+//!   after the migration sets it without an event.
+//! - **Facts v4 migration**: `characters` is rebuilt keyed by `id`, taken
+//!   from each row's json (list entries and fetched bodies both carry it);
+//!   a row whose json lacks an id is dropped and its items retired (facts
+//!   are refetchable); item locations move from `character/<name>` to
+//!   `character/<id>` through the same json, so the first post-migration
+//!   fetch produces no false `moved` events; `item_events` history keeps
+//!   its old location strings (history is history). Stash items get
+//!   container `items`.
+//! - **Listing entries need `id` and `name`** (both documented required):
+//!   `id` is the identity that makes retirement safe, `name` the address a
+//!   plan renders; a fetched body without `id` is malformed too. Membership
+//!   is stamped per listing response id and retired per realm, exactly as
+//!   tabs are.
+//!
+//! ## C54 — Store liveness, as the five review rounds left it
+//!
+//! Store liveness, as the five review rounds left it (the same class of
+//! gap each time; stated once in the "Bodies are stored verbatim"
+//! decision above): **a fetch never revives a location a listing
+//! retired**; **a location is its full coordinate** (`Location`: realm,
+//! league for a stash, kind, id); **a parent tab's fetch is its
+//! substashes' listing**; **a listing that revives a retired row clears
+//! its `fetched_at`** (planner-side: a revived tab is planned as never
+//! fetched, and a revived parent replans its substashes); a substash's
+//! liveness includes its parent's; membership is per response
+//! (`items.seen_response`), never a timestamp match; a character's
+//! `name`/`class`/`level` and `league` are listing-owned once a listing
+//! has named the row.
+//!
+//! ## C57 — A PoE2 item-granted skill is a property of its host
+//!
+//! **Ruled 2026-09-02 (owner: (a), until GGG changes how granted skills
+//! are reported):** an
+//! **item-granted skill has no `id`**. A weapon or shield that grants a
+//! skill (Rattling Sceptre → Skeletal Warrior, a wand → Mana Drain or
+//! Chaos Bolt, a tower shield → Raise Shield) carries it as an id-less
+//! gem-shaped entry in its `socketedItems` (the host's `sockets` is `[]`),
+//! the identical object is repeated as `skills[0]`, and a real support gem
+//! the player socketed into the granted skill is id-less as well — the
+//! whole subtree under a granted skill. The store refused four of five
+//! bodies for it (kept in `refused` 1–4 since facts v7). It is not a
+//! malformed body: `Item.id` is documented optional and this is the case
+//! that omits it. **Rule (a): a granted-skill subtree is a property of its
+//! host, never an item fact** — left verbatim in the host's json (a
+//! support swapped inside it is a `changed` event on the host, the only
+//! row that records it) and, under `skills`, in the envelope; counted
+//! (`_granted` per array, `Ingest::granted`, `store status`); nothing
+//! lifted, nothing invented; the id-less rule stays strict for every other
+//! shape (an id-less gem at the top of `equipment`, an id-less rune). The
+//! discriminator is `is_granted_skill`: no `id` and gem-framed
+//! (`frameTypeId` `Gem` or `frameType` 4), at a socketed position or at
+//! the top of `skills`. Rejected: a synthetic identity (breaks one row per
+//! GGG item id and doubles the entry); keep refusing (no PoE2 character
+//! with a granting weapon would ever land).
 
 // The lint ratchet (CONTEXT.md, "Panics are for broken internal invariants
 // only"): the store crate's production code panics on nothing external — a

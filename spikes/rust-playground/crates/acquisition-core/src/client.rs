@@ -6,6 +6,23 @@
 //! caller is the human expressing intent. An autonomous client (the MCP
 //! server) must never do that — a mismatch could be a live GGG daemon under
 //! the rails — so it reports the mismatch and stops.
+//!
+//! # Decisions as recorded
+//!
+//! The rulings are `CONTEXT.md`'s registry (`C<n>`); what follows is each
+//! entry's full text as recorded there, moved here on 2026-09-02 because
+//! the mechanism it describes is this module's. The registry is current;
+//! this is the mechanism as decided, kept beside the code that implements it.
+//!
+//! ## C10 — Version handshake in the protocol; the protocol is single-version on purpose.
+//!
+//! **Version handshake in the protocol; the protocol is single-version on purpose.** Kill-and-respawn is the entire migration mechanism — no deprecation, no compat matrix. The stamp compared is the **build** (`VERSION_WITH_BUILD`: package version + git commit), not the package version: the latter is fixed at `0.0.1` across the playground, and comparing it let a daemon from an older commit serve a newer client silently (review finding 2026-09-02: a pre-realm daemon accepted a console job and rendered the pc URL). A `-dirty` stamp is the same for any dirty tree — the standing rule "never rebuild under a live daemon" covers it. Replacing is the *interactive CLI's* policy only (`ConnectOptions::interactive` — the caller is the human expressing intent); an autonomous client (MCP) never kills or replaces a daemon: the mismatch it sees may be a human's live GGG run, so it reports and stops (`ConnectOptions::autonomous`, `client.rs`). Known caveat, accepted: two frontends built from different commits would thrash by respawning each other's daemons — theoretical in a one-workspace playground, recorded so it isn't relearned live. Rationale: CLI and running daemon may be from different builds; three frontends with a compat matrix is the reconciliation swamp, three frontends with respawn is a one-line diff. Amended 2026-08-30 (autonomous policy).
+//!
+//! ## C10 — Accepted residual (2026-09-01)
+//!
+//! Accepted residual: no process-level mismatched-daemon test; the
+//! structural connect-options pin covers lifecycle safety (the quote path
+//! never spawns or replaces a daemon).
 
 use std::time::Duration;
 

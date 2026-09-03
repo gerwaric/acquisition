@@ -1,6 +1,6 @@
 # Acquisition (Rust rewrite) — Agent Context
 
-This doc is working memory for coding agents and a place for developers to inspect and tweak things, not a spec or requirements document. It records what's settled, what's open, and what must never happen. Grows and changes structure as needed. Terse on purpose. Current state only: superseded content is edited or deleted in place — git holds the history. Facts about GGG live in `docs/design/network-ground-truth.md` and are cited here by number, not restated. Where code exists, code is the source of truth for implemented shape — this doc holds boundaries, properties, and open questions, never a parallel description of what the code already says.
+This doc is working memory for coding agents and a place for developers to inspect and tweak things, not a spec or requirements document. It records what's settled, what's open, and what must never happen. Terse on purpose. Current state only: superseded content is edited or deleted in place — git holds the history. Facts about GGG live in `docs/design/network-ground-truth.md` and are cited here by number, not restated. Decisions are a numbered registry (`C<n>`, below): the ruling and its rationale live here, one bullet each; the mechanism a decision implies lives as a doc comment on the code that implements it and in the tests that pin it, cited by id. Where code exists, code is the source of truth for implemented shape — this doc holds boundaries, properties, and open questions, never a parallel description of what the code already says.
 
 ## Orientation (3 sentences)
 
@@ -16,58 +16,96 @@ As few as possible, each as simple as possible: properties, not mechanisms. An i
 4. **The user-agent string stays continuous with the existing registration** ("Acquisition 1.0, same registration, new capabilities" framing with GGG).
 5. **Refresh tokens are never stored in plaintext on disk.** The OS keyring is their default home.
 
-## Decisions
+## Decisions — the registry
 
-Short one-liners with rationale, optimized for agents to reason from. Kept current, not append-only: a superseded decision is rewritten or deleted, and git holds the history.
+One entry per decision: a stable id (never reused; a superseded decision is rewritten in place under its id and dated, or deleted — git holds the history), the ruling in the owner's words, *Why:* in a sentence, and where the rest lives — *Details:* the module doc that carries the mechanism as recorded, *Pinned:* the tests, *Evidence:* the claim or ledger row. An entry is one bullet under `tools/docs-check.sh`'s length limit; a decision that needs more is a decision plus a mechanism, and the mechanism goes to the code. Tests and docs cite decisions by id (`C6`); the check refuses an id that does not exist here and reports a decision nothing cites.
 
-- **Cargo workspace, library-centric.** `acquisition-core` holds OAuth, rate limiter, API client, models; `acquisition-cli`, `acquisition-gui`, `acquisition-mcp` are thin frontends. Rationale: write/test logic once.
-- **Daemon owns shared state; clients talk over local IPC.** Rationale: makes the single-choke-point invariant structural, not disciplinary.
-- **Lazy spawn + idle auto-shutdown** (gpg-agent model). Any client that can't connect spawns the daemon; daemon exits after a reasonably short period with no connections and no queued work. `daemon stop|status` subcommands exist for debugging only — normal use never requires manual lifecycle. Rationale: no stray processes, no user-visible ceremony.
-- **API requests are jobs, not calls.** Rate-limit waits can reach 300s, so the core abstraction is a job with ID, state, and priority. Rationale: blocking calls can't represent a 5-minute wait sanely across three frontends.
-- **Priority queue from day one, even if v1 uses one priority level.** Rationale: reorder becomes a field write, not a data-structure migration.
-- **The job queue persists: a `jobs` table in a per-daemon `daemon.db` (SQLite, in the provider's store directory beside the account files), written through at every state change and read back at start.** Memory stays the runtime source of truth — the table is a mirror, "the HashMap, but it survives" — and the one thing read from it while the daemon runs is `result` for an id this lifetime never held (history, not state). On restore only open jobs are loaded (terminal rows carry bodies; a week of them does not belong in memory): `waiting` jobs resume; a `running` job is **re-queued** where the replay premise holds — every network kind is an idempotent GET and the restart probe reads GGG's current counters before it sends, so the duplicate costs one seen hit. Two exceptions (2026-08-30 review): on a declared **no-probe route** the premise fails — a replay would go out against an empty limiter — so the job fails as interrupted instead; and a running **parent whose children exist is mid-fan-out** (its held result was not yet written) — re-running it would submit a duplicate child set, so it holds for the children it has and then finishes as **interrupted, never success**: how many children were never submitted is unknowable, so a partial fan-out must not claim completeness (the children that did run recorded their responses; resubmitting completes the set). A parent whose held result was written resumes holding it; `probe` rows are dropped (one HEAD per lifetime, N16); ids continue from where they were (`AUTOINCREMENT`, never reused, so a stale `acq result <id>` can never name a different job) — a daemon that cannot open or read `daemon.db` refuses to start rather than risk reissuing them, and a queue **write** failure at runtime is sticky: a submit whose insert fails is refused with its id rolled back (a job exists only once its row does), later submits are refused outright, and the dispatcher stops picking while running jobs finish — **ids** never run ahead of disk. Completions are the accepted residual, stated plainly: a job already running when the flag trips finishes in memory but its outcome write fails, so disk still says running and the next daemon replays it (probed route: one seen duplicate hit; no-probe: fails as interrupted) — the send already happened, so refusing to finish it would record nothing at all. The same teeth apply per transition: a `waiting→running` write that fails reverts the job instead of running it (a send the queue cannot see must not happen), `cancel`/`set-priority` report a failed write instead of claiming success (the cancel still wins the job's terminal surface in this lifetime, though an already-running job may still complete its in-flight send — sends are committed once dispatched), and a `result` read failure is an error, never "no job". `submit_child` is refused once its parent is terminal or asked to cancel, under the lock `cancel` takes, so cancellation cannot race an active fan-out into submitting unseen children; a stopped fan-out finishes cancelled or failed, never as success over a partial set; a cancellation that lands after the last child is honored when the held result is installed, cancelled children never count toward a parent's success, and `finish` arbitrates a pending `cancel_requested` under the final lock — a cancel can land at any instant before terminalization and still win. Terminal rows stay so `acq result` has a memory across restarts (`acq jobs` lists live jobs only), pruned at start by age — `ACQ_JOB_RETENTION_DAYS` (default 7) for done/cancelled and `ACQ_FAILED_JOB_RETENTION_DAYS` (default 30) for failed, misread values logged as `CONFIG` errors like the rails knobs. Outcomes are stored verbatim, bodies included (a full refresh is ~50 MB, bounded by retention); compression was considered and deferred — it costs a crate and makes the column unreadable in `sqlite3`, and compressing one column later is a local change. **One daemon per store directory is an invariant, not a lock**: parallel daemons are for the mock and already require `ACQ_STORE_DIR=<scratch>` next to `ACQ_SOCKET` (`AGENTS.md`); two daemons on one `daemon.db` would each restore and run the same queue. Rationale: the queue was the one thing a restart lost once results moved to the store (2026-08-29); a mirror written under the same lock as the memory change keeps disk equal to memory at the `process::exit` the daemon leaves by (up to the declared write-failure residual above); SQLite because it is the crate's one persistence idiom, debuggable with `sqlite3`, and readable by a frontend without a daemon. Decided 2026-08-30.
-- **A job's `params` travel on `JobInfo`, verbatim and public.** Every connected client sees them, so a job's params must never carry a secret (tokens are obtained inside the daemon, never passed in). Rationale: a job a person cannot identify (`stash`, `stash`, `stash`) cannot be managed — queue management, when it comes, needs this row; and a client labelling a failed child otherwise has to zip parent payload arrays by position. Rendering (`acq jobs`' `target` column, `JobInfo::target`) is the client's business. Decided 2026-08-24.
-- **Daemon protocol includes a subscribe/event channel from the start** (job-state-changed events over the same socket). Rationale: GUI push updates and `jobs --watch` come nearly free; bolting on later is painful.
-- **Protocol transport: JSON lines over Unix socket / named pipe** (tokio + serde). Rationale: boring, debuggable, cross-platform.
-- **Version handshake in the protocol; the protocol is single-version on purpose.** Kill-and-respawn is the entire migration mechanism — no deprecation, no compat matrix. The stamp compared is the **build** (`VERSION_WITH_BUILD`: package version + git commit), not the package version: the latter is fixed at `0.0.1` across the playground, and comparing it let a daemon from an older commit serve a newer client silently (review finding 2026-09-02: a pre-realm daemon accepted a console job and rendered the pc URL). A `-dirty` stamp is the same for any dirty tree — the standing rule "never rebuild under a live daemon" covers it. Replacing is the *interactive CLI's* policy only (`ConnectOptions::interactive` — the caller is the human expressing intent); an autonomous client (MCP) never kills or replaces a daemon: the mismatch it sees may be a human's live GGG run, so it reports and stops (`ConnectOptions::autonomous`, `client.rs`). Known caveat, accepted: two frontends built from different commits would thrash by respawning each other's daemons — theoretical in a one-workspace playground, recorded so it isn't relearned live. Rationale: CLI and running daemon may be from different builds; three frontends with a compat matrix is the reconciliation swamp, three frontends with respawn is a one-line diff. Amended 2026-08-30 (autonomous policy).
-- **CLI emits structured output** (`--json` on every command, the error path included: failures are `{"error": …}` on stdout with exit 1, and a failed job's outcome exits 1 in both output modes). Rationale: the CLI is itself an API; makes MCP and agent use nearly free. Trued up 2026-08-30 (four commands ignored the flag; `--json` mode exited 0 on a failed job).
-- **A frontend consumes exactly two surfaces: the daemon protocol and the store crate's read API — no third door.** This pins the boundary's *location*, not its content: the verbs stay revisable until a consumer validates them (TESTING-NOTES.md, "pin after the consumer"). A frontend that wants a third channel is a protocol or store change, recorded here first. Rationale: bespoke per-frontend channels are what turns three frontends into a review burden; two shared surfaces keep the contract in exactly two places, enforced by what frontends link against rather than by process. Decided 2026-08-30.
-- **The MCP server is a fourth thin client (`acquisition-mcp`, binary `acq-mcp`, official `rmcp` SDK over stdio), never in-process with the daemon.** Same reasoning that moved reads to the store: daemon-hosted queries make the daemon an application server. The binary embeds `daemon run` like `acq` (lazy spawn execs `current_exe`). Two structural rules in the rail-6 mold: it never kills or replaces a daemon (autonomous connect policy above), and, while the agent-traffic deferral stood (2026-08-30 → 2026-09-01), it refused `submit_job` in real-GGG mode — store reads and observing a live daemon were always allowed, they send nothing. In real mode it still never spawns a daemon (a human's act: keychain, browser); it talks to the one that is running. It lazy-spawns only in mock mode; login stays human, via the CLI. The tracer is the consumer that validates the protocol: when it has proven the shape, the protocol gets pinned — the GUI arrives to a pinned boundary and proposes changes against it, rather than reopening the question. Decided 2026-08-30.
-- **Agent traffic against GGG is allowed; the daemon is the single gate.** Owner ruling 2026-09-01 on outside information: GGG permits agent use of the API as long as the API rules are respected. A CLI is already agent-drivable, and so increasingly is a desktop app, so the distinction between human, script and agent clients was never enforceable — what is enforceable is one gate that every client's traffic passes through, and that is the daemon (invariant 1). Consequences: the agent-traffic deferral is lifted; `acq-mcp` submits, applies and quotes in either mode against a running daemon; `quote` over MCP in real mode is simply allowed (it sends nothing). What stays: the MCP never spawns or replaces a daemon in real mode (login and the keychain are human), the live-test rails stay what `LIVE-TESTING.md` says, and every client — human or agent — is paced, journaled and halted by the same code. Decided 2026-09-01.
-- **Tokio + reqwest for async/HTTP.** Rationale: ecosystem default; core exposes `async fn`, frontends provide the runtime.
-- **Tauri for GUI** (webview frontend). Rationale: item search/grid/filter UIs are a strength of web tech; egui considered and passed on for data-heavy views.
-- **Rate limiter: custom policy layer parsing GGG headers, with a simple enforcement mechanism underneath.** Rationale: GGG's header-driven limits are too specific for off-the-shelf policy.
-- **Limiter state is keyed by policy name — per account for `Account`-scoped rules since 2026-08-30 (keying decision below) — and learned only from headers.** No local token counting; waits are computed from the last `X-Rate-Limit-*` state plus response arrival times, padded by the server's timing bucket. For the observed paired API-policy windows, classification is positional (first window initial/5s, later windows sustained/60s — ground-truth Q4 hypothesis). That hypothesis does not classify N33's single-window `token-request-limit`; use the conservative 60s bucket for it until GGG confirms its hidden resolution through N14's support channel. Rationale: same-name policies share counters across endpoints (N6), so endpoint-keyed state would be a migration later; positional classification is conservative on the observed paired API shapes without pretending the new one-window shape is known.
-- **A counted send whose response carries no usable policy headers is paced as if the server counted it — the same treatment as a send lost in transport.** One predicted hit in every window as of that response; the definition and the last real observation are untouched; the next response with headers replaces the prediction (invariant 2). The job still fails and is never retried. Rationale: rung 10's origin 503 (2026-08-24, N35) was an HTML page with no `X-Rate-Limit-*`; before this, such a response left pacing reading a state that predated it, so a run of 503s went out unpaced. This bounds an outage at the policy's own rate (30 per 300 s on stash) with no new policy; backing off harder than that waits for evidence. Decided 2026-08-24.
-- **Endpoint discovery is a visible `probe` job: one HEAD per endpoint per daemon lifetime, queued by the daemon before the first real send.** Rationale: N16's sanctioned pattern is one HEAD at startup; doing it lazily per endpoint sends the same count and nothing for endpoints never used. Visible rather than internal because everything that touches GGG is a job, and HEAD has regressed server-side before (N20) — the probe's headers need to be inspectable.
-- **The global burst bound belongs at the daemon's HTTP send boundary and spans each actual request from immediately before dispatch until its response/body completes.** API requests use policy serialization plus ordinary permits from this common gate; HEAD probes take its exclusive, writer-preferred permit. OAuth code exchange and refresh use ordinary permits and serialize under stable route key `oauth-token` before discovery, then learned policy name `token-request-limit`; no HEAD probes the token endpoint. Authentication completes before an API request performs its final limiter check and acquires its send permit, so neither auth nor rate-limit waiting occupies an API permit. Browser authorize remains outside because the browser owns it. The dispatcher may keep one active job task per scheduling key to preserve priority and FIFO, but it has no global job-task cap; auth and pacing waits therefore cannot block progress on independent keys. Rationale: P-B and N33 — Cloudflare watches bursts across policies and the token endpoint is itself Cloudflare-fronted and IP-limited; HTTP capacity must describe actual sends, not waiting work.
-- **The frozen C++ network design (`docs/design/network-redesign.md`) is a property source, not a Rust architecture template.** The Rust code conforms to its D3/D4/D5/D8 properties with three intentional adaptations: OAuth token traffic is inside the common gate (N33 postdates the C++ design); ordinary FIFO is among currently eligible policies, so a same-policy waiter cannot idle an independent global slot; and the C++ gate's 250 ms inter-send spacing is not adopted. Rationale: the properties protect the GGG relationship; the mechanisms were shaped by Qt. Changing an adaptation is a design change, recorded here first.
-- **Work that needs many requests is a parent job that submits child jobs; a parent finishes when its last descendant does, gives up its dispatcher task and scheduling key while waiting, and cancels its descendants when cancelled.** Rationale: the queue, dispatcher, priorities, ETAs, and events already work per job, so children get all of it for free; a job-internal loop would need its own scheduler and hide the requests from every tool. Observed API shapes (2026-08-20): folder children are in the stash list (a folder holds tabs only — never items, never another folder; confirmed against GGG patch notes 2026-08-24); map/unique substashes only appear on fetching the tab (one map tab listed 234); substash stubs carry `metadata.items` counts. Following substashes is opt-in per tab.
-- **A `refresh_token` grant the provider rejects with a 4xx other than 429 is terminal: no further refresh is sent until `acq auth` or logout.** Rationale: R1/L0-R5 (`LIVE-TESTING.md` history, `9fa99459`) — a dead grant re-sent per flight is pointless traffic on a Cloudflare-fronted endpoint, and the rail that stopped it (rail 2) was opt-in, so the shipped default still did it (`TESTING-NOTES.md`, "rails-conditional fixes"). Decided and built 2026-08-24; the mark persists in the rails state file and is honored regardless of the tripwire.
-- **A rails halt leaves queued network jobs waiting; nothing fails for lack of a send.** The dispatcher does not pick a network job while halted, a job that finds the halt after being picked gives its key back, and `reset-tripwire` wakes the queue. A halted daemon with only waiting jobs counts as idle and exits — the queue is on disk, and its successor (started with the tripwire, which honors the persisted trip) holds it until the reset. Rationale: rung 10 (2026-08-24) failed 82 never-sent children on a 503 and the rerun refetched all 322 tabs; the two reasons for failing them — results died with the daemon, and a daemon with waiting jobs never idled out — are both gone with persistence. Caveat for `LIVE-TESTING.md`: the ceiling is per lifetime and not persisted, so a queue halted by `ACQ_MAX_SENDS` resumes under the next daemon's fresh ceiling — `acq jobs` and `acq cancel` before respawning. Decided 2026-08-30.
-- **A 429 re-queues the job (keeping its place) behind the limiter's hold; after `MAX_429_RETRIES` (2) it fails with the evidence. 403/503 are never retried.** Rationale: P-A — violations are structural, so recovery is a requirement; N10 — frequent violations revoke the app, so it's bounded; invariant 3 for the Cloudflare shapes. No new job state: `running → waiting` with a retry counter on the job.
-- **A client that disappears leaves its jobs running.** Ctrl-C, a closed terminal, or a crash cancels nothing; the sends are committed either way, and a hold can last minutes. A client that wants the results reattaches by job id (`acq result <id>`), which the persisted queue answers across daemon restarts. Decided 2026-08-24; results outlive the daemon since 2026-08-30.
-- **Persistence is a shared library + file, not a process: `acquisition-store` (SQLite, one facts file per account under a per-provider directory, plus the account index); the daemon writes facts, and frontends read facts and read/write intent, all through the store crate.** The daemon's fact-side involvement is `record(endpoint, params, status, body)` after each API success; it never reads the store and never looks inside a body. Amended 2026-08-31 (intent write path — the four-layer decision below). Search and the item model live in the store crate as plain functions, so the CLI, GUI, and an agent on the CLI call the same code and see the same data. Rationale (2026-08-29): frontend-owned stores duplicate GGG traffic when two frontends pull (the one real rule); daemon-served queries make the daemon an application server; a shared file gives one fetch for all consumers and keeps net/store/frontend separable for testing.
-- **Bodies are stored verbatim except at the item seams; `items` is the only place to look for an item.** Every item array (tab `items`, character `inventory`/`equipment`/`jewels`/`rucksack`/`guardian`/`skills`, each `socketedItems`) is lifted into `items`, one row per GGG item id (stable across moves), keyed by its location's **full coordinate** — realm, league for a stash, kind, id (2026-09-02: the same tab id under two realms is two locations, and events carry the whole address); the envelope keeps the counts under `_split`, so envelope + rows is the response exactly — with one ruled exception: a fetch of a location a listing has retired is **withheld** (2026-09-02): its whole body stays verbatim on the response row (`responses.withheld`, the daemon log, `store status`) and nothing else lands, because membership is the listing's — only a listing revives a location, and it clears the row's `fetched_at` doing so, so the next plan fetches again. Derived columns come from the row's own JSON (`rebuild` re-extracts; never a refetch). Ingest compares with the previous state and records `item_events` — this replaces `pull`'s snapshot diff. Rationale: raw-plus-parsed duplicated every body (a league spans 1000× in size); raw-only made every query a body scan and gave user state (buyouts, notes) no key. Decided 2026-08-29; the real-snapshot replay (322 tabs, 19,210 rows, 2.3 s, zero false changes 8 h apart) is the evidence.
-- **A refused body is evidence, never a fact.** A 2xx body `record` refuses as malformed (an id-less item, a listing without its array) still rolls its ingest back whole — no row, no retirement, no response row a snapshot could cite — and is then kept verbatim in its own table, `refused` (facts v7), which no basis query reads; the failure names the row and the item's position (`array[index]`, socketed gem included), and `acq store refused [id]` reads it. Rationale: PoE2 first contact (2026-09-02) refused four of five character bodies for an id-less item and dropped them, leaving "which array?" unanswerable without spending four more counted GETs — a refusal that destroys its own evidence turns every malformed body into a re-fetch. Decided 2026-09-02.
-- **Multi-account is one daemon holding many sessions, never one daemon per account.** The Cloudflare bound (`SendGate`, 2 live sends) is a per-IP property (P-B, ground truth §1) held as per-process state; two daemons on one machine make it a 4-wide burst that neither sees, with separate tripwires. Rung 11 (2026-08-30) showed the other half: `Account` rules count per account on GGG's side, so two accounts never contend on layer 2 — the only thing they share is layer 1 and the `Ip`-scoped token endpoint, which is exactly what the single gate exists for. Built in two halves with different blast radii (option C): **account as first-class identity now** (store path, job field, keyring key — leaves), **many live sessions later** (a refactor confined to the session layer). Limiter and probe scope keying — `(account, policy)` for `Account` rules, policy alone for `Ip` rules, scope learned from `X-Rate-Limit-Rules` — is a **precondition of the session map, not an optimization**: with two live sessions on one policy each response would overwrite shared state with a different account's counters, and the next send from the other account floods (a 429 path; the "over-waits, never floods" reading only held for rung 11's sequential switch). Decided 2026-08-29, amended 2026-08-30 after review across sessions; design below in "Multi-account design"; built 2026-08-30 through step (6) — step (7)'s live samples are in `LIVE-TESTING.md`'s run ledger.
-- **Per-route knowledge about GGG that headers cannot teach lives in one place (`Daemon::declare_route_knowledge`), and strict observation is the default everywhere else.** `GET /profile` (first contact 2026-08-30) answers 200 with no `X-Rate-Limit-*` headers at all and 403 to HEAD, which strict observation ("every endpoint has a policy", post-N33) classed as a protocol failure and discarded. Now: a route *declared* policyless accepts a 2xx with **no** rate-limit header (a partial set is still a failure; a policy that later appears is learned strictly), becomes `EndpointState::Policyless`, and is paced by nothing but the send gate; a declared no-probe route goes straight to its GET. Only `/profile` is declared, and it is called at most once per login. Not generalised on purpose: "any headerless 2xx is fine" reopens the blind spot strict observation closed. Owner decision 2026-08-30; GGG confirmed the same day (Q12/N38): `/profile` is not rate limited at present, so the declaration is confirmed and stays until headers ever appear — strict observation covers that arm.
-- **Rate limiter spec will be expressed as test tables, not prose.** `docs/design/network-ground-truth.md` (the claims registry; it indexes the deeper spike evidence) is the input; "given these headers, wait N seconds" tests are the permanent, enforced spec.
-- **The system is four layers — facts, intent (annotations), derivations, effects — each with one authoritative mutation path, not one physical writer.** Facts mutate only through the store crate's ingest surface (daemon `record`; `store import`); intent only through the store crate's annotation write API (frontends); the effects ledger only through the daemon; derivations have no independent authority — computed or materialized, always reproducible from declared inputs (`rebuild` is their maintenance, not fact ingestion). The daemon is permanently blind to intent, and it creates work only in causal service of client-submitted work (probes, children, retries) — never spontaneously: no schedules, no policy execution, no annotation reads; scheduled syncs are small frontends. Rationale: "a sync can never clobber intent" becomes structural, the way the choke point made rate-limit discipline structural — and blindness is safe exactly because the daemon never initiates. Decided 2026-08-31 (brainstorming-notes 06, ruled).
-- **Annotations are the only irreplaceable local state.** A separate per-account file named by the account uuid (identity decision in "Multi-account design"), keyed on stable GGG ids, written only through the store crate with integer-revision compare-and-swap; no fact-side event ever deletes intent — an annotation whose item is removed is kept and surfaceable as orphaned; export/backup is a store-managed consistent snapshot (`VACUUM INTO` / SQLite backup API — a raw file copy under WAL is not a backup). Rationale: facts are refetchable at the cost of requests; intent has no server to refetch from — the C++ legacy-buyout saga is the full price of getting this wrong. Decided 2026-08-31.
-- **The sync policy is the first annotation: a per-account, inspectable declaration of desired coverage and freshness — not a scheduler — compiled by the frontend-side planner into minimal requests.** `metadata.items` counts are heuristic evidence: they can prove a tab changed, never that it didn't. Rationale: C++ tracked-set/clean-refresh semantics, the old delta/selection topic, and both redesign essays independently describe this one object. Decided 2026-08-31.
-- **A tab id in the sync policy covers that tab and its children.** A tab is covered when its own id is listed or its parent's id is; one rule, no per-type logic, and it gives every case the owner meant (tracer rung, 2026-09-01): a map or unique tab's substashes are planned once their stubs are on record — the cycle after the parent's first fetch, since discovery still waits for facts (binding untouched: every action stays an explicit reviewed tuple, nothing is added at apply); a folder's children are planned at once, because the listing already carries them (folders themselves are never fetched); a child named directly still works. A substash stub whose `metadata.items` is 0 is skipped with a named reason rather than fetched — GGG appears to list only non-empty substashes (64 of 64 stubs on the real account carry a count ≥ 1), so this is a guard, not a saving; in-flight change is not designed around (a count is still never proof of freshness). Type-level filters ("skip map tabs", "include unique tabs", "fetch folder children") are parked with a trigger. Evidence: the rung's five-id run left 64 substashes under the two selected parents in the store and outside the policy, closed the loop after one cycle, and the owner's intent for a named map tab was its contents. Consequence: the same policy rerun plans those 64 as cycle 2 (~15 min of limiter holds) — the first live two-cycle discovery sample. Built the same day: `TabSelection::covers` (own id or parent's; `covers_tab` over `Selection` since step (3) of the characters work), `SkipReason::EmptyStub`, plan schema **v4** (a new skip kind is an envelope shape change). Decided 2026-09-01.
-- **A Plan is a serializable, immutable authorization envelope, and plans are binding.** Derived from a named snapshot of facts + intent, computable with the daemon down; it carries provider + account uuid, operation kind + plan schema version, fact basis (response/listing ids or timestamps), annotation revision, the explicit action set (or a declared upper bound), generated-at, freshness assumptions, and optionally a quote with its own observation time. Work has two dimensions: `logical_requests` (exact or bounded) and `wire_sends` (a coarse range plus named prerequisites — probe, token refresh, possible 429 retries — never a precise accounting). Applying a Plan executes exactly the listed actions or a strict subset, never an unreviewed addition; new facts produce a new Plan; v1 excludes dynamic `--deep` fan-out (a vanished tab fails or is reported skipped; newly discovered tabs wait for the next plan). Operation-specific types first (`RefreshPlan`); a universal grammar waits for the second plan-bearing consumer. Binding was revisable on tracer evidence (the owner's live-use friction notes are the data). Decided 2026-08-31. **Confirmed 2026-09-01** on the tracer rung's live run (`LIVE-TESTING.md`, run ledger and friction notes): subset-only reconciliation produced no owner friction, the two-cycle discovery of substashes cost nothing observable, and the parking-lot trigger for dynamic fan-out ("two-cycle reconciliation genuinely hurts") did not fire. What the run did surface was a *coverage* question, ruled separately below (a policy id covers the tab and its children); binding itself stands as written.
-- **The planner lives in `acquisition-plan`** — depends on core's client/protocol types + the store, linked by frontends only — and owns policy compilation and Plan construction; the store exposes neutral snapshots (policy rows, tab identities, freshness, listing basis, metadata), never half a planner. Rationale: keeps "the daemon never reads the store" enforced by the dependency graph, not discipline. Decided 2026-08-31.
-- **`quote` is its own protocol request: a read-only, non-reserving projection over current daemon knowledge** — observation time, basis, per-policy/per-scope estimates, and unknown prerequisites; applying may receive a different schedule (`eta_for` is "an estimate, not a promise"). Headroom is per policy/window and scope, never one scalar. Never a flag on `Submit`, whose contract is loaded with id/persistence/rollback semantics. Decided 2026-08-31.
-- **Reads observe, assertions plan, apply spends.** Store reads never initiate network traffic, and stale facts stay readable with freshness/completeness metadata; only a caller-asserted freshness condition fails — a stable structured error carrying the exact `RefreshPlan` it would take — and explicit frontend orchestration (refresh → await → read) is workflow, not a fused read. Plans-as-remedies are a store-side idiom only: the daemon cannot compute plans and its errors keep their shapes. Decided 2026-08-31.
-- **v1 request budget is logical work, enforced at admission: the daemon refuses a plan before any child submission if its logical bound exceeds `max_requests`.** Mid-fan-out terminalization is never the normal path. An actual-wire-send budget (a causal operation id through probes, OAuth, retries) is a separate, deferred feature. The live-test rails are not promoted wholesale: the tripwire and lifetime ceiling stay what `LIVE-TESTING.md` says they are; product budget *visibility* is the quote + the journal. Decided 2026-08-31.
-- **Apply is its own pure fan-out parent job kind (`apply`), never the `refresh` parent.** The refresh parent re-lists by construction — it fans out from the listing it just fetched — which contradicts "executes exactly the listed actions": a plan's listing is an optional action and its fetches derive from reviewed facts. So `apply`'s params carry the plan's actions as explicit `(kind, params)` child tuples; the parent performs no send of its own, submits exactly one child per tuple, and holds for them. "Never expands" is structural, not disciplinary: the daemon stays plan-blind (it cannot link the store or plan crates), so what it admits is **vocabulary, not meaning** — only single-request kinds (`stashes`, or `stash` with `deep` false), each of which submits no children. Admission is at submit, before a job id exists: a malformed tuple list, an empty one, or a logical bound over the caller's `max_requests` refuses the submit whole — the mid-fan-out terminalization path is never the budget's normal mechanism (D8). Plan validation, the staleness check, and rendering actions to tuples are the frontend's (`acq refresh --apply`, through the planner's validating parse). The ad-hoc `refresh` kind (`--all`/`--tabs`) stays untouched as the explicit client-stated-selection surface; whether it retires rides on step 9's friction notes. Decided 2026-09-01.
-- **Step 7's staleness ruling: apply refuses a plan whose sync-policy revision is no longer the stored one.** A plan is authorization *derived from intent at a revision*; intent edited since revokes the derivation — the CAS reasoning extended from writing intent to spending it, and the refusal is cheap because replanning is offline and free. Checked frontend-side against a fresh read of the policy row immediately before submit (the daemon is intent-blind by the four-layer decision, so only a frontend can compare); a missing row, a different revision, a mismatched account uuid, or a mismatched provider each refuse with the remedy named. Two accepted residuals: the check races a concurrent policy write between read and submit (the same human-boundary register as `policy set` without `--if-revision`), and **fact drift does not refuse** — the authorization is the bounded action set, not a world-state assertion; the actions stay idempotent GETs of exactly the reviewed tuples (a since-vanished tab's fetch fails its own child honestly) and the next plan reconciles what a newer listing changed. Decided 2026-09-01.
-- **The effects ledger is frontend-readable through a read-only facade in the store crate** — not the open `JobDb`; write methods stay out of the frontend surface. An offline orientation distinguishes "daemon offline, zero sends in flight" from persisted waiting or recorded-running work; "daemon offline" never collapses into "no outstanding work". Decided 2026-08-31.
-- **Shared semantics live in Rust; every frontend has a Rust adapter** (clap CLI, `rmcp` MCP, Tauri backend — the webview is presentation, never a second implementation — `dash` TUI). A proposed non-Rust frontend is a design event, recorded here first. Rationale: this premise is what makes "built once, inherited by every frontend" true; unstated premises erode silently. Decided 2026-08-31.
-- **Panics are for broken internal invariants only; malformed external input — a GGG body, a store row, a protocol message — is a structured error with stable kinds and context.** The store crate enforces this mechanically (`clippy::unwrap_used`/`expect_used`; its production code is at zero); not workspace-wide — the daemon's `.lock().unwrap()` poisoning idiom and checked-invariant `.expect`s are the correct register. Rationale: the persisted queue makes crashes recoverable, which turns a *reproducible* panic on bad input into a crash loop — the one failure persistence cannot absorb. Decided 2026-08-31.
-- **The SQLite schema is internal; raw SQL is not a surface.** Schema versions and compatibility errors; defended by making the store crate's API expressive enough that going around it is never worth it. No cached search service (stale results mistaken for current truth); reopening needs a measured duplication or latency case that in-process reads over the file cannot meet. Decided 2026-08-31.
+### Architecture and workspace
+
+- **C1 — Cargo workspace, library-centric.** `acquisition-core` holds OAuth, rate limiter, API client, models; `acquisition-store` and `acquisition-plan` the facts/intent and the planner; `acquisition-cli`, `acquisition-mcp` (and a future `acquisition-gui`) are thin frontends. *Why:* write/test logic once.
+- **C2 — Daemon owns shared state; clients talk over local IPC.** *Why:* makes the single-choke-point invariant structural, not disciplinary.
+- **C4 — API requests are jobs, not calls.** Rate-limit waits can reach 300 s, so the core abstraction is a job with ID, state, and priority. *Why:* blocking calls can't represent a 5-minute wait sanely across three frontends.
+- **C5 — Priority queue from day one, even if v1 uses one priority level.** *Why:* reorder becomes a field write, not a data-structure migration.
+- **C15 — Tokio + reqwest for async/HTTP.** *Why:* ecosystem default; core exposes `async fn`, frontends provide the runtime.
+- **C16 — Tauri for GUI** (webview frontend). *Why:* item search/grid/filter UIs are a strength of web tech; egui considered and passed on for data-heavy views.
+- **C34 — The system is four layers — facts, intent (annotations), derivations, effects — each with one authoritative mutation path, not one physical writer.** Facts mutate only through the store crate's ingest surface; intent only through its annotation write API; the effects ledger only through the daemon; derivations are always reproducible from declared inputs. The daemon is permanently blind to intent and creates work only in causal service of client-submitted work — never spontaneously: no schedules, no policy execution, no annotation reads; scheduled syncs are small frontends. *Why:* "a sync can never clobber intent" becomes structural, the way the choke point made rate-limit discipline structural. Decided 2026-08-31 (brainstorming-notes 06).
+- **C46 — Shared semantics live in Rust; every frontend has a Rust adapter** (clap CLI, `rmcp` MCP, Tauri backend — the webview is presentation, never a second implementation — `dash` TUI). A proposed non-Rust frontend is a design event, recorded here first. *Why:* this premise is what makes "built once, inherited by every frontend" true; unstated premises erode silently. Decided 2026-08-31.
+- **C47 — Panics are for broken internal invariants only; malformed external input — a GGG body, a store row, a protocol message — is a structured error with stable kinds and context.** The store and plan crates enforce it mechanically (`clippy::unwrap_used`/`expect_used` denied in production code); the daemon's `.lock().unwrap()` poisoning idiom stays. *Why:* the persisted queue makes crashes recoverable, which turns a reproducible panic on bad input into a crash loop — the one failure persistence cannot absorb. Decided 2026-08-31.
+- **C48 — The SQLite schema is internal; raw SQL is not a surface.** Schema versions and compatibility errors; defended by making the store crate's API expressive enough that going around it is never worth it. No cached search service. *Why:* stale results mistaken for current truth is the failure a cache reintroduces; reopening needs a measured duplication or latency case. Decided 2026-08-31.
+
+### Daemon, jobs, protocol
+
+- **C3 — Lazy spawn + idle auto-shutdown** (gpg-agent model). Any client that can't connect spawns the daemon; the daemon exits after a short period with no connections and no queued work. `daemon stop|status` exist for debugging only. *Why:* no stray processes, no user-visible ceremony.
+- **C6 — The job queue persists: a `jobs` table in a per-daemon `daemon.db`, written through at every state change and read back at start.** Memory stays the runtime source of truth — the table is a mirror, "the HashMap, but it survives". Ids never run ahead of disk; a daemon that cannot open the table refuses to start; a queue write failure is sticky. **One daemon per store directory is an invariant, not a lock.** *Why:* the queue was the one thing a restart lost once results moved to the store. *Details:* `daemon.rs` doc, C6 (restore rules, the two replay exceptions, the write-failure residual, retention). Decided 2026-08-30.
+- **C7 — A job's `params` travel on `JobInfo`, verbatim and public.** Every connected client sees them, so a job's params must never carry a secret (tokens are obtained inside the daemon, never passed in). *Why:* a job a person cannot identify cannot be managed; rendering is the client's business. Decided 2026-08-24.
+- **C8 — Daemon protocol includes a subscribe/event channel from the start** (job-state-changed events over the same socket). *Why:* GUI push updates and `jobs --watch` come nearly free; bolting on later is painful.
+- **C9 — Protocol transport: JSON lines over Unix socket / named pipe** (tokio + serde). *Why:* boring, debuggable, cross-platform.
+- **C10 — Version handshake in the protocol; the protocol is single-version on purpose.** Kill-and-respawn is the entire migration mechanism; the stamp compared is the **build** (`VERSION_WITH_BUILD`), not the package version. Replacing is the *interactive* CLI's policy only; an autonomous client (MCP) never kills or replaces a daemon. *Why:* three frontends with a compat matrix is the reconciliation swamp; three frontends with respawn is a one-line diff. *Details:* `client.rs` doc, C10. Amended 2026-08-30, 2026-09-02.
+- **C11 — CLI emits structured output** (`--json` on every command, the error path included: failures are `{"error": …}` on stdout with exit 1, and a failed job exits 1 in both modes). *Why:* the CLI is itself an API; makes MCP and agent use nearly free.
+- **C12 — A frontend consumes exactly two surfaces: the daemon protocol and the store crate's read API — no third door.** This pins the boundary's *location*, not its content; a frontend that wants a third channel is a protocol or store change, recorded here first. *Why:* bespoke per-frontend channels turn three frontends into a review burden; two shared surfaces keep the contract in exactly two places, enforced by what frontends link against. Decided 2026-08-30.
+- **C23 — Work that needs many requests is a parent job that submits child jobs; a parent finishes when its last descendant does, gives up its dispatcher task and scheduling key while waiting, and cancels its descendants when cancelled.** *Why:* the queue, dispatcher, priorities, ETAs, and events already work per job, so children get all of it for free. *Details:* `daemon.rs` doc, C23 (the observed substash and folder shapes).
+- **C27 — A client that disappears leaves its jobs running.** Ctrl-C, a closed terminal, or a crash cancels nothing; the sends are committed either way. A client reattaches by job id (`acq result <id>`), answered across daemon restarts. Decided 2026-08-24.
+- **C45 — The effects ledger is frontend-readable through a read-only facade in the store crate** — not the open `JobDb`. "Daemon offline" never collapses into "no outstanding work". Decided 2026-08-31.
+
+### Network and rate limiting
+
+- **C17 — Rate limiter: custom policy layer parsing GGG headers, with a simple enforcement mechanism underneath.** *Why:* GGG's header-driven limits are too specific for off-the-shelf policy.
+- **C18 — Limiter state is keyed by policy name — per account for `Account`-scoped rules — and learned only from headers.** No local token counting; waits come from the last `X-Rate-Limit-*` state plus response arrival times, padded by the server's timing bucket; classification is positional (ground-truth Q4). *Why:* same-name policies share counters across endpoints (N6), so endpoint-keyed state would be a migration later. *Details:* `ratelimit.rs` doc, C18 (keying as built, the N33 bucket). *Pinned:* the `ratelimit.rs` test tables.
+- **C19 — A counted send whose response carries no usable policy headers is paced as if the server counted it — the same treatment as a send lost in transport.** The job still fails and is never retried. *Why:* rung 10's origin 503 (N35) had no headers and a run of them went out unpaced; this bounds an outage at the policy's own rate with no new policy. Decided 2026-08-24.
+- **C20 — Endpoint discovery is a visible `probe` job: one HEAD per endpoint per daemon lifetime, queued by the daemon before the first real send.** *Why:* N16's sanctioned pattern; visible because everything that touches GGG is a job and HEAD has regressed server-side before (N20).
+- **C21 — The global burst bound belongs at the daemon's HTTP send boundary and spans each actual request from immediately before dispatch until its response/body completes.** OAuth code exchange and refresh are inside it; the browser authorize is outside; the dispatcher has no global job-task cap. *Why:* P-B and N33 — Cloudflare watches bursts across policies and the token endpoint is Cloudflare-fronted; HTTP capacity must describe actual sends, not waiting work. *Details:* `gate.rs` doc, C21.
+- **C22 — The frozen C++ network design (`docs/design/network-redesign.md`) is a property source, not a Rust architecture template.** The Rust code conforms to its D3/D4/D5/D8 properties with three intentional adaptations: OAuth token traffic inside the common gate (N33 postdates the C++ design); ordinary FIFO among currently eligible policies; no 250 ms inter-send spacing. *Why:* the properties protect the GGG relationship; the mechanisms were shaped by Qt. Changing an adaptation is a design change, recorded here first.
+- **C24 — A `refresh_token` grant the provider rejects with a 4xx other than 429 is terminal: no further refresh is sent until `acq auth` or logout.** The mark persists across restarts, tripwire or not. *Why:* a dead grant re-sent per flight is pointless traffic on a Cloudflare-fronted endpoint, and the rail that stopped it was opt-in. Decided 2026-08-24.
+- **C25 — A rails halt leaves queued network jobs waiting; nothing fails for lack of a send.** A halted daemon with only waiting jobs idles out; its successor holds the queue until `reset-tripwire`. The ceiling is per lifetime and not persisted. *Why:* rung 10 failed 82 never-sent children on a 503 and the rerun refetched all 322 tabs; both reasons are gone with persistence. *Details:* `rails.rs` doc, C25. Decided 2026-08-30.
+- **C26 — A 429 re-queues the job (keeping its place) behind the limiter's hold; after `MAX_429_RETRIES` (2) it fails with the evidence. 403/503 are never retried.** *Why:* P-A — violations are structural, so recovery is a requirement; N10 — frequent violations revoke the app, so it's bounded; invariant 3 for the Cloudflare shapes.
+- **C32 — Per-route knowledge about GGG that headers cannot teach lives in one place (`Daemon::declare_route_knowledge`), and strict observation is the default everywhere else.** Only `/profile` (policyless, N38) and `/account/leagues` (no-probe: its HEAD counts, N39) are declared; not generalised on purpose. *Why:* "any headerless 2xx is fine" reopens the blind spot strict observation closed. *Details:* `daemon.rs` doc, C32. Owner decision 2026-08-30.
+- **C33 — Rate limiter spec will be expressed as test tables, not prose.** `docs/design/network-ground-truth.md` is the input; "given these headers, wait N seconds" tests are the permanent, enforced spec. *Pinned:* `ratelimit.rs`.
+
+### Accounts and sessions
+
+- **C31 — Multi-account is one daemon holding many sessions, never one daemon per account.** The Cloudflare bound is a per-IP property held as per-process state; two daemons on one machine make a 4-wide burst neither sees. Limiter and probe scope keying per `(account, policy)` for `Account` rules is a precondition of the session map, not an optimization. *Why:* rung 11 (2026-08-30) showed `Account` rules count per account on GGG's side. *Details:* `daemon.rs` doc, C31. Decided 2026-08-29, amended 2026-08-30.
+- **C49 — Complexity rule: the only code that interprets accounts is the session layer.** Everywhere else account is data — a field on the job, a path segment for the store, an opaque key component for the limiter. An `if account == …` outside the session layer is the smell.
+- **C50 — Identity: the stable account key is the profile `uuid`, fetched at login and required.** A login whose profile fetch fails **fails whole**: no provisional identity, no minted keys, no rename-repair machinery. `accounts.json` maps username/discriminator/provider → uuid; fact files stay username-named (refetchable), annotation files are uuid-named. *Why:* intent references identity, and the C++ legacy-buyout saga is the price of an unstable key. *Details:* `daemon.rs` doc, C50. Amended 2026-08-31.
+- **C51 — No daemon-side default account; stateless selection.** Every submit carries `account`; omitted, it resolves only when exactly one session exists, otherwise the daemon refuses with the list. The CLI resolves `--account`/`ACQ_ACCOUNT` client-side against `accounts.json`, so reads never spawn a daemon; matching is exact, never by prefix. A job has exactly one account; cross-account work is a frontend loop. *Details:* `daemon.rs` doc, C51.
+
+### Frontends
+
+- **C13 — The MCP server is a fourth thin client (`acquisition-mcp`, binary `acq-mcp`, official `rmcp` SDK over stdio), never in-process with the daemon.** It never kills or replaces a daemon and never spawns one in real mode (login is human, via the CLI); it lazy-spawns only in mock mode. *Why:* daemon-hosted queries make the daemon an application server. *Details:* `acquisition-mcp/src/main.rs` doc, C13. *Pinned:* `tests/plan_loop.rs`, `tests/ggg_refusal.rs`. Decided 2026-08-30.
+- **C14 — Agent traffic against GGG is allowed; the daemon is the single gate.** Owner ruling 2026-09-01: GGG permits agent use of the API as long as the API rules are respected; the distinction between human, script and agent clients was never enforceable, and what is enforceable is one gate every client's traffic passes through (invariant 1). `acq-mcp` submits, applies and quotes in either mode against a running daemon; the live-test rails stay what `LIVE-TESTING.md` says.
+- **C52 — An agent never clobbers intent it has not read.** `set_sync_policy` has no blind-replace form: replacing an existing policy must name the revision it replaces. Owner-revisable default, 2026-09-01. *Pinned:* `acquisition-mcp/tests/plan_loop.rs` (create-only CAS).
+- **C53 — Legible output: text is a function of the JSON, and grouping is presentation, never a change to what is authorized.** Binding for every surface in the plan slice: one line before detail; ten or fewer entities listed, more counted, `--expand` lists all; a failure line names the job, its target, the cause, and where the evidence is; every nothing says which nothing; ages in text, epochs in JSON; terminal escapes only on a tty; JSON changes are additive (no summary block in the envelope — it is the authorization, not the report); divergence between text and JSON defaults is stated. Ruled and run live 2026-09-02: approved; density open. *Details:* `plan_cmd.rs` doc, C53.
+
+### Store: facts
+
+- **C28 — Persistence is a shared library + file, not a process: `acquisition-store` (SQLite, one facts file per account under a per-provider directory, plus the account index); the daemon writes facts, and frontends read facts and read/write intent, all through the store crate.** The daemon's fact-side involvement is `record(endpoint, params, status, body)`; it never reads the store and never looks inside a body. *Why:* frontend-owned stores duplicate GGG traffic when two frontends pull; daemon-served queries make the daemon an application server. Decided 2026-08-29.
+- **C29 — Bodies are stored verbatim except at the item seams; `items` is the only place to look for an item.** Every item array is lifted into `items`, one row per GGG item id, keyed by its location's **full coordinate** (realm, league for a stash, kind, id); a fetch of a location a listing has retired is **withheld** — membership is the listing's, and only a listing revives a location. *Why:* raw-plus-parsed duplicated every body; raw-only made every query a body scan and gave user state no key. *Details:* `acquisition-store/src/lib.rs` doc, C29. *Evidence:* the 322-tab replay, zero false changes 8 h apart. Decided 2026-08-29.
+- **C30 — A refused body is evidence, never a fact.** A 2xx body `record` refuses as malformed rolls its ingest back whole and is kept verbatim in `refused` (facts v7), which no basis query reads; `acq store refused [id]` reads it. *Why:* PoE2 first contact refused four of five bodies and dropped them — a refusal that destroys its evidence turns every malformed body into a re-fetch. Decided 2026-09-02.
+- **C54 — Authority is the coarser observation's: a listing owns membership, address, league and liveness; a fetch owns contents and nothing more; a fetch never revives what a listing retired.** A location is its full coordinate; a parent tab's fetch is its substashes' listing; a listing that revives a retired row clears its `fetched_at`; membership is per response, never a timestamp match. *Why:* five review rounds on 2026-09-02 found this shape in five places before it was stated once (`REFRESH-SLICE.md`). *Details:* `acquisition-store/src/lib.rs` doc, C54.
+- **C55 — Identity is the character `id`; the name is the address.** A plan action carries both: id for identity, coverage and reasons; name for the request, from the basis listing; a name that moved fails its child honestly or lands a different id, and the next listing reconciles. Items locate at the character id. *Why:* policy ids break on rename, a recreated name inherits the old row's freshness, a rename moves every item — three failures of name-keying. *Details:* store doc, C55. Ruled 2026-09-02.
+- **C56 — Every item row records the array it came from** (`container`: an ingest fact, not a derived column), and `skills` (PoE2) and `guardian` (PoE1) join the lifted arrays. An item-shaped array a character body carries under any other name is the **drift tripwire**: counted, surfaced in `store status`, never lifted, never a failure. *Why:* a guardian's items carry the character's own slot names, so the item alone cannot say which array it sits in. Ruled 2026-09-02.
+- **C57 — A PoE2 item-granted skill is a property of its host, never an item fact.** The id-less gem a weapon or shield carries in its `socketedItems`, repeated verbatim as `skills[0]`, with anything socketed into it: left in the host's json and the envelope, counted (`_granted`), never a row, never a refusal; every other id-less item is still refused. *Why:* `Item.id` is documented optional and this is the case that omits it; a synthetic identity would double the entry. *Details:* store doc, C57. Ruled 2026-09-02 (owner: (a), until GGG changes how granted skills are reported).
+
+### Intent, plans, apply
+
+- **C35 — Annotations are the only irreplaceable local state.** A separate per-account file named by the account uuid, keyed on stable GGG ids, written only through the store crate with integer-revision compare-and-swap; no fact-side event ever deletes intent (an orphaned annotation is kept and surfaceable); backup is a store-managed consistent snapshot, never a raw file copy under WAL. *Why:* facts are refetchable at the cost of requests; intent has no server to refetch from. Decided 2026-08-31.
+- **C36 — The sync policy is the first annotation: a per-account, inspectable declaration of desired coverage and freshness — not a scheduler — compiled by the frontend-side planner into minimal requests.** `metadata.items` counts are heuristic evidence: they can prove a tab changed, never that it didn't. *Why:* C++ tracked-set/clean-refresh semantics, the old delta/selection topic, and both redesign essays describe this one object. Decided 2026-08-31.
+- **C37 — A tab id in the sync policy covers that tab and its children.** A map/unique tab's substashes are planned once their stubs are on record — the cycle after the parent's first fetch, binding untouched; a folder's children at once; a stub counting 0 is skipped with a named reason. Type-level filters are parked with a trigger. *Why:* the tracer rung left 64 substashes uncovered under an exact id match, and the owner's intent for a named map tab was its contents. *Details:* `acquisition-plan` doc. Decided 2026-09-01.
+- **C38 — A Plan is a serializable, immutable authorization envelope, and plans are binding.** Derived from a named snapshot of facts + intent, computable with the daemon down; it carries provider, account uuid, operation and schema version, fact basis, annotation revision, the explicit action set, and optionally a quote. Applying executes exactly the listed actions or a strict subset, never an unreviewed addition; new facts produce a new Plan; operation-specific types first (`RefreshPlan`); a universal grammar waits for the second plan-bearing consumer. *Why:* reviewed work stays exact. Decided 2026-08-31; **confirmed live 2026-09-01** with no owner friction. *Details:* `acquisition-plan` doc, C38.
+- **C39 — The planner lives in `acquisition-plan`** — depends on core + the store, linked by frontends only — and owns policy compilation and Plan construction; the store exposes neutral snapshots, never half a planner. *Why:* keeps "the daemon never reads the store" enforced by the dependency graph, not discipline. Decided 2026-08-31.
+- **C40 — `quote` is its own protocol request: a read-only, non-reserving projection over current daemon knowledge** — observation time, basis, per-policy/per-scope estimates, unknown prerequisites; applying may receive a different schedule. Never a flag on `Submit`. Decided 2026-08-31.
+- **C41 — Reads observe, assertions plan, apply spends.** Store reads never initiate network traffic; stale facts stay readable with freshness metadata; only a caller-asserted freshness condition fails — with the exact `RefreshPlan` it would take — and refresh → await → read is workflow, not a fused read. Plans-as-remedies are a store-side idiom only. Decided 2026-08-31.
+- **C42 — v1 request budget is logical work, enforced at admission: the daemon refuses a plan before any child submission if its logical bound exceeds `max_requests`.** An actual-wire-send budget is a separate, deferred feature; the tripwire and lifetime ceiling stay what `LIVE-TESTING.md` says. Decided 2026-08-31.
+- **C43 — Apply is its own pure fan-out parent job kind (`apply`), never the `refresh` parent.** Its params carry the plan's actions as explicit `(kind, params)` child tuples; the parent performs no send of its own and submits exactly one child per tuple. What the daemon admits is **vocabulary, not meaning** — single-request kinds only — and admission is at submit, before a job id exists. *Why:* the refresh parent re-lists by construction, which contradicts "executes exactly the listed actions"; the daemon stays plan-blind. *Details:* `daemon.rs` doc, C43. *Pinned:* `acquisition-cli/tests/apply_loop.rs`. Decided 2026-09-01.
+- **C44 — Apply refuses a plan whose sync-policy revision is no longer the stored one.** A plan is authorization *derived from intent at a revision*; intent edited since revokes the derivation. Checked frontend-side against a fresh read immediately before submit. **Fact drift does not refuse** — the authorization is the bounded action set, not a world-state assertion. *Why:* the CAS reasoning extended from writing intent to spending it, and replanning is free. *Details:* `acquisition-plan` doc, C44. *Pinned:* `tests/plan_json.rs`. Decided 2026-09-01.
+
+### Realm and characters
+
+- **C58 — Realm is a coordinate above league, everywhere.** Policy is `realms.<R>.leagues.<L>.{tabs, characters, max_age_seconds}`; the plan envelope carries realm beside league; the snapshot is per `(realm, league)`; facts carry a realm column; realm is an explicit param on every data kind, defaulted to pc only at the decode boundary. On the wire **pc is expressed by omission — `pc` is not a legal segment value**, so pc URLs never moved. *Why:* PoE2 1.0 ships December 2026 and league names collide across realms. *Details:* `realm.rs` doc. *Pinned:* `tests/realm_wire.rs`. Ruled 2026-09-02.
+- **C59 — Which realms each route accepts is declared in one place, never one shared list** (`Family::accepts`, the `declare_route_knowledge` mold). A policy naming `tabs` under `poe2` is a structured parse error; no code path renders a stash URL with `poe2`; an unobserved URL shape is never sent. When GGG extends PoE2 to another endpoint, the change is one row plus a first-contact sample. Ruled 2026-09-02.
+- **C60 — The store's realm is the request's realm**, stamped from the params, never the entry's `realm` field; the removal rule is realm-scoped, so it under-retires if lists span realms and never over-retires. *Evidence:* N42. Ruled 2026-09-02.
+- **C61 — Listed `deleted` or `expired` characters are skipped with a named reason, not fetched**, and a character with no `league` is reported as uncovered, never a failure. *Why:* the invalid-request threshold makes a 404 hunt a real cost; `expired` does not mean "league ended" (N42). Ruled 2026-09-02.
+- **C62 — Freshness heuristic for characters, owner's call for v1:** a listing newer than our fetch reporting a different `experience` proves play since — the sibling of the tab count arm; a `league` disagreement is the same arm. The planner is facet-symmetric: `Selection` serves tabs and characters alike, and the store's liveness rule is consumed, not restated. Ruled 2026-09-02.
+- **C63 — `acq characters` and the MCP `characters` tool print the full id beside the name**; name→id resolution at `policy set` is parked (trigger: authoring friction) — it would make the stored policy differ from what the human typed.
 
 ## Interfaces (boundaries are specified; internals are not)
 
@@ -83,511 +121,6 @@ ETA is computed from limiter state + queue depth ahead of the job — the daemon
 
 The live verb list is `acq --help` and the README's "Try it" block. Properties: default mode is blocking-with-progress ("rate limited, starting in ~4m37s..."), `--detach` is the async/job mode, every command takes `--json`, and `daemon status|stop` exist for debugging only.
 
-### Multi-account design (decided 2026-08-30)
-
-**Complexity rule:** the only code that interprets accounts is the
-session layer. Everywhere else account is data — a field on the job, a
-path segment for the store, an opaque key component for the limiter
-(which never reads it; scope comes from `X-Rate-Limit-Rules`). An
-`if account == …` outside the session layer is the smell.
-
-- **Identity: the stable account key is the profile `uuid`, fetched at
-  login and required** (amended 2026-08-31; was username-only with
-  opportunistic uuid). After token exchange the daemon submits a profile
-  job — causal service of the client's `acq auth` — and the session is
-  registered, the keyring written, and `accounts.json` updated only when
-  the uuid lands; a login whose profile fetch fails **fails whole**: no
-  provisional identity, no minted keys, no rename-repair machinery — if
-  `/profile` is broken, something is broken and login says so. A retry
-  repeats the token exchange, paced by the `Ip`-scoped token policy, so
-  a retry loop is already bounded. `accounts.json` maps
-  username/discriminator/provider → uuid; a rename is a mapping update
-  with intent untouched. The token response's `username`
-  (`name#discriminator`) stays the display name and selector; fact files
-  stay username-named (refetchable; rename-orphaning tolerable);
-  annotation files are uuid-named. Entries without a uuid: one re-auth,
-  no migration. The mock serves deterministic per-username uuids.
-- **No daemon-side default account; stateless selection.** Every submit
-  carries `account`. Omitted, it resolves only when exactly one session
-  exists; otherwise the daemon refuses with the list. While the daemon
-  holds one session, a submitted `account` is validated against it and
-  refused on mismatch (so the selector is testable before the session
-  map exists). The CLI resolves `--account` / `ACQ_ACCOUNT` client-side
-  against a non-secret index file, `store/<provider>/accounts.json`
-  (username, uuid when known, last login), so reads never spawn a daemon.
-  Matching is exact — name with or without discriminator, or uuid —
-  never by prefix. GUI/MCP hold their own selection and pass it.
-- One-off (non-persisted) sessions are accounts: listed, selectable,
-  marked "not persisted".
-- A job has exactly one account; no cross-account `refresh --all`.
-  Cross-account work is a frontend loop.
-- `account` is a protocol field on `Submit`/`JobInfo`, not a params
-  entry; fixed at submit (resolved against the live session, refused
-  before a job exists otherwise), checked again at the moment a token is
-  taken (a mismatch fails the job with no send), and it selects the store
-  file — never the session at landing time. Shown in `jobs`, `dash`, the
-  daemon log, and the journal (the `route` field is the endpoint key,
-  `stash@Alice#1234`).
-- **Limiter keying as built (step 5):** the endpoint key is
-  `route@account`; a policy's state is keyed `name@account` only when
-  *every* rule of the policy is `Account`-scoped and the send had an
-  account — `Ip` rules, mixed scopes, and accountless sends share the
-  bare name (over-waits at worst). One notch more conservative than
-  "Account rules per account" if GGG ever mixes scopes in one policy.
-  The token route (`oauth-token`) is deliberately accountless: it is
-  `Ip`-scoped and has no probe, so an accounted key would be unpaced on
-  an account's first login.
-- **The free HEAD probe (N24) is per endpoint, not an API property.**
-  First contact 2026-08-30: `HEAD /account/leagues` is answered 200 and
-  counted as a hit (the free HEADs answer 204); `HEAD /profile` is 403.
-  Both routes are declared no-probe in `Daemon::declare_route_knowledge`
-  and taught by their first GET; pacing was never wrong (headers are
-  post-increment and trusted), a probe there is just a wasted hit.
-- Store: `store/<provider>/<account>.db`, opened lazily on first record;
-  `tabs`/`items`/`store` take the selector and never span accounts.
-  Keyring: one entry per account; the index file is how the daemon knows
-  which entries to restore (the keyring crate cannot enumerate). Restore
-  continues past a dead grant — the terminal-grant mark is per session.
-  The existing single keyring entry is orphaned, not migrated: one
-  re-auth.
-- The `jobs` table lives in a per-daemon `daemon.db`, not inside an
-  account file, and carries the account column (persistence decision above).
-- Mock: the login page accepts any username and policies count per
-  username (the access token carries it, `at-<user>-<rand>`), so
-  two-account tests can distinguish per-account from shared counting —
-  the property rung 11 established for GGG.
-
-### Annotations & plans — the refresh tracer (decided 2026-08-31)
-
-The one slice built first: refresh-with-`plan`, the smallest slice that
-touches all four layers (policy = intent, plan = derivation, apply =
-effect, the next read = facts). Full deliberation is history in
-`brainstorming-notes/` 00–06; the binding text is the 2026-08-31
-decision lines above; the build, its review rounds and its live runs
-are `REFRESH-SLICE.md` (the narrative that stood here is in git at
-`d660d1f5`). Steps 1–9 are done; step 9 ran live 2026-09-01 and again
-2026-09-02 (run ledger), pass.
-
-Where the slice lives:
-
-- Intent: `acquisition-store/src/annotations.rs`; uuid-at-login in the
-  daemon's staged login flow (a login fails whole).
-- Facts for the planner: `Store::refresh_snapshot` (`snapshot.rs`) — one
-  read transaction, nothing derived.
-- Derivation: `acquisition-plan` — `plan_refresh`,
-  `RefreshPlan::from_value` (strict: the derived envelope must
-  re-serialize to exactly what was read), `check_spendable` (the
-  staleness/identity gate), `apply_params` (action → job tuple),
-  `put_sync_policy` (validate-then-CAS) — shared by every frontend.
-- Effect: the `apply` parent kind and `quote` (Decisions above;
-  `Daemon::quote`).
-- Surfaces: `acq policy show|set`, `acq refresh --plan|--apply`
-  (`acquisition-cli/src/plan_cmd.rs`); `acq-mcp`'s `sync_policy`,
-  `set_sync_policy`, `refresh_plan`, `apply_plan`.
-- Pinned at process level: `acquisition-cli/tests/plan_json.rs` (the
-  offline gates), `tests/apply_loop.rs` (plan→apply→replan against a
-  real daemon over the mock), `acquisition-mcp/tests/plan_loop.rs` (the
-  same over MCP, the offline claims proven with the socket dead),
-  `tests/ggg_refusal.rs` (real mode never spawns a daemon).
-
-Agent-boundary default, owner-revisable: `set_sync_policy` has no
-blind-replace form — replacing an existing policy must name the
-revision it replaces, so an agent never clobbers intent it has not
-read.
-
-Accepted residual: no process-level mismatched-daemon test; the
-structural connect-options pin covers lifecycle safety (the quote path
-never spawns or replaces a daemon).
-
-**Method-test verdict (2026-09-01):** *pass on correctness, with the
-owner-truth channel under-exercised.* The slice ran live first time with
-no code change; every rail and check fired as designed, and the five
-review rounds before the run did the catching rather than the run. But
-the method's truth is the owner's experience, and the owner's one
-friction note plus the remark that the driver's output was too dense to
-read means the run was judged through the agent's reading, not the
-owner's. Not a failure of pin-after-the-consumer — a caveat it carries
-into the pricing session: budget for legibility (the parked output items
-below) before that session's own live run, or say explicitly that agent
-observations stand in for owner notes. Discharged 2026-09-02: the
-legible output was built and read live by the owner ("Legible output for
-the refresh slice" below).
-
-### Characters in the refresh plan (ruled 2026-09-02)
-
-Tabs and characters are the only two paths items take into the store;
-this closed the ingest map. Built and run live the same day (steps
-(1)–(5); `REFRESH-SLICE.md` for the build and the review findings;
-run ledger rows `characters rung` and the `/character/poe2` first
-contacts; claims N41–N45).
-
-**Rulings (owner, 2026-09-02 design session).** Evidence: the run-ledger
-row `2026-09-02 characters sample` (`LIVE-TESTING.md`) and the official
-API reference, read the same day (documented facts below are pending
-ground-truth claims, master-side).
-
-- **Identity is the character `id`; the name is the address.** `id` is
-  a unique 64-hex string (documented; observed equal between list entry
-  and fetched body). The fetch endpoint takes the name, so a plan action
-  carries both: id for identity, coverage and reasons; name for the
-  request, taken from the basis listing. Same shape as a substash
-  fetched by `(parent, id)` from a cited basis: a name that moved fails
-  its child honestly (404) or lands a different id (a recreated name) —
-  the store records what the server said, keyed by the **body's** id,
-  the intended character stays stale, and the next listing reconciles
-  (D5a; fact drift does not refuse — the step-7 ruling). No expected-id
-  check on the fetch: a 200 under a stale name is a true fact, and
-  refusing it discards facts and wastes a paid send. Why the key must
-  move — three failures of name-keying, only the first about renames:
-  policy ids break on rename (intent references identity: the uuid
-  precedent, first-consumer treatment); a deleted-and-recreated name
-  inherits the old row's freshness and is never fetched (a planner
-  hole); a rename moves every item (false events). Items locate at the
-  character id.
-- **Realm is a coordinate above league, everywhere.** PoE2 1.0 ships
-  December 2026 (announced late August); league names collide across
-  realms (Standard exists in both games). Policy becomes
-  `realms.<R>.leagues.<L>.{tabs, characters, max_age_seconds}`
-  (the realm nesting is **policy v2**, built; `characters` beside `tabs`
-  makes **v3** — a new sibling field is a shape change, so a v2 reader
-  says "newer version", never "malformed"; each older version upgrades
-  on parse, v1 as realm pc); the
-  plan envelope carries realm beside league; the snapshot is taken per
-  `(realm, league)`; `tabs` and `characters` facts carry a realm column
-  (existing rows pc); realm is an explicit param on all four data kinds
-  (`stashes`, `stash`, `characters`, `character`), defaulted to pc only
-  at the decode boundary (`Endpoint::from_job`) so persisted pre-realm
-  jobs still decode. On the wire realm is a path segment and **pc is
-  expressed by omission — `pc` is not a legal segment value**
-  (documented), so pc URLs stay byte-identical to every live send so
-  far: the realm step costs no live spend, and the mock rehearsal
-  journal proves the URLs did not move.
-- **Which realms each route accepts is declared in one place, never one
-  shared list** (the `declare_route_knowledge` mold). Documented today:
-  `/character` and `/character/{name}` take `xbox|sony|poe2`;
-  `/stash…` and `/account/leagues` take `xbox|sony` and are titled
-  "PoE1 only". A policy naming `tabs` under `poe2` is a structured parse
-  error; no code path renders a stash URL with `poe2`. GGG is expected
-  to extend PoE2 to the other endpoints (almost certainly the same
-  segment): when it ships, the change is one row in that table plus a
-  first-contact sample under the standing rule. Not pre-enabled — an
-  unobserved URL shape is never sent.
-- **The store's realm is the request's realm**, stamped from the params
-  (the listing's or the fetch's), not the entry's `realm` field: the
-  docs give that field as `pc|xbox|sony` while the endpoint accepts
-  `poe2` (a contradiction, open until a PoE2 body is seen; the field
-  stays verbatim in the json). Observed: a pc list's 59 entries all
-  carry `realm: "pc"`. The address a plan renders is (request realm,
-  listed name) — the one combination guaranteed to fetch. Whether a
-  list spans realms is undocumented; the removal rule is realm-scoped
-  (a realm-R listing retires only realm-R characters it did not stamp):
-  under-retires if lists span realms, never over-retires.
-- **Listed `deleted` or `expired` characters are skipped with a named
-  reason, not fetched**, until evidence says otherwise. The docs define
-  neither beyond "always `true` if present", and the invalid-request
-  threshold (too many 4xx restricts the app, independent of rate
-  limits) makes a 404 hunt a real cost. Observed: characters in ended
-  leagues (Ancestors, Phrecia 2.0, an event) are listed with **no
-  `expired` flag**, so `expired` does not mean "league ended", and
-  **league names on characters are not restricted to
-  `/account/leagues`** — the planner treats the league key as an opaque
-  string. `Character.league` is optional (documented): a character with
-  none is reported as uncovered, never a failure.
-- **`skills` (PoE2) and `guardian` (PoE1: the inventory of an animate
-  guardian — untradeable, still worth knowing) join the lifted arrays,
-  and every item row records the array it came from** — a `container`
-  ingest fact beside `location_kind`/`location_id`, not a derived
-  column: it is not in the item's json, so `rebuild` cannot recompute
-  it, exactly like location. Necessity, not convenience: the live
-  guardian's five items carry `inventoryId` `Helm`/`BodyArmour`/
-  `Gloves`/`Boots`/`Weapon` with `x`/`y` 0 — the character's own slot
-  names — so the item alone cannot say which array it sits in, and
-  `inventoryId` has no documented values at all. Location stays the
-  character id (one removal pass per character); moving between arrays
-  stays a `changed` event. All five guardian items carried ids
-  (documented `Item.id` is optional; the store's id-less refusal
-  stands — check the same on the first PoE2 `skills` body).
-- **Drift tripwire at ingest.** GGG adds fields most leagues; a new item
-  array on `Character` would go un-lifted silently. After the declared
-  arrays are lifted, an array of item-shaped objects left in a character
-  envelope is counted and surfaced in `store status` — never a failure.
-- **`acq characters` and the MCP `characters` tool print the id beside
-  the name** (full 64-hex: matching is exact, a prefix cannot be pasted
-  into a policy). Name→id resolution at `policy set` is parked
-  (trigger: authoring friction) — it would make the stored policy
-  differ from what the human typed.
-- **Freshness heuristic, owner's call for v1:** the list entry carries
-  `experience` (observed on all 59), monotone for a character's life; a
-  listing newer than our fetch reporting a different `experience` proves
-  play since — the sibling of `ListedCountDisagrees`. A `league`
-  disagreement (a Hardcore death landing in Standard) is the same arm.
-
-Properties fixed inside the ruling while building, each pinned by a
-test (findings that bought them: `REFRESH-SLICE.md`):
-
-- **The realm table is one type in core** (`realm.rs`: `Realm`,
-  `Family::accepts`), read by the daemon (rendering + admission), the
-  mock (path classification), and the planner (policy parse) — the
-  `declare_route_knowledge` mold, linkable by all three because the
-  planner already depends on core. The store stays string-typed: it
-  records the request's realm and never validates it.
-- **A non-pc realm suffixes the limiter's route label**
-  (`character-list/poe2`, `stash-list/xbox`) as well as the URL, so each
-  realm's URL shape gets its own free HEAD before its first counted
-  send; whether it shares the pc policy is learned from headers (N6
-  already shares state by name). One extra HEAD per realm per lifetime.
-- **Admission refuses a realm a family does not take** (`admit_realm`
-  at submit and per apply tuple, before a job id exists) — the daemon
-  side of "no code path renders a stash URL with poe2"; the planner
-  side is the policy parse.
-- **Items carry realm beside league** (stamped from the seam); the
-  ad-hoc `refresh` kind forwards realm to its children; `leagues`
-  stays realm-less (no consumer, not in the plan).
-- **Mock consoles are truthful, not colliding**: an xbox/sony stash
-  listing is empty and a tab fetch 404s (tab and item ids are
-  GGG-unique, so pc's are never reused under another realm); the
-  character list is per realm, with one poe2 character carrying a
-  `skills` array (confirmed live 2026-09-02, N42–N44; the mock body
-  now also carries an item-granted skill, the id-less shape N44
-  records).
-- Policy v2 parses v1 in place; the stored value stays what was
-  written (`policy show` shows what the human typed).
-
-**Step (2) mechanism, agreed before building (2026-09-02):**
-
-- `characters.league` is **listing-owned**: the coverage coordinate is
-  what the basis listing said, so a fetch never overwrites it (the same
-  rule as `listed_json` on tabs); a fetched body's league lives in its
-  json and is the disagreement arm's other side. A character fetched
-  directly, never listed, takes the body's league on insert only.
-- **Container is compared explicitly at ingest**: a helm moving from the
-  character's own `equipment` to its `guardian` has byte-identical json
-  (`inventoryId` `Helm`, x/y 0), so "moving between arrays is a
-  `changed` event" needs the column in the comparison, not only the json.
-  A pre-v4 character item has no container on record (NULL — the value
-  is not in the json, so no migration can recompute it); the first fetch
-  after the migration sets it without an event.
-- **Facts v4 migration**: `characters` is rebuilt keyed by `id`, taken
-  from each row's json (list entries and fetched bodies both carry it);
-  a row whose json lacks an id is dropped and its items retired (facts
-  are refetchable); item locations move from `character/<name>` to
-  `character/<id>` through the same json, so the first post-migration
-  fetch produces no false `moved` events; `item_events` history keeps
-  its old location strings (history is history). Stash items get
-  container `items`.
-- **Listing entries need `id` and `name`** (both documented required):
-  `id` is the identity that makes retirement safe, `name` the address a
-  plan renders; a fetched body without `id` is malformed too. Membership
-  is stamped per listing response id and retired per realm, exactly as
-  tabs are.
-
-**Policy v3 shape (agreed 2026-09-02, for step (3)) — coverage per
-facet:** `realms.<R>.leagues.<L>.{tabs?, characters?, max_age_seconds}`
-where each facet is `"all"` or an id list and **absent means no coverage
-of that facet** (an empty list is the same, explicitly); an entry naming
-neither facet is malformed ("names no work"), never a silent no-op.
-Validation is per facet against `Family::accepts`: `tabs` is refused
-under a realm the stash family does not take (poe2), `characters` is
-accepted under every realm — so a character-only PoE2 entry is the
-ordinary v3 shape. v1 and v2 upgrade to their tab coverage plus no
-character coverage; the stored value stays as written. "Names no work"
-is judged after normalization: `tabs: []` with characters absent or
-empty fails the same way. (Review finding 2026-09-02: v2's required
-`tabs` and entry-level realm check could not express the ruled PoE2
-policy.)
-
-Store liveness, as the five review rounds left it (the same class of
-gap each time; stated once in the "Bodies are stored verbatim"
-decision above): **a fetch never revives a location a listing
-retired**; **a location is its full coordinate** (`Location`: realm,
-league for a stash, kind, id); **a parent tab's fetch is its
-substashes' listing**; **a listing that revives a retired row clears
-its `fetched_at`** (planner-side: a revived tab is planned as never
-fetched, and a revived parent replans its substashes); a substash's
-liveness includes its parent's; membership is per response
-(`items.seen_response`), never a timestamp match; a character's
-`name`/`class`/`level` and `league` are listing-owned once a listing
-has named the row.
-
-Planner calls made inside the ruling (step (3)):
-
-- **The planner is facet-symmetric, not character-aware.** `Selection`
-  (`all` | ids) serves both facets; `LeaguePolicy { tabs?, characters?,
-  max_age_seconds }` with `None` meaning no coverage of that facet (an
-  empty list normalizes to `None`); each facet compiles on its own —
-  its listing verdict, its covered entities, its skips, its unknowns —
-  and the actions are the tab facet's then the character facet's. The
-  freshness rules are one function for both (`window_verdict`: never
-  fetched, older than the window) plus each facet's own disagreement
-  arm: `ListedCountDisagrees` for tabs; `ListedExperienceDisagrees`
-  (judged only when the entry and the fetched body both carry
-  `experience`) and `ListedLeagueDisagrees` (the row's listing-owned
-  league against the body's — a Hardcore death) for characters, on the
-  shared `FetchReason`. Skips are their own enum,
-  `CharacterSkipReason { Fresh, AwaitingListing, NoLeague, Deleted,
-  Expired }`, so a tab kind on a character skip is malformed.
-- **"Names no work" applies after normalization to every version.** A
-  stored v2 `tabs: []` now reads as malformed instead of compiling to an
-  empty plan; nothing stored that (the MCP loop test's "empty coverage"
-  fixture became an id the facts lack, which is the honest empty plan).
-- **League-less characters are reported in every league plan of their
-  realm** as a `no_league` skip (by id too — never as unknown, the facts
-  know them): the ruling said "reported as uncovered", and a realm fact
-  no league key reaches needs somewhere to appear. The snapshot carries
-  them beside the league's own rows.
-- **The store's liveness rule is consumed, not restated.**
-  `CharacterSnapshot` offers exactly `fetched_at` (None for never
-  fetched *or revived*), the listed entry verbatim, and the fetched
-  envelope only while a fetch stands (`Null` after revival — the column
-  still holds the disowned body). The planner reads those three facts
-  and has no liveness logic. `Store::refresh_snapshot` is
-  `stash_listing` + `tabs`,
-  `character_listing` (per realm) + `characters`, the policy row, one
-  read transaction.
-- **A strictness hole the character skip test found, closed:** serde
-  ignores extra fields beside an internally tagged *unit* variant's
-  `kind` (`never_fetched`, `folder`, `deleted`…), `deny_unknown_fields`
-  or not — "unknown fields at any depth are refused" held only for
-  struct variants. `RefreshPlan::from_value` now requires the derived
-  envelope (the quote aside — an observation with its own strict shape)
-  to re-serialize to exactly what was read. The same shape as the
-  store's five rounds: a rule honored on the main path, lost on one
-  serde path.
-- **Apply vocabulary**: `characters`, and `character` with a name; both
-  single-request. `acq store characters` is new: the CLI had no
-  store-side read of the character rows (only the MCP tool), and the
-  driver's readback needs one. The mock's list entries and bodies carry
-  `experience` (one constant: the mock account never plays).
-- **Accepted residual:** the character list is realm-wide while plans
-  are per league, so two league plans on one realm applied together
-  each authorize their own `list_characters` — the same register as two
-  realm plans listing separately; v1 lives with it.
-
-Ground-truth claims N41–N45 were authored master-side 2026-09-02 and
-cherry-picked here. Still pending from the documentation read
-(not observed, so not yet claims): realm segment semantics per
-endpoint and pc-by-omission; PoE2 on the character endpoints only;
-`inventoryId` undocumented; the invalid-request (4xx) threshold.
-
-**Ruled 2026-09-02 (owner: (a), until GGG changes how granted skills
-are reported):** an
-**item-granted skill has no `id`**. A weapon or shield that grants a
-skill (Rattling Sceptre → Skeletal Warrior, a wand → Mana Drain or
-Chaos Bolt, a tower shield → Raise Shield) carries it as an id-less
-gem-shaped entry in its `socketedItems` (the host's `sockets` is `[]`),
-the identical object is repeated as `skills[0]`, and a real support gem
-the player socketed into the granted skill is id-less as well — the
-whole subtree under a granted skill. The store refused four of five
-bodies for it (kept in `refused` 1–4 since facts v7). It is not a
-malformed body: `Item.id` is documented optional and this is the case
-that omits it. **Rule (a): a granted-skill subtree is a property of its
-host, never an item fact** — left verbatim in the host's json (a
-support swapped inside it is a `changed` event on the host, the only
-row that records it) and, under `skills`, in the envelope; counted
-(`_granted` per array, `Ingest::granted`, `store status`); nothing
-lifted, nothing invented; the id-less rule stays strict for every other
-shape (an id-less gem at the top of `equipment`, an id-less rune). The
-discriminator is `is_granted_skill`: no `id` and gem-framed
-(`frameTypeId` `Gem` or `frameType` 4), at a socketed position or at
-the top of `skills`. Rejected: a synthetic identity (breaks one row per
-GGG item id and doubles the entry); keep refusing (no PoE2 character
-with a granting weapon would ever land).
-
-### Legible output for the refresh slice (ruled 2026-09-02)
-
-Built and run live 2026-09-02 (`REFRESH-SLICE.md`; run ledger
-`legibility run`). What each surface prints is the renderer's and the
-README's one-liners; the binding text is below.
-
-**Two consumers, read differently.** The owner at a terminal reads once,
-top to bottom, and needs five answers in order: what will this do, what
-did it do, what changed, what went wrong, what do I type next. An agent
-reads the same surfaces through a shell and needs structure it can grep
-and count, and `--json` it can `jq`, with text and JSON saying the same
-thing. Designed for both at once; where they diverge it is said below
-and decided.
-
-**Principles (binding for every surface in the slice):**
-
-1. **One line before detail.** Each surface opens with the line that
-   answers its reader's question — `112 requests`, `job 221 failed: 4 of
-   5 requests failed`, `59 characters: 42 fetched (10 with empty bodies),
-   17 never fetched` — and the detail under it is optional.
-2. **Grouping is presentation, never a change to what is authorized.**
-   Text groups actions by kind and by parent and counts by reason; the
-   envelope and every `--json` output keep every action explicit
-   (`REFRESH_PLAN_SCHEMA` stays 6 — no field is added to the envelope
-   for this). The rule for a group of entities: **ten or fewer are
-   listed one per line; more are counted**, with a breakdown by reason
-   and, for substashes, by parent. `--expand` lists every entity on the
-   surfaces that group (`refresh --plan`, `store events`, the driver's
-   summary); `--json` always carries everything.
-3. **Text is a function of the JSON.** `acq refresh --plan=FILE` renders
-   a reviewed envelope through the same renderer as a fresh compile
-   (re-validated by the planner's parse), so the driver's confirm step
-   and a human's review of a saved plan read the same text, and the
-   grouped text is derivable from the envelope by construction. Agents
-   count with `jq` over the envelope; the README carries the
-   one-liners.
-4. **A failure line names the job, its target, the cause, and where the
-   evidence is** — the child's result id, the `refused` row, the daemon
-   log path — never a bare id list. A parent's failure expands its
-   failed children inline (ten at most, then `and n more: acq jobs`),
-   and `failed_ids` is sorted at the source.
-5. **Every nothing says which nothing.** Never fetched renders `-`; a
-   fetched body that carried no items renders `0` and the footer counts
-   those rows; an empty plan says what is fresh and for how long; a
-   missing quote says `no daemon running` once, without an OS error
-   string (the `ACQ_NO_SPAWN` distinction is dropped from that line —
-   `--plan` never spawns either way).
-6. **Ages in text, epochs in JSON.** Column widths come from the data
-   (capped, with `…` when cut), never silent truncation; ids stay full
-   where they are the handle (character ids, last column).
-7. **Terminal escapes only on a tty.** Captured output — the driver's
-   `.out` files, an agent's shell — gets plain lines; the in-place
-   progress line is a tty convenience.
-8. **JSON changes are additive.** The plan envelope is untouched;
-   `refresh --apply --json` gains `store_changes` beside the outcome;
-   `CharacterRow` / `TabRow` gain `fetched_items` (the item facts the
-   last landed body carried; `null` when never fetched); nothing that
-   reads `--json` today (`tracer-rung.sh`, `tracer-verify.py`, `acq-mcp`)
-   changes.
-9. **Stated divergence.** `acq store events`: the text default is the
-   per-location summary (what a person asks: "what changed"), the JSON
-   default stays the event list (what exists, what the driver reads);
-   `--summary` and `--expand` select either form in both modes. `acq
-   refresh --plan`: text default is grouped, JSON is the envelope.
-
-**Considered and rejected:**
-
-- A `summary` block inside the plan envelope: a schema bump and one
-  more derived quantity to validate at parse, for presentation. The
-  envelope is the authorization, not the report; `--plan=FILE` makes
-  "text is a function of the JSON" literal without touching it.
-- Counting everything (no threshold): a five-tab plan is more legible
-  listed than counted, and the tracer's own plan was fine at six
-  lines. The threshold is stated so the shape is predictable.
-- Names without ids in the expanded character lines: ids are what a
-  policy names (ruling above); the default view drops ids by counting,
-  the expanded view keeps them whole.
-- Changing the events JSON default to the summary: the driver reads
-  the array and hits an explicit limit on it. Rule 9 instead.
-- Colour or other decoration: captured output is the common case.
-- A `--quiet` driver: its problem is repetition (the plan three times
-  per cycle, the note twice), not volume.
-- Stopping the daemon automatically after a failed apply in the
-  driver: kept as noted on 2026-09-02 — the rung wants the jobs
-  readable while the daemon is up.
-- A store-side event summary function: the CLI can group the event
-  list and resolve names with the reads it has; a shared function
-  waits for the second consumer (MCP) to ask for it.
-
-The owner read it at the terminal and gave the verdict to the
-agent (no notes typed at the prompts): **approved**, and "still dense,
-verbose output". Density is the open item this build did not close:
-cut words before adding structure, judged against the next live
-reading, not pre-fixed.
-
 ## Frontend boundary findings (from `acq pull`, 2026-08-24; `pull` itself was retired 2026-08-29 in favor of the store)
 
 What a real consumer needed from the protocol and did not get. Facts, not decisions; each is a candidate protocol change for Tom to accept or refuse. Resolved ones become decisions above and are deleted here.
@@ -600,6 +133,7 @@ What a real consumer needed from the protocol and did not get. Facts, not decisi
 
 - Priority levels: how many, and named or numeric? (Interactive > background is the intuition, *regardless of frontend* — an agent in a live conversation is interactive; the caller states its urgency, the frontend doesn't imply it.)
 - The ad-hoc `refresh --tabs`/`--all` kind beside the plan path: two doors to one task. Evidence in: across four live runs nobody reached for it (the tracer's friction prompt asked). Retiring it needs one design answer first — how a human fetches exactly one tab without authoring a policy (an explicit selection compiled as a policy-less plan through the same envelope and apply?). A candidate line for the pricing packet; the kind stays until then.
+- Pending ground-truth claims from the 2026-09-02 documentation read (not observed, so not yet claims): realm segment semantics per endpoint and pc-by-omission; PoE2 on the character endpoints only; `inventoryId` undocumented; the invalid-request (4xx) threshold.
 
 (2026-08-31: "delta/selection for refresh" and "user state on items" are resolved into the sync-policy / annotations / Plan decisions above; the tracer section above built them.)
 

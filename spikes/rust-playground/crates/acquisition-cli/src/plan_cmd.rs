@@ -13,6 +13,98 @@
 //! and where the evidence is, and the same renderer for a fresh compile
 //! and a reviewed file (`--plan=FILE`) — the text is a function of the
 //! envelope, which itself never changes for presentation.
+//!
+//! # Decisions as recorded
+//!
+//! The rulings are `CONTEXT.md`'s registry (`C<n>`); what follows is each
+//! entry's full text as recorded there, moved here on 2026-09-02 because
+//! the mechanism it describes is this module's. The registry is current;
+//! this is the mechanism as decided, kept beside the code that implements it.
+//!
+//! ## C53 — Legible output for the refresh slice, as ruled (2026-09-02)
+//!
+//! **Two consumers, read differently.** The owner at a terminal reads once,
+//! top to bottom, and needs five answers in order: what will this do, what
+//! did it do, what changed, what went wrong, what do I type next. An agent
+//! reads the same surfaces through a shell and needs structure it can grep
+//! and count, and `--json` it can `jq`, with text and JSON saying the same
+//! thing. Designed for both at once; where they diverge it is said below
+//! and decided.
+//!
+//! **Principles (binding for every surface in the slice):**
+//!
+//! 1. **One line before detail.** Each surface opens with the line that
+//!    answers its reader's question — `112 requests`, `job 221 failed: 4 of
+//!    5 requests failed`, `59 characters: 42 fetched (10 with empty bodies),
+//!    17 never fetched` — and the detail under it is optional.
+//! 2. **Grouping is presentation, never a change to what is authorized.**
+//!    Text groups actions by kind and by parent and counts by reason; the
+//!    envelope and every `--json` output keep every action explicit
+//!    (`REFRESH_PLAN_SCHEMA` stays 6 — no field is added to the envelope
+//!    for this). The rule for a group of entities: **ten or fewer are
+//!    listed one per line; more are counted**, with a breakdown by reason
+//!    and, for substashes, by parent. `--expand` lists every entity on the
+//!    surfaces that group (`refresh --plan`, `store events`, the driver's
+//!    summary); `--json` always carries everything.
+//! 3. **Text is a function of the JSON.** `acq refresh --plan=FILE` renders
+//!    a reviewed envelope through the same renderer as a fresh compile
+//!    (re-validated by the planner's parse), so the driver's confirm step
+//!    and a human's review of a saved plan read the same text, and the
+//!    grouped text is derivable from the envelope by construction. Agents
+//!    count with `jq` over the envelope; the README carries the
+//!    one-liners.
+//! 4. **A failure line names the job, its target, the cause, and where the
+//!    evidence is** — the child's result id, the `refused` row, the daemon
+//!    log path — never a bare id list. A parent's failure expands its
+//!    failed children inline (ten at most, then `and n more: acq jobs`),
+//!    and `failed_ids` is sorted at the source.
+//! 5. **Every nothing says which nothing.** Never fetched renders `-`; a
+//!    fetched body that carried no items renders `0` and the footer counts
+//!    those rows; an empty plan says what is fresh and for how long; a
+//!    missing quote says `no daemon running` once, without an OS error
+//!    string (the `ACQ_NO_SPAWN` distinction is dropped from that line —
+//!    `--plan` never spawns either way).
+//! 6. **Ages in text, epochs in JSON.** Column widths come from the data
+//!    (capped, with `…` when cut), never silent truncation; ids stay full
+//!    where they are the handle (character ids, last column).
+//! 7. **Terminal escapes only on a tty.** Captured output — the driver's
+//!    `.out` files, an agent's shell — gets plain lines; the in-place
+//!    progress line is a tty convenience.
+//! 8. **JSON changes are additive.** The plan envelope is untouched;
+//!    `refresh --apply --json` gains `store_changes` beside the outcome;
+//!    `CharacterRow` / `TabRow` gain `fetched_items` (the item facts the
+//!    last landed body carried; `null` when never fetched); nothing that
+//!    reads `--json` today (`tracer-rung.sh`, `tracer-verify.py`, `acq-mcp`)
+//!    changes.
+//! 9. **Stated divergence.** `acq store events`: the text default is the
+//!    per-location summary (what a person asks: "what changed"), the JSON
+//!    default stays the event list (what exists, what the driver reads);
+//!    `--summary` and `--expand` select either form in both modes. `acq
+//!    refresh --plan`: text default is grouped, JSON is the envelope.
+//!
+//! **Considered and rejected:**
+//!
+//! - A `summary` block inside the plan envelope: a schema bump and one
+//!   more derived quantity to validate at parse, for presentation. The
+//!   envelope is the authorization, not the report; `--plan=FILE` makes
+//!   "text is a function of the JSON" literal without touching it.
+//! - Counting everything (no threshold): a five-tab plan is more legible
+//!   listed than counted, and the tracer's own plan was fine at six
+//!   lines. The threshold is stated so the shape is predictable.
+//! - Names without ids in the expanded character lines: ids are what a
+//!   policy names (ruling above); the default view drops ids by counting,
+//!   the expanded view keeps them whole.
+//! - Changing the events JSON default to the summary: the driver reads
+//!   the array and hits an explicit limit on it. Rule 9 instead.
+//! - Colour or other decoration: captured output is the common case.
+//! - A `--quiet` driver: its problem is repetition (the plan three times
+//!   per cycle, the note twice), not volume.
+//! - Stopping the daemon automatically after a failed apply in the
+//!   driver: kept as noted on 2026-09-02 — the rung wants the jobs
+//!   readable while the daemon is up.
+//! - A store-side event summary function: the CLI can group the event
+//!   list and resolve names with the reads it has; a shared function
+//!   waits for the second consumer (MCP) to ask for it.
 
 use std::collections::BTreeMap;
 use std::path::PathBuf;

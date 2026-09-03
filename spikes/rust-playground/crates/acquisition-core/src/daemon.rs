@@ -2,6 +2,107 @@
 //!
 //! Lifecycle follows the gpg-agent model: clients spawn it on demand, it exits
 //! on its own after a stretch with no connections and no live jobs.
+//!
+//! # Decisions as recorded
+//!
+//! The rulings are `CONTEXT.md`'s registry (`C<n>`); what follows is each
+//! entry's full text as recorded there, moved here on 2026-09-02 because
+//! the mechanism it describes is this module's. The registry is current;
+//! this is the mechanism as decided, kept beside the code that implements it.
+//!
+//! ## C6 — The job queue persists: a `jobs` table in a per-daemon `daemon.db` (SQLite, in the prov…
+//!
+//! **The job queue persists: a `jobs` table in a per-daemon `daemon.db` (SQLite, in the provider's store directory beside the account files), written through at every state change and read back at start.** Memory stays the runtime source of truth — the table is a mirror, "the HashMap, but it survives" — and the one thing read from it while the daemon runs is `result` for an id this lifetime never held (history, not state). On restore only open jobs are loaded (terminal rows carry bodies; a week of them does not belong in memory): `waiting` jobs resume; a `running` job is **re-queued** where the replay premise holds — every network kind is an idempotent GET and the restart probe reads GGG's current counters before it sends, so the duplicate costs one seen hit. Two exceptions (2026-08-30 review): on a declared **no-probe route** the premise fails — a replay would go out against an empty limiter — so the job fails as interrupted instead; and a running **parent whose children exist is mid-fan-out** (its held result was not yet written) — re-running it would submit a duplicate child set, so it holds for the children it has and then finishes as **interrupted, never success**: how many children were never submitted is unknowable, so a partial fan-out must not claim completeness (the children that did run recorded their responses; resubmitting completes the set). A parent whose held result was written resumes holding it; `probe` rows are dropped (one HEAD per lifetime, N16); ids continue from where they were (`AUTOINCREMENT`, never reused, so a stale `acq result <id>` can never name a different job) — a daemon that cannot open or read `daemon.db` refuses to start rather than risk reissuing them, and a queue **write** failure at runtime is sticky: a submit whose insert fails is refused with its id rolled back (a job exists only once its row does), later submits are refused outright, and the dispatcher stops picking while running jobs finish — **ids** never run ahead of disk. Completions are the accepted residual, stated plainly: a job already running when the flag trips finishes in memory but its outcome write fails, so disk still says running and the next daemon replays it (probed route: one seen duplicate hit; no-probe: fails as interrupted) — the send already happened, so refusing to finish it would record nothing at all. The same teeth apply per transition: a `waiting→running` write that fails reverts the job instead of running it (a send the queue cannot see must not happen), `cancel`/`set-priority` report a failed write instead of claiming success (the cancel still wins the job's terminal surface in this lifetime, though an already-running job may still complete its in-flight send — sends are committed once dispatched), and a `result` read failure is an error, never "no job". `submit_child` is refused once its parent is terminal or asked to cancel, under the lock `cancel` takes, so cancellation cannot race an active fan-out into submitting unseen children; a stopped fan-out finishes cancelled or failed, never as success over a partial set; a cancellation that lands after the last child is honored when the held result is installed, cancelled children never count toward a parent's success, and `finish` arbitrates a pending `cancel_requested` under the final lock — a cancel can land at any instant before terminalization and still win. Terminal rows stay so `acq result` has a memory across restarts (`acq jobs` lists live jobs only), pruned at start by age — `ACQ_JOB_RETENTION_DAYS` (default 7) for done/cancelled and `ACQ_FAILED_JOB_RETENTION_DAYS` (default 30) for failed, misread values logged as `CONFIG` errors like the rails knobs. Outcomes are stored verbatim, bodies included (a full refresh is ~50 MB, bounded by retention); compression was considered and deferred — it costs a crate and makes the column unreadable in `sqlite3`, and compressing one column later is a local change. **One daemon per store directory is an invariant, not a lock**: parallel daemons are for the mock and already require `ACQ_STORE_DIR=<scratch>` next to `ACQ_SOCKET` (`AGENTS.md`); two daemons on one `daemon.db` would each restore and run the same queue. Rationale: the queue was the one thing a restart lost once results moved to the store (2026-08-29); a mirror written under the same lock as the memory change keeps disk equal to memory at the `process::exit` the daemon leaves by (up to the declared write-failure residual above); SQLite because it is the crate's one persistence idiom, debuggable with `sqlite3`, and readable by a frontend without a daemon. Decided 2026-08-30.
+//!
+//! ## C23 — Work that needs many requests is a parent job that submits child jobs; a parent finishe…
+//!
+//! **Work that needs many requests is a parent job that submits child jobs; a parent finishes when its last descendant does, gives up its dispatcher task and scheduling key while waiting, and cancels its descendants when cancelled.** Rationale: the queue, dispatcher, priorities, ETAs, and events already work per job, so children get all of it for free; a job-internal loop would need its own scheduler and hide the requests from every tool. Observed API shapes (2026-08-20): folder children are in the stash list (a folder holds tabs only — never items, never another folder; confirmed against GGG patch notes 2026-08-24); map/unique substashes only appear on fetching the tab (one map tab listed 234); substash stubs carry `metadata.items` counts. Following substashes is opt-in per tab.
+//!
+//! ## C31 — Multi-account is one daemon holding many sessions, never one daemon per account.
+//!
+//! **Multi-account is one daemon holding many sessions, never one daemon per account.** The Cloudflare bound (`SendGate`, 2 live sends) is a per-IP property (P-B, ground truth §1) held as per-process state; two daemons on one machine make it a 4-wide burst that neither sees, with separate tripwires. Rung 11 (2026-08-30) showed the other half: `Account` rules count per account on GGG's side, so two accounts never contend on layer 2 — the only thing they share is layer 1 and the `Ip`-scoped token endpoint, which is exactly what the single gate exists for. Built in two halves with different blast radii (option C): **account as first-class identity now** (store path, job field, keyring key — leaves), **many live sessions later** (a refactor confined to the session layer). Limiter and probe scope keying — `(account, policy)` for `Account` rules, policy alone for `Ip` rules, scope learned from `X-Rate-Limit-Rules` — is a **precondition of the session map, not an optimization**: with two live sessions on one policy each response would overwrite shared state with a different account's counters, and the next send from the other account floods (a 429 path; the "over-waits, never floods" reading only held for rung 11's sequential switch). Decided 2026-08-29, amended 2026-08-30 after review across sessions; design below in "Multi-account design"; built 2026-08-30 through step (6) — step (7)'s live samples are in `LIVE-TESTING.md`'s run ledger.
+//!
+//! ## C32 — Per-route knowledge about GGG that headers cannot teach lives in one place (`Daemon::de…
+//!
+//! **Per-route knowledge about GGG that headers cannot teach lives in one place (`Daemon::declare_route_knowledge`), and strict observation is the default everywhere else.** `GET /profile` (first contact 2026-08-30) answers 200 with no `X-Rate-Limit-*` headers at all and 403 to HEAD, which strict observation ("every endpoint has a policy", post-N33) classed as a protocol failure and discarded. Now: a route *declared* policyless accepts a 2xx with **no** rate-limit header (a partial set is still a failure; a policy that later appears is learned strictly), becomes `EndpointState::Policyless`, and is paced by nothing but the send gate; a declared no-probe route goes straight to its GET. Only `/profile` is declared, and it is called at most once per login. Not generalised on purpose: "any headerless 2xx is fine" reopens the blind spot strict observation closed. Owner decision 2026-08-30; GGG confirmed the same day (Q12/N38): `/profile` is not rate limited at present, so the declaration is confirmed and stays until headers ever appear — strict observation covers that arm.
+//!
+//! ## C43 — Apply is its own pure fan-out parent job kind (`apply`), never the `refresh` parent.
+//!
+//! **Apply is its own pure fan-out parent job kind (`apply`), never the `refresh` parent.** The refresh parent re-lists by construction — it fans out from the listing it just fetched — which contradicts "executes exactly the listed actions": a plan's listing is an optional action and its fetches derive from reviewed facts. So `apply`'s params carry the plan's actions as explicit `(kind, params)` child tuples; the parent performs no send of its own, submits exactly one child per tuple, and holds for them. "Never expands" is structural, not disciplinary: the daemon stays plan-blind (it cannot link the store or plan crates), so what it admits is **vocabulary, not meaning** — only single-request kinds (`stashes`, or `stash` with `deep` false), each of which submits no children. Admission is at submit, before a job id exists: a malformed tuple list, an empty one, or a logical bound over the caller's `max_requests` refuses the submit whole — the mid-fan-out terminalization path is never the budget's normal mechanism (D8). Plan validation, the staleness check, and rendering actions to tuples are the frontend's (`acq refresh --apply`, through the planner's validating parse). The ad-hoc `refresh` kind (`--all`/`--tabs`) stays untouched as the explicit client-stated-selection surface; whether it retires rides on step 9's friction notes. Decided 2026-09-01.
+//!
+//! ## C49–C51 — Multi-account design as recorded (2026-08-30)
+//!
+//! **Complexity rule:** the only code that interprets accounts is the
+//! session layer. Everywhere else account is data — a field on the job, a
+//! path segment for the store, an opaque key component for the limiter
+//! (which never reads it; scope comes from `X-Rate-Limit-Rules`). An
+//! `if account == …` outside the session layer is the smell.
+//!
+//! - **Identity: the stable account key is the profile `uuid`, fetched at
+//!   login and required** (amended 2026-08-31; was username-only with
+//!   opportunistic uuid). After token exchange the daemon submits a profile
+//!   job — causal service of the client's `acq auth` — and the session is
+//!   registered, the keyring written, and `accounts.json` updated only when
+//!   the uuid lands; a login whose profile fetch fails **fails whole**: no
+//!   provisional identity, no minted keys, no rename-repair machinery — if
+//!   `/profile` is broken, something is broken and login says so. A retry
+//!   repeats the token exchange, paced by the `Ip`-scoped token policy, so
+//!   a retry loop is already bounded. `accounts.json` maps
+//!   username/discriminator/provider → uuid; a rename is a mapping update
+//!   with intent untouched. The token response's `username`
+//!   (`name#discriminator`) stays the display name and selector; fact files
+//!   stay username-named (refetchable; rename-orphaning tolerable);
+//!   annotation files are uuid-named. Entries without a uuid: one re-auth,
+//!   no migration. The mock serves deterministic per-username uuids.
+//! - **No daemon-side default account; stateless selection.** Every submit
+//!   carries `account`. Omitted, it resolves only when exactly one session
+//!   exists; otherwise the daemon refuses with the list. While the daemon
+//!   holds one session, a submitted `account` is validated against it and
+//!   refused on mismatch (so the selector is testable before the session
+//!   map exists). The CLI resolves `--account` / `ACQ_ACCOUNT` client-side
+//!   against a non-secret index file, `store/<provider>/accounts.json`
+//!   (username, uuid when known, last login), so reads never spawn a daemon.
+//!   Matching is exact — name with or without discriminator, or uuid —
+//!   never by prefix. GUI/MCP hold their own selection and pass it.
+//! - One-off (non-persisted) sessions are accounts: listed, selectable,
+//!   marked "not persisted".
+//! - A job has exactly one account; no cross-account `refresh --all`.
+//!   Cross-account work is a frontend loop.
+//! - `account` is a protocol field on `Submit`/`JobInfo`, not a params
+//!   entry; fixed at submit (resolved against the live session, refused
+//!   before a job exists otherwise), checked again at the moment a token is
+//!   taken (a mismatch fails the job with no send), and it selects the store
+//!   file — never the session at landing time. Shown in `jobs`, `dash`, the
+//!   daemon log, and the journal (the `route` field is the endpoint key,
+//!   `stash@Alice#1234`).
+//! - **Limiter keying as built (step 5):** the endpoint key is
+//!   `route@account`; a policy's state is keyed `name@account` only when
+//!   *every* rule of the policy is `Account`-scoped and the send had an
+//!   account — `Ip` rules, mixed scopes, and accountless sends share the
+//!   bare name (over-waits at worst). One notch more conservative than
+//!   "Account rules per account" if GGG ever mixes scopes in one policy.
+//!   The token route (`oauth-token`) is deliberately accountless: it is
+//!   `Ip`-scoped and has no probe, so an accounted key would be unpaced on
+//!   an account's first login.
+//! - **The free HEAD probe (N24) is per endpoint, not an API property.**
+//!   First contact 2026-08-30: `HEAD /account/leagues` is answered 200 and
+//!   counted as a hit (the free HEADs answer 204); `HEAD /profile` is 403.
+//!   Both routes are declared no-probe in `Daemon::declare_route_knowledge`
+//!   and taught by their first GET; pacing was never wrong (headers are
+//!   post-increment and trusted), a probe there is just a wasted hit.
+//! - Store: `store/<provider>/<account>.db`, opened lazily on first record;
+//!   `tabs`/`items`/`store` take the selector and never span accounts.
+//!   Keyring: one entry per account; the index file is how the daemon knows
+//!   which entries to restore (the keyring crate cannot enumerate). Restore
+//!   continues past a dead grant — the terminal-grant mark is per session.
+//!   The existing single keyring entry is orphaned, not migrated: one
+//!   re-auth.
+//! - The `jobs` table lives in a per-daemon `daemon.db`, not inside an
+//!   account file, and carries the account column (persistence decision above).
+//! - Mock: the login page accepts any username and policies count per
+//!   username (the access token carries it, `at-<user>-<rand>`), so
+//!   two-account tests can distinguish per-account from shared counting —
+//!   the property rung 11 established for GGG.
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::io::Write as _;

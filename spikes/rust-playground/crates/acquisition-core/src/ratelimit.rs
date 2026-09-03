@@ -19,6 +19,21 @@
 //! The send-lifetime gate bounds actual daemon-owned HTTP exchanges across
 //! API GETs, HEAD probes, and OAuth token requests (P-B/N33). The dispatcher
 //! cap remains separate job-scheduling machinery.
+//!
+//! # Decisions as recorded
+//!
+//! The rulings are `CONTEXT.md`'s registry (`C<n>`); what follows is each
+//! entry's full text as recorded there, moved here on 2026-09-02 because
+//! the mechanism it describes is this module's. The registry is current;
+//! this is the mechanism as decided, kept beside the code that implements it.
+//!
+//! ## C18 — Limiter state is keyed by policy name — per account for `Account`-scoped rules since 20…
+//!
+//! **Limiter state is keyed by policy name — per account for `Account`-scoped rules since 2026-08-30 (keying decision below) — and learned only from headers.** No local token counting; waits are computed from the last `X-Rate-Limit-*` state plus response arrival times, padded by the server's timing bucket. For the observed paired API-policy windows, classification is positional (first window initial/5s, later windows sustained/60s — ground-truth Q4 hypothesis). That hypothesis does not classify N33's single-window `token-request-limit`; use the conservative 60s bucket for it until GGG confirms its hidden resolution through N14's support channel. Rationale: same-name policies share counters across endpoints (N6), so endpoint-keyed state would be a migration later; positional classification is conservative on the observed paired API shapes without pretending the new one-window shape is known.
+//!
+//! ## C19 — A counted send whose response carries no usable policy headers is paced as if the serve…
+//!
+//! **A counted send whose response carries no usable policy headers is paced as if the server counted it — the same treatment as a send lost in transport.** One predicted hit in every window as of that response; the definition and the last real observation are untouched; the next response with headers replaces the prediction (invariant 2). The job still fails and is never retried. Rationale: rung 10's origin 503 (2026-08-24, N35) was an HTML page with no `X-Rate-Limit-*`; before this, such a response left pacing reading a state that predated it, so a run of 503s went out unpaced. This bounds an outage at the policy's own rate (30 per 300 s on stash) with no new policy; backing off harder than that waits for evidence. Decided 2026-08-24.
 
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::fmt;

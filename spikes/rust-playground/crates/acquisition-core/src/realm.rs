@@ -16,6 +16,80 @@
 //! arm in [`Family::accepts`] plus a first-contact sample under
 //! `LIVE-TESTING.md`'s standing rule — an unobserved URL shape is never
 //! sent.
+//!
+//! # Decisions as recorded
+//!
+//! The rulings are `CONTEXT.md`'s registry (`C<n>`); what follows is each
+//! entry's full text as recorded there, moved here on 2026-09-02 because
+//! the mechanism it describes is this module's. The registry is current;
+//! this is the mechanism as decided, kept beside the code that implements it.
+//!
+//! ## C58 — Realm is a coordinate above league, everywhere
+//!
+//! **Realm is a coordinate above league, everywhere.** PoE2 1.0 ships
+//!   December 2026 (announced late August); league names collide across
+//!   realms (Standard exists in both games). Policy becomes
+//!   `realms.<R>.leagues.<L>.{tabs, characters, max_age_seconds}`
+//!   (the realm nesting is **policy v2**, built; `characters` beside `tabs`
+//!   makes **v3** — a new sibling field is a shape change, so a v2 reader
+//!   says "newer version", never "malformed"; each older version upgrades
+//!   on parse, v1 as realm pc); the
+//!   plan envelope carries realm beside league; the snapshot is taken per
+//!   `(realm, league)`; `tabs` and `characters` facts carry a realm column
+//!   (existing rows pc); realm is an explicit param on all four data kinds
+//!   (`stashes`, `stash`, `characters`, `character`), defaulted to pc only
+//!   at the decode boundary (`Endpoint::from_job`) so persisted pre-realm
+//!   jobs still decode. On the wire realm is a path segment and **pc is
+//!   expressed by omission — `pc` is not a legal segment value**
+//!   (documented), so pc URLs stay byte-identical to every live send so
+//!   far: the realm step costs no live spend, and the mock rehearsal
+//!   journal proves the URLs did not move.
+//!
+//! ## C59 — Which realms each route accepts is declared in one place
+//!
+//! **Which realms each route accepts is declared in one place, never one
+//!   shared list** (the `declare_route_knowledge` mold). Documented today:
+//!   `/character` and `/character/{name}` take `xbox|sony|poe2`;
+//!   `/stash…` and `/account/leagues` take `xbox|sony` and are titled
+//!   "PoE1 only". A policy naming `tabs` under `poe2` is a structured parse
+//!   error; no code path renders a stash URL with `poe2`. GGG is expected
+//!   to extend PoE2 to the other endpoints (almost certainly the same
+//!   segment): when it ships, the change is one row in that table plus a
+//!   first-contact sample under the standing rule. Not pre-enabled — an
+//!   unobserved URL shape is never sent.
+//!
+//! ## C58 — The realm step as built (2026-09-02)
+//!
+//! Properties fixed inside the ruling while building, each pinned by a
+//! test (findings that bought them: `REFRESH-SLICE.md`):
+//!
+//! - **The realm table is one type in core** (`realm.rs`: `Realm`,
+//!   `Family::accepts`), read by the daemon (rendering + admission), the
+//!   mock (path classification), and the planner (policy parse) — the
+//!   `declare_route_knowledge` mold, linkable by all three because the
+//!   planner already depends on core. The store stays string-typed: it
+//!   records the request's realm and never validates it.
+//! - **A non-pc realm suffixes the limiter's route label**
+//!   (`character-list/poe2`, `stash-list/xbox`) as well as the URL, so each
+//!   realm's URL shape gets its own free HEAD before its first counted
+//!   send; whether it shares the pc policy is learned from headers (N6
+//!   already shares state by name). One extra HEAD per realm per lifetime.
+//! - **Admission refuses a realm a family does not take** (`admit_realm`
+//!   at submit and per apply tuple, before a job id exists) — the daemon
+//!   side of "no code path renders a stash URL with poe2"; the planner
+//!   side is the policy parse.
+//! - **Items carry realm beside league** (stamped from the seam); the
+//!   ad-hoc `refresh` kind forwards realm to its children; `leagues`
+//!   stays realm-less (no consumer, not in the plan).
+//! - **Mock consoles are truthful, not colliding**: an xbox/sony stash
+//!   listing is empty and a tab fetch 404s (tab and item ids are
+//!   GGG-unique, so pc's are never reused under another realm); the
+//!   character list is per realm, with one poe2 character carrying a
+//!   `skills` array (confirmed live 2026-09-02, N42–N44; the mock body
+//!   now also carries an item-granted skill, the id-less shape N44
+//!   records).
+//! - Policy v2 parses v1 in place; the stored value stays what was
+//!   written (`policy show` shows what the human typed).
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;

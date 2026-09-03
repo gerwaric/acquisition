@@ -109,6 +109,120 @@
 //! `basis.character_listing`, `skipped_tabs` / `unknown_tabs` beside
 //! `skipped_characters` / `unknown_characters`). Same
 //! no-panic clippy ratchet as the store crate.
+//!
+//! # Decisions as recorded
+//!
+//! The rulings are `CONTEXT.md`'s registry (`C<n>`); what follows is each
+//! entry's full text as recorded there, moved here on 2026-09-02 because
+//! the mechanism it describes is this module's. The registry is current;
+//! this is the mechanism as decided, kept beside the code that implements it.
+//!
+//! ## C37 — A tab id in the sync policy covers that tab and its children.
+//!
+//! **A tab id in the sync policy covers that tab and its children.** A tab is covered when its own id is listed or its parent's id is; one rule, no per-type logic, and it gives every case the owner meant (tracer rung, 2026-09-01): a map or unique tab's substashes are planned once their stubs are on record — the cycle after the parent's first fetch, since discovery still waits for facts (binding untouched: every action stays an explicit reviewed tuple, nothing is added at apply); a folder's children are planned at once, because the listing already carries them (folders themselves are never fetched); a child named directly still works. A substash stub whose `metadata.items` is 0 is skipped with a named reason rather than fetched — GGG appears to list only non-empty substashes (64 of 64 stubs on the real account carry a count ≥ 1), so this is a guard, not a saving; in-flight change is not designed around (a count is still never proof of freshness). Type-level filters ("skip map tabs", "include unique tabs", "fetch folder children") are parked with a trigger. Evidence: the rung's five-id run left 64 substashes under the two selected parents in the store and outside the policy, closed the loop after one cycle, and the owner's intent for a named map tab was its contents. Consequence: the same policy rerun plans those 64 as cycle 2 (~15 min of limiter holds) — the first live two-cycle discovery sample. Built the same day: `TabSelection::covers` (own id or parent's; `covers_tab` over `Selection` since step (3) of the characters work), `SkipReason::EmptyStub`, plan schema **v4** (a new skip kind is an envelope shape change). Decided 2026-09-01.
+//!
+//! ## C38 — A Plan is a serializable, immutable authorization envelope, and plans are binding.
+//!
+//! **A Plan is a serializable, immutable authorization envelope, and plans are binding.** Derived from a named snapshot of facts + intent, computable with the daemon down; it carries provider + account uuid, operation kind + plan schema version, fact basis (response/listing ids or timestamps), annotation revision, the explicit action set (or a declared upper bound), generated-at, freshness assumptions, and optionally a quote with its own observation time. Work has two dimensions: `logical_requests` (exact or bounded) and `wire_sends` (a coarse range plus named prerequisites — probe, token refresh, possible 429 retries — never a precise accounting). Applying a Plan executes exactly the listed actions or a strict subset, never an unreviewed addition; new facts produce a new Plan; v1 excludes dynamic `--deep` fan-out (a vanished tab fails or is reported skipped; newly discovered tabs wait for the next plan). Operation-specific types first (`RefreshPlan`); a universal grammar waits for the second plan-bearing consumer. Binding was revisable on tracer evidence (the owner's live-use friction notes are the data). Decided 2026-08-31. **Confirmed 2026-09-01** on the tracer rung's live run (`LIVE-TESTING.md`, run ledger and friction notes): subset-only reconciliation produced no owner friction, the two-cycle discovery of substashes cost nothing observable, and the parking-lot trigger for dynamic fan-out ("two-cycle reconciliation genuinely hurts") did not fire. What the run did surface was a *coverage* question, ruled separately below (a policy id covers the tab and its children); binding itself stands as written.
+//!
+//! ## C44 — Step 7's staleness ruling: apply refuses a plan whose sync-policy revision is no longer…
+//!
+//! **Step 7's staleness ruling: apply refuses a plan whose sync-policy revision is no longer the stored one.** A plan is authorization *derived from intent at a revision*; intent edited since revokes the derivation — the CAS reasoning extended from writing intent to spending it, and the refusal is cheap because replanning is offline and free. Checked frontend-side against a fresh read of the policy row immediately before submit (the daemon is intent-blind by the four-layer decision, so only a frontend can compare); a missing row, a different revision, a mismatched account uuid, or a mismatched provider each refuse with the remedy named. Two accepted residuals: the check races a concurrent policy write between read and submit (the same human-boundary register as `policy set` without `--if-revision`), and **fact drift does not refuse** — the authorization is the bounded action set, not a world-state assertion; the actions stay idempotent GETs of exactly the reviewed tuples (a since-vanished tab's fetch fails its own child honestly) and the next plan reconciles what a newer listing changed. Decided 2026-09-01.
+//!
+//! ## C61 — Listed deleted or expired characters are skipped
+//!
+//! **Listed `deleted` or `expired` characters are skipped with a named
+//!   reason, not fetched**, until evidence says otherwise. The docs define
+//!   neither beyond "always `true` if present", and the invalid-request
+//!   threshold (too many 4xx restricts the app, independent of rate
+//!   limits) makes a 404 hunt a real cost. Observed: characters in ended
+//!   leagues (Ancestors, Phrecia 2.0, an event) are listed with **no
+//!   `expired` flag**, so `expired` does not mean "league ended", and
+//!   **league names on characters are not restricted to
+//!   `/account/leagues`** — the planner treats the league key as an opaque
+//!   string. `Character.league` is optional (documented): a character with
+//!   none is reported as uncovered, never a failure.
+//!
+//! ## C62 — Freshness heuristic for characters
+//!
+//! **Freshness heuristic, owner's call for v1:** the list entry carries
+//!   `experience` (observed on all 59), monotone for a character's life; a
+//!   listing newer than our fetch reporting a different `experience` proves
+//!   play since — the sibling of `ListedCountDisagrees`. A `league`
+//!   disagreement (a Hardcore death landing in Standard) is the same arm.
+//!
+//! ## C58 — Policy v3 shape (agreed 2026-09-02)
+//!
+//! **Policy v3 shape (agreed 2026-09-02, for step (3)) — coverage per
+//! facet:** `realms.<R>.leagues.<L>.{tabs?, characters?, max_age_seconds}`
+//! where each facet is `"all"` or an id list and **absent means no coverage
+//! of that facet** (an empty list is the same, explicitly); an entry naming
+//! neither facet is malformed ("names no work"), never a silent no-op.
+//! Validation is per facet against `Family::accepts`: `tabs` is refused
+//! under a realm the stash family does not take (poe2), `characters` is
+//! accepted under every realm — so a character-only PoE2 entry is the
+//! ordinary v3 shape. v1 and v2 upgrade to their tab coverage plus no
+//! character coverage; the stored value stays as written. "Names no work"
+//! is judged after normalization: `tabs: []` with characters absent or
+//! empty fails the same way. (Review finding 2026-09-02: v2's required
+//! `tabs` and entry-level realm check could not express the ruled PoE2
+//! policy.)
+//!
+//! ## C62 — Planner calls made inside the characters ruling (step (3))
+//!
+//! Planner calls made inside the ruling (step (3)):
+//!
+//! - **The planner is facet-symmetric, not character-aware.** `Selection`
+//!   (`all` | ids) serves both facets; `LeaguePolicy { tabs?, characters?,
+//!   max_age_seconds }` with `None` meaning no coverage of that facet (an
+//!   empty list normalizes to `None`); each facet compiles on its own —
+//!   its listing verdict, its covered entities, its skips, its unknowns —
+//!   and the actions are the tab facet's then the character facet's. The
+//!   freshness rules are one function for both (`window_verdict`: never
+//!   fetched, older than the window) plus each facet's own disagreement
+//!   arm: `ListedCountDisagrees` for tabs; `ListedExperienceDisagrees`
+//!   (judged only when the entry and the fetched body both carry
+//!   `experience`) and `ListedLeagueDisagrees` (the row's listing-owned
+//!   league against the body's — a Hardcore death) for characters, on the
+//!   shared `FetchReason`. Skips are their own enum,
+//!   `CharacterSkipReason { Fresh, AwaitingListing, NoLeague, Deleted,
+//!   Expired }`, so a tab kind on a character skip is malformed.
+//! - **"Names no work" applies after normalization to every version.** A
+//!   stored v2 `tabs: []` now reads as malformed instead of compiling to an
+//!   empty plan; nothing stored that (the MCP loop test's "empty coverage"
+//!   fixture became an id the facts lack, which is the honest empty plan).
+//! - **League-less characters are reported in every league plan of their
+//!   realm** as a `no_league` skip (by id too — never as unknown, the facts
+//!   know them): the ruling said "reported as uncovered", and a realm fact
+//!   no league key reaches needs somewhere to appear. The snapshot carries
+//!   them beside the league's own rows.
+//! - **The store's liveness rule is consumed, not restated.**
+//!   `CharacterSnapshot` offers exactly `fetched_at` (None for never
+//!   fetched *or revived*), the listed entry verbatim, and the fetched
+//!   envelope only while a fetch stands (`Null` after revival — the column
+//!   still holds the disowned body). The planner reads those three facts
+//!   and has no liveness logic. `Store::refresh_snapshot` is
+//!   `stash_listing` + `tabs`,
+//!   `character_listing` (per realm) + `characters`, the policy row, one
+//!   read transaction.
+//! - **A strictness hole the character skip test found, closed:** serde
+//!   ignores extra fields beside an internally tagged *unit* variant's
+//!   `kind` (`never_fetched`, `folder`, `deleted`…), `deny_unknown_fields`
+//!   or not — "unknown fields at any depth are refused" held only for
+//!   struct variants. `RefreshPlan::from_value` now requires the derived
+//!   envelope (the quote aside — an observation with its own strict shape)
+//!   to re-serialize to exactly what was read. The same shape as the
+//!   store's five rounds: a rule honored on the main path, lost on one
+//!   serde path.
+//! - **Apply vocabulary**: `characters`, and `character` with a name; both
+//!   single-request. `acq store characters` is new: the CLI had no
+//!   store-side read of the character rows (only the MCP tool), and the
+//!   driver's readback needs one. The mock's list entries and bodies carry
+//!   `experience` (one constant: the mock account never plays).
+//! - **Accepted residual:** the character list is realm-wide while plans
+//!   are per league, so two league plans on one realm applied together
+//!   each authorize their own `list_characters` — the same register as two
+//!   realm plans listing separately; v1 lives with it.
 
 // The lint ratchet (CONTEXT.md, "Panics are for broken internal invariants
 // only"): the planner's production code panics on nothing external — a

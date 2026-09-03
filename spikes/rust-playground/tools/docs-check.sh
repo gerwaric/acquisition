@@ -32,11 +32,42 @@ budget() {
   fi
 }
 budget AGENTS.md        8000
-budget CONTEXT.md      85000
+budget CONTEXT.md      45000
 budget README.md       30000
 budget LIVE-TESTING.md 60000
 
-# ---- 2. stale identifiers -----------------------------------------------
+# ---- 2. the decision registry ------------------------------------------
+# Every decision is one bullet under a length limit (a narrative cannot fit,
+# so the mechanism goes to the code); every `C<n>` cited anywhere exists in
+# the registry; a decision nothing cites is reported (enforced by nothing is
+# either a lint, a test, or a smell).
+ENTRY_LIMIT=800
+reg=$(mktemp)
+# entries are single lines in the registry (one bullet, no continuation)
+grep -E '^- \*\*C[0-9]+ ' CONTEXT.md >"$reg"
+over=0
+while IFS= read -r line; do
+  n=$(printf '%s' "$line" | wc -c | tr -d ' ')
+  if ((n > ENTRY_LIMIT)); then
+    printf 'ENTRY   %-18s %5d > %d bytes  %s\n' CONTEXT.md "$n" "$ENTRY_LIMIT" "$(printf '%s' "$line" | cut -c1-40)"
+    over=$((over+1))
+  fi
+done <"$reg"
+ids=$(grep -oE '^- \*\*C[0-9]+' "$reg" | sed 's/^- \*\*//' | sort -u)
+count=$(printf '%s\n' "$ids" | grep -c .)
+if ((over > 0)); then fail=1; else printf 'ok      %-18s %5d decisions, every entry within %d bytes\n' registry "$count" "$ENTRY_LIMIT"; fi
+cited=$(grep -rhoE '\bC[0-9]+\b' crates tools README.md LIVE-TESTING.md TESTING-NOTES.md REFRESH-SLICE.md AGENTS.md .claude 2>/dev/null \
+  --include='*.rs' --include='*.sh' --include='*.py' --include='*.md' | sort -u)
+unknown=$(comm -13 <(printf '%s\n' "$ids") <(printf '%s\n' "$cited") | grep . || true)
+if [[ -n $unknown ]]; then
+  printf 'UNKNOWN decision id cited outside the registry: %s\n' "$unknown" | tr '\n' ' '; echo
+  fail=1
+fi
+uncited=$(comm -23 <(printf '%s\n' "$ids") <(printf '%s\n' "$cited") | tr '\n' ' ')
+[[ -n $uncited ]] && printf 'note    uncited decisions (no test, doc, or tool names them): %s\n' "$uncited"
+rm -f "$reg"
+
+# ---- 3. stale identifiers -----------------------------------------------
 # The haystack is the code and its schemas; docs never vouch for docs.
 hay=$(mktemp)
 trap 'rm -f "$hay"' EXIT
