@@ -52,6 +52,10 @@ bounded by `MAX_429_RETRIES`; a Cloudflare-shaped 403/503 is never retried.
 - [`NETWORK-CLEANUP.md`](NETWORK-CLEANUP.md) — closed record of the N0–N6
   network cleanup: accepted ranges, findings, and the quality-gate baseline
   every later change keeps green.
+- [`PRICING-SLICE.md`](PRICING-SLICE.md) — the pricing slice's open record
+  (step ledger, findings, the census of the owner's data, questions).
+- [`SURFACES.md`](SURFACES.md) — the register of surfaces GGG does not
+  sanction (C79): status, access method, cadence, what each yields.
 - `crates/acquisition-core` — protocol types, job model, header-driven rate
   limiter + choke point (`ratelimit.rs`, `gate.rs`), the mock provider
   (`mockggg.rs`), live-test rails (`rails.rs`), and the daemon itself

@@ -1,0 +1,249 @@
+# Currency reference table — v1 DRAFT (C68), pricing slice step 2d, 2026-09-03.
+#
+# Reference data is a fifth input, versioned by the build: reviewed,
+# committed, every row citing its evidence, shipped inside the binary
+# from step 4, read-only, never in a store file (decisions/pricing.md,
+# C68). This draft is the human-reviewed table in the making; a tool may
+# propose rows, a human commits. Rules the shape carries from day one:
+#
+# - `tag` is the immutable identity intent cites (C67). Never removed,
+#   never reused; a tag that falls out of use keeps its row. The v1 tags
+#   are the C++ app's, so the 0.18 import (C73) maps 1:1.
+# - `emit` is the text the renderer writes after an amount; `aliases` are
+#   the words a parser accepts. Both are narrowed from trade claims
+#   (`T<n>`) and dated browser observations under C79 (SURFACES.md); until
+#   one exists a row says so in `evidence`, and the C++ tables stand as
+#   the only cited source: emit = the tag (src/shop.cpp `SpoilerBuyout`),
+#   aliases = `Currency::FromString` (src/currency.cpp).
+# - `realms` is realm applicability (decisions/pricing.md, Parked: PoE2
+#   currencies land as rows, not as a shape change). v1 rows are PoE1.
+# - `evidence` entries are `cpp:<path>@<master commit>`, `census:<date> …`
+#   (PRICING-SLICE.md, "What the census taught"), `T<n>`, or
+#   `browser:<date> <who> <what>`; `browser:pending` marks a column the
+#   owner has not yet observed.
+#
+# Reviewed by: (nobody yet — status stays "draft" until the owner commits
+# the table at step 4, and every `browser:pending` is either observed or
+# left pending on purpose.)
+
+version = 1
+status = "draft"
+sources = [
+  "cpp:src/currency.cpp@fb0bbbdf (master 33928a87): tags, display names, accepted aliases",
+  "cpp:src/shop.cpp@33928a87 SpoilerBuyout: the C++ shop emitted `<type prefix> <amount> <tag>`",
+  "census:2026-09-03 tools/census.py over the owner's 0.18 userstore and current facts",
+]
+
+[[currency]]
+tag = "alt"
+display = "Orb of Alteration"
+emit = "alt"
+aliases = ["alt", "alts", "alteration", "alterations"]
+realms = ["pc", "xbox", "sony"]
+evidence = [
+  "cpp:src/currency.cpp@fb0bbbdf",
+  "browser:pending — trade-site alias and display text unobserved",
+]
+
+[[currency]]
+tag = "fuse"
+display = "Orb of Fusing"
+emit = "fuse"
+aliases = ["fuse", "fuses", "fusing", "fusings"]
+realms = ["pc", "xbox", "sony"]
+evidence = [
+  "cpp:src/currency.cpp@fb0bbbdf",
+  "browser:pending — trade-site alias and display text unobserved",
+]
+
+[[currency]]
+tag = "alch"
+display = "Orb of Alchemy"
+emit = "alch"
+aliases = ["alch", "alchs", "alchemy"]
+realms = ["pc", "xbox", "sony"]
+evidence = [
+  "cpp:src/currency.cpp@fb0bbbdf",
+  "browser:pending — trade-site alias and display text unobserved",
+]
+
+[[currency]]
+tag = "chaos"
+display = "Chaos Orb"
+emit = "chaos"
+aliases = ["chaos"]
+realms = ["pc", "xbox", "sony"]
+evidence = [
+  "cpp:src/currency.cpp@fb0bbbdf",
+  "census:2026-09-03 rows 1206 item + 15 location; tab names 15; notes 36 (`chaos`)",
+  "browser:pending — trade-site alias and display text unobserved",
+]
+
+[[currency]]
+tag = "gcp"
+display = "Gemcutter's Prism"
+emit = "gcp"
+aliases = ["gcp", "gcps", "gemcutter", "gemcutters"]
+realms = ["pc", "xbox", "sony"]
+evidence = [
+  "cpp:src/currency.cpp@fb0bbbdf",
+  "browser:pending — trade-site alias and display text unobserved",
+]
+
+[[currency]]
+tag = "exa"
+display = "Exalted Orb"
+emit = "exa"
+aliases = ["exa", "exalted"]
+realms = ["pc", "xbox", "sony"]
+evidence = [
+  "cpp:src/currency.cpp@fb0bbbdf",
+  "census:2026-09-03 rows 37 item; notes 37, every one spelled `exalted`",
+  "browser:pending — trade-site alias and display text unobserved",
+]
+
+[[currency]]
+tag = "chrom"
+display = "Chromatic Orb"
+emit = "chrom"
+aliases = ["chrom", "chrome", "chromes", "chromatic", "chromatics"]
+realms = ["pc", "xbox", "sony"]
+evidence = [
+  "cpp:src/currency.cpp@fb0bbbdf",
+  "browser:pending — trade-site alias and display text unobserved",
+]
+
+[[currency]]
+tag = "jew"
+display = "Jeweller's Orb"
+emit = "jew"
+aliases = ["jew", "jewel", "jewels", "jeweler", "jewelers"]
+realms = ["pc", "xbox", "sony"]
+evidence = [
+  "cpp:src/currency.cpp@fb0bbbdf",
+  "census:2026-09-03 rows 1 item (the one manual `b/o`)",
+  "browser:pending — trade-site alias and display text unobserved",
+]
+
+[[currency]]
+tag = "chance"
+display = "Orb of Chance"
+emit = "chance"
+aliases = ["chance"]
+realms = ["pc", "xbox", "sony"]
+evidence = [
+  "cpp:src/currency.cpp@fb0bbbdf",
+  "browser:pending — trade-site alias and display text unobserved",
+]
+
+[[currency]]
+tag = "chisel"
+display = "Cartographer's Chisel"
+emit = "chisel"
+aliases = ["chisel", "chisels", "cartographer", "cartographers"]
+realms = ["pc", "xbox", "sony"]
+evidence = [
+  "cpp:src/currency.cpp@fb0bbbdf",
+  "browser:pending — trade-site alias and display text unobserved",
+]
+
+[[currency]]
+tag = "scour"
+display = "Orb of Scouring"
+emit = "scour"
+aliases = ["scour", "scours", "scouring"]
+realms = ["pc", "xbox", "sony"]
+evidence = [
+  "cpp:src/currency.cpp@fb0bbbdf",
+  "browser:pending — trade-site alias and display text unobserved",
+]
+
+[[currency]]
+tag = "blessed"
+display = "Blessed Orb"
+emit = "blessed"
+aliases = ["blessed"]
+realms = ["pc", "xbox", "sony"]
+evidence = [
+  "cpp:src/currency.cpp@fb0bbbdf",
+  "census:2026-09-03 rows 6 item + 1 location — all on `[ignore]` rows, where the currency is non-semantic",
+  "browser:pending — trade-site alias and display text unobserved",
+]
+
+[[currency]]
+tag = "regret"
+display = "Orb of Regret"
+emit = "regret"
+aliases = ["regret", "regrets"]
+realms = ["pc", "xbox", "sony"]
+evidence = [
+  "cpp:src/currency.cpp@fb0bbbdf",
+  "browser:pending — trade-site alias and display text unobserved",
+]
+
+[[currency]]
+tag = "regal"
+display = "Regal Orb"
+emit = "regal"
+aliases = ["regal", "regals"]
+realms = ["pc", "xbox", "sony"]
+evidence = [
+  "cpp:src/currency.cpp@fb0bbbdf",
+  "browser:pending — trade-site alias and display text unobserved",
+]
+
+[[currency]]
+tag = "divine"
+display = "Divine Orb"
+emit = "divine"
+aliases = ["divine", "divines"]
+realms = ["pc", "xbox", "sony"]
+evidence = [
+  "cpp:src/currency.cpp@fb0bbbdf",
+  "census:2026-09-03 rows 105 item + 2 location; tab names 2; notes 44 (`divine`)",
+  "browser:pending — trade-site alias and display text unobserved",
+]
+
+[[currency]]
+tag = "vaal"
+display = "Vaal Orb"
+emit = "vaal"
+aliases = ["vaal"]
+realms = ["pc", "xbox", "sony"]
+evidence = [
+  "cpp:src/currency.cpp@fb0bbbdf",
+  "browser:pending — trade-site alias and display text unobserved",
+]
+
+[[currency]]
+tag = "coin"
+display = "Perandus Coin"
+emit = "coin"
+aliases = ["coin", "coins", "p", "perandus", "shekel"]
+realms = ["pc", "xbox", "sony"]
+evidence = [
+  "cpp:src/currency.cpp@fb0bbbdf",
+  "browser:pending — trade-site alias and display text unobserved",
+]
+
+[[currency]]
+tag = "mirror"
+display = "Mirror of Kalandra"
+emit = "mirror"
+aliases = ["mirror", "mir"]
+realms = ["pc", "xbox", "sony"]
+evidence = [
+  "cpp:src/currency.cpp@fb0bbbdf",
+  "browser:pending — trade-site alias and display text unobserved",
+]
+
+[[currency]]
+tag = "silver"
+display = "Silver Coin"
+emit = "silver"
+aliases = ["silver"]
+realms = ["pc", "xbox", "sony"]
+evidence = [
+  "cpp:src/currency.cpp@fb0bbbdf",
+  "browser:pending — trade-site alias and display text unobserved",
+]
