@@ -6,6 +6,9 @@ the closed ladder (history), and the run ledger. `CONTEXT.md` invariants
 apply. Ground-truth facts learned live go to
 `docs/design/network-ground-truth.md` as numbered claims (authored
 master-side, cherry-picked here); this file records only runs.
+Closed rung sections were cut to their records on 2026-09-02; the full
+text (preparation tables, prompts, agent observations) is at `d660d1f5`,
+and what the runs taught is `REFRESH-SLICE.md`.
 
 The ladder's goal — confidence that the daemon **halts rather than
 floods** — was met on 2026-08-27 (status at the end). The ladder was the
@@ -175,7 +178,7 @@ One row per rung execution. Journal files are copied to
 
 | 2026-08-25 | 10 (rerun) | `3b5e0282` | **pass** | 1/2/323 = 326 | 0 | pid 96766, 03:36–04:37 UTC, 61 min. Probes 0 hits; 322 tabs; the 15-per-10 s / 30-per-300 s pattern ten times, every hold ~343 s and every first send after a hold answered `1:10:0,1:300:0`; windows never exceeded 15/30; zero non-2xx; no keyring warning. Snapshot written: 322 tabs, 18 072 items, 0 errors. Tab `7b05e6f78d` (the earlier 503, "Beasts, Red (Remove-only)", 37 items) was again the first send after a hold — send #245, same position — and answered 200: the 503 was transient, not tab-specific, and one clean after-hold sample says nothing yet about stale connections. Second-run "no changes" check not yet run. `runs/2026-08-24-r10b/` |
 
-| 2026-08-25 | 10 (second run) | `5d792d0a` | **pass** (wire); diff false positive fixed client-side | 1/2/323 = 326 | 0 | pid 6111, 11:19–12:20 UTC, 61 min; fresh daemon, probes 0 hits; identical to the rerun on the wire: ten ~343 s holds, `1:10:0,1:300:0` after each, max 15/30, zero non-2xx, no keyring warning. Snapshot 322 tabs / 18 072 items / 0 errors; no tab or item added, removed, or moved. Reported **10 items changed** — all `veiledMods`, whose placeholder ids GGG re-randomizes per fetch (`Prefix06` → `Prefix01`); not stash changes. The diff now ignores that field (`pull.rs`, `VOLATILE_ITEM_FIELDS`); new ground-truth observation for master-side. `runs/2026-08-25-r10c/` |
+| 2026-08-25 | 10 (second run) | `5d792d0a` | **pass** (wire); diff false positive fixed client-side | 1/2/323 = 326 | 0 | pid 6111, 11:19–12:20 UTC, 61 min; fresh daemon, probes 0 hits; identical to the rerun on the wire: ten ~343 s holds, `1:10:0,1:300:0` after each, max 15/30, zero non-2xx, no keyring warning. Snapshot 322 tabs / 18 072 items / 0 errors; no tab or item added, removed, or moved. Reported **10 items changed** — all `veiledMods`, whose placeholder ids GGG re-randomizes per fetch (`Prefix06` → `Prefix01`); not stash changes. The diff now ignores that field (the retired `pull` command, `VOLATILE_ITEM_FIELDS`); new ground-truth observation for master-side. `runs/2026-08-25-r10c/` |
 
 | 2026-08-25 | 8 re-soak (first tick) | `fe249193` | **no sends; stopped before start** | 0/0/0 | 0 | cron's first tick at 14:30Z lazy-spawned the daemon (pid 13589) under cron's context; macOS Keychain refused (`User interaction is not allowed`), so it came up with no session and the run failed "not logged in" before any send. Rail 7 surfaced it in `daemon status`. Rung 8's daemon had been spawned from a terminal and outlived the whole run, so this never showed. Fix: `ACQ_NO_SPAWN=1` in `soak-run.sh` (cron can only talk to a daemon a person started); the stored refresh token was never read and is intact. |
 
@@ -265,7 +268,7 @@ one send landed, nothing followed. Three things it exposed that are ours:
 - **A pull that fetched 240 of 322 tabs wrote nothing.** Partial results
   are discarded on any child failure. Recorded as a frontend finding.
 
-## Rung 11 — two accounts, one machine (hypothesis 2026-08-29, run 2026-08-30: H1, H2 confirmed)
+## Rung 11 — two accounts, one machine (run 2026-08-30: H1, H2 confirmed)
 
 Question: what does the rate limiter do when two accounts are logged in
 and sending at the same time? Everything the code implies is untested
@@ -297,33 +300,6 @@ Hypotheses (H1 decides whether H2–H3 run):
   `token-request-limit` state `2:30:0` on the second (N33 says Ip-scoped;
   this is the first cross-account sample).
 
-Preconditions and an explicit exception: the ladder's exclusive-use rule
-forbids two instances from one IP; this rung *is* two instances from one
-IP, by owner decision, on `character-list-request-limit` only (2 per
-10 s, 5 per 300 s — low enough that the shared-counter case cannot 429
-within the plan). Both daemons run `ACQ_NO_KEYRING=1`, so the stored
-refresh token of the real account is never read or overwritten. Every
-`acq` call goes through `tools/acq-as.sh A|B …`, which sets the rails
-(`ACQ_GGG=1 ACQ_TRIPWIRE=1`, ceiling 8, idle 3600 s), one socket per
-label (own limiter, own tripwire file, own store) and one journal per
-label under `runs/<date>-r11/`. Binary provenance as always; both
-daemons on the same tip. Account B needs its own browser login
-(private window): `acq auth --no-browser` prints the URL.
-
-| Step | Where | Command | Expect | Stop if |
-| --- | --- | --- | --- | --- |
-| 0 | A, then B within 30 s | `tools/acq-as.sh A auth --no-browser`, approve as account A; same for B as account B | POST 200 each; B's token state `2:30:0` (H0) | any non-2xx |
-| 1 | A | `tools/acq-as.sh A characters` | HEAD `0:10:0,0:300:0` (both accounts quiet), GET `1:10:0,1:300:0` | probe hits > 0; any non-2xx |
-| 2 | B, within 10 s of step 1 | `tools/acq-as.sh B characters` | **H1**: HEAD `0:10:0,0:300:0` → per account, continue; HEAD `1:10:0,1:300:0` → shared, **stop and record** | any non-2xx |
-| 3 | both, ≥ 15 s after step 2 | `tools/acq-as.sh A characters & tools/acq-as.sh B characters & wait` | **H2**: both GET 200, each `1:10:0,2:300:0`, `wait_ms` 0 on both, no HEAD | either held; either state shows the other's hit; any non-2xx |
-| 4 | A | `tools/acq-as.sh A auth --no-browser`, approve as **account B**; then immediately `tools/acq-as.sh A characters` | **H3**: POST 200; no HEAD; GET state is B's count (`…,3:300:0`); `wait_ms` > 0 only if A's 10 s window was still open | a HEAD is sent (would mean login re-probes — record, not a fault); any non-2xx |
-| 5 | both | `tools/acq-as.sh A daemon stop; tools/acq-as.sh B daemon stop` | | |
-
-Expected totals: A 2 POST / 1 HEAD / 3 GET, B 1 / 1 / 2; ceiling 8 each.
-Under the shared-counter branch of H1 the plan ends after step 2 with 2
-GETs in a 5-per-300 s window. Result rows go in the run ledger above;
-anything learned about GGG goes to ground truth master-side.
-
 Run 2026-08-30 (ledger row above): **H1 and H2 hold** — per-account
 counters, no cross-account interference between two daemons on one IP.
 H3 (the account-switch carry-over on one daemon) was not sampled; it is
@@ -335,59 +311,12 @@ H0 was missed by one second and is already covered by N33.
 
 The persisted queue (`daemon.db`, CONTEXT.md decision 2026-08-30) is
 proven offline and against the mock; two of its behaviors rest on a wire
-premise and get one rung-style check each, in a single run of ~13 sends:
+premise and got one rung-style check each, in a single run of ~13 sends:
 a halted queue resuming under a successor daemon (rail 5's ceremony
 rehearsed for real), and a restore that sends nothing before its probe
-has read the account's real counters. This asks nothing new of GGG — the
-question is about our restart behavior — so no hypothesis document; this
-section plus a ledger row is the record. The halt trigger is the
-**ceiling**, not the tripwire: tripping the tripwire live requires a real
-violation, and a ceiling halt exercises the same halt-leaves-jobs-waiting
-machinery with zero violations (`reset-tripwire` cannot release a ceiling
-halt mid-lifetime anyway — the send count survives it — so restart is the
-release, which is the thing under test).
-
-Rails on throughout; binary provenance rule; journal at its default path,
-copied to `runs/2026-08-30-persist/` after. Pick 6 small tabs from
-`acq tabs` (a store read; no daemon). `ACQ_IDLE_SHUTDOWN=600` on
-lifetime 1 so the halted daemon is still there to kill; if it idles out
-before step 3, note it in the ledger and continue — the idle-out variant
-is equally valid (the queue is on disk either way).
-
-`tools/persist-check.sh [--account NAME] <6 tab ids>` drives the whole
-table from one terminal (the selector is required with more than one
-persisted account — every job carries an account): it refuses stale
-binaries and leftover env, spawns each daemon
-with the step's rails, gates every wire phase on an explicit enter,
-aborts loudly on a tripwire trip or a failed job, verifies the
-expectations from the journal (probe before first send per route, no
-non-2xx, two lifetimes), collects the evidence into the run directory,
-and drafts the ledger row. `--mock` rehearses the identical flow against
-the mock — run green 2026-08-30 (L1 `1/2/3`, halt at 6, 4 children
-waiting, parent done under the successor) — with one caveat: the mock
-provider dies with the daemon, so only the live run can show the probe
-reading counters that survived the kill. The table stays the
-specification; the script implements it.
-
-| Step | Command | Expect | Stop if |
-| --- | --- | --- | --- |
-| 1 | `ACQ_GGG=1 ACQ_TRIPWIRE=1 ACQ_MAX_SENDS=6 ACQ_IDLE_SHUTDOWN=600 acq refresh --tabs <6 small tabs>` (blocking; note the parent id it prints, Ctrl-C once the halt lands — a disappearing client cancels nothing, by decision) | POST, HEAD+GET list, HEAD stash (probes report 0 hits), then child GETs until the ceiling halts at send 6 — the 2-wide gate may let one extra land; 3–4 children never sent | probe hits > 0 (standing rule: something else is on this account); any non-2xx |
-| 2 | `acq jobs` (after ~10 s) | remaining children `waiting`, parent held, nothing running; `daemon status` names the ceiling halt | any child `failed` for lack of a send (the pre-persistence behavior) |
-| 3 | `kill -9 <daemon pid>` (pid from `acq daemon status`) | daemon gone mid-halt, no shutdown path run; queue on disk | |
-| 4 | `ACQ_GGG=1 ACQ_TRIPWIRE=1 ACQ_MAX_SENDS=10 acq dash` (any spawning command works) | successor restores the queue and journals: open line, POST, **HEAD stash probe before any GET**, the probe reporting step 1's hits still inside the 300 s window — **hits > 0 is expected here and only here**; they are ours and this run knows it, so the standing rule's "stop and find it" does not apply — then the remaining child GETs; parent finishes **done** across two daemon lifetimes, not interrupted (its held result predates the kill) | any GET before its route's probe; parent finishes interrupted (held-result ordering differs live from the mock); any 429 or non-2xx |
-| 5 | `acq result <parent-id>`, then `acq daemon stop`; copy the journal; ledger row | result served by a daemon that never ran the job | |
-
-Expected totals: lifetime 1 `1/2/3` = 6 (+1 slip), lifetime 2 `1/1/3–4`
-≤ 6; ceiling 6 then 10; every send on well-trodden routes
-(`stash-list-request-limit`, `stash-request-limit`), max ~7 stash GETs in
-300 s against a 30-per-300 s window. Residual stated plainly: at kill
-time nothing is mid-send (the halt guarantees it), so the
-running-job-re-queued-as-duplicate path stays mock-proven; what this run
-checks live is the premise that path rests on — a restore's first send on
-a route happens after its probe has read GGG's real counters. Step 3→4 is
-also rail 5's ceremony (`acq jobs`, cancel what should not resume, then
-respawn) run for real; if it feels sufficient in practice, rail 5 stands
-as written and the ceiling-doesn't-persist caveat needs no further rule.
+has read the account's real counters. `tools/persist-check.sh
+[--account NAME] <6 tab ids>` drives it from one terminal and `--mock`
+rehearses the identical flow.
 
 Run 2026-08-30 (ledger row): **pass**, every check green. The one
 surprise was input, not behavior: a requested tab id was absent from the
@@ -399,179 +328,34 @@ hits, read back from GGG's counters by a daemon that never sent them.
 The rail-5 ceremony was exercised as written and nothing in the run
 argued for more.
 
-## Tracer rung — policy → plan → apply → replan (prepared 2026-09-01; run 2026-09-01: pass)
+## Tracer rung — policy → plan → apply → replan (run 2026-09-01 and 2026-09-02: pass)
 
-The refresh tracer's step 9 (`CONTEXT.md`, "Annotations & plans"): the
-owner's first real use of the slice on the real account. It asks nothing
-new of GGG — every route it touches is well-trodden
-(`stash-list-request-limit`, `stash-request-limit`, the token endpoint),
-and the `apply` kind is a fan-out parent of kinds that have had first
-contact — so no hypothesis document: this section, a ledger row, and the
-friction notes below are the record. What it collects, on purpose:
+The refresh tracer's step 9: the owner's first real use of the slice on
+the real account. It asks nothing new of GGG — every route it touches is
+well-trodden — so no hypothesis document: `tools/tracer-rung.sh
+[--account SEL] [--league L] [--max-age S] [--cycles K] [--characters
+all|ids] <tab1,...|all>` drives it (`tools/tracer-verify.py` verifies the
+journal; `--mock` rehearses the identical flow, exact ceilings included),
+and the ledger row is the record. Each cycle runs on a fresh daemon whose
+ceiling is derived from the plan exactly, so the ceiling halt right
+after the last planned send is a cycle's expected end; the driver
+refuses a stale binary, working-tree changes to the rung's own files,
+leftover isolation env, and a running daemon. Holds on
+`stash-request-limit` (`15:10:60, 30:300:300`): none while `n ≤ 15`, one
+~15 s hold before the 16th, ~343 s holds above 30 (a hold ends at the
+window's expiry, so 343 s is the worst case, not a constant — N45).
 
-1. **The plan's projection against the wire.** A plan states its own
-   wire estimate (`min..max` sends plus named prerequisites: one probe
-   per route this lifetime, a token refresh). Each cycle runs on a fresh
-   daemon whose ceiling is *derived from the plan, exactly*: one token
-   POST, one HEAD per route the plan touches, one GET per action. The
-   rails trip the moment the count reaches the ceiling (`rails.rs`,
-   `sends >= max`), so the daemon halts on the bound right after the
-   last planned send — that halt is the expected end of a cycle, and
-   it is checked as such after every wire phase: the daemon must report
-   the tripwire armed, a ceiling equal to the plan's, exactly that many
-   sends counted, and a ceiling halt in force, with the journal
-   agreeing — a journal count that merely matches is not evidence the
-   rail was there. The bound is
-   counted as responses land while the gate admits two sends in flight
-   (rail 1's caveat), so it can be overshot by one already-dispatched
-   send at most; either way a send the plan did not project fails the
-   cycle — it consumes the bound and shows as a planned child refused,
-   or it lands as a `ceiling + 1` journal the verifier rejects.
-2. **The quote on the wire.** With a real daemon up, `refresh --plan`
-   either carries its quote (headroom, queue, ETA per scope) or prints
-   why not. The accepted residual is collected here: real GGG's
-   `/profile` `name` may lack the `#discriminator` the session username
-   carries, in which case the note reads "daemon quote rejected" — an
-   observation to record, not a fault; the plan applies unquoted.
-3. **What is applied is what was reviewed.** The envelope applied is
-   the quoted file itself, checked to be the offline envelope (the
-   ceiling's source) plus the quote — actions in order, listing basis,
-   identity, policy revision, counts; the derived `age_seconds` inside
-   reasons is ignored (it advances with the clock between compiles)
-   while the reason kinds are compared — and its action list is
-   rendered from that file and confirmed before the apply. Facts moving
-   between the two compiles is a stop.
-4. **Friction notes** — the product-side data (`CONTEXT.md`, "Binding-plan
-   friction"; the method test). Taken at the moment, not recalled: the
-   driver prompts after every phase and writes them to
-   `runs/<date>-tracer/friction.md`; they are pasted into the
-   subsection below.
+What the two runs taught became rulings in `CONTEXT.md` (binding
+confirmed; a policy id covers the tab and its children; the method-test
+verdict) and observations in `REFRESH-SLICE.md`.
 
-Preconditions: the standing rule's rails and binary provenance; from a
-terminal (keychain, browser). Two accounts are persisted, so every
-command carries `--account GERWARIC#7694` (the selector resolves as
-`acq` does: username or username without `#discriminator`, both
-case-insensitive with Unicode lowercasing, or the exact uuid). That account's index entry predates uuid-at-login and has no
-uuid; intent binds to the uuid, so the run opens with a re-login as the
-same account (a code-exchange POST and the login's own `GET /profile`,
-ceiling 2, exactly). One fresh daemon per wire phase, stopped when the
-phase is over, `ACQ_NO_SPAWN=1` throughout: the offline claims (plan
-compiled with no daemon; an empty plan's apply contacts nothing) are
-checked with the socket dead. The league's listing on record is from
-the persistence check (2026-08-30), so the first plan is the stale
-listing **plus** the selected tabs' fetches in one plan — the fetches on
-the old listing's membership (D5a: a plan never expands itself; the new
-listing's facts land for the next plan).
+### Friction notes (owner)
 
-**Selection decides the shape of the run.** A policy id covers the tab
-and its children (`covers_tab` on the planner's `Selection`; decided 2026-09-01 on this
-rung's first run, which had left 64 substashes uncovered under an exact
-id match): a map/unique tab's substashes are planned the cycle after
-the parent's first fetch lands their stubs — a plan never expands
-itself — and a folder's children at once. So an id list that names a
-map or unique tab runs the discovery cycle too, and the loop closes
-when every covered child is fetched or skipped as an empty stub (the
-driver checks exactly that at readback). Pick the tabs from `acq
---account GERWARIC#7694 tabs --league Standard` (a store read; no
-daemon): a handful, including one map or unique tab so the discovery
-cycle is real. `all` is allowed and is
-the owner's call — 323 requests with ~343 s holds per 30, then every
-substash a second cycle (a map tab may expose hundreds). Its freshness
-window must outlive the cycle: at the default 3600 s the hour-long
-cycle 1 (rung 10: 61 min) would leave its own listing and early fetches
-stale for cycle 2, which would re-list and re-fetch instead of planning
-only substashes, and the loop could never close. `all` therefore
-defaults `max_age_seconds` to 86400, and the driver refuses any cycle
-whose (deliberately over-estimated) wire duration is not at most half
-the window.
-
-`tools/tracer-rung.sh [--account SEL] [--league L] [--max-age S]
-[--cycles K] <tab1,...|all>` drives the table from one terminal
-(`tools/tracer-verify.py` is its journal verifier; `--self-test` runs
-the synthetic journals that pin the nonzero-hit branches the mock
-cannot reach). It
-refuses a stale binary, working-tree changes to the rung's own files
-(driver, verifier, control documents, crates — the ledger's tip must
-name what ran), leftover isolation env, and a running daemon;
-writes the policy from the selection; gates every wire phase on an
-explicit enter; derives each cycle's ceiling from the offline plan;
-checks and shows the envelope it applies; treats the bound reached
-exactly after the planned sends as the cycle's end and any other halt
-(a tripwire trip, a ceiling with sends missing, a child not done) as a
-stop; reads the facts back and fails on a selected tab missing from the
-store or a read that errors; verifies the journal; drafts the ledger
-row; and prints the friction notes. Its terminal output follows the
-legibility ruling (CONTEXT.md, 2026-09-02): the plan once per cycle
-(the offline compile, grouped), then only the quote block from the
-daemon-up compile, then the actions rendered from the file about to be
-applied (`acq refresh --plan=FILE`), and a brief verifier summary — one
-line per lifetime with send totals, probe verdicts, and the limiter
-holds seen — with the per-send form kept in `summary.txt`. `--mock` rehearses the identical
-flow, exact ceilings included, against the mock — run green 2026-09-01
-in both shapes (re-run green the same day after the handle ruling):
-`all` = login `1/0/1`, cycles `1/1/1` (bootstrap listing), `1/1/7`
-(seven tab fetches), `1/1/7` (seven substashes discovered one plan
-later), then an empty plan applied as a no-op with no daemon; ids
-`cur1,dump,maps` = login, `1/1/1`, `1/1/3`, `1/1/4` (the four
-substashes under `maps`, covered through their parent), then empty. Every cycle
-quoted; every cycle's sends equal to its plan plus probes plus the
-POST. The table stays the specification; the script implements it.
-
-| Step | Command | Expect | Stop if |
-| --- | --- | --- | --- |
-| 0 | preflight: `acq --version` = HEAD, the rung's files clean at HEAD, no `ACQ_*` isolation leftovers, no daemon; `acq accounts` | `GERWARIC#7694` persisted, no uuid | a daemon is up; the binary is dirty or stale; uncommitted changes under `tools/`, the control documents, or `crates/` |
-| 1 | fresh daemon (ceiling 2), `ACQ_GGG=1 acq auth` in the browser as **the same account** | POST 200 (`token-request-limit` Ip `1:30:0`), `GET /profile` 200 with no rate headers (N38), `logged in as GERWARIC#7694`, the index now carries the uuid; bound reached at send 2; daemon stopped | the login lands as another account (intent would bind to the wrong identity); any non-2xx |
-| 2 | `acq policy set '{"version":1,"leagues":{"Standard":{"tabs":[…],"max_age_seconds":3600}}}'` (the driver writes 3600 for an id list, 86400 for `all`, or `--max-age`), then `acq refresh --plan` with **no daemon** | revision 1; the plan is the stale listing (≈2 d) plus one fetch per selected tab, `n+1` requests, `n+1..3(n+1)` wire sends, the two prerequisites named; stderr `no quote: … plan compiled offline`; no daemon appeared | a daemon appeared; the note is anything but "no quote" |
-| 3 (cycle 1) | fresh daemon, ceiling `1 + 2 + (n+1)`; `acq refresh --plan --json` again (quoted) — checked equal to the offline envelope plus the quote, actions shown; `acq refresh --apply=<that file> --max-requests n+1` | the quote, or the discriminator note (record which); journal: POST, `HEAD /stash/Standard` 204 reporting **0 hits**, `GET` list 200, `HEAD /stash/Standard/{id}` 204 reporting **0 hits**, `n` tab GETs 200; parent `done`, children `n+1` done, 0 failed; the bound reached exactly at the last send; daemon stopped | the run's **first** probe on a route reports hits > 0 (standing rule: something else is on this account); any non-2xx; a child failed (a tab gone since 2026-08-30 is data — record it, then stop); the ceiling halts with sends missing, or the journal shows `ceiling + 1` (a send the plan did not project, either way) |
-| 4 (cycle 2) | plan offline again | **no map/unique tab selected**: `nothing to do`; `acq refresh --apply` with no daemon prints `requests: 0` and nothing appears on the socket. **a map/unique tab selected, or `all`**: `fetch substash` lines, `m` requests, ceiling `1 + 1 + m`; the stash probe reports cycle 1's hits still inside each window — **ours, expected; the verifier bounds every reported window's hits by this run's own sends inside that window plus that window's timing bucket (N11/N12: 5 s on a rule's first window, 60 s on the later ones, as `bucket_for` in `ratelimit.rs`) at the probe's time, never by a cumulative total**; journal `1/1/m`; children `m` done | a daemon appeared on the no-op; hits beyond ours in any window; otherwise as step 3 |
-| 5 (cycle 3, when cycle 2 had work) | plan offline again | empty; no-op apply with no daemon | a daemon appeared; the plan still has work (record what and why; not a failure) |
-| 6 | `acq tabs --league Standard`, `acq store status`, `acq store events --hours <the run's span + 1> --limit 1000000` (store reads; hitting the limit fails the run) | every selected tab `fetched` moments ago (an id the first plan reported as unknown is the one exception); item events from this run; the final `refresh --plan` empty when the loop was recorded closed | a selected tab is missing from the store; a read errors; a closed loop whose final plan is not empty |
-| 7 | evidence: this run's slices of the journal and the daemon log, the plans, apply results, store reads, a copy of the verifier with checksums, and a `verify.sh` that re-runs the verification through that copy, in `runs/<date>-tracer/` (a repeat the same day gets a time suffix, never overwrites); ledger row; friction notes pasted below | the bundle's `verify.sh` does not reproduce the summary's verdict |
-
-Expected totals for `n` selected tabs: login `1/0/1`, cycle 1
-`1/2/(n+1)`, then — when a selected tab is a map or unique tab — cycle
-2 `1/1/m` for its `m` non-empty substashes (covered through the parent,
-2026-09-01), then nothing. On the real account the five-id selection has
-`m` = 64, so cycle 2 is 64 stash GETs: ~15 s holds after the 15th and
-45th, ~343 s holds after the 30th and 60th, ~15 min in all. `stash-request-limit` is `15:10:60,
-30:300:300`, so with a zero-hit probe there is no hold while `n ≤ 15`;
-`16 ≤ n ≤ 30` costs one ~15 s hold before the 16th (rung 7b); above 30
-the ~343 s holds begin (rung 10). The listing GET is on its own policy
-and never holds here. For `all`: cycle 1 `1/2/323` with ten ~343 s
-holds, cycle 2 `1/1/m` for `m` substashes with its own holds (under
-the day-long window; cycle 1's listing and fetches stay fresh), and
-cycle 2's probe carries cycle 1's hits still inside the windows, which
-the fresh daemon reads and paces on (it over-waits, never floods — the
-seeding the quote also uses). Residuals stated plainly: the listing and the
-fetches share one plan by design, so a tab renamed or removed since
-2026-08-30 surfaces as a failed child or an `unknown_tabs` id — that is
-D5a's eventual reconciliation being seen live, and a friction note, not
-a rail failure; and the rung samples the slice, not the frontier — a
-whole-league policy is a second run, if the notes ask for it.
-
-### Friction notes (owner, filled during the run)
-
-Data the way the send journal is data; each note is one line, taken when
-it happened (`friction.md` in the run directory, pasted here). The
-prompts are the questions the notes are for, not a form to complete:
-
-- **Intent** — writing the policy by hand: were tab ids the right handle,
-  or did you want names, types, "everything but", or "this tab and its
-  substashes"? Did the uuid re-login and the `--account` selector cost
-  anything?
-- **Plan** — did the plan read as your intent? Was "listing + fetches in
-  one plan" what you expected, or did the stale listing surprise you?
-  The quote: useful, noise, or absent?
-- **Apply** — the wait, the feedback during it, the `--max-requests`
-  ceremony, the result payload: what did you want to see that you did
-  not?
-- **Replan / binding** — the discovered substashes an id list leaves
-  uncovered, the two-cycle discovery under `all`, subset-only
-  reconciliation, an empty plan as the closing signal: did any of it
-  hurt? (D5a is revisable on exactly this.)
-- **Facts** — reading the store back: did the tabs/events answer "what
-  changed"?
-- **Anything that made you reach for `acq refresh --tabs` instead.**
+Data the way the send journal is data. The driver prompts after every
+phase and writes `friction.md` in the run directory; across the four
+runs so far the prompts collected one note, and every verdict arrived
+in conversation with the agent — so the owner's words are recorded
+here verbatim from wherever they were said.
 
 Notes (owner, 2026-09-01):
 
@@ -582,191 +366,31 @@ prompt: the driver's output is dense and confusing to a human reader,
 and that is accepted for now — the agent reads it, and wordsmithing the
 output before the tracer has proven its worth would be wasted effort.
 
-Agent observations from the same run (not owner friction; recorded so
-the re-ruling has them):
+## Characters rung — the refresh plan with characters (run 2026-09-02: pass, both rows)
 
-- **Quote**: on a fresh daemon the quote can only say "no ETA until the
-  policy is learned" for every scope, and every cycle here runs on a
-  fresh daemon by design — so the quote was structurally uninformative
-  in this rung. Whether it is useful in a long-lived daemon is untested.
-- **Plan note**: the offline "no quote" line prints twice (once in the
-  plan text, once as the driver's echo) and carries a raw
-  `No such file or directory (os error 2)` where "no daemon running"
-  would do.
-- **Facts**: "what changed" was answered with 0 item events and five
-  `fetched 59s ago` rows; the readback never says "5 tabs refetched,
-  0 items changed" in one line. The folder child's row is indented and
-  its name truncated, pushing the columns out of line.
-- **Binding**: the 64 uncovered substashes were reported as predicted;
-  the owner did not reach for `acq refresh --tabs` and wrote no note on
-  whether "this tab and its substashes" is the handle wanted — that is
-  the open question for the `CONTEXT.md` re-ruling, not answered by this
-  run.
-- **Keyring**: the debug binary is unsigned, so macOS Keychain treats
-  every rebuild as a new program and prompts on first access; two
-  prompts is two keychain operations (read the stored session, save the
-  rotated token, or client and daemon each once). Not a stop; a
-  rebuild will do it again.
-- **Probe timing**: the two HEADs carry `wait_ms` 191 and 117 while
-  every GET carries 0 — the probes queued behind the token POST that
-  preceded them in the same lifetime. Consistent with the journal
-  order; noted, not investigated.
+Order-of-work steps (4) and (5) of the characters ruling (`CONTEXT.md`):
+the same driver, rails and verifier, with the character facet in the
+policy. Two invocations, both the owner's, from a terminal, under the
+standing rule:
 
-Agent observations from the rerun (2026-09-02, after the handle ruling;
-the owner entered no notes):
+```sh
+tools/tracer-rung.sh --account GERWARIC#7694 --characters all <tab1,...>       # row 1, pc
+tools/tracer-rung.sh --account GERWARIC#7694 --realm poe2 --characters all none  # row 2, PoE2 first contact
+```
 
-- **Refetch cycle**: facts fresh at a plan's compile can be stale by the
-  next plan's, when their age at the cycle's start plus the cycle's
-  duration exceeds the window — here 51 min + 13 min against 3600 s
-  bought a 6-request cycle 2. Inherent to a freshness window, harmless
-  (the loop closed); the driver now warns when the oldest fact a plan
-  keeps as fresh plus the cycle's estimate passes the window (added
-  2026-09-02); the product question is whether a window is the
-  right handle at all for "keep these fresh" when cycles are long.
-- **Substash names**: GGG names a map substash by its tier ("1", "2")
-  and a unique substash not at all, and the parent's "(Remove-only)"
-  suffix rides along, so the plan renders `" (Remove-only)"` — the
-  frontend finding "nameless substashes" surfacing in plan text.
-- **Quote**: the same fresh-daemon shape as the first run; nothing new.
-- **The wall of 64 action lines** is the plan doing what binding
-  requires (every action explicit); whether a reviewer wants it grouped
-  ("64 substashes under 2 tabs") is a legibility item.
+Row 1 closed its loop in one 112-request cycle (both facets paced
+independently; ten stripped characters were a real shape). Row 2 was
+the standing rule's first-contact shape on both poe2 routes, produced
+the refused-body finding (four of five bodies, kept since facts v7) and
+the granted-skill ruling, and closed after the rerun. Ledger rows
+`characters rung, pc`, the three `/character/poe2` rows; claims
+N41–N45; the findings in `REFRESH-SLICE.md`.
 
-Ruled 2026-09-01, in `CONTEXT.md`: binding confirmed as written; a policy
-id covers the tab and its children (planner change is the follow-up build
-item); the method-test verdict — pass on correctness, owner-truth channel
-under-exercised — is recorded in the tracer section there.
+## Legibility run — the refresh slice read from the terminal (run 2026-09-02: pass; approved, density open)
 
-## Characters rung — the refresh plan with characters (prepared 2026-09-02; row 1 run 2026-09-02: pass; row 2 run 2026-09-02: pass — both first contacts, the granted-skill ruling, loop closed)
-
-Order-of-work steps (4) and (5) of `CONTEXT.md`, "Characters in the
-refresh plan": the same driver, the same rails, the same verifier, with
-the character facet in the policy (`--characters`). Two invocations,
-both the owner's, from a terminal, under the standing rule:
-
-1. **The characters row, pc** — the exit criterion is a policy naming
-   tabs and characters together, live, with the driver's checks green:
-
-   ```sh
-   tools/tracer-rung.sh --account GERWARIC#7694 --characters all <tab1,...>
-   ```
-
-   with the same handful of tab ids as the tracer rung. Expected shape:
-   cycle 1 re-lists both routes if the listings on record are stale
-   (or lists characters alone if the stash listing is fresh) — the
-   character listing is one GET on `character-list-request-limit` (2 per
-   10 s: one per cycle, never a hold); cycle 2 fetches the selected tabs
-   plus **every Standard-league character the list carries** (the
-   2026-09-02 sample listed 59 across leagues; only Standard's are
-   covered by a Standard policy, and any listed `deleted`/`expired`
-   character is skipped, never fetched) on `character-request-limit`
-   (5 per 10 s, 30 per 300 s — a ~15 s hold after 15 and a ~343 s hold
-   after 30, the stash policy's shape, paced independently of the tab
-   fetches); a discovery cycle for any selected map tab's substashes;
-   then empty. Two probes per new route per lifetime, each 0 hits (the
-   standing rule); ceilings exact. Readback: `acq store characters
-   --realm pc` shows every Standard character fetched with items, and
-   the run fails if a covered character is neither fetched nor skipped
-   for a never-fetch reason. Mock rehearsal green 2026-09-02
-   (`all --characters all`: `1/2/2`, `1/2/9`, `1/1/7`, closed).
-
-2. **PoE2 first contact** (`GET /character/poe2`, then
-   `/character/poe2/{name}` — unobserved by us; documented live) — once
-   the owner has a PoE2 character:
-
-   ```sh
-   tools/tracer-rung.sh --account GERWARIC#7694 --realm poe2 --characters all none
-   ```
-
-   Cycle 1 is exactly the standing rule's first-contact shape: a fresh
-   daemon under ceiling **3** — token POST, `HEAD /character/poe2`
-   (its own route, `character-list/poe2@…`), `GET /character/poe2` —
-   with the tripwire armed; cycle 2 is the same shape on
-   `character/poe2@…` for each listed character; then empty. What it
-   answers (CONTEXT.md, order (5)): what `Character.realm` says for a
-   PoE2 character (the docs give `pc|xbox|sony`; the mock hypothesizes
-   `poe2`); whether the pc list omits it (compare `acq store characters
-   --realm pc` before and after — a realm-R listing retires only
-   realm-R rows, so a character listed under both would show under
-   both); what `skills` items look like — ids present? (`acq items
-   search <skill name> --realm poe2` shows the lifted rows with
-   container `skills`; an id-less item is a `MalformedBody` refusal
-   that fails the fetch child, which is itself the finding — and was:
-   four of five, kept since facts v7, ruled and built the same day,
-   N44); and
-   whether `HEAD /character/poe2` is the free probe (204, uncounted) pc
-   is. Record the policy names and windows the poe2 routes report
-   (N6: same name shares state) as a ledger row and a ground-truth
-   claim. Mock rehearsal green 2026-09-02 (`--realm poe2 --characters
-   all none`: `1/1/1`, `1/1/1`, closed).
-
-Stop conditions are the standing rule's: a probe reporting hits > 0, any
-non-2xx, any trip — wait 360 s, read, then `reset-tripwire`, never
-reset-and-retry. A `fetch_character` child failing 404 under a name that
-moved between the listing and the fetch is the D5a residual (the next
-listing reconciles), recorded, not a stop.
-
-Row 1 ran 2026-09-02 and passed (run ledger: `characters rung, pc`).
-The exit criterion is met: a policy naming tabs and characters together
-closed its loop live with every driver check green. What the run added
-beyond the prediction (agent observations; the owner entered no notes):
-
-- **Two facets, two paces.** The stash and character policies share a
-  shape (30 per 300 s) but not a short window (15 vs 5 per 10 s), and
-  the limiter ran them side by side: the character facet held ~15 s
-  after every 5 sends and finished six minutes before the stash facet;
-  the cycle lasted the longer one, as the driver's estimate assumes.
-- **A hold ends at the window, not at 343 s.** The character facet's
-  hold after its 30th send was 280 s: its 300 s window had opened at
-  the first character GET, some 60 s before the 30th, so the wait was
-  the remainder. The 343 s figure is the worst case (a burst that fills
-  the window at once), not a constant.
-- **Stripped characters are a real shape.** 10 of the 41 Standard
-  characters, levels 86–100, came back with empty `equipment`,
-  `inventory` and `jewels` arrays. The store records them as fetched
-  with 0 items and `_split` 0/0/0; a reader of `acq store characters`
-  cannot tell a stripped character from a fetch that lifted nothing
-  without looking at the envelope — a legibility item, not a defect.
-- **Probe queueing.** The first probe of the lifetime waited 4.5 s
-  behind the token POST (the tracer rung saw 191 ms); the other three
-  130–180 ms. Noted, not investigated.
-- **The plan text is a wall again**: 64 substash lines plus 41
-  character lines, each explicit as binding requires — the same
-  grouping item the tracer rerun recorded.
-
-Row 2 ran 2026-09-02 (run ledger: the two `/character/poe2` first
-contacts). Both routes answered the standing rule's shape — free HEAD,
-0 hits, full policy — under **poe2-suffixed policy names** with pc's
-windows, `Character.realm` is `poe2`, and the pc list omits PoE2
-characters. Cycle 2 then produced the refusal the section above
-predicted, four times out of five, and showed the gap in the
-prediction: a refused body left nothing to read. The store now keeps a
-refused body verbatim (`refused`, facts v7; `acq store refused`), the
-error names the array and index, and the same invocation was rerun to
-read them (ceiling 6, the four refused characters). Read: the id-less
-entries are **item-granted skills** and everything socketed into them,
-duplicated verbatim under `skills` — a documented-optional `Item.id`
-that PoE2 actually omits, not a malformed body. Ruled the same day
-(`CONTEXT.md`, (a): the subtree stays in place, never a row) and the
-rerun closed the loop: four characters, 83 items, 8 granted skills
-counted, cycle 2 empty. Both rows of this rung have passed.
-
-Driver observation from the two aborted passes: on an apply failure
-the driver stops with the daemon **up** (halted on its ceiling) so the
-jobs and results stay readable, and prints what to do; both times the
-reading took under a minute and `acq daemon stop` by hand ended it.
-Right for a rung; a scripted caller would want the stop automated
-once the evidence is copied — noted, not changed.
-
-## Legibility run — the refresh slice read from the terminal (run 2026-09-02: pass; output approved, density open)
-
-The live run `CONTEXT.md`'s "Legible output for the refresh slice"
-named as its judge: the characters-row shape
-(`tools/tracer-rung.sh --account GERWARIC#7694 --characters all <the
-five tab ids>`) on the legibility build (`695c1ec1`), the owner at the
-terminal, under the standing rule. Not a first contact — every route it
-touched was well-trodden — so the ledger row and this note are the
-record.
+The characters-row shape rerun on the legible-output build (`695c1ec1`),
+the owner at the terminal. Not a first contact; the ledger row and this
+verdict are the record.
 
 **Owner verdict (2026-09-02, given to the agent rather than typed at
 the prompts; no `friction.md` exists for this run): the output is
@@ -774,24 +398,6 @@ approved, and it is "still dense, verbose output".** Density stays the
 open item: cut words before adding structure, judged against the next
 run a person reads live, not pre-fixed. `CONTEXT.md` carries the same
 verdict in the ruling's closing paragraph.
-
-Agent observations from the bundle (not owner friction):
-
-- **The wall is gone.** The 112-request plan rendered in 14 lines; the
-  tracer rerun's 64 substash lines are `fetch 64 substashes under 2 of
-  those tabs` over `46 under 421496994e, 18 under 0b4c8308d2`.
-- **The failure report was not exercised live.** Nothing failed, so the
-  parent-failure expansion (rule 4) stands on its unit tests and the
-  mock rehearsal only.
-- **All-zero change lines.** `changed:` reported nothing over 112
-  refetched bodies and the events readback said `0 events in the last
-  1.4 h` — correct, and the case where "what did it do" and "what
-  changed" give different answers. Whether a row of zeros reads as
-  reassurance or as "did it work" is a question for the next reader.
-- **Holds as before.** The character facet's 280 s hold after its 30th
-  send repeats row 1's finding (a hold ends at the window, not at
-  343 s); the stash facet, which filled its window in bursts, held
-  343.7 s twice.
 
 ## Status: ladder closed (2026-08-27)
 

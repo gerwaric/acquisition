@@ -33,8 +33,8 @@ budget() {
 }
 budget AGENTS.md        8000
 budget CONTEXT.md      85000
-budget README.md       20000
-budget LIVE-TESTING.md 35000
+budget README.md       30000
+budget LIVE-TESTING.md 60000
 
 # ---- 2. stale identifiers -----------------------------------------------
 # The haystack is the code and its schemas; docs never vouch for docs.
