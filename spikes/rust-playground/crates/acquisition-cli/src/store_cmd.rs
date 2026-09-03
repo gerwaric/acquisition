@@ -157,22 +157,9 @@ fn items_cell(fetched_at: Option<i64>, item_count: i64) -> String {
     }
 }
 
-pub fn tabs(realm: Realm, league: &str, json: bool) -> Result<()> {
-    let store = open()?;
-    let tabs = store.tabs(realm.as_str(), league)?;
-    if json {
-        println!("{}", serde_json::to_string_pretty(&tabs)?);
-        return Ok(());
-    }
-    if tabs.is_empty() {
-        println!(
-            "no tabs known for {}{league} in {} (run `acq stashes` or `acq refresh --all`)",
-            realm_prefix(realm),
-            store.path().display()
-        );
-        return Ok(());
-    }
-    let now = acquisition_store::now();
+/// C53: readable stash fields lead; the exact policy handle is the final
+/// column, matching the character table and never clipped.
+fn render_tabs_table(tabs: &[acquisition_store::TabRow], now: i64) -> String {
     let names: Vec<String> = tabs
         .iter()
         .map(|t| {
@@ -197,21 +184,41 @@ pub fn tabs(realm: Realm, league: &str, json: bool) -> Result<()> {
         .max()
         .unwrap_or(4)
         .max(4);
-    println!(
-        "{:<12} {:<name_w$} {:<type_w$} {:>6}  {:<12} parent",
-        "id", "name", "type", "items", "fetched"
+    let mut out = format!(
+        "{:<name_w$} {:<type_w$} {:>6}  {:<12} {:<12} id\n",
+        "name", "type", "items", "fetched", "parent"
     );
     for (t, name) in tabs.iter().zip(&names) {
-        println!(
-            "{:<12} {:<name_w$} {:<type_w$} {:>6}  {:<12} {}",
-            t.id,
+        out.push_str(&format!(
+            "{:<name_w$} {:<type_w$} {:>6}  {:<12} {:<12} {}\n",
             name,
             t.r#type,
             items_cell(t.fetched_at, t.item_count),
             ago(now, t.fetched_at),
-            t.parent.as_deref().unwrap_or("")
-        );
+            t.parent.as_deref().unwrap_or(""),
+            t.id,
+        ));
     }
+    out
+}
+
+pub fn tabs(realm: Realm, league: &str, json: bool) -> Result<()> {
+    let store = open()?;
+    let tabs = store.tabs(realm.as_str(), league)?;
+    if json {
+        println!("{}", serde_json::to_string_pretty(&tabs)?);
+        return Ok(());
+    }
+    if tabs.is_empty() {
+        println!(
+            "no tabs known for {}{league} in {} (run `acq stashes` or `acq refresh --all`)",
+            realm_prefix(realm),
+            store.path().display()
+        );
+        return Ok(());
+    }
+    let now = acquisition_store::now();
+    print!("{}", render_tabs_table(&tabs, now));
     let fetched = tabs.iter().filter(|t| t.fetched_at.is_some()).count();
     let folders = tabs.iter().filter(|t| t.r#type == "Folder").count();
     let never = tabs.len() - fetched - folders;
@@ -903,5 +910,30 @@ mod tests {
         assert_eq!(items_cell(Some(1), 7), "7");
         assert_eq!(clip("abcdef", 4), "abc…");
         assert_eq!(clip("abc", 4), "abc");
+    }
+
+    #[test]
+    fn c53_stash_tab_ids_are_the_final_column() {
+        let tabs = [acquisition_store::TabRow {
+            realm: "pc".into(),
+            league: "Standard".into(),
+            id: "child-id".into(),
+            parent: Some("parent-id".into()),
+            name: "Child".into(),
+            r#type: "PremiumStash".into(),
+            idx: Some(1),
+            listed_at: Some(90),
+            fetched_at: Some(90),
+            removed_at: None,
+            item_count: 7,
+            fetched_items: Some(7),
+        }];
+        let text = render_tabs_table(&tabs, 100);
+        let mut lines = text.lines();
+        assert!(lines.next().unwrap().ends_with(" id"), "{text}");
+        let row = lines.next().unwrap();
+        assert!(row.starts_with("  Child"), "{text}");
+        assert!(row.contains("parent-id"), "{text}");
+        assert!(row.ends_with("child-id"), "{text}");
     }
 }
