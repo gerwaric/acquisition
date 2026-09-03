@@ -32,8 +32,9 @@ Then, only when the work touches it:
   jobs, protocol, accounts), `decisions/network.md` (limiter, gate, rails,
   OAuth traffic), `decisions/store.md` (ingest, facts, realm, characters),
   `decisions/plans.md` (sync policy, planner, quote, apply),
-  `decisions/frontends.md` (CLI, MCP, rendering). Each module's doc names
-  its file and ids at the top.
+  `decisions/pricing.md` (buyout intent, listing state, currency table,
+  price plans, import, render), `decisions/frontends.md` (CLI, MCP,
+  rendering). Each module's doc names its file and ids at the top.
 - Before touching the store, planner, or plan slice: `REFRESH-SLICE.md`
   (closed record; its findings table is the review checklist) and the
   crates' module docs (`src/lib.rs`, "As built").

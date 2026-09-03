@@ -21,9 +21,12 @@ username-named file); here, `annotations.rs`, `schema.sql` (characters
 keyed by id, tabs by realm, league and id) and the planner's versioned
 strict-parse path. The C++ app is evidence of rules, never of shape.
 
-Tentative ids `C64`–`C79` are assigned in reading order; at harvest the
-accepted lines are renumbered consecutively from the registry's next
-id, and the ids in this file are never cited from code or tests.
+Harvested 2026-09-03, every line accepted as written. The registry's next
+id was C64, so `C64`–`C79` are the registry ids; the lines live in
+`decisions/pricing.md`, `decisions/plans.md` (C76, C77) and `CONTEXT.md`
+(C79), and are cited from there. The *Mechanism (to the code at harvest)*
+paragraphs stay here until the slice step that builds each piece moves
+them into the module doc the entry's *Details:* names.
 
 ## Frame
 
@@ -154,65 +157,65 @@ one element and stays where it is.
 ### (b) Landings on open topics
 
 - **C64 — Pricing is intent edited offline: manual listing intent is stored as explicit assertions only; game pricing, inheritance and every listing state are derived.** A `buyout` row sits on an item, a tab, a substash or a character; *inherit* is the absence of a row, never a value; a price observed in a tab name or item note is a derivation from a fact, never a row; what an item's listing is — manual side, game side, their relation, its eligibility — is recomputed on read. No pricing operation contacts the daemon, quotes, or creates a job. *Why:* C++ materialized inherited prices onto every item and then needed locks so a refresh could not fight an edit; a derivation cannot be clobbered (C34). *Details:* `acquisition-plan` doc, C64. — `decisions/pricing.md`
-  *Recommend:* accept. **Ruling:** ___
+  *Recommend:* accept. **Ruling:** accepted as written (owner, 2026-09-03).
 
 - **C65 — Every intent write carries structured provenance: the channel it came through (`written_via`), an optional claimed `actor`, and the hash of the plan that landed it (`applied_plan`, C71).** Stored on the row (annotations v3), returned on every read, required by the write API; `actor` is untrusted audit metadata, never identity or authorization; origin detail lives on the receipt (C78), never per row. Rows written before v3 migrate as `unknown_legacy` with no plan — a migration never manufactures a writer or a receipt. *Why:* pattern 4 — who set a price and through what cannot be reconstructed later, and C14 makes agents writers of intent. Cheap today, unrecoverable after the first import (P3). *Details:* `annotations.rs` doc, C65. — `decisions/pricing.md`
-  *Recommend:* accept, before the first price is written. **Ruling:** ___
+  *Recommend:* accept, before the first price is written. **Ruling:** accepted as written (owner, 2026-09-03).
 
 - **C66 — Intent values are typed at the write API: a kind declares its schema version and a strict parser, a value that does not parse under its stamp never lands, and a current-schema value re-serializes to exactly what was read.** The generic — version gate, unknown fields refused at every depth, exact round-trip, then compare-and-swap — is factored out of the sync policy's parser into the store crate over a per-kind trait; each kind's shape stays its owner's; an older stored value upgrades in memory, its raw JSON untouched. *Why:* a value shape that changes after data exists is a migration of the irreplaceable state (pattern 4), so strict-from-day-one must be structural, not each frontend's discipline. *Details:* `annotations.rs` doc, C66. — `decisions/pricing.md`
-  *Recommend:* accept. **Ruling:** ___
+  *Recommend:* accept. **Ruling:** accepted as written (owner, 2026-09-03).
 
 - **C67 — The `buyout` value, v1, and its target.** A typed `PriceTarget` — item and character by id (C55), tab by `(realm, id)`, substash by `(realm, parent, id)`, league absent so intent follows a tab through a league merge — is the public API; frontends never build raw keys. `type` is `buyout`, `fixed`, `no_price` or `ignore`; the first two carry `amount` and `currency` (a reference tag, C68). `amount` is an exact positive rational in one canonical text, never a float; emitted and accepted forms are narrowed from trade claims, the stored type is not. `current_offer` is refused at write, kept at import as a non-action. *Why:* the key mirrors the store's identity (C54, C58); exact arithmetic without float rounding. *Details:* `acquisition-plan` doc, C67. — `decisions/pricing.md`
   *Mechanism (to the code at harvest):* canonical text = digits with at most one point, or `a/b` reduced with `b > 1`; no sign, no exponent, no redundant leading zeros (`0.5` keeps its zero), no trailing fractional zeros, non-zero; digit and scale bounds once evidence supplies them; equality is on the reduced rational. An imported `REAL` converts by its shortest round-trip decimal — an honest conversion, not recovery of lost text. `no_price` and `ignore` carry neither amount nor currency, and their presence is a parse error.
-  *Recommend:* accept; the grammar's edge is the one deliberately open clause. **Ruling:** ___
+  *Recommend:* accept; the grammar's edge is the one deliberately open clause. **Ruling:** accepted as written (owner, 2026-09-03).
 
 - **C69 — An item's listing is two independent resolutions and their relation, never one scalar.** The manual side resolves by specificity (C70); the game side resolves item note, then tab name, and carries whether its stash is public. The relation is manual-only, game-only, agree, conflict or none; `ignore` is a disposition on the manual side and never denies the observed game price. Every result carries both sides with causes, revisions, basis, age, parser and reference versions. What a relation *means* is each consumer's rule as a Rust derivation (C74), never a frontend's. *Why:* game observation, forum intent, disposition and renderability are four statements; C++ fused them and needed locks; "game wins" had no evidence. *Details:* `acquisition-plan` doc. — `decisions/pricing.md`
   *Mechanism (to the code at harvest):* a read's output is a plan's input — the revisions and basis on the result become preconditions and provenance. Item-note precedence has four classes: absent or ordinary text falls through to the tab; a recognized price note is used; a price-looking note that does not parse is reported and the tab price is *not* substituted; a recognized syntax with an unknown currency keeps the parsed structure and the tag, reported. A tilde-prefixed note or tab name that parses as nothing is counted and inspectable in `price status` — the drift tripwire (C56) applied to price formats.
-  *Recommend:* accept. The conflicting row is stored and reported as `conflict`. **Ruling:** ___
+  *Recommend:* accept. The conflicting row is stored and reported as `conflict`. **Ruling:** accepted as written (owner, 2026-09-03).
 
 - **C70 — A priced tab covers that tab and its children, the way a policy id does (C37);** a substash row overrides its parent's for that substash; an item row overrides both; a character row covers its items. Coverage is the manual side's inheritance only — it says nothing about eligibility (C74). *Why:* the C++ store already lands substash items' location prices on the parent, and the house rule for tab-scoped intent should not have two shapes. — `decisions/pricing.md`
-  *Recommend:* accept. **Ruling:** ___
+  *Recommend:* accept. **Ruling:** accepted as written (owner, 2026-09-03).
 
 - **C71 — A `PricePlan` compiles a desired state against a named snapshot and is applied atomically to the intent file; its preconditions protect intent, and fact drift is reported, never a gate.** Desired state (handles, a document, a foreign store) compiles into the envelope, a precondition set (one revision per row touched, tombstone generations included, with the prior value), the mutations, non-actions with reasons, and mutation counts as its cost; duplicates are refused. Apply checks every precondition and cited reference tag in one transaction, all or none; the result is every row as written and whether facts moved. *Why:* what was reviewed is what lands (C38); C44 and C52 are this set with one element (pattern 9). *Details:* `acquisition-plan` doc. — `decisions/pricing.md`
   *Mechanism (to the code at harvest):* envelope = provider, uuid, operation, schema stamp, fact and reference bases; a never-existed row's revision is 0 and a deleted row's is its tombstone's, so "one moved revision refuses" is exactly true; counts = create, update, clear, unchanged, refused. Facts and intent are separate files and never share a transaction: the result's fact report is an observed-after basis and a changed/unchanged indication, not a snapshot. Reference compatibility = every cited tag still resolves with the same realm and meaning (C68).
-  *Recommend:* accept. **Ruling:** ___
+  *Recommend:* accept. **Ruling:** accepted as written (owner, 2026-09-03).
 
 - **C72 — Pricing never edits the sync policy, and a price never locks a tab into refresh.** The relationship between the two kinds of intent is reported, not enforced: the consumer that needs freshness — `shop render` first — names priced locations outside the policy's coverage and priced facts older than its stated window, each with the remedy (the policy edit, or the `RefreshPlan` it would take, C41). *Why:* C++'s "priced tabs are always refreshed" is one kind of intent silently rewriting another; a report keeps the policy what its author wrote (pattern 10, 08 boundary 7). — `decisions/pricing.md`
-  *Recommend:* accept. **Ruling:** ___
+  *Recommend:* accept. **Ruling:** accepted as written (owner, 2026-09-03).
 
 - **C73 — The legacy import is a source of desired state for the one compiler (C71), read from the 0.18 userstore under one consistent snapshot, with every source row accounted for in the reviewed plan.** Manual rows are the desired state; inherited, game, auto and `~c/o` rows are non-actions with those reasons; a target the facts lack is a non-action (remedy: refresh); an existing row is never overwritten; the realm is an explicit parameter. The file names a username and no uuid: the plan states the claimed binding, its evidence and confidence; an unverifiable binding needs acknowledgement at apply; only contradiction refuses. *Why:* the wizard dissolves into the plan/apply path; a refusal keeps what it refused (pattern 2). *Details:* `acquisition-plan` doc. — `decisions/pricing.md`
   *Mechanism (to the code at harvest):* the userstore is WAL, so a hash of the `.db` file can omit uncheckpointed content — the receipt's origin digests the rows as read. Binding confidence: `verified` (the filename's username maps to this uuid in the account index, current or former name), `corroborated` (a stated share of the source's item and location ids are in this account's facts), `unverified` (neither, zero overlap included — absence of evidence is not evidence of another identity; apply requires an explicit acknowledgement), `contradicted` (affirmative evidence of another identity: the name maps to another uuid on record) — only the last refuses. An equal existing row is `unchanged`, a differing one `existing_differs`; a second run is all `unchanged`; `REAL` amounts convert per C67. A `not_in_facts` row keeps enough detail to recover it after a refresh.
-  *Recommend:* accept. **Ruling:** ___
+  *Recommend:* accept. **Ruling:** accepted as written (owner, 2026-09-03).
 
 ### (c) New scope
 
 - **C68 — Reference data is a fifth input, versioned by the build: a reviewed, committed table whose every row cites its evidence, shipped inside the binary, read-only, never in a store file, enumerable through every surface, cited by version wherever used.** A tool may propose rows from a governed source (C79); a human commits. The currency table is first, separating the immutable tag intent cites, the text the renderer emits, and the aliases a parser accepts (the last two from claims). Evolution is by semantic identity: a tag is never removed or reused; additions are reported. *Why:* not an account fact, not intent, not a derivation — the tower had not placed it (pattern 8); an evidence-free table is how the C++ list rotted. *Details:* beside its consumer. — `decisions/pricing.md`
   *Mechanism (to the code at harvest):* a currency row = stable tag (`chaos`, `divine`, …), display name, emitted text, accepted aliases, realm applicability, evidence (an official data export, a `T<n>` claim, or a dated human observation); the table's version and digest join the basis a plan or render stamps, and apply checks that every cited tag still resolves with the same realm and meaning (C71) — the digest is recorded, the semantic check gates.
-  *Recommend:* accept now, at the first meeting. **Ruling:** ___
+  *Recommend:* accept now, at the first meeting. **Ruling:** accepted as written (owner, 2026-09-03).
 
 - **C74 — `shop render` is in scope as a derivation, publishing is not, and every item the page omits is counted with a named reason.** The page is a pure function of facts, intent, reference data, a template and a ruled publication policy; it sends nothing; the template is a render-time input, not stored; the owner pastes by hand. Nothing is skipped silently; a relation the policy has not ruled is reported as blocked, never guessed. The policy and the forum mechanics are ruled from trade claims gathered by a separate instrument, never from the renderer's own output. *Why:* every human surface is a derivation over a machine surface (pattern 3); the posts stay parked behind their own boundary session. *Details:* `acquisition-plan` doc, C74. — `decisions/pricing.md`
   *Mechanism (to the code at harvest):* eligibility reasons in view — a disposition, a conflict (C69), a public game listing, socketing, an unsupported container, a missing position or tab index, removal, an unknown currency, blocked-unruled; the policy is a table from relation to include-or-omit-with-reason, each row citing the claim that rules it; the census (step 2c) checks which shapes the real facts hold. Forum mechanics in question: spoiler grouping, link codes, the post limit, page splitting, the hash.
-  *Recommend:* accept. **Ruling:** ___
+  *Recommend:* accept. **Ruling:** accepted as written (owner, 2026-09-03).
 
 - **C75 — Pricing lives in `acquisition-plan` as a module; `PricePlan` is built operation-specific, and what the two plan-bearing consumers genuinely share is recorded after it exists, not presumed.** The hypothesis to test: the shared thing is the compile → review → apply loop and an envelope discipline (stamp, strict round-trip parse, provider and uuid, basis, precondition set, non-actions, counts), and not the action vocabulary or the apply target. A crate split waits for a dependency-graph property it would buy. *Why:* generalize after two consumers reveal the shared property (P3); pattern 9 predicts a family sharing a discipline, and ruling "never a grammar" up front would prejudge the test. — `decisions/pricing.md`
-  *Recommend:* accept. **Ruling:** ___
+  *Recommend:* accept. **Ruling:** accepted as written (owner, 2026-09-03).
 
 - **C78 — Every applied price plan leaves an intent receipt in the same transaction, from which a conditional inverse can be compiled.** A receipt (annotations v3) holds the plan's hash over its canonical serialization, when and through what it was applied, its origin, its counts, and each mutation with prior and written values; a no-op plan leaves none; a row's `applied_plan` (C65) names its receipt. `revert` compiles a new plan against current revisions and refuses whole if any row moved — history is evidence, never replayed. A row-granularity event log is not built. *Why:* the driver must answer "did that land?" and "undo it" for a batch of hundreds; the parked event log's trigger fires at pricing (pattern 5). *Details:* `annotations.rs` doc. — `decisions/pricing.md`
   *Mechanism (to the code at harvest):* "repriced since T" and "undo the import" are reads over receipts; non-actions are kept as counts, not rows, so the reviewed plan is the artifact that explains an import's refusals — which makes its retention a visible surface: an import always writes its reviewed plan to disk beside the store, named by hash, before apply, and the receipt cites that path.
-  *Recommend:* accept. **Ruling:** ___
+  *Recommend:* accept. **Ruling:** accepted as written (owner, 2026-09-03).
 
 ### A line for `CONTEXT.md` (cross-cutting)
 
 - **C79 — Surfaces GGG does not sanction — the trade site, the forums, third-party feeds — are governed inputs, never runtime dependencies, and permission attaches to the access method.** The daemon never touches them; no store read, plan compile or apply depends on one; each is registered with its status, terms exposure, access method and cadence. A human may read one; tooling fetches one only from an official export or with explicit permission recorded in its entry. What a surface yields lands as claims or reviewed reference data, sources cited. One used as an *effect* needs its own boundary session first. *Why:* Acquisition predates the API and has always used such surfaces; the relationship is protected by keeping them deliberate, not by pretending otherwise. — `CONTEXT.md`
-  *Recommend:* accept; the first registered surface is the trade site, access method `browser` (currency evidence, the forum matrix), no automation. **Ruling:** ___
+  *Recommend:* accept; the first registered surface is the trade site, access method `browser` (currency evidence, the forum matrix), no automation. **Ruling:** accepted as written (owner, 2026-09-03).
 
 ### Lines for `decisions/plans.md` (the two open topics)
 
 - **C76 — One door, as direction: an explicit selection (`--tabs`, `--all`, `--characters`) compiles to a plan through the same envelope and apply, and the ad-hoc `refresh` kind retires when nothing submits it.** The selection plan's precondition set is empty (no stored intent was derived from); its listing, freshness and two-cycle semantics are ruled in its own slice, with `tools/persist-check.sh` moved onto it. *Why:* two doors to one task; the empty set is the third data point for pattern 9's precondition set (policy: one; price: many; selection: none). Four tracer runs not using the old door are weak evidence about one-off workflows, so the semantics wait for their slice. — `decisions/plans.md`
-  *Recommend:* accept the direction; build after pricing. **Ruling:** ___
+  *Recommend:* accept the direction; build after pricing. **Ruling:** accepted as written (owner, 2026-09-03).
 
 - **C77 — Freshness is evaluated at compile time against the window; a later replan that refetches facts which aged past the window during a long cycle is correct, not a fault.** A plan does not pre-fetch what is fresh at compile. Naming the facts that will age during the cycle (`aging`) belongs to a quote-bearing plan whose cycle estimate is trusted, and waits for that evidence. *Why:* the 2026-09-02 rerun's 6-request cycle 2 was the window doing its job; an offline plan has no honest cycle estimate; a cycle-based handle ("fresh as of every run") is the C++ model the policy replaced (C36). — `decisions/plans.md`
-  *Recommend:* accept. **Ruling:** ___
+  *Recommend:* accept. **Ruling:** accepted as written (owner, 2026-09-03).
 
 ### (d) Recorded rejections (so nothing is re-argued or adopted by not noticing)
 

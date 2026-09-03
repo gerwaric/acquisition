@@ -27,7 +27,8 @@ Only the **cross-cutting** decisions are here, because an agent must know them b
 | `decisions/daemon.md` | Daemon, jobs, protocol, accounts | C3, C5, C6, C7, C8, C9, C10, C23, C27, C45, C31, C49, C50, C51 |
 | `decisions/network.md` | Network and rate limiting | C17, C18, C19, C20, C21, C22, C24, C25, C26, C32, C33 |
 | `decisions/store.md` | Store: facts, realm, characters | C28, C29, C30, C54, C55, C56, C57, C58, C59, C60, C61, C62, C63 |
-| `decisions/plans.md` | Intent, plans, apply | C36, C37, C39, C40, C41, C42, C43, C44 |
+| `decisions/plans.md` | Intent, plans, apply | C36, C37, C39, C40, C41, C42, C43, C44, C76, C77 |
+| `decisions/pricing.md` | Pricing: intent values, listing, reference data, price plans, import, render | C64, C65, C66, C67, C68, C69, C70, C71, C72, C73, C74, C75, C78 |
 | `decisions/frontends.md` | Frontends and output | C11, C13, C16, C52, C53 |
 
 ### Cross-cutting
@@ -44,6 +45,7 @@ Only the **cross-cutting** decisions are here, because an agent must know them b
 - **C46 — Shared semantics live in Rust; every frontend has a Rust adapter** (clap CLI, `rmcp` MCP, Tauri backend — the webview is presentation, never a second implementation — `dash` TUI). A proposed non-Rust frontend is a design event, recorded here first. *Why:* this premise is what makes "built once, inherited by every frontend" true; unstated premises erode silently. Decided 2026-08-31.
 - **C47 — Panics are for broken internal invariants only; malformed external input — a GGG body, a store row, a protocol message — is a structured error with stable kinds and context.** The store and plan crates enforce it mechanically (`clippy::unwrap_used`/`expect_used` denied in production code); the daemon's `.lock().unwrap()` poisoning idiom stays. *Why:* the persisted queue makes crashes recoverable, which turns a reproducible panic on bad input into a crash loop — the one failure persistence cannot absorb. Decided 2026-08-31.
 - **C48 — The SQLite schema is internal; raw SQL is not a surface.** Schema versions and compatibility errors; defended by making the store crate's API expressive enough that going around it is never worth it. No cached search service. *Why:* stale results mistaken for current truth is the failure a cache reintroduces; reopening needs a measured duplication or latency case. Decided 2026-08-31.
+- **C79 — Surfaces GGG does not sanction — the trade site, the forums, third-party feeds — are governed inputs, never runtime dependencies, and permission attaches to the access method.** The daemon never touches them; no store read, plan compile or apply depends on one; each is registered with its status, terms exposure, access method and cadence. A human may read one; tooling fetches one only from an official export or with explicit permission recorded in its entry. What a surface yields lands as claims or reviewed reference data, sources cited. One used as an *effect* needs its own boundary session first. *Why:* Acquisition predates the API and has always used such surfaces; the relationship is protected by keeping them deliberate, not by pretending otherwise. Ruled 2026-09-03.
 
 ## Interfaces (boundaries are specified; internals are not)
 
@@ -70,7 +72,6 @@ What a real consumer needed from the protocol and did not get. Facts, not decisi
 ## Open topics
 
 - Priority levels: how many, and named or numeric? (Interactive > background is the intuition, *regardless of frontend* — an agent in a live conversation is interactive; the caller states its urgency, the frontend doesn't imply it.)
-- The ad-hoc `refresh --tabs`/`--all` kind beside the plan path: two doors to one task. Evidence in: across four live runs nobody reached for it (the tracer's friction prompt asked). Retiring it needs one design answer first — how a human fetches exactly one tab without authoring a policy (an explicit selection compiled as a policy-less plan through the same envelope and apply?). A candidate line for the pricing packet; the kind stays until then.
 - Pending ground-truth claims from the 2026-09-02 documentation read (not observed, so not yet claims): realm segment semantics per endpoint and pc-by-omission; PoE2 on the character endpoints only; `inventoryId` undocumented; the invalid-request (4xx) threshold.
 
 (2026-08-31: "delta/selection for refresh" and "user state on items" are resolved into the sync-policy / annotations / Plan decisions above; the tracer section above built them.)
@@ -78,18 +79,28 @@ What a real consumer needed from the protocol and did not get. Facts, not decisi
 ## Explicitly deferred (do not build yet)
 
 - Queue-management UI (drag-to-reorder, per-job progress bars). v1.0 only guarantees the architecture makes this a rendering problem.
-- **Parking lot (2026-08-31, each with its trigger so deferral never needs re-arguing):**
-  - Pricing-as-document → lands on the annotations layer + plan/apply after the tracer and after characters join the refresh plan (agreed 2026-09-02); the second plan-bearing consumer, and the test of whether Plan is one grammar or a family of operation-specific documents.
-  - Legacy buyout import → a patch generator into the ordinary annotation plan/apply path; the wizard dissolves.
-  - Shop / forum publishing → outward credentialed traffic (POESESSID) **outside the API choke-point invariant**; requires its own equally structural ownership/rate/safety boundary session before any implementation.
-  - User-scoped annotations home (`user.db`) + scope taxonomy → trigger: the first user-scoped kind (currency ratios, saved searches).
-  - Annotation event log → trigger: `diff --since` needs "what got repriced," or conflicts need history (row revisions exist from day one; the schema is shaped so the log is an addition, not a migration).
+- **Parking lot (2026-08-31; pricing entries replaced 2026-09-03 at the packet's harvest — each with its trigger so deferral never needs re-arguing):**
+  - Shop / forum publishing (POESESSID, thread numbers, one post per page, auto-post after a clean refresh) → outward credentialed traffic **outside the API choke-point invariant**; its own boundary session before any code — the third apply target of the one loop, with its own cost dimension. Trigger: the render (C74) validated and the owner wanting the posts automated.
+  - Third-party price feeds (market prices, suggested prices) → a governed surface under C79. Trigger: currency ratios or a "suggest a price" consumer.
+  - User-scoped annotations home (`user.db`) + scope taxonomy → trigger: the first user-scoped kind actually written (shop template, currency ratios, saved searches); pricing v1 takes the template from a file.
+  - Row-granularity annotation history → trigger: a "since" question receipts (C78) cannot answer at the pricing readings, or a conflict whose resolution needs more than the two plans involved.
+  - One change cursor over facts and intent (`item_events` and receipts read as one "since" stream) → trigger: the pricing slice's agent run (step 9) shows two reads where one would do.
+  - The read economy as a ruling (summary by default, filters, bounded detail) → trigger: step 9's re-read record; until then it is surface design under C53.
+  - Batch pricing by query (price everything a search selects) → lands on search semantics. Trigger: a real batch workflow the handles and the JSON document cannot express.
+  - Current offer (`~c/o`) as a value → trigger: the census finding rows the owner wants kept, or a real use.
+  - The amount grammar's edge (ratios, precision bound) → ruled from the census (step 2c) before Buyout v1 freezes; not parked past it.
+  - PoE2 currencies and per-realm tags → trigger: a PoE2 stash endpoint or a poe2 price the owner wants to set; the table carries realm applicability from day one, so this is rows, not shape.
+  - Coverage advice in `refresh --plan` (the planner naming priced locations outside coverage) → trigger: `price status` and the render's report (C72) proving the wrong place for it.
+  - `aging` in the plan (C77) → trigger: a quote-bearing plan whose cycle estimate is trusted.
+  - Currency totals and history → a derivation over facts, cheap; after pricing stands.
+  - The explicit-selection door (C76) → its own slice after pricing, where its listing, freshness and two-cycle semantics are ruled.
+  - Name→id resolution for price targets (`price set tab:"Maps"`) → trigger: authoring friction at the CLI, the same rule as C63.
   - Wire-send budget → trigger: a consumer that needs enforcement over actual sends, not logical work.
-  - Universal Plan grammar / five-verb surface → direction only; evidence at pricing.
+  - Universal Plan grammar / five-verb surface → direction only; evidence at pricing (C75's finding, slice step 9).
   - Dynamic `--deep` fan-out under plans → trigger: tracer evidence that two-cycle reconciliation genuinely hurts (2026-09-01: the tracer rung produced none; stays parked).
   - Type-level sync-policy filters ("skip map tabs", "include unique tabs", "fetch folder children") → trigger: a policy author who needs a type exclusion the parent-covers-children rule cannot express; a policy-shape change (planner owns the schema).
   - Fact-path migration to uuid naming → opportunistic, or never (facts are refetchable).
-  - Per-realm merge at `policy set` (today a set replaces the whole policy, so a poe2 run erases the pc policy — seen 2026-09-02) → trigger: a second realm in daily use; until then the author re-sets the pc policy, one command.
+  - Per-realm merge at `policy set` (today a set replaces the whole policy, so a poe2 run erases the pc policy — seen 2026-09-02) → trigger: a second realm in daily use, or the coverage gap's remedy (C72: it prints the whole edited policy) proving unusable at the pricing readings; until then the author re-sets the pc policy, one command.
   - Search-at-scale (FTS at ingest, search-crate factoring behind the store API) → trigger per the two-surface stress test: a real consumer with a measured latency or duplication case.
 
 ## Working style
