@@ -137,9 +137,9 @@ acq refresh --plan [--realm R] [--league L]  # compile policy + facts into the e
                                              #  a running daemon adds its read-only quote (never spawned for this),
                                              #  and --json prints the serialized plan envelope itself
                                              #  (--realm poe2 plans a character-only entry). The text groups the
-                                             #  actions by kind and parent and counts by reason (a group of more
-                                             #  than ten is counted, never listed); --expand is one line per
-                                             #  action; --plan=FILE renders a reviewed envelope the same way
+                                             #  default text is the decision view, --expand the audit view, and
+                                             #  --json the authorization envelope; groups over ten are counted;
+                                             #  --plan=FILE renders a reviewed envelope through the same views
 acq refresh --apply[=plan.json]              # execute the plan: exactly its actions, as one `apply` parent job
                                              #  (bare --apply compiles the stored policy now; =FILE applies a
                                              #  reviewed envelope, =- reads stdin). Refused before any daemon

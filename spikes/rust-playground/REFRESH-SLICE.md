@@ -96,7 +96,9 @@ Properties, each now a line in `CONTEXT.md` or a claim in ground truth:
   `Character.realm` `poe2`, per-realm lists, item `realm` on PoE2 only,
   id-less item-granted skills (N41–N44).
 - Legible output: the 112-request plan rendered in 14 lines and was
-  approved; what remains open is density, not structure.
+  approved. C53 now defines the density model — default text is the
+  decision view, `--expand` the audit view, JSON the contract — for the
+  next live reading to validate.
 
 ## Observations still open
 

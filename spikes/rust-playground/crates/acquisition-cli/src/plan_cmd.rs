@@ -24,6 +24,14 @@
 //!
 //! ## C53 — Legible output for the refresh slice, as ruled (2026-09-02)
 //!
+//! **Density amendment (owner-approved 2026-09-02): default text is the
+//! decision view, `--expand` is the audit view, and JSON is the contract.**
+//! The default says repeated context once, removes explanatory prose and
+//! provenance that cannot change the next decision, and keeps handles only
+//! where they are useful. Audit text retains the complete basis, per-action
+//! reasons, types, wire prerequisites, and quote evidence. The envelope is
+//! unchanged. Owner verdict on the proposed model: "Yes, this is good."
+//!
 //! **Two consumers, read differently.** The owner at a terminal reads once,
 //! top to bottom, and needs five answers in order: what will this do, what
 //! did it do, what changed, what went wrong, what do I type next. An agent
@@ -348,7 +356,7 @@ pub async fn refresh_apply(
                 })
             );
         } else {
-            print!("{}", render_nothing_to_do(&plan));
+            print!("{}", render_nothing_to_do(&plan, acquisition_store::now()));
         }
         return Ok(());
     }
@@ -631,9 +639,69 @@ fn columns(rows: &[(usize, String, String)]) -> String {
     out
 }
 
-/// The header both the grouped and the expanded forms share.
-fn render_header(plan: &RefreshPlan, now: i64) -> String {
+/// The audit header keeps every basis handle. The decision view keeps only
+/// context that can change whether the reader applies the plan.
+fn render_header(plan: &RefreshPlan, now: i64, audit: bool) -> String {
     let account = plan.account_name.as_deref().unwrap_or(&plan.account_uuid);
+    if !audit {
+        let plan_age = (now - plan.generated_at).max(0);
+        let age = if plan_age < 90 {
+            String::new()
+        } else {
+            format!(" (plan {} old)", dur(plan_age))
+        };
+        let mut out = format!(
+            "refresh {}{} on {} as {} — policy {}{age}\n",
+            store_cmd::realm_prefix(plan.realm),
+            plan.league,
+            plan.provider,
+            account,
+            plan.basis.policy_revision,
+        );
+        let has_tabs = plan.actions.iter().any(|a| {
+            matches!(
+                a,
+                RefreshAction::ListStashes { .. }
+                    | RefreshAction::FetchTab { .. }
+                    | RefreshAction::FetchSubstash { .. }
+            )
+        }) || !plan.skipped_tabs.is_empty()
+            || !plan.unknown_tabs.is_empty();
+        let has_characters = plan.actions.iter().any(|a| {
+            matches!(
+                a,
+                RefreshAction::ListCharacters { .. } | RefreshAction::FetchCharacter { .. }
+            )
+        }) || !plan.skipped_characters.is_empty()
+            || !plan.unknown_characters.is_empty();
+        let stash_age = plan
+            .basis
+            .stash_listing
+            .as_ref()
+            .map(|l| dur(plan.generated_at - l.fetched_at));
+        let character_age = plan
+            .basis
+            .character_listing
+            .as_ref()
+            .map(|l| dur(plan.generated_at - l.fetched_at));
+        let facts = match (has_tabs, has_characters, stash_age, character_age) {
+            (true, true, Some(stash), Some(characters)) if stash == characters => {
+                format!("stash and characters listed {stash} ago")
+            }
+            (true, true, stash, characters) => format!(
+                "stash {}; characters {}",
+                basis_age(stash),
+                basis_age(characters)
+            ),
+            (true, false, stash, _) => format!("stash {}", basis_age(stash)),
+            (false, true, _, characters) => {
+                format!("characters {}", basis_age(characters))
+            }
+            (false, false, _, _) => "no covered facts".into(),
+        };
+        out.push_str(&format!("facts: {facts}\n\n"));
+        return out;
+    }
     let mut out = format!(
         "refresh plan: {}{} on {} as {} — policy revision {}\n",
         store_cmd::realm_prefix(plan.realm),
@@ -647,7 +715,7 @@ fn render_header(plan: &RefreshPlan, now: i64) -> String {
     let stash = match &plan.basis.stash_listing {
         Some(l) => format!(
             "stash listing {} old (response {})",
-            dur(now - l.fetched_at),
+            dur(plan.generated_at - l.fetched_at),
             l.response_id
         ),
         None => "stashes never listed".into(),
@@ -655,13 +723,17 @@ fn render_header(plan: &RefreshPlan, now: i64) -> String {
     let characters = match &plan.basis.character_listing {
         Some(l) => format!(
             "character listing {} old (response {})",
-            dur(now - l.fetched_at),
+            dur(plan.generated_at - l.fetched_at),
             l.response_id
         ),
         None => "characters never listed".into(),
     };
     out.push_str(&format!("basis: {stash}, {characters}\n\n"));
     out
+}
+
+fn basis_age(age: Option<String>) -> String {
+    age.map_or_else(|| "never listed".into(), |age| format!("listed {age} ago"))
 }
 
 /// The verdict line over the actions: the counts, the wire range, and the
@@ -680,6 +752,20 @@ fn render_verdict(plan: &RefreshPlan) -> String {
     )
 }
 
+fn render_wire(plan: &RefreshPlan) -> String {
+    let range = if plan.wire_sends.min == plan.wire_sends.max {
+        plan.wire_sends.min.to_string()
+    } else {
+        format!("{}–{}", plan.wire_sends.min, plan.wire_sends.max)
+    };
+    let extras = if plan.wire_sends.prerequisites.is_empty() {
+        ""
+    } else {
+        "; plus first-contact probes and token refresh if needed"
+    };
+    format!("wire: {range} sends{extras}\n")
+}
+
 /// The full text of `acq refresh --plan`: header, verdict, the grouped (or
 /// expanded) actions, the skips, the quote or why there is none, and what
 /// to type next.
@@ -690,34 +776,47 @@ pub(crate) fn render_plan(
     expand: bool,
     source: Option<&str>,
 ) -> String {
-    let mut out = render_header(plan, now);
-    if plan.actions.is_empty() {
-        // Same honesty as apply's no-op note: an empty plan is not
-        // necessarily "all fresh" — the skip lines carry the reasons.
-        out.push_str("nothing to do: the plan authorizes no requests\n");
-    } else {
-        out.push_str(&render_verdict(plan));
-        if expand {
-            for action in &plan.actions {
-                out.push_str(&format!("  {}\n", describe_action(action)));
-            }
-        } else {
-            out.push_str(&render_grouped_actions(&plan.actions));
-        }
+    if plan.actions.is_empty() && !expand {
+        return render_nothing_to_do(plan, now);
     }
-    out.push_str(&render_skips(plan));
-    // An empty plan has nothing to quote and nothing to apply: the
-    // verdict and the skips are the whole of it.
+    let mut out = render_header(plan, now, expand);
     if plan.actions.is_empty() {
+        out.push_str(&render_nothing_to_do(plan, now));
         return out;
     }
+    let common_reason = if expand {
+        None
+    } else {
+        common_action_reason(&plan.actions)
+    };
+    if expand {
+        out.push_str(&render_verdict(plan));
+        for action in &plan.actions {
+            out.push_str(&format!("  {}\n", describe_action(action)));
+        }
+    } else {
+        out.push_str(&format!("{}:\n", requests(plan.logical_requests)));
+        out.push_str(&render_grouped_actions(
+            &plan.actions,
+            common_reason.is_some(),
+        ));
+        if let Some(reason) = common_reason {
+            out.push_str(&format!("reason: {reason}\n"));
+        }
+    }
+    out.push_str(&render_skips(plan, expand));
     out.push('\n');
     match (&plan.quote, quote_note) {
-        (Some(quote), _) => out.push_str(&render_quote(quote, now, expand)),
+        (Some(quote), _) if expand => out.push_str(&render_quote(quote, now, true)),
+        (Some(quote), _) => out.push_str(&render_decision_quote(quote, now)),
         // Notes are self-describing ("no quote: …", "daemon quote
         // rejected: …"), so no prefix here.
-        (None, Some(note)) => out.push_str(&format!("{note}\n")),
+        (None, Some(note)) if expand => out.push_str(&format!("{note}\n")),
+        (None, Some(note)) => out.push_str(&render_decision_quote_note(note)),
         (None, None) => {}
+    }
+    if !expand {
+        out.push_str(&render_wire(plan));
     }
     {
         let mut apply = String::from("acq refresh --apply");
@@ -732,46 +831,54 @@ pub(crate) fn render_plan(
                 }
             }
         }
-        if expand {
-            out.push_str(&format!("next: {apply}\n"));
-        } else {
-            out.push_str(&format!(
-                "next: {apply}   (--expand lists every action; --json is the envelope)\n"
-            ));
-        }
+        out.push_str(&format!("next: {apply}\n"));
     }
     out
 }
 
 /// The skip and unknown-id lines, one per facet — counts by reason; the
 /// per-entity detail is in the envelope.
-fn render_skips(plan: &RefreshPlan) -> String {
+fn render_skips(plan: &RefreshPlan, audit: bool) -> String {
     let mut out = String::new();
     if !plan.skipped_tabs.is_empty() {
-        out.push_str(&format!("{}\n", summarize_skipped_tabs(plan)));
+        out.push_str(&format!("{}\n", summarize_skipped_tabs(plan, audit)));
     }
     if !plan.unknown_tabs.is_empty() {
-        out.push_str(&format!(
-            "policy names {} tab id(s) the facts lack (reported, never fetched): {}\n",
-            plan.unknown_tabs.len(),
-            plan.unknown_tabs.join(", ")
-        ));
+        if audit {
+            out.push_str(&format!(
+                "policy names {} tab id(s) the facts lack (reported, never fetched): {}\n",
+                plan.unknown_tabs.len(),
+                plan.unknown_tabs.join(", ")
+            ));
+        } else {
+            out.push_str(&format!(
+                "unknown tabs (not fetched): {}\n",
+                plan.unknown_tabs.join(", ")
+            ));
+        }
     }
     if !plan.skipped_characters.is_empty() {
-        out.push_str(&format!("{}\n", summarize_skipped_characters(plan)));
+        out.push_str(&format!("{}\n", summarize_skipped_characters(plan, audit)));
     }
     if !plan.unknown_characters.is_empty() {
-        out.push_str(&format!(
-            "policy names {} character id(s) the facts lack (reported, never fetched): {}\n",
-            plan.unknown_characters.len(),
-            plan.unknown_characters.join(", ")
-        ));
+        if audit {
+            out.push_str(&format!(
+                "policy names {} character id(s) the facts lack (reported, never fetched): {}\n",
+                plan.unknown_characters.len(),
+                plan.unknown_characters.join(", ")
+            ));
+        } else {
+            out.push_str(&format!(
+                "unknown characters (not fetched): {}\n",
+                plan.unknown_characters.join(", ")
+            ));
+        }
     }
     out
 }
 
 /// The no-op apply's text: what is fresh and for how long, then the claim.
-fn render_nothing_to_do(plan: &RefreshPlan) -> String {
+fn render_nothing_to_do(plan: &RefreshPlan, now: i64) -> String {
     let fresh_tabs = plan
         .skipped_tabs
         .iter()
@@ -784,54 +891,54 @@ fn render_nothing_to_do(plan: &RefreshPlan) -> String {
         .count();
     let mut fresh = Vec::new();
     if fresh_tabs > 0 {
-        fresh.push(format!("{} covered tab(s)", fresh_tabs));
+        fresh.push(plural(fresh_tabs, "tab", "tabs"));
     }
     if fresh_characters > 0 {
-        fresh.push(format!("{} character(s)", fresh_characters));
+        fresh.push(plural(fresh_characters, "character", "characters"));
     }
-    let mut out = if fresh.is_empty() {
-        "nothing to do: the plan authorizes no requests\n".to_string()
-    } else {
-        format!(
-            "nothing to do: {} {} fresh (within {} s); the plan authorizes no requests\n",
+    let only_fresh = fresh_tabs == plan.skipped_tabs.len()
+        && fresh_characters == plan.skipped_characters.len()
+        && plan.unknown_tabs.is_empty()
+        && plan.unknown_characters.is_empty();
+    if !fresh.is_empty() && only_fresh {
+        let plan_age = (now - plan.generated_at).max(0);
+        if plan_age >= 90 {
+            return format!(
+                "nothing to do: this {}-old plan found {} fresh (under {})\n",
+                dur(plan_age),
+                fresh.join(" and "),
+                policy_window(plan.max_age_seconds)
+            );
+        }
+        return format!(
+            "nothing to do: {} {} fresh (under {})\n",
             fresh.join(" and "),
             if fresh_tabs + fresh_characters == 1 {
                 "is"
             } else {
                 "are"
             },
-            plan.max_age_seconds
+            policy_window(plan.max_age_seconds)
+        );
+    }
+    // When freshness is not the whole explanation, the decision is still
+    // one line and each exceptional reason is stated once below it.
+    let plan_age = (now - plan.generated_at).max(0);
+    let mut out = if plan_age < 90 {
+        "nothing to do: no requests authorized\n".to_string()
+    } else {
+        format!(
+            "nothing to do: this {}-old plan authorizes no requests\n",
+            dur(plan_age)
         )
     };
-    // Any skip that is not freshness still deserves its line.
-    let other_tabs = plan.skipped_tabs.len() - fresh_tabs;
-    let other_characters = plan.skipped_characters.len() - fresh_characters;
-    if other_tabs > 0 || !plan.unknown_tabs.is_empty() {
-        out.push_str(&format!("{}\n", summarize_skipped_tabs(plan)));
-    }
-    if other_characters > 0 || !plan.unknown_characters.is_empty() {
-        out.push_str(&format!("{}\n", summarize_skipped_characters(plan)));
-    }
-    if !plan.unknown_tabs.is_empty() {
-        out.push_str(&format!(
-            "policy names {} tab id(s) the facts lack: {}\n",
-            plan.unknown_tabs.len(),
-            plan.unknown_tabs.join(", ")
-        ));
-    }
-    if !plan.unknown_characters.is_empty() {
-        out.push_str(&format!(
-            "policy names {} character id(s) the facts lack: {}\n",
-            plan.unknown_characters.len(),
-            plan.unknown_characters.join(", ")
-        ));
-    }
+    out.push_str(&render_skips(plan, false));
     out
 }
 
 /// One fetch in a group, for the grouped renderer.
 struct Entity<'a> {
-    /// `id "name" (type)` — what the expanded line says minus the verb.
+    /// The decision-view handle and name. Types stay in the audit view.
     label: String,
     reason: &'a FetchReason,
     /// A substash's parent tab id.
@@ -843,7 +950,7 @@ struct Entity<'a> {
 /// group, listed one per line up to [`LIST_UP_TO`] and counted beyond,
 /// substashes broken down by parent. The order is the planner's: the tab
 /// facet's block, then the character facet's.
-fn render_grouped_actions(actions: &[RefreshAction]) -> String {
+fn render_grouped_actions(actions: &[RefreshAction], suppress_reasons: bool) -> String {
     let mut rows: Vec<(usize, String, String)> = Vec::new();
     let mut tabs: Vec<Entity> = Vec::new();
     let mut substashes: Vec<Entity> = Vec::new();
@@ -858,9 +965,9 @@ fn render_grouped_actions(actions: &[RefreshAction]) -> String {
     let flush_tabs = |rows: &mut Vec<(usize, String, String)>,
                       tabs: &mut Vec<Entity>,
                       substashes: &mut Vec<Entity>| {
-        // The substash qualifier reads the tab group before it is emitted
-        // (emitting clears it): "under 2 of those tabs" when every parent
-        // is itself fetched in this plan, "under 2 tabs" otherwise.
+        // The substash qualifier reads the tab group before it is emitted.
+        // If every parent is named there, their child counts need not be
+        // repeated below the substash total.
         let parents: std::collections::BTreeSet<&str> =
             substashes.iter().filter_map(|e| e.parent).collect();
         let named_above = parents
@@ -868,12 +975,20 @@ fn render_grouped_actions(actions: &[RefreshAction]) -> String {
             .filter(|p| tabs.iter().any(|t| t.label.starts_with(&format!("{p} "))))
             .count();
         let qualifier = if !parents.is_empty() && named_above == parents.len() {
-            format!(" under {} of those tabs", parents.len())
+            format!(" under {} tabs", parents.len())
         } else {
             format!(" under {}", plural(parents.len(), "tab", "tabs"))
         };
         if !tabs.is_empty() {
-            emit_group(rows, tabs, "tab", "tabs", "", &under);
+            emit_group(
+                rows,
+                tabs,
+                "tab",
+                "tabs",
+                "",
+                Some(&under),
+                suppress_reasons,
+            );
         }
         if !substashes.is_empty() {
             emit_group(
@@ -882,7 +997,8 @@ fn render_grouped_actions(actions: &[RefreshAction]) -> String {
                 "substash",
                 "substashes",
                 &qualifier,
-                &under,
+                (named_above != parents.len()).then_some(&under),
+                suppress_reasons,
             );
         }
         tabs.clear();
@@ -890,18 +1006,22 @@ fn render_grouped_actions(actions: &[RefreshAction]) -> String {
     };
     for action in actions {
         match action {
-            RefreshAction::ListStashes { league, reason, .. } => {
+            RefreshAction::ListStashes { reason, .. } => {
                 flush_tabs(&mut rows, &mut tabs, &mut substashes);
-                rows.push((2, format!("list stashes {league}"), listing_why(reason)));
+                rows.push((
+                    2,
+                    "list stashes".into(),
+                    if suppress_reasons {
+                        String::new()
+                    } else {
+                        listing_why(reason)
+                    },
+                ));
             }
             RefreshAction::FetchTab {
-                id,
-                name,
-                tab_type,
-                reason,
-                ..
+                id, name, reason, ..
             } => tabs.push(Entity {
-                label: format!("{id} {} ({tab_type})", label(name)),
+                label: format!("{id}  {}", compact_label(name)),
                 reason,
                 parent: None,
             }),
@@ -909,20 +1029,23 @@ fn render_grouped_actions(actions: &[RefreshAction]) -> String {
                 parent,
                 id,
                 name,
-                tab_type,
                 reason,
                 ..
             } => substashes.push(Entity {
-                label: format!("{parent}/{id} {} ({tab_type})", label(name)),
+                label: format!("{parent}/{id}  {}", compact_label(name)),
                 reason,
                 parent: Some(parent),
             }),
-            RefreshAction::ListCharacters { realm, reason } => {
+            RefreshAction::ListCharacters { reason, .. } => {
                 flush_tabs(&mut rows, &mut tabs, &mut substashes);
                 rows.push((
                     2,
-                    format!("list characters ({realm}, realm-wide)"),
-                    listing_why(reason),
+                    "list characters".into(),
+                    if suppress_reasons {
+                        String::new()
+                    } else {
+                        listing_why(reason)
+                    },
                 ));
             }
             RefreshAction::FetchCharacter {
@@ -934,7 +1057,7 @@ fn render_grouped_actions(actions: &[RefreshAction]) -> String {
             } => {
                 flush_tabs(&mut rows, &mut tabs, &mut substashes);
                 characters.push(Entity {
-                    label: format!("{id} {}", label(name)),
+                    label: format!("{id}  {}", compact_label(name)),
                     reason,
                     parent: None,
                 });
@@ -946,20 +1069,14 @@ fn render_grouped_actions(actions: &[RefreshAction]) -> String {
     }
     flush_tabs(&mut rows, &mut tabs, &mut substashes);
     if !characters.is_empty() {
-        let league = actions
-            .iter()
-            .find_map(|a| match a {
-                RefreshAction::FetchCharacter { league, .. } => Some(league.as_str()),
-                _ => None,
-            })
-            .unwrap_or("");
         emit_group(
             &mut rows,
             &mut characters,
             "character",
             "characters",
-            &format!(" in {league}"),
-            &under,
+            "",
+            None,
+            suppress_reasons,
         );
     }
     columns(&rows)
@@ -973,29 +1090,38 @@ fn emit_group(
     one: &str,
     many: &str,
     qualifier: &str,
-    under: &BTreeMap<&str, usize>,
+    under: Option<&BTreeMap<&str, usize>>,
+    suppress_reasons: bool,
 ) {
     let n = entities.len();
     rows.push((
         2,
         format!("fetch {}{qualifier}", plural(n, one, many)),
-        reason_breakdown(entities.iter().map(|e| e.reason)),
+        if suppress_reasons {
+            String::new()
+        } else {
+            reason_breakdown(entities.iter().map(|e| e.reason))
+        },
     ));
     if n <= LIST_UP_TO {
         for e in entities.iter() {
-            let mut right = fetch_why(e.reason);
+            let mut right = if suppress_reasons {
+                String::new()
+            } else {
+                fetch_why(e.reason)
+            };
             if e.parent.is_none()
                 && let Some(id) = e.label.split(' ').next()
-                && let Some(k) = under.get(id)
+                && let Some(k) = under.and_then(|counts| counts.get(id))
             {
                 right.push_str(&format!(
-                    "  + {} below",
+                    "  +{} below",
                     plural(*k, "substash", "substashes")
                 ));
             }
             rows.push((4, e.label.clone(), right));
         }
-    } else if entities.iter().any(|e| e.parent.is_some()) {
+    } else if under.is_some() && entities.iter().any(|e| e.parent.is_some()) {
         // Counted substashes: which parents, how many each — the two
         // facts a reviewer wants before spending sixty-four requests.
         let mut per_parent: Vec<(&str, usize)> = Vec::new();
@@ -1019,6 +1145,67 @@ fn emit_group(
         }
     }
     entities.clear();
+}
+
+/// A reason shared by every action belongs once below the action block, not
+/// once on every group and entity. Comparisons use the rendered age because
+/// the decision view intentionally speaks in those human-scale buckets.
+fn common_action_reason(actions: &[RefreshAction]) -> Option<String> {
+    let stale_ages: Option<Vec<String>> = actions
+        .iter()
+        .map(|action| match action {
+            RefreshAction::ListStashes {
+                reason: ListingReason::Stale { age_seconds },
+                ..
+            }
+            | RefreshAction::ListCharacters {
+                reason: ListingReason::Stale { age_seconds },
+                ..
+            }
+            | RefreshAction::FetchTab {
+                reason: FetchReason::Stale { age_seconds },
+                ..
+            }
+            | RefreshAction::FetchSubstash {
+                reason: FetchReason::Stale { age_seconds },
+                ..
+            }
+            | RefreshAction::FetchCharacter {
+                reason: FetchReason::Stale { age_seconds },
+                ..
+            } => Some(dur(*age_seconds)),
+            _ => None,
+        })
+        .collect();
+    if let Some(ages) = stale_ages
+        && let Some(first) = ages.first()
+        && ages.iter().all(|age| age == first)
+    {
+        return Some(format!("all facts are {first} old"));
+    }
+
+    let all_never = actions.iter().all(|action| {
+        matches!(
+            action,
+            RefreshAction::ListStashes {
+                reason: ListingReason::NeverListed,
+                ..
+            } | RefreshAction::ListCharacters {
+                reason: ListingReason::NeverListed,
+                ..
+            } | RefreshAction::FetchTab {
+                reason: FetchReason::NeverFetched,
+                ..
+            } | RefreshAction::FetchSubstash {
+                reason: FetchReason::NeverFetched,
+                ..
+            } | RefreshAction::FetchCharacter {
+                reason: FetchReason::NeverFetched,
+                ..
+            }
+        )
+    });
+    all_never.then(|| "nothing has been listed or fetched".into())
 }
 
 /// `5 stale (13h)`, `64 stale (13h–14h)`, `41 never fetched`, `3 stale
@@ -1124,6 +1311,10 @@ fn label(name: &str) -> String {
     }
 }
 
+fn compact_label(name: &str) -> &str {
+    if name.is_empty() { "(unnamed)" } else { name }
+}
+
 /// A saturated age from the planner, human-shaped: "45s", "12m", "3h", "9d".
 fn dur(seconds: i64) -> String {
     let s = seconds.max(0);
@@ -1135,6 +1326,18 @@ fn dur(seconds: i64) -> String {
         format!("{}h", s / 3600)
     } else {
         format!("{}d", s / 86400)
+    }
+}
+
+fn policy_window(seconds: u32) -> String {
+    if seconds >= 86_400 && seconds.is_multiple_of(86_400) {
+        format!("{}d", seconds / 86_400)
+    } else if seconds >= 3_600 && seconds.is_multiple_of(3_600) {
+        format!("{}h", seconds / 3_600)
+    } else if seconds >= 60 && seconds.is_multiple_of(60) {
+        format!("{}m", seconds / 60)
+    } else {
+        format!("{seconds}s")
     }
 }
 
@@ -1160,7 +1363,7 @@ fn fetch_why(reason: &FetchReason) -> String {
 
 /// One line of counts by reason — a real account skips dozens of fresh
 /// characters, and the full per-character detail is in the JSON envelope.
-fn summarize_skipped_characters(plan: &RefreshPlan) -> String {
+fn summarize_skipped_characters(plan: &RefreshPlan, audit: bool) -> String {
     let (mut fresh, mut awaiting, mut no_league, mut deleted, mut expired) =
         (0usize, 0usize, 0usize, 0usize, 0usize);
     for c in &plan.skipped_characters {
@@ -1190,8 +1393,18 @@ fn summarize_skipped_characters(plan: &RefreshPlan) -> String {
     if expired > 0 {
         parts.push(format!("{expired} listed as expired — never fetched"));
     }
+    let noun = if audit {
+        "covered character(s)"
+    } else {
+        "characters"
+    };
+    let detail = if audit {
+        " (per-character reasons in --json)"
+    } else {
+        ""
+    };
     format!(
-        "skipped {} covered character(s): {} (per-character reasons in --json)",
+        "skipped {} {noun}: {}{detail}",
         plan.skipped_characters.len(),
         parts.join(", ")
     )
@@ -1199,7 +1412,7 @@ fn summarize_skipped_characters(plan: &RefreshPlan) -> String {
 
 /// One line of counts by reason — a real league skips hundreds of fresh
 /// tabs, and the full per-tab detail is in the JSON envelope.
-fn summarize_skipped_tabs(plan: &RefreshPlan) -> String {
+fn summarize_skipped_tabs(plan: &RefreshPlan, audit: bool) -> String {
     let (mut fresh, mut folders, mut awaiting, mut orphaned, mut empty) =
         (0usize, 0usize, 0usize, 0usize, 0usize);
     for tab in &plan.skipped_tabs {
@@ -1227,11 +1440,91 @@ fn summarize_skipped_tabs(plan: &RefreshPlan) -> String {
     if empty > 0 {
         parts.push(format!("{empty} empty substash stub(s) — nothing to fetch"));
     }
+    let noun = if audit { "covered tab(s)" } else { "tabs" };
+    let detail = if audit {
+        " (per-tab reasons in --json)"
+    } else {
+        ""
+    };
     format!(
-        "skipped {} covered tab(s): {} (per-tab reasons in --json)",
+        "skipped {} {noun}: {}{detail}",
         plan.skipped_tabs.len(),
         parts.join(", ")
     )
+}
+
+fn render_decision_quote_note(note: &str) -> String {
+    if note == NO_DAEMON_NOTE {
+        return "quote: unavailable — no daemon running\n".into();
+    }
+    let note = note.strip_prefix("no quote: ").unwrap_or(note);
+    let note = note
+        .strip_suffix(" — plan compiled offline")
+        .unwrap_or(note);
+    format!("quote: unavailable — {note}\n")
+}
+
+fn quote_scope_unlearned(scope: &QuoteScope) -> bool {
+    scope
+        .notes
+        .iter()
+        .any(|note| note.contains("not yet learned"))
+}
+
+/// The decision view reports only what the quote changes for this apply.
+/// Rate windows, observations, exclusions and complete notes remain in the
+/// audit view.
+fn render_decision_quote(quote: &Quote, now: i64) -> String {
+    if let Some(cause) = &quote.halted {
+        return format!("quote: HALTED — {cause}\n");
+    }
+    if !quote.scopes.is_empty() && quote.scopes.iter().all(quote_scope_unlearned) {
+        return format!(
+            "quote: ETA unavailable until {} rate-limit {} learned\n",
+            quote.scopes.len(),
+            if quote.scopes.len() == 1 {
+                "policy is"
+            } else {
+                "policies are"
+            }
+        );
+    }
+    if quote.scopes.is_empty() {
+        return "quote: no rate-limited work\n".into();
+    }
+
+    let labels: Vec<&str> = quote
+        .scopes
+        .iter()
+        .map(|scope| scope.key.split('@').next().unwrap_or(&scope.key))
+        .collect();
+    let width = labels
+        .iter()
+        .map(|label| label.chars().count())
+        .max()
+        .unwrap_or(0);
+    let mut out = format!(
+        "quote ({}):\n",
+        store_cmd::ago(now, Some(quote.observed_at))
+    );
+    for (scope, label) in quote.scopes.iter().zip(labels) {
+        let eta = match scope.eta_seconds {
+            Some(0) => "ready".into(),
+            Some(seconds) => format!("~{seconds}s"),
+            None if quote_scope_unlearned(scope) => "ETA unavailable (unlearned)".into(),
+            None => "ETA unavailable".into(),
+        };
+        let queued = if scope.queued_ahead == 0 {
+            String::new()
+        } else {
+            format!(", {} queued", scope.queued_ahead)
+        };
+        out.push_str(&format!(
+            "  {label:<width$}  {}{queued} — {eta}\n",
+            requests(scope.requests)
+        ));
+    }
+    out
 }
 
 /// The quote: one line per scope, the windows when the policy is known,
@@ -1498,7 +1791,7 @@ mod tests {
         assert!(note.contains("did not answer"), "{note}");
     }
 
-    // ---- the grouped renderer (the legibility ruling) ----
+    // ---- C53: decision, audit and contract views ----
 
     fn tab(id: &str, name: &str, reason: FetchReason) -> RefreshAction {
         RefreshAction::FetchTab {
@@ -1572,31 +1865,26 @@ mod tests {
 
     #[test]
     fn grouping_counts_large_groups_and_lists_small_ones() {
-        let text = render_grouped_actions(&wall());
+        let text = render_grouped_actions(&wall(), false);
         // Listings stay single lines in the planner's order.
-        assert!(text.starts_with("  list stashes Standard"), "{text}");
+        assert!(text.starts_with("  list stashes"), "{text}");
         // Three tabs: under the threshold, so each is listed with its
         // reason, and the parents say how many substashes follow.
         assert!(text.contains("fetch 3 tabs"), "{text}");
         assert!(text.contains("3 stale (13h)"), "{text}");
-        assert!(
-            text.contains("maps \"Maps (Remove-only)\" (MapStash)"),
-            "{text}"
-        );
-        assert!(text.contains("+ 8 substashes below"), "{text}");
-        assert!(text.contains("+ 4 substashes below"), "{text}");
+        assert!(text.contains("maps  Maps (Remove-only)"), "{text}");
+        assert!(!text.contains("MapStash"), "{text}");
+        assert!(text.contains("+8 substashes below"), "{text}");
+        assert!(text.contains("+4 substashes below"), "{text}");
         // Twelve substashes: over the threshold — counted, broken down by
         // parent and by reason with the age range, never listed.
-        assert!(
-            text.contains("fetch 12 substashes under 2 of those tabs"),
-            "{text}"
-        );
+        assert!(text.contains("fetch 12 substashes under 2 tabs"), "{text}");
         assert!(text.contains("12 stale (13h–14h)"), "{text}");
-        assert!(text.contains("8 under maps, 4 under uniq"), "{text}");
+        assert!(!text.contains("8 under maps, 4 under uniq"), "{text}");
         assert!(!text.contains("maps/m0"), "{text}");
         // Twelve characters: counted, no ids in the default view.
-        assert!(text.contains("list characters (pc, realm-wide)"), "{text}");
-        assert!(text.contains("fetch 12 characters in Standard"), "{text}");
+        assert!(text.contains("list characters"), "{text}");
+        assert!(text.contains("fetch 12 characters"), "{text}");
         assert!(text.contains("12 never fetched"), "{text}");
         assert!(!text.contains("Exile0"), "{text}");
         // Order: the tab facet's block, then the character facet's.
@@ -1620,19 +1908,84 @@ mod tests {
             ),
             character(1),
         ];
-        let text = render_grouped_actions(&actions);
+        let text = render_grouped_actions(&actions, false);
         assert!(text.contains("fetch 2 tabs"), "{text}");
         assert!(
             text.contains("1 never fetched, 1 listing disagrees"),
             "{text}"
         );
-        assert!(text.contains("b \"B\" (MapStash)"), "{text}");
+        assert!(text.contains("b  B"), "{text}");
         assert!(
             text.contains("listing says 92 item(s), store holds 90"),
             "{text}"
         );
-        assert!(text.contains("fetch 1 character in Standard"), "{text}");
-        assert!(text.contains("\"Exile1\""), "{text}");
+        assert!(text.contains("fetch 1 character"), "{text}");
+        assert!(text.contains("Exile1"), "{text}");
+    }
+
+    #[test]
+    fn the_decision_view_states_shared_context_once() {
+        let actions = vec![
+            RefreshAction::ListStashes {
+                realm: Realm::Pc,
+                league: "Standard".into(),
+                reason: ListingReason::Stale {
+                    age_seconds: 3 * 3600,
+                },
+            },
+            tab(
+                "dump",
+                "Dump Tab",
+                FetchReason::Stale {
+                    age_seconds: 3 * 3600,
+                },
+            ),
+        ];
+        assert_eq!(
+            common_action_reason(&actions).as_deref(),
+            Some("all facts are 3h old")
+        );
+        let text = render_grouped_actions(&actions, true);
+        assert_eq!(text.matches("3h").count(), 0, "{text}");
+        assert_eq!(text.matches("stale").count(), 0, "{text}");
+        assert!(text.contains("list stashes"), "{text}");
+        assert!(text.contains("dump  Dump Tab"), "{text}");
+    }
+
+    #[test]
+    fn the_decision_quote_collapses_repeated_unlearned_policies() {
+        let scopes = [
+            ("stash-list@Alice#1234", 1),
+            ("stash@Alice#1234", 69),
+            ("character-list@Alice#1234", 1),
+            ("character@Alice#1234", 41),
+        ]
+        .into_iter()
+        .map(|(key, requests)| QuoteScope {
+            key: key.into(),
+            endpoints: Vec::new(),
+            requests,
+            queued_ahead: 0,
+            policy: None,
+            rules: Vec::new(),
+            observed_seconds_ago: None,
+            eta_seconds: None,
+            notes: vec!["policy not yet learned; probe first".into()],
+        })
+        .collect();
+        let quote = Quote {
+            observed_at: 2_000,
+            provider: "ggg".into(),
+            account: Some("Alice#1234".into()),
+            halted: None,
+            work: Vec::new(),
+            scopes,
+            not_covered: Vec::new(),
+        };
+        assert_eq!(
+            render_decision_quote(&quote, 2_000),
+            "quote: ETA unavailable until 4 rate-limit policies are learned\n"
+        );
     }
 
     #[test]
@@ -1648,19 +2001,36 @@ mod tests {
             "one line per fetch:\n{expanded}"
         );
         assert!(grouped.lines().count() < expanded.lines().count());
-        // Both end with the next step and carry the no-quote line once.
+        // Both end with the next step; the default is the decision view and
+        // the expanded form retains the audit detail.
         for text in [&grouped, &expanded] {
-            assert_eq!(text.matches("no quote").count(), 1, "{text}");
             assert!(text.contains("next: acq refresh --apply"), "{text}");
             assert!(!text.contains("os error"), "{text}");
         }
-        assert!(grouped.contains("--expand lists every action"), "{grouped}");
+        assert!(
+            grouped.contains("quote: unavailable — no daemon running"),
+            "{grouped}"
+        );
+        assert!(grouped.contains("wire:"), "{grouped}");
+        assert!(!grouped.contains("response "), "{grouped}");
+        assert!(!grouped.contains("MapStash"), "{grouped}");
+        assert!(
+            !grouped.contains("--expand lists every action"),
+            "{grouped}"
+        );
+        assert_eq!(expanded.matches("no quote").count(), 1, "{expanded}");
+        assert!(expanded.contains("basis:"), "{expanded}");
+        assert!(expanded.contains("MapStash"), "{expanded}");
+        assert!(expanded.contains("HEAD probe"), "{expanded}");
         // Rendered from a file, the next step names that file.
         let from_file = render_plan(&plan, None, 2_000, false, Some("/tmp/p.json"));
         assert!(
             from_file.contains("next: acq refresh --apply=/tmp/p.json"),
             "{from_file}"
         );
+        let old = render_plan(&plan, None, 9_200, false, Some("/tmp/p.json"));
+        assert!(old.contains("on mock as Alice#1234"), "{old}");
+        assert!(old.contains("(plan 2h old)"), "{old}");
     }
 
     #[test]
@@ -1682,12 +2052,14 @@ mod tests {
             .collect();
         plan.actions.clear();
         plan.logical_requests = 0;
-        let text = render_nothing_to_do(&plan);
-        assert!(
-            text.starts_with(
-                "nothing to do: 69 covered tab(s) and 41 character(s) are fresh (within 3600 s); the plan authorizes no requests"
-            ),
-            "{text}"
+        let text = render_nothing_to_do(&plan, plan.generated_at);
+        assert_eq!(
+            text,
+            "nothing to do: 69 tabs and 41 characters are fresh (under 1h)\n"
+        );
+        assert_eq!(
+            render_nothing_to_do(&plan, plan.generated_at + 7_200),
+            "nothing to do: this 2h-old plan found 69 tabs and 41 characters fresh (under 1h)\n"
         );
         let rendered = render_plan(&plan, Some(NO_DAEMON_NOTE), 2_000, false, None);
         assert!(rendered.contains("nothing to do"), "{rendered}");
