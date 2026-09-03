@@ -1,9 +1,12 @@
 //! The tracer's plan→apply→replan loop at process level (step 7): a real
 //! daemon over the in-process mock provider, a scripted browserless login,
 //! and the CLI as the only interface — the loop must *close*: each apply
-//! executes exactly its plan's actions, discovery (substash stubs) waits
-//! for the next plan instead of expanding the current one, and after a
-//! bootstrap listing plus two reconciliation cycles the plan is empty.
+//! executes exactly its plan's actions (C38, C43: one child per tuple,
+//! `children.done` equals `requests`), discovery (substash stubs) waits
+//! for the next plan instead of expanding the current one, the admission
+//! budget refuses a plan whole and the next plan still owes every fetch
+//! (C42), and after a bootstrap listing plus two reconciliation cycles
+//! the plan is empty.
 //! The policy names tabs and characters together (characters joined the
 //! plan 2026-09-02): both listings in the bootstrap cycle, both facets'
 //! fetches in the next, and the character facts on record at the end.

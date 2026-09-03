@@ -3004,7 +3004,7 @@ resubmit if still wanted",
         s.last_activity = Instant::now();
     }
 
-    /// The `quote` request (CONTEXT.md, decided 2026-08-31): a read-only,
+    /// The `quote` request (C40, decided 2026-08-31): a read-only,
     /// non-reserving projection of what the quoted work would meet at the
     /// choke point right now. Reads the limiter and the queue, sends
     /// nothing, reserves nothing, remembers nothing — two quotes about the
@@ -3443,8 +3443,9 @@ fn admit_realm(kind: &str, params: &Value) -> Result<(), String> {
     family.realm_of(params).map(|_| ())
 }
 
-/// The `apply` admission check (CONTEXT.md, decided 2026-09-01): the
-/// vocabulary a plan-blind daemon can enforce. `params.jobs` must be a
+/// The `apply` admission check (C43 — vocabulary, not meaning; C42 — the
+/// logical budget at admission; decided 2026-09-01): the vocabulary a
+/// plan-blind daemon can enforce. `params.jobs` must be a
 /// non-empty array of `(kind, params)` tuples in which every kind is a
 /// single-request one that submits no children — `stashes`, `stash` with
 /// `deep` absent/false, `characters`, or `character` with a name
@@ -6387,6 +6388,7 @@ mod dispatcher_tests {
         let _ = std::fs::remove_dir_all(&store_dir);
     }
 
+    /// C43 — admission is vocabulary, not meaning, at submit before a job id exists; C42 — a logical bound over `max_requests` refuses whole, nothing submitted.
     /// Apply's admission (CONTEXT.md, decided 2026-09-01): vocabulary and
     /// budget are checked at submit, before a job id exists, so a refusal
     /// admits nothing — never a partial fan-out, and ids never advance.
@@ -7867,6 +7869,7 @@ mod dispatcher_tests {
         remove_harness_files(&log_path);
     }
 
+    /// C40 — `quote` is its own request: read-only, non-reserving, per scope, with observation age and named prerequisites.
     /// The `quote` protocol request (tracer step 5): a read-only,
     /// non-reserving projection. A learned policy's scope carries
     /// per-window headroom and a forward-simulated ETA; an unlearned
@@ -7972,6 +7975,7 @@ mod dispatcher_tests {
         remove_harness_files(&log_path);
     }
 
+    /// C40 — the projection counts the queue ahead and keys the same scopes a submit would.
     #[tokio::test]
     async fn quote_counts_queued_jobs_ahead_and_keys_scopes_per_account() {
         let clock = Arc::new(ManualClock::new());

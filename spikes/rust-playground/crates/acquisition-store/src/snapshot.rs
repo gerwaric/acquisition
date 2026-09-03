@@ -143,7 +143,9 @@ pub struct RefreshSnapshot {
 impl Store {
     /// Snapshot one (realm, league)'s refresh facts and the account's
     /// sync-policy row, so a plan's fact bases and annotation revision
-    /// come from one read, bound to one account.
+    /// come from one read, bound to one account. This is the neutral
+    /// snapshot C39 names: rows and bases, nothing derived — the planner
+    /// (`acquisition-plan`) owns every conclusion drawn from it.
     pub fn refresh_snapshot(
         &self,
         realm: &str,
@@ -423,6 +425,7 @@ mod tests {
         s
     }
 
+    /// C39 — the store exposes a neutral snapshot (bases, rows, the policy at its revision), never half a planner.
     #[test]
     fn the_snapshot_names_the_latest_listing_and_the_policy_revision() {
         let mut s = store();
@@ -764,6 +767,7 @@ mod tests {
         assert!(err.to_string().contains("Standard/t1"), "{err:#}");
     }
 
+    /// C38 — a plan's basis is one read binding facts and intent to one account uuid; C35 — the uuid lives inside the intent file.
     #[test]
     fn the_snapshot_binds_facts_and_intent_to_one_account() {
         let a = Annotations::open_memory_for("u-1").unwrap();

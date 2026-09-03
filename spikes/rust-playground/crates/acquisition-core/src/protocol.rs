@@ -22,7 +22,7 @@ pub struct QuoteJob {
 }
 
 /// A read-only, non-reserving projection over current daemon knowledge
-/// (CONTEXT.md, decided 2026-08-31): what the quoted work would meet at the
+/// (C40, decided 2026-08-31): what the quoted work would meet at the
 /// choke point as of `observed_at`. Nothing is sent, reserved, or
 /// remembered — applying later may receive a different schedule (`eta_for`
 /// is an estimate, not a promise) — and the quote names what it does not

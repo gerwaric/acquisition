@@ -1,7 +1,11 @@
 //! Process-level pin of the `--json` stdout contract for the policy/plan
-//! surface: the CLI is itself an API (CONTEXT.md), step 7's apply will
-//! consume `refresh --plan --json`, and only a spawned binary can prove
-//! what actually lands on stdout — the in-process tests cannot see it.
+//! surface (C44 end to end: a moved policy revision refuses apply with
+//! the remedy named; C38: a tampered envelope never reaches the daemon;
+//! C41: plan and no-op apply run with no daemon at all — `ACQ_NO_SPAWN`
+//! makes any contact an error): the CLI is itself an API (CONTEXT.md),
+//! step 7's apply will consume `refresh --plan --json`, and only a spawned
+//! binary can prove what actually lands on stdout — the in-process tests
+//! cannot see it.
 //!
 //! Facts are seeded through the store crate directly (the same crate the
 //! daemon writes through), so no daemon runs: the socket points into an

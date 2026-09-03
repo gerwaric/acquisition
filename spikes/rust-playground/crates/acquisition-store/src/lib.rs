@@ -1757,7 +1757,7 @@ impl Store {
 
     /// Item annotations whose item this fact store no longer has live
     /// (removed, or never seen). No fact-side event ever deletes intent
-    /// (CONTEXT.md): this is how kept-but-detached intent stays visible so
+    /// (C35): this is how kept-but-detached intent stays visible so
     /// a frontend can surface it instead of it silently rotting.
     pub fn orphaned_item_annotations(
         &self,
@@ -2717,6 +2717,7 @@ mod tests {
         assert_eq!(s.item("i1").unwrap().unwrap().name, "Foo");
     }
 
+    /// C35 — no fact-side event ever deletes intent; an orphaned annotation is kept and surfaceable.
     #[test]
     fn intent_survives_fact_removal_and_surfaces_as_orphaned() {
         let mut s = Store::open_memory().unwrap();

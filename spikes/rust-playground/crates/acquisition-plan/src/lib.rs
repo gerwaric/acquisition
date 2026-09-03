@@ -5,17 +5,18 @@
 //! serializable, immutable authorization envelope, computable with the
 //! daemon down.
 //!
-//! Boundaries this crate holds:
-//! - It is linked by **frontends only**, never the daemon — "the daemon
-//!   never reads the store" stays enforced by the dependency graph.
-//! - Plans are **binding**: applying one executes exactly the listed
+//! Boundaries this crate holds (each a registry decision, cited by id):
+//! - C39: it is linked by **frontends only**, never the daemon — the
+//!   daemon crate never links this one (`tools/docs-check.sh` refuses the
+//!   edge), so policy execution cannot reach the daemon by construction.
+//! - C38: plans are **binding**: applying one executes exactly the listed
 //!   actions or a strict subset, never an unreviewed addition. v1 plans
 //!   therefore act only on facts already on record — a league that was
 //!   never listed plans the listing alone, and newly discovered tabs wait
 //!   for the next plan (honest eventual reconciliation). Dynamic `--deep`
 //!   fan-out is excluded: substashes get actions only once their stubs are
 //!   in the store.
-//! - A policy id covers the tab **and its children** (decided
+//! - C37: a policy id covers the tab **and its children** (decided
 //!   2026-09-01, tracer rung): a map/unique tab's substashes are planned
 //!   once their stubs are on record — the cycle after the parent's first
 //!   fetch — and a folder's children at once, since the listing carries
@@ -23,7 +24,7 @@
 //!   is still an explicit tuple). A substash stub reporting 0 items with
 //!   nothing held is skipped as `empty_stub` (GGG appears to list only
 //!   non-empty substashes; a guard, not a saving).
-//! - `metadata.items` counts are heuristic evidence: they can prove a tab
+//! - C36: `metadata.items` counts are heuristic evidence: they can prove a tab
 //!   changed (a disagreeing count on a listing newer than our fetch forces
 //!   a fetch), never that it didn't (an agreeing count never skips one —
 //!   only the policy's own freshness window does that).
@@ -88,7 +89,7 @@
 //! `Endpoint::from_job` — the store's production decoder of the job
 //! vocabulary — and by a plan→record→replan loop that proves applied
 //! actions satisfy the plan. A plan may carry the daemon's **quote** as
-//! optional enrichment (tracer step 5, built 2026-09-01): `quote` is its
+//! optional enrichment (C40; tracer step 5, built 2026-09-01): `quote` is its
 //! own protocol request — a read-only, non-reserving projection of the
 //! work's `(kind, params)` tuples over current limiter state, per
 //! scheduling scope with per-window headroom (stamped with its own
@@ -1832,6 +1833,7 @@ mod tests {
         plan_refresh("mock", &snapshot_with(s, policy), now).unwrap()
     }
 
+    /// C36 — the sync policy is a per-account, inspectable declaration; a value that half-parses never lands (strict per stamped shape).
     #[test]
     fn the_policy_parses_strictly_and_versions_are_refused_not_guessed() {
         // The valid shapes: "all" and an explicit id list.
@@ -1977,6 +1979,7 @@ mod tests {
         assert!(err.to_string().contains("version 4"), "{err}");
     }
 
+    /// C38 — plans act only on facts on record: without a listing basis the plan has no membership authority, and discovery waits for the next plan.
     #[test]
     fn a_never_listed_league_plans_the_listing_alone() {
         let mut s = store();
@@ -2012,6 +2015,7 @@ mod tests {
         assert_eq!(plan.wire_sends.prerequisites.len(), 2);
     }
 
+    /// C36 — coverage plus freshness compile to minimal requests (here none); C38 — the envelope carries provider, uuid, operation, schema stamp, fact basis and the policy revision even when empty.
     #[test]
     fn fresh_facts_compile_to_an_empty_plan_that_still_cites_its_basis() {
         let mut s = store();
@@ -2060,6 +2064,7 @@ mod tests {
         assert_eq!(plan.operation, "refresh");
     }
 
+    /// C36 — the policy's window, not a schedule, decides what is fetched.
     #[test]
     fn staleness_forces_fetches_and_a_stale_listing_relists() {
         let mut s = store();
@@ -2109,6 +2114,7 @@ mod tests {
         assert_eq!((plan.wire_sends.min, plan.wire_sends.max), (3, 9));
     }
 
+    /// C36 — `metadata.items` counts are heuristic evidence: they prove a tab changed, never that it didn't.
     #[test]
     fn a_disagreeing_count_proves_change_and_an_agreeing_one_proves_nothing() {
         let mut s = store();
@@ -2261,6 +2267,7 @@ mod tests {
         })
     }
 
+    /// C37 — a tab id covers the tab and its children; substashes are planned the cycle after their stubs land; an empty stub is skipped with its reason.
     #[test]
     fn a_named_map_tab_covers_its_substashes_the_cycle_after_its_first_fetch() {
         let mut s = store();
@@ -2382,6 +2389,7 @@ mod tests {
         );
     }
 
+    /// C37 — a folder's children are covered at once, since the listing carries them.
     #[test]
     fn a_named_folder_covers_its_children_at_once() {
         let mut s = store();
@@ -2455,6 +2463,7 @@ mod tests {
         );
     }
 
+    /// C38 — never an unreviewed addition: an id the facts lack is reported, not fetched.
     #[test]
     fn ids_the_facts_do_not_know_are_reported_never_invented() {
         let mut s = store();
@@ -2478,6 +2487,7 @@ mod tests {
         assert_eq!(plan.unknown_tabs, vec!["ghost".to_string()]);
     }
 
+    /// C43 — a plan's actions render as the daemon's own `(kind, params)` tuples, and a fetch never fans out.
     #[test]
     fn actions_decode_through_the_stores_job_vocabulary_decoder() {
         // Not literals-vs-literals: `Endpoint::from_job` is the store's
@@ -2541,6 +2551,7 @@ mod tests {
         assert_eq!(params["deep"], json!(false));
     }
 
+    /// C38 — applying exactly the listed actions satisfies the plan (the offline half of the loop).
     #[test]
     fn applying_a_plans_actions_through_the_store_satisfies_the_plan() {
         // The offline half of apply: each action's job tuple, decoded by
@@ -2574,6 +2585,7 @@ mod tests {
         assert!(second.actions.is_empty(), "{:?}", second.actions);
     }
 
+    /// C38 — a Plan is serializable and immutable: what crosses a socket or lands in a journal parses back equal.
     #[test]
     fn the_plan_round_trips_through_serde_unchanged() {
         let mut s = store();
@@ -2599,6 +2611,7 @@ mod tests {
         assert_eq!(back, plan);
     }
 
+    /// C40 — the quote is optional enrichment with its own observation time; C38 — it must speak about exactly this plan's work.
     #[test]
     fn a_quote_enriches_a_plan_optionally_and_must_speak_about_it() {
         use acquisition_core::protocol::{QuoteJob, QuoteScope};
@@ -2720,6 +2733,7 @@ mod tests {
         assert!(err.to_string().contains("overflows"), "{err}");
     }
 
+    /// C38 — a newer stamp, a smuggled field at any depth, a foreign league or realm refuse whole; C42 — a forged logical bound cannot be trusted away by admission budgeting.
     #[test]
     fn a_tampered_or_newer_plan_does_not_parse_into_a_trusted_envelope() {
         let mut s = store();
@@ -2808,6 +2822,7 @@ mod tests {
         assert!(RefreshPlan::from_value(&unknown).is_err());
     }
 
+    /// C52 — no blind replace: creating over a live row conflicts naming the revision to review; C36 — validated before it lands.
     #[test]
     fn put_sync_policy_validates_before_it_stores_and_is_a_cas() {
         let mut a = Annotations::open_memory_for("u-1").unwrap();
@@ -2839,6 +2854,7 @@ mod tests {
         assert_eq!(held.value, value);
     }
 
+    /// C44 — apply refuses a plan whose policy revision is no longer the stored one, checked against a fresh read; wrong uuid or provider never spends.
     #[test]
     fn check_spendable_is_the_shared_staleness_and_identity_gate() {
         // The plan derives from a rev-1 policy for account u-1 on mock.
@@ -2873,6 +2889,54 @@ mod tests {
         assert!(matches!(err, SpendError::WrongProvider { .. }), "{err}");
     }
 
+    /// C44 — **fact drift does not refuse**: the authorization is the
+    /// bounded action set, not a world-state assertion. A listing that
+    /// lands between compile and apply changes what the next plan will
+    /// say, never whether this one may be spent.
+    #[test]
+    fn c44_fact_drift_never_refuses() {
+        let mut s = store();
+        list(
+            &mut s,
+            json!([{ "id": "t1", "name": "One", "type": "PremiumStash", "index": 0 }]),
+            1000,
+        );
+        let mut a = Annotations::open_memory_for("u-1").unwrap();
+        put_sync_policy(&mut a, &all_policy_value(3600), None).unwrap();
+        let plan = plan_refresh(
+            "mock",
+            &s.refresh_snapshot("pc", "Standard", &a).unwrap(),
+            1100,
+        )
+        .unwrap();
+        assert_eq!(plan.logical_requests, 1, "{:?}", plan.actions);
+        // The world moves: a newer listing drops t1 and adds t2, and t1's
+        // fetch lands. The plan's basis is now stale on every axis.
+        list(
+            &mut s,
+            json!([{ "id": "t2", "name": "Two", "type": "PremiumStash", "index": 0 }]),
+            1200,
+        );
+        fetch(
+            &mut s,
+            json!({ "id": "t1", "name": "One", "type": "PremiumStash", "items": [] }),
+            1300,
+        );
+        let fresh = s.refresh_snapshot("pc", "Standard", &a).unwrap();
+        assert_ne!(fresh.stash_listing, plan.basis.stash_listing);
+        // Still spendable: only intent gates. The next plan reconciles.
+        plan.check_spendable("mock", Some("u-1"), &a).unwrap();
+        let next = plan_refresh("mock", &fresh, 1400).unwrap();
+        assert!(
+            next.actions
+                .iter()
+                .any(|x| matches!(x, RefreshAction::FetchTab { id, .. } if id == "t2")),
+            "{:?}",
+            next.actions
+        );
+    }
+
+    /// C43 — what apply submits is exactly the plan's tuples, plus the caller's logical budget (C42).
     #[test]
     fn apply_params_renders_exactly_the_plans_actions() {
         let plan = plan(&store(), &all_policy_value(3600), 2_000);

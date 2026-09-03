@@ -486,6 +486,7 @@ mod tests {
         }
     }
 
+    /// C35 — integer-revision compare-and-swap: create requires absence, update the exact revision, delete the same.
     #[test]
     fn compare_and_swap_creates_updates_and_conflicts() {
         let mut a = Annotations::open_memory().unwrap();
@@ -532,6 +533,7 @@ mod tests {
         assert_eq!(conflict_revision(err), None);
     }
 
+    /// C35 — delete tombstones; the revision sequence survives delete/recreate, so a stale writer always conflicts.
     #[test]
     fn delete_and_recreate_never_reset_the_revision() {
         let mut a = Annotations::open_memory().unwrap();
@@ -564,6 +566,7 @@ mod tests {
         assert!(a.delete("item", "i1", "buyout", stale).is_err());
     }
 
+    /// C35 — two writers on one file serialize under BEGIN IMMEDIATE: one wins, the other gets a Conflict, never a clobber.
     #[test]
     fn two_connections_conflict_deterministically_never_clobber() {
         let dir = std::env::temp_dir().join(format!(
@@ -603,6 +606,7 @@ mod tests {
         assert_eq!(row.value, policy);
     }
 
+    /// C35 — backup is a store-managed consistent snapshot, never a raw file copy; it never overwrites.
     #[test]
     fn export_is_a_consistent_snapshot_and_never_overwrites() {
         let dir =
@@ -621,6 +625,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    /// C35 — the file is bound to the account uuid inside it; a copy under another account's name is refused.
     #[test]
     fn open_for_stamps_the_uuid_and_refuses_a_foreign_file() {
         let dir = std::env::temp_dir().join(format!(
@@ -648,6 +653,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    /// C35 — migration never touches the rows; the uuid is stamped on first open.
     #[test]
     fn a_v1_file_is_migrated_forward_with_its_rows_intact() {
         let dir = std::env::temp_dir().join(format!(
@@ -681,6 +687,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    /// C35 — a file a newer build wrote is refused, never guessed at.
     #[test]
     fn a_newer_schema_is_refused_not_guessed_at() {
         let dir =
@@ -697,6 +704,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    /// C35 — named by the account uuid, never the username.
     #[test]
     fn the_file_is_named_by_uuid() {
         let p = annotations_path(Path::new("/store/mock"), "0000-4000#odd");

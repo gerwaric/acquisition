@@ -121,4 +121,26 @@ else
   echo "ok      identifiers   every checked identifier exists in the workspace"
 fi
 
+# ---- 4. dependency direction ------------------------------------------
+# The four-layer rule (C34) and the planner's home (C39) are enforced by
+# what links what, not by discipline: the daemon crate never links the
+# planner and never names the intent API (it writes facts through the
+# store and reads nothing else); the store crate links neither the daemon
+# nor an HTTP client, so a store read cannot initiate traffic (C41).
+edge() {
+  local file=$1 needle=$2 why=$3
+  if grep -qE -- "$needle" "$file"; then
+    printf 'EDGE    %-40s must not name %s — %s\n' "$file" "$needle" "$why"
+    fail=1
+  fi
+}
+edge crates/acquisition-core/Cargo.toml  '^acquisition-plan'                  'the daemon never links the planner (C39)'
+edge crates/acquisition-store/Cargo.toml '^(acquisition-core|acquisition-plan|reqwest|tokio)' 'the store links no daemon and no HTTP client (C41)'
+if grep -rqE 'Annotations|annotations_path' crates/acquisition-core/src; then
+  echo 'EDGE    crates/acquisition-core/src              names the intent API — the daemon is permanently blind to intent (C34)'
+  fail=1
+else
+  echo 'ok      dependencies  daemon ∌ planner, daemon ∌ intent API, store ∌ daemon/HTTP (C34, C39, C41)'
+fi
+
 exit $fail

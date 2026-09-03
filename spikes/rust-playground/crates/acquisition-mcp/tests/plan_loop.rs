@@ -4,11 +4,12 @@
 //! is driven over the protocol the way `acq auth` drives it), the tool
 //! surface must carry the whole loop — declare intent, compile the plan,
 //! spend it, replan — and every gate must fire through it: the
-//! create-only CAS on a blind policy write, the daemon's admission
-//! budget, and the step-7 staleness refusal. The offline claims are
-//! proven offline: the daemon is stopped before the staleness and
-//! empty-plan assertions, and the socket is checked afterwards so a
-//! regression that contacted (or spawned) a daemon cannot pass.
+//! create-only CAS on a blind policy write (C52), the daemon's admission
+//! budget (C42), and the step-7 staleness refusal (C44). The offline
+//! claims are proven offline (C41 — reads and plans never initiate
+//! traffic): the daemon is stopped before the staleness and empty-plan
+//! assertions, and the socket is checked afterwards so a regression that
+//! contacted (or spawned) a daemon cannot pass.
 //!
 //! Loop *closure* (bootstrap listing + two reconciliation cycles) is
 //! already pinned by the CLI's `apply_loop.rs`; this test pins the MCP
