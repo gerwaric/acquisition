@@ -470,7 +470,14 @@ plan_identity() {
 # what is confirmed is what goes out. The verdict line through the blank
 # line before the quote.
 render_actions() {
-    "$ACQ" refresh --plan="$1" | awk '/^[0-9]+ requests?,/ { on = 1 } on && /^$/ { exit } on { print }'
+    local rendered
+    rendered=$("$ACQ" refresh --plan="$1" |
+        awk '/^[0-9]+ requests?:$/ { on = 1 } on && /^$/ { exit } on { print }')
+    if [ -z "$rendered" ]; then
+        echo "*** could not extract the action block from the rendered plan; refusing an empty approval prompt" >&2
+        return 1
+    fi
+    printf '%s\n' "$rendered"
 }
 # The quote block of a rendered plan (or the one-line reason there is none).
 quote_block() {
