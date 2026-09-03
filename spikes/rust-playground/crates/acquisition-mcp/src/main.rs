@@ -31,7 +31,7 @@
 
 use std::path::PathBuf;
 
-use acquisition_core::client::{Client, ConnectOptions};
+use acquisition_core::client::{Client, ConnectOptions, is_no_daemon};
 use acquisition_core::protocol::{QuoteJob, Request, Response};
 use acquisition_core::realm::Realm;
 use acquisition_plan::{PlanError, RefreshPlan, plan_refresh, put_sync_policy};
@@ -121,7 +121,13 @@ async fn try_quote(plan: RefreshPlan) -> (RefreshPlan, Option<String>) {
     let attempt = async {
         let mut client = Client::connect(ConnectOptions::autonomous(false))
             .await
-            .map_err(|e| format!("{e:#}"))?;
+            .map_err(|e| {
+                if is_no_daemon(&e) {
+                    "no daemon running".to_string()
+                } else {
+                    format!("{e:#}")
+                }
+            })?;
         client
             .quote(jobs, Some(account))
             .await

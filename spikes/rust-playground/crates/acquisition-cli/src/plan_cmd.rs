@@ -17,7 +17,7 @@
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
-use acquisition_core::client::{Client, ConnectOptions};
+use acquisition_core::client::{Client, ConnectOptions, is_no_daemon};
 use acquisition_core::job::Outcome;
 use acquisition_core::protocol::{Quote, QuoteJob, QuoteScope, Request, Response};
 use acquisition_core::realm::Realm;
@@ -449,20 +449,6 @@ async fn try_quote(plan: RefreshPlan) -> (RefreshPlan, Option<String>) {
 /// spawns a daemon, so whether spawning is allowed is beside the point.
 const NO_DAEMON_NOTE: &str =
     "no quote: no daemon running (the plan needs none; a running daemon adds its ETA)";
-
-/// Whether a connect failure is simply "nothing is listening" — the
-/// socket absent or refusing — as opposed to a handshake, mismatch, or
-/// protocol problem worth reporting in full.
-fn is_no_daemon(e: &anyhow::Error) -> bool {
-    e.chain().any(|cause| {
-        cause.downcast_ref::<std::io::Error>().is_some_and(|io| {
-            matches!(
-                io.kind(),
-                std::io::ErrorKind::NotFound | std::io::ErrorKind::ConnectionRefused
-            )
-        })
-    })
-}
 
 async fn try_quote_within(
     plan: RefreshPlan,

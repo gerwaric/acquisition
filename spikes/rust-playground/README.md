@@ -351,10 +351,5 @@ regression (N20) so the degraded path can be exercised.
   body it refused is in `acq store refused <id>` (the error names the
   id), not in `acq result`; the parent's report (`acq refresh --apply`,
   `acq result <parent>`) expands each failed child's line inline.
-- **The MCP's `refresh_plan` quote note still carries the raw connect
-  error** (`No such file or directory (os error 2)`) when no daemon is
-  running; only the CLI's path was changed to say "no daemon running"
-  in the 2026-09-02 legibility build. Same fix, in `acq-mcp`'s
-  `try_quote`.
 - **Unix only.** No Windows named pipes yet; the protocol doesn't care.
 - Everything in CONTEXT.md's "Explicitly deferred" list.

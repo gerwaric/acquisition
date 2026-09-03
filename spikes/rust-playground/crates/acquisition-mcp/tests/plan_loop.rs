@@ -262,6 +262,8 @@ fn the_mcp_tools_carry_the_plan_slice_and_its_gates() {
     assert!(third.quote.is_none());
     let note = replanned["quote_note"].as_str().unwrap_or_default();
     assert!(note.contains("no quote"), "{replanned}");
+    assert!(note.contains("no daemon running"), "{replanned}");
+    assert!(!note.contains("os error"), "{replanned}");
 
     // The empty plan applies as a no-op with no daemon at all…
     let applied = mcp.expect_ok("apply_plan", json!({ "plan": replanned["plan"] }));

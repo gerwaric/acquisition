@@ -18,6 +18,22 @@ use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, Lines};
 use tokio::net::UnixStream;
 use tokio::net::unix::{OwnedReadHalf, OwnedWriteHalf};
 
+/// Whether a connect failure is simply "nothing is listening" — the
+/// socket absent or refusing — as opposed to a handshake, mismatch, or
+/// protocol problem worth reporting in full. Frontends that promise to
+/// spend nothing (`--plan`, the MCP's `refresh_plan`) print one plain
+/// line for this case instead of an OS error string.
+pub fn is_no_daemon(e: &anyhow::Error) -> bool {
+    e.chain().any(|cause| {
+        cause.downcast_ref::<std::io::Error>().is_some_and(|io| {
+            matches!(
+                io.kind(),
+                std::io::ErrorKind::NotFound | std::io::ErrorKind::ConnectionRefused
+            )
+        })
+    })
+}
+
 /// What this client is allowed to do to a daemon that isn't the one it wants.
 /// `ACQ_NO_SPAWN=1` overrides both flags to false.
 #[derive(Clone, Copy, Debug)]
