@@ -26,8 +26,8 @@ For every item the session produced, exactly one of:
 
 | It is | It goes to |
 | --- | --- |
-| a ruling by the owner, or a boundary property | `CONTEXT.md`: one line, the owner's words verbatim, in Decisions or the area's Interfaces subsection — never a paragraph, never a header with a status in it |
-| a property now pinned by a test | the test's name beside the property in `CONTEXT.md`; nothing more |
+| a ruling by the owner, or a boundary property | `CONTEXT.md`'s registry: the next `C<n>` (never reuse an id), the ruling verbatim, *Why:* in a sentence, *Details:*/*Pinned:*/*Evidence:* pointers — one bullet under the length limit; the mechanism it implies goes to the code's doc comment under its id |
+| a property now pinned by a test | the test's name carries the id (`c44_stale_revision_refused`), or a comment cites it; the entry's *Pinned:* names the file |
 | a review finding | a row in the slice's closed record (`REFRESH-SLICE.md` is the shape), with the fix commit |
 | the story of what was built and why | the commit message |
 | a live run | one run-ledger row in `LIVE-TESTING.md`; evidence in `runs/` |
@@ -39,6 +39,8 @@ For every item the session produced, exactly one of:
 
 Do not write "built on <date>", "step N done", or a list of what a test
 covers into `CONTEXT.md`: git holds the first two, the test the third.
+`tools/docs-check.sh` reports decisions nothing cites; when you touch the
+code behind one, name it in a test or a doc comment so the report shrinks.
 
 ## 3. When a slice closes
 

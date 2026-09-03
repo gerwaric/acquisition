@@ -138,3 +138,16 @@ ledger alone is 27 KB of fact rows, and the README's knobs and command
 list are its charter. The gates were set at the measured floors plus
 room for one slice's rulings. Lowering them further is the owner's call
 on the Decisions section (question 2). Commits `74b3dddb..a43377a5`.
+
+## Step two, the same day: the decision registry
+
+Decisions are now a numbered registry (`C1`–`C63`; `D` was already taken
+twice, by the C++ design's properties and the ruling packet's lines).
+Each entry is one bullet under an 800-byte limit the check enforces;
+the six longest honest entries run 640–770 bytes. The mechanism text of
+the twenty long entries and the three Interfaces sections moved verbatim
+into the owning modules' docs under "Decisions as recorded", headed by
+id. `CONTEXT.md` is 37 KB, gate 45 KB. The check refuses an id cited
+anywhere that the registry lacks and reports the decisions nothing
+cites — 32 at the start, the clause audit's input, to be worked per
+area when the area is next touched (pricing first: intent and plans).

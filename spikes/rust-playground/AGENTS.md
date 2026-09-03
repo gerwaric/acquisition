@@ -68,13 +68,13 @@ budget trips, something landed where it does not belong.
 
 | Kind of fact | Home |
 | --- | --- |
-| a ruling, invariant, or boundary property | `CONTEXT.md`, one line, verbatim |
-| a property pinned by a test | the test's name in `CONTEXT.md`, nothing more |
+| a ruling, invariant, or boundary property | `CONTEXT.md`'s registry: one entry, a stable `C<n>` id, the ruling verbatim, *Why:*, and pointers (under the check's length limit) |
+| a property pinned by a test | the test cites the decision id (`c6_…`, or a comment); the entry's *Pinned:* names the file |
 | a review finding | a row in the slice's closed record, with its fix commit |
 | a build step's narrative | the commit message |
 | a live run | one run-ledger row; journals in `runs/` (gitignored; mock rehearsals under `runs/mock/`) |
 | a fact about GGG | a numbered ground-truth claim |
-| how a mechanism works | a doc comment on the code |
+| how a mechanism works | a doc comment on the code, under "Decisions as recorded" / "As built", headed by the id |
 | a procedure | its skill file, referenced here |
 | deliberation | a numbered note in `brainstorming-notes/`, disposable |
 | the owner's verdict | recorded verbatim from the conversation, marked as such |
