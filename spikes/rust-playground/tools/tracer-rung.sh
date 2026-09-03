@@ -481,8 +481,17 @@ render_actions() {
 }
 # The quote block of a rendered plan (or the one-line reason there is none).
 quote_block() {
-    if grep -q '^quote (' "$1"; then sed -n '/^quote (/,/^next:/p' "$1" | grep -v '^next:'
-    else grep -E '^(no quote|daemon quote)' "$1" || true; fi
+    local rendered
+    rendered=$(awk '
+        /^quote:/ || /^quote \(/ { on = 1 }
+        on && (/^wire:/ || /^next:/) { exit }
+        on { print }
+    ' "$1")
+    if [ -z "$rendered" ]; then
+        echo "*** could not extract the quote block from the rendered plan; refusing to ask for approval without it" >&2
+        return 1
+    fi
+    printf '%s\n' "$rendered"
 }
 
 echo ""
