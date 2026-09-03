@@ -176,9 +176,11 @@ real API under the ladder rules. Every rough edge it finds is a fact about
 what the daemon's internals need to be, which is the input a
 rearchitecture needs. Alongside, at no dev cost: the re-soak below.
 
-Started 2026-08-24: `acq pull` (CLI-side snapshot + diff over the existing
-verbs); its findings are in `CONTEXT.md` under "Frontend boundary findings".
-Not yet run live.
+Started 2026-08-24 as `acq pull` (run live as rung 10; retired 2026-08-29
+for the shared store), then the refresh slice — policy, plan, apply,
+characters, legible output — run live through 2026-09-02 and closed
+(`REFRESH-SLICE.md`). The protocol findings are in `CONTEXT.md` under
+"Frontend boundary findings".
 
 Done 2026-08-24, closing the register's open items: rail 2 promoted to
 product behavior (L0-R13, `ee5131e0`); `mockggg` on the `Clock` with
@@ -191,10 +193,11 @@ Prerequisites for a goal-function build, not a plan to start on now:
 1. Move the harness out of `daemon.rs` into an integration-test crate that
    touches only the driving surface. This is what makes the goal function
    portable. Do it the day a fresh build starts, not before.
-2. Re-soak the fixed binary (`LIVE-TESTING.md`, next action) for the first
-   live `wait_ms` baseline; teach `soak-check.sh` to summarize it.
+2. ~~Re-soak the fixed binary~~ — done 2026-08-27 (`LIVE-TESTING.md`,
+   run ledger: 45.3 h, pass); `soak-check.sh` summarizes it.
 3. Pin the frontend boundary — after the consumer has validated the
-   protocol, not before. Nothing tests the protocol yet.
+   protocol, not before. The plan slice is pinned at process level
+   (`apply_loop.rs`, `plan_loop.rs`); the protocol as a whole is not.
 
 ## Standing constraints carried from the soak
 

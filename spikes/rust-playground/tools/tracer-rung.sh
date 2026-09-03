@@ -172,7 +172,8 @@ fi
 
 RUN_START=$(date +%s)
 RUN_DIR="$here/runs/$(date -u +%F)-tracer"
-if [ "$MODE" = mock ]; then RUN_DIR="$RUN_DIR-mock"; fi
+# rehearsals are reproducible and live apart from the evidence the ledger cites
+if [ "$MODE" = mock ]; then RUN_DIR="$here/runs/mock/$(date -u +%F)-tracer"; fi
 # One directory per attempt: a repeated run the same day gets a time
 # suffix rather than overwriting or mixing with the earlier evidence.
 if [ -d "$RUN_DIR" ] && [ -n "$(ls -A "$RUN_DIR")" ]; then
