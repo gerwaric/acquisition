@@ -57,260 +57,46 @@ bounded by `MAX_429_RETRIES`; a Cloudflare-shaped 403/503 is never retried.
   (`mockggg.rs`), live-test rails (`rails.rs`), and the daemon itself
   (priority queue + dispatcher + Unix-socket server + idle watchdog). The
   gate and dispatcher properties are CONTEXT.md decisions, not restated here.
-- `crates/acquisition-store` — the shared store (SQLite, one file per
-  **account** under one directory per provider, named by the GGG username
-  the token response reports): the daemon records every storable API
-  response through one call, `Store::record(endpoint, params, status,
-  body)`, and every frontend reads the file directly. Item membership is per
-  response, like listing membership: a fetch retires what it did not
-  carry at its location whatever the clock says, a character or tab a
-  listing no longer names takes its items with it (retired, with
-  `removed` events), a parent tab's fetch is its substashes' listing,
-  and a fetch never revives a location a listing retired — the whole
-  body stays verbatim on its response row (`withheld`: the count of item
-  facts it carried, NULL for an ordinary response; in the daemon log
-  and `store status`) and nothing else lands, until a listing names the
-  location again, which also clears its `fetched_at` — and its retained
-  substashes' — so the next plan fetches them. A withheld body is
-  validated like any other: an id-less item is still refused whole. A
-  **refused body is kept verbatim** in `refused` (facts v7, 2026-09-02 —
-  PoE2 first contact refused four of five character bodies and left
-  nothing to read): the ingest transaction rolls back whole, no basis
-  query reads that table, the failure names the row and the item's
-  position (`skills[1]`), and `acq store refused [id]` shows the list or
-  one body in full. A location is its full coordinate (realm, league for
-  a stash, kind, id), and events carry it whole. `accounts.json` next
-  to the files is the non-secret account index: written at login/logout,
-  read by frontends to resolve `ACQ_ACCOUNT` without a daemon, and read by
-  the daemon at start to know which keyring entries (one per account) to
-  load. Every entry carries the account **uuid**, required at login: after
-  token exchange the daemon submits a profile job (visible in `acq jobs`),
-  and only when the uuid lands is the session registered, the keyring
-  written, and the index updated — a login whose profile fetch fails
-  **fails whole**. A rename (same uuid, new username) is a mapping update.
-  Facts carry **realm** beside league (schema v3, 2026-09-02 — PoE2
-  shares league names with PoE1): `tabs` is keyed `(realm, league, id)`,
-  characters and items carry the *request's* realm (never a body's
-  field), a listing retires only its own realm's rows, and a pre-realm
-  file is rebuilt in place as pc. **Characters are keyed by the GGG
-  character `id`** (facts v4, 2026-09-02): the name is the address the
-  fetch takes and can move, a rename keeps the row and its items, a
-  deleted-and-recreated name is a new row, `league` is what the basis
-  listing said (a fetch never overwrites it), and membership is stamped
-  per listing response and retired per realm exactly as tabs are. A
-  pre-v4 file rekeys through each row's json (a row without an id is
-  dropped, its items retired) and moves item locations from the name to
-  the id. Every item row records the **array it came from**
-  (`container`: `items` for a stash; a character's `inventory`,
-  `equipment`, `jewels`, `rucksack`, `guardian`, or `skills`) — an
-  ingest fact, not in the json, so a helm moving from the character to
-  its animate guardian is a `changed` event even with identical json.
-  An item-shaped array a character body carries under any other name
-  is the **drift tripwire**: counted into the envelope (`_unlifted`) and
-  `acq store status`, never lifted, never a failure. A PoE2 **item-granted
-  skill** (ruled 2026-09-02) — the id-less gem a weapon or shield carries
-  in its own `socketedItems`, repeated verbatim as `skills[0]`, with any
-  support socketed into it id-less too — is a property of its host, not an
-  item: the subtree stays in the host's json and in the envelope under
-  `skills`, counted (`_granted`, `store status`), never a row and never
-  a refusal; every other id-less item is still refused.
-  `<uuid>.annotations.db` beside the fact files is the **intent layer**
-  (`annotations.rs`): buyouts, notes, the sync policy — keyed on stable
-  GGG ids, written only through the store crate under integer-revision
-  compare-and-swap, never deleted by any fact-side event (an annotation
-  whose item is gone is kept and surfaceable as orphaned; a frontend
-  delete is a tombstone under the same compare-and-swap, so revisions
-  never reset across delete/recreate), backed up via store-managed
-  `VACUUM INTO` export. The only irreplaceable local state;
-  the store crate's production code is held to no-panic by a clippy
-  ratchet (`unwrap_used`/`expect_used` denied).
-  `Store::refresh_snapshot` (`snapshot.rs`) is the planner's read, taken
-  in one read transaction and bound to the account uuid the facts file
-  records: the annotations file carries its owner's uuid internally
-  (`Annotations::open_for` stamps and verifies it), so a copied or
-  renamed file keeps its owner and a mismatched or unbound handle is
-  refused. The snapshot is one (realm, league)'s two listing bases (the
-  `responses` rows a plan cites — the league's stash listing and the
-  realm's character listing; membership is stamped with those ids, so
-  two listings in one second cannot disagree), tab identities with
-  freshness and the listing's metadata verbatim (kept in its own
-  column; a fetch never overwrites it), character identities with
-  freshness, the listed entry verbatim and the fetched envelope only
-  while a fetch stands (a revived row offers no body), plus the realm's
-  league-less characters, and the sync-policy annotation row at its
-  revision — facts and intent named together, never a staleness
-  verdict; compiling them into requests is `acquisition-plan`'s job
-  (tracer step 4, built 2026-09-01; characters 2026-09-02).
-  A 2xx body missing its array/object or carrying an identity-less
-  entry (a tab or item without `id` — a PoE2 item-granted skill
-  excepted, below — a listed character without `id` or `name`, a
-  fetched character without `id`) is a typed `MalformedBody` refusal
-  that writes no fact (the body is kept verbatim in `refused`, facts
-  v7, and the error names the position) — and it fails the
-  job: the daemon's `record` classifies the store's verdict, so a
-  malformed response is `Outcome::Failure` while genuine persistence
-  trouble stays logged-and-absorbed. `acq store import` keeps the
-  legacy tolerance at its own boundary (id-less snapshot items are
-  skipped and counted, never ingested silently). Both store files carry
-  schema versions: a newer file is refused, and migrations run
-  serialized so two openers cannot interleave them.
-  Bodies are kept verbatim except at the item
-  seams: each item array (tab `items`, character `inventory`/`equipment`/
-  `jewels`/`rucksack`/`guardian`/`skills`, and every `socketedItems`) is lifted into `items`,
-  one row per GGG item id, so `items` is the only place to look for an
-  item (the one thing left in place is a PoE2 item-granted skill's
-  subtree, which has no id and is not an item — see the store bullet). Each ingest compares with what was known and writes
-  `item_events` (added/moved/changed/removed; `veiledMods` ignored, N36).
-  Its tests are the spec; `acq store import <snapshot>` replays a
-  retired-`acq pull` snapshot through it with no GGG traffic (19,210 rows
-  in ~2.3 s). `daemon.db` in the same directory is the **persisted job
-  queue** (`jobs.rs`): the daemon mirrors every job there at each state
-  change and takes the open ones back when it starts, so the queue
-  survives an idle exit, `daemon stop`, a version respawn, or a crash.
-  A job that was running is re-queued (idempotent GETs; the restart
-  probe reads GGG's counters first) — except on no-probe routes, where
-  it fails as interrupted, and a parent restarted mid-fan-out, which
-  holds for the children it already has and then finishes as interrupted
-  (the full child set is unknown, so success is never claimed; its own
-  payload is lost) — probes are dropped, ids continue. A queue write
-  failure at runtime is sticky: the daemon refuses new jobs and stops
-  dispatching (running jobs finish) until a restart finds a working
-  `daemon.db`; a queue it cannot read at start is fatal. Finished rows
-  stay for `acq result <id>` across restarts, pruned by age at start.
-- `crates/acquisition-plan` — the planner (tracer step 4): policy
-  compilation and `RefreshPlan` construction, linked by frontends only,
-  never the daemon — "the daemon never reads the store" is enforced by
-  the dependency graph. `plan_refresh(provider, &snapshot, now)` parses
-  the snapshot's sync-policy row (the planner owns that value's schema:
-  version-stamped and strict-parsed — a typo'd field is a structured
-  error, never intent half-honored; a newer version is refused as such;
-  **v3** covers per facet under `realms.<R>.leagues.<L>`: `tabs` and/or
-  `characters`, each `"all"` or an id list, absent (or an empty list)
-  meaning no coverage of that facet, an entry covering neither refused
-  as "names no work"; `tabs` under `poe2` is a parse error because the
-  stash endpoints are PoE1 only while `characters` is taken under every
-  realm; a v1 `leagues.<L>` value still parses as realm pc, and v1/v2
-  as tab coverage only)
-  and compiles it, with the daemon down, into a serializable
-  `RefreshPlan`: the explicit action set (the league's stash listing
-  and/or per-tab fetches, the realm's character listing and/or
-  per-character fetches — each facet as the policy covers it, each
-  action carrying its reason — never fetched, stale, or a listing newer
-  than our fetch disagreeing: a tab's item count, a character's
-  `experience` or league), covered-but-skipped tabs and characters with
-  reasons (a listed `deleted`/`expired` character is never fetched; one
-  the listing gave no league is outside every league's coverage and
-  reported as such), policy ids the facts lack reported rather than
-  invented into actions, the bases it cites (both listing response ids,
-  policy revision, account uuid, snapshot time), exact
-  `logical_requests`, and a coarse `wire_sends` range with named
-  prerequisites (probe, OAuth refresh) — never a precise wire
-  accounting. Plans always derive from the stored policy
-  row and carry its revision (no ad-hoc path), and a serialized plan
-  re-validates on parse — unknown fields at any depth (the derived
-  envelope must re-serialize to exactly what was read, which closes the
-  one hole serde leaves: extra fields beside a unit reason's `kind`), a
-  newer schema stamp, a wrong operation, an action outside the
-  envelope's league (the realm-wide character listing carries none and
-  is in-envelope for any league of its realm), or derived quantities
-  that do not recompute (the wire projection, prerequisites included)
-  are refused whole — so apply can trust what it reads back. Plans are
-  binding and act only on facts on record: a never-listed league (or
-  realm, for characters) plans the listing alone (covered tabs and
-  characters are reported as awaiting the listing — without a basis the
-  plan has no membership authority), substash
-  fetches come only from stubs already in the store (no dynamic deep
-  fan-out; one whose recorded parent has been retired is skipped with
-  its reason, never fetched by a guessed path), and newly discovered
-  tabs and characters wait for the next plan. A listed
-  `metadata.items` count forces a fetch when a listing newer than our
-  fetch disagrees with what the store holds; it never skips one. A
-  character fetch is addressed by the *listed* name (identity is the
-  id; the name is the address, and a moved name fails its child
-  honestly or lands the id the server answers with). Each
-  action renders the daemon's own `(kind, params)` job tuple
-  (`RefreshAction::job`), pinned by decoding through
-  `Endpoint::from_job` — the store's production decoder of the job
-  vocabulary — and by a plan→record→replan loop that proves applied
-  actions satisfy the plan. A plan may carry the daemon's **quote** as
-  optional enrichment (tracer step 5, built 2026-09-01): `quote` is its
-  own protocol request — a read-only, non-reserving projection of the
-  work's `(kind, params)` tuples over current limiter state, per
-  scheduling scope with per-window headroom (stamped with its own
-  observation age, read under one limiter lock with the ETA), the queue
-  counted ahead, and a forward-simulated ETA that is an estimate, never
-  a promise — seeded (as a count, safe against absurd headers) with
-  server-reported hits the local history never saw, so it over-waits
-  rather than floods; unlearned routes, probes, OAuth refresh, 429
-  re-sends, and a rails halt are named rather than silently omitted.
-  The quote echoes the job tuples it priced (`work`), and attaching one
-  (`with_quote`) validates it speaks about the plan's own provider,
-  exactly its account, and exactly its actions in order — never just a
-  matching count; carrying it bumped the plan schema (v3; the `empty_stub`
-  skip kind made v4 on 2026-09-01; realm beside league on the envelope
-  and on every action made v5 on 2026-09-02 — every tuple names its
-  realm explicitly, pc included; characters made **v6** the same day:
-  `list_characters` / `fetch_character` actions, `basis.stash_listing` +
-  `basis.character_listing`, `skipped_tabs` / `unknown_tabs` beside
-  `skipped_characters` / `unknown_characters`). Same
-  no-panic clippy ratchet as the store crate.
+- `crates/acquisition-store` — the shared store: SQLite, one facts file
+  per **account** under one directory per provider, plus
+  `<uuid>.annotations.db` (the intent layer — buyouts, notes, the sync
+  policy; the only irreplaceable local state) and `daemon.db` (the
+  persisted job queue, `jobs.rs`). The daemon writes facts through one
+  call, `Store::record(endpoint, params, status, body)`, and never
+  reads; every frontend reads the files directly. How ingest works as
+  built — item lifting at the seams, listing-owned membership and
+  liveness, withheld and refused bodies, `item_events`, schema versions
+  and migrations, the no-panic lint ratchet — is the crate's module doc
+  (`src/lib.rs`, "As built") and its tests; the boundary properties are
+  `CONTEXT.md` decisions ("Bodies are stored verbatim…", "A refused body
+  is evidence…", "Annotations are the only irreplaceable local state").
+- `crates/acquisition-plan` — the planner: compiles the stored sync
+  policy plus a store snapshot into a `RefreshPlan`, offline, linked by
+  frontends only, never the daemon ("the daemon never reads the store"
+  is enforced by the dependency graph). The policy shape (v3), what a
+  plan contains, the strict re-serializing parse, quote enrichment and
+  the schema history are the crate's module doc (`src/lib.rs`, "As
+  built"); the boundary properties are the Plan, quote and apply
+  decisions in `CONTEXT.md`. Same no-panic lint ratchet as the store.
 - `crates/acquisition-cli` — the `acq` binary. Thin: clap parsing, output
-  formatting, `store_cmd.rs` — the reads of the shared store (`tabs`,
-  `items`, `store`) — and `plan_cmd.rs` — the intent surface (`acq policy`,
-  writing the sync-policy annotation through the store crate) and
-  `acq refresh --plan` (tracer step 6): compiles the stored policy via
-  `acquisition-plan` into a `RefreshPlan`, offline, spending nothing; a
-  *running* daemon enriches it with its quote (never spawned for this),
-  and `--json` emits the plan envelope verbatim. `acq refresh --apply`
-  (tracer step 7) executes a plan — compiled fresh, or a reviewed
-  envelope from `--plan --json` re-validated by the planner's parse:
-  the staleness gate (the stored policy revision must still be the
-  plan's — CONTEXT.md's step-7 ruling) runs offline before any daemon
-  contact, an empty plan applies as a no-op with no daemon at all, and
-  the actions go out as one `apply` parent job — a pure fan-out the
-  daemon admits or refuses whole at submit (single-request vocabulary
-  only — `stashes`, `stash`, `characters`, `character` — plus the
-  `--max-requests` logical budget), executing exactly
-  the reviewed tuples and never expanding them; newly discovered tabs
-  wait for the next plan, and the plan→apply→replan loop is pinned at
-  process level: `tests/apply_loop.rs` closes a policy naming tabs and
-  characters together in a bootstrap cycle of two listings plus two
-  reconciliation cycles, and `tests/characters_wire.rs` closes a
-  character-only poe2 policy on the `character-list/poe2` and
-  `character/poe2` routes, probes first, with the PoE2 `skills` item
-  on record. `acq store characters` is the store-side read of the
-  character rows (id, address, league, freshness, item count). The protocol client (connect, lazy spawn, version
-  handshake) lives in `acquisition-core/src/client.rs` and is shared by
-  every frontend; the frontends differ only in connect *policy*
-  (`ConnectOptions`). `acq pull` (client-side snapshot + diff, 2026-08-24)
-  is retired: the store's `item_events` answer the same question for every
-  consumer. The daemon is reached via the hidden-ish `acq daemon run`
-  subcommand, which is what lazy spawn execs.
+  rendering, `store_cmd.rs` (reads of the shared store, no daemon) and
+  `plan_cmd.rs` (the intent surface `acq policy`, and `acq refresh
+  --plan|--apply` through `acquisition-plan`). The protocol client
+  (connect, lazy spawn, version handshake) is
+  `acquisition-core/src/client.rs`, shared by every frontend; frontends
+  differ only in connect *policy* (`ConnectOptions`). The daemon is
+  reached via `acq daemon run`, which is what lazy spawn execs. The
+  loop is pinned at process level in `tests/apply_loop.rs`,
+  `tests/plan_json.rs`, `tests/characters_wire.rs`, `tests/realm_wire.rs`.
 - `crates/acquisition-mcp` — the `acq-mcp` binary: an MCP server over
   stdio (official `rmcp` SDK), the fourth thin client. Store-read tools
-  (`accounts`, `characters`, `tabs`, `search_items`, `get_item`,
-  `store_status`, `item_events` — no daemon, no network), job tools (`submit_job`,
-  `list_jobs`, `job_status`, `job_result`, `cancel_job`, `daemon_status`),
-  and the plan slice (tracer step 8): `sync_policy` / `set_sync_policy`
-  (the intent annotation — local, sends nothing, allowed in either mode;
-  replacing an existing policy must name the revision it replaces, so an
-  agent never clobbers intent it has not read), `refresh_plan` (the
-  offline compile, quote-enriched by a *running* daemon in either mode,
-  never spawned for it),
-  and `apply_plan` (the reviewed envelope as one `apply` parent, the
-  staleness gate run before any daemon contact; returns the job id to
-  poll). The slice shares its semantics with the CLI through
-  `acquisition-plan` (validate-then-CAS policy writes, the validating
-  parse, `check_spendable`, `apply_params`), and the whole loop is
-  pinned at process level in `tests/plan_loop.rs` (offline claims proven
-  with the daemon stopped) and `tests/ggg_refusal.rs` (real mode never
-  spawns a daemon, proven with none present).
-  It **never kills or replaces a daemon** (a mismatch may be a human's
-  live GGG run — it reports and stops) and lazy-spawns only in mock mode:
-  a real-GGG daemon is a human's act. Agent traffic through the daemon is
-  allowed in either mode (owner ruling 2026-09-01, CONTEXT.md) — the
-  daemon is the single gate, and every client is paced by the same code.
-  Login is human, via `acq auth`.
+  (no daemon, no network), job tools, and the plan slice (`sync_policy`,
+  `set_sync_policy`, `refresh_plan`, `apply_plan`), sharing semantics
+  with the CLI through `acquisition-plan`. Its rules are `CONTEXT.md`
+  decisions: it never kills or replaces a daemon, lazy-spawns only in
+  mock mode, and spends through a *running* daemon in either mode;
+  login is human, via `acq auth`. Pinned in `tests/plan_loop.rs` and
+  `tests/ggg_refusal.rs`.
 
 ## Try it
 
@@ -336,7 +122,6 @@ acq stashes --league Standard [--realm xbox] # GET /stash[/{realm}]/{league}: a 
 acq character <name> [--realm R]             # GET /character[/{realm}]/{name}: equipment + inventory
 acq leagues                                  # GET /account/leagues (account:leagues)
 acq stash <id> [--sub <id>] [--deep]         # one tab; --deep follows a map/unique tab's substashes as child jobs
-acq refresh --tabs a,b,c | --all [--deep]    # list, then one `stash` child per tab; parent finishes last
 acq policy [show]                            # the per-account sync policy: declared coverage + freshness (an annotation)
 acq policy set '<json>' [--if-revision N]    # validated through the planner's strict parse before anything lands;
                                              #  v3 shape: {"version":3,"realms":{"pc":{"leagues":{"Standard":
@@ -361,6 +146,8 @@ acq refresh --apply[=plan.json]              # execute the plan: exactly its act
                                              #  contact if the stored policy revision moved since the plan;
                                              #  --max-requests N makes the daemon refuse at admission if the
                                              #  plan authorizes more, before any child job exists
+acq refresh --tabs a,b,c | --all [--deep]    # the ad-hoc kind: list, then one `stash` child per tab, no plan
+                                             #  (an open topic in CONTEXT.md: two doors to one task)
 acq cancel <parent-id>                       # cascades to every descendant still waiting
 acq accounts                                 # accounts this machine has logged into, from the store's index (no daemon)
 acq tabs [--league L] [--realm R]            # from the shared store: tab tree with live item counts (no daemon)
@@ -414,12 +201,9 @@ ACQ_GGG=1 acq auth          # real OAuth against pathofexile.com in your browser
                             #  profile job; uuid-at-login, N38: not rate limited)
 ACQ_GGG=1 acq characters    # GET api.pathofexile.com/character
 ACQ_GGG=1 acq stashes       # GET api.pathofexile.com/stash/Standard
-ACQ_GGG=1 acq characters --realm poe2   # GET …/character/poe2 — PoE2 first contact (unobserved by
-                                        # us; documented live). The store is ready for it since the
-                                        # character key (id-keyed, realm-scoped); the sample is the
-                                        # owner's, under the standing rule (CONTEXT.md, order (5)) —
-                                        # or, as one loop with the rails on and the journal verified:
-tools/tracer-rung.sh --account A --realm poe2 --characters all none   # LIVE-TESTING.md, "Characters rung"
+ACQ_GGG=1 acq characters --realm poe2   # GET …/character/poe2 (first contact 2026-09-02: N41–N44)
+tools/tracer-rung.sh --account A --characters all <tab ids>   # the refresh loop under the rails,
+                                        # journal verified — see the live-run procedure
 ```
 
 `ACQ_GGG=1` on any command selects the real provider; the CLI kills and

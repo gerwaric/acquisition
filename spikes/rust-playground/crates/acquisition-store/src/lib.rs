@@ -6,10 +6,12 @@
 //! The daemon's whole contract is [`Store::record`]: endpoint, params, status,
 //! body. It never looks inside a body. Inside this crate, a body is kept
 //! verbatim except at the item seams — every array of items (a tab's
-//! `items`, a character's `inventory`/`equipment`/`jewels`/`rucksack`, and
-//! each item's `socketedItems`) is lifted out into the `items` table, one
-//! row per GGG item id. `responses` + `items` is the response, exactly,
-//! split at those seams; `items` is the only place to look for an item.
+//! `items`, a character's `inventory`/`equipment`/`jewels`/`rucksack`/
+//! `guardian`/`skills`, and each item's `socketedItems`) is lifted out into
+//! the `items` table, one row per GGG item id. `responses` + `items` is the
+//! response, exactly, split at those seams; `items` is the only place to
+//! look for an item (the one thing left in place is a PoE2 item-granted
+//! skill's subtree, which has no id and is not an item).
 //!
 //! Every derived column (`name`, `type_line`, …) comes from the row's own
 //! `json`, so a wrong extraction is repaired by re-extracting, never by
@@ -17,6 +19,123 @@
 //!
 //! Facts are one of four layers (CONTEXT.md, 2026-08-31); `annotations` is
 //! the intent layer, the only irreplaceable local state.
+//!
+//! # As built
+//!
+//! The ingest semantics, moved here from the README on 2026-09-02 (the
+//! boundary properties are `CONTEXT.md` decisions; the tests are the spec):
+//!
+//! Item membership is per
+//! response, like listing membership: a fetch retires what it did not
+//! carry at its location whatever the clock says, a character or tab a
+//! listing no longer names takes its items with it (retired, with
+//! `removed` events), a parent tab's fetch is its substashes' listing,
+//! and a fetch never revives a location a listing retired — the whole
+//! body stays verbatim on its response row (`withheld`: the count of item
+//! facts it carried, NULL for an ordinary response; in the daemon log
+//! and `store status`) and nothing else lands, until a listing names the
+//! location again, which also clears its `fetched_at` — and its retained
+//! substashes' — so the next plan fetches them. A withheld body is
+//! validated like any other: an id-less item is still refused whole. A
+//! **refused body is kept verbatim** in `refused` (facts v7, 2026-09-02 —
+//! PoE2 first contact refused four of five character bodies and left
+//! nothing to read): the ingest transaction rolls back whole, no basis
+//! query reads that table, the failure names the row and the item's
+//! position (`skills[1]`), and `acq store refused [id]` shows the list or
+//! one body in full. A location is its full coordinate (realm, league for
+//! a stash, kind, id), and events carry it whole. `accounts.json` next
+//! to the files is the non-secret account index: written at login/logout,
+//! read by frontends to resolve `ACQ_ACCOUNT` without a daemon, and read by
+//! the daemon at start to know which keyring entries (one per account) to
+//! load. Every entry carries the account **uuid**, required at login: after
+//! token exchange the daemon submits a profile job (visible in `acq jobs`),
+//! and only when the uuid lands is the session registered, the keyring
+//! written, and the index updated — a login whose profile fetch fails
+//! **fails whole**. A rename (same uuid, new username) is a mapping update.
+//! Facts carry **realm** beside league (schema v3, 2026-09-02 — PoE2
+//! shares league names with PoE1): `tabs` is keyed `(realm, league, id)`,
+//! characters and items carry the *request's* realm (never a body's
+//! field), a listing retires only its own realm's rows, and a pre-realm
+//! file is rebuilt in place as pc. **Characters are keyed by the GGG
+//! character `id`** (facts v4, 2026-09-02): the name is the address the
+//! fetch takes and can move, a rename keeps the row and its items, a
+//! deleted-and-recreated name is a new row, `league` is what the basis
+//! listing said (a fetch never overwrites it), and membership is stamped
+//! per listing response and retired per realm exactly as tabs are. A
+//! pre-v4 file rekeys through each row's json (a row without an id is
+//! dropped, its items retired) and moves item locations from the name to
+//! the id. Every item row records the **array it came from**
+//! (`container`: `items` for a stash; a character's `inventory`,
+//! `equipment`, `jewels`, `rucksack`, `guardian`, or `skills`) — an
+//! ingest fact, not in the json, so a helm moving from the character to
+//! its animate guardian is a `changed` event even with identical json.
+//! An item-shaped array a character body carries under any other name
+//! is the **drift tripwire**: counted into the envelope (`_unlifted`) and
+//! `acq store status`, never lifted, never a failure. A PoE2 **item-granted
+//! skill** (ruled 2026-09-02) — the id-less gem a weapon or shield carries
+//! in its own `socketedItems`, repeated verbatim as `skills[0]`, with any
+//! support socketed into it id-less too — is a property of its host, not an
+//! item: the subtree stays in the host's json and in the envelope under
+//! `skills`, counted (`_granted`, `store status`), never a row and never
+//! a refusal; every other id-less item is still refused.
+//! `<uuid>.annotations.db` beside the fact files is the **intent layer**
+//! (`annotations.rs`): buyouts, notes, the sync policy — keyed on stable
+//! GGG ids, written only through the store crate under integer-revision
+//! compare-and-swap, never deleted by any fact-side event (an annotation
+//! whose item is gone is kept and surfaceable as orphaned; a frontend
+//! delete is a tombstone under the same compare-and-swap, so revisions
+//! never reset across delete/recreate), backed up via store-managed
+//! `VACUUM INTO` export. The only irreplaceable local state;
+//! the store crate's production code is held to no-panic by a clippy
+//! ratchet (`unwrap_used`/`expect_used` denied).
+//! `Store::refresh_snapshot` (`snapshot.rs`) is the planner's read, taken
+//! in one read transaction and bound to the account uuid the facts file
+//! records: the annotations file carries its owner's uuid internally
+//! (`Annotations::open_for` stamps and verifies it), so a copied or
+//! renamed file keeps its owner and a mismatched or unbound handle is
+//! refused. The snapshot is one (realm, league)'s two listing bases (the
+//! `responses` rows a plan cites — the league's stash listing and the
+//! realm's character listing; membership is stamped with those ids, so
+//! two listings in one second cannot disagree), tab identities with
+//! freshness and the listing's metadata verbatim (kept in its own
+//! column; a fetch never overwrites it), character identities with
+//! freshness, the listed entry verbatim and the fetched envelope only
+//! while a fetch stands (a revived row offers no body), plus the realm's
+//! league-less characters, and the sync-policy annotation row at its
+//! revision — facts and intent named together, never a staleness
+//! verdict; compiling them into requests is `acquisition-plan`'s job
+//! (tracer step 4, built 2026-09-01; characters 2026-09-02).
+//! A 2xx body missing its array/object or carrying an identity-less
+//! entry (a tab or item without `id` — a PoE2 item-granted skill
+//! excepted, below — a listed character without `id` or `name`, a
+//! fetched character without `id`) is a typed `MalformedBody` refusal
+//! that writes no fact (the body is kept verbatim in `refused`, facts
+//! v7, and the error names the position) — and it fails the
+//! job: the daemon's `record` classifies the store's verdict, so a
+//! malformed response is `Outcome::Failure` while genuine persistence
+//! trouble stays logged-and-absorbed. `acq store import` keeps the
+//! legacy tolerance at its own boundary (id-less snapshot items are
+//! skipped and counted, never ingested silently). Both store files carry
+//! schema versions: a newer file is refused, and migrations run
+//! serialized so two openers cannot interleave them.
+//! Each ingest compares with what was known and writes
+//! `item_events` (added/moved/changed/removed; `veiledMods` ignored, N36).
+//! Its tests are the spec; `acq store import <snapshot>` replays a
+//! retired-`acq pull` snapshot through it with no GGG traffic (19,210 rows
+//! in ~2.3 s). `daemon.db` in the same directory is the **persisted job
+//! queue** (`jobs.rs`): the daemon mirrors every job there at each state
+//! change and takes the open ones back when it starts, so the queue
+//! survives an idle exit, `daemon stop`, a version respawn, or a crash.
+//! A job that was running is re-queued (idempotent GETs; the restart
+//! probe reads GGG's counters first) — except on no-probe routes, where
+//! it fails as interrupted, and a parent restarted mid-fan-out, which
+//! holds for the children it already has and then finishes as interrupted
+//! (the full child set is unknown, so success is never claimed; its own
+//! payload is lost) — probes are dropped, ids continue. A queue write
+//! failure at runtime is sticky: the daemon refuses new jobs and stops
+//! dispatching (running jobs finish) until a restart finds a working
+//! `daemon.db`; a queue it cannot read at start is fatal. Finished rows
+//! stay for `acq result <id>` across restarts, pruned by age at start.
 
 // The lint ratchet (CONTEXT.md, "Panics are for broken internal invariants
 // only"): the store crate's production code panics on nothing external — a

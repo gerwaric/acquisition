@@ -30,6 +30,85 @@
 //! - Work has two dimensions: `logical_requests` is exact for a refresh;
 //!   `wire_sends` is a coarse range plus named prerequisites, never a
 //!   precise accounting (the wire-budget feature is deferred).
+//!
+//! # As built
+//!
+//! What the planner does, moved here from the README on 2026-09-02:
+//!
+//! `plan_refresh(provider, &snapshot, now)` parses
+//! the snapshot's sync-policy row (the planner owns that value's schema:
+//! version-stamped and strict-parsed — a typo'd field is a structured
+//! error, never intent half-honored; a newer version is refused as such;
+//! **v3** covers per facet under `realms.<R>.leagues.<L>`: `tabs` and/or
+//! `characters`, each `"all"` or an id list, absent (or an empty list)
+//! meaning no coverage of that facet, an entry covering neither refused
+//! as "names no work"; `tabs` under `poe2` is a parse error because the
+//! stash endpoints are PoE1 only while `characters` is taken under every
+//! realm; a v1 `leagues.<L>` value still parses as realm pc, and v1/v2
+//! as tab coverage only)
+//! and compiles it, with the daemon down, into a serializable
+//! `RefreshPlan`: the explicit action set (the league's stash listing
+//! and/or per-tab fetches, the realm's character listing and/or
+//! per-character fetches — each facet as the policy covers it, each
+//! action carrying its reason — never fetched, stale, or a listing newer
+//! than our fetch disagreeing: a tab's item count, a character's
+//! `experience` or league), covered-but-skipped tabs and characters with
+//! reasons (a listed `deleted`/`expired` character is never fetched; one
+//! the listing gave no league is outside every league's coverage and
+//! reported as such), policy ids the facts lack reported rather than
+//! invented into actions, the bases it cites (both listing response ids,
+//! policy revision, account uuid, snapshot time), exact
+//! `logical_requests`, and a coarse `wire_sends` range with named
+//! prerequisites (probe, OAuth refresh) — never a precise wire
+//! accounting. Plans always derive from the stored policy
+//! row and carry its revision (no ad-hoc path), and a serialized plan
+//! re-validates on parse — unknown fields at any depth (the derived
+//! envelope must re-serialize to exactly what was read, which closes the
+//! one hole serde leaves: extra fields beside a unit reason's `kind`), a
+//! newer schema stamp, a wrong operation, an action outside the
+//! envelope's league (the realm-wide character listing carries none and
+//! is in-envelope for any league of its realm), or derived quantities
+//! that do not recompute (the wire projection, prerequisites included)
+//! are refused whole — so apply can trust what it reads back. Plans are
+//! binding and act only on facts on record: a never-listed league (or
+//! realm, for characters) plans the listing alone (covered tabs and
+//! characters are reported as awaiting the listing — without a basis the
+//! plan has no membership authority), substash
+//! fetches come only from stubs already in the store (no dynamic deep
+//! fan-out; one whose recorded parent has been retired is skipped with
+//! its reason, never fetched by a guessed path), and newly discovered
+//! tabs and characters wait for the next plan. A listed
+//! `metadata.items` count forces a fetch when a listing newer than our
+//! fetch disagrees with what the store holds; it never skips one. A
+//! character fetch is addressed by the *listed* name (identity is the
+//! id; the name is the address, and a moved name fails its child
+//! honestly or lands the id the server answers with). Each
+//! action renders the daemon's own `(kind, params)` job tuple
+//! (`RefreshAction::job`), pinned by decoding through
+//! `Endpoint::from_job` — the store's production decoder of the job
+//! vocabulary — and by a plan→record→replan loop that proves applied
+//! actions satisfy the plan. A plan may carry the daemon's **quote** as
+//! optional enrichment (tracer step 5, built 2026-09-01): `quote` is its
+//! own protocol request — a read-only, non-reserving projection of the
+//! work's `(kind, params)` tuples over current limiter state, per
+//! scheduling scope with per-window headroom (stamped with its own
+//! observation age, read under one limiter lock with the ETA), the queue
+//! counted ahead, and a forward-simulated ETA that is an estimate, never
+//! a promise — seeded (as a count, safe against absurd headers) with
+//! server-reported hits the local history never saw, so it over-waits
+//! rather than floods; unlearned routes, probes, OAuth refresh, 429
+//! re-sends, and a rails halt are named rather than silently omitted.
+//! The quote echoes the job tuples it priced (`work`), and attaching one
+//! (`with_quote`) validates it speaks about the plan's own provider,
+//! exactly its account, and exactly its actions in order — never just a
+//! matching count; carrying it bumped the plan schema (v3; the `empty_stub`
+//! skip kind made v4 on 2026-09-01; realm beside league on the envelope
+//! and on every action made v5 on 2026-09-02 — every tuple names its
+//! realm explicitly, pc included; characters made **v6** the same day:
+//! `list_characters` / `fetch_character` actions, `basis.stash_listing` +
+//! `basis.character_listing`, `skipped_tabs` / `unknown_tabs` beside
+//! `skipped_characters` / `unknown_characters`). Same
+//! no-panic clippy ratchet as the store crate.
 
 // The lint ratchet (CONTEXT.md, "Panics are for broken internal invariants
 // only"): the planner's production code panics on nothing external — a
