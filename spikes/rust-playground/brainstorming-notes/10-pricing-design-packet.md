@@ -181,7 +181,7 @@ one element and stays where it is.
   *Recommend:* accept. **Ruling:** ___
 
 - **C73 — The legacy import is a source of desired state for the one compiler (C71), read from the 0.18 userstore under one consistent snapshot, with every source row accounted for in the reviewed plan.** Manual rows are the desired state; inherited, game, auto and `~c/o` rows are non-actions with those reasons; a target the facts lack is a non-action (remedy: refresh); an existing row is never overwritten; the realm is an explicit parameter. The file names a username and no uuid: the plan states the claimed binding, its evidence and confidence; an unverifiable binding needs acknowledgement at apply; only contradiction refuses. *Why:* the wizard dissolves into the plan/apply path; a refusal keeps what it refused (pattern 2). *Details:* `acquisition-plan` doc. — `decisions/pricing.md`
-  *Mechanism (to the code at harvest):* the userstore is WAL, so a hash of the `.db` file can omit uncheckpointed content — the receipt's origin digests the rows as read. Binding confidence: `verified` (the filename's username maps to this uuid in the account index, current or former name), `corroborated` (a stated share of the source's item and location ids are in this account's facts), `unverified` (neither; apply requires an explicit acknowledgement), `contradicted` (the name maps to another uuid on record, or a large source overlaps nothing) — the last refuses. An equal existing row is `unchanged`, a differing one `existing_differs`; a second run is all `unchanged`; `REAL` amounts convert per C67. A `not_in_facts` row keeps enough detail to recover it after a refresh.
+  *Mechanism (to the code at harvest):* the userstore is WAL, so a hash of the `.db` file can omit uncheckpointed content — the receipt's origin digests the rows as read. Binding confidence: `verified` (the filename's username maps to this uuid in the account index, current or former name), `corroborated` (a stated share of the source's item and location ids are in this account's facts), `unverified` (neither, zero overlap included — absence of evidence is not evidence of another identity; apply requires an explicit acknowledgement), `contradicted` (affirmative evidence of another identity: the name maps to another uuid on record) — only the last refuses. An equal existing row is `unchanged`, a differing one `existing_differs`; a second run is all `unchanged`; `REAL` amounts convert per C67. A `not_in_facts` row keeps enough detail to recover it after a refresh.
   *Recommend:* accept. **Ruling:** ___
 
 ### (c) New scope
@@ -203,8 +203,8 @@ one element and stays where it is.
 
 ### A line for `CONTEXT.md` (cross-cutting)
 
-- **C79 — Surfaces GGG does not sanction — the trade site, the forums, third-party feeds — are governed inputs, never runtime dependencies.** The daemon never touches them (invariant 1 covers the API; this covers the rest); no store read, plan compile or apply depends on one; each is registered with its status, terms exposure and cadence; it is consulted by a human or human-run tooling at authoring or experiment time, and what it yields lands as claims or reviewed reference data, source cited per row. One used as an *effect* (a forum post) needs its own boundary session first. *Why:* Acquisition predates the API and has always used such surfaces; the relationship is protected by keeping them deliberate and off the runtime path, not by pretending they are unused. — `CONTEXT.md`
-  *Recommend:* accept; the first registered surface is the trade site, read in a browser for currency evidence and the forum matrix. **Ruling:** ___
+- **C79 — Surfaces GGG does not sanction — the trade site, the forums, third-party feeds — are governed inputs, never runtime dependencies, and permission attaches to the access method.** The daemon never touches them; no store read, plan compile or apply depends on one; each is registered with its status, terms exposure, access method and cadence. A human may read one; tooling fetches one only from an official export or with explicit permission recorded in its entry. What a surface yields lands as claims or reviewed reference data, sources cited. One used as an *effect* needs its own boundary session first. *Why:* Acquisition predates the API and has always used such surfaces; the relationship is protected by keeping them deliberate, not by pretending otherwise. — `CONTEXT.md`
+  *Recommend:* accept; the first registered surface is the trade site, access method `browser` (currency evidence, the forum matrix), no automation. **Ruling:** ___
 
 ### Lines for `decisions/plans.md` (the two open topics)
 
@@ -420,15 +420,17 @@ rest of that lot stands.
 ## 4. Questions for the owner
 
 1. C79 as a cross-cutting line in `CONTEXT.md` (the thirteenth of
-   fifteen), with the trade site as the first registered surface?
+   fifteen), with the trade site as the first registered surface,
+   access method `browser`, no automated fetch?
 2. C68's v1 source: a reviewed table with a citation per row, drafted
    from the C++ list, the census, and dated browser readings of the
    trade site, with any tool output treated as a proposal. Accept, or
    name a different permitted source?
 3. C67's exact rational amount as the stored type, with emitted and
    accepted forms narrowed from claims?
-4. C73's binding model: verified / corroborated / unverified (explicit
-   acknowledgement at apply) / contradicted (refuse)?
+4. C73's binding model: verified / corroborated / unverified (zero
+   overlap included; acknowledgement at apply) / contradicted
+   (affirmative evidence of another identity only; refuse)?
 5. Step 8's split: instrument in `tools/`, claims, then production
    render with a ruled policy table and blocked-unruled?
 6. C78's plan retention: an import always writes its reviewed plan to
