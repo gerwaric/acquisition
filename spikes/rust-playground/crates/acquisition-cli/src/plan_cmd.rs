@@ -921,10 +921,31 @@ fn render_nothing_to_do(plan: &RefreshPlan, now: i64) -> String {
             policy_window(plan.max_age_seconds)
         );
     }
-    // When freshness is not the whole explanation, the decision is still
-    // one line and each exceptional reason is stated once below it.
     let plan_age = (now - plan.generated_at).max(0);
-    let mut out = if plan_age < 90 {
+    let has_covered_entries = !plan.skipped_tabs.is_empty() || !plan.skipped_characters.is_empty();
+    let mut out = if has_covered_entries && plan_age < 90 {
+        if fresh.is_empty() {
+            "nothing to do: covered entries do not need fetching\n".to_string()
+        } else {
+            format!(
+                "nothing to do: covered entries are fresh (under {}) or do not need fetching\n",
+                policy_window(plan.max_age_seconds)
+            )
+        }
+    } else if has_covered_entries {
+        if fresh.is_empty() {
+            format!(
+                "nothing to do: this {}-old plan found covered entries that did not need fetching\n",
+                dur(plan_age)
+            )
+        } else {
+            format!(
+                "nothing to do: this {}-old plan found covered entries fresh (under {}) or not needing a fetch\n",
+                dur(plan_age),
+                policy_window(plan.max_age_seconds)
+            )
+        }
+    } else if plan_age < 90 {
         "nothing to do: no requests authorized\n".to_string()
     } else {
         format!(
@@ -1184,7 +1205,7 @@ fn common_action_reason(actions: &[RefreshAction]) -> Option<String> {
         return Some(format!("all facts are {first} old"));
     }
 
-    let all_never = actions.iter().all(|action| {
+    let all_never_listed = actions.iter().all(|action| {
         matches!(
             action,
             RefreshAction::ListStashes {
@@ -1193,7 +1214,31 @@ fn common_action_reason(actions: &[RefreshAction]) -> Option<String> {
             } | RefreshAction::ListCharacters {
                 reason: ListingReason::NeverListed,
                 ..
-            } | RefreshAction::FetchTab {
+            }
+        )
+    });
+    if all_never_listed {
+        let stash = actions
+            .iter()
+            .any(|a| matches!(a, RefreshAction::ListStashes { .. }));
+        let characters = actions
+            .iter()
+            .any(|a| matches!(a, RefreshAction::ListCharacters { .. }));
+        return Some(
+            match (stash, characters) {
+                (true, true) => "stash and characters never listed",
+                (true, false) => "stash never listed",
+                (false, true) => "characters never listed",
+                (false, false) => return None,
+            }
+            .into(),
+        );
+    }
+
+    let all_never_fetched = actions.iter().all(|action| {
+        matches!(
+            action,
+            RefreshAction::FetchTab {
                 reason: FetchReason::NeverFetched,
                 ..
             } | RefreshAction::FetchSubstash {
@@ -1205,7 +1250,35 @@ fn common_action_reason(actions: &[RefreshAction]) -> Option<String> {
             }
         )
     });
-    all_never.then(|| "nothing has been listed or fetched".into())
+    if all_never_fetched {
+        let mut kinds = Vec::new();
+        if actions
+            .iter()
+            .any(|a| matches!(a, RefreshAction::FetchTab { .. }))
+        {
+            kinds.push("tabs");
+        }
+        if actions
+            .iter()
+            .any(|a| matches!(a, RefreshAction::FetchSubstash { .. }))
+        {
+            kinds.push("substashes");
+        }
+        if actions
+            .iter()
+            .any(|a| matches!(a, RefreshAction::FetchCharacter { .. }))
+        {
+            kinds.push("characters");
+        }
+        let subjects = match kinds.as_slice() {
+            [one] => (*one).to_string(),
+            [one, two] => format!("{one} and {two}"),
+            [one, two, three] => format!("{one}, {two}, and {three}"),
+            _ => return None,
+        };
+        return Some(format!("selected {subjects} never fetched"));
+    }
+    None
 }
 
 /// `5 stale (13h)`, `64 stale (13h–14h)`, `41 never fetched`, `3 stale
@@ -1395,6 +1468,8 @@ fn summarize_skipped_characters(plan: &RefreshPlan, audit: bool) -> String {
     }
     let noun = if audit {
         "covered character(s)"
+    } else if plan.skipped_characters.len() == 1 {
+        "character"
     } else {
         "characters"
     };
@@ -1429,7 +1504,15 @@ fn summarize_skipped_tabs(plan: &RefreshPlan, audit: bool) -> String {
         parts.push(format!("{fresh} fresh"));
     }
     if folders > 0 {
-        parts.push(format!("{folders} folder(s) — never fetched"));
+        parts.push(format!(
+            "{} — {} only",
+            plural(folders, "folder", "folders"),
+            if folders == 1 {
+                "container"
+            } else {
+                "containers"
+            }
+        ));
     }
     if awaiting > 0 {
         parts.push(format!("{awaiting} awaiting the listing"));
@@ -1440,7 +1523,13 @@ fn summarize_skipped_tabs(plan: &RefreshPlan, audit: bool) -> String {
     if empty > 0 {
         parts.push(format!("{empty} empty substash stub(s) — nothing to fetch"));
     }
-    let noun = if audit { "covered tab(s)" } else { "tabs" };
+    let noun = if audit {
+        "covered tab(s)"
+    } else if plan.skipped_tabs.len() == 1 {
+        "tab"
+    } else {
+        "tabs"
+    };
     let detail = if audit {
         " (per-tab reasons in --json)"
     } else {
@@ -1953,6 +2042,38 @@ mod tests {
     }
 
     #[test]
+    fn c53_never_reasons_distinguish_listing_from_fetches() {
+        let listings = vec![
+            RefreshAction::ListStashes {
+                realm: Realm::Pc,
+                league: "Standard".into(),
+                reason: ListingReason::NeverListed,
+            },
+            RefreshAction::ListCharacters {
+                realm: Realm::Pc,
+                reason: ListingReason::NeverListed,
+            },
+        ];
+        assert_eq!(
+            common_action_reason(&listings).as_deref(),
+            Some("stash and characters never listed")
+        );
+
+        let fetches = vec![
+            tab("a", "A", FetchReason::NeverFetched),
+            substash("a", "s", FetchReason::NeverFetched),
+            character(1),
+        ];
+        assert_eq!(
+            common_action_reason(&fetches).as_deref(),
+            Some("selected tabs, substashes, and characters never fetched")
+        );
+
+        let mixed = vec![listings[0].clone(), fetches[0].clone()];
+        assert_eq!(common_action_reason(&mixed), None);
+    }
+
+    #[test]
     fn the_decision_quote_collapses_repeated_unlearned_policies() {
         let scopes = [
             ("stash-list@Alice#1234", 1),
@@ -2060,6 +2181,30 @@ mod tests {
         assert_eq!(
             render_nothing_to_do(&plan, plan.generated_at + 7_200),
             "nothing to do: this 2h-old plan found 69 tabs and 41 characters fresh (under 1h)\n"
+        );
+
+        plan.skipped_tabs.push(acquisition_plan::SkippedTab {
+            id: "folder".into(),
+            name: "Container".into(),
+            reason: SkipReason::Folder,
+        });
+        assert_eq!(
+            render_nothing_to_do(&plan, plan.generated_at),
+            concat!(
+                "nothing to do: covered entries are fresh (under 1h) or do not need fetching\n",
+                "skipped 70 tabs: 69 fresh, 1 folder — container only\n",
+                "skipped 41 characters: 41 fresh\n",
+            )
+        );
+
+        plan.skipped_tabs.retain(|tab| tab.id == "folder");
+        plan.skipped_characters.clear();
+        assert_eq!(
+            render_nothing_to_do(&plan, plan.generated_at),
+            concat!(
+                "nothing to do: covered entries do not need fetching\n",
+                "skipped 1 tab: 1 folder — container only\n",
+            )
         );
         let rendered = render_plan(&plan, Some(NO_DAEMON_NOTE), 2_000, false, None);
         assert!(rendered.contains("nothing to do"), "{rendered}");
