@@ -1,11 +1,10 @@
 # Pricing design packet — the second plan-bearing consumer
 
-**Written 2026-09-03**; **revised the same day** twice: from the
-driver's seat (on the owner's ask), then against the external review
-(`11-pricing-design-review.md`), whose points are answered in "The
-review, answered" below. This is the document the owner rules on, in
+**Written 2026-09-03.** This is the document the owner rules on, in
 the shape of 06: candidate decision lines in registry form, one chosen
-slice, a parking lot with triggers. Accepted lines are harvested
+slice, a parking lot with triggers. Its history is `git log` on this
+file and the external review beside it (`11-pricing-design-review.md`);
+nothing here restates either. Accepted lines are harvested
 verbatim into a new `decisions/pricing.md` (one index row in
 `CONTEXT.md`); the two lines addressed to `decisions/plans.md` go
 there. Then this file is history, never a second authority.
@@ -33,22 +32,45 @@ outward traffic. Its validating consumer is real use, twice: the owner's
 C++ buyouts flowing through the import, and a rendered shop page read
 against the forum. Publishing is out of scope.
 
-Two facts the evidence corrected on the way in:
+Two facts about the import's source that shape the lines below:
 
 - **The 0.18 userstore keys character locations on the character id**
   (`ItemLocation` for a character sets `m_unique_id = character.id`),
-  not the name: 07's "resolve C++ character locations, which are names"
-  was the pre-0.16 legacy shape. The import matches on ids throughout.
+  not the name. The import matches on ids throughout.
 - **A substash item's C++ location id is its parent's** (`id()` stays
   the display tab; `fetch_id()` is the substash). Imported location rows
-  therefore land on parent tabs, which is what the inheritance rule
-  below already means.
+  land on parent tabs, which is what the inheritance rule (C70) means.
+
+## Facts this slice will discover
+
+Nobody knows what the trade site shows when an item carries an in-game
+price note and is also posted in a forum shop at another price; the
+price-note grammar and the currency vocabulary have moved since the
+C++ tables were written; PoE2 may differ again. The design keeps every
+one of those answers *outside* intent — in facts stored verbatim
+(re-parseable without a refetch), in reference data versioned by the
+build, and in derivations that re-derive whole when a rule changes —
+so a discovery is a code change and a claim, never a migration of the
+irreplaceable state. Three things make the discovery deliberate:
+
+- **Trade and forum facts get numbered claims**, authored master-side
+  beside the network ground truth (proposed: `docs/design/trade-ground-truth.md`,
+  claims `T<n>`), cherry-picked here and cited by number — the same
+  rule as for facts about the API.
+- **The forum reading is an experiment**, not a proofread (step 8): a
+  matrix the owner runs by hand with junk items, observed on the trade
+  site after an indexing wait, each cell becoming a claim.
+- **The currency table is authored from the trade site's published
+  static data**, both realms, by a tool run outside the daemon at
+  build time, with the fetch date and digest as its provenance (C68);
+  rerunning the tool is how the table adapts. The owner's own tab
+  names and item notes are the free corpus of current formats, read at
+  the census (step 2c) and watched by a tripwire after it (C69).
 
 ## From the driver's seat
 
-The owner asked for the design to be read as one system, by the agent
-that will drive it. This section is that reading; the lines were
-revised against it.
+The design read as one system, by the agent that will drive it. The
+lines below are shaped by this reading.
 
 **The loop is the system.** Whatever layer a driver touches, the work
 has one shape: *observe* with a basis → *state* the desired end state →
@@ -81,31 +103,6 @@ same surface, and every gap names its remedy as a runnable command or a
 plan — C53's density model applied to the JSON contract. This is a
 slice hypothesis validated by the agent's own mock run (step 9), not a
 ruling: pin after the consumer validates.
-
-## The review, answered
-
-The external review (`11-pricing-design-review.md`) kept the backbone
-and found the weak point exactly where it was: the domain model between
-stored intent and rendered page had collapsed four different statements
-— an observed game price, manual listing intent, a publication
-disposition, and renderability — into one precedence function, and
-invented an authority rule ("game wins at equal grain") that no evidence
-established. That is C++ steering the design through the back door,
-and the correction is taken whole. Point by point:
-
-| Review point | Taken | Where |
-| --- | --- | --- |
-| 1. Two independent resolutions and a relation, not one scalar; `ignore` is a disposition; public visibility is a fact | yes — with one narrowing: the reconciliation *and* the shop's publication policy are Rust derivations, one implementation each; "each consumer decides" never means each frontend | C64, C69, C74 |
-| 2. Typed, realm-aware targets; frontends never build raw keys | yes; the key mirrors the store's own identity: items and characters by id (`schema.sql`, C55), tabs by `(realm, id)`, substashes by `(realm, parent, id)`, league absent | C67 |
-| 3. Amount grammar not ready to freeze; census first; semantic equality | partly: the canonical-form properties are ruled now (they are the durability-relevant part); the grammar's edge (ratios, precision) waits for the census; imported `REAL`s convert by the shortest round-trip text C++ itself rendered to the forum | C67, slice step 2b |
-| 4. Provenance as channel / actor / plan / origin; no path on every row; WAL-consistent digest; source-account binding stated; migrated rows say `unknown_legacy` | yes, whole | C65, C73 |
-| 5. Fact drift explicit; tombstone generation in the precondition; duplicate targets refused; mutation counts as the cost | yes, whole; the "never re-reads" claim narrowed to intent | C71 |
-| 6. A receipt with a compilable conditional inverse, not "its own inverse"; not "effects ledger"; retention stated | yes, whole | C78 |
-| 7. Eligibility derivation with named reasons; no silent skip; forum mechanics provisional; "one post" corrected | yes, whole | C74 |
-| C66 clarification, C68 as versioned reference data with its own basis | yes | C66, C68 |
-| C75 "never a grammar" prejudges the method test | yes: the placement is ruled, the shared thing is step 9's finding | C75 |
-| C76 direction only; C77 without `aging` | yes; `aging` attaches to a quote-bearing plan or waits | C76, C77 |
-| C79 stays a hypothesis under C53 | yes; enumerability moves into C68 | driver's seat, step 9 |
 
 ## Pricing through the four layers, plus one input
 
@@ -153,8 +150,8 @@ one element and stays where it is.
   *Recommend:* accept; the grammar's edge is the one deliberately open clause. **Ruling:** ___
 
 - **C69 — An item's listing is two independent resolutions and their relation, never one scalar.** The manual side resolves by specificity (C70); the game side resolves item note, then tab name, and carries whether its stash is public. The relation is manual-only, game-only, agree, conflict or none; `ignore` is a disposition on the manual side and never denies the observed game price. Every result carries both sides with causes, revisions, basis and age. What a relation *means* is each consumer's rule as a Rust derivation (C74), never a frontend's. *Why:* game observation, forum intent, disposition and renderability are four statements; C++ fused them and needed locks; "game wins" had no evidence. *Details:* `acquisition-plan` doc, C69. — `decisions/pricing.md`
-  *Mechanism (to the code at harvest):* a read's output is a plan's input — the revisions and basis on the result are what the compiler turns into preconditions and provenance.
-  *Recommend:* accept. Replaces the earlier shadowing rule and 08's refusal alike: the conflicting row is stored and reported as `conflict`. **Ruling:** ___
+  *Mechanism (to the code at harvest):* a read's output is a plan's input — the revisions and basis on the result are what the compiler turns into preconditions and provenance. The game side keeps what it cannot fully parse: a note with a known tag and an unrecognized currency is an observation ("game price, currency unknown"), never "no game price"; a tilde-prefixed note or tab name that parses as nothing is counted and inspectable in `price status` — the drift tripwire (C56) applied to price formats.
+  *Recommend:* accept. The conflicting row is stored and reported as `conflict`. **Ruling:** ___
 
 - **C70 — A priced tab covers that tab and its children, the way a policy id does (C37);** a substash row overrides its parent's for that substash; an item row overrides both; a character row covers its items. Coverage is the manual side's inheritance only — it says nothing about eligibility (C74). *Why:* the C++ store already lands substash items' location prices on the parent, and the house rule for tab-scoped intent should not have two shapes. — `decisions/pricing.md`
   *Recommend:* accept. **Ruling:** ___
@@ -172,8 +169,8 @@ one element and stays where it is.
 
 ### (c) New scope
 
-- **C68 — Reference data is a fifth input, versioned by the build: shipped inside the binary, read-only, never in a store file, enumerable through every surface, and cited by version wherever it is used.** The currency table is the first; its version and digest are part of the basis a plan or render stamps. Intent cites reference data by stable tag; a reader that meets a tag its build lacks reports it and never guesses; every frontend lists the table, so no string is guessed. The mod catalog and item categories ship the same way when search needs them. *Why:* not an account fact, not intent, not a derivation — the tower had not placed it (pattern 8). *Details:* the table lives beside its first consumer. — `decisions/pricing.md`
-  *Mechanism (to the code at harvest):* a currency row = stable tag (`chaos`, `divine`, …), display name, the aliases the game and forum accept, realm applicability.
+- **C68 — Reference data is a fifth input, versioned by the build: authored from a named external source by a tool run outside the daemon, shipped inside the binary, read-only, never in a store file, enumerable through every surface, and cited by version wherever it is used.** The currency table is first; its version, source, fetch date and digest join the basis a plan or render stamps. Intent cites reference data by stable tag; a reader that meets a tag its build lacks reports it, never guesses; every frontend lists the table. The mod catalog ships the same way. *Why:* not an account fact, not intent, not a derivation — the tower had not placed it (pattern 8); a hand-typed table is how the C++ list went stale. *Details:* beside its consumer. — `decisions/pricing.md`
+  *Mechanism (to the code at harvest):* the source is the trade site's published static currency data, per realm; a currency row = stable tag (`chaos`, `divine`, …), display name, the aliases the game and forum accept, realm applicability; the authoring tool is rerun to adapt, and its output is committed with the fetch date and digest.
   *Recommend:* accept now, at the first meeting. **Ruling:** ___
 
 - **C74 — `shop render` is in scope as a derivation, publishing is not, and every item the page omits is counted with a named reason.** The page is a pure function of facts, intent, reference data and a template; it sends nothing; the template is a render-time input, not stored; the owner pastes the page by hand. Eligibility is derived per item and nothing is skipped silently. The C++ mechanics — spoiler grouping, link codes, the post limit, page splitting, the hash — are hypotheses until the owner's forum reading. *Why:* every human surface is a derivation over a machine surface (pattern 3); the posts stay parked behind their own boundary session. *Details:* `acquisition-plan` doc, C74. — `decisions/pricing.md`
@@ -185,7 +182,7 @@ one element and stays where it is.
 
 - **C78 — Every applied price plan leaves an intent receipt in the same transaction, from which a conditional inverse can be compiled.** A receipt (annotations v3) holds the plan's hash over its canonical serialization, when and through what it was applied, its origin, its counts, and each mutation with prior and written values; a no-op plan leaves none; a row's `applied_plan` (C65) names its receipt. `revert` compiles a new plan against current revisions and refuses whole if any row moved — history is evidence, never replayed. A row-granularity event log is not built. *Why:* the driver must answer "did that land?" and "undo it" for a batch of hundreds; the parked event log's trigger fires at pricing (pattern 5). *Details:* `annotations.rs` doc. — `decisions/pricing.md`
   *Mechanism (to the code at harvest):* "repriced since T" and "undo the import" are reads over receipts; non-actions are kept as counts, not rows, so an import's refusals live in the plan the human reviewed, not in every receipt.
-  *Recommend:* accept. The one line past 07 and 08's anti-scope; flagged for the owner. **Ruling:** ___
+  *Recommend:* accept. **Ruling:** ___
 
 ### Lines for `decisions/plans.md` (the two open topics)
 
@@ -197,13 +194,13 @@ one element and stays where it is.
 
 ### (d) Recorded rejections (so nothing is re-argued or adopted by not noticing)
 
-- **The game-price lock** (C++: a game-set target refuses edits) and **unconditional shadowing** (this packet's first draft). Both rejected by C69: the row is stored and the relation reported; refusal protects one ordering, shadowing invents an authority rule.
+- **The game-price lock** (C++: a game-set target refuses edits) and **unconditional shadowing** (a game price wins at equal grain). Both rejected by C69: the row is stored and the relation reported; refusal protects one ordering, shadowing invents an authority rule.
 - **"Priced tabs are always refreshed"** (C++ `SetRefreshLocked`). Rejected by C72: intent never rewrites intent; C34's authority rule.
 - **Materialized inheritance** (C++ `PropagateTabBuyouts`, the `inherited` bit). Rejected by C64: a derivation stored as data.
 - **`~c/o` / current offer** as a value. Retired by C67; the census counts what the owner's store holds.
 - **A fused "render and post"**. Rejected by C74 and the 00 gravity warning: the render is a derivation, the posts outward effects outside the choke-point invariant.
 - **Prices as floats.** Rejected by C67: exact decimal in canonical text.
-- **Keys on the GGG id alone** (this packet's first draft, from the C++ upsert shape). Rejected by C67: the store already learned that a location is its full coordinate (C54).
+- **Keys on the GGG id alone** (the C++ upsert shape). Rejected by C67: the store already learned that a location is its full coordinate (C54).
 - **A pricing crate now.** Rejected by C75 until a dependency-graph property asks for it.
 - **A row-granularity annotation event log.** Rejected by C78 in favour of receipts; trigger below if receipt granularity proves too coarse.
 - **The C++ shop's silent skip** of an item it cannot index. Rejected by C74: every omission is counted with its reason.
@@ -235,9 +232,11 @@ the value grammar and the shop's publication rule after the census
    snapshot (rows by `type`, `source`, `inherited`, `currency`,
    `location_type`; amount shapes; `~c/o` count; character and
    remove-only-tab rows) and of the current facts (`metadata.public`
-   presence, tab index, positions, containers, socketing) — the
-   evidence for C67's grammar edge and C74's eligibility reasons,
-   recorded in `PRICING-SLICE.md`. Findings table opened.
+   presence, tab index, positions, containers, socketing, and **every
+   tilde-prefixed item note and tab name, parsed or not** — the corpus
+   of current price formats) — the evidence for C67's grammar edge,
+   C68's alias table and C74's eligibility reasons, recorded in
+   `PRICING-SLICE.md`. Findings table opened.
 3. **Annotations v3 + typed intent** (C65, C66, C71's store half,
    C78's table). `written_via`/`actor`/`applied_plan` columns with the
    `unknown_legacy` migration; `put_intent`/`get_intent` over the
@@ -255,8 +254,9 @@ the value grammar and the shop's publication rule after the census
 5. **The listing state and the situation** (C69, C70). One function
    over the store's items, tabs, characters, `metadata.public` and the
    buyout rows: manual side, game side, relation, causes, revisions,
-   basis; `acq price status`, `acq price show <target>`, `acq price
-   list` with filters, under C53's three levels. Handles pinned: one
+   basis; `acq price status` (with the unparsed-note tripwire), `acq
+   price show <target>`, `acq price list` with filters, under C53's
+   three levels. Handles pinned: one
    location price, one inherited item, one item override, a substash
    under a priced parent, a `conflict`, an `agree`, an orphaned item's
    row, an unknown currency tag.
@@ -279,12 +279,18 @@ the value grammar and the shop's publication rule after the census
    against a fresh refresh, the realm and account-binding statements,
    and the owner's words, verbatim, from the conversation (pattern 6).
 8. **`shop render`** (C74, C72's report) with eligibility and omission
-   counts, then **validation reading 2**: the owner reads the rendered
-   page against the forum for their own shop and pastes it by hand. The
-   forum mechanics and the publication rule for `conflict` and
-   `game_listing_public` are ruled from this reading. Evidence: link
-   codes for substash and character items, page splitting, whether the
-   coverage and staleness lines change what the owner does next.
+   counts, then **validation reading 2, run as an experiment**: the
+   owner pastes the rendered page by hand for their own shop and works
+   a matrix with junk items — in-game note only; forum only; both,
+   agreeing; both, conflicting; `~price` against `~b/o`; a fractional
+   amount; a note in a private tab; a currency the C++ table lacks —
+   then observes what the trade site shows after an indexing wait,
+   repeated once. Each cell becomes a numbered trade claim; the forum
+   mechanics and the publication rule for `conflict` and
+   `game_listing_public` are ruled from those claims, not from C++.
+   Further evidence: link codes for substash and character items, page
+   splitting, whether the coverage and staleness lines change what the
+   owner does next. Nothing in the system sends anything.
 9. **MCP** (`price_status`, `prices`, `price_plan`, `price_apply`,
    `price_revert`, `shop_render`, the currency resource) as thin
    adapters over the same functions — the "no parallel semantics"
@@ -294,7 +300,8 @@ the value grammar and the shop's publication rule after the census
    the two envelopes genuinely share is recorded, and factored only if
    it is literal duplication.
 10. **Close.** `PRICING-SLICE.md` (step ledger, findings, what the
-    census and readings taught, observations still open); the pattern-9
+    census and readings taught, observations still open); the trade
+    claims authored master-side and cherry-picked; the pattern-9
     verdict recorded as a ruling or a parking-lot trigger; whether
     receipts answered every "since" question the readings asked; the
     read-economy verdict.
@@ -386,3 +393,6 @@ rest of that lot stands.
    the intent file, before the first import?
 7. C65's `actor`: keep the optional claimed identity, or channel only
    until a frontend actually has one?
+8. The home for trade and forum facts: a second ground-truth file on
+   master (`trade-ground-truth.md`, claims `T<n>`), or a section of the
+   network one?
