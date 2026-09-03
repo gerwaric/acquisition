@@ -14,8 +14,8 @@ Always, in this order:
 
 1. `README.md` — what exists, how to run it, knobs, known gaps.
 2. `CONTEXT.md` — invariants, the cross-cutting decisions, the index of
-   the area decision files, open topics, the parking lot, and the working
-   style.
+   the area decision files, the cross-cutting parked items, and the
+   working style.
    Owner (Tom) holds the boundaries (invariants, protocol, core API
    surface); agents own internals.
 
@@ -28,7 +28,7 @@ Then, only when the work touches it:
 - Before touching tests or the harness: `TESTING-NOTES.md` — the send
   journal is the contract surface; tests pin boundaries, never mechanisms.
 - Before touching the network layer: `NETWORK-CLEANUP.md` (closed record).
-- Before touching an area, its decisions: `decisions/daemon.md` (daemon,
+- Before touching an area, its decisions and what it has parked: `decisions/daemon.md` (daemon,
   jobs, protocol, accounts), `decisions/network.md` (limiter, gate, rails,
   OAuth traffic), `decisions/store.md` (ingest, facts, realm, characters),
   `decisions/plans.md` (sync policy, planner, quote, apply),
@@ -77,6 +77,7 @@ budget trips, something landed where it does not belong.
 | Kind of fact | Home |
 | --- | --- |
 | a ruling, invariant, or boundary property | the registry: one entry, a stable `C<n>` id, the ruling verbatim, *Why:*, and pointers (under the check's length limit) — in `decisions/<area>.md`, or in `CONTEXT.md` only if every area must know it |
+| parked scope, or a question with no ruling yet | the area's `decisions/<area>.md`, "Parked", one entry with its trigger — in `CONTEXT.md` only if it crosses every area; a fired trigger deletes the entry |
 | a property pinned by a test | the test cites the decision id (`c6_…`, or a comment); the entry's *Pinned:* names the file |
 | a review finding | a row in the slice's closed record, with its fix commit |
 | a build step's narrative | the commit message |

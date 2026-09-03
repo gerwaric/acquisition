@@ -448,4 +448,4 @@ is what deletes the no-probe declaration and restores the probe.
 policy, the C++ capture's shape.
 
 The multi-account build and the characters rungs (pc and PoE2) are
-done; the frontier is pricing (`CONTEXT.md`, parking lot).
+done; the frontier is pricing (`decisions/pricing.md`).

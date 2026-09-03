@@ -21,3 +21,9 @@ Part of the decision registry (`CONTEXT.md`, "Decisions — the registry"): the 
 - **C49 — Complexity rule: the only code that interprets accounts is the session layer.** Everywhere else account is data — a field on the job, a path segment for the store, an opaque key component for the limiter. An `if account == …` outside the session layer is the smell.
 - **C50 — Identity: the stable account key is the profile `uuid`, fetched at login and required.** A login whose profile fetch fails **fails whole**: no provisional identity, no minted keys, no rename-repair machinery. `accounts.json` maps username/discriminator/provider → uuid; fact files stay username-named (refetchable), annotation files are uuid-named. *Why:* intent references identity, and the C++ legacy-buyout saga is the price of an unstable key. *Details:* `daemon.rs` doc, C50. Amended 2026-08-31.
 - **C51 — No daemon-side default account; stateless selection.** Every submit carries `account`; omitted, it resolves only when exactly one session exists, otherwise the daemon refuses with the list. The CLI resolves `--account`/`ACQ_ACCOUNT` client-side against `accounts.json`, so reads never spawn a daemon; matching is exact, never by prefix. A job has exactly one account; cross-account work is a frontend loop. *Details:* `daemon.rs` doc, C51.
+
+## Parked (do not build yet; each with its trigger)
+
+Scope this area has deferred, with the trigger that reopens it, so deferral never needs re-arguing. A fired trigger deletes its entry in the build's commit; what crosses every area is parked in `CONTEXT.md` instead. An entry is the item, where it lands, and the trigger that reopens it, with at most one clause of why; a workaround is a README known gap, history is git.
+
+- Priority levels (how many; named or numeric) → the caller states its urgency regardless of frontend; an agent in a live conversation is interactive. Trigger: a second priority level in use (C5 keeps the field).

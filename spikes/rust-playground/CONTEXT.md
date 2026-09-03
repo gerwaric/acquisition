@@ -20,7 +20,7 @@ As few as possible, each as simple as possible: properties, not mechanisms. An i
 
 One entry per decision: a stable id (`C<n>`, never reused; a superseded decision is rewritten in place under its id and dated, or deleted — git holds the history), the ruling in the owner's words, *Why:* in a sentence, and where the rest lives — *Details:* the module doc that carries the mechanism as recorded, *Pinned:* the tests, *Evidence:* the claim or ledger row. An entry is one bullet under `tools/docs-check.sh`'s length limit; a decision that needs more is a decision plus a mechanism, and the mechanism goes to the code. Tests and docs cite decisions by id; the check refuses an id that does not exist and reports a decision nothing cites.
 
-Only the **cross-cutting** decisions are here, because an agent must know them before it knows which area it is in; the check caps their count. Every other decision lives in its area's file, read before touching that area (`AGENTS.md`, "Read before changing anything"), and named again at the top of the module it governs:
+Only the **cross-cutting** decisions are here, because an agent must know them before it knows which area it is in; the check caps their count. Every other decision lives in its area's file with what that area has parked, read before touching that area (`AGENTS.md`, "Read before changing anything"), and named again at the top of the module it governs:
 
 | File | Area | Decisions |
 | --- | --- | --- |
@@ -55,63 +55,25 @@ None of these interfaces are locked down more than anything else in this documen
 
 The live definition is `crates/acquisition-core/src/protocol.rs` (request/response/event enums, job states). Its boundary properties are the decision lines above; the verb list is internals.
 
-ETA is computed from limiter state + queue depth ahead of the job — the daemon can predict, because it sees everything.
-
 ### CLI shape
 
 The live verb list is `acq --help` and the README's "Try it" block. Properties: default mode is blocking-with-progress ("rate limited, starting in ~4m37s..."), `--detach` is the async/job mode, every command takes `--json`, and `daemon status|stop` exist for debugging only.
 
-## Frontend boundary findings (from `acq pull`, 2026-08-24; `pull` itself was retired 2026-08-29 in favor of the store)
+## Parked (cross-cutting only; do not build yet)
 
-What a real consumer needed from the protocol and did not get. Facts, not decisions; each is a candidate protocol change for Tom to accept or refuse. Resolved ones become decisions above and are deleted here.
+Scope deferred with its trigger, so deferral never needs re-arguing. An area's parked items and open questions live in its `decisions/<area>.md` under "Parked", read before touching the area; only what crosses every area is here. A fired trigger deletes its entry in the build's commit. An entry is the item, where it lands, and the trigger that reopens it, with at most one clause of why; a workaround is a README known gap, history is git.
 
-- **Collecting a subtree is N+1 round trips** (`list`, then `result` per child; 15 for a deep pull of the mock, hundreds for a real map tab). Fine over a Unix socket; shape-wise it wants either results delivered on the event channel as jobs finish, or a `results` verb over a subtree. Waits for a second consumer (GUI or MCP) to show which.
-- **The denominator grows.** Children exist only once their parent runs, so progress reads "0/1" and then "8/8"; a deep pull grows again when each map/unique tab lands. Any progress UI must expect the tree to widen while it watches. A property, not a change request.
-- **Nameless substashes.** Map/unique substashes carry an empty `name` (map ones have `metadata.map.name`); a frontend labels them `parent/id`. Tab identity for a substash is `(parent, id)`. Client-side; the returned JSON is not to be changed.
-
-## Open topics
-
-- Priority levels: how many, and named or numeric? (Interactive > background is the intuition, *regardless of frontend* — an agent in a live conversation is interactive; the caller states its urgency, the frontend doesn't imply it.)
-- Pending ground-truth claims from the 2026-09-02 documentation read (not observed, so not yet claims): realm segment semantics per endpoint and pc-by-omission; PoE2 on the character endpoints only; `inventoryId` undocumented; the invalid-request (4xx) threshold.
-
-(2026-08-31: "delta/selection for refresh" and "user state on items" are resolved into the sync-policy / annotations / Plan decisions above; the tracer section above built them.)
-
-## Explicitly deferred (do not build yet)
-
-- Queue-management UI (drag-to-reorder, per-job progress bars). v1.0 only guarantees the architecture makes this a rendering problem.
-- **Parking lot (2026-08-31; pricing entries replaced 2026-09-03 at the packet's harvest — each with its trigger so deferral never needs re-arguing):**
-  - Shop / forum publishing (POESESSID, thread numbers, one post per page, auto-post after a clean refresh) → outward credentialed traffic **outside the API choke-point invariant**; its own boundary session before any code — the third apply target of the one loop, with its own cost dimension. Trigger: the render (C74) validated and the owner wanting the posts automated.
-  - Third-party price feeds (market prices, suggested prices) → a governed surface under C79. Trigger: currency ratios or a "suggest a price" consumer.
-  - User-scoped annotations home (`user.db`) + scope taxonomy → trigger: the first user-scoped kind actually written (shop template, currency ratios, saved searches); pricing v1 takes the template from a file.
-  - Row-granularity annotation history → trigger: a "since" question receipts (C78) cannot answer at the pricing readings, or a conflict whose resolution needs more than the two plans involved.
-  - One change cursor over facts and intent (`item_events` and receipts read as one "since" stream) → trigger: the pricing slice's agent run (step 9) shows two reads where one would do.
-  - The read economy as a ruling (summary by default, filters, bounded detail) → trigger: step 9's re-read record; until then it is surface design under C53.
-  - Batch pricing by query (price everything a search selects) → lands on search semantics. Trigger: a real batch workflow the handles and the JSON document cannot express.
-  - Current offer (`~c/o`) as a value → trigger: the census finding rows the owner wants kept, or a real use.
-  - The amount grammar's edge (ratios, precision bound) → ruled from the census (step 2c) before Buyout v1 freezes; not parked past it.
-  - PoE2 currencies and per-realm tags → trigger: a PoE2 stash endpoint or a poe2 price the owner wants to set; the table carries realm applicability from day one, so this is rows, not shape.
-  - Coverage advice in `refresh --plan` (the planner naming priced locations outside coverage) → trigger: `price status` and the render's report (C72) proving the wrong place for it.
-  - `aging` in the plan (C77) → trigger: a quote-bearing plan whose cycle estimate is trusted.
-  - Currency totals and history → a derivation over facts, cheap; after pricing stands.
-  - The explicit-selection door (C76) → its own slice after pricing, where its listing, freshness and two-cycle semantics are ruled.
-  - Name→id resolution for price targets (`price set tab:"Maps"`) → trigger: authoring friction at the CLI, the same rule as C63.
-  - Wire-send budget → trigger: a consumer that needs enforcement over actual sends, not logical work.
-  - Universal Plan grammar / five-verb surface → direction only; evidence at pricing (C75's finding, slice step 9).
-  - Dynamic `--deep` fan-out under plans → trigger: tracer evidence that two-cycle reconciliation genuinely hurts (2026-09-01: the tracer rung produced none; stays parked).
-  - Type-level sync-policy filters ("skip map tabs", "include unique tabs", "fetch folder children") → trigger: a policy author who needs a type exclusion the parent-covers-children rule cannot express; a policy-shape change (planner owns the schema).
-  - Fact-path migration to uuid naming → opportunistic, or never (facts are refetchable).
-  - Per-realm merge at `policy set` (today a set replaces the whole policy, so a poe2 run erases the pc policy — seen 2026-09-02) → trigger: a second realm in daily use, or the coverage gap's remedy (C72: it prints the whole edited policy) proving unusable at the pricing readings; until then the author re-sets the pc policy, one command.
-  - Search-at-scale (FTS at ingest, search-crate factoring behind the store API) → trigger per the two-surface stress test: a real consumer with a measured latency or duplication case.
+- Shop / forum publishing (POESESSID, thread numbers, one post per page, auto-post after a clean refresh) → outward credentialed traffic **outside the API choke-point invariant**, the third apply target of the one loop; its own boundary session before any code. Trigger: the render (C74) validated and the owner wanting the posts automated.
 
 ## Working style
 
-- This branch is the **reference implementation**. Its purpose is to find out what the daemon and rate limiter need to be and to pin that as tests and recorded decisions; the code is replaceable given a reason (a bug, performance, maintainability, understandability) no matter how complete it gets, and a fully operational CLI is still evidence, not a promotion. It may become the real implementation, or a fresh build may replace it — judged by the same tests and the same live ladder (ADR 0003 stays open; both paths share this goal function). The limiter's behavior is fully specified (`ratelimit.rs` test tables); the daemon's GGG-side boundary is proven by the closed live ladder (2026-08-27, `LIVE-TESTING.md`); the frontend boundary is where mapping continues.
+The charter is `README.md`'s opening paragraph; who holds which boundary is `AGENTS.md`. The numbered principles are cited by the registry as `P<n>`.
+
 - Tests pin behavior at boundaries, never mechanisms. A test that reaches into daemon internals pins this implementation, not the contract, and is disposable. The GGG-side contract surface is the send journal (`TESTING-NOTES.md`); the frontend-side surface is the protocol, not yet pinned.
 - Decisions get recorded here after the code teaches us, not before. When the current internals get in the way of learning, record the finding and move on rather than polishing.
 - Design discussion precedes code on `spikes/rust-playground` — "design" means updating this doc, not writing a spec.
-- Owner (Tom) holds the boundaries: invariants, protocol, core API surface. Agents own internals behind those boundaries.
 - Prefer simplicity over flexibility when trade-offs arise. Prefer idiomatic Rust patterns over translations from Qt/C++.
-- Deep design sessions are evidence-driven, never calendar-driven; crystallize before building. Rulings land in this doc; session notes (`brainstorming-notes/`) are disposable history, never a second authority.
-- In product scope the validating consumer is real use, and each frontend contract needs its own — the owner's live use validates a CLI slice, not the GUI/MCP/TUI contracts; friction notes are data the way the send journal is data.
-- Generalize after two materially different consumers reveal the shared property — except where an early choice controls irreversible identity, durability, safety, or compatibility (those get first-consumer treatment; the uuid identity decision is the example).
-- Tactical taste is settled by a lint where mechanical and a recorded property where stakes are real — design discussion precedes a property's promotion to lint or test; everything else is agent-owned internals.
+- **P1.** Deep design sessions are evidence-driven, never calendar-driven; crystallize before building. Rulings land in this doc; session notes (`brainstorming-notes/`) are disposable history, never a second authority.
+- **P2.** In product scope the validating consumer is real use, and each frontend contract needs its own — the owner's live use validates a CLI slice, not the GUI/MCP/TUI contracts; friction notes are data the way the send journal is data.
+- **P3.** Generalize after two materially different consumers reveal the shared property — except where an early choice controls irreversible identity, durability, safety, or compatibility (those get first-consumer treatment; the uuid identity decision is the example).
+- **P4.** Tactical taste is settled by a lint where mechanical and a recorded property where stakes are real — design discussion precedes a property's promotion to lint or test; everything else is agent-owned internals.

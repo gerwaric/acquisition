@@ -346,10 +346,11 @@ regression (N20) so the degraded path can be exercised.
   erases the pc one (seen 2026-09-02: revision 4 carried poe2 alone),
   so the pc tabs-and-characters policy must be set again before pc
   work. A per-realm merge is unbuilt; trigger: a second realm in daily
-  use (CONTEXT.md parking lot).
+  use (`decisions/plans.md`, "Parked").
 - **A failed fetch child's result carries only the error string.** The
   body it refused is in `acq store refused <id>` (the error names the
   id), not in `acq result`; the parent's report (`acq refresh --apply`,
   `acq result <parent>`) expands each failed child's line inline.
 - **Unix only.** No Windows named pipes yet; the protocol doesn't care.
-- Everything in CONTEXT.md's "Explicitly deferred" list.
+- Everything parked: `CONTEXT.md` for what crosses every area, each
+  `decisions/<area>.md` ("Parked") for the rest.

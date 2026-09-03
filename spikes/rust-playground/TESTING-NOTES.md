@@ -179,8 +179,10 @@ rearchitecture needs. Alongside, at no dev cost: the re-soak below.
 Started 2026-08-24 as `acq pull` (run live as rung 10; retired 2026-08-29
 for the shared store), then the refresh slice — policy, plan, apply,
 characters, legible output — run live through 2026-09-02 and closed
-(`REFRESH-SLICE.md`). The protocol findings are in `CONTEXT.md` under
-"Frontend boundary findings".
+(`REFRESH-SLICE.md`). The protocol findings were routed on 2026-09-03: the subtree
+round-trip question is parked in `decisions/frontends.md`, the widening
+denominator is the C23 doc comment, and substash identity is C29/C54
+(full text at `889c941d`).
 
 Done 2026-08-24, closing the register's open items: rail 2 promoted to
 product behavior (L0-R13, `ee5131e0`); `mockggg` on the `Clock` with

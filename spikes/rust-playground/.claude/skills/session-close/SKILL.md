@@ -37,7 +37,7 @@ For every item the session produced, exactly one of:
 | a live run | one run-ledger row in `LIVE-TESTING.md`; evidence in `runs/` |
 | a fact about GGG | a numbered ground-truth claim, authored master-side and cherry-picked here |
 | how a mechanism works | a doc comment on the code |
-| an observation with no ruling yet | the slice record's "Observations still open", or `CONTEXT.md`'s open topics **with a trigger** |
+| an observation with no ruling yet | the slice record's "Observations still open" while the slice is open; otherwise the area's `decisions/<area>.md`, "Parked", **with a trigger** (`CONTEXT.md` only if it crosses every area) |
 | a procedure run twice that repeated a trap | a skill file under `.claude/skills/`, referenced by path from `AGENTS.md` |
 | the owner's verdict on a reading | recorded verbatim from the conversation, marked as such |
 
@@ -52,7 +52,7 @@ Cut its `CONTEXT.md` section to rulings, properties and pointers; cite
 the last full-text commit in the section; give the slice a closed
 record in the mold of `NETWORK-CLEANUP.md` (step ledger, findings table,
 what the runs taught, observations still open). Strike-through items in
-the parking lot are deleted, not kept.
+a "Parked" list are deleted, not kept; a park whose trigger fired goes with them.
 
 ## 4. Commit
 

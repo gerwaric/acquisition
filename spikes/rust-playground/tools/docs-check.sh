@@ -7,7 +7,9 @@
 #   1. Byte budgets on the always-loaded documents. Every session reads
 #      these before acting; growth past the budget is the signal that a
 #      narrative landed where a ruling belongs (AGENTS.md, "Routing").
-#      Moving text to its home is compliance, not gaming.
+#      Moving text to its home is compliance, not gaming. Past 90% the
+#      check says so without failing, so routing happens at a session
+#      close and never as a side quest in the middle of a slice.
 #   2. Stale identifiers. A backticked code identifier in a control
 #      document that no longer exists in the workspace is a parallel
 #      description that has rotted. Checked: `Type::path` items,
@@ -27,6 +29,8 @@ budget() {
   if ((size > limit)); then
     printf 'BUDGET  %-18s %7d > %7d bytes\n' "$file" "$size" "$limit"
     fail=1
+  elif ((size * 10 > limit * 9)); then
+    printf 'near    %-18s %7d / %7d bytes — over 90%%: route at session close, before a slice trips it\n' "$file" "$size" "$limit"
   else
     printf 'ok      %-18s %7d / %7d bytes\n' "$file" "$size" "$limit"
   fi

@@ -15,3 +15,10 @@ Part of the decision registry (`CONTEXT.md`, "Decisions — the registry"): the 
 - **C26 — A 429 re-queues the job (keeping its place) behind the limiter's hold; after `MAX_429_RETRIES` (2) it fails with the evidence. 403/503 are never retried.** *Why:* P-A — violations are structural, so recovery is a requirement; N10 — frequent violations revoke the app, so it's bounded; invariant 3 for the Cloudflare shapes.
 - **C32 — Per-route knowledge about GGG that headers cannot teach lives in one place (`Daemon::declare_route_knowledge`), and strict observation is the default everywhere else.** Only `/profile` (policyless, N38) and `/account/leagues` (no-probe: its HEAD counts, N39) are declared; not generalised on purpose. *Why:* "any headerless 2xx is fine" reopens the blind spot strict observation closed. *Details:* `daemon.rs` doc, C32. Owner decision 2026-08-30.
 - **C33 — Rate limiter spec will be expressed as test tables, not prose.** `docs/design/network-ground-truth.md` is the input; "given these headers, wait N seconds" tests are the permanent, enforced spec. *Pinned:* `ratelimit.rs`.
+
+## Parked (do not build yet; each with its trigger)
+
+Scope this area has deferred, with the trigger that reopens it, so deferral never needs re-arguing. A fired trigger deletes its entry in the build's commit; what crosses every area is parked in `CONTEXT.md` instead. An entry is the item, where it lands, and the trigger that reopens it, with at most one clause of why; a workaround is a README known gap, history is git.
+
+- Wire-send budget → enforcement over actual sends, beside C42's logical bound. Trigger: a consumer that needs it.
+- The invalid-request (4xx) threshold → a ground-truth claim, authored master-side. Trigger: observed at a first contact (from the 2026-09-02 documentation read; not yet observed).

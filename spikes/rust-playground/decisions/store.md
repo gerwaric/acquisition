@@ -20,3 +20,12 @@ Part of the decision registry (`CONTEXT.md`, "Decisions — the registry"): the 
 - **C61 — Listed `deleted` or `expired` characters are skipped with a named reason, not fetched**, and a character with no `league` is reported as uncovered, never a failure. *Why:* the invalid-request threshold makes a 404 hunt a real cost; `expired` does not mean "league ended" (N42). Ruled 2026-09-02.
 - **C62 — Freshness heuristic for characters, owner's call for v1:** a listing newer than our fetch reporting a different `experience` proves play since — the sibling of the tab count arm; a `league` disagreement is the same arm. The planner is facet-symmetric: `Selection` serves tabs and characters alike, and the store's liveness rule is consumed, not restated. Ruled 2026-09-02.
 - **C63 — `acq characters` and the MCP `characters` tool print the full id beside the name**; name→id resolution at `policy set` is parked (trigger: authoring friction) — it would make the stored policy differ from what the human typed.
+
+## Parked (do not build yet; each with its trigger)
+
+Scope this area has deferred, with the trigger that reopens it, so deferral never needs re-arguing. A fired trigger deletes its entry in the build's commit; what crosses every area is parked in `CONTEXT.md` instead. An entry is the item, where it lands, and the trigger that reopens it, with at most one clause of why; a workaround is a README known gap, history is git.
+
+- User-scoped annotations home (`user.db`) + scope taxonomy → the store crate. Trigger: the first user-scoped kind actually written (shop template, currency ratios, saved searches).
+- Fact-path migration to uuid naming → opportunistic, or never; facts are refetchable.
+- Search-at-scale (FTS at ingest, a search crate) → behind the store API (C48). Trigger: a real consumer with a measured latency or duplication case.
+- Realm segment semantics per endpoint and pc-by-omission; PoE2 on the character endpoints only; `inventoryId` undocumented → ground-truth claims, authored master-side. Trigger: observed at a first contact (from the 2026-09-02 documentation read; not yet observed).
