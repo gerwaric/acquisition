@@ -122,3 +122,19 @@ the verdict.
 3. `runs/`: twelve mock rehearsal directories sit beside the live
    evidence under the same naming; the driver now writes rehearsals
    apart, and the existing ones are the owner's to delete.
+
+## Outcome (2026-09-02, the pass as run)
+
+| Document | Before | After | Gate |
+|---|---|---|---|
+| `CONTEXT.md` | 110 KB | 77 KB | 85 KB |
+| `README.md` | 40 KB | 25 KB | 30 KB |
+| `LIVE-TESTING.md` | 80 KB | 51 KB | 60 KB |
+| always-loaded path (AGENTS + README + CONTEXT) | 153 KB | 106 KB | |
+
+The targets above (50 / 20 / 35 KB) were wrong by construction: the
+Decisions section alone is 36 KB and was not to be touched, the run
+ledger alone is 27 KB of fact rows, and the README's knobs and command
+list are its charter. The gates were set at the measured floors plus
+room for one slice's rulings. Lowering them further is the owner's call
+on the Decisions section (question 2). Commits `74b3dddb..a43377a5`.
