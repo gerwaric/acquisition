@@ -4,7 +4,7 @@ The pricing slice opened on 2026-09-03 from the packet
 (`brainstorming-notes/10-pricing-design-packet.md` §2: ten steps,
 offline, validated by real use) and was **re-scoped on 2026-09-04** to
 the render-first minimum in "Plan" below, after the forum-shop reading
-(`brainstorming-notes/12`) and the owner's framing: pricing is niche,
+(now T1–T15, `docs/design/trade-ground-truth.md`) and the owner's framing: pricing is niche,
 so build the least that lets a price reach a forum thread, and keep the
 three things that will change — currencies, parsing quirks, precedence
 — cheap to change. This file is the slice's record in the mold of
@@ -86,12 +86,20 @@ in the owner's words, with every omission counted; the `T<n>` claims
 authored master-side and cherry-picked; the always-loaded documents at
 budget.
 
-**Pending outside this branch:** the trade claims. `brainstorming-notes/12`
-E1–E6, E10 and E18–E22 are facts about GGG (the About page's two
-listing channels and bulk-ratio grammar, the `forum_note` field, the
-link code the site emits today and its resolution at post time, the
-in-game vocabulary and note shapes) awaiting `docs/design/trade-ground-truth.md`
-on the master-side branch; the note is not deleted until they exist.
+**The trade claims exist:** T1–T15 in `docs/design/trade-ground-truth.md`
+(authored master-side, PR #224, cherry-picked here) — the About page's
+two listing channels (T1) and bulk-ratio grammar (T2, T3), the site's
+realms and leagues (T4), the `forum_note` field (T5) and its absence
+from `/character` (T6), the link code the site emits today and its
+resolution at post time (T7), a character item listed through the forum
+(T8), the in-game vocabulary (T9) and note shapes (T10), the owner's
+tab-price and forum-precedence observations (T11, T12), item addressing
+(T13), the wiki (T14) and the code (T15); open questions Q1–Q11 there
+are this file's "Observations still open". The evidence note
+(`brainstorming-notes/12`) is retired. C67, C69 and C74 do not carry
+the T ids inline: each entry sits within 10 bytes of the 800-byte
+limit, and a ruling is not reworded to make room — the claims file's
+appendix maps T→C instead.
 
 ## Step ledger
 
@@ -217,14 +225,14 @@ second account, `_vagabond#6960`, has its own facts file.
 
 ## What the forum reading and the price-notes run taught (2026-09-03/04)
 
-The evidence itself is `brainstorming-notes/12` (E1–E22, quoted with
-sources) until the `T<n>` claims exist; the note corpus is
+The evidence is T1–T15 in `docs/design/trade-ground-truth.md`
+(quoted with sources, each tagged and dated); the note corpus is
 `crates/acquisition-plan/reference/price-notes-2026-09-04.txt`; the run
 is the 2026-09-04 ledger row. What it changed is in the registry
 (C65, C67, C68, C69, C72, C74 amended; C71, C73, C78 parked in place)
 and in the plan above. The owner's in-game observations, verbatim, are
-E17 and E20 in the note and will be cited by the render's policy rows
-until a claim replaces each.
+T11 and T12 (Provisional) and will be cited by the render's policy rows
+until a matrix cell upgrades each.
 
 ## Observations still open
 
