@@ -78,6 +78,11 @@ when this map and a header disagree, the header wins.
 - `design/network-ground-truth.md` — living ledger of numbered claims
   (N1, N2, …) about how the Path of Exile API actually limits requests,
   each with cited evidence. Designs are derived from these claims.
+- `design/trade-ground-truth.md` — its companion for listing items for
+  sale (T1, T2, …): the trade site's channels and bulk-ratio grammar,
+  the forum link code, the in-game price dialog's vocabulary and note
+  shapes, and what the API reports of it. The Rust spike's pricing
+  rulings cite these.
 - `adr/0003-rewrite-vs-evolve.md` — **proposed** (August 2026): should
   the core and UI be evolved in place or rewritten on a new stack?
   Exploration lives on the `redesign` branch in `docs/redesign/`;
@@ -109,9 +114,10 @@ when this map and a header disagree, the header wins.
 
 - Problems get F-numbers in `cleanup/findings.md`, are never renumbered,
   and are cited by number everywhere else.
-- Ground-truth claims get N-numbers in `network-ground-truth.md` and are
-  never renumbered; designs cite claims rather than restating evidence.
-  When a claim falls, every design that cites it falls with it.
+- Ground-truth claims get N-numbers in `network-ground-truth.md` and
+  T-numbers in `trade-ground-truth.md`, and are never renumbered;
+  designs cite claims rather than restating evidence. When a claim
+  falls, every design that cites it falls with it.
 - Spec review findings get round-scoped IDs (ER, IR, R4-\*, …) recorded
   in the review-history file; specs cite the IDs inline and record only
   current decisions.
