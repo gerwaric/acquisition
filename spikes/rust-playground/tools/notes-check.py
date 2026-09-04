@@ -4,8 +4,9 @@
 Read-only, like tools/census.py (same `immutable=1` open, same refusal
 of an uncheckpointed WAL: stop the daemon first). No network.
 
-Answers the two questions the forum-shop reading left open
-(brainstorming-notes/12, "What the evidence does not settle"):
+Answers the two questions the forum-shop reading left open (answered
+2026-09-04 as T6, T9 and T10 in docs/design/trade-ground-truth.md;
+the tool stays for the next tab or character worth reading):
 
 1. What GGG's own client writes into `note` for each in-game currency —
    every item note in the tabs whose name matches `--tab` (default:
