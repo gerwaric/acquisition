@@ -506,11 +506,9 @@ answered.
 - `docs/design/network-ground-truth.md` — the N-claims (rate limiting,
   endpoint policies, realm and character shapes). T4 and T13 lean on
   N42 and N43.
-- `spikes/rust-playground/decisions/pricing.md` — the rulings that cite
-  these claims: C67 (the price value and its lot ratio: T2, T10), C68
-  (the currency table's `emit` column: T9), C69 (the game side's four
-  outcomes: T10, T11), C74 (the render's link code, channels and policy
-  rows: T1, T6, T7, T8, T11, T12, T13, T15).
+- `spikes/rust-playground/decisions/pricing.md` — the pricing rulings
+  (C64–C78). Each ruling that rests on a claim cites it inline; that
+  registry, not this file, is the record of which ruling cites what.
 - `spikes/rust-playground/SURFACES.md` — the register of governed
   surfaces under C79: the trade site, the forum, the wiki and
   Procurement, each with the access method its claims here were read
