@@ -96,10 +96,10 @@ resolution at post time (T7), a character item listed through the forum
 tab-price and forum-precedence observations (T11, T12), item addressing
 (T13), the wiki (T14) and the code (T15); open questions Q1–Q11 there
 are this file's "Observations still open". The evidence note
-(`brainstorming-notes/12`) is retired. C67, C69 and C74 do not carry
-the T ids inline: each entry sits within 10 bytes of the 800-byte
-limit, and a ruling is not reworded to make room — the claims file's
-appendix maps T→C instead.
+(`brainstorming-notes/12`) is retired. C67 cites T2 and T10, C69
+cites T10 and T11, C74 cites T7, T11, T12 and T13 — the owner trimmed
+each entry on 2026-09-04 to make room under the 800-byte limit; the
+claims file's appendix maps T→C as well.
 
 ## Step ledger
 
