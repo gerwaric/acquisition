@@ -1,5 +1,6 @@
 mod dash;
 mod plan_cmd;
+mod reference_cmd;
 mod store_cmd;
 
 use std::io::{IsTerminal as _, Write as _};
@@ -213,10 +214,30 @@ enum Cmd {
     Cancel { id: u64 },
     /// Change a waiting job's priority.
     SetPriority { id: u64, priority: u8 },
+    /// Reference data the binary ships (no store, no daemon): the currency
+    /// table, by version.
+    Reference {
+        #[command(subcommand)]
+        cmd: ReferenceCmd,
+    },
     /// Debugging only — normal use never needs manual lifecycle.
     Daemon {
         #[command(subcommand)]
         cmd: DaemonCmd,
+    },
+}
+
+#[derive(Subcommand)]
+enum ReferenceCmd {
+    /// The currency table: every row (tag, display name, the words a
+    /// parser accepts, retired marks), or one word resolved. Exact and
+    /// case-sensitive; `--json` is the whole table with its evidence.
+    Currency {
+        /// A tag, the game's word, or a legacy alias to resolve.
+        word: Option<String>,
+        /// Show each row's evidence and the table's sources.
+        #[arg(long)]
+        expand: bool,
     },
 }
 
@@ -545,6 +566,11 @@ async fn run(cli: Cli) -> Result<()> {
             .await?;
             block_on_job(&mut client, id, cli.json).await
         }
+        Cmd::Reference { cmd } => match cmd {
+            ReferenceCmd::Currency { word, expand } => {
+                reference_cmd::currency(word.as_deref(), expand, cli.json)
+            }
+        },
         Cmd::Policy { cmd } => match cmd {
             None | Some(PolicyCmd::Show) => plan_cmd::policy_show(cli.json),
             Some(PolicyCmd::Set { value, if_revision }) => {

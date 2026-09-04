@@ -20,8 +20,10 @@ claims authored master-side. Nothing here is a second authority.
 ## State
 
 - Opened at step 2 on 2026-09-03; re-scoped 2026-09-04. Annotations
-  schema **v2**, facts **v7**, sync policy **v3**, plan schema **6**; no
-  pricing code yet.
+  schema **v2**, facts **v7**, sync policy **v3**, plan schema **6**;
+  currency table **v1** (`status = "draft"` until the owner has read it).
+  Pricing code so far: `acquisition-plan/src/currency.rs` and
+  `acq reference currency`.
 - The forum is **write-only from our side**: `/character` returns no
   `forum_note` for a forum-listed item (price-notes run, 2026-09-04), so
   the game side of a listing is item note, then tab name (C69), and a

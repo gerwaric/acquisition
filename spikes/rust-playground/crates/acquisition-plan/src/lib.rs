@@ -111,6 +111,10 @@
 //! `skipped_characters` / `unknown_characters`). Same
 //! no-panic clippy ratchet as the store crate.
 //!
+//! The pricing module begins with reference data: the currency table
+//! (C68) is `reference/currency-v1.toml`, compiled into the binary and
+//! read through [`currency::table`] — see `currency.rs`, "As built".
+//!
 //! # Decisions as recorded
 //!
 //! The rulings are the decision registry — `decisions/plans.md` for this
@@ -230,6 +234,8 @@
 // only"): the planner's production code panics on nothing external — a
 // user-authored policy value or a store row is a structured error.
 #![cfg_attr(not(test), deny(clippy::unwrap_used, clippy::expect_used))]
+
+pub mod currency;
 
 use std::collections::BTreeMap;
 

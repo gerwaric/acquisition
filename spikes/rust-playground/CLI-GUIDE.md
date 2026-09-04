@@ -302,6 +302,12 @@ Each of these submits a job and blocks with progress; all take `--json`.
 | `acq store rebuild` | Re-extract derived columns from each item's own JSON. |
 | `acq store import <snapshot.json>` | Replay a retired-`acq pull` snapshot into the store. |
 
+### Reference data (no store, no daemon)
+
+| Command | What it does |
+| --- | --- |
+| `acq reference currency [WORD] [--expand]` | The currency table the binary ships, cited by version: every row (tag, display name, the words a parser accepts, retired marks) or one word resolved — exact, case-sensitive. `--expand` adds each row's evidence; `--json` is the whole table. |
+
 ### Job management
 
 | Command | Does |

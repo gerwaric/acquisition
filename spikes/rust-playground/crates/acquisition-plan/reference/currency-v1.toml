@@ -1,258 +1,541 @@
-# Currency reference table — v1 DRAFT (C68), pricing slice step 2d, 2026-09-03.
+# Currency reference table — v1 (C68), pricing slice step 1, 2026-09-04.
 #
 # Reference data is a fifth input, versioned by the build: reviewed,
 # committed, every row citing its evidence, shipped inside the binary
-# from step 4, read-only, never in a store file (decisions/pricing.md,
-# C68). This draft is the human-reviewed table in the making; a tool may
-# propose rows, a human commits. Rules the shape carries from day one:
+# (`include_str!` in `src/currency.rs`), read-only, never in a store file,
+# enumerable through every surface (`acq reference currency`), cited by
+# version wherever used (decisions/pricing.md, C68). A tool may propose
+# rows from a governed source (C79); a human commits. Rules the shape
+# carries:
 #
 # - `tag` is the immutable identity intent cites (C67). Never removed,
-#   never reused; a tag that falls out of use keeps its row. The v1 tags
-#   are the C++ app's, so the 0.18 import (C73) maps 1:1.
-# - `emit` is the text the renderer writes after an amount; `aliases` are
-#   the words a parser accepts. Both are narrowed from trade claims
-#   (`T<n>`) and dated browser observations under C79 (SURFACES.md); until
-#   one exists a row says so in `evidence`, and the C++ tables stand as
-#   the only cited source: emit = the tag (src/shop.cpp `SpoilerBuyout`),
-#   aliases = `Currency::FromString` (src/currency.cpp).
+#   never reused; a currency that falls out of use keeps its row, marked
+#   `retired`. The v1 tags are the game's own words (below); the 2d draft's
+#   four C++ tags that differed (`exa`, `chrom`, `jew`, `fuse`) became
+#   aliases before any intent row cited them.
+# - `emit` is the word GGG's client writes into a note after the amount,
+#   and so the word the renderer writes (C74) — observed, never inferred:
+#   the price-notes run of 2026-09-04, corpus `price-notes-2026-09-04.txt`
+#   beside this file (T9, T10). Today every active row's `emit` is its
+#   `tag`; if the game ever changes a word, `emit` moves and `tag` stays.
+# - `aliases` are the extra words a parser accepts beyond `tag` and `emit`:
+#   the legacy C++ tag where it differed, nothing more — the trade
+#   indexer's loose matching is not modelled (C68). Resolution is exact
+#   and case-sensitive.
+# - `display` is the name the in-game price dialog shows for the word, as
+#   the owner read it on 2026-09-04 (the fixture's third section); the
+#   three retired rows keep the C++ display name.
 # - `realms` is realm applicability (decisions/pricing.md, Parked: PoE2
-#   currencies land as rows, not as a shape change). v1 rows are PoE1.
-# - `evidence` entries are `cpp:<path>@<master commit>`, `census:<date> …`
-#   (PRICING-SLICE.md, "What the census taught"), `T<n>`,
-#   `browser:<date> <who> <what>`, or `game:<date> <where>` — a word GGG's
-#   own client wrote into an item note, read back through the API (the
-#   price-notes run of 2026-09-04, corpus in `price-notes-2026-09-04.txt`
-#   beside this file). `browser:pending` marks a column not yet observed.
+#   currencies land as rows, not as a shape change). Every v1 row is a
+#   PoE1 item; `pc` is the observed realm, `xbox` and `sony` follow the
+#   C++ table's assumption that the PoE1 realms share one currency set.
+# - `evidence` entries are `game:<date> note <note>` (the dialog wrote this
+#   word into an item note, read back through the API — fixture, first
+#   section), `game:<date> dialog <name>` (the display name the owner read
+#   in the dialog — fixture, third section), `cpp:<path>@<master commit>
+#   tag <tag>` (the C++ table's tag for the same currency),
+#   `census:<date> …` (PRICING-SLICE.md, "What the census taught"), `T<n>`
+#   (docs/design/trade-ground-truth.md), or `browser:<date> <who> <what>`
+#   (SURFACES.md). Every row carries a `game:` entry; the loader checks.
 #
-# Amended 2026-09-04 (C68): `emit` is the game's own word, so four v1
-# rows below are wrong until the table step lands them (`exa`→`exalted`,
-# `chrom`→`chrome`, `jew`→`jewellers`, `fuse`→`fusing`); `chisel`, `coin`
-# and `silver` are no longer in the game and keep their rows, marked; 23
-# words the game offers are missing. The rows are the table step's work
-# (PRICING-SLICE.md, "Plan", step 1), not this header's.
+# Row order is the dialog's own, then the retired rows. `status` is
+# "draft" until the owner has read the table; the loader exposes it and
+# gates nothing on it.
 #
-# Reviewed by: (nobody yet — status stays "draft" until the owner commits
-# the table at step 4, and every `browser:pending` is either observed or
-# left pending on purpose.)
+# Reviewed by: (nobody yet)
 
 version = 1
 status = "draft"
 sources = [
-  "cpp:src/currency.cpp@fb0bbbdf (master 33928a87): tags, display names, accepted aliases",
+  "game:2026-09-04 the in-game price dialog, pc/Standard, tab ACQUISITION-PRICE-TEST — 39 words written into notes and read back (price-notes-2026-09-04.txt; LIVE-TESTING.md ledger row 2026-09-04)",
+  "game:2026-09-04 the dialog's currency list and display names, as the owner read them (the fixture's third section)",
+  "cpp:src/currency.cpp@fb0bbbdf (master 33928a87): the legacy tags and the three retired currencies' display names",
   "cpp:src/shop.cpp@33928a87 SpoilerBuyout: the C++ shop emitted `<type prefix> <amount> <tag>`",
   "census:2026-09-03 tools/census.py over the owner's 0.18 userstore and current facts",
-]
-
-[[currency]]
-tag = "alt"
-display = "Orb of Alteration"
-emit = "alt"
-aliases = ["alt", "alts", "alteration", "alterations"]
-realms = ["pc", "xbox", "sony"]
-evidence = [
-  "cpp:src/currency.cpp@fb0bbbdf",
-  "browser:pending — trade-site alias and display text unobserved",
-]
-
-[[currency]]
-tag = "fuse"
-display = "Orb of Fusing"
-emit = "fuse"
-aliases = ["fuse", "fuses", "fusing", "fusings"]
-realms = ["pc", "xbox", "sony"]
-evidence = [
-  "cpp:src/currency.cpp@fb0bbbdf",
-  "browser:pending — trade-site alias and display text unobserved",
-]
-
-[[currency]]
-tag = "alch"
-display = "Orb of Alchemy"
-emit = "alch"
-aliases = ["alch", "alchs", "alchemy"]
-realms = ["pc", "xbox", "sony"]
-evidence = [
-  "cpp:src/currency.cpp@fb0bbbdf",
-  "browser:pending — trade-site alias and display text unobserved",
 ]
 
 [[currency]]
 tag = "chaos"
 display = "Chaos Orb"
 emit = "chaos"
-aliases = ["chaos"]
+aliases = []
 realms = ["pc", "xbox", "sony"]
 evidence = [
-  "cpp:src/currency.cpp@fb0bbbdf",
+  "game:2026-09-04 note `~price 999 chaos`",
+  "game:2026-09-04 dialog `Chaos Orb`",
+  "cpp:src/currency.cpp@fb0bbbdf tag `chaos`",
   "census:2026-09-03 rows 1206 item + 15 location; tab names 15; notes 36 (`chaos`)",
-  "browser:pending — trade-site alias and display text unobserved",
-]
-
-[[currency]]
-tag = "gcp"
-display = "Gemcutter's Prism"
-emit = "gcp"
-aliases = ["gcp", "gcps", "gemcutter", "gemcutters"]
-realms = ["pc", "xbox", "sony"]
-evidence = [
-  "cpp:src/currency.cpp@fb0bbbdf",
-  "browser:pending — trade-site alias and display text unobserved",
-]
-
-[[currency]]
-tag = "exa"
-display = "Exalted Orb"
-emit = "exa"
-aliases = ["exa", "exalted"]
-realms = ["pc", "xbox", "sony"]
-evidence = [
-  "cpp:src/currency.cpp@fb0bbbdf",
-  "census:2026-09-03 rows 37 item; notes 37, every one spelled `exalted`",
-  "browser:pending — trade-site alias and display text unobserved",
-]
-
-[[currency]]
-tag = "chrom"
-display = "Chromatic Orb"
-emit = "chrom"
-aliases = ["chrom", "chrome", "chromes", "chromatic", "chromatics"]
-realms = ["pc", "xbox", "sony"]
-evidence = [
-  "cpp:src/currency.cpp@fb0bbbdf",
-  "browser:pending — trade-site alias and display text unobserved",
-]
-
-[[currency]]
-tag = "jew"
-display = "Jeweller's Orb"
-emit = "jew"
-aliases = ["jew", "jewel", "jewels", "jeweler", "jewelers"]
-realms = ["pc", "xbox", "sony"]
-evidence = [
-  "cpp:src/currency.cpp@fb0bbbdf",
-  "census:2026-09-03 rows 1 item (the one manual `b/o`)",
-  "browser:pending — trade-site alias and display text unobserved",
-]
-
-[[currency]]
-tag = "chance"
-display = "Orb of Chance"
-emit = "chance"
-aliases = ["chance"]
-realms = ["pc", "xbox", "sony"]
-evidence = [
-  "cpp:src/currency.cpp@fb0bbbdf",
-  "browser:pending — trade-site alias and display text unobserved",
-]
-
-[[currency]]
-tag = "chisel"
-display = "Cartographer's Chisel"
-emit = "chisel"
-aliases = ["chisel", "chisels", "cartographer", "cartographers"]
-realms = ["pc", "xbox", "sony"]
-evidence = [
-  "cpp:src/currency.cpp@fb0bbbdf",
-  "browser:pending — trade-site alias and display text unobserved",
-]
-
-[[currency]]
-tag = "scour"
-display = "Orb of Scouring"
-emit = "scour"
-aliases = ["scour", "scours", "scouring"]
-realms = ["pc", "xbox", "sony"]
-evidence = [
-  "cpp:src/currency.cpp@fb0bbbdf",
-  "browser:pending — trade-site alias and display text unobserved",
-]
-
-[[currency]]
-tag = "blessed"
-display = "Blessed Orb"
-emit = "blessed"
-aliases = ["blessed"]
-realms = ["pc", "xbox", "sony"]
-evidence = [
-  "cpp:src/currency.cpp@fb0bbbdf",
-  "census:2026-09-03 rows 6 item + 1 location — all on `[ignore]` rows, where the currency is non-semantic",
-  "browser:pending — trade-site alias and display text unobserved",
-]
-
-[[currency]]
-tag = "regret"
-display = "Orb of Regret"
-emit = "regret"
-aliases = ["regret", "regrets"]
-realms = ["pc", "xbox", "sony"]
-evidence = [
-  "cpp:src/currency.cpp@fb0bbbdf",
-  "browser:pending — trade-site alias and display text unobserved",
-]
-
-[[currency]]
-tag = "regal"
-display = "Regal Orb"
-emit = "regal"
-aliases = ["regal", "regals"]
-realms = ["pc", "xbox", "sony"]
-evidence = [
-  "cpp:src/currency.cpp@fb0bbbdf",
-  "browser:pending — trade-site alias and display text unobserved",
 ]
 
 [[currency]]
 tag = "divine"
 display = "Divine Orb"
 emit = "divine"
-aliases = ["divine", "divines"]
+aliases = []
 realms = ["pc", "xbox", "sony"]
 evidence = [
-  "cpp:src/currency.cpp@fb0bbbdf",
+  "game:2026-09-04 note `~price 999 divine`",
+  "game:2026-09-04 dialog `Divine Orb`",
+  "cpp:src/currency.cpp@fb0bbbdf tag `divine`",
   "census:2026-09-03 rows 105 item + 2 location; tab names 2; notes 44 (`divine`)",
-  "browser:pending — trade-site alias and display text unobserved",
 ]
 
 [[currency]]
-tag = "vaal"
-display = "Vaal Orb"
-emit = "vaal"
-aliases = ["vaal"]
+tag = "alch"
+display = "Orb of Alchemy"
+emit = "alch"
+aliases = []
 realms = ["pc", "xbox", "sony"]
 evidence = [
-  "cpp:src/currency.cpp@fb0bbbdf",
-  "browser:pending — trade-site alias and display text unobserved",
+  "game:2026-09-04 note `~price 999 alch`",
+  "game:2026-09-04 dialog `Orb of Alchemy`",
+  "cpp:src/currency.cpp@fb0bbbdf tag `alch`",
 ]
 
 [[currency]]
-tag = "coin"
-display = "Perandus Coin"
-emit = "coin"
-aliases = ["coin", "coins", "p", "perandus", "shekel"]
+tag = "exalted"
+display = "Exalted Orb"
+emit = "exalted"
+aliases = ["exa"]
 realms = ["pc", "xbox", "sony"]
 evidence = [
-  "cpp:src/currency.cpp@fb0bbbdf",
-  "browser:pending — trade-site alias and display text unobserved",
+  "game:2026-09-04 note `~price 999 exalted`",
+  "game:2026-09-04 dialog `Exalted Orb`",
+  "cpp:src/currency.cpp@fb0bbbdf tag `exa`",
+  "census:2026-09-03 rows 37 item (tag `exa`); notes 37, every one spelled `exalted`",
+]
+
+[[currency]]
+tag = "alt"
+display = "Orb of Alteration"
+emit = "alt"
+aliases = []
+realms = ["pc", "xbox", "sony"]
+evidence = [
+  "game:2026-09-04 note `~price 999 alt`",
+  "game:2026-09-04 dialog `Orb of Alteration`",
+  "cpp:src/currency.cpp@fb0bbbdf tag `alt`",
 ]
 
 [[currency]]
 tag = "mirror"
 display = "Mirror of Kalandra"
 emit = "mirror"
-aliases = ["mirror", "mir"]
+aliases = []
 realms = ["pc", "xbox", "sony"]
 evidence = [
-  "cpp:src/currency.cpp@fb0bbbdf",
-  "browser:pending — trade-site alias and display text unobserved",
+  "game:2026-09-04 note `~price 999 mirror`",
+  "game:2026-09-04 dialog `Mirror of Kalandra`",
+  "cpp:src/currency.cpp@fb0bbbdf tag `mirror`",
+]
+
+[[currency]]
+tag = "chrome"
+display = "Chromatic Orb"
+emit = "chrome"
+aliases = ["chrom"]
+realms = ["pc", "xbox", "sony"]
+evidence = [
+  "game:2026-09-04 note `~price 999 chrome`",
+  "game:2026-09-04 dialog `Chromatic Orb`",
+  "cpp:src/currency.cpp@fb0bbbdf tag `chrom`",
+]
+
+[[currency]]
+tag = "blessed"
+display = "Blessed Orb"
+emit = "blessed"
+aliases = []
+realms = ["pc", "xbox", "sony"]
+evidence = [
+  "game:2026-09-04 note `~price 999 blessed`",
+  "game:2026-09-04 dialog `Blessed Orb`",
+  "cpp:src/currency.cpp@fb0bbbdf tag `blessed`",
+  "census:2026-09-03 rows 6 item + 1 location — all on `[ignore]` rows, where the currency is non-semantic",
+]
+
+[[currency]]
+tag = "fusing"
+display = "Orb of Fusing"
+emit = "fusing"
+aliases = ["fuse"]
+realms = ["pc", "xbox", "sony"]
+evidence = [
+  "game:2026-09-04 note `~price 999 fusing`",
+  "game:2026-09-04 dialog `Orb of Fusing`",
+  "cpp:src/currency.cpp@fb0bbbdf tag `fuse`",
+]
+
+[[currency]]
+tag = "jewellers"
+display = "Jeweller's Orb"
+emit = "jewellers"
+aliases = ["jew"]
+realms = ["pc", "xbox", "sony"]
+evidence = [
+  "game:2026-09-04 note `~price 999 jewellers`",
+  "game:2026-09-04 dialog `Jeweller's Orb`",
+  "cpp:src/currency.cpp@fb0bbbdf tag `jew`",
+  "census:2026-09-03 rows 1 item (the one manual `b/o`, tag `jew`)",
+]
+
+[[currency]]
+tag = "regal"
+display = "Regal Orb"
+emit = "regal"
+aliases = []
+realms = ["pc", "xbox", "sony"]
+evidence = [
+  "game:2026-09-04 note `~price 999 regal`",
+  "game:2026-09-04 dialog `Regal Orb`",
+  "cpp:src/currency.cpp@fb0bbbdf tag `regal`",
+]
+
+[[currency]]
+tag = "vaal"
+display = "Vaal Orb"
+emit = "vaal"
+aliases = []
+realms = ["pc", "xbox", "sony"]
+evidence = [
+  "game:2026-09-04 note `~price 999 vaal`",
+  "game:2026-09-04 dialog `Vaal Orb`",
+  "cpp:src/currency.cpp@fb0bbbdf tag `vaal`",
+]
+
+[[currency]]
+tag = "chance"
+display = "Orb of Chance"
+emit = "chance"
+aliases = []
+realms = ["pc", "xbox", "sony"]
+evidence = [
+  "game:2026-09-04 note `~price 999 chance`",
+  "game:2026-09-04 dialog `Orb of Chance`",
+  "cpp:src/currency.cpp@fb0bbbdf tag `chance`",
+]
+
+[[currency]]
+tag = "annul"
+display = "Orb of Annulment"
+emit = "annul"
+aliases = []
+realms = ["pc", "xbox", "sony"]
+evidence = [
+  "game:2026-09-04 note `~price 999 annul`",
+  "game:2026-09-04 dialog `Orb of Annulment`",
+]
+
+[[currency]]
+tag = "aug"
+display = "Orb of Augmentation"
+emit = "aug"
+aliases = []
+realms = ["pc", "xbox", "sony"]
+evidence = [
+  "game:2026-09-04 note `~price 999 aug`",
+  "game:2026-09-04 dialog `Orb of Augmentation`",
+]
+
+[[currency]]
+tag = "regret"
+display = "Orb of Regret"
+emit = "regret"
+aliases = []
+realms = ["pc", "xbox", "sony"]
+evidence = [
+  "game:2026-09-04 note `~price 999 regret`",
+  "game:2026-09-04 dialog `Orb of Regret`",
+  "cpp:src/currency.cpp@fb0bbbdf tag `regret`",
+]
+
+[[currency]]
+tag = "scour"
+display = "Orb of Scouring"
+emit = "scour"
+aliases = []
+realms = ["pc", "xbox", "sony"]
+evidence = [
+  "game:2026-09-04 note `~price 999 scour`",
+  "game:2026-09-04 dialog `Orb of Scouring`",
+  "cpp:src/currency.cpp@fb0bbbdf tag `scour`",
+]
+
+[[currency]]
+tag = "transmute"
+display = "Orb of Transmutation"
+emit = "transmute"
+aliases = []
+realms = ["pc", "xbox", "sony"]
+evidence = [
+  "game:2026-09-04 note `~price 999 transmute`",
+  "game:2026-09-04 dialog `Orb of Transmutation`",
+]
+
+[[currency]]
+tag = "wisdom"
+display = "Scroll of Wisdom"
+emit = "wisdom"
+aliases = []
+realms = ["pc", "xbox", "sony"]
+evidence = [
+  "game:2026-09-04 note `~price 999 wisdom`",
+  "game:2026-09-04 dialog `Scroll of Wisdom`",
+]
+
+[[currency]]
+tag = "portal"
+display = "Portal Scroll"
+emit = "portal"
+aliases = []
+realms = ["pc", "xbox", "sony"]
+evidence = [
+  "game:2026-09-04 note `~price 999 portal`",
+  "game:2026-09-04 dialog `Portal Scroll`",
+]
+
+[[currency]]
+tag = "scrap"
+display = "Armourer's Scrap"
+emit = "scrap"
+aliases = []
+realms = ["pc", "xbox", "sony"]
+evidence = [
+  "game:2026-09-04 note `~price 999 scrap`",
+  "game:2026-09-04 dialog `Armourer's Scrap`",
+]
+
+[[currency]]
+tag = "whetstone"
+display = "Blacksmith's Whetstone"
+emit = "whetstone"
+aliases = []
+realms = ["pc", "xbox", "sony"]
+evidence = [
+  "game:2026-09-04 note `~price 999 whetstone`",
+  "game:2026-09-04 dialog `Blacksmith's Whetstone`",
+]
+
+[[currency]]
+tag = "gcp"
+display = "Gemcutter's Prism"
+emit = "gcp"
+aliases = []
+realms = ["pc", "xbox", "sony"]
+evidence = [
+  "game:2026-09-04 note `~price 999 gcp`",
+  "game:2026-09-04 dialog `Gemcutter's Prism`",
+  "cpp:src/currency.cpp@fb0bbbdf tag `gcp`",
+]
+
+[[currency]]
+tag = "bauble"
+display = "Glassblower's Bauble"
+emit = "bauble"
+aliases = []
+realms = ["pc", "xbox", "sony"]
+evidence = [
+  "game:2026-09-04 note `~price 999 bauble`",
+  "game:2026-09-04 dialog `Glassblower's Bauble`",
+]
+
+[[currency]]
+tag = "offer"
+display = "Offering to the Goddess"
+emit = "offer"
+aliases = []
+realms = ["pc", "xbox", "sony"]
+evidence = [
+  "game:2026-09-04 note `~price 999 offer`",
+  "game:2026-09-04 dialog `Offering to the Goddess`",
+]
+
+[[currency]]
+tag = "offer-dedication"
+display = "Dedication to the Goddess"
+emit = "offer-dedication"
+aliases = []
+realms = ["pc", "xbox", "sony"]
+evidence = [
+  "game:2026-09-04 note `~price 999 offer-dedication`",
+  "game:2026-09-04 dialog `Dedication to the Goddess`",
+]
+
+[[currency]]
+tag = "offer-gift"
+display = "Gift to the Goddess"
+emit = "offer-gift"
+aliases = []
+realms = ["pc", "xbox", "sony"]
+evidence = [
+  "game:2026-09-04 note `~price 999 offer-gift`",
+  "game:2026-09-04 dialog `Gift to the Goddess`",
+]
+
+[[currency]]
+tag = "offer-tribute"
+display = "Tribute to the Goddess"
+emit = "offer-tribute"
+aliases = []
+realms = ["pc", "xbox", "sony"]
+evidence = [
+  "game:2026-09-04 note `~price 999 offer-tribute`",
+  "game:2026-09-04 dialog `Tribute to the Goddess`",
+]
+
+[[currency]]
+tag = "lesser-ember"
+display = "Lesser Eldritch Ember"
+emit = "lesser-ember"
+aliases = []
+realms = ["pc", "xbox", "sony"]
+evidence = [
+  "game:2026-09-04 note `~price 999 lesser-ember`",
+  "game:2026-09-04 dialog `Lesser Eldritch Ember`",
+]
+
+[[currency]]
+tag = "greater-ember"
+display = "Greater Eldritch Ember"
+emit = "greater-ember"
+aliases = []
+realms = ["pc", "xbox", "sony"]
+evidence = [
+  "game:2026-09-04 note `~price 999 greater-ember`",
+  "game:2026-09-04 dialog `Greater Eldritch Ember`",
+]
+
+[[currency]]
+tag = "grand-ember"
+display = "Grand Eldritch Ember"
+emit = "grand-ember"
+aliases = []
+realms = ["pc", "xbox", "sony"]
+evidence = [
+  "game:2026-09-04 note `~price 999 grand-ember`",
+  "game:2026-09-04 dialog `Grand Eldritch Ember`",
+]
+
+[[currency]]
+tag = "excep-ember"
+display = "Exceptional Eldritch Ember"
+emit = "excep-ember"
+aliases = []
+realms = ["pc", "xbox", "sony"]
+evidence = [
+  "game:2026-09-04 note `~price 999 excep-ember`",
+  "game:2026-09-04 dialog `Exceptional Eldritch Ember`",
+]
+
+[[currency]]
+tag = "lesser-echor"
+display = "Lesser Eldritch Ichor"
+emit = "lesser-echor"
+aliases = []
+realms = ["pc", "xbox", "sony"]
+evidence = [
+  "game:2026-09-04 note `~price 999 lesser-echor`",
+  "game:2026-09-04 dialog `Lesser Eldritch Ichor`",
+]
+
+[[currency]]
+tag = "greater-echor"
+display = "Greater Eldritch Ichor"
+emit = "greater-echor"
+aliases = []
+realms = ["pc", "xbox", "sony"]
+evidence = [
+  "game:2026-09-04 note `~price 999 greater-echor`",
+  "game:2026-09-04 dialog `Greater Eldritch Ichor`",
+]
+
+[[currency]]
+tag = "grand-echor"
+display = "Grand Eldritch Ichor"
+emit = "grand-echor"
+aliases = []
+realms = ["pc", "xbox", "sony"]
+evidence = [
+  "game:2026-09-04 note `~price 999 grand-echor`",
+  "game:2026-09-04 dialog `Grand Eldritch Ichor`",
+]
+
+[[currency]]
+tag = "excep-echor"
+display = "Exceptional Eldritch Ichor"
+emit = "excep-echor"
+aliases = []
+realms = ["pc", "xbox", "sony"]
+evidence = [
+  "game:2026-09-04 note `~price 999 excep-echor`",
+  "game:2026-09-04 dialog `Exceptional Eldritch Ichor`",
+]
+
+[[currency]]
+tag = "facetors"
+display = "Facetor's Lens"
+emit = "facetors"
+aliases = []
+realms = ["pc", "xbox", "sony"]
+evidence = [
+  "game:2026-09-04 note `~price 999 facetors`",
+  "game:2026-09-04 dialog `Facetor's Lens`",
+]
+
+[[currency]]
+tag = "engineers"
+display = "Engineer's Orb"
+emit = "engineers"
+aliases = []
+realms = ["pc", "xbox", "sony"]
+evidence = [
+  "game:2026-09-04 note `~price 999 engineers`",
+  "game:2026-09-04 dialog `Engineer's Orb`",
+]
+
+[[currency]]
+tag = "infused-engineers-orb"
+display = "Infused Engineer's Orb"
+emit = "infused-engineers-orb"
+aliases = []
+realms = ["pc", "xbox", "sony"]
+evidence = [
+  "game:2026-09-04 note `~price 999 infused-engineers-orb`",
+  "game:2026-09-04 dialog `Infused Engineer's Orb`",
+]
+
+[[currency]]
+tag = "chisel"
+display = "Cartographer's Chisel"
+emit = "chisel"
+aliases = []
+realms = ["pc", "xbox", "sony"]
+retired = "2026-09-04 — not offered by the in-game price dialog"
+evidence = [
+  "cpp:src/currency.cpp@fb0bbbdf tag `chisel`",
+  "game:2026-09-04 dialog — absent from the currency list (the owner's reading, in the fixture)",
+]
+
+[[currency]]
+tag = "coin"
+display = "Perandus Coin"
+emit = "coin"
+aliases = []
+realms = ["pc", "xbox", "sony"]
+retired = "2026-09-04 — not offered by the in-game price dialog"
+evidence = [
+  "cpp:src/currency.cpp@fb0bbbdf tag `coin`",
+  "game:2026-09-04 dialog — absent from the currency list (the owner's reading, in the fixture)",
 ]
 
 [[currency]]
 tag = "silver"
 display = "Silver Coin"
 emit = "silver"
-aliases = ["silver"]
+aliases = []
 realms = ["pc", "xbox", "sony"]
+retired = "2026-09-04 — not offered by the in-game price dialog"
 evidence = [
-  "cpp:src/currency.cpp@fb0bbbdf",
-  "browser:pending — trade-site alias and display text unobserved",
+  "cpp:src/currency.cpp@fb0bbbdf tag `silver`",
+  "game:2026-09-04 dialog — absent from the currency list (the owner's reading, in the fixture)",
 ]

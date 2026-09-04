@@ -82,10 +82,14 @@ bounded by `MAX_429_RETRIES`; a Cloudflare-shaped 403/503 is never retried.
   the schema history are the crate's module doc (`src/lib.rs`, "As
   built"); the boundary properties are the Plan, quote and apply
   decisions in `CONTEXT.md`. Same no-panic lint ratchet as the store.
+  Pricing begins here with reference data: `reference/currency-v1.toml`
+  (the reviewed currency table, every row citing its evidence) is
+  compiled into the binary and read through `currency.rs` (C68).
 - `crates/acquisition-cli` — the `acq` binary. Thin: clap parsing, output
-  rendering, `store_cmd.rs` (reads of the shared store, no daemon) and
+  rendering, `store_cmd.rs` (reads of the shared store, no daemon),
   `plan_cmd.rs` (the intent surface `acq policy`, and `acq refresh
-  --plan|--apply` through `acquisition-plan`). The protocol client
+  --plan|--apply` through `acquisition-plan`) and `reference_cmd.rs`
+  (`acq reference currency`: the shipped table, by version). The protocol client
   (connect, lazy spawn, version handshake) is
   `acquisition-core/src/client.rs`, shared by every frontend; frontends
   differ only in connect *policy* (`ConnectOptions`). The daemon is
@@ -126,6 +130,9 @@ acq stashes --league Standard [--realm xbox] # GET /stash[/{realm}]/{league}: a 
 acq character <name> [--realm R]             # GET /character[/{realm}]/{name}: equipment + inventory
 acq leagues                                  # GET /account/leagues (account:leagues)
 acq stash <id> [--sub <id>] [--deep]         # one tab; --deep follows a map/unique tab's substashes as child jobs
+acq reference currency [WORD] [--expand]     # the currency table this build ships (C68): tag, display name, the words
+                                             #  a parser accepts, retired marks; --expand adds each row's evidence;
+                                             #  a WORD resolves exactly (case-sensitive) or fails naming the version
 acq policy [show]                            # the per-account sync policy: declared coverage + freshness (an annotation)
 acq policy set '<json>' [--if-revision N]    # validated through the planner's strict parse before anything lands;
                                              #  v3 shape: {"version":3,"realms":{"pc":{"leagues":{"Standard":
