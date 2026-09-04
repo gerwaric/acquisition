@@ -15,5 +15,5 @@ Part of the decision registry (`CONTEXT.md`, "Decisions — the registry"): the 
 Scope this area has deferred, with the trigger that reopens it, so deferral never needs re-arguing. A fired trigger deletes its entry in the build's commit; what crosses every area is parked in `CONTEXT.md` instead. An entry is the item, where it lands, and the trigger that reopens it, with at most one clause of why; a workaround is a README known gap, history is git.
 
 - Queue-management UI (drag-to-reorder, per-job progress bars) → a rendering problem by construction. Trigger: the GUI.
-- The read economy as a ruling (summary by default, filters, bounded detail) → surface design under C53 until then. Trigger: step 9's re-read record.
+- The read economy as a ruling (summary by default, filters, bounded detail) → surface design under C53 until then. Trigger: the first MCP pricing consumer's re-read record (the pricing slice's MCP step).
 - Results over a subtree (today `list`, then `result` per child: hundreds for a real map tab) → results on the event channel as jobs finish, or a `results` verb. Trigger: a second consumer (GUI or MCP) showing which. Frontend boundary finding from `acq pull`, 2026-08-24.

@@ -63,7 +63,7 @@ The live verb list is `acq --help` and the README's "Try it" block. Properties: 
 
 Scope deferred with its trigger, so deferral never needs re-arguing. An area's parked items and open questions live in its `decisions/<area>.md` under "Parked", read before touching the area; only what crosses every area is here. A fired trigger deletes its entry in the build's commit. An entry is the item, where it lands, and the trigger that reopens it, with at most one clause of why; a workaround is a README known gap, history is git.
 
-- Shop / forum publishing (POESESSID, thread numbers, one post per page, auto-post after a clean refresh) → outward credentialed traffic **outside the API choke-point invariant**, the third apply target of the one loop; its own boundary session before any code. Trigger: the render (C74) validated and the owner wanting the posts automated.
+- Shop / forum publishing (POESESSID, thread numbers, one post per page, bumping against the indexer's thread limit, auto-post after a clean refresh) → outward credentialed traffic **outside the API choke-point invariant**, the third apply target of the one loop; its own boundary session before any code. Until then the render (C74) writes pages to stdout and a human pastes them. Trigger: the render validated and the owner wanting the posts automated.
 
 ## Working style
 

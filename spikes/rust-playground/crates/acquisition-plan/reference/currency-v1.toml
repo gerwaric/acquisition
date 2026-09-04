@@ -18,9 +18,18 @@
 # - `realms` is realm applicability (decisions/pricing.md, Parked: PoE2
 #   currencies land as rows, not as a shape change). v1 rows are PoE1.
 # - `evidence` entries are `cpp:<path>@<master commit>`, `census:<date> …`
-#   (PRICING-SLICE.md, "What the census taught"), `T<n>`, or
-#   `browser:<date> <who> <what>`; `browser:pending` marks a column the
-#   owner has not yet observed.
+#   (PRICING-SLICE.md, "What the census taught"), `T<n>`,
+#   `browser:<date> <who> <what>`, or `game:<date> <where>` — a word GGG's
+#   own client wrote into an item note, read back through the API (the
+#   price-notes run of 2026-09-04, corpus in `price-notes-2026-09-04.txt`
+#   beside this file). `browser:pending` marks a column not yet observed.
+#
+# Amended 2026-09-04 (C68): `emit` is the game's own word, so four v1
+# rows below are wrong until the table step lands them (`exa`→`exalted`,
+# `chrom`→`chrome`, `jew`→`jewellers`, `fuse`→`fusing`); `chisel`, `coin`
+# and `silver` are no longer in the game and keep their rows, marked; 23
+# words the game offers are missing. The rows are the table step's work
+# (PRICING-SLICE.md, "Plan", step 1), not this header's.
 #
 # Reviewed by: (nobody yet — status stays "draft" until the owner commits
 # the table at step 4, and every `browser:pending` is either observed or

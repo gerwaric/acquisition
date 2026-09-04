@@ -1,0 +1,86 @@
+# price-notes-2026-09-04.txt — the in-game price dialog's output, verbatim.
+#
+# Source: GET /stash/Standard/03cb479c65 (the owner's ACQUISITION-PRICE-TEST
+# tab, a public premium tab with no price in its name) on 2026-09-04
+# 00:52 UTC, response 542 in the owner's facts; LIVE-TESTING.md ledger row
+# of that date. Every `note` GGG's client wrote when the owner priced an
+# item through the in-game dialog, one per line, tab-separated:
+#   note<TAB>item type line<TAB>stack size
+# Item ids are omitted on purpose. Read as a fixture by the game-side note
+# parser (C69) once it exists; every later user report of a note this
+# parser misreads becomes one more line here.
+#
+# The owner's word on the shapes (2026-09-04): `~price  chaos` (empty
+# amount) is what the game leaves after an invalid entry such as a ratio
+# on a non-bulk item; `~skip ` is the game's "Do not index" choice; the
+# five-digit and four-decimal amounts are the game's own. Prices set in
+# Acquisition are bounded to two fractional digits regardless (C67).
+# 39 distinct currency words appear; `chisel`, `coin` and `silver` (the
+# C++ table) are no longer offered in game; `echor` is the game's spelling.
+
+~price 999 chaos	Obscured Incubator	1
+~price 999 chance	Thaumaturge's Incubator	1
+~price 999 offer	Time-Lost Incubator	3
+~price 999 facetors	Diviner's Incubator	1
+~b/o 999 chaos	Celestial Jeweller's Incubator	6
+~price 999 divine	Obscured Incubator	1
+~price 999 annul	Enchanted Incubator	5
+~price 999 offer-dedication	Enchanted Incubator	10
+~price 999 engineers	Time-Lost Incubator	2
+~price 999 alch	Enchanted Incubator	1
+~price 999 aug	Mysterious Incubator	1
+~price 999 offer-gift	Fossilised Incubator	2
+~price 999 infused-engineers-orb	Otherworldly Incubator	2
+~skip 	Ornate Incubator	1
+~price 999 exalted	Fragmented Incubator	1
+~price 999 regret	Cartographer's Incubator	1
+~price 999 offer-tribute	Infused Incubator	6
+~price 999 alt	Ornate Incubator	1
+~price 999 scour	Singular Incubator	2
+~price 999 lesser-ember	Singular Incubator	10
+~price 12345 chaos	Foreboding Incubator	1
+~price 999 mirror	Celestial Jeweller's Incubator	2
+~price 999 transmute	Abyssal Incubator	1
+~price 999 greater-ember	Mysterious Incubator	3
+~price  chaos	Thaumaturge's Incubator	3
+~price 999 chrome	Geomancer's Incubator	1
+~price 999 wisdom	Abyssal Incubator	5
+~price 999 grand-ember	Diviner's Incubator	9
+~price 999.1 chaos	Cartographer's Incubator	2
+~b/o 1.5 divine	Scroll of Wisdom	21
+~price 999.1234 chaos	Mysterious Incubator	2
+~price 999 blessed	Fragmented Incubator	2
+~price 999 portal	Diviner's Incubator	2
+~price 999 excep-ember	Abyssal Incubator	10
+~price 999.12 chaos	Infused Incubator	2
+~price 1.4 divine	Kalguuran Incubator	3
+~price 999 fusing	Cartographer's Incubator	3
+~price 999 scrap	Ornate Incubator	1
+~price 999 lesser-echor	Celestial Armoursmith's Incubator	2
+~price 999.123 chaos	Primal Incubator	1
+~price 999 jewellers	Skittering Incubator	1
+~price 999 whetstone	Singular Incubator	4
+~price 999 greater-echor	Primal Incubator	7
+~price 999.1234 chaos	Foreboding Incubator	1
+~price 999 regal	Mysterious Incubator	1
+~price 999 gcp	Celestial Armoursmith's Incubator	1
+~price 999 grand-echor	Ornate Incubator	4
+~price 999 vaal	Foreboding Incubator	2
+~price 999 bauble	Geomancer's Incubator	8
+~price 999 excep-echor	Celestial Armoursmith's Incubator	7
+
+# Tab names that parse as prices in the same account's facts (listing of
+# 2026-09-04; pc/Standard; none of them public), verbatim:
+~price 30 chaos (C)
+~price 20 chaos (Remove-only)
+~price 10 chaos (Remove-only)
+~price 30 chaos (Remove-only)
+~price 60 chaos (Remove-only)
+~price 1 divine (Remove-only)
+~price 2 divine (Remove-only)
+~price 20 chaos (A) (Remove-only)
+~price 30 chaos (B) (Remove-only)
+~price 30 chaos (D) (Remove-only)
+~price 30 chaos (E) (Remove-only)
+~price 40 chaos (F) (Remove-only)
+~price 50 chaos (G) (Remove-only)
