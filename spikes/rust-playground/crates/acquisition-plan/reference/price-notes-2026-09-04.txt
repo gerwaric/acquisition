@@ -84,3 +84,47 @@
 ~price 30 chaos (E) (Remove-only)
 ~price 40 chaos (F) (Remove-only)
 ~price 50 chaos (G) (Remove-only)
+
+# The in-game price dialog's currency list as the owner read it on
+# 2026-09-04, in the order given, with the word the game writes for each
+# (the mapping is one to one and was checked against the notes above):
+#   word<TAB>display name
+chaos	Chaos Orb
+divine	Divine Orb
+alch	Orb of Alchemy
+exalted	Exalted Orb
+alt	Orb of Alteration
+mirror	Mirror of Kalandra
+chrome	Chromatic Orb
+blessed	Blessed Orb
+fusing	Orb of Fusing
+jewellers	Jeweller's Orb
+regal	Regal Orb
+vaal	Vaal Orb
+chance	Orb of Chance
+annul	Orb of Annulment
+aug	Orb of Augmentation
+regret	Orb of Regret
+scour	Orb of Scouring
+transmute	Orb of Transmutation
+wisdom	Scroll of Wisdom
+portal	Portal Scroll
+scrap	Armourer's Scrap
+whetstone	Blacksmith's Whetstone
+gcp	Gemcutter's Prism
+bauble	Glassblower's Bauble
+offer	Offering to the Goddess
+offer-dedication	Dedication to the Goddess
+offer-gift	Gift to the Goddess
+offer-tribute	Tribute to the Goddess
+lesser-ember	Lesser Eldritch Ember
+greater-ember	Greater Eldritch Ember
+grand-ember	Grand Eldritch Ember
+excep-ember	Exceptional Eldritch Ember
+lesser-echor	Lesser Eldritch Ichor
+greater-echor	Greater Eldritch Ichor
+grand-echor	Grand Eldritch Ichor
+excep-echor	Exceptional Eldritch Ichor
+facetors	Facetor's Lens
+engineers	Engineer's Orb
+infused-engineers-orb	Infused Engineer's Orb
