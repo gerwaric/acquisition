@@ -439,6 +439,7 @@ set(ACQ_POE
     src/poe/types/league.h
     src/poe/types/leagueaccount.h
     src/poe/types/leaguerule.h
+    src/poe/types/mercenaryskill.h
     src/poe/types/passivegroup.h
     src/poe/types/passivenode.h
     src/poe/types/publicstashchange.h
