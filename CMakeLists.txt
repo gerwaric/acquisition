@@ -9,7 +9,7 @@ cmake_minimum_required(VERSION 3.24)
 # tags on github are prefixed with a 'v'.
 
 project(acquisition
-    VERSION 0.18.5
+    VERSION 0.18.6
     DESCRIPTION "Stash and forum shop management for Path of Exile (TM)"
     HOMEPAGE_URL "https://github.com/gerwaric/acquisition"
     LANGUAGES CXX
@@ -439,6 +439,7 @@ set(ACQ_POE
     src/poe/types/league.h
     src/poe/types/leagueaccount.h
     src/poe/types/leaguerule.h
+    src/poe/types/mercenaryskill.h
     src/poe/types/passivegroup.h
     src/poe/types/passivenode.h
     src/poe/types/publicstashchange.h
