@@ -5,18 +5,18 @@
 //!
 //! # Decisions as recorded
 //!
-//! **C67 — The `buyout` value, v1, and its target.** A typed
-//! `PriceTarget` — item and character by id (C55), tab by `(realm, id)`,
-//! substash by `(realm, parent, id)`, league-less (a merge keeps the row)
-//! — is the public API. `type` is `exact` (`~price`), `negotiable`
-//! (`~b/o`), `no_price` or `ignore`; the first two carry `amount` and a
-//! `currency` tag that must resolve in the reference table (C68).
-//! `amount` is a decimal of at most two fractional digits, or a lot ratio
-//! `wanted/lot` (T2) of two unreduced positive integers; canonical text,
-//! structural equality; more digits are refused, not rounded. *Why:* the
-//! key mirrors the store's identity (C54, C58); the game writes four
-//! places (T10), two ruled 2026-09-04; widening is compatible, narrowing
-//! is not.
+//! **C67 — The v1 `buyout` and its target.** A typed `PriceTarget` — item
+//! and character by id (C55), tab by `(realm, id)`, substash by `(realm,
+//! parent, id)`, league-less (a merge keeps the row) — is the public API.
+//! `type` is `exact` (`~price`), `negotiable` (`~b/o`), `no_price` or
+//! `ignore`; the first two carry `amount` and a `currency` tag that must
+//! resolve in the reference table (C68). `amount` is a decimal of at most
+//! two fractional digits, or a lot ratio `wanted/lot` (T2) of two unreduced
+//! positive integers; canonical text, structural equality; more digits are
+//! refused. *Why:* the key mirrors the store's identity (C54, C58); the
+//! game writes four places (T10), two ruled 2026-09-04; widening is
+//! compatible, narrowing is not. *Details:* `price.rs`. *Pinned:* the
+//! `c67_` tests.
 //!
 //! # As built
 //!
