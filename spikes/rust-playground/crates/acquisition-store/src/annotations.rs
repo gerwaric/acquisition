@@ -51,17 +51,19 @@
 //! Stored on the row (annotations v3), returned on every read;
 //! `written_via` required by the write API; `actor` is untrusted audit
 //! metadata, never identity or authorization; origin detail lives on the
-//! receipt (C78). Rows written before v3 migrate as `unknown_legacy` — a
-//! migration never manufactures a writer. Ruled 2026-09-03; `applied_plan`
-//! deferred 2026-09-04.
+//! receipt (C78). v3 is the floor: a file below it is refused, never
+//! migrated — every row on record has a writer. Ruled 2026-09-03;
+//! `applied_plan` deferred 2026-09-04; the floor 2026-09-05.
 //!
 //! As built: [`Provenance`] is a required argument of [`Annotations::put`]
 //! and [`Annotations::delete`] (a tombstone records who cleared the row);
-//! `written_via` must be a non-empty word that is not the migration's
-//! [`UNKNOWN_LEGACY`] — a writer can never claim to be the past. The v2 →
-//! v3 migration is a stepwise `ALTER TABLE … ADD COLUMN` inside the same
-//! IMMEDIATE transaction as every other step, so the rows are untouched and
-//! read back as `unknown_legacy` with no actor.
+//! `written_via` must be a non-empty single word. Files below v3 were
+//! written only by development builds (the owner's held one policy row),
+//! so rather than carry a migration that would have to invent a writer
+//! for rows that had none, the open refuses them
+//! ([`AnnotationError::SchemaTooOld`]) naming the file and the fix; a
+//! future column is added by a stepwise `ALTER TABLE` in the same
+//! IMMEDIATE transaction, the way the facts store migrates.
 //!
 //! ## C66 — Intent values are typed at the write API
 //!
@@ -99,15 +101,20 @@ use crate::index::filename_safe;
 
 /// The schema this build reads and writes. A file stamped newer is refused
 /// (never auto-migrated: this is the one file that must not be damaged);
-/// additions like the deferred event log bump this and migrate forward.
-/// v2 added `meta`, which carries the account uuid *inside* the file so a
-/// copied or renamed database cannot silently pair with another account's
-/// facts — the filename convention alone was bypassable. v3 (2026-09-05,
-/// C65) added `written_via` and `actor` to every row.
+/// additions like the deferred event log bump this and migrate forward
+/// from [`SCHEMA_FLOOR`]. v2 added `meta`, which carries the account uuid
+/// *inside* the file so a copied or renamed database cannot silently pair
+/// with another account's facts — the filename convention alone was
+/// bypassable. v3 (2026-09-05, C65) added `written_via` and `actor` to
+/// every row.
 const SCHEMA_VERSION: i64 = 3;
 
-/// The v1 table, as first created; later versions add to it stepwise.
-const SCHEMA_V1: &str = "
+/// The oldest schema this build opens. Files below it were written only
+/// by development builds and are refused rather than migrated: a row
+/// without provenance would need a writer invented for it (C65).
+const SCHEMA_FLOOR: i64 = 3;
+
+const SCHEMA: &str = "
 CREATE TABLE IF NOT EXISTS annotations (
     scope       TEXT    NOT NULL,
     key         TEXT    NOT NULL,
@@ -117,29 +124,15 @@ CREATE TABLE IF NOT EXISTS annotations (
     created_at  INTEGER NOT NULL,   -- unix seconds
     updated_at  INTEGER NOT NULL,
     deleted_at  INTEGER,            -- tombstone; the revision keeps counting
+    written_via TEXT    NOT NULL,   -- the channel of the last write (C65)
+    actor       TEXT,               -- the writer's claim, untrusted
     PRIMARY KEY (scope, key, kind)
 );
-";
-
-/// v1 → v2: the account uuid inside the file.
-const SCHEMA_V2: &str = "
 CREATE TABLE IF NOT EXISTS meta (
     key    TEXT PRIMARY KEY,        -- 'account_uuid'
     value  TEXT NOT NULL
 );
 ";
-
-/// v2 → v3: provenance on every row (C65). `ADD COLUMN` with a constant
-/// default rewrites no row; the rows that predate it read back as the
-/// migration's marker, never as a manufactured writer.
-const SCHEMA_V3: &str = "
-ALTER TABLE annotations ADD COLUMN written_via TEXT NOT NULL DEFAULT 'unknown_legacy';
-ALTER TABLE annotations ADD COLUMN actor TEXT;
-";
-
-/// The `written_via` a row carries when it was written before provenance
-/// existed (annotations v1/v2). Reserved: no writer may claim it.
-pub const UNKNOWN_LEGACY: &str = "unknown_legacy";
 
 /// The `meta` key holding the owning account's uuid.
 const META_UUID: &str = "account_uuid";
@@ -163,8 +156,7 @@ pub struct AnnotationRow {
     pub revision: i64,
     pub created_at: i64,
     pub updated_at: i64,
-    /// The channel the last write came through (C65): `cli`, `mcp`, … or
-    /// [`UNKNOWN_LEGACY`] for a row that predates provenance.
+    /// The channel the last write came through (C65): `cli`, `mcp`, ….
     pub written_via: String,
     /// What the writer claimed about who was acting. Untrusted audit
     /// metadata: never identity, never authorization.
@@ -176,8 +168,7 @@ pub struct AnnotationRow {
 /// frontend surface, passed by reference to every write.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Provenance {
-    /// The channel: a non-empty single word (`cli`, `mcp`, a test's name),
-    /// never [`UNKNOWN_LEGACY`].
+    /// The channel: a non-empty single word (`cli`, `mcp`, a test's name).
     pub written_via: String,
     /// An optional claim about the actor, recorded verbatim.
     pub actor: Option<String>,
@@ -204,8 +195,6 @@ impl Provenance {
             "`written_via` is empty"
         } else if via.chars().any(char::is_whitespace) {
             "`written_via` must be a single word"
-        } else if via == UNKNOWN_LEGACY {
-            "`written_via` cannot claim to be the migration's `unknown_legacy`"
         } else {
             return Ok(());
         };
@@ -405,6 +394,13 @@ pub enum AnnotationError {
         found: i64,
         supported: i64,
     },
+    /// The file predates the schema floor (a development build wrote it).
+    /// Refused rather than migrated: its rows have no writer to record.
+    SchemaTooOld {
+        found: i64,
+        floor: i64,
+        path: PathBuf,
+    },
     /// The file carries another account's uuid: a copy or rename cannot
     /// silently pair one account's intent with another account's facts.
     WrongAccount {
@@ -440,6 +436,12 @@ impl std::fmt::Display for AnnotationError {
             AnnotationError::SchemaTooNew { found, supported } => write!(
                 f,
                 "annotation file uses schema v{found}, newer than this build's v{supported}"
+            ),
+            AnnotationError::SchemaTooOld { found, floor, path } => write!(
+                f,
+                "annotation file {} uses schema v{found}, below this build's floor v{floor} \
+                 (a development build wrote it); delete it and set the policy again",
+                path.display()
             ),
             AnnotationError::WrongAccount { stored, requested } => write!(
                 f,
@@ -536,6 +538,23 @@ impl Annotations {
     }
 
     fn init(mut conn: Connection, path: PathBuf) -> Result<Annotations, AnnotationError> {
+        // The version gate comes before any pragma: switching the journal
+        // mode rewrites the file header, and a file this build refuses is
+        // left exactly as it was found.
+        let found: i64 = conn.query_row("PRAGMA user_version", [], |r| r.get(0))?;
+        if found > SCHEMA_VERSION {
+            return Err(AnnotationError::SchemaTooNew {
+                found,
+                supported: SCHEMA_VERSION,
+            });
+        }
+        if found != 0 && found < SCHEMA_FLOOR {
+            return Err(AnnotationError::SchemaTooOld {
+                found,
+                floor: SCHEMA_FLOOR,
+                path,
+            });
+        }
         // WAL like the fact store: one writer at a time, any number of readers.
         conn.pragma_update(None, "journal_mode", "WAL")?;
         // FULL, not the fact store's NORMAL: under WAL, NORMAL keeps the
@@ -545,30 +564,26 @@ impl Annotations {
         // commit, so the fsync per commit costs nothing that matters.
         conn.pragma_update(None, "synchronous", "FULL")?;
         conn.busy_timeout(BUSY_TIMEOUT)?;
-        // Creation and migration serialize under one immediate transaction
-        // so two processes opening the same file cannot interleave them.
-        // Stepwise: each version's statements run for every file below
-        // it, so a fresh file and a v2 file reach v3 by the same path and
-        // no step ever needs to know the whole schema.
+        // Creation (and, from the floor up, migration) serializes under
+        // one immediate transaction so two processes opening the same file
+        // cannot interleave them. A later version adds its columns here by
+        // a stepwise `ALTER TABLE` per version, never by rewriting a row.
         let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        // Re-read under the lock: two processes creating one file serialize
+        // here, and the loser sees the winner's stamp.
         let found: i64 = tx.query_row("PRAGMA user_version", [], |r| r.get(0))?;
-        if found > SCHEMA_VERSION {
-            return Err(AnnotationError::SchemaTooNew {
-                found,
-                supported: SCHEMA_VERSION,
-            });
-        }
-        if found < 1 {
-            tx.execute_batch(SCHEMA_V1)?;
-        }
-        if found < 2 {
-            tx.execute_batch(SCHEMA_V2)?;
-        }
-        if found < 3 {
-            tx.execute_batch(SCHEMA_V3)?;
-        }
-        if found < SCHEMA_VERSION {
-            tx.pragma_update(None, "user_version", SCHEMA_VERSION)?;
+        match found {
+            0 => {
+                tx.execute_batch(SCHEMA)?;
+                tx.pragma_update(None, "user_version", SCHEMA_VERSION)?;
+            }
+            v if v == SCHEMA_VERSION => {}
+            v => {
+                return Err(AnnotationError::SchemaTooNew {
+                    found: v,
+                    supported: SCHEMA_VERSION,
+                });
+            }
         }
         tx.commit()?;
         let uuid: Option<String> = conn
@@ -1223,10 +1238,10 @@ mod tests {
     }
 
     /// C65 — every write carries who wrote it; a delete stamps the
-    /// tombstone; an empty or whitespace channel, or the migration's
-    /// marker, is refused before anything lands.
+    /// tombstone; an empty or whitespace channel is refused before
+    /// anything lands.
     #[test]
-    fn c65_every_write_carries_its_provenance_and_the_legacy_marker_is_reserved() {
+    fn c65_every_write_carries_its_provenance() {
         let mut a = Annotations::open_memory().unwrap();
         let cli = Provenance::via("cli").as_actor("tom");
         let row = a
@@ -1251,7 +1266,7 @@ mod tests {
         assert_eq!(tomb.written_via, "cli");
         assert_eq!(tomb.actor.as_deref(), Some("tom"));
         // Refused channels: nothing lands, nothing is deleted.
-        for bad in ["", "two words", UNKNOWN_LEGACY] {
+        for bad in ["", "two words"] {
             let err = a
                 .put::<Buyout>("item", "i2", &price("1c"), None, &Provenance::via(bad))
                 .unwrap_err();
@@ -1264,7 +1279,7 @@ mod tests {
         a.put::<Buyout>("item", "i2", &price("1c"), None, &mcp)
             .unwrap();
         let err = a
-            .delete("item", "i2", "buyout", 1, &Provenance::via(UNKNOWN_LEGACY))
+            .delete("item", "i2", "buyout", 1, &Provenance::via(""))
             .unwrap_err();
         assert!(matches!(err, AnnotationError::Provenance { .. }), "{err}");
         assert!(a.get("item", "i2", "buyout").unwrap().is_some());
@@ -1489,87 +1504,60 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    /// C35 — migration never touches the rows; the uuid is stamped on first open.
-    /// C65 — a row written before provenance reads back as `unknown_legacy`, never a manufactured writer.
+    /// C65 — v3 is the floor: a file a development build wrote below it
+    /// is refused naming the file and the fix, never migrated with a
+    /// writer invented for its rows, and never touched.
     #[test]
-    fn a_v1_file_is_migrated_forward_with_its_rows_intact() {
+    fn c65_a_file_below_the_floor_is_refused_never_migrated() {
         let dir = std::env::temp_dir().join(format!(
-            "acq-ann-mig-{}-{}",
+            "acq-ann-floor-{}-{}",
             std::process::id(),
             crate::now()
         ));
         std::fs::create_dir_all(&dir).unwrap();
         let path = annotations_path(&dir, "u-1");
+        let v2_table = "CREATE TABLE annotations (
+                scope TEXT NOT NULL, key TEXT NOT NULL, kind TEXT NOT NULL,
+                value TEXT NOT NULL, revision INTEGER NOT NULL,
+                created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL,
+                deleted_at INTEGER, PRIMARY KEY (scope, key, kind));
+            CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+            INSERT INTO meta VALUES ('account_uuid', 'u-1');
+            INSERT INTO annotations VALUES ('account', '', 'sync-policy', '{\"version\":1}', 9, 1, 2, NULL);";
         {
-            // A v1 file: the annotations table alone, no meta.
             let conn = Connection::open(&path).unwrap();
-            conn.execute_batch(
-                "CREATE TABLE annotations (
-                    scope TEXT NOT NULL, key TEXT NOT NULL, kind TEXT NOT NULL,
-                    value TEXT NOT NULL, revision INTEGER NOT NULL,
-                    created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL,
-                    deleted_at INTEGER, PRIMARY KEY (scope, key, kind));
-                 INSERT INTO annotations VALUES ('item', 'i1', 'buyout', '{}', 3, 1, 2, NULL);",
-            )
-            .unwrap();
-            conn.pragma_update(None, "user_version", 1).unwrap();
+            conn.execute_batch(v2_table).unwrap();
+            conn.pragma_update(None, "user_version", 2).unwrap();
         }
-        // open_for migrates (meta table added, rows untouched) and stamps
-        // the uuid the file is addressed by — the v1 filename convention
-        // was its only binding, upgraded on this first open.
-        let mut a = Annotations::open_for(&dir, "u-1").unwrap();
-        assert_eq!(a.uuid(), Some("u-1"));
-        let row = a.get("item", "i1", "buyout").unwrap().unwrap();
-        assert_eq!(row.revision, 3);
-        assert_eq!(row.written_via, UNKNOWN_LEGACY);
-        assert_eq!(row.actor, None);
+        let before = std::fs::read(&path).unwrap();
+        match Annotations::open_for(&dir, "u-1").err() {
+            Some(AnnotationError::SchemaTooOld {
+                found: 2,
+                floor: 3,
+                path: p,
+            }) => assert_eq!(p, path),
+            other => panic!("expected SchemaTooOld, got {other:?}"),
+        }
+        let err = match Annotations::open(&path) {
+            Err(e) => e.to_string(),
+            Ok(_) => panic!("a v2 file opened"),
+        };
+        assert!(
+            err.contains("v2") && err.contains("floor v3") && err.contains("delete it"),
+            "{err}"
+        );
+        assert_eq!(
+            std::fs::read(&path).unwrap(),
+            before,
+            "refused, not touched"
+        );
+        // A fresh file is created at the current version outright.
+        let a = Annotations::open_for(&dir, "u-2").unwrap();
         let v: i64 = a
             .conn
             .query_row("PRAGMA user_version", [], |r| r.get(0))
             .unwrap();
         assert_eq!(v, SCHEMA_VERSION);
-        // The legacy row is still under compare-and-swap, and the next
-        // write replaces the marker with a real writer.
-        let row = a
-            .put::<Buyout>("item", "i1", &price("1c"), Some(3), &via_test())
-            .unwrap();
-        assert_eq!((row.revision, row.written_via.as_str()), (4, "test"));
-        let _ = std::fs::remove_dir_all(&dir);
-    }
-
-    /// C65 — the v2 → v3 step: the columns are added to a file with the
-    /// uuid already inside, rows untouched, in the same open.
-    #[test]
-    fn a_v2_file_gains_the_provenance_columns_with_its_rows_intact() {
-        let dir = std::env::temp_dir().join(format!(
-            "acq-ann-mig2-{}-{}",
-            std::process::id(),
-            crate::now()
-        ));
-        std::fs::create_dir_all(&dir).unwrap();
-        let path = annotations_path(&dir, "u-1");
-        {
-            let conn = Connection::open(&path).unwrap();
-            conn.execute_batch(SCHEMA_V1).unwrap();
-            conn.execute_batch(SCHEMA_V2).unwrap();
-            conn.execute_batch(
-                "INSERT INTO meta VALUES ('account_uuid', 'u-1');
-                 INSERT INTO annotations VALUES ('account', '', 'sync-policy', '{\"version\":1}', 9, 1, 2, NULL);
-                 INSERT INTO annotations VALUES ('item', 'gone', 'buyout', '{}', 2, 1, 2, 3);",
-            )
-            .unwrap();
-            conn.pragma_update(None, "user_version", 2).unwrap();
-        }
-        let a = Annotations::open_for(&dir, "u-1").unwrap();
-        let row = a.get("account", "", "sync-policy").unwrap().unwrap();
-        assert_eq!(
-            (row.revision, row.written_via.as_str()),
-            (9, UNKNOWN_LEGACY)
-        );
-        // The tombstone survives the step as a tombstone.
-        assert!(a.get("item", "gone", "buyout").unwrap().is_none());
-        let (tomb, deleted) = row_of(&a.conn, "item", "gone", "buyout").unwrap().unwrap();
-        assert!(deleted && tomb.revision == 2);
         let _ = std::fs::remove_dir_all(&dir);
     }
 

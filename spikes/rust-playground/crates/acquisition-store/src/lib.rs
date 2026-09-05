@@ -85,7 +85,8 @@
 //! whose item is gone is kept and surfaceable as orphaned; a frontend
 //! delete is a tombstone under the same compare-and-swap, so revisions
 //! never reset across delete/recreate), backed up via store-managed
-//! `VACUUM INTO` export. Since annotations v3 (2026-09-05) every row
+//! `VACUUM INTO` export. Since annotations v3 (2026-09-05, the floor: an
+//! older file is refused, not migrated) every row
 //! carries who wrote it (`written_via`, `actor`; C65) and the write door
 //! is typed: a kind declares its version and strict parse through
 //! `IntentValue`, and a value that fails the version gate, the parse or
@@ -667,8 +668,8 @@ pub mod index;
 pub mod jobs;
 pub mod snapshot;
 pub use annotations::{
-    AnnotationError, AnnotationRow, Annotations, IntentValue, Provenance, UNKNOWN_LEGACY,
-    ValueError, annotations_path, check_value,
+    AnnotationError, AnnotationRow, Annotations, IntentValue, Provenance, ValueError,
+    annotations_path, check_value,
 };
 pub use index::{
     AccountEntry, Index, Resolve, account_matches, account_path, index_path, store_dir,
