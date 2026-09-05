@@ -236,6 +236,7 @@
 #![cfg_attr(not(test), deny(clippy::unwrap_used, clippy::expect_used))]
 
 pub mod currency;
+pub mod price;
 
 use std::collections::BTreeMap;
 
@@ -246,8 +247,9 @@ use acquisition_core::daemon::MAX_429_RETRIES;
 use acquisition_core::protocol::Quote;
 use acquisition_core::realm::{Family, Realm};
 use acquisition_store::{
-    AnnotationError, AnnotationRow, Annotations, CharacterSnapshot, ListingBasis, RefreshSnapshot,
-    SYNC_POLICY_KEY, SYNC_POLICY_KIND, SYNC_POLICY_SCOPE, TabSnapshot,
+    AnnotationError, AnnotationRow, Annotations, CharacterSnapshot, IntentValue, ListingBasis,
+    Provenance, RefreshSnapshot, SYNC_POLICY_KEY, SYNC_POLICY_KIND, SYNC_POLICY_SCOPE, TabSnapshot,
+    ValueError, check_value,
 };
 
 /// The plan envelope schema this build writes ([`RefreshPlan::plan_schema`]).
@@ -473,7 +475,35 @@ fn realm_policy<L: Into<LeaguePolicy>>(leagues: BTreeMap<String, L>) -> RealmPol
 impl<'de> Deserialize<'de> for SyncPolicy {
     fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         let value = Value::deserialize(d)?;
-        parse_policy(&value).map_err(serde::de::Error::custom)
+        SyncPolicy::from_value(&value).map_err(serde::de::Error::custom)
+    }
+}
+
+/// The sync policy as an intent kind (C66): the store's generic — version
+/// gate, exact round-trip for a v3 value, compare-and-swap — wraps this
+/// crate's own strict parse, which stays exactly what it was.
+impl IntentValue for SyncPolicy {
+    const KIND: &'static str = SYNC_POLICY_KIND;
+    const VERSION: i64 = SYNC_POLICY_VERSION;
+    fn parse(value: &Value) -> Result<Self, String> {
+        parse_policy(value)
+    }
+}
+
+impl From<ValueError> for PlanError {
+    fn from(e: ValueError) -> PlanError {
+        match e {
+            ValueError::VersionUnsupported {
+                found, supported, ..
+            } => PlanError::PolicyVersionUnsupported { found, supported },
+            ValueError::MissingVersion { .. } => PlanError::MalformedPolicy {
+                detail: "missing integer `version`".into(),
+            },
+            ValueError::Malformed { detail, .. } => PlanError::MalformedPolicy { detail },
+            e @ ValueError::NotCanonical { .. } => PlanError::MalformedPolicy {
+                detail: e.to_string(),
+            },
+        }
     }
 }
 
@@ -610,25 +640,17 @@ impl From<Selection> for SelectionRepr {
 }
 
 impl SyncPolicy {
-    /// Parse a stored sync-policy value. The version stamp is checked
-    /// before the full shape so a genuinely newer policy reports
+    /// Parse a stored sync-policy value through the store's generic
+    /// ([`check_value`], C66): the version stamp is checked before the
+    /// full shape so a genuinely newer policy reports
     /// [`PlanError::PolicyVersionUnsupported`], not a spurious
-    /// unknown-field complaint. v1, v2 and v3 all parse (older values
-    /// upgrade in memory).
+    /// unknown-field complaint; v1, v2 and v3 all parse (older values
+    /// upgrade in memory); a v3 value must re-serialize to exactly what
+    /// was read, so `tabs: []` or `characters: null` — spellings the parse
+    /// would normalize away — are refused naming the path, never stored
+    /// as a second spelling of the same intent.
     pub fn from_value(value: &Value) -> Result<SyncPolicy, PlanError> {
-        let found = value
-            .get("version")
-            .and_then(Value::as_i64)
-            .ok_or_else(|| PlanError::MalformedPolicy {
-                detail: "missing integer `version`".into(),
-            })?;
-        if found > SYNC_POLICY_VERSION {
-            return Err(PlanError::PolicyVersionUnsupported {
-                found,
-                supported: SYNC_POLICY_VERSION,
-            });
-        }
-        parse_policy(value).map_err(|detail| PlanError::MalformedPolicy { detail })
+        check_value::<SyncPolicy>(value).map_err(PlanError::from)
     }
 }
 
@@ -664,22 +686,25 @@ impl std::error::Error for PutPolicyError {}
 /// creates (refused if a policy exists). A frontend that wants a softer
 /// default (the CLI's "replace whatever is stored") reads the current
 /// revision itself and passes it here — the blind form is a frontend
-/// policy, not this function's.
+/// policy, not this function's. `provenance` names the frontend (C65).
 pub fn put_sync_policy(
     annotations: &mut Annotations,
     value: &Value,
     expected_revision: Option<i64>,
+    provenance: &Provenance,
 ) -> Result<AnnotationRow, PutPolicyError> {
-    SyncPolicy::from_value(value).map_err(PutPolicyError::Invalid)?;
     annotations
-        .put(
+        .put::<SyncPolicy>(
             SYNC_POLICY_SCOPE,
             SYNC_POLICY_KEY,
-            SYNC_POLICY_KIND,
             value,
             expected_revision,
+            provenance,
         )
-        .map_err(PutPolicyError::Store)
+        .map_err(|e| match e {
+            AnnotationError::Invalid(v) => PutPolicyError::Invalid(v.into()),
+            other => PutPolicyError::Store(other),
+        })
 }
 
 /// Why the plan re-lists the league.
@@ -1830,9 +1855,26 @@ mod tests {
     /// the only way plans are made: from stored intent, at its revision.
     fn snapshot_with(s: &Store, policy: &Value) -> RefreshSnapshot {
         let mut a = Annotations::open_memory_for("u-1").unwrap();
-        a.put("account", "", SYNC_POLICY_KIND, policy, None)
-            .unwrap();
+        store_policy(&mut a, policy);
         s.refresh_snapshot("pc", "Standard", &a).unwrap()
+    }
+
+    /// The provenance every test write carries.
+    fn via_test() -> Provenance {
+        Provenance::via("test")
+    }
+
+    /// Land `policy` as the stored sync-policy row through the typed door
+    /// — the only door there is.
+    fn store_policy(a: &mut Annotations, policy: &Value) -> AnnotationRow {
+        a.put::<SyncPolicy>(
+            SYNC_POLICY_SCOPE,
+            SYNC_POLICY_KEY,
+            policy,
+            None,
+            &via_test(),
+        )
+        .unwrap()
     }
 
     fn plan(s: &Store, policy: &Value, now: i64) -> RefreshPlan {
@@ -1933,6 +1975,57 @@ mod tests {
         assert_eq!(back, p);
     }
 
+    /// C66 — the policy through the store's generic: a v3 value must
+    /// re-serialize to exactly what was read, so the spellings the parse
+    /// normalizes away (`tabs: []` beside a facet that names work,
+    /// `characters: null`) are refused naming the path, never stored as a
+    /// second spelling of one intent; older stamps upgrade in memory and
+    /// are not held to it. The owner's stored row (2026-09-05: both
+    /// facets, an id list, v3) is canonical and unaffected.
+    #[test]
+    fn c66_a_current_schema_policy_must_be_canonical_and_older_ones_upgrade() {
+        let canonical = json!({ "version": 3, "realms": { "pc": { "leagues": { "Standard": {
+            "characters": "all", "max_age_seconds": 3600, "tabs": ["5ba2e1880a", "421496994e"]
+        } } } } });
+        let p = SyncPolicy::from_value(&canonical).unwrap();
+        assert_eq!(serde_json::to_value(&p).unwrap(), canonical);
+        for (bad, path) in [
+            (
+                json!({ "version": 3, "realms": { "pc": { "leagues": { "Standard": {
+                    "tabs": [], "characters": "all", "max_age_seconds": 60 } } } } }),
+                "/realms/pc/leagues/Standard/tabs",
+            ),
+            (
+                json!({ "version": 3, "realms": { "pc": { "leagues": { "Standard": {
+                    "tabs": "all", "characters": null, "max_age_seconds": 60 } } } } }),
+                "/realms/pc/leagues/Standard/characters",
+            ),
+        ] {
+            let err = SyncPolicy::from_value(&bad).unwrap_err();
+            assert!(
+                matches!(&err, PlanError::MalformedPolicy { detail }
+                    if detail.contains("canonical") && detail.contains(path)),
+                "{bad}: {err}"
+            );
+            let mut a = Annotations::open_memory_for("u-1").unwrap();
+            assert!(put_sync_policy(&mut a, &bad, None, &via_test()).is_err());
+            assert!(a.get("account", "", SYNC_POLICY_KIND).unwrap().is_none());
+        }
+        // A v2 value upgrades (characters: none) and is stored as written.
+        let v2 = json!({ "version": 2, "realms": { "pc": { "leagues": { "Standard": {
+            "tabs": "all", "max_age_seconds": 60 } } } } });
+        let mut a = Annotations::open_memory_for("u-1").unwrap();
+        let row = put_sync_policy(&mut a, &v2, None, &via_test()).unwrap();
+        assert_eq!(row.value, v2);
+        let (_, typed) = a.get_as::<SyncPolicy>("account", "").unwrap().unwrap();
+        assert_eq!(typed.version, SYNC_POLICY_VERSION);
+        assert!(
+            typed.realms[&Realm::Pc].leagues["Standard"]
+                .characters
+                .is_none()
+        );
+    }
+
     #[test]
     fn no_policy_and_uncovered_league_are_distinct_structured_errors() {
         let s = store();
@@ -1971,9 +2064,23 @@ mod tests {
         );
         // A stored policy row a newer build wrote surfaces its version,
         // and the version gate is not bypassable by deserializing the
-        // type directly instead of calling from_value.
+        // type directly instead of calling from_value. This build's own
+        // write door refuses a v4 value (C66), so the row is placed on the
+        // snapshot by hand, as a newer build would have stored it.
         let v4 = json!({ "version": 4, "realms": {} });
-        let err = plan_refresh("mock", &snapshot_with(&s, &v4), 1000).unwrap_err();
+        let mut newer = snapshot(&s);
+        newer.policy = Some(AnnotationRow {
+            scope: SYNC_POLICY_SCOPE.into(),
+            key: SYNC_POLICY_KEY.into(),
+            kind: SYNC_POLICY_KIND.into(),
+            value: v4.clone(),
+            revision: 1,
+            created_at: 1,
+            updated_at: 1,
+            written_via: "future-build".into(),
+            actor: None,
+        });
+        let err = plan_refresh("mock", &newer, 1000).unwrap_err();
         assert_eq!(
             err,
             PlanError::PolicyVersionUnsupported {
@@ -2036,15 +2143,10 @@ mod tests {
             json!({ "id": "t1", "name": "One", "type": "PremiumStash", "items": [item("i1")] }),
             1010,
         );
-        let row = a
-            .put(
-                "account",
-                "",
-                SYNC_POLICY_KIND,
-                &json!({ "version": 1, "leagues": { "Standard": { "tabs": "all", "max_age_seconds": 3600 } } }),
-                None,
-            )
-            .unwrap();
+        let row = store_policy(
+            &mut a,
+            &json!({ "version": 1, "leagues": { "Standard": { "tabs": "all", "max_age_seconds": 3600 } } }),
+        );
         let snap = s.refresh_snapshot("pc", "Standard", &a).unwrap();
         let plan = plan_refresh("mock", &snap, 1100).unwrap();
         assert!(plan.actions.is_empty());
@@ -2838,23 +2940,24 @@ mod tests {
             "version": 1,
             "leagues": { "Standard": { "tabs": "all", "max_age_secs": 60 } }
         });
-        let err = put_sync_policy(&mut a, &typo, None).unwrap_err();
+        let err = put_sync_policy(&mut a, &typo, None, &via_test()).unwrap_err();
         assert!(matches!(err, PutPolicyError::Invalid(_)), "{err}");
         assert!(a.get("account", "", SYNC_POLICY_KIND).unwrap().is_none());
         // `None` creates; a second `None` over a live row is a conflict
         // naming the current revision — a caller (an agent especially)
         // never replaces intent it has not read.
         let value = all_policy_value(3600);
-        let first = put_sync_policy(&mut a, &value, None).unwrap();
+        let first = put_sync_policy(&mut a, &value, None, &via_test()).unwrap();
         assert_eq!(first.revision, 1);
-        let err = put_sync_policy(&mut a, &value, None).unwrap_err();
+        assert_eq!(first.written_via, "test");
+        let err = put_sync_policy(&mut a, &value, None, &via_test()).unwrap_err();
         assert!(matches!(err, PutPolicyError::Store(_)), "{err}");
         assert!(err.to_string().contains("revision 1"), "{err}");
         // Naming the reviewed revision replaces it; naming a stale one
         // conflicts and the stored value is untouched.
-        let second = put_sync_policy(&mut a, &value, Some(1)).unwrap();
+        let second = put_sync_policy(&mut a, &value, Some(1), &via_test()).unwrap();
         assert_eq!(second.revision, 2);
-        let err = put_sync_policy(&mut a, &all_policy_value(60), Some(1)).unwrap_err();
+        let err = put_sync_policy(&mut a, &all_policy_value(60), Some(1), &via_test()).unwrap_err();
         assert!(err.to_string().contains("revision 2"), "{err}");
         let held = a.get("account", "", SYNC_POLICY_KIND).unwrap().unwrap();
         assert_eq!(held.value, value);
@@ -2871,11 +2974,11 @@ mod tests {
         let err = plan.check_spendable("mock", Some("u-1"), &a).unwrap_err();
         assert!(matches!(err, SpendError::PolicyGone { .. }), "{err}");
         // Intent standing at the plan's revision: spendable.
-        put_sync_policy(&mut a, &all_policy_value(3600), None).unwrap();
+        put_sync_policy(&mut a, &all_policy_value(3600), None, &via_test()).unwrap();
         plan.check_spendable("mock", Some("u-1"), &a).unwrap();
         // Intent moved since the plan (the step-7 ruling): refused with
         // both revisions named, remedy = replan.
-        put_sync_policy(&mut a, &all_policy_value(60), Some(1)).unwrap();
+        put_sync_policy(&mut a, &all_policy_value(60), Some(1), &via_test()).unwrap();
         let err = plan.check_spendable("mock", Some("u-1"), &a).unwrap_err();
         assert!(matches!(err, SpendError::PolicyMoved { .. }), "{err}");
         let msg = err.to_string();
@@ -2908,7 +3011,7 @@ mod tests {
             1000,
         );
         let mut a = Annotations::open_memory_for("u-1").unwrap();
-        put_sync_policy(&mut a, &all_policy_value(3600), None).unwrap();
+        put_sync_policy(&mut a, &all_policy_value(3600), None, &via_test()).unwrap();
         let plan = plan_refresh(
             "mock",
             &s.refresh_snapshot("pc", "Standard", &a).unwrap(),
@@ -2981,8 +3084,7 @@ mod tests {
             "realms": { "xbox": { "leagues": { "Standard": { "tabs": "all", "max_age_seconds": 60 } } } }
         });
         let mut a = Annotations::open_memory_for("u-1").unwrap();
-        a.put("account", "", SYNC_POLICY_KIND, &policy, None)
-            .unwrap();
+        store_policy(&mut a, &policy);
         let snap = s.refresh_snapshot("xbox", "Standard", &a).unwrap();
         let plan = plan_refresh("mock", &snap, 1500).unwrap();
         assert_eq!(plan.realm, Realm::Xbox);
@@ -3449,7 +3551,7 @@ mod tests {
             1200,
         );
         let mut a = Annotations::open_memory_for("u-1").unwrap();
-        a.put("account", "", SYNC_POLICY_KIND, &both, None).unwrap();
+        store_policy(&mut a, &both);
         let hc = plan_refresh(
             "mock",
             &s.refresh_snapshot("pc", "Hardcore", &a).unwrap(),
@@ -3528,8 +3630,7 @@ mod tests {
         let mut a = Annotations::open_memory_for("u-1").unwrap();
         let hc_policy = json!({ "version": 3, "realms": { "pc": { "leagues": {
             "Hardcore": { "characters": "all", "max_age_seconds": 3600 } } } } });
-        a.put("account", "", SYNC_POLICY_KIND, &hc_policy, None)
-            .unwrap();
+        store_policy(&mut a, &hc_policy);
         let hc = plan_refresh(
             "mock",
             &s.refresh_snapshot("pc", "Hardcore", &a).unwrap(),

@@ -457,13 +457,14 @@ mod tests {
             200,
         )
         .unwrap();
+        let via = crate::annotations::test_kinds::via_test();
         let policy = a
-            .put(
+            .put::<crate::annotations::test_kinds::Policy>(
                 "account",
                 "",
-                SYNC_POLICY_KIND,
-                &json!({ "leagues": ["Standard"], "deep": false }),
+                &json!({ "version": 1, "leagues": ["Standard"], "deep": false }),
                 None,
+                &via,
             )
             .unwrap();
         let snap = s.refresh_snapshot("pc", "Standard", &a).unwrap();
@@ -475,7 +476,7 @@ mod tests {
         assert_eq!((row.revision, &row.value), (1, &policy.value));
         // A tombstoned policy is no policy — but its revision still gates
         // the next write, which is the annotation layer's business.
-        a.delete("account", "", SYNC_POLICY_KIND, 1).unwrap();
+        a.delete("account", "", SYNC_POLICY_KIND, 1, &via).unwrap();
         assert!(
             s.refresh_snapshot("pc", "Standard", &a)
                 .unwrap()

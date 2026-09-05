@@ -64,8 +64,10 @@ bounded by `MAX_429_RETRIES`; a Cloudflare-shaped 403/503 is never retried.
 - `crates/acquisition-store` — the shared store: SQLite, one facts file
   per **account** under one directory per provider, plus
   `<uuid>.annotations.db` (the intent layer — buyouts, notes, the sync
-  policy; the only irreplaceable local state) and `daemon.db` (the
-  persisted job queue, `jobs.rs`). The daemon writes facts through one
+  policy; the only irreplaceable local state; since v3 every row carries
+  `written_via`/`actor` and the write door is typed per kind through
+  `IntentValue`, C65/C66) and `daemon.db` (the persisted job queue,
+  `jobs.rs`). The daemon writes facts through one
   call, `Store::record(endpoint, params, status, body)`, and never
   reads; every frontend reads the files directly. How ingest works as
   built — item lifting at the seams, listing-owned membership and
@@ -84,7 +86,9 @@ bounded by `MAX_429_RETRIES`; a Cloudflare-shaped 403/503 is never retried.
   decisions in `CONTEXT.md`. Same no-panic lint ratchet as the store.
   Pricing begins here with reference data: `reference/currency-v1.toml`
   (the reviewed currency table, every row citing its evidence) is
-  compiled into the binary and read through `currency.rs` (C68).
+  compiled into the binary and read through `currency.rs` (C68); the
+  typed `buyout` value and its `PriceTarget` address are `price.rs`
+  (C67) — no surface writes one yet (plan step 5).
 - `crates/acquisition-cli` — the `acq` binary. Thin: clap parsing, output
   rendering, `store_cmd.rs` (reads of the shared store, no daemon),
   `plan_cmd.rs` (the intent surface `acq policy`, and `acq refresh

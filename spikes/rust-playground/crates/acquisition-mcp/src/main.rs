@@ -52,8 +52,8 @@ use acquisition_core::protocol::{QuoteJob, Request, Response};
 use acquisition_core::realm::Realm;
 use acquisition_plan::{PlanError, RefreshPlan, plan_refresh, put_sync_policy};
 use acquisition_store::{
-    AccountEntry, Annotations, Index, SYNC_POLICY_KEY, SYNC_POLICY_KIND, SYNC_POLICY_SCOPE, Store,
-    account_path, store_dir,
+    AccountEntry, Annotations, Index, Provenance, SYNC_POLICY_KEY, SYNC_POLICY_KIND,
+    SYNC_POLICY_SCOPE, Store, account_path, store_dir,
 };
 use anyhow::Result;
 use rmcp::handler::server::wrapper::{Json, Parameters};
@@ -105,6 +105,9 @@ fn open_intent(account: Option<&str>) -> Result<(PathBuf, AccountEntry, Annotati
     let annotations = Annotations::open_for(&dir, uuid)?;
     Ok((dir, entry, annotations))
 }
+
+/// The channel every intent write from this binary is stamped with (C65).
+const WRITTEN_VIA: &str = "mcp";
 
 /// The quote attempt is bounded and best-effort, same as the CLI's: the
 /// offline plan is the deliverable, and a wedged daemon must not keep it
@@ -466,8 +469,13 @@ impl AcqMcp {
         Parameters(p): Parameters<SetPolicyParams>,
     ) -> Result<Json<Value>, ErrorData> {
         let (_, _, mut annotations) = open_intent(p.account.as_deref()).map_err(err)?;
-        let row = put_sync_policy(&mut annotations, &p.value, p.if_revision)
-            .map_err(|e| err(e.into()))?;
+        let row = put_sync_policy(
+            &mut annotations,
+            &p.value,
+            p.if_revision,
+            &Provenance::via(WRITTEN_VIA),
+        )
+        .map_err(|e| err(e.into()))?;
         serde_json::to_value(row)
             .map(Json)
             .map_err(|e| err(e.into()))

@@ -138,6 +138,9 @@ fn json_stdout_is_the_contract_surface() {
     let row = sole_json(&out);
     assert_eq!(row["revision"], json!(1));
     assert_eq!(row["value"], serde_json::from_str::<Value>(policy).unwrap());
+    // C65: the row says which channel wrote it; no actor was claimed.
+    assert_eq!(row["written_via"], json!("cli"));
+    assert!(row.get("actor").is_none(), "{row}");
     let out = acq(&base, &["policy", "show", "--json"]);
     assert_eq!(sole_json(&out), row);
 

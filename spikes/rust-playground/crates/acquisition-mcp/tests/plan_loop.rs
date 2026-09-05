@@ -184,6 +184,8 @@ fn the_mcp_tools_carry_the_plan_slice_and_its_gates() {
     let policy: Value = serde_json::from_str(POLICY).unwrap();
     let row = mcp.expect_ok("set_sync_policy", json!({ "value": policy }));
     assert_eq!(row["revision"], json!(1), "{row}");
+    // C65: the row names the channel that wrote it.
+    assert_eq!(row["written_via"], json!("mcp"), "{row}");
     let msg = mcp.expect_err("set_sync_policy", json!({ "value": policy }));
     assert!(msg.contains("revision 1"), "{msg}");
 

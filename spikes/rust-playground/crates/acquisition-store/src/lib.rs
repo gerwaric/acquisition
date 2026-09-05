@@ -85,7 +85,11 @@
 //! whose item is gone is kept and surfaceable as orphaned; a frontend
 //! delete is a tombstone under the same compare-and-swap, so revisions
 //! never reset across delete/recreate), backed up via store-managed
-//! `VACUUM INTO` export. The only irreplaceable local state;
+//! `VACUUM INTO` export. Since annotations v3 (2026-09-05) every row
+//! carries who wrote it (`written_via`, `actor`; C65) and the write door
+//! is typed: a kind declares its version and strict parse through
+//! `IntentValue`, and a value that fails the version gate, the parse or
+//! the exact round-trip never lands (C66). The only irreplaceable local state;
 //! the store crate's production code is held to no-panic by a clippy
 //! ratchet (`unwrap_used`/`expect_used` denied).
 //! `Store::refresh_snapshot` (`snapshot.rs`) is the planner's read, taken
@@ -662,7 +666,10 @@ pub mod annotations;
 pub mod index;
 pub mod jobs;
 pub mod snapshot;
-pub use annotations::{AnnotationError, AnnotationRow, Annotations, annotations_path};
+pub use annotations::{
+    AnnotationError, AnnotationRow, Annotations, IntentValue, Provenance, UNKNOWN_LEGACY,
+    ValueError, annotations_path, check_value,
+};
 pub use index::{
     AccountEntry, Index, Resolve, account_matches, account_path, index_path, store_dir,
 };
@@ -1764,7 +1771,7 @@ impl Store {
         annotations: &Annotations,
     ) -> Result<Vec<AnnotationRow>> {
         let mut orphaned = Vec::new();
-        for row in annotations.list(Some("item"))? {
+        for row in annotations.list(Some("item"), None)? {
             let live: Option<Option<i64>> = self
                 .conn
                 .query_row(
@@ -2730,8 +2737,15 @@ mod tests {
             100,
         )
         .unwrap();
-        a.put("item", "i1", "buyout", &json!({"price": "1 divine"}), None)
-            .unwrap();
+        let via = crate::annotations::test_kinds::via_test();
+        a.put::<crate::annotations::test_kinds::Buyout>(
+            "item",
+            "i1",
+            &json!({"version": 1, "price": "1 divine"}),
+            None,
+            &via,
+        )
+        .unwrap();
         assert!(s.orphaned_item_annotations(&a).unwrap().is_empty());
         // The item disappears from its tab: the fact side records a removal
         // and touches no intent — the annotation stays, now orphaned.
@@ -2752,7 +2766,14 @@ mod tests {
         .unwrap();
         assert!(s.orphaned_item_annotations(&a).unwrap().is_empty());
         // An annotation on an item this store never saw is orphaned too.
-        a.put("item", "ghost", "note", &json!("?"), None).unwrap();
+        a.put::<crate::annotations::test_kinds::Note>(
+            "item",
+            "ghost",
+            &json!({"version": 1, "text": "?"}),
+            None,
+            &via,
+        )
+        .unwrap();
         assert_eq!(s.orphaned_item_annotations(&a).unwrap().len(), 1);
     }
 

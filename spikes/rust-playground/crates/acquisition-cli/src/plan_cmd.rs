@@ -127,13 +127,16 @@ use acquisition_plan::{
     SkipReason, plan_refresh, put_sync_policy,
 };
 use acquisition_store::{
-    AccountEntry, Annotations, SYNC_POLICY_KEY, SYNC_POLICY_KIND, SYNC_POLICY_SCOPE, Store,
-    account_path,
+    AccountEntry, Annotations, Provenance, SYNC_POLICY_KEY, SYNC_POLICY_KIND, SYNC_POLICY_SCOPE,
+    Store, account_path,
 };
 use anyhow::{Context, Result, bail};
 use serde_json::Value;
 
 use crate::store_cmd;
+
+/// The channel every intent write from this binary is stamped with (C65).
+const WRITTEN_VIA: &str = "cli";
 
 /// A shape hint for humans; the planner's strict parse is the authority.
 const POLICY_EXAMPLE: &str = r#"{"version":3,"realms":{"pc":{"leagues":{"Standard":{"tabs":"all","characters":"all","max_age_seconds":3600}}}}}"#;
@@ -229,7 +232,12 @@ fn write_policy(
             .get(SYNC_POLICY_SCOPE, SYNC_POLICY_KEY, SYNC_POLICY_KIND)?
             .map(|row| row.revision),
     };
-    Ok(put_sync_policy(annotations, value, expected)?)
+    Ok(put_sync_policy(
+        annotations,
+        value,
+        expected,
+        &Provenance::via(WRITTEN_VIA),
+    )?)
 }
 
 /// Read a plan envelope from a path or stdin (`-`) through the planner's
@@ -1795,6 +1803,8 @@ mod tests {
                 revision: 1,
                 created_at: 1_000,
                 updated_at: 1_000,
+                written_via: "test".into(),
+                actor: None,
             }),
         };
         plan_refresh("mock", &snapshot, 2_000).unwrap()
