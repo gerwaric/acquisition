@@ -97,7 +97,7 @@ fn c68_one_word_resolves_exactly_or_fails_naming_the_version() {
     let text = acq(&tmp, &["reference", "currency", "exa"]);
     let stdout = String::from_utf8(text.stdout).unwrap();
     assert!(
-        stdout.starts_with("exa is a legacy alias of exalted: currency table v1"),
+        stdout.starts_with("exa is an alias of exalted: currency table v1"),
         "{stdout}"
     );
 

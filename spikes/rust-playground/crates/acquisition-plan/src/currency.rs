@@ -4,18 +4,18 @@
 //!
 //! # Decisions as recorded
 //!
-//! **C68 — Reference data is a fifth input, versioned by the build: a
-//! reviewed, committed table whose every row cites its evidence, shipped
-//! inside the binary, read-only, never in a store file, enumerable
-//! through every surface, cited by version wherever used.** A tool may
-//! propose rows from a governed source (C79); a human commits. The
-//! currency table is first: the immutable `tag` intent cites; `emit`, the
-//! word GGG's client writes into a note (the 2026-09-04 run); `aliases`,
-//! that word plus the legacy C++ tag, nothing more — the indexer's loose
-//! matching is not modelled. A tag is never removed or reused; a dropped
-//! currency keeps its row, marked; additions are reported. *Why:* not a
-//! fact, not intent, not a derivation (pattern 8); the C++ list rotted
-//! without evidence. Amended 2026-09-04.
+//! **C68 — Reference data is a fifth input, a versioned, reviewed,
+//! committed table whose rows cite evidence, shipped inside the binary,
+//! read-only, never in a store file, enumerable through every surface,
+//! cited by version when used.** A tool may propose rows from a governed
+//! source (C79); a human commits. The currency table is first: the
+//! immutable `tag` intent cites; `emit`, the word GGG's client writes
+//! into a note; `aliases`, the legacy C++ tag and shorthand the owner
+//! checked by hand, each cited — the indexer's loose matching is not
+//! modelled. A tag is never removed or reused; a dropped currency keeps
+//! its row, marked; additions are reported. *Why:* not a fact, not
+//! intent, not a derivation (pattern 8); the C++ list rotted without
+//! evidence. Amended 2026-09-05.
 //!
 //! # As built
 //!
@@ -26,8 +26,9 @@
 //! it. Parsing is strict (`deny_unknown_fields`) and the loader checks
 //! what a reviewer would: the version stamp is the one this build
 //! expects, every `tag`, `emit` and alias is a single word, every word
-//! resolves to exactly one row across the whole table, and every row
-//! cites at least one `game:` evidence entry. A table that fails is a
+//! resolves to exactly one row across the whole table, every row cites
+//! at least one `game:` evidence entry, and a row with aliases cites
+//! where they came from (`cpp:` or `browser:`). A table that fails is a
 //! build defect surfaced as [`CurrencyTableError`] to every caller (the
 //! crate's no-panic ratchet applies; the `c68_` tests pin the shipped
 //! file), never a partial table.
@@ -45,7 +46,8 @@
 //! retired (`chisel`, `coin`, `silver`: the C++ table had them, the dialog
 //! no longer offers them). The four C++ tags that differed from the game's
 //! word (`exa`, `chrom`, `jew`, `fuse`) are aliases of `exalted`, `chrome`,
-//! `jewellers`, `fusing`.
+//! `jewellers`, `fusing`; the owner's shorthand (`alts`, `mirr`, …) joins
+//! them row by row as he checks each by hand — the count is not pinned.
 
 use std::collections::BTreeMap;
 use std::sync::LazyLock;
@@ -126,6 +128,8 @@ pub enum CurrencyTableError {
     AmbiguousWord { word: String, tags: [String; 2] },
     /// A row cites no `game:` evidence (or none at all).
     Uncited { tag: String },
+    /// A row has aliases but cites neither `cpp:` nor `browser:` for them.
+    UncitedAliases { tag: String },
     /// A row names no realm.
     NoRealm { tag: String },
     /// The table has no rows.
@@ -151,6 +155,10 @@ impl std::fmt::Display for CurrencyTableError {
             CurrencyTableError::Uncited { tag } => {
                 write!(f, "currency {tag:?} cites no `game:` evidence")
             }
+            CurrencyTableError::UncitedAliases { tag } => write!(
+                f,
+                "currency {tag:?} has aliases but cites no `cpp:` or `browser:` source for them"
+            ),
             CurrencyTableError::NoRealm { tag } => write!(f, "currency {tag:?} names no realm"),
             CurrencyTableError::Empty => write!(f, "currency table has no rows"),
         }
@@ -202,6 +210,16 @@ impl CurrencyTable {
             }
             if !row.evidence.iter().any(|e| e.starts_with("game:")) {
                 return Err(CurrencyTableError::Uncited {
+                    tag: row.tag.clone(),
+                });
+            }
+            if !row.aliases.is_empty()
+                && !row
+                    .evidence
+                    .iter()
+                    .any(|e| e.starts_with("cpp:") || e.starts_with("browser:"))
+            {
+                return Err(CurrencyTableError::UncitedAliases {
                     tag: row.tag.clone(),
                 });
             }
@@ -354,7 +372,9 @@ mod tests {
     }
 
     /// C68: the legacy C++ tag is an alias where it differed from the
-    /// game's word; where it did not, the row carries no alias.
+    /// game's word. The owner's shorthand joins row by row (the count is
+    /// not pinned — "I have probably missed some", 2026-09-05); each such
+    /// row cites where its aliases came from.
     #[test]
     fn c68_the_legacy_tags_resolve_as_aliases() {
         let t = table().unwrap();
@@ -369,11 +389,13 @@ mod tests {
             assert_eq!(row.aliases, vec![legacy.to_string()]);
             assert!(row.evidence.iter().any(|e| e.starts_with("cpp:")));
         }
-        let with_alias = t.rows().iter().filter(|r| !r.aliases.is_empty()).count();
-        assert_eq!(
-            with_alias, 4,
-            "aliases are the legacy tags that differed, nothing more"
-        );
+        for owner_word in ["alts", "mirr", "mirrors"] {
+            let row = t.resolve(owner_word).unwrap();
+            assert!(
+                row.evidence.iter().any(|e| e.starts_with("browser:")),
+                "{owner_word}"
+            );
+        }
     }
 
     /// C68: a dropped currency keeps its row, marked, and still resolves
@@ -426,7 +448,7 @@ mod tests {
 
         let dup = format!(
             "{head}{}{}",
-            row("exalted", "exalted", "\"exa\"", "\"game:x\""),
+            row("exalted", "exalted", "\"exa\"", "\"game:x\", \"cpp:x\""),
             row("exa2", "exa", "", "\"game:x\"")
         );
         assert_eq!(
@@ -434,6 +456,17 @@ mod tests {
             Err(CurrencyTableError::AmbiguousWord {
                 word: "exa".into(),
                 tags: ["exalted".into(), "exa2".into()]
+            })
+        );
+
+        let bare_alias = format!(
+            "{head}{}",
+            row("chaos", "chaos", "\"chaoses\"", "\"game:x\"")
+        );
+        assert_eq!(
+            CurrencyTable::parse(&bare_alias),
+            Err(CurrencyTableError::UncitedAliases {
+                tag: "chaos".into()
             })
         );
 

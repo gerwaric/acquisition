@@ -19,9 +19,11 @@
 #   beside this file (T9, T10). Today every active row's `emit` is its
 #   `tag`; if the game ever changes a word, `emit` moves and `tag` stays.
 # - `aliases` are the extra words a parser accepts beyond `tag` and `emit`:
-#   the legacy C++ tag where it differed, nothing more — the trade
-#   indexer's loose matching is not modelled (C68). Resolution is exact
-#   and case-sensitive.
+#   the legacy C++ tag where it differed, and the owner's shorthand
+#   checked by hand on the trade site and the forum (`browser:` evidence
+#   on the row; SURFACES.md) — the trade indexer's loose matching is not
+#   modelled (C68). A row with aliases cites `cpp:` or `browser:`; the
+#   loader checks. Resolution is exact and case-sensitive.
 # - `display` is the name the in-game price dialog shows for the word, as
 #   the owner read it on 2026-09-04 (the fixture's third section); the
 #   three retired rows keep the C++ display name.
@@ -38,14 +40,14 @@
 #   (docs/design/trade-ground-truth.md), or `browser:<date> <who> <what>`
 #   (SURFACES.md). Every row carries a `game:` entry; the loader checks.
 #
-# Row order is the dialog's own, then the retired rows. `status` is
-# "draft" until the owner has read the table; the loader exposes it and
-# gates nothing on it.
+# Row order is the dialog's own, then the retired rows. `status` is the
+# owner's review state; the loader exposes it and gates nothing on it.
 #
-# Reviewed by: (nobody yet)
+# Reviewed by: the owner, 2026-09-05 (rows read; shorthand aliases added
+# after checking them by hand on the trade site and the forum).
 
 version = 1
-status = "draft"
+status = "reviewed"
 sources = [
   "game:2026-09-04 the in-game price dialog, pc/Standard, tab ACQUISITION-PRICE-TEST — 39 words written into notes and read back (price-notes-2026-09-04.txt; LIVE-TESTING.md ledger row 2026-09-04)",
   "game:2026-09-04 the dialog's currency list and display names, as the owner read them (the fixture's third section)",
@@ -71,25 +73,27 @@ evidence = [
 tag = "divine"
 display = "Divine Orb"
 emit = "divine"
-aliases = []
+aliases = ["divines"]
 realms = ["pc", "xbox", "sony"]
 evidence = [
   "game:2026-09-04 note `~price 999 divine`",
   "game:2026-09-04 dialog `Divine Orb`",
   "cpp:src/currency.cpp@fb0bbbdf tag `divine`",
   "census:2026-09-03 rows 105 item + 2 location; tab names 2; notes 44 (`divine`)",
+  "browser:2026-09-05 owner — aliases checked by hand on the trade site and the forum",
 ]
 
 [[currency]]
 tag = "alch"
 display = "Orb of Alchemy"
 emit = "alch"
-aliases = []
+aliases = ["alchs"]
 realms = ["pc", "xbox", "sony"]
 evidence = [
   "game:2026-09-04 note `~price 999 alch`",
   "game:2026-09-04 dialog `Orb of Alchemy`",
   "cpp:src/currency.cpp@fb0bbbdf tag `alch`",
+  "browser:2026-09-05 owner — aliases checked by hand on the trade site and the forum",
 ]
 
 [[currency]]
@@ -109,24 +113,26 @@ evidence = [
 tag = "alt"
 display = "Orb of Alteration"
 emit = "alt"
-aliases = []
+aliases = ["alts"]
 realms = ["pc", "xbox", "sony"]
 evidence = [
   "game:2026-09-04 note `~price 999 alt`",
   "game:2026-09-04 dialog `Orb of Alteration`",
   "cpp:src/currency.cpp@fb0bbbdf tag `alt`",
+  "browser:2026-09-05 owner — aliases checked by hand on the trade site and the forum",
 ]
 
 [[currency]]
 tag = "mirror"
 display = "Mirror of Kalandra"
 emit = "mirror"
-aliases = []
+aliases = ["mir", "mirr", "mirrors"]
 realms = ["pc", "xbox", "sony"]
 evidence = [
   "game:2026-09-04 note `~price 999 mirror`",
   "game:2026-09-04 dialog `Mirror of Kalandra`",
   "cpp:src/currency.cpp@fb0bbbdf tag `mirror`",
+  "browser:2026-09-05 owner — aliases checked by hand on the trade site and the forum",
 ]
 
 [[currency]]

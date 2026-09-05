@@ -34,7 +34,7 @@ fn enumerate(t: &CurrencyTable, expand: bool, json: bool) -> Result<()> {
     let retired = t.rows().len() - active;
     let aliased = t.rows().iter().filter(|r| !r.aliases.is_empty()).count();
     println!(
-        "currency table v{} ({}): {active} currencies the game writes, {retired} retired, {aliased} with a legacy alias",
+        "currency table v{} ({}): {active} currencies the game writes, {retired} retired, {aliased} with aliases",
         t.version(),
         t.status()
     );
@@ -74,7 +74,7 @@ fn resolve(t: &CurrencyTable, word: &str, json: bool) -> Result<()> {
     } else if word == row.emit {
         "the game's word".to_string()
     } else {
-        format!("a legacy alias of {}", row.tag)
+        format!("an alias of {}", row.tag)
     };
     println!("{word} is {via}: currency table v{}", t.version());
     print_row(row, true);
