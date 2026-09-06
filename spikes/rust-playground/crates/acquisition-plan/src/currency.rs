@@ -283,46 +283,20 @@ pub fn table() -> Result<&'static CurrencyTable, CurrencyTableError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::price_notes_fixture::price_notes;
 
-    /// The fixture the table cites, read the way the loader's evidence
-    /// grammar describes it: the notes' currency words (first section;
-    /// the tab-name section between is skipped) and the dialog's
-    /// word→display list (third section).
+    /// The fixture the table cites: the notes' currency words (the word
+    /// after the amount) and the dialog's word→display list.
     fn fixture() -> (Vec<String>, Vec<(String, String)>) {
-        let text = include_str!("../reference/price-notes-2026-09-04.txt");
-        let mut note_words = Vec::new();
-        let mut dialog = Vec::new();
-        let mut section = 0;
-        for line in text.lines() {
-            if line.starts_with('#') {
-                if line.contains("Tab names that parse as prices") {
-                    section = 1;
-                } else if line.contains("currency list as the owner read it") {
-                    section = 2;
-                }
-                continue;
-            }
-            if line.trim().is_empty() {
-                continue;
-            }
-            match section {
-                0 if line.starts_with('~') => {
-                    let note = line.split('\t').next().unwrap();
-                    let mut parts = note.splitn(3, ' ');
-                    let (_prefix, _amount, word) =
-                        (parts.next(), parts.next(), parts.next().unwrap_or(""));
-                    if !word.is_empty() {
-                        note_words.push(word.to_string());
-                    }
-                }
-                2 => {
-                    let (word, display) = line.split_once('\t').unwrap();
-                    dialog.push((word.to_string(), display.to_string()));
-                }
-                _ => {}
-            }
-        }
-        (note_words, dialog)
+        let f = price_notes();
+        let note_words = f
+            .notes
+            .iter()
+            .filter_map(|n| n.note.splitn(3, ' ').nth(2))
+            .filter(|w| !w.is_empty())
+            .map(str::to_string)
+            .collect();
+        (note_words, f.dialog)
     }
 
     /// C68: the shipped file parses under the loader's review checks and

@@ -6,9 +6,11 @@
 # of that date. Every `note` GGG's client wrote when the owner priced an
 # item through the in-game dialog, one per line, tab-separated:
 #   note<TAB>item type line<TAB>stack size
-# Item ids are omitted on purpose. Read as a fixture by the game-side note
-# parser (C69) once it exists; every later user report of a note this
-# parser misreads becomes one more line here.
+# Item ids are omitted on purpose. Read as a fixture by the game-side
+# parser's tests (`src/game_side.rs`, C69) and the currency table's
+# (`src/currency.rs`, C68) through `src/price_notes_fixture.rs`; every
+# later user report of a note this parser misreads becomes one more line
+# here.
 #
 # The owner's word on the shapes (2026-09-04): `~price  chaos` (empty
 # amount) is what the game leaves after an invalid entry such as a ratio

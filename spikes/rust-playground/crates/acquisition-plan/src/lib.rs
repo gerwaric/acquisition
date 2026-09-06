@@ -116,7 +116,10 @@
 //!
 //! The pricing module begins with reference data: the currency table
 //! (C68) is `reference/currency-v1.toml`, compiled into the binary and
-//! read through [`currency::table`] — see `currency.rs`, "As built".
+//! read through [`currency::table`] — see `currency.rs`, "As built". The
+//! typed `buyout` value and its target are `price.rs` (C67); the game
+//! side of a listing — what a note or a tab name says — is one pure
+//! function, [`game_side::read`] (C69).
 //!
 //! # Decisions as recorded
 //!
@@ -239,7 +242,10 @@
 #![cfg_attr(not(test), deny(clippy::unwrap_used, clippy::expect_used))]
 
 pub mod currency;
+pub mod game_side;
 pub mod price;
+#[cfg(test)]
+pub(crate) mod price_notes_fixture;
 
 use std::collections::BTreeMap;
 
