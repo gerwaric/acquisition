@@ -7,17 +7,17 @@
 //! # Decisions as recorded
 //!
 //! **C69 — An item's listing is two independent resolutions and their
-//! relation.** The manual side resolves by specificity (C70); the game
-//! side reads note, then tab name, as a price (exact or negotiable),
-//! `skip` (do not index), `invalid` (an empty amount, or a ratio in a
-//! tab name) or none (T10, T11), and whether its stash is public. The
-//! relation is manual-only, game-only, agree, conflict or none; `ignore`
-//! is a manual disposition and never denies the observed game price.
-//! Every result carries both sides with causes, revisions, basis, parser
-//! and reference versions, the raw note verbatim. What a relation
-//! *means* is each consumer's rule (C74), never a frontend's. *Why:*
-//! four statements C++ fused into one and then needed locks for.
-//! *Details:* `acquisition-plan` doc; amended 2026-09-04.
+//! relation.** The manual side resolves by specificity (C70); the game side
+//! reads note, then tab name, as a price (exact or negotiable), `skip` (do
+//! not index), `invalid` (an empty amount, or a ratio in a tab name) or
+//! none (T10, T11), and whether its stash is public. The relation is
+//! manual-only, game-only, agree, conflict or none; `ignore` is a manual
+//! disposition and never denies an observed game price. Each result carries
+//! both sides with causes, revisions, basis, parser and reference versions,
+//! the raw note verbatim. What a relation *means* is each consumer's rule
+//! (C74), not a frontend's. *Why:* four statements C++ fused and needed
+//! locks. *Details:* `game_side.rs`. *Pinned:* the `c69_` tests. Amended
+//! 2026-09-04.
 //!
 //! # As built
 //!
