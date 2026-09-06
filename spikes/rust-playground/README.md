@@ -92,9 +92,9 @@ bounded by `MAX_429_RETRIES`; a Cloudflare-shaped 403/503 is never retried.
   typed `buyout` value and its `PriceTarget` address are `price.rs`
   (C67); the game side of a listing — a note or a tab name read as a
   price, `skip`, `invalid` or none — is `game_side.rs` (C69), pinned by
-  the fixture the run left; the listing state (C69, C70, C80) is one
-  pure function in `listing.rs` over the store's pricing snapshot, read
-  by `acq price`. No surface writes a price yet (plan step 5).
+  the fixture the run left; the listing state (C69, C70, C80, C81: both
+  sides, their relation, the effective price) is one pure function in
+  `listing.rs` over the store's pricing snapshot, read by `acq price`. No surface writes a price yet (plan step 5).
 - `crates/acquisition-cli` — the `acq` binary. Thin: clap parsing, output
   rendering, `store_cmd.rs` (reads of the shared store, no daemon),
   `plan_cmd.rs` (the intent surface `acq policy`, and `acq refresh

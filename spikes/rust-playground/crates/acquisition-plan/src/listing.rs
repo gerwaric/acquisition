@@ -8,18 +8,17 @@
 //!
 //! # Decisions as recorded
 //!
-//! **C69 — A listing is 2 independent resolutions and their relation.** The
-//! manual side resolves by specificity (C70); the game side reads note,
-//! then tab name, as a price (exact or negotiable), `skip` (do not index),
-//! `invalid` (an empty amount, or a ratio in a tab name) or none (T10,
-//! T11), and whether its stash is public. The relation is manual-only,
-//! game-only, agree, conflict or none; `ignore` is a manual disposition and
-//! never denies an in-game price. Each result carries both sides with
-//! causes, revisions, basis, parser and reference versions, the raw note
-//! verbatim. What a relation *means* is each consumer's rule (C74), not a
-//! frontend's. *Why:* four statements C++ fused and needed locks.
-//! *Details:* `game_side.rs`. *Pinned:* the `c69_` tests. Amended
-//! 2026-09-04.
+//! **C69 — A listing is 2 independent resolutions, their relation, and the
+//! effective price (C81).** The manual side resolves by specificity (C70);
+//! the game side reads note, then tab name, as a price (exact or
+//! negotiable; a ratio too, T2) or `skip` (T10); any other text — free
+//! text, an empty amount, an unknown word, a ratio in a tab name — has no
+//! effect (T11, T16, T18, T19), is shown verbatim, and the tab applies.
+//! The relation is manual-only, game-only, agree, conflict or none. Each
+//! result carries both sides with causes, revisions, basis, versions, the
+//! raw texts. *Why:* four statements C++ fused and needed locks; the
+//! site's display states are not modelled. *Details:* `game_side.rs`,
+//! `listing.rs`. *Pinned:* the `c69_` tests. Amended 2026-09-06.
 //!
 //! **C70 — A priced tab covers that tab and its children, the way a policy
 //! id does (C37);** a substash row overrides its parent's for that
@@ -28,6 +27,19 @@
 //! eligibility (C74). *Why:* the C++ store already lands substash items'
 //! location prices on the parent, and the house rule for tab-scoped intent
 //! should not have two shapes. Ruled 2026-09-03.
+//!
+//! **C81 — The effective price is the most specific statement, the game's
+//! on a tie; only a public tab's game side is a statement.** Levels are
+//! C70's (item, substash, tab, folder; item, character); the game speaks
+//! at item level (a note) and tab level (a name, C80). A note or name in a
+//! non-public tab is invisible to the index (T1, T11) — residue, shown,
+//! never a side. A prior forum post is never a side (T6). So an item row
+//! beats a game tab price; a game note beats an item row; a game tab price
+//! beats a tab row. *Why:* acquisition's prices reach the world only
+//! through the forum, and a page must not contradict what the site
+//! already shows; owner, 2026-09-06: "In-game prices should take priority
+//! over acquisition prices." *Details:* `listing.rs`. *Pinned:* the `c81_`
+//! tests. Ruled 2026-09-06.
 //!
 //! **C80 — The game side's tab for a nested item is the tab a user can name
 //! and publish: a substash reads its parent, a folder child reads itself, a
@@ -75,31 +87,42 @@
 //! rows naming nothing in these facts (another league's item, a removed
 //! tab) are listed `unmatched` — every nothing says which nothing (C53).
 //!
-//! **The game side reads the note, then the tab name (C69), through
-//! [`game_side::read`]**, and keeps both texts verbatim beside both
-//! readings. The note's reading applies whenever it is anything but
-//! `none` — an `invalid` note is the game side, and the tab name is not
-//! substituted for it (the C++ app did, and let a broken note clear a
-//! price). Which tab is C80's: a top-level tab or a folder child reads its
-//! own name and `public`; a substash reads its parent's, its own name
-//! carried in `substash_name`; a folder's name is never read, so a folder
-//! and its items — it has none — have no tab reading; a substash whose
-//! parent is not on record has none either, and says so. `public` is the
-//! listing's `metadata.public` being exactly `true` (absent means not
-//! public, census 2c); it is `None` where there is no stash to publish
-//! (a character's items, a folder).
+//! **The game side is a statement only where the trade index can see it
+//! (C81, T1).** For a subject in a public tab, [`game_side::read`] reads
+//! the note, then the tab name C80 chooses (a top-level tab or a folder
+//! child its own; a substash its parent's, its own name carried in
+//! `substash_name`; a folder never), and the statement is the first that
+//! reads as a price or `skip`: a note that reads as anything else — free
+//! text, the dialog's empty-amount residue, an unknown word, a ratio the
+//! site would refuse — has no effect and the tab applies (T18; the C++
+//! app substituted the tab for a broken note, and so does the site).
+//! Where there is no public tab — a non-public tab, a character's items,
+//! a folder, a substash whose parent is not on record — the statement is
+//! `none` whatever the texts say; a text that would have read as a price
+//! or `skip` is marked `residue`, so a remove-only tab's old price is
+//! shown but never a side. Both texts ride verbatim with their parser
+//! readings beside the statement. `public` is the listing's
+//! `metadata.public` being exactly `true` (absent means not public,
+//! census 2c); it is `None` where there is no stash to publish.
 //!
 //! **The relation is over the two sides' presence and content.** `none`:
-//! no row applies and the game side is `none`. `manual_only` and
+//! no row applies and the game states nothing. `manual_only` and
 //! `game_only`: one side speaks. `agree`: both do and say the same thing —
-//! the same price under the same prefix (`exact` with `~price`,
-//! `negotiable` with `~b/o`), or `ignore` beside `~skip` (both leave the
-//! item out). `conflict`: both speak and differ — a different amount,
-//! currency or prefix, an `invalid` note beside a row, `no_price` beside a
-//! game price, `ignore` beside a game price. For that last pair the
-//! sentence says what C69 rules: `ignore` leaves the item out of the shop
-//! and does not deny the price the game shows. What any relation means for
-//! a page is the render's policy table (C74), not this module's.
+//! the same price under the same prefix, or `skip` beside `~skip`.
+//! `conflict`: both speak and differ. The relation describes; the
+//! effective price decides.
+//!
+//! **The effective price (C81)** is the more specific of the two
+//! statements, the game's on a tie. A statement's level is its position
+//! on the subject's chain: the manual side's is the row's target (an
+//! item's own row is level 0, its substash's 1, its tab's 2, its folder's
+//! 3; a character item's character is 1); the game's is 0 for a note and
+//! the C80 tab's position for a tab name. So an item row beats a game tab
+//! price, a substash row beats its parent's game name, a game note beats
+//! an item row, a game tab price beats a tab row or a folder row.
+//! [`Effective`] names the winner, its side, the target it came from and
+//! why; what a page does with it — omit what the game already lists — is
+//! the render's (C74).
 //!
 //! **League unknown.** The store carries a character the listing gave no
 //! league under every league of its realm (the planner's rule, so every
@@ -133,7 +156,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::currency::{self, CURRENCY_TABLE_VERSION, CurrencyTable, CurrencyTableError};
 use crate::game_side::{self, GamePrice, NOTE_PARSER_VERSION, Source};
-use crate::price::{Buyout, PriceTarget};
+use crate::price::{Buyout, Price, PriceTarget};
 
 /// The report's JSON shape, stamped on every [`ListingReport`]; changes
 /// are additive (C53) until they are not, and then this moves.
@@ -245,6 +268,11 @@ pub struct GameSide {
     /// there is no stash to publish.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub public: Option<bool>,
+    /// A note or tab name that reads as a price or `skip` where the
+    /// index cannot see it (no public tab): shown, never a statement
+    /// (C81).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub residue: bool,
 }
 
 /// How the two sides stand to each other (C69).
@@ -289,6 +317,51 @@ impl fmt::Display for Relation {
     }
 }
 
+/// Whose statement the effective price is.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Side {
+    Game,
+    Manual,
+}
+
+impl Side {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Side::Game => "game",
+            Side::Manual => "manual",
+        }
+    }
+}
+
+/// What applies (C81): the more specific statement, the game's on a tie.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Effective {
+    /// `exact`, `negotiable`, `no_price`, `skip`, or `none`.
+    pub kind: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub price: Option<Price>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub side: Option<Side>,
+    /// Where the winning statement sits: the row's target, or the item
+    /// whose note or the tab whose name the game read.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub from: Option<PriceTarget>,
+    /// One sentence naming the winner and the rule that chose it.
+    pub why: String,
+}
+
+impl fmt::Display for Effective {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match (&self.price, self.kind.as_str()) {
+            (Some(p), "negotiable") => write!(f, "{p} b/o"),
+            (Some(p), _) => write!(f, "{p}"),
+            (None, "no_price") => f.write_str("no price"),
+            (None, kind) => f.write_str(kind),
+        }
+    }
+}
+
 /// The fact the subject's texts came from: the fetch that last saw an
 /// item, or the listing that last named a tab or character.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -317,6 +390,8 @@ pub struct Listing {
     pub relation: Relation,
     /// One sentence naming both sides.
     pub why: String,
+    /// What applies (C81).
+    pub effective: Effective,
     pub basis: Basis,
 }
 
@@ -359,13 +434,18 @@ pub struct Counts {
     pub game_priced_public: usize,
     /// Items with a game-side price whose stash is not public.
     pub game_priced_not_public: usize,
-    /// Tabs (folders excluded) whose own name reads as a price.
+    /// Tabs (folders and substashes excluded) whose own name reads as a
+    /// price, public or not; `priced_tabs_public` are the statements.
     pub priced_tabs: usize,
     pub priced_tabs_public: usize,
     /// Items whose manual side is inherited.
     pub inherited: usize,
     /// Items of a character the listing gave no league.
     pub league_unknown: usize,
+    /// Items by the effective price's side: `game`, `manual`, `none`.
+    pub by_effective: BTreeMap<String, usize>,
+    /// Items whose price text the index cannot see (C81).
+    pub residue: usize,
 }
 
 /// What every view of the state says first: whose facts, which
@@ -731,46 +811,65 @@ fn is_public(tab: &TabSnapshot) -> bool {
         == Some(true)
 }
 
-/// The tab half of a game side: the C80 tab's name read as a tab name,
-/// and its `public`.
-fn tab_game_side(info: &TabInfo<'_>, table: &CurrencyTable) -> GameSide {
-    let substash_name = (info.kind == TabKind::Substash).then(|| info.tab.name.clone());
-    match info.game_tab {
-        None => GameSide {
-            reading: GamePrice::None,
-            source: None,
-            note: None,
-            tab: None,
-            tab_name: None,
-            substash_name,
-            public: None,
-        },
-        Some(t) => {
-            let reading = game_side::read(Source::TabName, &t.name, table);
-            GameSide {
-                source: (reading != GamePrice::None).then_some(Source::TabName),
-                reading: reading.clone(),
-                note: None,
-                tab: Some(t.id.clone()),
-                tab_name: Some(Reading {
-                    text: t.name.clone(),
-                    reading,
-                }),
-                substash_name,
-                public: Some(is_public(t)),
-            }
-        }
-    }
+/// Whether a text's reading is a statement the site would act on: a
+/// price or `skip`.
+fn speaks(reading: &GamePrice) -> bool {
+    matches!(
+        reading,
+        GamePrice::Exact(_) | GamePrice::Negotiable(_) | GamePrice::Skip
+    )
 }
 
-/// The note in front of the tab half (C69): the note's reading applies
-/// unless it is `none`.
+/// The tab half of a game side: the C80 tab's name read as a tab name,
+/// and its `public`. The name is a statement only when the tab is
+/// public (C81); otherwise it is residue at most.
+fn tab_game_side(info: &TabInfo<'_>, table: &CurrencyTable) -> GameSide {
+    let substash_name = (info.kind == TabKind::Substash).then(|| info.tab.name.clone());
+    let mut side = GameSide {
+        reading: GamePrice::None,
+        source: None,
+        note: None,
+        tab: None,
+        tab_name: None,
+        substash_name,
+        public: None,
+        residue: false,
+    };
+    if let Some(t) = info.game_tab {
+        let reading = game_side::read(Source::TabName, &t.name, table);
+        let public = is_public(t);
+        if speaks(&reading) {
+            if public {
+                side.reading = reading.clone();
+                side.source = Some(Source::TabName);
+            } else {
+                side.residue = true;
+            }
+        }
+        side.tab = Some(t.id.clone());
+        side.tab_name = Some(Reading {
+            text: t.name.clone(),
+            reading,
+        });
+        side.public = Some(public);
+    }
+    side
+}
+
+/// The note in front of the tab half (C69): a note that reads as a price
+/// or `skip` is the statement where the tab is public; any other note
+/// has no effect and the tab applies (T18). Where there is no public
+/// tab the note is residue at most.
 fn with_note(mut side: GameSide, note: Option<&str>, table: &CurrencyTable) -> GameSide {
     if let Some(text) = note {
         let reading = game_side::read(Source::Note, text, table);
-        if reading != GamePrice::None {
-            side.reading = reading.clone();
-            side.source = Some(Source::Note);
+        if speaks(&reading) {
+            if side.public == Some(true) {
+                side.reading = reading.clone();
+                side.source = Some(Source::Note);
+            } else {
+                side.residue = true;
+            }
         }
         side.note = Some(Reading {
             text: text.into(),
@@ -813,31 +912,128 @@ fn relate(manual: Option<&Buyout>, game: &GamePrice) -> (Relation, String) {
     match (manual, game) {
         (None, GamePrice::None) => (
             Relation::None,
-            "no row applies and the game says nothing".into(),
+            "no row applies and the game states nothing".into(),
         ),
         (Some(m), GamePrice::None) => (
             Relation::ManualOnly,
-            format!("by hand: {m}; nothing in game"),
+            format!("by hand: {m}; the game states nothing"),
         ),
         (None, g) => (Relation::GameOnly, format!("in game: {g}; no row applies")),
         (Some(m), g) => {
             let agree = match (m, g) {
                 (Buyout::Exact(a), GamePrice::Exact(b)) => a == b,
                 (Buyout::Negotiable(a), GamePrice::Negotiable(b)) => a == b,
-                (Buyout::Ignore, GamePrice::Skip) => true,
+                (Buyout::Skip, GamePrice::Skip) => true,
                 _ => false,
             };
             if agree {
                 (Relation::Agree, format!("by hand and in game: {g}"))
-            } else if matches!(m, Buyout::Ignore) && g.price().is_some() {
-                (
-                    Relation::Conflict,
-                    format!(
-                        "by hand: ignore; in game: {g} — ignore leaves it out of the shop and does not deny the in-game price (C69)"
-                    ),
-                )
             } else {
                 (Relation::Conflict, format!("by hand: {m}; in game: {g}"))
+            }
+        }
+    }
+}
+
+/// The effective price (C81): the more specific statement, the game's on
+/// a tie, each statement's level being its target's position on the
+/// chain.
+fn effective(
+    chain: &[PriceTarget],
+    manual: Option<&ManualSide>,
+    game: &GameSide,
+    subject: &PriceTarget,
+) -> Effective {
+    let level_of = |t: &PriceTarget| chain.iter().position(|c| c == t).unwrap_or(chain.len());
+    let game_from: Option<PriceTarget> = match game.source {
+        None => None,
+        Some(Source::Note) => Some(subject.clone()),
+        Some(Source::TabName) => {
+            let id = game.tab.clone().unwrap_or_default();
+            chain
+                .iter()
+                .find(|t| matches!(t, PriceTarget::Tab { id: i, .. } if *i == id))
+                .cloned()
+        }
+    };
+    let game_level = game_from.as_ref().map(&level_of);
+    let from_manual = |m: &ManualSide, why: String| Effective {
+        kind: m.value.kind().into(),
+        price: m.value.price().cloned(),
+        side: Some(Side::Manual),
+        from: Some(m.from.clone()),
+        why,
+    };
+    let from_game = |why: String| Effective {
+        kind: game.reading.kind().into(),
+        price: game.reading.price().cloned(),
+        side: Some(Side::Game),
+        from: game_from.clone(),
+        why,
+    };
+    let level_word = |t: &PriceTarget| match t {
+        PriceTarget::Item { .. } => "item",
+        PriceTarget::Substash { .. } => "substash",
+        PriceTarget::Tab { .. } => "tab",
+        PriceTarget::Character { .. } => "character",
+    };
+    match (manual, game_level) {
+        (None, None) => Effective {
+            kind: "none".into(),
+            price: None,
+            side: None,
+            from: None,
+            why: if game.residue {
+                "nothing applies: the price text in game is not where the index can see it (C81)"
+                    .into()
+            } else {
+                "nothing applies".into()
+            },
+        },
+        (Some(m), None) => from_manual(
+            m,
+            if game.residue {
+                format!(
+                    "{} by hand (row on {}); the price text in game is not where the index can see it (C81)",
+                    m.value, m.from
+                )
+            } else {
+                format!(
+                    "{} by hand (row on {}); the game states nothing",
+                    m.value, m.from
+                )
+            },
+        ),
+        (None, Some(_)) => from_game(format!("{} in game; no row applies", game.reading)),
+        (Some(m), Some(gl)) => {
+            let ml = level_of(&m.from);
+            let gf = game_from.clone().unwrap_or_else(|| subject.clone());
+            if ml < gl {
+                from_manual(
+                    m,
+                    format!(
+                        "{} by hand: the row on the {} is more specific than the game's {} name (C81)",
+                        m.value,
+                        level_word(&m.from),
+                        level_word(&gf)
+                    ),
+                )
+            } else if gl < ml {
+                from_game(format!(
+                    "{} in game: the {} is more specific than the row on the {} (C81)",
+                    game.reading,
+                    match game.source {
+                        Some(Source::Note) => "note".to_string(),
+                        _ => format!("{} name", level_word(&gf)),
+                    },
+                    level_word(&m.from)
+                ))
+            } else {
+                from_game(format!(
+                    "{} in game: the game wins a tie with the row on the {} (C81)",
+                    game.reading,
+                    level_word(&m.from)
+                ))
             }
         }
     }
@@ -852,6 +1048,7 @@ fn listing(
 ) -> Listing {
     let (manual, manual_problem) = manual_side(chain, rows);
     let (relation, why) = relate(manual.as_ref().map(|m| &m.value), &game.reading);
+    let effective = effective(chain, manual.as_ref(), &game, &subject.target);
     Listing {
         subject,
         chain: chain.to_vec(),
@@ -860,6 +1057,7 @@ fn listing(
         game,
         relation,
         why,
+        effective,
         basis,
     }
 }
@@ -929,9 +1127,15 @@ pub fn resolve(snapshot: &PricingSnapshot) -> Result<ListingReport, ListingError
             league_unknown: false,
         };
         let game = tab_game_side(info, table);
+        // A name that reads as a price, public or not: the owner's
+        // remove-only tabs are the case (census 2c), and the public
+        // count beside it says how many the index can see.
         if info.kind != TabKind::Folder
             && info.kind != TabKind::Substash
-            && game.reading.price().is_some()
+            && game
+                .tab_name
+                .as_ref()
+                .is_some_and(|t| t.reading.price().is_some())
         {
             counts.priced_tabs += 1;
             if game.public == Some(true) {
@@ -955,6 +1159,7 @@ pub fn resolve(snapshot: &PricingSnapshot) -> Result<ListingReport, ListingError
             tab_name: None,
             substash_name: None,
             public: None,
+            residue: false,
         };
         let basis = Basis {
             response: c.listed_response,
@@ -981,6 +1186,7 @@ pub fn resolve(snapshot: &PricingSnapshot) -> Result<ListingReport, ListingError
                     tab_name: None,
                     substash_name: None,
                     public: None,
+                    residue: false,
                 },
                 item.note.as_deref(),
                 table,
@@ -1012,6 +1218,7 @@ pub fn resolve(snapshot: &PricingSnapshot) -> Result<ListingReport, ListingError
                             tab_name: None,
                             substash_name: None,
                             public: None,
+                            residue: false,
                         },
                         item.note.as_deref(),
                         table,
@@ -1059,10 +1266,20 @@ pub fn resolve(snapshot: &PricingSnapshot) -> Result<ListingReport, ListingError
         if l.manual.as_ref().is_some_and(|m| m.inherited) {
             counts.inherited += 1;
         }
+        *counts
+            .by_effective
+            .entry(l.effective.side.map_or("none", Side::as_str).to_string())
+            .or_default() += 1;
+        if l.game.residue {
+            counts.residue += 1;
+        }
         listings.push(l);
     }
     for relation in Relation::ALL {
         counts.by_relation.entry(relation.to_string()).or_default();
+    }
+    for side in ["game", "manual", "none"] {
+        counts.by_effective.entry(side.into()).or_default();
     }
 
     let mut accounting = rows.accounting;
@@ -1254,10 +1471,10 @@ mod tests {
                 row(
                     "item",
                     "i-exact",
-                    json!({ "version": 1, "type": "ignore" }),
+                    json!({ "version": 1, "type": "skip" }),
                     2,
                 ),
-                row("tab", "pc/f1", json!({ "version": 1, "type": "ignore" }), 3),
+                row("tab", "pc/f1", json!({ "version": 1, "type": "skip" }), 3),
                 row("tab", "pc/m1", exact("1", "divine"), 4),
                 row(
                     "substash",
@@ -1307,7 +1524,8 @@ mod tests {
         assert_eq!(report.header.currency_table_version, CURRENCY_TABLE_VERSION);
         assert_eq!(report.header.stash_listing.map(|b| b.response_id), Some(2));
 
-        // A note in front of a priced, public tab: the note applies.
+        // A note in front of a priced, public tab: the note applies, and
+        // beats the item's own row on a tie (C81).
         let l = get(&report, &item_target("i-exact"));
         assert_eq!(l.game.source, Some(Source::Note));
         assert_eq!(l.game.reading.to_string(), "5 chaos");
@@ -1318,13 +1536,9 @@ mod tests {
             "3 chaos"
         );
         assert_eq!(l.game.public, Some(true));
-        assert_eq!(l.manual.as_ref().unwrap().value, Buyout::Ignore);
+        assert_eq!(l.manual.as_ref().unwrap().value, Buyout::Skip);
         assert_eq!(l.relation, Relation::Conflict);
-        assert!(
-            l.why.contains("does not deny the in-game price (C69)"),
-            "{}",
-            l.why
-        );
+        assert_eq!(l.why, "by hand: skip; in game: 5 chaos");
         assert_eq!(
             l.basis,
             Basis {
@@ -1342,22 +1556,22 @@ mod tests {
         assert_eq!(l.why, "by hand and in game: 3 chaos");
         assert_eq!(l.manual.as_ref().unwrap().revision, 1);
 
-        // The dialog's residue: invalid, and the tab name is not read
-        // in its place — the C++ app substituted; C69 does not.
+        // The dialog's residue reads `invalid`, has no effect, and the tab
+        // applies — as the site does (T18); the note is still shown.
         let l = get(&report, &item_target("i-invalid"));
-        assert_eq!(l.game.source, Some(Source::Note));
         assert!(
-            matches!(l.game.reading, GamePrice::Invalid { .. }),
+            matches!(
+                l.game.note.as_ref().unwrap().reading,
+                GamePrice::Invalid { .. }
+            ),
             "{:?}",
-            l.game.reading
+            l.game.note
         );
         assert_eq!(l.game.note.as_ref().unwrap().text, "~price  chaos");
-        assert_eq!(l.relation, Relation::Conflict); // beside the folder's ignore
-        assert!(
-            l.why.starts_with("by hand: ignore; in game: invalid:"),
-            "{}",
-            l.why
-        );
+        assert_eq!(l.game.source, Some(Source::TabName));
+        assert_eq!(l.game.reading.to_string(), "3 chaos");
+        assert_eq!(l.relation, Relation::Conflict); // beside the folder's skip
+        assert_eq!(l.why, "by hand: skip; in game: 3 chaos");
 
         // A note that is not a price note: the tab name applies.
         let l = get(&report, &item_target("i-fifty"));
@@ -1365,37 +1579,153 @@ mod tests {
         assert_eq!(l.game.source, Some(Source::TabName));
         assert_eq!(l.game.reading.to_string(), "3 chaos");
 
-        // `~skip` beside an inherited `ignore`: both leave it out.
+        // `~skip` beside an inherited `skip`: both leave it out.
         let l = get(&report, &item_target("i-skip"));
         assert_eq!(l.game.reading, GamePrice::Skip);
         assert_eq!(l.relation, Relation::Agree);
 
-        // A character item: the note only; there is no stash to publish.
+        // A character item: the note is read and shown, but a character
+        // is not a public tab, so it is residue, not a statement (C81).
         let l = get(&report, &item_target("i-worn"));
-        assert_eq!(l.game.reading.to_string(), "2 divine b/o");
+        assert_eq!(
+            l.game.note.as_ref().unwrap().reading.to_string(),
+            "2 divine b/o"
+        );
+        assert_eq!(l.game.reading, GamePrice::None);
+        assert!(l.game.residue);
         assert_eq!(l.game.tab, None);
         assert_eq!(l.game.public, None);
-        assert_eq!(l.relation, Relation::Conflict);
-        assert_eq!(l.why, "by hand: 2222 jewellers; in game: 2 divine b/o");
+        assert_eq!(l.relation, Relation::ManualOnly);
+        assert_eq!(l.why, "by hand: 2222 jewellers; the game states nothing");
 
         // Nothing on either side, and the nothing is named.
         let l = get(&report, &item_target("i-dump"));
         assert_eq!(l.relation, Relation::None);
-        assert_eq!(l.why, "no row applies and the game says nothing");
+        assert_eq!(l.why, "no row applies and the game states nothing");
         assert_eq!(l.game.public, Some(false));
+        assert!(!l.game.residue);
 
         // The counts are the items' — containers are not items.
         assert_eq!(report.counts.items, 9);
         assert_eq!(report.counts.containers, 8);
-        assert_eq!(report.counts.by_relation["conflict"], 4);
+        assert_eq!(report.counts.by_relation["conflict"], 3);
         assert_eq!(report.counts.by_relation["agree"], 3);
-        assert_eq!(report.counts.by_relation["manual_only"], 1);
+        assert_eq!(report.counts.by_relation["manual_only"], 2);
         assert_eq!(report.counts.by_relation["game_only"], 0);
         assert_eq!(report.counts.by_relation["none"], 1);
         assert_eq!(report.counts.invalid_notes, 1);
-        assert_eq!(report.counts.by_game_reading["exact"], 4);
-        assert_eq!(report.counts.game_priced_public, 4);
-        assert_eq!(report.counts.game_priced_not_public, 1); // the character item
+        assert_eq!(report.counts.by_game_reading["exact"], 5);
+        assert_eq!(report.counts.by_game_reading["skip"], 1);
+        assert_eq!(report.counts.by_game_reading["none"], 3);
+        assert_eq!(report.counts.game_priced_public, 5);
+        assert_eq!(report.counts.game_priced_not_public, 0);
+        assert_eq!(report.counts.residue, 1);
+    }
+
+    /// C81 — the effective price is the more specific statement, the
+    /// game's on a tie; only a public tab's game side is a statement.
+    #[test]
+    fn c81_the_effective_price_is_the_most_specific_statement_and_the_games_on_a_tie() {
+        let report = resolve(&snapshot()).unwrap();
+        let eff = |t: PriceTarget| get(&report, &t).effective.clone();
+        // A game note beats the item's own row (a tie at item level).
+        let e = eff(item_target("i-exact"));
+        assert_eq!(
+            (e.side, e.to_string()),
+            (Some(Side::Game), "5 chaos".into())
+        );
+        assert_eq!(e.from, Some(item_target("i-exact")));
+        assert!(
+            e.why
+                .ends_with("the game wins a tie with the row on the item (C81)"),
+            "{}",
+            e.why
+        );
+        // An item row beats a game tab price.
+        let e = eff(item_target("i-plain"));
+        assert_eq!((e.side, e.kind.as_str()), (Some(Side::Manual), "exact"));
+        assert!(
+            e.why
+                .contains("the row on the item is more specific than the game's tab name"),
+            "{}",
+            e.why
+        );
+        // A game tab price beats a folder row (an invalid note has no effect).
+        let e = eff(item_target("i-invalid"));
+        assert_eq!(
+            (e.side, e.to_string()),
+            (Some(Side::Game), "3 chaos".into())
+        );
+        assert_eq!(e.from, Some(tab_target("c1")));
+        assert!(
+            e.why
+                .contains("the tab name is more specific than the row on the tab"),
+            "{}",
+            e.why
+        );
+        // Game `skip` beside the folder's `skip`: the game's, by level.
+        let e = eff(item_target("i-skip"));
+        assert_eq!((e.side, e.kind.as_str()), (Some(Side::Game), "skip"));
+        // A substash item under a public priced parent: the parent's name
+        // and the parent's row tie at tab level; the game wins.
+        let e = eff(item_target("i-sub"));
+        assert_eq!(
+            (e.side, e.to_string()),
+            (Some(Side::Game), "1 divine".into())
+        );
+        assert_eq!(e.from, Some(tab_target("m1")));
+        // A substash row is more specific than the parent's name: the
+        // substash's own listing takes its row, its item inherits it.
+        let s2 = PriceTarget::Substash {
+            realm: Realm::Pc,
+            parent: "u1".into(),
+            id: "s2".into(),
+        };
+        let e = eff(item_target("i-sub2"));
+        assert_eq!(
+            (e.side, e.to_string()),
+            (Some(Side::Manual), "7 chaos b/o".into())
+        );
+        assert_eq!(e.from, Some(s2));
+        // A character's items: the note is residue, the row applies, and
+        // the sentence says why the game's text does not.
+        let e = eff(item_target("i-worn"));
+        assert_eq!(
+            (e.side, e.to_string()),
+            (Some(Side::Manual), "2222 jewellers".into())
+        );
+        assert!(
+            e.why.contains("not where the index can see it (C81)"),
+            "{}",
+            e.why
+        );
+        // Nothing on either side.
+        let e = eff(item_target("i-dump"));
+        assert_eq!((e.side, e.kind.as_str()), (None, "none"));
+        // Containers resolve the same way: the tab's own name beats the
+        // folder's row; the folder itself has only its row.
+        let e = eff(tab_target("c1"));
+        assert_eq!(
+            (e.side, e.to_string()),
+            (Some(Side::Game), "3 chaos".into())
+        );
+        let e = eff(tab_target("f1"));
+        assert_eq!((e.side, e.kind.as_str()), (Some(Side::Manual), "skip"));
+        assert_eq!(report.counts.by_effective["game"], 5);
+        assert_eq!(report.counts.by_effective["manual"], 3);
+        assert_eq!(report.counts.by_effective["none"], 1);
+        // A public tab's price text is a statement; the same text on a
+        // non-public tab is residue: the manual row applies alone.
+        let mut snap = snapshot();
+        snap.tabs[1].metadata = Value::Null; // c1 no longer public
+        let report = resolve(&snap).unwrap();
+        let l = get(&report, &item_target("i-exact"));
+        assert_eq!(l.game.reading, GamePrice::None);
+        assert!(l.game.residue);
+        assert_eq!(l.game.note.as_ref().unwrap().reading.to_string(), "5 chaos");
+        assert_eq!(l.relation, Relation::ManualOnly);
+        assert_eq!(l.effective.side, Some(Side::Manual));
+        assert_eq!(l.effective.kind, "skip");
     }
 
     /// C70 — the manual side by specificity: the own row, else the
@@ -1416,7 +1746,7 @@ mod tests {
             from("i-plain"),
             (item_target("i-plain"), false, "3 chaos".into())
         );
-        assert_eq!(from("i-fifty"), (tab_target("f1"), true, "ignore".into()));
+        assert_eq!(from("i-fifty"), (tab_target("f1"), true, "skip".into()));
         assert_eq!(from("i-sub"), (tab_target("m1"), true, "1 divine".into()));
         assert_eq!(
             from("i-sub2"),

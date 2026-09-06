@@ -9,7 +9,7 @@
 //! and character by id (C55), tab by `(realm, id)`, substash by `(realm,
 //! parent, id)`, league-less (a merge keeps the row) — is the public API.
 //! `type` is `exact` (`~price`), `negotiable` (`~b/o`), `no_price` or
-//! `ignore`; the first two carry `amount` and a `currency` tag that must
+//! `skip` (`~skip`); the first two carry `amount` and a `currency` tag that must
 //! resolve in the reference table (C68). `amount` is a decimal of at most
 //! four fractional digits (T10), or a lot ratio `wanted/lot` (T2) of two
 //! unreduced positive integers; canonical text, structural equality; more
@@ -33,7 +33,7 @@
 //! **The value** is stamped `version: 1` and is one of four shapes. In
 //! JSON: `{"version":1,"type":"exact","amount":"12.5","currency":"chaos"}`
 //! (or `negotiable`), `{"version":1,"type":"no_price"}`,
-//! `{"version":1,"type":"ignore"}`. `amount` is text, never a JSON
+//! `{"version":1,"type":"skip"}`. `amount` is text, never a JSON
 //! number, so `2.50` and `2.5` cannot silently become one float: as text
 //! the canonical spelling is the shortest — no leading zeros, no trailing
 //! fraction zeros, no trailing dot — and a ratio is `wanted/lot` of two
@@ -61,7 +61,7 @@
 //! naming the table version. A **retired** tag parses: a stored row may
 //! cite it forever, and whether a *new* price may name one is the
 //! writer's rule (the CLI's, at plan step 5), not the value's. `no_price`
-//! and `ignore` carry no amount and no currency; a value that supplies
+//! and `skip` carry no amount and no currency; a value that supplies
 //! either is refused (the 0.18 userstore's `[ignore]` rows carried a
 //! non-semantic 4321 `blessed`, which is exactly the shape this refuses).
 //!
@@ -410,9 +410,10 @@ pub enum Buyout {
     Negotiable(Price),
     /// Listed with no price.
     NoPrice,
-    /// A manual disposition: leave this out of the shop. Never denies an
-    /// observed game price (C69).
-    Ignore,
+    /// `~skip`'s word: leave this out of the shop — the forum analogue of
+    /// the game's "Do not index". Renamed from `ignore` on 2026-09-06
+    /// (C67), before any row existed.
+    Skip,
 }
 
 impl Buyout {
@@ -420,7 +421,7 @@ impl Buyout {
     pub fn price(&self) -> Option<&Price> {
         match self {
             Buyout::Exact(p) | Buyout::Negotiable(p) => Some(p),
-            Buyout::NoPrice | Buyout::Ignore => None,
+            Buyout::NoPrice | Buyout::Skip => None,
         }
     }
 
@@ -430,7 +431,7 @@ impl Buyout {
             Buyout::Exact(_) => "exact",
             Buyout::Negotiable(_) => "negotiable",
             Buyout::NoPrice => "no_price",
-            Buyout::Ignore => "ignore",
+            Buyout::Skip => "skip",
         }
     }
 
@@ -447,7 +448,7 @@ impl fmt::Display for Buyout {
             Buyout::Exact(p) => write!(f, "{p}"),
             Buyout::Negotiable(p) => write!(f, "{p} b/o"),
             Buyout::NoPrice => write!(f, "no price"),
-            Buyout::Ignore => write!(f, "ignore"),
+            Buyout::Skip => write!(f, "skip"),
         }
     }
 }
@@ -506,10 +507,10 @@ impl IntentValue for Buyout {
         }
         let carries_price = match wire.kind.as_str() {
             "exact" | "negotiable" => true,
-            "no_price" | "ignore" => false,
+            "no_price" | "skip" => false,
             other => {
                 return Err(format!(
-                    "type {other:?} is not one of exact, negotiable, no_price, ignore"
+                    "type {other:?} is not one of exact, negotiable, no_price, skip"
                 ));
             }
         };
@@ -522,7 +523,7 @@ impl IntentValue for Buyout {
             }
             return Ok(match wire.kind.as_str() {
                 "no_price" => Buyout::NoPrice,
-                _ => Buyout::Ignore,
+                _ => Buyout::Skip,
             });
         }
         let amount = wire
@@ -773,7 +774,7 @@ mod tests {
                 json!({ "version": 1, "type": "negotiable", "amount": "22/10", "currency": "divine" }),
             ),
             (Buyout::NoPrice, json!({ "version": 1, "type": "no_price" })),
-            (Buyout::Ignore, json!({ "version": 1, "type": "ignore" })),
+            (Buyout::Skip, json!({ "version": 1, "type": "skip" })),
         ];
         for (buyout, wire) in cases {
             assert_eq!(buyout.to_value(), wire, "{buyout}");
@@ -829,7 +830,7 @@ mod tests {
             "not one of",
         );
         refused(
-            json!({ "version": 1, "type": "ignore", "amount": "4321", "currency": "blessed" }),
+            json!({ "version": 1, "type": "skip", "amount": "4321", "currency": "blessed" }),
             "carries no amount",
         );
         refused(
@@ -852,10 +853,10 @@ mod tests {
             json!({ "version": 1, "type": "exact", "amount": "1", "currency": "chaos", "note": "x" }),
             "note",
         );
-        refused(json!({ "version": 0, "type": "ignore" }), "version 0");
-        refused(json!({ "type": "ignore" }), "missing integer `version`");
+        refused(json!({ "version": 0, "type": "skip" }), "version 0");
+        refused(json!({ "type": "skip" }), "missing integer `version`");
         assert_eq!(
-            check_value::<Buyout>(&json!({ "version": 2, "type": "ignore" })).unwrap_err(),
+            check_value::<Buyout>(&json!({ "version": 2, "type": "skip" })).unwrap_err(),
             ValueError::VersionUnsupported {
                 kind: "buyout",
                 found: 2,
@@ -923,11 +924,11 @@ mod tests {
         assert!(a.get_as::<Buyout>(scope, &key).unwrap().is_none());
         // set again, as a caller who read "nothing there" would: a create.
         let row = a
-            .put::<Buyout>(scope, &key, &Buyout::Ignore.to_value(), None, &via)
+            .put::<Buyout>(scope, &key, &Buyout::Skip.to_value(), None, &via)
             .unwrap();
         assert_eq!(row.revision, 3, "the tombstone's revision carries on");
         let (_, typed) = a.get_as::<Buyout>(scope, &key).unwrap().unwrap();
-        assert_eq!(typed, Buyout::Ignore);
+        assert_eq!(typed, Buyout::Skip);
         // A price that does not parse never lands, even over a tombstone.
         a.delete(scope, &key, BUYOUT_KIND, 3, &via).unwrap();
         let err = a

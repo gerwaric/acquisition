@@ -141,7 +141,7 @@ fn seed(base: &Path) -> PathBuf {
     a.put::<Buyout>(
         "tab",
         "pc/f1",
-        &json!({ "version": 1, "type": "ignore" }),
+        &json!({ "version": 1, "type": "skip" }),
         None,
         &via,
     )
@@ -149,7 +149,7 @@ fn seed(base: &Path) -> PathBuf {
     a.put::<Buyout>(
         "item",
         "i-elsewhere",
-        &json!({ "version": 1, "type": "ignore" }),
+        &json!({ "version": 1, "type": "skip" }),
         None,
         &via,
     )
@@ -181,8 +181,9 @@ fn price_json_documents_are_the_views_the_text_reads() {
     let out = acq(&base, &["price", "list", "--json"]);
     assert!(out.status.success(), "{}", stderr(&out));
     let view: ListView = serde_json::from_value(sole_json(&out)).unwrap();
-    // The unpriced map item is relation `none`: left out by default.
-    assert_eq!(view.items.len(), 3);
+    // The unpriced map item and the character's noted item are relation
+    // `none` (a character's items are not indexed, C81): left out by default.
+    assert_eq!(view.items.len(), 2);
     // The containers on the selected items' chains, in the report's
     // order: the folder (on the chain), the tab, the character.
     let containers: Vec<&str> = view
@@ -190,7 +191,7 @@ fn price_json_documents_are_the_views_the_text_reads() {
         .iter()
         .map(|c| c.subject.name.as_str())
         .collect();
-    assert_eq!(containers, ["Sale", "~price 3 chaos", "Exile"]);
+    assert_eq!(containers, ["Sale", "~price 3 chaos"]);
     assert_eq!(view.items_on_record, 4);
     // The same selection in text names the same containers, in order.
     let out = acq(&base, &["price", "list"]);
@@ -200,15 +201,21 @@ fn price_json_documents_are_the_views_the_text_reads() {
             .unwrap_or_else(|| panic!("{s:?} not in\n{text}"))
     };
     assert!(
-        pos("~price 3 chaos (3 chaos, public)") < pos("Exile  1 item"),
+        pos("~price 3 chaos (3 chaos, public)") < pos("next:"),
         "{text}"
     );
     assert!(!text.contains("Sale  "), "{text}");
-    // A substash is labelled under its parent's name, which the view carries.
+    // The residue items under `--relation none`: a substash labelled under
+    // its parent's name, which the view carries; the character last.
     let out = acq(&base, &["price", "list", "--relation", "none"]);
     let text = String::from_utf8_lossy(&out.stdout);
+    let pos = |s: &str| {
+        text.find(s)
+            .unwrap_or_else(|| panic!("{s:?} not in\n{text}"))
+    };
     assert!(
-        text.contains("Maps / 1 (not public)  1 item: 1 unlisted  substash/pc/m1/s1"),
+        pos("Maps / 1 (not public)  1 item: 1 unlisted  substash/pc/m1/s1")
+            < pos("Exile  1 item: 1 unlisted"),
         "{text}"
     );
 
@@ -255,6 +262,12 @@ fn price_json_documents_are_the_views_the_text_reads() {
         view.listing.manual.as_ref().map(|m| m.from.to_string()),
         Some("tab/pc/f1".into())
     );
+    // C81: the note beats the folder's row; the site's view of it is the price.
+    assert_eq!(
+        view.listing.effective.side,
+        Some(acquisition_plan::listing::Side::Game)
+    );
+    assert_eq!(view.listing.effective.to_string(), "5 chaos");
     let out = acq(&base, &["price", "show", "tab/pc/f1", "--json"]);
     let view: ShowView = serde_json::from_value(sole_json(&out)).unwrap();
     assert!(view.items_here.is_empty());

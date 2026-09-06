@@ -7,18 +7,17 @@
 //!
 //! # Decisions as recorded
 //!
-//! **C69 — A listing is 2 independent resolutions and their relation.** The
-//! manual side resolves by specificity (C70); the game side reads note,
-//! then tab name, as a price (exact or negotiable), `skip` (do not index),
-//! `invalid` (an empty amount, or a ratio in a tab name) or none (T10,
-//! T11), and whether its stash is public. The relation is manual-only,
-//! game-only, agree, conflict or none; `ignore` is a manual disposition and
-//! never denies an in-game price. Each result carries both sides with
-//! causes, revisions, basis, parser and reference versions, the raw note
-//! verbatim. What a relation *means* is each consumer's rule (C74), not a
-//! frontend's. *Why:* four statements C++ fused and needed locks.
-//! *Details:* `game_side.rs`. *Pinned:* the parse, `c69_`; the rest at step
-//! 4. Amended 2026-09-04.
+//! **C69 — A listing is 2 independent resolutions, their relation, and the
+//! effective price (C81).** The manual side resolves by specificity (C70);
+//! the game side reads note, then tab name, as a price (exact or
+//! negotiable; a ratio too, T2) or `skip` (T10); any other text — free
+//! text, an empty amount, an unknown word, a ratio in a tab name — has no
+//! effect (T11, T16, T18, T19), is shown verbatim, and the tab applies.
+//! The relation is manual-only, game-only, agree, conflict or none. Each
+//! result carries both sides with causes, revisions, basis, versions, the
+//! raw texts. *Why:* four statements C++ fused and needed locks; the
+//! site's display states are not modelled. *Details:* `game_side.rs`,
+//! `listing.rs`. *Pinned:* the `c69_` tests. Amended 2026-09-06.
 //!
 //! # As built
 //!
@@ -60,9 +59,13 @@
 //! **Nothing is decided here.** `~skip` in a tab name, `~b/o` with a
 //! ratio, a retired currency, a price on a non-public tab, which tab a
 //! nested item's game side reads (C80: a substash its parent, a folder
-//! child itself): the parser reports what one text says under
-//! [`NOTE_PARSER_VERSION`], and every consumer (the listing state, the
-//! render's policy table) cites that version beside its own rule (C74).
+//! child itself), whether an `invalid` reading has any effect (it has
+//! none: the tab applies, T18, and the listing state says so): the parser
+//! reports what one text says under [`NOTE_PARSER_VERSION`], and every
+//! consumer (the listing state, the render's policy table) cites that
+//! version beside its own rule (C74). The indexer's loose word matching
+//! (T16: `exa`, `exal`) is not modelled — an unknown word reads `invalid`
+//! and is shown; an alias row is the fix when one matters.
 
 use std::fmt;
 

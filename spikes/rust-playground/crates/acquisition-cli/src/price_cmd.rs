@@ -31,7 +31,7 @@ use std::str::FromStr;
 use acquisition_core::realm::Realm;
 use acquisition_plan::game_side::{GamePrice, Source};
 use acquisition_plan::listing::{
-    ListFilter, ListView, Listing, ListingReport, Relation, ReportHeader, ShowView, resolve,
+    ListFilter, ListView, Listing, ListingReport, Relation, ReportHeader, ShowView, Side, resolve,
 };
 use acquisition_plan::price::PriceTarget;
 use acquisition_store::{Store, account_path};
@@ -299,18 +299,30 @@ fn render_status(r: &ListingReport, now: i64, expand: bool) -> String {
     let by_hand = count_of(r, Relation::ManualOnly)
         + count_of(r, Relation::Agree)
         + count_of(r, Relation::Conflict);
+    let effective = |side: &str| c.by_effective.get(side).copied().unwrap_or(0);
     out.push_str(&format!(
-        "{} in {place}: {game_priced} priced in game, {by_hand} by hand; {} agree, {} conflict, {} unlisted\n",
+        "{} in {place}: {} the game decides, {} decided by hand, {} nothing applies\n",
         plural(c.items, "item", "items"),
+        effective("game"),
+        effective("manual"),
+        effective("none"),
+    ));
+    out.push_str(&format!(
+        "sides: {game_priced} priced in game, {by_hand} by hand; {} agree, {} conflict\n",
         count_of(r, Relation::Agree),
         count_of(r, Relation::Conflict),
-        count_of(r, Relation::None),
     ));
+    if c.residue > 0 {
+        out.push_str(&format!(
+            "{} items carry price text the index cannot see (a note on a character, a name on a non-public tab): shown, not a side (C81)\n",
+            c.residue
+        ));
+    }
     let skipped = reading_count(r, "skip");
     let invalid = reading_count(r, "invalid");
     if skipped + invalid > 0 {
         out.push_str(&format!(
-            "in game also: {skipped} skipped (~skip), {invalid} invalid notes (a broken note is not replaced by its tab's price)\n"
+            "in game also: {skipped} skipped (~skip), {invalid} invalid notes (no effect; the tab applies, T18)\n"
         ));
     }
     if c.league_unknown > 0 {
@@ -380,6 +392,15 @@ fn game_cell(l: &Listing) -> String {
     }
 }
 
+/// Who decides (C81): `game`, `hand`, or `-`.
+fn wins_cell(l: &Listing) -> &'static str {
+    match l.effective.side {
+        Some(Side::Game) => "game",
+        Some(Side::Manual) => "hand",
+        None => "-",
+    }
+}
+
 fn item_line(l: &Listing) -> String {
     let s = &l.subject;
     let mut label = s.label();
@@ -393,8 +414,9 @@ fn item_line(l: &Listing) -> String {
         return String::new();
     };
     format!(
-        "  {:<13} {:<18} {:<18} {:<40} {}\n",
+        "  {:<12} {:<5} {:<18} {:<18} {:<40} {}\n",
         l.relation.as_str(),
+        wins_cell(l),
         clip(&manual_cell(l), 18),
         clip(&game_cell(l), 18),
         clip(&label, 40),
@@ -433,6 +455,7 @@ fn item_texts(l: &Listing) -> String {
     if let Some(p) = &l.manual_problem {
         out.push_str(&format!("      by hand: {p}\n"));
     }
+    out.push_str(&format!("      effective: {}\n", l.effective.why));
     out
 }
 
@@ -607,6 +630,10 @@ fn render_show(view: &ShowView, now: i64, expand: bool) -> String {
         );
     }
     out.push_str(&format!("relation {}: {}\n", l.relation, l.why));
+    out.push_str(&format!(
+        "effective: {} — {}\n",
+        l.effective, l.effective.why
+    ));
 
     match (&l.manual, &l.manual_problem) {
         (Some(m), _) => {
@@ -640,7 +667,12 @@ fn render_show(view: &ShowView, now: i64, expand: bool) -> String {
         Some(Source::TabName) => " from the tab name",
         None => "",
     };
-    out.push_str(&format!("in game: {}{from}\n", g.reading));
+    let residue = if g.residue {
+        " (price text the index cannot see: shown, not a side, C81)"
+    } else {
+        ""
+    };
+    out.push_str(&format!("in game: {}{from}{residue}\n", g.reading));
     if let Some(n) = &g.note {
         out.push_str(&format!("  note {:?} reads {}\n", n.text, n.reading));
     }
@@ -852,13 +884,8 @@ mod tests {
             }],
             items,
             buyouts: vec![
-                row("item", "i-01", json!({ "version": 1, "type": "ignore" }), 4),
-                row(
-                    "item",
-                    "i-gone",
-                    json!({ "version": 1, "type": "ignore" }),
-                    5,
-                ),
+                row("item", "i-01", json!({ "version": 1, "type": "skip" }), 4),
+                row("item", "i-gone", json!({ "version": 1, "type": "skip" }), 5),
             ],
         }
     }
@@ -878,29 +905,40 @@ mod tests {
         let lines: Vec<&str> = text.lines().collect();
         assert_eq!(
             lines[0],
-            "14 items in Standard: 14 priced in game, 1 by hand; 0 agree, 1 conflict, 0 unlisted"
+            "14 items in Standard: 12 the game decides, 0 decided by hand, 2 nothing applies"
         );
         assert_eq!(
             lines[1],
-            "rows: 1 of 2 apply here; 1 name nothing in these facts, 0 unreadable, 0 for other realms"
+            "sides: 12 priced in game, 1 by hand; 0 agree, 1 conflict"
         );
         assert_eq!(
             lines[2],
+            "2 items carry price text the index cannot see (a note on a character, a name on a non-public tab): shown, not a side (C81)"
+        );
+        assert_eq!(
+            lines[3],
+            "rows: 1 of 2 apply here; 1 name nothing in these facts, 0 unreadable, 0 for other realms"
+        );
+        assert_eq!(
+            lines[4],
             "next: `acq price list --relation conflict` names each conflict"
         );
-        assert_eq!(lines.len(), 3, "{text}");
+        assert_eq!(lines.len(), 5, "{text}");
         assert!(!text.contains("parser"), "{text}");
 
         let text = render_status(&r, 8_000, true);
         assert!(
-            text.contains("game side: 2 priced tab names (1 public); 12 priced items in public tabs, 2 not public; note parser v1, currency table v1"),
+            text.contains("game side: 2 priced tab names (1 public); 12 priced items in public tabs, 0 not public; note parser v1, currency table v1"),
             "{text}"
         );
         assert!(
             text.contains("by hand: 1 of 2 rows apply here; 0 items inherit"),
             "{text}"
         );
-        assert!(text.contains("basis: stash listing response 2 1h ago, character listing response 3 1h ago; snapshot 1h ago"), "{text}");
+        assert!(
+            text.contains("basis: stash listing response 2 1h ago, character listing response 3 1h ago; snapshot 1h ago"),
+            "{text}"
+        );
         assert!(
             text.contains("rows naming nothing in these facts:\n  item/i-gone\n"),
             "{text}"
@@ -934,14 +972,11 @@ mod tests {
         let view = r.list_view(ListFilter::default()).unwrap();
         let text = render_list(&view, false);
         let lines: Vec<&str> = text.lines().collect();
+        // The map-tab item and the character's are relation `none` now:
+        // their price text is residue (C81), so the default leaves them out.
         assert_eq!(
             lines[0],
-            "14 items listed in Standard: 12 in game only, 1 conflict, 1 unlisted; in 3 containers"
-                .replace(
-                    "12 in game only, 1 conflict, 1 unlisted",
-                    "13 in game only, 1 conflict"
-                ),
-            "{text}"
+            "12 items listed in Standard: 11 in game only, 1 conflict; in 1 container"
         );
         assert_eq!(
             lines[1],
@@ -950,30 +985,15 @@ mod tests {
         // Twelve is more than ten: counted, not listed.
         assert_eq!(
             lines[2],
-            "~price 1 divine (Remove-only) / 1 (Remove-only) (1 divine, not public)  1 item: 1 in game only  substash/pc/m1/s1"
-        );
-        assert!(
-            lines[3]
-                .starts_with("  game_only     -                  1 divine           Chaos Orb x10"),
-            "{}",
-            lines[3]
-        );
-        assert!(lines[3].ends_with("i-sub"), "{}", lines[3]);
-        assert!(
-            lines[4].starts_with("Exile  1 item: 1 in game only  character/ch1"),
-            "{}",
-            lines[4]
-        );
-        assert!(lines[5].contains("2 divine b/o"), "{}", lines[5]);
-        assert_eq!(
-            lines[6],
             "next: `--expand` lists every item; `acq price show item/<id>` is one"
         );
-        assert_eq!(lines.len(), 7, "{text}");
+        assert_eq!(lines.len(), 3, "{text}");
 
         let text = render_list(&view, true);
         assert!(
-            text.contains("  conflict      ignore             5 chaos            Chaos Orb x10"),
+            text.contains(
+                "  conflict     game  skip               5 chaos            Chaos Orb x10"
+            ),
             "{text}"
         );
         assert!(
@@ -985,7 +1005,40 @@ mod tests {
             "{text}"
         );
         assert!(text.contains("      row item/i-01 revision 4\n"), "{text}");
+        assert!(
+            text.contains("      effective: 5 chaos in game: the game wins a tie with the row on the item (C81)\n"),
+            "{text}"
+        );
         assert_eq!(text.matches("      tab c1 ").count(), 12, "{text}");
+
+        // The residue items, under `--relation none`: a substash labelled
+        // under its parent's name, the character last.
+        let view = r
+            .list_view(ListFilter {
+                relation: Some(Relation::None),
+                ..ListFilter::default()
+            })
+            .unwrap();
+        let text = render_list(&view, false);
+        let lines: Vec<&str> = text.lines().collect();
+        assert_eq!(
+            lines[0],
+            "2 items listed in Standard with relation none: 2 unlisted; in 2 containers"
+        );
+        assert_eq!(
+            lines[1],
+            "~price 1 divine (Remove-only) / 1 (Remove-only) (not public)  1 item: 1 unlisted  substash/pc/m1/s1"
+        );
+        assert!(
+            lines[2].starts_with(
+                "  none         -     -                  -                  Chaos Orb x10"
+            ),
+            "{}",
+            lines[2]
+        );
+        assert!(lines[2].ends_with("i-sub"), "{}", lines[2]);
+        assert_eq!(lines[3], "Exile  1 item: 1 unlisted  character/ch1");
+        assert!(lines[4].ends_with("i-worn"), "{}", lines[4]);
 
         let view = r
             .list_view(ListFilter {
@@ -1012,8 +1065,9 @@ mod tests {
         assert_eq!(
             text,
             "item/i-01: Chaos Orb x10  in \"~price 3 chaos (A)\" tab/pc/c1\n\
-             relation conflict: by hand: ignore; in game: 5 chaos — ignore leaves it out of the shop and does not deny the in-game price (C69)\n\
-             by hand: ignore (own row, revision 4, set 1h ago)\n\
+             relation conflict: by hand: skip; in game: 5 chaos\n\
+             effective: 5 chaos — 5 chaos in game: the game wins a tie with the row on the item (C81)\n\
+             by hand: skip (own row, revision 4, set 1h ago)\n\
              in game: 5 chaos from the note\n\
              \x20 note \"~price 5 chaos\" reads 5 chaos\n\
              \x20 tab c1 \"~price 3 chaos (A)\" reads 3 chaos, public\n\
@@ -1032,7 +1086,14 @@ mod tests {
         // A substash item: its own name beside the parent's reading.
         let l = show(PriceTarget::Item { id: "i-sub".into() });
         let text = render_show(&l, 8_000, false);
-        assert!(text.contains("in game: 1 divine from the tab name\n  tab m1 \"~price 1 divine (Remove-only)\" reads 1 divine, not public\n  substash \"1 (Remove-only)\" (its parent's name and public are read, C80)\n"), "{text}");
+        assert!(
+            text.contains("in game: none (price text the index cannot see: shown, not a side, C81)\n  tab m1 \"~price 1 divine (Remove-only)\" reads 1 divine, not public\n  substash \"1 (Remove-only)\" (its parent's name and public are read, C80)\n"),
+            "{text}"
+        );
+        assert!(
+            text.contains("effective: none — nothing applies: the price text in game is not where the index can see it (C81)\n"),
+            "{text}"
+        );
         assert!(
             text.contains("by hand: nothing (no row on it or above it)\n"),
             "{text}"
@@ -1054,7 +1115,10 @@ mod tests {
             id: "c1".into(),
         });
         let text = render_show(&l, 8_000, false);
-        assert!(text.starts_with("tab/pc/c1: ~price 3 chaos (A) (PremiumStash)\nrelation game_only: in game: 3 chaos; no row applies\n"), "{text}");
+        assert!(
+            text.starts_with("tab/pc/c1: ~price 3 chaos (A) (PremiumStash)\nrelation game_only: in game: 3 chaos; no row applies\neffective: 3 chaos — 3 chaos in game; no row applies\n"),
+            "{text}"
+        );
         assert!(
             text.contains("items here: 12 items — 11 in game only, 1 conflict\n"),
             "{text}"
@@ -1073,7 +1137,7 @@ mod tests {
         });
         let text = render_show(&l, 8_000, false);
         assert!(
-            text.contains("items here: none on record\nitems covered through children (C70): 1 item — 1 in game only\n"),
+            text.contains("items here: none on record\nitems covered through children (C70): 1 item — 1 unlisted\n"),
             "{text}"
         );
         assert!(text.contains("i-sub\n"), "{text}");
