@@ -178,9 +178,9 @@ impl Store {
             ),
         };
         // Pairing is by the uuid the annotations file carries internally
-        // (v2 `meta`), not by filename — a copied or renamed file keeps its
-        // owner. A handle with no identity (a pre-v2 file opened from a
-        // raw path) is refused, never trusted.
+        // (`meta`), not by filename — a copied or renamed file keeps its
+        // owner. A handle with no identity (a file opened from a raw path
+        // and never bound) is refused, never trusted.
         match annotations.uuid() {
             Some(u) if u == account_uuid => {}
             Some(u) => bail!(

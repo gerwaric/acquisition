@@ -394,8 +394,10 @@ pub enum AnnotationError {
         found: i64,
         supported: i64,
     },
-    /// The file predates the schema floor (a development build wrote it).
-    /// Refused rather than migrated: its rows have no writer to record.
+    /// The file predates the schema floor (a development build wrote it),
+    /// or — `found: 0` — exists with content and no stamp at all. Refused
+    /// rather than migrated or adopted: its rows have no writer to record,
+    /// and its content is not this build's to discard.
     SchemaTooOld {
         found: i64,
         floor: i64,
@@ -436,6 +438,12 @@ impl std::fmt::Display for AnnotationError {
             AnnotationError::SchemaTooNew { found, supported } => write!(
                 f,
                 "annotation file uses schema v{found}, newer than this build's v{supported}"
+            ),
+            AnnotationError::SchemaTooOld { found: 0, path, .. } => write!(
+                f,
+                "annotation file {} exists with content but no schema stamp; not opened — \
+                 move it aside if it holds nothing you need, then retry",
+                path.display()
             ),
             AnnotationError::SchemaTooOld { found, floor, path } => write!(
                 f,
@@ -498,7 +506,8 @@ pub struct Annotations {
     conn: Connection,
     path: PathBuf,
     /// The owning account's uuid as stored in the file's `meta` table;
-    /// `None` for a pre-v2 file never opened via [`Annotations::open_for`].
+    /// `None` for a file created through [`Annotations::open`] on a raw
+    /// path and never bound via [`Annotations::open_for`].
     uuid: Option<String>,
 }
 
@@ -507,9 +516,9 @@ impl Annotations {
     /// to `uuid`: the uuid is stored inside the file, and a file already
     /// carrying a different account's uuid is refused
     /// ([`AnnotationError::WrongAccount`]) — a copy or rename cannot
-    /// silently pair another account's intent. A pre-v2 file has no stored
-    /// uuid; the uuid it is addressed by is stamped on this first open
-    /// (the filename convention was its only binding, upgraded here).
+    /// silently pair another account's intent. A file with no stored uuid
+    /// (created through [`Annotations::open`] on a raw path) is stamped
+    /// with the uuid it is addressed by on this open.
     /// This is the way to open annotations for real use; [`Annotations::open`]
     /// on a raw path yields a handle without a verified identity, which
     /// [`crate::Store::refresh_snapshot`] refuses.
@@ -526,18 +535,36 @@ impl Annotations {
         Ok(a)
     }
 
+    /// Open a file by path, creating it if it is missing. A file that
+    /// exists with content but carries no schema stamp is refused, not
+    /// adopted as empty intent: whatever it holds is not this build's to
+    /// discard ([`AnnotationError::SchemaTooOld`] with `found: 0`). A
+    /// zero-byte file holds nothing and is created over — the C++ app has
+    /// left such a file beside a real one before, and our own create is
+    /// one transaction, so a crash mid-create leaves exactly that.
     pub fn open(path: &Path) -> Result<Annotations, AnnotationError> {
         if let Some(dir) = path.parent() {
             std::fs::create_dir_all(dir)?;
         }
-        Self::init(Connection::open(path)?, path.to_path_buf())
+        let holds_content = std::fs::metadata(path).is_ok_and(|m| m.len() > 0);
+        Self::init(Connection::open(path)?, path.to_path_buf(), !holds_content)
     }
 
     pub fn open_memory() -> Result<Annotations, AnnotationError> {
-        Self::init(Connection::open_in_memory()?, PathBuf::from(":memory:"))
+        Self::init(
+            Connection::open_in_memory()?,
+            PathBuf::from(":memory:"),
+            true,
+        )
     }
 
-    fn init(mut conn: Connection, path: PathBuf) -> Result<Annotations, AnnotationError> {
+    /// `fresh`: the path held nothing before this open, so a missing
+    /// stamp means "create", not "someone else's file".
+    fn init(
+        mut conn: Connection,
+        path: PathBuf,
+        fresh: bool,
+    ) -> Result<Annotations, AnnotationError> {
         // The version gate comes before any pragma: switching the journal
         // mode rewrites the file header, and a file this build refuses is
         // left exactly as it was found.
@@ -548,7 +575,7 @@ impl Annotations {
                 supported: SCHEMA_VERSION,
             });
         }
-        if found != 0 && found < SCHEMA_FLOOR {
+        if found < SCHEMA_FLOOR && (found != 0 || !fresh) {
             return Err(AnnotationError::SchemaTooOld {
                 found,
                 floor: SCHEMA_FLOOR,
@@ -626,9 +653,9 @@ impl Annotations {
     }
 
     /// The owning account's uuid, when the file (or this handle) carries
-    /// one. `None` means the pairing is uncheckable — a pre-v2 file opened
-    /// from a raw path — and consumers that pair intent with facts refuse
-    /// such handles.
+    /// one. `None` means the pairing is uncheckable — a file opened from
+    /// a raw path and never bound — and consumers that pair intent with
+    /// facts refuse such handles.
     pub fn uuid(&self) -> Option<&str> {
         self.uuid.as_deref()
     }
@@ -833,34 +860,64 @@ impl Annotations {
     /// `dest`, via SQLite's `VACUUM INTO`, published atomically. `VACUUM
     /// INTO` writes `dest` directly and never fsyncs it, so an interrupted
     /// export would leave a partial file that both looks like a backup and
-    /// blocks every retry. The copy is therefore written to
-    /// `<dest>.partial` (a stale partial from an earlier interruption is
-    /// replaced), checked with `quick_check`, fsynced, then linked into
-    /// place; the partial is removed either way. Fails if `dest` already
-    /// exists, before anything is written — a backup never overwrites
-    /// another backup silently.
+    /// blocks every retry. The copy is therefore written to a partial
+    /// named for this invocation (`<dest>.partial-<pid>-<nanos>`, so two
+    /// exporters never share or remove each other's), checked with
+    /// `quick_check`, fsynced, then published by `hard_link` — which the
+    /// kernel refuses if `dest` appeared meanwhile, so two exports to one
+    /// destination end with one backup and one `AlreadyExists`, never a
+    /// replaced backup. Only on a filesystem without hard links does a
+    /// `rename` stand in, and that fallback is the one place a
+    /// simultaneous export could still replace another's. Fails if `dest`
+    /// already exists, before anything is written; the partial is removed
+    /// either way.
     pub fn export(&self, dest: &Path) -> Result<(), AnnotationError> {
         if let Some(dir) = dest.parent() {
             std::fs::create_dir_all(dir)?;
         }
-        if dest.exists() {
-            return Err(std::io::Error::new(
+        let exists = || {
+            std::io::Error::new(
                 std::io::ErrorKind::AlreadyExists,
                 format!(
                     "{} exists; a backup never overwrites another backup",
                     dest.display()
                 ),
             )
-            .into());
+        };
+        if dest.exists() {
+            return Err(exists().into());
         }
         let mut partial = dest.as_os_str().to_owned();
-        partial.push(".partial");
+        partial.push(format!(
+            ".partial-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
+        ));
         let partial = PathBuf::from(partial);
-        let _ = std::fs::remove_file(&partial);
         let published = self.export_to(&partial).and_then(|()| {
-            std::fs::hard_link(&partial, dest)
-                .or_else(|_| std::fs::rename(&partial, dest))
-                .map_err(AnnotationError::Io)
+            match std::fs::hard_link(&partial, dest) {
+                Ok(()) => Ok(()),
+                Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => Err(exists()),
+                // No hard links here (FAT and the like): a rename is the
+                // best available, guarded by a last look.
+                Err(e)
+                    if matches!(
+                        e.kind(),
+                        std::io::ErrorKind::Unsupported | std::io::ErrorKind::PermissionDenied
+                    ) =>
+                {
+                    if dest.exists() {
+                        Err(exists())
+                    } else {
+                        std::fs::rename(&partial, dest)
+                    }
+                }
+                Err(e) => Err(e),
+            }
+            .map_err(AnnotationError::Io)
         });
         let _ = std::fs::remove_file(&partial);
         published
@@ -1436,19 +1493,105 @@ mod tests {
         a.put::<Buyout>("item", "i1", &price("1c"), None, &via_test())
             .unwrap();
         let backup = dir.join("backup.db");
-        // A partial left by an interrupted earlier export is replaced,
-        // never published: after the export only the backup exists.
-        let partial = dir.join("backup.db.partial");
-        std::fs::write(&partial, b"garbage from an interrupted export").unwrap();
         a.export(&backup).unwrap();
-        assert!(!partial.exists(), "the partial must not outlive the export");
+        let leftovers: Vec<_> = std::fs::read_dir(&dir)
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .filter(|e| e.file_name().to_string_lossy().contains(".partial"))
+            .collect();
+        assert!(
+            leftovers.is_empty(),
+            "no partial outlives the export: {leftovers:?}"
+        );
         // The snapshot is a complete, standalone annotation file.
         let restored = Annotations::open(&backup).unwrap();
         assert_eq!(restored.list(None, None).unwrap().len(), 1);
         // A second export to the same path is refused, not an overwrite —
         // and refused before anything is written.
         assert!(a.export(&backup).is_err());
-        assert!(!partial.exists());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// C35 — two exports racing one destination: each writes its own
+    /// partial, exactly one is published, the other is refused as
+    /// AlreadyExists, and the published file is a whole backup.
+    #[test]
+    fn simultaneous_exports_to_one_destination_publish_exactly_one() {
+        let dir = std::env::temp_dir().join(format!(
+            "acq-ann-xrace-{}-{}",
+            std::process::id(),
+            crate::now()
+        ));
+        let path = annotations_path(&dir, "u-x");
+        let mut a = Annotations::open(&path).unwrap();
+        a.put::<Buyout>("item", "i1", &price("1c"), None, &via_test())
+            .unwrap();
+        let b = Annotations::open(&path).unwrap();
+        let backup = dir.join("backup.db");
+        let dest = &backup;
+        let results = std::thread::scope(|scope| {
+            let ta = scope.spawn(move || a.export(dest));
+            let tb = scope.spawn(move || b.export(dest));
+            [ta.join().unwrap(), tb.join().unwrap()]
+        });
+        let (ok, err): (Vec<_>, Vec<_>) = results.into_iter().partition(Result::is_ok);
+        assert_eq!((ok.len(), err.len()), (1, 1), "one backup, one refusal");
+        match err.into_iter().next().unwrap().unwrap_err() {
+            AnnotationError::Io(e) => assert_eq!(e.kind(), std::io::ErrorKind::AlreadyExists),
+            other => panic!("expected AlreadyExists, got {other}"),
+        }
+        let restored = Annotations::open(&backup).unwrap();
+        assert_eq!(restored.list(None, None).unwrap().len(), 1);
+        let leftovers = std::fs::read_dir(&dir)
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .filter(|e| e.file_name().to_string_lossy().contains(".partial"))
+            .count();
+        assert_eq!(leftovers, 0);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A file that exists with content but no schema stamp is refused and
+    /// left as found — never adopted as empty intent; a zero-byte file
+    /// holds nothing and is created over.
+    #[test]
+    fn an_unstamped_file_with_content_is_refused_and_an_empty_one_is_created_over() {
+        let dir = std::env::temp_dir().join(format!(
+            "acq-ann-v0-{}-{}",
+            std::process::id(),
+            crate::now()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = annotations_path(&dir, "u-1");
+        {
+            let conn = Connection::open(&path).unwrap();
+            conn.execute_batch(
+                "CREATE TABLE annotations (scope TEXT, key TEXT, kind TEXT, value TEXT);
+                 INSERT INTO annotations VALUES ('item', 'i1', 'buyout', '{}');",
+            )
+            .unwrap();
+            // no user_version stamp
+        }
+        let before = std::fs::read(&path).unwrap();
+        match Annotations::open(&path).err() {
+            Some(AnnotationError::SchemaTooOld {
+                found: 0, path: p, ..
+            }) => {
+                assert_eq!(p, path);
+            }
+            other => panic!("expected SchemaTooOld found 0, got {other:?}"),
+        }
+        assert_eq!(std::fs::read(&path).unwrap(), before, "left as found");
+        let err = match Annotations::open(&path) {
+            Err(e) => e.to_string(),
+            Ok(_) => panic!("opened"),
+        };
+        assert!(err.contains("no schema stamp"), "{err}");
+        // Zero bytes: nothing to preserve.
+        let empty = annotations_path(&dir, "u-2");
+        std::fs::write(&empty, b"").unwrap();
+        let a = Annotations::open_for(&dir, "u-2").unwrap();
+        assert_eq!(a.uuid(), Some("u-2"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 
