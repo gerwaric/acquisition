@@ -304,7 +304,7 @@ impl FromStr for Amount {
         }
         if !fraction.bytes().all(|b| b.is_ascii_digit()) {
             return Err(err(
-                "a decimal is digits, optionally `.` and one or two digits",
+                "a decimal is digits, optionally `.` and one to four digits",
             ));
         }
         let units: u64 = if whole == "0" {
@@ -315,7 +315,7 @@ impl FromStr for Amount {
                 Err("too large") => return Err(err("too large")),
                 Err(_) => {
                     return Err(err(
-                        "a decimal is digits, optionally `.` and one or two digits",
+                        "a decimal is digits, optionally `.` and one to four digits",
                     ));
                 }
             }

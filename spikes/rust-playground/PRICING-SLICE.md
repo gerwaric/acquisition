@@ -57,7 +57,7 @@ for real).
    and `actor`; the per-kind strict trait with `SyncPolicy` moved onto
    it, its parse unchanged and its v3 spelling now canonical; `PriceTarget` with the
    realm-bearing tab and substash keys defined before the first row;
-   `Buyout` v1 (`exact`, `negotiable`, `no_price`, `ignore`; two-place
+   `Buyout` v1 (`exact`, `negotiable`, `no_price`, `ignore`; four-place
    decimal or lot pair; a tag that resolves); a `clear` then `set` on one
    target works through the tombstone; a kind filter on `list`; a
    busy-timeout error kind. The 2b constraints (5)–(8) and (3) are pinned
