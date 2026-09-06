@@ -1,8 +1,9 @@
 //! The game side of a listing (C69): what an item's `note` or a tab's
 //! name says, read as one pure function. Built by the pricing slice's
 //! plan step 3 (`PRICING-SLICE.md`, 2026-09-06). Nothing here reads a
-//! store; the listing state (plan step 4) calls [`read`] once per note
-//! and once per tab name and keeps the raw text beside the result.
+//! store; the listing state (`listing.rs`, plan step 4) calls [`read`]
+//! once per note and once per tab name and keeps the raw text beside
+//! the result.
 //!
 //! # Decisions as recorded
 //!
@@ -65,6 +66,8 @@
 
 use std::fmt;
 
+use serde::{Deserialize, Serialize};
+
 use crate::currency::CurrencyTable;
 use crate::price::{Amount, Price};
 
@@ -75,7 +78,8 @@ pub const NOTE_PARSER_VERSION: u32 = 1;
 
 /// Where a text came from; the two sources read under two rules (module
 /// doc, "The two sources differ").
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum Source {
     /// An item's `note`, as the API returns it.
     Note,
@@ -95,7 +99,8 @@ impl Source {
 
 /// What a note or a tab name says about a price: C69's four outcomes,
 /// the price split by its prefix.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
 pub enum GamePrice {
     /// `~price <amount> <word>`.
     Exact(Price),

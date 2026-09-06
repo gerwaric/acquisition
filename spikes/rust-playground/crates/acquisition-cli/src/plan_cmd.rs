@@ -149,7 +149,7 @@ const LIST_UP_TO: usize = 10;
 /// file — the latter addressed by the uuid the index maps the account to.
 /// An entry without a uuid predates uuid-at-login; intent cannot be bound
 /// to it.
-fn open_intent() -> Result<(PathBuf, AccountEntry, Annotations)> {
+pub(crate) fn open_intent() -> Result<(PathBuf, AccountEntry, Annotations)> {
     let (dir, entry) = store_cmd::resolve()?;
     let Some(uuid) = entry.uuid.as_deref() else {
         bail!(

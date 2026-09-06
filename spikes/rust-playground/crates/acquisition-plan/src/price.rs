@@ -46,8 +46,8 @@
 //! A decimal has at most **four** fractional digits — what the game
 //! itself writes (T10: `999.1234` in the fixture) — held as
 //! ten-thousandths, so the same type carries an observed note's amount
-//! at plan step 3 and a manual price, and step 4 compares them
-//! structurally; a fifth digit is refused. `0`, `0.00` and `0/5` are
+//! at plan step 3 and a manual price, and the listing state (step 4,
+//! `listing.rs`) compares them structurally; a fifth digit is refused. `0`, `0.00` and `0/5` are
 //! refused (a price is positive); `10/0` is refused. (v1 was ruled at
 //! two places on 2026-09-04 and widened to four on 2026-09-06 after an
 //! outside review; widening is compatible, every stored two-place value
@@ -226,6 +226,20 @@ impl PriceTarget {
     }
 }
 
+impl FromStr for PriceTarget {
+    type Err = TargetError;
+
+    /// The address as one word, `scope/key` — what [`PriceTarget`]'s
+    /// `Display` writes: `item/<id>`, `character/<id>`, `tab/<realm>/<id>`,
+    /// `substash/<realm>/<parent>/<id>`.
+    fn from_str(word: &str) -> Result<PriceTarget, TargetError> {
+        match word.split_once('/') {
+            Some((scope, key)) => PriceTarget::from_address(scope, key),
+            None => Err(TargetError::UnknownScope { scope: word.into() }),
+        }
+    }
+}
+
 impl fmt::Display for PriceTarget {
     /// `scope/key`, the address as one word.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -359,8 +373,22 @@ impl fmt::Display for Amount {
     }
 }
 
+impl Serialize for Amount {
+    /// The canonical text — never a JSON number (the module doc's reason).
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        s.collect_str(self)
+    }
+}
+
+impl<'de> Deserialize<'de> for Amount {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Amount, D::Error> {
+        let text = String::deserialize(d)?;
+        text.parse().map_err(serde::de::Error::custom)
+    }
+}
+
 /// An amount in a currency: the tag intent cites (C68).
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Price {
     pub amount: Amount,
     /// A tag of the shipped currency table; retired tags included.
@@ -449,6 +477,15 @@ impl Serialize for Buyout {
             currency: price.map(|p| p.currency.clone()),
         }
         .serialize(s)
+    }
+}
+
+impl<'de> Deserialize<'de> for Buyout {
+    /// The same strict parse as the write door, so a report or a plan
+    /// that carries a value re-reads it exactly.
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Buyout, D::Error> {
+        let value = Value::deserialize(d)?;
+        Buyout::parse(&value).map_err(serde::de::Error::custom)
     }
 }
 

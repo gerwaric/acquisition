@@ -69,7 +69,9 @@ bounded by `MAX_429_RETRIES`; a Cloudflare-shaped 403/503 is never retried.
   `IntentValue`, C65/C66) and `daemon.db` (the persisted job queue,
   `jobs.rs`). The daemon writes facts through one
   call, `Store::record(endpoint, params, status, body)`, and never
-  reads; every frontend reads the files directly. How ingest works as
+  reads; every frontend reads the files directly, plans and prices
+  through the neutral snapshots in `snapshot.rs` (rows and bases,
+  nothing derived). How ingest works as
   built — item lifting at the seams, listing-owned membership and
   liveness, withheld and refused bodies, `item_events`, schema versions
   and migrations, the no-panic lint ratchet — is the crate's module doc
@@ -90,13 +92,16 @@ bounded by `MAX_429_RETRIES`; a Cloudflare-shaped 403/503 is never retried.
   typed `buyout` value and its `PriceTarget` address are `price.rs`
   (C67); the game side of a listing — a note or a tab name read as a
   price, `skip`, `invalid` or none — is `game_side.rs` (C69), pinned by
-  the fixture the run left — no surface writes or shows one yet (plan
-  steps 4, 5).
+  the fixture the run left; the listing state (C69, C70, C80) is one
+  pure function in `listing.rs` over the store's pricing snapshot, read
+  by `acq price`. No surface writes a price yet (plan step 5).
 - `crates/acquisition-cli` — the `acq` binary. Thin: clap parsing, output
   rendering, `store_cmd.rs` (reads of the shared store, no daemon),
   `plan_cmd.rs` (the intent surface `acq policy`, and `acq refresh
-  --plan|--apply` through `acquisition-plan`) and `reference_cmd.rs`
-  (`acq reference currency`: the shipped table, by version). The protocol client
+  --plan|--apply` through `acquisition-plan`), `price_cmd.rs` (`acq
+  price status|show|list`: the listing state under C53's three views)
+  and `reference_cmd.rs` (`acq reference currency`: the shipped table,
+  by version). The protocol client
   (connect, lazy spawn, version handshake) is
   `acquisition-core/src/client.rs`, shared by every frontend; frontends
   differ only in connect *policy* (`ConnectOptions`). The daemon is
@@ -140,6 +145,9 @@ acq stash <id> [--sub <id>] [--deep]         # one tab; --deep follows a map/uni
 acq reference currency [WORD] [--expand]     # the currency table this build ships (C68): tag, display name, the words
                                              #  a parser accepts, retired marks; --expand adds each row's evidence;
                                              #  a WORD resolves exactly (case-sensitive) or fails naming the version
+acq price [status|list|show <target>]        # the listing state (C69) under C53: one line + next action; items grouped
+                                             #  by tab; one target (item/<id>, tab/<realm>/<id>, …) with both sides,
+                                             #  the raw note beside its parse; --expand, --relation R, --in <container>
 acq policy [show]                            # the per-account sync policy: declared coverage + freshness (an annotation)
 acq policy set '<json>' [--if-revision N]    # validated through the planner's strict parse before anything lands;
                                              #  v3 shape: {"version":3,"realms":{"pc":{"leagues":{"Standard":

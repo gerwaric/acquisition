@@ -119,7 +119,11 @@
 //! read through [`currency::table`] — see `currency.rs`, "As built". The
 //! typed `buyout` value and its target are `price.rs` (C67); the game
 //! side of a listing — what a note or a tab name says — is one pure
-//! function, [`game_side::read`] (C69).
+//! function, [`game_side::read`] (C69); the listing state — every
+//! subject's manual side by specificity (C70), game side through the tab
+//! C80 names, and their relation — is [`listing::resolve`] over the
+//! store's [`acquisition_store::PricingSnapshot`], see `listing.rs`,
+//! "As built".
 //!
 //! # Decisions as recorded
 //!
@@ -243,6 +247,7 @@
 
 pub mod currency;
 pub mod game_side;
+pub mod listing;
 pub mod price;
 #[cfg(test)]
 pub(crate) mod price_notes_fixture;

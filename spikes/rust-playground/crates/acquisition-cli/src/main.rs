@@ -1,5 +1,6 @@
 mod dash;
 mod plan_cmd;
+mod price_cmd;
 mod reference_cmd;
 mod store_cmd;
 
@@ -214,6 +215,12 @@ enum Cmd {
     Cancel { id: u64 },
     /// Change a waiting job's priority.
     SetPriority { id: u64, priority: u8 },
+    /// The listing state (no daemon): what every item, tab and character
+    /// is priced as — by hand, in game, and how the two stand.
+    Price {
+        #[command(subcommand)]
+        cmd: Option<PriceCmd>,
+    },
     /// Reference data the binary ships (no store, no daemon): the currency
     /// table, by version.
     Reference {
@@ -224,6 +231,52 @@ enum Cmd {
     Daemon {
         #[command(subcommand)]
         cmd: DaemonCmd,
+    },
+}
+
+#[derive(Subcommand)]
+enum PriceCmd {
+    /// One line on the league's listing state and the next action (the
+    /// default); --expand adds the game side, the rows and the basis.
+    Status {
+        #[arg(long, default_value = "Standard")]
+        league: String,
+        #[arg(long, value_parser = parse_realm)]
+        realm: Option<Realm>,
+        #[arg(long)]
+        expand: bool,
+    },
+    /// One target's listing: `item/<id>`, `character/<id>`,
+    /// `tab/<realm>/<id>` or `substash/<realm>/<parent>/<id>` — both
+    /// sides with their causes, the raw note beside the parse; a
+    /// container's items summarized under it (--expand lists them all).
+    Show {
+        target: String,
+        #[arg(long, default_value = "Standard")]
+        league: String,
+        /// The realm of an item or character target; a tab or substash
+        /// address carries its own.
+        #[arg(long, value_parser = parse_realm)]
+        realm: Option<Realm>,
+        #[arg(long)]
+        expand: bool,
+    },
+    /// Listed items grouped by container, ten or fewer listed per group
+    /// and more counted (--expand lists every one with its texts).
+    /// Without --relation, items whose relation is `none` are left out.
+    List {
+        #[arg(long, default_value = "Standard")]
+        league: String,
+        #[arg(long, value_parser = parse_realm)]
+        realm: Option<Realm>,
+        /// none, manual_only, game_only, agree or conflict.
+        #[arg(long)]
+        relation: Option<String>,
+        /// Only items in this container (a tab, substash or character address).
+        #[arg(long = "in")]
+        location: Option<String>,
+        #[arg(long)]
+        expand: bool,
     },
 }
 
@@ -566,6 +619,37 @@ async fn run(cli: Cli) -> Result<()> {
             .await?;
             block_on_job(&mut client, id, cli.json).await
         }
+        Cmd::Price { cmd } => match cmd.unwrap_or(PriceCmd::Status {
+            league: "Standard".into(),
+            realm: None,
+            expand: false,
+        }) {
+            PriceCmd::Status {
+                league,
+                realm,
+                expand,
+            } => price_cmd::status(realm.unwrap_or(Realm::DEFAULT), &league, expand, cli.json),
+            PriceCmd::Show {
+                target,
+                league,
+                realm,
+                expand,
+            } => price_cmd::show(&target, realm, &league, expand, cli.json),
+            PriceCmd::List {
+                league,
+                realm,
+                relation,
+                location,
+                expand,
+            } => price_cmd::list(
+                realm.unwrap_or(Realm::DEFAULT),
+                &league,
+                relation.as_deref(),
+                location.as_deref(),
+                expand,
+                cli.json,
+            ),
+        },
         Cmd::Reference { cmd } => match cmd {
             ReferenceCmd::Currency { word, expand } => {
                 reference_cmd::currency(word.as_deref(), expand, cli.json)

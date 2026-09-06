@@ -137,7 +137,7 @@ pub(crate) fn realm_prefix(realm: Realm) -> String {
 }
 
 /// Cut a label to `max` characters with a marker, never silently.
-fn clip(s: &str, max: usize) -> String {
+pub(crate) fn clip(s: &str, max: usize) -> String {
     if s.chars().count() <= max {
         s.to_string()
     } else {
