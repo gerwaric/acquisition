@@ -41,8 +41,11 @@
 //! version-stamped and strict-parsed — a typo'd field is a structured
 //! error, never intent half-honored; a newer version is refused as such;
 //! **v3** covers per facet under `realms.<R>.leagues.<L>`: `tabs` and/or
-//! `characters`, each `"all"` or an id list, absent (or an empty list)
-//! meaning no coverage of that facet, an entry covering neither refused
+//! `characters`, each `"all"` or an id list, absent meaning no coverage
+//! of that facet — a v3 value must spell it absent: `[]` or `null`
+//! there is refused as non-canonical by the store's exact round-trip
+//! (C66, 2026-09-05), while a v1/v2 value's `[]` still upgrades to
+//! absent — an entry covering neither refused
 //! as "names no work"; `tabs` under `poe2` is a parse error because the
 //! stash endpoints are PoE1 only while `characters` is taken under every
 //! realm; a v1 `leagues.<L>` value still parses as realm pc, and v1/v2
@@ -274,9 +277,12 @@ pub const REFRESH_PLAN_SCHEMA: i64 = 6;
 /// (`realms.<R>.leagues.<L>`); a v1 policy (`leagues.<L>`) still parses,
 /// upgraded on the way in as realm pc — the only realm v1 could mean. v3
 /// (same day) puts `characters` beside `tabs` under each league, each
-/// facet optional — absent (or an empty list) means no coverage of that
-/// facet, and an entry covering neither is malformed ("names no work").
-/// v1 and v2 upgrade to their tab coverage plus no character coverage.
+/// facet optional — absent means no coverage of that facet, and an entry
+/// covering neither is malformed ("names no work"). Since 2026-09-05 a
+/// v3 value is held to its canonical spelling (C66): an empty list or
+/// `null` for a facet is refused naming the path, not normalized. v1 and
+/// v2 upgrade to their tab coverage (an empty list there reads as
+/// absent) plus no character coverage.
 pub const SYNC_POLICY_VERSION: i64 = 3;
 
 /// A planner failure with a stable kind (CONTEXT.md: malformed external
