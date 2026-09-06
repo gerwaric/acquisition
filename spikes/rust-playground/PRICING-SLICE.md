@@ -118,7 +118,7 @@ claims file's appendix maps T→C as well.
 | Pricing | 2c census | `cdfd02cc` | `tools/census.py` (read-only, immutable open, WAL guard); the census below |
 | Pricing | 2d currency source | `51a33751` | `SURFACES.md`, the register under C79 (the trade site: `browser`, no automation); `crates/acquisition-plan/reference/currency-v1.toml`, 19 rows from the C++ list with a citation each |
 | Pricing | 2e forum reading, price-notes run, re-scope | `0d9fee64` | the owner's saved trade-site and wiki pages read, Procurement and the C++ shop compared, the API reference checked for `forum_note`; the price-notes run (ledger row 2026-09-04: the test tab and the forum-listed character); the note corpus committed as a fixture; C65, C67, C68, C69, C72, C74 amended, C71, C73, C78 parked in place; the plan above; `SURFACES.md` rows; `tools/notes-check.py` |
-| Pricing | plan 3 outside review | open | (1) **Medium** — "tab name" and `metadata.public` are ambiguous for a nested item: C69 reads "the tab name", C70 keeps inheritance to the manual side, and the store holds substashes and folder children with their own name, metadata and parent (`snapshot.rs`). A read-only look at the owner's facts (2026-09-06, `mode=ro` through the existing WAL): 141 nested tabs of 402 — 77 folder children (ordinary tabs: own name, `colour`, no `public` set, none priced) and 64 substashes under 18 map and unique parents, whose names are the game's own (`1 (Remove-only)`, ` (Remove-only)`), metadata `items` and `map` only, **never `public`**, none priced; no priced parent has children. So the rule is structural for the owner's data but unobserved on the site — question 3 below, and a hand experiment in "Observations still open". Step 4 does not start until it is ruled. (2) **Medium** — C69's *Pinned:* reads as if the `c69_` tests pin the whole entry; they pin the parse only. The qualified wording does not fit the 800-byte gate without a trim (the owner's, as before). | (1) question 3, the observation; (2) C69's *Pinned:*, once trimmed |
+| Pricing | plan 3 outside review | open | (1) **Medium** — "tab name" and `metadata.public` are ambiguous for a nested item: C69 reads "the tab name", C70 keeps inheritance to the manual side, and the store holds substashes and folder children with their own name, metadata and parent (`snapshot.rs`). A read-only look at the owner's facts (2026-09-06, `mode=ro` through the existing WAL): 141 nested tabs of 402 — 77 folder children (ordinary tabs: own name, `colour`, no `public` set, none priced) and 64 substashes under 18 map and unique parents, whose names are the game's own (`1 (Remove-only)`, ` (Remove-only)`), metadata `items` and `map` only, **never `public`**, none priced; no priced parent has children. So the rule was structural for the owner's data but unobserved on the site. Owner, 2026-09-06, verbatim: "I agree with ruling it. Folders never carry price, but substash parents can." — C80, Provisional until the hand experiment in "Observations still open". (2) **Medium** — C69's *Pinned:* reads as if the `c69_` tests pin the whole entry; they pin the parse only. The qualified wording does not fit the 800-byte gate without a trim (the owner's, as before). | (1) C80, the observation; (2) C69's *Pinned:* after the owner's trim |
 | plan 1 currency table | `10ef2374` | `currency-v1.toml` v1: 39 active rows (tag = emit = the game's word, display from the owner's dialog reading, a `game:` entry each), 4 legacy aliases, 3 retired rows; `currency.rs` (the loader as the reviewer's checklist); `acq reference currency`; the `c68_` tests |
 | Pricing | plan 3 game-side parser | `ee7d7bd7` | `game_side.rs`: `read(source, text, table)` over a note or a tab name — `exact`, `negotiable`, `skip`, `invalid` naming why, or none (C69); a leading `~` opens a price note; a tab name tolerates trailing text and refuses a ratio (T11), a note holds the grammar exactly (T10) and takes a ratio (T2); the word resolves through the table to a tag (C68); `NOTE_PARSER_VERSION`; the fixture reader shared with the currency tests (`price_notes_fixture.rs`); the `c69_` tests |
 | Pricing | plan 2 annotations v3, typed value | `3d2902cd` | annotations v3 by stepwise `ALTER` (`written_via`, `actor`; C65); `IntentValue` + `check_value` in the store crate (version gate, per-kind strict parse, exact round-trip for a current-schema value, then CAS; C66) with `SyncPolicy` moved onto it unchanged; `Provenance` required by `put`/`delete` and threaded through `put_sync_policy`, the CLI (`cli`) and MCP (`mcp`); `list(scope, kind)`; `AnnotationError::Busy`; `price.rs`: `PriceTarget` (realm-bearing tab and substash keys), `Amount`, `Buyout` v1 (C67); the `c65_`, `c66_`, `c67_` tests |
@@ -272,8 +272,8 @@ shows the item picture, so a wrong link is visible before posting.
   public map or unique tab to a price and see whether its maps or
   uniques list at it; put a public priced tab inside a folder, and name
   a folder with a price, and see which of the two the site reads.
-  Decides the game side's tab reading for a nested item (findings, plan
-  3 outside review).
+  Confirms or corrects C80 (Provisional): a substash reads its parent,
+  a folder child itself.
 - The trade site's seller-account search, run in a browser for this
   account and league, is the oracle for the listing state as a whole:
   it shows what is listed, and so whether the remove-only priced tabs
@@ -302,12 +302,3 @@ shows the item picture, so a wrong link is visible before posting.
 2. C73 parked as "a 0.18 user asks": pricing is niche, but the 0.18
    import is a product question for other users, not only yours. Park
    stands unless you say otherwise.
-3. The game side's tab for a nested item (plan 3 outside review). The
-   facts say a substash has no name a user can set and carries no
-   `public`; a folder child is a tab with its own name and flag. The
-   reading that matches that structure: an item in a substash reads its
-   note, then the **parent's** name and `public`, with the substash's
-   own name reported verbatim beside it; a folder child is read as
-   itself, a folder's name never a price source. Rule it (Provisional,
-   pending the hand experiment), or have step 4 report a nested item's
-   game side as unresolved with both names — step 4 waits either way.

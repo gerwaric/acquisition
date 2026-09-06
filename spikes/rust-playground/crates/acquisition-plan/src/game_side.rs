@@ -6,18 +6,18 @@
 //!
 //! # Decisions as recorded
 //!
-//! **C69 — An item's listing is two independent resolutions and their
-//! relation.** The manual side resolves by specificity (C70); the game side
-//! reads note, then tab name, as a price (exact or negotiable), `skip` (do
-//! not index), `invalid` (an empty amount, or a ratio in a tab name) or
-//! none (T10, T11), and whether its stash is public. The relation is
-//! manual-only, game-only, agree, conflict or none; `ignore` is a manual
-//! disposition and never denies an observed game price. Each result carries
-//! both sides with causes, revisions, basis, parser and reference versions,
-//! the raw note verbatim. What a relation *means* is each consumer's rule
-//! (C74), not a frontend's. *Why:* four statements C++ fused and needed
-//! locks. *Details:* `game_side.rs`. *Pinned:* the `c69_` tests. Amended
-//! 2026-09-04.
+//! **C69 — A listing is 2 independent resolutions and their relation.** The
+//! manual side resolves by specificity (C70); the game side reads note,
+//! then tab name, as a price (exact or negotiable), `skip` (do not index),
+//! `invalid` (an empty amount, or a ratio in a tab name) or none (T10,
+//! T11), and whether its stash is public. The relation is manual-only,
+//! game-only, agree, conflict or none; `ignore` is a manual disposition and
+//! never denies an in-game price. Each result carries both sides with
+//! causes, revisions, basis, parser and reference versions, the raw note
+//! verbatim. What a relation *means* is each consumer's rule (C74), not a
+//! frontend's. *Why:* four statements C++ fused and needed locks.
+//! *Details:* `game_side.rs`. *Pinned:* the parse, `c69_`; the rest at step
+//! 4. Amended 2026-09-04.
 //!
 //! # As built
 //!
@@ -57,10 +57,11 @@
 //! the marker comes first or the text is not a price note.
 //!
 //! **Nothing is decided here.** `~skip` in a tab name, `~b/o` with a
-//! ratio, a retired currency, a price on a non-public tab: the parser
-//! reports what the text says under [`NOTE_PARSER_VERSION`], and every
-//! consumer (the listing state, the render's policy table) cites that
-//! version beside its own rule (C74).
+//! ratio, a retired currency, a price on a non-public tab, which tab a
+//! nested item's game side reads (C80: a substash its parent, a folder
+//! child itself): the parser reports what one text says under
+//! [`NOTE_PARSER_VERSION`], and every consumer (the listing state, the
+//! render's policy table) cites that version beside its own rule (C74).
 
 use std::fmt;
 
