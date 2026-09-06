@@ -1,12 +1,18 @@
-//! Neutral snapshots: the read the planner (`acquisition-plan`) compiles
-//! plans from. A snapshot names facts and intent together — the listing
-//! bases a plan cites (the league's stash listing, the realm's character
-//! listing), tab and character identities with their freshness and their
-//! listed entries, the sync-policy annotation row at its revision, and
-//! the account uuid the pairing is bound to — and carries nothing
-//! derived: no staleness verdicts, no request lists. Policy compilation
-//! lives in `acquisition-plan`, never here — the store exposes neutral
-//! snapshots, "never half a planner" (CONTEXT.md, decided 2026-08-31).
+//! Neutral snapshots: the reads `acquisition-plan` derives from. A
+//! snapshot names facts and intent together and carries nothing derived.
+//! [`RefreshSnapshot`] is what the planner compiles plans from — the
+//! listing bases a plan cites (the league's stash listing, the realm's
+//! character listing), tab and character identities with their freshness
+//! and their listed entries, the sync-policy annotation row at its
+//! revision, and the account uuid the pairing is bound to — with no
+//! staleness verdicts and no request lists. [`PricingSnapshot`] (pricing
+//! slice step 4, 2026-09-06) is what the listing state resolves from —
+//! the same tabs and characters, every live item at them with its note
+//! verbatim, and every `buyout` row raw at its revision — with no
+//! coverage, no parse, no relation. Policy compilation and price
+//! resolution live in `acquisition-plan`, never here — the store exposes
+//! neutral snapshots, "never half a planner" (CONTEXT.md, decided
+//! 2026-08-31; C39, C64).
 //!
 //! Liveness is settled here, not in the planner (CONTEXT.md, the
 //! 2026-09-02 review rounds): a row in the snapshot is live by the latest
@@ -140,6 +146,66 @@ pub struct RefreshSnapshot {
     pub policy: Option<AnnotationRow>,
 }
 
+/// One live item as the pricing reader sees it (the listing state,
+/// `acquisition-plan`): identity, its full location, the columns a
+/// price line needs, and the `note` verbatim — nothing derived, and not
+/// the whole body (a league is tens of thousands of rows; the body is
+/// [`Store::item`]'s to give).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ItemSnapshot {
+    pub id: String,
+    /// `stash` or `character`.
+    pub location_kind: String,
+    /// The tab, substash or character id.
+    pub location_id: String,
+    /// The array the item came from; `None` before facts v4.
+    pub container: Option<String>,
+    /// The parent item, for a socketed gem: it has no position of its own.
+    pub socketed_in: Option<String>,
+    pub name: String,
+    pub type_line: String,
+    pub stack_size: Option<i64>,
+    pub x: Option<i64>,
+    pub y: Option<i64>,
+    /// The item's `note`, exactly as the API returned it; `None` when the
+    /// body carried none.
+    pub note: Option<String>,
+    /// `responses.id` of the fetch that last saw the item here.
+    pub seen_response: Option<i64>,
+    pub last_seen: i64,
+}
+
+/// A named snapshot of one (realm, league)'s pricing facts — the stash
+/// listing basis and its tabs (metadata verbatim: `public` lives there),
+/// the realm's character listing and this league's characters, every live
+/// item at those locations with its note — plus every `buyout` intent row
+/// the account holds, raw, at its revision. Nothing derived: which row
+/// covers which item, what a note says, what a relation means, are the
+/// listing state's (`acquisition-plan`, C69), never this crate's.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PricingSnapshot {
+    pub account_uuid: String,
+    pub account_name: Option<String>,
+    pub realm: String,
+    pub league: String,
+    pub taken_at: i64,
+    pub stash_listing: Option<ListingBasis>,
+    /// Live tabs in listing order, folders and substash stubs included.
+    pub tabs: Vec<TabSnapshot>,
+    pub character_listing: Option<ListingBasis>,
+    pub characters: Vec<CharacterSnapshot>,
+    /// Live items whose location is one of `tabs` or `characters`, in
+    /// location order, positioned items before socketed gems.
+    pub items: Vec<ItemSnapshot>,
+    /// Every live `buyout` row, whatever its scope and realm — the intent
+    /// file is per account, not per league; the reader matches targets.
+    pub buyouts: Vec<AnnotationRow>,
+}
+
+/// The `kind` of the price intent rows this snapshot carries (its value
+/// shape is `acquisition-plan`'s, C67).
+pub const BUYOUT_KIND: &str = "buyout";
+
 impl Store {
     /// Snapshot one (realm, league)'s refresh facts and the account's
     /// sync-policy row, so a plan's fact bases and annotation revision
@@ -159,215 +225,13 @@ impl Store {
         // database and cannot join this transaction; its basis is the
         // policy row's revision, which the CAS write path re-checks.)
         let tx = self.conn.unchecked_transaction()?;
-        let accounts: Vec<(String, Option<String>)> = {
-            let mut stmt = tx.prepare("SELECT uuid, name FROM account")?;
-            let rows = stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?;
-            rows.collect::<Result<_, _>>()?
-        };
-        let (account_uuid, account_name) = match accounts.as_slice() {
-            [one] => one.clone(),
-            [] => bail!(
-                "facts file {} records no account identity (no profile response has landed); \
-                 a snapshot cannot bind intent to it — one login fixes this",
-                self.path.display()
-            ),
-            many => bail!(
-                "facts file {} records {} account identities; refusing to pair intent with it",
-                self.path.display(),
-                many.len()
-            ),
-        };
-        // Pairing is by the uuid the annotations file carries internally
-        // (`meta`), not by filename — a copied or renamed file keeps its
-        // owner. A handle with no identity (a file opened from a raw path
-        // and never bound) is refused, never trusted.
-        match annotations.uuid() {
-            Some(u) if u == account_uuid => {}
-            Some(u) => bail!(
-                "annotations file {} belongs to account uuid {u}, not {account_uuid}",
-                annotations.path().display()
-            ),
-            None => bail!(
-                "annotations handle {} carries no account identity; open it with \
-                 Annotations::open_for so the pairing is checkable",
-                annotations.path().display()
-            ),
-        }
-        // The realm and league of a listing live in its params; omitted,
-        // they defaulted to pc / "Standard" at record time
-        // (`Endpoint::from_job`), so the match here defaults the same way
-        // — which is also how pre-realm rows keep answering for pc.
-        let basis = |r: &rusqlite::Row| {
-            Ok(ListingBasis {
-                response_id: r.get(0)?,
-                fetched_at: r.get(1)?,
-            })
-        };
-        let stash_listing = tx
-            .query_row(
-                "SELECT id, fetched_at FROM responses
-                  WHERE endpoint = 'stashes' AND status BETWEEN 200 AND 299
-                    AND COALESCE(json_extract(params, '$.realm'), 'pc') = ?1
-                    AND COALESCE(json_extract(params, '$.league'), 'Standard') = ?2
-                  ORDER BY id DESC LIMIT 1",
-                [realm, league],
-                basis,
-            )
-            .optional()?;
-        // The character list is per realm; the same query the v4
-        // migration's membership re-stamp uses, so the basis cited here
-        // is the one the rows are stamped to.
-        let character_listing = tx
-            .query_row(
-                "SELECT id, fetched_at FROM responses
-                  WHERE endpoint = 'characters' AND status BETWEEN 200 AND 299
-                    AND COALESCE(json_extract(params, '$.realm'), 'pc') = ?1
-                  ORDER BY id DESC LIMIT 1",
-                [realm],
-                basis,
-            )
-            .optional()?;
-        type RawTab = (
-            String,
-            Option<String>,
-            String,
-            String,
-            Option<i64>,
-            Option<i64>,
-            Option<i64>,
-            Option<i64>,
-            Option<String>,
-            i64,
-        );
-        let rows: Vec<RawTab> = {
-            let mut stmt = tx.prepare(&format!(
-                "SELECT t.id, t.parent, COALESCE(t.name, ''), COALESCE(t.type, ''), t.idx, t.listed_at, t.listed_response, t.fetched_at, t.listed_json,
-                        (SELECT count(*) FROM items i WHERE i.realm = t.realm AND i.league = t.league AND i.location_kind = 'stash' AND i.location_id = t.id AND i.removed_at IS NULL)
-                   FROM tabs t WHERE t.realm = ?1 AND t.league = ?2 AND t.removed_at IS NULL {TAB_ORDER_SQL}"
-            ))?;
-            let rows = stmt.query_map([realm, league], |r| {
-                Ok((
-                    r.get(0)?,
-                    r.get(1)?,
-                    r.get(2)?,
-                    r.get(3)?,
-                    r.get(4)?,
-                    r.get(5)?,
-                    r.get(6)?,
-                    r.get(7)?,
-                    r.get(8)?,
-                    r.get(9)?,
-                ))
-            })?;
-            rows.collect::<Result<_, _>>()?
-        };
-        // This league's live characters, in the same order `acq
-        // characters` prints, plus the realm's league-less ones. `json` is
-        // read only when a fetch stands: after revival the column still
-        // holds the disowned body.
-        type RawCharacter = (
-            String,
-            String,
-            Option<String>,
-            Option<i64>,
-            Option<i64>,
-            Option<i64>,
-            Option<String>,
-            Option<String>,
-        );
-        let character_rows: Vec<RawCharacter> = {
-            let mut stmt = tx.prepare(
-                "SELECT c.id, c.name, c.league, c.listed_at, c.listed_response, c.fetched_at, c.listed_json,
-                        CASE WHEN c.fetched_at IS NULL THEN NULL ELSE c.json END
-                   FROM characters c
-                  WHERE c.realm = ?1 AND c.removed_at IS NULL AND (c.league = ?2 OR c.league IS NULL)
-                  ORDER BY c.league, c.level DESC, c.name",
-            )?;
-            let rows = stmt.query_map([realm, league], |r| {
-                Ok((
-                    r.get(0)?,
-                    r.get(1)?,
-                    r.get(2)?,
-                    r.get(3)?,
-                    r.get(4)?,
-                    r.get(5)?,
-                    r.get(6)?,
-                    r.get(7)?,
-                ))
-            })?;
-            rows.collect::<Result<_, _>>()?
-        };
+        let (account_uuid, account_name) = self.account_identity(&tx)?;
+        check_pairing(annotations, &account_uuid)?;
+        let stash_listing = stash_basis(&tx, realm, league)?;
+        let character_listing = character_basis(&tx, realm)?;
+        let tabs = read_tabs(&tx, realm, league)?;
+        let characters = read_characters(&tx, realm, league)?;
         tx.finish()?;
-        let characters = character_rows
-            .into_iter()
-            .map(
-                |(id, name, league, listed_at, listed_response, fetched_at, listed, fetched)| {
-                    let parse = |raw: Option<String>, what: &str| -> Result<Value> {
-                        match raw {
-                            None => Ok(Value::Null),
-                            Some(raw) => serde_json::from_str::<Value>(&raw).with_context(|| {
-                                format!("character {realm}/{id}: malformed {what} in store")
-                            }),
-                        }
-                    };
-                    Ok(CharacterSnapshot {
-                        listed: parse(listed, "listing entry")?,
-                        fetched: parse(fetched, "fetched character")?,
-                        id,
-                        name,
-                        league,
-                        listed_at,
-                        listed_response,
-                        fetched_at,
-                    })
-                },
-            )
-            .collect::<Result<Vec<_>>>()?;
-        let tabs = rows
-            .into_iter()
-            .map(
-                |(
-                    id,
-                    parent,
-                    name,
-                    r#type,
-                    idx,
-                    listed_at,
-                    listed_response,
-                    fetched_at,
-                    listed_json,
-                    item_count,
-                )| {
-                    // A row this store wrote that no longer parses is a
-                    // damaged file, reported with its address — never
-                    // silently read as "no metadata".
-                    let metadata = match &listed_json {
-                        None => Value::Null,
-                        Some(raw) => serde_json::from_str::<Value>(raw)
-                            .with_context(|| {
-                                format!(
-                                    "tab {realm}/{league}/{id}: malformed listing entry in store"
-                                )
-                            })?
-                            .get("metadata")
-                            .cloned()
-                            .unwrap_or(Value::Null),
-                    };
-                    Ok(TabSnapshot {
-                        id,
-                        parent,
-                        name,
-                        r#type,
-                        idx,
-                        listed_at,
-                        listed_response,
-                        fetched_at,
-                        metadata,
-                        item_count,
-                    })
-                },
-            )
-            .collect::<Result<Vec<_>>>()?;
         let policy = annotations.get(SYNC_POLICY_SCOPE, SYNC_POLICY_KEY, SYNC_POLICY_KIND)?;
         Ok(RefreshSnapshot {
             account_uuid,
@@ -382,6 +246,314 @@ impl Store {
             policy,
         })
     }
+
+    /// Snapshot one (realm, league)'s pricing facts — the same tabs and
+    /// characters as [`Store::refresh_snapshot`], every live item at them
+    /// with its note verbatim — and every `buyout` row the account holds,
+    /// bound to one account the same way. Neutral (C39, C64): the listing
+    /// state is derived from this by `acquisition-plan`, never here.
+    pub fn pricing_snapshot(
+        &self,
+        realm: &str,
+        league: &str,
+        annotations: &Annotations,
+    ) -> Result<PricingSnapshot> {
+        let tx = self.conn.unchecked_transaction()?;
+        let (account_uuid, account_name) = self.account_identity(&tx)?;
+        check_pairing(annotations, &account_uuid)?;
+        let stash_listing = stash_basis(&tx, realm, league)?;
+        let character_listing = character_basis(&tx, realm)?;
+        let tabs = read_tabs(&tx, realm, league)?;
+        let characters = read_characters(&tx, realm, league)?;
+        let items = read_items(&tx, realm, league)?;
+        tx.finish()?;
+        let buyouts = annotations.list(None, Some(BUYOUT_KIND))?;
+        Ok(PricingSnapshot {
+            account_uuid,
+            account_name,
+            realm: realm.into(),
+            league: league.into(),
+            taken_at: crate::now(),
+            stash_listing,
+            tabs,
+            character_listing,
+            characters,
+            items,
+            buyouts,
+        })
+    }
+
+    /// The one account identity the facts file records (`/profile` lands
+    /// at every login) — the uuid intent is paired under.
+    fn account_identity(&self, tx: &rusqlite::Transaction) -> Result<(String, Option<String>)> {
+        let accounts: Vec<(String, Option<String>)> = {
+            let mut stmt = tx.prepare("SELECT uuid, name FROM account")?;
+            let rows = stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?;
+            rows.collect::<Result<_, _>>()?
+        };
+        match accounts.as_slice() {
+            [one] => Ok(one.clone()),
+            [] => bail!(
+                "facts file {} records no account identity (no profile response has landed); \
+                 a snapshot cannot bind intent to it — one login fixes this",
+                self.path.display()
+            ),
+            many => bail!(
+                "facts file {} records {} account identities; refusing to pair intent with it",
+                self.path.display(),
+                many.len()
+            ),
+        }
+    }
+}
+
+/// Pairing is by the uuid the annotations file carries internally
+/// (`meta`), not by filename — a copied or renamed file keeps its owner.
+/// A handle with no identity (a file opened from a raw path and never
+/// bound) is refused, never trusted.
+fn check_pairing(annotations: &Annotations, account_uuid: &str) -> Result<()> {
+    match annotations.uuid() {
+        Some(u) if u == account_uuid => Ok(()),
+        Some(u) => bail!(
+            "annotations file {} belongs to account uuid {u}, not {account_uuid}",
+            annotations.path().display()
+        ),
+        None => bail!(
+            "annotations handle {} carries no account identity; open it with \
+             Annotations::open_for so the pairing is checkable",
+            annotations.path().display()
+        ),
+    }
+}
+
+fn basis_row(r: &rusqlite::Row) -> rusqlite::Result<ListingBasis> {
+    Ok(ListingBasis {
+        response_id: r.get(0)?,
+        fetched_at: r.get(1)?,
+    })
+}
+
+/// The realm and league of a listing live in its params; omitted, they
+/// defaulted to pc / "Standard" at record time (`Endpoint::from_job`), so
+/// the match here defaults the same way — which is also how pre-realm
+/// rows keep answering for pc.
+fn stash_basis(
+    tx: &rusqlite::Transaction,
+    realm: &str,
+    league: &str,
+) -> Result<Option<ListingBasis>> {
+    Ok(tx
+        .query_row(
+            "SELECT id, fetched_at FROM responses
+              WHERE endpoint = 'stashes' AND status BETWEEN 200 AND 299
+                AND COALESCE(json_extract(params, '$.realm'), 'pc') = ?1
+                AND COALESCE(json_extract(params, '$.league'), 'Standard') = ?2
+              ORDER BY id DESC LIMIT 1",
+            [realm, league],
+            basis_row,
+        )
+        .optional()?)
+}
+
+/// The character list is per realm; the same query the v4 migration's
+/// membership re-stamp uses, so the basis cited here is the one the rows
+/// are stamped to.
+fn character_basis(tx: &rusqlite::Transaction, realm: &str) -> Result<Option<ListingBasis>> {
+    Ok(tx
+        .query_row(
+            "SELECT id, fetched_at FROM responses
+              WHERE endpoint = 'characters' AND status BETWEEN 200 AND 299
+                AND COALESCE(json_extract(params, '$.realm'), 'pc') = ?1
+              ORDER BY id DESC LIMIT 1",
+            [realm],
+            basis_row,
+        )
+        .optional()?)
+}
+
+fn read_tabs(tx: &rusqlite::Transaction, realm: &str, league: &str) -> Result<Vec<TabSnapshot>> {
+    type RawTab = (
+        String,
+        Option<String>,
+        String,
+        String,
+        Option<i64>,
+        Option<i64>,
+        Option<i64>,
+        Option<i64>,
+        Option<String>,
+        i64,
+    );
+    let rows: Vec<RawTab> = {
+        let mut stmt = tx.prepare(&format!(
+            "SELECT t.id, t.parent, COALESCE(t.name, ''), COALESCE(t.type, ''), t.idx, t.listed_at, t.listed_response, t.fetched_at, t.listed_json,
+                    (SELECT count(*) FROM items i WHERE i.realm = t.realm AND i.league = t.league AND i.location_kind = 'stash' AND i.location_id = t.id AND i.removed_at IS NULL)
+               FROM tabs t WHERE t.realm = ?1 AND t.league = ?2 AND t.removed_at IS NULL {TAB_ORDER_SQL}"
+        ))?;
+        let rows = stmt.query_map([realm, league], |r| {
+            Ok((
+                r.get(0)?,
+                r.get(1)?,
+                r.get(2)?,
+                r.get(3)?,
+                r.get(4)?,
+                r.get(5)?,
+                r.get(6)?,
+                r.get(7)?,
+                r.get(8)?,
+                r.get(9)?,
+            ))
+        })?;
+        rows.collect::<Result<_, _>>()?
+    };
+    rows.into_iter()
+        .map(
+            |(
+                id,
+                parent,
+                name,
+                r#type,
+                idx,
+                listed_at,
+                listed_response,
+                fetched_at,
+                listed_json,
+                item_count,
+            )| {
+                // A row this store wrote that no longer parses is a
+                // damaged file, reported with its address — never
+                // silently read as "no metadata".
+                let metadata = match &listed_json {
+                    None => Value::Null,
+                    Some(raw) => serde_json::from_str::<Value>(raw)
+                        .with_context(|| {
+                            format!("tab {realm}/{league}/{id}: malformed listing entry in store")
+                        })?
+                        .get("metadata")
+                        .cloned()
+                        .unwrap_or(Value::Null),
+                };
+                Ok(TabSnapshot {
+                    id,
+                    parent,
+                    name,
+                    r#type,
+                    idx,
+                    listed_at,
+                    listed_response,
+                    fetched_at,
+                    metadata,
+                    item_count,
+                })
+            },
+        )
+        .collect()
+}
+
+/// This league's live characters, in the same order `acq characters`
+/// prints, plus the realm's league-less ones. `json` is read only when a
+/// fetch stands: after revival the column still holds the disowned body.
+fn read_characters(
+    tx: &rusqlite::Transaction,
+    realm: &str,
+    league: &str,
+) -> Result<Vec<CharacterSnapshot>> {
+    type RawCharacter = (
+        String,
+        String,
+        Option<String>,
+        Option<i64>,
+        Option<i64>,
+        Option<i64>,
+        Option<String>,
+        Option<String>,
+    );
+    let rows: Vec<RawCharacter> = {
+        let mut stmt = tx.prepare(
+            "SELECT c.id, c.name, c.league, c.listed_at, c.listed_response, c.fetched_at, c.listed_json,
+                    CASE WHEN c.fetched_at IS NULL THEN NULL ELSE c.json END
+               FROM characters c
+              WHERE c.realm = ?1 AND c.removed_at IS NULL AND (c.league = ?2 OR c.league IS NULL)
+              ORDER BY c.league, c.level DESC, c.name",
+        )?;
+        let rows = stmt.query_map([realm, league], |r| {
+            Ok((
+                r.get(0)?,
+                r.get(1)?,
+                r.get(2)?,
+                r.get(3)?,
+                r.get(4)?,
+                r.get(5)?,
+                r.get(6)?,
+                r.get(7)?,
+            ))
+        })?;
+        rows.collect::<Result<_, _>>()?
+    };
+    rows.into_iter()
+        .map(
+            |(id, name, league, listed_at, listed_response, fetched_at, listed, fetched)| {
+                let parse = |raw: Option<String>, what: &str| -> Result<Value> {
+                    match raw {
+                        None => Ok(Value::Null),
+                        Some(raw) => serde_json::from_str::<Value>(&raw).with_context(|| {
+                            format!("character {realm}/{id}: malformed {what} in store")
+                        }),
+                    }
+                };
+                Ok(CharacterSnapshot {
+                    listed: parse(listed, "listing entry")?,
+                    fetched: parse(fetched, "fetched character")?,
+                    id,
+                    name,
+                    league,
+                    listed_at,
+                    listed_response,
+                    fetched_at,
+                })
+            },
+        )
+        .collect()
+}
+
+/// Live items at this league's live tabs and this league's (or
+/// league-less) live characters of the realm — the same membership
+/// [`read_tabs`] and [`read_characters`] report, so an item never cites a
+/// location the snapshot does not carry. The note is the body's `note`,
+/// verbatim; the body itself stays in the store.
+fn read_items(tx: &rusqlite::Transaction, realm: &str, league: &str) -> Result<Vec<ItemSnapshot>> {
+    let mut stmt = tx.prepare(
+        "SELECT i.id, i.location_kind, i.location_id, i.container, i.socketed_in,
+                COALESCE(i.name, ''), COALESCE(i.type_line, ''), i.stack_size, i.x, i.y,
+                json_extract(i.json, '$.note'), i.seen_response, i.last_seen
+           FROM items i
+          WHERE i.realm = ?1 AND i.removed_at IS NULL
+            AND ((i.location_kind = 'stash' AND i.league = ?2
+                  AND EXISTS (SELECT 1 FROM tabs t WHERE t.realm = i.realm AND t.league = i.league
+                                                     AND t.id = i.location_id AND t.removed_at IS NULL))
+              OR (i.location_kind = 'character'
+                  AND EXISTS (SELECT 1 FROM characters c WHERE c.realm = i.realm AND c.id = i.location_id
+                                                           AND c.removed_at IS NULL AND (c.league = ?2 OR c.league IS NULL))))
+          ORDER BY i.location_kind, i.location_id, i.y IS NULL, i.y, i.x, i.id",
+    )?;
+    let rows = stmt.query_map([realm, league], |r| {
+        Ok(ItemSnapshot {
+            id: r.get(0)?,
+            location_kind: r.get(1)?,
+            location_id: r.get(2)?,
+            container: r.get(3)?,
+            socketed_in: r.get(4)?,
+            name: r.get(5)?,
+            type_line: r.get(6)?,
+            stack_size: r.get(7)?,
+            x: r.get(8)?,
+            y: r.get(9)?,
+            note: r.get(10)?,
+            seen_response: r.get(11)?,
+            last_seen: r.get(12)?,
+        })
+    })?;
+    Ok(rows.collect::<Result<_, _>>()?)
 }
 
 #[cfg(test)]
@@ -1066,5 +1238,169 @@ mod tests {
             .unwrap();
         let err = s.refresh_snapshot("pc", "Standard", &a).unwrap_err();
         assert!(err.to_string().contains("pc/c1"), "{err:#}");
+    }
+
+    /// C64 — the pricing snapshot is neutral: every live item at the
+    /// league's live locations with its note verbatim (a stash item's, a
+    /// character item's, a socketed gem's), removed items and other
+    /// leagues' items left out, every `buyout` row raw whatever its scope
+    /// and realm, other kinds left out. Nothing here says what a note
+    /// means or which row covers what.
+    #[test]
+    fn the_pricing_snapshot_carries_notes_and_buyout_rows_verbatim_and_live_items_only() {
+        let mut s = store();
+        let mut a = Annotations::open_memory_for("u-1").unwrap();
+        s.record(
+            &listing_ep(),
+            &json!({}),
+            200,
+            &json!({ "stashes": [
+                { "id": "f1", "name": "Folder", "type": "Folder", "index": 0,
+                  "children": [ { "id": "c1", "name": "~price 3 chaos", "type": "PremiumStash", "index": 1, "metadata": { "public": true } } ] },
+                { "id": "m1", "name": "Maps", "type": "MapStash", "index": 2 } ] }),
+            100,
+        )
+        .unwrap();
+        let mut gem_holder = item("i-armour");
+        gem_holder["socketedItems"] = json!([ { "id": "i-gem", "name": "", "typeLine": "Fireball", "baseType": "Fireball", "note": "~b/o 2 divine" } ]);
+        let mut noted = item("i-noted");
+        noted["note"] = json!("~price 5 chaos");
+        noted["stackSize"] = json!(20);
+        s.record(
+            &stash_ep("c1", None),
+            &json!({}),
+            200,
+            &json!({ "stash": { "id": "c1", "name": "~price 3 chaos", "type": "PremiumStash",
+                                "items": [ noted.clone(), item("i-plain"), gem_holder.clone(), item("i-gone") ] } }),
+            110,
+        )
+        .unwrap();
+        // A later fetch without `i-gone` removes it; it leaves the snapshot.
+        s.record(
+            &stash_ep("c1", None),
+            &json!({}),
+            200,
+            &json!({ "stash": { "id": "c1", "name": "~price 3 chaos", "type": "PremiumStash",
+                                "items": [ noted, item("i-plain"), gem_holder ] } }),
+            120,
+        )
+        .unwrap();
+        list_characters(
+            &mut s,
+            "pc",
+            json!([ { "id": "ch-1", "name": "Exile", "league": "Standard" },
+                    { "id": "ch-2", "name": "Elsewhere", "league": "Hardcore" } ]),
+            130,
+        );
+        let mut worn = item("i-worn");
+        worn["note"] = json!("~price 2222 jewellers");
+        fetch_character(
+            &mut s,
+            "pc",
+            json!({ "id": "ch-1", "name": "Exile", "league": "Standard", "equipment": [ worn ], "inventory": [] }),
+            140,
+        );
+        fetch_character(
+            &mut s,
+            "pc",
+            json!({ "id": "ch-2", "name": "Elsewhere", "league": "Hardcore", "equipment": [ item("i-hc") ], "inventory": [] }),
+            141,
+        );
+        use crate::annotations::test_kinds::{Buyout, Note, via_test};
+        let value = json!({ "version": 1, "type": "ignore" });
+        for (scope, key) in [
+            ("item", "i-plain"),
+            ("tab", "pc/c1"),
+            ("substash", "pc/m1/s1"),
+            ("character", "ch-1"),
+            ("tab", "xbox/c1"),
+        ] {
+            a.put::<Buyout>(scope, key, &value, None, &via_test())
+                .unwrap();
+        }
+        a.put::<Note>(
+            "item",
+            "i-plain",
+            &json!({ "version": 1 }),
+            None,
+            &via_test(),
+        )
+        .unwrap();
+
+        let snap = s.pricing_snapshot("pc", "Standard", &a).unwrap();
+        assert_eq!(snap.account_uuid, "u-1");
+        assert_eq!(
+            snap.tabs.iter().map(|t| t.id.as_str()).collect::<Vec<_>>(),
+            ["f1", "c1", "m1"]
+        );
+        assert_eq!(snap.tabs[1].metadata, json!({ "public": true }));
+        assert_eq!(
+            snap.characters
+                .iter()
+                .map(|c| c.id.as_str())
+                .collect::<Vec<_>>(),
+            ["ch-1"]
+        );
+        let notes: Vec<(&str, &str, Option<&str>)> = snap
+            .items
+            .iter()
+            .map(|i| (i.location_id.as_str(), i.id.as_str(), i.note.as_deref()))
+            .collect();
+        assert_eq!(
+            notes,
+            [
+                ("ch-1", "i-worn", Some("~price 2222 jewellers")),
+                ("c1", "i-armour", None),
+                ("c1", "i-noted", Some("~price 5 chaos")),
+                ("c1", "i-plain", None),
+                ("c1", "i-gem", Some("~b/o 2 divine")),
+            ]
+        );
+        let gem = snap.items.iter().find(|i| i.id == "i-gem").unwrap();
+        assert_eq!(gem.socketed_in.as_deref(), Some("i-armour"));
+        assert_eq!((gem.x, gem.y), (None, None));
+        let noted = snap.items.iter().find(|i| i.id == "i-noted").unwrap();
+        assert_eq!(noted.stack_size, Some(20));
+        assert_eq!(noted.seen_response, Some(4)); // profile, listing, fetch, fetch
+        assert_eq!(noted.container.as_deref(), Some("items"));
+        let worn = snap.items.iter().find(|i| i.id == "i-worn").unwrap();
+        assert_eq!(worn.container.as_deref(), Some("equipment"));
+        // Every buyout row, raw, whatever its scope or realm; the note
+        // kind is not a price.
+        let rows: Vec<(&str, &str)> = snap
+            .buyouts
+            .iter()
+            .map(|r| (r.scope.as_str(), r.key.as_str()))
+            .collect();
+        assert_eq!(
+            rows,
+            [
+                ("character", "ch-1"),
+                ("item", "i-plain"),
+                ("substash", "pc/m1/s1"),
+                ("tab", "pc/c1"),
+                ("tab", "xbox/c1"),
+            ]
+        );
+        assert!(
+            snap.buyouts
+                .iter()
+                .all(|r| r.kind == "buyout" && r.value == value)
+        );
+        assert_eq!(snap.buyouts[0].written_via, "test");
+        // The same pairing rule as the refresh snapshot.
+        let other = Annotations::open_memory_for("u-2").unwrap();
+        let err = s.pricing_snapshot("pc", "Standard", &other).unwrap_err();
+        assert!(err.to_string().contains("u-2"), "{err:#}");
+        // Another league is another snapshot: its character and item, no
+        // tabs, the same intent rows.
+        let hc = s.pricing_snapshot("pc", "Hardcore", &a).unwrap();
+        assert!(hc.tabs.is_empty());
+        assert_eq!(hc.characters[0].id, "ch-2");
+        assert_eq!(
+            hc.items.iter().map(|i| i.id.as_str()).collect::<Vec<_>>(),
+            ["i-hc"]
+        );
+        assert_eq!(hc.buyouts.len(), 5);
     }
 }
