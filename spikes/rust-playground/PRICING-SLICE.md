@@ -23,8 +23,9 @@ claims authored master-side. Nothing here is a second authority.
   schema **v3** (provenance on every row; v3 is the floor — the owner's
   v2 file is refused and its one policy row set again by hand), facts **v7**, sync policy **v3**, plan schema
   **6**; currency table **v1** (reviewed by the owner 2026-09-05);
-  buyout value **v1**; game-side parser **v1**; listing report schema
-  **1**. Pricing code so far: `acquisition-plan/src/currency.rs`,
+  buyout value **v1** (`skip`, renamed from `ignore` 2026-09-06); game-side
+  parser **v1**; listing report schema **1** (additive: `chain`,
+  `effective`, `residue`, `league_unknown`, the views). Pricing code so far: `acquisition-plan/src/currency.rs`,
   `price.rs`, `game_side.rs`, `listing.rs`; the store's pricing snapshot
   (`snapshot.rs`); `acq reference currency` and `acq price
   status | show | list` (`price_cmd.rs`). No surface writes a price yet
@@ -124,6 +125,7 @@ claims file's appendix maps T→C as well.
 | plan 1 currency table | `10ef2374` | `currency-v1.toml` v1: 39 active rows (tag = emit = the game's word, display from the owner's dialog reading, a `game:` entry each), 4 legacy aliases, 3 retired rows; `currency.rs` (the loader as the reviewer's checklist); `acq reference currency`; the `c68_` tests |
 | Pricing | plan 3 game-side parser | `ee7d7bd7` | `game_side.rs`: `read(source, text, table)` over a note or a tab name — `exact`, `negotiable`, `skip`, `invalid` naming why, or none (C69); a leading `~` opens a price note; a tab name tolerates trailing text and refuses a ratio (T11), a note holds the grammar exactly (T10) and takes a ratio (T2); the word resolves through the table to a tag (C68); `NOTE_PARSER_VERSION`; the fixture reader shared with the currency tests (`price_notes_fixture.rs`); the `c69_` tests |
 | Pricing | plan 4 listing state | `c340b487`, `25f99e4f` | the store's `PricingSnapshot` (`Store::pricing_snapshot`: the refresh snapshot's tabs and characters, every live item at them with its `note` verbatim, every `buyout` row raw; the readers shared with `refresh_snapshot`); `listing.rs`: `resolve(&snapshot)` → a `ListingReport` (schema 1) with one `Listing` per tab, substash, character and item — the manual side by specificity (C70: item, substash, tab, folder; item, character), the game side through the tab C80 names (note first, then the tab name, both texts verbatim beside both readings, `public`), the relation with a sentence naming both sides, per-listing basis, parser and table versions, the row accounting (applied, other realm, unmatched, unreadable) and the counts; `acq price status | show | list` under C53's three views (`price_cmd.rs`); `PriceTarget: FromStr`, `Buyout: Deserialize` (the strict parse), `Amount` as text in JSON; the `c69_`, `c70_`, `c80_` and `c53_price_` tests |
+| Pricing | plan 4b C81 build | `9db1c99a` | `ignore` → `skip` (C67); the game side a statement only for a public tab (C81, T1) — a note or name that reads as a price or `skip` elsewhere is `residue`, shown, never a side; an unreadable note has no effect and the tab applies (T18); `Effective` on every listing (the more specific statement, the game's on a tie, by chain position; `side`, `from`, `why`); `Counts.by_effective`, `residue`; `acq price` says who decides (`status`'s first line, the `wins` column, `show`'s `effective:` line); the recorded C69 text in `listing.rs` and `game_side.rs` follows the registry; the `c81_` test |
 | Pricing | plan 2 annotations v3, typed value | `3d2902cd` | annotations v3 by stepwise `ALTER` (`written_via`, `actor`; C65); `IntentValue` + `check_value` in the store crate (version gate, per-kind strict parse, exact round-trip for a current-schema value, then CAS; C66) with `SyncPolicy` moved onto it unchanged; `Provenance` required by `put`/`delete` and threaded through `put_sync_policy`, the CLI (`cli`) and MCP (`mcp`); `list(scope, kind)`; `AnnotationError::Busy`; `price.rs`: `PriceTarget` (realm-bearing tab and substash keys), `Amount`, `Buyout` v1 (C67); the `c65_`, `c66_`, `c67_` tests |
 
 ## Findings
@@ -293,15 +295,14 @@ shows the item picture, so a wrong link is visible before posting.
   anything appended). Still the parser's own: `~skip` as a tab name
   reads `skip`. The indexer's loose word matching (T16) is not
   modelled; a hand-typed alias reads `invalid`, shown verbatim.
-- The relation word for a manual `skip` beside an in-game price is
-  `conflict` only where both are sides (a public tab); C81's effective
-  price says who wins. The `c69_` sentence about `ignore` "never
-  denying" goes with the rename.
-- C81 and the amended C67, C69 and C74 (2026-09-06) are ruled and not
-  yet built: the rename `ignore` → `skip`, the `public` gate on the game
-  side, `invalid` folded into "no effect", the effective price on every
-  listing, and the render's omission rule. Built with step 5, before
-  the owner's two rows land.
+- C74's omission rule (an item the game's price already lists is
+  omitted and counted; a prior post never read) is ruled and waits for
+  the render (step 6); the listing state's `effective.side` is what it
+  will read.
+- `priced_tabs` counts names that read as a price whether or not the
+  tab is public (the owner's 13 remove-only tabs are the case), beside
+  `priced_tabs_public`; whether `status` should lead with the residue
+  count for such a stash is a reading-1 question.
 - The 0.18 userstore's 120 notes and 17 tilde tab names are not in the
   fixture (the census read shapes, never texts); a later census that
   writes them there, verbatim, would widen the parser's pin from the one
