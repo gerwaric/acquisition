@@ -8,26 +8,34 @@
 //!
 //! Under C53: `status` opens with the one line that answers "what is
 //! listed" (items, priced in game, by hand, agree, conflict, unlisted),
-//! says which nothing when there is nothing, reports the rows that
-//! change the next decision (unreadable, naming nothing here), and ends
-//! with the next action; `--expand` adds the game side's coverage, the
-//! row accounting, the bases and the versions. `list` groups items by
-//! container in listing order, lists ten or fewer per group and counts
-//! more, and leaves `none` out unless asked; `--expand` lists every item
-//! with its texts. `show` is one target: both sides with their causes
-//! and revisions, the raw note beside the parse and the tab name beside
-//! its reading (the slice's done criterion), and for a container its
-//! items summarized. Escapes are not used; ages are text, epochs JSON.
+//! says which nothing when there is nothing — and still reports the
+//! intent rows, since orphaned intent stays visible (C35) — reports the
+//! rows that change the next decision (unreadable, naming nothing here),
+//! and ends with the next action; `--expand` adds the game side's
+//! coverage, the row accounting, the bases and the versions. `list`
+//! groups items by container in listing order, lists ten or fewer per
+//! group and counts more, and leaves `none` out unless asked; `--in` is
+//! the items physically in a container, `--covered-by` the items a row
+//! on a target would cover (C70), and a container not on record is a
+//! refusal, never an empty selection; `--expand` lists every item with
+//! its texts. `show` is one target: both sides with their causes and
+//! revisions, the raw note beside the parse and the tab name beside its
+//! reading (the slice's done criterion), and for a container both item
+//! sets. The text renderers read [`ListView`] and [`ShowView`] — the
+//! `--json` documents — and nothing else, so text is a function of JSON
+//! by construction; `tests/price_json.rs` pins the documents from a
+//! spawned binary. Escapes are not used; ages are text, epochs JSON.
 
 use std::str::FromStr;
 
 use acquisition_core::realm::Realm;
 use acquisition_plan::game_side::{GamePrice, Source};
-use acquisition_plan::listing::{Listing, ListingReport, Relation, resolve};
+use acquisition_plan::listing::{
+    ListFilter, ListView, Listing, ListingReport, Relation, ReportHeader, ShowView, resolve,
+};
 use acquisition_plan::price::PriceTarget;
 use acquisition_store::{Store, account_path};
 use anyhow::{Context, Result, bail};
-use serde_json::json;
 
 use crate::plan_cmd::open_intent;
 use crate::store_cmd::{ago, clip, realm_prefix};
@@ -56,6 +64,45 @@ pub fn status(realm: Realm, league: &str, expand: bool, json: bool) -> Result<()
     Ok(())
 }
 
+/// A target address as one word, or the grammar to type.
+fn parse_target(word: &str) -> Result<PriceTarget> {
+    PriceTarget::from_str(word).map_err(|e| {
+        anyhow::anyhow!(
+            "{e}; a target is one word: item/<id>, character/<id>, tab/<realm>/<id> or substash/<realm>/<parent>/<id>"
+        )
+    })
+}
+
+/// The realm a command reads: a tab or substash address carries its own
+/// and an explicit `--realm` must agree; an item or character address
+/// takes `--realm`, default pc.
+fn realm_of(targets: &[&PriceTarget], given: Option<Realm>) -> Result<Realm> {
+    let mut realm = given;
+    for t in targets {
+        if let PriceTarget::Tab { realm: r, .. } | PriceTarget::Substash { realm: r, .. } = t {
+            match realm {
+                Some(have) if have != *r => {
+                    bail!("{t} is a {r} address; {have} was given (--realm or another address)")
+                }
+                _ => realm = Some(*r),
+            }
+        }
+    }
+    Ok(realm.unwrap_or(Realm::DEFAULT))
+}
+
+/// The refusal for a target these facts do not hold.
+fn not_on_record(r: &ListingReport, target: &PriceTarget) -> anyhow::Error {
+    anyhow::anyhow!(
+        "{target} is not in the facts for {}{} ({} items, {} tabs and characters on record); \
+         `acq items search` finds an item's id, `acq tabs` a tab's",
+        realm_prefix(r.header.realm),
+        r.header.league,
+        r.counts.items,
+        r.counts.containers
+    )
+}
+
 /// `acq price show <target>`.
 pub fn show(
     target: &str,
@@ -64,58 +111,27 @@ pub fn show(
     expand: bool,
     json: bool,
 ) -> Result<()> {
-    let target = PriceTarget::from_str(target).map_err(|e| {
-        anyhow::anyhow!(
-            "{e}; a target is one word: item/<id>, character/<id>, tab/<realm>/<id> or substash/<realm>/<parent>/<id>"
-        )
-    })?;
-    let realm = match (&target, realm) {
-        (
-            PriceTarget::Tab { realm: r, .. } | PriceTarget::Substash { realm: r, .. },
-            Some(given),
-        ) if *r != given => {
-            bail!("{target} is a {r} address; --realm {given} disagrees")
-        }
-        (PriceTarget::Tab { realm: r, .. } | PriceTarget::Substash { realm: r, .. }, _) => *r,
-        (_, given) => given.unwrap_or(Realm::DEFAULT),
-    };
+    let target = parse_target(target)?;
+    let realm = realm_of(&[&target], realm)?;
     let r = report(realm, league)?;
-    let Some(l) = r.find(&target) else {
-        bail!(
-            "{target} is not in the facts for {}{league} ({} items, {} tabs and characters on record); \
-             `acq items search` finds an item's id, `acq tabs` a tab's",
-            realm_prefix(realm),
-            r.counts.items,
-            r.counts.containers
-        );
-    };
+    let view = r
+        .show_view(&target)
+        .ok_or_else(|| not_on_record(&r, &target))?;
     if json {
-        let items: Vec<&Listing> = r.items_in(&target).collect();
-        println!(
-            "{}",
-            serde_json::to_string_pretty(&json!({
-                "schema": r.schema,
-                "realm": r.realm,
-                "league": r.league,
-                "taken_at": r.taken_at,
-                "note_parser_version": r.note_parser_version,
-                "currency_table_version": r.currency_table_version,
-                "listing": l,
-                "items": items,
-            }))?
-        );
+        println!("{}", serde_json::to_string_pretty(&view)?);
         return Ok(());
     }
-    print!("{}", render_show(&r, l, acquisition_store::now(), expand));
+    print!("{}", render_show(&view, acquisition_store::now(), expand));
     Ok(())
 }
 
 /// `acq price list`.
 pub fn list(
-    realm: Realm,
+    realm: Option<Realm>,
     league: &str,
     relation: Option<&str>,
     location: Option<&str>,
+    covered_by: Option<&str>,
     expand: bool,
     json: bool,
 ) -> Result<()> {
@@ -128,53 +144,40 @@ pub fn list(
             )
         })?),
     };
-    let location = match location {
-        None => None,
-        Some(word) => {
-            let t = PriceTarget::from_str(word)
-                .map_err(|e| anyhow::anyhow!("{e}; --in takes a container address"))?;
-            if matches!(t, PriceTarget::Item { .. }) {
-                bail!("--in takes a container (tab, substash or character), not an item");
-            }
-            Some(t)
+    let container = |flag: &str, word: Option<&str>| -> Result<Option<PriceTarget>> {
+        let Some(word) = word else {
+            return Ok(None);
+        };
+        let t = parse_target(word)?;
+        if matches!(t, PriceTarget::Item { .. }) {
+            bail!("{flag} takes a container (tab, substash or character), not an item");
         }
+        Ok(Some(t))
     };
+    let location = container("--in", location)?;
+    let covered_by = container("--covered-by", covered_by)?;
+    let named: Vec<&PriceTarget> = [&location, &covered_by].into_iter().flatten().collect();
+    let realm = realm_of(&named, realm)?;
     let r = report(realm, league)?;
-    let items: Vec<&Listing> = r
-        .listings
-        .iter()
-        .filter(|l| l.subject.is_item())
-        .filter(|l| match relation {
-            Some(rel) => l.relation == rel,
-            None => l.relation != Relation::None,
-        })
-        .filter(|l| {
-            location
-                .as_ref()
-                .is_none_or(|loc| l.subject.location.as_ref() == Some(loc))
-        })
-        .collect();
+    let filter = ListFilter {
+        relation,
+        r#in: location.clone(),
+        covered_by: covered_by.clone(),
+    };
+    let Some(view) = r.list_view(filter) else {
+        let missing = [&location, &covered_by]
+            .into_iter()
+            .flatten()
+            .find(|t| r.find(t).is_none())
+            .cloned()
+            .unwrap_or(PriceTarget::Item { id: "?".into() });
+        return Err(not_on_record(&r, &missing));
+    };
     if json {
-        println!(
-            "{}",
-            serde_json::to_string_pretty(&json!({
-                "schema": r.schema,
-                "realm": r.realm,
-                "league": r.league,
-                "taken_at": r.taken_at,
-                "note_parser_version": r.note_parser_version,
-                "currency_table_version": r.currency_table_version,
-                "relation": relation.map(Relation::as_str),
-                "in": location,
-                "items": items,
-            }))?
-        );
+        println!("{}", serde_json::to_string_pretty(&view)?);
         return Ok(());
     }
-    print!(
-        "{}",
-        render_list(&r, &items, relation, location.as_ref(), expand)
-    );
+    print!("{}", render_list(&view, expand));
     Ok(())
 }
 
@@ -217,12 +220,53 @@ fn relation_word(rel: Relation) -> &'static str {
     }
 }
 
+/// The rows that change the next decision, one line, only when there
+/// are any; the same line whether or not there are items (C35: orphaned
+/// intent stays visible).
+fn rows_line(r: &ListingReport) -> Option<String> {
+    let rows = &r.rows;
+    (!rows.unmatched.is_empty() || !rows.unreadable.is_empty() || rows.other_realm > 0).then(
+        || {
+            format!(
+                "rows: {} of {} apply here; {} name nothing in these facts, {} unreadable, {} for other realms\n",
+                rows.applied,
+                rows.total,
+                rows.unmatched.len(),
+                rows.unreadable.len(),
+                rows.other_realm
+            )
+        },
+    )
+}
+
+fn rows_detail(r: &ListingReport) -> String {
+    let mut out = String::new();
+    let rows = &r.rows;
+    if !rows.unmatched.is_empty() {
+        out.push_str("rows naming nothing in these facts:\n");
+        for t in &rows.unmatched {
+            out.push_str(&format!("  {t}\n"));
+        }
+    }
+    if !rows.unreadable.is_empty() {
+        out.push_str("rows that cannot be read:\n");
+        for p in &rows.unreadable {
+            out.push_str(&format!(
+                "  {}/{} revision {}: {}\n",
+                p.scope, p.key, p.revision, p.why
+            ));
+        }
+    }
+    out
+}
+
 fn render_status(r: &ListingReport, now: i64, expand: bool) -> String {
     let mut out = String::new();
-    let place = format!("{}{}", realm_prefix(r.realm), r.league);
+    let h = &r.header;
+    let place = format!("{}{}", realm_prefix(h.realm), h.league);
     let c = &r.counts;
     if c.items == 0 {
-        if r.stash_listing.is_none() && r.character_listing.is_none() {
+        if h.stash_listing.is_none() && h.character_listing.is_none() {
             out.push_str(&format!(
                 "nothing on record for {place}: no stash listing, no character listing\n"
             ));
@@ -232,7 +276,23 @@ fn render_status(r: &ListingReport, now: i64, expand: bool) -> String {
                 plural(c.containers, "tab or character", "tabs and characters")
             ));
         }
-        out.push_str("next: `acq refresh --plan` shows what a refresh would fetch\n");
+        if let Some(line) = rows_line(r) {
+            out.push_str(&line);
+        } else if r.rows.total > 0 {
+            out.push_str(&format!(
+                "rows: {} on record, none naming these facts yet\n",
+                r.rows.total
+            ));
+        }
+        if expand {
+            out.push_str(&rows_detail(r));
+        }
+        let next = if !r.rows.unreadable.is_empty() {
+            "`acq price status --expand` lists the rows that cannot be read"
+        } else {
+            "`acq refresh --plan` shows what a refresh would fetch"
+        };
+        out.push_str(&format!("next: {next}\n"));
         return out;
     }
     let game_priced = reading_count(r, "exact") + reading_count(r, "negotiable");
@@ -253,14 +313,15 @@ fn render_status(r: &ListingReport, now: i64, expand: bool) -> String {
             "in game also: {skipped} skipped (~skip), {invalid} invalid notes (a broken note is not replaced by its tab's price)\n"
         ));
     }
-    let rows = &r.rows;
-    if !rows.unmatched.is_empty() || !rows.unreadable.is_empty() || rows.other_realm > 0 {
+    if c.league_unknown > 0 {
         out.push_str(&format!(
-            "rows: {} name nothing in these facts, {} unreadable, {} for other realms\n",
-            rows.unmatched.len(),
-            rows.unreadable.len(),
-            rows.other_realm
+            "{} items belong to a character the listing gave no league: they appear in every league's report and are not evidence for this one\n",
+            c.league_unknown
         ));
+    }
+    let rows = &r.rows;
+    if let Some(line) = rows_line(r) {
+        out.push_str(&line);
     }
     if expand {
         out.push_str(&format!(
@@ -269,8 +330,8 @@ fn render_status(r: &ListingReport, now: i64, expand: bool) -> String {
             c.priced_tabs_public,
             c.game_priced_public,
             c.game_priced_not_public,
-            r.note_parser_version,
-            r.currency_table_version
+            h.note_parser_version,
+            h.currency_table_version
         ));
         out.push_str(&format!(
             "by hand: {} of {} rows apply here; {} items inherit a container's row\n",
@@ -286,25 +347,11 @@ fn render_status(r: &ListingReport, now: i64, expand: bool) -> String {
         };
         out.push_str(&format!(
             "basis: stash listing {}, character listing {}; snapshot {}\n",
-            basis(r.stash_listing),
-            basis(r.character_listing),
-            ago(now, Some(r.taken_at))
+            basis(h.stash_listing),
+            basis(h.character_listing),
+            ago(now, Some(h.taken_at))
         ));
-        if !rows.unmatched.is_empty() {
-            out.push_str("rows naming nothing in these facts:\n");
-            for t in &rows.unmatched {
-                out.push_str(&format!("  {t}\n"));
-            }
-        }
-        if !rows.unreadable.is_empty() {
-            out.push_str("rows that cannot be read:\n");
-            for p in &rows.unreadable {
-                out.push_str(&format!(
-                    "  {}/{} revision {}: {}\n",
-                    p.scope, p.key, p.revision, p.why
-                ));
-            }
-        }
+        out.push_str(&rows_detail(r));
     }
     let next = if count_of(r, Relation::Conflict) > 0 {
         "`acq price list --relation conflict` names each conflict"
@@ -399,13 +446,13 @@ fn public_word(public: Option<bool>) -> &'static str {
 
 /// A container's name with what its tab name says and whether it is
 /// public — the context a group's items share, said once (C53).
-fn container_label(r: &ListingReport, c: &Listing) -> String {
+fn container_label(containers: &[Listing], c: &Listing) -> String {
     let mut name = if c.subject.name.is_empty() {
         "(unnamed)".to_string()
     } else {
         c.subject.name.clone()
     };
-    if c.subject.tab_type.is_none() {
+    if c.subject.tab_type.is_none() && !c.subject.league_unknown {
         return name;
     }
     // A substash under its parent: the parent's name is the one read.
@@ -414,8 +461,9 @@ fn container_label(r: &ListingReport, c: &Listing) -> String {
             realm: *realm,
             id: parent.clone(),
         };
-        let parent_name = r
-            .find(&parent)
+        let parent_name = containers
+            .iter()
+            .find(|p| p.subject.target == parent)
             .map(|p| p.subject.label())
             .unwrap_or_else(|| "(parent not on record)".into());
         name = format!("{parent_name} / {name}");
@@ -428,6 +476,9 @@ fn container_label(r: &ListingReport, c: &Listing) -> String {
     if let Some(public) = c.game.public {
         notes.push(public_word(Some(public)).to_string());
     }
+    if c.subject.league_unknown {
+        notes.push("league unknown".into());
+    }
     if notes.is_empty() {
         name
     } else {
@@ -435,31 +486,31 @@ fn container_label(r: &ListingReport, c: &Listing) -> String {
     }
 }
 
-fn render_list(
-    r: &ListingReport,
-    items: &[&Listing],
-    relation: Option<Relation>,
-    location: Option<&PriceTarget>,
-    expand: bool,
-) -> String {
+fn render_list(view: &ListView, expand: bool) -> String {
     let mut out = String::new();
-    let place = format!("{}{}", realm_prefix(r.realm), r.league);
-    let scope = match (relation, location) {
-        (Some(rel), Some(loc)) => format!(" with relation {rel} in {loc}"),
-        (Some(rel), None) => format!(" with relation {rel}"),
-        (None, Some(loc)) => format!(" in {loc}"),
-        (None, None) => String::new(),
-    };
+    let h = &view.header;
+    let items: Vec<&Listing> = view.items.iter().collect();
+    let place = format!("{}{}", realm_prefix(h.realm), h.league);
+    let mut scope = String::new();
+    if let Some(rel) = view.filter.relation {
+        scope.push_str(&format!(" with relation {rel}"));
+    }
+    if let Some(loc) = &view.filter.r#in {
+        scope.push_str(&format!(" in {loc}"));
+    }
+    if let Some(t) = &view.filter.covered_by {
+        scope.push_str(&format!(" covered by {t}"));
+    }
     if items.is_empty() {
-        let nothing = if r.counts.items == 0 {
+        let nothing = if view.items_on_record == 0 {
             "no items on record".to_string()
-        } else if relation.is_none() {
+        } else if view.filter.relation.is_none() {
             format!(
                 "{} items on record, none listed by hand or in game",
-                r.counts.items
+                view.items_on_record
             )
         } else {
-            format!("{} items on record, none match", r.counts.items)
+            format!("{} items on record, none match", view.items_on_record)
         };
         out.push_str(&format!("{nothing} for {place}{scope}\n"));
         out.push_str("next: `acq price status` says what is on record\n");
@@ -467,13 +518,12 @@ fn render_list(
     }
     // Groups by container, in the containers' order (tabs in listing
     // order, then characters); a location not on record comes last.
-    let mut groups: Vec<(&PriceTarget, Vec<&Listing>)> = r
-        .listings
+    let mut groups: Vec<(&PriceTarget, Vec<&Listing>)> = view
+        .containers
         .iter()
-        .filter(|c| !c.subject.is_item())
         .map(|c| (&c.subject.target, Vec::new()))
         .collect();
-    for l in items {
+    for l in &items {
         let Some(loc) = &l.subject.location else {
             continue;
         };
@@ -486,13 +536,15 @@ fn render_list(
     out.push_str(&format!(
         "{} listed in {place}{scope}: {}; in {}\n",
         plural(items.len(), "item", "items"),
-        breakdown(items),
+        breakdown(&items),
         plural(groups.len(), "container", "containers")
     ));
     for (loc, group) in &groups {
-        let label = r
-            .find(loc)
-            .map(|c| container_label(r, c))
+        let label = view
+            .containers
+            .iter()
+            .find(|c| &c.subject.target == *loc)
+            .map(|c| container_label(&view.containers, c))
             .unwrap_or_else(|| "(not on record)".into());
         out.push_str(&format!(
             "{label}  {}: {}  {loc}\n",
@@ -516,8 +568,10 @@ fn render_list(
     out
 }
 
-fn render_show(r: &ListingReport, l: &Listing, now: i64, expand: bool) -> String {
+fn render_show(view: &ShowView, now: i64, expand: bool) -> String {
     let mut out = String::new();
+    let h: &ReportHeader = &view.header;
+    let l = &view.listing;
     let s = &l.subject;
     let mut head = format!("{}: {}", s.target, s.label());
     if !s.name.is_empty() && !s.type_line.is_empty() && s.name != s.type_line {
@@ -530,7 +584,11 @@ fn render_show(r: &ListingReport, l: &Listing, now: i64, expand: bool) -> String
         head.push_str(&format!(" ({t})"));
     }
     if let Some(loc) = &s.location {
-        let name = r.find(loc).map(|c| c.subject.label()).unwrap_or_default();
+        let name = view
+            .container
+            .as_ref()
+            .map(|c| c.subject.label())
+            .unwrap_or_default();
         head.push_str(&format!("  in {name:?} {loc}"));
         if let Some(c) = &s.container
             && c != "items"
@@ -543,6 +601,11 @@ fn render_show(r: &ListingReport, l: &Listing, now: i64, expand: bool) -> String
     }
     out.push_str(&head);
     out.push('\n');
+    if s.league_unknown {
+        out.push_str(
+            "league unknown: the listing gave this character no league, so it appears in every league's report and is not evidence for this one\n",
+        );
+    }
     out.push_str(&format!("relation {}: {}\n", l.relation, l.why));
 
     match (&l.manual, &l.manual_problem) {
@@ -621,24 +684,46 @@ fn render_show(r: &ListingReport, l: &Listing, now: i64, expand: bool) -> String
         };
         out.push_str(&format!(
             "basis: {seen}; note parser v{}, currency table v{}; snapshot {}\n",
-            r.note_parser_version,
-            r.currency_table_version,
-            ago(now, Some(r.taken_at))
+            h.note_parser_version,
+            h.currency_table_version,
+            ago(now, Some(h.taken_at))
         ));
+        if s.is_item() {
+            out.push_str(&format!(
+                "chain: {}\n",
+                l.chain
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join(" > ")
+            ));
+        }
     }
 
     if !s.is_item() {
-        let items: Vec<&Listing> = r.items_in(&s.target).collect();
-        if items.is_empty() {
-            out.push_str("items: none on record here\n");
+        let here: Vec<&Listing> = view.items_here.iter().collect();
+        let below: Vec<&Listing> = view.items_covered_below.iter().collect();
+        // Two sets (C70): physically here, and covered through children.
+        if here.is_empty() {
+            out.push_str("items here: none on record\n");
         } else {
             out.push_str(&format!(
-                "items: {} — {}\n",
-                plural(items.len(), "item", "items"),
-                breakdown(&items)
+                "items here: {} — {}\n",
+                plural(here.len(), "item", "items"),
+                breakdown(&here)
             ));
-            if items.len() <= LIST_UP_TO || expand {
-                for l in &items {
+        }
+        if !below.is_empty() {
+            out.push_str(&format!(
+                "items covered through children (C70): {} — {}\n",
+                plural(below.len(), "item", "items"),
+                breakdown(&below)
+            ));
+        }
+        let shown: &[&Listing] = if here.is_empty() { &below } else { &here };
+        if !shown.is_empty() {
+            if shown.len() <= LIST_UP_TO || expand {
+                for l in shown {
                     out.push_str(&item_line(l));
                     if expand {
                         out.push_str(&item_texts(l));
@@ -646,7 +731,7 @@ fn render_show(r: &ListingReport, l: &Listing, now: i64, expand: bool) -> String
                 }
             } else {
                 out.push_str(&format!(
-                    "next: `acq price list --in {}` lists them; `--expand` here lists every one\n",
+                    "next: `acq price list --in {}` lists them, `--covered-by` the covered set; `--expand` here lists every one\n",
                     s.target
                 ));
                 return out;
@@ -797,7 +882,7 @@ mod tests {
         );
         assert_eq!(
             lines[1],
-            "rows: 1 name nothing in these facts, 0 unreadable, 0 for other realms"
+            "rows: 1 of 2 apply here; 1 name nothing in these facts, 0 unreadable, 0 for other realms"
         );
         assert_eq!(
             lines[2],
@@ -846,12 +931,8 @@ mod tests {
     #[test]
     fn c53_price_list_groups_by_container_and_lists_ten_or_fewer() {
         let r = report();
-        let items: Vec<&Listing> = r
-            .listings
-            .iter()
-            .filter(|l| l.subject.is_item() && l.relation != Relation::None)
-            .collect();
-        let text = render_list(&r, &items, None, None, false);
+        let view = r.list_view(ListFilter::default()).unwrap();
+        let text = render_list(&view, false);
         let lines: Vec<&str> = text.lines().collect();
         assert_eq!(
             lines[0],
@@ -890,7 +971,7 @@ mod tests {
         );
         assert_eq!(lines.len(), 7, "{text}");
 
-        let text = render_list(&r, &items, None, None, true);
+        let text = render_list(&view, true);
         assert!(
             text.contains("  conflict      ignore             5 chaos            Chaos Orb x10"),
             "{text}"
@@ -906,8 +987,13 @@ mod tests {
         assert!(text.contains("      row item/i-01 revision 4\n"), "{text}");
         assert_eq!(text.matches("      tab c1 ").count(), 12, "{text}");
 
-        let none: Vec<&Listing> = Vec::new();
-        let text = render_list(&r, &none, Some(Relation::Agree), None, false);
+        let view = r
+            .list_view(ListFilter {
+                relation: Some(Relation::Agree),
+                ..ListFilter::default()
+            })
+            .unwrap();
+        let text = render_list(&view, false);
         assert_eq!(
             text,
             "14 items on record, none match for Standard with relation agree\nnext: `acq price status` says what is on record\n"
@@ -920,8 +1006,9 @@ mod tests {
     #[test]
     fn the_raw_note_sits_beside_the_parse_in_show() {
         let r = report();
-        let l = r.find(&PriceTarget::Item { id: "i-01".into() }).unwrap();
-        let text = render_show(&r, l, 8_000, false);
+        let show = |target: PriceTarget| r.show_view(&target).unwrap();
+        let l = show(PriceTarget::Item { id: "i-01".into() });
+        let text = render_show(&l, 8_000, false);
         assert_eq!(
             text,
             "item/i-01: Chaos Orb x10  in \"~price 3 chaos (A)\" tab/pc/c1\n\
@@ -932,8 +1019,9 @@ mod tests {
              \x20 tab c1 \"~price 3 chaos (A)\" reads 3 chaos, public\n\
              next: `acq price list --in tab/pc/c1` is its neighbours\n"
         );
-        let text = render_show(&r, l, 8_000, true);
+        let text = render_show(&l, 8_000, true);
         assert!(text.contains("set 1h ago via cli as tom)"), "{text}");
+        assert!(text.contains("chain: item/i-01 > tab/pc/c1\n"), "{text}");
         assert!(
             text.contains(
                 "basis: response 7 1h ago; note parser v1, currency table v1; snapshot 1h ago\n"
@@ -942,8 +1030,8 @@ mod tests {
         );
 
         // A substash item: its own name beside the parent's reading.
-        let l = r.find(&PriceTarget::Item { id: "i-sub".into() }).unwrap();
-        let text = render_show(&r, l, 8_000, false);
+        let l = show(PriceTarget::Item { id: "i-sub".into() });
+        let text = render_show(&l, 8_000, false);
         assert!(text.contains("in game: 1 divine from the tab name\n  tab m1 \"~price 1 divine (Remove-only)\" reads 1 divine, not public\n  substash \"1 (Remove-only)\" (its parent's name and public are read, C80)\n"), "{text}");
         assert!(
             text.contains("by hand: nothing (no row on it or above it)\n"),
@@ -951,32 +1039,105 @@ mod tests {
         );
 
         // A character item: no stash to publish.
-        let l = r
-            .find(&PriceTarget::Item {
-                id: "i-worn".into(),
-            })
-            .unwrap();
-        let text = render_show(&r, l, 8_000, false);
+        let l = show(PriceTarget::Item {
+            id: "i-worn".into(),
+        });
+        let text = render_show(&l, 8_000, false);
         assert!(
             text.contains("  no tab name read: no stash to publish\n"),
             "{text}"
         );
 
         // A container: the items under it, counted past ten.
-        let l = r
-            .find(&PriceTarget::Tab {
-                realm: Realm::Pc,
-                id: "c1".into(),
-            })
-            .unwrap();
-        let text = render_show(&r, l, 8_000, false);
+        let l = show(PriceTarget::Tab {
+            realm: Realm::Pc,
+            id: "c1".into(),
+        });
+        let text = render_show(&l, 8_000, false);
         assert!(text.starts_with("tab/pc/c1: ~price 3 chaos (A) (PremiumStash)\nrelation game_only: in game: 3 chaos; no row applies\n"), "{text}");
         assert!(
-            text.contains("items: 12 items — 11 in game only, 1 conflict\n"),
+            text.contains("items here: 12 items — 11 in game only, 1 conflict\n"),
             "{text}"
         );
-        assert!(text.ends_with("next: `acq price list --in tab/pc/c1` lists them; `--expand` here lists every one\n"), "{text}");
-        let text = render_show(&r, l, 8_000, true);
+        assert!(!text.contains("covered through children"), "{text}");
+        assert!(
+            text.ends_with("next: `acq price list --in tab/pc/c1` lists them, `--covered-by` the covered set; `--expand` here lists every one\n"),
+            "{text}"
+        );
+        let text = render_show(&l, 8_000, true);
         assert_eq!(text.matches("\n  game_only ").count(), 11, "{text}");
+        // A parent tab: nothing here, its substash's item covered (C70).
+        let l = show(PriceTarget::Tab {
+            realm: Realm::Pc,
+            id: "m1".into(),
+        });
+        let text = render_show(&l, 8_000, false);
+        assert!(
+            text.contains("items here: none on record\nitems covered through children (C70): 1 item — 1 in game only\n"),
+            "{text}"
+        );
+        assert!(text.contains("i-sub\n"), "{text}");
+    }
+
+    /// A tab or substash address carries its realm; `--realm` must agree;
+    /// an item or character takes `--realm`, default pc.
+    #[test]
+    fn the_realm_comes_from_the_address_and_a_disagreement_refuses() {
+        let xbox = PriceTarget::Tab {
+            realm: Realm::Xbox,
+            id: "t".into(),
+        };
+        let item = PriceTarget::Item { id: "i".into() };
+        assert_eq!(realm_of(&[&xbox], None).unwrap(), Realm::Xbox);
+        assert_eq!(realm_of(&[&xbox], Some(Realm::Xbox)).unwrap(), Realm::Xbox);
+        assert_eq!(realm_of(&[&item], None).unwrap(), Realm::Pc);
+        assert_eq!(realm_of(&[&item], Some(Realm::Sony)).unwrap(), Realm::Sony);
+        assert_eq!(realm_of(&[&item, &xbox], None).unwrap(), Realm::Xbox);
+        let err = realm_of(&[&xbox], Some(Realm::Pc)).unwrap_err().to_string();
+        assert!(
+            err.contains("tab/xbox/t is a xbox address; pc was given"),
+            "{err}"
+        );
+        let pc = PriceTarget::Tab {
+            realm: Realm::Pc,
+            id: "u".into(),
+        };
+        assert!(realm_of(&[&xbox, &pc], None).is_err());
+    }
+
+    /// C35 — intent stays visible with no facts: the empty-league status
+    /// still reports the rows and picks its next action from them.
+    #[test]
+    fn c35_an_empty_league_still_reports_its_rows() {
+        let mut empty = snapshot();
+        empty.items.clear();
+        empty.buyouts.push(AnnotationRow {
+            scope: "item".into(),
+            key: "i-new".into(),
+            kind: "buyout".into(),
+            value: json!({ "version": 9, "type": "exact" }),
+            revision: 7,
+            created_at: 900,
+            updated_at: 950,
+            written_via: "cli".into(),
+            actor: None,
+        });
+        let r = resolve(&empty).unwrap();
+        let text = render_status(&r, 8_000, false);
+        assert_eq!(
+            text,
+            "no items on record for Standard: 4 tabs and characters listed, none fetched with items\n\
+             rows: 0 of 3 apply here; 2 name nothing in these facts, 1 unreadable, 0 for other realms\n\
+             next: `acq price status --expand` lists the rows that cannot be read\n"
+        );
+        let text = render_status(&r, 8_000, true);
+        assert!(
+            text.contains("rows that cannot be read:\n  item/i-new revision 7:"),
+            "{text}"
+        );
+        assert!(
+            text.contains("rows naming nothing in these facts:\n  item/i-01\n  item/i-gone\n"),
+            "{text}"
+        );
     }
 }

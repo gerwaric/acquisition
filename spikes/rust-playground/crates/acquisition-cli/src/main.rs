@@ -267,14 +267,21 @@ enum PriceCmd {
     List {
         #[arg(long, default_value = "Standard")]
         league: String,
+        /// The realm; a tab or substash address given to --in or
+        /// --covered-by carries its own.
         #[arg(long, value_parser = parse_realm)]
         realm: Option<Realm>,
         /// none, manual_only, game_only, agree or conflict.
         #[arg(long)]
         relation: Option<String>,
-        /// Only items in this container (a tab, substash or character address).
+        /// Only items physically in this container (a tab, substash or
+        /// character address).
         #[arg(long = "in")]
         location: Option<String>,
+        /// Only items a row on this target would cover (C70): a folder's
+        /// tabs' items, a map or unique tab's substashes' items too.
+        #[arg(long)]
+        covered_by: Option<String>,
         #[arg(long)]
         expand: bool,
     },
@@ -640,12 +647,14 @@ async fn run(cli: Cli) -> Result<()> {
                 realm,
                 relation,
                 location,
+                covered_by,
                 expand,
             } => price_cmd::list(
-                realm.unwrap_or(Realm::DEFAULT),
+                realm,
                 &league,
                 relation.as_deref(),
                 location.as_deref(),
+                covered_by.as_deref(),
                 expand,
                 cli.json,
             ),
