@@ -269,9 +269,9 @@ shows the item picture, so a wrong link is visible before posting.
 - The link code for an item in a substash (map and unique tabs); the
   post size limit (50,000 is the C++ constant); whether an unpriced
   (`no_price`) forum link is indexed; what the indexer does with a
-  ratio on a non-bulk item, and with `~b/o a/b`; a game `skip` against
-  a manual price. All blocked-and-counted in the render's policy table
-  until observed.
+  forum ratio on a non-bulk item, and with `~b/o a/b` (in game a typed
+  ratio unlists the item, T19); a game `skip` against a manual price.
+  All blocked-and-counted in the render's policy table until observed.
 - A nested tab on the site (hand experiment, one each): rename a
   public map or unique tab to a price and see whether its maps or
   uniques list at it; put a public priced tab inside a folder, and name
@@ -284,23 +284,29 @@ shows the item picture, so a wrong link is visible before posting.
   are as invisible as `metadata.public` says.
 - The game-side parser's real corpus is the test tab (fixture) plus the
   userstore's 120 notes; the facts hold the sale tabs listed, not
-  fetched, until the policy covers them. Three of its rules are the
-  parser's own, not observed: a `~` prefix the game does not write
-  (`~c/o`, `~gb/o`) reads `invalid`, not none, so the tab name is not
-  substituted; `~skip` as a tab name reads `skip`; a note is the grammar
-  and nothing more (the C++ regex searched, so tolerated text either
-  side). Each is one fixture line away from a correction.
+  fetched, until the policy covers them. Two of its rules were the
+  parser's own and are now observed (2026-09-06): an unreadable `~`
+  note has no effect and the tab applies (T18 — the parser still reads
+  it `invalid`, the listing state treats `invalid` and none alike);
+  a note is the grammar and nothing more (T17: the dialog strips
+  anything appended). Still the parser's own: `~skip` as a tab name
+  reads `skip`. The indexer's loose word matching (T16) is not
+  modelled; a hand-typed alias reads `invalid`, shown verbatim.
+- The relation word for a manual `skip` beside an in-game price is
+  `conflict` only where both are sides (a public tab); C81's effective
+  price says who wins. The `c69_` sentence about `ignore` "never
+  denying" goes with the rename.
+- C81 and the amended C67, C69 and C74 (2026-09-06) are ruled and not
+  yet built: the rename `ignore` → `skip`, the `public` gate on the game
+  side, `invalid` folded into "no effect", the effective price on every
+  listing, and the render's omission rule. Built with step 5, before
+  the owner's two rows land.
 - The 0.18 userstore's 120 notes and 17 tilde tab names are not in the
   fixture (the census read shapes, never texts); a later census that
   writes them there, verbatim, would widen the parser's pin from the one
   test tab to the owner's real corpus.
 - The C++ userstore stored `last_update` as text in an INTEGER column
   (Qt bound a `QDateTime`); nothing to fix, noted.
-- The relation word for a manual `ignore` beside an in-game price is
-  `conflict` (the two sides say different things; the `why` carries
-  C69's "never denies"). If the owner reads that count as alarm rather
-  than information at validation reading 1, the word — or a sixth
-  relation — is one line in `listing.rs` and its C69 test.
 - `acq price list` leaves relation `none` out by default (the owner's
   data holds 26k items and ~1.4k listed); `--relation none` asks for
   them. Whether "unlisted" should be visible by default is a reading-1
@@ -313,7 +319,9 @@ shows the item picture, so a wrong link is visible before posting.
 
 1. Are the two manual rows (a character item at 2222 `jew`; one tab
    ignored) real intent to set by hand at step 5, or test residue to
-   drop?
+   drop? The C++ combo's `[Inherit]` was the clear; the ignored tab's
+   row still carries 4321 `blessed` underneath, the shape of a price row
+   switched to ignore (2026-09-06).
 2. C73 parked as "a 0.18 user asks": pricing is niche, but the 0.18
    import is a product question for other users, not only yours. Park
    stands unless you say otherwise.
