@@ -14,7 +14,8 @@
 # amount) is what the game leaves after an invalid entry such as a ratio
 # on a non-bulk item; `~skip ` is the game's "Do not index" choice; the
 # five-digit and four-decimal amounts are the game's own. Prices set in
-# Acquisition are bounded to two fractional digits regardless (C67).
+# Acquisition are bounded to the same four fractional digits (C67; the
+# owner reads the trade site as taking four, 2026-09-06).
 # 39 distinct currency words appear; `chisel`, `coin` and `silver` (the
 # C++ table) are no longer offered in game; `echor` is the game's spelling.
 

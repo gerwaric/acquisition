@@ -11,11 +11,11 @@
 //! `type` is `exact` (`~price`), `negotiable` (`~b/o`), `no_price` or
 //! `ignore`; the first two carry `amount` and a `currency` tag that must
 //! resolve in the reference table (C68). `amount` is a decimal of at most
-//! two fractional digits, or a lot ratio `wanted/lot` (T2) of two unreduced
-//! positive integers; canonical text, structural equality; more digits are
-//! refused. *Why:* the key mirrors the store's identity (C54, C58); the
-//! game writes four places (T10), two ruled 2026-09-04; widening is
-//! compatible, narrowing is not. *Details:* `price.rs`. *Pinned:* the
+//! four fractional digits (T10), or a lot ratio `wanted/lot` (T2) of two
+//! unreduced positive integers; canonical text, structural equality; more
+//! digits are refused. *Why:* the key mirrors the store's identity (C54,
+//! C58); the game writes four places (T10), two ruled 2026-09-04; widening
+//! is compatible, narrowing is not. *Details:* `price.rs`. *Pinned:* the
 //! `c67_` tests.
 //!
 //! # As built
@@ -43,8 +43,15 @@
 //! equals `"12.5"`, while the JSON door holds a v1 value to its canonical
 //! text through the store's exact round-trip (C66) — a non-canonical
 //! spelling in a value is refused there naming the path, not rewritten.
-//! A third fractional digit is refused; `0`, `0.00` and `0/5` are
-//! refused (a price is positive); `10/0` is refused.
+//! A decimal has at most **four** fractional digits — what the game
+//! itself writes (T10: `999.1234` in the fixture) — held as
+//! ten-thousandths, so the same type carries an observed note's amount
+//! at plan step 3 and a manual price, and step 4 compares them
+//! structurally; a fifth digit is refused. `0`, `0.00` and `0/5` are
+//! refused (a price is positive); `10/0` is refused. (v1 was ruled at
+//! two places on 2026-09-04 and widened to four on 2026-09-06 after an
+//! outside review; widening is compatible, every stored two-place value
+//! still parses.)
 //!
 //! `currency` is a **tag** of the shipped currency table
 //! ([`crate::currency`]) — the immutable identity intent cites (C68),
@@ -229,14 +236,14 @@ impl fmt::Display for PriceTarget {
     }
 }
 
-/// How much: a decimal of at most two fractional digits, held as
-/// hundredths, or a bulk ratio `wanted/lot` (T2) kept unreduced. Equality
-/// is structural on those parts — `2.50` and `2.5` are one amount,
-/// `22/10` and `11/5` are two.
+/// How much: a decimal of at most four fractional digits, held as
+/// ten-thousandths, or a bulk ratio `wanted/lot` (T2) kept unreduced.
+/// Equality is structural on those parts — `2.50` and `2.5` are one
+/// amount, `22/10` and `11/5` are two.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Amount {
-    /// A positive decimal, in hundredths: `12.5` is `1250`.
-    Decimal { hundredths: u64 },
+    /// A positive decimal, in ten-thousandths: `12.5` is `125000`.
+    Decimal { ten_thousandths: u64 },
     /// `wanted` of the currency for a `lot` of the item; both positive.
     Ratio { wanted: u64, lot: u64 },
 }
@@ -268,9 +275,10 @@ impl FromStr for Amount {
     type Err = AmountError;
 
     /// The human spelling: `12`, `12.5`, `12.50` (a trailing zero is
-    /// tolerated and dropped), `22/10`. Refused: a third fractional digit
-    /// (never rounded), a leading zero, a sign, whitespace, zero, a zero
-    /// lot, and anything that is not digits, one `.` or one `/`.
+    /// tolerated and dropped), `999.1234`, `22/10`. Refused: a fifth
+    /// fractional digit (never rounded), a leading zero, a sign,
+    /// whitespace, zero, a zero lot, and anything that is not digits, one
+    /// `.` or one `/`.
     fn from_str(text: &str) -> Result<Amount, AmountError> {
         let err = |why: &'static str| AmountError {
             text: text.into(),
@@ -291,8 +299,8 @@ impl FromStr for Amount {
         if text.contains('.') && fraction.is_empty() {
             return Err(err("a decimal does not end in `.`"));
         }
-        if fraction.len() > 2 {
-            return Err(err("at most two fractional digits (refused, not rounded)"));
+        if fraction.len() > 4 {
+            return Err(err("at most four fractional digits (refused, not rounded)"));
         }
         if !fraction.bytes().all(|b| b.is_ascii_digit()) {
             return Err(err(
@@ -312,19 +320,21 @@ impl FromStr for Amount {
                 }
             }
         };
-        let cents: u64 = match fraction.len() {
-            0 => 0,
-            1 => fraction.parse::<u64>().map_err(|_| err("not a decimal"))? * 10,
-            _ => fraction.parse::<u64>().map_err(|_| err("not a decimal"))?,
+        // The fraction, right-padded to four places: `5` → 5000, `1234` → 1234.
+        let fraction_part: u64 = if fraction.is_empty() {
+            0
+        } else {
+            let digits = fraction.parse::<u64>().map_err(|_| err("not a decimal"))?;
+            digits * 10u64.pow(4 - fraction.len() as u32)
         };
-        let hundredths = units
-            .checked_mul(100)
-            .and_then(|h| h.checked_add(cents))
+        let ten_thousandths = units
+            .checked_mul(10_000)
+            .and_then(|t| t.checked_add(fraction_part))
             .ok_or_else(|| err("too large"))?;
-        if hundredths == 0 {
+        if ten_thousandths == 0 {
             return Err(err("a price is positive"));
         }
-        Ok(Amount::Decimal { hundredths })
+        Ok(Amount::Decimal { ten_thousandths })
     }
 }
 
@@ -332,15 +342,17 @@ impl fmt::Display for Amount {
     /// The canonical text: the shortest decimal, or `wanted/lot` verbatim.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
-            Amount::Decimal { hundredths } => {
-                let (units, cents) = (hundredths / 100, hundredths % 100);
-                if cents == 0 {
-                    write!(f, "{units}")
-                } else if cents % 10 == 0 {
-                    write!(f, "{units}.{}", cents / 10)
-                } else {
-                    write!(f, "{units}.{cents:02}")
+            Amount::Decimal { ten_thousandths } => {
+                let (units, mut frac) = (ten_thousandths / 10_000, ten_thousandths % 10_000);
+                if frac == 0 {
+                    return write!(f, "{units}");
                 }
+                let mut places = 4;
+                while frac % 10 == 0 {
+                    frac /= 10;
+                    places -= 1;
+                }
+                write!(f, "{units}.{frac:0places$}")
             }
             Amount::Ratio { wanted, lot } => write!(f, "{wanted}/{lot}"),
         }
@@ -645,20 +657,29 @@ mod tests {
         );
     }
 
-    /// C67 — the amount's grammar: two-place decimal or unreduced lot
-    /// pair, canonical text, structural equality, more digits refused.
+    /// C67 — the amount's grammar: a decimal of at most four places (what
+    /// the game writes, T10) or an unreduced lot pair, canonical text,
+    /// structural equality, more digits refused.
     #[test]
-    fn c67_the_amount_is_a_two_place_decimal_or_an_unreduced_lot_pair() {
-        let dec = |h: u64| Amount::Decimal { hundredths: h };
+    fn c67_the_amount_is_a_four_place_decimal_or_an_unreduced_lot_pair() {
+        let dec = |t: u64| Amount::Decimal { ten_thousandths: t };
         let ratio = |w: u64, l: u64| Amount::Ratio { wanted: w, lot: l };
         for (text, amount, canonical) in [
-            ("1", dec(100), "1"),
-            ("150", dec(15000), "150"),
-            ("2.5", dec(250), "2.5"),
-            ("2.50", dec(250), "2.5"),
-            ("2.05", dec(205), "2.05"),
-            ("0.5", dec(50), "0.5"),
-            ("0.01", dec(1), "0.01"),
+            ("1", dec(10_000), "1"),
+            ("150", dec(1_500_000), "150"),
+            ("12345", dec(123_450_000), "12345"),
+            ("2.5", dec(25_000), "2.5"),
+            ("2.50", dec(25_000), "2.5"),
+            ("2.05", dec(20_500), "2.05"),
+            ("0.5", dec(5_000), "0.5"),
+            ("0.01", dec(100), "0.01"),
+            ("0.0001", dec(1), "0.0001"),
+            // The fixture's own decimals (price-notes-2026-09-04.txt).
+            ("999.1", dec(9_991_000), "999.1"),
+            ("999.12", dec(9_991_200), "999.12"),
+            ("999.123", dec(9_991_230), "999.123"),
+            ("999.1234", dec(9_991_234), "999.1234"),
+            ("999.1230", dec(9_991_230), "999.123"),
             ("22/10", ratio(22, 10), "22/10"),
             ("55/600", ratio(55, 600), "55/600"),
             ("3/1", ratio(3, 1), "3/1"),
@@ -674,7 +695,8 @@ mod tests {
         assert_ne!("22/10".parse::<Amount>().unwrap(), "11/5".parse().unwrap());
         assert_ne!("3/1".parse::<Amount>().unwrap(), "3".parse().unwrap());
         for (bad, why) in [
-            ("2.505", "two fractional"),
+            ("2.12345", "four fractional"),
+            ("999.00001", "four fractional"),
             ("2.", "end in"),
             (".5", "digits"),
             ("02", "digits"),
@@ -786,8 +808,8 @@ mod tests {
             "needs a currency",
         );
         refused(
-            json!({ "version": 1, "type": "exact", "amount": "1.005", "currency": "chaos" }),
-            "two fractional",
+            json!({ "version": 1, "type": "exact", "amount": "1.00005", "currency": "chaos" }),
+            "four fractional",
         );
         refused(
             json!({ "version": 1, "type": "exact", "amount": "1", "currency": "chaos", "note": "x" }),
