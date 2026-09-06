@@ -23,9 +23,10 @@ claims authored master-side. Nothing here is a second authority.
   schema **v3** (provenance on every row; v3 is the floor — the owner's
   v2 file is refused and its one policy row set again by hand), facts **v7**, sync policy **v3**, plan schema
   **6**; currency table **v1** (reviewed by the owner 2026-09-05);
-  buyout value **v1**. Pricing code so far: `acquisition-plan/src/currency.rs`,
-  `acquisition-plan/src/price.rs` (no surface writes a price yet) and
-  `acq reference currency`.
+  buyout value **v1**; game-side parser **v1**. Pricing code so far:
+  `acquisition-plan/src/currency.rs`, `acquisition-plan/src/price.rs`,
+  `acquisition-plan/src/game_side.rs` (no surface writes or shows a
+  price yet) and `acq reference currency`.
 - The forum is **write-only from our side**: `/character` returns no
   `forum_note` for a forum-listed item (price-notes run, 2026-09-04), so
   the game side of a listing is item note, then tab name (C69), and a
@@ -118,6 +119,7 @@ claims file's appendix maps T→C as well.
 | Pricing | 2d currency source | `51a33751` | `SURFACES.md`, the register under C79 (the trade site: `browser`, no automation); `crates/acquisition-plan/reference/currency-v1.toml`, 19 rows from the C++ list with a citation each |
 | Pricing | 2e forum reading, price-notes run, re-scope | `0d9fee64` | the owner's saved trade-site and wiki pages read, Procurement and the C++ shop compared, the API reference checked for `forum_note`; the price-notes run (ledger row 2026-09-04: the test tab and the forum-listed character); the note corpus committed as a fixture; C65, C67, C68, C69, C72, C74 amended, C71, C73, C78 parked in place; the plan above; `SURFACES.md` rows; `tools/notes-check.py` |
 | Pricing | plan 1 currency table | `10ef2374` | `currency-v1.toml` v1: 39 active rows (tag = emit = the game's word, display from the owner's dialog reading, a `game:` entry each), 4 legacy aliases, 3 retired rows; `currency.rs` (the loader as the reviewer's checklist); `acq reference currency`; the `c68_` tests |
+| Pricing | plan 3 game-side parser | `ee7d7bd7` | `game_side.rs`: `read(source, text, table)` over a note or a tab name — `exact`, `negotiable`, `skip`, `invalid` naming why, or none (C69); a leading `~` opens a price note; a tab name tolerates trailing text and refuses a ratio (T11), a note holds the grammar exactly (T10) and takes a ratio (T2); the word resolves through the table to a tag (C68); `NOTE_PARSER_VERSION`; the fixture reader shared with the currency tests (`price_notes_fixture.rs`); the `c69_` tests |
 | Pricing | plan 2 annotations v3, typed value | `3d2902cd` | annotations v3 by stepwise `ALTER` (`written_via`, `actor`; C65); `IntentValue` + `check_value` in the store crate (version gate, per-kind strict parse, exact round-trip for a current-schema value, then CAS; C66) with `SyncPolicy` moved onto it unchanged; `Provenance` required by `put`/`delete` and threaded through `put_sync_policy`, the CLI (`cli`) and MCP (`mcp`); `list(scope, kind)`; `AnnotationError::Busy`; `price.rs`: `PriceTarget` (realm-bearing tab and substash keys), `Amount`, `Buyout` v1 (C67); the `c65_`, `c66_`, `c67_` tests |
 
 ## Findings
@@ -271,7 +273,16 @@ shows the item picture, so a wrong link is visible before posting.
   are as invisible as `metadata.public` says.
 - The game-side parser's real corpus is the test tab (fixture) plus the
   userstore's 120 notes; the facts hold the sale tabs listed, not
-  fetched, until the policy covers them.
+  fetched, until the policy covers them. Three of its rules are the
+  parser's own, not observed: a `~` prefix the game does not write
+  (`~c/o`, `~gb/o`) reads `invalid`, not none, so the tab name is not
+  substituted; `~skip` as a tab name reads `skip`; a note is the grammar
+  and nothing more (the C++ regex searched, so tolerated text either
+  side). Each is one fixture line away from a correction.
+- The 0.18 userstore's 120 notes and 17 tilde tab names are not in the
+  fixture (the census read shapes, never texts); a later census that
+  writes them there, verbatim, would widen the parser's pin from the one
+  test tab to the owner's real corpus.
 - The C++ userstore stored `last_update` as text in an INTEGER column
   (Qt bound a `QDateTime`); nothing to fix, noted.
 - `LIVE-TESTING.md` is over 90% of its budget; route at session close.
