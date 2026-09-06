@@ -100,6 +100,26 @@
 //! sentence says what C69 rules: `ignore` leaves the item out of the shop
 //! and does not deny the price the game shows. What any relation means for
 //! a page is the render's policy table (C74), not this module's.
+//!
+//! **League unknown.** The store carries a character the listing gave no
+//! league under every league of its realm (the planner's rule, so every
+//! plan can report it as outside coverage); the pricing snapshot inherits
+//! that read. Here such a character and its items are flagged
+//! `league_unknown` and counted, in every league's report: the report is
+//! not evidence they belong to its league, and a render blocks them by
+//! name rather than placing them on a page. None of the owner's
+//! characters is one (census 2c); the flag exists for the store's rule,
+//! not for a case in hand.
+//!
+//! **Two item sets per container, and the views.** Every listing carries
+//! its manual chain, so a container has two sets: the items physically in
+//! it ([`ListingReport::items_in`]) and the items a row on it would cover
+//! ([`ListingReport::items_covered_by`]) — the same for an ordinary tab,
+//! different for a folder (nothing here, its tabs' items covered) and for
+//! a map or unique tab (its own items here, its substashes' covered too).
+//! [`ListView`] and [`ShowView`] are `list`'s and `show`'s JSON contracts
+//! and everything their text is a function of (C53): the header, the
+//! selection, the containers the selected items sit in, both item sets.
 
 use std::collections::{BTreeMap, HashMap};
 use std::fmt;
@@ -149,6 +169,12 @@ pub struct Subject {
     /// position of its own.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub socketed_in: Option<String>,
+    /// A character the listing gave no league, and its items: the store
+    /// carries them under every league of the realm, so this report is
+    /// not evidence they belong to its league (module doc, "League
+    /// unknown").
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub league_unknown: bool,
 }
 
 impl Subject {
@@ -277,6 +303,11 @@ pub struct Basis {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Listing {
     pub subject: Subject,
+    /// The manual side's walk (C70), most specific first: the subject's
+    /// own target, then each container whose row would cover it. A row
+    /// on any of these is what `manual` reports; a target's coverage is
+    /// every listing whose chain holds it ([`ListingReport::items_covered_by`]).
+    pub chain: Vec<PriceTarget>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub manual: Option<ManualSide>,
     /// A row that would apply could not be read; the walk stopped there.
@@ -333,13 +364,14 @@ pub struct Counts {
     pub priced_tabs_public: usize,
     /// Items whose manual side is inherited.
     pub inherited: usize,
+    /// Items of a character the listing gave no league.
+    pub league_unknown: usize,
 }
 
-/// The listing state of one (realm, league): every subject, the row
-/// accounting, the counts, and the bases and versions it was resolved
-/// under.
+/// What every view of the state says first: whose facts, which
+/// (realm, league), when, on which bases, under which versions.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ListingReport {
+pub struct ReportHeader {
     pub schema: u32,
     pub account_uuid: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -353,11 +385,66 @@ pub struct ListingReport {
     pub character_listing: Option<ListingBasis>,
     pub note_parser_version: u32,
     pub currency_table_version: u32,
+}
+
+/// The listing state of one (realm, league): every subject, the row
+/// accounting, the counts, and the bases and versions it was resolved
+/// under.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ListingReport {
+    #[serde(flatten)]
+    pub header: ReportHeader,
     pub counts: Counts,
     pub rows: RowAccounting,
     /// Containers first (tabs in listing order, then characters), then
     /// items in the snapshot's order.
     pub listings: Vec<Listing>,
+}
+
+/// Which items `list` selects: by relation (absent: every relation but
+/// `none`), physically in one container, or covered by a row on one
+/// target (C70) — the two are different sets for a folder or a parent
+/// tab.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub struct ListFilter {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub relation: Option<Relation>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub r#in: Option<PriceTarget>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub covered_by: Option<PriceTarget>,
+}
+
+/// `list`'s contract: everything its text is a function of (C53) — the
+/// header, the filter, the containers on the selected items' chains (the
+/// one each sits in and those above it, in the report's order, each with
+/// its own listing), and the items.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ListView {
+    #[serde(flatten)]
+    pub header: ReportHeader,
+    pub filter: ListFilter,
+    /// How many items the report holds, so an empty selection can say
+    /// which nothing it is.
+    pub items_on_record: usize,
+    pub containers: Vec<Listing>,
+    pub items: Vec<Listing>,
+}
+
+/// `show`'s contract: the listing, the container an item sits in, and
+/// for a container both item sets — physically here, and covered by a
+/// row on it (C70).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ShowView {
+    #[serde(flatten)]
+    pub header: ReportHeader,
+    pub listing: Listing,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub container: Option<Listing>,
+    pub items_here: Vec<Listing>,
+    /// Items whose chain holds this target but that do not sit in it: a
+    /// folder's, through its tabs; a parent tab's, through its substashes.
+    pub items_covered_below: Vec<Listing>,
 }
 
 impl ListingReport {
@@ -373,12 +460,95 @@ impl ListingReport {
             .filter(move |l| l.subject.location.as_ref() == Some(location))
     }
 
+    /// The item listings a row on `target` would cover (C70): every item
+    /// whose chain holds it, its own items and its children's.
+    pub fn items_covered_by<'a>(
+        &'a self,
+        target: &'a PriceTarget,
+    ) -> impl Iterator<Item = &'a Listing> {
+        self.listings
+            .iter()
+            .filter(move |l| l.subject.is_item() && l.chain.contains(target))
+    }
+
     /// The report without its listings: what `status` is.
     pub fn summary(&self) -> ListingReport {
         ListingReport {
             listings: Vec::new(),
             ..self.clone()
         }
+    }
+
+    /// `list`'s view under a filter. `None` when the filter names a
+    /// container that is not a subject of these facts — a refusal, never
+    /// an empty selection.
+    pub fn list_view(&self, filter: ListFilter) -> Option<ListView> {
+        for named in [&filter.r#in, &filter.covered_by].into_iter().flatten() {
+            self.find(named)?;
+        }
+        let items: Vec<Listing> = self
+            .listings
+            .iter()
+            .filter(|l| l.subject.is_item())
+            .filter(|l| match filter.relation {
+                Some(rel) => l.relation == rel,
+                None => l.relation != Relation::None,
+            })
+            .filter(|l| {
+                filter
+                    .r#in
+                    .as_ref()
+                    .is_none_or(|loc| l.subject.location.as_ref() == Some(loc))
+            })
+            .filter(|l| {
+                filter
+                    .covered_by
+                    .as_ref()
+                    .is_none_or(|t| l.chain.contains(t))
+            })
+            .cloned()
+            .collect();
+        // Every container on a selected item's chain — the one it sits
+        // in and the ones above it — so a substash's parent, whose name
+        // is the one read (C80), is in the document the text renders.
+        let containers: Vec<Listing> = self
+            .listings
+            .iter()
+            .filter(|c| !c.subject.is_item())
+            .filter(|c| items.iter().any(|l| l.chain.contains(&c.subject.target)))
+            .cloned()
+            .collect();
+        Some(ListView {
+            header: self.header.clone(),
+            filter,
+            items_on_record: self.counts.items,
+            containers,
+            items,
+        })
+    }
+
+    /// `show`'s view of one target, if it is a subject of these facts.
+    pub fn show_view(&self, target: &PriceTarget) -> Option<ShowView> {
+        let listing = self.find(target)?.clone();
+        let container = listing
+            .subject
+            .location
+            .as_ref()
+            .and_then(|loc| self.find(loc))
+            .cloned();
+        let items_here: Vec<Listing> = self.items_in(target).cloned().collect();
+        let items_covered_below: Vec<Listing> = self
+            .items_covered_by(target)
+            .filter(|l| l.subject.location.as_ref() != Some(target))
+            .cloned()
+            .collect();
+        Some(ShowView {
+            header: self.header.clone(),
+            listing,
+            container,
+            items_here,
+            items_covered_below,
+        })
     }
 }
 
@@ -684,6 +854,7 @@ fn listing(
     let (relation, why) = relate(manual.as_ref().map(|m| &m.value), &game.reading);
     Listing {
         subject,
+        chain: chain.to_vec(),
         manual,
         manual_problem,
         game,
@@ -703,10 +874,11 @@ fn character_subject(c: &CharacterSnapshot) -> Subject {
         location: None,
         container: None,
         socketed_in: None,
+        league_unknown: c.league.is_none(),
     }
 }
 
-fn item_subject(item: &ItemSnapshot, location: PriceTarget) -> Subject {
+fn item_subject(item: &ItemSnapshot, location: PriceTarget, league_unknown: bool) -> Subject {
     Subject {
         target: PriceTarget::Item {
             id: item.id.clone(),
@@ -718,6 +890,7 @@ fn item_subject(item: &ItemSnapshot, location: PriceTarget) -> Subject {
         location: Some(location),
         container: item.container.clone(),
         socketed_in: item.socketed_in.clone(),
+        league_unknown,
     }
 }
 
@@ -753,6 +926,7 @@ pub fn resolve(snapshot: &PricingSnapshot) -> Result<ListingReport, ListingError
             location: None,
             container: None,
             socketed_in: None,
+            league_unknown: false,
         };
         let game = tab_game_side(info, table);
         if info.kind != TabKind::Folder
@@ -811,7 +985,6 @@ pub fn resolve(snapshot: &PricingSnapshot) -> Result<ListingReport, ListingError
                 item.note.as_deref(),
                 table,
             );
-            let _ = character_by_id.get(item.location_id.as_str());
             (location, chain, game)
         } else {
             match tab_by_id.get(item.location_id.as_str()) {
@@ -847,13 +1020,20 @@ pub fn resolve(snapshot: &PricingSnapshot) -> Result<ListingReport, ListingError
                 }
             }
         };
-        let subject = item_subject(item, location);
+        let league_unknown = item.location_kind == "character"
+            && character_by_id
+                .get(item.location_id.as_str())
+                .is_some_and(|c| c.league.is_none());
+        let subject = item_subject(item, location, league_unknown);
         let basis = Basis {
             response: item.seen_response,
             at: Some(item.last_seen),
         };
         let l = listing(subject, &chain, &rows, game, basis);
         counts.items += 1;
+        if league_unknown {
+            counts.league_unknown += 1;
+        }
         *counts
             .by_relation
             .entry(l.relation.to_string())
@@ -897,16 +1077,18 @@ pub fn resolve(snapshot: &PricingSnapshot) -> Result<ListingReport, ListingError
     }
 
     Ok(ListingReport {
-        schema: LISTING_SCHEMA,
-        account_uuid: snapshot.account_uuid.clone(),
-        account_name: snapshot.account_name.clone(),
-        realm,
-        league: snapshot.league.clone(),
-        taken_at: snapshot.taken_at,
-        stash_listing: snapshot.stash_listing,
-        character_listing: snapshot.character_listing,
-        note_parser_version: NOTE_PARSER_VERSION,
-        currency_table_version: CURRENCY_TABLE_VERSION,
+        header: ReportHeader {
+            schema: LISTING_SCHEMA,
+            account_uuid: snapshot.account_uuid.clone(),
+            account_name: snapshot.account_name.clone(),
+            realm,
+            league: snapshot.league.clone(),
+            taken_at: snapshot.taken_at,
+            stash_listing: snapshot.stash_listing,
+            character_listing: snapshot.character_listing,
+            note_parser_version: NOTE_PARSER_VERSION,
+            currency_table_version: CURRENCY_TABLE_VERSION,
+        },
         counts,
         rows: accounting,
         listings,
@@ -1121,9 +1303,9 @@ mod tests {
     #[test]
     fn c69_two_sides_resolve_independently_and_the_relation_names_both() {
         let report = resolve(&snapshot()).unwrap();
-        assert_eq!(report.note_parser_version, NOTE_PARSER_VERSION);
-        assert_eq!(report.currency_table_version, CURRENCY_TABLE_VERSION);
-        assert_eq!(report.stash_listing.map(|b| b.response_id), Some(2));
+        assert_eq!(report.header.note_parser_version, NOTE_PARSER_VERSION);
+        assert_eq!(report.header.currency_table_version, CURRENCY_TABLE_VERSION);
+        assert_eq!(report.header.stash_listing.map(|b| b.response_id), Some(2));
 
         // A note in front of a priced, public tab: the note applies.
         let l = get(&report, &item_target("i-exact"));
@@ -1388,5 +1570,131 @@ mod tests {
             resolve(&snap),
             Err(ListingError::UnknownRealm { .. })
         ));
+    }
+
+    /// C70 — every listing carries its chain, so a target's coverage is
+    /// a query: a folder covers its tabs' items without holding any, a
+    /// parent tab covers its substashes' items beside its own, an
+    /// ordinary tab's two sets are one.
+    #[test]
+    fn c70_a_targets_coverage_is_every_listing_whose_chain_holds_it() {
+        let report = resolve(&snapshot()).unwrap();
+        let ids = |it: Box<dyn Iterator<Item = &Listing> + '_>| -> Vec<String> {
+            it.map(|l| l.subject.target.to_string()).collect()
+        };
+        let f1 = tab_target("f1");
+        assert_eq!(ids(Box::new(report.items_in(&f1))), Vec::<String>::new());
+        assert_eq!(
+            ids(Box::new(report.items_covered_by(&f1))),
+            [
+                "item/i-exact",
+                "item/i-plain",
+                "item/i-invalid",
+                "item/i-fifty",
+                "item/i-skip"
+            ]
+        );
+        let m1 = tab_target("m1");
+        assert_eq!(ids(Box::new(report.items_in(&m1))), Vec::<String>::new());
+        assert_eq!(ids(Box::new(report.items_covered_by(&m1))), ["item/i-sub"]);
+        let c1 = tab_target("c1");
+        assert_eq!(
+            ids(Box::new(report.items_in(&c1))),
+            ids(Box::new(report.items_covered_by(&c1)))
+        );
+        let l = get(&report, &item_target("i-sub"));
+        assert_eq!(
+            l.chain.iter().map(ToString::to_string).collect::<Vec<_>>(),
+            ["item/i-sub", "substash/pc/m1/s1", "tab/pc/m1"]
+        );
+        let l = get(&report, &item_target("i-worn"));
+        assert_eq!(
+            l.chain.iter().map(ToString::to_string).collect::<Vec<_>>(),
+            ["item/i-worn", "character/ch1"]
+        );
+        // The views carry both sets and refuse a container not on record.
+        let view = report.show_view(&f1).unwrap();
+        assert!(view.items_here.is_empty());
+        assert_eq!(view.items_covered_below.len(), 5);
+        assert_eq!(view.container, None);
+        let view = report.show_view(&item_target("i-sub")).unwrap();
+        assert_eq!(
+            view.container.as_ref().map(|c| c.subject.name.as_str()),
+            Some("1 (Remove-only)")
+        );
+        let view = report
+            .list_view(ListFilter {
+                covered_by: Some(m1.clone()),
+                ..ListFilter::default()
+            })
+            .unwrap();
+        assert_eq!(ids(Box::new(view.items.iter())), ["item/i-sub"]);
+        assert_eq!(
+            ids(Box::new(view.containers.iter())),
+            ["tab/pc/m1", "substash/pc/m1/s1"]
+        );
+        assert_eq!(view.items_on_record, 9);
+        assert_eq!(
+            report.list_view(ListFilter {
+                r#in: Some(tab_target("nope")),
+                ..ListFilter::default()
+            }),
+            None
+        );
+        // A view is its own contract: it re-reads exactly.
+        let text = serde_json::to_string(&view).unwrap();
+        assert_eq!(serde_json::from_str::<ListView>(&text).unwrap(), view);
+        let show = report.show_view(&m1).unwrap();
+        let text = serde_json::to_string(&show).unwrap();
+        assert_eq!(serde_json::from_str::<ShowView>(&text).unwrap(), show);
+        assert_eq!(text.matches("\"schema\":1").count(), 1, "{text}");
+    }
+
+    /// A character the listing gave no league is carried by every
+    /// league's snapshot (the planner's rule); its items are flagged and
+    /// counted here, never silently attributed.
+    #[test]
+    fn a_league_less_characters_items_are_flagged_in_every_leagues_report() {
+        let mut snap = snapshot();
+        snap.characters.push(CharacterSnapshot {
+            id: "ch-none".into(),
+            name: "Drifter".into(),
+            league: None,
+            listed_at: Some(101),
+            listed_response: Some(3),
+            fetched_at: Some(111),
+            listed: json!({ "id": "ch-none", "name": "Drifter" }),
+            fetched: Value::Null,
+        });
+        snap.items.push(item(
+            "i-drift",
+            "character",
+            "ch-none",
+            Some("~price 1 chaos"),
+        ));
+        for league in ["Standard", "Hardcore"] {
+            snap.league = league.into();
+            let report = resolve(&snap).unwrap();
+            let l = get(&report, &item_target("i-drift"));
+            assert!(l.subject.league_unknown, "{league}");
+            assert!(
+                get(
+                    &report,
+                    &PriceTarget::Character {
+                        id: "ch-none".into()
+                    }
+                )
+                .subject
+                .league_unknown
+            );
+            assert!(!get(&report, &item_target("i-worn")).subject.league_unknown);
+            assert_eq!(report.counts.league_unknown, 1);
+            assert_eq!(report.counts.items, 10);
+        }
+        // The flag is absent from JSON when false, present when true.
+        let report = resolve(&snap).unwrap();
+        let text = serde_json::to_string(&report).unwrap();
+        assert_eq!(text.matches("\"league_unknown\":true").count(), 2, "{text}");
+        assert!(!text.contains("\"league_unknown\":false"));
     }
 }

@@ -252,6 +252,14 @@ impl Store {
     /// with its note verbatim — and every `buyout` row the account holds,
     /// bound to one account the same way. Neutral (C39, C64): the listing
     /// state is derived from this by `acquisition-plan`, never here.
+    ///
+    /// The character read is the planner's: a character the listing gave
+    /// no league (`league: None`) is carried under every league of its
+    /// realm, so that every plan can report it as outside coverage. A
+    /// consumer of this snapshot must not read that as membership — the
+    /// listing state flags such characters and their items
+    /// (`league_unknown`) rather than attributing them to the league
+    /// (step-4 outside review, finding 1).
     pub fn pricing_snapshot(
         &self,
         realm: &str,
