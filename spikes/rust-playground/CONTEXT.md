@@ -57,7 +57,7 @@ The live definition is `crates/acquisition-core/src/protocol.rs` (request/respon
 
 ### CLI shape
 
-The live verb list is `acq --help` and the README's "Try it" block. Properties: default mode is blocking-with-progress ("rate limited, starting in ~4m37s..."), `--detach` is the async/job mode, every command takes `--json`, and `daemon status|stop` exist for debugging only.
+The live verb list is `acq --help`; the README's tour shows the shape. Properties: default mode is blocking-with-progress ("rate limited, starting in ~4m37s..."), `--detach` is the async/job mode, every command takes `--json`, and `daemon status|stop` exist for debugging only.
 
 ## Parked (cross-cutting only; do not build yet)
 

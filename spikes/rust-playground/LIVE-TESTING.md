@@ -73,7 +73,7 @@ dead-grant decision (`CONTEXT.md`), R2–R7 by the rails below, R8 fixed in
 
 ## Rails
 
-Knobs and defaults are in the README ("Live-test rails"); `acq daemon
+Knobs and defaults are in the README ("Knobs"); `acq daemon
 status` prints their state and `acq dash` shows a halt in red. What each
 one is, and whether it outlives the ladder:
 

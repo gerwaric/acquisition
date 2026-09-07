@@ -17,6 +17,28 @@
 //!   Per-lifetime and never persisted.
 //! - **Send journal** (`ACQ_JOURNAL=<path>`, permanent): one JSON line per
 //!   actual send, flushed per line, never containing a token or body.
+//!   The default path is the socket's with `.sock` replaced by
+//!   `.<provider>.sends.jsonl` (`acq daemon status` prints it); `0`
+//!   disables; the directory is created on demand, and a journal that
+//!   cannot be opened is reported in `daemon status`, never silently
+//!   dropped. Each daemon lifetime opens with
+//!   `{"event":"open","pid","build","clock"}` — the git commit the binary
+//!   was built from, and whether time was the system's or a test's manual
+//!   clock. A send line carries method, `route`, status, `counted`,
+//!   `wait_ms` and every `X-Rate-Limit-*` header. `route` is the
+//!   limiter's endpoint key — `stash@Alice#1234` for a send on an account,
+//!   `oauth-token` for the account-blind token endpoint — so the journal
+//!   names the account of every send; a realm other than pc suffixes it
+//!   (`stash-list/xbox@Alice#1234`). A non-2xx line adds a `headers`
+//!   object (the `X-Rate-Limit-*`, `Retry-After`, `cf-*`, `content-type`,
+//!   `server`, `date` headers — for a failed HEAD probe, the whole of the
+//!   evidence), and a 403/503 line carries `shape`: `cloudflare` (N3/N28
+//!   page markers), `origin` (an openresty/nginx error page that passed
+//!   through Cloudflare — rung 10's 503, N35), or `unclassified`; all three
+//!   are equally never retried.
+//! - Misunderstood values (`ACQ_TRIPWIRE=maybe`, `ACQ_MAX_SENDS=ten`) are
+//!   logged at startup as `RAILS CONFIG` errors and the rail stays off; a
+//!   persisted trip is honored only by a daemon started with the tripwire.
 //!
 //! # Decisions as recorded
 //!

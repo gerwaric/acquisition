@@ -60,7 +60,7 @@
 //!    (re-validated by the planner's parse), so the driver's confirm step
 //!    and a human's review of a saved plan read the same text, and the
 //!    grouped text is derivable from the envelope by construction. Agents
-//!    count with `jq` over the envelope; the README carries the
+//!    count with `jq` over the envelope; `acq refresh --help` carries the
 //!    one-liners.
 //! 4. **A failure line names the job, its target, the cause, and where the
 //!    evidence is** — the child's result id, the `refused` row, the daemon

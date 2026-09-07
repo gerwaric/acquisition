@@ -58,7 +58,10 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Cmd {
-    /// Log in via OAuth (mock provider, or real GGG with ACQ_GGG=1).
+    /// Log in via OAuth (mock provider, or real GGG with ACQ_GGG=1). The
+    /// login completes only once its own profile job lands the account
+    /// uuid (C50); the mock's page accepts any username, so a second
+    /// account is one login apart.
     Auth {
         #[command(subcommand)]
         cmd: Option<AuthCmd>,
@@ -68,16 +71,19 @@ enum Cmd {
     },
     /// The account profile (account:profile).
     Profile,
-    /// List characters on the logged-in account.
+    /// List characters on the logged-in account. A route's first use
+    /// queues a visible `probe` job — one HEAD that learns the policy and
+    /// the account's current counters before anything real is sent (C20).
     Characters {
-        /// pc (default), xbox, sony, or poe2.
+        /// pc (default), xbox, sony, or poe2. pc is omitted on the wire
+        /// (C58); another realm is its own route segment, with its own probe.
         #[arg(long, default_value = "pc", value_parser = parse_realm)]
         realm: Realm,
     },
     /// Fetch one character with its equipment and inventory.
     Character {
         name: String,
-        /// pc (default), xbox, sony, or poe2.
+        /// pc (default), xbox, sony, or poe2; pc is omitted on the wire (C58).
         #[arg(long, default_value = "pc", value_parser = parse_realm)]
         realm: Realm,
     },
@@ -89,7 +95,7 @@ enum Cmd {
     Tabs {
         #[arg(long, default_value = "Standard")]
         league: String,
-        /// pc (default), xbox, or sony.
+        /// pc (default), xbox, or sony — stashes are PoE1 only (C59).
         #[arg(long, default_value = "pc", value_parser = parse_realm)]
         realm: Realm,
     },
@@ -103,11 +109,13 @@ enum Cmd {
         #[command(subcommand)]
         cmd: StoreCmd,
     },
-    /// List stash tabs for a league.
+    /// List stash tabs for a league: a second rate-limit policy, paced in
+    /// parallel with the character routes.
     Stashes {
         #[arg(long, default_value = "Standard")]
         league: String,
-        /// pc (default), xbox, or sony — the stash endpoints are PoE1 only.
+        /// pc (default), xbox, or sony — the stash endpoints are PoE1 only;
+        /// poe2 is refused at admission (C59).
         #[arg(long, default_value = "pc", value_parser = parse_realm)]
         realm: Realm,
     },
@@ -122,12 +130,24 @@ enum Cmd {
         deep: bool,
         #[arg(long, default_value = "Standard")]
         league: String,
-        /// pc (default), xbox, or sony — the stash endpoints are PoE1 only.
+        /// pc (default), xbox, or sony — the stash endpoints are PoE1 only;
+        /// poe2 is refused at admission (C59).
         #[arg(long, default_value = "pc", value_parser = parse_realm)]
         realm: Realm,
     },
     /// Refresh tabs: one stash-list request, then one `stash` child job per
-    /// selected tab. Selection is explicit — there is no default.
+    /// selected tab. Selection is explicit — there is no default. (The
+    /// ad-hoc `--tabs`/`--all` kind and the plan path are two doors to one
+    /// task; C76 rules the direction.)
+    #[command(after_long_help = "\
+Reading a plan as an agent: the text is a function of the envelope (C53), so count \
+with `jq` over `acq refresh --plan --json` rather than parsing prose —
+  jq '.logical_requests'
+  jq '[.actions[] | .action] | group_by(.) | map({(.[0]): length}) | add'          # requests by kind
+  jq '[.actions[] | select(.action == \"fetch_substash\") | .parent] | group_by(.) | map({(.[0]): length}) | add'   # substashes per parent
+  jq '[.skipped_tabs[], .skipped_characters[] | .reason.kind] | group_by(.) | map({(.[0]): length}) | add'   # skips by reason
+`acq refresh --apply --json` adds `store_changes` beside the outcome; `acq store events --summary --json` \
+is the per-location summary.")]
     Refresh {
         /// Every tab in the league (folder children included, folders not).
         #[arg(long, conflicts_with = "tabs")]
@@ -181,8 +201,11 @@ enum Cmd {
         #[command(subcommand)]
         cmd: Option<PolicyCmd>,
     },
-    /// Submit a job (kinds: sleep, fetch, whoami, profile, characters, character, leagues, stashes, stash, refresh, apply).
+    /// Submit any job kind by hand.
     Submit {
+        /// A network kind — profile, characters, character, leagues,
+        /// stashes, stash, refresh, apply — or a mock-only one: sleep,
+        /// fetch, whoami (refused in real mode).
         kind: String,
         /// JSON params, e.g. '{"seconds": 5}'.
         #[arg(long, default_value = "{}")]
@@ -194,27 +217,37 @@ enum Cmd {
         #[arg(long)]
         detach: bool,
     },
-    /// Submit a burst of fetch jobs to watch the rate limiter queue them.
+    /// Submit a burst of fetch jobs against the mock's 5-per-10 s policy
+    /// and watch the rate limiter queue them (the ETAs are the limiter's
+    /// prediction, corrected by headers).
     Demo {
         #[arg(long, default_value_t = 8)]
         count: u32,
     },
-    /// Live dashboard (TUI): rate limiter state, job queue, HTTP sends,
-    /// recent errors. With --json, prints one snapshot and exits.
+    /// Live dashboard (TUI): rate limiter state (enter expands a policy:
+    /// bucket state, the observed X-Rate-Limit headers, per-endpoint
+    /// sends), job queue, HTTP sends, recent errors, a rails halt in red.
+    /// With --json, prints one snapshot and exits.
     Dash,
-    /// List jobs the daemon knows about.
+    /// The live jobs: id, parent, kind, target (from params, C7), state
+    /// (`↻n` counts 429 re-queues, C26), priority, account, submitter, ETA.
     Jobs {
         /// Stay subscribed and print job-state-changed events as they happen.
         #[arg(long)]
         watch: bool,
     },
-    /// Show one job's state and ETA.
+    /// One job's state and ETA. A large ETA is the limiter holding, not a
+    /// hang: holds can reach 300 s plus the timing bucket.
     Status { id: u64 },
-    /// Fetch a finished job's payload or error.
+    /// A finished job's payload or error, answered across daemon restarts
+    /// (C27: a client that disappears leaves its jobs running). A failed
+    /// fetch's refused body is in `acq store refused <id>`, not here.
     Result { id: u64 },
-    /// Cancel a waiting or running job.
+    /// Cancel a waiting or running job; cascades to every descendant
+    /// still waiting (C23).
     Cancel { id: u64 },
-    /// Change a waiting job's priority.
+    /// Change a waiting job's priority; higher runs sooner and the queue
+    /// reorders live (C5).
     SetPriority { id: u64, priority: u8 },
     /// The listing state (no daemon): what every item, tab and character
     /// is priced as — by hand, in game, and how the two stand.
@@ -475,7 +508,13 @@ enum AuthCmd {
 
 #[derive(Subcommand)]
 enum DaemonCmd {
+    /// pid, build, provider, uptime, connections, queue counts, policies
+    /// learned, the socket, log and journal paths, the rails state,
+    /// keyring health. The log holds a refused start's reason; a lazy
+    /// spawn that dies prints the log's new lines instead of timing out.
     Status,
+    /// Stop the daemon. Queued jobs stay on disk and resume under the next
+    /// one (C6); a client's jobs are never cancelled by its leaving (C27).
     Stop,
     /// Clear the live-test rails' tripwire/ceiling halt (see LIVE-TESTING.md).
     /// Observe the post-violation rule before using this.
