@@ -50,9 +50,9 @@ Dates: the price-notes run and the API re-read fall on September 4, 2026
 UTC, which is the evening of September 3 in the owner's time zone. The
 saved pages and the owner's in-game observations are dated September 3.
 T16–T19 are the owner's hand tests of September 6, 2026, run while the
-spike's listing state was being ruled. T20–T23 are the owner's
-observations of September 7, 2026, at the first pass of the shop
-render's validation reading.
+spike's listing state was being ruled. T20–T24 are the owner's
+observations of September 7, 2026, at the shop render's validation
+reading.
 
 ---
 
@@ -466,9 +466,10 @@ folders, 82 of them substashes). The documented `index` is optional
 Consequence: the `Stash<n>` in a forum link code (T7, T14, T15) cannot
 be read off the item; it has to be derived from the tab, and the only
 candidate in the data is the tab's `index` (the C++ app uses
-`index + 1`). Which tab `Stash<n>` names when folders and substashes
-occupy indices is open (Q1); a substash item has no observed address at
-all (T20). Socketed items have no address and cannot be linked.
+`index + 1`). Which tab `Stash<n>` names when a folder occupies an
+index is T24: the folder takes no number, so `index + 1` is one too
+high past it; a substash item has no observed address at all (T20).
+Socketed items have no address and cannot be linked.
 
 **T20. The website's stash view offers no link for an item in a map or
 unique substash: such items cannot be selected there at all.** [OWNER —
@@ -481,6 +482,32 @@ experiment cannot be run as written. Whether a hand-typed
 question nobody has tried; until a code for such an item is observed
 somewhere, the spike's render blocks the cell and counts it (C74),
 naming this claim.
+
+**T24. The website's stash view lists the top-level tabs and folder
+children in stash order, folders and substashes left out, numbered
+from 0; its item-link button writes `Stash<that number + 1>`, with the
+attributes in the order `realm`, `location`, `league`, `x`, `y`.**
+[OWNER — Confirmed for this account's Allflame stash; September 7,
+2026]
+The owner saved the website's tab list for the Allflame league (`numTabs:
+48`, each tab `{ "n": <name>, "i": <number>, "id": <the API's id>, "type":
+… }`): the 48 non-folder top-level tabs of the 97 the API lists, in the
+API's order, numbered `i` 0–47 — the folder "Acquisition Test" (API
+index 16) absent, its two children at `i` 16 and 17 (API indices 17 and
+18), no substash of the map or unique tabs present. The link the
+website's button wrote for an item in the first child, verbatim:
+
+```
+[linkItem realm="pc" location="Stash17" league="Allflame" x="9" y="0"]
+```
+
+So `Stash<n>` is the tab's one-based rank among the tabs the website
+lists, not the API's `index + 1` (T13, T15): the two agree until the
+first folder and differ by the folder count after it — the render's
+first page wrote `Stash18` for that item and the link did not resolve.
+Whether the website omits other tab kinds too (remove-only tabs, say)
+is not established: this league has none. Q1 is answered; the attribute
+order is the one T7 showed for a character item.
 
 ### Community evidence
 
@@ -583,11 +610,10 @@ Each is one hand experiment by the owner or one read; the render's
 policy table (C74) reports the cell as blocked-and-counted until it is
 answered.
 
-- **Q1. `Stash<n>` numbering under folders and substashes.** Is `n`
-  the tab's `index + 1` when folders and substash children occupy
-  indices (T13)? Experiment: link one item from a tab past a folder,
-  preview the post, and see which item picture appears. Decides whether
-  the first rendered page is trustworthy.
+- **Q1. `Stash<n>` numbering under folders and substashes.** Answered
+  September 7, 2026: the one-based rank among the tabs the website
+  lists, folders and substashes left out (T24). Open in its place:
+  whether the website leaves out any other tab kind.
 - **Q2. Item note versus tab name in game.** Rename the test tab to a
   valid price and see whether the noted items keep their own price on
   the site (T11). The spike's note-then-tab order rests on the C++ code
