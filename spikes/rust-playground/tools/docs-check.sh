@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # docs-check.sh — the documentation half of the quality gate.
 #
-# Two checks, both mechanical (brainstorming-notes/09, "the ladder": a
-# lint where mechanical, a recorded property where stakes are real):
+# Five checks, all mechanical (P5, CONTEXT.md "Working style": a lint
+# where mechanical, a recorded property where stakes are real):
 #
 #   1. Byte budgets on the always-loaded documents. Every session reads
 #      these before acting; growth past the budget is the signal that a
@@ -10,11 +10,17 @@
 #      Moving text to its home is compliance, not gaming. Past 90% the
 #      check says so without failing, so routing happens at a session
 #      close and never as a side quest in the middle of a slice.
-#   2. Stale identifiers. A backticked code identifier in a control
+#   2. The decision registry: one bullet per decision under a length
+#      limit, a capped count of always-loaded ones, every cited id real,
+#      the uncited ones reported.
+#   3. Stale identifiers. A backticked code identifier in a control
 #      document that no longer exists in the workspace is a parallel
 #      description that has rotted. Checked: `Type::path` items,
 #      CamelCase types, snake_case names with an underscore, ACQ_* knobs,
 #      and *.rs / *.sh / *.py / *.sql file names.
+#   4. The README's form: one line per verb in the tour, a row per knob.
+#   5. Dependency direction: the layer rules as edges the crates cannot
+#      cross.
 #
 # Exit 1 on any failure; the report names each offender.
 set -euo pipefail
@@ -37,7 +43,7 @@ budget() {
 }
 budget AGENTS.md        8000
 budget CONTEXT.md      20000
-budget README.md       30000
+budget README.md       15000
 budget LIVE-TESTING.md 60000
 
 # ---- 2. the decision registry ------------------------------------------
@@ -121,7 +127,33 @@ else
   echo "ok      identifiers   every checked identifier exists in the workspace"
 fi
 
-# ---- 4. dependency direction ------------------------------------------
+# ---- 4. the README's form -----------------------------------------------
+# The README is the index to what exists and how to reach it
+# (brainstorming-notes/13): the tour is one line per verb — a
+# comment-only line is a group header after a blank line, never a
+# continuation of a verb line (44 of those had accreted by 2026-09-07) —
+# and the knob table is complete: every ACQ_* the crates read outside
+# tests has a row. The tour's verbs and flags are pinned by
+# acquisition-cli/tests/readme_tour.rs against the binary.
+tour_bad=$(awk '/^```sh/{f=!f; next} f{ if ($0 ~ /^[[:space:]]*#/ && prev !~ /^[[:space:]]*$/) print "        line "NR": "$0; prev=$0 }' README.md)
+if [[ -n $tour_bad ]]; then
+  printf 'TOUR    %-18s a comment line continues a verb line — one line per verb, the rest is its --help:\n%s\n' README.md "$tour_bad"
+  fail=1
+else
+  echo "ok      tour          one line per verb"
+fi
+code_knobs=$(grep -rhoE '"ACQ_[A-Z_]+"' crates --include='*.rs' --exclude-dir=tests | tr -d '"' | sort -u \
+  | grep -vE '^ACQ_(BUILD|UPDATE_FIXTURES)$')
+readme_knobs=$(grep -oE 'ACQ_[A-Z_]+' README.md | sort -u)
+missing_knobs=$(comm -23 <(printf '%s\n' "$code_knobs") <(printf '%s\n' "$readme_knobs") | tr '\n' ' ')
+if [[ -n $missing_knobs ]]; then
+  printf 'KNOB    %-18s read in the crates, no row in the knob table: %s\n' README.md "$missing_knobs"
+  fail=1
+else
+  echo "ok      knobs         every ACQ_* the crates read has a README row"
+fi
+
+# ---- 5. dependency direction ------------------------------------------
 # The four-layer rule (C34) and the planner's home (C39) are enforced by
 # what links what, not by discipline: the daemon crate never links the
 # planner and never names the intent API (it writes facts through the
