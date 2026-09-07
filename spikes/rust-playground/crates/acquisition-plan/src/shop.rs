@@ -1825,7 +1825,7 @@ mod tests {
     fn the_render_json_matches_the_committed_fixture() {
         let path = concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/reference/shop-render-schema-2.json"
+            "/reference/shop-render-schema-3.json"
         );
         let policy = SyncPolicy::from_value(&json!({
             "version": 3,

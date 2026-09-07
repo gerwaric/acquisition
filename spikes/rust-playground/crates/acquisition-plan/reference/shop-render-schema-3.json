@@ -1,6 +1,6 @@
 {
   "counts": {
-    "blocked": 9,
+    "blocked": 8,
     "by_cell": {
       "character_item": 1,
       "game_lists": 2,
@@ -27,7 +27,7 @@
     "off_page": 2,
     "omitted": 5,
     "pages": 1,
-    "posted": 5
+    "posted": 6
   },
   "freshness": {
     "oldest_stale_seconds": 3800,
@@ -55,6 +55,10 @@
       },
       {
         "id": "i-bo",
+        "scope": "item"
+      },
+      {
+        "id": "i-noprice",
         "scope": "item"
       }
     ],
@@ -149,20 +153,6 @@
       },
       "target": {
         "id": "i-retired",
-        "scope": "item"
-      },
-      "verdict": "block"
-    },
-    {
-      "cell": "hand_no_price",
-      "label": "Chaos Orb",
-      "location": {
-        "id": "c1",
-        "realm": "pc",
-        "scope": "tab"
-      },
-      "target": {
-        "id": "i-noprice",
         "scope": "item"
       },
       "verdict": "block"
@@ -311,11 +301,11 @@
   },
   "pages": [
     {
-      "chars": 434,
-      "items": 5,
+      "chars": 645,
+      "items": 6,
       "number": 1,
       "of": 1,
-      "text": "[linkItem location=\"Stash2\" league=\"Standard\" x=\"1\" y=\"0\" realm=\"pc\"]\n~price 5 chaos\n[linkItem location=\"Stash2\" league=\"Standard\" x=\"2\" y=\"0\" realm=\"pc\"]\n~price 5 chaos\n\n[linkItem location=\"BodyArmour\" character=\"Exile\" x=\"0\" y=\"0\" realm=\"pc\"]\n~price 10 divine\n\n[linkItem location=\"Stash2\" league=\"Standard\" x=\"3\" y=\"0\" realm=\"pc\"]\n~b/o 1.5 divine\n\n[linkItem location=\"Stash3\" league=\"Standard\" x=\"0\" y=\"1\" realm=\"pc\"]\n~b/o 2 divine\n"
+      "text": "[spoiler=\"Shop Post 1 of 1 (6 items)\"]\n[spoiler=\" ~price 5 chaos\"][linkItem realm=\"pc\" location=\"Stash1\" league=\"Standard\" x=\"1\" y=\"0\"][linkItem realm=\"pc\" location=\"Stash1\" league=\"Standard\" x=\"2\" y=\"0\"][/spoiler]\n[spoiler=\" ~price 10 divine\"][linkItem realm=\"pc\" location=\"BodyArmour\" character=\"Exile\" x=\"0\" y=\"0\"][/spoiler]\n[spoiler=\" ~b/o 1.5 divine\"][linkItem realm=\"pc\" location=\"Stash1\" league=\"Standard\" x=\"3\" y=\"0\"][/spoiler]\n[spoiler=\" ~b/o 2 divine\"][linkItem realm=\"pc\" location=\"Stash2\" league=\"Standard\" x=\"0\" y=\"1\"][/spoiler]\n[spoiler=\"\"][linkItem realm=\"pc\" location=\"Stash1\" league=\"Standard\" x=\"8\" y=\"0\"][/spoiler]\n[/spoiler]\n"
     }
   ],
   "policy": [
@@ -323,13 +313,19 @@
       "cell": "stash_item",
       "count": 4,
       "verdict": "post",
-      "why": "a hand-priced stash item at a listed tab: `[linkItem location=\"Stash<index+1>\" league= x= y= realm=]`, the price on the next line (T7, T13, T15; a forum price over the tab's is T12; which tab `Stash<n>` names under folders is Q1 — the forum's preview shows the picture before posting)"
+      "why": "a hand-priced stash item at a listed tab: `[linkItem realm= location=\"Stash<n>\" league= x= y=]` under the price's spoiler, `n` the tab's rank among the tabs the website lists — folders and substashes left out (T7, T13, T24; a forum price over the tab's is T12)"
     },
     {
       "cell": "character_item",
       "count": 1,
       "verdict": "post",
-      "why": "a hand-priced character item in a slot: `[linkItem location=\"<inventoryId>\" character= x= y= realm=]`, the price on the next line (T7, T8)"
+      "why": "a hand-priced character item in a slot: `[linkItem realm= location=\"<inventoryId>\" character= x= y=]` under the price's spoiler (T7, T8)"
+    },
+    {
+      "cell": "hand_no_price",
+      "count": 1,
+      "verdict": "post",
+      "why": "a hand `no_price` item at an address a posting row takes: its link alone under an empty spoiler title, which the site lists as \"No Price Set\" (T21)"
     },
     {
       "cell": "game_lists",
@@ -366,12 +362,6 @@
       "count": 1,
       "verdict": "block",
       "why": "the listing gave its character no league, so the report is not evidence it belongs to this one"
-    },
-    {
-      "cell": "hand_no_price",
-      "count": 1,
-      "verdict": "block",
-      "why": "whether an unpriced forum link is indexed is unobserved (Q5): one hand experiment"
     },
     {
       "cell": "unruled_kind",
@@ -413,7 +403,7 @@
       "cell": "substash",
       "count": 1,
       "verdict": "block",
-      "why": "the link code for an item in a map or unique substash is unobserved (Q3): the owner's hand experiment at reading 2"
+      "why": "the website's stash view offers no link for an item in a map or unique substash (T20), and no other code for one has been observed: blocked until one is"
     },
     {
       "cell": "tab_unlisted",
@@ -425,7 +415,7 @@
       "cell": "invalid_index",
       "count": 0,
       "verdict": "block",
-      "why": "the tab's recorded index is negative or too large to add one to: a corrupt fact, blocked rather than computed (C47)"
+      "why": "the tab's recorded index is below zero: a corrupt fact, blocked rather than ranked (C47)"
     },
     {
       "cell": "no_slot",
@@ -444,85 +434,101 @@
     {
       "cell": "stash_item",
       "label": "Chaos Orb",
-      "link": "[linkItem location=\"Stash2\" league=\"Standard\" x=\"1\" y=\"0\" realm=\"pc\"]",
+      "link": "[linkItem realm=\"pc\" location=\"Stash1\" league=\"Standard\" x=\"1\" y=\"0\"]",
       "location": {
         "id": "c1",
         "realm": "pc",
         "scope": "tab"
       },
       "page": 1,
-      "price": "~price 5 chaos",
       "target": {
         "id": "i-hand",
         "scope": "item"
-      }
+      },
+      "title": " ~price 5 chaos"
     },
     {
       "cell": "stash_item",
       "label": "Chaos Orb",
-      "link": "[linkItem location=\"Stash2\" league=\"Standard\" x=\"2\" y=\"0\" realm=\"pc\"]",
+      "link": "[linkItem realm=\"pc\" location=\"Stash1\" league=\"Standard\" x=\"2\" y=\"0\"]",
       "location": {
         "id": "c1",
         "realm": "pc",
         "scope": "tab"
       },
       "page": 1,
-      "price": "~price 5 chaos",
       "target": {
         "id": "i-hand2",
         "scope": "item"
-      }
+      },
+      "title": " ~price 5 chaos"
     },
     {
       "cell": "character_item",
       "label": "Chaos Orb",
-      "link": "[linkItem location=\"BodyArmour\" character=\"Exile\" x=\"0\" y=\"0\" realm=\"pc\"]",
+      "link": "[linkItem realm=\"pc\" location=\"BodyArmour\" character=\"Exile\" x=\"0\" y=\"0\"]",
       "location": {
         "id": "ch1",
         "scope": "character"
       },
       "page": 1,
-      "price": "~price 10 divine",
       "target": {
         "id": "i-worn",
         "scope": "item"
-      }
+      },
+      "title": " ~price 10 divine"
     },
     {
       "cell": "stash_item",
       "label": "Chaos Orb",
-      "link": "[linkItem location=\"Stash2\" league=\"Standard\" x=\"3\" y=\"0\" realm=\"pc\"]",
+      "link": "[linkItem realm=\"pc\" location=\"Stash1\" league=\"Standard\" x=\"3\" y=\"0\"]",
       "location": {
         "id": "c1",
         "realm": "pc",
         "scope": "tab"
       },
       "page": 1,
-      "price": "~b/o 1.5 divine",
       "target": {
         "id": "i-bo",
         "scope": "item"
-      }
+      },
+      "title": " ~b/o 1.5 divine"
     },
     {
       "cell": "stash_item",
       "label": "Chaos Orb",
-      "link": "[linkItem location=\"Stash3\" league=\"Standard\" x=\"0\" y=\"1\" realm=\"pc\"]",
+      "link": "[linkItem realm=\"pc\" location=\"Stash2\" league=\"Standard\" x=\"0\" y=\"1\"]",
       "location": {
         "id": "t2",
         "realm": "pc",
         "scope": "tab"
       },
       "page": 1,
-      "price": "~b/o 2 divine",
       "target": {
         "id": "i-tabrow",
         "scope": "item"
-      }
+      },
+      "title": " ~b/o 2 divine"
+    },
+    {
+      "cell": "hand_no_price",
+      "label": "Chaos Orb",
+      "link": "[linkItem realm=\"pc\" location=\"Stash1\" league=\"Standard\" x=\"8\" y=\"0\"]",
+      "location": {
+        "id": "c1",
+        "realm": "pc",
+        "scope": "tab"
+      },
+      "page": 1,
+      "target": {
+        "id": "i-noprice",
+        "scope": "item"
+      },
+      "title": ""
     }
   ],
   "rendered_at": 5000,
-  "schema": 2,
+  "schema": 3,
   "size": 50000,
   "template": "[items]"
 }
