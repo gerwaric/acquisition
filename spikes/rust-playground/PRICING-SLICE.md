@@ -26,15 +26,21 @@ claims authored master-side. Nothing here is a second authority.
   buyout value **v1** (`skip`, renamed from `ignore` 2026-09-06); game-side
   parser **v1**; listing report schema **2** (1 never left development;
   the second step-4 review's count rename bumped it; the shape is pinned
-  by a committed fixture). Pricing code so far: `acquisition-plan/src/currency.rs`,
-  `price.rs`, `game_side.rs`, `listing.rs`; the store's pricing snapshot
-  (`snapshot.rs`); `acq reference currency` and `acq price
-  status | show | list | set | clear` (`price_cmd.rs`). The write is one
+  by a committed fixture); shop render schema **1** (pinned the same
+  way). Pricing code so far: `acquisition-plan/src/currency.rs`,
+  `price.rs`, `game_side.rs`, `listing.rs`, `shop.rs`; the store's pricing snapshot
+  (`snapshot.rs`); `acq reference currency`, `acq price
+  status | show | list | set | clear` (`price_cmd.rs`) and `acq shop
+  render` (`shop_cmd.rs`). The write is one
   row through `price.rs`'s `set_buyout`/`clear_buyout` (plan step 5,
   2026-09-06, outside review fixed 2026-09-07); **validation reading 1**
   ran 2026-09-07 (below): the owner set rows by hand from an empty
   intent file and read them back; informal by the owner's own account,
-  with rigorous testing scheduled after step 6.
+  with rigorous testing scheduled after step 6. **Step 6 is built**
+  (2026-09-07, `13f50f9d`, unreviewed): the render's policy table posts
+  two cells and blocks the rest by name; **validation reading 2** — the
+  owner pastes a page for their own shop — is next, with the substash
+  link code (Q3) and `Stash<n>` under folders (Q1) its hand experiments.
 - The forum is **write-only from our side**: `/character` returns no
   `forum_note` for a forum-listed item (price-notes run, 2026-09-04), so
   the game side of a listing is item note, then tab name (C69), and a
@@ -137,6 +143,7 @@ claims file's appendix maps T→C as well.
 | Pricing | plan 2 annotations v3, typed value | `3d2902cd` | annotations v3 by stepwise `ALTER` (`written_via`, `actor`; C65); `IntentValue` + `check_value` in the store crate (version gate, per-kind strict parse, exact round-trip for a current-schema value, then CAS; C66) with `SyncPolicy` moved onto it unchanged; `Provenance` required by `put`/`delete` and threaded through `put_sync_policy`, the CLI (`cli`) and MCP (`mcp`); `list(scope, kind)`; `AnnotationError::Busy`; `price.rs`: `PriceTarget` (realm-bearing tab and substash keys), `Amount`, `Buyout` v1 (C67); the `c65_`, `c66_`, `c67_` tests |
 | Pricing | plan 5 set, clear | `5fc19304` | `price.rs`: `set_buyout` / `clear_buyout`, the one write path for every frontend (single-row CAS through the typed door, the prior row returned as a `PriceWrite` — C78's clause until receipts; a new price never names a retired tag — C67's writer's rule; the blind "replace whatever is stored" a frontend policy, as with the sync policy); `acq price set <target> <type> [<amount> <currency>]` and `acq price clear <target>`, `--if-revision` as `acq policy set` has it, the receipt under C53 (what it is now, what it was, the `set` words that put the prior back; `--json` the `PriceWrite`); the `c78_`, `c67_…retired…`, `c35_…stale…` tests, the CLI's grammar and receipt tests, and `price_json.rs`'s process pin |
 | Pricing | plan 5 reading 1 | — | the owner's rows set by hand from an empty intent file, read back; verdict verbatim in "What validation reading 1 taught"; rigorous testing deferred to after step 6 |
+| Pricing | plan 6 shop render | `13f50f9d` | `shop.rs`: `render(&ListingReport, &RenderOptions)` — one policy-table cell per item read from the effective outcome (side and kind together) then the address; the two posting rows (a stash item at a listed tab by `Stash<index+1>`, a character item by its slot — T7, T8, T13, T15), omission for what the game lists or skips (T11, C81) and a hand skip, off-page for nothing-applies, and every unobserved case blocked and counted naming its question (Q3 substash, Q5 no_price, Q6 ratio, a retired tag, socketed, an unlisted tab, no slot, poe2, unresolved, league unknown, over the page size); `~price`/`~b/o <amount> <emit>` on the line after each link, grouped by price, pages cut under `--size` (default 50,000) with the template counted and labelled n of N; the C72 report over the posted items (coverage by `Selection::covers_tab`, staleness by the window with the `RefreshPlan`'s request count, positions seen before the listing); `acq shop render` under C53 (`--page N` for the clipboard, `--template FILE`, `--expand` the whole table); the snapshot's `inventoryId` and `Subject`'s `x`, `y`, `inventory_id`, `index` (additive); the `c74_`, `c72_`, `c53_shop_render_` tests, `shop-render-schema-1.json`, `tests/shop_json.rs` |
 
 ## Findings
 
@@ -328,18 +335,23 @@ shows the item picture, so a wrong link is visible before posting.
   anything appended). Still the parser's own: `~skip` as a tab name
   reads `skip`. The indexer's loose word matching (T16) is not
   modelled; a hand-typed alias reads `invalid`, shown verbatim.
-- C74's omission rule (an item the game's price already lists is
-  omitted and counted; a prior post never read) is ruled and waits for
-  the render (step 6). The render reads the complete effective outcome,
-  `side` and `kind` together — `none` and `unresolved` both carry no
-  side, and the manual kinds are not one outcome: a game-decided item
-  is omitted and counted; a hand-decided `exact` or `negotiable` is
-  posted only through a ruled policy cell (a ratio on a non-bulk item,
-  a retired tag, and the like are cells, C74); a hand-decided `skip` is
-  omitted, as the word means; a hand-decided `no_price` is blocked until
-  the unpriced-link observation lands (Q5); one nothing applies to is
-  off the page; an unresolved one (a row that cannot be read could
-  decide) is blocked and counted, never treated as unpriced.
+- C74's omission rule is built (`shop.rs`, the policy table): the
+  render reads `side` and `kind` together, and each blocked cell names
+  the question that opens it. Three of its choices are the render's
+  own until reading 2 says otherwise: the price on the line after the
+  link (T14's wording; the C++ app's spoiler title, T15, was not taken),
+  a blank line between price groups, and `~price` groups before `~b/o`.
+- "Moved or reindexed since the render's basis" (C72) has no stored
+  basis to compare with ("what did I last post" is parked, v1 reposts
+  whole pages), so the render reports the one it has: a posted stash
+  item whose fetch predates the stash listing its `Stash<n>` comes
+  from — the link's two halves observed at different times. Whether
+  that line ever changes what the owner does is reading 2's evidence.
+- The store's `tabs.idx` falls back to the listing position when an
+  entry carries no `index` (T13 says every one of 402 did), so the
+  render cannot tell a real index from the fallback; a tab with `idx`
+  null was fetched directly and never listed, and its items are the
+  `tab_unlisted` cell.
 - `priced_tabs` counts names that read as a price whether or not the
   tab is public (the owner's 13 remove-only tabs are the case), beside
   `priced_tabs_public`; whether `status` should lead with the residue
@@ -380,3 +392,10 @@ shows the item picture, so a wrong link is visible before posting.
 2. C73 parked as "a 0.18 user asks": pricing is niche, but the 0.18
    import is a product question for other users, not only yours. Park
    stands unless you say otherwise.
+3. Reading 2 (`acq shop render`, then `--page 1 | pbcopy` into the
+   shop thread's editor and *Preview* before posting): does the preview
+   show the right item for a tab past a folder (Q1)? Beside it, the two
+   hand experiments the blocked cells wait on — the website's link
+   button on a substash item (Q3), and one unpriced link then the
+   seller-account search (Q5). Each answer is a `T<n>` claim
+   master-side and a cell's verdict here.

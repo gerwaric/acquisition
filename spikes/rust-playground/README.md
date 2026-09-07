@@ -90,15 +90,17 @@ bounded by `MAX_429_RETRIES`; a Cloudflare-shaped 403/503 is never retried.
   typed `buyout` value, its `PriceTarget` address and the one write path
   (`price.rs`, C67, C78); the game-side parser (`game_side.rs`, C69); the
   listing state (`listing.rs`, C69, C70, C80, C81) over the store's
-  pricing snapshot, behind `acq price`.
+  pricing snapshot, behind `acq price`; the forum page set as a policy
+  table over it (`shop.rs`, C74, C72), behind `acq shop render`.
 - `crates/acquisition-cli` — the `acq` binary. Thin: clap parsing, output
   rendering, `store_cmd.rs` (reads of the shared store, no daemon),
   `plan_cmd.rs` (the intent surface `acq policy`, and `acq refresh
   --plan|--apply` through `acquisition-plan`), `price_cmd.rs` (`acq
   price status|show|list`: the listing state under C53's three views;
-  `set|clear`: one row each through the shared write, the receipt printed)
-  and `reference_cmd.rs` (`acq reference currency`: the shipped table,
-  by version). The protocol client
+  `set|clear`: one row each through the shared write, the receipt printed),
+  `shop_cmd.rs` (`acq shop render`: the pages to paste, every omission
+  counted) and `reference_cmd.rs` (`acq reference currency`: the shipped
+  table, by version). The protocol client
   (connect, lazy spawn, version handshake) is
   `acquisition-core/src/client.rs`, shared by every frontend; frontends
   differ only in connect *policy* (`ConnectOptions`). The daemon is
@@ -144,11 +146,16 @@ acq reference currency [WORD] [--expand]     # the currency table this build shi
                                              #  a WORD resolves exactly (case-sensitive) or fails naming the version
 acq price [status|list|show <target>]        # the listing state (C69) under C53: one line + next action; items by tab;
                                              #  one target with both sides, the raw note beside its parse; --expand,
-                                             #  --relation R, --in <container>
+                                             #  --relation R, --effective S, --in <container>, --covered-by <target>
 acq price set <target> <type> [<amount> <currency>] [--if-revision N]
                                              # one row by hand (C64): exact|negotiable|no_price|skip, an amount, a table
                                              #  tag; CAS like `acq policy set`; prints what it replaced and the undo (C78)
 acq price clear <target> [--if-revision N]   # remove the row; prints what it removed and the `set` that puts it back
+acq shop render [--size N] [--template FILE] [--page N]
+                                             # the forum pages to paste by hand (C74): a link code per hand-priced item,
+                                             #  the price on the next line, grouped by price, pages n of N under --size;
+                                             #  what the game lists is omitted, an unobserved case blocked, both counted;
+                                             #  coverage and freshness reported, never enforced (C72); --page N = one page
 acq policy [show]                            # the per-account sync policy: declared coverage + freshness (an annotation)
 acq policy set '<json>' [--if-revision N]    # validated through the planner's strict parse before anything lands;
                                              #  v3 shape: {"version":3,"realms":{"pc":{"leagues":{"Standard":
@@ -158,12 +165,11 @@ acq policy set '<json>' [--if-revision N]    # validated through the planner's s
                                              #  over exactly the revision you reviewed (else the stored one is
                                              #  replaced; a racing write conflicts, never clobbers)
 acq refresh --plan [--realm R] [--league L]  # compile policy + facts into the explicit action set — sends nothing;
-                                             #  a running daemon adds its read-only quote (never spawned for this),
-                                             #  and --json prints the serialized plan envelope itself
-                                             #  (--realm poe2 plans a character-only entry). The text groups the
-                                             #  default text is the decision view, --expand the audit view, and
-                                             #  --json the authorization envelope; groups over ten are counted;
-                                             #  --plan=FILE renders a reviewed envelope through the same views
+                                             #  a running daemon adds its read-only quote (never spawned for this);
+                                             #  --realm poe2 plans a character-only entry; the default text is the
+                                             #  decision view, --expand the audit view, --json the authorization
+                                             #  envelope; groups over ten are counted; --plan=FILE renders a
+                                             #  reviewed envelope through the same views
 acq refresh --apply[=plan.json]              # execute the plan: exactly its actions, as one `apply` parent job
                                              #  (bare --apply compiles the stored policy now; =FILE applies a
                                              #  reviewed envelope, =- reads stdin). Refused before any daemon
@@ -357,12 +363,10 @@ regression (N20) so the degraded path can be exercised.
 ## Known gaps
 
 - **Two endpoints carry declared route knowledge** (`/profile`
-  policyless, `/account/leagues` no-probe). GGG answered Q12
-  (2026-08-30): `/profile` is not rate limited at present — its
-  declaration is confirmed and stays until headers ever appear (N38);
-  the counted HEAD on `/account/leagues` is a defect GGG will correct
-  in a future release — treat it as counted until the free HEAD is
-  observed, then the declaration goes and the probe returns (N39).
+  policyless, N38; `/account/leagues` no-probe, N39). GGG answered Q12
+  (2026-08-30): `/profile` is not rate limited at present, and the
+  counted HEAD on `/account/leagues` is a defect GGG will correct —
+  each declaration stays until the headers, or the free HEAD, appear.
 - **The mock does not simulate timing-bucket quantization** (N11–N12); the
   limiter pads for it regardless.
 - **The mock reports an active restriction on every window of the rule,**
