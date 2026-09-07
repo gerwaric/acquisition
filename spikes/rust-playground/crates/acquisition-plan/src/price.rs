@@ -1,7 +1,10 @@
 //! The typed price: what a `buyout` row says ([`Buyout`], C67) and what
 //! it is about ([`PriceTarget`]). Built by the pricing slice's plan step 2
-//! (`PRICING-SLICE.md`, 2026-09-05). Nothing here reads a store or a
-//! daemon; this module is the value's shape, its parse, and its address.
+//! (`PRICING-SLICE.md`, 2026-09-05). Nothing here reads facts or a
+//! daemon; this module is the value's shape, its parse, its address, and
+//! — since plan step 5 (2026-09-06) — the one write path every frontend's
+//! `set` and `clear` use ([`set_buyout`], [`clear_buyout`]), through the
+//! intent file's own API and nothing else.
 //!
 //! # Decisions as recorded
 //!
@@ -60,7 +63,7 @@
 //! the frontend can offer it; a word the table does not know is refused
 //! naming the table version. A **retired** tag parses: a stored row may
 //! cite it forever, and whether a *new* price may name one is the
-//! writer's rule (the CLI's, at plan step 5), not the value's. `no_price`
+//! writer's rule ([`set_buyout`]'s, since plan step 5), not the value's. `no_price`
 //! and `skip` carry no amount and no currency; a value that supplies
 //! either is refused (the 0.18 userstore's `[ignore]` rows carried a
 //! non-semantic 4321 `blessed`, which is exactly the shape this refuses).
@@ -68,12 +71,23 @@
 //! [`Buyout`] is an [`IntentValue`], so the store's write door runs the
 //! version gate, this parse and the exact round-trip before the
 //! compare-and-swap; nothing lands that this module would not read back.
+//!
+//! **The write** ([`set_buyout`], [`clear_buyout`]) is a single-row
+//! compare-and-swap through that door, built once for every frontend the
+//! way `put_sync_policy` is: the caller passes the revision it reviewed
+//! (or `None` to create), the frontend decides whether "whatever is
+//! stored" is an acceptable default, and what comes back is a
+//! [`PriceWrite`] — the row written and the row it replaced, raw with
+//! provenance — which is C78's clause until receipts exist: a hand can
+//! undo what the command printed. The one writer's rule C67 leaves to
+//! this layer, that a *new* price never names a retired tag, lives here
+//! and not in the value, so a stored row citing one still parses.
 
 use std::fmt;
 use std::str::FromStr;
 
 use acquisition_core::realm::Realm;
-use acquisition_store::IntentValue;
+use acquisition_store::{AnnotationError, AnnotationRow, Annotations, IntentValue, Provenance};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -563,6 +577,140 @@ impl IntentValue for Buyout {
     }
 }
 
+/// The outcome of one write, until receipts exist (C78): the row as
+/// written — `None` after a clear — and the row it replaced — `None` on a
+/// create — so what a command printed is enough to undo it by hand. Both
+/// are the store's rows, raw, with their provenance; on success `prior`
+/// is exactly the row the write replaced, because a row that moved
+/// between the read and the write conflicts (C35). `prior.value` may be
+/// one this build cannot read (a newer build's): a frontend reads it
+/// through [`Buyout::parse`] and shows the JSON when that fails.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PriceWrite {
+    pub target: PriceTarget,
+    pub written: Option<AnnotationRow>,
+    pub prior: Option<AnnotationRow>,
+}
+
+/// Why a price write did not land. The value's own refusals arrive as
+/// [`AnnotationError::Invalid`] under `Store`.
+#[derive(Debug)]
+pub enum PriceWriteError {
+    /// The writer's rule (C67): a new price never names a retired tag,
+    /// though a stored row may cite one forever. `retired` is the row's
+    /// own mark — when, and on what evidence.
+    RetiredCurrency { tag: String, retired: String },
+    /// The target's components cannot be an address.
+    Target(TargetError),
+    /// The compare-and-swap, the busy timeout, the file: the store's own.
+    Store(AnnotationError),
+    /// The shipped table failed to load — a build defect.
+    Table(currency::CurrencyTableError),
+}
+
+impl fmt::Display for PriceWriteError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            PriceWriteError::RetiredCurrency { tag, retired } => write!(
+                f,
+                "currency {tag:?} is retired ({retired}): a new price cannot name it, though a stored row may"
+            ),
+            PriceWriteError::Target(e) => write!(f, "{e}"),
+            PriceWriteError::Store(e) => write!(f, "{e}"),
+            PriceWriteError::Table(e) => write!(f, "{e}"),
+        }
+    }
+}
+
+impl std::error::Error for PriceWriteError {}
+
+impl From<TargetError> for PriceWriteError {
+    fn from(e: TargetError) -> PriceWriteError {
+        PriceWriteError::Target(e)
+    }
+}
+
+impl From<AnnotationError> for PriceWriteError {
+    fn from(e: AnnotationError) -> PriceWriteError {
+        PriceWriteError::Store(e)
+    }
+}
+
+impl From<currency::CurrencyTableError> for PriceWriteError {
+    fn from(e: currency::CurrencyTableError) -> PriceWriteError {
+        PriceWriteError::Table(e)
+    }
+}
+
+/// Write one price under compare-and-swap (C35) — the one write path
+/// every frontend's `set` uses, so the writer's rules are built once: a
+/// new price never names a retired tag (C67), the value goes through the
+/// store's typed door as its canonical text (C66), and the row it
+/// replaced comes back (C78). No daemon, no quote, no job (C64).
+///
+/// `expected_revision` is the store's compare-and-swap, verbatim:
+/// `Some(r)` replaces exactly the revision the caller reviewed, `None`
+/// creates (refused if a row exists — a tombstone does not count, so a
+/// `clear` then `set` works without the caller knowing it is there). A
+/// frontend that wants "replace whatever is stored" reads the current
+/// revision itself and passes it here — the blind form is a frontend
+/// policy, not this function's, the same rule as [`crate::put_sync_policy`].
+pub fn set_buyout(
+    annotations: &mut Annotations,
+    target: &PriceTarget,
+    value: &Buyout,
+    expected_revision: Option<i64>,
+    provenance: &Provenance,
+) -> Result<PriceWrite, PriceWriteError> {
+    if let Some(price) = value.price() {
+        let retired = currency::table()?
+            .by_tag(&price.currency)
+            .and_then(|row| row.retired.clone());
+        if let Some(retired) = retired {
+            return Err(PriceWriteError::RetiredCurrency {
+                tag: price.currency.clone(),
+                retired,
+            });
+        }
+    }
+    let (scope, key) = target.address()?;
+    let prior = annotations.get(scope, &key, BUYOUT_KIND)?;
+    let written = annotations.put::<Buyout>(
+        scope,
+        &key,
+        &value.to_value(),
+        expected_revision,
+        provenance,
+    )?;
+    Ok(PriceWrite {
+        target: target.clone(),
+        written: Some(written),
+        prior,
+    })
+}
+
+/// Remove one price row under the same compare-and-swap, returning the
+/// row it removed (C78). `expected_revision` is exact: what the caller
+/// reviewed; the store tombstones the row, so the revision sequence
+/// carries on and a stale writer still conflicts. Whether a target with
+/// no row is a refusal is the frontend's call — the store reports it as a
+/// conflict carrying nothing.
+pub fn clear_buyout(
+    annotations: &mut Annotations,
+    target: &PriceTarget,
+    expected_revision: i64,
+    provenance: &Provenance,
+) -> Result<PriceWrite, PriceWriteError> {
+    let (scope, key) = target.address()?;
+    let prior = annotations.get(scope, &key, BUYOUT_KIND)?;
+    annotations.delete(scope, &key, BUYOUT_KIND, expected_revision, provenance)?;
+    Ok(PriceWrite {
+        target: target.clone(),
+        written: None,
+        prior,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -967,5 +1115,110 @@ mod tests {
                 .iter()
                 .all(|t| !matches!(t, PriceTarget::Tab { .. }))
         );
+    }
+
+    /// C78 — until receipts exist, a single write returns the row's prior
+    /// value, so it can be undone by hand: a create's prior is nothing, a
+    /// replacement's is the row replaced, a clear's is the row cleared,
+    /// and setting the prior back restores the value with the revision
+    /// sequence carrying on (C35).
+    #[test]
+    fn c78_a_write_returns_the_prior_value_so_a_hand_can_undo_it() {
+        let mut a = Annotations::open_memory_for("u-1").unwrap();
+        let via = Provenance::via("test");
+        let target = PriceTarget::Item { id: "i1".into() };
+        let first = set_buyout(&mut a, &target, &exact("30", "chaos"), None, &via).unwrap();
+        assert_eq!(first.target, target);
+        assert_eq!(first.prior, None);
+        let w1 = first.written.unwrap();
+        assert_eq!((w1.revision, w1.written_via.as_str()), (1, "test"));
+        assert_eq!(Buyout::parse(&w1.value).unwrap(), exact("30", "chaos"));
+        let second = set_buyout(&mut a, &target, &Buyout::Skip, Some(1), &via).unwrap();
+        assert_eq!(second.prior.as_ref(), Some(&w1));
+        assert_eq!(second.written.as_ref().map(|r| r.revision), Some(2));
+        let cleared = clear_buyout(&mut a, &target, 2, &via).unwrap();
+        assert_eq!(cleared.written, None);
+        assert_eq!(cleared.prior, second.written);
+        assert!(a.get(ITEM_SCOPE, "i1", BUYOUT_KIND).unwrap().is_none());
+        // Undo by hand: the prior value, set again, as a caller who read
+        // "nothing there" would — a create over the tombstone.
+        let undo = Buyout::parse(&cleared.prior.unwrap().value).unwrap();
+        let restored = set_buyout(&mut a, &target, &undo, None, &via).unwrap();
+        assert_eq!(restored.prior, None);
+        let (row, typed) = a.get_as::<Buyout>(ITEM_SCOPE, "i1").unwrap().unwrap();
+        assert_eq!((row.revision, typed), (4, Buyout::Skip));
+    }
+
+    /// C67 — whether a new price may name a retired tag is the writer's
+    /// rule, not the value's: `set_buyout` refuses one naming when it was
+    /// retired and lands nothing; a stored row citing it still reads, and
+    /// is replaced like any other, its value returned as the prior.
+    #[test]
+    fn c67_a_new_price_never_names_a_retired_tag_though_a_stored_row_may() {
+        let mut a = Annotations::open_memory_for("u-1").unwrap();
+        let via = Provenance::via("test");
+        let target = PriceTarget::Tab {
+            realm: Realm::Pc,
+            id: "t1".into(),
+        };
+        let err = set_buyout(&mut a, &target, &exact("1", "chisel"), None, &via).unwrap_err();
+        assert!(
+            matches!(&err, PriceWriteError::RetiredCurrency { tag, retired }
+                if tag == "chisel" && retired.starts_with("2026-09-04")),
+            "{err}"
+        );
+        assert!(err.to_string().contains("is retired"), "{err}");
+        assert!(a.get(TAB_SCOPE, "pc/t1", BUYOUT_KIND).unwrap().is_none());
+        // The store's door takes it: the value parses, a row may cite it forever.
+        a.put::<Buyout>(
+            TAB_SCOPE,
+            "pc/t1",
+            &exact("1", "chisel").to_value(),
+            None,
+            &via,
+        )
+        .unwrap();
+        let (_, typed) = a.get_as::<Buyout>(TAB_SCOPE, "pc/t1").unwrap().unwrap();
+        assert_eq!(typed, exact("1", "chisel"));
+        let w = set_buyout(&mut a, &target, &exact("2", "chaos"), Some(1), &via).unwrap();
+        assert_eq!(
+            Buyout::parse(&w.prior.unwrap().value).unwrap(),
+            exact("1", "chisel")
+        );
+    }
+
+    /// C35 — the write is a compare-and-swap at this door too: a stale
+    /// revision conflicts carrying the current row and changes nothing;
+    /// so does a create over a row, and a clear at the wrong revision.
+    #[test]
+    fn c35_a_stale_revision_conflicts_and_changes_nothing() {
+        let mut a = Annotations::open_memory_for("u-1").unwrap();
+        let via = Provenance::via("test");
+        let target = PriceTarget::Character { id: "c1".into() };
+        let first = set_buyout(&mut a, &target, &exact("30", "chaos"), None, &via)
+            .unwrap()
+            .written
+            .unwrap();
+        for stale in [Some(5), None] {
+            let err = set_buyout(&mut a, &target, &Buyout::Skip, stale, &via).unwrap_err();
+            match err {
+                PriceWriteError::Store(AnnotationError::Conflict { current: Some(row) }) => {
+                    assert_eq!(*row, first)
+                }
+                other => panic!("expected a Conflict carrying the row, got {other}"),
+            }
+        }
+        let err = clear_buyout(&mut a, &target, 7, &via).unwrap_err();
+        assert!(
+            matches!(
+                err,
+                PriceWriteError::Store(AnnotationError::Conflict { .. })
+            ),
+            "{err}"
+        );
+        let (row, typed) = a.get_as::<Buyout>(CHARACTER_SCOPE, "c1").unwrap().unwrap();
+        assert_eq!((row.revision, typed), (1, exact("30", "chaos")));
+        clear_buyout(&mut a, &target, 1, &via).unwrap();
+        assert!(a.get(CHARACTER_SCOPE, "c1", BUYOUT_KIND).unwrap().is_none());
     }
 }

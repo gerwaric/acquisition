@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
 use acquisition_plan::listing::{ListView, ListingReport, ShowView};
-use acquisition_plan::price::Buyout;
+use acquisition_plan::price::{Buyout, PriceWrite};
 use acquisition_store::{Annotations, Endpoint, Index, Provenance, Store, account_path};
 use serde_json::{Value, json};
 
@@ -316,6 +316,142 @@ fn price_json_documents_are_the_views_the_text_reads() {
         ),
         "{text}"
     );
+
+    let _ = std::fs::remove_dir_all(&base);
+}
+
+/// The write receipt (C78): `set --json` and `clear --json` print the
+/// [`PriceWrite`] — the row written and the row it replaced — `show`
+/// reads the write back, a stale `--if-revision` is a conflict naming the
+/// current revision with nothing landed, a target with no row refuses a
+/// clear by saying so, and a new price never names a retired tag.
+#[test]
+fn price_set_and_clear_print_the_receipt_and_show_reads_it_back() {
+    let base = std::env::temp_dir().join(format!(
+        "acq-price-write-{}-{}",
+        std::process::id(),
+        acquisition_store::now()
+    ));
+    seed(&base);
+    let receipt = |out: &Output| -> PriceWrite {
+        assert!(out.status.success(), "{}", stderr(out));
+        serde_json::from_value(sole_json(out)).unwrap()
+    };
+    let manual = |out: &Output| -> Option<(Buyout, i64)> {
+        assert!(out.status.success(), "{}", stderr(out));
+        let view: ShowView = serde_json::from_value(sole_json(out)).unwrap();
+        view.listing.manual.map(|m| (m.value, m.revision))
+    };
+
+    // A create: the amount lands canonical, the channel is the CLI's.
+    let w = receipt(&acq(
+        &base,
+        &[
+            "price",
+            "set",
+            "item/i-map",
+            "exact",
+            "12.50",
+            "chaos",
+            "--json",
+        ],
+    ));
+    assert_eq!(w.target.to_string(), "item/i-map");
+    assert!(w.prior.is_none());
+    let written = w.written.unwrap();
+    assert_eq!((written.revision, written.written_via.as_str()), (1, "cli"));
+    assert_eq!(
+        written.value,
+        json!({ "version": 1, "type": "exact", "amount": "12.5", "currency": "chaos" })
+    );
+    let (value, revision) =
+        manual(&acq(&base, &["price", "show", "item/i-map", "--json"])).unwrap();
+    assert_eq!((value.to_string(), revision), ("12.5 chaos".into(), 1));
+
+    // A replacement at the reviewed revision returns the prior row.
+    let w = receipt(&acq(
+        &base,
+        &[
+            "price",
+            "set",
+            "item/i-map",
+            "b/o",
+            "1/5",
+            "divine",
+            "--if-revision",
+            "1",
+            "--json",
+        ],
+    ));
+    assert_eq!(w.prior.as_ref().map(|r| r.revision), Some(1));
+    assert_eq!(w.prior.unwrap().value, written.value);
+    assert_eq!(w.written.as_ref().map(|r| r.revision), Some(2));
+
+    // A stale revision conflicts, naming the current one; nothing landed.
+    let out = acq(
+        &base,
+        &["price", "set", "item/i-map", "skip", "--if-revision", "1"],
+    );
+    assert!(!out.status.success());
+    assert!(
+        stderr(&out).contains("is at revision 2 (re-read and retry)"),
+        "{}",
+        stderr(&out)
+    );
+    let (value, revision) =
+        manual(&acq(&base, &["price", "show", "item/i-map", "--json"])).unwrap();
+    assert_eq!((value.to_string(), revision), ("1/5 divine b/o".into(), 2));
+
+    // A retired tag is refused for a new price, in words.
+    let out = acq(
+        &base,
+        &["price", "set", "item/i-map", "exact", "1", "chisel"],
+    );
+    assert!(!out.status.success());
+    assert!(
+        stderr(&out).contains("currency \"chisel\" is retired"),
+        "{}",
+        stderr(&out)
+    );
+
+    // The text receipt of a clear ends with the command that puts it back.
+    let out = acq(&base, &["price", "clear", "item/i-map"]);
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(
+        String::from_utf8_lossy(&out.stdout),
+        "item/i-map: cleared, was 1/5 divine b/o (revision 2)\n\
+         next: `acq price set item/i-map negotiable 1/5 divine` puts it back\n"
+    );
+    assert!(manual(&acq(&base, &["price", "show", "item/i-map", "--json"])).is_none());
+    let out = acq(&base, &["price", "clear", "item/i-map"]);
+    assert!(!out.status.success());
+    assert!(
+        stderr(&out).contains("nothing to clear: item/i-map has no price row of its own"),
+        "{}",
+        stderr(&out)
+    );
+    let out = acq(&base, &["price", "status", "--json"]);
+    let report: ListingReport = serde_json::from_value(sole_json(&out)).unwrap();
+    assert_eq!(
+        report.rows.total, 3,
+        "the seed's rows, the cleared one gone"
+    );
+
+    // Putting it back is a create over the tombstone: the revision carries on.
+    let w = receipt(&acq(
+        &base,
+        &[
+            "price",
+            "set",
+            "item/i-map",
+            "negotiable",
+            "1/5",
+            "divine",
+            "--json",
+        ],
+    ));
+    assert!(w.prior.is_none());
+    assert_eq!(w.written.map(|r| r.revision), Some(4));
 
     let _ = std::fs::remove_dir_all(&base);
 }

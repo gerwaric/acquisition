@@ -94,12 +94,15 @@ bounded by `MAX_429_RETRIES`; a Cloudflare-shaped 403/503 is never retried.
   price, `skip`, `invalid` or none — is `game_side.rs` (C69), pinned by
   the fixture the run left; the listing state (C69, C70, C80, C81: both
   sides, their relation, the effective price) is one pure function in
-  `listing.rs` over the store's pricing snapshot, read by `acq price`. No surface writes a price yet (plan step 5).
+  `listing.rs` over the store's pricing snapshot, read by `acq price`;
+  the one write path (`set_buyout`/`clear_buyout`: single-row CAS, the
+  prior row returned, C78) is in `price.rs`, written by `acq price set|clear`.
 - `crates/acquisition-cli` — the `acq` binary. Thin: clap parsing, output
   rendering, `store_cmd.rs` (reads of the shared store, no daemon),
   `plan_cmd.rs` (the intent surface `acq policy`, and `acq refresh
   --plan|--apply` through `acquisition-plan`), `price_cmd.rs` (`acq
-  price status|show|list`: the listing state under C53's three views)
+  price status|show|list`: the listing state under C53's three views;
+  `set|clear`: one row each through the shared write, the receipt printed)
   and `reference_cmd.rs` (`acq reference currency`: the shipped table,
   by version). The protocol client
   (connect, lazy spawn, version handshake) is
@@ -148,6 +151,11 @@ acq reference currency [WORD] [--expand]     # the currency table this build shi
 acq price [status|list|show <target>]        # the listing state (C69) under C53: one line + next action; items grouped
                                              #  by tab; one target (item/<id>, tab/<realm>/<id>, …) with both sides,
                                              #  the raw note beside its parse; --expand, --relation R, --in <container>
+acq price set <target> <type> [<amount> <currency>] [--if-revision N]
+                                             # one row by hand (C64): exact|negotiable|no_price|skip (the game's price,
+                                             #  b/o, ~skip work too); a decimal of ≤4 places or wanted/lot; a table tag;
+                                             #  CAS like `acq policy set`; prints what it replaced (C78)
+acq price clear <target> [--if-revision N]   # remove the row; prints what it removed and the `set` that puts it back
 acq policy [show]                            # the per-account sync policy: declared coverage + freshness (an annotation)
 acq policy set '<json>' [--if-revision N]    # validated through the planner's strict parse before anything lands;
                                              #  v3 shape: {"version":3,"realms":{"pc":{"leagues":{"Standard":

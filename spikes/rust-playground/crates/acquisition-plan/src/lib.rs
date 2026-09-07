@@ -123,7 +123,10 @@
 //! subject's manual side by specificity (C70), game side through the tab
 //! C80 names, and their relation — is [`listing::resolve`] over the
 //! store's [`acquisition_store::PricingSnapshot`], see `listing.rs`,
-//! "As built".
+//! "As built". The one write path — a single-row compare-and-swap that
+//! returns the row it replaced (C78) and refuses a retired tag for a new
+//! price (C67) — is [`price::set_buyout`] / [`price::clear_buyout`],
+//! built once for every frontend the way [`put_sync_policy`] is.
 //!
 //! # Decisions as recorded
 //!

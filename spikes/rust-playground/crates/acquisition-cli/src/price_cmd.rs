@@ -3,8 +3,11 @@
 //! the state through `acquisition-plan` ([`resolve`], C69/C70/C80), and
 //! render it under C53 — the default text is the decision view, `--expand`
 //! the audit view, `--json` the [`ListingReport`] itself, of which every
-//! line here is a function. Nothing here writes: `set` and `clear` are
-//! the pricing slice's step 5 (`PRICING-SLICE.md`).
+//! line here is a function. `set` and `clear` (plan step 5) are the two
+//! writes: one row each through the plan crate's shared write ([`set_buyout`],
+//! [`clear_buyout`]) under compare-and-swap, printing the receipt —
+//! what the target is now, what it was (C78), and the command that puts
+//! the prior back.
 //!
 //! Under C53: `status` opens with the one line that answers "what is
 //! listed" (items, priced in game, by hand, agree, conflict, unlisted),
@@ -33,11 +36,14 @@ use acquisition_plan::game_side::{GamePrice, Source};
 use acquisition_plan::listing::{
     ListFilter, ListView, Listing, ListingReport, Relation, ReportHeader, ShowView, Side, resolve,
 };
-use acquisition_plan::price::PriceTarget;
-use acquisition_store::{Store, account_path};
+use acquisition_plan::price::{
+    BUYOUT_KIND, BUYOUT_VERSION, Buyout, PriceTarget, PriceWrite, clear_buyout, set_buyout,
+};
+use acquisition_store::{AnnotationRow, Annotations, IntentValue, Provenance, Store, account_path};
 use anyhow::{Context, Result, bail};
+use serde_json::json;
 
-use crate::plan_cmd::open_intent;
+use crate::plan_cmd::{WRITTEN_VIA, open_intent};
 use crate::store_cmd::{ago, clip, realm_prefix};
 
 /// Groups of this many items or fewer are listed one per line; larger
@@ -834,6 +840,169 @@ fn render_show(view: &ShowView, now: i64, expand: bool) -> String {
     out
 }
 
+/// The value words `set` takes: the C67 type word — or the game's own
+/// (`price`, `b/o`, `~price`, `~b/o`, `~skip`) — then, for a priced
+/// type, the amount and the currency tag. Built into the v1 wire shape
+/// and read through the value's own strict parse, so the CLI has no
+/// second grammar: a fifth digit, an alias that is not a tag, an amount
+/// on `skip`, each refuses in the value's words.
+fn parse_buyout(kind: &str, amount: Option<&str>, currency: Option<&str>) -> Result<Buyout> {
+    let kind = match kind {
+        "exact" | "price" | "~price" => "exact",
+        "negotiable" | "b/o" | "~b/o" => "negotiable",
+        "no_price" | "no-price" => "no_price",
+        "skip" | "~skip" => "skip",
+        other => bail!(
+            "{other:?} is not a price type: exact (the game's ~price), negotiable (~b/o), no_price or skip"
+        ),
+    };
+    if matches!(kind, "exact" | "negotiable") && (amount.is_none() || currency.is_none()) {
+        bail!(
+            "{kind} takes an amount and a currency tag: `{kind} 12.5 chaos`, `{kind} 1/5 divine`; \
+             `acq reference currency` lists the tags"
+        );
+    }
+    let mut value = json!({ "version": BUYOUT_VERSION, "type": kind });
+    if let Some(amount) = amount {
+        value["amount"] = json!(amount);
+    }
+    if let Some(currency) = currency {
+        value["currency"] = json!(currency);
+    }
+    Buyout::parse(&value).map_err(|e| anyhow::anyhow!("{e}"))
+}
+
+/// The row's current revision, or none — the blind default's read.
+fn current_revision(annotations: &Annotations, target: &PriceTarget) -> Result<Option<i64>> {
+    let (scope, key) = target.address()?;
+    Ok(annotations
+        .get(scope, &key, BUYOUT_KIND)?
+        .map(|r| r.revision))
+}
+
+/// `acq price set <target> <type> [<amount> <currency>]`: one row through
+/// the shared write ([`set_buyout`]). `--if-revision` is the CAS at the
+/// human boundary, the same rule as `acq policy set`: given, the write
+/// lands only over exactly that revision; omitted, it replaces whatever
+/// is stored — read just before the put, so a write racing in between is
+/// still a structured conflict, never a clobber.
+pub fn set(
+    target: &str,
+    kind: &str,
+    amount: Option<&str>,
+    currency: Option<&str>,
+    if_revision: Option<i64>,
+    json: bool,
+) -> Result<()> {
+    let target = parse_target(target)?;
+    let value = parse_buyout(kind, amount, currency)?;
+    let (_, _, mut annotations) = open_intent()?;
+    let expected = match if_revision {
+        Some(revision) => Some(revision),
+        None => current_revision(&annotations, &target)?,
+    };
+    let write = set_buyout(
+        &mut annotations,
+        &target,
+        &value,
+        expected,
+        &Provenance::via(WRITTEN_VIA),
+    )?;
+    report_write(&write, json)
+}
+
+/// `acq price clear <target>`: remove the row, under the same CAS. A
+/// target with no row is a refusal that says so — every nothing says
+/// which nothing (C53).
+pub fn clear(target: &str, if_revision: Option<i64>, json: bool) -> Result<()> {
+    let target = parse_target(target)?;
+    let (_, _, mut annotations) = open_intent()?;
+    let expected = match if_revision {
+        Some(revision) => revision,
+        None => match current_revision(&annotations, &target)? {
+            Some(revision) => revision,
+            None => bail!(
+                "nothing to clear: {target} has no price row of its own \
+                 (`acq price show {target}` reads what covers it)"
+            ),
+        },
+    };
+    let write = clear_buyout(
+        &mut annotations,
+        &target,
+        expected,
+        &Provenance::via(WRITTEN_VIA),
+    )?;
+    report_write(&write, json)
+}
+
+fn report_write(write: &PriceWrite, json: bool) -> Result<()> {
+    if json {
+        println!("{}", serde_json::to_string_pretty(write)?);
+        return Ok(());
+    }
+    print!("{}", render_write(write));
+    Ok(())
+}
+
+/// A stored value as text, or its JSON when this build cannot read it.
+fn value_text(row: &AnnotationRow) -> String {
+    match Buyout::parse(&row.value) {
+        Ok(value) => value.to_string(),
+        Err(_) => format!("an unreadable value {}", row.value),
+    }
+}
+
+/// The `set` words that write this value again — the undo, typed.
+fn set_words(value: &Buyout) -> String {
+    match value.price() {
+        Some(price) => format!("{} {price}", value.kind()),
+        None => value.kind().into(),
+    }
+}
+
+/// The write receipt as text (C53): what the target is now and what it
+/// was (C78), then the next action — reading it beside the game side,
+/// and the command that puts the prior back.
+fn render_write(write: &PriceWrite) -> String {
+    let target = &write.target;
+    let was = match &write.prior {
+        None => "was unset".to_string(),
+        Some(prior) => format!("was {} (revision {})", value_text(prior), prior.revision),
+    };
+    let put_back = write
+        .prior
+        .as_ref()
+        .and_then(|prior| Buyout::parse(&prior.value).ok())
+        .map(|value| format!("`acq price set {target} {}`", set_words(&value)));
+    let mut out = String::new();
+    match &write.written {
+        Some(row) => {
+            out.push_str(&format!(
+                "{target}: {} (revision {}), {was}\n",
+                value_text(row),
+                row.revision
+            ));
+            let mut next = format!("`acq price show {target}` reads it beside the game side");
+            if let Some(put_back) = put_back {
+                next.push_str(&format!("; {put_back} puts the prior back"));
+            }
+            out.push_str(&format!("next: {next}\n"));
+        }
+        None => {
+            out.push_str(&format!("{target}: cleared, {was}\n"));
+            let next = match put_back {
+                Some(put_back) => format!("{put_back} puts it back"),
+                None => format!(
+                    "`acq price set {target} …` with the value above puts it back (its JSON is in --json)"
+                ),
+            };
+            out.push_str(&format!("next: {next}\n"));
+        }
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1270,5 +1439,136 @@ mod tests {
             text.contains("rows naming nothing in these facts:\n  item/i-01\n  item/i-gone\n"),
             "{text}"
         );
+    }
+
+    /// `set`'s value words are one grammar with the value's own: the
+    /// C67 type words and the game's, an amount tolerated as a human
+    /// types it and stored canonical, and every refusal in the value's
+    /// words — a priced type without its two words, an amount on `skip`,
+    /// an alias that is not a tag.
+    #[test]
+    fn set_reads_the_value_words_through_the_value_s_own_parse() {
+        let exact = |amount: &str, currency: &str| {
+            Buyout::Exact(acquisition_plan::price::Price {
+                amount: amount.parse().unwrap(),
+                currency: currency.into(),
+            })
+        };
+        assert_eq!(
+            parse_buyout("exact", Some("12.50"), Some("chaos")).unwrap(),
+            exact("12.5", "chaos")
+        );
+        assert_eq!(
+            parse_buyout("~price", Some("1"), Some("divine")).unwrap(),
+            exact("1", "divine")
+        );
+        assert_eq!(
+            parse_buyout("b/o", Some("1/5"), Some("divine"))
+                .unwrap()
+                .to_string(),
+            "1/5 divine b/o"
+        );
+        assert_eq!(parse_buyout("skip", None, None).unwrap(), Buyout::Skip);
+        assert_eq!(parse_buyout("~skip", None, None).unwrap(), Buyout::Skip);
+        assert_eq!(
+            parse_buyout("no-price", None, None).unwrap(),
+            Buyout::NoPrice
+        );
+        for (words, said) in [
+            (("bogus", None, None), "is not a price type"),
+            (
+                ("exact", Some("1"), None),
+                "takes an amount and a currency tag",
+            ),
+            (
+                ("negotiable", None, None),
+                "takes an amount and a currency tag",
+            ),
+            (("skip", Some("1"), Some("chaos")), "carries no amount"),
+            (
+                ("exact", Some("1"), Some("exa")),
+                "resolves to tag \"exalted\"",
+            ),
+            (
+                ("exact", Some("1"), Some("c")),
+                "is not in currency table v1",
+            ),
+            (
+                ("exact", Some("1.23456"), Some("chaos")),
+                "four fractional digits",
+            ),
+            (("exact", Some("0"), Some("chaos")), "positive"),
+        ] {
+            let err = parse_buyout(words.0, words.1, words.2).unwrap_err();
+            assert!(err.to_string().contains(said), "{words:?}: {err}");
+        }
+    }
+
+    /// C53, C78 — the receipt's text says what the target is now and
+    /// what it was, and ends with the action that undoes it: the prior
+    /// value as `set` words after a replacement or a clear; a prior this
+    /// build cannot read is shown as its JSON, never dropped.
+    #[test]
+    fn the_write_receipt_says_what_was_and_how_to_put_it_back() {
+        let target = PriceTarget::Item { id: "i1".into() };
+        let row = |value: Value, revision: i64| AnnotationRow {
+            scope: "item".into(),
+            key: "i1".into(),
+            kind: "buyout".into(),
+            value,
+            revision,
+            created_at: 0,
+            updated_at: 0,
+            written_via: "cli".into(),
+            actor: None,
+        };
+        let exact = json!({ "version": 1, "type": "exact", "amount": "12.5", "currency": "chaos" });
+        let bo =
+            json!({ "version": 1, "type": "negotiable", "amount": "1/5", "currency": "divine" });
+        let created = PriceWrite {
+            target: target.clone(),
+            written: Some(row(exact.clone(), 1)),
+            prior: None,
+        };
+        assert_eq!(
+            render_write(&created),
+            "item/i1: 12.5 chaos (revision 1), was unset\n\
+             next: `acq price show item/i1` reads it beside the game side\n"
+        );
+        let replaced = PriceWrite {
+            target: target.clone(),
+            written: Some(row(bo.clone(), 2)),
+            prior: Some(row(exact.clone(), 1)),
+        };
+        assert_eq!(
+            render_write(&replaced),
+            "item/i1: 1/5 divine b/o (revision 2), was 12.5 chaos (revision 1)\n\
+             next: `acq price show item/i1` reads it beside the game side; \
+             `acq price set item/i1 exact 12.5 chaos` puts the prior back\n"
+        );
+        let cleared = PriceWrite {
+            target: target.clone(),
+            written: None,
+            prior: Some(row(bo, 2)),
+        };
+        assert_eq!(
+            render_write(&cleared),
+            "item/i1: cleared, was 1/5 divine b/o (revision 2)\n\
+             next: `acq price set item/i1 negotiable 1/5 divine` puts it back\n"
+        );
+        let newer = json!({ "version": 9, "type": "auction" });
+        let unreadable = PriceWrite {
+            target,
+            written: None,
+            prior: Some(row(newer, 3)),
+        };
+        let text = render_write(&unreadable);
+        assert!(
+            text.starts_with(
+                "item/i1: cleared, was an unreadable value {\"type\":\"auction\",\"version\":9} (revision 3)\n"
+            ),
+            "{text}"
+        );
+        assert!(text.contains("its JSON is in --json"), "{text}");
     }
 }

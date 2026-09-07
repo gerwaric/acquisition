@@ -290,6 +290,40 @@ enum PriceCmd {
         #[arg(long)]
         expand: bool,
     },
+    /// Set one target's price by hand — a row on an item, tab, substash
+    /// or character; what it covers inherits it (C70). Prints what it
+    /// replaced, and how to put that back.
+    Set {
+        /// `item/<id>`, `character/<id>`, `tab/<realm>/<id>` or
+        /// `substash/<realm>/<parent>/<id>`.
+        target: String,
+        /// exact, negotiable, no_price or skip (the game's `price`, `b/o`
+        /// and `~skip` work too).
+        #[arg(value_name = "TYPE")]
+        kind: String,
+        /// For exact and negotiable: a decimal of up to four places
+        /// (`12.5`), or a `wanted/lot` ratio (`1/5`).
+        amount: Option<String>,
+        /// For exact and negotiable: a tag of `acq reference currency`.
+        currency: Option<String>,
+        /// Only write over exactly this revision (what `acq price show`
+        /// printed when you reviewed it); refused naming the current one
+        /// otherwise. Without it the write replaces whatever is stored —
+        /// though a write racing in between still conflicts rather than
+        /// being clobbered.
+        #[arg(long)]
+        if_revision: Option<i64>,
+    },
+    /// Remove one target's own price row; what it covered falls back to
+    /// the next row up (C70). Prints what it removed and the command that
+    /// puts it back.
+    Clear {
+        /// The address, as for `set`.
+        target: String,
+        /// Only clear exactly this revision; see `set`.
+        #[arg(long)]
+        if_revision: Option<i64>,
+    },
 }
 
 #[derive(Subcommand)]
@@ -667,6 +701,24 @@ async fn run(cli: Cli) -> Result<()> {
                 expand,
                 cli.json,
             ),
+            PriceCmd::Set {
+                target,
+                kind,
+                amount,
+                currency,
+                if_revision,
+            } => price_cmd::set(
+                &target,
+                &kind,
+                amount.as_deref(),
+                currency.as_deref(),
+                if_revision,
+                cli.json,
+            ),
+            PriceCmd::Clear {
+                target,
+                if_revision,
+            } => price_cmd::clear(&target, if_revision, cli.json),
         },
         Cmd::Reference { cmd } => match cmd {
             ReferenceCmd::Currency { word, expand } => {
@@ -1462,6 +1514,37 @@ mod tests {
         assert!(Cli::try_parse_from(["acq", "refresh", "--plan"]).is_ok());
         assert!(Cli::try_parse_from(["acq", "refresh", "--plan", "--league", "Hardcore"]).is_ok());
         assert!(Cli::try_parse_from(["acq", "policy", "set", "{}", "--if-revision", "4"]).is_ok());
+    }
+
+    #[test]
+    fn price_set_takes_a_type_then_an_optional_amount_and_currency() {
+        for ok in [
+            vec!["acq", "price", "set", "item/i1", "exact", "12.5", "chaos"],
+            vec![
+                "acq",
+                "price",
+                "set",
+                "tab/pc/t1",
+                "b/o",
+                "1/5",
+                "divine",
+                "--if-revision",
+                "2",
+            ],
+            vec!["acq", "price", "set", "item/i1", "skip"],
+            vec!["acq", "price", "clear", "item/i1", "--if-revision", "3"],
+        ] {
+            assert!(Cli::try_parse_from(&ok).is_ok(), "{ok:?} must parse");
+        }
+        // The value's words are positional and at most three: a fourth is
+        // a parse error, never a silently dropped word.
+        assert!(
+            Cli::try_parse_from([
+                "acq", "price", "set", "item/i1", "exact", "1", "chaos", "extra"
+            ])
+            .is_err()
+        );
+        assert!(Cli::try_parse_from(["acq", "price", "set", "item/i1"]).is_err());
     }
 
     #[test]

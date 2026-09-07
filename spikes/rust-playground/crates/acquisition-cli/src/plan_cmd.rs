@@ -136,7 +136,7 @@ use serde_json::Value;
 use crate::store_cmd;
 
 /// The channel every intent write from this binary is stamped with (C65).
-const WRITTEN_VIA: &str = "cli";
+pub(crate) const WRITTEN_VIA: &str = "cli";
 
 /// A shape hint for humans; the planner's strict parse is the authority.
 const POLICY_EXAMPLE: &str = r#"{"version":3,"realms":{"pc":{"leagues":{"Standard":{"tabs":"all","characters":"all","max_age_seconds":3600}}}}}"#;
