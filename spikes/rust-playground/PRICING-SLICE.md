@@ -29,8 +29,10 @@ claims authored master-side. Nothing here is a second authority.
   by a committed fixture). Pricing code so far: `acquisition-plan/src/currency.rs`,
   `price.rs`, `game_side.rs`, `listing.rs`; the store's pricing snapshot
   (`snapshot.rs`); `acq reference currency` and `acq price
-  status | show | list` (`price_cmd.rs`). No surface writes a price yet
-  (plan step 5).
+  status | show | list | set | clear` (`price_cmd.rs`). The write is one
+  row through `price.rs`'s `set_buyout`/`clear_buyout` (plan step 5,
+  2026-09-06); **validation reading 1** — the owner's first rows by hand
+  from an empty intent file — has not run.
 - The forum is **write-only from our side**: `/character` returns no
   `forum_note` for a forum-listed item (price-notes run, 2026-09-04), so
   the game side of a listing is item note, then tab name (C69), and a
@@ -131,6 +133,7 @@ claims file's appendix maps T→C as well.
 | Pricing | plan 4 listing state | `c340b487`, `25f99e4f` | the store's `PricingSnapshot` (`Store::pricing_snapshot`: the refresh snapshot's tabs and characters, every live item at them with its `note` verbatim, every `buyout` row raw; the readers shared with `refresh_snapshot`); `listing.rs`: `resolve(&snapshot)` → a `ListingReport` (schema 1) with one `Listing` per tab, substash, character and item — the manual side by specificity (C70: item, substash, tab, folder; item, character), the game side through the tab C80 names (note first, then the tab name, both texts verbatim beside both readings, `public`), the relation with a sentence naming both sides, per-listing basis, parser and table versions, the row accounting (applied, other realm, unmatched, unreadable) and the counts; `acq price status | show | list` under C53's three views (`price_cmd.rs`); `PriceTarget: FromStr`, `Buyout: Deserialize` (the strict parse), `Amount` as text in JSON; the `c69_`, `c70_`, `c80_` and `c53_price_` tests |
 | Pricing | plan 4b C81 build | `9db1c99a` | `ignore` → `skip` (C67); the game side a statement only for a public tab (C81, T1) — a note or name that reads as a price or `skip` elsewhere is `residue`, shown, never a side; an unreadable note has no effect and the tab applies (T18); `Effective` on every listing (the more specific statement, the game's on a tie, by chain position; `side`, `from`, `why`); `Counts.by_effective`, `residue`; `acq price` says who decides (`status`'s first line, the `wins` column, `show`'s `effective:` line); the recorded C69 text in `listing.rs` and `game_side.rs` follows the registry; the `c81_` test |
 | Pricing | plan 2 annotations v3, typed value | `3d2902cd` | annotations v3 by stepwise `ALTER` (`written_via`, `actor`; C65); `IntentValue` + `check_value` in the store crate (version gate, per-kind strict parse, exact round-trip for a current-schema value, then CAS; C66) with `SyncPolicy` moved onto it unchanged; `Provenance` required by `put`/`delete` and threaded through `put_sync_policy`, the CLI (`cli`) and MCP (`mcp`); `list(scope, kind)`; `AnnotationError::Busy`; `price.rs`: `PriceTarget` (realm-bearing tab and substash keys), `Amount`, `Buyout` v1 (C67); the `c65_`, `c66_`, `c67_` tests |
+| Pricing | plan 5 set, clear | `5fc19304` | `price.rs`: `set_buyout` / `clear_buyout`, the one write path for every frontend (single-row CAS through the typed door, the prior row returned as a `PriceWrite` — C78's clause until receipts; a new price never names a retired tag — C67's writer's rule; the blind "replace whatever is stored" a frontend policy, as with the sync policy); `acq price set <target> <type> [<amount> <currency>]` and `acq price clear <target>`, `--if-revision` as `acq policy set` has it, the receipt under C53 (what it is now, what it was, the `set` words that put the prior back; `--json` the `PriceWrite`); the `c78_`, `c67_…retired…`, `c35_…stale…` tests, the CLI's grammar and receipt tests, and `price_json.rs`'s process pin |
 
 ## Findings
 
@@ -330,6 +333,17 @@ shows the item picture, so a wrong link is visible before posting.
   (the owner's data holds 26k items and ~1.4k listed); `--relation none`
   or `--effective none` asks for the rest. Whether "unlisted" should be
   visible by default is a reading-1 question.
+- `set` lands on any well-formed target, whether or not the facts hold
+  it: intent is league-less (C67), never gated by facts (C64), and a
+  price on a tab the policy has not fetched yet is legitimate (C72
+  reports it). A typo'd id therefore lands too, and `status` counts it
+  under "name nothing in these facts". Whether `set` should say so at
+  write time (a note, never a refusal) is a reading-1 question.
+- `set`'s type words are the C67 vocabulary plus the game's (`price`,
+  `b/o`, `~price`, `~b/o`, `~skip`); the amount and currency are read by
+  the value's own parse, so the CLI has no second grammar and an alias
+  is refused naming the tag rather than resolved. Whether the owner
+  wants the alias resolved for them is a reading-1 question.
 - `LIVE-TESTING.md` and `README.md` are over 90% of their budgets
   (README since step 4's crate and command lines); route at session
   close.
