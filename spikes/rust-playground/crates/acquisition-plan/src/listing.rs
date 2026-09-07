@@ -30,12 +30,13 @@
 //!
 //! **C81 — The effective price is the most specific statement, the game's
 //! on a tie; only a public tab's game side is a statement.** Levels are
-//! C70's (item, substash, tab, folder; item, character); the game speaks
+//! C70's; the game speaks
 //! at item level (a note) and tab level (a name, C80). A note or name in a
 //! non-public tab is invisible to the index (T1, T11) — residue, shown,
-//! never a side. A prior forum post is never a side (T6). So an item row
-//! beats a game tab price; a game note beats an item row; a game tab price
-//! beats a tab row. *Why:* acquisition's prices reach the world only
+//! never a side. A prior forum post is never a side (T6). A row that
+//! cannot be read, at a level that could decide, leaves the price
+//! unresolved — never the game's by default. *Why:* acquisition's prices
+//! reach the world only
 //! through the forum, and a page must not contradict what the site
 //! already shows; owner, 2026-09-06: "In-game prices should take priority
 //! over acquisition prices." *Details:* `listing.rs`. *Pinned:* the `c81_`
@@ -109,8 +110,11 @@
 //! no row applies and the game states nothing. `manual_only` and
 //! `game_only`: one side speaks. `agree`: both do and say the same thing —
 //! the same price under the same prefix, or `skip` beside `~skip`.
-//! `conflict`: both speak and differ. The relation describes; the
-//! effective price decides.
+//! `conflict`: both speak and differ. A row the walk could not read is
+//! named in the sentence where "no row applies" would otherwise stand.
+//! The relation describes; the effective price decides — and `list`'s
+//! default selection is every relation but `none` plus every unresolved
+//! item, so an unreadable row is never hidden by the relation word.
 //!
 //! **The effective price (C81)** is the more specific of the two
 //! statements, the game's on a tie. A statement's level is its position
@@ -164,9 +168,17 @@ use crate::currency::{self, CURRENCY_TABLE_VERSION, CurrencyTable, CurrencyTable
 use crate::game_side::{self, GamePrice, NOTE_PARSER_VERSION, Source};
 use crate::price::{Buyout, Price, PriceTarget};
 
-/// The report's JSON shape, stamped on every [`ListingReport`]; changes
-/// are additive (C53) until they are not, and then this moves.
-pub const LISTING_SCHEMA: u32 = 1;
+/// The report's JSON shape, stamped on every [`ListingReport`] and view;
+/// changes are additive (C53) until they are not, and then this moves.
+/// **2** since 2026-09-06: schema 1 never left development, and the
+/// second step-4 review's count fields (`by_game_statement`,
+/// `game_priced`) replaced rather than joined `by_game_reading`,
+/// `game_priced_public` and `game_priced_not_public` — a rename, so a
+/// bump, not a compatibility shim nobody would read. The shape is
+/// pinned by `reference/listing-report-schema-2.json`
+/// (`the_report_json_matches_the_committed_fixture`); a change that
+/// fails it is either additive (regenerate the fixture) or a bump.
+pub const LISTING_SCHEMA: u32 = 2;
 
 /// The GGG tab type that groups tabs and holds no items.
 const FOLDER: &str = "Folder";
@@ -358,6 +370,18 @@ pub struct Effective {
     pub why: String,
 }
 
+impl Effective {
+    /// The side word `Counts::by_effective` and `ListFilter::effective`
+    /// use: `game`, `manual`, `none` or `unresolved`.
+    pub fn side_word(&self) -> &'static str {
+        match (self.side, self.kind.as_str()) {
+            (Some(side), _) => side.as_str(),
+            (None, "unresolved") => "unresolved",
+            (None, _) => "none",
+        }
+    }
+}
+
 impl fmt::Display for Effective {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match (&self.price, self.kind.as_str()) {
@@ -490,13 +514,18 @@ pub struct ListingReport {
 }
 
 /// Which items `list` selects: by relation (absent: every relation but
-/// `none`), physically in one container, or covered by a row on one
-/// target (C70) — the two are different sets for a folder or a parent
-/// tab.
+/// `none`, plus every unresolved item whatever its relation), by the
+/// effective price's side, physically in one container, or covered by a
+/// row on one target (C70) — the two are different sets for a folder or
+/// a parent tab.
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct ListFilter {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub relation: Option<Relation>,
+    /// The effective price's side: `game`, `manual`, `none` or
+    /// `unresolved`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub effective: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub r#in: Option<PriceTarget>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -582,7 +611,13 @@ impl ListingReport {
             .filter(|l| l.subject.is_item())
             .filter(|l| match filter.relation {
                 Some(rel) => l.relation == rel,
-                None => l.relation != Relation::None,
+                None => l.relation != Relation::None || l.effective.kind == "unresolved",
+            })
+            .filter(|l| {
+                filter
+                    .effective
+                    .as_deref()
+                    .is_none_or(|side| l.effective.side_word() == side)
             })
             .filter(|l| {
                 filter
@@ -933,18 +968,25 @@ fn manual_side(chain: &[PriceTarget], rows: &Rows) -> (Option<ManualSide>, Optio
     (None, None)
 }
 
-/// The relation and its sentence (module doc, "The relation").
-fn relate(manual: Option<&Buyout>, game: &GamePrice) -> (Relation, String) {
+/// The relation and its sentence (module doc, "The relation"). A row the
+/// walk could not read is named in the sentence: "no row applies" would
+/// be false, and the effective price says what the row could do.
+fn relate(
+    manual: Option<&Buyout>,
+    unreadable: Option<&Unreadable>,
+    game: &GamePrice,
+) -> (Relation, String) {
+    let unread = |tail: &str| match unreadable {
+        Some(u) => format!("the row on {} cannot be read{tail}", u.target),
+        None => format!("no row applies{tail}"),
+    };
     match (manual, game) {
-        (None, GamePrice::None) => (
-            Relation::None,
-            "no row applies and the game states nothing".into(),
-        ),
+        (None, GamePrice::None) => (Relation::None, unread(" and the game states nothing")),
         (Some(m), GamePrice::None) => (
             Relation::ManualOnly,
             format!("by hand: {m}; the game states nothing"),
         ),
-        (None, g) => (Relation::GameOnly, format!("in game: {g}; no row applies")),
+        (None, g) => (Relation::GameOnly, format!("in game: {g}; {}", unread(""))),
         (Some(m), g) => {
             let agree = match (m, g) {
                 (Buyout::Exact(a), GamePrice::Exact(b)) => a == b,
@@ -1106,7 +1148,11 @@ fn listing(
     basis: Basis,
 ) -> Listing {
     let (manual, unreadable) = manual_side(chain, rows);
-    let (relation, why) = relate(manual.as_ref().map(|m| &m.value), &game.reading);
+    let (relation, why) = relate(
+        manual.as_ref().map(|m| &m.value),
+        unreadable.as_ref(),
+        &game.reading,
+    );
     let effective = effective(
         chain,
         manual.as_ref(),
@@ -1331,11 +1377,7 @@ pub fn resolve(snapshot: &PricingSnapshot) -> Result<ListingReport, ListingError
         }
         *counts
             .by_effective
-            .entry(match (l.effective.side, l.effective.kind.as_str()) {
-                (Some(side), _) => side.as_str().to_string(),
-                (None, "unresolved") => "unresolved".to_string(),
-                (None, _) => "none".to_string(),
-            })
+            .entry(l.effective.side_word().to_string())
             .or_default() += 1;
         if l.game.residue {
             counts.residue += 1;
@@ -1666,10 +1708,14 @@ mod tests {
         assert_eq!(l.relation, Relation::ManualOnly);
         assert_eq!(l.why, "by hand: 2222 jewellers; the game states nothing");
 
-        // Nothing on either side, and the nothing is named.
+        // An unreadable own row and nothing in game: the relation is
+        // `none`, and the sentence names the row, not "no row applies".
         let l = get(&report, &item_target("i-dump"));
         assert_eq!(l.relation, Relation::None);
-        assert_eq!(l.why, "no row applies and the game states nothing");
+        assert_eq!(
+            l.why,
+            "the row on item/i-dump cannot be read and the game states nothing"
+        );
         assert_eq!(l.game.public, Some(false));
         assert!(!l.game.residue);
 
@@ -1837,6 +1883,70 @@ mod tests {
         // An item's show view carries no item sets.
         let view = report.show_view(&item_target("i-fifty")).unwrap();
         assert!(view.items_here.is_empty() && view.items_covered_below.is_empty());
+        // The relation sentence names the unreadable row beside a game
+        // statement too, and the default list never hides an unresolved
+        // item behind its relation word; `effective` selects by side.
+        assert_eq!(
+            l.why,
+            "in game: 3 chaos; the row on tab/pc/f1 cannot be read"
+        );
+        let report = resolve(&snapshot()).unwrap();
+        let default = report.list_view(ListFilter::default()).unwrap();
+        assert!(
+            default
+                .items
+                .iter()
+                .any(|l| l.subject.target == item_target("i-dump"))
+        );
+        let unresolved = report
+            .list_view(ListFilter {
+                effective: Some("unresolved".into()),
+                ..ListFilter::default()
+            })
+            .unwrap();
+        assert_eq!(
+            unresolved
+                .items
+                .iter()
+                .map(|l| l.subject.target.to_string())
+                .collect::<Vec<_>>(),
+            ["item/i-dump"]
+        );
+        let by_hand = report
+            .list_view(ListFilter {
+                effective: Some("manual".into()),
+                ..ListFilter::default()
+            })
+            .unwrap();
+        assert_eq!(by_hand.items.len(), 3);
+    }
+
+    /// C53 — the JSON shape is the contract: the resolved fixture must
+    /// serialize to exactly the committed document. A difference is
+    /// either additive (regenerate with `ACQ_UPDATE_FIXTURES=1`) or a
+    /// schema bump (`LISTING_SCHEMA`), decided by reading the diff.
+    #[test]
+    fn the_report_json_matches_the_committed_fixture() {
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/reference/listing-report-schema-2.json"
+        );
+        let report = resolve(&snapshot()).unwrap();
+        let actual = serde_json::to_value(&report).unwrap();
+        if std::env::var_os("ACQ_UPDATE_FIXTURES").is_some() {
+            std::fs::write(path, serde_json::to_string_pretty(&actual).unwrap() + "\n").unwrap();
+        }
+        let expected: Value = serde_json::from_str(
+            &std::fs::read_to_string(path).unwrap_or_else(|e| panic!("{path}: {e}")),
+        )
+        .unwrap();
+        assert_eq!(expected["schema"], json!(LISTING_SCHEMA));
+        assert_eq!(
+            actual, expected,
+            "the report's JSON changed; additive → ACQ_UPDATE_FIXTURES=1, else bump LISTING_SCHEMA"
+        );
+        let back: ListingReport = serde_json::from_value(expected).unwrap();
+        assert_eq!(back, report);
     }
 
     /// C70 — the manual side by specificity: the own row, else the
@@ -2088,7 +2198,12 @@ mod tests {
         let show = report.show_view(&m1).unwrap();
         let text = serde_json::to_string(&show).unwrap();
         assert_eq!(serde_json::from_str::<ShowView>(&text).unwrap(), show);
-        assert_eq!(text.matches("\"schema\":1").count(), 1, "{text}");
+        assert_eq!(
+            text.matches(&format!("\"schema\":{LISTING_SCHEMA}"))
+                .count(),
+            1,
+            "{text}"
+        );
     }
 
     /// A character the listing gave no league is carried by every

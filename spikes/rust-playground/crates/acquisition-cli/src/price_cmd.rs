@@ -125,16 +125,39 @@ pub fn show(
     Ok(())
 }
 
+/// `list`'s selection flags as typed: relation and effective-side words,
+/// container addresses — parsed here into a [`ListFilter`].
+#[derive(Debug, Default)]
+pub struct ListArgs {
+    pub relation: Option<String>,
+    pub effective: Option<String>,
+    pub location: Option<String>,
+    pub covered_by: Option<String>,
+}
+
 /// `acq price list`.
 pub fn list(
     realm: Option<Realm>,
     league: &str,
-    relation: Option<&str>,
-    location: Option<&str>,
-    covered_by: Option<&str>,
+    args: &ListArgs,
     expand: bool,
     json: bool,
 ) -> Result<()> {
+    let (relation, effective, location, covered_by) = (
+        args.relation.as_deref(),
+        args.effective.as_deref(),
+        args.location.as_deref(),
+        args.covered_by.as_deref(),
+    );
+    const SIDES: [&str; 4] = ["game", "manual", "none", "unresolved"];
+    let effective = match effective {
+        None => None,
+        Some(word) if SIDES.contains(&word) => Some(word.to_string()),
+        Some(word) => bail!(
+            "{word:?} is not an effective side (one of {})",
+            SIDES.join(", ")
+        ),
+    };
     let relation = match relation {
         None => None,
         Some(word) => Some(Relation::parse(word).ok_or_else(|| {
@@ -161,6 +184,7 @@ pub fn list(
     let r = report(realm, league)?;
     let filter = ListFilter {
         relation,
+        effective,
         r#in: location.clone(),
         covered_by: covered_by.clone(),
     };
@@ -198,15 +222,24 @@ fn reading_count(r: &ListingReport, kind: &str) -> usize {
 }
 
 /// The by-relation breakdown of a set of items, in a fixed order, zeros
-/// left out.
+/// left out; an unresolved item (a row that cannot be read could
+/// decide, C81) is counted as such, never as unlisted.
 fn breakdown(items: &[&Listing]) -> String {
-    let parts: Vec<String> = Relation::ALL
+    let unresolved = |l: &Listing| l.effective.kind == "unresolved";
+    let mut parts: Vec<String> = Relation::ALL
         .into_iter()
         .filter_map(|rel| {
-            let n = items.iter().filter(|l| l.relation == rel).count();
+            let n = items
+                .iter()
+                .filter(|l| l.relation == rel && !(rel == Relation::None && unresolved(l)))
+                .count();
             (n > 0).then(|| format!("{n} {}", relation_word(rel)))
         })
         .collect();
+    let n = items.iter().filter(|l| unresolved(l)).count();
+    if n > 0 {
+        parts.push(format!("{n} unresolved"));
+    }
     parts.join(", ")
 }
 
@@ -370,7 +403,9 @@ fn render_status(r: &ListingReport, now: i64, expand: bool) -> String {
         ));
         out.push_str(&rows_detail(r));
     }
-    let next = if count_of(r, Relation::Conflict) > 0 {
+    let next = if unresolved > 0 {
+        "`acq price list --effective unresolved` names each item a row that cannot be read could decide"
+    } else if count_of(r, Relation::Conflict) > 0 {
         "`acq price list --relation conflict` names each conflict"
     } else if !rows.unreadable.is_empty() {
         "`acq price status --expand` lists the rows that cannot be read"
@@ -524,6 +559,9 @@ fn render_list(view: &ListView, expand: bool) -> String {
     let mut scope = String::new();
     if let Some(rel) = view.filter.relation {
         scope.push_str(&format!(" with relation {rel}"));
+    }
+    if let Some(side) = &view.filter.effective {
+        scope.push_str(&format!(" decided by {side}"));
     }
     if let Some(loc) = &view.filter.r#in {
         scope.push_str(&format!(" in {loc}"));

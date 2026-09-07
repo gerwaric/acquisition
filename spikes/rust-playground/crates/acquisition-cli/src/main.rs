@@ -274,6 +274,9 @@ enum PriceCmd {
         /// none, manual_only, game_only, agree or conflict.
         #[arg(long)]
         relation: Option<String>,
+        /// Who decides (C81): game, manual, none or unresolved.
+        #[arg(long)]
+        effective: Option<String>,
         /// Only items physically in this container (a tab, substash or
         /// character address).
         #[arg(long = "in")]
@@ -646,15 +649,19 @@ async fn run(cli: Cli) -> Result<()> {
                 league,
                 realm,
                 relation,
+                effective,
                 location,
                 covered_by,
                 expand,
             } => price_cmd::list(
                 realm,
                 &league,
-                relation.as_deref(),
-                location.as_deref(),
-                covered_by.as_deref(),
+                &price_cmd::ListArgs {
+                    relation,
+                    effective,
+                    location,
+                    covered_by,
+                },
                 expand,
                 cli.json,
             ),
