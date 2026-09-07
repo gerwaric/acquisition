@@ -366,12 +366,6 @@ shows the item picture, so a wrong link is visible before posting.
   the value's own parse, so the CLI has no second grammar and an alias
   is refused naming the tag rather than resolved. Whether the owner
   wants the alias resolved for them is a reading-1 question.
-- `LIVE-TESTING.md` is at 90% of its budget: the "Ladder (closed,
-  kept as history)" section, the three postmortems and "Status: ladder
-  closed" are ~9 KB of history whose home would be a closed record
-  (`NETWORK-CLEANUP.md`'s shape); the owner's call, since the file is
-  his run procedure. README was routed on 2026-09-07 (the policy facet
-  narrative went to the planner's crate doc).
 
 ## Questions for the owner
 

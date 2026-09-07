@@ -2,7 +2,8 @@
 
 Control document for running the Rust daemon against the real GGG API:
 the standing rule for first contact with anything new, the safety rails,
-the closed ladder (history), and the run ledger. `CONTEXT.md` invariants
+the ladder's record (closed 2026-08-27; its full text at `944406ff`), and
+the run ledger. `CONTEXT.md` invariants
 apply. Ground-truth facts learned live go to
 `docs/design/network-ground-truth.md` as numbered claims (authored
 master-side, cherry-picked here); this file records only runs.
@@ -115,44 +116,26 @@ Each rail has a deterministic test against the mock with rails 1 and 5
 forced on; the suite passes unchanged with them off; quality gates from
 `NETWORK-CLEANUP.md` stay green.
 
-## Ladder (closed 2026-08-27; kept as history)
+## Ladder (closed 2026-08-27)
 
-The preconditions it ran under (exclusive use; one daemon per rung with
-`ACQ_IDLE_SHUTDOWN` outliving it; binary provenance; the 360 s
-post-violation rule; ceilings derived from the rung's own counts, never
-another rung's) are in git at `26850097` and earlier; the ones that are
-facts about GGG rather than ceremony live on in the standing rule above.
-Each rung had a stop condition; stopping meant reading the journal, not
-retrying. `ACQ_GGG=1 ACQ_TRIPWIRE=1` throughout; journal on; ceiling per
-rung; fresh daemon (one token POST before the first API job).
-
-| Rung | Command(s) | Expect (POST/HEAD/GET) | Ceiling | Stop if |
-| --- | --- | --- | --- | --- |
-| 1 | `acq auth`, `acq auth status` | 1/0/0 (code exchange); `token-request-limit` learned with N33's shape | 3 | token response headers differ from N33; any non-2xx; keyring save warning |
-| 2 | `acq auth check` | 1/0/0 (refresh); rotated refresh token persisted | 3 | refresh token not rotated; headers differ from N33; keyring save warning |
-| 3 | `acq characters` | 1/1/1; probe reports 0 hits; policy shape matches ground truth | 5 | probe degrades; parser rejects headers; probe shows hits > 0; any 429 |
-| 4 | `acq stashes --league Standard` | 0–1/1/1 under `stash-list-request-limit` | 5 | as rung 3 |
-| 5 | `acq stash <id>` on one small tab | 0–1/1/1 under `stash-request-limit` | 5 | as rung 3 |
-| 6 | `acq refresh --tabs a,b,c` (3 tabs) | 0–1/0–1/4; observed hits match limiter prediction | 8 | predicted vs. observed state drift > 1 hit |
-| 7 | `acq refresh --tabs …` (≈10 tabs) over several minutes | 0–1/0/11; pacing engages; zero 429 | 16 | any 429 |
-| 7b | `acq refresh --tabs …` (18 tabs, > 15-per-10 s) | 1/2/19; the limiter holds before the 16th child; zero 429 | 24 | any 429; no hold observed |
-| 8 | soak: one daemon with `ACQ_IDLE_SHUTDOWN` ≥ 1 day; `acq characters` every 10 min by cron | 1 POST per ~10 h, 1 HEAD per `(pid, route)`, 1 GET per run; stable headers | cadence × duration | any trip; more than one HEAD per `(pid, route)`; any keyring warning |
-| 9 | *deferred* — timing-bucket measurement (owner decision 2026-08-23): each early guess is a counted 429 against N10's unknown threshold (Q8); if ever run, `character-list-request-limit` (2 per 10 s), a handful of violations total, the 360 s rule between attempts. The zero-violation alternative is asking GGG (N14). Rung 7b's one data point bounds the initial bucket at ≤ 5 s. | | | |
-| 10 | `acq pull --league Standard` (the first real consumer; no `--deep`) | 0–1/2/1+N with N = tabs listed **including folder children** (322 on 2026-08-24; rung 4's 261 was the flat count); `stash-request-limit` is 30 per 300 s, so ~9 holds of up to 5 min, wall clock near 45 min; zero 429; snapshot written; a second run on the same daemon reports no changes with 1+N GETs and no new HEADs (probes are per daemon lifetime) | N + 10, from a `pull`'s own listed count, not an earlier rung's | any 429; any reported window state with hits > max; tabs the list reported missing from the snapshot with no error recorded |
-
-Rung 8 mechanics: the daemon is started **from a terminal** by a person
-(a daemon spawned by cron has no keychain access on macOS and no session);
-`tools/soak-run.sh` is the cron body (sets the same rails env and
-`ACQ_NO_SPAWN=1` so it can only talk to that daemon, derives the ceiling as
-`SOAK_DAYS` × 144 GETs + token POSTs + probes, runs one `acq characters`
-from a **frozen copy of the binary** at `runs/soak/acq` so the tree can be
-rebuilt while the daemon lives, appends one line to `runs/soak/runs.log`); `tools/soak-check.sh <start-ts>`
-evaluates the stop conditions from the journal, the run log, and daemon
-status: it refuses a manual-clock journal and any lifetime in the window
-not built from the binary on disk, and counts HEADs per `(pid, route)`.
-Laptop sleep is welcome, not avoided — cron skips the sleeping minutes and
-the wake is what exercises R8 (an expired token refreshed before the
-next GET, never a 401).
+Ten rungs from the first token exchange to a full `pull`, run 2026-08-22
+to 2026-08-27 under a written hypothesis each; the ledger below holds
+every execution. The goal was met with evidence: the daemon **halts
+rather than floods** — ~1,450 live sends, **zero 429s**, one transient
+origin 503 (N35) handled without a retry, R8 (the sleep-frozen expiry
+clock) seen fixed live, and the rails proven on three real incidents:
+the 503, a ceiling derived from another rung's count (rung 10; now
+"derive from the run's own listing"), and a keyring-blind daemon spawned
+from cron (the rung 8 re-soak; now `ACQ_NO_SPAWN=1` for cron). Rung 9
+(timing-bucket measurement) is deferred on purpose: each attempt is a
+counted violation, and rung 10's twenty holds bound the bucket well
+enough. What the ladder taught lives where it applies — the standing
+rule, the rails, the soak scripts' own headers, the ground-truth claims,
+and the live-run skill (sleep and wakes). The rung table, the
+preconditions, the soak mechanics and the three postmortems are at
+`944406ff`. No further rungs are planned; live contact follows the
+standing rule. Rung 11 (2026-08-30) was the one addition after closing,
+written as a hypothesis because it asked a new question of GGG.
 
 ## Run ledger
 
@@ -212,64 +195,6 @@ One row per rung execution. Journal files are copied to
 | 2026-09-03 | density validation (attempt 1) | `3e6757dd` | **aborted before apply; no sends** | 0/0/0 | 0 | The compact renderer's one-line `quote:` was present in the envelope but the driver still extracted only the old `quote (` form, so the owner stopped at approval and the daemon was stopped; fixed by `efc70288`. Partial evidence: `runs/2026-09-03-tracer/`. |
 | 2026-09-03 | density validation — pc, five tabs + all characters | `efc70288bbe8` | **pass** — loop closed in 3 cycles; owner verdict below | L1 1/4/112 = 117, L2 1/4/112 = 117 | 0 | pid 67677 / 75012, policy revision 9. The 112-request decision view named the five parents, counted 64 substashes and 41 characters, stated one 7 h stale reason, and showed the compact quote before approval. Both cycles: four probes at 0 hits, 112 GET 200, exact ceiling, apply `success` 112/112, no changes. An ~8 h pause after cycle 1 aged its facts past the 1 h window, so cycle 2 correctly repeated the plan; cycle 3 was a no-op with no daemon. The verifier reproduced every send and hold; no friction notes were typed. `runs/2026-09-03-tracer-024735/`. |
 | 2026-09-04 | price-notes run — the owner's `ACQUISITION-PRICE-TEST` tab and the forum-listed character I_EXIST; three ad-hoc jobs on one daemon (pricing slice; T6, T9, T10) | `2e347e16c0fc` | **pass** — both observations landed | 1/3/3 = 7 | 0 | pid 31313, 00:51–00:52 UTC, ceiling 7 exact (the halt is logged as the seventh send goes out; nothing refused). Three probes, each 204 with 0 hits: `stash-list-request-limit` `10:15:60,30:60:300`, `stash-request-limit` `15:10:60,30:300:300`, `character-request-limit` `5:10:60,30:300:300`, all as recorded. GET `/stash/Standard` (response 541; the listing now names the test tab `03cb479c65`, idx 56, `public: true`), GET `/stash/Standard/03cb479c65` (response 542, 80 items, 50 with notes), GET `/character/I_EXIST` (response 543, 53 items). Read: **`/character` carries no `forum_note`** on the body armour the owner linked and priced in a forum post that the trade site lists — a forum listing is not observable through the character endpoint; and the in-game price dialog's vocabulary, **39 distinct currency words**, verbatim in the run's `notes-check.txt` and T9 (`chrome`, `jewellers`, `fusing`, `exalted` where the C++ table had `chrom`, `jew`, `fuse`, `exa`; no `chisel`, `coin` or `silver`; 23 words the table lacks). Traps: the daemon's exit left 1.1 MB in the facts file's WAL with no final checkpoint, so `census.py`'s guard refuses the file until something checkpoints it (`notes-check.py` reads through it); the owner copied the daemon log instead of the journal — the journal is `<socket dir>/acquisition-playground.ggg.sends.jsonl`, not `<socket>.ggg…`; the run directory now holds the journal slice, the pid's log slice and the tool's output. `runs/2026-09-04-price-notes/` |
-
-### Re-soak postmortem (2026-08-27)
-
-What the re-soak had to show, it showed: the R8 fix live (twice, once
-across a ten-hour sleep), the HEAD condition able to fail and not failing
-across a restart, and a `wait_ms` baseline of zero on a route that never
-saturates. Three things it taught that were not on the list:
-
-- **A daemon spawned from cron has no keychain.** macOS refuses secure
-  storage to non-interactive callers; the first tick came up with no
-  session and failed before any send — rail 7 caught it. Now
-  `ACQ_NO_SPAWN=1` (README): cron only talks to a daemon a person started.
-- **"Sleep" is not one thing.** On AC, Power Nap dark-wakes the closed
-  laptop every 15–60 min and cron runs during the dark wakes; on battery
-  it sleeps for hours. Both produced expiry-spanning samples, but only
-  the battery night produced a long one. `pmset -g log` is part of the
-  evidence for any sleep claim.
-- **The first request after a wake can fail in transport** (network not
-  up). Rail 3 paces it as counted; a product consumer sees one failed
-  job. Same gap as "refetch only the failed set" (`CONTEXT.md`).
-
-### Rung 8 postmortem (2026-08-24), in three lines
-
-The daemon was restarted 7 s after `529bdd92` was committed but `cargo
-build` was never run, so the soak ran on `92e74f93` — every rail correct
-and blind to it; hence the binary-provenance precondition above and the
-build stamp in `--version`, the log, and the journal. R8 was then observed
-live on that unfixed code: ~2029 s of laptop sleep froze the monotonic
-expiry clock, so three GETs went out with an expired token (401 ×3) before
-the refresh fired late — the first live sighting of a hazard found by
-reading. Two limits of the run itself: the "one HEAD per route" condition
-could not fail without restarts, and the 200-send ceiling was 33 h against
-a "several days" intent — both folded into the preconditions and the rung
-8 row.
-
-### Rung 10 postmortem (2026-08-24)
-
-The limiter's behaviour across eight consecutive 300 s windows is the
-best evidence this ladder has produced: the hold is the full remainder
-plus the 60 s bucket, and the server's counters were at zero after every
-one. The stop was a server-side 503 from GGG's origin (openresty page, no
-`X-Rate-Limit-*`, no `cf-ray` shape recorded) on the first send after a
-5-minute idle; the account had 0 hits in both windows at that moment, so
-it is not a violation and not evidence about our pacing. It is a new
-ground-truth observation — a transient 503 shape distinct from N3/N28 —
-to be authored master-side. The rails did exactly what they are for:
-one send landed, nothing followed. Three things it exposed that are ours:
-
-- **A ceiling derived from another rung's count is a guess.** The pull
-  lists more tabs than `acq stashes` reported at rung 4 (folder children).
-  Derive from the pull's own listing; rung 10's row now says so.
-- **A tripwire halt fails every queued job with no send** — 82 jobs marked
-  `failed` without ever reaching GGG, so a rerun refetches all 322 tabs
-  (~1 h of holds). Whether a halt should leave jobs *waiting* rather than
-  failed is a design question for the owner (`CONTEXT.md`, frontend
-  findings).
-- **A pull that fetched 240 of 322 tabs wrote nothing.** Partial results
-  are discarded on any child failure. Recorded as a frontend finding.
 
 ## Rung 11 — two accounts, one machine (run 2026-08-30: H1, H2 confirmed)
 
@@ -415,38 +340,3 @@ typed at the prompts): "The only thing I want to change is printing
 stash tab id's in the final column on the right similar to characters.
 Everything else looks good."** Commit `28db97c6` makes that sole change;
 C53's density validation is closed.
-
-## Status: ladder closed (2026-08-27)
-
-Every rung has passed except rung 9, deferred on purpose (each attempt is
-a counted violation; rung 10's twenty holds bound the bucket well enough).
-Across the ladder: ~1,450 live sends, **zero 429s**, one transient origin
-503 (N35) handled without a retry, R8 seen fixed live, and the rails
-proven on three real incidents (the 503, a ceiling derived from a stale
-count, a keyring-blind spawn). The goal this document set — the daemon
-**halts rather than floods** — is met with evidence, and the GGG-side
-boundary is mapped to diminishing returns. Rung 11 (2026-08-30) was the
-one addition after closing, run as a written hypothesis because it asked a
-question about GGG (per-account counting) rather than about a new
-endpoint. No further rungs are planned. Live contact from here follows
-the standing rule at the top: rails on, ceiling 3, read the journal,
-record the policy — a ledger row, not a hypothesis document. A run that
-asks a genuinely new question of GGG (like rung 11) is still worth
-writing down first; that is judgment, not a rule.
-
-First contact under the standing rule, 2026-08-30 (run ledger): `/profile`
-answers 200 with no rate-limit headers and 403 to HEAD; `/account/leagues`
-is `league-request-limit 5:10:60,10:60:300` and counts its HEAD; `/league`
-needs `service:leagues` (our route was wrong, fixed). The daemon carries
-both endpoint facts as declared route knowledge. GGG answered the same
-day (Q12): `/profile` is **not rate limited at present** — the
-policyless declaration is confirmed and stays until headers ever
-appear — and the counted HEAD on `/account/leagues` is a defect **GGG
-will correct in a future release**; until the free HEAD is observed
-live, it is treated as counted, and the observation that shows the fix
-is what deletes the no-probe declaration and restores the probe.
-`/character/{name}` (same day) is the ordinary pattern: free HEAD, full
-policy, the C++ capture's shape.
-
-The multi-account build and the characters rungs (pc and PoE2) are
-done; the frontier is pricing (`decisions/pricing.md`).

@@ -75,3 +75,9 @@ Never reset-and-retry. A ceiling halt leaves the queue waiting on disk:
 Known costs, not stops: the unsigned debug binary makes macOS Keychain
 prompt twice per login after every rebuild; the first probe of a
 lifetime queues a few seconds behind the token POST.
+
+Sleep and wakes (soaks): a closed laptop on AC dark-wakes every 15–60
+min (Power Nap) and cron runs during the wakes; on battery it sleeps for
+hours — `pmset -g log` is the evidence for any sleep claim. The first
+request after a wake can fail in transport before the network is up;
+rail 3 paces it as counted, and a consumer sees one failed job.
