@@ -7,8 +7,8 @@ sale* — the trade site's two channels, the forum shop mechanism, the
 in-game price dialog, and what the sanctioned API does and does not
 report about any of it. The Rust spike's pricing rulings
 (`spikes/rust-playground/decisions/pricing.md`: C67 the price value, C68
-the currency table, C69 the listing state, C74 the shop render) rest on
-these claims. When a claim here falls, every ruling that cites it falls
+the currency table, C69 the listing state, C74 the shop render, C81 the
+effective price) rest on these claims. When a claim here falls, every ruling that cites it falls
 with it; that is the point.
 
 Rules of this document (the same as `network-ground-truth.md`):
@@ -49,6 +49,8 @@ by the owner, or a 2022 community page).
 Dates: the price-notes run and the API re-read fall on September 4, 2026
 UTC, which is the evening of September 3 in the owner's time zone. The
 saved pages and the owner's in-game observations are dated September 3.
+T16–T19 are the owner's hand tests of September 6, 2026, run while the
+spike's listing state was being ruled.
 
 ---
 
@@ -292,7 +294,34 @@ amounts are the game's own (whether a fifth decimal is truncated or
 refused is not established). The prefix, one space, the amount, one
 space, the word — that is the whole grammar the game wrote. A parser
 that treats an empty amount as "no price" rather than "invalid" reads
-the game's residue as a decision (the spike's C69 reports `invalid`).
+the game's residue as a decision (the spike's parser reads it
+`invalid`; since T18 the listing state gives it no effect and the tab
+applies, C69).
+
+**T16. The indexer matches a currency word loosely: `~price 5 exa`
+and `~price 5 exal` both list at 5 Exalted Orbs.** [OWNER — Confirmed
+for those two words; September 6, 2026]
+The owner, verbatim: "`~price 5 exa` works, and so does `~price 5
+exal`." How loose the matching is in general (a prefix of the word, of
+the display name, or a fixed alias list) is not established, and the
+spike does not model it (C68): acquisition writes only the table's
+tags, and a hand-typed word the table lacks reads as no effect in the
+listing state with the note shown verbatim (C69) — an alias row, cited
+to a test like this one, is the fix when one matters.
+
+**T17. The dialog strips trailing text from a note: `~price 5 chaos
+(A)` becomes `~price 5 chaos`.** [OWNER — Confirmed; September 6, 2026]
+The owner, verbatim: "Setting `~price 5 chaos (A)` in game causes the
+`(A)` to be removed, so the price is just `~price 5 chaos`." The owner's
+description of the dialog, the same day: an item in a public tab has
+four pricing options — "Note", "Negotiable Price" (`~b/o`), "Exact
+Price" (`~price`) and "Do Not Index" (`~skip`); switching a priced item
+to "Note" shows the raw text of the price string; editing that text by
+appending a string strips the string and reverts the price to one of
+the three. So a note the game holds never carries trailing text, where
+a tab name does (T11: the game's own `(Remove-only)`); a parser that
+holds a note to the exact grammar and tolerates a suffix only in a tab
+name (C69) matches the game.
 
 ### Tab prices and what beats what
 
@@ -332,6 +361,39 @@ with T2's "eligible items"; the third is the first evidence about a
 *relation* between the two channels and points one way only — a forum
 price against an item *note* is untested (Q2), as is a forum price
 against a game `~skip` (Q7).
+
+**T18. A `~` note the site cannot read has no effect: `~c/o 5 chaos`,
+`~price 5` (no word) and the empty-amount residue `~price  chaos` each
+list the item as "No Price Set" in an individually-priced public tab,
+and at the tab's price in a tab set to exact or negotiable.** [OWNER —
+Confirmed for those three notes; September 6, 2026]
+The owner, verbatim: "All other pricing tests result in no-effect and
+the item is listed as 'No Price Set' without notes. If the tab is set
+to negotiable or exact, the item will inherit the tab's price with no
+notes." The owner's description of the tab side, the same day: a public
+tab has three modes — "Each Item Individually Priced" (public, no tab
+price), "Set Negotiable Price On All Items" and "Set Exact Price On All
+Items" (the tab name becomes `~b/o` or `~price`, T11). Whether the
+site displays the note's text beside "No Price Set" or beside a tab
+price is not established: the owner's earlier description (a free-text
+note is shown as "No Price Set" with the text; under a priced tab as
+"Price with Note") and the test's "without notes" differ, and nothing
+in the spike depends on it. What the spike takes: an unreadable note is
+not a price and not a `skip`; the tab applies (C69, C81). A *valid*
+note against a tab price remains Q2.
+
+**T19. A ratio note on a non-bulk item lists nothing: the item does not
+appear on the site at all.** [OWNER — Confirmed for one item; September
+6, 2026]
+The owner, verbatim: "the item with the 'X/Y' note was not even listed
+in trade at all", tested on a non-bulk item (`~b/o 22/10 chaos`, the
+sixth of the September 6 notes). The tab-name analogue is T11 (a ratio
+in a name unlists the tab). The dialog does not offer the ratio on such
+an item (T12), so the note was typed as "Note" text. The spike reads a
+ratio note as a price (T2, C67) and does not know which items are bulk
+(Q10, parked); whether the site lists it is the site's, reported
+beside the raw note. Q6's in-game half is answered; the forum half
+stays open.
 
 ### Item addressing
 
@@ -466,7 +528,8 @@ answered.
   valid price and see whether the noted items keep their own price on
   the site (T11). The spike's note-then-tab order rests on the C++ code
   until then. Also: a forum price against an item note (T12 covers
-  forum versus tab only).
+  forum versus tab only). Settled for an *unreadable* note (T18: the
+  tab applies); open for a valid one.
 - **Q3. The link code for a substash item** (a child of a map or unique
   tab). Experiment: click one in the website's stash view and record
   what it emits.
@@ -478,7 +541,8 @@ answered.
 - **Q6. A ratio on a non-bulk item posted to the forum: ignored,
   listed singly, or grouped?** And `~b/o a/b` against `~price a/b` (T2
   shows only `~price`). In game the dialog refuses the first case (T10,
-  T12); the forum is a free text field.
+  T12) and a typed one unlists the item (T19); the forum is a free
+  text field.
 - **Q7. A game `~skip` against a forum price.** Does the forum price
   list an item the game marked "Do not index" (T10, T12)?
 - **Q8. Does the forum re-resolve a linked item that moves after
@@ -507,7 +571,7 @@ answered.
   endpoint policies, realm and character shapes). T4 and T13 lean on
   N42 and N43.
 - `spikes/rust-playground/decisions/pricing.md` — the pricing rulings
-  (C64–C78). Each ruling that rests on a claim cites it inline; that
+  (C64–C81). Each ruling that rests on a claim cites it inline; that
   registry, not this file, is the record of which ruling cites what.
 - `spikes/rust-playground/SURFACES.md` — the register of governed
   surfaces under C79: the trade site, the forum, the wiki and
