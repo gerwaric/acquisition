@@ -1,41 +1,19 @@
-# Rust playground — daemon + CLI reference implementation
+# Rust playground
 
-This branch is the **reference implementation** of the daemon and rate
-limiter described in [CONTEXT.md](CONTEXT.md). Its purpose is to find out
-what they need to be and to pin that as tests and recorded decisions; the
-code is replaceable given a reason (a bug, performance, maintainability,
-understandability) no matter how complete it gets, and a fully operational
-CLI is still evidence, not a promotion. It may become the real
-implementation, or a fresh build may replace it — judged by the same tests
-and the same live ladder. The limiter's behavior is fully specified
-(`ratelimit.rs` test tables, keyed to ground truth). Of the daemon's two
-boundaries, the **GGG side is proven**: the live ladder closed on
-2026-08-27 with every rung passed and zero 429s across ~1,450 real sends
-(`LIVE-TESTING.md`), and the send journal is its contract surface. The
-**frontend side is the frontier**: the shared store (`acquisition-store`)
-is the first answer to what frontends need, built 2026-08-29 and proven
-against real data by replay; the protocol is not yet pinned.
-Tests pin behavior at those boundaries, never mechanisms.
-
-**By default nothing
-here talks to GGG**: job kinds are fakes (`sleep`, `fetch`, `whoami`),
-OAuth runs against an in-process localhost provider (`mockggg.rs`), and the
-mock's data endpoints sit behind truthfully simulated rate-limit policies
-(real sliding windows, real restrictions, real 429s with `Retry-After`,
-HEADs that report but don't count — except on `/account/leagues`, where
-GGG counts them and so does the mock; `/profile` answers with no headers
-and refuses HEAD, as GGG does). The rate limiter is header-driven: it
-knows nothing except what responses told it (`X-Rate-Limit-*` per policy
-name, plus when counted responses arrived) and pads every wait by GGG's
-server-side timing bucket. Its spec is the test table at the bottom of
-`ratelimit.rs`, each row citing `docs/design/network-ground-truth.md` by
-claim number. Starting the daemon with `ACQ_GGG=1` opts into the real
-provider (see below). All daemon-owned HTTP reaches one structural choke
-point: the only `reqwest::Client` in the workspace lives inside
-`ChokePoint`, and token exchange/refresh feed their responses back into the
-limiter. Its common gate owns the actual-request, send-lifetime bound. A 429
-re-queues the job behind the limiter's hold (shown as `↻n` in job tables),
-bounded by `MAX_429_RETRIES`; a Cloudflare-shaped 403/503 is never retried.
+This branch is the Rust implementation of Acquisition (`CONTEXT.md`,
+"Orientation"), built slice by slice against a mock provider — nothing
+here talks to GGG unless a human sets `ACQ_GGG=1`. Its purpose is to
+find out what the system needs to be and to pin that as tests at its
+boundaries and as recorded rulings, so the code stays replaceable given
+a reason. The work is judged by evidence — the offline suite, live runs
+under the standing rule, and the owner's use of each slice and the
+verdict it returns — and never by ceremony: a rung, a rule, a
+generalization or a procedure is added when evidence asks for it and
+retired when the evidence is in. The rate limiter and the single gate
+are the proven foundation; their payoff is that every later caller,
+human or agent, is regulated by construction and is never a fresh risk.
+Whether this code ships is the owner's decision (ADR 0003) and nothing
+here anticipates it.
 
 ## Layout
 

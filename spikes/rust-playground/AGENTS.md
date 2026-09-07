@@ -3,7 +3,7 @@
 You are in `spikes/rust-playground` on branch `spikes/rust-playground`: a
 Cargo workspace (`acquisition-core`, `acquisition-store`,
 `acquisition-plan`, `acquisition-cli`, `acquisition-mcp`) that is the
-**reference implementation** of the Rust daemon and rate limiter. The
+Rust implementation of Acquisition (`README.md`, the charter). The
 repository-level `AGENTS.md` describes the C++ app on `master`; its build
 and Qt guidance does not apply here. ADR 0003 (rewrite vs. evolve) is the
 owner's call and needs nothing from you — ignore it and `docs/redesign/`.
