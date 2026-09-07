@@ -50,7 +50,7 @@ Dates: the price-notes run and the API re-read fall on September 4, 2026
 UTC, which is the evening of September 3 in the owner's time zone. The
 saved pages and the owner's in-game observations are dated September 3.
 T16–T19 are the owner's hand tests of September 6, 2026, run while the
-spike's listing state was being ruled. T20–T22 are the owner's
+spike's listing state was being ruled. T20–T23 are the owner's
 observations of September 7, 2026, at the first pass of the shop
 render's validation reading.
 
@@ -260,6 +260,15 @@ from the enclosing spoiler's title — the C++ app's form (T15) was
 right about where the indexer looks, and the wiki's "after the code"
 (T14) is at best one of two places. Which of a spoiler title and a
 price line after a link wins when both are present is not tested.
+
+**T23. A forum post is limited to 50,000 characters, as a hard limit
+enforced by the site.** [OWNER — Confirmed; September 7, 2026]
+The owner, verbatim: "I confirmed there is a hard 50,000 character
+limit for posts." The C++ app's constant (T15) was the real bound all
+along; Q4 is answered. What the spike takes: the render's default page
+size stays 50,000, now a measured limit rather than an inherited
+constant, and a page is counted in characters with the template around
+it.
 
 ### The in-game price dialog
 
@@ -589,8 +598,8 @@ answered.
   tab). The website's link button cannot be pressed on one (T20,
   September 7, 2026), so the experiment as written has no result; what
   remains open is whether any hand-typed code resolves to such an item.
-- **Q4. The real post size limit.** 50,000 is the C++ constant (T15);
-  the forum's actual limit was never measured.
+- **Q4. The real post size limit.** Answered September 7, 2026: a hard
+  50,000-character limit (T23).
 - **Q5. Is an unpriced forum link indexed?** Answered September 7,
   2026: yes, as "No Price Set" (T21).
 - **Q6. A ratio on a non-bulk item posted to the forum: ignored,
