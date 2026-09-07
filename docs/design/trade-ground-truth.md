@@ -50,7 +50,9 @@ Dates: the price-notes run and the API re-read fall on September 4, 2026
 UTC, which is the evening of September 3 in the owner's time zone. The
 saved pages and the owner's in-game observations are dated September 3.
 T16–T19 are the owner's hand tests of September 6, 2026, run while the
-spike's listing state was being ruled.
+spike's listing state was being ruled. T20–T24 are the owner's
+observations of September 7, 2026, at the shop render's validation
+reading.
 
 ---
 
@@ -205,8 +207,11 @@ tool cannot compare its rendered text with the forum's content;
 own previous output (the C++ app's page hash). Whether the forum
 re-resolves a linked item that later moves is open (Q8). The character
 attribute was emitted with the character's display capitalization
-(`I_Exist`) while the run's request path (T6) used I_EXIST; whether
-the forum's match is case-sensitive is not established.
+(`I_Exist`) while the run's request path (T6) used I_EXIST. Settled
+September 7, 2026: the spike's render wrote `character="I_EXIST"`, the
+listing's spelling, and the link resolved with the rest of the page —
+the owner: "all 27 items are linked" — so the forum's match does not
+depend on the display capitalization.
 
 **T8. A character-inventory item is listable through the forum: the
 item linked in T7 appears on the trade site as a listing.** [OWNER —
@@ -217,6 +222,59 @@ with T1 this is the forum channel doing the one thing the stash channel
 cannot: listing an item that is not in a public premium tab. (The C++
 user documentation makes the same claim in general terms; this is the
 first time it was observed on this account with a dated post.)
+
+**T21. A forum link with no price beside it is indexed: the trade site
+lists the item as "No Price Set".** [OWNER — Confirmed for one post;
+September 7, 2026]
+The owner, verbatim: "items linked to the forum without a price
+annotation are listed with 'No Price Set' on the trade site." So the
+forum channel indexes an unpriced link the way the stash channel
+indexes an unpriced item in a public tab (T3): listed, with no price.
+The same under an empty spoiler title (`[spoiler=""]`, the C++ app's
+no-price row, T15), read September 7, 2026 on the render's page — the
+owner, verbatim: "Horror Spur is empty under the title." Q5 is
+answered. What the spike takes: a hand `no_price` item posts as
+its link alone, under an empty spoiler title — the C++ app's no-price
+row (T15) — and the render's cell for it is a posting row (C74).
+
+**T22. The forum accepts a post shaped as nested spoilers — one spoiler
+per price whose title is the price text, the links run together on its
+line, all inside one page spoiler — resolves each link into `[item
+post= index=]` in place, and the trade site prices every item in a
+spoiler by that spoiler's title.** [OWNER — Confirmed for one post;
+September 7, 2026]
+The owner's post, as the forum stored it after resolving the links,
+verbatim:
+
+```
+[spoiler="Shop Post 1 of 2 (3 items)"]
+[spoiler=" ~price 321 divine"][item post="26816146" index="1"][item post="26816146" index="2"][/spoiler]
+[spoiler=" ~price 2 mirror"][item post="26816146" index="3"][/spoiler]
+[/spoiler]
+```
+
+This is the C++ app's shape (T15: a spoiler per buyout with the price
+as its title, the page in a plain spoiler) with the page spoiler now
+titled, and it is what the owner asked the render to write: "Items with
+the exact same price should be listed together; all prices should be
+wrapped in a spoiler tag; newlines only between spoiler tags; each page
+should be wrapped in a spoiler." The owner, the same day, on the
+site's reading of it, verbatim: "the spoiler text is used as the price
+for every item within that spoiler block." So the forum takes the
+shape, resolves the links inside it, and the indexer reads the price
+from the enclosing spoiler's title — the C++ app's form (T15) was
+right about where the indexer looks, and the wiki's "after the code"
+(T14) is at best one of two places. Which of a spoiler title and a
+price line after a link wins when both are present is not tested.
+
+**T23. A forum post is limited to 50,000 characters, as a hard limit
+enforced by the site.** [OWNER — Confirmed; September 7, 2026]
+The owner, verbatim: "I confirmed there is a hard 50,000 character
+limit for posts." The C++ app's constant (T15) was the real bound all
+along; Q4 is answered. What the spike takes: the render's default page
+size stays 50,000, now a measured limit rather than an inherited
+constant, and a page is counted in characters with the template around
+it.
 
 ### The in-game price dialog
 
@@ -350,8 +408,8 @@ price on the site is open (Q2).
 **T12. A forum shop lists individual items, never whole tabs; the
 in-game dialog offers the ratio format only on bulk-tradeable items; a
 forum price takes precedence over a tab's in-game price.** [OWNER —
-Provisional; the owner's in-game and website observations, September 3,
-2026]
+Confirmed for the precedence, one item, September 7, 2026; the rest
+Provisional from the owner's observations of September 3, 2026]
 The owner, verbatim: "only individual items can be listed in forum
 shops, not entire tabs"; "only bulk-tradeable items can use the 'X/Y'
 format for price"; "items priced in forums take precedence over the tab
@@ -360,7 +418,11 @@ grammar (T7, T14: a link names one item by position); the second agrees
 with T2's "eligible items"; the third is the first evidence about a
 *relation* between the two channels and points one way only — a forum
 price against an item *note* is untested (Q2), as is a forum price
-against a game `~skip` (Q7).
+against a game `~skip` (Q7). The precedence was read directly on
+September 7, 2026: an item in the owner's public tab named `~price 222
+divine`, posted through the forum at 99 chaos, is listed by the site at
+99 chaos — the owner, verbatim: "Dread Dome is 99 chaos."; the spike's
+render relies on it (C81: an item row beats a tab name).
 
 **T18. A `~` note the site cannot read has no effect: `~c/o 5 chaos`,
 `~price 5` (no word) and the empty-amount residue `~price  chaos` each
@@ -414,9 +476,54 @@ folders, 82 of them substashes). The documented `index` is optional
 Consequence: the `Stash<n>` in a forum link code (T7, T14, T15) cannot
 be read off the item; it has to be derived from the tab, and the only
 candidate in the data is the tab's `index` (the C++ app uses
-`index + 1`). Which tab `Stash<n>` names when folders and substashes
-occupy indices is open (Q1), as is how a substash item is addressed at
-all (Q3). Socketed items have no address and cannot be linked.
+`index + 1`). Which tab `Stash<n>` names when a folder occupies an
+index is T24: the folder takes no number, so `index + 1` is one too
+high past it; a substash item has no observed address at all (T20).
+Socketed items have no address and cannot be linked.
+
+**T20. The website's stash view offers no link for an item in a map or
+unique substash: such items cannot be selected there at all.** [OWNER —
+Confirmed for this account's map and unique tabs; September 7, 2026]
+The owner, verbatim: "the web stash view doesn't allow me to select
+items from map or unique stashes at all." So the one instrument that
+emits link codes (T7) emits none for a substash item, and Q3's
+experiment cannot be run as written. Whether a hand-typed
+`Stash<n>` with a substash's index would resolve is a separate
+question nobody has tried; until a code for such an item is observed
+somewhere, the spike's render blocks the cell and counts it (C74),
+naming this claim.
+
+**T24. The website's stash view lists the top-level tabs and folder
+children in stash order, folders and substashes left out, numbered
+from 0; its item-link button writes `Stash<that number + 1>`, with the
+attributes in the order `realm`, `location`, `league`, `x`, `y`.**
+[OWNER — Confirmed for this account's Allflame stash; September 7,
+2026]
+The owner saved the website's tab list for the Allflame league (`numTabs:
+48`, each tab `{ "n": <name>, "i": <number>, "id": <the API's id>, "type":
+… }`): the 48 non-folder top-level tabs of the 97 the API lists, in the
+API's order, numbered `i` 0–47 — the folder "Acquisition Test" (API
+index 16) absent, its two children at `i` 16 and 17 (API indices 17 and
+18), no substash of the map or unique tabs present. The link the
+website's button wrote for an item in the first child, verbatim:
+
+```
+[linkItem realm="pc" location="Stash17" league="Allflame" x="9" y="0"]
+```
+
+So `Stash<n>` is the tab's one-based rank among the tabs the website
+lists, not the API's `index + 1` (T13, T15): the two agree until the
+first folder and differ by the folder count after it — the render's
+first page wrote `Stash18` for that item and the link did not resolve.
+The same day the owner saved the Standard list: 322 tabs numbered 0–321
+against the API's 402 — the 16 folders and 64 substashes absent, the
+274 remove-only tabs present — and the rank rule matched every one of
+the 322 with the folders interleaved (the spike's
+`reference/website-tabs-2026-09-07.json` holds both lists beside the
+API's, pinned by `t24_stash_numbers_match_the_websites_own_list`). So
+the website leaves out folders and substashes and nothing else seen.
+Q1 is answered; the attribute order is the one T7 showed for a
+character item.
 
 ### Community evidence
 
@@ -519,11 +626,10 @@ Each is one hand experiment by the owner or one read; the render's
 policy table (C74) reports the cell as blocked-and-counted until it is
 answered.
 
-- **Q1. `Stash<n>` numbering under folders and substashes.** Is `n`
-  the tab's `index + 1` when folders and substash children occupy
-  indices (T13)? Experiment: link one item from a tab past a folder,
-  preview the post, and see which item picture appears. Decides whether
-  the first rendered page is trustworthy.
+- **Q1. `Stash<n>` numbering under folders and substashes.** Answered
+  September 7, 2026: the one-based rank among the tabs the website
+  lists, folders and substashes left out (T24); remove-only tabs are
+  listed and numbered like any other.
 - **Q2. Item note versus tab name in game.** Rename the test tab to a
   valid price and see whether the noted items keep their own price on
   the site (T11). The spike's note-then-tab order rests on the C++ code
@@ -531,13 +637,13 @@ answered.
   forum versus tab only). Settled for an *unreadable* note (T18: the
   tab applies); open for a valid one.
 - **Q3. The link code for a substash item** (a child of a map or unique
-  tab). Experiment: click one in the website's stash view and record
-  what it emits.
-- **Q4. The real post size limit.** 50,000 is the C++ constant (T15);
-  the forum's actual limit was never measured.
-- **Q5. Is an unpriced forum link indexed?** T3 says an unpriced item
-  in a public tab counts as listed; the forum case is untested.
-  Experiment: one link with no price, then the seller-account search.
+  tab). The website's link button cannot be pressed on one (T20,
+  September 7, 2026), so the experiment as written has no result; what
+  remains open is whether any hand-typed code resolves to such an item.
+- **Q4. The real post size limit.** Answered September 7, 2026: a hard
+  50,000-character limit (T23).
+- **Q5. Is an unpriced forum link indexed?** Answered September 7,
+  2026: yes, as "No Price Set" (T21).
 - **Q6. A ratio on a non-bulk item posted to the forum: ignored,
   listed singly, or grouped?** And `~b/o a/b` against `~price a/b` (T2
   shows only `~price`). In game the dialog refuses the first case (T10,
