@@ -50,7 +50,9 @@ Dates: the price-notes run and the API re-read fall on September 4, 2026
 UTC, which is the evening of September 3 in the owner's time zone. The
 saved pages and the owner's in-game observations are dated September 3.
 T16–T19 are the owner's hand tests of September 6, 2026, run while the
-spike's listing state was being ruled.
+spike's listing state was being ruled. T20–T22 are the owner's
+observations of September 7, 2026, at the first pass of the shop
+render's validation reading.
 
 ---
 
@@ -217,6 +219,43 @@ with T1 this is the forum channel doing the one thing the stash channel
 cannot: listing an item that is not in a public premium tab. (The C++
 user documentation makes the same claim in general terms; this is the
 first time it was observed on this account with a dated post.)
+
+**T21. A forum link with no price beside it is indexed: the trade site
+lists the item as "No Price Set".** [OWNER — Confirmed for one post;
+September 7, 2026]
+The owner, verbatim: "items linked to the forum without a price
+annotation are listed with 'No Price Set' on the trade site." So the
+forum channel indexes an unpriced link the way the stash channel
+indexes an unpriced item in a public tab (T3): listed, with no price.
+Q5 is answered. What the spike takes: a hand `no_price` item posts as
+its link alone, under an empty spoiler title — the C++ app's no-price
+row (T15) — and the render's cell for it is a posting row (C74).
+
+**T22. The forum accepts a post shaped as nested spoilers — one spoiler
+per price whose title is the price text, the links run together on its
+line, all inside one page spoiler — and resolves each link into `[item
+post= index=]` in place.** [OWNER — Confirmed for one post; September
+7, 2026]
+The owner's post, as the forum stored it after resolving the links,
+verbatim:
+
+```
+[spoiler="Shop Post 1 of 2 (3 items)"]
+[spoiler=" ~price 321 divine"][item post="26816146" index="1"][item post="26816146" index="2"][/spoiler]
+[spoiler=" ~price 2 mirror"][item post="26816146" index="3"][/spoiler]
+[/spoiler]
+```
+
+This is the C++ app's shape (T15: a spoiler per buyout with the price
+as its title, the page in a plain spoiler) with the page spoiler now
+titled, and it is what the owner asked the render to write: "Items with
+the exact same price should be listed together; all prices should be
+wrapped in a spoiler tag; newlines only between spoiler tags; each page
+should be wrapped in a spoiler." What this claim shows is that the
+forum takes the shape and resolves the links inside it; whether the
+site reads the spoiler title as the price is not stated here — the
+owner's items at those prices on the site would show it, and the
+render's first validated page is where that is read.
 
 ### The in-game price dialog
 
@@ -415,8 +454,20 @@ Consequence: the `Stash<n>` in a forum link code (T7, T14, T15) cannot
 be read off the item; it has to be derived from the tab, and the only
 candidate in the data is the tab's `index` (the C++ app uses
 `index + 1`). Which tab `Stash<n>` names when folders and substashes
-occupy indices is open (Q1), as is how a substash item is addressed at
-all (Q3). Socketed items have no address and cannot be linked.
+occupy indices is open (Q1); a substash item has no observed address at
+all (T20). Socketed items have no address and cannot be linked.
+
+**T20. The website's stash view offers no link for an item in a map or
+unique substash: such items cannot be selected there at all.** [OWNER —
+Confirmed for this account's map and unique tabs; September 7, 2026]
+The owner, verbatim: "the web stash view doesn't allow me to select
+items from map or unique stashes at all." So the one instrument that
+emits link codes (T7) emits none for a substash item, and Q3's
+experiment cannot be run as written. Whether a hand-typed
+`Stash<n>` with a substash's index would resolve is a separate
+question nobody has tried; until a code for such an item is observed
+somewhere, the spike's render blocks the cell and counts it (C74),
+naming this claim.
 
 ### Community evidence
 
@@ -531,13 +582,13 @@ answered.
   forum versus tab only). Settled for an *unreadable* note (T18: the
   tab applies); open for a valid one.
 - **Q3. The link code for a substash item** (a child of a map or unique
-  tab). Experiment: click one in the website's stash view and record
-  what it emits.
+  tab). The website's link button cannot be pressed on one (T20,
+  September 7, 2026), so the experiment as written has no result; what
+  remains open is whether any hand-typed code resolves to such an item.
 - **Q4. The real post size limit.** 50,000 is the C++ constant (T15);
   the forum's actual limit was never measured.
-- **Q5. Is an unpriced forum link indexed?** T3 says an unpriced item
-  in a public tab counts as listed; the forum case is untested.
-  Experiment: one link with no price, then the seller-account search.
+- **Q5. Is an unpriced forum link indexed?** Answered September 7,
+  2026: yes, as "No Price Set" (T21).
 - **Q6. A ratio on a non-bulk item posted to the forum: ignored,
   listed singly, or grouped?** And `~b/o a/b` against `~price a/b` (T2
   shows only `~price`). In game the dialog refuses the first case (T10,
