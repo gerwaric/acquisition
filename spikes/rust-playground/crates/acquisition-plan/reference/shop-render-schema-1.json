@@ -6,11 +6,12 @@
       "game_lists": 2,
       "game_skips": 1,
       "hand_no_price": 1,
-      "hand_skip": 1,
+      "hand_skip": 2,
+      "invalid_index": 0,
       "league_unknown": 1,
       "no_position": 0,
       "no_slot": 0,
-      "nothing_applies": 1,
+      "nothing_applies": 2,
       "page_size": 0,
       "ratio": 1,
       "realm_unlisted": 0,
@@ -19,11 +20,12 @@
       "stash_item": 4,
       "substash": 1,
       "tab_unlisted": 1,
-      "unresolved": 1
+      "unresolved": 1,
+      "unruled_kind": 0
     },
-    "items": 19,
-    "off_page": 1,
-    "omitted": 4,
+    "items": 21,
+    "off_page": 2,
+    "omitted": 5,
     "pages": 1,
     "posted": 5
   },
@@ -54,12 +56,9 @@
       {
         "id": "i-bo",
         "scope": "item"
-      },
-      {
-        "id": "i-tabrow",
-        "scope": "item"
       }
     ],
+    "stale_uncovered": 1,
     "uncovered": [
       {
         "id": "t2",
@@ -264,6 +263,32 @@
         "scope": "item"
       },
       "verdict": "block"
+    },
+    {
+      "cell": "nothing_applies",
+      "label": "Chaos Orb",
+      "location": {
+        "id": "ch2",
+        "scope": "character"
+      },
+      "target": {
+        "id": "i-nowhere-plain",
+        "scope": "item"
+      },
+      "verdict": "off_page"
+    },
+    {
+      "cell": "hand_skip",
+      "label": "Chaos Orb",
+      "location": {
+        "id": "ch2",
+        "scope": "character"
+      },
+      "target": {
+        "id": "i-nowhere-skip",
+        "scope": "item"
+      },
+      "verdict": "omit"
     }
   ],
   "listing": {
@@ -320,13 +345,13 @@
     },
     {
       "cell": "hand_skip",
-      "count": 1,
+      "count": 2,
       "verdict": "omit",
       "why": "a hand skip means leave it out (C67)"
     },
     {
       "cell": "nothing_applies",
-      "count": 1,
+      "count": 2,
       "verdict": "off_page",
       "why": "no row applies and the game states nothing"
     },
@@ -347,6 +372,12 @@
       "count": 1,
       "verdict": "block",
       "why": "whether an unpriced forum link is indexed is unobserved (Q5): one hand experiment"
+    },
+    {
+      "cell": "unruled_kind",
+      "count": 0,
+      "verdict": "block",
+      "why": "a hand price of a kind no row of this table writes (`exact` and `negotiable` are ruled; C74 blocks the rest)"
     },
     {
       "cell": "ratio",
@@ -389,6 +420,12 @@
       "count": 1,
       "verdict": "block",
       "why": "the tab is not on the current stash listing, so it has no index for `Stash<n>` (T13)"
+    },
+    {
+      "cell": "invalid_index",
+      "count": 0,
+      "verdict": "block",
+      "why": "the tab's recorded index is negative or too large to add one to: a corrupt fact, blocked rather than computed (C47)"
     },
     {
       "cell": "no_slot",

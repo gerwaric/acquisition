@@ -26,7 +26,7 @@ use std::path::Path;
 use acquisition_core::realm::Realm;
 use acquisition_plan::listing::resolve;
 use acquisition_plan::shop::{
-    Cell, ITEMS_TOKEN, PolicySource, RenderOptions, ShopRender, Verdict, render,
+    Cell, ITEMS_TOKEN, LeftOut, PolicySource, RenderOptions, ShopRender, Verdict, render,
 };
 use acquisition_plan::{SyncPolicy, plan_refresh};
 use acquisition_store::{
@@ -78,15 +78,20 @@ pub fn render_cmd(realm: Realm, league: &str, args: &RenderArgs<'_>) -> Result<(
             why: e.to_string(),
         },
         Some((revision, Ok(policy))) => {
+            // The plan the staleness line cites, or why there is none:
+            // a snapshot or compile failure is reported, never swallowed.
             let refresh = store
                 .refresh_snapshot(realm.as_str(), league, &annotations)
-                .ok()
-                .and_then(|s| plan_refresh(provider(), &s, now).ok())
-                .map(|plan| plan.logical_requests);
+                .map_err(|e| e.to_string())
+                .and_then(|s| {
+                    plan_refresh(provider(), &s, now)
+                        .map(|plan| plan.logical_requests)
+                        .map_err(|e| e.to_string())
+                });
             PolicySource::Set {
                 policy,
                 revision: *revision,
-                refresh_requests: refresh,
+                refresh,
             }
         }
     };
@@ -146,7 +151,9 @@ fn cell_word(cell: Cell) -> &'static str {
         Cell::NoPosition => "no position",
         Cell::Substash => "in a substash (Q3)",
         Cell::TabUnlisted => "tab not listed",
+        Cell::InvalidIndex => "a corrupt tab index",
         Cell::NoSlot => "no slot",
+        Cell::UnruledKind => "a price kind without a rule",
         Cell::PageSize => "over the page size",
     }
 }
@@ -192,22 +199,35 @@ fn freshness_lines(r: &ShopRender, now: i64) -> String {
                 } else {
                     format!("{} …", named[..LIST_UP_TO].join(", "))
                 };
+                let past = if f.stale_uncovered > 0 {
+                    format!(
+                        " ({} of their items past the window too)",
+                        f.stale_uncovered
+                    )
+                } else {
+                    String::new()
+                };
                 out.push_str(&format!(
-                    "coverage: {} on the page outside the sync policy (revision {}): {list}; add them with `acq policy set`\n",
+                    "coverage: {} on the page outside the sync policy (revision {}): {list}; add them with `acq policy set`{past}\n",
                     plural(f.uncovered.len(), "container", "containers"),
                     f.policy_revision.unwrap_or(0)
                 ));
             }
             if !f.stale.is_empty() {
-                let remedy = match f.refresh_requests {
-                    Some(n) => format!("`acq refresh --plan` would send {n} requests"),
-                    None => "`acq refresh --plan` shows what a refresh would fetch".to_string(),
+                let remedy = match (f.refresh_requests, &f.refresh_problem) {
+                    (Some(n), _) => format!("`acq refresh --plan` would send {n} requests"),
+                    (None, Some(why)) => {
+                        format!("`acq refresh --plan` could not be compiled: {why}")
+                    }
+                    (None, None) => {
+                        "`acq refresh --plan` shows what a refresh would fetch".to_string()
+                    }
                 };
                 out.push_str(&format!(
                     "stale: {} on the page last seen past the policy's window of {}s (oldest {}); {remedy}\n",
                     plural(f.stale.len(), "item", "items"),
                     f.window_seconds.unwrap_or(0),
-                    ago(now, f.oldest_seconds.map(|s| now - s))
+                    ago(now, f.oldest_seconds.map(|s| now.saturating_sub(s)))
                 ));
             }
         }
@@ -221,20 +241,16 @@ fn freshness_lines(r: &ShopRender, now: i64) -> String {
     out
 }
 
-fn left_out_line(r: &ShopRender, cell: Cell, label: &str, target: &str) -> String {
-    let location = r
-        .left_out
-        .iter()
-        .find(|l| l.target.to_string() == target)
-        .and_then(|l| l.location.as_ref())
-        .map(|t| t.to_string())
-        .unwrap_or_default();
+fn left_out_line(l: &LeftOut) -> String {
     format!(
         "  {:<18} {:<32} {:<40} {}\n",
-        cell.as_str(),
-        clip(label, 32),
-        location,
-        target
+        l.cell.as_str(),
+        clip(&l.label, 32),
+        l.location
+            .as_ref()
+            .map(ToString::to_string)
+            .unwrap_or_default(),
+        l.target
     )
 }
 
@@ -304,13 +320,13 @@ fn render_text(r: &ShopRender, now: i64, expand: bool) -> String {
         if !r.left_out.is_empty() {
             out.push_str("left off the page:\n");
             for l in &r.left_out {
-                out.push_str(&left_out_line(r, l.cell, &l.label, &l.target.to_string()));
+                out.push_str(&left_out_line(l));
             }
         }
     } else if !blocked.is_empty() && blocked.len() <= LIST_UP_TO {
         out.push_str("blocked:\n");
         for l in &blocked {
-            out.push_str(&left_out_line(r, l.cell, &l.label, &l.target.to_string()));
+            out.push_str(&left_out_line(l));
         }
     }
     for page in &r.pages {
@@ -475,8 +491,10 @@ mod tests {
                 policy_problem: None,
                 window_seconds: Some(3600),
                 refresh_requests: Some(7),
+                refresh_problem: None,
                 uncovered: vec![tab("t2")],
                 stale: vec![item("c")],
+                stale_uncovered: 1,
                 oldest_seconds: Some(4900),
                 position_before_listing: vec![item("c")],
             },
@@ -498,7 +516,7 @@ mod tests {
         );
         assert_eq!(
             lines[1],
-            "coverage: 1 container on the page outside the sync policy (revision 4): tab/pc/t2; add them with `acq policy set`"
+            "coverage: 1 container on the page outside the sync policy (revision 4): tab/pc/t2; add them with `acq policy set` (1 of their items past the window too)"
         );
         assert_eq!(
             lines[2],
@@ -568,6 +586,16 @@ mod tests {
         assert!(!text.contains("coverage:"), "{text}");
         assert!(
             text.ends_with("`acq price set item/<id> exact <amount> <tag>` prices one by hand\n"),
+            "{text}"
+        );
+
+        // A plan that could not compile is said, never swallowed.
+        let mut broken = rendered();
+        broken.freshness.refresh_requests = None;
+        broken.freshness.refresh_problem = Some("no such league".into());
+        let text = render_text(&broken, 5000, false);
+        assert!(
+            text.contains("; `acq refresh --plan` could not be compiled: no such league\n"),
             "{text}"
         );
 

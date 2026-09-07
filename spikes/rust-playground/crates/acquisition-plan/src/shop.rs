@@ -48,11 +48,20 @@
 //! already shows it and a page must not contradict it, C81; a hand `skip`
 //! → omitted, as the word means; `no_price` → blocked on Q5; nothing →
 //! off the page; unresolved → blocked, never treated as unpriced), then
-//! what a hand price carries (a ratio → Q6; a retired tag → C68), then
-//! whether the item can be addressed at all (the realm is one the site
-//! lists, T4; a socketed item has no position, T13; a substash item's
-//! link is unobserved, Q3; a stash item's tab must have been listed for
-//! its index, T13; a character item needs its slot).
+//! what a hand price carries (a kind other than `exact` or `negotiable`
+//! → blocked, since no row of the table says how it is written; a ratio
+//! → Q6; a retired tag → C68), then whether the item can be addressed at
+//! all (a league-less character's item is not evidence for this league;
+//! the realm must be one the site lists — `pc`, `xbox`, `sony`, T4, and
+//! any other word is blocked, not assumed; a socketed item has no
+//! position, T13; a substash item's link is unobserved, Q3; a stash
+//! item's tab must have been listed for its index, T13, and a recorded
+//! index that is negative or too large to add one to is blocked, never
+//! arithmetic; a character item needs its slot). Vocabularies are
+//! matched explicitly, so a new kind or realm lands in a blocked cell
+//! until a row is ruled for it (C74) — the table fails closed. A corrupt
+//! timestamp in a fact saturates the age it yields; nothing here
+//! panics on a store row (C47).
 //!
 //! **The link code and the price line.** A stash item renders as
 //! `[linkItem location="Stash<index+1>" league="<L>" x="<x>" y="<y>"
@@ -83,17 +92,21 @@
 //! container against the sync policy's selection for this (realm,
 //! league) — a tab by its own id or its parent's, the planner's rule
 //! (C37, [`Selection::covers_tab`]); a character by its id. *Staleness:*
-//! a posted item whose fact is older than the policy's window
-//! (`max_age_seconds`), the same declaration the planner refreshes by.
+//! a posted item in a covered container whose fact is older than the
+//! policy's window (`max_age_seconds`), the same declaration the planner
+//! refreshes by — so the refresh the line cites is the one that fetches
+//! them; an uncovered item past the window is counted beside the
+//! coverage line instead, since its remedy is the policy edit first.
 //! *Positions:* a posted stash item whose fetch predates the stash
 //! listing the page's `Stash<n>` comes from — the two halves of its link
 //! were observed at different times, and a tab reindexed between them
 //! would move the link (the "moved or reindexed" C72 names; without a
 //! stored render basis, parked under "what did I last post", this is the
 //! basis the render has). Each line names its remedy: the policy edit,
-//! or the refresh — the caller passes the plan's request count
-//! ([`PolicySource::Set`]), so the text can say what `acq refresh --plan`
-//! would send without this module compiling one.
+//! or the refresh — the caller passes the plan's request count, or why
+//! it could not compile one ([`PolicySource::Set`]), so the text can say
+//! what `acq refresh --plan` would send without this module compiling
+//! one, and a plan that fails to compile is said, never swallowed.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
@@ -163,14 +176,16 @@ pub enum Cell {
     NoPosition,
     Substash,
     TabUnlisted,
+    InvalidIndex,
     NoSlot,
     PageSize,
+    UnruledKind,
     StashItem,
     CharacterItem,
 }
 
 impl Cell {
-    pub const ALL: [Cell; 18] = [
+    pub const ALL: [Cell; 20] = [
         Cell::StashItem,
         Cell::CharacterItem,
         Cell::GameLists,
@@ -180,6 +195,7 @@ impl Cell {
         Cell::Unresolved,
         Cell::LeagueUnknown,
         Cell::HandNoPrice,
+        Cell::UnruledKind,
         Cell::Ratio,
         Cell::RetiredCurrency,
         Cell::RealmUnlisted,
@@ -187,6 +203,7 @@ impl Cell {
         Cell::NoPosition,
         Cell::Substash,
         Cell::TabUnlisted,
+        Cell::InvalidIndex,
         Cell::NoSlot,
         Cell::PageSize,
     ];
@@ -207,7 +224,9 @@ impl Cell {
             Cell::NoPosition => "no_position",
             Cell::Substash => "substash",
             Cell::TabUnlisted => "tab_unlisted",
+            Cell::InvalidIndex => "invalid_index",
             Cell::NoSlot => "no_slot",
+            Cell::UnruledKind => "unruled_kind",
             Cell::PageSize => "page_size",
             Cell::StashItem => "stash_item",
             Cell::CharacterItem => "character_item",
@@ -229,7 +248,9 @@ impl Cell {
             | Cell::NoPosition
             | Cell::Substash
             | Cell::TabUnlisted
+            | Cell::InvalidIndex
             | Cell::NoSlot
+            | Cell::UnruledKind
             | Cell::PageSize => Verdict::Block,
         }
     }
@@ -275,7 +296,13 @@ impl Cell {
             Cell::TabUnlisted => {
                 "the tab is not on the current stash listing, so it has no index for `Stash<n>` (T13)"
             }
+            Cell::InvalidIndex => {
+                "the tab's recorded index is negative or too large to add one to: a corrupt fact, blocked rather than computed (C47)"
+            }
             Cell::NoSlot => "a character item without an `inventoryId` cannot be addressed (T13)",
+            Cell::UnruledKind => {
+                "a hand price of a kind no row of this table writes (`exact` and `negotiable` are ruled; C74 blocks the rest)"
+            }
             Cell::PageSize => "the entry alone, with the template around it, exceeds the page size",
         }
     }
@@ -349,7 +376,9 @@ pub enum PolicySource<'a> {
     Set {
         policy: &'a SyncPolicy,
         revision: i64,
-        refresh_requests: Option<u64>,
+        /// The request count of the `RefreshPlan` the caller compiled
+        /// from this policy now, or why it could not.
+        refresh: Result<u64, String>,
     },
 }
 
@@ -369,10 +398,17 @@ pub struct Freshness {
     /// compiled it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub refresh_requests: Option<u64>,
+    /// Why the caller could not compile that plan, when it could not.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub refresh_problem: Option<String>,
     /// Containers of posted items the policy does not cover.
     pub uncovered: Vec<PriceTarget>,
-    /// Posted items whose fact is older than the window.
+    /// Posted items in covered containers whose fact is older than the
+    /// window — the ones the cited refresh fetches.
     pub stale: Vec<PriceTarget>,
+    /// Posted items in uncovered containers past the window: the policy
+    /// edit comes first for these.
+    pub stale_uncovered: usize,
     /// The oldest posted fact's age, seconds.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub oldest_seconds: Option<i64>,
@@ -485,9 +521,6 @@ fn cell(
     table: &currency::CurrencyTable,
 ) -> Result<Entry, Cell> {
     let s = &l.subject;
-    if s.league_unknown {
-        return Err(Cell::LeagueUnknown);
-    }
     let e = &l.effective;
     let price: &Price = match (e.side, e.kind.as_str()) {
         (Some(Side::Game), "skip") => return Err(Cell::GameSkips),
@@ -503,6 +536,13 @@ fn cell(
         (None, "unresolved") => return Err(Cell::Unresolved),
         (None, _) => return Err(Cell::NothingApplies),
     };
+    // The kinds a row of the table writes, matched by name: a kind this
+    // build does not know how to write is blocked, never assumed exact.
+    let (prefix, negotiable) = match e.kind.as_str() {
+        "exact" => ("~price", 0u8),
+        "negotiable" => ("~b/o", 1u8),
+        _ => return Err(Cell::UnruledKind),
+    };
     if matches!(price.amount, Amount::Ratio { .. }) {
         return Err(Cell::Ratio);
     }
@@ -512,8 +552,13 @@ fn cell(
         // does not is a newer table's, unknown to this build.
         _ => return Err(Cell::RetiredCurrency),
     };
+    if s.league_unknown {
+        return Err(Cell::LeagueUnknown);
+    }
+    // The realms the site lists (T4), by name: any other word is a
+    // realm this table has no row for.
     let realm = report.header.realm;
-    if realm == Realm::Poe2 {
+    if !matches!(realm, Realm::Pc | Realm::Xbox | Realm::Sony) {
         return Err(Cell::RealmUnlisted);
     }
     if s.socketed_in.is_some() {
@@ -525,17 +570,8 @@ fn cell(
     let Some(location) = s.location.clone() else {
         return Err(Cell::NoPosition);
     };
-    let prefix = if e.kind == "negotiable" {
-        "~b/o"
-    } else {
-        "~price"
-    };
     let price_line = format!("{prefix} {} {word}", price.amount);
-    let group = (
-        u8::from(e.kind == "negotiable"),
-        price.currency.clone(),
-        price.amount,
-    );
+    let group = (negotiable, price.currency.clone(), price.amount);
     let (cell, link, parent) = match &location {
         PriceTarget::Substash { .. } => return Err(Cell::Substash),
         PriceTarget::Character { .. } => {
@@ -562,6 +598,11 @@ fn cell(
             let Some(index) = tab.subject.index else {
                 return Err(Cell::TabUnlisted);
             };
+            // `Stash<n>` is `index + 1` (T15): a recorded index below zero
+            // or at the type's ceiling is a corrupt fact, not a link.
+            let Some(stash_n) = (index >= 0).then(|| index.checked_add(1)).flatten() else {
+                return Err(Cell::InvalidIndex);
+            };
             let parent = tab.chain.get(1).and_then(|t| match t {
                 PriceTarget::Tab { id, .. } => Some(id.clone()),
                 _ => None,
@@ -569,8 +610,7 @@ fn cell(
             (
                 Cell::StashItem,
                 format!(
-                    "[linkItem location=\"Stash{}\" league=\"{}\" x=\"{x}\" y=\"{y}\" realm=\"{}\"]",
-                    index + 1,
+                    "[linkItem location=\"Stash{stash_n}\" league=\"{}\" x=\"{x}\" y=\"{y}\" realm=\"{}\"]",
                     report.header.league,
                     realm.as_str()
                 ),
@@ -737,8 +777,10 @@ fn freshness(report: &ListingReport, entries: &[Entry], opts: &RenderOptions<'_>
         policy_problem: None,
         window_seconds: None,
         refresh_requests: None,
+        refresh_problem: None,
         uncovered: Vec::new(),
         stale: Vec::new(),
+        stale_uncovered: 0,
         oldest_seconds: None,
         position_before_listing: Vec::new(),
     };
@@ -751,7 +793,8 @@ fn freshness(report: &ListingReport, entries: &[Entry], opts: &RenderOptions<'_>
             out.position_before_listing.push(e.target.clone());
         }
         if let Some(at) = e.seen_at {
-            let age = opts.now - at;
+            // A corrupt timestamp saturates (C47), as the planner's does.
+            let age = opts.now.saturating_sub(at).max(0);
             if out.oldest_seconds.is_none_or(|o| age > o) {
                 out.oldest_seconds = Some(age);
             }
@@ -768,10 +811,13 @@ fn freshness(report: &ListingReport, entries: &[Entry], opts: &RenderOptions<'_>
         PolicySource::Set {
             policy,
             revision,
-            refresh_requests,
+            refresh,
         } => {
             out.policy_revision = Some(*revision);
-            out.refresh_requests = *refresh_requests;
+            match refresh {
+                Ok(n) => out.refresh_requests = Some(*n),
+                Err(why) => out.refresh_problem = Some(why.clone()),
+            }
             match policy.league(report.header.realm, &report.header.league) {
                 Some(league) => league,
                 None => {
@@ -797,10 +843,15 @@ fn freshness(report: &ListingReport, entries: &[Entry], opts: &RenderOptions<'_>
                 .is_some_and(|sel| sel.covers_tab(id, e.parent.as_deref())),
             _ => false,
         };
+        let past_window = e
+            .seen_at
+            .is_some_and(|at| opts.now.saturating_sub(at).max(0) > window);
         if !covered {
             uncovered.insert(e.location.clone());
-        }
-        if e.seen_at.is_some_and(|at| opts.now - at > window) {
+            if past_window {
+                out.stale_uncovered += 1;
+            }
+        } else if past_window {
             out.stale.push(e.target.clone());
         }
     }
@@ -915,7 +966,7 @@ mod tests {
     /// public unpriced tab with an item nothing applies to and one with
     /// an unreadable row; a map tab's substash; a tab never listed; a
     /// character with a worn item and a socketed gem; a league-less
-    /// character.
+    /// character with a priced item, an unpriced one and a skipped one.
     fn snapshot() -> PricingSnapshot {
         let mut items = vec![
             item("i-game", "stash", "c1", 0, 0),
@@ -937,6 +988,8 @@ mod tests {
             item("i-worn", "character", "ch1", 0, 0),
             item("i-worngem", "character", "ch1", 0, 0),
             item("i-nowhere", "character", "ch2", 0, 0),
+            item("i-nowhere-plain", "character", "ch2", 1, 0),
+            item("i-nowhere-skip", "character", "ch2", 2, 0),
         ];
         items[5].note = Some("~price 4 chaos".into());
         items[6].socketed_in = Some("i-game".into());
@@ -1026,6 +1079,11 @@ mod tests {
                 row("item", "i-worn", exact("10", "divine")),
                 row("item", "i-worngem", exact("1", "chaos")),
                 row("item", "i-nowhere", exact("1", "chaos")),
+                row(
+                    "item",
+                    "i-nowhere-skip",
+                    json!({ "version": 1, "type": "skip" }),
+                ),
             ],
         }
     }
@@ -1067,7 +1125,7 @@ mod tests {
     fn c74_every_item_is_posted_omitted_blocked_or_off_the_page_and_counted() {
         let r = render(&report(), &opts(PolicySource::NotSet)).unwrap();
         let c = &r.counts;
-        assert_eq!(c.items, 19);
+        assert_eq!(c.items, 21);
         assert_eq!(c.posted + c.omitted + c.blocked + c.off_page, c.items);
         assert_eq!(c.posted, 5, "{:?}", r.posted);
         assert_eq!(r.posted.len(), c.posted);
@@ -1088,8 +1146,10 @@ mod tests {
         expect(Cell::CharacterItem, &["i-worn"]);
         expect(Cell::GameLists, &["i-game", "i-noted"]);
         expect(Cell::GameSkips, &["i-gameskip"]);
-        expect(Cell::HandSkip, &["i-skip"]);
-        expect(Cell::NothingApplies, &["i-plain"]);
+        // A league-less character's items read their effective outcome
+        // first: only a hand price reaches the league cell.
+        expect(Cell::HandSkip, &["i-skip", "i-nowhere-skip"]);
+        expect(Cell::NothingApplies, &["i-plain", "i-nowhere-plain"]);
         expect(Cell::Unresolved, &["i-unres"]);
         expect(Cell::LeagueUnknown, &["i-nowhere"]);
         expect(Cell::HandNoPrice, &["i-noprice"]);
@@ -1102,6 +1162,8 @@ mod tests {
         expect(Cell::NoPosition, &[]);
         expect(Cell::NoSlot, &[]);
         expect(Cell::PageSize, &[]);
+        expect(Cell::InvalidIndex, &[]);
+        expect(Cell::UnruledKind, &[]);
 
         // A poe2 report: nothing the site lists (T4).
         let mut poe2 = snapshot();
@@ -1113,6 +1175,90 @@ mod tests {
         // The worn item and its gem: the realm is read before the address.
         assert_eq!(r.counts.by_cell[&Cell::RealmUnlisted], 2);
         assert_eq!(r.counts.by_cell[&Cell::LeagueUnknown], 1);
+        assert_eq!(r.counts.by_cell[&Cell::HandSkip], 1);
+        assert_eq!(r.counts.by_cell[&Cell::NothingApplies], 1);
+    }
+
+    /// C47, C74 — a store row never panics the render and a vocabulary
+    /// the table has no row for fails closed: a corrupt timestamp
+    /// saturates the age, a negative or ceiling index is `invalid_index`,
+    /// a hand-price kind the table does not write is `unruled_kind`, and
+    /// a realm the site does not list is `realm_unlisted`.
+    #[test]
+    fn c47_corrupt_facts_and_unruled_words_are_cells_never_panics() {
+        let mut snap = snapshot();
+        for i in &mut snap.items {
+            if i.id == "i-hand" {
+                i.last_seen = i64::MIN;
+            }
+        }
+        for t in &mut snap.tabs {
+            if t.id == "c1" {
+                t.idx = Some(-1);
+            }
+            if t.id == "t2" {
+                t.idx = Some(i64::MAX);
+            }
+        }
+        let policy = SyncPolicy::from_value(&json!({
+            "version": 3,
+            "realms": { "pc": { "leagues": { "Standard": {
+                "tabs": "all", "characters": "all", "max_age_seconds": 3600 } } } }
+        }))
+        .unwrap();
+        let r = render(
+            &resolve(&snap).unwrap(),
+            &opts(PolicySource::Set {
+                policy: &policy,
+                revision: 1,
+                refresh: Err("no such league".into()),
+            }),
+        )
+        .unwrap();
+        // c1's three hand-priced items and t2's one: blocked, counted.
+        assert_eq!(r.counts.by_cell[&Cell::InvalidIndex], 4);
+        assert_eq!(r.counts.posted, 1);
+        assert_eq!(
+            r.freshness.refresh_problem.as_deref(),
+            Some("no such league")
+        );
+        assert_eq!(r.freshness.refresh_requests, None);
+
+        // The corrupt timestamp on a posted item: the age saturates.
+        let mut snap = snapshot();
+        for i in &mut snap.items {
+            if i.id == "i-hand" {
+                i.last_seen = i64::MIN;
+            }
+        }
+        let r = render(
+            &resolve(&snap).unwrap(),
+            &opts(PolicySource::Set {
+                policy: &policy,
+                revision: 1,
+                refresh: Ok(3),
+            }),
+        )
+        .unwrap();
+        assert_eq!(r.freshness.oldest_seconds, Some(i64::MAX));
+        assert!(
+            r.freshness
+                .stale
+                .iter()
+                .any(|t| t.to_string() == "item/i-hand")
+        );
+
+        // A kind the table does not write: the report is edited in place
+        // (no value schema carries one yet), and the cell blocks it.
+        let mut report = report();
+        for l in &mut report.listings {
+            if l.subject.target.to_string() == "item/i-hand" {
+                l.effective.kind = "current_offer".into();
+            }
+        }
+        let r = render(&report, &opts(PolicySource::NotSet)).unwrap();
+        assert_eq!(by_cell(&r, Cell::UnruledKind), ["item/i-hand"]);
+        assert_eq!(r.counts.posted, 4);
     }
 
     /// C74, T7, T13, T15 — the two link shapes and the price line: a
@@ -1199,6 +1345,8 @@ mod tests {
         .unwrap();
         assert_eq!(r.counts.posted, 5);
         assert_eq!(r.counts.blocked, 9);
+        assert_eq!(r.counts.omitted, 5);
+        assert_eq!(r.counts.off_page, 2);
         assert_eq!(r.pages.len(), 3, "{:#?}", r.pages);
         assert_eq!(r.counts.pages, 3);
         for page in &r.pages {
@@ -1287,7 +1435,7 @@ mod tests {
             &opts(PolicySource::Set {
                 policy: &policy,
                 revision: 4,
-                refresh_requests: Some(7),
+                refresh: Ok(7),
             }),
         )
         .unwrap();
@@ -1304,9 +1452,14 @@ mod tests {
                 .collect::<Vec<_>>(),
             ["tab/pc/t2"]
         );
-        // now 5000: the c1 items were seen at 1200 (3800 s ago), over
-        // the window; the t2 item at 100.
-        assert_eq!(f.stale.len(), 5);
+        // now 5000: the c1 items and the worn item were seen at 1200
+        // (3800 s ago), over the window, in covered containers — the
+        // cited refresh fetches them; the t2 item (seen at 100) is past
+        // the window too, but its container is uncovered, so it is
+        // counted beside the coverage line, not as stale.
+        assert_eq!(f.stale.len(), 4);
+        assert!(!f.stale.iter().any(|t| t.to_string() == "item/i-tabrow"));
+        assert_eq!(f.stale_uncovered, 1);
         assert_eq!(f.oldest_seconds, Some(4_900));
         // The t2 item's fetch (response 1) predates the listing (2).
         assert_eq!(
@@ -1329,13 +1482,18 @@ mod tests {
             &opts(PolicySource::Set {
                 policy: &policy,
                 revision: 5,
-                refresh_requests: None,
+                refresh: Err("nothing to plan".into()),
             }),
         )
         .unwrap();
         assert!(r.freshness.uncovered.is_empty());
         assert!(r.freshness.stale.is_empty());
+        assert_eq!(r.freshness.stale_uncovered, 0);
         assert_eq!(r.freshness.refresh_requests, None);
+        assert_eq!(
+            r.freshness.refresh_problem.as_deref(),
+            Some("nothing to plan")
+        );
 
         // The policy covers another league only.
         let policy = SyncPolicy::from_value(&json!({
@@ -1349,7 +1507,7 @@ mod tests {
             &opts(PolicySource::Set {
                 policy: &policy,
                 revision: 6,
-                refresh_requests: None,
+                refresh: Ok(0),
             }),
         )
         .unwrap();
@@ -1394,7 +1552,7 @@ mod tests {
             &opts(PolicySource::Set {
                 policy: &policy,
                 revision: 4,
-                refresh_requests: Some(7),
+                refresh: Ok(7),
             }),
         )
         .unwrap();
