@@ -78,8 +78,10 @@ for real).
    side, relation, causes, basis, the raw note beside the parse; `acq
    price status | show | list` under C53's views.
 5. **Set, clear, list** (`acq price set|clear <target> …`): single-row
-   compare-and-swap writes returning the prior value; the owner sets the
-   census's two manual rows by hand — validation reading 1.
+   compare-and-swap writes returning the prior value; the owner prices
+   a few real items by hand, from an empty intent file — validation
+   reading 1 (the census's two manual rows are residue, dropped:
+   question 1 below).
 6. **`shop render`** (C74, C72's report): per-item link codes with
    `realm=`, the price on the line after each link, grouped by price,
    pages labelled *n* of *N* under a size parameter (default 50,000),
@@ -92,8 +94,8 @@ for real).
 
 **Done criterion:** the currency table committed; the buyout value
 strict and pinned by id; the parser passing the fixture; the listing
-state legible with the raw note beside the parse; the owner's two rows
-set by hand; a page rendered, pasted and read correct on the trade site
+state legible with the raw note beside the parse; the owner's first
+rows set by hand from an empty file; a page rendered, pasted and read correct on the trade site
 in the owner's words, with every omission counted; the `T<n>` claims
 authored master-side and cherry-picked; the always-loaded documents at
 budget.
@@ -334,11 +336,14 @@ shows the item picture, so a wrong link is visible before posting.
 
 ## Questions for the owner
 
-1. Are the two manual rows (a character item at 2222 `jew`; one tab
+1. ~~Are the two manual rows (a character item at 2222 `jew`; one tab
    ignored) real intent to set by hand at step 5, or test residue to
-   drop? The C++ combo's `[Inherit]` was the clear; the ignored tab's
-   row still carries 4321 `blessed` underneath, the shape of a price row
-   switched to ignore (2026-09-06).
+   drop?~~ **Answered 2026-09-06**, owner verbatim: "Let's call them
+   residue to drop. I'd rather start fresh. The oddball pricing tells me
+   I was using it to debug something." The 0.18 userstore's manual rows
+   are not carried; step 5's reading starts from an empty intent file.
+   (The C++ combo's `[Inherit]` was the clear; the ignored tab's row
+   still carries 4321 `blessed` underneath.)
 2. C73 parked as "a 0.18 user asks": pricing is niche, but the 0.18
    import is a product question for other users, not only yours. Park
    stands unless you say otherwise.
