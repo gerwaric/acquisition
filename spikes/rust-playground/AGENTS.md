@@ -21,6 +21,10 @@ Always, in this order:
 
 Then, only when the work touches it:
 
+- Before running `acq` or driving `acq-mcp`: `CLI-REFERENCE.md` and
+  `MCP-REFERENCE.md` — every verb's and tool's semantics, generated from
+  the binaries' own help by tests that keep them equal to it; or
+  `acq <verb> --help`. The README's tour shows the shape only.
 - Before anything that talks to the real GGG API: `LIVE-TESTING.md` (the
   standing rule, the rails, the run ledger) and the live-run procedure
   below. **Nothing here talks to GGG unless `ACQ_GGG=1` is set; never set
@@ -89,6 +93,7 @@ budget trips, something landed where it does not belong.
 | a live run | one run-ledger row; journals in `runs/` (gitignored; mock rehearsals under `runs/mock/`) |
 | a fact about GGG | a numbered ground-truth claim |
 | how a mechanism works | a doc comment on the code, under "Decisions as recorded" / "As built", headed by the id |
+| how to use a verb, a flag or a knob | its clap help string (the reference files regenerate from it under `ACQ_UPDATE_FIXTURES=1`), or the knob's read-site doc comment; one line in the README's tour or one row in its knob table — never a comment block |
 | a procedure | its skill file, referenced here |
 | deliberation | a numbered note in `brainstorming-notes/`, disposable |
 | the owner's verdict | recorded verbatim from the conversation, marked as such |

@@ -694,7 +694,8 @@ impl ServerHandler for AcqMcp {
              requests are jobs (submit_job returns an id; poll job_status, then \
              job_result). Rate-limit holds can reach ~5 minutes — a waiting job is the \
              limiter working. Login is done by the human via the `acq` CLI; this server \
-             never replaces a running daemon and refuses submissions in real-GGG mode.",
+             never spawns or replaces a daemon in real-GGG mode — there it submits, applies \
+             and quotes only through one a human already started (C14).",
             provider()
         ));
         info

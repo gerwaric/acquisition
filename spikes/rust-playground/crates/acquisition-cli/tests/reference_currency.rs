@@ -1,7 +1,7 @@
 //! Process-level pin of `acq reference currency` (C68: reference data is
 //! enumerable through every surface and cited by version wherever used;
-//! CLI-GUIDE §8: `--json` is the contract, a failure is `{"error": …}` on
-//! stdout with exit 1). No store, no daemon: the socket points into an
+//! C11: `--json` is the contract, a failure is `{"error": …}` on stdout
+//! with exit 1). No store, no daemon: the socket points into an
 //! empty temp dir and `ACQ_NO_SPAWN=1` makes any contact an error, so
 //! the command must answer from the binary alone.
 

@@ -37,6 +37,7 @@ For every item the session produced, exactly one of:
 | a live run | one run-ledger row in `LIVE-TESTING.md`; evidence in `runs/` |
 | a fact about GGG | a numbered ground-truth claim, authored master-side and cherry-picked here |
 | how a mechanism works | a doc comment on the code |
+| how to use a verb, a flag or a knob | its clap help string, then `ACQ_UPDATE_FIXTURES=1 cargo test` regenerates `CLI-REFERENCE.md` / `MCP-REFERENCE.md`; one line in the README's tour or one row in its knob table, never a comment block (`tests/readme_tour.rs` and `tools/docs-check.sh` hold the form) |
 | an observation with no ruling yet | the slice record's "Observations still open" while the slice is open; otherwise the area's `decisions/<area>.md`, "Parked", **with a trigger** (`CONTEXT.md` only if it crosses every area) |
 | a procedure run twice that repeated a trap | a skill file under `.claude/skills/`, referenced by path from `AGENTS.md` |
 | the owner's verdict on a reading | recorded verbatim from the conversation, marked as such |
@@ -45,6 +46,7 @@ Do not write "built on <date>", "step N done", or a list of what a test
 covers into `CONTEXT.md`: git holds the first two, the test the third.
 `tools/docs-check.sh` reports decisions nothing cites; when you touch the
 code behind one, name it in a test or a doc comment so the report shrinks.
+A help string is a doc comment the user reads: cite the id there too.
 
 ## 3. When a slice closes
 

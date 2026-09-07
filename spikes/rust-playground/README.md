@@ -38,11 +38,11 @@ here anticipates it.
   Rulings: `decisions/plans.md`, `decisions/pricing.md`.
 - `crates/acquisition-cli` — the `acq` binary: clap and rendering, one
   module per surface (`store_cmd.rs`, `plan_cmd.rs`, `price_cmd.rs`,
-  `shop_cmd.rs`, `reference_cmd.rs`, `dash.rs`). Rulings:
-  `decisions/frontends.md`.
+  `shop_cmd.rs`, `reference_cmd.rs`, `dash.rs`). Every verb's help is
+  `CLI-REFERENCE.md`, generated. Rulings: `decisions/frontends.md`.
 - `crates/acquisition-mcp` — the `acq-mcp` binary: an MCP server over
   stdio (`rmcp`), the fourth thin client, sharing semantics with the CLI
-  through `acquisition-plan`.
+  through `acquisition-plan`. Its tools are `MCP-REFERENCE.md`, generated.
 
 The documents are indexed in `AGENTS.md` ("Read before changing
 anything"); the rulings are `CONTEXT.md` and `decisions/`.
@@ -50,7 +50,8 @@ anything"); the rulings are `CONTEXT.md` and `decisions/`.
 ## The tour
 
 One line per verb. A verb's semantics — flags, defaults, the rulings it
-implements — is its `--help`; the line here shows the shape.
+implements — is its `--help` (`CLI-REFERENCE.md` holds every one); the
+line here shows the shape.
 
 ```sh
 cargo build && alias acq=./target/debug/acq   # cargo test/clippy do not rebuild the binary: check acq --version

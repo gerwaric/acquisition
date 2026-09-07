@@ -50,6 +50,8 @@ pub struct Mcp {
     stdin: ChildStdin,
     lines: Lines<BufReader<ChildStdout>>,
     next_id: i64,
+    /// The server's `instructions` from `initialize`.
+    pub instructions: String,
 }
 
 impl Mcp {
@@ -62,6 +64,7 @@ impl Mcp {
             stdin,
             lines,
             next_id: 0,
+            instructions: String::new(),
         };
         let init = mcp.rpc(
             "initialize",
@@ -72,8 +75,21 @@ impl Mcp {
             }),
         );
         assert!(init.get("result").is_some(), "initialize failed: {init}");
+        mcp.instructions = init["result"]["instructions"]
+            .as_str()
+            .unwrap_or_default()
+            .to_string();
         mcp.send(&json!({ "jsonrpc": "2.0", "method": "notifications/initialized" }));
         mcp
+    }
+
+    /// `tools/list`: every tool the server advertises, as sent.
+    pub fn list_tools(&mut self) -> Vec<Value> {
+        let resp = self.rpc("tools/list", json!({}));
+        resp["result"]["tools"]
+            .as_array()
+            .unwrap_or_else(|| panic!("tools/list: {resp}"))
+            .clone()
     }
 
     fn send(&mut self, msg: &Value) {
