@@ -78,7 +78,8 @@
 //! A `no_price` item posts as its link alone under an empty title
 //! (`[spoiler=""]`, the C++ app's no-price row): the site lists it as
 //! "No Price Set" (T21). The owner's post of 2026-09-07 is the evidence
-//! the forum accepts this shape (T22).
+//! the forum accepts this shape and that the site prices every item in
+//! a spoiler by that spoiler's title (T22).
 //!
 //! **Grouping and pages.** Items with exactly the same price share one
 //! spoiler, their links run together on its line: groups sort `~price`
