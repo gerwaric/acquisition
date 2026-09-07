@@ -471,10 +471,7 @@ shows the item picture, so a wrong link is visible before posting.
    after step 6? The test pass can be its own step in either case.
    And your verdict on the page, verbatim, with whether the coverage,
    stale and positions lines changed what you did.
-4. C68 says reference data is "enumerable through every surface", but
-   no MCP tool enumerates the currency table (or reads a price) while
-   the plan parks MCP adapters until the CLI has been used for real —
-   the step-6 reviewer's authority mismatch. Before the slice closes:
-   narrow C68 to "every surface that exists, on the day it exists", or
-   schedule the MCP adapter step after its trigger fires. Reading 2
-   does not wait on it.
+4. ~~C68's "enumerable through every surface" against the parked MCP
+   step.~~ **Answered 2026-09-07**, owner: "agree to narrow" — C68 now
+   reads "enumerable by every surface built" (795 bytes), the code's
+   copies follow; the MCP step stays parked on its trigger.

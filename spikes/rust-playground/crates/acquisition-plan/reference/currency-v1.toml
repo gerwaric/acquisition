@@ -3,7 +3,7 @@
 # Reference data is a fifth input, versioned by the build: reviewed,
 # committed, every row citing its evidence, shipped inside the binary
 # (`include_str!` in `src/currency.rs`), read-only, never in a store file,
-# enumerable through every surface (`acq reference currency`), cited by
+# enumerable by every surface built (`acq reference currency`), cited by
 # version wherever used (decisions/pricing.md, C68). A tool may propose
 # rows from a governed source (C79); a human commits. Rules the shape
 # carries:

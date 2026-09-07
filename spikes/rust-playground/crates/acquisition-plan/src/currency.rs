@@ -6,7 +6,7 @@
 //!
 //! **C68 — Reference data is a fifth input, a versioned, reviewed,
 //! committed table whose rows cite evidence, shipped inside the binary,
-//! read-only, never in a store file, enumerable through every surface,
+//! read-only, never in a store file, enumerable by every surface built,
 //! cited by version when used.** A tool may propose rows from a governed
 //! source (C79); a human commits. The currency table is first: the
 //! immutable `tag` intent cites; `emit`, the word GGG's client writes
