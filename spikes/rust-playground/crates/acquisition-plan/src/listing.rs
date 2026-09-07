@@ -75,7 +75,7 @@
 //! tab's, then the folder the tab sits in (a folder is a grouping, but a
 //! row on it covers the tabs it groups the way a policy id does, C37); a
 //! character item's own row, then its character's. A row on a target is
-//! any `buyout` value, `ignore` and `no_price` included — coverage is the
+//! any `buyout` value, `skip` and `no_price` included — coverage is the
 //! row's existence, never its type. The side names the row it took
 //! (`from`, with `inherited` set when that is not the subject's own
 //! target), its revision, when it was written and through what (C65), so
@@ -121,8 +121,14 @@
 //! price, a substash row beats its parent's game name, a game note beats
 //! an item row, a game tab price beats a tab row or a folder row.
 //! [`Effective`] names the winner, its side, the target it came from and
-//! why; what a page does with it — omit what the game already lists — is
-//! the render's (C74).
+//! why. A row the walk stopped at because it cannot be read is a
+//! statement of unknown content: when it sits at a level that could beat
+//! the game's (or there is no game statement) the effective price is
+//! `unresolved`, naming the row — never the game's by default, since that
+//! is the fall-through C++ had; when the game's statement is at least as
+//! specific, the game decides as it would against any row there. What a
+//! page does with the winner — omit what the game already lists — is the
+//! render's (C74).
 //!
 //! **League unknown.** The store carries a character the listing gave no
 //! league under every league of its realm (the planner's rule, so every
@@ -337,7 +343,8 @@ impl Side {
 /// What applies (C81): the more specific statement, the game's on a tie.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Effective {
-    /// `exact`, `negotiable`, `no_price`, `skip`, or `none`.
+    /// `exact`, `negotiable`, `no_price`, `skip`, `none`, or `unresolved`
+    /// (a row that cannot be read could decide; `from` names it).
     pub kind: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub price: Option<Price>,
@@ -425,15 +432,15 @@ pub struct Counts {
     pub containers: usize,
     /// Items by relation word.
     pub by_relation: BTreeMap<String, usize>,
-    /// Items by the game side's applying reading (`exact`, `negotiable`,
-    /// `skip`, `invalid`, `none`).
-    pub by_game_reading: BTreeMap<String, usize>,
-    /// Items whose note read as `invalid`.
+    /// Items by the game side's statement (`exact`, `negotiable`, `skip`,
+    /// `none`) — a statement exists only in a public tab (C81); a note's
+    /// raw reading is `invalid_notes` and `residue`.
+    pub by_game_statement: BTreeMap<String, usize>,
+    /// Items whose note reads `invalid` (no effect, shown).
     pub invalid_notes: usize,
-    /// Items with a game-side price (exact or negotiable) whose stash is public.
-    pub game_priced_public: usize,
-    /// Items with a game-side price whose stash is not public.
-    pub game_priced_not_public: usize,
+    /// Items with a game-side price statement (exact or negotiable);
+    /// public by construction.
+    pub game_priced: usize,
     /// Tabs (folders and substashes excluded) whose own name reads as a
     /// price, public or not; `priced_tabs_public` are the statements.
     pub priced_tabs: usize,
@@ -442,7 +449,8 @@ pub struct Counts {
     pub inherited: usize,
     /// Items of a character the listing gave no league.
     pub league_unknown: usize,
-    /// Items by the effective price's side: `game`, `manual`, `none`.
+    /// Items by the effective price's side: `game`, `manual`, `none`,
+    /// `unresolved` (a row that cannot be read could decide).
     pub by_effective: BTreeMap<String, usize>,
     /// Items whose price text the index cannot see (C81).
     pub residue: usize,
@@ -521,9 +529,11 @@ pub struct ShowView {
     pub listing: Listing,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub container: Option<Listing>,
+    /// A container's items; empty for an item.
     pub items_here: Vec<Listing>,
     /// Items whose chain holds this target but that do not sit in it: a
     /// folder's, through its tabs; a parent tab's, through its substashes.
+    /// Empty for an item.
     pub items_covered_below: Vec<Listing>,
 }
 
@@ -616,12 +626,18 @@ impl ListingReport {
             .as_ref()
             .and_then(|loc| self.find(loc))
             .cloned();
-        let items_here: Vec<Listing> = self.items_in(target).cloned().collect();
-        let items_covered_below: Vec<Listing> = self
-            .items_covered_by(target)
-            .filter(|l| l.subject.location.as_ref() != Some(target))
-            .cloned()
-            .collect();
+        // The two sets belong to a container; an item has neither.
+        let (items_here, items_covered_below) = if listing.subject.is_item() {
+            (Vec::new(), Vec::new())
+        } else {
+            (
+                self.items_in(target).cloned().collect(),
+                self.items_covered_by(target)
+                    .filter(|l| l.subject.location.as_ref() != Some(target))
+                    .cloned()
+                    .collect(),
+            )
+        };
         Some(ShowView {
             header: self.header.clone(),
             listing,
@@ -879,9 +895,16 @@ fn with_note(mut side: GameSide, note: Option<&str>, table: &CurrencyTable) -> G
     side
 }
 
+/// A row the walk stopped at because it cannot be read: where it sits
+/// and why.
+struct Unreadable {
+    target: PriceTarget,
+    why: String,
+}
+
 /// The manual side's walk (C70): the first row on the chain, or the
-/// problem that stopped it.
-fn manual_side(chain: &[PriceTarget], rows: &Rows) -> (Option<ManualSide>, Option<String>) {
+/// row that stopped it.
+fn manual_side(chain: &[PriceTarget], rows: &Rows) -> (Option<ManualSide>, Option<Unreadable>) {
     for (i, target) in chain.iter().enumerate() {
         if let Some(row) = rows.by_target.get(target) {
             return (
@@ -900,7 +923,10 @@ fn manual_side(chain: &[PriceTarget], rows: &Rows) -> (Option<ManualSide>, Optio
         if let Some(why) = rows.unreadable.get(target) {
             return (
                 None,
-                Some(format!("the row on {target} cannot be read: {why}")),
+                Some(Unreadable {
+                    target: target.clone(),
+                    why: why.clone(),
+                }),
             );
         }
     }
@@ -941,6 +967,7 @@ fn relate(manual: Option<&Buyout>, game: &GamePrice) -> (Relation, String) {
 fn effective(
     chain: &[PriceTarget],
     manual: Option<&ManualSide>,
+    unreadable: Option<&Unreadable>,
     game: &GameSide,
     subject: &PriceTarget,
 ) -> Effective {
@@ -977,6 +1004,32 @@ fn effective(
         PriceTarget::Tab { .. } => "tab",
         PriceTarget::Character { .. } => "character",
     };
+    // A row that cannot be read is a statement of unknown content: if it
+    // could beat the game's statement, nothing is decided here.
+    if let Some(u) = unreadable {
+        let ul = level_of(&u.target);
+        let could_decide = match game_level {
+            None => true,
+            Some(gl) => ul < gl,
+        };
+        if could_decide {
+            return Effective {
+                kind: "unresolved".into(),
+                price: None,
+                side: None,
+                from: Some(u.target.clone()),
+                why: format!(
+                    "unresolved: the row on {} cannot be read ({}) and would decide{} (C81)",
+                    u.target,
+                    u.why,
+                    match game_level {
+                        None => "",
+                        Some(_) => " over the game's less specific statement",
+                    }
+                ),
+            };
+        }
+    }
     match (manual, game_level) {
         (None, None) => Effective {
             kind: "none".into(),
@@ -1004,7 +1057,13 @@ fn effective(
                 )
             },
         ),
-        (None, Some(_)) => from_game(format!("{} in game; no row applies", game.reading)),
+        (None, Some(_)) => from_game(match unreadable {
+            Some(u) => format!(
+                "{} in game: the game wins against the row on {}, readable or not, at its level (C81)",
+                game.reading, u.target
+            ),
+            None => format!("{} in game; no row applies", game.reading),
+        }),
         (Some(m), Some(gl)) => {
             let ml = level_of(&m.from);
             let gf = game_from.clone().unwrap_or_else(|| subject.clone());
@@ -1046,9 +1105,17 @@ fn listing(
     game: GameSide,
     basis: Basis,
 ) -> Listing {
-    let (manual, manual_problem) = manual_side(chain, rows);
+    let (manual, unreadable) = manual_side(chain, rows);
     let (relation, why) = relate(manual.as_ref().map(|m| &m.value), &game.reading);
-    let effective = effective(chain, manual.as_ref(), &game, &subject.target);
+    let effective = effective(
+        chain,
+        manual.as_ref(),
+        unreadable.as_ref(),
+        &game,
+        &subject.target,
+    );
+    let manual_problem =
+        unreadable.map(|u| format!("the row on {} cannot be read: {}", u.target, u.why));
     Listing {
         subject,
         chain: chain.to_vec(),
@@ -1246,7 +1313,7 @@ pub fn resolve(snapshot: &PricingSnapshot) -> Result<ListingReport, ListingError
             .entry(l.relation.to_string())
             .or_default() += 1;
         *counts
-            .by_game_reading
+            .by_game_statement
             .entry(l.game.reading.kind().to_string())
             .or_default() += 1;
         if l.game
@@ -1257,18 +1324,18 @@ pub fn resolve(snapshot: &PricingSnapshot) -> Result<ListingReport, ListingError
             counts.invalid_notes += 1;
         }
         if l.game.reading.price().is_some() {
-            if l.game.public == Some(true) {
-                counts.game_priced_public += 1;
-            } else {
-                counts.game_priced_not_public += 1;
-            }
+            counts.game_priced += 1;
         }
         if l.manual.as_ref().is_some_and(|m| m.inherited) {
             counts.inherited += 1;
         }
         *counts
             .by_effective
-            .entry(l.effective.side.map_or("none", Side::as_str).to_string())
+            .entry(match (l.effective.side, l.effective.kind.as_str()) {
+                (Some(side), _) => side.as_str().to_string(),
+                (None, "unresolved") => "unresolved".to_string(),
+                (None, _) => "none".to_string(),
+            })
             .or_default() += 1;
         if l.game.residue {
             counts.residue += 1;
@@ -1278,7 +1345,7 @@ pub fn resolve(snapshot: &PricingSnapshot) -> Result<ListingReport, ListingError
     for relation in Relation::ALL {
         counts.by_relation.entry(relation.to_string()).or_default();
     }
-    for side in ["game", "manual", "none"] {
+    for side in ["game", "manual", "none", "unresolved"] {
         counts.by_effective.entry(side.into()).or_default();
     }
 
@@ -1513,10 +1580,11 @@ mod tests {
             .unwrap_or_else(|| panic!("no listing for {target}"))
     }
 
-    /// C69 — the game side reads the note, then the tab name; an invalid
-    /// note is the game side and the tab is not substituted; the raw
-    /// texts ride beside every reading; the relation names both sides;
-    /// `ignore` never denies an in-game price; the versions are stamped.
+    /// C69 — the game side reads the note, then the tab name, as a price
+    /// or `skip`; an invalid note has no effect and the tab applies (T18);
+    /// the raw texts ride beside every reading; a note where the index
+    /// cannot see it is residue; the relation names both sides; the
+    /// versions are stamped.
     #[test]
     fn c69_two_sides_resolve_independently_and_the_relation_names_both() {
         let report = resolve(&snapshot()).unwrap();
@@ -1614,11 +1682,10 @@ mod tests {
         assert_eq!(report.counts.by_relation["game_only"], 0);
         assert_eq!(report.counts.by_relation["none"], 1);
         assert_eq!(report.counts.invalid_notes, 1);
-        assert_eq!(report.counts.by_game_reading["exact"], 5);
-        assert_eq!(report.counts.by_game_reading["skip"], 1);
-        assert_eq!(report.counts.by_game_reading["none"], 3);
-        assert_eq!(report.counts.game_priced_public, 5);
-        assert_eq!(report.counts.game_priced_not_public, 0);
+        assert_eq!(report.counts.by_game_statement["exact"], 5);
+        assert_eq!(report.counts.by_game_statement["skip"], 1);
+        assert_eq!(report.counts.by_game_statement["none"], 3);
+        assert_eq!(report.counts.game_priced, 5);
         assert_eq!(report.counts.residue, 1);
     }
 
@@ -1699,9 +1766,17 @@ mod tests {
             "{}",
             e.why
         );
-        // Nothing on either side.
+        // An unreadable own row and no game statement: unresolved, naming
+        // the row — never "nothing applies".
         let e = eff(item_target("i-dump"));
-        assert_eq!((e.side, e.kind.as_str()), (None, "none"));
+        assert_eq!((e.side, e.kind.as_str()), (None, "unresolved"));
+        assert_eq!(e.from, Some(item_target("i-dump")));
+        assert!(
+            e.why
+                .starts_with("unresolved: the row on item/i-dump cannot be read"),
+            "{}",
+            e.why
+        );
         // Containers resolve the same way: the tab's own name beats the
         // folder's row; the folder itself has only its row.
         let e = eff(tab_target("c1"));
@@ -1713,7 +1788,8 @@ mod tests {
         assert_eq!((e.side, e.kind.as_str()), (Some(Side::Manual), "skip"));
         assert_eq!(report.counts.by_effective["game"], 5);
         assert_eq!(report.counts.by_effective["manual"], 3);
-        assert_eq!(report.counts.by_effective["none"], 1);
+        assert_eq!(report.counts.by_effective["none"], 0);
+        assert_eq!(report.counts.by_effective["unresolved"], 1);
         // A public tab's price text is a statement; the same text on a
         // non-public tab is residue: the manual row applies alone.
         let mut snap = snapshot();
@@ -1726,6 +1802,41 @@ mod tests {
         assert_eq!(l.relation, Relation::ManualOnly);
         assert_eq!(l.effective.side, Some(Side::Manual));
         assert_eq!(l.effective.kind, "skip");
+        // An unreadable row that could beat the game's statement leaves
+        // the price unresolved; one the game beats by level does not.
+        let unreadable =
+            |scope: &str, key: &str| row(scope, key, json!({ "version": 9, "type": "exact" }), 20);
+        let mut snap = snapshot();
+        snap.buyouts.retain(|r| r.key != "i-plain");
+        snap.buyouts.push(unreadable("item", "i-plain")); // above the public tab price
+        snap.buyouts.push(unreadable("substash", "pc/m1/s1")); // above the parent's price
+        let report = resolve(&snap).unwrap();
+        for id in ["i-plain", "i-sub"] {
+            let l = get(&report, &item_target(id));
+            assert!(l.game.reading.price().is_some(), "{id}");
+            assert_eq!(l.effective.kind, "unresolved", "{id}: {}", l.effective.why);
+            assert_eq!(l.effective.side, None);
+            assert!(l.manual_problem.is_some(), "{id}");
+        }
+        assert_eq!(
+            get(&report, &item_target("i-plain")).effective.from,
+            Some(item_target("i-plain"))
+        );
+        let mut snap = snapshot();
+        snap.buyouts.retain(|r| r.key != "pc/f1");
+        snap.buyouts.push(unreadable("tab", "pc/f1")); // below the tab's price
+        let report = resolve(&snap).unwrap();
+        let l = get(&report, &item_target("i-fifty"));
+        assert_eq!(l.effective.side, Some(Side::Game));
+        assert!(
+            l.effective.why.contains("readable or not"),
+            "{}",
+            l.effective.why
+        );
+        assert!(l.manual_problem.is_some());
+        // An item's show view carries no item sets.
+        let view = report.show_view(&item_target("i-fifty")).unwrap();
+        assert!(view.items_here.is_empty() && view.items_covered_below.is_empty());
     }
 
     /// C70 — the manual side by specificity: the own row, else the

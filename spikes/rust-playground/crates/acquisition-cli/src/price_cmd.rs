@@ -194,7 +194,7 @@ fn count_of(r: &ListingReport, relation: Relation) -> usize {
 }
 
 fn reading_count(r: &ListingReport, kind: &str) -> usize {
-    r.counts.by_game_reading.get(kind).copied().unwrap_or(0)
+    r.counts.by_game_statement.get(kind).copied().unwrap_or(0)
 }
 
 /// The by-relation breakdown of a set of items, in a fixed order, zeros
@@ -300,12 +300,18 @@ fn render_status(r: &ListingReport, now: i64, expand: bool) -> String {
         + count_of(r, Relation::Agree)
         + count_of(r, Relation::Conflict);
     let effective = |side: &str| c.by_effective.get(side).copied().unwrap_or(0);
+    let unresolved = effective("unresolved");
     out.push_str(&format!(
-        "{} in {place}: {} the game decides, {} decided by hand, {} nothing applies\n",
+        "{} in {place}: {} the game decides, {} decided by hand, {} nothing applies{}\n",
         plural(c.items, "item", "items"),
         effective("game"),
         effective("manual"),
         effective("none"),
+        if unresolved > 0 {
+            format!(", {unresolved} unresolved (a row that cannot be read could decide)")
+        } else {
+            String::new()
+        }
     ));
     out.push_str(&format!(
         "sides: {game_priced} priced in game, {by_hand} by hand; {} agree, {} conflict\n",
@@ -319,7 +325,7 @@ fn render_status(r: &ListingReport, now: i64, expand: bool) -> String {
         ));
     }
     let skipped = reading_count(r, "skip");
-    let invalid = reading_count(r, "invalid");
+    let invalid = c.invalid_notes;
     if skipped + invalid > 0 {
         out.push_str(&format!(
             "in game also: {skipped} skipped (~skip), {invalid} invalid notes (no effect; the tab applies, T18)\n"
@@ -337,11 +343,10 @@ fn render_status(r: &ListingReport, now: i64, expand: bool) -> String {
     }
     if expand {
         out.push_str(&format!(
-            "game side: {} priced tab names ({} public); {} priced items in public tabs, {} not public; note parser v{}, currency table v{}\n",
+            "game side: {} priced tab names ({} public); {} priced items in public tabs; note parser v{}, currency table v{}\n",
             c.priced_tabs,
             c.priced_tabs_public,
-            c.game_priced_public,
-            c.game_priced_not_public,
+            c.game_priced,
             h.note_parser_version,
             h.currency_table_version
         ));
@@ -392,12 +397,14 @@ fn game_cell(l: &Listing) -> String {
     }
 }
 
-/// Who decides (C81): `game`, `hand`, or `-`.
+/// Who decides (C81): `game`, `hand`, `?` (a row that cannot be read
+/// could), or `-`.
 fn wins_cell(l: &Listing) -> &'static str {
-    match l.effective.side {
-        Some(Side::Game) => "game",
-        Some(Side::Manual) => "hand",
-        None => "-",
+    match (l.effective.side, l.effective.kind.as_str()) {
+        (Some(Side::Game), _) => "game",
+        (Some(Side::Manual), _) => "hand",
+        (None, "unresolved") => "?",
+        (None, _) => "-",
     }
 }
 
@@ -752,22 +759,33 @@ fn render_show(view: &ShowView, now: i64, expand: bool) -> String {
                 breakdown(&below)
             ));
         }
-        let shown: &[&Listing] = if here.is_empty() { &below } else { &here };
-        if !shown.is_empty() {
-            if shown.len() <= LIST_UP_TO || expand {
-                for l in shown {
+        // Each set listed under its own line (ten or fewer, or --expand);
+        // a set past the threshold defers to `list`.
+        let mut deferred = false;
+        for (set, is_below) in [(&here, false), (&below, true)] {
+            if set.is_empty() {
+                continue;
+            }
+            if set.len() <= LIST_UP_TO || expand {
+                if is_below && !here.is_empty() {
+                    out.push_str("covered through children:\n");
+                }
+                for l in set {
                     out.push_str(&item_line(l));
                     if expand {
                         out.push_str(&item_texts(l));
                     }
                 }
             } else {
-                out.push_str(&format!(
-                    "next: `acq price list --in {}` lists them, `--covered-by` the covered set; `--expand` here lists every one\n",
-                    s.target
-                ));
-                return out;
+                deferred = true;
             }
+        }
+        if deferred {
+            out.push_str(&format!(
+                "next: `acq price list --in {}` lists them, `--covered-by` the covered set; `--expand` here lists every one\n",
+                s.target
+            ));
+            return out;
         }
     }
     let next = match &s.location {
@@ -837,15 +855,17 @@ mod tests {
         }
     }
 
-    /// A priced public tab with twelve items (one noted, one ignored by
-    /// hand), a map tab with a substash holding one item, a character
-    /// wearing a noted item, and one row naming nothing here.
+    /// A priced public tab with twelve items (one noted, one skipped by
+    /// hand), a non-public priced map tab holding one item directly and
+    /// one in its substash, a character wearing a noted item, and one row
+    /// naming nothing here.
     fn snapshot() -> PricingSnapshot {
         let mut items = vec![item("i-worn", "character", "ch1", Some("~b/o 2 divine"))];
         for i in 0..12 {
             items.push(item(&format!("i-{i:02}"), "stash", "c1", None));
         }
         items[2].note = Some("~price 5 chaos".into()); // i-01, the row's item
+        items.push(item("i-mapdirect", "stash", "m1", None));
         items.push(item("i-sub", "stash", "s1", None));
         PricingSnapshot {
             account_uuid: "u-1".into(),
@@ -905,7 +925,7 @@ mod tests {
         let lines: Vec<&str> = text.lines().collect();
         assert_eq!(
             lines[0],
-            "14 items in Standard: 12 the game decides, 0 decided by hand, 2 nothing applies"
+            "15 items in Standard: 12 the game decides, 0 decided by hand, 3 nothing applies"
         );
         assert_eq!(
             lines[1],
@@ -913,7 +933,7 @@ mod tests {
         );
         assert_eq!(
             lines[2],
-            "2 items carry price text the index cannot see (a note on a character, a name on a non-public tab): shown, not a side (C81)"
+            "3 items carry price text the index cannot see (a note on a character, a name on a non-public tab): shown, not a side (C81)"
         );
         assert_eq!(
             lines[3],
@@ -928,7 +948,7 @@ mod tests {
 
         let text = render_status(&r, 8_000, true);
         assert!(
-            text.contains("game side: 2 priced tab names (1 public); 12 priced items in public tabs, 0 not public; note parser v1, currency table v1"),
+            text.contains("game side: 2 priced tab names (1 public); 12 priced items in public tabs; note parser v1, currency table v1"),
             "{text}"
         );
         assert!(
@@ -1023,22 +1043,27 @@ mod tests {
         let lines: Vec<&str> = text.lines().collect();
         assert_eq!(
             lines[0],
-            "2 items listed in Standard with relation none: 2 unlisted; in 2 containers"
+            "3 items listed in Standard with relation none: 3 unlisted; in 3 containers"
         );
         assert_eq!(
             lines[1],
+            "~price 1 divine (Remove-only) (not public)  1 item: 1 unlisted  tab/pc/m1"
+        );
+        assert!(lines[2].ends_with("i-mapdirect"), "{}", lines[2]);
+        assert_eq!(
+            lines[3],
             "~price 1 divine (Remove-only) / 1 (Remove-only) (not public)  1 item: 1 unlisted  substash/pc/m1/s1"
         );
         assert!(
-            lines[2].starts_with(
+            lines[4].starts_with(
                 "  none         -     -                  -                  Chaos Orb x10"
             ),
             "{}",
-            lines[2]
+            lines[4]
         );
-        assert!(lines[2].ends_with("i-sub"), "{}", lines[2]);
-        assert_eq!(lines[3], "Exile  1 item: 1 unlisted  character/ch1");
-        assert!(lines[4].ends_with("i-worn"), "{}", lines[4]);
+        assert!(lines[4].ends_with("i-sub"), "{}", lines[4]);
+        assert_eq!(lines[5], "Exile  1 item: 1 unlisted  character/ch1");
+        assert!(lines[6].ends_with("i-worn"), "{}", lines[6]);
 
         let view = r
             .list_view(ListFilter {
@@ -1049,7 +1074,7 @@ mod tests {
         let text = render_list(&view, false);
         assert_eq!(
             text,
-            "14 items on record, none match for Standard with relation agree\nnext: `acq price status` says what is on record\n"
+            "15 items on record, none match for Standard with relation agree\nnext: `acq price status` says what is on record\n"
         );
     }
 
@@ -1130,17 +1155,21 @@ mod tests {
         );
         let text = render_show(&l, 8_000, true);
         assert_eq!(text.matches("\n  game_only ").count(), 11, "{text}");
-        // A parent tab: nothing here, its substash's item covered (C70).
+        // A mixed parent tab: its own item here and its substash's covered
+        // (C70), each set listed under its own line.
         let l = show(PriceTarget::Tab {
             realm: Realm::Pc,
             id: "m1".into(),
         });
         let text = render_show(&l, 8_000, false);
         assert!(
-            text.contains("items here: none on record\nitems covered through children (C70): 1 item — 1 unlisted\n"),
+            text.contains("items here: 1 item — 1 unlisted\nitems covered through children (C70): 1 item — 1 unlisted\n"),
             "{text}"
         );
-        assert!(text.contains("i-sub\n"), "{text}");
+        let direct = text.find("i-mapdirect\n").unwrap();
+        let covered_head = text.find("covered through children:\n").unwrap();
+        let sub = text.find("i-sub\n").unwrap();
+        assert!(direct < covered_head && covered_head < sub, "{text}");
     }
 
     /// A tab or substash address carries its realm; `--realm` must agree;
