@@ -22,15 +22,16 @@
 //! tests. Amended 2026-09-06.
 //!
 //! **C72 — Pricing never edits the sync policy, and a price never locks a
-//! tab into refresh.** The relationship between the two kinds of intent
-//! is reported, not enforced: the consumer that needs freshness — `shop
+//! tab into refresh.** The relationship between the two kinds of intent is
+//! reported, not enforced: the consumer that needs freshness — `shop
 //! render` first — names priced locations outside the policy's coverage,
-//! priced facts older than its stated window, and items moved or
-//! reindexed since the render's basis, each with the remedy (the policy
-//! edit, or the `RefreshPlan` it would take, C41). *Why:* C++'s "priced
-//! tabs are always refreshed" is one kind of intent silently rewriting
-//! another; a report keeps the policy what its author wrote. Ruled
-//! 2026-09-03; amended 2026-09-04.
+//! priced facts older than its stated window, and items moved or reindexed
+//! since the render's basis, each with the remedy (the policy edit, or the
+//! `RefreshPlan` it would take, C41). *Why:* C++'s "priced tabs are always
+//! refreshed" is one kind of intent silently rewriting another; a report
+//! keeps the policy what its author wrote (07 §10, 08 boundary 7).
+//! *Details:* `shop.rs`. *Pinned:* the `c72_` test. Ruled 2026-09-03;
+//! amended 2026-09-04.
 //!
 //! # As built
 //!
