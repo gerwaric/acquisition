@@ -207,8 +207,11 @@ tool cannot compare its rendered text with the forum's content;
 own previous output (the C++ app's page hash). Whether the forum
 re-resolves a linked item that later moves is open (Q8). The character
 attribute was emitted with the character's display capitalization
-(`I_Exist`) while the run's request path (T6) used I_EXIST; whether
-the forum's match is case-sensitive is not established.
+(`I_Exist`) while the run's request path (T6) used I_EXIST. Settled
+September 7, 2026: the spike's render wrote `character="I_EXIST"`, the
+listing's spelling, and the link resolved with the rest of the page —
+the owner: "all 27 items are linked" — so the forum's match does not
+depend on the display capitalization.
 
 **T8. A character-inventory item is listable through the forum: the
 item linked in T7 appears on the trade site as a listing.** [OWNER —
@@ -227,7 +230,10 @@ The owner, verbatim: "items linked to the forum without a price
 annotation are listed with 'No Price Set' on the trade site." So the
 forum channel indexes an unpriced link the way the stash channel
 indexes an unpriced item in a public tab (T3): listed, with no price.
-Q5 is answered. What the spike takes: a hand `no_price` item posts as
+The same under an empty spoiler title (`[spoiler=""]`, the C++ app's
+no-price row, T15), read September 7, 2026 on the render's page — the
+owner, verbatim: "Horror Spur is empty under the title." Q5 is
+answered. What the spike takes: a hand `no_price` item posts as
 its link alone, under an empty spoiler title — the C++ app's no-price
 row (T15) — and the render's cell for it is a posting row (C74).
 
@@ -402,8 +408,8 @@ price on the site is open (Q2).
 **T12. A forum shop lists individual items, never whole tabs; the
 in-game dialog offers the ratio format only on bulk-tradeable items; a
 forum price takes precedence over a tab's in-game price.** [OWNER —
-Provisional; the owner's in-game and website observations, September 3,
-2026]
+Confirmed for the precedence, one item, September 7, 2026; the rest
+Provisional from the owner's observations of September 3, 2026]
 The owner, verbatim: "only individual items can be listed in forum
 shops, not entire tabs"; "only bulk-tradeable items can use the 'X/Y'
 format for price"; "items priced in forums take precedence over the tab
@@ -412,7 +418,11 @@ grammar (T7, T14: a link names one item by position); the second agrees
 with T2's "eligible items"; the third is the first evidence about a
 *relation* between the two channels and points one way only — a forum
 price against an item *note* is untested (Q2), as is a forum price
-against a game `~skip` (Q7).
+against a game `~skip` (Q7). The precedence was read directly on
+September 7, 2026: an item in the owner's public tab named `~price 222
+divine`, posted through the forum at 99 chaos, is listed by the site at
+99 chaos — the owner, verbatim: "Dread Dome is 99 chaos."; the spike's
+render relies on it (C81: an item row beats a tab name).
 
 **T18. A `~` note the site cannot read has no effect: `~c/o 5 chaos`,
 `~price 5` (no word) and the empty-amount residue `~price  chaos` each
