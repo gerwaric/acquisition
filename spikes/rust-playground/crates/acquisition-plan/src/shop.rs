@@ -64,29 +64,37 @@
 //! timestamp in a fact saturates the age it yields; nothing here
 //! panics on a store row (C47).
 //!
-//! **The link code and the price line.** A stash item renders as
+//! **The link code and the spoiler title.** A stash item renders as
 //! `[linkItem location="Stash<index+1>" league="<L>" x="<x>" y="<y>"
 //! realm="<r>"]` (T7, T13, T15 — `index + 1` is the C++ app's derivation;
 //! which tab it names when folders occupy indices is Q1, and the forum's
 //! preview shows the item picture before anything is posted); a
 //! character item as `[linkItem location="<inventoryId>"
 //! character="<name>" x="<x>" y="<y>" realm="<r>"]` (T7, T8). The price
-//! is the line after the link — `~price <amount> <word>` or `~b/o
-//! <amount> <word>` — with the currency table's `emit` word for the row's
-//! tag (C68) and the amount's canonical text (C67). Both shapes were
-//! accepted by the forum when the C++ app and Procurement wrote them
-//! (T15); whether the site reads the price from the line after the code
-//! is the wiki's statement (T14) and reading 2's to confirm.
+//! is the title of the spoiler the links sit in — `[spoiler=" ~price
+//! <amount> <word>"]` or `[spoiler=" ~b/o <amount> <word>"]`, the C++
+//! app's form (T15) with its leading space, the currency table's `emit`
+//! word for the row's tag (C68) and the amount's canonical text (C67).
+//! A `no_price` item posts as its link alone under an empty title
+//! (`[spoiler=""]`, the C++ app's no-price row): the site lists it as
+//! "No Price Set" (T21). The owner's post of 2026-09-07 is the evidence
+//! the forum accepts this shape (T22).
 //!
-//! **Grouping and pages.** Entries are grouped by price — `~price`
-//! before `~b/o`, then by tag, then by amount — in a stable sort over the
-//! report's order, one blank line between groups. Pages are cut so that
-//! each page, the template around it included, holds at most `size`
-//! characters (the C++ constant 50,000 is the default; the forum's real
-//! limit is Q4); a group runs on across a cut, and an entry that would
-//! not fit an empty page is blocked (`page_size`). The template must hold
-//! `[items]` exactly once; each page is the template with its body in
-//! that place.
+//! **Grouping and pages.** Items with exactly the same price share one
+//! spoiler, their links run together on its line: groups sort `~price`
+//! before `~b/o` before no price, then by tag, then by amount, in a
+//! stable sort over the report's order. Each page is one spoiler titled
+//! `Shop Post <n> of <N> (<k> items)` holding the price spoilers one per
+//! line; newlines stand only between spoiler tags (the owner's shape,
+//! 2026-09-07). Pages are cut so that each page, the template around it
+//! included, holds at most `size` characters (the C++ constant 50,000 is
+//! the default; the forum's real limit is Q4) — the page title is
+//! reserved at its widest, so a page never grows past the size when its
+//! numbers are filled in; a price group that runs across a cut is closed
+//! and reopened on the next page; an entry that would not fit an empty
+//! page is blocked (`page_size`). The template must hold `[items]`
+//! exactly once; each page is the template with its spoiler in that
+//! place.
 //!
 //! **The C72 report** is over the posted items only — an omitted or
 //! blocked item asks nothing of a refresh. *Coverage:* each posted item's
@@ -122,9 +130,12 @@ use crate::{Selection, SyncPolicy};
 
 /// The render's JSON shape; changes are additive (C53) until they are
 /// not, and then this moves. The shape is pinned by
-/// `reference/shop-render-schema-2.json`
-/// (`the_render_json_matches_the_committed_fixture`).
-pub const SHOP_SCHEMA: u32 = 2;
+/// `reference/shop-render-schema-3.json`
+/// (`the_render_json_matches_the_committed_fixture`). **3** since
+/// 2026-09-07: the owner's page shape (spoilers) renamed `Posted.price`
+/// to `title`; 2 measured staleness over the stale set only; neither 1
+/// nor 2 reached a consumer.
+pub const SHOP_SCHEMA: u32 = 3;
 
 /// The C++ app's post limit (T15) — a constant, not a measured limit (Q4).
 pub const DEFAULT_PAGE_SIZE: usize = 50_000;
@@ -189,13 +200,13 @@ impl Cell {
     pub const ALL: [Cell; 20] = [
         Cell::StashItem,
         Cell::CharacterItem,
+        Cell::HandNoPrice,
         Cell::GameLists,
         Cell::GameSkips,
         Cell::HandSkip,
         Cell::NothingApplies,
         Cell::Unresolved,
         Cell::LeagueUnknown,
-        Cell::HandNoPrice,
         Cell::UnruledKind,
         Cell::Ratio,
         Cell::RetiredCurrency,
@@ -236,12 +247,11 @@ impl Cell {
 
     pub fn verdict(self) -> Verdict {
         match self {
-            Cell::StashItem | Cell::CharacterItem => Verdict::Post,
+            Cell::StashItem | Cell::CharacterItem | Cell::HandNoPrice => Verdict::Post,
             Cell::GameLists | Cell::GameSkips | Cell::HandSkip => Verdict::Omit,
             Cell::NothingApplies => Verdict::OffPage,
             Cell::Unresolved
             | Cell::LeagueUnknown
-            | Cell::HandNoPrice
             | Cell::Ratio
             | Cell::RetiredCurrency
             | Cell::RealmUnlisted
@@ -260,10 +270,10 @@ impl Cell {
     pub fn why(self) -> &'static str {
         match self {
             Cell::StashItem => {
-                "a hand-priced stash item at a listed tab: `[linkItem location=\"Stash<index+1>\" league= x= y= realm=]`, the price on the next line (T7, T13, T15; a forum price over the tab's is T12; which tab `Stash<n>` names under folders is Q1 — the forum's preview shows the picture before posting)"
+                "a hand-priced stash item at a listed tab: `[linkItem location=\"Stash<index+1>\" league= x= y= realm=]` under the price's spoiler (T7, T13, T15; a forum price over the tab's is T12; which tab `Stash<n>` names under folders is Q1 — the forum's preview shows the picture before posting)"
             }
             Cell::CharacterItem => {
-                "a hand-priced character item in a slot: `[linkItem location=\"<inventoryId>\" character= x= y= realm=]`, the price on the next line (T7, T8)"
+                "a hand-priced character item in a slot: `[linkItem location=\"<inventoryId>\" character= x= y= realm=]` under the price's spoiler (T7, T8)"
             }
             Cell::GameLists => {
                 "the game already lists it at its own price (T11, C81); a page must not contradict what the site shows (C74)"
@@ -280,7 +290,7 @@ impl Cell {
                 "the listing gave its character no league, so the report is not evidence it belongs to this one"
             }
             Cell::HandNoPrice => {
-                "whether an unpriced forum link is indexed is unobserved (Q5): one hand experiment"
+                "a hand `no_price` item at an address a posting row takes: its link alone under an empty spoiler title, which the site lists as \"No Price Set\" (T21)"
             }
             Cell::Ratio => {
                 "a ratio on the forum is unobserved (Q6); in game a typed ratio unlists the item (T19)"
@@ -292,7 +302,7 @@ impl Cell {
             Cell::Socketed => "a socketed item has no position and cannot be linked (T13)",
             Cell::NoPosition => "the fetch gave the item no position, so no link can name it",
             Cell::Substash => {
-                "the link code for an item in a map or unique substash is unobserved (Q3): the owner's hand experiment at reading 2"
+                "the website's stash view offers no link for an item in a map or unique substash (T20), and no other code for one has been observed: blocked until one is"
             }
             Cell::TabUnlisted => {
                 "the tab is not on the current stash listing, so it has no index for `Stash<n>` (T13)"
@@ -334,8 +344,9 @@ pub struct Posted {
     pub cell: Cell,
     /// 1-based.
     pub page: usize,
-    /// The price line, as written on the page.
-    pub price: String,
+    /// The spoiler title the link sits under, as written: ` ~price 5
+    /// chaos`, ` ~b/o 1/5 divine`, or empty for a `no_price` item.
+    pub title: String,
     /// The link code, as written on the page.
     pub link: String,
 }
@@ -506,10 +517,12 @@ struct Entry {
     label: String,
     location: PriceTarget,
     cell: Cell,
-    /// Sort key: `~price` before `~b/o`, then tag, then amount.
-    group: (u8, String, Amount),
+    /// Sort key: `~price` before `~b/o` before no price, then tag, then
+    /// amount; also the group — equal keys share a spoiler.
+    group: (u8, String, Option<Amount>),
     link: String,
-    price: String,
+    /// The spoiler title; empty for no price.
+    title: String,
     /// Basis, for the C72 report.
     seen_response: Option<i64>,
     seen_at: Option<i64>,
@@ -525,35 +538,44 @@ fn cell(
 ) -> Result<Entry, Cell> {
     let s = &l.subject;
     let e = &l.effective;
-    let price: &Price = match (e.side, e.kind.as_str()) {
+    // The kinds a row of the table writes, matched by name: a kind this
+    // build does not know how to write is blocked, never assumed exact.
+    let (price, prefix, order): (Option<&Price>, &str, u8) = match (e.side, e.kind.as_str()) {
         (Some(Side::Game), "skip") => return Err(Cell::GameSkips),
         (Some(Side::Game), _) => return Err(Cell::GameLists),
         (Some(Side::Manual), "skip") => return Err(Cell::HandSkip),
-        (Some(Side::Manual), "no_price") => return Err(Cell::HandNoPrice),
-        (Some(Side::Manual), _) => match &e.price {
-            Some(p) => p,
+        (Some(Side::Manual), "no_price") => (None, "", 2),
+        (Some(Side::Manual), kind @ ("exact" | "negotiable")) => match &e.price {
+            Some(p) => (
+                Some(p),
+                if kind == "exact" { " ~price" } else { " ~b/o" },
+                u8::from(kind == "negotiable"),
+            ),
             // A manual side with a priced kind carries its price; a
             // report that says otherwise is unreadable here.
             None => return Err(Cell::Unresolved),
         },
+        (Some(Side::Manual), _) => return Err(Cell::UnruledKind),
         (None, "unresolved") => return Err(Cell::Unresolved),
         (None, _) => return Err(Cell::NothingApplies),
     };
-    // The kinds a row of the table writes, matched by name: a kind this
-    // build does not know how to write is blocked, never assumed exact.
-    let (prefix, negotiable) = match e.kind.as_str() {
-        "exact" => ("~price", 0u8),
-        "negotiable" => ("~b/o", 1u8),
-        _ => return Err(Cell::UnruledKind),
-    };
-    if matches!(price.amount, Amount::Ratio { .. }) {
-        return Err(Cell::Ratio);
-    }
-    let word = match table.by_tag(&price.currency) {
-        Some(row) if !row.is_retired() => row.emit.clone(),
-        // A row cites a tag the table holds (C67's write rule); one it
-        // does not is a newer table's, unknown to this build.
-        _ => return Err(Cell::RetiredCurrency),
+    let (title, group) = match price {
+        None => (String::new(), (order, String::new(), None)),
+        Some(price) => {
+            if matches!(price.amount, Amount::Ratio { .. }) {
+                return Err(Cell::Ratio);
+            }
+            let word = match table.by_tag(&price.currency) {
+                Some(row) if !row.is_retired() => row.emit.clone(),
+                // A row cites a tag the table holds (C67's write rule); one
+                // it does not is a newer table's, unknown to this build.
+                _ => return Err(Cell::RetiredCurrency),
+            };
+            (
+                format!("{prefix} {} {word}", price.amount),
+                (order, price.currency.clone(), Some(price.amount)),
+            )
+        }
     };
     if s.league_unknown {
         return Err(Cell::LeagueUnknown);
@@ -573,8 +595,6 @@ fn cell(
     let Some(location) = s.location.clone() else {
         return Err(Cell::NoPosition);
     };
-    let price_line = format!("{prefix} {} {word}", price.amount);
-    let group = (negotiable, price.currency.clone(), price.amount);
     let (cell, link, parent) = match &location {
         PriceTarget::Substash { .. } => return Err(Cell::Substash),
         PriceTarget::Character { .. } => {
@@ -621,6 +641,13 @@ fn cell(
             )
         }
     };
+    // A no-price item's cell is the no-price row, once its address
+    // passed the checks a posting row makes.
+    let cell = if price.is_none() {
+        Cell::HandNoPrice
+    } else {
+        cell
+    };
     Ok(Entry {
         target: s.target.clone(),
         label: s.label(),
@@ -628,7 +655,7 @@ fn cell(
         cell,
         group,
         link,
-        price: price_line,
+        title,
         seen_response: l.basis.response,
         seen_at: l.basis.at,
         parent,
@@ -676,71 +703,95 @@ pub fn render(report: &ListingReport, opts: &RenderOptions<'_>) -> Result<ShopRe
             });
         }
     };
+    // Classify first; the page-size check needs the candidate count,
+    // since the page title is reserved at its widest.
+    let mut candidates: Vec<(&Listing, Entry)> = Vec::new();
     for l in report.listings.iter().filter(|l| l.subject.is_item()) {
         counts.items += 1;
         match cell(l, report, table) {
-            Ok(entry) => {
-                let text_chars = entry.link.chars().count() + entry.price.chars().count() + 2;
-                if text_chars + overhead > opts.size {
-                    take(&mut counts, l, Cell::PageSize);
-                } else {
-                    take(&mut counts, l, entry.cell);
-                    entries.push(entry);
-                }
-            }
+            Ok(entry) => candidates.push((l, entry)),
             Err(cell) => take(&mut counts, l, cell),
+        }
+    }
+    let fixed = page_fixed_chars(candidates.len(), overhead);
+    for (l, entry) in candidates {
+        if group_open(&entry.title).chars().count()
+            + GROUP_CLOSE.len()
+            + entry.link.chars().count()
+            + fixed
+            > opts.size
+        {
+            take(&mut counts, l, Cell::PageSize);
+        } else {
+            take(&mut counts, l, entry.cell);
+            entries.push(entry);
         }
     }
     entries.sort_by_cached_key(|e| e.group.clone());
 
-    // Pages: a running character count, the template's overhead in it;
-    // a group runs on across a cut.
-    let mut pages: Vec<(String, usize)> = Vec::new();
-    let mut body = String::new();
-    let mut body_chars = 0usize;
-    let mut body_items = 0usize;
-    let mut last_group: Option<&(u8, String, Amount)> = None;
+    // Pages: a running character count with the page's fixed cost in
+    // it; a group whose next link does not fit is closed here and
+    // reopened on the next page.
+    let mut pages: Vec<PageBuild> = Vec::new();
+    let mut page = PageBuild::default();
     let mut posted = Vec::with_capacity(entries.len());
     for entry in &entries {
-        let text = format!("{}\n{}\n", entry.link, entry.price);
-        let text_chars = text.chars().count();
-        let separator = usize::from(body_items > 0 && last_group != Some(&entry.group));
-        if body_items > 0 && body_chars + separator + text_chars + overhead > opts.size {
-            pages.push((std::mem::take(&mut body), body_items));
-            body_chars = 0;
-            body_items = 0;
-        } else if separator == 1 {
-            body.push('\n');
-            body_chars += 1;
+        let link_chars = entry.link.chars().count();
+        let same_group = page.groups.last().is_some_and(|g| g.key == entry.group);
+        let group_cost = if same_group {
+            0
+        } else {
+            group_open(&entry.title).chars().count() + GROUP_CLOSE.len()
+        };
+        if page.items > 0 && page.chars + group_cost + link_chars + fixed > opts.size {
+            pages.push(std::mem::take(&mut page));
         }
-        body.push_str(&text);
-        body_chars += text_chars;
-        body_items += 1;
-        last_group = Some(&entry.group);
+        if page.groups.last().is_none_or(|g| g.key != entry.group) {
+            page.chars += group_open(&entry.title).chars().count() + GROUP_CLOSE.len();
+            page.groups.push(GroupBuild {
+                key: entry.group.clone(),
+                title: entry.title.clone(),
+                links: Vec::new(),
+            });
+        }
+        if let Some(g) = page.groups.last_mut() {
+            g.links.push(entry.link.clone());
+        }
+        page.chars += link_chars;
+        page.items += 1;
         posted.push(Posted {
             target: entry.target.clone(),
             label: entry.label.clone(),
             location: entry.location.clone(),
             cell: entry.cell,
             page: pages.len() + 1,
-            price: entry.price.clone(),
+            title: entry.title.clone(),
             link: entry.link.clone(),
         });
     }
-    if body_items > 0 {
-        pages.push((body, body_items));
+    if page.items > 0 {
+        pages.push(page);
     }
     let of = pages.len();
     let pages: Vec<Page> = pages
         .into_iter()
         .enumerate()
-        .map(|(i, (body, items))| {
+        .map(|(i, page)| {
+            let mut body = page_open(&(i + 1).to_string(), &of.to_string(), page.items);
+            for g in &page.groups {
+                body.push_str(&group_open(&g.title));
+                for link in &g.links {
+                    body.push_str(link);
+                }
+                body.push_str(GROUP_CLOSE);
+            }
+            body.push_str(PAGE_CLOSE);
             let text = opts.template.replacen(ITEMS_TOKEN, &body, 1);
             Page {
                 number: i + 1,
                 of,
                 chars: text.chars().count(),
-                items,
+                items: page.items,
                 text,
             }
         })
@@ -770,6 +821,52 @@ pub fn render(report: &ListingReport, opts: &RenderOptions<'_>) -> Result<ShopRe
         pages,
         freshness,
     })
+}
+
+/// A price spoiler's opening tag.
+fn group_open(title: &str) -> String {
+    format!("[spoiler=\"{title}\"]")
+}
+
+/// Closes a price spoiler; the newline stands between spoiler tags.
+const GROUP_CLOSE: &str = "[/spoiler]\n";
+
+/// Closes the page spoiler.
+const PAGE_CLOSE: &str = "[/spoiler]\n";
+
+/// The page spoiler's opening tag and its line.
+fn page_open(n: &str, of: &str, items: usize) -> String {
+    format!(
+        "[spoiler=\"Shop Post {n} of {of} ({items} {})\"]\n",
+        if items == 1 { "item" } else { "items" }
+    )
+}
+
+/// What every page costs before its groups: the page spoiler at its
+/// widest (every number as many digits as the candidate count has),
+/// its close, and the template around it — so filling the numbers in
+/// never grows a page past the size.
+fn page_fixed_chars(candidates: usize, template_overhead: usize) -> usize {
+    let widest = "9".repeat(candidates.max(1).to_string().len());
+    let items_widest: usize = widest.parse().unwrap_or(9);
+    page_open(&widest, &widest, items_widest).chars().count() + PAGE_CLOSE.len() + template_overhead
+}
+
+/// One price spoiler under construction.
+struct GroupBuild {
+    key: (u8, String, Option<Amount>),
+    title: String,
+    links: Vec<String>,
+}
+
+/// One page under construction: its groups, its character count (the
+/// groups' tags and links; the page's fixed cost is added at the cut),
+/// its items.
+#[derive(Default)]
+struct PageBuild {
+    groups: Vec<GroupBuild>,
+    chars: usize,
+    items: usize,
 }
 
 /// The C72 report over the posted entries (module doc).
@@ -1130,7 +1227,7 @@ mod tests {
         let c = &r.counts;
         assert_eq!(c.items, 21);
         assert_eq!(c.posted + c.omitted + c.blocked + c.off_page, c.items);
-        assert_eq!(c.posted, 5, "{:?}", r.posted);
+        assert_eq!(c.posted, 6, "{:?}", r.posted);
         assert_eq!(r.posted.len(), c.posted);
         assert_eq!(r.left_out.len(), c.items - c.posted);
         assert_eq!(c.by_cell.values().sum::<usize>(), c.items);
@@ -1155,6 +1252,7 @@ mod tests {
         expect(Cell::NothingApplies, &["i-plain", "i-nowhere-plain"]);
         expect(Cell::Unresolved, &["i-unres"]);
         expect(Cell::LeagueUnknown, &["i-nowhere"]);
+        // Q5 answered (T21): a no-price item posts as its link alone.
         expect(Cell::HandNoPrice, &["i-noprice"]);
         expect(Cell::Ratio, &["i-ratio"]);
         expect(Cell::RetiredCurrency, &["i-retired"]);
@@ -1219,7 +1317,7 @@ mod tests {
         )
         .unwrap();
         // c1's three hand-priced items and t2's one: blocked, counted.
-        assert_eq!(r.counts.by_cell[&Cell::InvalidIndex], 4);
+        assert_eq!(r.counts.by_cell[&Cell::InvalidIndex], 5);
         assert_eq!(r.counts.posted, 1);
         assert_eq!(
             r.freshness.refresh_problem.as_deref(),
@@ -1261,7 +1359,7 @@ mod tests {
         }
         let r = render(&report, &opts(PolicySource::NotSet)).unwrap();
         assert_eq!(by_cell(&r, Cell::UnruledKind), ["item/i-hand"]);
-        assert_eq!(r.counts.posted, 4);
+        assert_eq!(r.counts.posted, 5);
     }
 
     /// C74, T7, T13, T15 — the two link shapes and the price line: a
@@ -1269,7 +1367,7 @@ mod tests {
     /// and the character's name; `~price` and `~b/o` with the table's
     /// word; grouped by price with a blank line between groups.
     #[test]
-    fn c74_the_link_codes_and_price_lines_are_the_observed_shapes() {
+    fn c74_the_link_codes_and_spoiler_titles_are_the_observed_shapes() {
         let r = render(&report(), &opts(PolicySource::NotSet)).unwrap();
         let find = |id: &str| {
             r.posted
@@ -1282,35 +1380,33 @@ mod tests {
             hand.link,
             "[linkItem location=\"Stash2\" league=\"Standard\" x=\"1\" y=\"0\" realm=\"pc\"]"
         );
-        assert_eq!(hand.price, "~price 5 chaos");
+        assert_eq!(hand.title, " ~price 5 chaos");
         let worn = find("i-worn");
         assert_eq!(
             worn.link,
             "[linkItem location=\"BodyArmour\" character=\"Exile\" x=\"0\" y=\"0\" realm=\"pc\"]"
         );
-        assert_eq!(worn.price, "~price 10 divine");
-        assert_eq!(find("i-bo").price, "~b/o 1.5 divine");
-        assert_eq!(find("i-tabrow").price, "~b/o 2 divine");
+        assert_eq!(worn.title, " ~price 10 divine");
+        assert_eq!(find("i-bo").title, " ~b/o 1.5 divine");
+        assert_eq!(find("i-tabrow").title, " ~b/o 2 divine");
+        assert_eq!(find("i-noprice").title, "");
         assert_eq!(r.pages.len(), 1);
         let page = &r.pages[0];
+        // The owner's shape (2026-09-07): one spoiler per price with the
+        // links run together, one page spoiler labelled n of N, newlines
+        // only between spoiler tags; no price last, under an empty title.
         assert_eq!(
             page.text,
-            "[linkItem location=\"Stash2\" league=\"Standard\" x=\"1\" y=\"0\" realm=\"pc\"]\n\
-             ~price 5 chaos\n\
-             [linkItem location=\"Stash2\" league=\"Standard\" x=\"2\" y=\"0\" realm=\"pc\"]\n\
-             ~price 5 chaos\n\
-             \n\
-             [linkItem location=\"BodyArmour\" character=\"Exile\" x=\"0\" y=\"0\" realm=\"pc\"]\n\
-             ~price 10 divine\n\
-             \n\
-             [linkItem location=\"Stash2\" league=\"Standard\" x=\"3\" y=\"0\" realm=\"pc\"]\n\
-             ~b/o 1.5 divine\n\
-             \n\
-             [linkItem location=\"Stash3\" league=\"Standard\" x=\"0\" y=\"1\" realm=\"pc\"]\n\
-             ~b/o 2 divine\n"
+            "[spoiler=\"Shop Post 1 of 1 (6 items)\"]\n\
+             [spoiler=\" ~price 5 chaos\"][linkItem location=\"Stash2\" league=\"Standard\" x=\"1\" y=\"0\" realm=\"pc\"][linkItem location=\"Stash2\" league=\"Standard\" x=\"2\" y=\"0\" realm=\"pc\"][/spoiler]\n\
+             [spoiler=\" ~price 10 divine\"][linkItem location=\"BodyArmour\" character=\"Exile\" x=\"0\" y=\"0\" realm=\"pc\"][/spoiler]\n\
+             [spoiler=\" ~b/o 1.5 divine\"][linkItem location=\"Stash2\" league=\"Standard\" x=\"3\" y=\"0\" realm=\"pc\"][/spoiler]\n\
+             [spoiler=\" ~b/o 2 divine\"][linkItem location=\"Stash3\" league=\"Standard\" x=\"0\" y=\"1\" realm=\"pc\"][/spoiler]\n\
+             [spoiler=\"\"][linkItem location=\"Stash2\" league=\"Standard\" x=\"8\" y=\"0\" realm=\"pc\"][/spoiler]\n\
+             [/spoiler]\n"
         );
         assert_eq!(page.chars, page.text.chars().count());
-        assert_eq!(page.items, 5);
+        assert_eq!(page.items, 6);
         assert!(r.posted.iter().all(|p| p.page == 1));
     }
 
@@ -1321,21 +1417,26 @@ mod tests {
     #[test]
     fn c74_pages_are_cut_under_the_size_and_carry_the_template() {
         let report = report();
-        let template = "[spoiler]\n[items][/spoiler]\n";
+        let template = "Shop\n[items]Thanks\n";
         let overhead = template.chars().count() - ITEMS_TOKEN.len();
-        let entry = |id: &str| {
-            let full = render(&report, &opts(PolicySource::NotSet)).unwrap();
-            let p = full
-                .posted
+        let full = render(&report, &opts(PolicySource::NotSet)).unwrap();
+        let link = |id: &str| {
+            full.posted
                 .iter()
                 .find(|p| p.target.to_string() == format!("item/{id}"))
                 .unwrap()
-                .clone();
-            p.link.chars().count() + p.price.chars().count() + 2
+                .link
+                .chars()
+                .count()
         };
-        // Two entries of the first group fit; the third entry starts a
-        // new page.
-        let size = entry("i-hand") + entry("i-hand2") + overhead + 1;
+        // Exactly the first group's two links fit the first page with
+        // the page spoiler reserved at its widest; the next group does
+        // not, so the cut falls between spoilers.
+        let size = page_fixed_chars(6, overhead)
+            + group_open(" ~price 5 chaos").chars().count()
+            + GROUP_CLOSE.len()
+            + link("i-hand")
+            + link("i-hand2");
         let r = render(
             &report,
             &RenderOptions {
@@ -1346,12 +1447,12 @@ mod tests {
             },
         )
         .unwrap();
-        assert_eq!(r.counts.posted, 5);
-        assert_eq!(r.counts.blocked, 9);
+        assert_eq!(r.counts.posted, 6);
+        assert_eq!(r.counts.blocked, 8);
         assert_eq!(r.counts.omitted, 5);
         assert_eq!(r.counts.off_page, 2);
-        assert_eq!(r.pages.len(), 3, "{:#?}", r.pages);
-        assert_eq!(r.counts.pages, 3);
+        assert!(r.pages.len() >= 3, "{:#?}", r.pages);
+        assert_eq!(r.counts.pages, r.pages.len());
         for page in &r.pages {
             assert!(
                 page.chars <= size,
@@ -1359,18 +1460,49 @@ mod tests {
                 page.number,
                 page.chars
             );
-            assert_eq!(page.of, 3);
-            assert!(page.text.starts_with("[spoiler]\n"));
-            assert!(page.text.ends_with("[/spoiler]\n"));
+            assert_eq!(page.of, r.pages.len());
+            assert!(
+                page.text.starts_with(&format!(
+                    "Shop\n[spoiler=\"Shop Post {} of {} ({} {})\"]\n[spoiler=\"",
+                    page.number,
+                    page.of,
+                    page.items,
+                    if page.items == 1 { "item" } else { "items" }
+                )),
+                "{}",
+                page.text
+            );
+            assert!(
+                page.text.ends_with("[/spoiler]\n[/spoiler]\nThanks\n"),
+                "{}",
+                page.text
+            );
             assert_eq!(
                 r.posted.iter().filter(|p| p.page == page.number).count(),
                 page.items
             );
         }
         assert_eq!(r.pages[0].items, 2);
-        assert_eq!(r.pages.iter().map(|p| p.items).sum::<usize>(), 5);
+        assert_eq!(r.pages.iter().map(|p| p.items).sum::<usize>(), 6);
         // Page numbers follow the group order.
         assert!(r.posted.windows(2).all(|w| w[0].page <= w[1].page));
+
+        // A group cut in two is closed on one page and reopened on the
+        // next: one link of the first group per page.
+        let r = render(
+            &report,
+            &RenderOptions {
+                size: size - link("i-hand2"),
+                template,
+                now: 5_000,
+                policy: PolicySource::NotSet,
+            },
+        )
+        .unwrap();
+        assert_eq!(r.pages[0].items, 1);
+        assert_eq!(r.pages[1].items, 1);
+        assert!(r.pages[0].text.contains("[spoiler=\" ~price 5 chaos\"]"));
+        assert!(r.pages[1].text.contains("[spoiler=\" ~price 5 chaos\"]"));
 
         // Below one entry: every candidate is blocked as page_size and
         // there are no pages.
@@ -1385,7 +1517,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!(r.counts.posted, 0);
-        assert_eq!(r.counts.by_cell[&Cell::PageSize], 5);
+        assert_eq!(r.counts.by_cell[&Cell::PageSize], 6);
         assert!(r.pages.is_empty());
         assert_eq!(r.counts.blocked, 14);
 
@@ -1461,7 +1593,7 @@ mod tests {
         // ago) is past the window too, but its container is uncovered,
         // so it is counted beside the coverage line, not as stale — and
         // the oldest age is the stale set's, never the uncovered item's.
-        assert_eq!(f.stale.len(), 4);
+        assert_eq!(f.stale.len(), 5);
         assert!(!f.stale.iter().any(|t| t.to_string() == "item/i-tabrow"));
         assert_eq!(f.stale_uncovered, 1);
         assert_eq!(f.oldest_stale_seconds, Some(3_800));

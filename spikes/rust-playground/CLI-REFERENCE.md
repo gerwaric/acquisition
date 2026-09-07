@@ -689,7 +689,7 @@ The forum shop (no daemon, sends nothing): render the page set a hand price woul
 Usage: acq shop [OPTIONS] <COMMAND>
 
 Commands:
-  render  Render the shop pages to stdout for pasting by hand (C74): one link code per hand-priced item with the price on the next line, grouped by price, in pages of at most --size characters; what the game already lists is omitted and counted, an unobserved case is blocked and counted; the sync policy's coverage and freshness are reported, never enforced (C72)
+  render  Render the shop pages to stdout for pasting by hand (C74): one link code per hand-priced item under its price's spoiler, one page spoiler labelled n of N, in pages of at most --size characters; what the game already lists is omitted and counted, an unobserved case is blocked and counted; the sync policy's coverage and freshness are reported, never enforced (C72)
   help    Print this message or the help of the given subcommand(s)
 
 Options:
@@ -699,7 +699,7 @@ Options:
 ## `acq shop render`
 
 ```text
-Render the shop pages to stdout for pasting by hand (C74): one link code per hand-priced item with the price on the next line, grouped by price, in pages of at most --size characters; what the game already lists is omitted and counted, an unobserved case is blocked and counted; the sync policy's coverage and freshness are reported, never enforced (C72)
+Render the shop pages to stdout for pasting by hand (C74): one link code per hand-priced item under its price's spoiler, one page spoiler labelled n of N, in pages of at most --size characters; what the game already lists is omitted and counted, an unobserved case is blocked and counted; the sync policy's coverage and freshness are reported, never enforced (C72)
 
 Usage: acq shop render [OPTIONS]
 

@@ -143,7 +143,7 @@ fn cell_word(cell: Cell) -> &'static str {
         Cell::NothingApplies => "nothing applies",
         Cell::Unresolved => "unresolved",
         Cell::LeagueUnknown => "league unknown",
-        Cell::HandNoPrice => "no price (Q5)",
+        Cell::HandNoPrice => "listed with no price",
         Cell::Ratio => "a ratio (Q6)",
         Cell::RetiredCurrency => "a retired currency",
         Cell::RealmUnlisted => "a realm the site does not list",
@@ -416,7 +416,7 @@ mod tests {
             location: loc,
             cell: Cell::StashItem,
             page,
-            price: "~price 5 chaos".into(),
+            title: " ~price 5 chaos".into(),
             link: format!(
                 "[linkItem location=\"Stash2\" league=\"Standard\" x=\"0\" y=\"0\" realm=\"pc\"] {id}"
             ),

@@ -215,12 +215,11 @@ fn shop_render_json_is_the_document_the_text_and_the_page_read() {
     assert_eq!(cell_of("i-map"), Cell::Substash);
     assert!(r.left_out.iter().all(|l| l.verdict == l.cell.verdict()));
     // The page: the stash item by its tab's index + 1, the character
-    // item by its slot, each price on the next line, `~price` first.
-    let page_text = "[linkItem location=\"Stash2\" league=\"Standard\" x=\"1\" y=\"0\" realm=\"pc\"]\n\
-                     ~price 12.5 chaos\n\
-                     \n\
-                     [linkItem location=\"BodyArmour\" character=\"Exile\" x=\"0\" y=\"0\" realm=\"pc\"]\n\
-                     ~b/o 2 divine\n";
+    // item by its slot, each under its price's spoiler, `~price` first.
+    let page_text = "[spoiler=\"Shop Post 1 of 1 (2 items)\"]\n\
+                     [spoiler=\" ~price 12.5 chaos\"][linkItem location=\"Stash2\" league=\"Standard\" x=\"1\" y=\"0\" realm=\"pc\"][/spoiler]\n\
+                     [spoiler=\" ~b/o 2 divine\"][linkItem location=\"BodyArmour\" character=\"Exile\" x=\"0\" y=\"0\" realm=\"pc\"][/spoiler]\n\
+                     [/spoiler]\n";
     assert_eq!(r.pages.len(), 1);
     assert_eq!(r.pages[0].text, page_text);
     assert_eq!(r.pages[0].items, 2);
