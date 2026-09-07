@@ -31,8 +31,10 @@ claims authored master-side. Nothing here is a second authority.
   (`snapshot.rs`); `acq reference currency` and `acq price
   status | show | list | set | clear` (`price_cmd.rs`). The write is one
   row through `price.rs`'s `set_buyout`/`clear_buyout` (plan step 5,
-  2026-09-06); **validation reading 1** — the owner's first rows by hand
-  from an empty intent file — has not run.
+  2026-09-06, outside review fixed 2026-09-07); **validation reading 1**
+  ran 2026-09-07 (below): the owner set rows by hand from an empty
+  intent file and read them back; informal by the owner's own account,
+  with rigorous testing scheduled after step 6.
 - The forum is **write-only from our side**: `/character` returns no
   `forum_note` for a forum-listed item (price-notes run, 2026-09-04), so
   the game side of a listing is item note, then tab name (C69), and a
@@ -134,6 +136,7 @@ claims file's appendix maps T→C as well.
 | Pricing | plan 4b C81 build | `9db1c99a` | `ignore` → `skip` (C67); the game side a statement only for a public tab (C81, T1) — a note or name that reads as a price or `skip` elsewhere is `residue`, shown, never a side; an unreadable note has no effect and the tab applies (T18); `Effective` on every listing (the more specific statement, the game's on a tie, by chain position; `side`, `from`, `why`); `Counts.by_effective`, `residue`; `acq price` says who decides (`status`'s first line, the `wins` column, `show`'s `effective:` line); the recorded C69 text in `listing.rs` and `game_side.rs` follows the registry; the `c81_` test |
 | Pricing | plan 2 annotations v3, typed value | `3d2902cd` | annotations v3 by stepwise `ALTER` (`written_via`, `actor`; C65); `IntentValue` + `check_value` in the store crate (version gate, per-kind strict parse, exact round-trip for a current-schema value, then CAS; C66) with `SyncPolicy` moved onto it unchanged; `Provenance` required by `put`/`delete` and threaded through `put_sync_policy`, the CLI (`cli`) and MCP (`mcp`); `list(scope, kind)`; `AnnotationError::Busy`; `price.rs`: `PriceTarget` (realm-bearing tab and substash keys), `Amount`, `Buyout` v1 (C67); the `c65_`, `c66_`, `c67_` tests |
 | Pricing | plan 5 set, clear | `5fc19304` | `price.rs`: `set_buyout` / `clear_buyout`, the one write path for every frontend (single-row CAS through the typed door, the prior row returned as a `PriceWrite` — C78's clause until receipts; a new price never names a retired tag — C67's writer's rule; the blind "replace whatever is stored" a frontend policy, as with the sync policy); `acq price set <target> <type> [<amount> <currency>]` and `acq price clear <target>`, `--if-revision` as `acq policy set` has it, the receipt under C53 (what it is now, what it was, the `set` words that put the prior back; `--json` the `PriceWrite`); the `c78_`, `c67_…retired…`, `c35_…stale…` tests, the CLI's grammar and receipt tests, and `price_json.rs`'s process pin |
+| Pricing | plan 5 reading 1 | — | the owner's rows set by hand from an empty intent file, read back; verdict verbatim in "What validation reading 1 taught"; rigorous testing deferred to after step 6 |
 
 ## Findings
 
@@ -268,6 +271,23 @@ is the 2026-09-04 ledger row. What it changed is in the registry
 and in the plan above. The owner's in-game observations, verbatim, are
 T11 and T12 (Provisional) and will be cited by the render's policy rows
 until a matrix cell upgrades each.
+
+## What validation reading 1 taught (2026-09-07)
+
+The owner set a few rows by hand from an empty intent file — items,
+a map substash and a character among the targets — and read them back
+through `acq price show | list`. No live run: nothing contacted GGG.
+Verdict, verbatim: "I have played around with a few price sets and
+listings. It looks good to me, but this is a pretty informal check."
+On rigor: "After step 6 I want to implement some more rigorous
+testing, but not yet" — agreed, since the render is the consumer that
+gives the rows a use and reading 2 is where the surprises will be.
+What the reading clarified: a row on a substash or a character is
+intent the game cannot express, and the render turns it into one link
+per covered item (C70, C74); the substash link code stays a blocked
+cell until the owner's hand experiment at reading 2. The two reading-1
+questions below (a target the facts do not hold; alias resolution)
+were not put to the owner and stay open.
 
 ## Observations still open
 
