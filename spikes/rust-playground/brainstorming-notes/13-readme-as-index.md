@@ -303,3 +303,27 @@ Candidate Working-style lines, for the owner:
 Open: whether "reference implementation" is retired in
 `CONTEXT.md`'s text too (`TESTING-NOTES.md` is a closed record and
 keeps its wording as history).
+
+## Outcome (2026-09-07, as run)
+
+Commits `2f2f0f21..7b4d6e70`, five: the charter and P5/P6; the re-form
+with the text carried into clap and `rails.rs`; the three checks and
+the 15 KB gate; the two generated references and CLI-GUIDE's removal;
+the citation coherences.
+
+| Document | Before | After | Gate |
+|---|---|---|---|
+| `README.md` | 27.5 KB | 11.5 KB | 15 KB (was 30) |
+| always-loaded path (AGENTS + README + CONTEXT) | 46.4 KB | 31.5 KB | |
+| the tour | 40 verb lines, 44 comment lines | 30 verb lines, 0 continuations | `readme_tour.rs`, docs-check §4 |
+| uncited decisions | 29 | 20 | help strings cite ids |
+| `CLI-GUIDE.md` | 25 KB, frozen, edited twice | gone | `CLI-REFERENCE.md` 28 KB + `MCP-REFERENCE.md` 8 KB, golden |
+
+The first generation of the MCP reference found the server's
+`initialize` instructions still telling agents it refuses submissions
+in real mode (lifted by C14 on 2026-09-01) — fixed in the same commit.
+The owner's charter questions 1–3 were answered in conversation
+(Rust named; "slice by slice" kept; the owner's judgement folded in as
+"the verdict it returns"). Open: the owner has a second charter topic
+for the next stopping point; the pattern citations in the *Why:* lines
+are `07 §n` because the long form did not fit.
