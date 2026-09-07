@@ -121,9 +121,9 @@ use crate::{Selection, SyncPolicy};
 
 /// The render's JSON shape; changes are additive (C53) until they are
 /// not, and then this moves. The shape is pinned by
-/// `reference/shop-render-schema-1.json`
+/// `reference/shop-render-schema-2.json`
 /// (`the_render_json_matches_the_committed_fixture`).
-pub const SHOP_SCHEMA: u32 = 1;
+pub const SHOP_SCHEMA: u32 = 2;
 
 /// The C++ app's post limit (T15) — a constant, not a measured limit (Q4).
 pub const DEFAULT_PAGE_SIZE: usize = 50_000;
@@ -409,9 +409,11 @@ pub struct Freshness {
     /// Posted items in uncovered containers past the window: the policy
     /// edit comes first for these.
     pub stale_uncovered: usize,
-    /// The oldest posted fact's age, seconds.
+    /// The oldest age among `stale`, seconds — the covered items the
+    /// cited refresh fetches, never an uncovered one (schema 2; schema 1
+    /// measured every posted item under the name `oldest_seconds`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub oldest_seconds: Option<i64>,
+    pub oldest_stale_seconds: Option<i64>,
     /// Posted stash items whose fetch predates the stash listing their
     /// `Stash<n>` comes from.
     pub position_before_listing: Vec<PriceTarget>,
@@ -781,7 +783,7 @@ fn freshness(report: &ListingReport, entries: &[Entry], opts: &RenderOptions<'_>
         uncovered: Vec::new(),
         stale: Vec::new(),
         stale_uncovered: 0,
-        oldest_seconds: None,
+        oldest_stale_seconds: None,
         position_before_listing: Vec::new(),
     };
     let listing_response = report.header.stash_listing.map(|b| b.response_id);
@@ -791,13 +793,6 @@ fn freshness(report: &ListingReport, entries: &[Entry], opts: &RenderOptions<'_>
             && seen < listing
         {
             out.position_before_listing.push(e.target.clone());
-        }
-        if let Some(at) = e.seen_at {
-            // A corrupt timestamp saturates (C47), as the planner's does.
-            let age = opts.now.saturating_sub(at).max(0);
-            if out.oldest_seconds.is_none_or(|o| age > o) {
-                out.oldest_seconds = Some(age);
-            }
         }
     }
     let league = match &opts.policy {
@@ -843,9 +838,9 @@ fn freshness(report: &ListingReport, entries: &[Entry], opts: &RenderOptions<'_>
                 .is_some_and(|sel| sel.covers_tab(id, e.parent.as_deref())),
             _ => false,
         };
-        let past_window = e
-            .seen_at
-            .is_some_and(|at| opts.now.saturating_sub(at).max(0) > window);
+        // A corrupt timestamp saturates (C47), as the planner's does.
+        let age = e.seen_at.map(|at| opts.now.saturating_sub(at).max(0));
+        let past_window = age.is_some_and(|a| a > window);
         if !covered {
             uncovered.insert(e.location.clone());
             if past_window {
@@ -853,6 +848,13 @@ fn freshness(report: &ListingReport, entries: &[Entry], opts: &RenderOptions<'_>
             }
         } else if past_window {
             out.stale.push(e.target.clone());
+            // The oldest of the stale set, so the CLI's "oldest" belongs
+            // to the items its remedy fetches (review round 2, 2026-09-07).
+            if let Some(a) = age
+                && out.oldest_stale_seconds.is_none_or(|o| a > o)
+            {
+                out.oldest_stale_seconds = Some(a);
+            }
         }
     }
     out.uncovered = uncovered.into_iter().collect();
@@ -1240,7 +1242,7 @@ mod tests {
             }),
         )
         .unwrap();
-        assert_eq!(r.freshness.oldest_seconds, Some(i64::MAX));
+        assert_eq!(r.freshness.oldest_stale_seconds, Some(i64::MAX));
         assert!(
             r.freshness
                 .stale
@@ -1454,13 +1456,14 @@ mod tests {
         );
         // now 5000: the c1 items and the worn item were seen at 1200
         // (3800 s ago), over the window, in covered containers — the
-        // cited refresh fetches them; the t2 item (seen at 100) is past
-        // the window too, but its container is uncovered, so it is
-        // counted beside the coverage line, not as stale.
+        // cited refresh fetches them; the t2 item (seen at 100, 4900 s
+        // ago) is past the window too, but its container is uncovered,
+        // so it is counted beside the coverage line, not as stale — and
+        // the oldest age is the stale set's, never the uncovered item's.
         assert_eq!(f.stale.len(), 4);
         assert!(!f.stale.iter().any(|t| t.to_string() == "item/i-tabrow"));
         assert_eq!(f.stale_uncovered, 1);
-        assert_eq!(f.oldest_seconds, Some(4_900));
+        assert_eq!(f.oldest_stale_seconds, Some(3_800));
         // The t2 item's fetch (response 1) predates the listing (2).
         assert_eq!(
             f.position_before_listing
@@ -1539,7 +1542,7 @@ mod tests {
     fn the_render_json_matches_the_committed_fixture() {
         let path = concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/reference/shop-render-schema-1.json"
+            "/reference/shop-render-schema-2.json"
         );
         let policy = SyncPolicy::from_value(&json!({
             "version": 3,

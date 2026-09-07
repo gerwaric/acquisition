@@ -227,7 +227,7 @@ fn freshness_lines(r: &ShopRender, now: i64) -> String {
                     "stale: {} on the page last seen past the policy's window of {}s (oldest {}); {remedy}\n",
                     plural(f.stale.len(), "item", "items"),
                     f.window_seconds.unwrap_or(0),
-                    ago(now, f.oldest_seconds.map(|s| now.saturating_sub(s)))
+                    ago(now, f.oldest_stale_seconds.map(|s| now.saturating_sub(s)))
                 ));
             }
         }
@@ -495,7 +495,7 @@ mod tests {
                 uncovered: vec![tab("t2")],
                 stale: vec![item("c")],
                 stale_uncovered: 1,
-                oldest_seconds: Some(4900),
+                oldest_stale_seconds: Some(3800),
                 position_before_listing: vec![item("c")],
             },
         }
@@ -520,7 +520,7 @@ mod tests {
         );
         assert_eq!(
             lines[2],
-            "stale: 1 item on the page last seen past the policy's window of 3600s (oldest 81m ago); `acq refresh --plan` would send 7 requests"
+            "stale: 1 item on the page last seen past the policy's window of 3600s (oldest 63m ago); `acq refresh --plan` would send 7 requests"
         );
         assert!(
             lines[3]

@@ -30,7 +30,7 @@
     "posted": 5
   },
   "freshness": {
-    "oldest_seconds": 4900,
+    "oldest_stale_seconds": 3800,
     "policy": "covers",
     "policy_revision": 4,
     "position_before_listing": [
@@ -522,7 +522,7 @@
     }
   ],
   "rendered_at": 5000,
-  "schema": 1,
+  "schema": 2,
   "size": 50000,
   "template": "[items]"
 }
