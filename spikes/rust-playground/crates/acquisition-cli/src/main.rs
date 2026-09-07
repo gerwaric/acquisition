@@ -2,6 +2,7 @@ mod dash;
 mod plan_cmd;
 mod price_cmd;
 mod reference_cmd;
+mod shop_cmd;
 mod store_cmd;
 
 use std::io::{IsTerminal as _, Write as _};
@@ -227,6 +228,12 @@ enum Cmd {
         #[command(subcommand)]
         cmd: ReferenceCmd,
     },
+    /// The forum shop (no daemon, sends nothing): render the page set a
+    /// hand price would post, every omission counted with its reason.
+    Shop {
+        #[command(subcommand)]
+        cmd: ShopCmd,
+    },
     /// Debugging only — normal use never needs manual lifecycle.
     Daemon {
         #[command(subcommand)]
@@ -323,6 +330,38 @@ enum PriceCmd {
         /// Only clear exactly this revision; see `set`.
         #[arg(long)]
         if_revision: Option<i64>,
+    },
+}
+
+#[derive(Subcommand)]
+enum ShopCmd {
+    /// Render the shop pages to stdout for pasting by hand (C74): one
+    /// link code per hand-priced item with the price on the next line,
+    /// grouped by price, in pages of at most --size characters; what the
+    /// game already lists is omitted and counted, an unobserved case is
+    /// blocked and counted; the sync policy's coverage and freshness are
+    /// reported, never enforced (C72).
+    Render {
+        #[arg(long, default_value = "Standard")]
+        league: String,
+        #[arg(long, value_parser = parse_realm)]
+        realm: Option<Realm>,
+        /// Characters per page, the template included (the C++ app's
+        /// constant; the forum's real limit is unmeasured).
+        #[arg(long, default_value_t = acquisition_plan::shop::DEFAULT_PAGE_SIZE)]
+        size: usize,
+        /// A file whose `[items]` token each page replaces; without it
+        /// the page is the items alone.
+        #[arg(long)]
+        template: Option<std::path::PathBuf>,
+        /// Print one page alone (its text; with --json, its record), for
+        /// the clipboard.
+        #[arg(long)]
+        page: Option<usize>,
+        /// The whole policy table with each row's rule and count, and
+        /// every item left off the page with its cell.
+        #[arg(long)]
+        expand: bool,
     },
 }
 
@@ -724,6 +763,26 @@ async fn run(cli: Cli) -> Result<()> {
             ReferenceCmd::Currency { word, expand } => {
                 reference_cmd::currency(word.as_deref(), expand, cli.json)
             }
+        },
+        Cmd::Shop { cmd } => match cmd {
+            ShopCmd::Render {
+                league,
+                realm,
+                size,
+                template,
+                page,
+                expand,
+            } => shop_cmd::render_cmd(
+                realm.unwrap_or(Realm::DEFAULT),
+                &league,
+                &shop_cmd::RenderArgs {
+                    size,
+                    template: template.as_deref(),
+                    page,
+                    expand,
+                    json: cli.json,
+                },
+            ),
         },
         Cmd::Policy { cmd } => match cmd {
             None | Some(PolicyCmd::Show) => plan_cmd::policy_show(cli.json),

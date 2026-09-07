@@ -1,0 +1,491 @@
+{
+  "counts": {
+    "blocked": 9,
+    "by_cell": {
+      "character_item": 1,
+      "game_lists": 2,
+      "game_skips": 1,
+      "hand_no_price": 1,
+      "hand_skip": 1,
+      "league_unknown": 1,
+      "no_position": 0,
+      "no_slot": 0,
+      "nothing_applies": 1,
+      "page_size": 0,
+      "ratio": 1,
+      "realm_unlisted": 0,
+      "retired_currency": 1,
+      "socketed": 2,
+      "stash_item": 4,
+      "substash": 1,
+      "tab_unlisted": 1,
+      "unresolved": 1
+    },
+    "items": 19,
+    "off_page": 1,
+    "omitted": 4,
+    "pages": 1,
+    "posted": 5
+  },
+  "freshness": {
+    "oldest_seconds": 4900,
+    "policy": "covers",
+    "policy_revision": 4,
+    "position_before_listing": [
+      {
+        "id": "i-tabrow",
+        "scope": "item"
+      }
+    ],
+    "refresh_requests": 7,
+    "stale": [
+      {
+        "id": "i-hand",
+        "scope": "item"
+      },
+      {
+        "id": "i-hand2",
+        "scope": "item"
+      },
+      {
+        "id": "i-worn",
+        "scope": "item"
+      },
+      {
+        "id": "i-bo",
+        "scope": "item"
+      },
+      {
+        "id": "i-tabrow",
+        "scope": "item"
+      }
+    ],
+    "uncovered": [
+      {
+        "id": "t2",
+        "realm": "pc",
+        "scope": "tab"
+      }
+    ],
+    "window_seconds": 3600
+  },
+  "left_out": [
+    {
+      "cell": "game_lists",
+      "label": "Chaos Orb",
+      "location": {
+        "id": "c1",
+        "realm": "pc",
+        "scope": "tab"
+      },
+      "target": {
+        "id": "i-game",
+        "scope": "item"
+      },
+      "verdict": "omit"
+    },
+    {
+      "cell": "hand_skip",
+      "label": "Chaos Orb",
+      "location": {
+        "id": "c1",
+        "realm": "pc",
+        "scope": "tab"
+      },
+      "target": {
+        "id": "i-skip",
+        "scope": "item"
+      },
+      "verdict": "omit"
+    },
+    {
+      "cell": "game_lists",
+      "label": "Chaos Orb",
+      "location": {
+        "id": "c1",
+        "realm": "pc",
+        "scope": "tab"
+      },
+      "target": {
+        "id": "i-noted",
+        "scope": "item"
+      },
+      "verdict": "omit"
+    },
+    {
+      "cell": "socketed",
+      "label": "Chaos Orb",
+      "location": {
+        "id": "c1",
+        "realm": "pc",
+        "scope": "tab"
+      },
+      "target": {
+        "id": "i-gem",
+        "scope": "item"
+      },
+      "verdict": "block"
+    },
+    {
+      "cell": "ratio",
+      "label": "Chaos Orb",
+      "location": {
+        "id": "c1",
+        "realm": "pc",
+        "scope": "tab"
+      },
+      "target": {
+        "id": "i-ratio",
+        "scope": "item"
+      },
+      "verdict": "block"
+    },
+    {
+      "cell": "retired_currency",
+      "label": "Chaos Orb",
+      "location": {
+        "id": "c1",
+        "realm": "pc",
+        "scope": "tab"
+      },
+      "target": {
+        "id": "i-retired",
+        "scope": "item"
+      },
+      "verdict": "block"
+    },
+    {
+      "cell": "hand_no_price",
+      "label": "Chaos Orb",
+      "location": {
+        "id": "c1",
+        "realm": "pc",
+        "scope": "tab"
+      },
+      "target": {
+        "id": "i-noprice",
+        "scope": "item"
+      },
+      "verdict": "block"
+    },
+    {
+      "cell": "game_skips",
+      "label": "Chaos Orb",
+      "location": {
+        "id": "c1",
+        "realm": "pc",
+        "scope": "tab"
+      },
+      "target": {
+        "id": "i-gameskip",
+        "scope": "item"
+      },
+      "verdict": "omit"
+    },
+    {
+      "cell": "nothing_applies",
+      "label": "Chaos Orb",
+      "location": {
+        "id": "t3",
+        "realm": "pc",
+        "scope": "tab"
+      },
+      "target": {
+        "id": "i-plain",
+        "scope": "item"
+      },
+      "verdict": "off_page"
+    },
+    {
+      "cell": "unresolved",
+      "label": "Chaos Orb",
+      "location": {
+        "id": "t3",
+        "realm": "pc",
+        "scope": "tab"
+      },
+      "target": {
+        "id": "i-unres",
+        "scope": "item"
+      },
+      "verdict": "block"
+    },
+    {
+      "cell": "substash",
+      "label": "Chaos Orb",
+      "location": {
+        "id": "s1",
+        "parent": "m1",
+        "realm": "pc",
+        "scope": "substash"
+      },
+      "target": {
+        "id": "i-sub",
+        "scope": "item"
+      },
+      "verdict": "block"
+    },
+    {
+      "cell": "tab_unlisted",
+      "label": "Chaos Orb",
+      "location": {
+        "id": "u1",
+        "realm": "pc",
+        "scope": "tab"
+      },
+      "target": {
+        "id": "i-unlisted",
+        "scope": "item"
+      },
+      "verdict": "block"
+    },
+    {
+      "cell": "socketed",
+      "label": "Chaos Orb",
+      "location": {
+        "id": "ch1",
+        "scope": "character"
+      },
+      "target": {
+        "id": "i-worngem",
+        "scope": "item"
+      },
+      "verdict": "block"
+    },
+    {
+      "cell": "league_unknown",
+      "label": "Chaos Orb",
+      "location": {
+        "id": "ch2",
+        "scope": "character"
+      },
+      "target": {
+        "id": "i-nowhere",
+        "scope": "item"
+      },
+      "verdict": "block"
+    }
+  ],
+  "listing": {
+    "account_name": "tom",
+    "account_uuid": "u-1",
+    "character_listing": {
+      "fetched_at": 1001,
+      "response_id": 3
+    },
+    "currency_table_version": 1,
+    "league": "Standard",
+    "note_parser_version": 1,
+    "realm": "pc",
+    "schema": 2,
+    "stash_listing": {
+      "fetched_at": 1000,
+      "response_id": 2
+    },
+    "taken_at": 2000
+  },
+  "pages": [
+    {
+      "chars": 434,
+      "items": 5,
+      "number": 1,
+      "of": 1,
+      "text": "[linkItem location=\"Stash2\" league=\"Standard\" x=\"1\" y=\"0\" realm=\"pc\"]\n~price 5 chaos\n[linkItem location=\"Stash2\" league=\"Standard\" x=\"2\" y=\"0\" realm=\"pc\"]\n~price 5 chaos\n\n[linkItem location=\"BodyArmour\" character=\"Exile\" x=\"0\" y=\"0\" realm=\"pc\"]\n~price 10 divine\n\n[linkItem location=\"Stash2\" league=\"Standard\" x=\"3\" y=\"0\" realm=\"pc\"]\n~b/o 1.5 divine\n\n[linkItem location=\"Stash3\" league=\"Standard\" x=\"0\" y=\"1\" realm=\"pc\"]\n~b/o 2 divine\n"
+    }
+  ],
+  "policy": [
+    {
+      "cell": "stash_item",
+      "count": 4,
+      "verdict": "post",
+      "why": "a hand-priced stash item at a listed tab: `[linkItem location=\"Stash<index+1>\" league= x= y= realm=]`, the price on the next line (T7, T13, T15; a forum price over the tab's is T12; which tab `Stash<n>` names under folders is Q1 — the forum's preview shows the picture before posting)"
+    },
+    {
+      "cell": "character_item",
+      "count": 1,
+      "verdict": "post",
+      "why": "a hand-priced character item in a slot: `[linkItem location=\"<inventoryId>\" character= x= y= realm=]`, the price on the next line (T7, T8)"
+    },
+    {
+      "cell": "game_lists",
+      "count": 2,
+      "verdict": "omit",
+      "why": "the game already lists it at its own price (T11, C81); a page must not contradict what the site shows (C74)"
+    },
+    {
+      "cell": "game_skips",
+      "count": 1,
+      "verdict": "omit",
+      "why": "the game marks it do-not-index (~skip, T10) and the game decides (C81); a forum price against a game skip is Q7"
+    },
+    {
+      "cell": "hand_skip",
+      "count": 1,
+      "verdict": "omit",
+      "why": "a hand skip means leave it out (C67)"
+    },
+    {
+      "cell": "nothing_applies",
+      "count": 1,
+      "verdict": "off_page",
+      "why": "no row applies and the game states nothing"
+    },
+    {
+      "cell": "unresolved",
+      "count": 1,
+      "verdict": "block",
+      "why": "a row that cannot be read could decide (C81): never treated as unpriced; read it with `acq price show`"
+    },
+    {
+      "cell": "league_unknown",
+      "count": 1,
+      "verdict": "block",
+      "why": "the listing gave its character no league, so the report is not evidence it belongs to this one"
+    },
+    {
+      "cell": "hand_no_price",
+      "count": 1,
+      "verdict": "block",
+      "why": "whether an unpriced forum link is indexed is unobserved (Q5): one hand experiment"
+    },
+    {
+      "cell": "ratio",
+      "count": 1,
+      "verdict": "block",
+      "why": "a ratio on the forum is unobserved (Q6); in game a typed ratio unlists the item (T19)"
+    },
+    {
+      "cell": "retired_currency",
+      "count": 1,
+      "verdict": "block",
+      "why": "the row cites a retired currency tag (C68): the word the site reads for it is unknown"
+    },
+    {
+      "cell": "realm_unlisted",
+      "count": 0,
+      "verdict": "block",
+      "why": "the trade site's realms are pc, xbox and sony (T4)"
+    },
+    {
+      "cell": "socketed",
+      "count": 2,
+      "verdict": "block",
+      "why": "a socketed item has no position and cannot be linked (T13)"
+    },
+    {
+      "cell": "no_position",
+      "count": 0,
+      "verdict": "block",
+      "why": "the fetch gave the item no position, so no link can name it"
+    },
+    {
+      "cell": "substash",
+      "count": 1,
+      "verdict": "block",
+      "why": "the link code for an item in a map or unique substash is unobserved (Q3): the owner's hand experiment at reading 2"
+    },
+    {
+      "cell": "tab_unlisted",
+      "count": 1,
+      "verdict": "block",
+      "why": "the tab is not on the current stash listing, so it has no index for `Stash<n>` (T13)"
+    },
+    {
+      "cell": "no_slot",
+      "count": 0,
+      "verdict": "block",
+      "why": "a character item without an `inventoryId` cannot be addressed (T13)"
+    },
+    {
+      "cell": "page_size",
+      "count": 0,
+      "verdict": "block",
+      "why": "the entry alone, with the template around it, exceeds the page size"
+    }
+  ],
+  "posted": [
+    {
+      "cell": "stash_item",
+      "label": "Chaos Orb",
+      "link": "[linkItem location=\"Stash2\" league=\"Standard\" x=\"1\" y=\"0\" realm=\"pc\"]",
+      "location": {
+        "id": "c1",
+        "realm": "pc",
+        "scope": "tab"
+      },
+      "page": 1,
+      "price": "~price 5 chaos",
+      "target": {
+        "id": "i-hand",
+        "scope": "item"
+      }
+    },
+    {
+      "cell": "stash_item",
+      "label": "Chaos Orb",
+      "link": "[linkItem location=\"Stash2\" league=\"Standard\" x=\"2\" y=\"0\" realm=\"pc\"]",
+      "location": {
+        "id": "c1",
+        "realm": "pc",
+        "scope": "tab"
+      },
+      "page": 1,
+      "price": "~price 5 chaos",
+      "target": {
+        "id": "i-hand2",
+        "scope": "item"
+      }
+    },
+    {
+      "cell": "character_item",
+      "label": "Chaos Orb",
+      "link": "[linkItem location=\"BodyArmour\" character=\"Exile\" x=\"0\" y=\"0\" realm=\"pc\"]",
+      "location": {
+        "id": "ch1",
+        "scope": "character"
+      },
+      "page": 1,
+      "price": "~price 10 divine",
+      "target": {
+        "id": "i-worn",
+        "scope": "item"
+      }
+    },
+    {
+      "cell": "stash_item",
+      "label": "Chaos Orb",
+      "link": "[linkItem location=\"Stash2\" league=\"Standard\" x=\"3\" y=\"0\" realm=\"pc\"]",
+      "location": {
+        "id": "c1",
+        "realm": "pc",
+        "scope": "tab"
+      },
+      "page": 1,
+      "price": "~b/o 1.5 divine",
+      "target": {
+        "id": "i-bo",
+        "scope": "item"
+      }
+    },
+    {
+      "cell": "stash_item",
+      "label": "Chaos Orb",
+      "link": "[linkItem location=\"Stash3\" league=\"Standard\" x=\"0\" y=\"1\" realm=\"pc\"]",
+      "location": {
+        "id": "t2",
+        "realm": "pc",
+        "scope": "tab"
+      },
+      "page": 1,
+      "price": "~b/o 2 divine",
+      "target": {
+        "id": "i-tabrow",
+        "scope": "item"
+      }
+    }
+  ],
+  "rendered_at": 5000,
+  "schema": 1,
+  "size": 50000,
+  "template": "[items]"
+}

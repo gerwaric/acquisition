@@ -1073,6 +1073,14 @@ mod tests {
             x: Some(0),
             y: Some(0),
             note: note.map(str::to_string),
+            inventory_id: Some(
+                if kind == "stash" {
+                    "Stash1"
+                } else {
+                    "BodyArmour"
+                }
+                .into(),
+            ),
             seen_response: Some(7),
             last_seen: 1_200,
         }

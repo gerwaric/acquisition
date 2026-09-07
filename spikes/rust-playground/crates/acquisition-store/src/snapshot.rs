@@ -170,6 +170,10 @@ pub struct ItemSnapshot {
     /// The item's `note`, exactly as the API returned it; `None` when the
     /// body carried none.
     pub note: Option<String>,
+    /// The item's `inventoryId`, verbatim: a character item's slot, the
+    /// literal `Stash1` for every stash item (T13), absent on a socketed
+    /// item. A forum link to a character item is addressed by it.
+    pub inventory_id: Option<String>,
     /// `responses.id` of the fetch that last saw the item here.
     pub seen_response: Option<i64>,
     pub last_seen: i64,
@@ -533,7 +537,8 @@ fn read_items(tx: &rusqlite::Transaction, realm: &str, league: &str) -> Result<V
     let mut stmt = tx.prepare(
         "SELECT i.id, i.location_kind, i.location_id, i.container, i.socketed_in,
                 COALESCE(i.name, ''), COALESCE(i.type_line, ''), i.stack_size, i.x, i.y,
-                json_extract(i.json, '$.note'), i.seen_response, i.last_seen
+                json_extract(i.json, '$.note'), json_extract(i.json, '$.inventoryId'),
+                i.seen_response, i.last_seen
            FROM items i
           WHERE i.realm = ?1 AND i.removed_at IS NULL
             AND ((i.location_kind = 'stash' AND i.league = ?2
@@ -557,8 +562,9 @@ fn read_items(tx: &rusqlite::Transaction, realm: &str, league: &str) -> Result<V
             x: r.get(8)?,
             y: r.get(9)?,
             note: r.get(10)?,
-            seen_response: r.get(11)?,
-            last_seen: r.get(12)?,
+            inventory_id: r.get(11)?,
+            seen_response: r.get(12)?,
+            last_seen: r.get(13)?,
         })
     })?;
     Ok(rows.collect::<Result<_, _>>()?)
@@ -1302,6 +1308,7 @@ mod tests {
         );
         let mut worn = item("i-worn");
         worn["note"] = json!("~price 2222 jewellers");
+        worn["inventoryId"] = json!("BodyArmour");
         fetch_character(
             &mut s,
             "pc",
@@ -1373,6 +1380,9 @@ mod tests {
         assert_eq!(noted.container.as_deref(), Some("items"));
         let worn = snap.items.iter().find(|i| i.id == "i-worn").unwrap();
         assert_eq!(worn.container.as_deref(), Some("equipment"));
+        // The slot a forum link names, verbatim; a socketed gem has none.
+        assert_eq!(worn.inventory_id.as_deref(), Some("BodyArmour"));
+        assert_eq!(gem.inventory_id, None);
         // Every buyout row, raw, whatever its scope or realm; the note
         // kind is not a price.
         let rows: Vec<(&str, &str)> = snap

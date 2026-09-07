@@ -597,6 +597,7 @@
       "relation": "manual_only",
       "subject": {
         "container": "equipment",
+        "inventory_id": "BodyArmour",
         "location": {
           "id": "ch1",
           "scope": "character"
@@ -606,7 +607,9 @@
           "id": "i-worn",
           "scope": "item"
         },
-        "type_line": "Imperial Bow"
+        "type_line": "Imperial Bow",
+        "x": 0,
+        "y": 0
       },
       "why": "by hand: 2222 jewellers; the game states nothing"
     },
@@ -687,6 +690,7 @@
       "relation": "conflict",
       "subject": {
         "container": "items",
+        "inventory_id": "Stash1",
         "location": {
           "id": "c1",
           "realm": "pc",
@@ -697,7 +701,9 @@
           "id": "i-exact",
           "scope": "item"
         },
-        "type_line": "Imperial Bow"
+        "type_line": "Imperial Bow",
+        "x": 0,
+        "y": 0
       },
       "why": "by hand: skip; in game: 5 chaos"
     },
@@ -772,6 +778,7 @@
       "relation": "agree",
       "subject": {
         "container": "items",
+        "inventory_id": "Stash1",
         "location": {
           "id": "c1",
           "realm": "pc",
@@ -782,7 +789,9 @@
           "id": "i-plain",
           "scope": "item"
         },
-        "type_line": "Imperial Bow"
+        "type_line": "Imperial Bow",
+        "x": 0,
+        "y": 0
       },
       "why": "by hand and in game: 3 chaos"
     },
@@ -864,6 +873,7 @@
       "relation": "conflict",
       "subject": {
         "container": "items",
+        "inventory_id": "Stash1",
         "location": {
           "id": "c1",
           "realm": "pc",
@@ -874,7 +884,9 @@
           "id": "i-invalid",
           "scope": "item"
         },
-        "type_line": "Imperial Bow"
+        "type_line": "Imperial Bow",
+        "x": 0,
+        "y": 0
       },
       "why": "by hand: skip; in game: 3 chaos"
     },
@@ -955,6 +967,7 @@
       "relation": "conflict",
       "subject": {
         "container": "items",
+        "inventory_id": "Stash1",
         "location": {
           "id": "c1",
           "realm": "pc",
@@ -965,7 +978,9 @@
           "id": "i-fifty",
           "scope": "item"
         },
-        "type_line": "Imperial Bow"
+        "type_line": "Imperial Bow",
+        "x": 0,
+        "y": 0
       },
       "why": "by hand: skip; in game: 3 chaos"
     },
@@ -1039,6 +1054,7 @@
       "relation": "agree",
       "subject": {
         "container": "items",
+        "inventory_id": "Stash1",
         "location": {
           "id": "c1",
           "realm": "pc",
@@ -1049,7 +1065,9 @@
           "id": "i-skip",
           "scope": "item"
         },
-        "type_line": "Imperial Bow"
+        "type_line": "Imperial Bow",
+        "x": 0,
+        "y": 0
       },
       "why": "by hand and in game: skip"
     },
@@ -1094,6 +1112,7 @@
       "relation": "none",
       "subject": {
         "container": "items",
+        "inventory_id": "Stash1",
         "location": {
           "id": "t1",
           "realm": "pc",
@@ -1104,7 +1123,9 @@
           "id": "i-dump",
           "scope": "item"
         },
-        "type_line": "Imperial Bow"
+        "type_line": "Imperial Bow",
+        "x": 0,
+        "y": 0
       },
       "why": "the row on item/i-dump cannot be read and the game states nothing"
     },
@@ -1183,6 +1204,7 @@
       "relation": "agree",
       "subject": {
         "container": "items",
+        "inventory_id": "Stash1",
         "location": {
           "id": "s1",
           "parent": "m1",
@@ -1194,7 +1216,9 @@
           "id": "i-sub",
           "scope": "item"
         },
-        "type_line": "Imperial Bow"
+        "type_line": "Imperial Bow",
+        "x": 0,
+        "y": 0
       },
       "why": "by hand and in game: 1 divine"
     },
@@ -1270,6 +1294,7 @@
       "relation": "manual_only",
       "subject": {
         "container": "items",
+        "inventory_id": "Stash1",
         "location": {
           "id": "s2",
           "parent": "u1",
@@ -1281,7 +1306,9 @@
           "id": "i-sub2",
           "scope": "item"
         },
-        "type_line": "Imperial Bow"
+        "type_line": "Imperial Bow",
+        "x": 0,
+        "y": 0
       },
       "why": "by hand: 7 chaos b/o; the game states nothing"
     }

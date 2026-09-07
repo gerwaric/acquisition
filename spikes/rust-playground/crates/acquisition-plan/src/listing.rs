@@ -210,6 +210,23 @@ pub struct Subject {
     /// position of its own.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub socketed_in: Option<String>,
+    /// Items: the position in the tab or the character slot, as fetched;
+    /// absent on a socketed item (T13). A forum link names it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub x: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub y: Option<i64>,
+    /// Items: the `inventoryId` verbatim — a character item's slot
+    /// (`BodyArmour`, `MainInventory`, …), the literal `Stash1` for every
+    /// stash item (T13). A forum link to a character item is addressed
+    /// by it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub inventory_id: Option<String>,
+    /// Tabs and substashes: the listing's `index`, from which a forum
+    /// link's `Stash<n>` is derived (T13, T15: `index + 1`). `None` when
+    /// the tab was fetched directly and never listed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub index: Option<i64>,
     /// A character the listing gave no league, and its items: the store
     /// carries them under every league of the realm, so this report is
     /// not evidence they belong to its league (module doc, "League
@@ -1192,6 +1209,10 @@ fn character_subject(c: &CharacterSnapshot) -> Subject {
         location: None,
         container: None,
         socketed_in: None,
+        x: None,
+        y: None,
+        inventory_id: None,
+        index: None,
         league_unknown: c.league.is_none(),
     }
 }
@@ -1208,6 +1229,10 @@ fn item_subject(item: &ItemSnapshot, location: PriceTarget, league_unknown: bool
         location: Some(location),
         container: item.container.clone(),
         socketed_in: item.socketed_in.clone(),
+        x: item.x,
+        y: item.y,
+        inventory_id: item.inventory_id.clone(),
+        index: None,
         league_unknown,
     }
 }
@@ -1244,6 +1269,10 @@ pub fn resolve(snapshot: &PricingSnapshot) -> Result<ListingReport, ListingError
             location: None,
             container: None,
             socketed_in: None,
+            x: None,
+            y: None,
+            inventory_id: None,
+            index: info.tab.idx,
             league_unknown: false,
         };
         let game = tab_game_side(info, table);
@@ -1474,6 +1503,14 @@ mod tests {
             x: Some(0),
             y: Some(0),
             note: note.map(str::to_string),
+            inventory_id: Some(
+                if kind == "stash" {
+                    "Stash1"
+                } else {
+                    "BodyArmour"
+                }
+                .into(),
+            ),
             seen_response: Some(7),
             last_seen: 120,
         }

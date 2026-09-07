@@ -254,6 +254,7 @@ pub mod listing;
 pub mod price;
 #[cfg(test)]
 pub(crate) mod price_notes_fixture;
+pub mod shop;
 
 use std::collections::BTreeMap;
 
@@ -622,15 +623,19 @@ impl Selection {
             Selection::Ids(ids) => ids.iter().any(|i| i == id),
         }
     }
+
+    /// C37 — a tab is covered when its own id is named or its parent's
+    /// is; the one rule for a folder child and a substash alike. Public
+    /// so a consumer that reports coverage rather than compiling it
+    /// (`shop render`, C72) asks the same question the planner does.
+    pub fn covers_tab(&self, id: &str, parent: Option<&str>) -> bool {
+        self.covers_id(id) || parent.is_some_and(|p| self.covers_id(p))
+    }
 }
 
 /// A tab is covered when its own id is named or its parent's is.
 fn covers_tab(selection: &Selection, tab: &TabSnapshot) -> bool {
-    selection.covers_id(&tab.id)
-        || tab
-            .parent
-            .as_deref()
-            .is_some_and(|p| selection.covers_id(p))
+    selection.covers_tab(&tab.id, tab.parent.as_deref())
 }
 
 /// The JSON shape: the string `"all"` or an array of ids.
@@ -675,6 +680,11 @@ impl SyncPolicy {
     /// as a second spelling of the same intent.
     pub fn from_value(value: &Value) -> Result<SyncPolicy, PlanError> {
         check_value::<SyncPolicy>(value).map_err(PlanError::from)
+    }
+
+    /// One (realm, league)'s coverage, if the policy names it.
+    pub fn league(&self, realm: Realm, league: &str) -> Option<&LeaguePolicy> {
+        self.realms.get(&realm).and_then(|r| r.leagues.get(league))
     }
 }
 
@@ -1466,14 +1476,13 @@ fn compile(
     let realm = Realm::parse(&snapshot.realm).ok_or_else(|| PlanError::UnknownRealm {
         realm: snapshot.realm.clone(),
     })?;
-    let league_policy = policy
-        .realms
-        .get(&realm)
-        .and_then(|r| r.leagues.get(&snapshot.league))
-        .ok_or_else(|| PlanError::LeagueNotCovered {
-            realm,
-            league: snapshot.league.clone(),
-        })?;
+    let league_policy =
+        policy
+            .league(realm, &snapshot.league)
+            .ok_or_else(|| PlanError::LeagueNotCovered {
+                realm,
+                league: snapshot.league.clone(),
+            })?;
     let max_age = i64::from(league_policy.max_age_seconds);
     // Each facet compiles on its own: an absent facet contributes no
     // listing, no fetches, nothing skipped, nothing unknown. Tab work
