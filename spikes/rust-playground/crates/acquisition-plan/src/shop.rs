@@ -89,7 +89,7 @@
 //! line; newlines stand only between spoiler tags (the owner's shape,
 //! 2026-09-07). Pages are cut so that each page, the template around it
 //! included, holds at most `size` characters (the C++ constant 50,000 is
-//! the default; the forum's real limit is Q4) — the page title is
+//! the default, and the forum's hard limit, T23) — the page title is
 //! reserved at its widest, so a page never grows past the size when its
 //! numbers are filled in; a price group that runs across a cut is closed
 //! and reopened on the next page; an entry that would not fit an empty
@@ -138,7 +138,8 @@ use crate::{Selection, SyncPolicy};
 /// nor 2 reached a consumer.
 pub const SHOP_SCHEMA: u32 = 3;
 
-/// The C++ app's post limit (T15) — a constant, not a measured limit (Q4).
+/// The forum's hard post limit in characters (T23); the C++ app's
+/// constant (T15) had it right.
 pub const DEFAULT_PAGE_SIZE: usize = 50_000;
 
 /// The token a template holds exactly once; the default template is the

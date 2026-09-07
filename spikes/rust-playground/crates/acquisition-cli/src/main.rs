@@ -380,8 +380,8 @@ enum ShopCmd {
         league: String,
         #[arg(long, value_parser = parse_realm)]
         realm: Option<Realm>,
-        /// Characters per page, the template included (the C++ app's
-        /// constant; the forum's real limit is unmeasured).
+        /// Characters per page, the template included (the forum's hard
+        /// limit, T23).
         #[arg(long, default_value_t = acquisition_plan::shop::DEFAULT_PAGE_SIZE)]
         size: usize,
         /// A file whose `[items]` token each page replaces; without it

@@ -706,7 +706,7 @@ Usage: acq shop render [OPTIONS]
 Options:
       --league <LEAGUE>      [default: Standard]
       --realm <REALM>        
-      --size <SIZE>          Characters per page, the template included (the C++ app's constant; the forum's real limit is unmeasured) [default: 50000]
+      --size <SIZE>          Characters per page, the template included (the forum's hard limit, T23) [default: 50000]
       --template <TEMPLATE>  A file whose `[items]` token each page replaces; without it the page is the items alone
       --page <PAGE>          Print one page alone (its text; with --json, its record), for the clipboard
       --expand               The whole policy table with each row's rule and count, and every item left off the page with its cell
