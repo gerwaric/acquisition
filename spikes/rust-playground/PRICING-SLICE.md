@@ -318,9 +318,20 @@ substash cell is blocked on T20 instead of Q3; the no-price cell posts
 same day, verbatim: "the spoiler text is used as the price for every
 item within that spoiler block" (T22 upgraded, `8c312138`) — so the
 spoiler title is where the indexer reads the price, as the C++ app had
-it (T15). Not yet read: Q1; whether the coverage, stale and positions
-lines changed what the owner did was not said. The verdict on the
-page as a whole is the second pass's.
+it (T15). The second pass's first paste (Allflame, after the refresh
+in the run ledger) answered Q1 the hard way: the first link, `Stash18`
+for an item in the tab inside the owner's folder, did not resolve; the
+website's own button wrote `Stash17`, and the owner's saved copy of the
+website's tab list (`brainstorming-notes/allflame-web-tabs.json`) showed
+the rule — the site numbers the tabs it lists from 0 with folders and
+substashes absent, and the link is that number plus one (T24). The
+render now ranks the listed tabs the site's way and writes the
+attributes in the site's order (`1c85cdcb`). Still to read on the
+reshaped, renumbered page: the no-price item under an empty title, a
+hand price against the public tab's name on the site (T12), the
+character link's name case (`I_EXIST` as listed, `I_Exist` as the site
+wrote it, T7), and the owner's verdict, with whether the coverage,
+stale and positions lines changed what they did.
 
 ## Observations still open
 
@@ -380,7 +391,13 @@ shows the item picture, so a wrong link is visible before posting.
   entry carries no `index` (T13 says every one of 402 did), so the
   render cannot tell a real index from the fallback; a tab with `idx`
   null was fetched directly and never listed, and its items are the
-  `tab_unlisted` cell.
+  `tab_unlisted` cell. Since T24 the index only orders the tabs — the
+  rank among the listed non-folder tabs is what a link carries — so the
+  fallback would matter only if it reordered them.
+- T24 was read on a league with one folder and no remove-only tab;
+  whether the website leaves other tab kinds out of its numbering (the
+  owner's Standard stash has 13 remove-only tabs) is the next thing a
+  link from that league would show.
 - `priced_tabs` counts names that read as a price whether or not the
   tab is public (the owner's 13 remove-only tabs are the case), beside
   `priced_tabs_public`; whether `status` should lead with the residue
@@ -423,9 +440,10 @@ shows the item picture, so a wrong link is visible before posting.
    stands unless you say otherwise.
 3. Reading 2, second pass (`acq shop render`, then `--page 1 | pbcopy`
    into the shop thread's editor and *Preview* before posting), on the
-   reshaped page: does the preview show the right item for a tab past
-   a folder (Q1)? Is a no-price item under the empty title listed as
-   "No Price Set" (T21 under `[spoiler=""]`)?
+   reshaped and renumbered page: is a no-price item under the empty
+   title listed as "No Price Set" (T21 under `[spoiler=""]`)? Does the
+   site list Dread Dome at the hand price rather than the tab's (T12)?
+   Does `character="I_EXIST"` resolve (T7's case question)?
    And your verdict on the page, verbatim, with whether the coverage,
    stale and positions lines changed what you did.
 4. C68 says reference data is "enumerable through every surface", but
