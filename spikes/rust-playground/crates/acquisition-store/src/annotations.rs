@@ -89,7 +89,12 @@
 //! value stamped older is upgraded in memory by the kind's parse and
 //! stored as written. [`Annotations::put`] runs the generic before the
 //! compare-and-swap, so there is no untyped write door: the store crate
-//! itself cannot land a value its kind refuses.
+//! itself cannot land a value its kind refuses. A kind may also refuse a
+//! value *as a new write* that it reads without complaint
+//! ([`IntentValue::check_write`], 2026-09-07): the writer's rules — the
+//! first is C67's, a new price never names a retired currency — run at
+//! the door on every write and never on a read, so a stored row keeps
+//! saying what it said and no frontend can write past the rule.
 
 use std::path::{Path, PathBuf};
 
@@ -224,6 +229,15 @@ pub trait IntentValue: Sized + Serialize {
     const VERSION: i64;
     /// The kind's own strict parse; the detail names what was wrong.
     fn parse(value: &Value) -> Result<Self, String>;
+    /// The writer's rules: what a value that parses may still not say
+    /// when *newly written* — a stored row may say it forever (C67's
+    /// retired currency tag is the first). Run by [`Annotations::put`]
+    /// after the parse and before the compare-and-swap, on every write
+    /// through every frontend, and never by a read: `get_as` and
+    /// [`check_value`] do not call it. The detail names what was refused.
+    fn check_write(&self) -> Result<(), String> {
+        Ok(())
+    }
 }
 
 /// Why a value is not a `K` (C66). Stable kinds so a frontend can render
@@ -251,6 +265,10 @@ pub enum ValueError {
         read: Option<Value>,
         canonical: Option<Value>,
     },
+    /// Parses, but the kind's writer's rule refuses it as a new write
+    /// ([`IntentValue::check_write`]); a stored row saying the same still
+    /// reads.
+    RefusedForWrite { kind: &'static str, detail: String },
 }
 
 impl std::fmt::Display for ValueError {
@@ -268,6 +286,7 @@ impl std::fmt::Display for ValueError {
                 "{kind} declares version {found}, newer than this build's v{supported}"
             ),
             ValueError::Malformed { kind, detail } => write!(f, "{kind}: {detail}"),
+            ValueError::RefusedForWrite { kind, detail } => write!(f, "{kind}: {detail}"),
             ValueError::NotCanonical {
                 kind,
                 path,
@@ -678,9 +697,20 @@ impl Annotations {
     /// written; a mismatch is [`AnnotationError::Conflict`] carrying the
     /// current row. Creating over a tombstone continues its revision
     /// sequence — revisions are monotonic for the life of the file, never
-    /// reset by delete/recreate, so a stale writer always conflicts, and a
-    /// `clear` then `set` on one target works without the caller knowing
-    /// the tombstone is there.
+    /// reset by delete/recreate — so a writer holding any revision of a
+    /// live row conflicts once that row moves, and a `clear` then `set`
+    /// on one target works without the caller knowing the tombstone is
+    /// there. The one thing a caller cannot say is *which* tombstone it
+    /// read past: `None` creates over a tombstone of any generation, so
+    /// two writers who both read "nothing there" after a clear both land,
+    /// in sequence (2b constraint (3), reduced; the generation belongs to
+    /// the plan/receipt work, C71/C78).
+    ///
+    /// Between the parse and the compare-and-swap the kind's
+    /// [`IntentValue::check_write`] runs — the writer's rules a stored row
+    /// is exempt from — and a refusal is [`ValueError::RefusedForWrite`]
+    /// under [`AnnotationError::Invalid`], so no frontend can write past
+    /// them: the rule is the door's, not each caller's discipline.
     pub fn put<K: IntentValue>(
         &mut self,
         scope: &str,
@@ -690,7 +720,12 @@ impl Annotations {
         provenance: &Provenance,
     ) -> Result<AnnotationRow, AnnotationError> {
         provenance.check()?;
-        check_value::<K>(value)?;
+        check_value::<K>(value)?
+            .check_write()
+            .map_err(|detail| ValueError::RefusedForWrite {
+                kind: K::KIND,
+                detail,
+            })?;
         let kind = K::KIND;
         let now = crate::now();
         // BEGIN IMMEDIATE: the write lock is taken up front, so two
@@ -1058,6 +1093,26 @@ pub(crate) mod test_kinds {
     loose_kind!(Note, "note");
     loose_kind!(Policy, "sync-policy");
 
+    /// A `note` that reads any shape but refuses, as a new write, a value
+    /// carrying `"retired": true` — the shape of a writer's rule.
+    #[derive(Debug, Clone, PartialEq, Serialize)]
+    #[serde(transparent)]
+    pub(crate) struct GuardedNote(pub Value);
+
+    impl IntentValue for GuardedNote {
+        const KIND: &'static str = "note";
+        const VERSION: i64 = 1;
+        fn parse(value: &Value) -> Result<Self, String> {
+            Ok(GuardedNote(value.clone()))
+        }
+        fn check_write(&self) -> Result<(), String> {
+            match self.0.get("retired") {
+                Some(Value::Bool(true)) => Err("names a retired thing".into()),
+                _ => Ok(()),
+            }
+        }
+    }
+
     /// The provenance every test write carries.
     pub(crate) fn via_test() -> super::Provenance {
         super::Provenance::via("test")
@@ -1066,9 +1121,45 @@ pub(crate) mod test_kinds {
 
 #[cfg(test)]
 mod tests {
-    use super::test_kinds::{Buyout, Note, Policy, via_test};
+    use super::test_kinds::{Buyout, GuardedNote, Note, Policy, via_test};
     use super::*;
     use serde_json::json;
+
+    /// C66 — a kind's writer's rule runs at the door on every write and
+    /// never on a read: a value it refuses as new never lands, the same
+    /// value already stored (written before the rule, or by a kind
+    /// without it) still reads through `get_as`, and is replaced or
+    /// deleted like any other row.
+    #[test]
+    fn c66_a_writer_s_rule_refuses_a_new_write_and_never_a_read() {
+        let mut a = Annotations::open_memory().unwrap();
+        let retired = json!({ "version": 1, "retired": true });
+        let err = a
+            .put::<GuardedNote>("item", "i1", &retired, None, &via_test())
+            .unwrap_err();
+        match err {
+            AnnotationError::Invalid(ValueError::RefusedForWrite { kind, detail }) => {
+                assert_eq!((kind, detail.as_str()), ("note", "names a retired thing"))
+            }
+            other => panic!("expected RefusedForWrite, got {other}"),
+        }
+        assert!(a.get("item", "i1", "note").unwrap().is_none());
+        // Stored by a kind without the rule: the guarded kind reads it.
+        a.put::<Note>("item", "i1", &retired, None, &via_test())
+            .unwrap();
+        let (row, read) = a.get_as::<GuardedNote>("item", "i1").unwrap().unwrap();
+        assert_eq!((row.revision, read.0), (1, retired));
+        let row = a
+            .put::<GuardedNote>(
+                "item",
+                "i1",
+                &json!({ "version": 1, "retired": false }),
+                Some(1),
+                &via_test(),
+            )
+            .unwrap();
+        assert_eq!(row.revision, 2);
+    }
 
     fn conflict_revision(e: AnnotationError) -> Option<i64> {
         match e {

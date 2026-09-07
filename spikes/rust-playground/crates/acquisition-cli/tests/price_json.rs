@@ -11,7 +11,9 @@ use std::process::{Command, Output};
 
 use acquisition_plan::listing::{ListView, ListingReport, ShowView};
 use acquisition_plan::price::{Buyout, PriceWrite};
-use acquisition_store::{Annotations, Endpoint, Index, Provenance, Store, account_path};
+use acquisition_store::{
+    Annotations, Endpoint, Index, IntentValue, Provenance, Store, account_path,
+};
 use serde_json::{Value, json};
 
 const USER: &str = "Alice#1234";
@@ -452,6 +454,93 @@ fn price_set_and_clear_print_the_receipt_and_show_reads_it_back() {
     ));
     assert!(w.prior.is_none());
     assert_eq!(w.written.map(|r| r.revision), Some(4));
+
+    let _ = std::fs::remove_dir_all(&base);
+}
+
+/// A `buyout` row as a newer build would write it: this build's parse
+/// refuses the stamp, the listing state reports it unreadable, and the
+/// blind `set` and `clear` must refuse to touch it.
+#[derive(serde::Serialize)]
+#[serde(transparent)]
+struct NewerBuyout(Value);
+
+impl IntentValue for NewerBuyout {
+    const KIND: &'static str = "buyout";
+    const VERSION: i64 = 99;
+    fn parse(value: &Value) -> Result<Self, String> {
+        Ok(NewerBuyout(value.clone()))
+    }
+}
+
+/// A row this build cannot read is never replaced or cleared blind: both
+/// refuse naming the revision and the reviewed path, and the row is
+/// untouched; `--if-revision` replaces it deliberately, and the receipt
+/// then shows the prior as its JSON and promises no undo.
+#[test]
+fn price_set_and_clear_refuse_a_row_this_build_cannot_read_unless_the_revision_is_named() {
+    let base = std::env::temp_dir().join(format!(
+        "acq-price-newer-{}-{}",
+        std::process::id(),
+        acquisition_store::now()
+    ));
+    let mock = seed(&base);
+    let newer = json!({ "version": 2, "type": "auction", "reserve": "5 chaos" });
+    {
+        let mut a = Annotations::open_for(&mock, UUID).unwrap();
+        a.put::<NewerBuyout>("item", "i-map", &newer, None, &Provenance::via("future"))
+            .unwrap();
+    }
+    let out = acq(&base, &["price", "status", "--json"]);
+    let report: ListingReport = serde_json::from_value(sole_json(&out)).unwrap();
+    assert_eq!(report.rows.unreadable.len(), 1);
+
+    for blind in [
+        vec!["price", "set", "item/i-map", "skip"],
+        vec!["price", "clear", "item/i-map"],
+    ] {
+        let out = acq(&base, &blind);
+        assert!(!out.status.success(), "{blind:?} must refuse");
+        let err = stderr(&out);
+        assert!(
+            err.contains("item/i-map holds a value this build cannot read (revision 1: buyout declares version 2, newer than this build's v1)")
+                && err.contains("`--if-revision 1` replaces it deliberately"),
+            "{blind:?}: {err}"
+        );
+    }
+    let a = Annotations::open_for(&mock, UUID).unwrap();
+    let row = a.get("item", "i-map", "buyout").unwrap().unwrap();
+    assert_eq!((row.revision, &row.value), (1, &newer), "untouched");
+    drop(a);
+
+    // The reviewed path: the receipt shows the JSON and promises no undo.
+    let out = acq(
+        &base,
+        &["price", "set", "item/i-map", "skip", "--if-revision", "1"],
+    );
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(
+        String::from_utf8_lossy(&out.stdout),
+        format!(
+            "item/i-map: skip (revision 2), was an unreadable value {newer} (revision 1)\n\
+             next: `acq price show item/i-map` reads it beside the game side; \
+             the prior cannot be put back by this build (its JSON is in --json)\n"
+        )
+    );
+    let out = acq(
+        &base,
+        &[
+            "price",
+            "set",
+            "item/i-map",
+            "skip",
+            "--if-revision",
+            "2",
+            "--json",
+        ],
+    );
+    let w: PriceWrite = serde_json::from_value(sole_json(&out)).unwrap();
+    assert_eq!(w.prior.map(|r| r.revision), Some(2));
 
     let _ = std::fs::remove_dir_all(&base);
 }

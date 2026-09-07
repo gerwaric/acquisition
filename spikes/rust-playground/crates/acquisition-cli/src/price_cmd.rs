@@ -39,7 +39,9 @@ use acquisition_plan::listing::{
 use acquisition_plan::price::{
     BUYOUT_KIND, BUYOUT_VERSION, Buyout, PriceTarget, PriceWrite, clear_buyout, set_buyout,
 };
-use acquisition_store::{AnnotationRow, Annotations, IntentValue, Provenance, Store, account_path};
+use acquisition_store::{
+    AnnotationRow, Annotations, IntentValue, Provenance, Store, account_path, check_value,
+};
 use anyhow::{Context, Result, bail};
 use serde_json::json;
 
@@ -872,12 +874,27 @@ fn parse_buyout(kind: &str, amount: Option<&str>, currency: Option<&str>) -> Res
     Buyout::parse(&value).map_err(|e| anyhow::anyhow!("{e}"))
 }
 
-/// The row's current revision, or none — the blind default's read.
+/// The blind default's read: the row's current revision, or none. A row
+/// this build cannot read (a newer build's value, which the listing state
+/// reports as unreadable) is refused here rather than replaced — a blind
+/// write over it would destroy intent this build cannot restore, and the
+/// receipt's undo would be a value it cannot write. An explicit
+/// `--if-revision` is the reviewed path past it.
 fn current_revision(annotations: &Annotations, target: &PriceTarget) -> Result<Option<i64>> {
     let (scope, key) = target.address()?;
-    Ok(annotations
-        .get(scope, &key, BUYOUT_KIND)?
-        .map(|r| r.revision))
+    let Some(row) = annotations.get(scope, &key, BUYOUT_KIND)? else {
+        return Ok(None);
+    };
+    if let Err(e) = check_value::<Buyout>(&row.value) {
+        bail!(
+            "{target} holds a value this build cannot read (revision {}: {e}); \
+             not replaced blind — `--if-revision {}` replaces it deliberately, \
+             `acq price show {target}` names it",
+            row.revision,
+            row.revision
+        );
+    }
+    Ok(Some(row.revision))
 }
 
 /// `acq price set <target> <type> [<amount> <currency>]`: one row through
@@ -947,7 +964,7 @@ fn report_write(write: &PriceWrite, json: bool) -> Result<()> {
 
 /// A stored value as text, or its JSON when this build cannot read it.
 fn value_text(row: &AnnotationRow) -> String {
-    match Buyout::parse(&row.value) {
+    match check_value::<Buyout>(&row.value) {
         Ok(value) => value.to_string(),
         Err(_) => format!("an unreadable value {}", row.value),
     }
@@ -963,18 +980,23 @@ fn set_words(value: &Buyout) -> String {
 
 /// The write receipt as text (C53): what the target is now and what it
 /// was (C78), then the next action — reading it beside the game side,
-/// and the command that puts the prior back.
+/// and the command that puts the prior back. After a replacement that
+/// command carries `--if-revision` naming the revision just written, so
+/// it undoes this write and not a later one; after a clear it is a
+/// create, which the store lands over the tombstone whatever came
+/// between (the create cannot say which clear it follows). A prior this
+/// build cannot read is shown as its JSON and promised no undo.
 fn render_write(write: &PriceWrite) -> String {
     let target = &write.target;
     let was = match &write.prior {
         None => "was unset".to_string(),
         Some(prior) => format!("was {} (revision {})", value_text(prior), prior.revision),
     };
-    let put_back = write
+    let prior_words = write
         .prior
         .as_ref()
-        .and_then(|prior| Buyout::parse(&prior.value).ok())
-        .map(|value| format!("`acq price set {target} {}`", set_words(&value)));
+        .and_then(|prior| check_value::<Buyout>(&prior.value).ok())
+        .map(|value| set_words(&value));
     let mut out = String::new();
     match &write.written {
         Some(row) => {
@@ -984,18 +1006,26 @@ fn render_write(write: &PriceWrite) -> String {
                 row.revision
             ));
             let mut next = format!("`acq price show {target}` reads it beside the game side");
-            if let Some(put_back) = put_back {
-                next.push_str(&format!("; {put_back} puts the prior back"));
+            match (&write.prior, prior_words) {
+                (Some(_), Some(words)) => next.push_str(&format!(
+                    "; `acq price set {target} {words} --if-revision {}` puts the prior back",
+                    row.revision
+                )),
+                (Some(_), None) => next.push_str(
+                    "; the prior cannot be put back by this build (its JSON is in --json)",
+                ),
+                (None, _) => {}
             }
             out.push_str(&format!("next: {next}\n"));
         }
         None => {
             out.push_str(&format!("{target}: cleared, {was}\n"));
-            let next = match put_back {
-                Some(put_back) => format!("{put_back} puts it back"),
-                None => format!(
-                    "`acq price set {target} …` with the value above puts it back (its JSON is in --json)"
-                ),
+            let next = match prior_words {
+                Some(words) => format!("`acq price set {target} {words}` puts it back"),
+                None => {
+                    "the cleared value cannot be put back by this build (its JSON is in --json)"
+                        .to_string()
+                }
             };
             out.push_str(&format!("next: {next}\n"));
         }
@@ -1506,8 +1536,10 @@ mod tests {
 
     /// C53, C78 — the receipt's text says what the target is now and
     /// what it was, and ends with the action that undoes it: the prior
-    /// value as `set` words after a replacement or a clear; a prior this
-    /// build cannot read is shown as its JSON, never dropped.
+    /// value as `set` words, with `--if-revision` naming the revision
+    /// just written after a replacement (so it undoes this write and not
+    /// a later one), a create after a clear; a prior this build cannot
+    /// read is shown as its JSON and promised no undo.
     #[test]
     fn the_write_receipt_says_what_was_and_how_to_put_it_back() {
         let target = PriceTarget::Item { id: "i1".into() };
@@ -1544,7 +1576,7 @@ mod tests {
             render_write(&replaced),
             "item/i1: 1/5 divine b/o (revision 2), was 12.5 chaos (revision 1)\n\
              next: `acq price show item/i1` reads it beside the game side; \
-             `acq price set item/i1 exact 12.5 chaos` puts the prior back\n"
+             `acq price set item/i1 exact 12.5 chaos --if-revision 2` puts the prior back\n"
         );
         let cleared = PriceWrite {
             target: target.clone(),
@@ -1569,6 +1601,24 @@ mod tests {
             ),
             "{text}"
         );
-        assert!(text.contains("its JSON is in --json"), "{text}");
+        assert!(
+            text.ends_with(
+                "next: the cleared value cannot be put back by this build (its JSON is in --json)\n"
+            ),
+            "{text}"
+        );
+        let overwritten = PriceWrite {
+            target: PriceTarget::Item { id: "i1".into() },
+            written: Some(row(exact, 4)),
+            prior: Some(row(json!({ "version": 9, "type": "auction" }), 3)),
+        };
+        let text = render_write(&overwritten);
+        assert!(
+            text.ends_with(
+                "next: `acq price show item/i1` reads it beside the game side; \
+                 the prior cannot be put back by this build (its JSON is in --json)\n"
+            ),
+            "{text}"
+        );
     }
 }

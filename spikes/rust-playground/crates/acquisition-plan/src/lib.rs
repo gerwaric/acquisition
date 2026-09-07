@@ -520,9 +520,13 @@ impl From<ValueError> for PlanError {
                 detail: "missing integer `version`".into(),
             },
             ValueError::Malformed { detail, .. } => PlanError::MalformedPolicy { detail },
-            e @ ValueError::NotCanonical { .. } => PlanError::MalformedPolicy {
-                detail: e.to_string(),
-            },
+            // The policy has no writer's rule today; one would be a
+            // refusal in its own words, like a malformed value.
+            e @ (ValueError::NotCanonical { .. } | ValueError::RefusedForWrite { .. }) => {
+                PlanError::MalformedPolicy {
+                    detail: e.to_string(),
+                }
+            }
         }
     }
 }
