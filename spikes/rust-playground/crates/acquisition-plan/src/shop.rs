@@ -8,17 +8,18 @@
 //!
 //! # Decisions as recorded
 //!
-//! **C74 — `shop render` is in scope as a derivation, publishing is not,
+//! **C74 — `shop render` is in scope as a derivation, publishing isn't,
 //! and every item the page omits is counted with a named reason.** The
 //! page is a pure function of facts, intent, reference data, a template
 //! and a ruled policy; it is written to stdout in pages labelled *n* of
-//! *N* to paste; it sends nothing; the template is an input, not stored.
-//! Nothing is skipped silently: what the game already lists (C81) is
-//! omitted and counted, an unruled cell is blocked, a prior post is never
-//! read (T6). The policy's rows cite trade claims (T7, T13) and owner
-//! observations (T11, T12), never its own output. *Why:* every human
-//! surface is a derivation over a machine surface (pattern 3); posting
-//! stays parked behind its own boundary session. Amended 2026-09-06.
+//! *N*; it sends nothing; the template is an input, not stored. Nothing
+//! is skipped silently: what the game already lists (C81) is omitted and
+//! counted, an unruled cell is blocked, a prior post is never read (T6).
+//! The policy's rows cite trade claims (T7, T13) and owner observations
+//! (T11, T12), never its own output. *Why:* every human surface is a
+//! derivation over a machine surface (pattern 3); posting stays parked
+//! behind its own session. *Details:* `shop.rs`. *Pinned:* the `c74_`
+//! tests. Amended 2026-09-06.
 //!
 //! **C72 — Pricing never edits the sync policy, and a price never locks a
 //! tab into refresh.** The relationship between the two kinds of intent
