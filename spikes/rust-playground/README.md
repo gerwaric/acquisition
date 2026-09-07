@@ -64,9 +64,8 @@ bounded by `MAX_429_RETRIES`; a Cloudflare-shaped 403/503 is never retried.
 - `crates/acquisition-store` — the shared store: SQLite, one facts file
   per **account** under one directory per provider, plus
   `<uuid>.annotations.db` (the intent layer — buyouts, notes, the sync
-  policy; the only irreplaceable local state; since v3 every row carries
-  `written_via`/`actor` and the write door is typed per kind through
-  `IntentValue`, C65/C66) and `daemon.db` (the persisted job queue,
+  policy; the only irreplaceable local state; typed and provenance-stamped
+  at the write door, C65/C66) and `daemon.db` (the persisted job queue,
   `jobs.rs`). The daemon writes facts through one
   call, `Store::record(endpoint, params, status, body)`, and never
   reads; every frontend reads the files directly, plans and prices
@@ -86,17 +85,12 @@ bounded by `MAX_429_RETRIES`; a Cloudflare-shaped 403/503 is never retried.
   the schema history are the crate's module doc (`src/lib.rs`, "As
   built"); the boundary properties are the Plan, quote and apply
   decisions in `CONTEXT.md`. Same no-panic lint ratchet as the store.
-  Pricing begins here with reference data: `reference/currency-v1.toml`
-  (the reviewed currency table, every row citing its evidence) is
-  compiled into the binary and read through `currency.rs` (C68); the
-  typed `buyout` value and its `PriceTarget` address are `price.rs`
-  (C67); the game side of a listing — a note or a tab name read as a
-  price, `skip`, `invalid` or none — is `game_side.rs` (C69), pinned by
-  the fixture the run left; the listing state (C69, C70, C80, C81: both
-  sides, their relation, the effective price) is one pure function in
-  `listing.rs` over the store's pricing snapshot, read by `acq price`;
-  the one write path (`set_buyout`/`clear_buyout`: single-row CAS, the
-  prior row returned, C78) is in `price.rs`, written by `acq price set|clear`.
+  Pricing lives here too: the reviewed currency table
+  (`reference/currency-v1.toml`, compiled in, `currency.rs`, C68); the
+  typed `buyout` value, its `PriceTarget` address and the one write path
+  (`price.rs`, C67, C78); the game-side parser (`game_side.rs`, C69); the
+  listing state (`listing.rs`, C69, C70, C80, C81) over the store's
+  pricing snapshot, behind `acq price`.
 - `crates/acquisition-cli` — the `acq` binary. Thin: clap parsing, output
   rendering, `store_cmd.rs` (reads of the shared store, no daemon),
   `plan_cmd.rs` (the intent surface `acq policy`, and `acq refresh
@@ -148,25 +142,21 @@ acq stash <id> [--sub <id>] [--deep]         # one tab; --deep follows a map/uni
 acq reference currency [WORD] [--expand]     # the currency table this build ships (C68): tag, display name, the words
                                              #  a parser accepts, retired marks; --expand adds each row's evidence;
                                              #  a WORD resolves exactly (case-sensitive) or fails naming the version
-acq price [status|list|show <target>]        # the listing state (C69) under C53: one line + next action; items grouped
-                                             #  by tab; one target (item/<id>, tab/<realm>/<id>, …) with both sides,
-                                             #  the raw note beside its parse; --expand, --relation R, --in <container>
+acq price [status|list|show <target>]        # the listing state (C69) under C53: one line + next action; items by tab;
+                                             #  one target with both sides, the raw note beside its parse; --expand,
+                                             #  --relation R, --in <container>
 acq price set <target> <type> [<amount> <currency>] [--if-revision N]
-                                             # one row by hand (C64): exact|negotiable|no_price|skip (the game's price,
-                                             #  b/o, ~skip work too); a decimal of ≤4 places or wanted/lot; a table tag;
-                                             #  CAS like `acq policy set`; prints what it replaced (C78)
+                                             # one row by hand (C64): exact|negotiable|no_price|skip, an amount, a table
+                                             #  tag; CAS like `acq policy set`; prints what it replaced and the undo (C78)
 acq price clear <target> [--if-revision N]   # remove the row; prints what it removed and the `set` that puts it back
 acq policy [show]                            # the per-account sync policy: declared coverage + freshness (an annotation)
 acq policy set '<json>' [--if-revision N]    # validated through the planner's strict parse before anything lands;
                                              #  v3 shape: {"version":3,"realms":{"pc":{"leagues":{"Standard":
                                              #  {"tabs":"all","characters":"all","max_age_seconds":3600}}}}} —
-                                             #  per league, `tabs` and/or `characters` ("all" or ids; absent =
-                                             #  no coverage of that facet; neither = refused); `tabs` is refused
-                                             #  under poe2, `characters` taken everywhere (a v1 `leagues` value
-                                             #  still parses, as realm pc; v1/v2 as tab coverage only);
+                                             #  the facet rules are the planner's crate doc (`src/lib.rs`, "As built");
                                              #  `-` reads stdin, `@file` reads a file; --if-revision writes only
-                                             #  over exactly the revision you reviewed (without it, the currently
-                                             #  stored revision is replaced; racing writes conflict, never clobber)
+                                             #  over exactly the revision you reviewed (else the stored one is
+                                             #  replaced; a racing write conflicts, never clobbers)
 acq refresh --plan [--realm R] [--league L]  # compile policy + facts into the explicit action set — sends nothing;
                                              #  a running daemon adds its read-only quote (never spawned for this),
                                              #  and --json prints the serialized plan envelope itself

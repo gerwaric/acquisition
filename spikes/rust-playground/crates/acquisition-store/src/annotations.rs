@@ -1221,7 +1221,7 @@ mod tests {
         assert_eq!(conflict_revision(err), None);
     }
 
-    /// C35 — delete tombstones; the revision sequence survives delete/recreate, so a stale writer always conflicts.
+    /// C35 — delete tombstones; the revision sequence survives delete/recreate, so a writer holding any revision of the live row conflicts once it moves (a create over the tombstone lands, whatever its generation — see `put`).
     #[test]
     fn delete_and_recreate_never_reset_the_revision() {
         let mut a = Annotations::open_memory().unwrap();
