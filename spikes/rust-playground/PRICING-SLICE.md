@@ -39,9 +39,11 @@ claims authored master-side. Nothing here is a second authority.
   with rigorous testing scheduled after step 6. **Step 6 is built**
   (2026-09-07, `13f50f9d`; outside review fixed the same day,
   `9cfdef5a`, its second round the same evening): the render's policy table posts
-  two cells and blocks the rest by name; **validation reading 2** — the
-  owner pastes a page for their own shop — is next, with the substash
-  link code (Q3) and `Stash<n>` under folders (Q1) its hand experiments.
+  three cells and blocks the rest by name; **validation reading 2**'s
+  first pass ran 2026-09-07 (below): the owner posted a page, answered
+  Q3 and Q5 (T20, T21), and set the page's shape (T22; `423d39aa`,
+  shop render schema **3**); what stays open for its second pass is
+  Q1 and whether the site reads the spoiler title as the price.
 - The forum is **write-only from our side**: `/character` returns no
   `forum_note` for a forum-listed item (price-notes run, 2026-09-04), so
   the game side of a listing is item note, then tab name (C69), and a
@@ -138,6 +140,7 @@ claims file's appendix maps T→C as well.
 | Pricing | 2e forum reading, price-notes run, re-scope | `0d9fee64` | the owner's saved trade-site and wiki pages read, Procurement and the C++ shop compared, the API reference checked for `forum_note`; the price-notes run (ledger row 2026-09-04: the test tab and the forum-listed character); the note corpus committed as a fixture; C65, C67, C68, C69, C72, C74 amended, C71, C73, C78 parked in place; the plan above; `SURFACES.md` rows; `tools/notes-check.py` |
 | Pricing | plan 3 outside review | open | (1) **Medium** — "tab name" and `metadata.public` are ambiguous for a nested item: C69 reads "the tab name", C70 keeps inheritance to the manual side, and the store holds substashes and folder children with their own name, metadata and parent (`snapshot.rs`). A read-only look at the owner's facts (2026-09-06, `mode=ro` through the existing WAL): 141 nested tabs of 402 — 77 folder children (ordinary tabs: own name, `colour`, no `public` set, none priced) and 64 substashes under 18 map and unique parents, whose names are the game's own (`1 (Remove-only)`, ` (Remove-only)`), metadata `items` and `map` only, **never `public`**, none priced; no priced parent has children. So the rule was structural for the owner's data but unobserved on the site. Owner, 2026-09-06, verbatim: "I agree with ruling it. Folders never carry price, but substash parents can." — C80, Provisional until the hand experiment in "Observations still open". (2) **Medium** — C69's *Pinned:* reads as if the `c69_` tests pin the whole entry; they pin the parse only. The qualified wording does not fit the 800-byte gate without a trim (the owner's, as before). | (1) C80, the observation; (2) C69's *Pinned:* after the owner's trim |
 | plan 6 outside review | `9cfdef5a` | Five findings, all accepted (the owner ran the review 2026-09-07). (1) **High** — the render subtracted timestamps and added one to a recorded index unchecked: a corrupt `last_seen` panicked in debug and wrapped in release, against C47. Ages saturate as the planner's do; `Stash<n>` is a checked add over a non-negative index, and a negative or ceiling index is the `invalid_index` cell. (2) **Medium** — the table failed open: every manual priced kind posted (any non-negotiable kind as `~price`) and every realm but poe2 counted as one the site lists. Kinds and realms are matched by name — `exact`/`negotiable`, `pc`/`xbox`/`sony` (T4) — and any other word is a blocked cell (`unruled_kind`, `realm_unlisted`); a typed effective kind on the listing would make the check the compiler's and waits for a listing-schema step. (3) **Medium** — an uncovered item past the window was called stale with the current plan's request count as its remedy, though that plan does not fetch its container; a snapshot or compile failure was swallowed. `stale` is over covered containers only; uncovered items past the window are `stale_uncovered`, said beside the coverage line; the compile failure rides as `refresh_problem` and the stale line prints it. (4) **Medium** — `--expand` searched the whole left-out list per line for a field the line held (quadratic over 26k items): the line takes the `LeftOut`. (5) **Medium** — the league-less check ran before the effective outcome, so an unpriced or hand-skipped item on such a character was blocked instead of off the page or omitted, against the module's own ordering: the check follows the classification. | (1), (2) `c47_corrupt_facts_and_unruled_words_are_cells_never_panics`; (3) `c72_…` (the split), `c53_shop_render_…` (the remedies); (4) `left_out_line`'s signature; (5) `c74_every_item_…` (two league-less items) |
+| Pricing | plan 6 reading 2, first pass | `423d39aa`; T20–T22 `9d51fbf7` master-side, `bc596b48` here | the owner's page shape — one spoiler per price titled with the price (the C++ prefix's leading space, T15), links run together, one page spoiler `Shop Post n of N (k items)`, newlines only between spoiler tags (T22) — with the page title reserved at its widest before the cut and a group closed and reopened across one; `hand_no_price` a posting row (the link alone under an empty title; T21); `substash` blocked on an observation, not a question (T20); `Posted.title` replaces `price` (schema 3); the `c74_` page tests rewritten, `tests/shop_json.rs`, `CLI-REFERENCE.md` |
 | plan 6 outside review, round 2 | `6794c0e4` | The reviewer's re-read accepted four of the five fixes and found the fifth half-done: `stale` held covered items only, but `oldest_seconds` still measured every posted item, uncovered ones included, and the CLI's stale line presented that age as the covered set's — the `c72_` test pinned the mismatch (covered stale items 3,800 s old; 4,900 asserted, from the uncovered one). The age is now the oldest of the stale set, computed where the set is built, and the field is `oldest_stale_seconds` — a rename, so shop render schema **2** and the fixture regenerated; schema 1 never reached a consumer. | `c72_…` (3,800, the stale set's), `c53_shop_render_…` (the CLI sentence), `shop-render-schema-2.json` (the schema-1 fixture renamed and regenerated) |
 | plan 1 currency table | `10ef2374` | `currency-v1.toml` v1: 39 active rows (tag = emit = the game's word, display from the owner's dialog reading, a `game:` entry each), 4 legacy aliases, 3 retired rows; `currency.rs` (the loader as the reviewer's checklist); `acq reference currency`; the `c68_` tests |
 | Pricing | plan 3 game-side parser | `ee7d7bd7` | `game_side.rs`: `read(source, text, table)` over a note or a tab name — `exact`, `negotiable`, `skip`, `invalid` naming why, or none (C69); a leading `~` opens a price note; a tab name tolerates trailing text and refuses a ratio (T11), a note holds the grammar exactly (T10) and takes a ratio (T2); the word resolves through the table to a tag (C68); `NOTE_PARSER_VERSION`; the fixture reader shared with the currency tests (`price_notes_fixture.rs`); the `c69_` tests |
@@ -299,6 +302,24 @@ cell until the owner's hand experiment at reading 2. The two reading-1
 questions below (a target the facts do not hold; alias resolution)
 were not put to the owner and stay open.
 
+## What validation reading 2 taught, first pass (2026-09-07)
+
+The owner pasted a page into the shop thread and read the result on
+the trade site; the render's page was reshaped from what came back.
+Verbatim: "Q3: the web stash view doesn't allow me to select items
+from map or unique stashes at all"; "Q5: items linked to the forum
+without a price annotation are listed with 'No Price Set' on the trade
+site."; and the shape: "Items with the exact same price should be
+listed together; all prices should be wrapped in a spoiler tag;
+newlines only between spoiler tags; each page should be wrapped in a
+spoiler", with the stored post as the example (T22). What changed: the
+substash cell is blocked on T20 instead of Q3; the no-price cell posts
+(T21); the page is nested spoilers (schema 3). Not yet read: Q1, and
+whether the site takes the spoiler title as the price — the owner's
+own items at their prices on the site would show it; whether the
+coverage, stale and positions lines changed what the owner did was
+not said. The verdict on the page as a whole is the second pass's.
+
 ## Observations still open
 
 Agent observations that became neither a ruling nor a finding; each is
@@ -340,10 +361,12 @@ shows the item picture, so a wrong link is visible before posting.
   modelled; a hand-typed alias reads `invalid`, shown verbatim.
 - C74's omission rule is built (`shop.rs`, the policy table): the
   render reads `side` and `kind` together, and each blocked cell names
-  the question that opens it. Three of its choices are the render's
-  own until reading 2 says otherwise: the price on the line after the
-  link (T14's wording; the C++ app's spoiler title, T15, was not taken),
-  a blank line between price groups, and `~price` groups before `~b/o`.
+  the question or claim that holds it. The page's shape is the owner's
+  (T22, 2026-09-07); two choices inside it are still the render's own:
+  the group order (`~price`, then `~b/o`, then no price) and the empty
+  spoiler title for a no-price item (the C++ app's, T15) — whether the
+  site lists that item as "No Price Set" under an *empty* title, as it
+  did under none (T21), is reading 2's second pass.
 - "Moved or reindexed since the render's basis" (C72) has no stored
   basis to compare with ("what did I last post" is parked, v1 reposts
   whole pages), so the render reports the one it has: a posted stash
@@ -395,13 +418,14 @@ shows the item picture, so a wrong link is visible before posting.
 2. C73 parked as "a 0.18 user asks": pricing is niche, but the 0.18
    import is a product question for other users, not only yours. Park
    stands unless you say otherwise.
-3. Reading 2 (`acq shop render`, then `--page 1 | pbcopy` into the
-   shop thread's editor and *Preview* before posting): does the preview
-   show the right item for a tab past a folder (Q1)? Beside it, the two
-   hand experiments the blocked cells wait on — the website's link
-   button on a substash item (Q3), and one unpriced link then the
-   seller-account search (Q5). Each answer is a `T<n>` claim
-   master-side and a cell's verdict here.
+3. Reading 2, second pass (`acq shop render`, then `--page 1 | pbcopy`
+   into the shop thread's editor and *Preview* before posting), on the
+   reshaped page: does the preview show the right item for a tab past
+   a folder (Q1)? Do the items appear on the trade site at the prices
+   the spoiler titles carry (T22's unstated half)? Is a no-price item
+   under the empty title listed as "No Price Set" (T21 under `[spoiler=""]`)?
+   And your verdict on the page, verbatim, with whether the coverage,
+   stale and positions lines changed what you did.
 4. C68 says reference data is "enumerable through every surface", but
    no MCP tool enumerates the currency table (or reads a price) while
    the plan parks MCP adapters until the CLI has been used for real —
