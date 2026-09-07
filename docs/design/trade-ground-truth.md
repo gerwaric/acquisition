@@ -233,9 +233,10 @@ row (T15) — and the render's cell for it is a posting row (C74).
 
 **T22. The forum accepts a post shaped as nested spoilers — one spoiler
 per price whose title is the price text, the links run together on its
-line, all inside one page spoiler — and resolves each link into `[item
-post= index=]` in place.** [OWNER — Confirmed for one post; September
-7, 2026]
+line, all inside one page spoiler — resolves each link into `[item
+post= index=]` in place, and the trade site prices every item in a
+spoiler by that spoiler's title.** [OWNER — Confirmed for one post;
+September 7, 2026]
 The owner's post, as the forum stored it after resolving the links,
 verbatim:
 
@@ -251,11 +252,14 @@ as its title, the page in a plain spoiler) with the page spoiler now
 titled, and it is what the owner asked the render to write: "Items with
 the exact same price should be listed together; all prices should be
 wrapped in a spoiler tag; newlines only between spoiler tags; each page
-should be wrapped in a spoiler." What this claim shows is that the
-forum takes the shape and resolves the links inside it; whether the
-site reads the spoiler title as the price is not stated here — the
-owner's items at those prices on the site would show it, and the
-render's first validated page is where that is read.
+should be wrapped in a spoiler." The owner, the same day, on the
+site's reading of it, verbatim: "the spoiler text is used as the price
+for every item within that spoiler block." So the forum takes the
+shape, resolves the links inside it, and the indexer reads the price
+from the enclosing spoiler's title — the C++ app's form (T15) was
+right about where the indexer looks, and the wiki's "after the code"
+(T14) is at best one of two places. Which of a spoiler title and a
+price line after a link wins when both are present is not tested.
 
 ### The in-game price dialog
 
