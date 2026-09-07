@@ -39,11 +39,15 @@ claims authored master-side. Nothing here is a second authority.
   with rigorous testing scheduled after step 6. **Step 6 is built**
   (2026-09-07, `13f50f9d`; outside review fixed the same day,
   `9cfdef5a`, its second round the same evening): the render's policy table posts
-  three cells and blocks the rest by name; **validation reading 2**'s
-  first pass ran 2026-09-07 (below): the owner posted a page, answered
-  Q3 and Q5 (T20, T21), and set the page's shape (T22; `423d39aa`,
-  shop render schema **3**); what stays open for its second pass is
-  Q1 and the no-price item under an empty title.
+  three cells and blocks the rest by name; **validation reading 2**
+  ran 2026-09-07 in two passes (below): the owner posted a page,
+  answered Q3, Q4 and Q5 (T20, T21, T23), set the page's shape (T22;
+  `423d39aa`, shop render schema **3**), found the tab numbering wrong
+  past a folder and supplied the website's own rule (T24; `1c85cdcb`),
+  and read the renumbered page correct on the trade site: **step 6's
+  done criterion is met** in the owner's words. What remains before the
+  slice closes is the owner's: PR #227 (T20–T24 and the upgrades), the
+  C68/MCP question, and the rigorous test pass scheduled after step 6.
 - The forum is **write-only from our side**: `/character` returns no
   `forum_note` for a forum-listed item (price-notes run, 2026-09-04), so
   the game side of a listing is item note, then tab name (C69), and a
@@ -140,6 +144,7 @@ claims file's appendix maps T→C as well.
 | Pricing | 2e forum reading, price-notes run, re-scope | `0d9fee64` | the owner's saved trade-site and wiki pages read, Procurement and the C++ shop compared, the API reference checked for `forum_note`; the price-notes run (ledger row 2026-09-04: the test tab and the forum-listed character); the note corpus committed as a fixture; C65, C67, C68, C69, C72, C74 amended, C71, C73, C78 parked in place; the plan above; `SURFACES.md` rows; `tools/notes-check.py` |
 | Pricing | plan 3 outside review | open | (1) **Medium** — "tab name" and `metadata.public` are ambiguous for a nested item: C69 reads "the tab name", C70 keeps inheritance to the manual side, and the store holds substashes and folder children with their own name, metadata and parent (`snapshot.rs`). A read-only look at the owner's facts (2026-09-06, `mode=ro` through the existing WAL): 141 nested tabs of 402 — 77 folder children (ordinary tabs: own name, `colour`, no `public` set, none priced) and 64 substashes under 18 map and unique parents, whose names are the game's own (`1 (Remove-only)`, ` (Remove-only)`), metadata `items` and `map` only, **never `public`**, none priced; no priced parent has children. So the rule was structural for the owner's data but unobserved on the site. Owner, 2026-09-06, verbatim: "I agree with ruling it. Folders never carry price, but substash parents can." — C80, Provisional until the hand experiment in "Observations still open". (2) **Medium** — C69's *Pinned:* reads as if the `c69_` tests pin the whole entry; they pin the parse only. The qualified wording does not fit the 800-byte gate without a trim (the owner's, as before). | (1) C80, the observation; (2) C69's *Pinned:* after the owner's trim |
 | plan 6 outside review | `9cfdef5a` | Five findings, all accepted (the owner ran the review 2026-09-07). (1) **High** — the render subtracted timestamps and added one to a recorded index unchecked: a corrupt `last_seen` panicked in debug and wrapped in release, against C47. Ages saturate as the planner's do; `Stash<n>` is a checked add over a non-negative index, and a negative or ceiling index is the `invalid_index` cell. (2) **Medium** — the table failed open: every manual priced kind posted (any non-negotiable kind as `~price`) and every realm but poe2 counted as one the site lists. Kinds and realms are matched by name — `exact`/`negotiable`, `pc`/`xbox`/`sony` (T4) — and any other word is a blocked cell (`unruled_kind`, `realm_unlisted`); a typed effective kind on the listing would make the check the compiler's and waits for a listing-schema step. (3) **Medium** — an uncovered item past the window was called stale with the current plan's request count as its remedy, though that plan does not fetch its container; a snapshot or compile failure was swallowed. `stale` is over covered containers only; uncovered items past the window are `stale_uncovered`, said beside the coverage line; the compile failure rides as `refresh_problem` and the stale line prints it. (4) **Medium** — `--expand` searched the whole left-out list per line for a field the line held (quadratic over 26k items): the line takes the `LeftOut`. (5) **Medium** — the league-less check ran before the effective outcome, so an unpriced or hand-skipped item on such a character was blocked instead of off the page or omitted, against the module's own ordering: the check follows the classification. | (1), (2) `c47_corrupt_facts_and_unruled_words_are_cells_never_panics`; (3) `c72_…` (the split), `c53_shop_render_…` (the remedies); (4) `left_out_line`'s signature; (5) `c74_every_item_…` (two league-less items) |
+| Pricing | plan 6 reading 2, second pass | `1c85cdcb`, `c7d8c840`; T24 `635e583c` master-side, `7ef30761` here; T7, T12, T21 upgraded master-side | **pass** — the Allflame page (27 items: 20 inherited from a tab row, two item rows in the folder's child tab, three in a top-level tab, one in the public priced tab, one on a character) pasted, previewed and posted; every link resolved and the site lists every item; the no-price item is listed with no price under the empty title (T21); the hand price in the public `~price 222 divine` tab is listed at the hand price (T12 confirmed); the character link resolved as `I_EXIST` (T7's case question). Found on the first paste: `Stash<n>` past a folder was one too high — fixed to the website's rank (T24). The report's cells on the real page: 39 the game lists, 1 skipped by hand, 1 socketed, 5 reading-1 rows naming nothing in Allflame | the owner's verdict verbatim below; T7, T12, T21, T24 |
 | Pricing | plan 6 reading 2, first pass | `423d39aa`; T20–T22 `9d51fbf7` master-side, `bc596b48` here | the owner's page shape — one spoiler per price titled with the price (the C++ prefix's leading space, T15), links run together, one page spoiler `Shop Post n of N (k items)`, newlines only between spoiler tags (T22) — with the page title reserved at its widest before the cut and a group closed and reopened across one; `hand_no_price` a posting row (the link alone under an empty title; T21); `substash` blocked on an observation, not a question (T20); `Posted.title` replaces `price` (schema 3); the `c74_` page tests rewritten, `tests/shop_json.rs`, `CLI-REFERENCE.md` |
 | plan 6 outside review, round 2 | `6794c0e4` | The reviewer's re-read accepted four of the five fixes and found the fifth half-done: `stale` held covered items only, but `oldest_seconds` still measured every posted item, uncovered ones included, and the CLI's stale line presented that age as the covered set's — the `c72_` test pinned the mismatch (covered stale items 3,800 s old; 4,900 asserted, from the uncovered one). The age is now the oldest of the stale set, computed where the set is built, and the field is `oldest_stale_seconds` — a rename, so shop render schema **2** and the fixture regenerated; schema 1 never reached a consumer. | `c72_…` (3,800, the stale set's), `c53_shop_render_…` (the CLI sentence), `shop-render-schema-2.json` (the schema-1 fixture renamed and regenerated) |
 | plan 1 currency table | `10ef2374` | `currency-v1.toml` v1: 39 active rows (tag = emit = the game's word, display from the owner's dialog reading, a `game:` entry each), 4 legacy aliases, 3 retired rows; `currency.rs` (the loader as the reviewer's checklist); `acq reference currency`; the `c68_` tests |
@@ -302,7 +307,23 @@ cell until the owner's hand experiment at reading 2. The two reading-1
 questions below (a target the facts do not hold; alias resolution)
 were not put to the owner and stay open.
 
-## What validation reading 2 taught, first pass (2026-09-07)
+## What validation reading 2 taught (2026-09-07)
+
+**Second pass, the verdict, verbatim:** "That worked. All 27 items
+appeared and show up as verified by the website. Horror Spur is empty
+under the title. Dread Dome is 99 chaos. I can't see which item came
+from I_EXIST, but all 27 items are linked." Read as: every link on the
+renumbered page resolved and every item is listed (the character item
+among them, so `I_EXIST` as the listing spells it is accepted, T7); a
+no-price item under an empty spoiler title is listed with no price
+(T21); a hand price beats the public tab's name on the site (T12,
+confirmed). Not said, and not pressed: whether the coverage, stale and
+positions lines changed what the owner did — the page was rendered
+minutes after the refresh, so none of the three had anything to say.
+The done criterion's "read correct on the trade site in the owner's
+words, with every omission counted" is met.
+
+**First pass:**
 
 The owner pasted a page into the shop thread and read the result on
 the trade site; the render's page was reshaped from what came back.
@@ -438,12 +459,14 @@ shows the item picture, so a wrong link is visible before posting.
 2. C73 parked as "a 0.18 user asks": pricing is niche, but the 0.18
    import is a product question for other users, not only yours. Park
    stands unless you say otherwise.
-3. Reading 2, second pass (`acq shop render`, then `--page 1 | pbcopy`
-   into the shop thread's editor and *Preview* before posting), on the
-   reshaped and renumbered page: is a no-price item under the empty
-   title listed as "No Price Set" (T21 under `[spoiler=""]`)? Does the
-   site list Dread Dome at the hand price rather than the tab's (T12)?
-   Does `character="I_EXIST"` resolve (T7's case question)?
+3. ~~Reading 2, second pass.~~ **Answered 2026-09-07**, verbatim in
+   "What validation reading 2 taught": all 27 items linked and listed;
+   Horror Spur empty under the title; Dread Dome at 99 chaos.
+5. The slice's done criterion is met once PR #227 merges (the claims
+   authored master-side and cherry-picked). Close the slice now — cut
+   its record to rulings, properties and pointers, as `REFRESH-SLICE.md`
+   was — or keep it open through the rigorous test pass you scheduled
+   after step 6? The test pass can be its own step in either case.
    And your verdict on the page, verbatim, with whether the coverage,
    stale and positions lines changed what you did.
 4. C68 says reference data is "enumerable through every surface", but
