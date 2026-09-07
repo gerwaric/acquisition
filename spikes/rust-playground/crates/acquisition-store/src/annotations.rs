@@ -70,11 +70,13 @@
 //! **Intent values are typed at the write API: a kind declares its schema
 //! version and a strict parser, a value that does not parse under its
 //! stamp never lands, and a current-schema value re-serializes to exactly
-//! what was read.** The generic — version gate, unknown fields refused at
-//! every depth, exact round-trip, then compare-and-swap — is factored out
-//! of the sync policy's parser into the store crate over a per-kind trait;
-//! each kind's shape stays its owner's; an older stored value upgrades in
-//! memory, its raw JSON untouched. Ruled 2026-09-03.
+//! what was read.** The generic (version gate, unknown fields refused,
+//! exact round-trip, compare-and-swap) lives in the store crate over a
+//! per-kind trait; a kind's shape stays its owner's; an older value
+//! upgrades in memory, stored as written. A kind may also refuse as a
+//! *new write* what it reads (`check_write`; C67's retired tag first) —
+//! at the door, every write, never a read. Ruled 2026-09-03; amended
+//! 2026-09-07.
 //!
 //! As built: [`IntentValue`] is the per-kind trait (the kind's name, the
 //! version this build writes, its strict parse); [`check_value`] is the
