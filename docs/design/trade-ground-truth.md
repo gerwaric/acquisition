@@ -294,7 +294,9 @@ amounts are the game's own (whether a fifth decimal is truncated or
 refused is not established). The prefix, one space, the amount, one
 space, the word — that is the whole grammar the game wrote. A parser
 that treats an empty amount as "no price" rather than "invalid" reads
-the game's residue as a decision (the spike's C69 reports `invalid`).
+the game's residue as a decision (the spike's parser reads it
+`invalid`; since T18 the listing state gives it no effect and the tab
+applies, C69).
 
 **T16. The indexer matches a currency word loosely: `~price 5 exa`
 and `~price 5 exal` both list at 5 Exalted Orbs.** [OWNER — Confirmed
