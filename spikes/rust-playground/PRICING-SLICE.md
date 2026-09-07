@@ -109,6 +109,35 @@ for real).
    trade site; whether the report lines change what they do next is the
    evidence.
 
+7. **The test pass** (added 2026-09-07 after reading 2, at the owner's
+   ask: "more rigorous testing, but not yet" — now). In this order, each
+   gate-green, the record open throughout:
+   1. *Property tests on the three pure functions* — the amount's
+      canonical text parses back to the same amount; the note parser
+      yields a reading for any input and never panics (C47); for any
+      entries and any template the page cutter keeps every page under
+      the size, posts every item exactly once, and keeps each price
+      group contiguous within a page. The workspace's first
+      property-testing crate; the choice of crate is agent-owned.
+   2. *A real-scale fixture* — a redacted snapshot of the owner's facts
+      (names and ids hashed, notes and tab names kept, positions kept),
+      written by a read-only tool the owner runs, committed like the
+      price-notes corpus; the listing state and the render run on it in
+      the suite, with a time guard where the audit view was quadratic.
+   3. *Scenario tests through the spawned binary* — set, show, render,
+      clear as one story, with the races: two writers on one row, a
+      stale `--if-revision`, a clear under a render.
+   4. *The store finding from the price-notes run* — a daemon exit
+      leaves the facts file's WAL uncheckpointed; pin the checkpoint on
+      stop.
+   5. *The site as the oracle* (Q11; the owner's, by hand, any time) —
+      the seller-account search for this account and Standard against
+      `acq price list --effective game`: the one complete statement of
+      what is listed, so the listing state's counts are read against
+      it rather than against themselves.
+   Done when each item has its pin or its reading, and the closed
+   record (step 3 of the session-close skill) can be cut.
+
 **Done criterion:** the currency table committed; the buyout value
 strict and pinned by id; the parser passing the fixture; the listing
 state legible with the raw note beside the parse; the owner's first
