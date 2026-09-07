@@ -335,12 +335,13 @@ shows the item picture, so a wrong link is visible before posting.
 - Item note against tab name in game: rename the test tab to a price
   and see whether the noted items keep their own price on the site.
   C69's note-then-tab order rests on the C++ code until then.
-- The link code for an item in a substash (map and unique tabs); the
-  post size limit (50,000 is the C++ constant); whether an unpriced
-  (`no_price`) forum link is indexed; what the indexer does with a
-  forum ratio on a non-bulk item, and with `~b/o a/b` (in game a typed
-  ratio unlists the item, T19); a game `skip` against a manual price.
-  All blocked-and-counted in the render's policy table until observed.
+- Still blocked-and-counted in the render's policy table until
+  observed: what the indexer does with a forum ratio on a non-bulk
+  item, and with `~b/o a/b` (in game a typed ratio unlists the item,
+  T19); a game `skip` against a manual price (Q7). Answered 2026-09-07:
+  a substash item has no link at all (T20), an unpriced link lists as
+  "No Price Set" (T21), the post limit is a hard 50,000 characters
+  (T23).
 - A nested tab on the site (hand experiment, one each): rename a
   public map or unique tab to a price and see whether its maps or
   uniques list at it; put a public priced tab inside a folder, and name
