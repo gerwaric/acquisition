@@ -305,7 +305,7 @@
       "items": 6,
       "number": 1,
       "of": 1,
-      "text": "[spoiler=\"Shop Post 1 of 1 (6 items)\"]\n[spoiler=\" ~price 5 chaos\"][linkItem location=\"Stash2\" league=\"Standard\" x=\"1\" y=\"0\" realm=\"pc\"][linkItem location=\"Stash2\" league=\"Standard\" x=\"2\" y=\"0\" realm=\"pc\"][/spoiler]\n[spoiler=\" ~price 10 divine\"][linkItem location=\"BodyArmour\" character=\"Exile\" x=\"0\" y=\"0\" realm=\"pc\"][/spoiler]\n[spoiler=\" ~b/o 1.5 divine\"][linkItem location=\"Stash2\" league=\"Standard\" x=\"3\" y=\"0\" realm=\"pc\"][/spoiler]\n[spoiler=\" ~b/o 2 divine\"][linkItem location=\"Stash3\" league=\"Standard\" x=\"0\" y=\"1\" realm=\"pc\"][/spoiler]\n[spoiler=\"\"][linkItem location=\"Stash2\" league=\"Standard\" x=\"8\" y=\"0\" realm=\"pc\"][/spoiler]\n[/spoiler]\n"
+      "text": "[spoiler=\"Shop Post 1 of 1 (6 items)\"]\n[spoiler=\" ~price 5 chaos\"][linkItem realm=\"pc\" location=\"Stash1\" league=\"Standard\" x=\"1\" y=\"0\"][linkItem realm=\"pc\" location=\"Stash1\" league=\"Standard\" x=\"2\" y=\"0\"][/spoiler]\n[spoiler=\" ~price 10 divine\"][linkItem realm=\"pc\" location=\"BodyArmour\" character=\"Exile\" x=\"0\" y=\"0\"][/spoiler]\n[spoiler=\" ~b/o 1.5 divine\"][linkItem realm=\"pc\" location=\"Stash1\" league=\"Standard\" x=\"3\" y=\"0\"][/spoiler]\n[spoiler=\" ~b/o 2 divine\"][linkItem realm=\"pc\" location=\"Stash2\" league=\"Standard\" x=\"0\" y=\"1\"][/spoiler]\n[spoiler=\"\"][linkItem realm=\"pc\" location=\"Stash1\" league=\"Standard\" x=\"8\" y=\"0\"][/spoiler]\n[/spoiler]\n"
     }
   ],
   "policy": [
@@ -313,13 +313,13 @@
       "cell": "stash_item",
       "count": 4,
       "verdict": "post",
-      "why": "a hand-priced stash item at a listed tab: `[linkItem location=\"Stash<index+1>\" league= x= y= realm=]` under the price's spoiler (T7, T13, T15; a forum price over the tab's is T12; which tab `Stash<n>` names under folders is Q1 — the forum's preview shows the picture before posting)"
+      "why": "a hand-priced stash item at a listed tab: `[linkItem realm= location=\"Stash<n>\" league= x= y=]` under the price's spoiler, `n` the tab's rank among the tabs the website lists — folders and substashes left out (T7, T13, T24; a forum price over the tab's is T12)"
     },
     {
       "cell": "character_item",
       "count": 1,
       "verdict": "post",
-      "why": "a hand-priced character item in a slot: `[linkItem location=\"<inventoryId>\" character= x= y= realm=]` under the price's spoiler (T7, T8)"
+      "why": "a hand-priced character item in a slot: `[linkItem realm= location=\"<inventoryId>\" character= x= y=]` under the price's spoiler (T7, T8)"
     },
     {
       "cell": "hand_no_price",
@@ -415,7 +415,7 @@
       "cell": "invalid_index",
       "count": 0,
       "verdict": "block",
-      "why": "the tab's recorded index is negative or too large to add one to: a corrupt fact, blocked rather than computed (C47)"
+      "why": "the tab's recorded index is below zero: a corrupt fact, blocked rather than ranked (C47)"
     },
     {
       "cell": "no_slot",
@@ -434,7 +434,7 @@
     {
       "cell": "stash_item",
       "label": "Chaos Orb",
-      "link": "[linkItem location=\"Stash2\" league=\"Standard\" x=\"1\" y=\"0\" realm=\"pc\"]",
+      "link": "[linkItem realm=\"pc\" location=\"Stash1\" league=\"Standard\" x=\"1\" y=\"0\"]",
       "location": {
         "id": "c1",
         "realm": "pc",
@@ -450,7 +450,7 @@
     {
       "cell": "stash_item",
       "label": "Chaos Orb",
-      "link": "[linkItem location=\"Stash2\" league=\"Standard\" x=\"2\" y=\"0\" realm=\"pc\"]",
+      "link": "[linkItem realm=\"pc\" location=\"Stash1\" league=\"Standard\" x=\"2\" y=\"0\"]",
       "location": {
         "id": "c1",
         "realm": "pc",
@@ -466,7 +466,7 @@
     {
       "cell": "character_item",
       "label": "Chaos Orb",
-      "link": "[linkItem location=\"BodyArmour\" character=\"Exile\" x=\"0\" y=\"0\" realm=\"pc\"]",
+      "link": "[linkItem realm=\"pc\" location=\"BodyArmour\" character=\"Exile\" x=\"0\" y=\"0\"]",
       "location": {
         "id": "ch1",
         "scope": "character"
@@ -481,7 +481,7 @@
     {
       "cell": "stash_item",
       "label": "Chaos Orb",
-      "link": "[linkItem location=\"Stash2\" league=\"Standard\" x=\"3\" y=\"0\" realm=\"pc\"]",
+      "link": "[linkItem realm=\"pc\" location=\"Stash1\" league=\"Standard\" x=\"3\" y=\"0\"]",
       "location": {
         "id": "c1",
         "realm": "pc",
@@ -497,7 +497,7 @@
     {
       "cell": "stash_item",
       "label": "Chaos Orb",
-      "link": "[linkItem location=\"Stash3\" league=\"Standard\" x=\"0\" y=\"1\" realm=\"pc\"]",
+      "link": "[linkItem realm=\"pc\" location=\"Stash2\" league=\"Standard\" x=\"0\" y=\"1\"]",
       "location": {
         "id": "t2",
         "realm": "pc",
@@ -513,7 +513,7 @@
     {
       "cell": "hand_no_price",
       "label": "Chaos Orb",
-      "link": "[linkItem location=\"Stash2\" league=\"Standard\" x=\"8\" y=\"0\" realm=\"pc\"]",
+      "link": "[linkItem realm=\"pc\" location=\"Stash1\" league=\"Standard\" x=\"8\" y=\"0\"]",
       "location": {
         "id": "c1",
         "realm": "pc",

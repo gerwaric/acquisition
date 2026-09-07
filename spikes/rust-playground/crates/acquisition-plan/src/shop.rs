@@ -57,20 +57,24 @@
 //! any other word is blocked, not assumed; a socketed item has no
 //! position, T13; a substash item's link is unobserved, Q3; a stash
 //! item's tab must have been listed for its index, T13, and a recorded
-//! index that is negative or too large to add one to is blocked, never
-//! arithmetic; a character item needs its slot). Vocabularies are
+//! index below zero is blocked as a corrupt fact, never ranked; a
+//! character item needs its slot). Vocabularies are
 //! matched explicitly, so a new kind or realm lands in a blocked cell
 //! until a row is ruled for it (C74) — the table fails closed. A corrupt
 //! timestamp in a fact saturates the age it yields; nothing here
 //! panics on a store row (C47).
 //!
 //! **The link code and the spoiler title.** A stash item renders as
-//! `[linkItem location="Stash<index+1>" league="<L>" x="<x>" y="<y>"
-//! realm="<r>"]` (T7, T13, T15 — `index + 1` is the C++ app's derivation;
-//! which tab it names when folders occupy indices is Q1, and the forum's
-//! preview shows the item picture before anything is posted); a
-//! character item as `[linkItem location="<inventoryId>"
-//! character="<name>" x="<x>" y="<y>" realm="<r>"]` (T7, T8). The price
+//! `[linkItem realm="<r>" location="Stash<n>" league="<L>" x="<x>"
+//! y="<y>"]`, the attributes in the order the website's own link button
+//! writes them (T7, T24), where `n` is the tab's one-based rank among
+//! the tabs the website lists — the top-level tabs and folder children
+//! in listing order, folders and substashes left out (T24: the site's
+//! stash view numbers those 48 tabs 0–47 and its link says `Stash17`
+//! for web index 16; the API's `index` counts the folder too, so the
+//! C++ app's `index + 1` was one too high past a folder). A character
+//! item renders as `[linkItem realm="<r>" location="<inventoryId>"
+//! character="<name>" x="<x>" y="<y>"]` (T7, T8). The price
 //! is the title of the spoiler the links sit in — `[spoiler=" ~price
 //! <amount> <word>"]` or `[spoiler=" ~b/o <amount> <word>"]`, the C++
 //! app's form (T15) with its leading space, the currency table's `emit`
@@ -118,7 +122,7 @@
 //! what `acq refresh --plan` would send without this module compiling
 //! one, and a plan that fails to compile is said, never swallowed.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fmt;
 
 use acquisition_core::realm::Realm;
@@ -145,6 +149,9 @@ pub const DEFAULT_PAGE_SIZE: usize = 50_000;
 /// The token a template holds exactly once; the default template is the
 /// token alone.
 pub const ITEMS_TOKEN: &str = "[items]";
+
+/// The GGG tab type that groups tabs and holds no items.
+const FOLDER: &str = "Folder";
 
 /// What the table says to do with a cell's items.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -272,10 +279,10 @@ impl Cell {
     pub fn why(self) -> &'static str {
         match self {
             Cell::StashItem => {
-                "a hand-priced stash item at a listed tab: `[linkItem location=\"Stash<index+1>\" league= x= y= realm=]` under the price's spoiler (T7, T13, T15; a forum price over the tab's is T12; which tab `Stash<n>` names under folders is Q1 — the forum's preview shows the picture before posting)"
+                "a hand-priced stash item at a listed tab: `[linkItem realm= location=\"Stash<n>\" league= x= y=]` under the price's spoiler, `n` the tab's rank among the tabs the website lists — folders and substashes left out (T7, T13, T24; a forum price over the tab's is T12)"
             }
             Cell::CharacterItem => {
-                "a hand-priced character item in a slot: `[linkItem location=\"<inventoryId>\" character= x= y= realm=]` under the price's spoiler (T7, T8)"
+                "a hand-priced character item in a slot: `[linkItem realm= location=\"<inventoryId>\" character= x= y=]` under the price's spoiler (T7, T8)"
             }
             Cell::GameLists => {
                 "the game already lists it at its own price (T11, C81); a page must not contradict what the site shows (C74)"
@@ -310,7 +317,7 @@ impl Cell {
                 "the tab is not on the current stash listing, so it has no index for `Stash<n>` (T13)"
             }
             Cell::InvalidIndex => {
-                "the tab's recorded index is negative or too large to add one to: a corrupt fact, blocked rather than computed (C47)"
+                "the tab's recorded index is below zero: a corrupt fact, blocked rather than ranked (C47)"
             }
             Cell::NoSlot => "a character item without an `inventoryId` cannot be addressed (T13)",
             Cell::UnruledKind => {
@@ -532,11 +539,53 @@ struct Entry {
     parent: Option<String>,
 }
 
+/// A tab's number in a forum link, or why it has none.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum StashNumber {
+    /// One-based rank among the tabs the website lists.
+    Rank(usize),
+    /// A recorded index below zero.
+    Invalid,
+}
+
+/// `Stash<n>` for every listed tab (T24): the website's stash view lists
+/// the top-level tabs and folder children in listing order, folders and
+/// substashes left out, numbered from 0, and its link writes that number
+/// plus one. The API's `index` counts folders, so the rank is taken over
+/// the listed tabs sorted by `index`, never `index + 1` itself.
+fn stash_numbers(report: &ListingReport) -> HashMap<String, StashNumber> {
+    let mut listed: Vec<(i64, &str, bool)> = report
+        .listings
+        .iter()
+        .filter_map(|l| match (&l.subject.target, l.subject.index) {
+            (PriceTarget::Tab { id, .. }, Some(index)) => Some((
+                index,
+                id.as_str(),
+                l.subject.tab_type.as_deref() == Some(FOLDER),
+            )),
+            _ => None,
+        })
+        .collect();
+    listed.sort_by_key(|(index, _, _)| *index);
+    let mut out = HashMap::new();
+    let mut rank = 0usize;
+    for (index, id, folder) in listed {
+        if index < 0 {
+            out.insert(id.to_string(), StashNumber::Invalid);
+        } else if !folder {
+            rank += 1;
+            out.insert(id.to_string(), StashNumber::Rank(rank));
+        }
+    }
+    out
+}
+
 /// The cell an item falls in, and — when it posts — its entry.
 fn cell(
     l: &Listing,
     report: &ListingReport,
     table: &currency::CurrencyTable,
+    stash_numbers: &HashMap<String, StashNumber>,
 ) -> Result<Entry, Cell> {
     let s = &l.subject;
     let e = &l.effective;
@@ -609,9 +658,9 @@ fn cell(
             (
                 Cell::CharacterItem,
                 format!(
-                    "[linkItem location=\"{slot}\" character=\"{}\" x=\"{x}\" y=\"{y}\" realm=\"{}\"]",
-                    character.subject.name,
-                    realm.as_str()
+                    "[linkItem realm=\"{}\" location=\"{slot}\" character=\"{}\" x=\"{x}\" y=\"{y}\"]",
+                    realm.as_str(),
+                    character.subject.name
                 ),
                 None,
             )
@@ -620,13 +669,16 @@ fn cell(
             let Some(tab) = report.find(&location) else {
                 return Err(Cell::TabUnlisted);
             };
-            let Some(index) = tab.subject.index else {
+            // `Stash<n>` is the tab's rank among the tabs the website
+            // lists (T24); a tab never listed has none, a negative index
+            // is a corrupt fact.
+            let PriceTarget::Tab { id, .. } = &location else {
                 return Err(Cell::TabUnlisted);
             };
-            // `Stash<n>` is `index + 1` (T15): a recorded index below zero
-            // or at the type's ceiling is a corrupt fact, not a link.
-            let Some(stash_n) = (index >= 0).then(|| index.checked_add(1)).flatten() else {
-                return Err(Cell::InvalidIndex);
+            let stash_n = match stash_numbers.get(id) {
+                Some(StashNumber::Rank(n)) => *n,
+                Some(StashNumber::Invalid) => return Err(Cell::InvalidIndex),
+                None => return Err(Cell::TabUnlisted),
             };
             let parent = tab.chain.get(1).and_then(|t| match t {
                 PriceTarget::Tab { id, .. } => Some(id.clone()),
@@ -635,9 +687,9 @@ fn cell(
             (
                 Cell::StashItem,
                 format!(
-                    "[linkItem location=\"Stash{stash_n}\" league=\"{}\" x=\"{x}\" y=\"{y}\" realm=\"{}\"]",
-                    report.header.league,
-                    realm.as_str()
+                    "[linkItem realm=\"{}\" location=\"Stash{stash_n}\" league=\"{}\" x=\"{x}\" y=\"{y}\"]",
+                    realm.as_str(),
+                    report.header.league
                 ),
                 parent,
             )
@@ -707,10 +759,11 @@ pub fn render(report: &ListingReport, opts: &RenderOptions<'_>) -> Result<ShopRe
     };
     // Classify first; the page-size check needs the candidate count,
     // since the page title is reserved at its widest.
+    let numbers = stash_numbers(report);
     let mut candidates: Vec<(&Listing, Entry)> = Vec::new();
     for l in report.listings.iter().filter(|l| l.subject.is_item()) {
         counts.items += 1;
-        match cell(l, report, table) {
+        match cell(l, report, table, &numbers) {
             Ok(entry) => candidates.push((l, entry)),
             Err(cell) => take(&mut counts, l, cell),
         }
@@ -1284,7 +1337,7 @@ mod tests {
 
     /// C47, C74 — a store row never panics the render and a vocabulary
     /// the table has no row for fails closed: a corrupt timestamp
-    /// saturates the age, a negative or ceiling index is `invalid_index`,
+    /// saturates the age, a negative index is `invalid_index`,
     /// a hand-price kind the table does not write is `unruled_kind`, and
     /// a realm the site does not list is `realm_unlisted`.
     #[test]
@@ -1300,6 +1353,7 @@ mod tests {
                 t.idx = Some(-1);
             }
             if t.id == "t2" {
+                // Not a corrupt fact any more: a rank never adds to it.
                 t.idx = Some(i64::MAX);
             }
         }
@@ -1318,9 +1372,18 @@ mod tests {
             }),
         )
         .unwrap();
-        // c1's three hand-priced items and t2's one: blocked, counted.
-        assert_eq!(r.counts.by_cell[&Cell::InvalidIndex], 5);
-        assert_eq!(r.counts.posted, 1);
+        // c1's four hand-priced items are blocked; t2's item, at the
+        // largest index, is simply the last-ranked tab: after t3 and m1
+        // (the folder and the corrupt tab take no number) it is Stash3.
+        assert_eq!(r.counts.by_cell[&Cell::InvalidIndex], 4);
+        assert_eq!(r.counts.posted, 2);
+        assert!(
+            r.posted
+                .iter()
+                .any(|p| p.target.to_string() == "item/i-tabrow" && p.link.contains("Stash3")),
+            "{:?}",
+            r.posted
+        );
         assert_eq!(
             r.freshness.refresh_problem.as_deref(),
             Some("no such league")
@@ -1364,10 +1427,12 @@ mod tests {
         assert_eq!(r.counts.posted, 5);
     }
 
-    /// C74, T7, T13, T15 — the two link shapes and the price line: a
-    /// stash item by its tab's `index + 1`, a character item by its slot
-    /// and the character's name; `~price` and `~b/o` with the table's
-    /// word; grouped by price with a blank line between groups.
+    /// C74, T7, T13, T24 — the two link shapes in the website's attribute
+    /// order: a stash item by its tab's rank among the tabs the website
+    /// lists (the folder at index 0 takes no number, so c1 at index 1 is
+    /// `Stash1` and t2 at index 2 is `Stash2`), a character item by its
+    /// slot and the character's name; `~price` and `~b/o` as spoiler
+    /// titles with the table's word; one spoiler per price.
     #[test]
     fn c74_the_link_codes_and_spoiler_titles_are_the_observed_shapes() {
         let r = render(&report(), &opts(PolicySource::NotSet)).unwrap();
@@ -1380,13 +1445,13 @@ mod tests {
         let hand = find("i-hand");
         assert_eq!(
             hand.link,
-            "[linkItem location=\"Stash2\" league=\"Standard\" x=\"1\" y=\"0\" realm=\"pc\"]"
+            "[linkItem realm=\"pc\" location=\"Stash1\" league=\"Standard\" x=\"1\" y=\"0\"]"
         );
         assert_eq!(hand.title, " ~price 5 chaos");
         let worn = find("i-worn");
         assert_eq!(
             worn.link,
-            "[linkItem location=\"BodyArmour\" character=\"Exile\" x=\"0\" y=\"0\" realm=\"pc\"]"
+            "[linkItem realm=\"pc\" location=\"BodyArmour\" character=\"Exile\" x=\"0\" y=\"0\"]"
         );
         assert_eq!(worn.title, " ~price 10 divine");
         assert_eq!(find("i-bo").title, " ~b/o 1.5 divine");
@@ -1400,11 +1465,11 @@ mod tests {
         assert_eq!(
             page.text,
             "[spoiler=\"Shop Post 1 of 1 (6 items)\"]\n\
-             [spoiler=\" ~price 5 chaos\"][linkItem location=\"Stash2\" league=\"Standard\" x=\"1\" y=\"0\" realm=\"pc\"][linkItem location=\"Stash2\" league=\"Standard\" x=\"2\" y=\"0\" realm=\"pc\"][/spoiler]\n\
-             [spoiler=\" ~price 10 divine\"][linkItem location=\"BodyArmour\" character=\"Exile\" x=\"0\" y=\"0\" realm=\"pc\"][/spoiler]\n\
-             [spoiler=\" ~b/o 1.5 divine\"][linkItem location=\"Stash2\" league=\"Standard\" x=\"3\" y=\"0\" realm=\"pc\"][/spoiler]\n\
-             [spoiler=\" ~b/o 2 divine\"][linkItem location=\"Stash3\" league=\"Standard\" x=\"0\" y=\"1\" realm=\"pc\"][/spoiler]\n\
-             [spoiler=\"\"][linkItem location=\"Stash2\" league=\"Standard\" x=\"8\" y=\"0\" realm=\"pc\"][/spoiler]\n\
+             [spoiler=\" ~price 5 chaos\"][linkItem realm=\"pc\" location=\"Stash1\" league=\"Standard\" x=\"1\" y=\"0\"][linkItem realm=\"pc\" location=\"Stash1\" league=\"Standard\" x=\"2\" y=\"0\"][/spoiler]\n\
+             [spoiler=\" ~price 10 divine\"][linkItem realm=\"pc\" location=\"BodyArmour\" character=\"Exile\" x=\"0\" y=\"0\"][/spoiler]\n\
+             [spoiler=\" ~b/o 1.5 divine\"][linkItem realm=\"pc\" location=\"Stash1\" league=\"Standard\" x=\"3\" y=\"0\"][/spoiler]\n\
+             [spoiler=\" ~b/o 2 divine\"][linkItem realm=\"pc\" location=\"Stash2\" league=\"Standard\" x=\"0\" y=\"1\"][/spoiler]\n\
+             [spoiler=\"\"][linkItem realm=\"pc\" location=\"Stash1\" league=\"Standard\" x=\"8\" y=\"0\"][/spoiler]\n\
              [/spoiler]\n"
         );
         assert_eq!(page.chars, page.text.chars().count());

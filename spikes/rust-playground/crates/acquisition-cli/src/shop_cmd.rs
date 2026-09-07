@@ -418,7 +418,7 @@ mod tests {
             page,
             title: " ~price 5 chaos".into(),
             link: format!(
-                "[linkItem location=\"Stash2\" league=\"Standard\" x=\"0\" y=\"0\" realm=\"pc\"] {id}"
+                "[linkItem realm=\"pc\" location=\"Stash1\" league=\"Standard\" x=\"0\" y=\"0\"] {id}"
             ),
         };
         ShopRender {
