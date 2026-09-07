@@ -34,7 +34,7 @@
 //!
 //! # As built
 //!
-//! What the planner does, moved here from the README on 2026-09-02:
+//! What the planner does:
 //!
 //! `plan_refresh(provider, &snapshot, now)` parses
 //! the snapshot's sync-policy row (the planner owns that value's schema:

@@ -22,8 +22,8 @@
 //!
 //! # As built
 //!
-//! The ingest semantics, moved here from the README on 2026-09-02 (the
-//! boundary properties are `CONTEXT.md` decisions; the tests are the spec):
+//! The ingest semantics (the boundary properties are the registry's
+//! decisions; the tests are the spec):
 //!
 //! Item membership is per
 //! response, like listing membership: a fetch retires what it did not
