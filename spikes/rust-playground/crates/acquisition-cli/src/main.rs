@@ -263,7 +263,9 @@ enum PriceCmd {
     },
     /// Listed items grouped by container, ten or fewer listed per group
     /// and more counted (--expand lists every one with its texts).
-    /// Without --relation, items whose relation is `none` are left out.
+    /// With neither --relation nor --effective, items whose relation is
+    /// `none` are left out — except unresolved ones (a row that cannot
+    /// be read could decide), which are always listed.
     List {
         #[arg(long, default_value = "Standard")]
         league: String,

@@ -513,11 +513,11 @@ pub struct ListingReport {
     pub listings: Vec<Listing>,
 }
 
-/// Which items `list` selects: by relation (absent: every relation but
-/// `none`, plus every unresolved item whatever its relation), by the
-/// effective price's side, physically in one container, or covered by a
-/// row on one target (C70) — the two are different sets for a folder or
-/// a parent tab.
+/// Which items `list` selects: by relation, by the effective price's
+/// side (when neither is given: every relation but `none`, plus every
+/// unresolved item whatever its relation), physically in one container,
+/// or covered by a row on one target (C70) — the two are different sets
+/// for a folder or a parent tab.
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct ListFilter {
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -609,9 +609,13 @@ impl ListingReport {
             .listings
             .iter()
             .filter(|l| l.subject.is_item())
-            .filter(|l| match filter.relation {
-                Some(rel) => l.relation == rel,
-                None => l.relation != Relation::None || l.effective.kind == "unresolved",
+            // The default suppression of `none` applies only when neither
+            // selector was given: `--effective none` must be able to select
+            // exactly the items nothing applies to.
+            .filter(|l| match (filter.relation, &filter.effective) {
+                (Some(rel), _) => l.relation == rel,
+                (None, Some(_)) => true,
+                (None, None) => l.relation != Relation::None || l.effective.kind == "unresolved",
             })
             .filter(|l| {
                 filter
@@ -1912,13 +1916,32 @@ mod tests {
                 .collect::<Vec<_>>(),
             ["item/i-dump"]
         );
-        let by_hand = report
-            .list_view(ListFilter {
-                effective: Some("manual".into()),
-                ..ListFilter::default()
-            })
-            .unwrap();
-        assert_eq!(by_hand.items.len(), 3);
+        // Every effective side selects on its own, `none` included: the
+        // default suppression of relation `none` does not run under a
+        // selector, or `--effective none` could never find anything.
+        let mut snap = snapshot();
+        snap.buyouts.retain(|r| r.key != "i-dump"); // i-dump: nothing applies
+        let report = resolve(&snap).unwrap();
+        let by_side = |side: &str| -> Vec<String> {
+            report
+                .list_view(ListFilter {
+                    effective: Some(side.into()),
+                    ..ListFilter::default()
+                })
+                .unwrap()
+                .items
+                .iter()
+                .map(|l| l.subject.target.to_string())
+                .collect()
+        };
+        assert_eq!(by_side("game").len(), 5);
+        assert_eq!(by_side("manual").len(), 3);
+        assert_eq!(by_side("none"), ["item/i-dump"]);
+        assert_eq!(by_side("unresolved"), Vec::<String>::new());
+        assert_eq!(
+            by_side("game").len() + by_side("manual").len() + by_side("none").len(),
+            report.counts.items
+        );
     }
 
     /// C53 — the JSON shape is the contract: the resolved fixture must
