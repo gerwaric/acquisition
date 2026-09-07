@@ -1734,6 +1734,89 @@ mod tests {
         assert_eq!(r.freshness.position_before_listing.len(), 1);
     }
 
+    /// T24 — `Stash<n>` against the website's own numbering, at scale: the
+    /// owner's two leagues as the site listed them on 2026-09-07 beside
+    /// the API's listings (`reference/website-tabs-2026-09-07.json`).
+    /// Standard has 16 folders interleaved among 402 tabs, 64 substashes
+    /// and 274 remove-only tabs; every tab the site lists ranks exactly at
+    /// its site number plus one, and no folder or substash has a number.
+    #[test]
+    fn t24_stash_numbers_match_the_websites_own_list() {
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/reference/website-tabs-2026-09-07.json"
+        );
+        let doc: Value = serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
+        for (league, lists) in doc["leagues"].as_object().unwrap() {
+            let tabs: Vec<TabSnapshot> = lists["api"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|t| TabSnapshot {
+                    id: t["id"].as_str().unwrap().into(),
+                    parent: t["parent"].as_str().map(str::to_string),
+                    name: String::new(),
+                    r#type: t["type"].as_str().unwrap().into(),
+                    idx: t["index"].as_i64(),
+                    listed_at: Some(1_000),
+                    listed_response: Some(2),
+                    fetched_at: None,
+                    metadata: Value::Null,
+                    item_count: 0,
+                })
+                .collect();
+            let folders: usize = tabs.iter().filter(|t| t.r#type == FOLDER).count();
+            let substashes: usize = tabs
+                .iter()
+                .filter(|t| {
+                    t.parent
+                        .as_deref()
+                        .is_some_and(|p| tabs.iter().any(|q| q.id == p && q.r#type != FOLDER))
+                })
+                .count();
+            let mut snap = snapshot();
+            snap.league = league.clone();
+            snap.tabs = tabs;
+            snap.items.clear();
+            snap.buyouts.clear();
+            let numbers = stash_numbers(&resolve(&snap).unwrap());
+            let web = lists["web"].as_array().unwrap();
+            assert_eq!(
+                numbers.len(),
+                web.len(),
+                "{league}: {} numbered, {} on the site ({folders} folders, {substashes} substashes)",
+                numbers.len(),
+                web.len()
+            );
+            for t in web {
+                let site_id = t["id"].as_str().unwrap();
+                let api_id: String = site_id.chars().take(10).collect();
+                let want = t["i"].as_u64().unwrap() as usize + 1;
+                assert_eq!(
+                    numbers.get(&api_id),
+                    Some(&StashNumber::Rank(want)),
+                    "{league}: {} ({}) at site number {}",
+                    t["n"],
+                    api_id,
+                    t["i"]
+                );
+            }
+            for t in &snap.tabs {
+                if t.r#type == FOLDER
+                    || t.parent
+                        .as_deref()
+                        .is_some_and(|p| snap.tabs.iter().any(|q| q.id == p && q.r#type != FOLDER))
+                {
+                    assert!(
+                        !numbers.contains_key(&t.id),
+                        "{league}: {} has a number",
+                        t.id
+                    );
+                }
+            }
+        }
+    }
+
     /// C53 — the JSON shape is the contract: the rendered fixture must
     /// serialize to exactly the committed document. A difference is
     /// either additive (regenerate with `ACQ_UPDATE_FIXTURES=1`) or a

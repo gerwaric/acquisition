@@ -343,7 +343,7 @@ it (T15). The second pass's first paste (Allflame, after the refresh
 in the run ledger) answered Q1 the hard way: the first link, `Stash18`
 for an item in the tab inside the owner's folder, did not resolve; the
 website's own button wrote `Stash17`, and the owner's saved copy of the
-website's tab list (`brainstorming-notes/allflame-web-tabs.json`) showed
+website's tab list (now `reference/website-tabs-2026-09-07.json`) showed
 the rule — the site numbers the tabs it lists from 0 with folders and
 substashes absent, and the link is that number plus one (T24). The
 render now ranks the listed tabs the site's way and writes the
@@ -415,10 +415,12 @@ shows the item picture, so a wrong link is visible before posting.
   `tab_unlisted` cell. Since T24 the index only orders the tabs — the
   rank among the listed non-folder tabs is what a link carries — so the
   fallback would matter only if it reordered them.
-- T24 was read on a league with one folder and no remove-only tab;
-  whether the website leaves other tab kinds out of its numbering (the
-  owner's Standard stash has 13 remove-only tabs) is the next thing a
-  link from that league would show.
+- T24 held at scale the same day: the owner's Standard list (322
+  tabs, 16 folders interleaved, 64 substashes and 274 remove-only tabs)
+  ranks every listed tab at its site number plus one; both lists sit
+  beside the API's listings in
+  `crates/acquisition-plan/reference/website-tabs-2026-09-07.json`,
+  pinned by `t24_stash_numbers_match_the_websites_own_list`.
 - `priced_tabs` counts names that read as a price whether or not the
   tab is public (the owner's 13 remove-only tabs are the case), beside
   `priced_tabs_public`; whether `status` should lead with the residue
