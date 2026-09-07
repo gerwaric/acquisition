@@ -43,7 +43,7 @@ claims authored master-side. Nothing here is a second authority.
   first pass ran 2026-09-07 (below): the owner posted a page, answered
   Q3 and Q5 (T20, T21), and set the page's shape (T22; `423d39aa`,
   shop render schema **3**); what stays open for its second pass is
-  Q1 and whether the site reads the spoiler title as the price.
+  Q1 and the no-price item under an empty title.
 - The forum is **write-only from our side**: `/character` returns no
   `forum_note` for a forum-listed item (price-notes run, 2026-09-04), so
   the game side of a listing is item note, then tab name (C69), and a
@@ -314,11 +314,13 @@ listed together; all prices should be wrapped in a spoiler tag;
 newlines only between spoiler tags; each page should be wrapped in a
 spoiler", with the stored post as the example (T22). What changed: the
 substash cell is blocked on T20 instead of Q3; the no-price cell posts
-(T21); the page is nested spoilers (schema 3). Not yet read: Q1, and
-whether the site takes the spoiler title as the price — the owner's
-own items at their prices on the site would show it; whether the
-coverage, stale and positions lines changed what the owner did was
-not said. The verdict on the page as a whole is the second pass's.
+(T21); the page is nested spoilers (schema 3). Asked and answered the
+same day, verbatim: "the spoiler text is used as the price for every
+item within that spoiler block" (T22 upgraded, `8c312138`) — so the
+spoiler title is where the indexer reads the price, as the C++ app had
+it (T15). Not yet read: Q1; whether the coverage, stale and positions
+lines changed what the owner did was not said. The verdict on the
+page as a whole is the second pass's.
 
 ## Observations still open
 
@@ -421,9 +423,8 @@ shows the item picture, so a wrong link is visible before posting.
 3. Reading 2, second pass (`acq shop render`, then `--page 1 | pbcopy`
    into the shop thread's editor and *Preview* before posting), on the
    reshaped page: does the preview show the right item for a tab past
-   a folder (Q1)? Do the items appear on the trade site at the prices
-   the spoiler titles carry (T22's unstated half)? Is a no-price item
-   under the empty title listed as "No Price Set" (T21 under `[spoiler=""]`)?
+   a folder (Q1)? Is a no-price item under the empty title listed as
+   "No Price Set" (T21 under `[spoiler=""]`)?
    And your verdict on the page, verbatim, with whether the coverage,
    stale and positions lines changed what you did.
 4. C68 says reference data is "enumerable through every surface", but
