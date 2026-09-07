@@ -515,9 +515,15 @@ So `Stash<n>` is the tab's one-based rank among the tabs the website
 lists, not the API's `index + 1` (T13, T15): the two agree until the
 first folder and differ by the folder count after it — the render's
 first page wrote `Stash18` for that item and the link did not resolve.
-Whether the website omits other tab kinds too (remove-only tabs, say)
-is not established: this league has none. Q1 is answered; the attribute
-order is the one T7 showed for a character item.
+The same day the owner saved the Standard list: 322 tabs numbered 0–321
+against the API's 402 — the 16 folders and 64 substashes absent, the
+274 remove-only tabs present — and the rank rule matched every one of
+the 322 with the folders interleaved (the spike's
+`reference/website-tabs-2026-09-07.json` holds both lists beside the
+API's, pinned by `t24_stash_numbers_match_the_websites_own_list`). So
+the website leaves out folders and substashes and nothing else seen.
+Q1 is answered; the attribute order is the one T7 showed for a
+character item.
 
 ### Community evidence
 
@@ -622,8 +628,8 @@ answered.
 
 - **Q1. `Stash<n>` numbering under folders and substashes.** Answered
   September 7, 2026: the one-based rank among the tabs the website
-  lists, folders and substashes left out (T24). Open in its place:
-  whether the website leaves out any other tab kind.
+  lists, folders and substashes left out (T24); remove-only tabs are
+  listed and numbered like any other.
 - **Q2. Item note versus tab name in game.** Rename the test tab to a
   valid price and see whether the noted items keep their own price on
   the site (T11). The spike's note-then-tab order rests on the C++ code
