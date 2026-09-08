@@ -603,8 +603,10 @@ impl Annotations {
                 path,
             });
         }
-        // WAL like the fact store: one writer at a time, any number of readers.
-        conn.pragma_update(None, "journal_mode", "WAL")?;
+        // WAL like the fact store: one writer at a time, any number of
+        // readers — switched on creation, under `crate::ensure_wal`'s
+        // retry (two processes creating one file together).
+        crate::ensure_wal(&conn)?;
         // FULL, not the fact store's NORMAL: under WAL, NORMAL keeps the
         // file consistent but lets the last commits before a power loss
         // roll back, and this is the one file with no server to refetch

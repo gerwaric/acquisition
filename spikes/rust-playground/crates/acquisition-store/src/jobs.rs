@@ -98,7 +98,7 @@ impl JobDb {
     }
 
     fn init(conn: Connection, path: PathBuf) -> Result<JobDb> {
-        conn.pragma_update(None, "journal_mode", "WAL")?;
+        crate::ensure_wal(&conn)?;
         conn.pragma_update(None, "synchronous", "NORMAL")?;
         conn.busy_timeout(std::time::Duration::from_secs(5))?;
         conn.execute_batch(SCHEMA)?;
@@ -107,6 +107,12 @@ impl JobDb {
 
     pub fn path(&self) -> &Path {
         &self.path
+    }
+
+    /// Checkpoint and truncate the queue's WAL ([`crate::Store::checkpoint`]
+    /// says why): the daemon calls it on its way out.
+    pub fn checkpoint(&self) -> Result<crate::Checkpoint> {
+        crate::checkpoint(&self.conn)
     }
 
     /// Make every later statement fail, so the daemon's queue-failure

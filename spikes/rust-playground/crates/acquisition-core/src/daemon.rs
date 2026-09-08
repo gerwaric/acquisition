@@ -2986,9 +2986,7 @@ resubmit if still wanted",
                         break;
                     }
                     if stopping {
-                        self.log("stop requested; exiting");
-                        let _ = std::fs::remove_file(socket_path());
-                        std::process::exit(0);
+                        self.exit_process("stop requested; exiting");
                     }
                 }
                 event = recv_event(&mut events) => {
@@ -3401,6 +3399,53 @@ resubmit if still wanted",
         self.work.notify_one();
     }
 
+    /// The one way out. The daemon leaves by `process::exit`, so nothing
+    /// is dropped: the store's and the queue's write-ahead logs are
+    /// checkpointed here first (`Store::checkpoint`: an exit without it
+    /// left every fact since the last automatic checkpoint in a `-wal`
+    /// beside the file — the price-notes run, 2026-09-04; plan step 7,
+    /// item 4), then the socket is removed, then the process exits. A
+    /// checkpoint a reader keeps from finishing is logged, never waited
+    /// on. Pinned by `tests/daemon_stop_checkpoint.rs` (acquisition-cli).
+    fn exit_process(&self, why: &str) -> ! {
+        self.log(why);
+        {
+            let guard = self.store.lock().unwrap();
+            if let Some((account, store)) = guard.as_ref() {
+                match store.checkpoint() {
+                    Ok(c) => self.log(&format!(
+                        "store: {account}'s facts checkpointed on exit ({} of {} WAL pages{})",
+                        c.checkpointed,
+                        c.wal_pages,
+                        if c.busy {
+                            "; a reader kept it from finishing"
+                        } else {
+                            ""
+                        }
+                    )),
+                    Err(e) => self.note_error(&format!(
+                        "store: checkpoint of {account}'s facts on exit failed: {e:#}"
+                    )),
+                }
+            }
+        }
+        match self.jobs_db.lock().unwrap().checkpoint() {
+            Ok(c) => self.log(&format!(
+                "jobs: queue checkpointed on exit ({} of {} WAL pages{})",
+                c.checkpointed,
+                c.wal_pages,
+                if c.busy {
+                    "; a reader kept it from finishing"
+                } else {
+                    ""
+                }
+            )),
+            Err(e) => self.note_error(&format!("jobs: queue checkpoint on exit failed: {e:#}")),
+        }
+        let _ = std::fs::remove_file(socket_path());
+        std::process::exit(0);
+    }
+
     async fn idle_watchdog(self: Arc<Self>) {
         let idle_shutdown = idle_shutdown_from_env();
         loop {
@@ -3416,9 +3461,7 @@ resubmit if still wanted",
             // have to assume the worst about every hit it can't see.
             let idle = idle && !self.choke.is_live();
             if idle {
-                self.log("idle timeout; exiting");
-                let _ = std::fs::remove_file(socket_path());
-                std::process::exit(0);
+                self.exit_process("idle timeout; exiting");
             }
         }
     }

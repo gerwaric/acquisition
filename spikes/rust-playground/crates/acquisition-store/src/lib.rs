@@ -696,6 +696,62 @@ pub struct Store {
     path: PathBuf,
 }
 
+/// What a WAL checkpoint did: whether a reader kept it from finishing,
+/// how many pages the log held, how many reached the file.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Checkpoint {
+    pub busy: bool,
+    pub wal_pages: i64,
+    pub checkpointed: i64,
+}
+
+/// Put a file into WAL mode when it is created, and leave a file already
+/// in WAL mode alone (reading the mode takes no lock, and a fresh
+/// connection learns it from the header). The switch itself is the one
+/// statement SQLite's busy handler does not cover: converting a
+/// rollback-mode file takes the write lock from inside the read
+/// transaction the pragma opened, and a second process creating the
+/// same file at that instant is answered `database is locked` at once —
+/// two first-ever `acq price set`s started together met exactly that on
+/// the intent file (plan step 7, item 3; `tests/price_story.rs` in
+/// acquisition-cli races the creation in its first round). So the switch
+/// retries, briefly, up to the same five seconds the busy timeout gives
+/// every other statement; the loser's retry finds the winner's WAL file
+/// and is a no-op.
+pub(crate) fn ensure_wal(conn: &Connection) -> rusqlite::Result<()> {
+    let mode: String = conn.query_row("PRAGMA journal_mode", [], |r| r.get(0))?;
+    if mode.eq_ignore_ascii_case("wal") {
+        return Ok(());
+    }
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+    loop {
+        match conn.pragma_update(None, "journal_mode", "WAL") {
+            Ok(()) => return Ok(()),
+            Err(rusqlite::Error::SqliteFailure(f, _))
+                if f.code == rusqlite::ErrorCode::DatabaseBusy
+                    && std::time::Instant::now() < deadline =>
+            {
+                std::thread::sleep(std::time::Duration::from_millis(5));
+            }
+            Err(e) => return Err(e),
+        }
+    }
+}
+
+/// `PRAGMA wal_checkpoint(TRUNCATE)` on one connection: its row is
+/// `(busy, log, checkpointed)`.
+pub(crate) fn checkpoint(conn: &Connection) -> Result<Checkpoint> {
+    let (busy, wal_pages, checkpointed): (i64, i64, i64) =
+        conn.query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |r| {
+            Ok((r.get(0)?, r.get(1)?, r.get(2)?))
+        })?;
+    Ok(Checkpoint {
+        busy: busy != 0,
+        wal_pages,
+        checkpointed,
+    })
+}
+
 impl Store {
     pub fn open(path: &Path) -> Result<Store> {
         if let Some(dir) = path.parent() {
@@ -711,7 +767,7 @@ impl Store {
 
     fn init(mut conn: Connection, path: PathBuf) -> Result<Store> {
         // WAL: the daemon writes while any number of frontends read.
-        conn.pragma_update(None, "journal_mode", "WAL")?;
+        ensure_wal(&conn)?;
         conn.pragma_update(None, "synchronous", "NORMAL")?;
         conn.busy_timeout(std::time::Duration::from_secs(5))?;
         // Discovery and migration serialize under one immediate
@@ -868,6 +924,20 @@ impl Store {
         }
         tx.commit()?;
         Ok(Store { conn, path })
+    }
+
+    /// Checkpoint the write-ahead log into the file and truncate it
+    /// (`PRAGMA wal_checkpoint(TRUNCATE)`). A process that leaves by
+    /// `process::exit` never closes its connection, so SQLite never runs
+    /// the close-time checkpoint and the `-wal` stays beside the file with
+    /// every fact since the last automatic one — which an `immutable=1`
+    /// reader (`tools/census.py`) refuses and `tools/notes-check.py` had to
+    /// read through (the price-notes run, 2026-09-04; plan step 7, item
+    /// 4). The daemon calls this on its way out. Best effort: a reader
+    /// mid-transaction leaves pages behind, reported in the result, never
+    /// an error.
+    pub fn checkpoint(&self) -> Result<Checkpoint> {
+        checkpoint(&self.conn)
     }
 
     pub fn path(&self) -> &Path {
