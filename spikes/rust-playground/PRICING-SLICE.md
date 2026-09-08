@@ -56,8 +56,13 @@ claims authored master-side. Nothing here is a second authority.
   guards over it tiled). Items 3 and 4
   landed the same day (`1eaef2f4`): the story and its races through
   the binary, which found and fixed the intent file's creation race,
-  and the daemon's checkpoint on exit. Item 5 is the owner's, by hand,
-  any time (ledger below).
+  and the daemon's checkpoint on exit. **Item 5 ran 2026-09-08** (the
+  owner's eight saved search pages against the store of the same day;
+  ledger row and "What the site taught" below): Q11 answered,
+  `metadata.public` is the whole condition; no difference changes what
+  a page does; seven site facts for the owner to author as claims and
+  one C69 question. Every item of step 7 has its pin or its reading:
+  the closed record can be cut when the owner has read this.
 - The forum is **write-only from our side**: `/character` returns no
   `forum_note` for a forum-listed item (price-notes run, 2026-09-04), so
   the game side of a listing is item note, then tab name (C69), and a
@@ -65,8 +70,11 @@ claims authored master-side. Nothing here is a second authority.
 - Reading a store or intent change before reviewing one: `REFRESH-SLICE.md`'s
   findings table is the checklist, plus the rows below.
 - Read-only tools: `tools/census.py` (the 0.18 userstore and the facts;
-  refuses an uncheckpointed WAL) and `tools/notes-check.py` (the price
-  notes a refresh landed; reads through the WAL).
+  refuses an uncheckpointed WAL), `tools/notes-check.py` (the price
+  notes a refresh landed; reads through the WAL), `tools/site-listings.py`
+  (the trade site's saved search pages → one table by item id) and
+  `tools/site-join.py` (that table against the listing state the
+  `listing-report` example writes, unredacted, under `runs/`).
 
 ## Plan (re-scoped 2026-09-04)
 
@@ -199,6 +207,7 @@ claims file's appendix maps T→C as well.
 | Pricing | plan 7.2 fixture tests | `48d542eb` | `real_scale_fixture.rs` in `acquisition-plan` and `acquisition-cli` (test-only loaders; the CLI's tiles the items). `listing.rs`: the league resolves whole — one listing per fact, every location and chain reference a subject of the report, every count summed against the items and read against the file: 50 notes, all in the one public tab with a row on it, are 46 exact, 2 negotiable, 1 skip and the dialog's one residue; the 16 `~` names are 14 prices (1 public) and the two lot ratios a tab name cannot carry (T19); the 16 rows are 5 applied, 11 unmatched (10 items of another league, 1 tab), none unreadable. The owner's five rows land by C70/C80/C81: the tab row covers the test tab's 80 items (78 inherited, 2 own), the 49 game statements decide over it, the substash row its 5 under a non-public parent that holds nothing, the character's `skip` its 3; `list`'s default is those 88 in four containers; the report re-reads exactly and every container's `show` holds its two sets. `shop.rs`: every item in one cell — 48 game prices, 1 `~skip`, 3 hand skips omitted; 5 substash items blocked; 1,889 nothing; 31 posted on one page under three titles, each link once; T24 with the site as the oracle — the snapshot's listed tabs are the website's list of the day by name and type, and every posted link numbers its tab as the site does (`Stash57`); C72 at the snapshot's clock: the test tab four days stale under an hour's window, the one uncovered container under a policy naming none of it. Time guards where a debug build measured milliseconds — cliffs, not budgets: resolve and render under 2 s; `render_text(expand)` under 2 s at 63k items tiled, where the review's quadratic search measured 3.9 s at half that scale; `list --effective none`, `show`, `status` expanded under 5 s at 32k. | `c69_at_real_scale_every_fact_has_one_listing_and_the_counts_are_the_files`, `c70_at_real_scale_the_owners_rows_cover_what_the_rules_say`, `c53_at_real_scale_the_report_round_trips_and_every_container_shows_its_two_sets` (`listing.rs`); `c74_at_real_scale_every_item_lands_in_one_cell_and_the_page_is_the_owners_test_tab`, `t24_at_real_scale_every_posted_link_numbers_its_tab_as_the_website_does`, `c72_at_real_scale_the_freshness_lines_name_the_owners_test_tab` (`shop.rs`); `c53_the_expanded_render_is_linear_over_the_owners_league_tiled` (`shop_cmd.rs`); `c53_the_expanded_list_show_and_status_are_linear_over_the_owners_league_tiled` (`price_cmd.rs`) |
 | Pricing | plan 7.3 story and races | `1eaef2f4` | `tests/price_story.rs` (acquisition-cli): set, show, render, clear as one story through the spawned binary, then the races as properties under every interleaving, run in rounds with the processes started together — two blind writers on one row never clobber and the receipts chain from the row before the round to the row `show` reads after it (C35, C78); a stale `--if-revision` on `set` and `clear` conflicts naming the current revision, `{"error":…}` with exit 1, nothing changed (C35, C11); a clear under a render always lands and the render is one function of one read, never a torn page (C64, C74). **Found:** the seed leaves no intent file, so round 1 races its creation, and about one run in six a first-ever writer was refused "busy: another writer held it past 5 s" in under a second — `PRAGMA journal_mode=WAL` on a fresh file takes the write lock from inside the read transaction the pragma opened, a path SQLite's busy handler does not cover, so the second creator is answered `database is locked` at once. **Fixed:** the three opens (facts, intent, queue) go through `ensure_wal` — an already-WAL file is left alone, the creation switch retries up to the busy timeout; 20 runs after: no refusal, one to four genuine conflicts a run, every chain intact. A first theory (the busy timeout installed too late) was wrong — rusqlite installs it at open — and was reverted. | `c74_set_show_render_clear_…`, `c35_two_blind_writers_…`, `c35_a_stale_revision_…`, `c74_a_clear_under_a_render_…`; `ensure_wal` (`acquisition-store/src/lib.rs`) |
 | Pricing | plan 7.4 checkpoint on stop | `1eaef2f4` | the daemon leaves by `process::exit`, so its connections never closed and the WALs stayed beside the facts file and `daemon.db` (the price-notes run: 1.1 MB the census refused). `Store::checkpoint` and `JobDb::checkpoint` (`PRAGMA wal_checkpoint(TRUNCATE)`); the daemon's two exits — stop request, idle watchdog — go through one `exit_process` that checkpoints the open store and the queue, logs the page counts, removes the socket, exits. `tests/daemon_stop_checkpoint.rs`: a listing landed through a real daemon over the mock, both WALs holding pages before the stop (so an empty one after is the checkpoint's doing), the socket gone, both WALs empty; seen failing first at 107 KB. `tools/census.py`'s guard and `tools/notes-check.py`'s "stop the daemon first" stand, and now mean what they say. | `daemon_stop_checkpoints_the_facts_file_and_the_queue`; `exit_process` (`daemon.rs`) |
+| Pricing | plan 7.5 the site as the oracle | `df248a17` | `tools/site-listings.py`: the owner's saved pages (rendered DOM, eight parts, `runs/site/`) → one table by item id, deduped across parts, each part's "Showing N results" line kept, the price label (Exact, Asking, No Price Set, and a fourth, "Price with Note:"), amount, the site's currency word, the note verbatim, the age, and the channel — a stash row links the profile, a forum row its thread. `examples/listing-report.rs`: the `ListingReport` `acq price list --json` renders, unredacted, to stdout (the join key is the id), kept under `runs/`. `tools/site-join.py`: the join under a reason list fixed before it ran; two reasons it found (`socketed`, `stackable`) were added with the run, and the doc says so. The pages of 2026-09-08: 551 rows, none shared between parts, 547 stash and 4 forum, all verified, one account; the store the same day (the run ledger's refresh): 20,941 items, 757 the state expects on the site. **Q11 answered:** every stash row is from a tab whose `metadata.public` is true; the 13 non-public priced tabs (1,121 items) put nothing there — C81's premise holds, and note 15's 8888 finding was the flag set after the 09-07 listing (the 09-08 facts hold it public). 532 agree, 20,180 absent on both; 15 differ; 4 site-only, the forum rows; 210 state-only; one row no reason explains. **No difference changes what a page does** — the render omits what the game lists at whatever price, blocks a socketed item (T13), and posts nothing the site shows — so each is an observation with its trigger or a claim for the owner ("What the site taught"). | `reference/site-listings-2026-09-08.json` (the table; the pages stay in `runs/`); the tools; the join's output is reproducible from the two |
 | Pricing | plan 7 gate | `04993ca5` | **Found by the bare gate at session close:** the store's C35 export race test failed one run in twelve — on the pre-session store code too — with both exports refused. An export's partial file was named by pid and the clock's nanoseconds; two threads within one tick (microseconds on macOS) shared the name, one `VACUUM INTO` failed on the other's file and its cleanup removed that file before it was published. A per-process counter joins the name; thirty runs after, none failed. | `simultaneous_exports_to_one_destination_publish_exactly_one` (`annotations.rs`) |
 
 ## Findings
@@ -399,6 +408,98 @@ character link's name case (`I_EXIST` as listed, `I_Exist` as the site
 wrote it, T7), and the owner's verdict, with whether the coverage,
 stale and positions lines changed what they did.
 
+## What the site taught (step 7, item 5, 2026-09-08)
+
+The seller-account search for this account in Standard, saved by the
+owner in eight parts and joined by item id against the listing state of
+the same day (the ledger row above; `tools/site-join.py --rows` lists
+every row below). The test the brief set (`brainstorming-notes/15`): a
+difference earns a rule only if it flips a render verdict for some
+item. None did. What follows is each reason with its verdict, the
+trigger that would make it more, and the claim the owner may author
+master-side (`docs/design/trade-ground-truth.md`; never from here).
+
+1. **`metadata.public` is the whole condition** (Q11). 547 stash rows,
+   every one from one of the 13 tabs the facts hold public; the 13
+   non-public priced tabs — `~price 30 chaos (C)`, the twelve
+   `(Remove-only)` names, 1,121 items — put nothing on the site, nor
+   did any of the 114 other residue notes. C81 stands on it. Claim: the
+   seller-account search shows a stash item only from a public premium
+   tab; a priced name on a non-public tab reaches nothing [RUN, 09-08].
+2. **A ratio in a public tab's name lists nothing** (T11 at scale): the
+   two public tabs `~b/o 5000/2 chaos` (56 items) and `~price 1000/2
+   chaos` (70) show two rows, both items with their own `~price 1999
+   chaos` note — so a valid note lists inside a tab whose name is
+   invalid (half of Q2: the note beats an invalid name; a valid name
+   against a note is still unread). Our state calls the other 122
+   "public, the tab applies, no statement", which reads as "listed as
+   No Price Set" and is not so; the render is right either way (nothing
+   applies, or a row posts what the site does not show). Trigger: a
+   consumer that reads "public and no statement" as listed — a count
+   surfaced as such, a feed. Claim: T11 confirmed for 124 items and the
+   note exception.
+3. **A socketed item is not listed on its own**: 107 gems in sockets of
+   items in public tabs, none on the site — 32 in `3.15 Bane
+   Pathfinder`, 26 in `3.10 ED/C Trickster`, 24 in the 8888 tab (where
+   our state says each is listed at 8888 chaos), 25 in `~price 1000/2 chaos`.
+   The render blocks them (T13, `socketed`); the listing state counts
+   them as the game's. Trigger: the same count consumer. Claim: the site
+   indexes a socketed item with its host, never as a listing.
+4. **A currency-class stack is not in the item search**: eight stacks
+   the state expects — Scrolls of Wisdom (one carrying `~b/o 1.5
+   divine`, the test tab's second `~b/o`), a Runegraft, Valdo's Puzzle
+   Box, two Vials, a Tailoring Orb, an Infused Engineer's Orb, and an
+   Omen (frame type 5, no stack size; the join reads it `unlisted_since`
+   since the report carries no frame type) — absent. The bulk exchange
+   (T2, T3) is their surface and was not captured. Trigger: the owner
+   prices currency. Claim: the item search omits exchange-eligible
+   stacks.
+5. **The site reads a price out of a note with trailing text**: `~price
+   777 chaos testing` on Memory Vault in the 8888 tab shows "Price with
+   Note: 777 chaos" — a fourth label beside Exact, Asking and No Price
+   Set — where our parser reads the note `invalid` and lets the tab's
+   8888 apply. The effective price is wrong by 8,111 chaos; the page is
+   not, since the game lists it either way. The fix is one branch in
+   `game_side.rs` (a note tolerates a suffix as a tab name does — the
+   C++ regex did) and one test flipped
+   (`c69_a_tab_name_tolerates_trailing_text_and_a_note_does_not`); it
+   touches C69's mechanism, and T17 stays true of the dialog. Owner's
+   call (question 6). Trigger, if parked: a consumer reading a noted
+   item's effective price. Claim: the label and the reading.
+6. **`facetors` is a word the site does not read**: `~price 999
+   facetors`, written by the game's own dialog (the price-notes corpus),
+   lists as "No Price Set". T16's loose matching has a hole where the
+   game's word and the site's differ wholly. The page is unchanged (the
+   game lists it, at no price). Proposed for the table's `facetors` row,
+   for the owner to commit (C68): a `browser:` evidence line saying so.
+   Claim: the word and the date.
+7. **Eight words the site spells differently and resolves**:
+   `excep-ember`, `grand-ember`, `greater-ember`, `lesser-ember`,
+   `excep-echor`, `grand-echor`, `greater-echor`, `lesser-echor` list at
+   the right currency under the site's ids (`exceptional-eldritch-ember`,
+   … `-ichor`). T16 widened by eight; nothing to change — acquisition
+   writes the game's words and the site reads them.
+8. **The site drops the fraction on chaos**: `999.1234`, `999.123`,
+   `999.12`, `999.1` show "999"; `1.4 divine` keeps its fraction. A
+   display fact; the amount is the seller's (C67). Claim, once a second
+   currency is seen either way.
+9. **The forum rows**: four items in non-public remove-only tabs, from
+   two threads, all "Asking Price" (the owner's hand posts of the
+   reading-2 shape), "listed last month" and "2 months ago" though the
+   posts are days old — the site dates a forum listing by something
+   other than the post. T8 and T12 at four rows; the manual side holds
+   no row for them, as expected of hand posts. No claim yet.
+10. **One row no reason explains**: Lethal Pride (a Timeless Jewel,
+    unique, item level 86) in the 8888 tab — not socketed, not a stack,
+    the tab public and 32 of its neighbours listed — has no row on the
+    site. Left as it is.
+11. **Coverage**: the union is 551 rows against the owner's "560
+    matched" read off the form on 09-07; the saved DOM carries no
+    matched count, and the 8888 tab was set public between the two
+    days. The arithmetic closes: 547 stash rows = 532 agree + 15 differ;
+    757 expected = 547 + 210 state-only; 210 = 93 ratio-tab items + 107
+    socketed + 8 stacks + 2 (the Omen, Lethal Pride).
+
 ## Observations still open
 
 Agent observations that became neither a ruling nor a finding; each is
@@ -425,10 +526,6 @@ shows the item picture, so a wrong link is visible before posting.
   a folder with a price, and see which of the two the site reads.
   Confirms or corrects C80 (Provisional): a substash reads its parent,
   a folder child itself.
-- The trade site's seller-account search, run in a browser for this
-  account and league, is the oracle for the listing state as a whole:
-  it shows what is listed, and so whether the remove-only priced tabs
-  are as invisible as `metadata.public` says.
 - The game-side parser's real corpus is the test tab (fixture) plus the
   userstore's 120 notes; the facts hold the sale tabs listed, not
   fetched, until the policy covers them. Two of its rules were the
@@ -516,6 +613,13 @@ shows the item picture, so a wrong link is visible before posting.
    after step 6? The test pass can be its own step in either case.
    And your verdict on the page, verbatim, with whether the coverage,
    stale and positions lines changed what you did.
+6. The site reads `~price 777 chaos testing` as 777 chaos ("What the
+   site taught", 5); our parser refuses a note's suffix on T17, which
+   is about the dialog, not the index. Amend C69's mechanism so a note
+   tolerates trailing text as a tab name does (one branch, one test
+   flipped), or park it on its trigger? And C81's *Evidence:* — the
+   entry is at 764 bytes; " *Evidence:* item 5, 2026-09-08." would take
+   it to 796 — your trim, if you want the pointer on the ruling.
 4. ~~C68's "enumerable through every surface" against the parked MCP
    step.~~ **Answered 2026-09-07**, owner: "agree to narrow" — C68 now
    reads "enumerable by every surface built" (795 bytes), the code's
