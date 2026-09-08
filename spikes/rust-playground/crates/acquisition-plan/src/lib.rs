@@ -254,6 +254,8 @@ pub mod listing;
 pub mod price;
 #[cfg(test)]
 pub(crate) mod price_notes_fixture;
+#[cfg(test)]
+pub(crate) mod real_scale_fixture;
 pub mod shop;
 
 use std::collections::BTreeMap;

@@ -1036,10 +1036,12 @@ fn render_write(write: &PriceWrite) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::real_scale_fixture;
     use acquisition_store::{
         AnnotationRow, CharacterSnapshot, ItemSnapshot, ListingBasis, PricingSnapshot, TabSnapshot,
     };
     use serde_json::{Value, json};
+    use std::time::{Duration, Instant};
 
     fn tab(id: &str, parent: Option<&str>, name: &str, r#type: &str, public: bool) -> TabSnapshot {
         TabSnapshot {
@@ -1627,6 +1629,76 @@ mod tests {
                  the prior cannot be put back by this build (its JSON is in --json)\n"
             ),
             "{text}"
+        );
+    }
+
+    /// The listing state's audit views over the real-scale fixture tiled
+    /// to 32k items (plan step 7, item 2, `PRICING-SLICE.md`): `list
+    /// --effective none --expand` — every item nothing applies to, each
+    /// with its texts — `show --expand` on the owner's test tab, and
+    /// `status --expand`. Measured 2026-09-07 in a debug build: 300 ms,
+    /// 7 ms and under a millisecond. The bound is a cliff, not a budget —
+    /// and each view still says everything it has.
+    #[test]
+    fn c53_the_expanded_list_show_and_status_are_linear_over_the_owners_league_tiled() {
+        let s = real_scale_fixture::tiled(16);
+        let r = resolve(&s).unwrap();
+        let tab = real_scale_fixture::owners_test_tab(&s);
+        let now = s.taken_at;
+
+        let t = Instant::now();
+        let view = r
+            .list_view(ListFilter {
+                effective: Some("none".into()),
+                ..Default::default()
+            })
+            .unwrap();
+        let list = render_list(&view, true);
+        let show = r.show_view(&tab).unwrap();
+        let shown = render_show(&show, now, true);
+        let status = render_status(&r, now, true);
+        let took = t.elapsed();
+        assert!(
+            took < Duration::from_secs(5),
+            "the expanded views took {took:?} over {} items",
+            r.counts.items
+        );
+
+        assert_eq!(r.counts.items, 1977 * 16);
+        assert_eq!(view.items.len(), 1889 * 16);
+        assert!(
+            list.starts_with(&format!(
+                "{} items listed in Standard decided by none: ",
+                view.items.len()
+            )),
+            "{}",
+            list.lines().next().unwrap()
+        );
+        assert_eq!(
+            list.lines().filter(|l| l.starts_with("  none ")).count(),
+            view.items.len()
+        );
+        assert_eq!(show.items_here.len(), 80 * 16);
+        // A line per item and its texts under it: the 50 notes' lines
+        // per copy, and the effective line under every item.
+        assert_eq!(
+            shown
+                .lines()
+                .filter(|l| l.starts_with("      effective: "))
+                .count(),
+            show.items_here.len()
+        );
+        assert_eq!(
+            shown
+                .lines()
+                .filter(|l| l.starts_with("      note "))
+                .count(),
+            50 * 16
+        );
+        assert!(
+            status.starts_with(&format!("{} items in Standard: ", r.counts.items)),
+            "{}",
+            status.lines().next().unwrap()
         );
     }
 }

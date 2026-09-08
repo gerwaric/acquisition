@@ -1,6 +1,8 @@
 mod dash;
 mod plan_cmd;
 mod price_cmd;
+#[cfg(test)]
+mod real_scale_fixture;
 mod reference_cmd;
 mod shop_cmd;
 mod store_cmd;

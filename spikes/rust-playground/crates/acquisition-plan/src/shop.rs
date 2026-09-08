@@ -2053,4 +2053,320 @@ mod tests {
             }
         }
     }
+
+    /// The real-scale fixture (plan step 7, item 2, `PRICING-SLICE.md`):
+    /// the owner's pc/Standard league, rendered whole — the page the
+    /// owner pasted for validation reading 2, from the same facts.
+    mod real_scale {
+        use std::time::{Duration, Instant};
+
+        use super::*;
+        use crate::real_scale_fixture;
+        use acquisition_store::{PricingSnapshot, TabSnapshot};
+
+        fn fixture() -> (PricingSnapshot, ListingReport) {
+            let s = real_scale_fixture::snapshot();
+            let r = resolve(&s).unwrap();
+            (s, r)
+        }
+
+        fn opts_at(now: i64, policy: PolicySource<'_>) -> RenderOptions<'_> {
+            RenderOptions {
+                size: DEFAULT_PAGE_SIZE,
+                template: ITEMS_TOKEN,
+                now,
+                policy,
+            }
+        }
+
+        fn tab_id(target: &PriceTarget) -> &str {
+            let PriceTarget::Tab { id, .. } = target else {
+                panic!("{target} is not a tab");
+            };
+            id
+        }
+
+        /// C74, C81 — every one of the 1,977 items lands in one cell and
+        /// the cells are read off the listing state: the 48 game prices
+        /// and the one `~skip` are omitted, the character's 3 hand skips
+        /// too, the substash row's 5 items are blocked on Q3, 1,889 have
+        /// nothing applying, and the 31 the hand decides are the page:
+        /// one page, under the size, every link once, under three titles.
+        /// The render is guarded: under 1 ms in a debug build on
+        /// 2026-09-07 — the bound is a cliff, not a budget.
+        #[test]
+        fn c74_at_real_scale_every_item_lands_in_one_cell_and_the_page_is_the_owners_test_tab() {
+            let (s, report) = fixture();
+            let t = Instant::now();
+            let r = render(&report, &opts_at(s.taken_at, PolicySource::NotSet)).unwrap();
+            let took = t.elapsed();
+            assert!(took < Duration::from_secs(2), "render took {took:?}");
+            assert_eq!(r.schema, SHOP_SCHEMA);
+            assert_eq!(r.listing, report.header);
+
+            let c = &r.counts;
+            assert_eq!(c.items, 1977);
+            assert_eq!(
+                (c.posted, c.omitted, c.blocked, c.off_page, c.pages),
+                (31, 52, 5, 1889, 1)
+            );
+            assert_eq!(c.posted + c.omitted + c.blocked + c.off_page, c.items);
+            assert_eq!(r.posted.len() + r.left_out.len(), c.items);
+            assert_eq!(c.by_cell.values().sum::<usize>(), c.items);
+            let expected: BTreeMap<Cell, usize> = Cell::ALL
+                .iter()
+                .map(|cell| {
+                    let n = match cell {
+                        Cell::GameLists => 48,
+                        Cell::GameSkips => 1,
+                        Cell::HandSkip => 3,
+                        Cell::Substash => 5,
+                        Cell::StashItem => 31,
+                        Cell::NothingApplies => 1889,
+                        _ => 0,
+                    };
+                    (*cell, n)
+                })
+                .collect();
+            assert_eq!(c.by_cell, expected);
+            for row in &r.policy {
+                assert_eq!(row.count, c.by_cell[&row.cell], "{}", row.cell);
+            }
+            assert_eq!(c.by_cell[&Cell::GameLists], report.counts.game_priced);
+            assert_eq!(
+                c.by_cell[&Cell::GameSkips],
+                report.counts.by_game_statement["skip"]
+            );
+            assert_eq!(
+                c.by_cell[&Cell::NothingApplies],
+                report.counts.by_relation["none"]
+            );
+            assert!(
+                r.left_out
+                    .iter()
+                    .filter(|l| l.cell == Cell::HandSkip)
+                    .all(|l| matches!(l.location, Some(PriceTarget::Character { .. })))
+            );
+            assert!(
+                r.left_out
+                    .iter()
+                    .filter(|l| l.cell == Cell::Substash)
+                    .all(|l| matches!(l.location, Some(PriceTarget::Substash { .. })))
+            );
+
+            let tab = real_scale_fixture::owners_test_tab(&s);
+            assert!(
+                r.posted
+                    .iter()
+                    .all(|p| p.location == tab && p.page == 1 && p.cell == Cell::StashItem)
+            );
+            let mut titles: BTreeMap<&str, usize> = BTreeMap::new();
+            for p in &r.posted {
+                *titles.entry(p.title.as_str()).or_default() += 1;
+            }
+            assert_eq!(
+                titles,
+                [
+                    (" ~b/o 1.5 divine", 1),
+                    (" ~price 2 chaos", 1),
+                    (" ~price 5 chaos", 29)
+                ]
+                .into()
+            );
+            let [page] = &r.pages[..] else {
+                panic!("one page");
+            };
+            assert_eq!((page.number, page.of, page.items), (1, 1, 31));
+            assert!(page.chars <= DEFAULT_PAGE_SIZE);
+            assert_eq!(page.chars, page.text.chars().count());
+            assert_eq!(page.text.matches("[spoiler=").count(), 1 + titles.len());
+            assert!(
+                page.text
+                    .starts_with("[spoiler=\"Shop Post 1 of 1 (31 items)\"]\n")
+            );
+            for p in &r.posted {
+                assert_eq!(page.text.matches(&p.link).count(), 1, "{}", p.link);
+                assert!(
+                    page.text.contains(&format!("[spoiler=\"{}\"]", p.title)),
+                    "{}",
+                    p.title
+                );
+            }
+
+            let text = serde_json::to_string(&r).unwrap();
+            let back: ShopRender = serde_json::from_str(&text).unwrap();
+            assert_eq!(back, r);
+        }
+
+        /// T24 — the site as the oracle for the numbering, over the real
+        /// posted items: the tabs the site lists (top-level and folder
+        /// children; folders and substashes out) in the snapshot's order
+        /// are the site's own list of the same day by name and type
+        /// (`reference/website-tabs-2026-09-07.json`), and every posted
+        /// link's `Stash<n>` is its tab's site number plus one — the
+        /// owner's test tab is the site's 56, so `Stash57`, the page the
+        /// owner read correct on the trade site.
+        #[test]
+        fn t24_at_real_scale_every_posted_link_numbers_its_tab_as_the_website_does() {
+            let (s, report) = fixture();
+            let r = render(&report, &opts_at(s.taken_at, PolicySource::NotSet)).unwrap();
+            let path = concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/reference/website-tabs-2026-09-07.json"
+            );
+            let doc: Value = serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
+            let web = doc["leagues"][&s.league]["web"].as_array().unwrap();
+
+            let by_id: HashMap<&str, &TabSnapshot> =
+                s.tabs.iter().map(|t| (t.id.as_str(), t)).collect();
+            let listed: Vec<&TabSnapshot> = s
+                .tabs
+                .iter()
+                .filter(|t| t.r#type != FOLDER)
+                .filter(|t| {
+                    t.parent
+                        .as_deref()
+                        .is_none_or(|p| by_id.get(p).is_some_and(|q| q.r#type == FOLDER))
+                })
+                .collect();
+            assert_eq!(listed.len(), web.len());
+            assert_eq!(listed.len(), 322);
+            for (i, (t, w)) in listed.iter().zip(web).enumerate() {
+                assert_eq!(w["i"], json!(i));
+                assert_eq!(w["n"].as_str(), Some(t.name.as_str()), "site {i}");
+                assert_eq!(w["type"].as_str(), Some(t.r#type.as_str()), "site {i}");
+            }
+
+            assert_eq!(r.posted.len(), 31);
+            for p in &r.posted {
+                let id = tab_id(&p.location);
+                let rank = listed.iter().position(|t| t.id == id).unwrap();
+                let site = web[rank]["i"].as_u64().unwrap() as usize;
+                assert_eq!(site, rank);
+                let location = format!(" location=\"Stash{}\" ", site + 1);
+                assert!(p.link.contains(&location), "{}: {}", p.target, p.link);
+                assert!(
+                    p.link.contains(&format!(" league=\"{}\" ", s.league)),
+                    "{}",
+                    p.link
+                );
+            }
+            let tab = real_scale_fixture::owners_test_tab(&s);
+            let rank = listed.iter().position(|t| t.id == tab_id(&tab)).unwrap();
+            assert_eq!(rank, 56);
+            assert!(r.posted[0].link.contains(" location=\"Stash57\" "));
+        }
+
+        /// C72 — the freshness lines over the real page, at the snapshot's
+        /// own clock: the test tab was fetched four days before the
+        /// snapshot was taken, so under a policy that covers it with an
+        /// hour's window every posted item is stale and the oldest age is
+        /// that gap; under a policy that does not name it, it is the one
+        /// container outside coverage and its items are counted beside
+        /// that line; under a window wider than the gap, nothing. The
+        /// tab's fetch came after the stash listing the links number by,
+        /// so no position predates the listing.
+        #[test]
+        fn c72_at_real_scale_the_freshness_lines_name_the_owners_test_tab() {
+            let (s, report) = fixture();
+            let tab = real_scale_fixture::owners_test_tab(&s);
+            let seen: Vec<i64> = s
+                .items
+                .iter()
+                .filter(|i| i.location_id == tab_id(&tab))
+                .map(|i| i.last_seen)
+                .collect();
+            assert_eq!(seen.len(), 80);
+            let gap = s.taken_at - seen.iter().min().unwrap();
+            assert!(gap > 4 * 86_400 && gap < 5 * 86_400, "{gap}");
+            let listing = s.stash_listing.unwrap().response_id;
+            assert!(
+                s.items
+                    .iter()
+                    .filter(|i| i.location_id == tab_id(&tab))
+                    .all(|i| i.seen_response.is_some_and(|seen| seen > listing))
+            );
+
+            let policy = |value: Value| SyncPolicy::from_value(&value).unwrap();
+            let covering = policy(json!({
+                "version": 3,
+                "realms": { "pc": { "leagues": { "Standard": {
+                    "tabs": [tab_id(&tab)], "max_age_seconds": 3600 } } } }
+            }));
+            let r = render(
+                &report,
+                &opts_at(
+                    s.taken_at,
+                    PolicySource::Set {
+                        policy: &covering,
+                        revision: 3,
+                        refresh: Ok(2),
+                    },
+                ),
+            )
+            .unwrap();
+            let f = &r.freshness;
+            assert_eq!(f.policy, "covers");
+            assert_eq!(f.window_seconds, Some(3600));
+            assert_eq!(f.refresh_requests, Some(2));
+            assert!(f.uncovered.is_empty());
+            assert_eq!(f.stale.len(), 31);
+            assert_eq!(
+                f.stale,
+                r.posted
+                    .iter()
+                    .map(|p| p.target.clone())
+                    .collect::<Vec<_>>()
+            );
+            assert_eq!(f.stale_uncovered, 0);
+            assert_eq!(f.oldest_stale_seconds, Some(gap));
+            assert!(f.position_before_listing.is_empty());
+
+            let elsewhere = policy(json!({
+                "version": 3,
+                "realms": { "pc": { "leagues": { "Standard": {
+                    "characters": "all", "max_age_seconds": 3600 } } } }
+            }));
+            let r = render(
+                &report,
+                &opts_at(
+                    s.taken_at,
+                    PolicySource::Set {
+                        policy: &elsewhere,
+                        revision: 4,
+                        refresh: Ok(0),
+                    },
+                ),
+            )
+            .unwrap();
+            let f = &r.freshness;
+            assert_eq!(f.uncovered, std::slice::from_ref(&tab));
+            assert!(f.stale.is_empty());
+            assert_eq!(f.stale_uncovered, 31);
+            assert_eq!(f.oldest_stale_seconds, None);
+
+            let wide = policy(json!({
+                "version": 3,
+                "realms": { "pc": { "leagues": { "Standard": {
+                    "tabs": "all", "max_age_seconds": 5 * 86_400 } } } }
+            }));
+            let r = render(
+                &report,
+                &opts_at(
+                    s.taken_at,
+                    PolicySource::Set {
+                        policy: &wide,
+                        revision: 5,
+                        refresh: Ok(400),
+                    },
+                ),
+            )
+            .unwrap();
+            let f = &r.freshness;
+            assert!(f.uncovered.is_empty());
+            assert!(f.stale.is_empty());
+            assert_eq!(f.stale_uncovered, 0);
+            assert_eq!(f.oldest_stale_seconds, None);
+        }
+    }
 }

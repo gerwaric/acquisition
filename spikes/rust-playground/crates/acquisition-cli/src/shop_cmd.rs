@@ -368,11 +368,15 @@ fn render_text(r: &ShopRender, now: i64, expand: bool) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::real_scale_fixture;
     use acquisition_plan::listing::ReportHeader;
     use acquisition_plan::price::PriceTarget;
-    use acquisition_plan::shop::{Freshness, LeftOut, Page, PolicyRow, Posted, ShopCounts};
+    use acquisition_plan::shop::{
+        DEFAULT_PAGE_SIZE, Freshness, LeftOut, Page, PolicyRow, Posted, ShopCounts,
+    };
     use serde_json::json;
     use std::collections::BTreeMap;
+    use std::time::{Duration, Instant};
 
     /// A render with three posted items on two pages, one item of each
     /// omission and two blocked, and a policy that covers one of the two
@@ -619,5 +623,61 @@ mod tests {
             text,
             "no items on record for Standard: nothing to render\nnext: `acq price status` says what is on record\n"
         );
+    }
+
+    /// The step-6 review's fourth finding: `--expand` searched the whole
+    /// left-out list per line, quadratic over the 26k items it was read
+    /// at. The audit view over the real-scale fixture tiled to 63k items
+    /// (plan step 7, item 2, `PRICING-SLICE.md`), measured 2026-09-07 in
+    /// a debug build: 45 ms as built; with the search put back, 3.9 s at
+    /// half this scale and four-fold per doubling. The bound is the cliff
+    /// between the two, not a budget — and the view still says
+    /// everything: the table, a line per item left off, every page.
+    #[test]
+    fn c53_the_expanded_render_is_linear_over_the_owners_league_tiled() {
+        let s = real_scale_fixture::tiled(32);
+        let report = resolve(&s).unwrap();
+        let r = render(
+            &report,
+            &RenderOptions {
+                size: DEFAULT_PAGE_SIZE,
+                template: ITEMS_TOKEN,
+                now: s.taken_at,
+                policy: PolicySource::NotSet,
+            },
+        )
+        .unwrap();
+        assert_eq!(r.counts.items, 1977 * 32);
+        assert_eq!(r.counts.posted, 31 * 32);
+        assert_eq!(r.left_out.len(), (1977 - 31) * 32);
+
+        let t = Instant::now();
+        let text = render_text(&r, s.taken_at, true);
+        let took = t.elapsed();
+        assert!(
+            took < Duration::from_secs(2),
+            "the expanded render took {took:?} over {} items",
+            r.counts.items
+        );
+        assert!(
+            text.contains("policy table (page size 50000, template 7 characters):\n"),
+            "{}",
+            &text[..200]
+        );
+        assert_eq!(
+            text.matches("\n  ").count(),
+            r.policy.len() + r.left_out.len()
+        );
+        let left_off = text.split("left off the page:\n").nth(1).unwrap();
+        assert_eq!(
+            left_off.lines().take_while(|l| l.starts_with("  ")).count(),
+            r.left_out.len()
+        );
+        for page in &r.pages {
+            assert!(text.contains(&format!(
+                "page {} of {}: {} characters, {} items\n",
+                page.number, page.of, page.chars, page.items
+            )));
+        }
     }
 }

@@ -2316,4 +2316,443 @@ mod tests {
         assert_eq!(text.matches("\"league_unknown\":true").count(), 2, "{text}");
         assert!(!text.contains("\"league_unknown\":false"));
     }
+
+    /// The real-scale fixture (plan step 7, item 2, `PRICING-SLICE.md`):
+    /// the owner's pc/Standard league as `redact-pricing` wrote it — 402
+    /// tabs, 41 characters, 1,977 items, 16 rows — resolved whole. The
+    /// counts are read against the file, not against themselves.
+    mod real_scale {
+        use std::collections::BTreeSet;
+        use std::time::{Duration, Instant};
+
+        use super::*;
+        use crate::real_scale_fixture::{self, OWNERS_TEST_TAB};
+
+        fn counts(pairs: &[(&str, usize)]) -> BTreeMap<String, usize> {
+            pairs.iter().map(|(k, n)| (k.to_string(), *n)).collect()
+        }
+
+        /// The fixture's one row of a scope, as a target.
+        fn the_row(s: &PricingSnapshot, scope: &str) -> PriceTarget {
+            let mut all = rows(s, scope);
+            assert_eq!(all.len(), 1, "one {scope} row");
+            all.pop().unwrap()
+        }
+
+        /// The fixture's rows of one scope, as targets.
+        fn rows(s: &PricingSnapshot, scope: &str) -> Vec<PriceTarget> {
+            s.buyouts
+                .iter()
+                .filter(|r| r.scope == scope)
+                .map(|r| PriceTarget::from_address(&r.scope, &r.key).unwrap())
+                .collect()
+        }
+
+        /// C69, C81 — every fact of the owner's league has one listing,
+        /// every reference resolves within the file, every count sums to
+        /// the items, and the game side reads what the file holds: 50
+        /// notes, all in the one public tab, are 49 statements and the
+        /// dialog's one residue; 16 `~` tab names are 14 prices and the
+        /// two lot ratios a tab name cannot carry (T19); 16 rows are 5
+        /// applied and 11 naming another league's facts. The resolve is
+        /// guarded: 7 ms in a debug build on 2026-09-07 — the bound is a
+        /// cliff, not a budget.
+        #[test]
+        fn c69_at_real_scale_every_fact_has_one_listing_and_the_counts_are_the_files() {
+            let s = real_scale_fixture::snapshot();
+            let t = Instant::now();
+            let r = resolve(&s).unwrap();
+            let took = t.elapsed();
+            assert!(took < Duration::from_secs(2), "resolve took {took:?}");
+
+            assert_eq!(
+                r.listings.len(),
+                s.tabs.len() + s.characters.len() + s.items.len()
+            );
+            assert_eq!(r.counts.containers, s.tabs.len() + s.characters.len());
+            assert_eq!(r.counts.items, s.items.len());
+            assert_eq!((r.counts.containers, r.counts.items), (443, 1977));
+            let containers: BTreeSet<&PriceTarget> = r
+                .listings
+                .iter()
+                .filter(|l| !l.subject.is_item())
+                .map(|l| &l.subject.target)
+                .collect();
+            assert_eq!(containers.len(), r.counts.containers);
+            let mut seen = BTreeSet::new();
+            for l in &r.listings {
+                assert!(
+                    seen.insert(&l.subject.target),
+                    "{} listed twice",
+                    l.subject.target
+                );
+                assert_eq!(l.chain[0], l.subject.target);
+                for c in &l.chain[1..] {
+                    assert!(
+                        containers.contains(c),
+                        "{}: chain names {c}",
+                        l.subject.target
+                    );
+                }
+                if let Some(loc) = &l.subject.location {
+                    assert!(
+                        containers.contains(loc),
+                        "{}: sits in {loc}",
+                        l.subject.target
+                    );
+                    assert!(l.subject.is_item());
+                    assert_eq!(l.chain.get(1), Some(loc));
+                }
+            }
+
+            let c = &r.counts;
+            let sum = |m: &BTreeMap<String, usize>| m.values().sum::<usize>();
+            assert_eq!(sum(&c.by_relation), c.items);
+            assert_eq!(sum(&c.by_effective), c.items);
+            assert_eq!(sum(&c.by_game_statement), c.items);
+            let items = || r.listings.iter().filter(|l| l.subject.is_item());
+            for rel in Relation::ALL {
+                assert_eq!(
+                    c.by_relation[rel.as_str()],
+                    items().filter(|l| l.relation == rel).count(),
+                    "{rel}"
+                );
+            }
+            for side in ["game", "manual", "none", "unresolved"] {
+                assert_eq!(
+                    c.by_effective[side],
+                    items().filter(|l| l.effective.side_word() == side).count(),
+                    "{side}"
+                );
+            }
+            assert_eq!(
+                c.by_relation,
+                counts(&[
+                    ("agree", 0),
+                    ("conflict", 49),
+                    ("game_only", 0),
+                    ("manual_only", 39),
+                    ("none", 1889)
+                ])
+            );
+            assert_eq!(
+                c.by_effective,
+                counts(&[
+                    ("game", 49),
+                    ("manual", 39),
+                    ("none", 1889),
+                    ("unresolved", 0)
+                ])
+            );
+            assert_eq!(
+                c.by_game_statement,
+                counts(&[
+                    ("exact", 46),
+                    ("negotiable", 2),
+                    ("none", 1928),
+                    ("skip", 1)
+                ])
+            );
+            assert_eq!(c.game_priced, 48);
+            assert_eq!(c.invalid_notes, 1);
+            assert_eq!(c.residue, 0);
+            assert_eq!(c.inherited, 86);
+            assert_eq!(c.league_unknown, 0);
+            assert!(s.characters.iter().all(|ch| ch.league.is_some()));
+
+            // Against the file: every note sits in the one public tab
+            // with a row on it, so each is a statement or the residue.
+            let noted = s.items.iter().filter(|i| i.note.is_some()).count();
+            assert_eq!(noted, 50);
+            assert_eq!(noted, 46 + 2 + 1 + c.invalid_notes);
+            let test_tab = real_scale_fixture::owners_test_tab(&s);
+            assert!(
+                items()
+                    .filter(|l| l.game.note.is_some())
+                    .all(|l| l.subject.location.as_ref() == Some(&test_tab))
+            );
+            assert_eq!(
+                s.tabs
+                    .iter()
+                    .filter(|t| t.metadata["public"] == Value::Bool(true))
+                    .count(),
+                13
+            );
+            // The `~` names: 14 prices, none public but one, and the two
+            // lot ratios that read as nothing in a tab name (T19).
+            let tilde: Vec<&Listing> = r
+                .listings
+                .iter()
+                .filter(|l| l.subject.name.starts_with('~'))
+                .collect();
+            assert_eq!(tilde.len(), 16);
+            let priced: Vec<&Listing> = tilde
+                .iter()
+                .copied()
+                .filter(|l| {
+                    l.game
+                        .tab_name
+                        .as_ref()
+                        .is_some_and(|t| t.reading.price().is_some())
+                })
+                .collect();
+            assert_eq!(priced.len(), 14);
+            assert_eq!((c.priced_tabs, c.priced_tabs_public), (14, 1));
+            assert_eq!(
+                priced
+                    .iter()
+                    .filter(|l| l.game.public == Some(true))
+                    .count(),
+                1
+            );
+            for l in tilde.iter().filter(|l| !priced.contains(l)) {
+                assert!(l.subject.name.contains('/'), "{}", l.subject.name);
+                assert!(
+                    matches!(
+                        l.game.tab_name.as_ref().map(|t| &t.reading),
+                        Some(GamePrice::Invalid { .. })
+                    ),
+                    "{}: {:?}",
+                    l.subject.name,
+                    l.game.tab_name
+                );
+            }
+
+            // The rows: every one accounted for, none unreadable under
+            // this build, the unmatched ones naming another league's
+            // items (10) and a tab no longer listed (1) — real data.
+            let rows = &r.rows;
+            assert_eq!(rows.total, s.buyouts.len());
+            assert_eq!((rows.total, rows.applied, rows.other_realm), (16, 5, 0));
+            assert_eq!(
+                rows.total,
+                rows.applied + rows.other_realm + rows.unmatched.len() + rows.unreadable.len()
+            );
+            assert!(rows.unreadable.is_empty(), "{:?}", rows.unreadable);
+            assert_eq!(rows.unmatched.len(), 11);
+            assert_eq!(
+                rows.unmatched
+                    .iter()
+                    .filter(|t| matches!(t, PriceTarget::Item { .. }))
+                    .count(),
+                10
+            );
+            assert!(rows.unmatched.iter().all(|t| r.find(t).is_none()));
+        }
+
+        /// C70, C80, C81 — the owner's five applied rows land where the
+        /// rules say: the tab row covers the test tab's 80 items, 78 by
+        /// inheritance and 2 under their own rows, and the 49 game
+        /// statements among them decide over it (a note is level 0, the
+        /// tab row level 2); the substash row covers its 5 items under a
+        /// parent that holds nothing itself and is not public; the
+        /// character's `skip` row covers its 3 items. `list`'s default
+        /// selection is exactly these 88, in the four containers on their
+        /// chains — the substash's parent among them, since its name is
+        /// the one C80 reads.
+        #[test]
+        fn c70_at_real_scale_the_owners_rows_cover_what_the_rules_say() {
+            let s = real_scale_fixture::snapshot();
+            let r = resolve(&s).unwrap();
+            let tab = real_scale_fixture::owners_test_tab(&s);
+            let tab_listing = r.find(&tab).unwrap();
+            assert_eq!(tab_listing.subject.name, OWNERS_TEST_TAB);
+            assert_eq!(tab_listing.game.public, Some(true));
+            let own_row = tab_listing.manual.as_ref().unwrap();
+            assert!(!own_row.inherited);
+            assert_eq!(own_row.from, tab);
+
+            // An ordinary tab's two sets are one (C70).
+            let here: Vec<&Listing> = r.items_in(&tab).collect();
+            let covered: Vec<&Listing> = r.items_covered_by(&tab).collect();
+            assert_eq!(here.len(), 80);
+            assert_eq!(
+                here.iter().map(|l| &l.subject.target).collect::<Vec<_>>(),
+                covered
+                    .iter()
+                    .map(|l| &l.subject.target)
+                    .collect::<Vec<_>>()
+            );
+            let item_rows: Vec<PriceTarget> = rows(&s, "item")
+                .into_iter()
+                .filter(|t| r.find(t).is_some())
+                .collect();
+            assert_eq!(item_rows.len(), 2);
+            let mut inherited = 0;
+            let mut game_decided = 0;
+            for l in &here {
+                let m = l.manual.as_ref().expect("a row covers every item here");
+                if m.inherited {
+                    inherited += 1;
+                    assert_eq!(m.from, tab);
+                    assert_eq!(l.chain, [l.subject.target.clone(), tab.clone()]);
+                } else {
+                    assert_eq!(m.from, l.subject.target);
+                    assert!(item_rows.contains(&l.subject.target));
+                }
+                assert_eq!(l.game.public, Some(true));
+                assert!(!l.game.residue);
+                match l.game.reading {
+                    GamePrice::Exact(_) | GamePrice::Negotiable(_) | GamePrice::Skip => {
+                        game_decided += 1;
+                        assert_eq!(l.relation, Relation::Conflict, "{}", l.why);
+                        assert_eq!(l.effective.side, Some(Side::Game), "{}", l.effective.why);
+                        assert_eq!(l.effective.from.as_ref(), Some(&l.subject.target));
+                    }
+                    GamePrice::Invalid { .. } => panic!("a tab name read as a price"),
+                    GamePrice::None => {
+                        assert_eq!(l.relation, Relation::ManualOnly, "{}", l.why);
+                        assert_eq!(l.effective.side, Some(Side::Manual), "{}", l.effective.why);
+                        assert_eq!(l.effective.from.as_ref(), Some(&m.from));
+                    }
+                }
+            }
+            assert_eq!((inherited, game_decided), (78, 49));
+            // The dialog's residue (T18): the note is shown, reads invalid,
+            // has no effect, and the tab row applies.
+            let residue: Vec<&Listing> = here
+                .iter()
+                .copied()
+                .filter(|l| {
+                    l.game
+                        .note
+                        .as_ref()
+                        .is_some_and(|n| matches!(n.reading, GamePrice::Invalid { .. }))
+                })
+                .collect();
+            assert_eq!(residue.len(), 1);
+            assert_eq!(residue[0].game.note.as_ref().unwrap().text, "~price  chaos");
+            assert_eq!(residue[0].game.reading, GamePrice::None);
+            assert_eq!(residue[0].relation, Relation::ManualOnly);
+            assert_eq!(residue[0].effective.from.as_ref(), Some(&tab));
+
+            // The substash row (C70, C80).
+            let substash = the_row(&s, "substash");
+            let PriceTarget::Substash { realm, parent, .. } = &substash else {
+                unreachable!()
+            };
+            let parent = PriceTarget::Tab {
+                realm: *realm,
+                id: parent.clone(),
+            };
+            let sub_listing = r.find(&substash).unwrap();
+            let parent_listing = r.find(&parent).unwrap();
+            assert_eq!(parent_listing.subject.name, "Maps (Remove-only)");
+            assert_eq!(parent_listing.subject.tab_type.as_deref(), Some("MapStash"));
+            assert_ne!(parent_listing.game.public, Some(true));
+            assert!(parent_listing.manual.is_none());
+            let in_sub: Vec<&Listing> = r.items_in(&substash).collect();
+            assert_eq!(in_sub.len(), 5);
+            for l in &in_sub {
+                let m = l.manual.as_ref().unwrap();
+                assert!(m.inherited);
+                assert_eq!(m.from, substash);
+                assert_eq!(
+                    l.chain,
+                    [l.subject.target.clone(), substash.clone(), parent.clone()]
+                );
+                assert_eq!(l.relation, Relation::ManualOnly);
+                assert_eq!(l.effective.side, Some(Side::Manual));
+                assert_eq!(l.game.reading, GamePrice::None);
+                assert_eq!(
+                    l.game.substash_name.as_deref(),
+                    Some(sub_listing.subject.name.as_str())
+                );
+            }
+            assert_eq!(r.items_in(&parent).count(), 0);
+            let below: Vec<&Listing> = r.items_covered_by(&parent).collect();
+            assert!(in_sub.iter().all(|l| below.contains(l)));
+            assert!(below.len() > in_sub.len(), "the parent's other substashes");
+
+            // The character's `skip` row.
+            let character = the_row(&s, "character");
+            let in_char: Vec<&Listing> = r.items_in(&character).collect();
+            assert_eq!(in_char.len(), 3);
+            for l in &in_char {
+                let m = l.manual.as_ref().unwrap();
+                assert!(m.inherited);
+                assert_eq!(m.from, character);
+                assert_eq!(l.chain, [l.subject.target.clone(), character.clone()]);
+                assert_eq!(l.effective.kind, "skip");
+                assert_eq!(l.effective.side, Some(Side::Manual));
+                assert_eq!(l.game.public, None);
+                assert!(!l.subject.league_unknown);
+            }
+            assert_eq!(r.counts.inherited, 78 + 5 + 3);
+
+            // `list`'s default selection and the containers it carries.
+            let view = r.list_view(ListFilter::default()).unwrap();
+            assert_eq!(view.items.len(), 80 + 5 + 3);
+            let mut containers: Vec<&PriceTarget> =
+                view.containers.iter().map(|c| &c.subject.target).collect();
+            containers.sort();
+            let mut expected = vec![&tab, &substash, &parent, &character];
+            expected.sort();
+            assert_eq!(containers, expected);
+            assert_eq!(view.items_on_record, 1977);
+            let show = r.show_view(&parent).unwrap();
+            assert!(show.items_here.is_empty());
+            assert_eq!(show.items_covered_below.len(), below.len());
+            let show = r.show_view(&tab).unwrap();
+            assert_eq!(show.items_here.len(), 80);
+            assert!(show.items_covered_below.is_empty());
+        }
+
+        /// C53, C70 — the report is its own contract at scale (1.8 MB of
+        /// JSON re-reads exactly, `status` is the counts alone), and
+        /// `show` of every one of the 443 containers holds its two sets
+        /// (C70): what sits here plus what its children hold is what a
+        /// row on it covers; a folder holds nothing itself; a substash
+        /// and a character have nothing below.
+        #[test]
+        fn c53_at_real_scale_the_report_round_trips_and_every_container_shows_its_two_sets() {
+            let s = real_scale_fixture::snapshot();
+            let r = resolve(&s).unwrap();
+            let text = serde_json::to_string(&r).unwrap();
+            let back: ListingReport = serde_json::from_str(&text).unwrap();
+            assert_eq!(back, r);
+            assert_eq!(r.summary().counts, r.counts);
+            assert!(r.summary().listings.is_empty());
+
+            let t = Instant::now();
+            let mut below_total = 0;
+            for c in r.listings.iter().filter(|l| !l.subject.is_item()) {
+                let target = &c.subject.target;
+                let v = r.show_view(target).unwrap();
+                assert_eq!(v.listing, *c);
+                assert!(v.container.is_none());
+                assert_eq!(
+                    v.items_here.len() + v.items_covered_below.len(),
+                    r.items_covered_by(target).count(),
+                    "{target}"
+                );
+                assert!(
+                    v.items_here
+                        .iter()
+                        .all(|l| l.subject.location.as_ref() == Some(target))
+                );
+                assert!(
+                    v.items_covered_below
+                        .iter()
+                        .all(|l| l.subject.location.as_ref() != Some(target))
+                );
+                if c.subject.tab_type.as_deref() == Some(FOLDER) {
+                    assert!(v.items_here.is_empty(), "{target}: a folder holds nothing");
+                }
+                if !matches!(target, PriceTarget::Tab { .. }) {
+                    assert!(v.items_covered_below.is_empty(), "{target}");
+                }
+                below_total += v.items_covered_below.len();
+            }
+            // What sits below anything is counted once per container
+            // above it: an item in a substash under a folder's tab is
+            // below both.
+            assert!(below_total > 0);
+            let took = t.elapsed();
+            assert!(
+                took < Duration::from_secs(5),
+                "443 show views took {took:?}"
+            );
+        }
+    }
 }
