@@ -9,3 +9,6 @@ acquisition-store = { path = "../acquisition-store" }
 serde.workspace = true
 serde_json.workspace = true
 toml.workspace = true
+
+[dev-dependencies]
+proptest = "1.11.0"

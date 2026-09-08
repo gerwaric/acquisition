@@ -738,8 +738,11 @@ pub fn render(report: &ListingReport, opts: &RenderOptions<'_>) -> Result<ShopRe
         counts.by_cell.insert(c, 0);
     }
     let mut left_out = Vec::new();
-    let mut entries: Vec<Entry> = Vec::new();
-    let mut take = |counts: &mut ShopCounts, l: &Listing, cell: Cell| {
+    let mut take = |counts: &mut ShopCounts,
+                    target: &PriceTarget,
+                    label: String,
+                    location: Option<PriceTarget>,
+                    cell: Cell| {
         *counts.by_cell.entry(cell).or_default() += 1;
         match cell.verdict() {
             Verdict::Post => counts.posted += 1,
@@ -749,39 +752,115 @@ pub fn render(report: &ListingReport, opts: &RenderOptions<'_>) -> Result<ShopRe
         }
         if cell.verdict() != Verdict::Post {
             left_out.push(LeftOut {
-                target: l.subject.target.clone(),
-                label: l.subject.label(),
-                location: l.subject.location.clone(),
+                target: target.clone(),
+                label,
+                location,
                 cell,
                 verdict: cell.verdict(),
             });
         }
     };
-    // Classify first; the page-size check needs the candidate count,
-    // since the page title is reserved at its widest.
+    // Classify first; the page cutter's size check needs the candidate
+    // count, since the page title is reserved at its widest.
     let numbers = stash_numbers(report);
-    let mut candidates: Vec<(&Listing, Entry)> = Vec::new();
+    let mut candidates: Vec<Entry> = Vec::new();
     for l in report.listings.iter().filter(|l| l.subject.is_item()) {
         counts.items += 1;
         match cell(l, report, table, &numbers) {
-            Ok(entry) => candidates.push((l, entry)),
-            Err(cell) => take(&mut counts, l, cell),
+            Ok(entry) => candidates.push(entry),
+            Err(cell) => take(
+                &mut counts,
+                &l.subject.target,
+                l.subject.label(),
+                l.subject.location.clone(),
+                cell,
+            ),
         }
     }
+    let cut = cut_pages(candidates, opts.template, opts.size);
+    for e in &cut.too_large {
+        take(
+            &mut counts,
+            &e.target,
+            e.label.clone(),
+            Some(e.location.clone()),
+            Cell::PageSize,
+        );
+    }
+    for e in &cut.entries {
+        take(
+            &mut counts,
+            &e.target,
+            e.label.clone(),
+            Some(e.location.clone()),
+            e.cell,
+        );
+    }
+    counts.pages = cut.pages.len();
+
+    let freshness = freshness(report, &cut.entries, opts);
+    let policy = Cell::ALL
+        .into_iter()
+        .map(|c| PolicyRow {
+            cell: c,
+            verdict: c.verdict(),
+            count: counts.by_cell.get(&c).copied().unwrap_or(0),
+            why: c.why().to_string(),
+        })
+        .collect();
+    Ok(ShopRender {
+        schema: SHOP_SCHEMA,
+        listing: report.header.clone(),
+        rendered_at: opts.now,
+        size: opts.size,
+        template: opts.template.to_string(),
+        policy,
+        counts,
+        posted: cut.posted,
+        left_out,
+        pages: cut.pages,
+        freshness,
+    })
+}
+
+/// What the page cutter returns ([`cut_pages`]).
+struct Cut {
+    /// The pages, numbered from 1, each within the size.
+    pages: Vec<Page>,
+    /// One record per entry on a page, in page order.
+    posted: Vec<Posted>,
+    /// The entries on the pages, in the same order — the set the C72
+    /// report runs over.
+    entries: Vec<Entry>,
+    /// The candidates that would not fit an empty page (`page_size`),
+    /// in their order.
+    too_large: Vec<Entry>,
+}
+
+/// The page cutter (module doc, "Grouping and pages"): pure over the
+/// candidates, the template and the size. An entry that would not fit
+/// an empty page — the page spoiler reserved at its widest, the template
+/// around it — is set aside; the rest sort into their groups (equal keys
+/// share a spoiler) and are cut so that each page's text, the template
+/// included, holds at most `size` characters, a group that runs across a
+/// cut closed and reopened on the next page. The template holds `[items]`
+/// once and its overhead is within `size` ([`render`] checks both before
+/// calling). *Pinned:* `c74_any_entries_cut_into_pages_within_the_size…`
+/// (the property test) and `c74_pages_are_cut_under_the_size…` (the boundaries).
+fn cut_pages(candidates: Vec<Entry>, template: &str, size: usize) -> Cut {
+    let overhead = template
+        .chars()
+        .count()
+        .saturating_sub(ITEMS_TOKEN.chars().count());
     let fixed = page_fixed_chars(candidates.len(), overhead);
-    for (l, entry) in candidates {
-        if group_open(&entry.title).chars().count()
-            + GROUP_CLOSE.len()
-            + entry.link.chars().count()
-            + fixed
-            > opts.size
-        {
-            take(&mut counts, l, Cell::PageSize);
-        } else {
-            take(&mut counts, l, entry.cell);
-            entries.push(entry);
-        }
-    }
+    let (mut entries, too_large): (Vec<Entry>, Vec<Entry>) =
+        candidates.into_iter().partition(|entry| {
+            group_open(&entry.title).chars().count()
+                + GROUP_CLOSE.len()
+                + entry.link.chars().count()
+                + fixed
+                <= size
+        });
     entries.sort_by_cached_key(|e| e.group.clone());
 
     // Pages: a running character count with the page's fixed cost in
@@ -798,7 +877,7 @@ pub fn render(report: &ListingReport, opts: &RenderOptions<'_>) -> Result<ShopRe
         } else {
             group_open(&entry.title).chars().count() + GROUP_CLOSE.len()
         };
-        if page.items > 0 && page.chars + group_cost + link_chars + fixed > opts.size {
+        if page.items > 0 && page.chars + group_cost + link_chars + fixed > size {
             pages.push(std::mem::take(&mut page));
         }
         if page.groups.last().is_none_or(|g| g.key != entry.group) {
@@ -841,7 +920,7 @@ pub fn render(report: &ListingReport, opts: &RenderOptions<'_>) -> Result<ShopRe
                 body.push_str(GROUP_CLOSE);
             }
             body.push_str(PAGE_CLOSE);
-            let text = opts.template.replacen(ITEMS_TOKEN, &body, 1);
+            let text = template.replacen(ITEMS_TOKEN, &body, 1);
             Page {
                 number: i + 1,
                 of,
@@ -851,31 +930,12 @@ pub fn render(report: &ListingReport, opts: &RenderOptions<'_>) -> Result<ShopRe
             }
         })
         .collect();
-    counts.pages = of;
-
-    let freshness = freshness(report, &entries, opts);
-    let policy = Cell::ALL
-        .into_iter()
-        .map(|c| PolicyRow {
-            cell: c,
-            verdict: c.verdict(),
-            count: counts.by_cell.get(&c).copied().unwrap_or(0),
-            why: c.why().to_string(),
-        })
-        .collect();
-    Ok(ShopRender {
-        schema: SHOP_SCHEMA,
-        listing: report.header.clone(),
-        rendered_at: opts.now,
-        size: opts.size,
-        template: opts.template.to_string(),
-        policy,
-        counts,
-        posted,
-        left_out,
+    Cut {
         pages,
-        freshness,
-    })
+        posted,
+        entries,
+        too_large,
+    }
 }
 
 /// A price spoiler's opening tag.
@@ -1857,5 +1917,140 @@ mod tests {
         );
         let back: ShopRender = serde_json::from_value(expected).unwrap();
         assert_eq!(back, r);
+    }
+
+    /// The plan step 7 property tests (`PRICING-SLICE.md`): the page
+    /// cutter over any entries, template and size.
+    mod properties {
+        use super::*;
+        use proptest::prelude::*;
+
+        /// An entry's parts: its group order (`~price`, `~b/o`, no price),
+        /// tag, whole amount, and the text that makes its link.
+        fn entry_parts() -> impl Strategy<Value = (u8, &'static str, u64, String)> {
+            (
+                0u8..3,
+                prop_oneof![Just("chaos"), Just("divine"), Just("exalted")],
+                1u64..20,
+                "[a-z ]{0,30}",
+            )
+        }
+
+        /// The entry as [`cell`] would build it: the title a function of
+        /// the group, the link unique to the entry.
+        fn entry(i: usize, (order, tag, amount, text): (u8, &'static str, u64, String)) -> Entry {
+            let amount = Amount::Decimal {
+                ten_thousandths: amount * 10_000,
+            };
+            let (group, title) = if order == 2 {
+                ((2, String::new(), None), String::new())
+            } else {
+                let prefix = if order == 0 { " ~price" } else { " ~b/o" };
+                (
+                    (order, tag.to_string(), Some(amount)),
+                    format!("{prefix} {amount} {tag}"),
+                )
+            };
+            Entry {
+                target: PriceTarget::Item {
+                    id: format!("i{i}"),
+                },
+                label: format!("item {i}"),
+                location: PriceTarget::Tab {
+                    realm: Realm::Pc,
+                    id: "t".into(),
+                },
+                cell: if order == 2 {
+                    Cell::HandNoPrice
+                } else {
+                    Cell::StashItem
+                },
+                group,
+                link: format!("[link #{i}# {text}]"),
+                title,
+                seen_response: None,
+                seen_at: None,
+                parent: None,
+            }
+        }
+
+        proptest! {
+            /// C74 — for any entries, any template and any size: every
+            /// candidate is on a page or set aside, never both; every page
+            /// is within the size, the template around it, numbered n of N
+            /// and holding at least one item; every posted item's link is on
+            /// its page exactly once and on no other; groups are sorted
+            /// across the run and contiguous on a page — no group reopens
+            /// on the page that closed it, and a page's spoilers are its
+            /// groups plus its own.
+            #[test]
+            fn c74_any_entries_cut_into_pages_within_the_size_each_posted_once_in_contiguous_groups(
+                parts in prop::collection::vec(entry_parts(), 0..40),
+                before in "[^\\[]{0,30}",
+                after in "[^\\[]{0,30}",
+                size in 0usize..1200,
+            ) {
+                let template = format!("{before}{ITEMS_TOKEN}{after}");
+                let candidates: Vec<Entry> = parts.into_iter().enumerate().map(|(i, p)| entry(i, p)).collect();
+                let n = candidates.len();
+                let cut = cut_pages(candidates, &template, size);
+
+                prop_assert_eq!(cut.entries.len() + cut.too_large.len(), n);
+                prop_assert_eq!(cut.posted.len(), cut.entries.len());
+                let mut targets: Vec<&PriceTarget> = cut
+                    .entries
+                    .iter()
+                    .chain(&cut.too_large)
+                    .map(|e| &e.target)
+                    .collect();
+                targets.sort();
+                targets.dedup();
+                prop_assert_eq!(targets.len(), n, "an entry landed twice or not at all");
+
+                let of = cut.pages.len();
+                prop_assert_eq!(cut.pages.iter().map(|p| p.items).sum::<usize>(), cut.posted.len());
+                for (i, page) in cut.pages.iter().enumerate() {
+                    prop_assert_eq!(page.number, i + 1);
+                    prop_assert_eq!(page.of, of);
+                    prop_assert!(page.items > 0);
+                    prop_assert_eq!(page.chars, page.text.chars().count());
+                    prop_assert!(page.chars <= size, "page {} holds {} chars over {}:\n{}", page.number, page.chars, size, page.text);
+                    prop_assert!(page.text.starts_with(&before) && page.text.ends_with(&after));
+                    prop_assert_eq!(cut.posted.iter().filter(|p| p.page == page.number).count(), page.items);
+                }
+
+                for (e, p) in cut.entries.iter().zip(&cut.posted) {
+                    prop_assert_eq!(&e.target, &p.target);
+                    prop_assert_eq!(&e.link, &p.link);
+                    prop_assert!((1..=of).contains(&p.page));
+                    for page in &cut.pages {
+                        prop_assert_eq!(
+                            page.text.matches(&e.link).count(),
+                            usize::from(page.number == p.page),
+                            "{} on page {}", e.link, page.number
+                        );
+                    }
+                }
+
+                prop_assert!(cut.entries.windows(2).all(|w| w[0].group <= w[1].group), "groups out of order");
+                prop_assert!(cut.posted.windows(2).all(|w| w[0].page <= w[1].page), "pages out of order");
+                for page in &cut.pages {
+                    let mut keys: Vec<&(u8, String, Option<Amount>)> = cut
+                        .entries
+                        .iter()
+                        .zip(&cut.posted)
+                        .filter(|(_, p)| p.page == page.number)
+                        .map(|(e, _)| &e.group)
+                        .collect();
+                    keys.dedup();
+                    let mut distinct = keys.clone();
+                    distinct.sort();
+                    distinct.dedup();
+                    prop_assert_eq!(keys.len(), distinct.len(), "a group reopened on page {}", page.number);
+                    prop_assert_eq!(page.text.matches("[spoiler=").count(), keys.len() + 1, "{}", page.text);
+                    prop_assert_eq!(page.text.matches("[/spoiler]").count(), keys.len() + 1, "{}", page.text);
+                }
+            }
+        }
     }
 }

@@ -892,8 +892,8 @@ mod tests {
             ("3/1", ratio(3, 1), "3/1"),
         ] {
             let parsed: Amount = text.parse().unwrap_or_else(|e| panic!("{e}"));
-            assert_eq!(parsed, amount, "{text}");
-            assert_eq!(parsed.to_string(), canonical, "{text}");
+            assert_eq!(parsed, amount, "{}", text);
+            assert_eq!(parsed.to_string(), canonical, "{}", text);
         }
         // Structural equality: a trailing zero is the same decimal; a
         // reduced ratio is a different ratio; a ratio over 1 is not a
@@ -1259,5 +1259,100 @@ mod tests {
         assert_eq!((row.revision, typed), (1, exact("30", "chaos")));
         clear_buyout(&mut a, &target, 1, &via).unwrap();
         assert!(a.get(CHARACTER_SCOPE, "c1", BUYOUT_KIND).unwrap().is_none());
+    }
+
+    /// The plan step 7 property tests (`PRICING-SLICE.md`): the amount's
+    /// grammar over every spelling, not the hand-picked ones above.
+    mod properties {
+        use super::*;
+        use proptest::prelude::*;
+
+        /// Any amount the type can hold: every positive ten-thousandth,
+        /// every pair of positive integers.
+        fn any_amount() -> impl Strategy<Value = Amount> {
+            prop_oneof![
+                (1..=u64::MAX).prop_map(|ten_thousandths| Amount::Decimal { ten_thousandths }),
+                (1..=u64::MAX, 1..=u64::MAX)
+                    .prop_map(|(wanted, lot)| Amount::Ratio { wanted, lot }),
+            ]
+        }
+
+        proptest! {
+            /// C67 — any amount's canonical text parses back to the same
+            /// amount, is a fixed point of the parse (the shortest
+            /// spelling: no trailing zero, no trailing `.`), and is the
+            /// JSON, both ways.
+            #[test]
+            fn c67_any_amount_round_trips_through_its_canonical_text(a in any_amount()) {
+                let text = a.to_string();
+                prop_assert_eq!(text.parse::<Amount>(), Ok(a));
+                prop_assert_eq!(text.parse::<Amount>().unwrap().to_string(), text.clone());
+                if let Amount::Decimal { .. } = a {
+                    prop_assert!(!text.ends_with('.'), "{}", text);
+                    prop_assert!(!(text.contains('.') && text.ends_with('0')), "{}", text);
+                }
+                prop_assert_eq!(serde_json::to_value(a).unwrap(), Value::String(text.clone()));
+                prop_assert_eq!(serde_json::from_value::<Amount>(json!(text)).unwrap(), a);
+            }
+
+            /// C67, T10 — any spelling of the decimal grammar (a whole
+            /// part, up to four fractional digits) parses to the amount
+            /// it names, zero refused; its canonical text is no longer
+            /// and names the same amount.
+            #[test]
+            fn c67_any_spelling_of_the_decimal_grammar_parses_to_the_amount_it_names(
+                whole in prop_oneof![Just("0".to_string()), "[1-9][0-9]{0,14}"],
+                fraction in prop::option::of("[0-9]{1,4}"),
+            ) {
+                let text = match &fraction {
+                    Some(f) => format!("{whole}.{f}"),
+                    None => whole.clone(),
+                };
+                let units: u64 = whole.parse().unwrap();
+                let frac: u64 = fraction.as_deref().map_or(0, |f| {
+                    f.parse::<u64>().unwrap() * 10u64.pow(4 - f.len() as u32)
+                });
+                let want = units * 10_000 + frac;
+                let got = text.parse::<Amount>();
+                if want == 0 {
+                    prop_assert!(got.is_err(), "{} parsed", text);
+                } else {
+                    prop_assert_eq!(got.clone(), Ok(Amount::Decimal { ten_thousandths: want }));
+                    let canonical = got.unwrap().to_string();
+                    prop_assert!(canonical.len() <= text.len(), "{} from {}", canonical, text);
+                    prop_assert_eq!(canonical.parse::<Amount>(), text.parse::<Amount>());
+                }
+            }
+
+            /// C67, T2 — any lot pair parses and is kept unreduced: its
+            /// canonical text is the pair verbatim.
+            #[test]
+            fn c67_any_lot_pair_parses_and_is_kept_unreduced(
+                wanted in "[1-9][0-9]{0,18}",
+                lot in "[1-9][0-9]{0,18}",
+            ) {
+                let text = format!("{wanted}/{lot}");
+                let a = text.parse::<Amount>().unwrap();
+                prop_assert_eq!(a, Amount::Ratio { wanted: wanted.parse().unwrap(), lot: lot.parse().unwrap() });
+                prop_assert_eq!(a.to_string(), text);
+            }
+
+            /// C47, C67 — any text parses or is refused naming the text and
+            /// a reason, never panics; what parses is digits, `.` and `/`
+            /// only and round-trips.
+            #[test]
+            fn c47_any_text_parses_or_is_refused_naming_it(text in "\\PC{0,12}") {
+                match text.parse::<Amount>() {
+                    Ok(a) => {
+                        prop_assert!(text.bytes().all(|b| b.is_ascii_digit() || b == b'.' || b == b'/'), "{:?}", text);
+                        prop_assert_eq!(a.to_string().parse::<Amount>(), Ok(a));
+                    }
+                    Err(e) => {
+                        prop_assert_eq!(&e.text, &text);
+                        prop_assert!(!e.why.is_empty());
+                    }
+                }
+            }
+        }
     }
 }
