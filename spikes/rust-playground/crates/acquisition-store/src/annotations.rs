@@ -926,10 +926,18 @@ impl Annotations {
         if dest.exists() {
             return Err(exists().into());
         }
+        // The partial's name is unique per process and per export within
+        // it: the clock alone is not — two threads exporting within one
+        // tick (microseconds on macOS) shared a name, one VACUUM failed
+        // on the other's file and its cleanup removed that file before
+        // it was published, so both were refused (the C35 race test,
+        // one run in twelve; found by plan step 7's gate, 2026-09-07).
+        static EXPORTS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
         let mut partial = dest.as_os_str().to_owned();
         partial.push(format!(
-            ".partial-{}-{}",
+            ".partial-{}-{}-{}",
             std::process::id(),
+            EXPORTS.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .map(|d| d.as_nanos())
