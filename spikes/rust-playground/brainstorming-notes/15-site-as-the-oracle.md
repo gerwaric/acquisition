@@ -31,11 +31,14 @@ observation with a trigger.
   note, the price label (`Exact Price:` / `Asking Price:` / `No Price
   Set` / none), amount and the currency's display name, the account,
   a verified flag, "listed N ago". No tab name.
-- The facts: the owner's store, the ggg provider directory. Before this
-  session the owner runs a full-account Standard refresh under the
-  rails (`tools/tracer-rung.sh --account GERWARIC --league Standard
-  --characters all all`), so the comparison's domain is the whole
-  account rather than the 68 of 402 tabs fetched as of 2026-09-07.
+- The facts: the owner's store, the ggg provider directory. The
+  full-account Standard refresh ran on 2026-09-08 (run ledger,
+  `LIVE-TESTING.md`): every top-level and folder-child tab fetched
+  (384), 41 characters, 19,828 live items in tabs. **The domain is the
+  top-level tabs.** The 2,945 substash stubs under the 40 map and unique
+  tabs were planned and declined (~10 h of limiter holds; the site
+  cannot link a substash item, Q3); they stay unfetched until something
+  needs them, and a site row from one of them is "outside the domain".
 
 ## The method
 
