@@ -42,15 +42,22 @@
 //! (T11: it unlists the whole tab), an amount [`Amount`] refuses (a fifth
 //! decimal, a zero, a sign), a word the table does not know (spelled
 //! the table's way, case-sensitive — the indexer's loose matching is not
-//! modelled, C68), a prefix the game does not write (`~c/o`, `~gb/o`:
-//! the C++ app's, never observed in a note or on the site), and, in a
-//! note, anything after the word. A misread is one more fixture line
-//! (`reference/price-notes-2026-09-04.txt`), never a special case.
+//! modelled, C68), and a prefix the game does not write (`~c/o`, `~gb/o`:
+//! the C++ app's, never observed in a note or on the site). A misread is
+//! one more fixture line (`reference/price-notes-2026-09-04.txt`), never
+//! a special case.
 //!
-//! **The two sources differ in two rules** ([`Source`]). A tab name
-//! tolerates trailing text after the word — the game itself appends
-//! `(Remove-only)`, and the owner's letters `(A)`…`(G)` ride along (T11)
-//! — where a note holds the grammar and nothing more. And a ratio is a
+//! **Text after the word is tolerated by both sources, not read.** A tab
+//! name carries the game's own `(Remove-only)` and the owner's letters
+//! `(A)`…`(G)` (T11). A note carries whatever was typed after the word:
+//! the game stores it whole and its dialog displays only the parsed
+//! part, the API serves the whole, and the trade site reads the price
+//! out of it and labels the listing "Price with Note" — the owner's
+//! `~price 777 chaos testing`, read by all three the same way on
+//! 2026-09-08 (`PRICING-SLICE.md`, "What the site taught", 5). Parser v1
+//! refused such a note on the dialog's display alone (T17 as first
+//! read); v2 reads it as the site does, the text still shown verbatim.
+//! **The two sources differ in one rule** ([`Source`]): a ratio is a
 //! price in a note (T2) but invalid in a tab name (T11). Trailing
 //! whitespace is trimmed from both before reading (`~skip ` is how the
 //! game writes skip); leading whitespace and text are not tolerated —
@@ -77,10 +84,10 @@ use crate::price::{Amount, Price};
 /// The version of this grammar, cited by every result that carries a
 /// game-side reading (C69). Bumped when a reading of the same text
 /// changes.
-pub const NOTE_PARSER_VERSION: u32 = 1;
+pub const NOTE_PARSER_VERSION: u32 = 2;
 
-/// Where a text came from; the two sources read under two rules (module
-/// doc, "The two sources differ").
+/// Where a text came from; the two sources read under one differing rule
+/// (module doc, "The two sources differ in one rule").
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Source {
@@ -214,21 +221,14 @@ pub fn read(source: Source, text: &str, table: &CurrencyTable) -> GamePrice {
             "a ratio ({amount_text}) in a tab name is invalid and lists nothing (T11)"
         ));
     }
-    // A tab name's suffix is tolerated, not read; a note's word must be
-    // its last.
-    let word = match source {
-        Source::Note => after_amount,
-        Source::TabName => after_amount
-            .split_once(char::is_whitespace)
-            .map_or(after_amount, |(word, _suffix)| word),
-    };
+    // The suffix after the word is tolerated, not read, under both
+    // sources (module doc); the word is what stands before the first
+    // whitespace.
+    let word = after_amount
+        .split_once(char::is_whitespace)
+        .map_or(after_amount, |(word, _suffix)| word);
     if word.is_empty() {
         return invalid(format!("`{prefix} {amount_text}` names no currency word"));
-    }
-    if word.chars().any(char::is_whitespace) {
-        return invalid(format!(
-            "a note is `{prefix} <amount> <word>` and nothing more; found {after_amount:?} after the amount"
-        ));
     }
     let Some(row) = table.resolve(word) else {
         return invalid(format!(
@@ -325,10 +325,12 @@ mod tests {
 
     /// C69, T11 — every priced tab name in the owner's listing reads as
     /// an exact price despite the game's `(Remove-only)` and the owner's
-    /// `(A)`…`(G)` after the word; the same text as a *note* is invalid,
-    /// because a note holds the grammar and nothing more.
+    /// `(A)`…`(G)` after the word; the same text as a *note* reads the
+    /// same (parser v2: the game stores a note's suffix and the site
+    /// reads through it — the owner's `~price 777 chaos testing`,
+    /// 2026-09-08).
     #[test]
-    fn c69_a_tab_name_tolerates_trailing_text_and_a_note_does_not() {
+    fn c69_text_after_the_word_is_tolerated_by_a_tab_name_and_a_note_alike() {
         let fixture = price_notes();
         assert!(fixture.tab_names.len() >= 13);
         for name in &fixture.tab_names {
@@ -341,12 +343,13 @@ mod tests {
                 "{name:?}"
             );
             if name.contains('(') {
-                assert!(
-                    matches!(note(name), GamePrice::Invalid { .. }),
-                    "{name:?} as a note"
-                );
+                assert_eq!(note(name), got, "{name:?} as a note");
             }
         }
+        assert_eq!(
+            note("~price 777 chaos testing"),
+            GamePrice::Exact(price("777", "chaos"))
+        );
         assert_eq!(
             tab("~price 30 chaos (C)"),
             GamePrice::Exact(price("30", "chaos"))
@@ -355,10 +358,14 @@ mod tests {
             tab("~price 20 chaos (A) (Remove-only)"),
             GamePrice::Exact(price("20", "chaos"))
         );
-        // A tab name's suffix is tolerated, not read: the word must still
-        // stand alone.
+        // The suffix is tolerated, not read: the word must still stand
+        // alone, under both sources.
         assert!(matches!(
             tab("~price 30 chaos(C)"),
+            GamePrice::Invalid { .. }
+        ));
+        assert!(matches!(
+            note("~price 30 chaos(C)"),
             GamePrice::Invalid { .. }
         ));
     }
@@ -459,13 +466,18 @@ mod tests {
         let retired = note("~price 5 chisel");
         assert_eq!(retired, GamePrice::Exact(price("5", "chisel")));
         assert!(table().unwrap().by_tag("chisel").unwrap().is_retired());
-        for text in ["~price 5 Chaos", "~price 5 chaoss", "~price 5 chaos orb"] {
+        for text in ["~price 5 Chaos", "~price 5 chaoss"] {
             assert!(
-                matches!(&note(text), GamePrice::Invalid { why } if why.contains("v1") || why.contains("nothing more")),
+                matches!(&note(text), GamePrice::Invalid { why } if why.contains("v1")),
                 "{text:?} → {}",
                 note(text)
             );
         }
+        // `chaos orb`: the word is `chaos`, `orb` a tolerated suffix (v2).
+        assert_eq!(
+            note("~price 5 chaos orb"),
+            GamePrice::Exact(price("5", "chaos"))
+        );
     }
 
     /// C69, C67 — the amount is `Amount`'s grammar: a fifth decimal, a
@@ -614,7 +626,7 @@ mod tests {
             /// C69, T10, T11 — a well-formed price reads as written under
             /// both sources, the word resolved to its row's tag; a ratio is
             /// invalid in a tab name (T11); text after the word is tolerated
-            /// by a tab name and refused by a note, whitespace by both.
+            /// by both sources (parser v2), whitespace too.
             #[test]
             fn c69_a_well_formed_price_reads_as_written(
                 negotiable in any::<bool>(),
@@ -636,12 +648,7 @@ mod tests {
                 }
                 let with_suffix = format!("{bare}{suffix}");
                 prop_assert_eq!(read(Source::TabName, &with_suffix, t), as_tab, "{:?}", with_suffix);
-                let as_note = read(Source::Note, &with_suffix, t);
-                if suffix.trim().is_empty() {
-                    prop_assert_eq!(as_note, want, "{:?}", with_suffix);
-                } else {
-                    prop_assert!(matches!(as_note, GamePrice::Invalid { .. }), "{:?} → {}", with_suffix, as_note);
-                }
+                prop_assert_eq!(read(Source::Note, &with_suffix, t), want, "{:?}", with_suffix);
             }
         }
     }

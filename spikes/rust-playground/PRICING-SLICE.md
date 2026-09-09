@@ -24,7 +24,8 @@ claims authored master-side. Nothing here is a second authority.
   v2 file is refused and its one policy row set again by hand), facts **v7**, sync policy **v3**, plan schema
   **6**; currency table **v1** (reviewed by the owner 2026-09-05);
   buyout value **v1** (`skip`, renamed from `ignore` 2026-09-06); game-side
-  parser **v1**; listing report schema **2** (1 never left development;
+  parser **v2** (v1 refused a note's suffix; the site reads through
+  one, 2026-09-08); listing report schema **2** (1 never left development;
   the second step-4 review's count rename bumped it; the shape is pinned
   by a committed fixture); shop render schema **2** (pinned the same
   way; 1 measured staleness over every posted item). Pricing code so far: `acquisition-plan/src/currency.rs`,
@@ -72,9 +73,10 @@ claims authored master-side. Nothing here is a second authority.
 - Read-only tools: `tools/census.py` (the 0.18 userstore and the facts;
   refuses an uncheckpointed WAL), `tools/notes-check.py` (the price
   notes a refresh landed; reads through the WAL), `tools/site-listings.py`
-  (the trade site's saved search pages → one table by item id) and
-  `tools/site-join.py` (that table against the listing state the
-  `listing-report` example writes, unredacted, under `runs/`).
+  (the trade site's saved search pages → one table by item id;
+  `--exchange-items` reads the bulk exchange's item groups from a saved
+  page) and `tools/site-join.py` (that table against the listing state
+  the `listing-report` example writes, unredacted, under `runs/`).
 
 ## Plan (re-scoped 2026-09-04)
 
@@ -208,6 +210,7 @@ claims file's appendix maps T→C as well.
 | Pricing | plan 7.3 story and races | `1eaef2f4` | `tests/price_story.rs` (acquisition-cli): set, show, render, clear as one story through the spawned binary, then the races as properties under every interleaving, run in rounds with the processes started together — two blind writers on one row never clobber and the receipts chain from the row before the round to the row `show` reads after it (C35, C78); a stale `--if-revision` on `set` and `clear` conflicts naming the current revision, `{"error":…}` with exit 1, nothing changed (C35, C11); a clear under a render always lands and the render is one function of one read, never a torn page (C64, C74). **Found:** the seed leaves no intent file, so round 1 races its creation, and about one run in six a first-ever writer was refused "busy: another writer held it past 5 s" in under a second — `PRAGMA journal_mode=WAL` on a fresh file takes the write lock from inside the read transaction the pragma opened, a path SQLite's busy handler does not cover, so the second creator is answered `database is locked` at once. **Fixed:** the three opens (facts, intent, queue) go through `ensure_wal` — an already-WAL file is left alone, the creation switch retries up to the busy timeout; 20 runs after: no refusal, one to four genuine conflicts a run, every chain intact. A first theory (the busy timeout installed too late) was wrong — rusqlite installs it at open — and was reverted. | `c74_set_show_render_clear_…`, `c35_two_blind_writers_…`, `c35_a_stale_revision_…`, `c74_a_clear_under_a_render_…`; `ensure_wal` (`acquisition-store/src/lib.rs`) |
 | Pricing | plan 7.4 checkpoint on stop | `1eaef2f4` | the daemon leaves by `process::exit`, so its connections never closed and the WALs stayed beside the facts file and `daemon.db` (the price-notes run: 1.1 MB the census refused). `Store::checkpoint` and `JobDb::checkpoint` (`PRAGMA wal_checkpoint(TRUNCATE)`); the daemon's two exits — stop request, idle watchdog — go through one `exit_process` that checkpoints the open store and the queue, logs the page counts, removes the socket, exits. `tests/daemon_stop_checkpoint.rs`: a listing landed through a real daemon over the mock, both WALs holding pages before the stop (so an empty one after is the checkpoint's doing), the socket gone, both WALs empty; seen failing first at 107 KB. `tools/census.py`'s guard and `tools/notes-check.py`'s "stop the daemon first" stand, and now mean what they say. | `daemon_stop_checkpoints_the_facts_file_and_the_queue`; `exit_process` (`daemon.rs`) |
 | Pricing | plan 7.5 the site as the oracle | `df248a17` | `tools/site-listings.py`: the owner's saved pages (rendered DOM, eight parts, `runs/site/`) → one table by item id, deduped across parts, each part's "Showing N results" line kept, the price label (Exact, Asking, No Price Set, and a fourth, "Price with Note:"), amount, the site's currency word, the note verbatim, the age, and the channel — a stash row links the profile, a forum row its thread. `examples/listing-report.rs`: the `ListingReport` `acq price list --json` renders, unredacted, to stdout (the join key is the id), kept under `runs/`. `tools/site-join.py`: the join under a reason list fixed before it ran; two reasons it found (`socketed`, `stackable`) were added with the run, and the doc says so. The pages of 2026-09-08: 551 item-search rows, none shared between parts, 547 stash and 4 forum, all verified, one account, and a ninth page, the bulk exchange, 8 offers (read the same evening, `c5b7e314`); the store the same day (the run ledger's refresh): 20,941 items, 757 the state expects on the site. **Q11 answered:** every stash row is from a tab whose `metadata.public` is true; the 13 non-public priced tabs (1,121 items) put nothing there — C81's premise holds, and note 15's 8888 finding was the flag set after the 09-07 listing (the 09-08 facts hold it public). 535 agree, 20,180 absent on both; 15 differ; 9 site-only, the forum rows; 207 state-only; one row no reason explains. **No difference changes what a page does today** — the render omits what the game lists at whatever price, blocks a socketed item (T13), and posts nothing the site shows — with one narrow candidate the exchange page raised (point 2): a manual row on an exchange-eligible stack in a ratio-named public tab would post a price the exchange contradicts. Each is an observation with its trigger or a claim for the owner ("What the site taught"). | `reference/site-listings-2026-09-08.json` (the table; the pages stay in `runs/`); the tools; the join's output is reproducible from the two |
+| Pricing | plan 7.5 follow-ups: parser v2, the exchange list | `HASH4` | `game_side.rs` **v2**: text after the word is tolerated by a note as by a tab name — the game stores a note's suffix whole and its dialog displays only the parsed part, the API serves the whole, the site reads the price out of it ("Price with Note"); the owner confirmed all three in game and on the site with `~price 777 chaos testing` and a fresh `~price 666 chaos tested` (2026-09-08). One branch fewer; the one rule the two sources still differ in is the ratio (T2, T11). `NOTE_PARSER_VERSION` 2 (a reading of the same text changed); the two committed report fixtures carry it. The exchange's item groups (Q10), from the owner's saved page with 15 of 22 groups expanded — 750 ids and display names — committed as a proposal beside the currency table; no code reads it until the parked table's trigger fires. | `c69_text_after_the_word_is_tolerated_by_a_tab_name_and_a_note_alike`, `c69_a_well_formed_price_reads_as_written` (`game_side.rs`); `reference/exchange-items-2026-09-08.json` |
 | Pricing | plan 7 gate | `04993ca5` | **Found by the bare gate at session close:** the store's C35 export race test failed one run in twelve — on the pre-session store code too — with both exports refused. An export's partial file was named by pid and the clock's nanoseconds; two threads within one tick (microseconds on macOS) shared the name, one `VACUUM INTO` failed on the other's file and its cleanup removed that file before it was published. A per-process counter joins the name; thirty runs after, none failed. | `simultaneous_exports_to_one_destination_publish_exactly_one` (`annotations.rs`) |
 
 ## Findings
@@ -475,9 +478,13 @@ master-side (`docs/design/trade-ground-truth.md`; never from here).
    `game_side.rs` (a note tolerates a suffix as a tab name does — the
    C++ regex did) and one test flipped
    (`c69_a_tab_name_tolerates_trailing_text_and_a_note_does_not`); it
-   touches C69's mechanism, and T17 stays true of the dialog. Owner's
-   call (question 6). Trigger, if parked: a consumer reading a noted
-   item's effective price. Claim: the label and the reading. The same
+   touches C69's mechanism, and T17 stays true of the dialog. The
+   owner looked in game the same evening: the dialog shows `~price 777
+   chaos`, the API and the site hold the whole text, and a fresh
+   `~price 666 chaos tested` behaved the same — the dialog displays
+   the parsed part and stores the whole. **Built as parser v2** on the
+   owner's approval (question 6; the ledger row below). Claim: T17
+   rewritten as a display fact; the label and the reading. The same
    row answers Q2 for one case: the tab's price is valid (8888) and the
    site shows the note's (777) — a note beats a valid tab name, the
    order C69 took from the C++ code; the clean-note case is the
@@ -553,9 +560,10 @@ shows the item picture, so a wrong link is visible before posting.
   parser's own and are now observed (2026-09-06): an unreadable `~`
   note has no effect and the tab applies (T18 — the parser still reads
   it `invalid`, the listing state treats `invalid` and none alike);
-  a note is the grammar and nothing more (T17: the dialog strips
-  anything appended). Still the parser's own: `~skip` as a tab name
-  reads `skip`. The indexer's loose word matching (T16) is not
+  a note's suffix is tolerated as a tab name's is (parser v2,
+  2026-09-08: the game stores it, the dialog displays the parsed
+  part, the site reads through it — T17 to be rewritten as a display
+  fact). Still the parser's own: `~skip` as a tab name reads `skip`. The indexer's loose word matching (T16) is not
   modelled; a hand-typed alias reads `invalid`, shown verbatim.
 - C74's omission rule is built (`shop.rs`, the policy table): the
   render reads `side` and `kind` together, and each blocked cell names
@@ -634,13 +642,13 @@ shows the item picture, so a wrong link is visible before posting.
    after step 6? The test pass can be its own step in either case.
    And your verdict on the page, verbatim, with whether the coverage,
    stale and positions lines changed what you did.
-6. The site reads `~price 777 chaos testing` as 777 chaos ("What the
-   site taught", 5); our parser refuses a note's suffix on T17, which
-   is about the dialog, not the index. Amend C69's mechanism so a note
-   tolerates trailing text as a tab name does (one branch, one test
-   flipped), or park it on its trigger? And C81's *Evidence:* — the
-   entry is at 764 bytes; " *Evidence:* item 5, 2026-09-08." would take
-   it to 796 — your trim, if you want the pointer on the ruling.
+6. ~~The site reads `~price 777 chaos testing` as 777 chaos ("What the
+   site taught", 5); amend C69's mechanism so a note tolerates trailing
+   text as a tab name does, or park it?~~ **Answered 2026-09-08**,
+   owner: "I approve the parser and list changes" — parser v2 built,
+   the exchange list committed as a proposal. C81's *Evidence:* pointer
+   left off on the agent's recommendation (the ruling cites T1 and T11;
+   the evidence is the ledger row).
 4. ~~C68's "enumerable through every surface" against the parked MCP
    step.~~ **Answered 2026-09-07**, owner: "agree to narrow" — C68 now
    reads "enumerable by every surface built" (795 bytes), the code's

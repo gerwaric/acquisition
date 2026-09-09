@@ -1,0 +1,3093 @@
+{
+ "about": "The bulk exchange's item groups as the trade site renders them in its 'Items I Want' / 'Items I Have' panels, read from a page the owner saved (tools/site-listings.py --exchange-items). The bulk-eligible list T2 calls 'listed below' (Q10, docs/design/trade-ground-truth.md). A group the owner did not expand before saving is listed under `unexpanded`, not as empty. A proposal for a reference table under C68; no code reads it until its trigger fires (decisions/pricing.md, Parked).",
+ "source": "standard-listings-2026-09-08-part-10.html",
+ "panel": "Items I Want",
+ "groups_expanded": 15,
+ "unexpanded": [
+  "Sanctum Tomes & Relics",
+  "Heist Contracts & Blueprints",
+  "Beasts",
+  "Cards",
+  "Shaper, Conqueror & Elder Maps",
+  "Unique Maps",
+  "Legacy Items"
+ ],
+ "entries": 750,
+ "groups": [
+  {
+   "group": "Currency",
+   "items": [
+    {
+     "id": "alt",
+     "name": "Orb of Alteration"
+    },
+    {
+     "id": "fusing",
+     "name": "Orb of Fusing"
+    },
+    {
+     "id": "alch",
+     "name": "Orb of Alchemy"
+    },
+    {
+     "id": "chaos",
+     "name": "Chaos Orb"
+    },
+    {
+     "id": "gcp",
+     "name": "Gemcutter's Prism"
+    },
+    {
+     "id": "exalted",
+     "name": "Exalted Orb"
+    },
+    {
+     "id": "chrome",
+     "name": "Chromatic Orb"
+    },
+    {
+     "id": "jewellers",
+     "name": "Jeweller's Orb"
+    },
+    {
+     "id": "engineers",
+     "name": "Engineer's Orb"
+    },
+    {
+     "id": "infused-engineers-orb",
+     "name": "Infused Engineer's Orb"
+    },
+    {
+     "id": "chance",
+     "name": "Orb of Chance"
+    },
+    {
+     "id": "chisel",
+     "name": "Cartographer's Chisel"
+    },
+    {
+     "id": "scour",
+     "name": "Orb of Scouring"
+    },
+    {
+     "id": "blessed",
+     "name": "Blessed Orb"
+    },
+    {
+     "id": "regret",
+     "name": "Orb of Regret"
+    },
+    {
+     "id": "regal",
+     "name": "Regal Orb"
+    },
+    {
+     "id": "divine",
+     "name": "Divine Orb"
+    },
+    {
+     "id": "vaal",
+     "name": "Vaal Orb"
+    },
+    {
+     "id": "annul",
+     "name": "Orb of Annulment"
+    },
+    {
+     "id": "orb-of-binding",
+     "name": "Orb of Binding"
+    },
+    {
+     "id": "ancient-orb",
+     "name": "Ancient Orb"
+    },
+    {
+     "id": "orb-of-horizons",
+     "name": "Orb of Horizons"
+    },
+    {
+     "id": "harbingers-orb",
+     "name": "Harbinger's Orb"
+    },
+    {
+     "id": "fracturing-orb",
+     "name": "Fracturing Orb"
+    },
+    {
+     "id": "wisdom",
+     "name": "Scroll of Wisdom"
+    },
+    {
+     "id": "portal",
+     "name": "Portal Scroll"
+    },
+    {
+     "id": "scrap",
+     "name": "Armourer's Scrap"
+    },
+    {
+     "id": "whetstone",
+     "name": "Blacksmith's Whetstone"
+    },
+    {
+     "id": "bauble",
+     "name": "Glassblower's Bauble"
+    },
+    {
+     "id": "transmute",
+     "name": "Orb of Transmutation"
+    },
+    {
+     "id": "aug",
+     "name": "Orb of Augmentation"
+    },
+    {
+     "id": "mirror",
+     "name": "Mirror of Kalandra"
+    },
+    {
+     "id": "eternal",
+     "name": "Eternal Orb"
+    },
+    {
+     "id": "rogues-marker",
+     "name": "Rogue's Marker"
+    },
+    {
+     "id": "tempering-orb",
+     "name": "Tempering Orb"
+    },
+    {
+     "id": "tailoring-orb",
+     "name": "Tailoring Orb"
+    },
+    {
+     "id": "orb-of-unmaking",
+     "name": "Orb of Unmaking"
+    },
+    {
+     "id": "flesh-of-xesht",
+     "name": "Flesh of Xesht"
+    },
+    {
+     "id": "veiled-chaos-orb",
+     "name": "Veiled Chaos Orb"
+    },
+    {
+     "id": "veiled-exalted-orb",
+     "name": "Veiled Exalted Orb"
+    },
+    {
+     "id": "enkindling-orb",
+     "name": "Enkindling Orb"
+    },
+    {
+     "id": "instilling-orb",
+     "name": "Instilling Orb"
+    },
+    {
+     "id": "sacred-orb",
+     "name": "Sacred Orb"
+    },
+    {
+     "id": "stacked-deck",
+     "name": "Stacked Deck"
+    },
+    {
+     "id": "veiled-scarab",
+     "name": "Veiled Scarab"
+    },
+    {
+     "id": "dead-mans-sulphur",
+     "name": "Dead Man's Sulphur"
+    },
+    {
+     "id": "shapers-exalted-orb",
+     "name": "Shaper's Exalted Orb"
+    },
+    {
+     "id": "elders-exalted-orb",
+     "name": "Elder's Exalted Orb"
+    },
+    {
+     "id": "crusaders-exalted-orb",
+     "name": "Crusader's Exalted Orb"
+    },
+    {
+     "id": "redeemers-exalted-orb",
+     "name": "Redeemer's Exalted Orb"
+    },
+    {
+     "id": "hunters-exalted-orb",
+     "name": "Hunter's Exalted Orb"
+    },
+    {
+     "id": "warlords-exalted-orb",
+     "name": "Warlord's Exalted Orb"
+    },
+    {
+     "id": "awakeners-orb",
+     "name": "Awakener's Orb"
+    },
+    {
+     "id": "mavens-orb",
+     "name": "Orb of Dominance"
+    },
+    {
+     "id": "orb-of-remembrance",
+     "name": "Orb of Remembrance"
+    },
+    {
+     "id": "orb-of-unravelling",
+     "name": "Orb of Unravelling"
+    },
+    {
+     "id": "orb-of-intention",
+     "name": "Orb of Intention"
+    },
+    {
+     "id": "eldritch-chaos-orb",
+     "name": "Eldritch Chaos Orb"
+    },
+    {
+     "id": "eldritch-exalted-orb",
+     "name": "Eldritch Exalted Orb"
+    },
+    {
+     "id": "eldritch-orb-of-annulment",
+     "name": "Eldritch Orb of Annulment"
+    },
+    {
+     "id": "lesser-eldritch-ember",
+     "name": "Lesser Eldritch Ember"
+    },
+    {
+     "id": "greater-eldritch-ember",
+     "name": "Greater Eldritch Ember"
+    },
+    {
+     "id": "grand-eldritch-ember",
+     "name": "Grand Eldritch Ember"
+    },
+    {
+     "id": "exceptional-eldritch-ember",
+     "name": "Exceptional Eldritch Ember"
+    },
+    {
+     "id": "lesser-eldritch-ichor",
+     "name": "Lesser Eldritch Ichor"
+    },
+    {
+     "id": "greater-eldritch-ichor",
+     "name": "Greater Eldritch Ichor"
+    },
+    {
+     "id": "grand-eldritch-ichor",
+     "name": "Grand Eldritch Ichor"
+    },
+    {
+     "id": "exceptional-eldritch-ichor",
+     "name": "Exceptional Eldritch Ichor"
+    },
+    {
+     "id": "orb-of-conflict",
+     "name": "Orb of Conflict"
+    },
+    {
+     "id": "tainted-chromatic-orb",
+     "name": "Tainted Chromatic Orb"
+    },
+    {
+     "id": "tainted-orb-of-fusing",
+     "name": "Tainted Orb of Fusing"
+    },
+    {
+     "id": "tainted-jewellers-orb",
+     "name": "Tainted Jeweller's Orb"
+    },
+    {
+     "id": "tainted-chaos-orb",
+     "name": "Tainted Chaos Orb"
+    },
+    {
+     "id": "tainted-exalted-orb",
+     "name": "Tainted Exalted Orb"
+    },
+    {
+     "id": "tainted-mythic-orb",
+     "name": "Tainted Mythic Orb"
+    },
+    {
+     "id": "tainted-armourers-scrap",
+     "name": "Tainted Armourer's Scrap"
+    },
+    {
+     "id": "tainted-blacksmiths-whetstone",
+     "name": "Tainted Blacksmith's Whetstone"
+    },
+    {
+     "id": "tainted-divine-teardrop",
+     "name": "Tainted Divine Teardrop"
+    },
+    {
+     "id": "tainted-divine-orb",
+     "name": "Volatile Vaal Orb"
+    },
+    {
+     "id": "wild-lifeforce",
+     "name": "Wild Crystallised Lifeforce"
+    },
+    {
+     "id": "vivid-lifeforce",
+     "name": "Vivid Crystallised Lifeforce"
+    },
+    {
+     "id": "primal-lifeforce",
+     "name": "Primal Crystallised Lifeforce"
+    },
+    {
+     "id": "sacred-lifeforce",
+     "name": "Sacred Crystallised Lifeforce"
+    },
+    {
+     "id": "sandswept-lifeforce",
+     "name": "Crystallised Rancour"
+    },
+    {
+     "id": "cluster-fog",
+     "name": "Refracting Fog"
+    },
+    {
+     "id": "hinekoras-lock",
+     "name": "Hinekora's Lock"
+    },
+    {
+     "id": "mavens-chisel-of-procurement",
+     "name": "Maven's Chisel of Procurement"
+    },
+    {
+     "id": "mavens-chisel-of-proliferation",
+     "name": "Maven's Chisel of Proliferation"
+    },
+    {
+     "id": "mavens-chisel-of-divination",
+     "name": "Maven's Chisel of Divination"
+    },
+    {
+     "id": "mavens-chisel-of-scarabs",
+     "name": "Maven's Chisel of Scarabs"
+    },
+    {
+     "id": "mavens-chisel-of-avarice",
+     "name": "Maven's Chisel of Avarice"
+    },
+    {
+     "id": "reflecting-mist",
+     "name": "Reflecting Mist"
+    },
+    {
+     "id": "transmutation-shard",
+     "name": "Transmutation Shard"
+    },
+    {
+     "id": "alteration-shard",
+     "name": "Alteration Shard"
+    },
+    {
+     "id": "alchemy-shard",
+     "name": "Alchemy Shard"
+    },
+    {
+     "id": "chaos-shard",
+     "name": "Chaos Shard"
+    },
+    {
+     "id": "regal-shard",
+     "name": "Regal Shard"
+    },
+    {
+     "id": "exalted-shard",
+     "name": "Exalted Shard"
+    },
+    {
+     "id": "annulment-shard",
+     "name": "Annulment Shard"
+    },
+    {
+     "id": "fracturing-shard",
+     "name": "Fracturing Shard"
+    },
+    {
+     "id": "mirror-shard",
+     "name": "Mirror Shard"
+    }
+   ]
+  },
+  {
+   "group": "Fragments, Scarabs & Mapping",
+   "items": [
+    {
+     "id": "dusk",
+     "name": "Sacrifice at Dusk"
+    },
+    {
+     "id": "mid",
+     "name": "Sacrifice at Midnight"
+    },
+    {
+     "id": "dawn",
+     "name": "Sacrifice at Dawn"
+    },
+    {
+     "id": "noon",
+     "name": "Sacrifice at Noon"
+    },
+    {
+     "id": "grie",
+     "name": "Mortal Grief"
+    },
+    {
+     "id": "rage",
+     "name": "Mortal Rage"
+    },
+    {
+     "id": "hope",
+     "name": "Mortal Hope"
+    },
+    {
+     "id": "ign",
+     "name": "Mortal Ignorance"
+    },
+    {
+     "id": "hydra",
+     "name": "Fragment of the Hydra"
+    },
+    {
+     "id": "phoenix",
+     "name": "Fragment of the Phoenix"
+    },
+    {
+     "id": "minot",
+     "name": "Fragment of the Minotaur"
+    },
+    {
+     "id": "chimer",
+     "name": "Fragment of the Chimera"
+    },
+    {
+     "id": "fragment-of-enslavement",
+     "name": "Fragment of Enslavement"
+    },
+    {
+     "id": "fragment-of-eradication",
+     "name": "Fragment of Eradication"
+    },
+    {
+     "id": "fragment-of-constriction",
+     "name": "Fragment of Constriction"
+    },
+    {
+     "id": "fragment-of-purification",
+     "name": "Fragment of Purification"
+    },
+    {
+     "id": "fragment-of-terror",
+     "name": "Fragment of Terror"
+    },
+    {
+     "id": "fragment-of-emptiness",
+     "name": "Fragment of Emptiness"
+    },
+    {
+     "id": "fragment-of-shape",
+     "name": "Fragment of Shape"
+    },
+    {
+     "id": "fragment-of-knowledge",
+     "name": "Fragment of Knowledge"
+    },
+    {
+     "id": "al-hezmins-crest",
+     "name": "Al-Hezmin's Crest"
+    },
+    {
+     "id": "barans-crest",
+     "name": "Baran's Crest"
+    },
+    {
+     "id": "droxs-crest",
+     "name": "Drox's Crest"
+    },
+    {
+     "id": "veritanias-crest",
+     "name": "Veritania's Crest"
+    },
+    {
+     "id": "beauty",
+     "name": "Beauty"
+    },
+    {
+     "id": "curiosity",
+     "name": "Curiosity"
+    },
+    {
+     "id": "ambition",
+     "name": "Ambition"
+    },
+    {
+     "id": "cooperation",
+     "name": "Cooperation"
+    },
+    {
+     "id": "offer",
+     "name": "Offering to the Goddess"
+    },
+    {
+     "id": "offer-tribute",
+     "name": "Tribute to the Goddess"
+    },
+    {
+     "id": "offer-gift",
+     "name": "Gift to the Goddess"
+    },
+    {
+     "id": "offer-dedication",
+     "name": "Dedication to the Goddess"
+    },
+    {
+     "id": "timeless-eternal-emblem",
+     "name": "Timeless Eternal Emblem"
+    },
+    {
+     "id": "timeless-karui-emblem",
+     "name": "Timeless Karui Emblem"
+    },
+    {
+     "id": "timeless-vaal-emblem",
+     "name": "Timeless Vaal Emblem"
+    },
+    {
+     "id": "timeless-templar-emblem",
+     "name": "Timeless Templar Emblem"
+    },
+    {
+     "id": "timeless-maraketh-emblem",
+     "name": "Timeless Maraketh Emblem"
+    },
+    {
+     "id": "zoraths-eye-of-malevolence",
+     "name": "Zorath's Eye of Malevolence"
+    },
+    {
+     "id": "zoraths-eye-of-authority",
+     "name": "Zorath's Eye of Authority"
+    },
+    {
+     "id": "zoraths-eye-of-the-inevitable",
+     "name": "Zorath's Eye of the Inevitable"
+    },
+    {
+     "id": "zoraths-eye-of-the-endless",
+     "name": "Zorath's Eye of the Endless"
+    },
+    {
+     "id": "the-black-barya",
+     "name": "The Black Barya"
+    },
+    {
+     "id": "simulacrum",
+     "name": "Simulacrum"
+    },
+    {
+     "id": "sacred-blossom",
+     "name": "Sacred Blossom"
+    },
+    {
+     "id": "ritual-vessel",
+     "name": "Ritual Vessel"
+    },
+    {
+     "id": "an-audience-with-the-king",
+     "name": "An Audience With The King"
+    },
+    {
+     "id": "syndicate-medallion",
+     "name": "Syndicate Medallion"
+    },
+    {
+     "id": "divine-vessel",
+     "name": "Divine Vessel"
+    },
+    {
+     "id": "awakening-fragment",
+     "name": "Awakening Fragment"
+    },
+    {
+     "id": "cosmic-fragment",
+     "name": "Cosmic Fragment"
+    },
+    {
+     "id": "blazing-fragment",
+     "name": "Blazing Fragment"
+    },
+    {
+     "id": "reality-fragment",
+     "name": "Reality Fragment"
+    },
+    {
+     "id": "decaying-fragment",
+     "name": "Decaying Fragment"
+    },
+    {
+     "id": "devouring-fragment",
+     "name": "Devouring Fragment"
+    },
+    {
+     "id": "synthesising-fragment",
+     "name": "Synthesising Fragment"
+    },
+    {
+     "id": "echo-of-loneliness",
+     "name": "Echo of Loneliness"
+    },
+    {
+     "id": "echo-of-trauma",
+     "name": "Echo of Trauma"
+    },
+    {
+     "id": "echo-of-reverence",
+     "name": "Echo of Reverence"
+    },
+    {
+     "id": "traumatic-fragment",
+     "name": "Traumatic Fragment"
+    },
+    {
+     "id": "reverent-fragment",
+     "name": "Reverent Fragment"
+    },
+    {
+     "id": "lonely-fragment",
+     "name": "Lonely Fragment"
+    },
+    {
+     "id": "ancient-reliquary-key",
+     "name": "Ancient Reliquary Key"
+    },
+    {
+     "id": "timeworn-reliquary-key",
+     "name": "Timeworn Reliquary Key"
+    },
+    {
+     "id": "vaal-reliquary-key",
+     "name": "Vaal Reliquary Key"
+    },
+    {
+     "id": "forgotten-reliquary-key",
+     "name": "Forgotten Reliquary Key"
+    },
+    {
+     "id": "visceral-reliquary-key",
+     "name": "Visceral Reliquary Key"
+    },
+    {
+     "id": "shiny-reliquary-key",
+     "name": "Shiny Reliquary Key"
+    },
+    {
+     "id": "archive-reliquary-key",
+     "name": "Archive Reliquary Key"
+    },
+    {
+     "id": "oubliette-reliquary-key",
+     "name": "Oubliette Reliquary Key"
+    },
+    {
+     "id": "cosmic-reliquary-key",
+     "name": "Cosmic Reliquary Key"
+    },
+    {
+     "id": "decaying-reliquary-key",
+     "name": "Decaying Reliquary Key"
+    },
+    {
+     "id": "voidborn-reliquary-key",
+     "name": "Voidborn Reliquary Key"
+    },
+    {
+     "id": "lonely-reliquary-key",
+     "name": "Lonely Reliquary Key"
+    },
+    {
+     "id": "reverent-reliquary-key",
+     "name": "Reverent Reliquary Key"
+    },
+    {
+     "id": "traumatic-reliquary-key",
+     "name": "Traumatic Reliquary Key"
+    },
+    {
+     "id": "valdos-puzzle-box",
+     "name": "Valdo's Puzzle Box"
+    },
+    {
+     "id": "blessing-xoph",
+     "name": "Blessing of Xoph"
+    },
+    {
+     "id": "blessing-tul",
+     "name": "Blessing of Tul"
+    },
+    {
+     "id": "blessing-esh",
+     "name": "Blessing of Esh"
+    },
+    {
+     "id": "blessing-uul-netol",
+     "name": "Blessing of Uul-Netol"
+    },
+    {
+     "id": "blessing-chayula",
+     "name": "Blessing of Chayula"
+    },
+    {
+     "id": "hivebrain-gland",
+     "name": "Hivebrain Gland"
+    },
+    {
+     "id": "titanic-scarab",
+     "name": "Titanic Scarab"
+    },
+    {
+     "id": "titanic-scarab-of-treasures",
+     "name": "Titanic Scarab of Treasures"
+    },
+    {
+     "id": "titanic-scarab-of-legend",
+     "name": "Titanic Scarab of Legend"
+    },
+    {
+     "id": "sulphite-scarab",
+     "name": "Sulphite Scarab"
+    },
+    {
+     "id": "sulphite-scarab-of-greed",
+     "name": "Sulphite Scarab of Greed"
+    },
+    {
+     "id": "sulphite-scarab-of-fumes",
+     "name": "Sulphite Scarab of Fumes"
+    },
+    {
+     "id": "divination-scarab-of-the-cloister",
+     "name": "Divination Scarab of The Cloister"
+    },
+    {
+     "id": "divination-scarab-of-plenty",
+     "name": "Divination Scarab of Plenty"
+    },
+    {
+     "id": "divination-scarab-of-pilfering",
+     "name": "Divination Scarab of Pilfering"
+    },
+    {
+     "id": "torment-scarab",
+     "name": "Torment Scarab"
+    },
+    {
+     "id": "torment-scarab-of-peculiarity",
+     "name": "Torment Scarab of Peculiarity"
+    },
+    {
+     "id": "torment-scarab-of-release",
+     "name": "Torment Scarab of Release"
+    },
+    {
+     "id": "torment-scarab-of-possession",
+     "name": "Torment Scarab of Possession"
+    },
+    {
+     "id": "anarchy-scarab",
+     "name": "Anarchy Scarab"
+    },
+    {
+     "id": "anarchy-scarab-of-gigantification",
+     "name": "Anarchy Scarab of Gigantification"
+    },
+    {
+     "id": "anarchy-scarab-of-partnership",
+     "name": "Anarchy Scarab of Partnership"
+    },
+    {
+     "id": "anarchy-scarab-of-the-exceptional",
+     "name": "Anarchy Scarab of the Exceptional"
+    },
+    {
+     "id": "ritual-scarab-of-selectiveness",
+     "name": "Ritual Scarab of Selectiveness"
+    },
+    {
+     "id": "ritual-scarab-of-wisps",
+     "name": "Ritual Scarab of Wisps"
+    },
+    {
+     "id": "ritual-scarab-of-abundance",
+     "name": "Ritual Scarab of Abundance"
+    },
+    {
+     "id": "ritual-scarab-of-corpses",
+     "name": "Ritual Scarab of Corpses"
+    },
+    {
+     "id": "harvest-scarab",
+     "name": "Harvest Scarab"
+    },
+    {
+     "id": "harvest-scarab-of-doubling",
+     "name": "Harvest Scarab of Doubling"
+    },
+    {
+     "id": "harvest-scarab-of-cornucopia",
+     "name": "Harvest Scarab of Cornucopia"
+    },
+    {
+     "id": "bestiary-scarab",
+     "name": "Bestiary Scarab"
+    },
+    {
+     "id": "bestiary-scarab-of-the-herd",
+     "name": "Bestiary Scarab of the Herd"
+    },
+    {
+     "id": "bestiary-scarab-of-duplicating",
+     "name": "Bestiary Scarab of Duplicating"
+    },
+    {
+     "id": "bestiary-scarab-of-the-shadowed-crow",
+     "name": "Bestiary Scarab of the Shadowed Crow"
+    },
+    {
+     "id": "influencing-scarab-of-the-shaper",
+     "name": "Influencing Scarab of the Shaper"
+    },
+    {
+     "id": "influencing-scarab-of-the-elder",
+     "name": "Influencing Scarab of the Elder"
+    },
+    {
+     "id": "influencing-scarab-of-hordes",
+     "name": "Influencing Scarab of Hordes"
+    },
+    {
+     "id": "influencing-scarab-of-conversion",
+     "name": "Influencing Scarab of Interference"
+    },
+    {
+     "id": "trarthan-scarab",
+     "name": "Trarthan Scarab"
+    },
+    {
+     "id": "trarthan-scarab-of-infamy",
+     "name": "Trarthan Scarab of Infamy"
+    },
+    {
+     "id": "trarthan-scarab-of-renown",
+     "name": "Trarthan Scarab of Renown"
+    },
+    {
+     "id": "trarthan-scarab-of-surprising-alliances",
+     "name": "Trarthan Scarab of Surprising Alliances"
+    },
+    {
+     "id": "abyss-scarab",
+     "name": "Abyss Scarab"
+    },
+    {
+     "id": "abyss-scarab-of-multitudes",
+     "name": "Abyss Scarab of Multitudes"
+    },
+    {
+     "id": "abyss-scarab-of-descending",
+     "name": "Abyss Scarab of Descending"
+    },
+    {
+     "id": "abyss-scarab-of-crystals",
+     "name": "Abyss Scarab of Crystals"
+    },
+    {
+     "id": "abyss-scarab-of-the-consort",
+     "name": "Abyss Scarab of the Consort"
+    },
+    {
+     "id": "essence-scarab",
+     "name": "Essence Scarab"
+    },
+    {
+     "id": "essence-scarab-of-ascent",
+     "name": "Essence Scarab of Ascent"
+    },
+    {
+     "id": "essence-scarab-of-stability",
+     "name": "Essence Scarab of Stability"
+    },
+    {
+     "id": "essence-scarab-of-calcification",
+     "name": "Essence Scarab of Calcification"
+    },
+    {
+     "id": "essence-scarab-of-adaptation",
+     "name": "Essence Scarab of Adaptation"
+    },
+    {
+     "id": "domination-scarab",
+     "name": "Domination Scarab"
+    },
+    {
+     "id": "domination-scarab-of-apparitions",
+     "name": "Domination Scarab of Apparitions"
+    },
+    {
+     "id": "domination-scarab-of-evolution",
+     "name": "Domination Scarab of Evolution"
+    },
+    {
+     "id": "domination-scarab-of-terrors",
+     "name": "Domination Scarab of Terrors"
+    },
+    {
+     "id": "incursion-scarab",
+     "name": "Incursion Scarab"
+    },
+    {
+     "id": "incursion-scarab-of-invasion",
+     "name": "Incursion Scarab of Invasion"
+    },
+    {
+     "id": "incursion-scarab-of-champions",
+     "name": "Incursion Scarab of Champions"
+    },
+    {
+     "id": "incursion-scarab-of-timelines",
+     "name": "Incursion Scarab of Timelines"
+    },
+    {
+     "id": "betrayal-scarab",
+     "name": "Betrayal Scarab"
+    },
+    {
+     "id": "betrayal-scarab-of-the-allflame",
+     "name": "Betrayal Scarab of the Allflame"
+    },
+    {
+     "id": "betrayal-scarab-of-reinforcements",
+     "name": "Betrayal Scarab of Reinforcements"
+    },
+    {
+     "id": "betrayal-scarab-of-perpetuation",
+     "name": "Betrayal Scarab of Unbreaking"
+    },
+    {
+     "id": "blight-scarab",
+     "name": "Blight Scarab"
+    },
+    {
+     "id": "blight-scarab-of-bounty",
+     "name": "Blight Scarab of Bounty"
+    },
+    {
+     "id": "blight-scarab-of-the-blightheart",
+     "name": "Blight Scarab of the Blightheart"
+    },
+    {
+     "id": "blight-scarab-of-blooming",
+     "name": "Blight Scarab of Blooming"
+    },
+    {
+     "id": "blight-scarab-of-invigoration",
+     "name": "Blight Scarab of Invigoration"
+    },
+    {
+     "id": "breach-scarab",
+     "name": "Breach Scarab of the Hive"
+    },
+    {
+     "id": "breach-scarab-of-the-dreamer",
+     "name": "Breach Scarab of the Dreamer"
+    },
+    {
+     "id": "breach-scarab-of-lordship",
+     "name": "Breach Scarab of Instability"
+    },
+    {
+     "id": "breach-scarab-of-splintering",
+     "name": "Breach Scarab of the Marshal"
+    },
+    {
+     "id": "breach-scarab-of-snares",
+     "name": "Breach Scarab of the Incensed Swarm"
+    },
+    {
+     "id": "breach-scarab-of-resonant-cascade",
+     "name": "Breach Scarab of Resonant Cascade"
+    },
+    {
+     "id": "legion-scarab",
+     "name": "Legion Scarab"
+    },
+    {
+     "id": "legion-scarab-of-officers",
+     "name": "Legion Scarab of Officers"
+    },
+    {
+     "id": "legion-scarab-of-command",
+     "name": "Legion Scarab of Treasures"
+    },
+    {
+     "id": "legion-scarab-of-the-sekhema",
+     "name": "Legion Scarab of The Sekhema"
+    },
+    {
+     "id": "legion-scarab-of-eternal-conflict",
+     "name": "Legion Scarab of Eternal Conflict"
+    },
+    {
+     "id": "cartography-scarab-of-escalation",
+     "name": "Cartography Scarab of Escalation"
+    },
+    {
+     "id": "cartography-scarab-of-risk",
+     "name": "Cartography Scarab of Risk"
+    },
+    {
+     "id": "cartography-scarab-of-singularity",
+     "name": "Cartography Scarab of Singularity"
+    },
+    {
+     "id": "cartography-scarab-of-corruption",
+     "name": "Cartography Scarab of Corruption"
+    },
+    {
+     "id": "cartography-scarab-of-the-multitude",
+     "name": "Cartography Scarab of the Multitude"
+    },
+    {
+     "id": "beyond-scarab",
+     "name": "Beyond Scarab"
+    },
+    {
+     "id": "beyond-scarab-of-haemophilia",
+     "name": "Beyond Scarab of Haemophilia"
+    },
+    {
+     "id": "beyond-scarab-of-corruption",
+     "name": "Beyond Scarab of Corruption"
+    },
+    {
+     "id": "beyond-scarab-of-resurgence",
+     "name": "Beyond Scarab of Resurgence"
+    },
+    {
+     "id": "beyond-scarab-of-the-invasion",
+     "name": "Beyond Scarab of the Invasion"
+    },
+    {
+     "id": "ambush-scarab",
+     "name": "Ambush Scarab"
+    },
+    {
+     "id": "ambush-scarab-of-hidden-compartments",
+     "name": "Ambush Scarab of Hidden Compartments"
+    },
+    {
+     "id": "ambush-scarab-of-potency",
+     "name": "Ambush Scarab of Potency"
+    },
+    {
+     "id": "ambush-scarab-of-containment",
+     "name": "Ambush Scarab of Containment"
+    },
+    {
+     "id": "ambush-scarab-of-discernment",
+     "name": "Ambush Scarab of Discernment"
+    },
+    {
+     "id": "ultimatum-scarab",
+     "name": "Ultimatum Scarab"
+    },
+    {
+     "id": "ultimatum-scarab-of-bribing",
+     "name": "Ultimatum Scarab of Bribing"
+    },
+    {
+     "id": "ultimatum-scarab-of-dueling",
+     "name": "Ultimatum Scarab of Dueling"
+    },
+    {
+     "id": "ultimatum-scarab-of-catalysing",
+     "name": "Ultimatum Scarab of Catalysing"
+    },
+    {
+     "id": "ultimatum-scarab-of-inscription",
+     "name": "Ultimatum Scarab of Inscription"
+    },
+    {
+     "id": "expedition-scarab",
+     "name": "Expedition Scarab"
+    },
+    {
+     "id": "expedition-scarab-of-runefinding",
+     "name": "Expedition Scarab of Runefinding"
+    },
+    {
+     "id": "expedition-scarab-of-verisium-powder",
+     "name": "Expedition Scarab of Verisium Powder"
+    },
+    {
+     "id": "expedition-scarab-of-the-skald",
+     "name": "Expedition Scarab of Infusion"
+    },
+    {
+     "id": "expedition-scarab-of-archaeology",
+     "name": "Expedition Scarab of Archaeology"
+    },
+    {
+     "id": "delirium-scarab",
+     "name": "Delirium Scarab"
+    },
+    {
+     "id": "delirium-scarab-of-mania",
+     "name": "Delirium Scarab of Mania"
+    },
+    {
+     "id": "delirium-scarab-of-paranoia",
+     "name": "Delirium Scarab of Paranoia"
+    },
+    {
+     "id": "delirium-scarab-of-neuroses",
+     "name": "Delirium Scarab of Neuroses"
+    },
+    {
+     "id": "delirium-scarab-of-delusions",
+     "name": "Delirium Scarab of Delusions"
+    },
+    {
+     "id": "kalguuran-scarab",
+     "name": "Kalguuran Scarab"
+    },
+    {
+     "id": "kalguuran-scarab-of-guarded-riches",
+     "name": "Kalguuran Scarab of Guarded Riches"
+    },
+    {
+     "id": "kalguuran-scarab-of-refinement",
+     "name": "Kalguuran Scarab of Refinement"
+    },
+    {
+     "id": "kalguuran-scarab-of-enriching",
+     "name": "Kalguuran Scarab of Enriching"
+    },
+    {
+     "id": "scarab-of-monstrous-lineage",
+     "name": "Scarab of Monstrous Lineage"
+    },
+    {
+     "id": "scarab-of-adversaries",
+     "name": "Scarab of Adversaries"
+    },
+    {
+     "id": "scarab-of-divinity",
+     "name": "Scarab of Divinity"
+    },
+    {
+     "id": "scarab-of-hunted-traitors",
+     "name": "Scarab of Hunted Traitors"
+    },
+    {
+     "id": "scarab-of-stability",
+     "name": "Scarab of Stability"
+    },
+    {
+     "id": "scarab-of-wisps",
+     "name": "Scarab of Wisps"
+    },
+    {
+     "id": "scarab-of-the-sinistral",
+     "name": "Scarab of the Sinistral"
+    },
+    {
+     "id": "scarab-of-the-dextral",
+     "name": "Scarab of the Dextral"
+    },
+    {
+     "id": "scarab-of-radiant-storms",
+     "name": "Scarab of Radiant Storms"
+    },
+    {
+     "id": "horned-scarab-of-bloodlines",
+     "name": "Horned Scarab of Bloodlines"
+    },
+    {
+     "id": "horned-scarab-of-nemeses",
+     "name": "Horned Scarab of Nemeses"
+    },
+    {
+     "id": "horned-scarab-of-preservation",
+     "name": "Horned Scarab of Preservation"
+    },
+    {
+     "id": "horned-scarab-of-awakening",
+     "name": "Horned Scarab of Awakening"
+    },
+    {
+     "id": "horned-scarab-of-tradition",
+     "name": "Horned Scarab of Tradition"
+    },
+    {
+     "id": "horned-scarab-of-glittering",
+     "name": "Horned Scarab of Glittering"
+    },
+    {
+     "id": "horned-scarab-of-pandemonium",
+     "name": "Horned Scarab of Pandemonium"
+    },
+    {
+     "id": "the-mavens-writ",
+     "name": "The Maven's Writ"
+    },
+    {
+     "id": "writhing-invitation",
+     "name": "Writhing Invitation"
+    },
+    {
+     "id": "screaming-invitation",
+     "name": "Screaming Invitation"
+    },
+    {
+     "id": "polaric-invitation",
+     "name": "Polaric Invitation"
+    },
+    {
+     "id": "incandescent-invitation",
+     "name": "Incandescent Invitation"
+    },
+    {
+     "id": "timeless-eternal-empire-splinter",
+     "name": "Timeless Eternal Empire Splinter"
+    },
+    {
+     "id": "timeless-karui-splinter",
+     "name": "Timeless Karui Splinter"
+    },
+    {
+     "id": "timeless-vaal-splinter",
+     "name": "Timeless Vaal Splinter"
+    },
+    {
+     "id": "timeless-templar-splinter",
+     "name": "Timeless Templar Splinter"
+    },
+    {
+     "id": "timeless-maraketh-splinter",
+     "name": "Timeless Maraketh Splinter"
+    },
+    {
+     "id": "simulacrum-splinter",
+     "name": "Simulacrum Splinter"
+    },
+    {
+     "id": "crescent-splinter",
+     "name": "Crescent Splinter"
+    },
+    {
+     "id": "ritual-splinter",
+     "name": "Ritual Splinter"
+    },
+    {
+     "id": "memory-of-trauma",
+     "name": "Memory of Trauma"
+    },
+    {
+     "id": "memory-of-reverence",
+     "name": "Memory of Reverence"
+    },
+    {
+     "id": "memory-of-loneliness",
+     "name": "Memory of Loneliness"
+    },
+    {
+     "id": "templar-astrolabe",
+     "name": "Templar Astrolabe"
+    },
+    {
+     "id": "fruiting-astrolabe",
+     "name": "Fruiting Astrolabe"
+    },
+    {
+     "id": "lightless-astrolabe",
+     "name": "Lightless Astrolabe"
+    },
+    {
+     "id": "grasping-astrolabe",
+     "name": "Grasping Astrolabe"
+    },
+    {
+     "id": "nameless-astrolabe",
+     "name": "Nameless Astrolabe"
+    },
+    {
+     "id": "fungal-astrolabe",
+     "name": "Fungal Astrolabe"
+    },
+    {
+     "id": "chaotic-astrolabe",
+     "name": "Chaotic Astrolabe"
+    },
+    {
+     "id": "deceptive-astrolabe",
+     "name": "Deceptive Astrolabe"
+    },
+    {
+     "id": "timeless-astrolabe",
+     "name": "Timeless Astrolabe"
+    },
+    {
+     "id": "runic-astrolabe",
+     "name": "Runic Astrolabe"
+    }
+   ]
+  },
+  {
+   "group": "Ducats",
+   "items": [
+    {
+     "id": "merricks-ducat",
+     "name": "Merrick's Ducat"
+    },
+    {
+     "id": "cyaxans-ducat",
+     "name": "Cyaxan's Ducat"
+    },
+    {
+     "id": "the-changelings-ducat",
+     "name": "The Changeling's Ducat"
+    },
+    {
+     "id": "the-genteels-ducat",
+     "name": "The Genteel's Ducat"
+    },
+    {
+     "id": "kisharas-ducat",
+     "name": "Kishara's Ducat"
+    },
+    {
+     "id": "telesias-ducat",
+     "name": "Telesia's Ducat"
+    },
+    {
+     "id": "rotmothers-ducat",
+     "name": "Rotmother's Ducat"
+    },
+    {
+     "id": "brinehooks-ducat",
+     "name": "Brinehook's Ducat"
+    },
+    {
+     "id": "katakohis-ducat",
+     "name": "Katakohi's Ducat"
+    },
+    {
+     "id": "tzamotos-ducat",
+     "name": "Tzamoto's Ducat"
+    },
+    {
+     "id": "ukatoas-ducat",
+     "name": "Ukatoa's Ducat"
+    }
+   ]
+  },
+  {
+   "group": "Enshrouding Crystals",
+   "items": [
+    {
+     "id": "karui-enshrouding-crystal",
+     "name": "Karui Enshrouding Crystal"
+    },
+    {
+     "id": "imperial-enshrouding-crystal",
+     "name": "Imperial Enshrouding Crystal"
+    },
+    {
+     "id": "vaal-enshrouding-crystal",
+     "name": "Vaal Enshrouding Crystal"
+    },
+    {
+     "id": "templar-enshrouding-crystal",
+     "name": "Templar Enshrouding Crystal"
+    },
+    {
+     "id": "maraketh-enshrouding-crystal",
+     "name": "Maraketh Enshrouding Crystal"
+    }
+   ]
+  },
+  {
+   "group": "Foulborn Currency & Wombgifts",
+   "items": [
+    {
+     "id": "foulborn-orb-of-augmentation",
+     "name": "Foulborn Orb of Augmentation"
+    },
+    {
+     "id": "foulborn-regal-orb",
+     "name": "Foulborn Regal Orb"
+    },
+    {
+     "id": "foulborn-exalted-orb",
+     "name": "Foulborn Exalted Orb"
+    },
+    {
+     "id": "provisioning-wombgift",
+     "name": "Provisioning Wombgift"
+    },
+    {
+     "id": "lavish-wombgift",
+     "name": "Lavish Wombgift"
+    },
+    {
+     "id": "ancient-wombgift",
+     "name": "Ancient Wombgift"
+    },
+    {
+     "id": "mysterious-wombgift",
+     "name": "Mysterious Wombgift"
+    }
+   ]
+  },
+  {
+   "group": "Allflame Embers",
+   "items": [
+    {
+     "id": "allflame-ember-of-kulemak",
+     "name": "Allflame Ember of Kulemak"
+    },
+    {
+     "id": "allflame-ember-of-resplendence",
+     "name": "Allflame Ember of Resplendence"
+    },
+    {
+     "id": "allflame-ember-of-propagation",
+     "name": "Allflame Ember of Propagation"
+    },
+    {
+     "id": "allflame-ember-of-flesh",
+     "name": "Allflame Ember of Flesh"
+    },
+    {
+     "id": "allflame-ember-of-the-wildwood",
+     "name": "Allflame Ember of the Wildwood"
+    },
+    {
+     "id": "allflame-ember-of-the-ethereal",
+     "name": "Allflame Ember of the Ethereal"
+    },
+    {
+     "id": "allflame-ember-of-the-gilded",
+     "name": "Allflame Ember of the Gilded"
+    },
+    {
+     "id": "allflame-ember-of-toads",
+     "name": "Allflame Ember of Toads"
+    }
+   ]
+  },
+  {
+   "group": "Runegrafts",
+   "items": [
+    {
+     "id": "runegraft-of-the-river",
+     "name": "Runegraft of the River"
+    },
+    {
+     "id": "runegraft-of-the-fortress",
+     "name": "Runegraft of the Fortress"
+    },
+    {
+     "id": "runegraft-of-the-combatant",
+     "name": "Runegraft of the Combatant"
+    },
+    {
+     "id": "runegraft-of-the-sinistral",
+     "name": "Runegraft of the Sinistral"
+    },
+    {
+     "id": "runegraft-of-the-bound",
+     "name": "Runegraft of the Bound"
+    },
+    {
+     "id": "runegraft-of-the-warp",
+     "name": "Runegraft of the Warp"
+    },
+    {
+     "id": "runegraft-of-the-soulwick",
+     "name": "Runegraft of the Soulwick"
+    },
+    {
+     "id": "runegraft-of-bellows",
+     "name": "Runegraft of Bellows"
+    },
+    {
+     "id": "runegraft-of-gemcraft",
+     "name": "Runegraft of Gemcraft"
+    },
+    {
+     "id": "runegraft-of-blasphemy",
+     "name": "Runegraft of Blasphemy"
+    },
+    {
+     "id": "runegraft-of-time",
+     "name": "Runegraft of Time"
+    },
+    {
+     "id": "runegraft-of-treachery",
+     "name": "Runegraft of Treachery"
+    },
+    {
+     "id": "runegraft-of-quaffing",
+     "name": "Runegraft of Quaffing"
+    },
+    {
+     "id": "runegraft-of-restitching",
+     "name": "Runegraft of Restitching"
+    },
+    {
+     "id": "runegraft-of-loyalty",
+     "name": "Runegraft of Loyalty"
+    },
+    {
+     "id": "runegraft-of-the-witchmark",
+     "name": "Runegraft of the Witchmark"
+    },
+    {
+     "id": "runegraft-of-the-novamark",
+     "name": "Runegraft of the Novamark"
+    },
+    {
+     "id": "runegraft-of-refraction",
+     "name": "Runegraft of Refraction"
+    },
+    {
+     "id": "runegraft-of-the-jeweller",
+     "name": "Runegraft of the Jeweller"
+    },
+    {
+     "id": "runegraft-of-stability",
+     "name": "Runegraft of Stability"
+    },
+    {
+     "id": "runegraft-of-the-angler",
+     "name": "Runegraft of the Angler"
+    },
+    {
+     "id": "runegraft-of-consecration",
+     "name": "Runegraft of Consecration"
+    },
+    {
+     "id": "runegraft-of-fury",
+     "name": "Runegraft of Fury"
+    },
+    {
+     "id": "runegraft-of-rallying",
+     "name": "Runegraft of Rallying"
+    },
+    {
+     "id": "runegraft-of-rotblood",
+     "name": "Runegraft of Rotblood"
+    },
+    {
+     "id": "runegraft-of-the-imbued",
+     "name": "Runegraft of the Imbued"
+    },
+    {
+     "id": "runegraft-of-the-agile",
+     "name": "Runegraft of the Agile"
+    },
+    {
+     "id": "runegraft-of-suffering",
+     "name": "Runegraft of Suffering"
+    },
+    {
+     "id": "runegraft-of-the-spellbound",
+     "name": "Runegraft of the Spellbound"
+    },
+    {
+     "id": "runegraft-of-resurgence",
+     "name": "Runegraft of Resurgence"
+    },
+    {
+     "id": "runegraft-of-connection",
+     "name": "Runegraft of Connection"
+    }
+   ]
+  },
+  {
+   "group": "Tattoos & Omens",
+   "items": [
+    {
+     "id": "tattoo-of-the-ngamahu-firewalker",
+     "name": "Tattoo of the Ngamahu Firewalker"
+    },
+    {
+     "id": "tattoo-of-the-ngamahu-shaman",
+     "name": "Tattoo of the Ngamahu Shaman"
+    },
+    {
+     "id": "tattoo-of-the-ngamahu-warrior",
+     "name": "Tattoo of the Ngamahu Warrior"
+    },
+    {
+     "id": "tattoo-of-the-ngamahu-warmonger",
+     "name": "Tattoo of the Ngamahu Warmonger"
+    },
+    {
+     "id": "tattoo-of-the-ngamahu-woodcarver",
+     "name": "Tattoo of the Ngamahu Woodcarver"
+    },
+    {
+     "id": "tattoo-of-the-ngamahu-makanga",
+     "name": "Tattoo of the Ngamahu Makanga"
+    },
+    {
+     "id": "tattoo-of-the-kitava-blood-drinker",
+     "name": "Tattoo of the Kitava Blood Drinker"
+    },
+    {
+     "id": "tattoo-of-the-kitava-rebel",
+     "name": "Tattoo of the Kitava Rebel"
+    },
+    {
+     "id": "tattoo-of-the-kitava-warrior",
+     "name": "Tattoo of the Kitava Warrior"
+    },
+    {
+     "id": "tattoo-of-the-kitava-heart-eater",
+     "name": "Tattoo of the Kitava Heart Eater"
+    },
+    {
+     "id": "tattoo-of-the-kitava-shaman",
+     "name": "Tattoo of the Kitava Shaman"
+    },
+    {
+     "id": "tattoo-of-the-kitava-makanga",
+     "name": "Tattoo of the Kitava Makanga"
+    },
+    {
+     "id": "tattoo-of-the-tukohama-shaman",
+     "name": "Tattoo of the Tukohama Shaman"
+    },
+    {
+     "id": "tattoo-of-the-tukohama-warrior",
+     "name": "Tattoo of the Tukohama Warrior"
+    },
+    {
+     "id": "tattoo-of-the-tukohama-brawler",
+     "name": "Tattoo of the Tukohama Brawler"
+    },
+    {
+     "id": "tattoo-of-the-tukohama-warmonger",
+     "name": "Tattoo of the Tukohama Warmonger"
+    },
+    {
+     "id": "tattoo-of-the-tukohama-warcaller",
+     "name": "Tattoo of the Tukohama Warcaller"
+    },
+    {
+     "id": "tattoo-of-the-tukohama-makanga",
+     "name": "Tattoo of the Tukohama Makanga"
+    },
+    {
+     "id": "tattoo-of-the-rongokurai-warrior",
+     "name": "Tattoo of the Rongokurai Warrior"
+    },
+    {
+     "id": "tattoo-of-the-rongokurai-brute",
+     "name": "Tattoo of the Rongokurai Brute"
+    },
+    {
+     "id": "tattoo-of-the-rongokurai-goliath",
+     "name": "Tattoo of the Rongokurai Goliath"
+    },
+    {
+     "id": "tattoo-of-the-rongokurai-turtle",
+     "name": "Tattoo of the Rongokurai Turtle"
+    },
+    {
+     "id": "tattoo-of-the-rongokurai-guard",
+     "name": "Tattoo of the Rongokurai Guard"
+    },
+    {
+     "id": "tattoo-of-the-rongokurai-makanga",
+     "name": "Tattoo of the Rongokurai Makanga"
+    },
+    {
+     "id": "tattoo-of-the-tasalio-bladedancer",
+     "name": "Tattoo of the Tasalio Bladedancer"
+    },
+    {
+     "id": "tattoo-of-the-tasalio-tideshifter",
+     "name": "Tattoo of the Tasalio Tideshifter"
+    },
+    {
+     "id": "tattoo-of-the-tasalio-shaman",
+     "name": "Tattoo of the Tasalio Shaman"
+    },
+    {
+     "id": "tattoo-of-the-tasalio-warrior",
+     "name": "Tattoo of the Tasalio Warrior"
+    },
+    {
+     "id": "tattoo-of-the-tasalio-scout",
+     "name": "Tattoo of the Tasalio Scout"
+    },
+    {
+     "id": "tattoo-of-the-tasalio-makanga",
+     "name": "Tattoo of the Tasalio Makanga"
+    },
+    {
+     "id": "tattoo-of-the-arohongui-moonwarden",
+     "name": "Tattoo of the Arohongui Moonwarden"
+    },
+    {
+     "id": "tattoo-of-the-arohongui-scout",
+     "name": "Tattoo of the Arohongui Scout"
+    },
+    {
+     "id": "tattoo-of-the-arohongui-warrior",
+     "name": "Tattoo of the Arohongui Warrior"
+    },
+    {
+     "id": "tattoo-of-the-arohongui-warmonger",
+     "name": "Tattoo of the Arohongui Warmonger"
+    },
+    {
+     "id": "tattoo-of-the-arohongui-shaman",
+     "name": "Tattoo of the Arohongui Shaman"
+    },
+    {
+     "id": "loyalty-tattoo-of-ikiahoCopy",
+     "name": "Loyalty Tattoo of Ikiaho"
+    },
+    {
+     "id": "tattoo-of-the-arohongui-makanga",
+     "name": "Tattoo of the Arohongui Makanga"
+    },
+    {
+     "id": "tattoo-of-the-ramako-scout",
+     "name": "Tattoo of the Ramako Scout"
+    },
+    {
+     "id": "tattoo-of-the-ramako-archer",
+     "name": "Tattoo of the Ramako Archer"
+    },
+    {
+     "id": "tattoo-of-the-ramako-sniper",
+     "name": "Tattoo of the Ramako Sniper"
+    },
+    {
+     "id": "tattoo-of-the-ramako-fleetfoot",
+     "name": "Tattoo of the Ramako Fleetfoot"
+    },
+    {
+     "id": "tattoo-of-the-ramako-shaman",
+     "name": "Tattoo of the Ramako Shaman"
+    },
+    {
+     "id": "tattoo-of-the-ramako-makanga",
+     "name": "Tattoo of the Ramako Makanga"
+    },
+    {
+     "id": "tattoo-of-the-hinekora-warrior",
+     "name": "Tattoo of the Hinekora Warrior"
+    },
+    {
+     "id": "tattoo-of-the-hinekora-deathwarden",
+     "name": "Tattoo of the Hinekora Deathwarden"
+    },
+    {
+     "id": "tattoo-of-the-hinekora-shaman",
+     "name": "Tattoo of the Hinekora Shaman"
+    },
+    {
+     "id": "tattoo-of-the-hinekora-storyteller",
+     "name": "Tattoo of the Hinekora Storyteller"
+    },
+    {
+     "id": "tattoo-of-the-hinekora-warmonger",
+     "name": "Tattoo of the Hinekora Warmonger"
+    },
+    {
+     "id": "tattoo-of-the-hinekora-makanga",
+     "name": "Tattoo of the Hinekora Makanga"
+    },
+    {
+     "id": "tattoo-of-the-tawhoa-naturalist",
+     "name": "Tattoo of the Tawhoa Naturalist"
+    },
+    {
+     "id": "tattoo-of-the-tawhoa-scout",
+     "name": "Tattoo of the Tawhoa Scout"
+    },
+    {
+     "id": "tattoo-of-the-tawhoa-warrior",
+     "name": "Tattoo of the Tawhoa Warrior"
+    },
+    {
+     "id": "tattoo-of-the-tawhoa-herbalist",
+     "name": "Tattoo of the Tawhoa Herbalist"
+    },
+    {
+     "id": "tattoo-of-the-tawhoa-shaman",
+     "name": "Tattoo of the Tawhoa Shaman"
+    },
+    {
+     "id": "tattoo-of-the-tawhoa-makanga",
+     "name": "Tattoo of the Tawhoa Makanga"
+    },
+    {
+     "id": "tattoo-of-the-valako-stormrider",
+     "name": "Tattoo of the Valako Stormrider"
+    },
+    {
+     "id": "tattoo-of-the-valako-scout",
+     "name": "Tattoo of the Valako Scout"
+    },
+    {
+     "id": "tattoo-of-the-valako-warrior",
+     "name": "Tattoo of the Valako Warrior"
+    },
+    {
+     "id": "tattoo-of-the-valako-shieldbearer",
+     "name": "Tattoo of the Valako Shieldbearer"
+    },
+    {
+     "id": "tattoo-of-the-valako-shaman",
+     "name": "Tattoo of the Valako Shaman"
+    },
+    {
+     "id": "tattoo-of-the-valako-makanga",
+     "name": "Tattoo of the Valako Makanga"
+    },
+    {
+     "id": "loyalty-tattoo-of-kaom",
+     "name": "Loyalty Tattoo of Kaom"
+    },
+    {
+     "id": "loyalty-tattoo-of-utula",
+     "name": "Loyalty Tattoo of Utula"
+    },
+    {
+     "id": "loyalty-tattoo-of-akoya",
+     "name": "Loyalty Tattoo of Akoya"
+    },
+    {
+     "id": "loyalty-tattoo-of-kahuturoa",
+     "name": "Loyalty Tattoo of Kahuturoa"
+    },
+    {
+     "id": "loyalty-tattoo-of-rakiata",
+     "name": "Loyalty Tattoo of Rakiata"
+    },
+    {
+     "id": "loyalty-tattoo-of-ikiaho",
+     "name": "Loyalty Tattoo of Ikiaho"
+    },
+    {
+     "id": "loyalty-tattoo-of-ahuana",
+     "name": "Loyalty Tattoo of Ahuana"
+    },
+    {
+     "id": "loyalty-tattoo-of-tawhanuku",
+     "name": "Loyalty Tattoo of Tawhanuku"
+    },
+    {
+     "id": "loyalty-tattoo-of-maata",
+     "name": "Loyalty Tattoo of Maata"
+    },
+    {
+     "id": "loyalty-tattoo-of-kiloava",
+     "name": "Loyalty Tattoo of Kiloava"
+    },
+    {
+     "id": "honoured-tattoo-of-the-dove",
+     "name": "Honoured Tattoo of the Dove"
+    },
+    {
+     "id": "honoured-tattoo-of-the-sky",
+     "name": "Honoured Tattoo of the Sky"
+    },
+    {
+     "id": "honoured-tattoo-of-the-tuatara",
+     "name": "Honoured Tattoo of the Tuatara"
+    },
+    {
+     "id": "honoured-tattoo-of-the-pillager",
+     "name": "Honoured Tattoo of the Pillager"
+    },
+    {
+     "id": "honoured-tattoo-of-the-turtle",
+     "name": "Honoured Tattoo of the Turtle"
+    },
+    {
+     "id": "honoured-tattoo-of-the-oak",
+     "name": "Honoured Tattoo of the Oak"
+    },
+    {
+     "id": "honoured-tattoo-of-the-hatungo",
+     "name": "Honoured Tattoo of the Hatungo"
+    },
+    {
+     "id": "honoured-tattoo-of-the-flock",
+     "name": "Honoured Tattoo of the Flock"
+    },
+    {
+     "id": "honoured-tattoo-of-the-warlord",
+     "name": "Honoured Tattoo of the Warlord"
+    },
+    {
+     "id": "honoured-tattoo-of-the-mountain",
+     "name": "Honoured Tattoo of the Mountain"
+    },
+    {
+     "id": "honoured-tattoo-of-the-pa",
+     "name": "Honoured Tattoo of the Pa"
+    },
+    {
+     "id": "honoured-tattoo-of-the-hunter",
+     "name": "Honoured Tattoo of the Hunter"
+    },
+    {
+     "id": "honoured-tattoo-of-the-barbarian",
+     "name": "Honoured Tattoo of the Barbarian"
+    },
+    {
+     "id": "honoured-tattoo-of-the-berserker",
+     "name": "Honoured Tattoo of the Berserker"
+    },
+    {
+     "id": "honoured-tattoo-of-the-wise",
+     "name": "Honoured Tattoo of the Wise"
+    },
+    {
+     "id": "honoured-tattoo-of-the-storm",
+     "name": "Honoured Tattoo of the Storm"
+    },
+    {
+     "id": "honoured-tattoo-of-the-flood",
+     "name": "Honoured Tattoo of the Flood"
+    },
+    {
+     "id": "ancestral-tattoo-of-bloodlines",
+     "name": "Ancestral Tattoo of Bloodlines"
+    },
+    {
+     "id": "honoured-tattoo-of-the-makanga",
+     "name": "Honoured Tattoo of the Makanga"
+    },
+    {
+     "id": "journey-tattoo-of-the-body",
+     "name": "Journey Tattoo of the Body"
+    },
+    {
+     "id": "journey-tattoo-of-the-mind",
+     "name": "Journey Tattoo of the Mind"
+    },
+    {
+     "id": "journey-tattoo-of-the-soul",
+     "name": "Journey Tattoo of the Soul"
+    },
+    {
+     "id": "journey-tattoo-of-the-makanui",
+     "name": "Journey Tattoo of Makanui"
+    },
+    {
+     "id": "forbidden-tattoo-of-the-ranger",
+     "name": "Forbidden Tattoo of the Ranger"
+    },
+    {
+     "id": "forbidden-tattoo-of-the-duelist",
+     "name": "Forbidden Tattoo of the Duelist"
+    },
+    {
+     "id": "forbidden-tattoo-of-the-marauder",
+     "name": "Forbidden Tattoo of the Marauder"
+    },
+    {
+     "id": "forbidden-tattoo-of-the-templar",
+     "name": "Forbidden Tattoo of the Templar"
+    },
+    {
+     "id": "forbidden-tattoo-of-the-witch",
+     "name": "Forbidden Tattoo of the Witch"
+    },
+    {
+     "id": "forbidden-tattoo-of-the-shadow",
+     "name": "Forbidden Tattoo of the Shadow"
+    },
+    {
+     "id": "forbidden-tattoo-of-the-scion",
+     "name": "Forbidden Tattoo of the Scion"
+    },
+    {
+     "id": "omen-of-amelioration",
+     "name": "Omen of Amelioration"
+    },
+    {
+     "id": "omen-of-return",
+     "name": "Omen of Return"
+    },
+    {
+     "id": "omen-of-death-dancing",
+     "name": "Omen of Death-dancing"
+    },
+    {
+     "id": "omen-of-refreshment",
+     "name": "Omen of Refreshment"
+    },
+    {
+     "id": "omen-of-the-soul-devourer",
+     "name": "Omen of the Soul Devourer"
+    },
+    {
+     "id": "omen-of-fortune",
+     "name": "Omen of Fortune"
+    },
+    {
+     "id": "omen-of-the-jeweller",
+     "name": "Omen of the Jeweller"
+    },
+    {
+     "id": "omen-of-connections",
+     "name": "Omen of Connections"
+    },
+    {
+     "id": "omen-of-trichromatism",
+     "name": "Omen of Trichromatism"
+    },
+    {
+     "id": "omen-of-adrenaline",
+     "name": "Omen of Adrenaline"
+    },
+    {
+     "id": "omen-of-deaths-door",
+     "name": "Omen of Death's Door"
+    },
+    {
+     "id": "omen-of-brilliance",
+     "name": "Omen of Brilliance"
+    }
+   ]
+  },
+  {
+   "group": "Expedition Currency",
+   "items": [
+    {
+     "id": "astragali",
+     "name": "Astragali"
+    },
+    {
+     "id": "exotic-coinage",
+     "name": "Exotic Coinage"
+    },
+    {
+     "id": "scrap-metal",
+     "name": "Scrap Metal"
+    },
+    {
+     "id": "burial-medallion",
+     "name": "Burial Medallion"
+    }
+   ]
+  },
+  {
+   "group": "Delirium Orbs",
+   "items": [
+    {
+     "id": "fine-delirium-orb",
+     "name": "Fine Delirium Orb"
+    },
+    {
+     "id": "singular-delirium-orb",
+     "name": "Singular Delirium Orb"
+    },
+    {
+     "id": "thaumaturges-delirium-orb",
+     "name": "Thaumaturge's Delirium Orb"
+    },
+    {
+     "id": "blacksmiths-delirium-orb",
+     "name": "Blacksmith's Delirium Orb"
+    },
+    {
+     "id": "armoursmiths-delirium-orb",
+     "name": "Armoursmith's Delirium Orb"
+    },
+    {
+     "id": "cartographers-delirium-orb",
+     "name": "Cartographer's Delirium Orb"
+    },
+    {
+     "id": "jewellers-delirium-orb",
+     "name": "Jeweller's Delirium Orb"
+    },
+    {
+     "id": "abyssal-delirium-orb",
+     "name": "Abyssal Delirium Orb"
+    },
+    {
+     "id": "kalguuran-delirium-orb",
+     "name": "Kalguuran Delirium Orb"
+    },
+    {
+     "id": "obscured-delirium-orb",
+     "name": "Obscured Delirium Orb"
+    },
+    {
+     "id": "whispering-delirium-orb",
+     "name": "Whispering Delirium Orb"
+    },
+    {
+     "id": "fragmented-delirium-orb",
+     "name": "Fragmented Delirium Orb"
+    },
+    {
+     "id": "skittering-delirium-orb",
+     "name": "Skittering Delirium Orb"
+    },
+    {
+     "id": "fossilised-delirium-orb",
+     "name": "Fossilised Delirium Orb"
+    },
+    {
+     "id": "diviners-delirium-orb",
+     "name": "Diviner's Delirium Orb"
+    },
+    {
+     "id": "delirium-orb",
+     "name": "Delirium Orb"
+    },
+    {
+     "id": "primal-delirium-orb",
+     "name": "Primal Delirium Orb"
+    },
+    {
+     "id": "timeless-delirium-orb",
+     "name": "Timeless Delirium Orb"
+    },
+    {
+     "id": "blighted-delirium-orb",
+     "name": "Blighted Delirium Orb"
+    },
+    {
+     "id": "challenging-delirium-orb",
+     "name": "Challenging Delirium Orb"
+    }
+   ]
+  },
+  {
+   "group": "Catalysts",
+   "items": [
+    {
+     "id": "turbulent-catalyst",
+     "name": "Turbulent Catalyst"
+    },
+    {
+     "id": "imbued-catalyst",
+     "name": "Imbued Catalyst"
+    },
+    {
+     "id": "abrasive-catalyst",
+     "name": "Abrasive Catalyst"
+    },
+    {
+     "id": "tempering-catalyst",
+     "name": "Tempering Catalyst"
+    },
+    {
+     "id": "fertile-catalyst",
+     "name": "Fertile Catalyst"
+    },
+    {
+     "id": "prismatic-catalyst",
+     "name": "Prismatic Catalyst"
+    },
+    {
+     "id": "intrinsic-catalyst",
+     "name": "Intrinsic Catalyst"
+    },
+    {
+     "id": "noxious-catalyst",
+     "name": "Noxious Catalyst"
+    },
+    {
+     "id": "accelerating-catalyst",
+     "name": "Accelerating Catalyst"
+    },
+    {
+     "id": "unstable-catalyst",
+     "name": "Unstable Catalyst"
+    },
+    {
+     "id": "tainted-catalyst",
+     "name": "Tainted Catalyst"
+    },
+    {
+     "id": "sinistral-catalyst",
+     "name": "Sinistral Catalyst"
+    },
+    {
+     "id": "dextral-catalyst",
+     "name": "Dextral Catalyst"
+    }
+   ]
+  },
+  {
+   "group": "Oils & Extractor",
+   "items": [
+    {
+     "id": "clear-oil",
+     "name": "Clear Oil"
+    },
+    {
+     "id": "sepia-oil",
+     "name": "Sepia Oil"
+    },
+    {
+     "id": "amber-oil",
+     "name": "Amber Oil"
+    },
+    {
+     "id": "verdant-oil",
+     "name": "Verdant Oil"
+    },
+    {
+     "id": "teal-oil",
+     "name": "Teal Oil"
+    },
+    {
+     "id": "azure-oil",
+     "name": "Azure Oil"
+    },
+    {
+     "id": "indigo-oil",
+     "name": "Indigo Oil"
+    },
+    {
+     "id": "violet-oil",
+     "name": "Violet Oil"
+    },
+    {
+     "id": "crimson-oil",
+     "name": "Crimson Oil"
+    },
+    {
+     "id": "black-oil",
+     "name": "Black Oil"
+    },
+    {
+     "id": "opalescent-oil",
+     "name": "Opalescent Oil"
+    },
+    {
+     "id": "silver-oil",
+     "name": "Silver Oil"
+    },
+    {
+     "id": "golden-oil",
+     "name": "Golden Oil"
+    },
+    {
+     "id": "prismatic-oil",
+     "name": "Prismatic Oil"
+    },
+    {
+     "id": "tainted-oil",
+     "name": "Tainted Oil"
+    },
+    {
+     "id": "reflective-oil",
+     "name": "Reflective Oil"
+    },
+    {
+     "id": "oil-extractor",
+     "name": "Oil Extractor"
+    }
+   ]
+  },
+  {
+   "group": "Fossils & Resonators",
+   "items": [
+    {
+     "id": "scorched-fossil",
+     "name": "Scorched Fossil"
+    },
+    {
+     "id": "frigid-fossil",
+     "name": "Frigid Fossil"
+    },
+    {
+     "id": "metallic-fossil",
+     "name": "Metallic Fossil"
+    },
+    {
+     "id": "jagged-fossil",
+     "name": "Jagged Fossil"
+    },
+    {
+     "id": "aberrant-fossil",
+     "name": "Aberrant Fossil"
+    },
+    {
+     "id": "pristine-fossil",
+     "name": "Pristine Fossil"
+    },
+    {
+     "id": "dense-fossil",
+     "name": "Dense Fossil"
+    },
+    {
+     "id": "corroded-fossil",
+     "name": "Corroded Fossil"
+    },
+    {
+     "id": "prismatic-fossil",
+     "name": "Prismatic Fossil"
+    },
+    {
+     "id": "aetheric-fossil",
+     "name": "Aetheric Fossil"
+    },
+    {
+     "id": "serrated-fossil",
+     "name": "Serrated Fossil"
+    },
+    {
+     "id": "lucent-fossil",
+     "name": "Lucent Fossil"
+    },
+    {
+     "id": "shuddering-fossil",
+     "name": "Shuddering Fossil"
+    },
+    {
+     "id": "bound-fossil",
+     "name": "Bound Fossil"
+    },
+    {
+     "id": "opulent-fossil",
+     "name": "Opulent Fossil"
+    },
+    {
+     "id": "deft-fossil",
+     "name": "Deft Fossil"
+    },
+    {
+     "id": "fundamental-fossil",
+     "name": "Fundamental Fossil"
+    },
+    {
+     "id": "faceted-fossil",
+     "name": "Faceted Fossil"
+    },
+    {
+     "id": "bloodstained-fossil",
+     "name": "Bloodstained Fossil"
+    },
+    {
+     "id": "hollow-fossil",
+     "name": "Hollow Fossil"
+    },
+    {
+     "id": "fractured-fossil",
+     "name": "Fractured Fossil"
+    },
+    {
+     "id": "glyphic-fossil",
+     "name": "Glyphic Fossil"
+    },
+    {
+     "id": "tangled-fossil",
+     "name": "Tangled Fossil"
+    },
+    {
+     "id": "sanctified-fossil",
+     "name": "Sanctified Fossil"
+    },
+    {
+     "id": "gilded-fossil",
+     "name": "Gilded Fossil"
+    },
+    {
+     "id": "primitive-chaotic-resonator",
+     "name": "Primitive Chaotic Resonator"
+    },
+    {
+     "id": "potent-chaotic-resonator",
+     "name": "Potent Chaotic Resonator"
+    },
+    {
+     "id": "powerful-chaotic-resonator",
+     "name": "Powerful Chaotic Resonator"
+    },
+    {
+     "id": "prime-chaotic-resonator",
+     "name": "Prime Chaotic Resonator"
+    }
+   ]
+  },
+  {
+   "group": "Essences",
+   "items": [
+    {
+     "id": "whispering-essence-of-hatred",
+     "name": "Whispering Essence of Hatred"
+    },
+    {
+     "id": "muttering-essence-of-hatred",
+     "name": "Muttering Essence of Hatred"
+    },
+    {
+     "id": "weeping-essence-of-hatred",
+     "name": "Weeping Essence of Hatred"
+    },
+    {
+     "id": "wailing-essence-of-hatred",
+     "name": "Wailing Essence of Hatred"
+    },
+    {
+     "id": "screaming-essence-of-hatred",
+     "name": "Screaming Essence of Hatred"
+    },
+    {
+     "id": "shrieking-essence-of-hatred",
+     "name": "Shrieking Essence of Hatred"
+    },
+    {
+     "id": "deafening-essence-of-hatred",
+     "name": "Deafening Essence of Hatred"
+    },
+    {
+     "id": "whispering-essence-of-woe",
+     "name": "Whispering Essence of Woe"
+    },
+    {
+     "id": "muttering-essence-of-woe",
+     "name": "Muttering Essence of Woe"
+    },
+    {
+     "id": "weeping-essence-of-woe",
+     "name": "Weeping Essence of Woe"
+    },
+    {
+     "id": "wailing-essence-of-woe",
+     "name": "Wailing Essence of Woe"
+    },
+    {
+     "id": "screaming-essence-of-woe",
+     "name": "Screaming Essence of Woe"
+    },
+    {
+     "id": "shrieking-essence-of-woe",
+     "name": "Shrieking Essence of Woe"
+    },
+    {
+     "id": "deafening-essence-of-woe",
+     "name": "Deafening Essence of Woe"
+    },
+    {
+     "id": "whispering-essence-of-greed",
+     "name": "Whispering Essence of Greed"
+    },
+    {
+     "id": "muttering-essence-of-greed",
+     "name": "Muttering Essence of Greed"
+    },
+    {
+     "id": "weeping-essence-of-greed",
+     "name": "Weeping Essence of Greed"
+    },
+    {
+     "id": "wailing-essence-of-greed",
+     "name": "Wailing Essence of Greed"
+    },
+    {
+     "id": "screaming-essence-of-greed",
+     "name": "Screaming Essence of Greed"
+    },
+    {
+     "id": "shrieking-essence-of-greed",
+     "name": "Shrieking Essence of Greed"
+    },
+    {
+     "id": "deafening-essence-of-greed",
+     "name": "Deafening Essence of Greed"
+    },
+    {
+     "id": "whispering-essence-of-contempt",
+     "name": "Whispering Essence of Contempt"
+    },
+    {
+     "id": "muttering-essence-of-contempt",
+     "name": "Muttering Essence of Contempt"
+    },
+    {
+     "id": "weeping-essence-of-contempt",
+     "name": "Weeping Essence of Contempt"
+    },
+    {
+     "id": "wailing-essence-of-contempt",
+     "name": "Wailing Essence of Contempt"
+    },
+    {
+     "id": "screaming-essence-of-contempt",
+     "name": "Screaming Essence of Contempt"
+    },
+    {
+     "id": "shrieking-essence-of-contempt",
+     "name": "Shrieking Essence of Contempt"
+    },
+    {
+     "id": "deafening-essence-of-contempt",
+     "name": "Deafening Essence of Contempt"
+    },
+    {
+     "id": "muttering-essence-of-sorrow",
+     "name": "Muttering Essence of Sorrow"
+    },
+    {
+     "id": "weeping-essence-of-sorrow",
+     "name": "Weeping Essence of Sorrow"
+    },
+    {
+     "id": "wailing-essence-of-sorrow",
+     "name": "Wailing Essence of Sorrow"
+    },
+    {
+     "id": "screaming-essence-of-sorrow",
+     "name": "Screaming Essence of Sorrow"
+    },
+    {
+     "id": "shrieking-essence-of-sorrow",
+     "name": "Shrieking Essence of Sorrow"
+    },
+    {
+     "id": "deafening-essence-of-sorrow",
+     "name": "Deafening Essence of Sorrow"
+    },
+    {
+     "id": "muttering-essence-of-anger",
+     "name": "Muttering Essence of Anger"
+    },
+    {
+     "id": "weeping-essence-of-anger",
+     "name": "Weeping Essence of Anger"
+    },
+    {
+     "id": "wailing-essence-of-anger",
+     "name": "Wailing Essence of Anger"
+    },
+    {
+     "id": "screaming-essence-of-anger",
+     "name": "Screaming Essence of Anger"
+    },
+    {
+     "id": "shrieking-essence-of-anger",
+     "name": "Shrieking Essence of Anger"
+    },
+    {
+     "id": "deafening-essence-of-anger",
+     "name": "Deafening Essence of Anger"
+    },
+    {
+     "id": "muttering-essence-of-torment",
+     "name": "Muttering Essence of Torment"
+    },
+    {
+     "id": "weeping-essence-of-torment",
+     "name": "Weeping Essence of Torment"
+    },
+    {
+     "id": "wailing-essence-of-torment",
+     "name": "Wailing Essence of Torment"
+    },
+    {
+     "id": "screaming-essence-of-torment",
+     "name": "Screaming Essence of Torment"
+    },
+    {
+     "id": "shrieking-essence-of-torment",
+     "name": "Shrieking Essence of Torment"
+    },
+    {
+     "id": "deafening-essence-of-torment",
+     "name": "Deafening Essence of Torment"
+    },
+    {
+     "id": "muttering-essence-of-fear",
+     "name": "Muttering Essence of Fear"
+    },
+    {
+     "id": "weeping-essence-of-fear",
+     "name": "Weeping Essence of Fear"
+    },
+    {
+     "id": "wailing-essence-of-fear",
+     "name": "Wailing Essence of Fear"
+    },
+    {
+     "id": "screaming-essence-of-fear",
+     "name": "Screaming Essence of Fear"
+    },
+    {
+     "id": "shrieking-essence-of-fear",
+     "name": "Shrieking Essence of Fear"
+    },
+    {
+     "id": "deafening-essence-of-fear",
+     "name": "Deafening Essence of Fear"
+    },
+    {
+     "id": "weeping-essence-of-suffering",
+     "name": "Weeping Essence of Suffering"
+    },
+    {
+     "id": "wailing-essence-of-suffering",
+     "name": "Wailing Essence of Suffering"
+    },
+    {
+     "id": "screaming-essence-of-suffering",
+     "name": "Screaming Essence of Suffering"
+    },
+    {
+     "id": "shrieking-essence-of-suffering",
+     "name": "Shrieking Essence of Suffering"
+    },
+    {
+     "id": "deafening-essence-of-suffering",
+     "name": "Deafening Essence of Suffering"
+    },
+    {
+     "id": "weeping-essence-of-rage",
+     "name": "Weeping Essence of Rage"
+    },
+    {
+     "id": "wailing-essence-of-rage",
+     "name": "Wailing Essence of Rage"
+    },
+    {
+     "id": "screaming-essence-of-rage",
+     "name": "Screaming Essence of Rage"
+    },
+    {
+     "id": "shrieking-essence-of-rage",
+     "name": "Shrieking Essence of Rage"
+    },
+    {
+     "id": "deafening-essence-of-rage",
+     "name": "Deafening Essence of Rage"
+    },
+    {
+     "id": "weeping-essence-of-wrath",
+     "name": "Weeping Essence of Wrath"
+    },
+    {
+     "id": "wailing-essence-of-wrath",
+     "name": "Wailing Essence of Wrath"
+    },
+    {
+     "id": "screaming-essence-of-wrath",
+     "name": "Screaming Essence of Wrath"
+    },
+    {
+     "id": "shrieking-essence-of-wrath",
+     "name": "Shrieking Essence of Wrath"
+    },
+    {
+     "id": "deafening-essence-of-wrath",
+     "name": "Deafening Essence of Wrath"
+    },
+    {
+     "id": "weeping-essence-of-doubt",
+     "name": "Weeping Essence of Doubt"
+    },
+    {
+     "id": "wailing-essence-of-doubt",
+     "name": "Wailing Essence of Doubt"
+    },
+    {
+     "id": "screaming-essence-of-doubt",
+     "name": "Screaming Essence of Doubt"
+    },
+    {
+     "id": "shrieking-essence-of-doubt",
+     "name": "Shrieking Essence of Doubt"
+    },
+    {
+     "id": "deafening-essence-of-doubt",
+     "name": "Deafening Essence of Doubt"
+    },
+    {
+     "id": "wailing-essence-of-anguish",
+     "name": "Wailing Essence of Anguish"
+    },
+    {
+     "id": "screaming-essence-of-anguish",
+     "name": "Screaming Essence of Anguish"
+    },
+    {
+     "id": "shrieking-essence-of-anguish",
+     "name": "Shrieking Essence of Anguish"
+    },
+    {
+     "id": "deafening-essence-of-anguish",
+     "name": "Deafening Essence of Anguish"
+    },
+    {
+     "id": "wailing-essence-of-loathing",
+     "name": "Wailing Essence of Loathing"
+    },
+    {
+     "id": "screaming-essence-of-loathing",
+     "name": "Screaming Essence of Loathing"
+    },
+    {
+     "id": "shrieking-essence-of-loathing",
+     "name": "Shrieking Essence of Loathing"
+    },
+    {
+     "id": "deafening-essence-of-loathing",
+     "name": "Deafening Essence of Loathing"
+    },
+    {
+     "id": "wailing-essence-of-spite",
+     "name": "Wailing Essence of Spite"
+    },
+    {
+     "id": "screaming-essence-of-spite",
+     "name": "Screaming Essence of Spite"
+    },
+    {
+     "id": "shrieking-essence-of-spite",
+     "name": "Shrieking Essence of Spite"
+    },
+    {
+     "id": "deafening-essence-of-spite",
+     "name": "Deafening Essence of Spite"
+    },
+    {
+     "id": "wailing-essence-of-zeal",
+     "name": "Wailing Essence of Zeal"
+    },
+    {
+     "id": "screaming-essence-of-zeal",
+     "name": "Screaming Essence of Zeal"
+    },
+    {
+     "id": "shrieking-essence-of-zeal",
+     "name": "Shrieking Essence of Zeal"
+    },
+    {
+     "id": "deafening-essence-of-zeal",
+     "name": "Deafening Essence of Zeal"
+    },
+    {
+     "id": "screaming-essence-of-misery",
+     "name": "Screaming Essence of Misery"
+    },
+    {
+     "id": "shrieking-essence-of-misery",
+     "name": "Shrieking Essence of Misery"
+    },
+    {
+     "id": "deafening-essence-of-misery",
+     "name": "Deafening Essence of Misery"
+    },
+    {
+     "id": "screaming-essence-of-dread",
+     "name": "Screaming Essence of Dread"
+    },
+    {
+     "id": "shrieking-essence-of-dread",
+     "name": "Shrieking Essence of Dread"
+    },
+    {
+     "id": "deafening-essence-of-dread",
+     "name": "Deafening Essence of Dread"
+    },
+    {
+     "id": "screaming-essence-of-scorn",
+     "name": "Screaming Essence of Scorn"
+    },
+    {
+     "id": "shrieking-essence-of-scorn",
+     "name": "Shrieking Essence of Scorn"
+    },
+    {
+     "id": "deafening-essence-of-scorn",
+     "name": "Deafening Essence of Scorn"
+    },
+    {
+     "id": "screaming-essence-of-envy",
+     "name": "Screaming Essence of Envy"
+    },
+    {
+     "id": "shrieking-essence-of-envy",
+     "name": "Shrieking Essence of Envy"
+    },
+    {
+     "id": "deafening-essence-of-envy",
+     "name": "Deafening Essence of Envy"
+    },
+    {
+     "id": "essence-of-hysteria",
+     "name": "Essence of Hysteria"
+    },
+    {
+     "id": "essence-of-insanity",
+     "name": "Essence of Insanity"
+    },
+    {
+     "id": "essence-of-horror",
+     "name": "Essence of Horror"
+    },
+    {
+     "id": "essence-of-delirium",
+     "name": "Essence of Delirium"
+    },
+    {
+     "id": "essence-of-desolation",
+     "name": "Essence of Desolation"
+    }
+   ]
+  },
+  {
+   "group": "Maps",
+   "items": [
+    {
+     "id": "map-tier-1",
+     "name": "Map (Tier 1)"
+    },
+    {
+     "id": "map-tier-2",
+     "name": "Map (Tier 2)"
+    },
+    {
+     "id": "map-tier-3",
+     "name": "Map (Tier 3)"
+    },
+    {
+     "id": "map-tier-4",
+     "name": "Map (Tier 4)"
+    },
+    {
+     "id": "map-tier-5",
+     "name": "Map (Tier 5)"
+    },
+    {
+     "id": "map-tier-6",
+     "name": "Map (Tier 6)"
+    },
+    {
+     "id": "map-tier-7",
+     "name": "Map (Tier 7)"
+    },
+    {
+     "id": "map-tier-8",
+     "name": "Map (Tier 8)"
+    },
+    {
+     "id": "map-tier-9",
+     "name": "Map (Tier 9)"
+    },
+    {
+     "id": "map-tier-10",
+     "name": "Map (Tier 10)"
+    },
+    {
+     "id": "map-tier-11",
+     "name": "Map (Tier 11)"
+    },
+    {
+     "id": "map-tier-12",
+     "name": "Map (Tier 12)"
+    },
+    {
+     "id": "map-tier-13",
+     "name": "Map (Tier 13)"
+    },
+    {
+     "id": "map-tier-14",
+     "name": "Map (Tier 14)"
+    },
+    {
+     "id": "map-tier-15",
+     "name": "Map (Tier 15)"
+    },
+    {
+     "id": "map-tier-16",
+     "name": "Map (Tier 16)"
+    },
+    {
+     "id": "nightmare-map",
+     "name": "Nightmare Map"
+    },
+    {
+     "id": "vaal-temple-map",
+     "name": "Vaal Temple Map"
+    },
+    {
+     "id": "valdo-map",
+     "name": "Valdo Map"
+    },
+    {
+     "id": "blighted-map-tier-1",
+     "name": "Map (Tier 1)"
+    },
+    {
+     "id": "blighted-map-tier-2",
+     "name": "Map (Tier 2)"
+    },
+    {
+     "id": "blighted-map-tier-3",
+     "name": "Map (Tier 3)"
+    },
+    {
+     "id": "blighted-map-tier-4",
+     "name": "Map (Tier 4)"
+    },
+    {
+     "id": "blighted-map-tier-5",
+     "name": "Map (Tier 5)"
+    },
+    {
+     "id": "blighted-map-tier-6",
+     "name": "Map (Tier 6)"
+    },
+    {
+     "id": "blighted-map-tier-7",
+     "name": "Map (Tier 7)"
+    },
+    {
+     "id": "blighted-map-tier-8",
+     "name": "Map (Tier 8)"
+    },
+    {
+     "id": "blighted-map-tier-9",
+     "name": "Map (Tier 9)"
+    },
+    {
+     "id": "blighted-map-tier-10",
+     "name": "Map (Tier 10)"
+    },
+    {
+     "id": "blighted-map-tier-11",
+     "name": "Map (Tier 11)"
+    },
+    {
+     "id": "blighted-map-tier-12",
+     "name": "Map (Tier 12)"
+    },
+    {
+     "id": "blighted-map-tier-13",
+     "name": "Map (Tier 13)"
+    },
+    {
+     "id": "blighted-map-tier-14",
+     "name": "Map (Tier 14)"
+    },
+    {
+     "id": "blighted-map-tier-15",
+     "name": "Map (Tier 15)"
+    },
+    {
+     "id": "blighted-map-tier-16",
+     "name": "Map (Tier 16)"
+    },
+    {
+     "id": "blight-ravaged-map-tier-14",
+     "name": "Map (Tier 14)"
+    },
+    {
+     "id": "blight-ravaged-map-tier-15",
+     "name": "Map (Tier 15)"
+    },
+    {
+     "id": "blight-ravaged-map-tier-16",
+     "name": "Map (Tier 16)"
+    },
+    {
+     "id": "zana-map-tier-1",
+     "name": "Area is Influenced by the Originator's Memories"
+    },
+    {
+     "id": "zana-map-tier-2",
+     "name": "Area is Influenced by the Originator's Memories"
+    },
+    {
+     "id": "zana-map-tier-3",
+     "name": "Area is Influenced by the Originator's Memories"
+    },
+    {
+     "id": "zana-map-tier-4",
+     "name": "Area is Influenced by the Originator's Memories"
+    },
+    {
+     "id": "zana-map-tier-5",
+     "name": "Area is Influenced by the Originator's Memories"
+    },
+    {
+     "id": "zana-map-tier-6",
+     "name": "Area is Influenced by the Originator's Memories"
+    },
+    {
+     "id": "zana-map-tier-7",
+     "name": "Area is Influenced by the Originator's Memories"
+    },
+    {
+     "id": "zana-map-tier-8",
+     "name": "Area is Influenced by the Originator's Memories"
+    },
+    {
+     "id": "zana-map-tier-9",
+     "name": "Area is Influenced by the Originator's Memories"
+    },
+    {
+     "id": "zana-map-tier-10",
+     "name": "Area is Influenced by the Originator's Memories"
+    },
+    {
+     "id": "zana-map-tier-11",
+     "name": "Area is Influenced by the Originator's Memories"
+    },
+    {
+     "id": "zana-map-tier-12",
+     "name": "Area is Influenced by the Originator's Memories"
+    },
+    {
+     "id": "zana-map-tier-13",
+     "name": "Area is Influenced by the Originator's Memories"
+    },
+    {
+     "id": "zana-map-tier-14",
+     "name": "Area is Influenced by the Originator's Memories"
+    },
+    {
+     "id": "zana-map-tier-15",
+     "name": "Area is Influenced by the Originator's Memories"
+    },
+    {
+     "id": "zana-map-tier-16",
+     "name": "Area is Influenced by the Originator's Memories"
+    }
+   ]
+  }
+ ]
+}

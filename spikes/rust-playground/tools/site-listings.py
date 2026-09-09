@@ -11,6 +11,7 @@ what a human recorded) — and prints one JSON table: one row per item
 id, deduped across the parts, with what a result row shows.
 
     tools/site-listings.py <dir-or-files>... > site-listings-<date>.json
+    tools/site-listings.py --exchange-items <saved exchange page> > exchange-items-<date>.json
 
 Per row: `id` (the 64-hex item id the stash API also gives — the join
 key), `name` and `base` (the popup's header lines), `note` (the price
@@ -38,6 +39,15 @@ carry it) is arithmetic.
 
 A row that does not parse is reported on stderr with its id and kept
 with nulls, never dropped: the join classifies it.
+
+`--exchange-items` reads the other thing a saved exchange page holds:
+the item groups of its "Items I Want" / "Items I Have" panels — the
+bulk-eligible list T2's About text calls "listed below" (Q10). Each
+group the owner expanded before saving yields its ids and display
+names; a group left collapsed is reported as unexpanded, not empty.
+This is a proposal for a reference table under C68 (`decisions/
+pricing.md`, Parked): a human reads and commits it; no code reads it
+until its trigger fires.
 """
 
 import argparse
@@ -159,10 +169,75 @@ def parse_row(rid, chunk, source, problems):
     }
 
 
+GROUP_OR_ENTRY = re.compile(
+    r'<div class="filter-title filter-title-clickable"><span>\s*([^<]*?)\s*<'
+    r'|<div data-id="([^"]+)" data-title="([^"]*)" class="exchange-filter-item'
+)
+
+
+def exchange_items(path):
+    """The item groups of a saved exchange page, from whichever of its two
+    panels holds more expanded groups (they list the same items)."""
+    text = pathlib.Path(path).read_text(encoding="utf-8")
+    best = None
+    markers = [text.rfind(m) for m in (">Items I Want<", ">Items I Have<")]
+    for marker, start in zip((">Items I Want<", ">Items I Have<"), markers):
+        if start < 0:
+            continue
+        # A panel ends where the other rendered panel begins.
+        end = min([m for m in markers if m > start], default=len(text))
+        groups = {}
+        order = []
+        cur = None
+        for m in GROUP_OR_ENTRY.finditer(text, start, end):
+            if m.group(1):
+                cur = squash(m.group(1))
+                if cur not in groups:
+                    groups[cur] = []
+                    order.append(cur)
+            elif cur is not None:
+                groups[cur].append({"id": m.group(2), "name": squash(m.group(3))})
+        expanded = sum(1 for g in order if groups[g])
+        if best is None or expanded > best[0]:
+            best = (expanded, marker.strip("<>"), order, groups)
+    if best is None:
+        sys.exit("no exchange panel in the page")
+    expanded, panel, order, groups = best
+    ids = {e["id"] for g in order for e in groups[g]}
+    return {
+        "about": "The bulk exchange's item groups as the trade site renders them in its "
+        "'Items I Want' / 'Items I Have' panels, read from a page the owner saved "
+        "(tools/site-listings.py --exchange-items). The bulk-eligible list T2 calls "
+        "'listed below' (Q10, docs/design/trade-ground-truth.md). A group the owner "
+        "did not expand before saving is listed under `unexpanded`, not as empty. "
+        "A proposal for a reference table under C68; no code reads it until its "
+        "trigger fires (decisions/pricing.md, Parked).",
+        "source": pathlib.Path(path).name,
+        "panel": panel,
+        "groups_expanded": expanded,
+        "unexpanded": [g for g in order if not groups[g]],
+        "entries": len(ids),
+        "groups": [{"group": g, "items": groups[g]} for g in order if groups[g]],
+    }
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("paths", nargs="+", help="saved pages, or a directory of them")
+    ap.add_argument("--exchange-items", action="store_true", help="the exchange's item groups from one saved page")
     a = ap.parse_args()
+    if a.exchange_items:
+        if len(a.paths) != 1:
+            sys.exit("--exchange-items takes one saved exchange page")
+        out = exchange_items(a.paths[0])
+        json.dump(out, sys.stdout, indent=1, ensure_ascii=False)
+        print()
+        print(
+            f"{out['groups_expanded']} groups expanded, {len(out['unexpanded'])} not "
+            f"({', '.join(out['unexpanded'])}); {out['entries']} items",
+            file=sys.stderr,
+        )
+        return
     files = []
     for p in a.paths:
         p = pathlib.Path(p)

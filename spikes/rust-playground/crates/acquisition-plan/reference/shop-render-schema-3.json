@@ -290,7 +290,7 @@
     },
     "currency_table_version": 1,
     "league": "Standard",
-    "note_parser_version": 1,
+    "note_parser_version": 2,
     "realm": "pc",
     "schema": 2,
     "stash_listing": {

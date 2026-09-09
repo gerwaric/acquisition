@@ -1195,7 +1195,7 @@ mod tests {
 
         let text = render_status(&r, 8_000, true);
         assert!(
-            text.contains("game side: 2 priced tab names (1 public); 12 priced items in public tabs; note parser v1, currency table v1"),
+            text.contains("game side: 2 priced tab names (1 public); 12 priced items in public tabs; note parser v2, currency table v1"),
             "{text}"
         );
         assert!(
@@ -1350,7 +1350,7 @@ mod tests {
         assert!(text.contains("chain: item/i-01 > tab/pc/c1\n"), "{text}");
         assert!(
             text.contains(
-                "basis: response 7 1h ago; note parser v1, currency table v1; snapshot 1h ago\n"
+                "basis: response 7 1h ago; note parser v2, currency table v1; snapshot 1h ago\n"
             ),
             "{text}"
         );
