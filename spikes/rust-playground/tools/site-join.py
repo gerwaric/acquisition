@@ -221,7 +221,13 @@ def main():
         # the site reading a price out of a note our parser refused,
         # whatever the tab says.
         if r["label"] == "note_price":
-            record("differ", "note_trailing_text", rid, ours, theirs, where, {"note": r["note"]})
+            # Parser v2 reads through the suffix as the site does: the
+            # label alone is no difference — the amount and word decide.
+            if exp["kind"] == "exact" and (exp["amount"], exp["currency"]) == (r["amount"], r["currency"]):
+                classes["agree"] += 1
+                reasons["note_price_agrees"] += 1
+            else:
+                record("differ", "note_trailing_text", rid, ours, theirs, where, {"note": r["note"]})
             continue
         if exp["kind"] == "no_price":
             if r["label"] == "no_price":
@@ -304,6 +310,18 @@ def main():
 
         site_rate = rate(r["amount"], r["lot"])
         ours_rates = [(rate(w, l), c) for (w, l, c) in ((wanted, lot, word), alt_triple or (None, None, None))]
+        # The exchange shows one row per item type per account, every
+        # offer of every public stack of that type under it: an offer the
+        # row's own stack does not carry may be another stack's.
+        type_line = l["subject"].get("type_line")
+        for other in items.values():
+            if other is l or other["subject"].get("type_line") != type_line or other["game"].get("public") is not True:
+                continue
+            for t in ((other["game"].get("note") or {}).get("text"), (other["game"].get("tab_name") or {}).get("text")):
+                m3 = re.match(r"~(?:price|b/o)\s+(\S+)\s+(\S+)", t or "")
+                if m3:
+                    w = m3.group(1)
+                    ours_rates.append((rate(w.split("/", 1)[0], w.split("/", 1)[1] if "/" in w else "1"), m3.group(2)))
         if any(rt is not None and rt == site_rate and c == r["currency"] for rt, c in ours_rates):
             classes["agree"] += 1
             reasons["exchange_agrees"] += 1

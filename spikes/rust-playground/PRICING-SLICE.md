@@ -210,6 +210,7 @@ claims file's appendix maps T→C as well.
 | Pricing | plan 7.3 story and races | `1eaef2f4` | `tests/price_story.rs` (acquisition-cli): set, show, render, clear as one story through the spawned binary, then the races as properties under every interleaving, run in rounds with the processes started together — two blind writers on one row never clobber and the receipts chain from the row before the round to the row `show` reads after it (C35, C78); a stale `--if-revision` on `set` and `clear` conflicts naming the current revision, `{"error":…}` with exit 1, nothing changed (C35, C11); a clear under a render always lands and the render is one function of one read, never a torn page (C64, C74). **Found:** the seed leaves no intent file, so round 1 races its creation, and about one run in six a first-ever writer was refused "busy: another writer held it past 5 s" in under a second — `PRAGMA journal_mode=WAL` on a fresh file takes the write lock from inside the read transaction the pragma opened, a path SQLite's busy handler does not cover, so the second creator is answered `database is locked` at once. **Fixed:** the three opens (facts, intent, queue) go through `ensure_wal` — an already-WAL file is left alone, the creation switch retries up to the busy timeout; 20 runs after: no refusal, one to four genuine conflicts a run, every chain intact. A first theory (the busy timeout installed too late) was wrong — rusqlite installs it at open — and was reverted. | `c74_set_show_render_clear_…`, `c35_two_blind_writers_…`, `c35_a_stale_revision_…`, `c74_a_clear_under_a_render_…`; `ensure_wal` (`acquisition-store/src/lib.rs`) |
 | Pricing | plan 7.4 checkpoint on stop | `1eaef2f4` | the daemon leaves by `process::exit`, so its connections never closed and the WALs stayed beside the facts file and `daemon.db` (the price-notes run: 1.1 MB the census refused). `Store::checkpoint` and `JobDb::checkpoint` (`PRAGMA wal_checkpoint(TRUNCATE)`); the daemon's two exits — stop request, idle watchdog — go through one `exit_process` that checkpoints the open store and the queue, logs the page counts, removes the socket, exits. `tests/daemon_stop_checkpoint.rs`: a listing landed through a real daemon over the mock, both WALs holding pages before the stop (so an empty one after is the checkpoint's doing), the socket gone, both WALs empty; seen failing first at 107 KB. `tools/census.py`'s guard and `tools/notes-check.py`'s "stop the daemon first" stand, and now mean what they say. | `daemon_stop_checkpoints_the_facts_file_and_the_queue`; `exit_process` (`daemon.rs`) |
 | Pricing | plan 7.5 the site as the oracle | `df248a17` | `tools/site-listings.py`: the owner's saved pages (rendered DOM, eight parts, `runs/site/`) → one table by item id, deduped across parts, each part's "Showing N results" line kept, the price label (Exact, Asking, No Price Set, and a fourth, "Price with Note:"), amount, the site's currency word, the note verbatim, the age, and the channel — a stash row links the profile, a forum row its thread. `examples/listing-report.rs`: the `ListingReport` `acq price list --json` renders, unredacted, to stdout (the join key is the id), kept under `runs/`. `tools/site-join.py`: the join under a reason list fixed before it ran; two reasons it found (`socketed`, `stackable`) were added with the run, and the doc says so. The pages of 2026-09-08: 551 item-search rows, none shared between parts, 547 stash and 4 forum, all verified, one account, and a ninth page, the bulk exchange, 8 offers (read the same evening, `c5b7e314`); the store the same day (the run ledger's refresh): 20,941 items, 757 the state expects on the site. **Q11 answered:** every stash row is from a tab whose `metadata.public` is true; the 13 non-public priced tabs (1,121 items) put nothing there — C81's premise holds, and note 15's 8888 finding was the flag set after the 09-07 listing (the 09-08 facts hold it public). 535 agree, 20,180 absent on both; 15 differ; 9 site-only, the forum rows; 207 state-only; one row no reason explains. **No difference changes what a page does today** — the render omits what the game lists at whatever price, blocks a socketed item (T13), and posts nothing the site shows — with one narrow candidate the exchange page raised (point 2): a manual row on an exchange-eligible stack in a ratio-named public tab would post a price the exchange contradicts. Each is an observation with its trigger or a claim for the owner ("What the site taught"). | `reference/site-listings-2026-09-08.json` (the table; the pages stay in `runs/`); the tools; the join's output is reproducible from the two |
+| Pricing | plan 7.5 second reading: the four experiments | `87dab5bb`, `HASH5` | The owner changed four tabs in game (2026-09-08 evening), the driver refetched them and the unique tab's 19 substashes (run ledger 2026-09-09: 27 sends after a re-login; then one listing GET for the unique tab's rename), and the site was captured again: 13 item-search parts and the exchange page, 890 rows, `reference/site-listings-2026-09-09.json`. The normalizer learned the exchange's compact layout (one `per-have` block per offer; a stack priced by note and by tab offered twice; the offer shown per unit, so the join compares rates); the join learned that a "Price with Note" row agrees under parser v2, and that the exchange keys one row per item type per account, every public stack's offer under it. Results, "What the site taught" 12–16: C80 confirmed on all three counts; a note beats a valid tab name (Q2); the suffix read again (`~price 666 chaos tested` → "Price with Note: 666"); 63 items in six tabs missing from the capture with no site rule explaining them, and one character item the site lists — both open with the owner. 866 agree, 14 differ (the eight words, the five fractions, `facetors`), 10 site-only (4 forum, 5 forum stacks on the exchange, the character item), 275 state-only (95 ratio-tab, 111 socketed, 6 stacks, 63 open). | the tools; the table; `tools/site-join.py --rows` over `runs/site/` |
 | Pricing | plan 7.5 follow-ups: parser v2, the exchange list | `43e281a0` | `game_side.rs` **v2**: text after the word is tolerated by a note as by a tab name — the game stores a note's suffix whole and its dialog displays only the parsed part, the API serves the whole, the site reads the price out of it ("Price with Note"); the owner confirmed all three in game and on the site with `~price 777 chaos testing` and a fresh `~price 666 chaos tested` (2026-09-08). One branch fewer; the one rule the two sources still differ in is the ratio (T2, T11). `NOTE_PARSER_VERSION` 2 (a reading of the same text changed); the two committed report fixtures carry it. The exchange's item groups (Q10), from the owner's saved page with 15 of 22 groups expanded — 750 ids and display names — committed as a proposal beside the currency table; no code reads it until the parked table's trigger fires. | `c69_text_after_the_word_is_tolerated_by_a_tab_name_and_a_note_alike`, `c69_a_well_formed_price_reads_as_written` (`game_side.rs`); `reference/exchange-items-2026-09-08.json` |
 | Pricing | plan 7 gate | `04993ca5` | **Found by the bare gate at session close:** the store's C35 export race test failed one run in twelve — on the pre-session store code too — with both exports refused. An export's partial file was named by pid and the clock's nanoseconds; two threads within one tick (microseconds on macOS) shared the name, one `VACUUM INTO` failed on the other's file and its cleanup removed that file before it was published. A per-process counter joins the name; thirty runs after, none failed. | `simultaneous_exports_to_one_destination_publish_exactly_one` (`annotations.rs`) |
 
@@ -520,6 +521,45 @@ master-side (`docs/design/trade-ground-truth.md`; never from here).
     the tab public and 32 of its neighbours listed — has no row on the
     site. The owner searched the site for it by hand the same evening:
     listed nowhere. Left as it is.
+12. **C80 holds on the site, all three ways** (2026-09-09). `Uniques 1`
+    made public and named `~price 4554 chaos`: 326 of its 370 uniques,
+    in 19 substashes, listed at 4554 chaos — a substash reads its
+    parent's name and flag. Folder `3.19` named `~price 3333 chaos`
+    with `3.19 Cursebot` public and unpriced inside it: 14 of 18 listed
+    as "No Price Set" — a folder's name is never a price. `3.19 Helix
+    Raider` named `~price 2222 chaos` and public inside that folder:
+    9 of 9 at 2222 — a folder child reads itself. C80's provisional
+    clause is closed in the registry. Claims: the three.
+13. **A note beats a valid tab name** (Q2): Memory Vault, re-noted
+    `~price 666 chaos tested` in the 8888 tab, lists as "Price with
+    Note: 666 chaos"; parser v2 reads 666 and the join agrees. The
+    clean-note case (no suffix) was not run; the site's reading of a
+    suffixed note is the same mechanism, so Q2 is answered for the
+    note-wins direction. Also seen: the remove-only unique tab renamed
+    by mistake to `~price 4444 chaos (Remove-only)` cannot be public
+    and lists nothing — one more residue tab.
+14. **The exchange's row is per item type per account.** The scroll
+    row carries both offers, 1.5 divine (the test tab's noted stack)
+    and 8888 chaos (the 8888 tab's unpriced stack, at the tab's
+    price), under the test-tab stack's id; the ratio tab's stacks show
+    per unit (2500 for 1). Claim: the grouping.
+15. **63 items in six tabs are absent from the capture and no site
+    rule explains them**: 40 of the priced unique tab's 370, 9 of the
+    8888 tab's (all listed the day before, Lethal Pride among them), 4
+    of Cursebot's, 4 of MARKET's, 3 of Bane Pathfinder's, 3 of Unique
+    Rings' — none socketed, none stacks, three of the tabs untouched
+    since the day before, when the same tabs were complete. The one
+    reading that fits all six is the capture: a search paged in
+    thirteen parts while the site's order shifted underneath drops
+    rows between parts. Open with the owner: search the site for one
+    of the names by hand (Indigon, or Ungil's Harmony). If it shows,
+    the union is the hole and the site is not.
+16. **One character item on the site**: Rune Gorget, on a character in
+    our facts of the day before with the note `~price 1 facetors`,
+    shows as "No Price Set", listed three hours before the capture,
+    through the stash channel. The characters were not refetched this
+    pass, so the item may have moved into a public tab since. Open
+    with the owner.
 11. **Coverage**: the item search's union is 551 rows against the
     owner's "560 matched" read off the form on 09-07; the saved DOM
     carries no matched count, and the 8888 tab was set public between
@@ -538,9 +578,6 @@ shows the item picture, so a wrong link is visible before posting.
 - Which item `[linkItem location="Stash<n>" …]` resolves to when
   folders occupy tab indices — is `n` the tab's `index + 1` counting
   folders? Decides whether the first pasted page is trustworthy.
-- Item note against tab name in game: rename the test tab to a price
-  and see whether the noted items keep their own price on the site.
-  C69's note-then-tab order rests on the C++ code until then.
 - Still blocked-and-counted in the render's policy table until
   observed: what the indexer does with a forum ratio on a non-bulk
   item, and with `~b/o a/b` (in game a typed ratio unlists the item,
@@ -548,12 +585,6 @@ shows the item picture, so a wrong link is visible before posting.
   a substash item has no link at all (T20), an unpriced link lists as
   "No Price Set" (T21), the post limit is a hard 50,000 characters
   (T23).
-- A nested tab on the site (hand experiment, one each): rename a
-  public map or unique tab to a price and see whether its maps or
-  uniques list at it; put a public priced tab inside a folder, and name
-  a folder with a price, and see which of the two the site reads.
-  Confirms or corrects C80 (Provisional): a substash reads its parent,
-  a folder child itself.
 - The game-side parser's real corpus is the test tab (fixture) plus the
   userstore's 120 notes; the facts hold the sale tabs listed, not
   fetched, until the policy covers them. Two of its rules were the
