@@ -889,6 +889,24 @@ the sum. Extends N26 (pacing arithmetic exact) to two concurrent
 policies and bounds the "~343 s" figure of the spike's estimates as
 the worst case (a window filled at once), not a constant.
 
+### Token claims (September 9, 2026)
+
+**N46. A refresh token can be invalidated between two client sessions
+by events on GGG's side; `invalid_grant` ("Refresh token doesn't exist
+or has expired") is a state a client must expect, remedied only by a
+new login.** [OWNER + RUN — Confirmed; September 9, 2026]
+The spike's run ledger (`LIVE-TESTING.md`, 2026-09-09): the refresh
+token rotated and saved at 17:34 UTC on September 8 was rejected at
+01:53 UTC on September 9 with HTTP 400 `invalid_grant`, with no use of
+it in between and no keyring warning at the save. The owner, verbatim:
+"the game servers were rebooted recently, which is one of the events
+that can invalidate tokens (there are others. we don't need to catalog
+them, but it can happen)". Consequence for a client: one rejected
+refresh grant is the signal to stop refreshing and ask for a login
+(the spike's rail 2), not a transient to retry; a headless refresh
+loop cannot recover from it on its own. The 400 counted against
+`token-request-limit` (`1:30:0`) and the invalid-request budget (N27).
+
 ## Open questions
 
 - **Q1. HEAD sanction verbatim. RESOLVED July 18, 2026** — Tom
