@@ -31,19 +31,19 @@
 //! implements it. The registry is current; this is the mechanism as
 //! decided and as built.
 //!
-//! ## C10 — Version handshake in the protocol; the protocol is single-version on purpose.
+//! ## C10 — Handshake protocol is single-version on purpose.
 //!
-//! **Version handshake in the protocol; the protocol is single-version on
-//! purpose.** Kill-and-respawn is the entire migration mechanism. A client
-//! uses a daemon only when its provider and runtime identity match the
-//! runtime it would itself spawn. That identity changes automatically with
-//! the daemon and protocol implementation it governs; it never derives from
-//! Git state or a hand-maintained compatibility number. A use verb may
-//! replace a mismatch; observation never spawns or replaces and reports
-//! absence, identity mismatch, and provider mismatch distinctly; an
-//! autonomous client (MCP) never replaces. *Why:* a compat matrix is the
-//! reconciliation swamp; respawn is a one-line diff; an observer that
-//! replaced cost a live run (2026-09-08). Amended 2026-09-09.
+//! **C10 — Handshake protocol is single-version on purpose.** Migration is
+//! via kill-and-respawn only. A client uses a daemon only when its provider
+//! and runtime identity match what it would itself spawn. That identity
+//! changes automatically with the daemon and protocol implementation it
+//! governs; it never derives from Git state or a hand-maintained value. A
+//! use verb may replace a mismatch; observation never spawns or replaces,
+//! just reports absence and mismatches distinctly; an autonomous client
+//! (MCP) never replaces. *Why:* a compat matrix is the reconciliation
+//! swamp; respawn is a one-line diff; an observer that replaced cost a live
+//! run (2026-09-08). *Details:* `client.rs` doc, C10. *Pinned:*
+//! `acquisition-cli/tests/daemon_observe.rs`. Amended 2026-09-09.
 //!
 //! ## C10 — as built
 //!
