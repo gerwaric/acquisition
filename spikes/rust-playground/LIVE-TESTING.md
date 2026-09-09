@@ -61,7 +61,8 @@ Replaces the preconditions and the "new hypothesis first" requirement.
   then run, and the ledger row names HEAD. Never
   rebuild `target/debug/acq` under a live daemon without `acq daemon
   stop` first (rung 8 ran 34 h on a binary that predated the fix it was
-  restarted to pick up).
+  restarted to pick up). Reworded 2026-09-09 for the runtime revision;
+  owner-approved.
 
 Every job kind has had first contact as of 2026-08-30 (run ledger:
 `profile`, `leagues`, `character`; `leagues` was routed to `/league` until
