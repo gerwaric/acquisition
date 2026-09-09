@@ -406,3 +406,43 @@ split as its own design session with the owner.
   scheduled.
 - C10's amendment text (6.2 policy tiers; 6.1 identity).
 - Whether `soak-check.sh` and the frozen-soak procedure are retired (6.5).
+
+## 7. The owner's rulings on 6.8 (2026-09-09, verbatim)
+
+Asked as three plain questions (must every frontend be able to become
+the daemon; amend C10 on both counts; keep the frozen-soak check):
+
+1. "omg yes--embedding the daemon sounds terrible compared to `acqd`.
+   the path we took was an unplanned shortcut. time to grow up."
+2. "yes, amend both."
+3. "eliminate. there may be long-running tests in our future, be we will
+   design that bridge appropriately when we come to it."
+
+What follows from them:
+
+- **A dedicated `acqd` and a protocol crate are scheduled**, as their
+  own design session (C1 amendment, executable location, test
+  discovery, packaging). Not part of the stamp change.
+- **C10 is amended on both counts** — identity and replacement tiers.
+  Draft below; lands with the observe-policy commit.
+- **The frozen-soak procedure is gone**: `tools/soak-run.sh` and
+  `tools/soak-check.sh` deleted in the commit that records this section;
+  the ledger rows that cite the 2026-08 soaks stay as history. The
+  `runs/soak/` evidence on disk is gitignored and untouched.
+- Sequencing stands: observe policy → runtime revision → driver
+  preflight, three commits; then the split. The runtime-revision build
+  script migrates to the protocol crate at the split (6.6).
+
+### 7.1 Draft C10 amendment (for the owner's approval; measured 794 bytes as one line, limit 800)
+
+> **C10 — Version handshake in the protocol; the protocol is
+> single-version on purpose.** Kill-and-respawn is the entire migration
+> mechanism. A client accepts only the daemon it would itself spawn: the
+> same *runtime revision* (the checked-in daemon sources — core, store,
+> manifests, lock — never the git commit; after the `acqd` split, the
+> daemon artifact plus the protocol crate's revision). Replacing is a
+> *use* verb's policy; observation never spawns or replaces and reports absent / compatible / incompatible /
+> wrong-provider distinctly; an autonomous client (MCP) never replaces.
+> *Why:* a compat matrix is the reconciliation swamp; respawn is a
+> one-line diff; an observer that replaced cost a live run (2026-09-08).
+> *Details:* `client.rs` doc, C10. Amended 2026-09-09 (history in git).
