@@ -117,9 +117,12 @@ spawn_daemon() { # <max_sends> <outfile>
     return 1
 }
 
+# The wire phases gate on enter from a terminal; a mock rehearsal driven
+# from a pipe (no tty) proceeds without prompting, as the tracer does.
 confirm() {
     echo ""
     echo ">>> $1"
+    [ -t 0 ] || return 0
     read -r -p ">>> enter to proceed (ctrl-c to abort) "
 }
 
