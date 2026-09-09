@@ -67,6 +67,11 @@ EXCHANGE_PAY = re.compile(
     re.S,
 )
 STOCK = re.compile(r'data-field="stock">Stock:&nbsp;<span>([^<]*)</span>')
+# The compact layout: one `per-have` block per offer — `lot × item ⇐ amount × currency`.
+PER_HAVE = re.compile(
+    r'<div class="per-have">\s*<span>\s*<span\s+class="amount">([^<]*)</span>.*?alt="([^"]*)".*?⇐.*?<span\s+class="amount">([^<]*)</span>.*?alt="([^"]*)"',
+    re.S,
+)
 SHOWING = re.compile(r"Showing\s+([\d,]+)\s+results?")
 HEADER_LINE = re.compile(r'<div class="item-popup__header-line">\s*(.*?)\s*</div>', re.S)
 LABEL = re.compile(r'class="price-label(?: ([a-z-]+))?">\s*([^<]*?)\s*<', re.S)
@@ -97,32 +102,47 @@ def rows_of(text):
 
 
 def parse_exchange_row(rid, chunk, source, problems):
-    """A bulk-exchange row: the site's offer of `lot` of the item for
-    `amount` of the currency, with the stock it counts (T2, T3)."""
-    get = EXCHANGE_GET.search(chunk)
-    pay = EXCHANGE_PAY.search(chunk)
+    """A bulk-exchange row: the site's offers of `lot` of the item for
+    `amount` of the currency, with the stock it counts (T2, T3). The
+    default layout names both sides ("what you get" / "what you pay");
+    the compact layout shows one `per-have` block per offer, and a stack
+    priced two ways (its note and its tab) carries two. One row per
+    offer; `offer` numbers them."""
     stock = STOCK.search(chunk)
     acct = ACCOUNT.search(chunk)
-    if get is None or pay is None:
-        problems.append(f"{rid}: exchange row without its two sides in {source}")
-    return {
-        "id": rid,
-        "name": None,
-        "base": squash(get.group(1)) if get else None,
-        "note": None,
-        "label": "exchange",
-        "amount": squash(pay.group(1)) if pay else None,
-        "currency": html.unescape(pay.group(2)) if pay else None,
-        "currency_name": None,
-        "lot": squash(get.group(2)) if get else None,
-        "stock": squash(stock.group(1)) if stock else None,
-        "listed": None,
-        "verified": None,
-        "channel": "exchange",
-        "thread": None,
-        "account": squash(acct.group(3)) if acct else None,
-        "source": source,
-    }
+    offers = []
+    get = EXCHANGE_GET.search(chunk)
+    pay = EXCHANGE_PAY.search(chunk)
+    if get and pay:
+        offers.append((squash(get.group(1)), squash(get.group(2)), squash(pay.group(1)), html.unescape(pay.group(2))))
+    else:
+        for lot, item, amount, currency in PER_HAVE.findall(chunk):
+            offers.append((html.unescape(item), squash(lot), squash(amount), html.unescape(currency)))
+    if not offers:
+        problems.append(f"{rid}: exchange row without an offer in {source}")
+        offers.append((None, None, None, None))
+    return [
+        {
+            "id": rid,
+            "name": None,
+            "base": item,
+            "note": None,
+            "label": "exchange",
+            "amount": amount,
+            "currency": currency,
+            "currency_name": None,
+            "lot": lot,
+            "stock": squash(stock.group(1)) if stock else None,
+            "offer": n,
+            "listed": None,
+            "verified": None,
+            "channel": "exchange",
+            "thread": None,
+            "account": squash(acct.group(3)) if acct else None,
+            "source": source,
+        }
+        for n, (item, lot, amount, currency) in enumerate(offers)
+    ]
 
 
 def parse_row(rid, chunk, source, problems):
@@ -160,6 +180,7 @@ def parse_row(rid, chunk, source, problems):
         "currency_name": squash(cur.group(2)) if cur else None,
         "lot": None,
         "stock": None,
+        "offer": None,
         "listed": squash(listed.group(1)) if listed else None,
         "verified": "verifiedStatus\">Verified" in chunk,
         "channel": None if acct is None else ("forum" if acct.group(1).startswith("forum") else "stash"),
@@ -255,20 +276,22 @@ def main():
         n = 0
         for rid, exchange, chunk in rows_of(text):
             n += 1
-            row = (parse_exchange_row if exchange else parse_row)(rid, chunk, f.name, problems)
-            # An item search row and an exchange row for one id are two
-            # claims (a forum-listed stack shows on both); the key tells them apart.
-            key = (rid, "exchange" if exchange else "item")
-            if key in table:
-                shared += 1
-                prior = table[key]
-                same = {k: v for k, v in row.items() if k != "source"} == {
-                    k: v for k, v in prior.items() if k != "source"
-                }
-                if not same:
-                    problems.append(f"{rid}: differs between {prior['source']} and {f.name}")
-                continue
-            table[key] = row
+            rows = parse_exchange_row(rid, chunk, f.name, problems) if exchange else [parse_row(rid, chunk, f.name, problems)]
+            for row in rows:
+                # An item search row and an exchange offer for one id are
+                # separate claims (a forum-listed stack shows on both; a
+                # stack priced two ways is offered twice): the key tells them apart.
+                key = (rid, "exchange", row["offer"]) if exchange else (rid, "item")
+                if key in table:
+                    shared += 1
+                    prior = table[key]
+                    same = {k: v for k, v in row.items() if k != "source"} == {
+                        k: v for k, v in prior.items() if k != "source"
+                    }
+                    if not same:
+                        problems.append(f"{rid}: differs between {prior['source']} and {f.name}")
+                    continue
+                table[key] = row
         parts.append(
             {
                 "file": f.name,
@@ -293,7 +316,7 @@ def main():
         "unique": len(table),
         "unique_ids": len({k[0] for k in table}),
         "by_label": dict(sorted(labels.items())),
-        "rows": sorted(table.values(), key=lambda r: (r["id"], r["label"] == "exchange")),
+        "rows": sorted(table.values(), key=lambda r: (r["id"], r["label"] == "exchange", r["offer"] or 0)),
     }
     json.dump(out, sys.stdout, indent=1, ensure_ascii=False)
     print()

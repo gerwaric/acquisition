@@ -284,7 +284,27 @@ def main():
             else:
                 lot = "1"
         ours = f"{text!r} read as {reading_text(g['reading'])}"
-        if (wanted, lot, word) == (r["amount"], r["lot"], r["currency"]):
+        # A stack priced by note and by tab is offered twice; the tab's
+        # offer is read against the tab name when the note's is not it.
+        alt = (g.get("tab_name") or {}).get("text") or ""
+        m2 = re.match(r"~(?:price|b/o)\s+(\S+)\s+(\S+)", alt)
+        alt_triple = None
+        if m2:
+            w, word2 = m2.group(1), m2.group(2)
+            alt_triple = (w.split("/", 1)[0], w.split("/", 1)[1] if "/" in w else "1", word2)
+        # The site's compact layout shows the offer per unit (5000 for 2
+        # becomes 2500 for 1): the comparison is the rate, as a fraction.
+        from fractions import Fraction
+
+        def rate(amount, lot):
+            try:
+                return Fraction(str(amount)) / Fraction(str(lot))
+            except (ValueError, ZeroDivisionError, TypeError):
+                return None
+
+        site_rate = rate(r["amount"], r["lot"])
+        ours_rates = [(rate(w, l), c) for (w, l, c) in ((wanted, lot, word), alt_triple or (None, None, None))]
+        if any(rt is not None and rt == site_rate and c == r["currency"] for rt, c in ours_rates):
             classes["agree"] += 1
             reasons["exchange_agrees"] += 1
         else:
