@@ -1,9 +1,11 @@
 //! `listing-report` — our side of the site-as-the-oracle comparison
 //! (plan step 7, item 5, `PRICING-SLICE.md`; `brainstorming-notes/15`):
 //! one (realm, league)'s listing state from the owner's own store,
-//! written to stdout as the `ListingReport` JSON `acq price list --json`
-//! renders, **unredacted** — the ids are the join key against the trade
-//! site's rows, and the names read beside them. The owner redirects it
+//! written to stdout as the whole `ListingReport` JSON — the report the
+//! CLI resolves and then filters into its `status`, `list` and `show`
+//! views (`--json` prints the view, never the whole) — **unredacted**:
+//! the ids are the join key against the trade site's rows, and the names
+//! read beside them. The owner redirects it
 //! to a local file under `runs/` (gitignored); `tools/site-join.py` reads
 //! it against the table `tools/site-listings.py` made. Nothing here is
 //! shipped and nothing here is committed.

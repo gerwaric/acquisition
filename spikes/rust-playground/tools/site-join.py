@@ -10,6 +10,7 @@ under a list of reasons fixed before the join ran — a row fitting none
 is `unexplained`, the interesting kind. Read-only; no store, no network.
 
     tools/site-join.py --site <site-listings.json> --report <listing-report.json> [--rows]
+    tools/site-join.py --self-test        # the reason precedence over synthetic rows
 
 **What is compared.** The site shows the *game* side of a stash item —
 its note, else its tab's name — for the items in public tabs (T1), plus
@@ -33,11 +34,16 @@ row. `differ` — both list it and the claims differ.
   the store has never seen. Outside the domain.
 - `forum_channel` — the site's row is a forum listing (the seller link
   is a thread): intent we hold, never a fact we observe (C69).
-- `note_trailing_text` — the note carries text after the grammar; the
-  site read a price from it ("Price with Note:"), our parser reads it
-  `invalid` and lets the tab apply.
+- `note_trailing_text` — the site read a price out of a note ("Price
+  with Note:") that our parser did not read the same way. Parser v1
+  refused any suffix and let the tab apply; v2 (2026-09-08) reads
+  through a suffix as the site does, so under v2 such a row agrees
+  when the amount and word match (`note_price_agrees`) and this reason
+  is left for a suffix the two still read apart.
 - `ratio_tab_name` — the item's public tab is named with a ratio, which
-  T11 says lists nothing; whatever the site shows for it is this.
+  lists nothing on the item search (T11): our state still calls the
+  tab public with no statement, so such an item is expected and absent
+  (state-only); one with its own valid note is listed and compared.
 - `public_flag` — the store's `metadata.public` and the site's listing
   disagree at the tab level: a stash row from a tab the facts hold as
   not public, or a public tab's item the site does not list.
@@ -104,12 +110,97 @@ def is_ratio(reading_or_text):
     return "/" in str(reading_or_text)
 
 
+def self_test():
+    """The reason precedence, pinned over synthetic rows: a table and a
+    report small enough to read, run through this script, each id's
+    reason asserted. Exit 1 on the first miss."""
+    import os
+    import subprocess
+    import tempfile
+
+    def tab(tid, name, public):
+        return {
+            "subject": {"target": {"scope": "tab", "realm": "pc", "id": tid}, "name": name, "tab_type": "PremiumStash", "index": 0},
+            "chain": [],
+            "game": {"reading": {"kind": "none"}, "tab": tid, "tab_name": {"text": name, "reading": {"kind": "none"}}, "public": public},
+            "relation": "none", "why": "", "effective": {"kind": "none", "why": ""}, "basis": {},
+        }
+
+    def item(iid, tid, reading, public, note=None):
+        g = {"reading": reading, "tab": tid, "public": public}
+        if note:
+            g["note"] = {"text": note, "reading": reading}
+            g["source"] = "note"
+        return {
+            "subject": {"target": {"scope": "item", "id": iid}, "name": iid, "type_line": "Thing", "location": {"scope": "tab", "realm": "pc", "id": tid}, "x": 0, "y": 0},
+            "chain": [], "game": g, "relation": "none", "why": "", "effective": {"kind": "none", "why": ""}, "basis": {},
+        }
+
+    exact = lambda a, c: {"kind": "exact", "amount": a, "currency": c}
+    report = {
+        "league": "Standard", "taken_at": 0,
+        "counts": {"items": 6, "by_game_statement": {}, "priced_tabs": 0, "priced_tabs_public": 0},
+        "rows": {}, "listings": [
+            tab("t-priv", "Private", False),
+            tab("t-pub", "Public", True),
+            tab("t-ratio", "~price 5/2 chaos", True),
+            item("i-priv-note", "t-priv", exact("7", "chaos"), False, "~price 7 chaos testing"),
+            item("i-pub-note", "t-pub", exact("7", "chaos"), True, "~price 7 chaos testing"),
+            item("i-ratio", "t-ratio", {"kind": "none"}, True),
+            item("i-priv", "t-priv", {"kind": "none"}, False),
+            item("i-skip", "t-pub", {"kind": "skip"}, True, "~skip"),
+            item("i-bad", "t-pub", {"kind": "invalid", "why": "x"}, True, "~price chaos"),
+        ],
+    }
+    row = lambda iid, label, amount=None, currency=None, note=None: {
+        "id": iid, "name": None, "base": "Thing", "note": note, "label": label, "amount": amount,
+        "currency": currency, "currency_name": None, "listed": "listed 1 day ago", "verified": True,
+        "channel": "stash", "thread": None, "lot": None, "stock": None, "offer": None, "account": "A#1", "source": "t",
+    }
+    site = {"unique": 6, "by_label": {}, "parts": [], "rows": [
+        row("i-priv-note", "note_price", "7", "chaos", "~price 7 chaos testing"),
+        row("i-pub-note", "note_price", "7", "chaos", "~price 7 chaos testing"),
+        row("i-priv", "no_price"),
+        row("i-skip", "no_price"),
+        row("i-bad", "note_price", "9", "chaos", "~price chaos"),
+        row("i-nowhere", "no_price"),
+    ]}
+    want = {
+        "i-priv-note": "public_flag",       # the public finding beats the parser's
+        "i-pub-note": None,                 # agrees under parser v2
+        "i-ratio": "ratio_tab_name",  # state-only: expected, absent
+        "i-priv": "public_flag",
+        "i-skip": "skip_listed",
+        "i-bad": "note_trailing_text",
+        "i-nowhere": "not_in_store",
+    }
+    with tempfile.TemporaryDirectory() as d:
+        sp, rp = os.path.join(d, "site.json"), os.path.join(d, "report.json")
+        json.dump(site, open(sp, "w"))
+        json.dump(report, open(rp, "w"))
+        out = subprocess.run([sys.executable, __file__, "--site", sp, "--report", rp, "--rows"], capture_output=True, text=True, check=True)
+    got = {r["id"]: r["reason"] for r in json.loads(out.stdout)["rows"]}
+    reasons = json.loads(out.stdout)["reasons"]
+    for iid, reason in want.items():
+        if got.get(iid) != reason:
+            sys.exit(f"self-test: {iid}: wanted {reason!r}, got {got.get(iid)!r}")
+    if reasons.get("note_price_agrees") != 1:
+        sys.exit(f"self-test: the public note-priced row should agree; reasons {reasons}")
+    print("self-test: the reason precedence holds over 6 site rows and 7 store items")
+
+
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--site", required=True)
-    ap.add_argument("--report", required=True)
+    ap.add_argument("--site")
+    ap.add_argument("--report")
     ap.add_argument("--rows", action="store_true", help="print every disagreeing row")
+    ap.add_argument("--self-test", action="store_true", help="the reason precedence over synthetic rows")
     a = ap.parse_args()
+    if a.self_test:
+        self_test()
+        return
+    if not (a.site and a.report):
+        ap.error("--site and --report are required")
     site = load(a.site)
     report = load(a.report)
 
@@ -202,14 +293,12 @@ def main():
             continue
         exp = expectation(l)
         if exp is None:
-            # The store says: not listed.
-            if r["label"] == "note_price" or (ours_reading["kind"] == "invalid" and r["note"] and r["note"] != (g.get("note") or {}).get("text")):
-                reason = "note_trailing_text"
-            elif ours_reading["kind"] == "invalid" and r["label"] == "note_price":
-                reason = "note_trailing_text"
-            elif tab and is_ratio(tab_name_reading(l).get("why", "")) or (tab and is_ratio(tab["subject"]["name"]) and g.get("public") is True):
-                reason = "ratio_tab_name"
-            elif g.get("public") is not True:
+            # The store says: not listed — because the tab is not public
+            # (Q11's condition, the one this audit exists to test, read
+            # before anything about the note) or because the game says
+            # `skip`. Whatever label the site's row carries, the tab-level
+            # fact is the finding.
+            if g.get("public") is not True:
                 reason = "public_flag"
             elif ours_reading["kind"] == "skip":
                 reason = "skip_listed"

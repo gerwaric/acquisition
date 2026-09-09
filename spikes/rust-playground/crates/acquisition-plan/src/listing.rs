@@ -48,8 +48,8 @@
 //! game's own name and no `public`, so an item in one reads its note, then
 //! the parent's name and `public`, the substash's name reported verbatim
 //! beside it. A folder is a grouping, not a tab: its child's own name and
-//! `public` are read. Provisional until the hand experiment
-//! (`PRICING-SLICE.md`, observations) is run on the site. *Why:* the
+//! `public` are read. Confirmed on the site 2026-09-09, all three ways
+//! (`PRICING-SLICE.md`, "What the site taught", 12). *Why:* the
 //! owner's facts hold 64 substashes with no settable name or `public` and
 //! 77 folder children as ordinary tabs; owner, 2026-09-06: "Folders never
 //! carry price, but substash parents can." *Pinned:* the `c80_` tests.
