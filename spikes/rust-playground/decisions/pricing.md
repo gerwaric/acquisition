@@ -33,6 +33,6 @@ Scope this area has deferred, with the trigger that reopens it, so deferral neve
 - Batch pricing by query (price everything a search selects) → search semantics. Trigger: a real batch workflow the handles cannot express.
 - Current offer (`~c/o`) as a value → the `buyout` value (C67). Trigger: a real use; the census found zero rows.
 - PoE2 currencies and per-realm tags → rows in the currency table, whose shape carries realm applicability from day one. Trigger: a PoE2 stash endpoint, or a poe2 price the owner wants to set.
-- Currency totals and history → a derivation over facts. Trigger: pricing closed.
+- Currency totals and history → a derivation over facts. Trigger: the owner asks for it (2026-09-09: "this will be a \"when I asked for it\" situation").
 - Name→id resolution for price targets (`price set tab:"Maps"`) → the CLI, the same rule as C63. Trigger: authoring friction.
 - "What did I last post" (a stored render basis, a changed-since line) → user-scoped intent (`decisions/store.md`). Trigger: a user asks; v1 reposts whole pages, since the forum resolves links at post time and reports nothing back.
