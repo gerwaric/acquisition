@@ -295,9 +295,6 @@ data for the next slice that touches it.
 - **5.** Still owed from the page reading: your verdict on the page,
   verbatim, with whether the coverage, stale and positions lines
   changed what you did.
-- **C69's *Pinned:***. It reads "the `c69_` tests", which pin the parse
-  only; the qualified wording needs your trim to fit the 800-byte gate
-  (plan 3's outside review, finding (2)).
 
 ## Process used
 
