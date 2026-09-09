@@ -145,16 +145,6 @@ done
 unset ACQ_GGG ACQ_TRIPWIRE ACQ_MAX_SENDS ACQ_IDLE_SHUTDOWN
 
 tip=$(git -C "$here" rev-parse --short=12 HEAD)
-ver=$("$ACQ" --version)
-case "$ver" in
-*"$tip"*-dirty* | *dirty*)
-    echo "refusing: binary is dirty ($ver) — commit, cargo build, retry" >&2
-    [ "$MODE" = mock ] && echo "(mock mode: continuing anyway)" || exit 2 ;;
-*"$tip"*) ;;
-*)
-    echo "refusing: binary ($ver) does not match HEAD ($tip) — cargo build first" >&2
-    exit 2 ;;
-esac
 
 # The ledger cites a tip; the tip must identify the rung that ran — the
 # driver, the verifier, the control documents, and the crates — not only
@@ -209,6 +199,14 @@ if daemon_up; then
     echo "refusing: a daemon is already running on $SOCK — acq daemon stop first" >&2
     exit 2
 fi
+
+# The binary carries no commit (C10: its identity is the runtime revision
+# of its sources). A stale binary is prevented, not detected: build now —
+# cheap when fresh, safe with no daemon up, `--locked` so the build cannot
+# rewrite the lock the dirty check above just read — and record HEAD
+# beside the revision the journal will carry.
+(cd "$here" && cargo build --locked --quiet) || { echo "refusing: cargo build failed" >&2; exit 2; }
+ver=$("$ACQ" --version)
 
 COMPLETED=0
 CLIENT_PID=
@@ -310,7 +308,7 @@ note() { # <phase>
     fi
 }
 
-echo "tracer rung ($MODE) — binary $ver"
+echo "tracer rung ($MODE) — binary $ver, HEAD $tip"
 echo "socket $SOCK | journal $JOURNAL | evidence -> $RUN_DIR"
 echo "realm $REALM | league $LEAGUE | selection $SELECTION | max_age_seconds $MAX_AGE | up to $CYCLES cycle(s)"
 

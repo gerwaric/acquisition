@@ -18,25 +18,31 @@ pub mod rails;
 pub mod ratelimit;
 pub mod realm;
 
-/// The package version. Not the handshake stamp on its own: it is fixed
-/// at `0.0.1` across every commit of the playground, so comparing it lets a
-/// daemon from an older build serve a newer client silently (review
+/// The package version. Not the handshake identity on its own: it is
+/// fixed at `0.0.1` across every commit of the playground, so comparing it
+/// lets a daemon from an older build serve a newer client silently (review
 /// finding 2026-09-02: a pre-realm daemon accepted a console job and sent
-/// it to pc). [`VERSION_WITH_BUILD`] is what the handshake compares.
+/// it to pc). [`VERSION_WITH_RUNTIME`] is what the handshake compares.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-/// The git commit this binary was built from (`<short-hash>` or
-/// `<short-hash>-dirty`; `unknown` outside a checkout). Written into the send
-/// journal header and the daemon's startup line: the rails verify behavior,
-/// this is the one place that says *which code* behaved.
-pub const BUILD: &str = env!("ACQ_BUILD");
+/// The runtime revision: twelve hex digits of a digest over the sources
+/// the daemon is made of — the core and store crates, their manifests,
+/// the root manifest and the lock (`build.rs` lists the inputs and the
+/// format). It changes when the daemon's code changes and only then, and
+/// never consults git. Written into the send journal header and the
+/// daemon's startup line: the rails verify behavior, this is the one
+/// place that says *which code* behaved; a run record maps it to HEAD.
+pub const RUNTIME_REVISION: &str = env!("ACQ_RUNTIME_REVISION");
 
-/// `<version> (<build>)`: what `acq --version` prints and what the
-/// client/daemon handshake compares. Both binaries link this crate, so a
-/// client from another commit finds the daemon stale and — being the
-/// interactive CLI — replaces it (kill-and-respawn is the whole migration
-/// mechanism). Accepted residual: a `-dirty` stamp is the same for any
-/// dirty tree, which is why a live daemon is never rebuilt under
-/// (`LIVE-TESTING.md`, "verify the binary, not the checkout").
-pub const VERSION_WITH_BUILD: &str =
-    concat!(env!("CARGO_PKG_VERSION"), " (", env!("ACQ_BUILD"), ")");
+/// `<version> (runtime <revision>)`: what `acq --version` prints and what
+/// the client/daemon handshake compares (C10). Both binaries link this
+/// crate, so a client whose runtime sources differ from the daemon's
+/// finds it stale and — being a use verb of the interactive CLI —
+/// replaces it (kill-and-respawn is the whole migration mechanism). The
+/// structured form is `acq version --json`.
+pub const VERSION_WITH_RUNTIME: &str = concat!(
+    env!("CARGO_PKG_VERSION"),
+    " (runtime ",
+    env!("ACQ_RUNTIME_REVISION"),
+    ")"
+);

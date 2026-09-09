@@ -317,7 +317,7 @@ impl Rails {
             "event": "open",
             "ts": iso_utc(self.clock.wall()),
             "pid": std::process::id(),
-            "build": crate::BUILD,
+            "runtime": crate::RUNTIME_REVISION,
             "clock": self.clock.kind(),
         });
         let _ = writeln!(file, "{line}");
@@ -755,7 +755,7 @@ mod tests {
         assert_eq!(lines.len(), 3, "header plus two sends");
         assert_eq!(lines[0]["event"], "open");
         assert_eq!(lines[0]["clock"], "system");
-        assert_eq!(lines[0]["build"], crate::BUILD);
+        assert_eq!(lines[0]["runtime"], crate::RUNTIME_REVISION);
         assert_eq!(lines[0]["pid"], std::process::id());
         assert_eq!(lines[1]["status"], 200);
         assert_eq!(

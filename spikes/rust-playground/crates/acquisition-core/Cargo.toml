@@ -17,5 +17,8 @@ base64 = "0.22"
 rand = "0.9"
 url = "2"
 
+[build-dependencies]
+sha2 = "0.10"
+
 [dev-dependencies]
 acquisition-store = { path = "../acquisition-store", features = ["test-hooks"] }

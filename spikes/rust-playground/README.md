@@ -22,7 +22,7 @@ here anticipates it.
   tables; `gate.rs`), the mock provider (`mockggg.rs`), the live-test
   rails (`rails.rs`), the daemon (`daemon.rs`: queue, dispatcher,
   Unix-socket server, idle watchdog) and the protocol client every
-  frontend shares (`client.rs`: connect, lazy spawn, build-stamp
+  frontend shares (`client.rs`: connect, lazy spawn, the runtime-revision
   handshake). Rulings: `decisions/daemon.md`, `decisions/network.md`.
 - `crates/acquisition-store` — the shared store: SQLite, one facts file per
   account under one directory per provider, the uuid-named annotations
@@ -96,6 +96,7 @@ acq store status | events [--hours N] | refused [id]   # row counts; what recent
 acq store import <snapshot.json> | rebuild    # replay a retired-pull snapshot (no GGG traffic); re-extract derived columns
 
 acq daemon status | stop | reset-tripwire     # debugging only (C3): paths, policies learned, the rails state; a halt's reset
+acq version [--json]                          # the package version and the runtime revision the handshake compares (C10)
 ```
 
 Every command takes `--json`, and it is total: a failure is `{"error":…}`

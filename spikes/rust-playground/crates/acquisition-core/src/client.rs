@@ -47,17 +47,24 @@
 //!
 //! ## C10 — as built
 //!
-//! The identity compared is still [`VERSION_WITH_BUILD`] (package version
-//! plus the git commit `build.rs` injects); the identity the ruling names,
-//! derived from the runtime's own sources rather than from git, is
-//! unbuilt. The package version alone is fixed at `0.0.1` across the
-//! playground, and comparing it let a pre-realm daemon accept a console
-//! job and render the pc URL (review finding 2026-09-02). The provider is the handshake's `provider` against
-//! what this process wants (`ACQ_GGG`). The two dimensions are reported
-//! together ([`DaemonId::report`]) because both can differ at once. While
-//! the identity is the git stamp, two frontends built from different
-//! commits would thrash by respawning each other's daemons — theoretical in
-//! a one-workspace playground, recorded so it isn't relearned live.
+//! The identity compared is [`VERSION_WITH_RUNTIME`]: the package version
+//! plus the runtime revision, a digest over the core and store sources,
+//! their manifests, the root manifest and the lock (`build.rs`). It
+//! changes when the daemon's code changes and only then: an uncommitted
+//! edit to `daemon.rs` makes a running daemon stale, an edit to the
+//! planner or a frontend does not, and no git state is consulted. The
+//! package version alone is fixed at `0.0.1` across the playground, and
+//! comparing it let a pre-realm daemon accept a console job and render
+//! the pc URL (review finding 2026-09-02). The provider is the
+//! handshake's `provider` against what this process wants (`ACQ_GGG`).
+//! The two dimensions are reported together ([`DaemonId::report`])
+//! because both can differ at once. Every frontend built from one tree
+//! carries the same revision, which is what lets `acq-mcp` accept a
+//! daemon `acq` spawned (C6, C31); two frontends built from different
+//! trees would thrash by respawning each other's daemons — theoretical in
+//! a one-workspace playground, recorded so it isn't relearned live. After
+//! the `acqd` split the identity becomes the daemon artifact plus the
+//! protocol crate's revision.
 //!
 //! The trap the observe tier closes (ledger row 2026-09-08): `acq daemon
 //! status` typed in a second terminal without `ACQ_GGG` connected under the
@@ -74,7 +81,7 @@
 use std::fmt;
 use std::time::Duration;
 
-use crate::VERSION_WITH_BUILD;
+use crate::VERSION_WITH_RUNTIME;
 use crate::daemon::{log_path, socket_path};
 use crate::job::JobInfo;
 use crate::protocol::{Request, Response};
@@ -134,7 +141,7 @@ fn want_provider() -> &'static str {
 #[derive(Clone, Debug, Serialize)]
 pub struct DaemonId {
     pub pid: u32,
-    /// The daemon's `VERSION_WITH_BUILD`.
+    /// The daemon's `VERSION_WITH_RUNTIME`.
     pub version: String,
     /// "mock" or "ggg".
     pub provider: String,
@@ -143,7 +150,7 @@ pub struct DaemonId {
 impl DaemonId {
     /// The daemon runs the same runtime this process would spawn.
     pub fn identity_matches(&self) -> bool {
-        self.version == VERSION_WITH_BUILD
+        self.version == VERSION_WITH_RUNTIME
     }
 
     /// The daemon serves the provider this process wants.
@@ -165,7 +172,7 @@ impl DaemonId {
             "provider": self.provider,
             "identity_matches": self.identity_matches(),
             "provider_matches": self.provider_matches(),
-            "wanted": { "version": VERSION_WITH_BUILD, "provider": want_provider() },
+            "wanted": { "version": VERSION_WITH_RUNTIME, "provider": want_provider() },
         })
     }
 }
@@ -179,7 +186,7 @@ impl fmt::Display for DaemonId {
             (true, true) => write!(f, " is this client's ({}, {})", self.version, self.provider),
             (false, true) => write!(
                 f,
-                " is another build ({}; this is {VERSION_WITH_BUILD})",
+                " is another runtime ({}; this is {VERSION_WITH_RUNTIME})",
                 self.version
             ),
             (true, false) => write!(
@@ -190,7 +197,7 @@ impl fmt::Display for DaemonId {
             ),
             (false, false) => write!(
                 f,
-                " is another build ({}; this is {VERSION_WITH_BUILD}) on another provider ({}; this process wants {})",
+                " is another runtime ({}; this is {VERSION_WITH_RUNTIME}) on another provider ({}; this process wants {})",
                 self.version,
                 self.provider,
                 want_provider()
@@ -370,7 +377,7 @@ impl Client {
         };
         let hello = client
             .request(&Request::Hello {
-                client_version: VERSION_WITH_BUILD.to_string(),
+                client_version: VERSION_WITH_RUNTIME.to_string(),
             })
             .await?;
         let Response::Hello {
@@ -506,18 +513,24 @@ mod tests {
         }
     }
 
-    /// C10: the handshake compares the build stamp, not the package
+    /// C10: the handshake compares the runtime revision, not the package
     /// version — a daemon reporting the bare `0.0.1` (every build before
-    /// this check, and every other commit's build) is not this client's —
+    /// this check, and any other revision's build) is not this client's —
     /// and the provider is a second dimension, reported with the first.
     /// The tests run without `ACQ_GGG`, so "mock" is the wanted provider.
     #[test]
     fn a_daemon_from_another_build_or_provider_is_not_this_clients_daemon() {
-        assert!(id(VERSION_WITH_BUILD, "mock").is_ours());
-        assert!(!id(VERSION_WITH_BUILD, "ggg").is_ours());
+        assert!(id(VERSION_WITH_RUNTIME, "mock").is_ours());
+        assert!(!id(VERSION_WITH_RUNTIME, "ggg").is_ours());
         assert!(!id(crate::VERSION, "mock").is_ours());
         assert!(!id("0.0.1 (deadbeef)", "mock").is_ours());
-        assert!(VERSION_WITH_BUILD.contains(crate::BUILD));
+        assert!(VERSION_WITH_RUNTIME.contains(crate::RUNTIME_REVISION));
+        assert_eq!(crate::RUNTIME_REVISION.len(), 12);
+        assert!(
+            crate::RUNTIME_REVISION
+                .bytes()
+                .all(|b| b.is_ascii_hexdigit())
+        );
 
         let both = id("0.0.1 (deadbeef)", "ggg");
         assert!(!both.identity_matches() && !both.provider_matches());
@@ -527,12 +540,12 @@ mod tests {
         assert_eq!(report["wanted"]["provider"], "mock");
         let text = both.to_string();
         assert!(
-            text.contains("another build") && text.contains("another provider"),
+            text.contains("another runtime") && text.contains("another provider"),
             "{text}"
         );
-        let text = id(VERSION_WITH_BUILD, "ggg").to_string();
+        let text = id(VERSION_WITH_RUNTIME, "ggg").to_string();
         assert!(
-            text.contains("another provider") && !text.contains("another build"),
+            text.contains("another provider") && !text.contains("another runtime"),
             "{text}"
         );
     }
@@ -555,7 +568,7 @@ mod tests {
             let mut lines = BufReader::new(read).lines();
             let _hello = lines.next_line().await.unwrap().unwrap();
             let hello = Response::Hello {
-                daemon_version: VERSION_WITH_BUILD.to_string(),
+                daemon_version: VERSION_WITH_RUNTIME.to_string(),
                 pid: 7,
                 provider: "mock".into(),
             };

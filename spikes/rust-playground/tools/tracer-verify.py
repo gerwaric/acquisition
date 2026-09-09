@@ -78,7 +78,8 @@ def read_lifetimes(journal, offset):
                 continue
             line = json.loads(raw)
             if line.get("event") == "open":
-                cur = {"pid": line["pid"], "build": line["build"], "clock": line["clock"], "sends": []}
+                # `runtime` since 2026-09-09 (C10); bundles before that say `build`.
+                cur = {"pid": line["pid"], "build": line.get("runtime", line.get("build")), "clock": line["clock"], "sends": []}
                 lifetimes.append(cur)
                 continue
             if cur is None:
@@ -134,7 +135,7 @@ def verify(journal, offset, rows_path, login_lifetime, closed, mode, out=print, 
     for i, lt in enumerate(lifetimes, 1):
         label = "login" if (login_lifetime and i == 1) else f"cycle {i - login_lifetime}"
         if not brief:
-            out(f"lifetime {i} ({label}): pid {lt['pid']}  build {lt['build']}  clock {lt['clock']}")
+            out(f"lifetime {i} ({label}): pid {lt['pid']}  runtime {lt['build']}  clock {lt['clock']}")
         counts, first = {}, {}
         # Brief form: probe verdicts and limiter holds per short route
         # (the account stripped), instead of one line per send.
@@ -204,7 +205,7 @@ def verify(journal, offset, rows_path, login_lifetime, closed, mode, out=print, 
         totals.append(f"{t} = {len(lt['sends'])}")
         if brief:
             status = "all 2xx" if not not_ok else f"{not_ok} NOT 2xx"
-            out(f"lifetime {i} ({label}): pid {lt['pid']}  build {lt['build']} — "
+            out(f"lifetime {i} ({label}): pid {lt['pid']}  runtime {lt['build']} — "
                 f"{counts.get('POST', 0)} POST / {counts.get('HEAD', 0)} HEAD / {counts.get('GET', 0)} GET"
                 f" = {len(lt['sends'])}, {status}")
             if probes:
@@ -298,7 +299,7 @@ def synthetic(path, route, probe2_state, gap_seconds, first_window="10", second_
                       "ok": True, "error": None, "wait_ms": 0, "rate": rate or {}})
 
     def opened(pid, ts):
-        lines.append({"event": "open", "pid": pid, "build": "x", "clock": "system", "ts": ts})
+        lines.append({"event": "open", "pid": pid, "runtime": "x", "clock": "system", "ts": ts})
 
     base = datetime.fromisoformat("2026-09-01T12:00:00+00:00")
 

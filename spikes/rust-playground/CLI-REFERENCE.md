@@ -26,6 +26,7 @@ Commands:
   submit        Submit any job kind by hand
   demo          Submit a burst of fetch jobs against the mock's 5-per-10 s policy and watch the rate limiter queue them (the ETAs are the limiter's prediction, corrected by headers)
   dash          Live dashboard (TUI): rate limiter state (enter expands a policy: bucket state, the observed X-Rate-Limit headers, per-endpoint sends), job queue, HTTP sends, recent errors, a rails halt in red. With --json, prints one snapshot and exits
+  version       The package version and the runtime revision the daemon handshake compares (C10) — a digest over the daemon's sources, never a git commit. `--json`: {"version", "runtime"}; `--version` is the human form of the same
   jobs          The live jobs: id, parent, kind, target (from params, C7), state (`↻n` counts 429 re-queues, C26), priority, account, submitter, ETA
   status        One job's state and ETA. A large ETA is the limiter holding, not a hang: holds can reach 300 s plus the timing bucket
   result        A finished job's payload or error, answered across daemon restarts (C27: a client that disappears leaves its jobs running). A failed fetch's refused body is in `acq store refused <id>`, not here
@@ -476,6 +477,17 @@ Options:
 Live dashboard (TUI): rate limiter state (enter expands a policy: bucket state, the observed X-Rate-Limit headers, per-endpoint sends), job queue, HTTP sends, recent errors, a rails halt in red. With --json, prints one snapshot and exits
 
 Usage: acq dash [OPTIONS]
+
+Options:
+  -h, --help               Print help
+```
+
+## `acq version`
+
+```text
+The package version and the runtime revision the daemon handshake compares (C10) — a digest over the daemon's sources, never a git commit. `--json`: {"version", "runtime"}; `--version` is the human form of the same
+
+Usage: acq version [OPTIONS]
 
 Options:
   -h, --help               Print help

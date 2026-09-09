@@ -50,11 +50,15 @@ Replaces the preconditions and the "new hypothesis first" requirement.
   (since the `/profile` 403 below). Routes known not to accept HEAD
   skip the probe (`route_probes` in `daemon.rs`) and are taught by
   their first GET instead.
-- **Verify the binary, not the checkout.** `acq --version` must equal
-  `git rev-parse --short=12 HEAD` with no `-dirty`; never rebuild
-  `target/debug/acq` under a live daemon without `acq daemon stop` first
-  (rung 8 ran 34 h on a binary that predated the fix it was restarted to
-  pick up).
+- **Build before you run; the run record maps the binary to HEAD.** The
+  binary carries no commit: `acq version --json` prints its runtime
+  revision (a digest over the daemon's sources, C10), and the journal
+  header and first log line say the same. A driver refuses a dirty tree
+  and a running daemon, then builds (`cargo build --locked`) and records
+  HEAD beside the revision; by hand, `cargo build`, then run. Never
+  rebuild `target/debug/acq` under a live daemon without `acq daemon
+  stop` first (rung 8 ran 34 h on a binary that predated the fix it was
+  restarted to pick up).
 
 Every job kind has had first contact as of 2026-08-30 (run ledger:
 `profile`, `leagues`, `character`; `leagues` was routed to `/league` until

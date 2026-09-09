@@ -64,16 +64,6 @@ done
 unset ACQ_GGG ACQ_TRIPWIRE ACQ_MAX_SENDS ACQ_IDLE_SHUTDOWN
 
 tip=$(git -C "$here" rev-parse --short=12 HEAD)
-ver=$("$ACQ" --version)
-case "$ver" in
-*"$tip"*-dirty* | *dirty*)
-    echo "refusing: binary is dirty ($ver) — commit, cargo build, retry" >&2
-    [ "$MODE" = mock ] && echo "(mock mode: continuing anyway)" || exit 2 ;;
-*"$tip"*) ;;
-*)
-    echo "refusing: binary ($ver) does not match HEAD ($tip) — cargo build first" >&2
-    exit 2 ;;
-esac
 
 RUN_DIR="$here/runs/$(date -u +%F)-persist"
 if [ "$MODE" = mock ]; then RUN_DIR="$RUN_DIR-mock"; fi
@@ -101,6 +91,13 @@ if [ -S "$SOCK" ] && [ "$(status_json | jq -r '.pid // empty')" != "" ]; then
     echo "refusing: a daemon is already running on $SOCK — acq daemon stop first" >&2
     exit 2
 fi
+
+# The binary carries no commit (C10: its identity is the runtime revision
+# of its sources). A stale binary is prevented, not detected: build now —
+# cheap when fresh, safe with no daemon up, `--locked` so the build cannot
+# rewrite the lock — and record HEAD beside the revision.
+(cd "$here" && cargo build --locked --quiet) || { echo "refusing: cargo build failed" >&2; exit 2; }
+ver=$("$ACQ" --version)
 
 COMPLETED=0
 REFRESH_PID=
@@ -138,7 +135,7 @@ confirm() {
     read -r -p ">>> enter to proceed (ctrl-c to abort) "
 }
 
-echo "persistence check ($MODE) — binary $ver"
+echo "persistence check ($MODE) — binary $ver, HEAD $tip"
 echo "socket $SOCK | journal $JOURNAL | evidence -> $RUN_DIR"
 if [ -n "$ACCOUNT" ]; then export ACQ_ACCOUNT="$ACCOUNT"; fi
 if [ "$MODE" = live ]; then

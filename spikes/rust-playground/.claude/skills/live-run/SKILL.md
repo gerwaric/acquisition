@@ -17,10 +17,10 @@ from cron or a background shell has no keychain and no session.
    — the shell you were launched from may still export a previous run's
    rails or a mock session's isolation.
 2. `acq daemon stop`. Never rebuild under a live daemon.
-3. `cargo build`, then verify the **binary**, not the checkout:
-   `./target/debug/acq --version` must equal `git rev-parse --short=12 HEAD`
-   with no `-dirty` (`cargo test` and `cargo clippy` do not rebuild
-   `target/debug/acq`).
+3. `cargo build`, then `./target/debug/acq version` — the binary
+   carries its runtime revision (C10), not a commit; the journal will
+   carry the same and the ledger row maps it to HEAD (`cargo test` and
+   `cargo clippy` do not rebuild `target/debug/acq`).
 4. `ls -t runs/ | head` against the run ledger: know which run
    directories the ledger already cites before adding one.
 

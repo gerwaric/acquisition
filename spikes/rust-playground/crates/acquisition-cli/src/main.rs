@@ -54,10 +54,9 @@ pub(crate) async fn attach() -> Result<Client> {
 #[derive(Parser)]
 #[command(
     name = "acq",
-    // `<pkg version> (<git commit>)`: the thing to check before a live run
-    // is the binary, not the checkout. A `-dirty` suffix means uncommitted
-    // changes were built in.
-    version = acquisition_core::VERSION_WITH_BUILD,
+    // `<pkg version> (runtime <revision>)`: the handshake identity (C10);
+    // `acq version --json` is the structured form.
+    version = acquisition_core::VERSION_WITH_RUNTIME,
     about = "Acquisition playground CLI (mock provider by default; ACQ_GGG=1 talks to real GGG)"
 )]
 struct Cli {
@@ -245,6 +244,11 @@ is the per-location summary.")]
     /// sends), job queue, HTTP sends, recent errors, a rails halt in red.
     /// With --json, prints one snapshot and exits.
     Dash,
+    /// The package version and the runtime revision the daemon handshake
+    /// compares (C10) — a digest over the daemon's sources, never a git
+    /// commit. `--json`: {"version", "runtime"}; `--version` is the human
+    /// form of the same.
+    Version,
     /// The live jobs: id, parent, kind, target (from params, C7), state
     /// (`↻n` counts 429 re-queues, C26), priority, account, submitter, ETA.
     Jobs {
@@ -886,6 +890,20 @@ async fn run(cli: Cli) -> Result<()> {
             watch_table_until_done(&mut client, &ids).await
         }
         Cmd::Dash => dash::run(cli.json).await,
+        Cmd::Version => {
+            if cli.json {
+                println!(
+                    "{}",
+                    json!({
+                        "version": acquisition_core::VERSION,
+                        "runtime": acquisition_core::RUNTIME_REVISION,
+                    })
+                );
+            } else {
+                println!("acq {}", acquisition_core::VERSION_WITH_RUNTIME);
+            }
+            Ok(())
+        }
         Cmd::Jobs { watch } => {
             let mut client = attach().await?;
             let jobs = list(&mut client).await?;

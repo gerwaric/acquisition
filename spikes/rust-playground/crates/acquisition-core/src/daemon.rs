@@ -3190,17 +3190,17 @@ resubmit if still wanted",
     ) -> Response {
         match req {
             Request::Hello { client_version } => {
-                // The build stamp, not the package version: the client
-                // decides staleness from this and replaces (or refuses) a
-                // daemon from another commit.
-                if client_version != crate::VERSION_WITH_BUILD {
+                // The runtime revision, not the package version: the
+                // client decides staleness from this and replaces, refuses
+                // or reports a daemon from other sources (C10).
+                if client_version != crate::VERSION_WITH_RUNTIME {
                     self.log(&format!(
                         "version mismatch: client {client_version}, daemon {}",
-                        crate::VERSION_WITH_BUILD
+                        crate::VERSION_WITH_RUNTIME
                     ));
                 }
                 Response::Hello {
-                    daemon_version: crate::VERSION_WITH_BUILD.to_string(),
+                    daemon_version: crate::VERSION_WITH_RUNTIME.to_string(),
                     pid: std::process::id(),
                     provider: self.provider.name.to_string(),
                 }
@@ -3332,7 +3332,7 @@ resubmit if still wanted",
                         });
                 Response::DaemonStatus {
                     pid: std::process::id(),
-                    version: crate::VERSION_WITH_BUILD.to_string(),
+                    version: crate::VERSION_WITH_RUNTIME.to_string(),
                     provider: self.provider.name.to_string(),
                     uptime_seconds: self.started.elapsed().as_secs(),
                     connections: s.connections,
@@ -3355,7 +3355,7 @@ resubmit if still wanted",
                 let (in_flight, max_in_flight) = self.choke.actual_send_occupancy();
                 Response::Dashboard {
                     pid: std::process::id(),
-                    version: crate::VERSION_WITH_BUILD.to_string(),
+                    version: crate::VERSION_WITH_RUNTIME.to_string(),
                     provider: self.provider.name.to_string(),
                     uptime_seconds: self.started.elapsed().as_secs(),
                     connections: s.connections,
@@ -3833,9 +3833,9 @@ async fn run_with_log(log: std::fs::File) -> Result<()> {
     });
 
     daemon.log(&format!(
-        "daemon {} build {} listening on {} (pid {})",
+        "daemon {} runtime {} listening on {} (pid {})",
         VERSION,
-        crate::BUILD,
+        crate::RUNTIME_REVISION,
         path.display(),
         std::process::id()
     ));
@@ -5508,7 +5508,7 @@ mod dispatcher_tests {
         let header = &lines[0];
         assert_eq!(header["event"], "open");
         assert_eq!(header["clock"], "manual");
-        assert_eq!(header["build"], crate::BUILD);
+        assert_eq!(header["runtime"], crate::RUNTIME_REVISION);
         assert_eq!(header["ts"], "2000-01-01T00:00:00.000Z");
         let sends = &lines[1..];
         assert_wire_contract(sends);

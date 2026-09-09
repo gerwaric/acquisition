@@ -136,7 +136,7 @@ fn c10_observation_never_spawns_or_replaces_and_reports_the_mismatch() {
     assert!(out.status.success(), "{out:?}");
     let shown = text(&out);
     assert!(
-        shown.contains("another provider") && !shown.contains("another build"),
+        shown.contains("another provider") && !shown.contains("another runtime"),
         "{shown}"
     );
     assert!(shown.contains("acq daemon stop"), "{shown}");
