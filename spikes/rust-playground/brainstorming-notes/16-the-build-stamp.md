@@ -433,7 +433,7 @@ What follows from them:
   preflight, three commits; then the split. The runtime-revision build
   script migrates to the protocol crate at the split (6.6).
 
-### 7.1 C10 amendment — agreed text (review round 2, Codex; measured 811 bytes as one line, limit 800)
+### 7.1 C10 amendment — agreed text (review round 2, Codex; approved at 794 bytes as one line, limit 800)
 
 The reviewer's round-2 version replaces the author's draft: it states the
 governing property and leaves both today's hash inputs and the future
@@ -456,9 +456,10 @@ substance."
 > distinctly; an autonomous client (MCP) never replaces. *Why:* a compat
 > matrix is the reconciliation swamp; respawn is a one-line diff; an
 > observer that replaced cost a live run (2026-09-08). *Details:*
-> `client.rs` doc, C10. Amended 2026-09-09 (history in git).
+> `client.rs` doc, C10. Amended 2026-09-09.
 
 The *Details* doc comment says, today, "runtime revision over core, store,
 manifests and lock"; after the split, "daemon artifact plus protocol
-revision". Awaiting the owner's approval of the text; it lands with the
-observe-policy commit.
+revision". **Approved by the owner 2026-09-09** ("I approve the text"), with the
+trim that drops the closing "(history in git)": 794 bytes. It lands with
+the observe-policy commit.
