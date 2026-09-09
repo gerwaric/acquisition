@@ -53,9 +53,12 @@ Replaces the preconditions and the "new hypothesis first" requirement.
 - **Build before you run; the run record maps the binary to HEAD.** The
   binary carries no commit: `acq version --json` prints its runtime
   revision (a digest over the daemon's sources, C10), and the journal
-  header and first log line say the same. A driver refuses a dirty tree
-  and a running daemon, then builds (`cargo build --locked`) and records
-  HEAD beside the revision; by hand, `cargo build`, then run. Never
+  header and first log line say the same. A driver (`tools/preflight.sh`)
+  refuses a dirty tree and a running daemon, builds (`cargo build
+  --locked`), and writes `provenance.json` — HEAD, tree state, version,
+  runtime revision, the executable's SHA-256, toolchain — into the run
+  directory before any wire phase; by hand, a clean tree, `cargo build`,
+  then run, and the ledger row names HEAD. Never
   rebuild `target/debug/acq` under a live daemon without `acq daemon
   stop` first (rung 8 ran 34 h on a binary that predated the fix it was
   restarted to pick up).

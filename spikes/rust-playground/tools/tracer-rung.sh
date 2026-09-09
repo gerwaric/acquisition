@@ -144,22 +144,6 @@ for v in ACQ_GGG ACQ_TRIPWIRE ACQ_MAX_SENDS ACQ_IDLE_SHUTDOWN; do
 done
 unset ACQ_GGG ACQ_TRIPWIRE ACQ_MAX_SENDS ACQ_IDLE_SHUTDOWN
 
-tip=$(git -C "$here" rev-parse --short=12 HEAD)
-
-# The ledger cites a tip; the tip must identify the rung that ran — the
-# driver, the verifier, the control documents, and the crates — not only
-# the binary. Live refuses working-tree changes there; mock only notes.
-dirty=$(git -C "$here" status --porcelain -- tools LIVE-TESTING.md CONTEXT.md crates Cargo.toml Cargo.lock)
-if [ -n "$dirty" ]; then
-    echo "working tree differs from $tip in the rung's own files:" >&2
-    echo "$dirty" >&2
-    if [ "$MODE" = live ]; then
-        echo "refusing: commit (and cargo build) first — the ledger's tip must name what ran" >&2
-        exit 2
-    fi
-    echo "(mock mode: continuing anyway)"
-fi
-
 RUN_START=$(date +%s)
 RUN_DIR="$here/runs/$(date -u +%F)-tracer"
 # rehearsals are reproducible and live apart from the evidence the ledger cites
@@ -182,31 +166,21 @@ else
     SOCK=$ACQ_SOCKET
     PROVIDER=mock
 fi
-# The only daemons in this run are the ones this script starts, with the
-# rails it says; a client must never lazy-spawn (or replace) one. The
-# offline claims lean on this too: with no daemon up, nothing can appear.
-export ACQ_NO_SPAWN=1
 JOURNAL="${SOCK%.sock}.$PROVIDER.sends.jsonl"
 LOG="${SOCK%.sock}.log"
+
+# No spawn, a clean tree, no daemon, a locked build, no daemon, and the
+# run's provenance.json: the shared preflight (tools/preflight.sh). The
+# offline claims below lean on the no-spawn export it makes: with no
+# daemon up, nothing can appear.
+. "$here/tools/preflight.sh"
+preflight
 
 status_json() { "$ACQ" daemon status --json 2>/dev/null || echo '{}'; }
 daemon_up() { [ -S "$SOCK" ] && [ "$(status_json | jq -r '.pid // empty')" != "" ]; }
 journal_size() { if [ -f "$JOURNAL" ]; then wc -c <"$JOURNAL" | tr -d ' '; else echo 0; fi; }
 # Sends journaled since a byte offset (event lines excluded).
 sends_since() { tail -c +$(($1 + 1)) "$JOURNAL" 2>/dev/null | grep -c '"method"' || true; }
-
-if daemon_up; then
-    echo "refusing: a daemon is already running on $SOCK — acq daemon stop first" >&2
-    exit 2
-fi
-
-# The binary carries no commit (C10: its identity is the runtime revision
-# of its sources). A stale binary is prevented, not detected: build now —
-# cheap when fresh, safe with no daemon up, `--locked` so the build cannot
-# rewrite the lock the dirty check above just read — and record HEAD
-# beside the revision the journal will carry.
-(cd "$here" && cargo build --locked --quiet) || { echo "refusing: cargo build failed" >&2; exit 2; }
-ver=$("$ACQ" --version)
 
 COMPLETED=0
 CLIENT_PID=
@@ -777,10 +751,10 @@ COMPLETED=1
 tail -c +$((OFFSET + 1)) "$JOURNAL" >"$RUN_DIR/sends.jsonl"
 if [ -f "$LOG" ]; then tail -c +$((LOG_OFFSET + 1)) "$LOG" >"$RUN_DIR/daemon.log"; fi
 cp "$here/tools/tracer-verify.py" "$RUN_DIR/tracer-verify.py"
-(cd "$RUN_DIR" && shasum -a 256 tracer-verify.py sends.jsonl cycles.tsv >checksums.sha256)
+(cd "$RUN_DIR" && shasum -a 256 tracer-verify.py sends.jsonl cycles.tsv provenance.json >checksums.sha256)
 cat >"$RUN_DIR/verify.sh" <<EOS
 #!/bin/sh
-# Re-verify this bundle: $(basename "$RUN_DIR"), binary $ver, rung tip $tip.
+# Re-verify this bundle: $(basename "$RUN_DIR"), binary $ver, rung tip $tip (provenance.json).
 # Uses the verifier copied into the bundle, never the working tree's.
 cd "\$(dirname "\$0")" && shasum -a 256 -c checksums.sha256 >/dev/null &&
     python3 ./tracer-verify.py sends.jsonl 0 cycles.tsv $LOGIN_LIFETIME $CLOSED $MODE $REALM

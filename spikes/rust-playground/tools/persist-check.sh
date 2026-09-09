@@ -63,8 +63,6 @@ for v in ACQ_SOCKET ACQ_STORE_DIR ACQ_NO_KEYRING ACQ_NO_SPAWN ACQ_JOURNAL; do
 done
 unset ACQ_GGG ACQ_TRIPWIRE ACQ_MAX_SENDS ACQ_IDLE_SHUTDOWN
 
-tip=$(git -C "$here" rev-parse --short=12 HEAD)
-
 RUN_DIR="$here/runs/$(date -u +%F)-persist"
 if [ "$MODE" = mock ]; then RUN_DIR="$RUN_DIR-mock"; fi
 mkdir -p "$RUN_DIR"
@@ -79,25 +77,15 @@ else
     SOCK=$ACQ_SOCKET
     PROVIDER=mock
 fi
-# The only daemons in this run are the ones this script starts, with the
-# rails it says; a client must never lazy-spawn (or replace) one.
-export ACQ_NO_SPAWN=1
 JOURNAL="${SOCK%.sock}.$PROVIDER.sends.jsonl"
 LOG="${SOCK%.sock}.log"
 
+# No spawn, a clean tree, no daemon, a locked build, no daemon, and the
+# run's provenance.json: the shared preflight (tools/preflight.sh).
+. "$here/tools/preflight.sh"
+preflight
+
 status_json() { "$ACQ" daemon status --json 2>/dev/null || echo '{}'; }
-
-if [ -S "$SOCK" ] && [ "$(status_json | jq -r '.pid // empty')" != "" ]; then
-    echo "refusing: a daemon is already running on $SOCK — acq daemon stop first" >&2
-    exit 2
-fi
-
-# The binary carries no commit (C10: its identity is the runtime revision
-# of its sources). A stale binary is prevented, not detected: build now —
-# cheap when fresh, safe with no daemon up, `--locked` so the build cannot
-# rewrite the lock — and record HEAD beside the revision.
-(cd "$here" && cargo build --locked --quiet) || { echo "refusing: cargo build failed" >&2; exit 2; }
-ver=$("$ACQ" --version)
 
 COMPLETED=0
 REFRESH_PID=
@@ -272,6 +260,7 @@ cp "$LOG" "$RUN_DIR/daemon.log" 2>/dev/null || true
 
 verify() { python3 - "$JOURNAL" "$OFFSET" <<'PY'
 import json, sys
+NO_PROBE = {"oauth-token", "profile", "league"}
 
 f = open(sys.argv[1]); f.seek(int(sys.argv[2]))
 lifetimes, cur = [], None
@@ -308,7 +297,9 @@ for i, lt in enumerate(lifetimes, 1):
         else:
             print(f"  {m} {r} -> {st}  wait_ms {s.get('wait_ms')}{flag}")
     for r, m in first.items():
-        if r != "oauth-token" and m != "HEAD":
+        # Declared no-probe routes (daemon.rs NO_PROBE_ROUTES; N38/N39, the
+        # token endpoint): the login's own GET /profile has no HEAD before it.
+        if r.split("@", 1)[0] not in NO_PROBE and m != "HEAD":
             fail.append(f"lifetime {i}: first send on {r} was {m}, not the probe")
     t = f"{counts.get('POST',0)}/{counts.get('HEAD',0)}/{counts.get('GET',0)}"
     totals.append(f"{t} = {len(lt['sends'])}")
