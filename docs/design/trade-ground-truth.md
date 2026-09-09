@@ -52,7 +52,11 @@ saved pages and the owner's in-game observations are dated September 3.
 T16–T19 are the owner's hand tests of September 6, 2026, run while the
 spike's listing state was being ruled. T20–T24 are the owner's
 observations of September 7, 2026, at the shop render's validation
-reading.
+reading. T25–T34 are the site as the oracle (the spike's pricing slice,
+step 7, item 5): the owner's saved seller-account searches and exchange
+pages of September 8 and 9, 2026, joined by item id against the
+account's facts of the same days, and four in-game experiments run
+between the two captures; T17 is rewritten from the same evidence.
 
 ---
 
@@ -131,6 +135,72 @@ realm appears on it. This matches N42's finding that the API reports
 `poe2` as a realm the documented `pc | xbox | sony` enumeration lacks;
 whether PoE2 has a trade site of its own was not read. The league list
 is a snapshot: it changes every league.
+
+**T25. The seller-account search shows a stash item only from a tab
+whose listing entry carries `metadata.public: true`; a priced name on a
+non-public tab reaches nothing.** [RUN — Confirmed; September 8, 2026]
+The spike's join of the site's rows against the account's facts of the
+same day (pricing slice, step 7, item 5): 547 stash rows for the account
+in Standard, every one from one of the 13 tabs the API listed public;
+the 13 non-public priced tabs (`~price 30 chaos (C)`, twelve
+`(Remove-only)` names, 1,121 items) put nothing on the site, nor did
+114 price notes in non-public places. Closes Q11.
+
+**T26. A socketed item is never listed on its own; a currency-class
+stack is not in the item search; a stack in a priced public tab, or
+carrying a price note, is offered on the bulk exchange instead.** [RUN —
+Confirmed; September 8–9, 2026]
+107 gems in sockets of items in public tabs, none on the site (24 of
+them in a tab priced 8888 chaos); eight stacks the spike's state
+expected absent from the item search, three of them offered on the
+exchange: the test tab's Scroll of Wisdom at its note's 1.5 divine, the
+ratio tab's two stacks at the ratio (T11).
+
+**T27. The bulk exchange keys one row per item type per account, every
+public stack's offer under it, shown per unit; "stock" counts every
+public stack of the type, priced or not.** [SITE — Confirmed; September
+8–9, 2026]
+The Scroll of Wisdom row carried two offers — 1.5 divine (a stack noted
+so) and 8888 chaos (a second stack in a tab named so) — with stock 40,
+the two stacks' 21 and 19 together (T3 confirmed); the ratio tab's "2
+for 5000 chaos" is shown as 2500 for 1 in the compact layout.
+
+**T28. The trade site reads a price out of a note that carries text
+after the currency word, labels the listing "Price with Note", and shows
+the whole text.** [SITE — Confirmed; September 8 and 9, 2026]
+`~price 777 chaos testing` on an item in a tab priced 8888 chaos listed
+at 777 chaos under a fourth label (the others: "Exact Price", "Asking
+Price", "No Price Set"); `~price 666 chaos tested` the next day
+likewise. The game stores such a note whole (T17).
+
+**T31. The site drops the fractional part of a chaos amount in its
+display and keeps it for divine.** [SITE — Confirmed for those two
+words; September 8, 2026]
+`999.1234`, `999.123`, `999.12` and `999.1` chaos each show "999";
+`1.4 divine` shows "1.4". A display fact; the amount is the seller's.
+
+**T32. The indexer resolves the game's eldritch shorthand to the site's
+long ids, and does not read `facetors` at all.** [SITE — Confirmed;
+September 8, 2026]
+`excep-ember`, `grand-ember`, `greater-ember`, `lesser-ember`,
+`excep-echor`, `grand-echor`, `greater-echor`, `lesser-echor` list under
+`exceptional-eldritch-ember` … `-ichor` at the right price (T16 widened
+by eight); `~price 999 facetors`, the word the game's own dialog writes
+(T9), lists as "No Price Set", and the word is absent from the exchange's
+currency list (T33). The owner reported the latter to GGG as a bug on
+September 8 and does not price in that word.
+
+**T33. The bulk exchange's item list, by group.** [SITE — Confirmed for
+15 of 22 groups; September 8, 2026]
+The site's "Items I Want" panel, expanded and saved: 750 ids with
+display names in Currency (101), Fragments/Scarabs/Mapping (232),
+Ducats, Enshrouding Crystals, Foulborn Currency & Wombgifts, Allflame
+Embers, Runegrafts (31), Tattoos & Omens (113), Expedition Currency,
+Delirium Orbs, Catalysts, Oils & Extractor, Fossils & Resonators,
+Essences (105), Maps (54); seven groups not expanded (Sanctum, Heist,
+Beasts, Cards, Shaper/Elder maps, Unique maps, Legacy). Vials are not
+on it. The list is `crates/acquisition-plan/reference/exchange-items-2026-09-08.json`
+in the spike, a proposal under its C68. Answers Q10 for those groups.
 
 ### The API
 
@@ -276,6 +346,16 @@ size stays 50,000, now a measured limit rather than an inherited
 constant, and a page is counted in characters with the template around
 it.
 
+**T34. A forum-listed item shows on the item search with the thread as
+its seller link, and a forum-listed exchange-eligible stack on the
+exchange; the site dates a forum listing by something other than the
+post.** [SITE — Confirmed; September 8, 2026]
+Four items from non-public remove-only tabs listed "Asking Price" with
+`/forum/view-thread/<n>` links from two threads, shown "listed last
+month" and "2 months ago" for posts days old; five Runegrafts and a
+Wombgift from the same tabs offered on the exchange at 4321 blessed.
+T8 and T12 at nine rows.
+
 ### The in-game price dialog
 
 **T9. The in-game price dialog offers 39 currencies; for each, the word
@@ -367,26 +447,37 @@ tags, and a hand-typed word the table lacks reads as no effect in the
 listing state with the note shown verbatim (C69) — an alias row, cited
 to a test like this one, is the fix when one matters.
 
-**T17. The dialog strips trailing text from a note: `~price 5 chaos
-(A)` becomes `~price 5 chaos`.** [OWNER — Confirmed; September 6, 2026]
-The owner, verbatim: "Setting `~price 5 chaos (A)` in game causes the
-`(A)` to be removed, so the price is just `~price 5 chaos`." The owner's
-description of the dialog, the same day: an item in a public tab has
-four pricing options — "Note", "Negotiable Price" (`~b/o`), "Exact
-Price" (`~price`) and "Do Not Index" (`~skip`); switching a priced item
-to "Note" shows the raw text of the price string; editing that text by
-appending a string strips the string and reverts the price to one of
-the three. So a note the game holds never carries trailing text, where
-a tab name does (T11: the game's own `(Remove-only)`); a parser that
-holds a note to the exact grammar and tolerates a suffix only in a tab
-name (C69) matches the game.
+**T17. The in-game price dialog stores a note whole and displays only
+the part it parsed: `~price 5 chaos (A)` is shown as `~price 5 chaos`,
+served by the API as typed, and read by the trade site through the
+suffix.** [OWNER — Confirmed; September 8, 2026, superseding the
+September 6 reading]
+The September 6 observation — "Setting `~price 5 chaos (A)` in game
+causes the `(A)` to be removed" — was the dialog's display, not its
+store. The owner, September 8, verbatim: "In game the pricing note is
+exactly '~price 777 chaos' but on the trade site it shows as 'Price
+with Note' of 777 chaos with the text '~price 777 chaos testing'
+rendered in the web UI. I have confirmed both of these things are true
+at the same time. […] I confirmed this by using the UI to set the
+item's note to '~price 666 chaos tested'. In game this turned into
+'~price 666 chaos' as soon as I looked at it. On the trade site it's
+listed as 'Price with Note' just like the 777 case." The spike's facts,
+served by the API, held the whole text both times. The dialog's four
+options (Note, Negotiable Price, Exact Price, Do Not Index) stand as
+described on September 6. So a note can carry trailing text the way a
+tab name does (T11), and a parser must read a note as it reads a tab
+name — the word after the amount, anything after it tolerated (the
+spike's parser v2, C69); one that held a note to the exact grammar
+read `~price 777 chaos testing` as no price at all.
 
 ### Tab prices and what beats what
 
 **T11. A tab is priced only by renaming it in game; a public tab whose
 name is a valid price lists every item in it at that price; a ratio in
-a tab name is invalid and lists nothing.** [OWNER — Provisional; the
-owner's in-game observations, September 3, 2026]
+a tab name lists nothing on the item search and offers the tab's
+exchange-eligible stacks on the bulk exchange at the ratio.** [OWNER —
+the owner's in-game observations, September 3, 2026; the ratio's two
+surfaces RUN — Confirmed, September 8–9, 2026]
 The owner, verbatim: "tab prices can only be set in-game by renaming
 the tab"; and, on the tab named with a ratio: "The in-game tab prices
 may be invisible, but every item in a priced tab shows up in the trade
@@ -403,7 +494,16 @@ and so on — the `(Remove-only)` suffix is the game's own marking of a
 remove-only tab. None of those tabs is public, so whether the site
 tolerates the trailing text is not established here; the C++ parser
 tolerated it. Whether an item's own `note` overrides its tab's name
-price on the site is open (Q2).
+price on the site was open (Q2) until T29.
+
+The ratio's two surfaces (the spike's join, September 8–9): two public
+tabs, `~b/o 5000/2 chaos` (56 items) and `~price 1000/2 chaos` (70),
+put two rows on the item search — the two items carrying their own
+`~price 1999 chaos` note, so a valid note lists inside a tab whose name
+lists nothing — and the first tab's Infused Engineer's Orbs and
+Tailoring Orb on the exchange as "2 for 5000 chaos" (T27). `~b/o` with
+a ratio is accepted in a tab name; the tab's two Vials, not
+exchange-eligible (T33), are offered nowhere.
 
 **T12. A forum shop lists individual items, never whole tabs; the
 in-game dialog offers the ratio format only on bulk-tradeable items; a
@@ -456,6 +556,24 @@ ratio note as a price (T2, C67) and does not know which items are bulk
 (Q10, parked); whether the site lists it is the site's, reported
 beside the raw note. Q6's in-game half is answered; the forum half
 stays open.
+
+**T29. An item's own note beats a valid tab price on the site.** [SITE
+— Confirmed; September 8–9, 2026]
+The same item, in the tab named `~price 8888 chaos`, listed at its
+note's 777, then 666 (T28); the other unnoted items of the tab at 8888.
+Closes Q2 in the note's favour — the C++ order the spike's C69 kept.
+
+**T30. A priced public unique tab lists its substashes' uniques at the
+tab's price; a folder named with a price lists its public child's items
+unpriced; a priced public tab inside a folder lists at its own price.**
+[RUN + SITE — Confirmed; September 9, 2026]
+`Uniques 1`, made public and named `~price 4554 chaos`: 326 of its 370
+uniques in 19 substashes listed at 4554 chaos (the rest were the
+capture's paging, the owner's check). Folder `3.19` named `~price 3333
+chaos` with `3.19 Cursebot` public and unpriced inside it: its items
+"No Price Set". `3.19 Helix Raider` named `~price 2222 chaos` inside
+that folder: 9 of 9 at 2222. Confirms the spike's C80. A remove-only
+unique tab accepts a price name and cannot be made public.
 
 ### Item addressing
 
@@ -630,12 +748,10 @@ answered.
   September 7, 2026: the one-based rank among the tabs the website
   lists, folders and substashes left out (T24); remove-only tabs are
   listed and numbered like any other.
-- **Q2. Item note versus tab name in game.** Rename the test tab to a
-  valid price and see whether the noted items keep their own price on
-  the site (T11). The spike's note-then-tab order rests on the C++ code
-  until then. Also: a forum price against an item note (T12 covers
-  forum versus tab only). Settled for an *unreadable* note (T18: the
-  tab applies); open for a valid one.
+- **Q2. Item note versus tab name in game.** Answered September 8–9,
+  2026: a valid note beats a valid tab price (T29); an unreadable one
+  lets the tab apply (T18). Still open: a forum price against an item
+  note (T12 covers forum versus tab only).
 - **Q3. The link code for a substash item** (a child of a map or unique
   tab). The website's link button cannot be pressed on one (T20,
   September 7, 2026), so the experiment as written has no result; what
@@ -645,10 +761,11 @@ answered.
 - **Q5. Is an unpriced forum link indexed?** Answered September 7,
   2026: yes, as "No Price Set" (T21).
 - **Q6. A ratio on a non-bulk item posted to the forum: ignored,
-  listed singly, or grouped?** And `~b/o a/b` against `~price a/b` (T2
-  shows only `~price`). In game the dialog refuses the first case (T10,
-  T12) and a typed one unlists the item (T19); the forum is a free
-  text field.
+  listed singly, or grouped?** In game the dialog refuses the case
+  (T10, T12) and a typed one unlists the item (T19); the forum is a
+  free text field. Half answered September 9, 2026: `~b/o a/b` is
+  accepted in a tab name and offers on the exchange (T11); the forum
+  half stays open.
 - **Q7. A game `~skip` against a forum price.** Does the forum price
   list an item the game marked "Do not index" (T10, T12)?
 - **Q8. Does the forum re-resolve a linked item that moves after
@@ -660,14 +777,13 @@ answered.
   out for `/character`; the stream is the one endpoint left. Moot for
   the spike (it never reads the stream); answerable by anyone with the
   `service:psapi` scope.
-- **Q10. The bulk-eligible item list** (T2's "listed below"). A browser
-  read of the expanded "Item Tags" groups; parked in the spike until a
-  ratio on a non-currency item appears.
+- **Q10. The bulk-eligible item list** (T2's "listed below"). Answered
+  for 15 of 22 groups on September 8, 2026 (T33); the seven groups the
+  owner did not expand stay open in the claim's own words.
 - **Q11. Does the seller-account search show items from non-public
-  priced tabs?** The owner's 13 priced tabs are all non-public (T11);
-  T1 says the site cannot see them from the stash. The search, run in a
-  browser for this account and league, is the oracle for the listing
-  state as a whole.
+  priced tabs?** Answered September 8, 2026: no — `metadata.public` is
+  the whole condition (T25); the search, joined against the facts, was
+  the oracle for the spike's listing state as a whole.
 
 ---
 
