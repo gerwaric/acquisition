@@ -108,7 +108,7 @@ pub struct ConnectOptions {
 
 impl ConnectOptions {
     /// The interactive CLI's policy for a use verb: the caller is the
-    /// human, so replacing a wrong-build or wrong-mode daemon is them
+    /// human, so replacing a daemon of another runtime revision or mode is them
     /// expressing intent.
     pub fn interactive(spawn: bool) -> Self {
         Self {

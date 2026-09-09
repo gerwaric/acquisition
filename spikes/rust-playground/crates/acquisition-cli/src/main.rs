@@ -31,8 +31,8 @@ fn parse_realm(s: &str) -> Result<Realm, String> {
     })
 }
 
-/// A use verb's connect (C10): lazy-spawn as asked, and replace a
-/// build- or provider-mismatched daemon — the caller is the human
+/// A use verb's connect (C10): lazy-spawn as asked, and replace a daemon
+/// of another runtime revision or provider — the caller is the human
 /// expressing intent.
 pub(crate) async fn connect(spawn: bool) -> Result<Client> {
     Client::connect(ConnectOptions::interactive(spawn)).await

@@ -36,9 +36,11 @@
 #
 # Shape of the run (one fresh daemon per wire phase, each under an EXACT
 # send ceiling, stopped when its phase is over):
-#   0  preflight (no wire): provenance (the binary's stamp is HEAD, and
-#      live refuses working-tree changes to the rung's own files, so the
-#      ledger's tip names what ran), leftover env, no daemon, account
+#   0  preflight (no wire, tools/preflight.sh): leftover env; live
+#      refuses working-tree changes to the rung's own files, so the
+#      ledger's tip names what ran; no daemon; a locked build; then
+#      provenance.json pairs HEAD with the binary's runtime revision;
+#      account
 #   1  login, only if the account's index entry has no uuid (intent binds
 #      to the uuid; a login predating uuid-at-login has none) — 2 sends
 #   2  policy written, then `refresh --plan` with NO daemon: compiled
