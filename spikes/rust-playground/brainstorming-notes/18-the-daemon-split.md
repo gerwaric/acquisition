@@ -448,7 +448,7 @@ Rejected on the way, so nothing is re-argued or adopted by not noticing:
 
 | # | Commit | Behaviour | Measure |
 | --- | --- | --- | --- |
-| −1 | restore green: the pricing property's inverse grammar takes the first whitespace-delimited word for a note, as the reader does; the proptest regression file committed so the case replays (§7) | none | the gate passes |
+| −1 | restore green: the pricing property's inverse grammar takes the first whitespace-delimited word for a note, as the reader does; the proptest regression file committed so the case replays (§7) — **landed 2026-09-09** (owner's go on question 10) | none | the gate passed |
 | 0 | the wire audit and pin (2.7): stable bootstrap frames, the frame bound, C85's semantics — `Subscription`, `resync_required`, the pinned subscribe-then-snapshot sequence — in client and daemon, the closed `kind` set, fixtures, black-box contract tests — the check before the code | bootstrap, framing, lag | — |
 | 1 | `acquisition-protocol` extracted: the wire, the vocabulary, the promises, the bootstrap plane; the build script moves with **today's** input set (core, store, protocol sources, manifests, lock) so the identity keeps moving on daemon edits until step 4 | none | — |
 | 2 | consumers switched (plan, cli, mcp, the tests) to the protocol crate; the docs-check edges added; every citation renamed | none | closures per crate |

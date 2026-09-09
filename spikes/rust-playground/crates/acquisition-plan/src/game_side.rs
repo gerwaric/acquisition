@@ -600,10 +600,10 @@ mod tests {
                         prop_assert!(rest.is_some(), "{:?} → {}", text, got);
                         let (amount, after) = rest.unwrap().split_once(' ').unwrap();
                         prop_assert_eq!(amount.parse::<Amount>(), Ok(p.amount), "{:?}", text);
-                        let word = match source {
-                            Source::Note => after,
-                            Source::TabName => after.split(char::is_whitespace).next().unwrap(),
-                        };
+                        // The word stands before the first whitespace under both
+                        // sources; what follows it is tolerated, not read (module
+                        // doc). proptest found `~price 1 chaos 0` on 2026-09-09.
+                        let word = after.split(char::is_whitespace).next().unwrap();
                         prop_assert_eq!(&t.resolve(word).unwrap().tag, &p.currency, "{:?}", text);
                         if source == Source::TabName {
                             prop_assert!(matches!(p.amount, Amount::Decimal { .. }), "{:?}", text);
