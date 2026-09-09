@@ -557,38 +557,55 @@ impl Annotations {
     }
 
     /// Open a file by path, creating it if it is missing. A file that
-    /// exists with content but carries no schema stamp is refused, not
-    /// adopted as empty intent: whatever it holds is not this build's to
-    /// discard ([`AnnotationError::SchemaTooOld`] with `found: 0`). A
-    /// zero-byte file holds nothing and is created over — the C++ app has
-    /// left such a file beside a real one before, and our own create is
-    /// one transaction, so a crash mid-create leaves exactly that.
+    /// holds tables but carries no schema stamp is refused, not adopted
+    /// as empty intent: whatever it holds is not this build's to discard
+    /// ([`AnnotationError::SchemaTooOld`] with `found: 0`). A zero-byte
+    /// or table-less file holds nothing and is created over — the C++ app
+    /// has left such a file beside a real one before, and our own create
+    /// is one transaction, so a crash mid-create leaves exactly that.
     pub fn open(path: &Path) -> Result<Annotations, AnnotationError> {
         if let Some(dir) = path.parent() {
             std::fs::create_dir_all(dir)?;
         }
-        let holds_content = std::fs::metadata(path).is_ok_and(|m| m.len() > 0);
-        Self::init(Connection::open(path)?, path.to_path_buf(), !holds_content)
+        Self::init(Connection::open(path)?, path.to_path_buf())
     }
 
     pub fn open_memory() -> Result<Annotations, AnnotationError> {
-        Self::init(
-            Connection::open_in_memory()?,
-            PathBuf::from(":memory:"),
-            true,
-        )
+        Self::init(Connection::open_in_memory()?, PathBuf::from(":memory:"))
     }
 
-    /// `fresh`: the path held nothing before this open, so a missing
-    /// stamp means "create", not "someone else's file".
-    fn init(
-        mut conn: Connection,
-        path: PathBuf,
-        fresh: bool,
-    ) -> Result<Annotations, AnnotationError> {
-        // The version gate comes before any pragma: switching the journal
-        // mode rewrites the file header, and a file this build refuses is
-        // left exactly as it was found.
+    /// Whether the file holds any table — committed state, as this
+    /// connection sees it. A stampless file with tables is someone else's;
+    /// one without is empty, or a creation another process has not yet
+    /// committed.
+    fn has_tables(conn: &Connection) -> rusqlite::Result<bool> {
+        let n: i64 = conn.query_row(
+            "SELECT count(*) FROM sqlite_master WHERE type = 'table'",
+            [],
+            |r| r.get(0),
+        )?;
+        Ok(n > 0)
+    }
+
+    /// The two boundaries of a first open (C35, the creation race and its
+    /// two windows, `PRICING-SLICE.md` findings 7.3 and the 2026-09-09
+    /// review): a losing first-time opener waits for the winner's create
+    /// to commit and then proceeds; a stampless file that holds tables is
+    /// refused and left byte for byte as found. So nothing that writes
+    /// to the file — the journal-mode switch above all — runs before the
+    /// refusal, and the refusal is decided under the write lock, where a
+    /// creation in flight has either committed its stamp or not begun.
+    fn init(mut conn: Connection, path: PathBuf) -> Result<Annotations, AnnotationError> {
+        // Connection settings, not file writes: the busy timeout is what
+        // makes the lock below a wait rather than a refusal; FULL, not the
+        // fact store's NORMAL, because this is the one file with no server
+        // to refetch from (C35) and a batch is one human-paced commit.
+        conn.busy_timeout(BUSY_TIMEOUT)?;
+        conn.pragma_update(None, "synchronous", "FULL")?;
+        // The version gate, read-only, before any pragma that writes: a
+        // file this build refuses is left exactly as it was found. A stamp
+        // of 0 with tables is a foreign file; 0 without is empty, or a
+        // create another process holds uncommitted — the lock decides.
         let found: i64 = conn.query_row("PRAGMA user_version", [], |r| r.get(0))?;
         if found > SCHEMA_VERSION {
             return Err(AnnotationError::SchemaTooNew {
@@ -596,38 +613,44 @@ impl Annotations {
                 supported: SCHEMA_VERSION,
             });
         }
-        if found < SCHEMA_FLOOR && (found != 0 || !fresh) {
+        if found < SCHEMA_FLOOR && (found != 0 || Self::has_tables(&conn)?) {
             return Err(AnnotationError::SchemaTooOld {
                 found,
                 floor: SCHEMA_FLOOR,
                 path,
             });
         }
-        // WAL like the fact store: one writer at a time, any number of
-        // readers — switched on creation, under `crate::ensure_wal`'s
-        // retry (two processes creating one file together).
-        crate::ensure_wal(&conn)?;
-        // FULL, not the fact store's NORMAL: under WAL, NORMAL keeps the
-        // file consistent but lets the last commits before a power loss
-        // roll back, and this is the one file with no server to refetch
-        // from (C35). Writes here are human-paced and a batch is one
-        // commit, so the fsync per commit costs nothing that matters.
-        conn.pragma_update(None, "synchronous", "FULL")?;
-        conn.busy_timeout(BUSY_TIMEOUT)?;
         // Creation (and, from the floor up, migration) serializes under
-        // one immediate transaction so two processes opening the same file
-        // cannot interleave them. A later version adds its columns here by
-        // a stepwise `ALTER TABLE` per version, never by rewriting a row.
+        // one immediate transaction, taken in whatever journal mode the
+        // file is in: two processes creating one file wait here, and the
+        // loser sees the winner's stamp. A later version adds its columns
+        // here by a stepwise `ALTER TABLE` per version, never by rewriting
+        // a row. BEGIN IMMEDIATE writes nothing; a refusal from inside it
+        // rolls back to the file as found.
         let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
-        // Re-read under the lock: two processes creating one file serialize
-        // here, and the loser sees the winner's stamp.
         let found: i64 = tx.query_row("PRAGMA user_version", [], |r| r.get(0))?;
         match found {
+            0 if Self::has_tables(&tx)? => {
+                // Tables landed between the read-only gate and the lock,
+                // and no stamp with them: a foreign writer, refused here.
+                return Err(AnnotationError::SchemaTooOld {
+                    found: 0,
+                    floor: SCHEMA_FLOOR,
+                    path,
+                });
+            }
             0 => {
                 tx.execute_batch(SCHEMA)?;
                 tx.pragma_update(None, "user_version", SCHEMA_VERSION)?;
             }
             v if v == SCHEMA_VERSION => {}
+            v if v < SCHEMA_FLOOR => {
+                return Err(AnnotationError::SchemaTooOld {
+                    found: v,
+                    floor: SCHEMA_FLOOR,
+                    path,
+                });
+            }
             v => {
                 return Err(AnnotationError::SchemaTooNew {
                     found: v,
@@ -636,6 +659,11 @@ impl Annotations {
             }
         }
         tx.commit()?;
+        // The file is ours from here: WAL like the fact store — one writer
+        // at a time, any number of readers — under `crate::ensure_wal`'s
+        // retry, since the two openers above may reach this switch
+        // together.
+        crate::ensure_wal(&conn)?;
         let uuid: Option<String> = conn
             .query_row("SELECT value FROM meta WHERE key = ?1", [META_UUID], |r| {
                 r.get(0)
@@ -1695,6 +1723,108 @@ mod tests {
         std::fs::write(&empty, b"").unwrap();
         let a = Annotations::open_for(&dir, "u-2").unwrap();
         assert_eq!(a.uuid(), Some("u-2"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// C35 — the creation race's second window, held open by hand: the
+    /// winner has created the file and its tables inside its immediate
+    /// transaction and has not yet committed the stamp. A losing first
+    /// opener must wait on the lock and then proceed as if it had found
+    /// the stamp — never be refused as a foreign file (seen once in five
+    /// gate runs, 2026-09-09, before this pin).
+    #[test]
+    fn c35_a_losing_first_opener_waits_for_the_winners_stamp_and_proceeds() {
+        let dir = std::env::temp_dir().join(format!(
+            "acq-ann-race2-{}-{}",
+            std::process::id(),
+            crate::now()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = annotations_path(&dir, "u-w");
+        let winner = Connection::open(&path).unwrap();
+        // As a creator does: the journal-mode switch writes the file's
+        // first page, so the file exists with content before the stamp.
+        winner.pragma_update(None, "journal_mode", "WAL").unwrap();
+        winner.execute_batch("BEGIN IMMEDIATE").unwrap();
+        winner.execute_batch(SCHEMA).unwrap();
+        // The file exists with the winner's uncommitted tables; no stamp.
+        let (tx, rx) = std::sync::mpsc::channel();
+        let dir2 = dir.clone();
+        let loser = std::thread::spawn(move || {
+            let opened = Annotations::open_for(&dir2, "u-w").map(|a| a.uuid().map(str::to_string));
+            tx.send(()).unwrap();
+            opened
+        });
+        // The loser is on the lock, not refused: nothing arrives while the
+        // winner holds it.
+        assert!(
+            rx.recv_timeout(std::time::Duration::from_millis(400))
+                .is_err(),
+            "the loser returned while the winner still held its create"
+        );
+        winner
+            .pragma_update(None, "user_version", SCHEMA_VERSION)
+            .unwrap();
+        winner.execute_batch("COMMIT").unwrap();
+        drop(winner);
+        let opened = loser.join().unwrap();
+        match opened {
+            Ok(uuid) => assert_eq!(uuid.as_deref(), Some("u-w")),
+            Err(e) => panic!("the loser was refused: {e}"),
+        }
+        // And the file is a v3 file both can use.
+        let again = Annotations::open_for(&dir, "u-w").unwrap();
+        assert_eq!(again.uuid(), Some("u-w"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// C35 — the other boundary under the same hold: a writer that lands
+    /// tables under the lock and commits *without* a stamp is a foreign
+    /// file by the time the loser gets the lock. The loser is refused
+    /// there, and the file is byte for byte what the foreign writer left —
+    /// no journal-mode switch, no schema, no stamp of ours.
+    #[test]
+    fn c35_a_foreign_writer_landing_under_the_lock_is_refused_and_left_untouched() {
+        let dir = std::env::temp_dir().join(format!(
+            "acq-ann-race3-{}-{}",
+            std::process::id(),
+            crate::now()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = annotations_path(&dir, "u-f");
+        let foreign = Connection::open(&path).unwrap();
+        foreign.execute_batch("BEGIN IMMEDIATE").unwrap();
+        foreign
+            .execute_batch("CREATE TABLE theirs (x INTEGER); INSERT INTO theirs VALUES (1);")
+            .unwrap();
+        let (tx, rx) = std::sync::mpsc::channel();
+        let path2 = path.clone();
+        let loser = std::thread::spawn(move || {
+            let r = Annotations::open(&path2)
+                .map(|_| ())
+                .map_err(|e| e.to_string());
+            tx.send(()).unwrap();
+            r
+        });
+        assert!(
+            rx.recv_timeout(std::time::Duration::from_millis(400))
+                .is_err(),
+            "the loser returned while the foreign writer still held its lock"
+        );
+        foreign.execute_batch("COMMIT").unwrap();
+        drop(foreign);
+        let after_commit = std::fs::read(&path).unwrap();
+        let err = loser
+            .join()
+            .unwrap()
+            .expect_err("a stampless file with tables opened");
+        assert!(err.contains("no schema stamp"), "{err}");
+        assert_eq!(std::fs::read(&path).unwrap(), after_commit, "left as found");
+        assert!(
+            !path.with_extension("annotations.db-wal").exists()
+                && !dir.join("u-f.annotations.db-wal").exists(),
+            "a journal-mode switch touched the foreign file"
+        );
         let _ = std::fs::remove_dir_all(&dir);
     }
 
