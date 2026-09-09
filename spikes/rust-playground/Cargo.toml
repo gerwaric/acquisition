@@ -19,3 +19,10 @@ serde_json = "1"
 anyhow = "1"
 clap = { version = "4", features = ["derive", "env"] }
 toml = "1"
+
+[profile.dev]
+# macOS defaults to split-debuginfo = "unpacked", which leaves every codegen
+# unit's object file in target/debug/deps for the debugger to find and never
+# deletes them: 600k files, 65 GB, on 2026-09-09 (brainstorming-notes/16).
+# "packed" folds them into one .dSYM per executable at link time.
+split-debuginfo = "packed"
