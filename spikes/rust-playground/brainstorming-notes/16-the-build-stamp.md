@@ -433,16 +433,32 @@ What follows from them:
   preflight, three commits; then the split. The runtime-revision build
   script migrates to the protocol crate at the split (6.6).
 
-### 7.1 Draft C10 amendment (for the owner's approval; measured 794 bytes as one line, limit 800)
+### 7.1 C10 amendment — agreed text (review round 2, Codex; measured 811 bytes as one line, limit 800)
+
+The reviewer's round-2 version replaces the author's draft: it states the
+governing property and leaves both today's hash inputs and the future
+`acqd` mechanism to the `client.rs` doc comment, so the split changes a
+doc comment and not the ruling. "Uses" rather than "accepts": an observer
+talks far enough to identify and report a daemon without using it.
+Identity mismatch and provider mismatch are dimensions that can coexist,
+not four exclusive states. The reviewer: "Beyond that wording adjustment,
+I support the decision and would not reopen any of its architectural
+substance."
 
 > **C10 — Version handshake in the protocol; the protocol is
 > single-version on purpose.** Kill-and-respawn is the entire migration
-> mechanism. A client accepts only the daemon it would itself spawn: the
-> same *runtime revision* (the checked-in daemon sources — core, store,
-> manifests, lock — never the git commit; after the `acqd` split, the
-> daemon artifact plus the protocol crate's revision). Replacing is a
-> *use* verb's policy; observation never spawns or replaces and reports absent / compatible / incompatible /
-> wrong-provider distinctly; an autonomous client (MCP) never replaces.
-> *Why:* a compat matrix is the reconciliation swamp; respawn is a
-> one-line diff; an observer that replaced cost a live run (2026-09-08).
-> *Details:* `client.rs` doc, C10. Amended 2026-09-09 (history in git).
+> mechanism. A client uses a daemon only when its provider and runtime
+> identity match the runtime it would itself spawn. That identity changes
+> automatically with the daemon and protocol implementation it governs;
+> it never derives from Git state or a hand-maintained compatibility
+> number. A use verb may replace a mismatch; observation never spawns or
+> replaces and reports absence, identity mismatch, and provider mismatch
+> distinctly; an autonomous client (MCP) never replaces. *Why:* a compat
+> matrix is the reconciliation swamp; respawn is a one-line diff; an
+> observer that replaced cost a live run (2026-09-08). *Details:*
+> `client.rs` doc, C10. Amended 2026-09-09 (history in git).
+
+The *Details* doc comment says, today, "runtime revision over core, store,
+manifests and lock"; after the split, "daemon artifact plus protocol
+revision". Awaiting the owner's approval of the text; it lands with the
+observe-policy commit.
