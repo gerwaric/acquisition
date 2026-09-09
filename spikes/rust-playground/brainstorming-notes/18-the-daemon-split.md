@@ -1,6 +1,6 @@
 # The daemon split — the frontend boundary drawn as crates and a wire
 
-**Written 2026-09-09, revised the same day after review round 1 (§8)**,
+**Written 2026-09-09, revised the same day after review rounds 1 (§8) and 2 (§9)**,
 the design session `17-framing-the-daemon-split.md` framed. Disposable
 (P1): what it proposes is real only as a ruling in the registry or as
 code under the gate. Current state only: superseded content is edited
@@ -42,6 +42,8 @@ Verified for round 2 (§8), all from the code:
 | frames are unbounded | `daemon.rs:2971` | `BufReader::lines()`, no maximum |
 | `ACQ_SOCKET` setters | `tools/acq-as.sh`, the harnesses, the mock-session skill | the script is the rung-11 helper: "EXPERIMENT-ONLY. Two real daemons on one machine violate P-B" — a closed experiment |
 | the status types on the wire | `ratelimit.rs:1305–1350`, `rails.rs:156` | already DTOs ("for the dashboard"), distinct from the internal `Policy`/`Window`/`Limiter` |
+| `cargo test --workspace --all-targets` uplifts every bin | a scratch workspace: package `d` (bin only), package `f` (bin + one integration test) | **it does not**: `target/debug/f` appears, `target/debug/d` does not — `d`'s bin is built only as a hashed test harness under `deps/`. The gate must build before it tests (2.6) |
+| the failing pricing property (§7) | `game_side.rs:283`, `:607`; the reader at `:225` | the reader tolerates a suffix after the currency word by documented design ("tolerated, not read"); the property's inverse grammar takes everything after the amount as the word for a note — **the test is the defective side**, one line |
 
 On this clean tree the seconds are small; the 16 s incremental rebuilds
 of 16 §1 were the bloated tree's doing. What the split buys in build
@@ -63,9 +65,9 @@ of permitted edges. `acquisition-core` empties and is renamed
 | `acquisition-store` | facts, intent, the effects-ledger facade (C45), and **the world** (`world.rs`): the canonical provider-neutral root (`ACQ_STORE_DIR` or the platform data dir, canonicalised), the per-provider directories, `daemon.db`, the rails state, the lock files, the socket name for the world and the private runtime directory — pure path functions, no IPC | rusqlite, directories, serde | protocol, client, daemon, plan, reqwest, tokio |
 | `acquisition-protocol` | the wire: `Request`/`Response`, the job model, `Quote`, the status DTOs (`RailsStatus`, `PolicyStatus`, `RuleStatus`, `WindowStatus`, `SendRecord`, `DegradedEndpoint`); the job vocabulary typed — `target_of`, `Realm`, `Family::accepts`; the daemon's promises a consumer computes with (`MAX_429_RETRIES`); the stable bootstrap plane (2.7); the shared-contract revision (2.2, the build script moved here) | serde, serde_json (sha2 at build time) | tokio, anyhow, store, client, daemon |
 | `acquisition-client` | the IPC over tokio, the three policy doors of C10, `DaemonId` in three dimensions, the `acqd` locator (2.3), world verification (2.4), typed connect and startup errors | protocol, store (the world), tokio | daemon, plan |
-| `acquisition-daemon` (binary `acqd`) | `daemon.rs`, `ratelimit.rs`, `gate.rs`, `rails.rs`, `auth.rs`, `mockggg.rs`, the `Provider` (URLs, client id, user-agent, keyring service) — untouched inside (rewrite gravity) | protocol, store | client, plan, any frontend |
+| `acquisition-daemon` (binary `acqd`) | `daemon.rs`, `ratelimit.rs`, `gate.rs`, `rails.rs`, `auth.rs`, `mockggg.rs`, the `Provider` (URLs, client id, user-agent, keyring service) — untouched inside (rewrite gravity); the only GGG sender | protocol, store | client, plan, any frontend |
 | `acquisition-plan` | the planner | protocol, store | client, daemon |
-| frontends (`acquisition-cli`, `acquisition-mcp`, the GUI and TUIs to come) | presentation | client, protocol, store, plan | daemon |
+| frontends (`acquisition-cli`, `acquisition-mcp`, the GUI and TUIs to come) | presentation | client, protocol, store, plan — as each needs them; a queue TUI links no planner | daemon |
 
 `ggg_mode()` and the provider names go to the protocol crate (which
 provider this process wants is part of the handshake); `socket_path`
@@ -177,13 +179,24 @@ executable and the CLI reaches the shell through a symlink into `PATH`
 install directory each. Per-frontend installation — `cargo install` of
 the CLI alone — is how libraries and standalone tools ship, not how a
 GUI product with a shared daemon does; it buys nothing here and costs
-the precedence machinery a multi-installation design needs. So: **one
-installation per world; every frontend beside the one `acqd`.** A
-second installation on one machine is a design event, recorded first
-(C46's mold). The developer's machine always has two — the shipped app
-and the playground — separated by world (their data directories differ)
-and by the real-mode lock (2.4), which is the structural answer to the
-scenario `tools/acq-as.sh` was written to violate on purpose. The
+the precedence machinery a multi-installation design needs. So, phrased as
+what **Acquisition requires** rather than what every platform provides:
+**at most one installation targets a world; Acquisition's installation
+places one canonical `acqd` and every frontend beside it.** A second
+installation targeting the *same world* is a design event, recorded
+first (C46's mold). The developer's machine always has two
+installations — the shipped app and the playground — and they target
+different worlds (their data directories differ), so they are not that
+event; the real-mode lock (2.4) is what keeps them from making two GGG
+gates, the scenario `tools/acq-as.sh` was written to violate on
+purpose. Tauri's public contract promises name-based sidecar launching,
+not that every frontend rediscovers the sidecar as
+`current_exe().parent()/acqd`, and `current_exe()` is documented as
+platform-specific around symlinks and renames: so the layout is a
+contract Acquisition's packaging must meet, and packaging smoke tests
+(§5) are its acceptance criterion — GUI → `acqd`, the canonicalised CLI
+symlink → the same `acqd`, MCP → the same `acqd`, updater replacement
+and restart. The
 Tauri updater replacing the bundle under a live daemon is an artifact
 mismatch the next use verb resolves: kill-and-respawn doing its job.
 
@@ -206,12 +219,30 @@ today by documentation. The world makes them structure:
 - **The world root** is canonical (`fs::canonicalize`) and
   provider-neutral: `ACQ_STORE_DIR` or the platform data directory,
   above the `<provider>/` directories the store helper returns today.
+  `canonicalize` fails on a path that does not exist, which is the
+  first-run spawn, so the behaviour is defined: a **use** path creates
+  the root (mode 0700), then canonicalises and locks it; an
+  **observation** path creates nothing — a missing root is an absent
+  world (the legacy endpoint still checked); a relative `ACQ_STORE_DIR`
+  is made absolute in the client before it crosses into `acqd`. In the
+  daemon the lock is taken before the rails migration, before
+  `daemon.db` opens, before the provider initialises, before anything
+  that can send.
 - **The world lock**: `<root>/daemon.lock`, an exclusive advisory lock
   (`flock`) held for the daemon's lifetime; a second daemon on the root
   refuses to start naming the holder.
-- **The real-mode lock**: `<runtime>/acq/ggg.lock`, per user, held by
-  any real-mode daemon regardless of root. Two live-test roots cannot
-  make two GGG gates.
+- **The real-mode lock**: `<runtime>/acq/ggg.lock`, per OS user, held
+  by any real-mode daemon regardless of root. Two live-test roots cannot
+  make two GGG gates. Per user is not per machine: a second logged-in
+  OS user is outside this lock, as are the C++ Acquisition on the same
+  machine and other machines behind the same address. C31's *ruling*
+  stands (one daemon, many sessions; never one per account); its
+  **enforcement scope** is named honestly as one real daemon per OS
+  user, with those three as external concurrency the daemon cannot
+  structurally control and the tripwire exists for — a machine-wide
+  lock would cover only the first of them at the cost of shared-file
+  permissions, and is not worth it. Proposed as a C31 wording edit
+  (§3).
 - **The socket**: `<runtime>/acq/<12 hex of the root>.sock`, in a
   private per-user runtime directory (`$XDG_RUNTIME_DIR` on Linux, the
   per-user `$TMPDIR` on macOS, mode 0700), short by construction.
@@ -222,20 +253,33 @@ today by documentation. The world makes them structure:
   provider; a client compares the root with its own before anything
   else and refuses a daemon on another world (`ConnectError::OtherWorld`)
   — a truncated hash is discovery, never proof.
-- **Durable state moves into the world** before the rendezvous changes:
-  the rails state to `<root>/<provider>/rails.json` beside `daemon.db`
-  (a one-time move of the legacy file if present, so no trip is lost),
-  the log and the journal default to `<root>/<provider>/` as well.
-  Today's placement in the temp directory loses a tripped tripwire at
-  reboot.
-- **Migration**: a daemon on the old fixed socket
-  (`<tmp>/acquisition-playground.sock`) would be invisible to a new
-  client, and a second daemon would start. For one release the daemon
-  probes the legacy path at start and refuses if it is alive, and a
-  client that finds its world's socket absent probes the legacy path
+- **Durable state moves into the world; diagnostics stay bounded.**
+  Before the rendezvous changes, the rails state moves to
+  `<root>/<provider>/rails.json` beside `daemon.db` (a one-time move of
+  the legacy file if present, so no trip is lost): today's placement in
+  the temp directory loses a tripped tripwire at reboot. The log and
+  the send journal are append-only diagnostics and do not become
+  unbounded durable state: they live in the platform's log or state
+  directory, one subdirectory per world and provider, and are bounded —
+  rotated once at daemon start past a cap (the size and mechanism are
+  internals; "diagnostics are bounded" is the property). A live run
+  keeps overriding the journal into its evidence directory
+  (`ACQ_JOURNAL`), where the ledger cites it.
+- **Migration, with its boundary stated**: a daemon on the old fixed
+  socket (`<tmp>/acquisition-playground.sock`) would be invisible to a
+  new client, and a second daemon would start. For one release the
+  daemon probes the legacy default path at start and refuses if it is
+  alive, and a client that finds its world's socket absent probes it
   and reports what it found with the stop remedy; `stop_any` stops
   either. Pinned by a process test that stages a daemon on the legacy
-  path.
+  path. What is *not* discovered automatically: the arbitrary
+  `ACQ_SOCKET` values of history (`/tmp/acq-tracer.sock`,
+  `/tmp/acq-persist.sock`, the rung-11 `A`/`B` pair, a session's
+  `/tmp/acq-<name>.sock`). Those are closed procedurally: the
+  transition commit's preflight and the live-run skill prove no old
+  playground daemon remains, the known driver endpoints named, before
+  the first run on the new rendezvous. A controlled migration, not
+  comprehensive detection.
 
 ### 2.5 Lifecycle as a product surface
 
@@ -276,10 +320,15 @@ spawn the sibling of their own binary through the same locator, and a
 missing sibling fails **before the test runs**, naming `cargo build
 --workspace`.
 
-Hermeticity comes from the gate, stated as such: `cargo test
---workspace` builds every target, `acqd` included, before any test
-runs. A `-p` run of a process test is unsupported, and the harness says
-so when the sibling is absent; when it is present but stale, the
+Hermeticity comes from the gate, and the gate changes: `cargo test
+--workspace --all-targets` does **not** uplift a bin from a package that
+has no integration tests — verified in a scratch workspace (§1) — so a
+`target/debug/acqd` built by the test run alone is not guaranteed. The
+authoritative gate becomes `cargo build --workspace` **then** `cargo
+test --workspace --all-targets` (AGENTS.md, in step 3's commit): the
+exact sibling is rebuilt before any test runs, with no override and no
+unstable artifact dependency. A `-p` run of a process test is
+unsupported, and the harness says so when the sibling is absent; when it is present but stale, the
 harness prints the daemon's path and artifact hash with any failure,
 so a wrong daemon is never a mystery. A test-only path override was
 considered and refused: the process tests drive the real `acq`, so the
@@ -314,19 +363,28 @@ shape is canonised, because the GUI and the TUI arrive to them:
   or malformed frame is answered with an error and the connection
   stays, never a silent close. JSON lines stay (C9).
 - **Connection semantics.** One request in flight per connection; a
-  subscription takes a connection of its own; events are invalidation
-  hints — a client that lags or reconnects re-reads (`List`, `Status`)
-  — never a complete stream. This is what `dash` (polls) and `jobs
-  --watch` already do and what the daemon's lag-skip already implies;
-  making it the contract avoids correlation ids until evidence asks for
-  multiplexing.
+  subscription takes a connection of its own and carries no requests —
+  a `Subscription` type in the client crate, distinct from `Client`,
+  makes that structural; events are invalidation hints, never a
+  complete stream. A loss the client cannot observe cannot be recovered
+  from, and today the daemon skips lagged events silently: so on
+  broadcast lag the daemon sends `resync_required` (with the count),
+  and the subscriber then re-reads, as it does after any disconnect.
+  The race is pinned as a sequence: subscribe first, then take the
+  authoritative snapshot over a request connection (`List`), then treat
+  every event as a reason to re-read, and on `resync_required` or
+  disconnect subscribe and snapshot again. This is what `dash` (polls)
+  and `jobs --watch` already approximate; making it the contract avoids
+  correlation ids until evidence asks for multiplexing.
 - **Structured errors.** C47 wants stable kinds; the wire has
   `Error { message }`. The audit adds `kind` additively (C53: JSON
-  changes are additive), classifying the daemon's existing error sites
-  into a small set; the taxonomy grows with its first typed consumer,
-  the GUI slice (P2: each frontend contract needs its own validating
-  consumer). Designing the full taxonomy now is its own session, if the
-  owner wants it first.
+  changes are additive) as a **closed set** — an enum, pinned by the
+  fixtures, never a free-form string — classifying the daemon's
+  existing error sites (bad request, not logged in, unknown job,
+  refused at admission, ambiguous account, rails halted, queue write
+  failed, internal); subcategories and context grow additively with
+  the first typed consumer, the GUI slice (P2). Designing the full
+  taxonomy now is its own session, if the owner wants it first.
 
 Then the pin: one JSON document per `Request`/`Response` variant under
 `ACQ_UPDATE_FIXTURES=1` like the references, so every wire change from
@@ -340,15 +398,15 @@ the first commit.
 
 **C1 — amended (CONTEXT.md, cross-cutting):**
 
-- **C1 — Cargo workspace, library-centric; the daemon is its own artifact.** `acquisition-store` holds facts, intent and the world (root, per-provider files, locks, the socket name); `acquisition-protocol` the wire, the job vocabulary and the shared-contract revision, serde-only; `acquisition-client` the IPC, the spawn and observe policies and the `acqd` locator; `acquisition-daemon` (binary `acqd`) its only implementation and the only sender; `acquisition-plan` the planner. A frontend links client, protocol, store and plan, never the daemon; the daemon links protocol and store, never client, plan or a frontend; the store links none of them. *Why:* write/test logic once, and C12's two surfaces as edges the check refuses. *Pinned:* `tools/docs-check.sh`. Amended 2026-09-09.
+- **C1 — Cargo workspace, library-centric; the daemon is its own artifact.** `acquisition-store` holds facts, intent and the world (root, locks, socket name); `acquisition-protocol` the wire, the job vocabulary and the shared-contract revision, serde-only; `acquisition-client` the IPC, the spawn and observe policies and the `acqd` locator; `acquisition-daemon` (binary `acqd`) its only implementation and the only GGG sender; `acquisition-plan` the planner. A frontend links client, protocol, store and plan as it needs them, never the daemon; the daemon links protocol and store, never client, plan or a frontend; the store links none of them. *Why:* write/test logic once, and C12's two surfaces as edges the check refuses. *Pinned:* `tools/docs-check.sh`. Amended 2026-09-09.
 
 **C82 — new (decisions/daemon.md):**
 
-- **C82 — One installation per world: every frontend is installed beside the one `acqd` it spawns, and a frontend spawns only that sibling.** No `PATH` search, no configured path, no embedded mode; no sibling means no spawn, reported. A second installation on one machine is a design event, recorded here first; the playground beside the shipped app is one, separated by world (C83) and the real-mode lock. Tests and drivers locate the daemon the same way. *Why:* C10's "the runtime it would itself spawn" must name exactly one file, or two installations thrash; one directory of siblings is how a desktop app ships its CLI and its helper (a Tauri sidecar). *Details:* `acquisition-client/src/locator.rs` doc. Ruled 2026-09-09.
+- **C82 — At most one installation targets a world.** Acquisition's installation places one canonical `acqd` and every frontend beside it; the implementation requires it as a sibling of the calling executable (`current_exe()` canonicalised) — no `PATH`, no configured path, no embedded mode; no sibling, no spawn, reported. A second installation targeting the same world is a design event, recorded here first (the playground beside the shipped app targets another world). Tests and drivers locate it the same way; packaging smoke tests are the acceptance criterion. *Why:* C10's "the runtime it would itself spawn" must name one file, or two installations thrash; one directory of siblings is what Acquisition ships. *Details:* `acquisition-client/src/locator.rs` doc. Ruled 2026-09-09.
 
 **C83 — new (decisions/daemon.md):**
 
-- **C83 — A world is a canonical, provider-neutral store root; its daemon holds an exclusive lock on it for its lifetime, and in real mode a per-user lock no root bypasses.** The socket is derived from the root into a private per-user runtime directory, never chosen by hand (`ACQ_SOCKET` is gone); `hello` names the root and a client refuses a daemon on another world; the rails state, log and journal live in the provider's directory of the world, never beside the socket. *Why:* a socket name is discovery, not ownership — C6 and C31 were held by documentation, and the tripwire's state lived in a directory the OS clears at reboot. *Details:* `acquisition-store/src/world.rs` doc. Ruled 2026-09-09.
+- **C83 — A world is a canonical, provider-neutral store root; its daemon holds an exclusive lock on it for its lifetime, and in real mode a per-OS-user lock no root bypasses.** A use path creates the root, then canonicalises and locks; observation creates nothing. The socket is derived from the root into a private per-user runtime directory, never chosen by hand (`ACQ_SOCKET` is gone); `hello` names the root and a client refuses a daemon on another world. Durable state (`daemon.db`, rails state) lives in the world; the log and journal are bounded diagnostics elsewhere. *Why:* a socket name is discovery, not ownership — C6 and C31 were held by documentation, and the tripwire's state lived in a directory the OS clears at reboot. *Details:* `world.rs` doc. Ruled 2026-09-09.
 
 **C84 — new (decisions/daemon.md); C10's text is unchanged, this names what its "runtime identity" is:**
 
@@ -356,9 +414,11 @@ the first commit.
 
 **C85 — new (decisions/daemon.md, beside C8 and C9):**
 
-- **C85 — Connection semantics: one request in flight per connection; a subscription takes a connection of its own; events are invalidation hints, never a complete stream — a client that lags or reconnects re-reads; a frame has a bound, and an oversize or malformed one is answered with an error, never a closed socket; `hello` and `daemon_stop` are a stable plane every version parses, so a mismatch is always diagnosable and always stoppable.** *Why:* the GUI and the TUI arrive to these, not to what `dash` happens to do; without a stable bootstrap a wire change cannot report itself. *Pinned:* `acquisition-protocol/tests/wire.rs`, `acquisition-client/tests/contract.rs`. Ruled 2026-09-09.
+- **C85 — Connection semantics: one request in flight per connection; a subscription takes a connection of its own and carries no requests; events are invalidation hints, never a complete stream — a subscriber snapshots after subscribing, re-reads on every event, is told `resync_required` when it lagged, and after that or any disconnect subscribes and snapshots again; a frame has a bound, and an oversize or malformed one is answered with an error, never a closed socket; `hello` and `daemon_stop` are a stable plane every version parses.** *Why:* a loss a client cannot observe cannot be recovered from; the GUI and the TUI arrive to these, not to what `dash` happens to do. *Pinned:* `acquisition-protocol/tests/wire.rs`, `acquisition-client/tests/contract.rs`. Ruled 2026-09-09.
 
-**Pointer edits, no new text:** C12 gains *Pinned:* `acquisition-protocol/tests/wire.rs`; C13's *Details* doc drops "embeds `daemon run` like `acq`"; C10's *Details* doc says "shared-contract revision and daemon artifact" (anticipated in 16 §7.1); C6's "one daemon per store directory is an invariant, not a lock" becomes "…is the world lock (C83)". README: "What exists" lists the crates; the knob table drops `ACQ_SOCKET` and reads `ACQ_GGG` in `acquisition-protocol`; the mock-session skill sets one knob. LIVE-TESTING's "Build before you run" bullet: proposed with step 4.
+**C31 — one clause added (decisions/daemon.md), the ruling otherwise verbatim:** after "two daemons on one machine make a 4-wide burst neither sees" add "— enforced per OS user by the real-mode lock (C83); another OS user, the C++ Acquisition on the same machine and other machines behind the same address are external concurrency the tripwire exists for". The owner trims to the gate.
+
+**Pointer edits, no new text:** C12 gains *Pinned:* `acquisition-protocol/tests/wire.rs`; C13's *Details* doc drops "embeds `daemon run` like `acq`"; C10's *Details* doc says "shared-contract revision and daemon artifact" (anticipated in 16 §7.1); C6's "one daemon per store directory is an invariant, not a lock" becomes "…is the world lock (C83)". README: "What exists" lists the crates; the knob table drops `ACQ_SOCKET` and reads `ACQ_GGG` in `acquisition-protocol`; the mock-session skill sets one knob. AGENTS.md's gate gains `cargo build --workspace` before `cargo test` (2.6). LIVE-TESTING's "Build before you run" bullet: proposed with step 4.
 
 Rejected on the way, so nothing is re-argued or adopted by not noticing:
 
@@ -379,18 +439,23 @@ Rejected on the way, so nothing is re-argued or adopted by not noticing:
 - `acq daemon start` — serves no non-spawning consumer (2.5).
 - A test-only daemon path knob — read by production code (2.6).
 - An unconditional `#[doc(hidden)]` destructive hook — a production door for a test-build saving (2.6).
+- A machine-wide real-mode lock — covers a second OS user only, at the cost of shared-file permissions; the C++ app and NAT peers stay outside any lock (2.4).
+- Closing the subscription on lag instead of signalling — needs the same reconnect logic and loses the count; `resync_required` is one variant (2.7).
+- A free-form `kind` string — would not satisfy C47; a closed set does (2.7).
+- The log and journal as durable world state — unbounded append-only files; diagnostics are bounded instead (2.4).
 
 ## 4. Commit sequence (each under the gate; 3, 4, 5 and 6 rehearsed with both drivers in `--mock`)
 
 | # | Commit | Behaviour | Measure |
 | --- | --- | --- | --- |
-| 0 | the wire audit and pin (2.7): stable bootstrap frames, the frame bound, C85's semantics in client and daemon, additive error `kind`, fixtures, black-box contract tests — the check before the code | bootstrap and framing | — |
+| −1 | restore green: the pricing property's inverse grammar takes the first whitespace-delimited word for a note, as the reader does; the proptest regression file committed so the case replays (§7) | none | the gate passes |
+| 0 | the wire audit and pin (2.7): stable bootstrap frames, the frame bound, C85's semantics — `Subscription`, `resync_required`, the pinned subscribe-then-snapshot sequence — in client and daemon, the closed `kind` set, fixtures, black-box contract tests — the check before the code | bootstrap, framing, lag | — |
 | 1 | `acquisition-protocol` extracted: the wire, the vocabulary, the promises, the bootstrap plane; the build script moves with **today's** input set (core, store, protocol sources, manifests, lock) so the identity keeps moving on daemon edits until step 4 | none | — |
 | 2 | consumers switched (plan, cli, mcp, the tests) to the protocol crate; the docs-check edges added; every citation renamed | none | closures per crate |
-| 3 | `acquisition-client` extracted (client, policies, locator, typed errors); `acquisition-core` → `acquisition-daemon` (`git mv`); the `acqd` binary; `acq daemon run` and the MCP argv interception deleted; the sibling locator; tests and drivers start `acqd`; references regenerated; skills and README updated | the spawn path | — |
+| 3 | `acquisition-client` extracted (client, policies, locator, typed errors); `acquisition-core` → `acquisition-daemon` (`git mv`); the `acqd` binary; `acq daemon run` and the MCP argv interception deleted; the sibling locator; tests and drivers start `acqd`; the gate becomes build-then-test (AGENTS.md) and the uplift is checked empirically in this tree; references regenerated; skills and README updated | the spawn path | — |
 | 4 | the identity: build-script inputs shrink to the shared contract; artifact identity and hash at startup; `hello`, `DaemonId`, the observer report, `acq version`, the journal header (supersedes 16 §6.4), `provenance.json` (hashes `acqd`); the artifact-mismatch process test; the standing-rule wording proposed for approval | the handshake | **the daemon-edit rebuild: crates compiled, executables relinked, seconds** — the number the split is judged by |
-| 5 | the world (2.4): `world.rs`; rails state, log and journal into the provider's directory (legacy rails file moved once); the world lock; the real-mode lock; `hello` carries the world; the client verifies | durable state and ownership | — |
-| 6 | the rendezvous: the socket derived into the runtime directory; `ACQ_SOCKET` removed, `tools/acq-as.sh` retired; legacy-socket detection in daemon start, client and `stop_any`; the migration process test; harnesses and the mock-session skill set one knob | the rendezvous | — |
+| 5 | the world (2.4): `world.rs` with first-run creation on the use path; the rails state into the provider's directory (legacy file moved once); the log and journal to the platform log directory, bounded; the world lock and the real-mode lock, taken before anything opens or sends; `hello` carries the world; the client verifies; the C31 clause | durable state and ownership | — |
+| 6 | the rendezvous: the socket derived into the runtime directory; `ACQ_SOCKET` removed, `tools/acq-as.sh` retired; legacy default-socket detection in daemon start, client and `stop_any`; the migration process test; the preflight and the live-run skill prove no old daemon remains on the known driver endpoints; harnesses and the mock-session skill set one knob | the rendezvous | — |
 | 7 | process tests green with both drivers in mock; then live: `tools/tracer-rung.sh` under the rails — the spawn path and the rendezvous changed; ledger row; `provenance.json` with `acqd`'s hash | — | the run |
 
 Later, its own change, not this sequence: the job-store trait replacing
@@ -404,7 +469,7 @@ store edit still rebuilds everything, as a contract change should.
 
 ## 5. Parking lot (landings named; deferral never re-argued)
 
-- Packaging: bundle layout, signed binaries, an installer, the CLI symlink → ADR 0003. The sibling rule survives a bundle (a Tauri sidecar is a sibling). Trigger: a shipping decision.
+- Packaging: bundle layout, signed binaries, an installer, the CLI symlink → ADR 0003, with C82 as its acceptance criterion: smoke tests that the GUI, the canonicalised CLI symlink and the MCP each resolve the same `acqd`, and that an updater replacement is an artifact mismatch the next use verb resolves. Trigger: a shipping decision.
 - A second installation on one machine → a design event under C82: the contract-as-use-condition model of 2.2 is the recorded alternative. Trigger: a consumer that needs one.
 - A keeper for frontends that never spawn (cron, a real-mode MCP): the foreground `acqd` contract — readiness, signals, exit codes, graceful checkpointing, supervisor interaction (launchd, systemd) → the daemon. Trigger: the first non-spawning consumer in daily use.
 - The structured-error taxonomy beyond the additive `kind` → the wire, with the GUI slice as its validating consumer (P2). Trigger: the GUI slice, or the owner asking for it first.
@@ -429,6 +494,8 @@ store edit still rebuilds everything, as a contract change should.
 6. Structured errors: additive `kind` now and the taxonomy with the GUI — or the taxonomy now, as its own session.
 7. The journal header carrying the artifact hash, superseding 16 §6.4.
 8. The standing-rule and `acq version` wording: proposed for approval with step 4, not before.
+9. The C31 clause naming the enforcement scope (per OS user) and the external concurrency.
+10. Commit −1, the test fix, before step 0 — code before the rulings, but the gate is broken without it.
 
 ## 7. Session facts
 
@@ -437,10 +504,12 @@ store edit still rebuilds everything, as a contract change should.
   failing: proptest shrank it to `text = "~price 1 chaos 0"`, `Source::Note`.
   The reader accepts the note as one chaos with trailing text; the
   property's inverse grammar takes everything after the amount as the
-  currency word and `unwrap`s the resolve (`game_side.rs:607`). Either
-  the reader is lenient by design and the property is wrong, or the
-  reader should refuse trailing text. Not fixed here (no code before
-  the rulings; pricing is C69's area). proptest wrote
+  currency word and `unwrap`s the resolve (`game_side.rs:607`). Verified in round 3: the reader tolerates a suffix after the word by
+  documented design (`game_side.rs:225`, "tolerated, not read"), so
+  the property is the defective side — for a note it should take the
+  first whitespace-delimited word, as it already does for a tab name.
+  A one-line test fix, proposed as commit −1 (§4). Not applied here
+  (no code before the rulings; pricing is C69's area). proptest wrote
   `crates/acquisition-plan/proptest-regressions/game_side.txt`, left
   untracked in the tree for the owner: proptest recommends committing
   it so the case replays.
@@ -565,3 +634,82 @@ commit that changes it, and the reviewer's ordering (audit and pin →
 pure protocol → consumers and edges → `acqd` → identity → durable state
 and locks → rendezvous with legacy detection → process tests and the
 live run), with test consolidation kept separate.
+
+## 9. Review round 2 (2026-09-09) and the author's responses
+
+The reviewer approved the direction — C1, C84, the narrow protocol and
+client split, the withdrawal of `daemon start`, the reordered sequence
+— and asked for five amendments before treating the packet as settled.
+All five are taken; two were verified rather than believed.
+
+### 9.1 The gate must build `acqd` — accepted, verified
+
+The reviewer doubted that `cargo test --workspace` guarantees an
+unhashed sibling `target/debug/acqd`. Tested in a scratch workspace
+(§1): a bin-only package's binary is built only as a hashed test
+harness under `deps/` and never uplifted; a package with an integration
+test gets its uplift. Round 2's hermeticity claim was false. The gate
+becomes `cargo build --workspace` then the test run (2.6), checked
+again empirically in this tree at step 3. The `-p` policy and the
+refusal of a runtime knob stand; the disagreement is resolved by the
+build step, as the reviewer says.
+
+### 9.2 C85 needed an observable lag signal — accepted
+
+True: the daemon skips lagged events silently, so "a client that lags
+re-reads" was not implementable. `resync_required` with the count,
+rather than closing the subscription (the reconnect logic is needed
+either way and the signal keeps the count); the subscribe-then-snapshot
+sequence pinned; a `Subscription` type distinct from `Client` so a
+subscription connection carries no requests structurally (2.7, C85).
+
+### 9.3 The world in three places — accepted
+
+First-run canonicalisation defined (use creates and locks, observation
+creates nothing, relative roots made absolute in the client, the lock
+before anything opens or sends). Per user is not per machine: taken as
+the reviewer proposes — C31's ruling stands, its enforcement scope is
+named as one real daemon per OS user, and another OS user, the C++
+Acquisition on the same machine and other machines behind the same
+address are external concurrency named in the entry (a C31 clause,
+§3); a machine-wide lock is refused as covering one of the three at a
+permissions cost. Legacy custom sockets: the boundary stated — the
+default endpoint discovered, the known driver endpoints proven empty by
+the preflight and the skill, arbitrary history not discoverable; a
+controlled migration (2.4).
+
+### 9.4 Diagnostics must stay bounded — accepted
+
+Round 2 would have made the log and the journal durable world state.
+Only the rails state and `daemon.db` are durable; the log and journal
+are bounded diagnostics in the platform's log directory, one
+subdirectory per world and provider, rotated at start past a cap; live
+runs keep overriding the journal into their evidence directory (2.4,
+C83).
+
+### 9.5 C82 as a packaging contract — accepted
+
+Rephrased to what Acquisition requires: at most one installation
+targets a world; the installation places one canonical `acqd` and the
+implementation requires it as a sibling; a second installation
+targeting the same world is the design event — which also removes
+round 2's inconsistency between "a second installation on one machine"
+and the app-plus-playground machine, whose two installations target
+different worlds. Packaging stays parked as implementation with C82 as
+its acceptance criterion and the four smoke tests named (2.3, §5).
+
+### 9.6 The disputed points, and the wording
+
+The status DTOs: agreed by the reviewer. The error taxonomy: agreed to
+wait for the GUI, with the reviewer's condition taken — the initial
+`kind` is a closed set pinned by the fixtures, never a free-form string
+(2.7). C1: "the only GGG sender", and frontends link the crates "as
+they need them" so a queue TUI links no planner.
+
+### 9.7 Restore green first — accepted, and diagnosed
+
+The pricing property failure in §7 makes "each commit under the gate"
+unevaluable. Verified: the reader tolerates a suffix after the currency
+word by documented design, so the property's inverse grammar is the
+defective side; the fix is one line in the test plus the regression
+file, proposed as commit −1 (§4, question 10).
