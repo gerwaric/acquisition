@@ -668,7 +668,7 @@ impl AcqMcp {
     }
 
     #[tool(
-        description = "Daemon vitals: provider, uptime, queue depths, rate-limit policies learned, rails state. Observes only: running=false when no daemon is up; running=true, compatible=false for a daemon of another build or provider, which this server reports and never replaces."
+        description = "Daemon vitals: provider, uptime, queue depths, rate-limit policies learned, rails state. Observes only: running=false when no daemon is up; running=true, compatible=false for a daemon of another runtime revision or provider, which this server reports and never replaces."
     )]
     async fn daemon_status(&self) -> Result<Json<Value>, ErrorData> {
         let mut client = match Client::observe().await.map_err(err)? {

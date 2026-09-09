@@ -22,9 +22,10 @@
 //!   disables; the directory is created on demand, and a journal that
 //!   cannot be opened is reported in `daemon status`, never silently
 //!   dropped. Each daemon lifetime opens with
-//!   `{"event":"open","pid","build","clock"}` — the git commit the binary
-//!   was built from, and whether time was the system's or a test's manual
-//!   clock. A send line carries method, `route`, status, `counted`,
+//!   `{"event":"open","pid","runtime","clock"}` — the runtime revision of
+//!   the sources the daemon was built from (C10; `build.rs` — journals
+//!   before 2026-09-09 carry a git commit as `build`), and whether time
+//!   was the system's or a test's manual clock. A send line carries method, `route`, status, `counted`,
 //!   `wait_ms` and every `X-Rate-Limit-*` header. `route` is the
 //!   limiter's endpoint key — `stash@Alice#1234` for a send on an account,
 //!   `oauth-token` for the account-blind token endpoint — so the journal

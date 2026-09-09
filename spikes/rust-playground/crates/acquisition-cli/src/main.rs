@@ -529,13 +529,15 @@ enum AuthCmd {
 
 #[derive(Subcommand)]
 enum DaemonCmd {
-    /// pid, build, provider, uptime, connections, queue counts, policies
-    /// learned, the socket, log and journal paths, the rails state,
-    /// keyring health. Observes only (C10): never spawns or replaces; a
-    /// daemon of another build or provider is reported and left running
-    /// (`--json`: running, compatible, and which of the two differs).
+    /// pid, runtime revision, provider, uptime, connections, queue counts,
+    /// policies learned, the socket, log and journal paths, the rails
+    /// state, keyring health. Observes only (C10): never spawns or
+    /// replaces; a daemon of another runtime revision or provider is
+    /// reported and left running (`--json`: running, compatible, and
+    /// which of the two differs).
     Status,
-    /// Stop the daemon that is listening, this build's or another's.
+    /// Stop the daemon that is listening, this runtime revision's or
+    /// another's.
     /// Queued jobs stay on disk and resume under the next one (C6); a
     /// client's jobs are never cancelled by its leaving (C27).
     Stop,

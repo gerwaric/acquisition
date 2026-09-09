@@ -50,9 +50,11 @@
 //! The identity compared is [`VERSION_WITH_RUNTIME`]: the package version
 //! plus the runtime revision, a digest over the core and store sources,
 //! their manifests, the root manifest and the lock (`build.rs`). It
-//! changes when the daemon's code changes and only then: an uncommitted
-//! edit to `daemon.rs` makes a running daemon stale, an edit to the
-//! planner or a frontend does not, and no git state is consulted. The
+//! changes whenever any of those whole files changes: an uncommitted edit
+//! to `daemon.rs` makes a running daemon stale, an edit to the planner or
+//! a frontend does not, a lock entry or store function the daemon never
+//! uses does (a deliberate false mismatch — a respawn is cheap, a missed
+//! dependency change is invisible), and no git state is consulted. The
 //! package version alone is fixed at `0.0.1` across the playground, and
 //! comparing it let a pre-realm daemon accept a console job and render
 //! the pc URL (review finding 2026-09-02). The provider is the

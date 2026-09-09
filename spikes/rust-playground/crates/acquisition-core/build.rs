@@ -5,13 +5,18 @@
 //! (paths relative to the workspace root) under the domain prefix
 //! `acq-runtime-revision/1` (the format version): the root `Cargo.toml`,
 //! `Cargo.lock`, the core and store manifests, and the core and store
-//! source trees. Every one of them already recompiles this crate when it
-//! changes, so the stamp adds no invalidation of its own — a commit, a
-//! stage, a `git status` cost nothing, and git is not consulted at all.
-//! Features, rustc, profile and target are not inputs: the revision is a
-//! pure function of the listed files and claims nothing about the
-//! binary. `Cargo.lock` stays in on purpose: a false respawn on an
-//! unrelated lock change is cheaper than an invisible dependency change.
+//! source trees. Git is not consulted at all: a commit, a stage, a
+//! `git status` cost nothing. The inputs are deliberately whole files,
+//! not the parts the daemon uses, so the revision is conservative in two
+//! ways. It moves on changes the daemon cannot feel — a lock entry or a
+//! root-manifest line the daemon's own dependency graph does not include,
+//! store code the daemon never calls — and each such move is a false
+//! mismatch that respawns a daemon (cheap) rather than a missed
+//! dependency change (invisible). And a whole-lock or root-manifest
+//! change that would not otherwise touch this crate now recompiles it
+//! and its dependents once; every other input already did. Features,
+//! rustc, profile and target are not inputs: the revision is a pure
+//! function of the listed files and claims nothing about the binary.
 //!
 //! Recompute from a checkout (the same bytes, the same digest):
 //! `sha2` here so a shell or Python one-liner can, if a check ever

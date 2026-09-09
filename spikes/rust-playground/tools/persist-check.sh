@@ -280,7 +280,8 @@ for raw in f:
         continue
     l = json.loads(raw)
     if l.get("event") == "open":
-        cur = {"pid": l["pid"], "build": l["build"], "clock": l["clock"], "sends": []}
+        # `runtime` since 2026-09-09 (C10); journals before that say `build`.
+        cur = {"pid": l["pid"], "build": l.get("runtime", l.get("build")), "clock": l["clock"], "sends": []}
         lifetimes.append(cur)
         continue
     if cur is None:
@@ -290,7 +291,7 @@ for raw in f:
 
 fail, totals = [], []
 for i, lt in enumerate(lifetimes, 1):
-    print(f"lifetime {i}: pid {lt['pid']}  build {lt['build']}  clock {lt['clock']}")
+    print(f"lifetime {i}: pid {lt['pid']}  runtime {lt['build']}  clock {lt['clock']}")
     counts, first = {}, {}
     for s in lt["sends"]:
         m, r, st = s["method"], s["route"], s.get("status")
