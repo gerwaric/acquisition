@@ -145,7 +145,7 @@ What this buys over "same commit":
 
 Cost: `sha2` as a build-dependency (already in the graph; a small
 host-side compile once), and ~40 files hashed when core or store
-changes. Reproducible: the same sources give the same id on any machine.
+changes. The revision is a pure function of the listed files; nothing is claimed about the binary (corrected in 6.1).
 
 Rejected on the way:
 
@@ -243,3 +243,166 @@ scope by the owner's call, 2026-09-09: a separate discussion.
 - Order of landing: profile + clean first (mechanical, no ruling), then
   the stamp + driver change (needs the C10 amendment), then the feature
   and test-binary consolidation.
+
+## 6. Review round 1 (Codex, 2026-09-09) and the author's responses
+
+The reviewer's text is with the owner; this section carries each point,
+what was verified, and the response. Verified before answering:
+
+- `acq daemon status` connects through `connect(false)` →
+  `ConnectOptions::interactive(false)`: spawn off, **replace on**
+  (`main.rs:36`, `:937`). The same is true of `jobs`, `status`, `result`,
+  `auth status` and `cancel`/`set-priority` (`connect(false)` at 874–923).
+- The 2026-09-08 ledger row records the trap: a `daemon status` typed in
+  a second terminal without `ACQ_GGG` put a mock daemon on the default
+  socket and the driver's cycle-1 daemon refused to start over it.
+- The tracer driver is protected only because it exports
+  `ACQ_NO_SPAWN=1` before its `status_json` probe (`tracer-rung.sh:198`,
+  `:202`); a human at a terminal is not.
+- `acquisition-plan/src/lib.rs:266` imports
+  `acquisition_core::daemon::MAX_429_RETRIES`: the planner reaches into
+  the daemon module, not only into `protocol` and `realm`.
+
+### 6.1 Name it a runtime source revision — accepted
+
+The value is not a binary identity and will not claim to be one. Its
+definition: *the revision of the checked-in shared runtime sources this
+process was compiled from, used conservatively to converge playground
+clients and daemons.* Name: `RUNTIME_REVISION`; `--version` shape
+`acq 0.0.1 (runtime 7ac91db821fd)`.
+
+Inputs, as the reviewer lists them: the root `Cargo.toml`, `Cargo.lock`,
+both crate manifests, the core and store source trees (`schema.sql` is
+under `store/src` already), each file as `path NUL length NUL bytes` in
+sorted path order, under a domain prefix that carries the format version
+(`acq-runtime-revision/1`). `Cargo.lock` stays in: a false respawn on an
+unrelated lock change is cheaper than an invisible dependency change.
+Features, rustc, profile and target are out, and the doc comment says
+so. `sha2` as a build-dependency is a real host-side unit; it is one
+small compile per clean and it is accepted. (A dependency-free FNV-1a
+would do for convergence; `sha2` is chosen so a shell one-liner can
+recompute the same digest from a checkout if a future check wants to.)
+
+Section 3.1's "reproducible: the same sources give the same id on any
+machine" is corrected to: the *revision* is a pure function of the
+listed files; nothing is claimed about the binary.
+
+### 6.2 Replacement policy is too coarse — accepted, and it goes first
+
+The finding stands on its own and has already cost a live run. The fix:
+`ConnectOptions` gains an *observe* policy (spawn off, replace off) and
+the observational verbs use it — `daemon status`, `jobs`, `status`,
+`result`, `auth status`, the quote path (already autonomous). The
+handshake's non-matching outcomes become distinct, reportable states
+(absent, compatible, incompatible: `<their revision>`, wrong provider:
+`<theirs>`) instead of one `Err` that `daemon status` folds into "not
+running". `stop`, `reset-tripwire`, `cancel`, `set-priority` are
+mutations with their own explicit policy (they act on the daemon that is
+there, never replace it). *Use* verbs keep the interactive policy.
+
+This is a C10 amendment ("replacing is the interactive CLI's policy" →
+"replacing is a *use* verb's policy; observation never spawns or
+replaces") and it is the owner's.
+
+**Disagreement on landing:** the reviewer would land 6.1, 6.2 and 6.3
+atomically. Preference here is three commits, each under the green gate,
+in the order observe-policy → runtime revision → driver preflight. Each
+is independently valuable; the driver is already protected by
+`ACQ_NO_SPAWN=1`, so 6.2 is not a prerequisite for 6.3, but it is the fix
+for a recorded trap and there is no reason to hold it behind the others.
+Three small diffs are easier to review and to revert than one.
+
+### 6.3 Driver preflight — accepted as specified
+
+One `tools/preflight.sh` sourced by both live drivers, replacing the two
+copies: (1) export no-spawn/no-replace before any binary runs; (2) refuse
+dirty source and control files; (3) probe for any daemon, incompatible
+ones included; (4) `cargo build --locked`; (5) probe again; (6) write
+`provenance.json` — full HEAD, tree state, package version, runtime
+revision, SHA-256 of the executable about to run, `rustc -Vv`,
+`cargo -V` — before any wire phase, and include it in the evidence
+bundle's checksum. `--locked` is the important detail: the build must
+not rewrite the lockfile after the cleanliness check.
+
+### 6.4 No second hash in the journal — agreed
+
+One identity in the journal header (`runtime`); the executable hash
+lives in `provenance.json`, where a specific path was chosen and run.
+The frozen soak binary stays the one case where the artifact itself is
+kept.
+
+### 6.5 Name the version component; no `sed` over a human display — accepted
+
+`--version` stays human. A structured surface for scripts:
+`acq version --json` → `{"version":"0.0.1","runtime":"7ac91db821fd"}`
+(one small verb; the reference regenerates). `soak-check.sh` is the only
+script that parses today; it moves to the structured surface — or is
+retired under P6 if the frozen-soak procedure is not coming back, which
+is a question for the owner.
+
+### 6.6 The larger question: a dedicated daemon and a protocol crate
+
+The reviewer is right that "every frontend embeds `daemon run`" is an
+implementation choice, not a ruling: C1 lists crates, C2 says clients
+talk over IPC, C10 says respawn is the migration mechanism; none says
+the daemon must be inside every binary. `current_exe()` was the cheapest
+answer to "where is the daemon" for the first two consumers.
+
+The author's view, in two parts:
+
+**The crate split is a dependency-graph win on its own.** Today
+`acquisition-core` holds the daemon implementation, the protocol, the
+client and the shared types, so an edit to `daemon.rs` recompiles plan,
+cli and mcp and relinks all 21 executables. A small protocol/client
+crate (protocol enums, `Client`, `Realm`, the job model) that frontends
+and the planner link, and a daemon crate that only the daemon binary
+links, makes a daemon edit cost the daemon crate plus one link. The
+planner's `MAX_429_RETRIES` import is the boundary not yet being there.
+This split is worth doing whether or not `acqd` follows.
+
+**A dedicated `acqd` changes what the identities are.** With one daemon
+artifact, the two questions C10 answers with one value come apart:
+
+- *Is the newest daemon implementation running?* — the client hashes
+  the sibling `acqd` it would spawn and compares with what the running
+  daemon reports about itself at startup. Runtime, no build script.
+- *Is the wire compatible?* — the protocol crate's own source revision,
+  which is the 6.1 build script moved to a tiny crate whose files change
+  rarely. So the 6.1 machinery is not throwaway: it migrates and
+  shrinks.
+
+Costs the reviewer names, confirmed: executable location (a sibling of
+`current_exe()` in the playground; packaging later); test discovery
+(`CARGO_BIN_EXE_*` is per package, so either `acq` and `acqd` share a
+package or the MCP's tests find the sibling under a `--workspace`
+build); the MCP's spawn policy is unchanged. It is a C1 amendment and
+the owner's call, and it should not ride on the stamp change.
+
+**Recommendation on sequencing:** land 6.2, 6.1, 6.3 now (the git watch
+costs every agent session today; three small commits), then hold the
+split as its own design session with the owner.
+
+### 6.7 The reviewer's three questions
+
+1. *Is C10 protecting wire compatibility, the newest implementation, or
+   both?* Both, with one value, which is why it needed a commit-grained
+   stamp. Under 6.1 the runtime revision answers both conservatively;
+   under the split they get separate identities (6.6).
+2. *Must every frontend remain daemon-capable through `current_exe()`?*
+   The owner's. Author's input: no ruling requires it; it was the
+   cheapest location answer; with more binaries coming, a GUI carrying a
+   hidden server mode is the odd shape, and the sibling-`acqd` shape is
+   the clean one.
+3. *Reconstructible source provenance, artifact attestation, or both?*
+   Both, from different sources: HEAD and tree state from the driver
+   (reconstructible), the executable's SHA-256 in `provenance.json`
+   (attestation, useful when the artifact is kept, as the frozen soak
+   binary is). The journal carries one identity and the run record maps
+   it.
+
+### 6.8 Open for the owner after this round
+
+- The permanence question in 6.7(2) — this decides whether the split is
+  scheduled.
+- C10's amendment text (6.2 policy tiers; 6.1 identity).
+- Whether `soak-check.sh` and the frozen-soak procedure are retired (6.5).
