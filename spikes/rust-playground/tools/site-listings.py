@@ -24,7 +24,13 @@ null), `currency` (the image's `alt`, the site's short word) and
 `verified`, `channel` (`stash` when the seller link is the account's
 profile, `forum` when it is a shop thread — T1's two channels, told
 apart by the link) with the `thread` number for a forum row, `account`,
-`source` (the file the row was first seen in). The header reports each file's "Showing N
+`source` (the file the row was first seen in). A saved page of the
+bulk exchange (the site's other search, where currency-class stacks
+are offered, T2) yields rows with `label` `exchange` and `channel`
+`exchange`: `base` is the item offered, `lot` how many of it per
+`amount` of `currency`, `stock` the site's count; the exchange links
+the profile for both channels, so a forum offer is not told apart
+here. The header reports each file's "Showing N
 results" line, its row count, the union's size, and how many ids the
 parts share, so the union's coverage of the site's matched count (a
 number the owner reads off the search form; the saved DOM does not
@@ -41,7 +47,16 @@ import pathlib
 import re
 import sys
 
-ROW = re.compile(r'<div class="row"\s+data-id="([0-9a-f]{64})"')
+ROW = re.compile(r'<div class="row( exchange)?"\s+data-id="([0-9a-f]{64})"')
+EXCHANGE_GET = re.compile(
+    r'<small>what you get</small><div class="price-block"[^>]*><span class="currency-text">([^<]*)</span>.*?<span class="amount">([^<]*)</span>',
+    re.S,
+)
+EXCHANGE_PAY = re.compile(
+    r'<small>what you pay</small><div class="price-block[^"]*"[^>]*><span class="amount">([^<]*)</span>.*?alt="([^"]*)"',
+    re.S,
+)
+STOCK = re.compile(r'data-field="stock">Stock:&nbsp;<span>([^<]*)</span>')
 SHOWING = re.compile(r"Showing\s+([\d,]+)\s+results?")
 HEADER_LINE = re.compile(r'<div class="item-popup__header-line">\s*(.*?)\s*</div>', re.S)
 LABEL = re.compile(r'class="price-label(?: ([a-z-]+))?">\s*([^<]*?)\s*<', re.S)
@@ -68,7 +83,36 @@ def rows_of(text):
     hits = list(ROW.finditer(text))
     for i, m in enumerate(hits):
         end = hits[i + 1].start() if i + 1 < len(hits) else len(text)
-        yield m.group(1), text[m.end() : end]
+        yield m.group(2), m.group(1) is not None, text[m.end() : end]
+
+
+def parse_exchange_row(rid, chunk, source, problems):
+    """A bulk-exchange row: the site's offer of `lot` of the item for
+    `amount` of the currency, with the stock it counts (T2, T3)."""
+    get = EXCHANGE_GET.search(chunk)
+    pay = EXCHANGE_PAY.search(chunk)
+    stock = STOCK.search(chunk)
+    acct = ACCOUNT.search(chunk)
+    if get is None or pay is None:
+        problems.append(f"{rid}: exchange row without its two sides in {source}")
+    return {
+        "id": rid,
+        "name": None,
+        "base": squash(get.group(1)) if get else None,
+        "note": None,
+        "label": "exchange",
+        "amount": squash(pay.group(1)) if pay else None,
+        "currency": html.unescape(pay.group(2)) if pay else None,
+        "currency_name": None,
+        "lot": squash(get.group(2)) if get else None,
+        "stock": squash(stock.group(1)) if stock else None,
+        "listed": None,
+        "verified": None,
+        "channel": "exchange",
+        "thread": None,
+        "account": squash(acct.group(3)) if acct else None,
+        "source": source,
+    }
 
 
 def parse_row(rid, chunk, source, problems):
@@ -104,6 +148,8 @@ def parse_row(rid, chunk, source, problems):
         "amount": squash(amount.group(1)) if amount else None,
         "currency": html.unescape(cur.group(1)) if cur else None,
         "currency_name": squash(cur.group(2)) if cur else None,
+        "lot": None,
+        "stock": None,
         "listed": squash(listed.group(1)) if listed else None,
         "verified": "verifiedStatus\">Verified" in chunk,
         "channel": None if acct is None else ("forum" if acct.group(1).startswith("forum") else "stash"),
@@ -132,19 +178,22 @@ def main():
         text = f.read_text(encoding="utf-8")
         showing = SHOWING.search(text)
         n = 0
-        for rid, chunk in rows_of(text):
+        for rid, exchange, chunk in rows_of(text):
             n += 1
-            row = parse_row(rid, chunk, f.name, problems)
-            if rid in table:
+            row = (parse_exchange_row if exchange else parse_row)(rid, chunk, f.name, problems)
+            # An item search row and an exchange row for one id are two
+            # claims (a forum-listed stack shows on both); the key tells them apart.
+            key = (rid, "exchange" if exchange else "item")
+            if key in table:
                 shared += 1
-                prior = table[rid]
+                prior = table[key]
                 same = {k: v for k, v in row.items() if k != "source"} == {
                     k: v for k, v in prior.items() if k != "source"
                 }
                 if not same:
                     problems.append(f"{rid}: differs between {prior['source']} and {f.name}")
                 continue
-            table[rid] = row
+            table[key] = row
         parts.append(
             {
                 "file": f.name,
@@ -167,8 +216,9 @@ def main():
         "rows_in_parts": sum(p["rows"] for p in parts),
         "shared_between_parts": shared,
         "unique": len(table),
+        "unique_ids": len({k[0] for k in table}),
         "by_label": dict(sorted(labels.items())),
-        "rows": sorted(table.values(), key=lambda r: r["id"]),
+        "rows": sorted(table.values(), key=lambda r: (r["id"], r["label"] == "exchange")),
     }
     json.dump(out, sys.stdout, indent=1, ensure_ascii=False)
     print()

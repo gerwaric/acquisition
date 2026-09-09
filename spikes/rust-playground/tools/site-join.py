@@ -62,6 +62,13 @@ its own; `stackable` — a currency-class stack (`stack_size` present:
 scrolls, omens, boxes), which the site trades on the bulk exchange, not
 the item search (T2, T3). Both are read before `unlisted_since`.
 
+An exchange row (the bulk-exchange page, `label` `exchange`) is read
+against the same game side: the offer is `lot` of the stack for
+`amount` of the currency, which is T2's `wanted/lot` read off a ratio
+name, or a plain note's amount for a lot of one. `exchange_agrees` and
+`exchange_differs` are its two outcomes; a stack in a non-public tab on
+the exchange came through the forum (`forum_channel`).
+
 Per tab, the join also prints what the store holds against what the
 site shows, since `public` is a tab-level fact.
 """
@@ -69,6 +76,7 @@ site shows, since `public` is a tab-level fact.
 import argparse
 import collections
 import json
+import re
 import sys
 
 
@@ -113,7 +121,8 @@ def main():
             tabs[t["id"]] = l
         elif t["scope"] == "item":
             items[t["id"]] = l
-    site_rows = {r["id"]: r for r in site["rows"]}
+    site_rows = {r["id"]: r for r in site["rows"] if r["label"] != "exchange"}
+    exchange_rows = [r for r in site["rows"] if r["label"] == "exchange"]
 
     def tab_of(l):
         loc = l["subject"].get("location") or {}
@@ -243,6 +252,44 @@ def main():
         else:
             record("differ", "unexplained", rid, ours, theirs, where, {"note": r["note"]})
 
+    # Exchange rows: the offer against the text the game side read.
+    on_exchange = set()
+    for r in exchange_rows:
+        rid = r["id"]
+        l = items.get(rid)
+        theirs = f"exchange {r['lot']} for {r['amount']} {r['currency']} (stock {r['stock']})"
+        if l is None:
+            record("site_only", "not_in_store", rid, None, theirs, None, {"channel": "exchange"})
+            continue
+        on_exchange.add(rid)
+        tab = tab_of(l)
+        where = {
+            "tab": tab["subject"]["name"] if tab else None,
+            "tab_id": tab["subject"]["target"]["id"] if tab else None,
+            "public": l["game"].get("public"),
+            "location": l["subject"].get("location"),
+            "name": l["subject"].get("name") or l["subject"].get("type_line"),
+        }
+        g = l["game"]
+        if g.get("public") is not True:
+            record("site_only", "forum_channel", rid, "not public; no row" if not l.get("manual") else "not public; a row", theirs, where, {"channel": "exchange"})
+            continue
+        text = (g.get("note") or {}).get("text") or (g.get("tab_name") or {}).get("text") or ""
+        m = re.match(r"~(?:price|b/o)\s+(\S+)\s+(\S+)", text)
+        wanted, lot, word = (None, None, None)
+        if m:
+            wanted, word = m.group(1), m.group(2)
+            if "/" in wanted:
+                wanted, lot = wanted.split("/", 1)
+            else:
+                lot = "1"
+        ours = f"{text!r} read as {reading_text(g['reading'])}"
+        if (wanted, lot, word) == (r["amount"], r["lot"], r["currency"]):
+            classes["agree"] += 1
+            reasons["exchange_agrees"] += 1
+        else:
+            record("differ", "exchange_differs", rid, ours, theirs, where)
+
     # Store items the site should show and does not.
     for rid, l in items.items():
         tab = tab_of(l)
@@ -252,7 +299,7 @@ def main():
         exp = expectation(l)
         if exp is not None and tab:
             pt["expected"] += 1
-        if rid in site_rows or exp is None:
+        if rid in site_rows or rid in on_exchange or exp is None:
             if exp is None and rid not in site_rows:
                 classes["agree_absent"] += 1
             continue

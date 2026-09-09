@@ -207,7 +207,7 @@ claims file's appendix maps T→C as well.
 | Pricing | plan 7.2 fixture tests | `48d542eb` | `real_scale_fixture.rs` in `acquisition-plan` and `acquisition-cli` (test-only loaders; the CLI's tiles the items). `listing.rs`: the league resolves whole — one listing per fact, every location and chain reference a subject of the report, every count summed against the items and read against the file: 50 notes, all in the one public tab with a row on it, are 46 exact, 2 negotiable, 1 skip and the dialog's one residue; the 16 `~` names are 14 prices (1 public) and the two lot ratios a tab name cannot carry (T19); the 16 rows are 5 applied, 11 unmatched (10 items of another league, 1 tab), none unreadable. The owner's five rows land by C70/C80/C81: the tab row covers the test tab's 80 items (78 inherited, 2 own), the 49 game statements decide over it, the substash row its 5 under a non-public parent that holds nothing, the character's `skip` its 3; `list`'s default is those 88 in four containers; the report re-reads exactly and every container's `show` holds its two sets. `shop.rs`: every item in one cell — 48 game prices, 1 `~skip`, 3 hand skips omitted; 5 substash items blocked; 1,889 nothing; 31 posted on one page under three titles, each link once; T24 with the site as the oracle — the snapshot's listed tabs are the website's list of the day by name and type, and every posted link numbers its tab as the site does (`Stash57`); C72 at the snapshot's clock: the test tab four days stale under an hour's window, the one uncovered container under a policy naming none of it. Time guards where a debug build measured milliseconds — cliffs, not budgets: resolve and render under 2 s; `render_text(expand)` under 2 s at 63k items tiled, where the review's quadratic search measured 3.9 s at half that scale; `list --effective none`, `show`, `status` expanded under 5 s at 32k. | `c69_at_real_scale_every_fact_has_one_listing_and_the_counts_are_the_files`, `c70_at_real_scale_the_owners_rows_cover_what_the_rules_say`, `c53_at_real_scale_the_report_round_trips_and_every_container_shows_its_two_sets` (`listing.rs`); `c74_at_real_scale_every_item_lands_in_one_cell_and_the_page_is_the_owners_test_tab`, `t24_at_real_scale_every_posted_link_numbers_its_tab_as_the_website_does`, `c72_at_real_scale_the_freshness_lines_name_the_owners_test_tab` (`shop.rs`); `c53_the_expanded_render_is_linear_over_the_owners_league_tiled` (`shop_cmd.rs`); `c53_the_expanded_list_show_and_status_are_linear_over_the_owners_league_tiled` (`price_cmd.rs`) |
 | Pricing | plan 7.3 story and races | `1eaef2f4` | `tests/price_story.rs` (acquisition-cli): set, show, render, clear as one story through the spawned binary, then the races as properties under every interleaving, run in rounds with the processes started together — two blind writers on one row never clobber and the receipts chain from the row before the round to the row `show` reads after it (C35, C78); a stale `--if-revision` on `set` and `clear` conflicts naming the current revision, `{"error":…}` with exit 1, nothing changed (C35, C11); a clear under a render always lands and the render is one function of one read, never a torn page (C64, C74). **Found:** the seed leaves no intent file, so round 1 races its creation, and about one run in six a first-ever writer was refused "busy: another writer held it past 5 s" in under a second — `PRAGMA journal_mode=WAL` on a fresh file takes the write lock from inside the read transaction the pragma opened, a path SQLite's busy handler does not cover, so the second creator is answered `database is locked` at once. **Fixed:** the three opens (facts, intent, queue) go through `ensure_wal` — an already-WAL file is left alone, the creation switch retries up to the busy timeout; 20 runs after: no refusal, one to four genuine conflicts a run, every chain intact. A first theory (the busy timeout installed too late) was wrong — rusqlite installs it at open — and was reverted. | `c74_set_show_render_clear_…`, `c35_two_blind_writers_…`, `c35_a_stale_revision_…`, `c74_a_clear_under_a_render_…`; `ensure_wal` (`acquisition-store/src/lib.rs`) |
 | Pricing | plan 7.4 checkpoint on stop | `1eaef2f4` | the daemon leaves by `process::exit`, so its connections never closed and the WALs stayed beside the facts file and `daemon.db` (the price-notes run: 1.1 MB the census refused). `Store::checkpoint` and `JobDb::checkpoint` (`PRAGMA wal_checkpoint(TRUNCATE)`); the daemon's two exits — stop request, idle watchdog — go through one `exit_process` that checkpoints the open store and the queue, logs the page counts, removes the socket, exits. `tests/daemon_stop_checkpoint.rs`: a listing landed through a real daemon over the mock, both WALs holding pages before the stop (so an empty one after is the checkpoint's doing), the socket gone, both WALs empty; seen failing first at 107 KB. `tools/census.py`'s guard and `tools/notes-check.py`'s "stop the daemon first" stand, and now mean what they say. | `daemon_stop_checkpoints_the_facts_file_and_the_queue`; `exit_process` (`daemon.rs`) |
-| Pricing | plan 7.5 the site as the oracle | `df248a17` | `tools/site-listings.py`: the owner's saved pages (rendered DOM, eight parts, `runs/site/`) → one table by item id, deduped across parts, each part's "Showing N results" line kept, the price label (Exact, Asking, No Price Set, and a fourth, "Price with Note:"), amount, the site's currency word, the note verbatim, the age, and the channel — a stash row links the profile, a forum row its thread. `examples/listing-report.rs`: the `ListingReport` `acq price list --json` renders, unredacted, to stdout (the join key is the id), kept under `runs/`. `tools/site-join.py`: the join under a reason list fixed before it ran; two reasons it found (`socketed`, `stackable`) were added with the run, and the doc says so. The pages of 2026-09-08: 551 rows, none shared between parts, 547 stash and 4 forum, all verified, one account; the store the same day (the run ledger's refresh): 20,941 items, 757 the state expects on the site. **Q11 answered:** every stash row is from a tab whose `metadata.public` is true; the 13 non-public priced tabs (1,121 items) put nothing there — C81's premise holds, and note 15's 8888 finding was the flag set after the 09-07 listing (the 09-08 facts hold it public). 532 agree, 20,180 absent on both; 15 differ; 4 site-only, the forum rows; 210 state-only; one row no reason explains. **No difference changes what a page does** — the render omits what the game lists at whatever price, blocks a socketed item (T13), and posts nothing the site shows — so each is an observation with its trigger or a claim for the owner ("What the site taught"). | `reference/site-listings-2026-09-08.json` (the table; the pages stay in `runs/`); the tools; the join's output is reproducible from the two |
+| Pricing | plan 7.5 the site as the oracle | `df248a17` | `tools/site-listings.py`: the owner's saved pages (rendered DOM, eight parts, `runs/site/`) → one table by item id, deduped across parts, each part's "Showing N results" line kept, the price label (Exact, Asking, No Price Set, and a fourth, "Price with Note:"), amount, the site's currency word, the note verbatim, the age, and the channel — a stash row links the profile, a forum row its thread. `examples/listing-report.rs`: the `ListingReport` `acq price list --json` renders, unredacted, to stdout (the join key is the id), kept under `runs/`. `tools/site-join.py`: the join under a reason list fixed before it ran; two reasons it found (`socketed`, `stackable`) were added with the run, and the doc says so. The pages of 2026-09-08: 551 item-search rows, none shared between parts, 547 stash and 4 forum, all verified, one account, and a ninth page, the bulk exchange, 8 offers (read the same evening, `HASH3`); the store the same day (the run ledger's refresh): 20,941 items, 757 the state expects on the site. **Q11 answered:** every stash row is from a tab whose `metadata.public` is true; the 13 non-public priced tabs (1,121 items) put nothing there — C81's premise holds, and note 15's 8888 finding was the flag set after the 09-07 listing (the 09-08 facts hold it public). 535 agree, 20,180 absent on both; 15 differ; 9 site-only, the forum rows; 207 state-only; one row no reason explains. **No difference changes what a page does today** — the render omits what the game lists at whatever price, blocks a socketed item (T13), and posts nothing the site shows — with one narrow candidate the exchange page raised (point 2): a manual row on an exchange-eligible stack in a ratio-named public tab would post a price the exchange contradicts. Each is an observation with its trigger or a claim for the owner ("What the site taught"). | `reference/site-listings-2026-09-08.json` (the table; the pages stay in `runs/`); the tools; the join's output is reproducible from the two |
 | Pricing | plan 7 gate | `04993ca5` | **Found by the bare gate at session close:** the store's C35 export race test failed one run in twelve — on the pre-session store code too — with both exports refused. An export's partial file was named by pid and the clock's nanoseconds; two threads within one tick (microseconds on macOS) shared the name, one `VACUUM INTO` failed on the other's file and its cleanup removed that file before it was published. A per-process counter joins the name; thirty runs after, none failed. | `simultaneous_exports_to_one_destination_publish_exactly_one` (`annotations.rs`) |
 
 ## Findings
@@ -426,18 +426,25 @@ master-side (`docs/design/trade-ground-truth.md`; never from here).
    did any of the 114 other residue notes. C81 stands on it. Claim: the
    seller-account search shows a stash item only from a public premium
    tab; a priced name on a non-public tab reaches nothing [RUN, 09-08].
-2. **A ratio in a public tab's name lists nothing** (T11 at scale): the
-   two public tabs `~b/o 5000/2 chaos` (56 items) and `~price 1000/2
-   chaos` (70) show two rows, both items with their own `~price 1999
-   chaos` note — so a valid note lists inside a tab whose name is
-   invalid (half of Q2: the note beats an invalid name; a valid name
-   against a note is still unread). Our state calls the other 122
-   "public, the tab applies, no statement", which reads as "listed as
-   No Price Set" and is not so; the render is right either way (nothing
-   applies, or a row posts what the site does not show). Trigger: a
-   consumer that reads "public and no statement" as listed — a count
-   surfaced as such, a feed. Claim: T11 confirmed for 124 items and the
-   note exception.
+2. **A ratio in a public tab's name lists nothing on the item search
+   and offers the tab's exchange-eligible stacks on the bulk exchange**
+   (T11 corrected, T2 confirmed for a tab name): the two public tabs
+   `~b/o 5000/2 chaos` (56 items) and `~price 1000/2 chaos` (70) show
+   two item-search rows, both items with their own `~price 1999 chaos`
+   note (the note beats an invalid name), and the exchange page offers
+   the first tab's Infused Engineer's Orbs and Tailoring Orb as "2 for
+   5000 chaos" — `wanted/lot` read as T2 says, under `~b/o` too (half
+   of Q6). Its two Vials are offered nowhere: not exchange-eligible
+   (Q10's list). Our state calls all 122 "public, the tab applies, no
+   statement". For the 120 that are not stacks the render is right
+   either way (nothing applies, or a row posts what the site does not
+   show). For a stack the site offers, a manual row would post a forum
+   price against a standing exchange offer — the contradiction C74
+   forbids, for a case the owner has not created. Without Q10's list
+   the safe render rule is a blocked cell: a stack in a ratio-named
+   public tab is "the exchange may list this", counted, never posted.
+   Trigger: a manual row on such a stack. Claims: the two surfaces of a
+   ratio name; `~b/o` with a ratio accepted in a tab name.
 3. **A socketed item is not listed on its own**: 107 gems in sockets of
    items in public tabs, none on the site — 32 in `3.15 Bane
    Pathfinder`, 26 in `3.10 ED/C Trickster`, 24 in the 8888 tab (where
@@ -445,15 +452,20 @@ master-side (`docs/design/trade-ground-truth.md`; never from here).
    The render blocks them (T13, `socketed`); the listing state counts
    them as the game's. Trigger: the same count consumer. Claim: the site
    indexes a socketed item with its host, never as a listing.
-4. **A currency-class stack is not in the item search**: eight stacks
-   the state expects — Scrolls of Wisdom (one carrying `~b/o 1.5
-   divine`, the test tab's second `~b/o`), a Runegraft, Valdo's Puzzle
-   Box, two Vials, a Tailoring Orb, an Infused Engineer's Orb, and an
-   Omen (frame type 5, no stack size; the join reads it `unlisted_since`
-   since the report carries no frame type) — absent. The bulk exchange
-   (T2, T3) is their surface and was not captured. Trigger: the owner
-   prices currency. Claim: the item search omits exchange-eligible
-   stacks.
+4. **A currency-class stack is not in the item search; a priced one is
+   on the bulk exchange**: eight stacks the state expects are absent
+   from the search — Scrolls of Wisdom (one carrying `~b/o 1.5 divine`,
+   the test tab's second `~b/o`), a Runegraft, Valdo's Puzzle Box, two
+   Vials, a Tailoring Orb, an Infused Engineer's Orb, and an Omen (frame
+   type 5, no stack size; the join reads it `unlisted_since` since the
+   report carries no frame type). The exchange page (read the same
+   evening) offers the noted scroll at 1.5 divine with **stock 40** —
+   its 21 plus the 8888 tab's unpriced stack of 19: T3 confirmed, stock
+   counts every public stack of the type, priced or not — and the two
+   ratio-tab stacks (point 2); the five unpriced stacks in unpriced
+   tabs and the two Vials are offered nowhere. Trigger: the owner prices
+   currency. Claims: the search omits stacks; the exchange offers the
+   priced ones; the stock count.
 5. **The site reads a price out of a note with trailing text**: `~price
    777 chaos testing` on Memory Vault in the 8888 tab shows "Price with
    Note: 777 chaos" — a fourth label beside Exact, Asking and No Price
@@ -465,14 +477,18 @@ master-side (`docs/design/trade-ground-truth.md`; never from here).
    (`c69_a_tab_name_tolerates_trailing_text_and_a_note_does_not`); it
    touches C69's mechanism, and T17 stays true of the dialog. Owner's
    call (question 6). Trigger, if parked: a consumer reading a noted
-   item's effective price. Claim: the label and the reading.
+   item's effective price. Claim: the label and the reading. The same
+   row answers Q2 for one case: the tab's price is valid (8888) and the
+   site shows the note's (777) — a note beats a valid tab name, the
+   order C69 took from the C++ code; the clean-note case is the
+   experiment below.
 6. **`facetors` is a word the site does not read**: `~price 999
    facetors`, written by the game's own dialog (the price-notes corpus),
    lists as "No Price Set". T16's loose matching has a hole where the
    game's word and the site's differ wholly. The page is unchanged (the
-   game lists it, at no price). Proposed for the table's `facetors` row,
-   for the owner to commit (C68): a `browser:` evidence line saying so.
-   Claim: the word and the date.
+   game lists it, at no price). Owner, 2026-09-08: a bug, reported to
+   GGG, unlikely to change before the next release, and a currency
+   nobody prices in — ignored; the table's row stays as it is.
 7. **Eight words the site spells differently and resolves**:
    `excep-ember`, `grand-ember`, `greater-ember`, `lesser-ember`,
    `excep-echor`, `grand-echor`, `greater-echor`, `lesser-echor` list at
@@ -487,18 +503,23 @@ master-side (`docs/design/trade-ground-truth.md`; never from here).
    two threads, all "Asking Price" (the owner's hand posts of the
    reading-2 shape), "listed last month" and "2 months ago" though the
    posts are days old — the site dates a forum listing by something
-   other than the post. T8 and T12 at four rows; the manual side holds
-   no row for them, as expected of hand posts. No claim yet.
+   other than the post. The exchange page shows the forum's other face:
+   five stacks of the same non-public tab (four Runegrafts and the
+   Wombgift, which is on both pages) offered at 4321 blessed each. T8
+   and T12 at nine rows; the manual side holds no row for them, as
+   expected of hand posts. No claim yet.
 10. **One row no reason explains**: Lethal Pride (a Timeless Jewel,
     unique, item level 86) in the 8888 tab — not socketed, not a stack,
     the tab public and 32 of its neighbours listed — has no row on the
-    site. Left as it is.
-11. **Coverage**: the union is 551 rows against the owner's "560
-    matched" read off the form on 09-07; the saved DOM carries no
-    matched count, and the 8888 tab was set public between the two
-    days. The arithmetic closes: 547 stash rows = 532 agree + 15 differ;
-    757 expected = 547 + 210 state-only; 210 = 93 ratio-tab items + 107
-    socketed + 8 stacks + 2 (the Omen, Lethal Pride).
+    site. The owner searched the site for it by hand the same evening:
+    listed nowhere. Left as it is.
+11. **Coverage**: the item search's union is 551 rows against the
+    owner's "560 matched" read off the form on 09-07; the saved DOM
+    carries no matched count, and the 8888 tab was set public between
+    the two days. The arithmetic closes: 547 stash rows = 532 agree + 15
+    differ; the exchange's 8 offers = 3 agree + 5 forum; 757 expected =
+    547 + 3 + 207 state-only; 207 = 93 ratio-tab items + 107 socketed +
+    5 stacks + 2 (the Omen, Lethal Pride).
 
 ## Observations still open
 
