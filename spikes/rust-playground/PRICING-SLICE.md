@@ -154,6 +154,10 @@ shop thread and read back on the trade site.
   character item among them (T7); a no-price item is listed under an
   empty title (T21); a hand price beats the public tab's name (T12).
   Step 6's done criterion, in the owner's words.
+- The page's shape, the owner's verdict at the slice's close
+  (2026-09-09, verbatim): "I approve of the page format." Whether the
+  coverage, stale and positions lines changed what the owner did was
+  not said; the render keeps them until a reading says otherwise.
 - First pass, verbatim: "Q3: the web stash view doesn't allow me to
   select items from map or unique stashes at all" (T20, so the substash
   cell is blocked on an observation, not a question); "Q5: items linked
@@ -292,9 +296,6 @@ data for the next slice that touches it.
 - **2.** C73 parked as "a 0.18 user asks": pricing is niche, but the
   0.18 import is a product question for other users, not only yours.
   Park stands unless you say otherwise.
-- **5.** Still owed from the page reading: your verdict on the page,
-  verbatim, with whether the coverage, stale and positions lines
-  changed what you did.
 
 ## Process used
 
