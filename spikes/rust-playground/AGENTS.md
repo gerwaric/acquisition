@@ -35,8 +35,8 @@ Then, only when the work touches it:
 - Before reading, citing or fetching a surface GGG does not sanction (the
   trade site, the forums, feeds): `SURFACES.md`, the register under C79 —
   a fetch by tooling needs the permission its row records.
-- Before touching pricing: `PRICING-SLICE.md` (the open record: findings,
-  the census, questions for the owner).
+- Before touching pricing: `PRICING-SLICE.md` (the closed record; its
+  findings table is the review checklist for a pricing change).
 - Before touching an area, its decisions and what it has parked: `decisions/daemon.md` (daemon,
   jobs, protocol, accounts), `decisions/network.md` (limiter, gate, rails,
   OAuth traffic), `decisions/store.md` (ingest, facts, realm, characters),
