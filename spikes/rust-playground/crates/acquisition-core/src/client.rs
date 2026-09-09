@@ -336,18 +336,22 @@ impl Client {
     /// was listening.
     pub async fn stop_any() -> Result<Option<DaemonId>> {
         match UnixStream::connect(socket_path()).await {
-            Ok(stream) => {
-                let mut client = Client::handshake(stream).await?;
-                match client.request(&Request::DaemonStop).await? {
-                    Response::Stopping => Ok(Some(client.daemon)),
-                    Response::Error { message } => {
-                        bail!("{} refused to stop: {message}", client.daemon)
-                    }
-                    other => bail!("unexpected response to stop: {other:?}"),
-                }
-            }
+            Ok(stream) => Client::stop_over(stream).await.map(Some),
             Err(e) if is_absent(&e) => Ok(None),
             Err(e) => Err(e).with_context(|| format!("connecting to {}", socket_path().display())),
+        }
+    }
+
+    /// The stop conversation over an open connection: identify the peer,
+    /// ask it to stop, and count only its `Stopping` as a stop.
+    async fn stop_over(stream: UnixStream) -> Result<DaemonId> {
+        let mut client = Client::handshake(stream).await?;
+        match client.request(&Request::DaemonStop).await? {
+            Response::Stopping => Ok(client.daemon),
+            Response::Error { message } => {
+                bail!("{} refused to stop: {message}", client.daemon)
+            }
+            other => bail!("unexpected response to stop: {other:?}"),
         }
     }
 
@@ -531,5 +535,70 @@ mod tests {
             text.contains("another provider") && !text.contains("another build"),
             "{text}"
         );
+    }
+
+    /// A scripted peer on a scratch socket: answers the handshake as a
+    /// daemon would, then answers the stop request with `reply` — or
+    /// hangs up when `reply` is `None`.
+    async fn peer_that_answers_stop_with(reply: Option<Response>) -> UnixStream {
+        let dir = std::env::temp_dir().join(format!("acq-stop-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        static N: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+        let n = N.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let path = dir.join(format!("{n}.sock"));
+        let _ = std::fs::remove_file(&path);
+        let listener = tokio::net::UnixListener::bind(&path).unwrap();
+        let peer_path = path.clone();
+        tokio::spawn(async move {
+            let (stream, _) = listener.accept().await.unwrap();
+            let (read, mut write) = stream.into_split();
+            let mut lines = BufReader::new(read).lines();
+            let _hello = lines.next_line().await.unwrap().unwrap();
+            let hello = Response::Hello {
+                daemon_version: VERSION_WITH_BUILD.to_string(),
+                pid: 7,
+                provider: "mock".into(),
+            };
+            let mut line = serde_json::to_string(&hello).unwrap();
+            line.push('\n');
+            write.write_all(line.as_bytes()).await.unwrap();
+            let _stop = lines.next_line().await.unwrap().unwrap();
+            if let Some(reply) = reply {
+                let mut line = serde_json::to_string(&reply).unwrap();
+                line.push('\n');
+                write.write_all(line.as_bytes()).await.unwrap();
+            }
+            // Dropping `write` hangs up either way.
+            let _ = std::fs::remove_file(&peer_path);
+        });
+        UnixStream::connect(&path).await.unwrap()
+    }
+
+    /// The defect of review round 1: a stop that the peer refuses, answers
+    /// strangely, or drops must never come back as a stop. Only
+    /// `Stopping` counts.
+    #[tokio::test]
+    async fn a_stop_the_daemon_did_not_acknowledge_is_not_a_stop() {
+        let stream = peer_that_answers_stop_with(Some(Response::Error {
+            message: "busy".into(),
+        }))
+        .await;
+        let err = Client::stop_over(stream).await.unwrap_err().to_string();
+        assert!(
+            err.contains("refused to stop") && err.contains("busy"),
+            "{err}"
+        );
+
+        let stream = peer_that_answers_stop_with(Some(Response::Ack)).await;
+        let err = Client::stop_over(stream).await.unwrap_err().to_string();
+        assert!(err.contains("unexpected response to stop"), "{err}");
+
+        let stream = peer_that_answers_stop_with(None).await;
+        let err = Client::stop_over(stream).await.unwrap_err().to_string();
+        assert!(err.contains("closed the connection"), "{err}");
+
+        let stream = peer_that_answers_stop_with(Some(Response::Stopping)).await;
+        let stopped = Client::stop_over(stream).await.unwrap();
+        assert_eq!(stopped.pid, 7);
     }
 }
