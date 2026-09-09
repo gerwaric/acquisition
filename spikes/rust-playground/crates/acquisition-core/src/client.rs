@@ -1,30 +1,77 @@
 //! Client side of the daemon protocol: connect, lazy-spawn, version handshake.
 //!
-//! Every frontend (CLI, MCP, GUI) reaches the daemon through this module; the
-//! difference between them is the `ConnectOptions` policy. The interactive CLI
-//! kills and respawns a version- or provider-mismatched daemon because its
-//! caller is the human expressing intent. An autonomous client (the MCP
-//! server) must never do that — a mismatch could be a live GGG daemon under
-//! the rails — so it reports the mismatch and stops.
+//! Every frontend (CLI, MCP, GUI) reaches the daemon through this module,
+//! by one of three doors — the policy tiers of C10:
+//!
+//! - **Use** — [`Client::connect`] with a [`ConnectOptions`]: the verb is
+//!   about to submit work. The interactive CLI spawns as asked and replaces
+//!   a mismatched daemon, because its caller is the human expressing
+//!   intent (`ConnectOptions::interactive`); an autonomous client (the MCP
+//!   server) spawns only into an empty socket in mock mode and never
+//!   replaces — the mismatch it sees may be a human's live GGG run
+//!   (`ConnectOptions::autonomous`).
+//! - **Observe** — [`Client::observe`]: the verb reads the daemon (`jobs`,
+//!   `status`, `result`, `auth status`, `daemon status`, a quote) or acts
+//!   on the one that is there (`cancel`, `set-priority`, `reset-tripwire`).
+//!   It takes no options because there is nothing to allow: it never
+//!   spawns or replaces, and it answers [`Observed::Absent`], a
+//!   [`Observed::Compatible`] client, or the [`DaemonId`] of an
+//!   [`Observed::Incompatible`] daemon it identified and did not use.
+//! - **Stop** — [`Client::stop_any`]: `daemon stop` stops whatever is
+//!   listening, this build's or not. Stopping is how a human resolves a
+//!   mismatch, so it is the one verb that acts on a daemon it would not use.
+//!
+//! `ACQ_NO_SPAWN=1` turns every use door into an observation.
 //!
 //! # Decisions as recorded
 //!
 //! The rulings are the decision registry — `decisions/daemon.md` for this
-//! area, `CONTEXT.md` for the cross-cutting ones (`C<n>`); what follows is each
-//! entry's full text as recorded there, moved here on 2026-09-02 because
-//! the mechanism it describes is this module's. The registry is current;
-//! this is the mechanism as decided, kept beside the code that implements it.
+//! area, `CONTEXT.md` for the cross-cutting ones (`C<n>`); what follows is
+//! the entry's full text as recorded there, kept beside the code that
+//! implements it. The registry is current; this is the mechanism as
+//! decided and as built.
 //!
 //! ## C10 — Version handshake in the protocol; the protocol is single-version on purpose.
 //!
-//! **Version handshake in the protocol; the protocol is single-version on purpose.** Kill-and-respawn is the entire migration mechanism — no deprecation, no compat matrix. The stamp compared is the **build** (`VERSION_WITH_BUILD`: package version + git commit), not the package version: the latter is fixed at `0.0.1` across the playground, and comparing it let a daemon from an older commit serve a newer client silently (review finding 2026-09-02: a pre-realm daemon accepted a console job and rendered the pc URL). A `-dirty` stamp is the same for any dirty tree — the standing rule "never rebuild under a live daemon" covers it. Replacing is the *interactive CLI's* policy only (`ConnectOptions::interactive` — the caller is the human expressing intent); an autonomous client (MCP) never kills or replaces a daemon: the mismatch it sees may be a human's live GGG run, so it reports and stops (`ConnectOptions::autonomous`, `client.rs`). Known caveat, accepted: two frontends built from different commits would thrash by respawning each other's daemons — theoretical in a one-workspace playground, recorded so it isn't relearned live. Rationale: CLI and running daemon may be from different builds; three frontends with a compat matrix is the reconciliation swamp, three frontends with respawn is a one-line diff. Amended 2026-08-30 (autonomous policy).
+//! **Version handshake in the protocol; the protocol is single-version on
+//! purpose.** Kill-and-respawn is the entire migration mechanism. A client
+//! uses a daemon only when its provider and runtime identity match the
+//! runtime it would itself spawn. That identity changes automatically with
+//! the daemon and protocol implementation it governs; it never derives from
+//! Git state or a hand-maintained compatibility number. A use verb may
+//! replace a mismatch; observation never spawns or replaces and reports
+//! absence, identity mismatch, and provider mismatch distinctly; an
+//! autonomous client (MCP) never replaces. *Why:* a compat matrix is the
+//! reconciliation swamp; respawn is a one-line diff; an observer that
+//! replaced cost a live run (2026-09-08). Amended 2026-09-09.
 //!
-//! ## C10 — Accepted residual (2026-09-01)
+//! ## C10 — as built
 //!
-//! Accepted residual: no process-level mismatched-daemon test; the
-//! structural connect-options pin covers lifecycle safety (the quote path
-//! never spawns or replaces a daemon).
+//! The identity compared is still [`VERSION_WITH_BUILD`] (package version
+//! plus the git commit `build.rs` injects); the identity the ruling names,
+//! derived from the runtime's own sources rather than from git, is
+//! unbuilt. The package version alone is fixed at `0.0.1` across the
+//! playground, and comparing it let a pre-realm daemon accept a console
+//! job and render the pc URL (review finding 2026-09-02). The provider is the handshake's `provider` against
+//! what this process wants (`ACQ_GGG`). The two dimensions are reported
+//! together ([`DaemonId::report`]) because both can differ at once. While
+//! the identity is the git stamp, two frontends built from different
+//! commits would thrash by respawning each other's daemons — theoretical in
+//! a one-workspace playground, recorded so it isn't relearned live.
+//!
+//! The trap the observe tier closes (ledger row 2026-09-08): `acq daemon
+//! status` typed in a second terminal without `ACQ_GGG` connected under the
+//! interactive policy, replaced the live daemon with a mock one on the
+//! default socket, and the driver's next daemon refused to start over it.
+//! Every observational verb of both frontends now goes through
+//! [`Client::observe`]; the interactive `ConnectOptions` reach only the
+//! verbs that submit work.
+//!
+//! Accepted residual: the identity dimension has no process-level test (one
+//! binary per test run); the provider dimension takes the same path and is
+//! pinned through the binaries in `acquisition-cli/tests/daemon_observe.rs`.
 
+use std::fmt;
 use std::time::Duration;
 
 use crate::VERSION_WITH_BUILD;
@@ -32,40 +79,28 @@ use crate::daemon::{log_path, socket_path};
 use crate::job::JobInfo;
 use crate::protocol::{Request, Response};
 use anyhow::{Context, Result, bail};
+use serde::Serialize;
+use serde_json::json;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, Lines};
 use tokio::net::UnixStream;
 use tokio::net::unix::{OwnedReadHalf, OwnedWriteHalf};
 
-/// Whether a connect failure is simply "nothing is listening" — the
-/// socket absent or refusing — as opposed to a handshake, mismatch, or
-/// protocol problem worth reporting in full. Frontends that promise to
-/// spend nothing (`--plan`, the MCP's `refresh_plan`) print one plain
-/// line for this case instead of an OS error string.
-pub fn is_no_daemon(e: &anyhow::Error) -> bool {
-    e.chain().any(|cause| {
-        cause.downcast_ref::<std::io::Error>().is_some_and(|io| {
-            matches!(
-                io.kind(),
-                std::io::ErrorKind::NotFound | std::io::ErrorKind::ConnectionRefused
-            )
-        })
-    })
-}
-
-/// What this client is allowed to do to a daemon that isn't the one it wants.
-/// `ACQ_NO_SPAWN=1` overrides both flags to false.
+/// What a *use* verb may do to a daemon that isn't the one it wants.
+/// `ACQ_NO_SPAWN=1` overrides both flags to false. Observation takes no
+/// options: [`Client::observe`].
 #[derive(Clone, Copy, Debug)]
 pub struct ConnectOptions {
     /// Start a daemon if none is listening (lazy spawn, via the calling
     /// binary's own `daemon run`).
     pub spawn: bool,
-    /// Kill and respawn a daemon whose version or provider doesn't match.
+    /// Kill and respawn a daemon whose identity or provider doesn't match.
     pub replace: bool,
 }
 
 impl ConnectOptions {
-    /// The interactive CLI's policy: the caller is the human, so replacing a
-    /// wrong-version or wrong-mode daemon is them expressing intent.
+    /// The interactive CLI's policy for a use verb: the caller is the
+    /// human, so replacing a wrong-build or wrong-mode daemon is them
+    /// expressing intent.
     pub fn interactive(spawn: bool) -> Self {
         Self {
             spawn,
@@ -84,42 +119,128 @@ impl ConnectOptions {
     }
 }
 
+/// "ggg" or "mock": the provider this process wants a daemon to serve.
+fn want_provider() -> &'static str {
+    if crate::provider::ggg_mode() {
+        "ggg"
+    } else {
+        "mock"
+    }
+}
+
+/// A daemon as its handshake identifies it. Whether it is this client's
+/// is two dimensions, reported together (C10): the runtime identity and
+/// the provider.
+#[derive(Clone, Debug, Serialize)]
+pub struct DaemonId {
+    pub pid: u32,
+    /// The daemon's `VERSION_WITH_BUILD`.
+    pub version: String,
+    /// "mock" or "ggg".
+    pub provider: String,
+}
+
+impl DaemonId {
+    /// The daemon runs the same runtime this process would spawn.
+    pub fn identity_matches(&self) -> bool {
+        self.version == VERSION_WITH_BUILD
+    }
+
+    /// The daemon serves the provider this process wants.
+    pub fn provider_matches(&self) -> bool {
+        self.provider == want_provider()
+    }
+
+    /// Both dimensions match: this client may use the daemon.
+    pub fn is_ours(&self) -> bool {
+        self.identity_matches() && self.provider_matches()
+    }
+
+    /// The observer's report, one shape for every frontend: the daemon
+    /// found, what this process wanted, and which dimensions differ.
+    pub fn report(&self) -> serde_json::Value {
+        json!({
+            "pid": self.pid,
+            "version": self.version,
+            "provider": self.provider,
+            "identity_matches": self.identity_matches(),
+            "provider_matches": self.provider_matches(),
+            "wanted": { "version": VERSION_WITH_BUILD, "provider": want_provider() },
+        })
+    }
+}
+
+impl fmt::Display for DaemonId {
+    /// The mismatch sentence an observer prints: which dimensions differ,
+    /// with both sides of each.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "daemon (pid {})", self.pid)?;
+        match (self.identity_matches(), self.provider_matches()) {
+            (true, true) => write!(f, " is this client's ({}, {})", self.version, self.provider),
+            (false, true) => write!(
+                f,
+                " is another build ({}; this is {VERSION_WITH_BUILD})",
+                self.version
+            ),
+            (true, false) => write!(
+                f,
+                " is on another provider ({}; this process wants {})",
+                self.provider,
+                want_provider()
+            ),
+            (false, false) => write!(
+                f,
+                " is another build ({}; this is {VERSION_WITH_BUILD}) on another provider ({}; this process wants {})",
+                self.version,
+                self.provider,
+                want_provider()
+            ),
+        }
+    }
+}
+
+/// What [`Client::observe`] found on the socket.
+pub enum Observed {
+    /// Nothing is listening.
+    Absent,
+    /// The daemon is this client's, and this is a connection to it.
+    Compatible(Client),
+    /// A daemon that is not this client's: identified, reported, not used.
+    Incompatible(DaemonId),
+}
+
 pub struct Client {
     lines: Lines<BufReader<OwnedReadHalf>>,
     write: OwnedWriteHalf,
-    /// "mock" or "ggg", as the daemon reported in its handshake.
-    provider: String,
+    /// The daemon at the other end, as its handshake identified it.
+    daemon: DaemonId,
 }
 
 fn no_spawn() -> bool {
     std::env::var_os("ACQ_NO_SPAWN").is_some_and(|v| v == "1")
 }
 
-/// Whether a daemon's handshake makes it this client's daemon: the same
-/// build stamp (package version + git commit — a daemon from another
-/// commit is stale, whatever its package version says) and the provider
-/// this process wants.
-fn handshake_matches(daemon_version: &str, provider: &str, want_provider: &str) -> bool {
-    daemon_version == VERSION_WITH_BUILD && provider == want_provider
+/// A connect failure that means nothing is listening — the socket absent
+/// or refusing — as opposed to a transport problem worth reporting.
+fn is_absent(e: &std::io::Error) -> bool {
+    matches!(
+        e.kind(),
+        std::io::ErrorKind::NotFound | std::io::ErrorKind::ConnectionRefused
+    )
 }
 
 impl Client {
-    /// Connect to the daemon, spawning or replacing one as `opts` allows.
-    /// A version or provider mismatch this client may not resolve (a
-    /// mock-mode daemon can't serve an `ACQ_GGG=1` client, or vice versa)
-    /// is an error naming the daemon it found.
+    /// Connect to the daemon for a *use* verb, spawning or replacing one as
+    /// `opts` allows. A mismatch this client may not resolve (a mock-mode
+    /// daemon can't serve an `ACQ_GGG=1` client, or vice versa) is an error
+    /// naming the daemon it found.
     pub async fn connect(opts: ConnectOptions) -> Result<Client> {
-        let want_provider = if crate::provider::ggg_mode() {
-            "ggg"
-        } else {
-            "mock"
-        };
         // `ACQ_NO_SPAWN=1`: never start or replace a daemon from this
         // process. A daemon spawned from a non-interactive parent (cron,
         // launchd) has no keychain access on macOS — it comes up with no
         // session and every job fails "not logged in" (re-soak, 2026-08-25,
-        // caught by rail 7). The soak script sets this so cron can only
-        // talk to a daemon a person started.
+        // caught by rail 7). The live drivers set this so their scripts can
+        // only talk to a daemon they started themselves.
         let spawn = opts.spawn && !no_spawn();
         let replace = opts.replace && !no_spawn();
         let mut respawned = false;
@@ -130,28 +251,13 @@ impl Client {
         for _attempt in 0..100 {
             match UnixStream::connect(socket_path()).await {
                 Ok(stream) => {
-                    let mut client = Client::from_stream(stream);
-                    let hello = client
-                        .request(&Request::Hello {
-                            client_version: VERSION_WITH_BUILD.to_string(),
-                        })
-                        .await?;
-                    let Response::Hello {
-                        daemon_version,
-                        pid,
-                        provider,
-                    } = hello
-                    else {
-                        bail!("unexpected handshake response: {hello:?}");
-                    };
-                    if handshake_matches(&daemon_version, &provider, want_provider) {
-                        client.provider = provider;
+                    let mut client = Client::handshake(stream).await?;
+                    if client.daemon.is_ours() {
                         return Ok(client);
                     }
+                    let found = &client.daemon;
                     if respawned {
-                        bail!(
-                            "daemon (pid {pid}) still reports version {daemon_version} / provider {provider} after respawn; wanted {VERSION_WITH_BUILD} / {want_provider}"
-                        );
+                        bail!("{found}, still, after a respawn");
                     }
                     if !replace {
                         let why = if no_spawn() {
@@ -159,9 +265,7 @@ impl Client {
                         } else {
                             "this client never replaces a daemon — resolve it with the CLI (`acq daemon stop`)"
                         };
-                        bail!(
-                            "daemon (pid {pid}) reports version {daemon_version} / provider {provider}; wanted {VERSION_WITH_BUILD} / {want_provider}, and {why}"
-                        );
+                        bail!("{found}, and {why}");
                     }
                     // Stale daemon (older build, or wrong mode): kill and respawn.
                     let _ = client.request(&Request::DaemonStop).await;
@@ -206,18 +310,82 @@ impl Client {
         )
     }
 
-    fn from_stream(stream: UnixStream) -> Client {
+    /// Observe the socket (C10): never spawns or replaces. Nothing
+    /// listening is [`Observed::Absent`]; this client's daemon comes back
+    /// connected; any other daemon is identified and reported, and the
+    /// connection to it is dropped unused.
+    pub async fn observe() -> Result<Observed> {
+        match UnixStream::connect(socket_path()).await {
+            Ok(stream) => {
+                let client = Client::handshake(stream).await?;
+                Ok(if client.daemon.is_ours() {
+                    Observed::Compatible(client)
+                } else {
+                    Observed::Incompatible(client.daemon)
+                })
+            }
+            Err(e) if is_absent(&e) => Ok(Observed::Absent),
+            Err(e) => Err(e).with_context(|| format!("connecting to {}", socket_path().display())),
+        }
+    }
+
+    /// `daemon stop`: ask whatever daemon is listening to stop, this
+    /// client's or not — stopping is how a human resolves a mismatch. Says
+    /// which daemon it asked; `None` when nothing was listening.
+    pub async fn stop_any() -> Result<Option<DaemonId>> {
+        match UnixStream::connect(socket_path()).await {
+            Ok(stream) => {
+                let mut client = Client::handshake(stream).await?;
+                let _ = client.request(&Request::DaemonStop).await;
+                Ok(Some(client.daemon))
+            }
+            Err(e) if is_absent(&e) => Ok(None),
+            Err(e) => Err(e).with_context(|| format!("connecting to {}", socket_path().display())),
+        }
+    }
+
+    /// The handshake over a fresh connection: who is at the other end.
+    /// Decides nothing — the caller reads `daemon` and applies its policy.
+    async fn handshake(stream: UnixStream) -> Result<Client> {
         let (read, write) = stream.into_split();
-        Client {
+        let mut client = Client {
             lines: BufReader::new(read).lines(),
             write,
-            provider: String::new(),
-        }
+            daemon: DaemonId {
+                pid: 0,
+                version: String::new(),
+                provider: String::new(),
+            },
+        };
+        let hello = client
+            .request(&Request::Hello {
+                client_version: VERSION_WITH_BUILD.to_string(),
+            })
+            .await?;
+        let Response::Hello {
+            daemon_version,
+            pid,
+            provider,
+        } = hello
+        else {
+            bail!("unexpected handshake response: {hello:?}");
+        };
+        client.daemon = DaemonId {
+            pid,
+            version: daemon_version,
+            provider,
+        };
+        Ok(client)
+    }
+
+    /// The daemon this client reached, as its handshake identified it.
+    pub fn daemon(&self) -> &DaemonId {
+        &self.daemon
     }
 
     /// "mock" or "ggg", from the handshake of the daemon this client reached.
     pub fn provider(&self) -> &str {
-        &self.provider
+        &self.daemon.provider
     }
 
     /// Send a request and return the next non-event response. Events arriving
@@ -319,17 +487,42 @@ fn startup_log_excerpt(log_from: u64) -> String {
 mod tests {
     use super::*;
 
-    /// The handshake compares the build stamp, not the package version:
-    /// a daemon reporting the bare `0.0.1` (every build before this
-    /// check, and every other commit's build) is stale and gets replaced
-    /// rather than silently serving a client whose job vocabulary it
-    /// does not know.
+    fn id(version: &str, provider: &str) -> DaemonId {
+        DaemonId {
+            pid: 42,
+            version: version.into(),
+            provider: provider.into(),
+        }
+    }
+
+    /// C10: the handshake compares the build stamp, not the package
+    /// version — a daemon reporting the bare `0.0.1` (every build before
+    /// this check, and every other commit's build) is not this client's —
+    /// and the provider is a second dimension, reported with the first.
+    /// The tests run without `ACQ_GGG`, so "mock" is the wanted provider.
     #[test]
-    fn a_daemon_from_another_build_is_not_this_clients_daemon() {
-        assert!(handshake_matches(VERSION_WITH_BUILD, "mock", "mock"));
-        assert!(!handshake_matches(VERSION_WITH_BUILD, "ggg", "mock"));
-        assert!(!handshake_matches(crate::VERSION, "mock", "mock"));
-        assert!(!handshake_matches("0.0.1 (deadbeef)", "mock", "mock"));
+    fn a_daemon_from_another_build_or_provider_is_not_this_clients_daemon() {
+        assert!(id(VERSION_WITH_BUILD, "mock").is_ours());
+        assert!(!id(VERSION_WITH_BUILD, "ggg").is_ours());
+        assert!(!id(crate::VERSION, "mock").is_ours());
+        assert!(!id("0.0.1 (deadbeef)", "mock").is_ours());
         assert!(VERSION_WITH_BUILD.contains(crate::BUILD));
+
+        let both = id("0.0.1 (deadbeef)", "ggg");
+        assert!(!both.identity_matches() && !both.provider_matches());
+        let report = both.report();
+        assert_eq!(report["identity_matches"], false);
+        assert_eq!(report["provider_matches"], false);
+        assert_eq!(report["wanted"]["provider"], "mock");
+        let text = both.to_string();
+        assert!(
+            text.contains("another build") && text.contains("another provider"),
+            "{text}"
+        );
+        let text = id(VERSION_WITH_BUILD, "ggg").to_string();
+        assert!(
+            text.contains("another provider") && !text.contains("another build"),
+            "{text}"
+        );
     }
 }

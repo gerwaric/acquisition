@@ -10,7 +10,7 @@ mod store_cmd;
 use std::io::{IsTerminal as _, Write as _};
 use std::time::{Duration, Instant};
 
-use acquisition_core::client::{Client, ConnectOptions};
+use acquisition_core::client::{Client, ConnectOptions, Observed};
 use acquisition_core::daemon;
 use acquisition_core::job::{JobInfo, JobState, Outcome};
 use acquisition_core::protocol::{Request, Response};
@@ -31,10 +31,24 @@ fn parse_realm(s: &str) -> Result<Realm, String> {
     })
 }
 
-/// The CLI's connect policy: lazy-spawn as asked, and replace a version- or
-/// provider-mismatched daemon — the caller is the human expressing intent.
+/// A use verb's connect (C10): lazy-spawn as asked, and replace a
+/// build- or provider-mismatched daemon — the caller is the human
+/// expressing intent.
 pub(crate) async fn connect(spawn: bool) -> Result<Client> {
     Client::connect(ConnectOptions::interactive(spawn)).await
+}
+
+/// The running daemon, for a verb that observes it or acts on it (C10):
+/// never spawns or replaces. Absence and a mismatch are errors that say
+/// which; `daemon status` renders the same observation as states.
+pub(crate) async fn attach() -> Result<Client> {
+    match Client::observe().await? {
+        Observed::Compatible(client) => Ok(client),
+        Observed::Absent => bail!("daemon is not running (it spawns on demand for job commands)"),
+        Observed::Incompatible(found) => bail!(
+            "{found}; `acq daemon stop` stops it, a job command (`acq profile`, `acq refresh --apply`) replaces it"
+        ),
+    }
 }
 
 #[derive(Parser)]
@@ -513,11 +527,13 @@ enum AuthCmd {
 enum DaemonCmd {
     /// pid, build, provider, uptime, connections, queue counts, policies
     /// learned, the socket, log and journal paths, the rails state,
-    /// keyring health. The log holds a refused start's reason; a lazy
-    /// spawn that dies prints the log's new lines instead of timing out.
+    /// keyring health. Observes only (C10): never spawns or replaces; a
+    /// daemon of another build or provider is reported and left running
+    /// (`--json`: running, compatible, and which of the two differs).
     Status,
-    /// Stop the daemon. Queued jobs stay on disk and resume under the next
-    /// one (C6); a client's jobs are never cancelled by its leaving (C27).
+    /// Stop the daemon that is listening, this build's or another's.
+    /// Queued jobs stay on disk and resume under the next one (C6); a
+    /// client's jobs are never cancelled by its leaving (C27).
     Stop,
     /// Clear the live-test rails' tripwire/ceiling halt (see LIVE-TESTING.md).
     /// Observe the post-violation rule before using this.
@@ -565,7 +581,7 @@ async fn run(cli: Cli) -> Result<()> {
         Cmd::Auth { cmd, no_browser } => match cmd {
             None => login(no_browser, cli.json).await,
             Some(AuthCmd::Status) => {
-                let mut client = connect(false).await?;
+                let mut client = attach().await?;
                 let status = client.request(&Request::AuthStatus).await?;
                 print_auth(&status, cli.json)?;
                 if !cli.json {
@@ -592,7 +608,7 @@ async fn run(cli: Cli) -> Result<()> {
                 }
             }
             Some(AuthCmd::Logout) => {
-                let mut client = connect(false).await?;
+                let mut client = attach().await?;
                 let account = ACCOUNT.get().cloned().flatten();
                 client
                     .expect_ack(&Request::AuthLogout {
@@ -871,7 +887,7 @@ async fn run(cli: Cli) -> Result<()> {
         }
         Cmd::Dash => dash::run(cli.json).await,
         Cmd::Jobs { watch } => {
-            let mut client = connect(false).await?;
+            let mut client = attach().await?;
             let jobs = list(&mut client).await?;
             if cli.json {
                 println!("{}", serde_json::to_string_pretty(&jobs)?);
@@ -896,7 +912,7 @@ async fn run(cli: Cli) -> Result<()> {
             Ok(())
         }
         Cmd::Status { id } => {
-            let mut client = connect(false).await?;
+            let mut client = attach().await?;
             let job = client.status(id).await?;
             if cli.json {
                 println!("{}", serde_json::to_string_pretty(&job)?);
@@ -906,11 +922,11 @@ async fn run(cli: Cli) -> Result<()> {
             Ok(())
         }
         Cmd::Result { id } => {
-            let mut client = connect(false).await?;
+            let mut client = attach().await?;
             print_result(&mut client, id, cli.json).await
         }
         Cmd::Cancel { id } => {
-            let mut client = connect(false).await?;
+            let mut client = attach().await?;
             client.expect_ack(&Request::Cancel { id }).await?;
             if cli.json {
                 println!("{}", json!({ "job_id": id, "cancel_requested": true }));
@@ -920,7 +936,7 @@ async fn run(cli: Cli) -> Result<()> {
             Ok(())
         }
         Cmd::SetPriority { id, priority } => {
-            let mut client = connect(false).await?;
+            let mut client = attach().await?;
             client
                 .expect_ack(&Request::SetPriority { id, priority })
                 .await?;
@@ -934,9 +950,11 @@ async fn run(cli: Cli) -> Result<()> {
         Cmd::Daemon { cmd } => match cmd {
             DaemonCmd::Run => daemon::run().await,
             DaemonCmd::Status => {
-                let mut client = match connect(false).await {
-                    Ok(c) => c,
-                    Err(_) => {
+                // An observation (C10): absent, this build's, or another
+                // daemon reported and left alone — never spawned or replaced.
+                let mut client = match Client::observe().await? {
+                    Observed::Compatible(c) => c,
+                    Observed::Absent => {
                         if cli.json {
                             println!("{}", json!({ "running": false }));
                         } else {
@@ -944,10 +962,28 @@ async fn run(cli: Cli) -> Result<()> {
                         }
                         return Ok(());
                     }
+                    Observed::Incompatible(found) => {
+                        if cli.json {
+                            let mut report = found.report();
+                            report["running"] = json!(true);
+                            report["compatible"] = json!(false);
+                            println!("{}", serde_json::to_string_pretty(&report)?);
+                        } else {
+                            println!("{found} — running, not this client's");
+                            println!("socket: {}", daemon::socket_path().display());
+                            println!(
+                                "next:   `acq daemon stop` stops it; a job command (`acq profile`, `acq refresh --apply`) replaces it"
+                            );
+                        }
+                        return Ok(());
+                    }
                 };
                 let status = client.request(&Request::DaemonStatus).await?;
                 if cli.json {
-                    println!("{}", serde_json::to_string_pretty(&status)?);
+                    let mut report = serde_json::to_value(&status)?;
+                    report["running"] = json!(true);
+                    report["compatible"] = json!(true);
+                    println!("{}", serde_json::to_string_pretty(&report)?);
                 } else if let Response::DaemonStatus {
                     pid,
                     version,
@@ -995,8 +1031,8 @@ async fn run(cli: Cli) -> Result<()> {
                 Ok(())
             }
             DaemonCmd::ResetTripwire => {
-                match connect(false).await {
-                    Ok(mut client) => {
+                match Client::observe().await? {
+                    Observed::Compatible(mut client) => {
                         let resp = client.request(&Request::ResetTripwire).await?;
                         if cli.json {
                             println!("{}", serde_json::to_string_pretty(&resp)?);
@@ -1004,7 +1040,12 @@ async fn run(cli: Cli) -> Result<()> {
                             println!("rails reset");
                         }
                     }
-                    Err(_) => {
+                    // Another daemon holds its rails in memory; clearing the
+                    // file under it would not reset anything. Stop it first.
+                    Observed::Incompatible(found) => {
+                        bail!("{found}; `acq daemon stop` first")
+                    }
+                    Observed::Absent => {
                         // The trip lives on disk; clear it there so the next
                         // spawned daemon is not still halted.
                         let provider = if acquisition_core::provider::ggg_mode() {
@@ -1044,16 +1085,28 @@ async fn run(cli: Cli) -> Result<()> {
                 Ok(())
             }
             DaemonCmd::Stop => {
-                match connect(false).await {
-                    Ok(mut client) => {
-                        let _ = client.request(&Request::DaemonStop).await;
+                // Stops this build's daemon or any other (C10): stopping is
+                // how a mismatch is resolved by hand.
+                match Client::stop_any().await? {
+                    Some(found) => {
                         if cli.json {
-                            println!("{}", json!({ "stopped": true }));
+                            println!(
+                                "{}",
+                                json!({
+                                    "stopped": true,
+                                    "pid": found.pid,
+                                    "version": found.version,
+                                    "provider": found.provider,
+                                    "compatible": found.is_ours(),
+                                })
+                            );
+                        } else if found.is_ours() {
+                            println!("daemon stopped (pid {})", found.pid);
                         } else {
-                            println!("daemon stopped");
+                            println!("stopped: {found}");
                         }
                     }
-                    Err(_) => {
+                    None => {
                         if cli.json {
                             println!("{}", json!({ "stopped": false, "running": false }));
                         } else {

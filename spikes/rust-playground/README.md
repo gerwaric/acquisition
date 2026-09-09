@@ -103,9 +103,10 @@ on stdout with exit 1 (C11). `--account <username|name|uuid>` picks the
 account when several are logged in (C51).
 
 `ACQ_GGG=1` on the command that spawns the daemon selects the real
-provider, under the existing registration (invariant 4); the CLI
-replaces a daemon in the other mode or from another build (C10), and
-mock and real refresh tokens are separate keyring entries. The rule is
+provider, under the existing registration (invariant 4); a job command
+replaces a daemon in the other mode or from another build, an observing
+verb (`jobs`, `status`, `daemon status`) reports it and never does (C10),
+and mock and real refresh tokens are separate keyring entries. The rule is
 `LIVE-TESTING.md`; the procedure is the live-run skill; the refresh loop
 under the rails is `tools/tracer-rung.sh`.
 

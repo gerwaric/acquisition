@@ -118,7 +118,7 @@
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
-use acquisition_core::client::{Client, ConnectOptions, is_no_daemon};
+use acquisition_core::client::{Client, Observed};
 use acquisition_core::job::Outcome;
 use acquisition_core::protocol::{Quote, QuoteJob, QuoteScope, Request, Response};
 use acquisition_core::realm::Realm;
@@ -536,20 +536,14 @@ fn check_plan_applies(
 /// offline plan from printing.
 const QUOTE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
 
-/// The quote path's connection policy: never spawn, never replace. A
-/// version- or provider-mismatched daemon may be a human's live GGG run,
-/// and `--plan` promises to spend nothing — the interactive policy's
-/// kill-and-respawn is a spend, because the successor resumes the
-/// persisted queue. Same rationale as the MCP server's rule.
-fn quote_connect_options() -> ConnectOptions {
-    ConnectOptions::autonomous(false)
-}
-
 /// Best-effort enrichment: ask a *running* daemon to quote the plan's
 /// actions (read-only, non-reserving) and attach it. The plan is
-/// computable with the daemon down, so no daemon is spawned, replaced,
-/// or waited on past [`QUOTE_TIMEOUT`] for this; the plan goes out
-/// unquoted with the reason instead.
+/// computable with the daemon down, so this is an observation (C10,
+/// `Client::observe`: it cannot spawn or replace — a mismatched daemon
+/// may be a human's live GGG run, and `--plan` promises to spend nothing;
+/// the interactive policy's kill-and-respawn is a spend, because the
+/// successor resumes the persisted queue) and is never waited on past
+/// [`QUOTE_TIMEOUT`]; the plan goes out unquoted with the reason instead.
 async fn try_quote(plan: RefreshPlan) -> (RefreshPlan, Option<String>) {
     try_quote_within(plan, QUOTE_TIMEOUT).await
 }
@@ -583,15 +577,14 @@ async fn try_quote_within(
         })
         .collect();
     let attempt = async {
-        let mut client = Client::connect(quote_connect_options())
-            .await
-            .map_err(|e| {
-                if is_no_daemon(&e) {
-                    NO_DAEMON_NOTE.to_string()
-                } else {
-                    format!("no quote: {e:#} — plan compiled offline")
-                }
-            })?;
+        let mut client = match Client::observe().await {
+            Ok(Observed::Compatible(client)) => client,
+            Ok(Observed::Absent) => return Err(NO_DAEMON_NOTE.to_string()),
+            Ok(Observed::Incompatible(found)) => {
+                return Err(format!("no quote: {found} — plan compiled offline"));
+            }
+            Err(e) => return Err(format!("no quote: {e:#} — plan compiled offline")),
+        };
         client
             .quote(jobs, Some(account))
             .await
@@ -1770,17 +1763,6 @@ mod tests {
         // The reviewed revision, when it still stands, is replaceable.
         let third = write_policy(&mut a, &example(), Some(held.revision)).unwrap();
         assert_eq!(third.revision, 3);
-    }
-
-    #[test]
-    fn the_quote_path_never_spawns_or_replaces_a_daemon() {
-        // The P-scale property behind "spends nothing": the interactive
-        // policy's kill-and-respawn is a spend (the successor resumes the
-        // persisted queue), so the quote connection must be the
-        // autonomous, no-spawn one.
-        let opts = quote_connect_options();
-        assert!(!opts.spawn, "the quote path must not spawn a daemon");
-        assert!(!opts.replace, "the quote path must not replace a daemon");
     }
 
     /// A plan with no store behind it, for exercising the quote attempt.

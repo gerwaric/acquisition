@@ -721,8 +721,8 @@ Debugging only — normal use never needs manual lifecycle
 Usage: acq daemon [OPTIONS] <COMMAND>
 
 Commands:
-  status          pid, build, provider, uptime, connections, queue counts, policies learned, the socket, log and journal paths, the rails state, keyring health. The log holds a refused start's reason; a lazy spawn that dies prints the log's new lines instead of timing out
-  stop            Stop the daemon. Queued jobs stay on disk and resume under the next one (C6); a client's jobs are never cancelled by its leaving (C27)
+  status          pid, build, provider, uptime, connections, queue counts, policies learned, the socket, log and journal paths, the rails state, keyring health. Observes only (C10): never spawns or replaces; a daemon of another build or provider is reported and left running (`--json`: running, compatible, and which of the two differs)
+  stop            Stop the daemon that is listening, this build's or another's. Queued jobs stay on disk and resume under the next one (C6); a client's jobs are never cancelled by its leaving (C27)
   reset-tripwire  Clear the live-test rails' tripwire/ceiling halt (see LIVE-TESTING.md). Observe the post-violation rule before using this
   run             Run the daemon in the foreground (what lazy-spawn execs)
   help            Print this message or the help of the given subcommand(s)
@@ -734,7 +734,7 @@ Options:
 ## `acq daemon status`
 
 ```text
-pid, build, provider, uptime, connections, queue counts, policies learned, the socket, log and journal paths, the rails state, keyring health. The log holds a refused start's reason; a lazy spawn that dies prints the log's new lines instead of timing out
+pid, build, provider, uptime, connections, queue counts, policies learned, the socket, log and journal paths, the rails state, keyring health. Observes only (C10): never spawns or replaces; a daemon of another build or provider is reported and left running (`--json`: running, compatible, and which of the two differs)
 
 Usage: acq daemon status [OPTIONS]
 
@@ -745,7 +745,7 @@ Options:
 ## `acq daemon stop`
 
 ```text
-Stop the daemon. Queued jobs stay on disk and resume under the next one (C6); a client's jobs are never cancelled by its leaving (C27)
+Stop the daemon that is listening, this build's or another's. Queued jobs stay on disk and resume under the next one (C6); a client's jobs are never cancelled by its leaving (C27)
 
 Usage: acq daemon stop [OPTIONS]
 

@@ -47,7 +47,7 @@
 
 use std::path::PathBuf;
 
-use acquisition_core::client::{Client, ConnectOptions, is_no_daemon};
+use acquisition_core::client::{Client, ConnectOptions, Observed};
 use acquisition_core::protocol::{QuoteJob, Request, Response};
 use acquisition_core::realm::Realm;
 use acquisition_plan::{PlanError, RefreshPlan, plan_refresh, put_sync_policy};
@@ -138,15 +138,12 @@ async fn try_quote(plan: RefreshPlan) -> (RefreshPlan, Option<String>) {
         })
         .collect();
     let attempt = async {
-        let mut client = Client::connect(ConnectOptions::autonomous(false))
-            .await
-            .map_err(|e| {
-                if is_no_daemon(&e) {
-                    "no daemon running".to_string()
-                } else {
-                    format!("{e:#}")
-                }
-            })?;
+        let mut client = match Client::observe().await {
+            Ok(Observed::Compatible(client)) => client,
+            Ok(Observed::Absent) => return Err("no daemon running".to_string()),
+            Ok(Observed::Incompatible(found)) => return Err(found.to_string()),
+            Err(e) => return Err(format!("{e:#}")),
+        };
         client
             .quote(jobs, Some(account))
             .await
@@ -171,12 +168,25 @@ async fn try_quote(plan: RefreshPlan) -> (RefreshPlan, Option<String>) {
     }
 }
 
-/// Connect to the daemon under the autonomous policy: never kill or
+/// A spending tool's connect, under the autonomous policy: never kill or
 /// replace; lazy-spawn only in mock mode (spawning a real-GGG daemon is
 /// the human's act, via the CLI).
 async fn connect(spawn: bool) -> Result<Client> {
     let spawn = spawn && !acquisition_core::provider::ggg_mode();
     Client::connect(ConnectOptions::autonomous(spawn)).await
+}
+
+/// The running daemon, for a tool that observes it or acts on it (C10):
+/// never spawns or replaces; absence and a mismatch are errors that say
+/// which.
+async fn attach() -> Result<Client> {
+    match Client::observe().await? {
+        Observed::Compatible(client) => Ok(client),
+        Observed::Absent => anyhow::bail!("no daemon running"),
+        Observed::Incompatible(found) => anyhow::bail!(
+            "{found}; this server never replaces a daemon — resolve it with the CLI (`acq daemon stop`)"
+        ),
+    }
 }
 
 /// A `realm` tool parameter: pc when omitted (as on the wire), else one
@@ -594,7 +604,7 @@ impl AcqMcp {
 
     #[tool(description = "Jobs the daemon knows about this lifetime, with states and ETAs.")]
     async fn list_jobs(&self) -> Result<Json<Value>, ErrorData> {
-        let mut client = connect(false).await.map_err(err)?;
+        let mut client = attach().await.map_err(err)?;
         match client.request(&Request::List).await.map_err(err)? {
             Response::Jobs { jobs } => serde_json::to_value(jobs)
                 .map(Json)
@@ -613,7 +623,7 @@ impl AcqMcp {
         &self,
         Parameters(p): Parameters<JobParams>,
     ) -> Result<Json<Value>, ErrorData> {
-        let mut client = connect(false).await.map_err(err)?;
+        let mut client = attach().await.map_err(err)?;
         let job = client.status(p.id).await.map_err(err)?;
         serde_json::to_value(job)
             .map(Json)
@@ -627,7 +637,7 @@ impl AcqMcp {
         &self,
         Parameters(p): Parameters<JobParams>,
     ) -> Result<Json<Value>, ErrorData> {
-        let mut client = connect(false).await.map_err(err)?;
+        let mut client = attach().await.map_err(err)?;
         match client
             .request(&Request::Result { id: p.id })
             .await
@@ -649,7 +659,7 @@ impl AcqMcp {
         &self,
         Parameters(p): Parameters<JobParams>,
     ) -> Result<Json<Value>, ErrorData> {
-        let mut client = connect(false).await.map_err(err)?;
+        let mut client = attach().await.map_err(err)?;
         client
             .expect_ack(&Request::Cancel { id: p.id })
             .await
@@ -658,23 +668,24 @@ impl AcqMcp {
     }
 
     #[tool(
-        description = "Daemon vitals: provider, uptime, queue depths, rate-limit policies learned, rails state. Reports running=false if no daemon is up."
+        description = "Daemon vitals: provider, uptime, queue depths, rate-limit policies learned, rails state. Observes only: running=false when no daemon is up; running=true, compatible=false for a daemon of another build or provider, which this server reports and never replaces."
     )]
     async fn daemon_status(&self) -> Result<Json<Value>, ErrorData> {
-        let mut client = match connect(false).await {
-            Ok(c) => c,
-            // A failed socket connect is "no daemon". Anything else — a
-            // version/provider mismatch this client refuses to resolve —
-            // must surface, not read as "not running".
-            Err(e) if e.downcast_ref::<std::io::Error>().is_some() => {
-                return Ok(Json(json!({ "running": false })));
+        let mut client = match Client::observe().await.map_err(err)? {
+            Observed::Compatible(c) => c,
+            Observed::Absent => return Ok(Json(json!({ "running": false }))),
+            Observed::Incompatible(found) => {
+                let mut report = found.report();
+                report["running"] = json!(true);
+                report["compatible"] = json!(false);
+                return Ok(Json(report));
             }
-            Err(e) => return Err(err(e)),
         };
         let resp = client.request(&Request::DaemonStatus).await.map_err(err)?;
-        serde_json::to_value(resp)
-            .map(Json)
-            .map_err(|e| err(e.into()))
+        let mut report = serde_json::to_value(resp).map_err(|e| err(e.into()))?;
+        report["running"] = json!(true);
+        report["compatible"] = json!(true);
+        Ok(Json(report))
     }
 }
 
