@@ -110,11 +110,13 @@ fn c10_observation_never_spawns_or_replaces_and_reports_the_mismatch() {
     let out = acq(&base, &["daemon", "status", "--json"]);
     assert!(out.status.success(), "{out:?}");
     assert_eq!(sole_json(&out), serde_json::json!({ "running": false }));
-    let out = acq(&base, &["jobs", "--json"]);
-    assert_eq!(out.status.code(), Some(1), "{out:?}");
-    let msg = sole_json(&out)["error"].as_str().unwrap().to_string();
-    assert!(msg.contains("not running"), "{msg}");
-    assert!(!socket.exists(), "an observation spawned a daemon");
+    for args in [&["jobs", "--json"][..], &["dash", "--json"][..]] {
+        let out = acq(&base, args);
+        assert_eq!(out.status.code(), Some(1), "{args:?}: {out:?}");
+        let msg = sole_json(&out)["error"].as_str().unwrap().to_string();
+        assert!(msg.contains("not running"), "{args:?}: {msg}");
+        assert!(!socket.exists(), "{args:?} spawned a daemon");
+    }
 
     // A mock daemon is up. A shell that wants ggg observes it: reported
     // as running and incompatible on the provider dimension alone, with
@@ -139,9 +141,13 @@ fn c10_observation_never_spawns_or_replaces_and_reports_the_mismatch() {
     );
     assert!(shown.contains("acq daemon stop"), "{shown}");
 
-    // A reading verb and an acting verb from that shell refuse with the
-    // same report; nothing is replaced.
-    for args in [&["jobs", "--json"][..], &["cancel", "1", "--json"][..]] {
+    // Reading verbs (the dashboard included) and an acting verb from that
+    // shell refuse with the same report; nothing is replaced.
+    for args in [
+        &["jobs", "--json"][..],
+        &["dash", "--json"][..],
+        &["cancel", "1", "--json"][..],
+    ] {
         let out = acq_wanting_ggg(&base, args);
         assert_eq!(out.status.code(), Some(1), "{args:?}: {out:?}");
         let msg = sole_json(&out)["error"].as_str().unwrap().to_string();

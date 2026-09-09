@@ -2,7 +2,8 @@
 //!
 //! Pure client: polls the daemon a few times a second and renders what comes
 //! back. All state lives daemon-side, so closing the dashboard changes
-//! nothing, and several dashboards can watch the same daemon.
+//! nothing, and several dashboards can watch the same daemon. An
+//! observation (C10): it never spawns or replaces the daemon it watches.
 
 use std::io::IsTerminal as _;
 use std::time::Duration;
@@ -19,7 +20,7 @@ use ratatui::style::{Style, Stylize as _};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Cell, Paragraph, Row, Table, Wrap};
 
-use crate::connect;
+use crate::attach;
 use acquisition_core::client::Client;
 
 const POLL: Duration = Duration::from_millis(250);
@@ -61,7 +62,7 @@ struct Snap {
 }
 
 pub async fn run(json: bool) -> Result<()> {
-    let mut client = connect(true).await?;
+    let mut client = attach().await?;
     if json {
         let resp = client.request(&Request::Dashboard).await?;
         println!("{}", serde_json::to_string_pretty(&resp)?);

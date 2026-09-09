@@ -331,13 +331,20 @@ impl Client {
 
     /// `daemon stop`: ask whatever daemon is listening to stop, this
     /// client's or not — stopping is how a human resolves a mismatch. Says
-    /// which daemon it asked; `None` when nothing was listening.
+    /// which daemon acknowledged (the daemon writes `Stopping` before it
+    /// exits; anything else is an error, not a stop); `None` when nothing
+    /// was listening.
     pub async fn stop_any() -> Result<Option<DaemonId>> {
         match UnixStream::connect(socket_path()).await {
             Ok(stream) => {
                 let mut client = Client::handshake(stream).await?;
-                let _ = client.request(&Request::DaemonStop).await;
-                Ok(Some(client.daemon))
+                match client.request(&Request::DaemonStop).await? {
+                    Response::Stopping => Ok(Some(client.daemon)),
+                    Response::Error { message } => {
+                        bail!("{} refused to stop: {message}", client.daemon)
+                    }
+                    other => bail!("unexpected response to stop: {other:?}"),
+                }
             }
             Err(e) if is_absent(&e) => Ok(None),
             Err(e) => Err(e).with_context(|| format!("connecting to {}", socket_path().display())),
