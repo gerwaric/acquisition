@@ -463,3 +463,13 @@ manifests and lock"; after the split, "daemon artifact plus protocol
 revision". **Approved by the owner 2026-09-09** ("I approve the text"), with the
 trim that drops the closing "(history in git)": 794 bytes. It lands with
 the observe-policy commit.
+
+## 8. Landed
+
+The three commits of §7 landed on 2026-09-09 as `0db28a8c` (observe
+tier), `5c8d88cc` (runtime revision) and `2ead8172` (shared preflight,
+`provenance.json`), with two external review rounds on each of the first
+two fixed in the commits between; the range's `git log` is the story and
+nothing restates it. C3's spawn sentence and the standing rule's "Build
+before you run" bullet were approved by the owner the same day and say
+so. The split is framed in `17-framing-the-daemon-split.md`.
