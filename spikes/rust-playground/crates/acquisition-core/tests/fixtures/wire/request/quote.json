@@ -1,0 +1,13 @@
+{
+  "account": "Alice#1234",
+  "jobs": [
+    {
+      "kind": "stash",
+      "params": {
+        "id": "t1",
+        "league": "Standard"
+      }
+    }
+  ],
+  "req": "quote"
+}

@@ -501,7 +501,7 @@ The live jobs: id, parent, kind, target (from params, C7), state (`↻n` counts 
 Usage: acq jobs [OPTIONS]
 
 Options:
-      --watch              Stay subscribed and print job-state-changed events as they happen
+      --watch              Subscribe, print the queue, then every job-state change as it happens; the queue is printed again after a missed-events signal (C85), and the watch ends when the daemon stops
   -h, --help               Print help
 ```
 

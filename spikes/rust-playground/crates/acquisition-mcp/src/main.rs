@@ -47,8 +47,8 @@
 
 use std::path::PathBuf;
 
-use acquisition_core::client::{Client, ConnectOptions, Observed};
-use acquisition_core::protocol::{QuoteJob, Request, Response};
+use acquisition_core::client::{Client, ConnectOptions, DaemonError, Observed};
+use acquisition_core::protocol::{ErrorKind, QuoteJob, Request, Response};
 use acquisition_core::realm::Realm;
 use acquisition_plan::{PlanError, RefreshPlan, plan_refresh, put_sync_policy};
 use acquisition_store::{
@@ -71,8 +71,33 @@ fn provider() -> &'static str {
 }
 
 /// anyhow errors become MCP tool errors with the full context chain.
+/// An error for the MCP client. A daemon refusal anywhere in the chain
+/// becomes [`daemon_error`], so the closed kind reaches the agent.
 fn err(e: anyhow::Error) -> ErrorData {
-    ErrorData::internal_error(format!("{e:#}"), None)
+    match DaemonError::find(&e) {
+        Some(refusal) => daemon_error(refusal.kind, format!("{e:#}")),
+        None => ErrorData::internal_error(format!("{e:#}"), None),
+    }
+}
+
+/// A daemon refusal as a JSON-RPC error (C85): the code follows the kind
+/// — the request was wrong (`invalid_request`), its parameters were
+/// (`invalid_params`), it named nothing (`resource_not_found`), or the
+/// daemon could not serve it (`internal_error`) — and the kind itself
+/// rides in `data` so an agent can branch on the closed set.
+fn daemon_error(kind: ErrorKind, message: String) -> ErrorData {
+    let data = Some(json!({ "kind": kind }));
+    match kind {
+        ErrorKind::BadRequest => ErrorData::invalid_request(message, data),
+        ErrorKind::Refused | ErrorKind::AmbiguousAccount | ErrorKind::WrongState => {
+            ErrorData::invalid_params(message, data)
+        }
+        ErrorKind::UnknownJob => ErrorData::resource_not_found(message, data),
+        ErrorKind::NotLoggedIn
+        | ErrorKind::QueueFailed
+        | ErrorKind::Upstream
+        | ErrorKind::Internal => ErrorData::internal_error(message, data),
+    }
 }
 
 /// Open one account's store file, resolved against the non-secret index —
@@ -564,7 +589,7 @@ impl AcqMcp {
                 "job_id": id,
                 "requests": plan.logical_requests,
             }))),
-            Response::Error { message } => Err(ErrorData::internal_error(message, None)),
+            Response::Error { kind, message } => Err(daemon_error(kind, message)),
             other => Err(ErrorData::internal_error(
                 format!("unexpected response: {other:?}"),
                 None,
@@ -594,7 +619,7 @@ impl AcqMcp {
             .map_err(err)?;
         match resp {
             Response::Submitted { id } => Ok(Json(json!({ "job_id": id }))),
-            Response::Error { message } => Err(ErrorData::internal_error(message, None)),
+            Response::Error { kind, message } => Err(daemon_error(kind, message)),
             other => Err(ErrorData::internal_error(
                 format!("unexpected response: {other:?}"),
                 None,
@@ -646,7 +671,7 @@ impl AcqMcp {
             Response::Result { outcome, .. } => serde_json::to_value(outcome)
                 .map(Json)
                 .map_err(|e| err(e.into())),
-            Response::Error { message } => Err(ErrorData::internal_error(message, None)),
+            Response::Error { kind, message } => Err(daemon_error(kind, message)),
             other => Err(ErrorData::internal_error(
                 format!("unexpected response: {other:?}"),
                 None,

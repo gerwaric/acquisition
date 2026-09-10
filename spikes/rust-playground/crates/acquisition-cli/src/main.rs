@@ -10,7 +10,9 @@ mod store_cmd;
 use std::io::{IsTerminal as _, Write as _};
 use std::time::{Duration, Instant};
 
-use acquisition_core::client::{Client, ConnectOptions, Observed};
+use acquisition_core::client::{
+    Client, ConnectOptions, DaemonError, Observed, Signal, Subscription,
+};
 use acquisition_core::daemon;
 use acquisition_core::job::{JobInfo, JobState, Outcome};
 use acquisition_core::protocol::{Request, Response};
@@ -252,7 +254,9 @@ is the per-location summary.")]
     /// The live jobs: id, parent, kind, target (from params, C7), state
     /// (`↻n` counts 429 re-queues, C26), priority, account, submitter, ETA.
     Jobs {
-        /// Stay subscribed and print job-state-changed events as they happen.
+        /// Subscribe, print the queue, then every job-state change as it
+        /// happens; the queue is printed again after a missed-events signal
+        /// (C85), and the watch ends when the daemon stops.
         #[arg(long)]
         watch: bool,
     },
@@ -573,7 +577,13 @@ async fn main() {
     if let Err(e) = run(cli).await {
         if e.downcast_ref::<AlreadyReported>().is_none() {
             if json {
-                println!("{}", json!({ "error": format!("{e:#}") }));
+                // A daemon refusal carries its closed kind beside the
+                // message (C85; additive under C53).
+                let mut report = json!({ "error": format!("{e:#}") });
+                if let Some(refusal) = DaemonError::find(&e) {
+                    report["kind"] = json!(refusal.kind);
+                }
+                println!("{report}");
             } else {
                 eprintln!("Error: {e:#}");
             }
@@ -604,7 +614,10 @@ async fn run(cli: Cli) -> Result<()> {
                 let mut client = connect(true).await?;
                 let account = ACCOUNT.get().cloned().flatten();
                 match client.request(&Request::AuthCheck { account }).await? {
-                    Response::Error { message } => bail!("auth check failed: {message}"),
+                    Response::Error { kind, message } => {
+                        Err(anyhow::Error::from(DaemonError { kind, message })
+                            .context("auth check failed"))
+                    }
                     status => {
                         if !cli.json {
                             println!("session verified (live token round-trip succeeded)");
@@ -907,27 +920,15 @@ async fn run(cli: Cli) -> Result<()> {
             Ok(())
         }
         Cmd::Jobs { watch } => {
+            if watch {
+                return watch_jobs(cli.json).await;
+            }
             let mut client = attach().await?;
             let jobs = list(&mut client).await?;
             if cli.json {
                 println!("{}", serde_json::to_string_pretty(&jobs)?);
             } else {
                 print_table(&jobs);
-            }
-            if watch {
-                match client.request(&Request::Subscribe).await? {
-                    Response::Subscribed => {}
-                    other => bail!("unexpected response: {other:?}"),
-                }
-                loop {
-                    if let Response::Event { job } = client.recv().await? {
-                        if cli.json {
-                            println!("{}", serde_json::to_string(&job)?);
-                        } else {
-                            println!("job {:>3}  {:<8} -> {}", job.id, job.kind, job.state);
-                        }
-                    }
-                }
             }
             Ok(())
         }
@@ -1146,7 +1147,7 @@ async fn login(no_browser: bool, json: bool) -> Result<()> {
     let mut client = connect(true).await?;
     let url = match client.request(&Request::AuthStart).await? {
         Response::AuthUrl { authorize_url } => authorize_url,
-        Response::Error { message } => bail!("{message}"),
+        Response::Error { kind, message } => return Err(DaemonError { kind, message }.into()),
         other => bail!("unexpected response: {other:?}"),
     };
     if json {
@@ -1277,7 +1278,7 @@ async fn submit(
         .await?
     {
         Response::Submitted { id } => Ok(id),
-        Response::Error { message } => bail!("{message}"),
+        Response::Error { kind, message } => Err(DaemonError { kind, message }.into()),
         other => bail!("unexpected response: {other:?}"),
     }
 }
@@ -1286,6 +1287,55 @@ async fn list(client: &mut Client) -> Result<Vec<JobInfo>> {
     match client.request(&Request::List).await? {
         Response::Jobs { jobs } => Ok(jobs),
         other => bail!("unexpected response: {other:?}"),
+    }
+}
+
+/// `jobs --watch`: the subscriber's sequence under C85, as the reference
+/// consumer. Subscribe first, then take the snapshot over a request
+/// connection (a job that changes between the two is an event, never a
+/// gap); print every event as it comes; on `resync_required` print the
+/// snapshot again; when the daemon goes, observe it again — an observer
+/// never spawns — and subscribe and snapshot afresh if it is back.
+async fn watch_jobs(json: bool) -> Result<()> {
+    let print_snapshot = |jobs: &[JobInfo]| -> Result<()> {
+        if json {
+            println!("{}", serde_json::to_string_pretty(jobs)?);
+        } else {
+            print_table(jobs);
+        }
+        Ok(())
+    };
+    loop {
+        let mut subscription = match Subscription::observe().await? {
+            Observed::Compatible(subscription) => subscription,
+            Observed::Absent => bail!("daemon stopped (it spawns on demand for job commands)"),
+            Observed::Incompatible(found) => bail!("{found}"),
+        };
+        let mut client = attach().await?;
+        print_snapshot(&list(&mut client).await?)?;
+        loop {
+            match subscription.next().await? {
+                Some(Signal::Event(job)) => {
+                    if json {
+                        println!("{}", serde_json::to_string(&job)?);
+                    } else {
+                        println!("job {:>3}  {:<8} -> {}", job.id, job.kind, job.state);
+                    }
+                }
+                Some(Signal::ResyncRequired { missed }) => {
+                    if !json {
+                        println!("missed {missed} event(s); re-reading");
+                    }
+                    print_snapshot(&list(&mut client).await?)?;
+                }
+                None => {
+                    if !json {
+                        println!("daemon went away; watching for it");
+                    }
+                    break;
+                }
+            }
+        }
     }
 }
 
@@ -1330,7 +1380,7 @@ pub(crate) async fn wait_for_job(client: &mut Client, id: u64, quiet: bool) -> R
             }
             return match client.request(&Request::Result { id }).await? {
                 Response::Result { outcome, .. } => Ok(outcome),
-                Response::Error { message } => bail!("{message}"),
+                Response::Error { kind, message } => Err(DaemonError { kind, message }.into()),
                 other => bail!("unexpected response: {other:?}"),
             };
         }
@@ -1511,7 +1561,7 @@ pub(crate) async fn report_apply(client: &mut Client, id: u64, outcome: &Outcome
 async fn print_result(client: &mut Client, id: u64, json: bool) -> Result<()> {
     let outcome = match client.request(&Request::Result { id }).await? {
         Response::Result { outcome, .. } => outcome,
-        Response::Error { message } => bail!("{message}"),
+        Response::Error { kind, message } => return Err(DaemonError { kind, message }.into()),
         other => bail!("unexpected response: {other:?}"),
     };
     if json {

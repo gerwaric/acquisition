@@ -79,20 +79,81 @@
 //! Accepted residual: the identity dimension has no process-level test (one
 //! binary per test run); the provider dimension takes the same path and is
 //! pinned through the binaries in `acquisition-cli/tests/daemon_observe.rs`.
+//!
+//! ## C85 — Connection semantics, as built on this side
+//!
+//! The ruling is recorded in full on `protocol.rs`. Here: every connection
+//! opens with the bootstrap `hello` exchange ([`Client::handshake`]),
+//! written and read as [`Bootstrap`]/[`BootstrapReply`] frames outside the
+//! versioned enums, so a daemon of any revision is identified — a frame
+//! this build cannot read fully still yields a [`DaemonId`] reported as
+//! another runtime — and `stop_any` works across the same mismatch. A
+//! [`Client`] is a request connection: [`Client::request`] takes `&mut
+//! self`, writes one frame and reads exactly one, so one request is in
+//! flight by construction; an `event` or `resync_required` frame arriving
+//! there is a protocol violation and an error. A [`Subscription`] is a
+//! connection of its own — hello, `subscribe`/`subscribed`, then
+//! [`Subscription::next`] only — with no way to send a request on it; it
+//! yields [`Signal::Event`], [`Signal::ResyncRequired`] with the count the
+//! daemon dropped, and `None` when the daemon is gone. The subscriber's
+//! sequence (subscribe, then snapshot over a `Client`, re-read on every
+//! event, subscribe and snapshot again after `resync_required` or a
+//! disconnect) is the consumer's — `acq jobs --watch` is the reference.
+//! Both sides read a frame no further than
+//! [`crate::protocol::MAX_FRAME_BYTES`]; an answer over it is reported,
+//! and the connection stays aligned on the next frame. A daemon error is
+//! a [`DaemonError`] carrying the closed [`ErrorKind`] beside its message,
+//! so a frontend's JSON can carry the kind (`acq --json`: `{"error", "kind"}`)
+//! and the MCP server can pick its error code from it.
 
 use std::fmt;
 use std::time::Duration;
 
 use crate::VERSION_WITH_RUNTIME;
 use crate::daemon::{log_path, socket_path};
+use crate::frame::{Frame, read_frame};
 use crate::job::JobInfo;
-use crate::protocol::{Request, Response};
+use crate::protocol::{
+    Bootstrap, BootstrapReply, ErrorKind, MAX_FRAME_BYTES, Request, Response, error_message,
+};
 use anyhow::{Context, Result, bail};
 use serde::Serialize;
 use serde_json::json;
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, Lines};
+use tokio::io::{AsyncWriteExt, BufReader};
 use tokio::net::UnixStream;
 use tokio::net::unix::{OwnedReadHalf, OwnedWriteHalf};
+
+/// A request the daemon refused, as the wire carries it (C85): the closed
+/// kind a frontend branches on and the message a person reads. Its
+/// `Display` is the message alone — the kind is for JSON and error codes,
+/// never a prefix on prose.
+#[derive(Debug, Clone, Serialize)]
+pub struct DaemonError {
+    pub kind: ErrorKind,
+    pub message: String,
+}
+
+impl fmt::Display for DaemonError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.message)
+    }
+}
+
+impl std::error::Error for DaemonError {}
+
+impl DaemonError {
+    /// The daemon error in an error chain, if one is there — how a
+    /// frontend's top level finds the kind to put beside the message.
+    pub fn find(error: &anyhow::Error) -> Option<&DaemonError> {
+        error.chain().find_map(|e| e.downcast_ref::<DaemonError>())
+    }
+}
+
+/// `Response::Error` as an error value, for the sites that unwrap a
+/// response.
+fn refused(kind: ErrorKind, message: String) -> anyhow::Error {
+    DaemonError { kind, message }.into()
+}
 
 /// What a *use* verb may do to a daemon that isn't the one it wants.
 /// `ACQ_NO_SPAWN=1` overrides both flags to false. Observation takes no
@@ -208,21 +269,87 @@ impl fmt::Display for DaemonId {
     }
 }
 
-/// What [`Client::observe`] found on the socket.
-pub enum Observed {
+/// What [`Client::observe`] (or [`Subscription::observe`]) found on the
+/// socket.
+pub enum Observed<C = Client> {
     /// Nothing is listening.
     Absent,
     /// The daemon is this client's, and this is a connection to it.
-    Compatible(Client),
+    Compatible(C),
     /// A daemon that is not this client's: identified, reported, not used.
     Incompatible(DaemonId),
 }
 
+/// A request connection (C85): one request in flight, one response per
+/// request, never an event.
 pub struct Client {
-    lines: Lines<BufReader<OwnedReadHalf>>,
+    reader: BufReader<OwnedReadHalf>,
     write: OwnedWriteHalf,
     /// The daemon at the other end, as its handshake identified it.
     daemon: DaemonId,
+}
+
+/// What a [`Subscription`] is told next (C85).
+#[derive(Debug, Clone)]
+pub enum Signal {
+    /// A job changed. An invalidation hint: re-read before relying on the
+    /// view, never assume the stream is complete.
+    Event(JobInfo),
+    /// The daemon dropped `missed` events for this subscriber: snapshot
+    /// again over a [`Client`] before trusting the view.
+    ResyncRequired { missed: u64 },
+}
+
+/// A subscription connection (C85): hello, `subscribe`/`subscribed`, then
+/// events only — there is no way to send a request on it, which is what
+/// keeps requests and events on separate connections by construction.
+/// The subscriber snapshots over a [`Client`] after opening this, and
+/// again after a [`Signal::ResyncRequired`] or after [`Subscription::next`]
+/// returns `None` (the daemon is gone: open a new one, then snapshot).
+pub struct Subscription {
+    reader: BufReader<OwnedReadHalf>,
+    /// Held so the daemon sees the connection open; nothing is written.
+    _write: OwnedWriteHalf,
+    daemon: DaemonId,
+}
+
+impl Subscription {
+    /// Observe the socket (C10) and, if this client's daemon is there,
+    /// subscribe on a connection of its own. Never spawns or replaces:
+    /// watching is observation.
+    pub async fn observe() -> Result<Observed<Subscription>> {
+        match Client::observe().await? {
+            Observed::Absent => Ok(Observed::Absent),
+            Observed::Incompatible(found) => Ok(Observed::Incompatible(found)),
+            Observed::Compatible(client) => client.subscribe().await.map(Observed::Compatible),
+        }
+    }
+
+    /// The daemon this subscription is on, as its handshake identified it.
+    pub fn daemon(&self) -> &DaemonId {
+        &self.daemon
+    }
+
+    /// The next signal; `None` when the daemon closed the connection.
+    pub async fn next(&mut self) -> Result<Option<Signal>> {
+        loop {
+            let bytes = match read_frame(&mut self.reader, MAX_FRAME_BYTES).await? {
+                Frame::Closed => return Ok(None),
+                Frame::Oversize => {
+                    bail!("the daemon sent a frame over {MAX_FRAME_BYTES} bytes on a subscription")
+                }
+                Frame::Line(bytes) => bytes,
+            };
+            if bytes.iter().all(u8::is_ascii_whitespace) {
+                continue;
+            }
+            return match serde_json::from_slice::<Response>(&bytes)? {
+                Response::Event { job } => Ok(Some(Signal::Event(job))),
+                Response::ResyncRequired { missed } => Ok(Some(Signal::ResyncRequired { missed })),
+                other => bail!("unexpected frame on a subscription: {other:?}"),
+            };
+        }
+    }
 }
 
 fn no_spawn() -> bool {
@@ -276,8 +403,10 @@ impl Client {
                         };
                         bail!("{found}, and {why}");
                     }
-                    // Stale daemon (older build, or wrong mode): kill and respawn.
-                    let _ = client.request(&Request::DaemonStop).await;
+                    // Stale daemon (older build, or wrong mode): kill and
+                    // respawn — over the bootstrap plane, which works across
+                    // the mismatch (C85).
+                    let _ = client.stop().await;
                     respawned = true;
                     child = None;
                     tokio::time::sleep(Duration::from_millis(200)).await;
@@ -355,21 +484,35 @@ impl Client {
     /// ask it to stop, and count only its `Stopping` as a stop.
     async fn stop_over(stream: UnixStream) -> Result<DaemonId> {
         let mut client = Client::handshake(stream).await?;
-        match client.request(&Request::DaemonStop).await? {
-            Response::Stopping => Ok(client.daemon),
-            Response::Error { message } => {
-                bail!("{} refused to stop: {message}", client.daemon)
-            }
-            other => bail!("unexpected response to stop: {other:?}"),
+        client.stop().await?;
+        Ok(client.daemon)
+    }
+
+    /// `daemon_stop` over the bootstrap plane (C85): read leniently, so a
+    /// daemon of any revision can acknowledge. Only `stopping` is a stop;
+    /// an error frame is reported by its message, anything else as
+    /// unexpected, and a hang-up as the daemon closing the connection.
+    async fn stop(&mut self) -> Result<()> {
+        let bytes = self.exchange(&Bootstrap::DaemonStop).await?;
+        match BootstrapReply::read(&bytes) {
+            Some(BootstrapReply::Stopping) => Ok(()),
+            _ => match error_message(&bytes) {
+                Some(message) => bail!("{} refused to stop: {message}", self.daemon),
+                None => bail!(
+                    "unexpected response to stop: {}",
+                    String::from_utf8_lossy(&bytes)
+                ),
+            },
         }
     }
 
-    /// The handshake over a fresh connection: who is at the other end.
-    /// Decides nothing — the caller reads `daemon` and applies its policy.
+    /// The handshake over a fresh connection: who is at the other end,
+    /// over the bootstrap plane (C85) so any revision answers. Decides
+    /// nothing — the caller reads `daemon` and applies its policy.
     async fn handshake(stream: UnixStream) -> Result<Client> {
         let (read, write) = stream.into_split();
         let mut client = Client {
-            lines: BufReader::new(read).lines(),
+            reader: BufReader::new(read),
             write,
             daemon: DaemonId {
                 pid: 0,
@@ -377,18 +520,21 @@ impl Client {
                 provider: String::new(),
             },
         };
-        let hello = client
-            .request(&Request::Hello {
+        let bytes = client
+            .exchange(&Bootstrap::Hello {
                 client_version: VERSION_WITH_RUNTIME.to_string(),
             })
             .await?;
-        let Response::Hello {
+        let Some(BootstrapReply::Hello {
             daemon_version,
             pid,
             provider,
-        } = hello
+        }) = BootstrapReply::read(&bytes)
         else {
-            bail!("unexpected handshake response: {hello:?}");
+            bail!(
+                "unexpected handshake response: {}",
+                String::from_utf8_lossy(&bytes)
+            );
         };
         client.daemon = DaemonId {
             pid,
@@ -396,6 +542,39 @@ impl Client {
             provider,
         };
         Ok(client)
+    }
+
+    /// Turn this connection into a subscription: `subscribe`, then
+    /// `subscribed`, after which no request is sent on it.
+    async fn subscribe(mut self) -> Result<Subscription> {
+        match self.request(&Request::Subscribe).await? {
+            Response::Subscribed => Ok(Subscription {
+                reader: self.reader,
+                _write: self.write,
+                daemon: self.daemon,
+            }),
+            Response::Error { kind, message } => Err(refused(kind, message)),
+            other => bail!("unexpected response to subscribe: {other:?}"),
+        }
+    }
+
+    /// Write one frame and read the next one, raw: the one-in-flight
+    /// discipline both planes share. An answer over the frame bound is an
+    /// error here, and the connection stays aligned on the next frame.
+    async fn exchange<T: Serialize>(&mut self, frame: &T) -> Result<Vec<u8>> {
+        let mut line = serde_json::to_string(frame)?;
+        line.push('\n');
+        self.write.write_all(line.as_bytes()).await?;
+        loop {
+            match read_frame(&mut self.reader, MAX_FRAME_BYTES).await? {
+                Frame::Closed => bail!("daemon closed the connection"),
+                Frame::Oversize => {
+                    bail!("the daemon's answer exceeds {MAX_FRAME_BYTES} bytes and was discarded")
+                }
+                Frame::Line(bytes) if bytes.iter().all(u8::is_ascii_whitespace) => continue,
+                Frame::Line(bytes) => return Ok(bytes),
+            }
+        }
     }
 
     /// The daemon this client reached, as its handshake identified it.
@@ -408,35 +587,24 @@ impl Client {
         &self.daemon.provider
     }
 
-    /// Send a request and return the next non-event response. Events arriving
-    /// in between (on subscribed connections) are dropped here; use `recv` in
-    /// event-driven flows instead.
+    /// Send a request and return its response: one frame out, one frame
+    /// in (C85). This connection never carries events — one arriving here
+    /// is a protocol violation, reported as such.
     pub async fn request(&mut self, req: &Request) -> Result<Response> {
-        let mut line = serde_json::to_string(req)?;
-        line.push('\n');
-        self.write.write_all(line.as_bytes()).await?;
-        loop {
-            match self.recv().await? {
-                Response::Event { .. } => continue,
-                other => return Ok(other),
+        let bytes = self.exchange(req).await?;
+        match serde_json::from_slice::<Response>(&bytes)? {
+            Response::Event { .. } | Response::ResyncRequired { .. } => {
+                bail!("protocol violation: an event arrived on a request connection")
             }
+            other => Ok(other),
         }
-    }
-
-    pub async fn recv(&mut self) -> Result<Response> {
-        let line = self
-            .lines
-            .next_line()
-            .await?
-            .context("daemon closed the connection")?;
-        Ok(serde_json::from_str(&line)?)
     }
 
     /// `request` variants that unwrap the expected response shape.
     pub async fn expect_ack(&mut self, req: &Request) -> Result<()> {
         match self.request(req).await? {
             Response::Ack => Ok(()),
-            Response::Error { message } => bail!("{message}"),
+            Response::Error { kind, message } => Err(refused(kind, message)),
             other => bail!("unexpected response: {other:?}"),
         }
     }
@@ -444,7 +612,7 @@ impl Client {
     pub async fn status(&mut self, id: u64) -> Result<JobInfo> {
         match self.request(&Request::Status { id }).await? {
             Response::Status { job } => Ok(job),
-            Response::Error { message } => bail!("{message}"),
+            Response::Error { kind, message } => Err(refused(kind, message)),
             other => bail!("unexpected response: {other:?}"),
         }
     }
@@ -459,7 +627,7 @@ impl Client {
     ) -> Result<crate::protocol::Quote> {
         match self.request(&Request::Quote { jobs, account }).await? {
             Response::Quote { quote } => Ok(quote),
-            Response::Error { message } => bail!("{message}"),
+            Response::Error { kind, message } => Err(refused(kind, message)),
             other => bail!("unexpected response: {other:?}"),
         }
     }
@@ -555,7 +723,7 @@ mod tests {
     /// A scripted peer on a scratch socket: answers the handshake as a
     /// daemon would, then answers the stop request with `reply` — or
     /// hangs up when `reply` is `None`.
-    async fn peer_that_answers_stop_with(reply: Option<Response>) -> UnixStream {
+    async fn peer_that_answers_stop_with(reply: Option<serde_json::Value>) -> UnixStream {
         let dir = std::env::temp_dir().join(format!("acq-stop-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         static N: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
@@ -567,9 +735,9 @@ mod tests {
         tokio::spawn(async move {
             let (stream, _) = listener.accept().await.unwrap();
             let (read, mut write) = stream.into_split();
-            let mut lines = BufReader::new(read).lines();
+            let mut lines = tokio::io::AsyncBufReadExt::lines(BufReader::new(read));
             let _hello = lines.next_line().await.unwrap().unwrap();
-            let hello = Response::Hello {
+            let hello = BootstrapReply::Hello {
                 daemon_version: VERSION_WITH_RUNTIME.to_string(),
                 pid: 7,
                 provider: "mock".into(),
@@ -594,17 +762,15 @@ mod tests {
     /// `Stopping` counts.
     #[tokio::test]
     async fn a_stop_the_daemon_did_not_acknowledge_is_not_a_stop() {
-        let stream = peer_that_answers_stop_with(Some(Response::Error {
-            message: "busy".into(),
-        }))
-        .await;
+        let stream =
+            peer_that_answers_stop_with(Some(json!({ "resp": "error", "message": "busy" }))).await;
         let err = Client::stop_over(stream).await.unwrap_err().to_string();
         assert!(
             err.contains("refused to stop") && err.contains("busy"),
             "{err}"
         );
 
-        let stream = peer_that_answers_stop_with(Some(Response::Ack)).await;
+        let stream = peer_that_answers_stop_with(Some(json!({ "resp": "ack" }))).await;
         let err = Client::stop_over(stream).await.unwrap_err().to_string();
         assert!(err.contains("unexpected response to stop"), "{err}");
 
@@ -612,7 +778,7 @@ mod tests {
         let err = Client::stop_over(stream).await.unwrap_err().to_string();
         assert!(err.contains("closed the connection"), "{err}");
 
-        let stream = peer_that_answers_stop_with(Some(Response::Stopping)).await;
+        let stream = peer_that_answers_stop_with(Some(json!({ "resp": "stopping" }))).await;
         let stopped = Client::stop_over(stream).await.unwrap();
         assert_eq!(stopped.pid, 7);
     }

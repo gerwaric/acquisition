@@ -235,10 +235,10 @@ fn the_mcp_tools_carry_the_plan_slice_and_its_gates() {
     // Everything below is claimed to happen with no daemon contact, so
     // prove it with no daemon: stop it and wait for the socket to die.
     rt.block_on(async {
-        let mut client = Client::connect(ConnectOptions::autonomous(false))
+        Client::stop_any()
             .await
-            .expect("daemon should still be up");
-        let _ = client.request(&Request::DaemonStop).await;
+            .expect("daemon should still be up")
+            .expect("a daemon acknowledged the stop");
         let deadline = Instant::now() + Duration::from_secs(10);
         while Client::connect(ConnectOptions::autonomous(false))
             .await

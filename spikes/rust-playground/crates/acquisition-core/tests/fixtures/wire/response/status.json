@@ -1,0 +1,19 @@
+{
+  "job": {
+    "account": "Alice#1234",
+    "eta_seconds": 17,
+    "id": 42,
+    "kind": "stash",
+    "params": {
+      "deep": false,
+      "id": "t1",
+      "league": "Standard"
+    },
+    "parent": 41,
+    "priority": 0,
+    "retries": 1,
+    "state": "waiting",
+    "submitted_by": "cli:1234"
+  },
+  "resp": "status"
+}

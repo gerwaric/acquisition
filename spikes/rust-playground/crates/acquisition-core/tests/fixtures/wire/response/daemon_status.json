@@ -1,0 +1,22 @@
+{
+  "connections": 2,
+  "in_flight": 1,
+  "jobs_running": 1,
+  "jobs_waiting": 1,
+  "keyring": "ok",
+  "max_in_flight": 2,
+  "pid": 4242,
+  "policies_known": 1,
+  "provider": "mock",
+  "rails": {
+    "halted": "tripwire: 429 on stash@Alice#1234",
+    "journal": "/tmp/acq.sock.mock.sends.jsonl",
+    "max_sends": 200,
+    "refresh_failed": null,
+    "sends": 12,
+    "tripwire_enabled": true
+  },
+  "resp": "daemon_status",
+  "uptime_seconds": 61,
+  "version": "0.0.1 (runtime 0123456789ab)"
+}

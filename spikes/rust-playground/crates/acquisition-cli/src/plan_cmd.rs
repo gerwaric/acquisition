@@ -118,7 +118,7 @@
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
-use acquisition_core::client::{Client, Observed};
+use acquisition_core::client::{Client, DaemonError, Observed};
 use acquisition_core::job::Outcome;
 use acquisition_core::protocol::{Quote, QuoteJob, QuoteScope, Request, Response};
 use acquisition_core::realm::Realm;
@@ -387,7 +387,7 @@ pub async fn refresh_apply(
         .await?
     {
         Response::Submitted { id } => id,
-        Response::Error { message } => bail!("{message}"),
+        Response::Error { kind, message } => return Err(DaemonError { kind, message }.into()),
         other => bail!("unexpected response: {other:?}"),
     };
     if !json {

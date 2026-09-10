@@ -1,0 +1,6 @@
+{
+  "daemon_version": "0.0.1 (runtime 0123456789ab)",
+  "pid": 4242,
+  "provider": "mock",
+  "resp": "hello"
+}

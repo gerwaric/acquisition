@@ -199,9 +199,11 @@ Prerequisites for a goal-function build, not a plan to start on now:
    portable. Do it the day a fresh build starts, not before.
 2. ~~Re-soak the fixed binary~~ — done 2026-08-27 (`RUN-LEDGER.md`:
    45.3 h, pass); its checker was retired 2026-09-09.
-3. Pin the frontend boundary — after the consumer has validated the
-   protocol, not before. The plan slice is pinned at process level
-   (`apply_loop.rs`, `plan_loop.rs`); the protocol as a whole is not.
+3. ~~Pin the frontend boundary~~ — done 2026-09-10, commit 0 of the
+   daemon split (C85): one fixture per wire variant (`wire.rs`) and the
+   black-box contract tests (`contract.rs`), under
+   `acquisition-core/tests/` until the client crate exists; the plan
+   slice's process-level pins (`apply_loop.rs`, `plan_loop.rs`) stay.
 
 ## Standing constraints carried from the soak
 

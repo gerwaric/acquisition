@@ -1,0 +1,50 @@
+{
+  "quote": {
+    "account": "Alice#1234",
+    "halted": null,
+    "not_covered": [
+      "429 re-sends (up to 3 per request) — possible, never predicted"
+    ],
+    "observed_at": 1800000000,
+    "provider": "mock",
+    "scopes": [
+      {
+        "endpoints": [
+          "stash@Alice#1234"
+        ],
+        "eta_seconds": 0,
+        "key": "stash-request-limit@Alice#1234",
+        "notes": [],
+        "observed_seconds_ago": 4,
+        "policy": "stash-request-limit@Alice#1234",
+        "queued_ahead": 0,
+        "requests": 1,
+        "rules": [
+          {
+            "name": "Account",
+            "windows": [
+              {
+                "bucket_secs": 1,
+                "hits": 3,
+                "max_hits": 45,
+                "period_secs": 60,
+                "restricted_secs": 0,
+                "restriction_secs": 60
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "work": [
+      {
+        "kind": "stash",
+        "params": {
+          "id": "t1",
+          "league": "Standard"
+        }
+      }
+    ]
+  },
+  "resp": "quote"
+}

@@ -1,0 +1,16 @@
+{
+  "id": 42,
+  "outcome": {
+    "outcome": "success",
+    "payload": {
+      "body": {
+        "stash": {
+          "id": "t1",
+          "items": []
+        }
+      },
+      "status": 200
+    }
+  },
+  "resp": "result"
+}

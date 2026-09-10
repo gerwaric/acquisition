@@ -1,0 +1,96 @@
+{
+  "access_expires_in_seconds": 3500,
+  "connections": 2,
+  "degraded_endpoints": [
+    {
+      "endpoint": "leagues",
+      "reason": "HEAD answered 403",
+      "seconds_left": 30.5
+    }
+  ],
+  "errors": [
+    {
+      "message": "submit refused: not logged in — run `acq auth`",
+      "seconds_ago": 9.0
+    }
+  ],
+  "in_flight": 1,
+  "jobs": [
+    {
+      "account": "Alice#1234",
+      "eta_seconds": 17,
+      "id": 42,
+      "kind": "stash",
+      "params": {
+        "deep": false,
+        "id": "t1",
+        "league": "Standard"
+      },
+      "parent": 41,
+      "priority": 0,
+      "retries": 1,
+      "state": "waiting",
+      "submitted_by": "cli:1234"
+    }
+  ],
+  "keyring": "ok",
+  "logged_in": true,
+  "max_in_flight": 2,
+  "pid": 4242,
+  "policies": [
+    {
+      "endpoints": [
+        "stash@Alice#1234"
+      ],
+      "headers": {
+        "x-rate-limit-policy": "stash-request-limit"
+      },
+      "history_len": 3,
+      "last_observed_seconds_ago": 4.5,
+      "next_safe_in_seconds": 0.0,
+      "policy": "stash-request-limit@Alice#1234",
+      "retry_after_secs": null,
+      "rules": [
+        {
+          "name": "Account",
+          "windows": [
+            {
+              "bucket_secs": 1,
+              "hits": 3,
+              "max_hits": 45,
+              "period_secs": 60,
+              "restricted_secs": 0,
+              "restriction_secs": 60
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "policyless_endpoints": [
+    "profile@Alice#1234"
+  ],
+  "provider": "mock",
+  "rails": {
+    "halted": "tripwire: 429 on stash@Alice#1234",
+    "journal": "/tmp/acq.sock.mock.sends.jsonl",
+    "max_sends": 200,
+    "refresh_failed": null,
+    "sends": 12,
+    "tripwire_enabled": true
+  },
+  "resp": "dashboard",
+  "sends": [
+    {
+      "endpoint": "stash@Alice#1234",
+      "method": "GET",
+      "ok": true,
+      "outcome": "200 OK",
+      "seconds_ago": 1.5,
+      "url": "http://127.0.0.1:1234/stash/Standard/t1"
+    }
+  ],
+  "uptime_seconds": 61,
+  "username": "Alice#1234",
+  "version": "0.0.1 (runtime 0123456789ab)"
+}

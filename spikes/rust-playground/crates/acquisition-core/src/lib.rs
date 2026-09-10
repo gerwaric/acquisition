@@ -9,6 +9,7 @@
 pub mod auth;
 pub mod client;
 pub mod daemon;
+pub mod frame;
 pub(crate) mod gate;
 pub mod job;
 pub mod mockggg;

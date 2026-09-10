@@ -1,0 +1,11 @@
+[
+  "bad_request",
+  "not_logged_in",
+  "ambiguous_account",
+  "unknown_job",
+  "wrong_state",
+  "refused",
+  "queue_failed",
+  "upstream",
+  "internal"
+]

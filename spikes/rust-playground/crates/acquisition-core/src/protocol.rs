@@ -1,8 +1,75 @@
-//! JSON-lines protocol spoken over the Unix socket.
+//! JSON-lines protocol spoken over the Unix socket (C9): one JSON object
+//! per line in each direction, every line under [`MAX_FRAME_BYTES`].
 //!
-//! One JSON object per line in each direction. A connection that has sent
-//! `subscribe` also receives unsolicited `event` lines interleaved with
-//! responses; clients must be prepared to skip or dispatch them.
+//! Two planes share every connection:
+//!
+//! - **The bootstrap plane** — [`Bootstrap`] and [`BootstrapReply`]:
+//!   `hello` and `daemon_stop`, read on both sides outside the versioned
+//!   enums, keyed on the `req`/`resp` name alone with every other field
+//!   optional and unknown fields ignored. Its frames never change shape:
+//!   a client and a daemon of any two runtime revisions can always
+//!   identify each other (C10 compares what `hello` carries) and a human
+//!   can always stop a daemon across a mismatch.
+//! - **The versioned plane** — [`Request`] and [`Response`]: everything
+//!   else, single-version on purpose (C10). A change here moves the
+//!   runtime revision, and `tests/fixtures/wire/` (one document per
+//!   variant, `tests/wire.rs`) makes it a diff a reviewer sees.
+//!
+//! # Decisions as recorded
+//!
+//! The rulings are the decision registry — `decisions/daemon.md` for this
+//! area (`C<n>`); what follows is the entry's full text as recorded there,
+//! kept beside the code that implements it.
+//!
+//! ## C85 — Connection semantics
+//!
+//! **C85 — Connection semantics: 1 request in flight per connection; a
+//! subscription uses a dedicated connection — hello/hello,
+//! subscribe/subscribed, then events only, no more requests; events are
+//! invalidation hints, never a complete stream — a subscriber snapshots
+//! after subscribing, treats events as invalidations and re-reads before
+//! relying on its view, is told `resync_required` when it lagged, and
+//! after that or any disconnect subscribes and snapshots again; a frame
+//! has a bound, and an oversize or malformed one is answered with an
+//! error, not a closed socket; `hello` and `daemon_stop` are a stable
+//! plane every version parses.** *Why:* a client must see losses to
+//! recover from them. *Pinned:* `acquisition-core/tests/wire.rs`,
+//! `acquisition-core/tests/contract.rs`. Ruled 2026-09-09.
+//!
+//! ## C85 — as built
+//!
+//! Every connection opens with the hello exchange. A request connection
+//! (`client::Client`) writes one request and reads exactly one response
+//! before the next; the daemon answers a connection's frames in order,
+//! one at a time. A subscription connection (`client::Subscription`)
+//! carries hello, `subscribe`/`subscribed`, then only `event` and
+//! `resync_required` frames; a versioned request after `subscribed` is
+//! answered `bad_request` and not performed (the bootstrap plane still
+//! works there: a human can stop a daemon over any connection). The
+//! daemon sends `resync_required { missed }` when its event channel
+//! (capacity 256) overran this subscriber — the count is what the
+//! subscriber did not see — and the subscriber then re-reads its
+//! snapshot over a request connection. Each side reads a frame up to
+//! [`MAX_FRAME_BYTES`]; a longer one is discarded through its newline
+//! and, on the daemon, answered `bad_request` — as is a frame that is
+//! not JSON, not UTF-8, or not a request of this version — and the
+//! connection stays. The frame reader is `crate::frame`. The sequence a
+//! subscriber follows is `acq jobs --watch` (`acquisition-cli/src/main.rs`):
+//! subscribe, then `list` over a request connection, then every event is a
+//! reason to re-read, and after `resync_required` or a disconnect,
+//! subscribe and `list` again.
+//!
+//! ## Errors on the wire
+//!
+//! `Response::Error` carries a closed [`ErrorKind`] beside its message
+//! (C47: stable kinds, structured; C53: the addition is additive). The
+//! message stays useful on its own — a kind is what a frontend branches
+//! on, never what it prints instead. Every daemon error site is
+//! classified in `daemon.rs` at the point the error is made
+//! (`Refusal`), so a site cannot reach the wire unclassified; the audit
+//! that fixed the vocabulary is the commit that introduced it. A new
+//! kind or field is a protocol change: the `error_kinds` fixture and the
+//! exhaustive matches in `tests/wire.rs` refuse it silently landing.
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -10,6 +77,211 @@ use serde_json::Value;
 use crate::job::{JobId, JobInfo, Outcome, Priority};
 use crate::rails::RailsStatus;
 use crate::ratelimit::{DegradedEndpoint, PolicyStatus, RuleStatus, SendRecord};
+
+/// The bound on one frame, in bytes, both directions (C85). Nothing
+/// legitimate approaches it — an `apply` of a whole league's actions is
+/// hundreds of kilobytes, a `result` carrying one tab's body a few
+/// megabytes — so a frame that reaches it is a runaway or a rogue peer,
+/// and each side stops reading it there, discards through its newline,
+/// and keeps the connection.
+pub const MAX_FRAME_BYTES: usize = 64 << 20;
+
+// ---- the bootstrap plane ------------------------------------------------
+
+/// The two requests every daemon of any revision reads (C85), sent as
+/// `{"req":"hello","client_version":…}` and `{"req":"daemon_stop"}`.
+/// [`Bootstrap::read`] is the lenient reader the daemon uses: it keys on
+/// `req` alone and ignores every other field, so a client of a future
+/// revision — extra fields, renamed fields, a shape this build has never
+/// seen — still gets a `hello` back that names this daemon, and can still
+/// stop it. Serialization is the exact shape the fixtures pin.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "req", rename_all = "snake_case")]
+pub enum Bootstrap {
+    /// Always sent first. Answered with [`BootstrapReply::Hello`]; the
+    /// client decides from that what the daemon is (C10).
+    Hello {
+        /// The client's `VERSION_WITH_RUNTIME`; the daemon logs a mismatch.
+        client_version: String,
+    },
+    /// Stop the daemon, whichever revision it is. Answered with
+    /// [`BootstrapReply::Stopping`] before the process exits.
+    DaemonStop,
+}
+
+impl Bootstrap {
+    /// The bootstrap request a frame carries, if it is one: keyed on the
+    /// `req` name, every other field optional, unknown fields ignored.
+    /// `None` is any other frame — the versioned parser's business.
+    pub fn read(frame: &[u8]) -> Option<Bootstrap> {
+        let value: Value = serde_json::from_slice(frame).ok()?;
+        match value.get("req")?.as_str()? {
+            "hello" => Some(Bootstrap::Hello {
+                client_version: value
+                    .get("client_version")
+                    .and_then(Value::as_str)
+                    .unwrap_or(UNKNOWN)
+                    .to_string(),
+            }),
+            "daemon_stop" => Some(Bootstrap::DaemonStop),
+            _ => None,
+        }
+    }
+}
+
+/// What a bootstrap-plane field reads as when the peer's frame did not
+/// carry it: a daemon of an unknown revision is reported, never mistaken
+/// for this build's.
+pub const UNKNOWN: &str = "unknown";
+
+/// The daemon's answers on the bootstrap plane (C85):
+/// `{"resp":"hello","daemon_version":…,"pid":…,"provider":…}` and
+/// `{"resp":"stopping"}`. [`BootstrapReply::read`] is the client's
+/// lenient reader, the mirror of [`Bootstrap::read`].
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "resp", rename_all = "snake_case")]
+pub enum BootstrapReply {
+    Hello {
+        /// The daemon's `VERSION_WITH_RUNTIME` (C10).
+        daemon_version: String,
+        pid: u32,
+        /// "mock" or "ggg"; a client uses only a daemon on its own provider.
+        provider: String,
+    },
+    Stopping,
+}
+
+impl BootstrapReply {
+    /// The bootstrap reply a frame carries, if it is one: keyed on the
+    /// `resp` name; a missing `daemon_version` or `provider` reads as
+    /// [`UNKNOWN`] and a missing `pid` as 0, so a daemon of another
+    /// revision is identified as foreign rather than left unparsed.
+    /// `None` is any other frame (a versioned `error`, say).
+    pub fn read(frame: &[u8]) -> Option<BootstrapReply> {
+        let value: Value = serde_json::from_slice(frame).ok()?;
+        let text = |key: &str| {
+            value
+                .get(key)
+                .and_then(Value::as_str)
+                .unwrap_or(UNKNOWN)
+                .to_string()
+        };
+        match value.get("resp")?.as_str()? {
+            "hello" => Some(BootstrapReply::Hello {
+                daemon_version: text("daemon_version"),
+                pid: value
+                    .get("pid")
+                    .and_then(Value::as_u64)
+                    .and_then(|p| u32::try_from(p).ok())
+                    .unwrap_or(0),
+                provider: text("provider"),
+            }),
+            "stopping" => Some(BootstrapReply::Stopping),
+            _ => None,
+        }
+    }
+}
+
+/// The `message` of an error frame, read leniently (a versioned `error`
+/// answering a bootstrap request may come from any revision): `None`
+/// unless the frame is `{"resp":"error",…}`.
+pub fn error_message(frame: &[u8]) -> Option<String> {
+    let value: Value = serde_json::from_slice(frame).ok()?;
+    if value.get("resp")?.as_str()? != "error" {
+        return None;
+    }
+    Some(
+        value
+            .get("message")
+            .and_then(Value::as_str)
+            .unwrap_or("(no message)")
+            .to_string(),
+    )
+}
+
+// ---- the versioned plane ------------------------------------------------
+
+/// Why a request failed, as a closed set a frontend can branch on (C47);
+/// the `message` beside it says what happened and stays useful alone.
+/// Coarse on purpose: subcategories and structured context wait for the
+/// first typed consumer (the GUI slice). Every variant is produced by at
+/// least one daemon site; the mapping from sites to kinds is the doc of
+/// `daemon.rs`'s `Refusal`. Adding a variant is a protocol change, pinned
+/// by the `error_kinds` fixture.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ErrorKind {
+    /// The frame was not a request the daemon could perform: not JSON,
+    /// not UTF-8, over the frame bound, not a request of this version, a
+    /// request missing fields — or a versioned request on a connection
+    /// that has subscribed. The connection stays; nothing was done.
+    BadRequest,
+    /// No live session can serve the request: none at all, none for the
+    /// named account, or the account's grant is dead (no refresh token,
+    /// or one the provider rejected). The remedy is `acq auth`.
+    NotLoggedIn,
+    /// Several sessions are live and the request named none, or its
+    /// selector matched more than one. The remedy is `--account`.
+    AmbiguousAccount,
+    /// The id names no job this daemon holds or remembers.
+    UnknownJob,
+    /// The job exists but its state does not admit the request: a result
+    /// asked for before the job is terminal, a cancel after it is, a
+    /// priority change off `waiting`. Re-read the job.
+    WrongState,
+    /// Well-formed work the daemon will not admit, judged before a job id
+    /// exists: a kind outside a plan's vocabulary, a realm the kind's
+    /// family does not take, a plan over its budget, a malformed tuple.
+    /// Nothing was submitted.
+    Refused,
+    /// The persisted queue (`daemon.db`) failed a read or a write. A write
+    /// failure is sticky (C6): the daemon refuses new work until restart.
+    QueueFailed,
+    /// The provider did not answer as the request needed — a token refresh
+    /// that failed on transport, a 5xx, or exhausted 429 retries — with
+    /// the session itself still standing. Try again later.
+    Upstream,
+    /// The daemon's own failure to do its part — a local resource it
+    /// needed (a loopback listener, the accounts index) refused. Never an
+    /// expected domain failure: those have a kind above.
+    Internal,
+}
+
+impl ErrorKind {
+    /// Every kind, in declaration order — the closed set the fixture pins.
+    pub const ALL: [ErrorKind; 9] = [
+        ErrorKind::BadRequest,
+        ErrorKind::NotLoggedIn,
+        ErrorKind::AmbiguousAccount,
+        ErrorKind::UnknownJob,
+        ErrorKind::WrongState,
+        ErrorKind::Refused,
+        ErrorKind::QueueFailed,
+        ErrorKind::Upstream,
+        ErrorKind::Internal,
+    ];
+
+    /// The wire name (`bad_request`), for logs and messages.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            ErrorKind::BadRequest => "bad_request",
+            ErrorKind::NotLoggedIn => "not_logged_in",
+            ErrorKind::AmbiguousAccount => "ambiguous_account",
+            ErrorKind::UnknownJob => "unknown_job",
+            ErrorKind::WrongState => "wrong_state",
+            ErrorKind::Refused => "refused",
+            ErrorKind::QueueFailed => "queue_failed",
+            ErrorKind::Upstream => "upstream",
+            ErrorKind::Internal => "internal",
+        }
+    }
+}
+
+impl std::fmt::Display for ErrorKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
 
 /// One unit of work to quote, in the daemon's own job vocabulary — exactly
 /// the `(kind, params)` a `Submit` would carry (a plan action renders it).
@@ -110,11 +382,6 @@ pub struct SessionStatus {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "req", rename_all = "snake_case")]
 pub enum Request {
-    /// Always sent first. The daemon answers with `hello`; the client is
-    /// responsible for killing + respawning a version-mismatched daemon.
-    Hello {
-        client_version: String,
-    },
     Submit {
         kind: String,
         params: Value,
@@ -140,6 +407,11 @@ pub enum Request {
         priority: Priority,
     },
     List,
+    /// Turn this connection into a subscription (C85): answered
+    /// `subscribed`, after which the daemon writes only `event` and
+    /// `resync_required` frames on it and answers any further versioned
+    /// request `bad_request`. A subscriber snapshots over a request
+    /// connection after subscribing.
     Subscribe,
     /// Begin an OAuth login. The daemon sets up PKCE + a loopback redirect
     /// listener and returns the URL for the user's browser; clients then poll
@@ -175,7 +447,6 @@ pub enum Request {
         account: Option<String>,
     },
     DaemonStatus,
-    DaemonStop,
     /// Clear the live-test rails' tripwire and ceiling halt (`LIVE-TESTING.md`).
     ResetTripwire,
     /// Everything the live dashboard renders, in one round-trip: daemon
@@ -186,12 +457,6 @@ pub enum Request {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "resp", rename_all = "snake_case")]
 pub enum Response {
-    Hello {
-        daemon_version: String,
-        pid: u32,
-        /// "mock" or "ggg"; clients respawn a daemon running the wrong mode.
-        provider: String,
-    },
     Submitted {
         id: JobId,
     },
@@ -257,7 +522,6 @@ pub enum Response {
         /// rotation leaves the session memory-only (LIVE-TESTING.md R7).
         keyring: String,
     },
-    Stopping,
     Quote {
         quote: Quote,
     },
@@ -288,10 +552,20 @@ pub enum Response {
         errors: Vec<ErrorRecord>,
     },
     Error {
+        /// The closed classification a frontend branches on.
+        kind: ErrorKind,
+        /// What happened, useful on its own.
         message: String,
     },
-    /// Unsolicited; only on subscribed connections.
+    /// Unsolicited; only on subscribed connections. An invalidation hint,
+    /// never a complete stream (C85).
     Event {
         job: JobInfo,
+    },
+    /// Unsolicited; only on subscribed connections. The daemon's event
+    /// channel overran this subscriber and `missed` events were dropped:
+    /// snapshot again before relying on the view (C85).
+    ResyncRequired {
+        missed: u64,
     },
 }

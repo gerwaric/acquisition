@@ -21,7 +21,7 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Cell, Paragraph, Row, Table, Wrap};
 
 use crate::attach;
-use acquisition_core::client::Client;
+use acquisition_core::client::{Client, DaemonError};
 
 const POLL: Duration = Duration::from_millis(250);
 /// Rows of policy detail visible at once when a policy is expanded; longer
@@ -166,7 +166,7 @@ async fn fetch(client: &mut Client) -> Result<Snap> {
             rails,
             errors,
         }),
-        Response::Error { message } => bail!("{message}"),
+        Response::Error { kind, message } => Err(DaemonError { kind, message }.into()),
         other => bail!("unexpected response: {other:?}"),
     }
 }

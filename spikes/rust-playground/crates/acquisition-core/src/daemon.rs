@@ -115,15 +115,19 @@ use acquisition_store::jobs::{JobDb, JobRow, Retention};
 use acquisition_store::{Endpoint, Index, Store, account_matches, account_path, store_dir};
 use anyhow::Result;
 use serde_json::{Value, json};
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use tokio::io::{AsyncWriteExt, BufReader};
 use tokio::net::{TcpListener, UnixListener, UnixStream};
 use tokio::sync::{Notify, broadcast, watch};
 
 use std::collections::VecDeque;
 
 use crate::VERSION;
+use crate::frame::{Frame, read_frame};
 use crate::job::{JobId, JobInfo, JobState, Outcome, Priority, target_of};
-use crate::protocol::{ErrorRecord, Quote, QuoteJob, QuoteScope, Request, Response, SessionStatus};
+use crate::protocol::{
+    Bootstrap, BootstrapReply, ErrorKind, ErrorRecord, MAX_FRAME_BYTES, Quote, QuoteJob,
+    QuoteScope, Request, Response, SessionStatus,
+};
 use crate::provider::{CALLBACK_PATH, Provider, SCOPES, ggg_mode};
 use crate::rails::{BlockShape, Rails, RailsConfig};
 use crate::ratelimit::{
@@ -299,11 +303,94 @@ fn retention_from_env() -> (Retention, Vec<String>) {
     (r, problems)
 }
 
-type AccessTokenResult = Result<(String, String), String>;
+type AccessTokenResult = Result<(String, String), Refusal>;
 
 const SESSION_CHANGED_DURING_REFRESH: &str =
     "authentication session changed while token refresh was in progress";
 const REFRESH_OWNER_ABANDONED: &str = "token refresh owner was abandoned before producing a result";
+
+/// A request the daemon will not perform, classified where it is made
+/// (C47; the wire shape is C85's `Response::Error`): the [`ErrorKind`] a
+/// frontend branches on and the message a person reads, which stays
+/// useful on its own. Every site that makes one names its kind here, so
+/// nothing reaches the wire unclassified — the audit of 2026-09-10 that
+/// fixed the vocabulary, site by site:
+///
+/// | Site | Message | Kind |
+/// | --- | --- | --- |
+/// | `handle_conn`: a frame that is not JSON/UTF-8, or not a request of this version | `bad request: …` | `bad_request` |
+/// | `handle_conn`: a frame over `MAX_FRAME_BYTES` | `frame exceeds …` | `bad_request` |
+/// | `handle_conn`: a versioned request after `subscribed` | `this connection is a subscription …` | `bad_request` |
+/// | `Sessions::get`, `get_mut`: no session at all | `not logged in — run acq auth` | `not_logged_in` |
+/// | `Sessions::get`, `get_mut`, `canonical_account`: none for the selector | `no session for … — run acq auth` | `not_logged_in` |
+/// | `Sessions::get`: several live, none named | `several accounts are logged in (…)` | `ambiguous_account` |
+/// | `resolve_account`: a selector with no session | `account …: not logged in` / `… is not logged in (live: …)` | `not_logged_in` |
+/// | `validate_apply`, `admit_realm` (submit) | `apply needs a jobs array …`, `apply job i: …`, `max_requests must be …`, `plan exceeds the budget …`, a realm refusal | `refused` |
+/// | `submit_with_parent`: parent gone or cancelled (children only; becomes the parent's outcome) | `parent job N is gone` / `was cancelled` | `refused` |
+/// | `submit_with_parent`: the sticky queue failure, or the insert failing | `the persisted queue failed (…)` | `queue_failed` |
+/// | `Status`, `Result`, `cancel`, `set_priority`: no such id | `no job N` | `unknown_job` |
+/// | `Result` before terminal; `cancel` after; `set_priority` off waiting | `job N is still …` / `already …` / `is …, not waiting` | `wrong_state` |
+/// | `stored_outcome`: the queue unreadable | `could not read the persisted queue: …` | `queue_failed` |
+/// | `cancel`, `set_priority`: the queue write failed | `… the queue write failed …` | `queue_failed` |
+/// | `auth_start`: the loopback listener or the authorize URL | `could not bind loopback listener: …` | `internal` |
+/// | `valid_access_token`: no refresh token; a grant the provider rejected, now or before | `no refresh token for … — run acq auth`, `token refresh disabled for …`, `token refresh failed: …` (4xx) | `not_logged_in` |
+/// | `valid_access_token`: the refresh failed on transport, a 5xx, exhausted 429s, or the rails halt | `token refresh failed: …` | `upstream` |
+/// | `valid_access_token`: the session changed under the refresh | `authentication session changed …` | `not_logged_in` |
+/// | `valid_access_token`: the refresh owner was dropped | `token refresh owner was abandoned …` | `internal` |
+/// | `forget_account`: no index (harness daemons), an unreadable index, a keyring clear that failed | `no account index …`, `accounts index: …`, the keyring's error | `internal` |
+/// | `forget_account`: the index knows no such account / several | the index's message | `not_logged_in` / `ambiguous_account` |
+/// | `logout`: the keyring clear failed (logged, never on the wire) | the keyring's error | `internal` |
+///
+/// Not produced by any site, so not a kind: a rails halt never refuses a
+/// request — a halted send waits, and `quote` names the halt in its body.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Refusal {
+    pub kind: ErrorKind,
+    pub message: String,
+}
+
+impl Refusal {
+    fn new(kind: ErrorKind, message: impl Into<String>) -> Self {
+        Refusal {
+            kind,
+            message: message.into(),
+        }
+    }
+
+    fn no_job(id: JobId) -> Self {
+        Refusal::new(ErrorKind::UnknownJob, format!("no job {id}"))
+    }
+
+    fn queue_failed(cause: &str) -> Self {
+        Refusal::new(
+            ErrorKind::QueueFailed,
+            format!(
+                "the persisted queue failed ({cause}); the daemon refuses new jobs — restart it once daemon.db is writable"
+            ),
+        )
+    }
+}
+
+impl std::fmt::Display for Refusal {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.message)
+    }
+}
+
+impl PartialEq<&str> for Refusal {
+    fn eq(&self, other: &&str) -> bool {
+        self.message == *other
+    }
+}
+
+impl From<Refusal> for Response {
+    fn from(r: Refusal) -> Response {
+        Response::Error {
+            kind: r.kind,
+            message: r.message,
+        }
+    }
+}
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 struct AuthGenerations {
@@ -377,6 +464,14 @@ struct Sessions {
     keyring: String,
 }
 
+/// The selector names no live session: `not_logged_in`, remedy `acq auth`.
+fn no_session(selector: &str) -> Refusal {
+    Refusal::new(
+        ErrorKind::NotLoggedIn,
+        format!("no session for {selector} — run `acq auth`"),
+    )
+}
+
 impl Sessions {
     /// The session an operation is for: the named account's, or the sole
     /// one. No selector with several live is refused — the daemon does not
@@ -408,27 +503,29 @@ impl Sessions {
         }
     }
 
-    fn get(&self, account: Option<&str>) -> Result<&AuthSession, String> {
+    fn get(&self, account: Option<&str>) -> Result<&AuthSession, Refusal> {
         match account {
-            Some(account) => self
-                .find(account)
-                .ok_or_else(|| format!("no session for {account} — run `acq auth`")),
+            Some(account) => self.find(account).ok_or_else(|| no_session(account)),
             None => match self.by_account.len() {
-                0 => Err("not logged in — run `acq auth`".into()),
+                0 => Err(Refusal::new(
+                    ErrorKind::NotLoggedIn,
+                    "not logged in — run `acq auth`",
+                )),
                 1 => Ok(self.by_account.values().next().expect("one")),
-                _ => Err(format!(
-                    "several accounts are logged in ({}); pick one with --account",
-                    self.usernames().join(", ")
+                _ => Err(Refusal::new(
+                    ErrorKind::AmbiguousAccount,
+                    format!(
+                        "several accounts are logged in ({}); pick one with --account",
+                        self.usernames().join(", ")
+                    ),
                 )),
             },
         }
     }
 
-    fn get_mut(&mut self, account: Option<&str>) -> Result<&mut AuthSession, String> {
+    fn get_mut(&mut self, account: Option<&str>) -> Result<&mut AuthSession, Refusal> {
         match account {
-            Some(account) => self
-                .find_mut(account)
-                .ok_or_else(|| format!("no session for {account} — run `acq auth`")),
+            Some(account) => self.find_mut(account).ok_or_else(|| no_session(account)),
             None => {
                 self.get(None)?;
                 Ok(self.by_account.values_mut().next().expect("one"))
@@ -624,7 +721,7 @@ struct RefreshOwnerGuard<'a> {
 }
 
 impl RefreshOwnerGuard<'_> {
-    fn finish(mut self, refresh: Result<auth::TokenResponse, String>) -> AccessTokenResult {
+    fn finish(mut self, refresh: Result<auth::TokenResponse, Refusal>) -> AccessTokenResult {
         let result = self.result.as_ref().expect("refresh owner result exists");
         let outcome =
             self.daemon
@@ -654,7 +751,10 @@ impl Drop for RefreshOwnerGuard<'_> {
                 }
             }
         }
-        result.send_replace(Some(Err(REFRESH_OWNER_ABANDONED.into())));
+        result.send_replace(Some(Err(Refusal::new(
+            ErrorKind::Internal,
+            REFRESH_OWNER_ABANDONED,
+        ))));
     }
 }
 
@@ -851,10 +951,13 @@ resubmit if still wanted",
     /// The previous lifetime's result for a job this one never held.
     /// `Ok(None)` is genuinely no such job; a queue that cannot be read
     /// is an error, never mistaken for "no job".
-    fn stored_outcome(&self, id: JobId) -> Result<Option<Outcome>, String> {
+    fn stored_outcome(&self, id: JobId) -> Result<Option<Outcome>, Refusal> {
         match self.jobs_db.lock().unwrap().get(id) {
             Ok(row) => Ok(row.and_then(Entry::from_row).and_then(|e| e.outcome)),
-            Err(e) => Err(format!("could not read the persisted queue: {e:#}")),
+            Err(e) => Err(Refusal::new(
+                ErrorKind::QueueFailed,
+                format!("could not read the persisted queue: {e:#}"),
+            )),
         }
     }
 
@@ -1139,17 +1242,21 @@ resubmit if still wanted",
         &self,
         kind: &str,
         requested: Option<&str>,
-    ) -> Result<Option<String>, String> {
+    ) -> Result<Option<String>, Refusal> {
         let s = self.shared.lock().unwrap();
         match requested {
             Some(req) => match s.auth.matching(req) {
                 Some(session) => Ok(session.username.clone()),
-                None if s.auth.by_account.is_empty() => {
-                    Err(format!("account {req:?}: not logged in — run `acq auth`"))
-                }
-                None => Err(format!(
-                    "account {req:?} is not logged in (live: {}); log in as it first",
-                    s.auth.usernames().join(", ")
+                None if s.auth.by_account.is_empty() => Err(Refusal::new(
+                    ErrorKind::NotLoggedIn,
+                    format!("account {req:?}: not logged in — run `acq auth`"),
+                )),
+                None => Err(Refusal::new(
+                    ErrorKind::NotLoggedIn,
+                    format!(
+                        "account {req:?} is not logged in (live: {}); log in as it first",
+                        s.auth.usernames().join(", ")
+                    ),
                 )),
             },
             // A job that will need a token must not exist without an
@@ -1163,14 +1270,14 @@ resubmit if still wanted",
     /// A client's selector (username, name without discriminator, or uuid)
     /// as the live session's canonical username; `None` stays `None` (the
     /// sole session, or a refusal downstream when several are live).
-    fn canonical_account(&self, selector: Option<&str>) -> Result<Option<String>, String> {
+    fn canonical_account(&self, selector: Option<&str>) -> Result<Option<String>, Refusal> {
         let Some(sel) = selector else { return Ok(None) };
         let s = self.shared.lock().unwrap();
         s.auth
             .matching(sel)
             .and_then(|x| x.username.clone())
             .map(Some)
-            .ok_or_else(|| format!("no session for {sel} — run `acq auth`"))
+            .ok_or_else(|| no_session(sel))
     }
 
     /// Every kind that sends with a token. `sleep` never sends; the mock's
@@ -1190,7 +1297,7 @@ resubmit if still wanted",
         priority: Priority,
         submitted_by: String,
         account: Option<String>,
-    ) -> Result<JobId, String> {
+    ) -> Result<JobId, Refusal> {
         // An `apply` is admitted or refused whole, before a job id exists
         // (CONTEXT.md, decided 2026-09-01): vocabulary and budget checked
         // here, so a refusal admits nothing. A realm a kind's family does
@@ -1205,13 +1312,10 @@ resubmit if still wanted",
     /// A child inherits its parent's priority, submitter, and account.
     /// The cancellation guard lives in `submit_with_parent`, inside the
     /// same critical section as the insert.
-    fn submit_child(&self, parent: JobId, kind: &str, params: Value) -> Result<JobId, String> {
+    fn submit_child(&self, parent: JobId, kind: &str, params: Value) -> Result<JobId, Refusal> {
         let (priority, by, account) = {
             let s = self.shared.lock().unwrap();
-            let p = s
-                .jobs
-                .get(&parent)
-                .ok_or_else(|| format!("parent job {parent} is gone"))?;
+            let p = s.jobs.get(&parent).ok_or_else(|| parent_gone(parent))?;
             (
                 p.info.priority,
                 p.info.submitted_by.clone(),
@@ -1232,11 +1336,9 @@ resubmit if still wanted",
         submitted_by: String,
         account: Option<String>,
         parent: Option<JobId>,
-    ) -> Result<JobId, String> {
+    ) -> Result<JobId, Refusal> {
         if let Some(e) = self.queue_failed() {
-            return Err(format!(
-                "the persisted queue failed ({e}); the daemon refuses new jobs — restart it once daemon.db is writable"
-            ));
+            return Err(Refusal::queue_failed(&e));
         }
         let info = {
             let mut s = self.shared.lock().unwrap();
@@ -1245,12 +1347,12 @@ resubmit if still wanted",
             // children, so a child can never be inserted after a
             // cancellation has swept and missed it.
             if let Some(pid) = parent {
-                let p = s
-                    .jobs
-                    .get(&pid)
-                    .ok_or_else(|| format!("parent job {pid} is gone"))?;
+                let p = s.jobs.get(&pid).ok_or_else(|| parent_gone(pid))?;
                 if p.info.state.is_terminal() || p.cancel_requested {
-                    return Err(format!("parent job {pid} was cancelled"));
+                    return Err(Refusal::new(
+                        ErrorKind::Refused,
+                        format!("parent job {pid} was cancelled"),
+                    ));
                 }
             }
             s.last_activity = Instant::now();
@@ -1279,9 +1381,7 @@ resubmit if still wanted",
             if !self.persist(&entry) {
                 s.next_id -= 1;
                 let e = self.queue_failed().unwrap_or_default();
-                return Err(format!(
-                    "the persisted queue failed ({e}); the daemon refuses new jobs — restart it once daemon.db is writable"
-                ));
+                return Err(Refusal::queue_failed(&e));
             }
             s.jobs.insert(id, entry);
             info
@@ -1292,16 +1392,19 @@ resubmit if still wanted",
         Ok(id)
     }
 
-    fn cancel(&self, id: JobId) -> Result<(), String> {
+    fn cancel(&self, id: JobId) -> Result<(), Refusal> {
         // Cancelling a parent cancels everything under it: waiting
         // descendants immediately, running ones at their next slice.
         let mut emits = Vec::new();
         let mut persist_failed = false;
         {
             let mut s = self.shared.lock().unwrap();
-            let entry = s.jobs.get(&id).ok_or_else(|| format!("no job {id}"))?;
+            let entry = s.jobs.get(&id).ok_or_else(|| Refusal::no_job(id))?;
             if entry.info.state.is_terminal() {
-                return Err(format!("job {id} already {}", entry.info.state));
+                return Err(Refusal::new(
+                    ErrorKind::WrongState,
+                    format!("job {id} already {}", entry.info.state),
+                ));
             }
             let mut targets = vec![id];
             let mut i = 0;
@@ -1354,29 +1457,32 @@ resubmit if still wanted",
             // The cancellation holds for this lifetime — nothing here will
             // send — but disk may still say waiting/running, so a restart
             // can revive the job. Say so instead of claiming success.
-            return Err(
+            return Err(Refusal::new(
+                ErrorKind::QueueFailed,
                 "cancelled for this daemon's lifetime, but the queue write failed — the \
-                 cancellation may not survive a restart; the daemon refuses new jobs until then"
-                    .to_string(),
-            );
+                 cancellation may not survive a restart; the daemon refuses new jobs until then",
+            ));
         }
         Ok(())
     }
 
-    fn set_priority(&self, id: JobId, priority: Priority) -> Result<(), String> {
+    fn set_priority(&self, id: JobId, priority: Priority) -> Result<(), Refusal> {
         let mut s = self.shared.lock().unwrap();
-        let entry = s.jobs.get_mut(&id).ok_or_else(|| format!("no job {id}"))?;
+        let entry = s.jobs.get_mut(&id).ok_or_else(|| Refusal::no_job(id))?;
         if entry.info.state != JobState::Waiting {
-            return Err(format!("job {id} is {}, not waiting", entry.info.state));
+            return Err(Refusal::new(
+                ErrorKind::WrongState,
+                format!("job {id} is {}, not waiting", entry.info.state),
+            ));
         }
         let before = entry.info.priority;
         entry.info.priority = priority;
         if !self.persist(entry) {
             entry.info.priority = before;
-            return Err(
-                "priority unchanged: the queue write failed; the daemon refuses new work until restart"
-                    .to_string(),
-            );
+            return Err(Refusal::new(
+                ErrorKind::QueueFailed,
+                "priority unchanged: the queue write failed; the daemon refuses new work until restart",
+            ));
         }
         Ok(())
     }
@@ -1781,7 +1887,11 @@ resubmit if still wanted",
             "characters" => {
                 let (token, username) = match self.valid_access_token(account, false).await {
                     Ok(pair) => pair,
-                    Err(error) => return Ok(Outcome::Failure { error }),
+                    Err(error) => {
+                        return Ok(Outcome::Failure {
+                            error: error.to_string(),
+                        });
+                    }
                 };
                 let Some((_, url)) = self.route_for(kind, &params) else {
                     return Ok(Outcome::Failure {
@@ -1824,7 +1934,11 @@ resubmit if still wanted",
                     Some(pair) => pair,
                     None => match self.valid_access_token(account, false).await {
                         Ok(pair) => pair,
-                        Err(error) => return Ok(Outcome::Failure { error }),
+                        Err(error) => {
+                            return Ok(Outcome::Failure {
+                                error: error.to_string(),
+                            });
+                        }
                     },
                 };
                 let Some((_, url)) = self.route_for(kind, &params) else {
@@ -1869,7 +1983,11 @@ resubmit if still wanted",
             "stashes" => {
                 let (token, username) = match self.valid_access_token(account, false).await {
                     Ok(pair) => pair,
-                    Err(error) => return Ok(Outcome::Failure { error }),
+                    Err(error) => {
+                        return Ok(Outcome::Failure {
+                            error: error.to_string(),
+                        });
+                    }
                 };
                 let league = params
                     .get("league")
@@ -1909,7 +2027,11 @@ resubmit if still wanted",
             "stash" => {
                 let (token, _) = match self.valid_access_token(account, false).await {
                     Ok(pair) => pair,
-                    Err(error) => return Ok(Outcome::Failure { error }),
+                    Err(error) => {
+                        return Ok(Outcome::Failure {
+                            error: error.to_string(),
+                        });
+                    }
                 };
                 let Some((_, url)) = self.route_for("stash", &params) else {
                     return Ok(Outcome::Failure {
@@ -1950,7 +2072,7 @@ resubmit if still wanted",
                                 return Ok(fan_out_stopped(
                                     self.cancelled(id),
                                     submitted.len(),
-                                    &e,
+                                    &e.message,
                                 ));
                             }
                         }
@@ -1973,7 +2095,11 @@ resubmit if still wanted",
             "refresh" => {
                 let (token, _) = match self.valid_access_token(account, false).await {
                     Ok(pair) => pair,
-                    Err(error) => return Ok(Outcome::Failure { error }),
+                    Err(error) => {
+                        return Ok(Outcome::Failure {
+                            error: error.to_string(),
+                        });
+                    }
                 };
                 let league = params
                     .get("league")
@@ -2068,7 +2194,11 @@ resubmit if still wanted",
                     ) {
                         Ok(cid) => submitted.push(cid),
                         Err(e) => {
-                            return Ok(fan_out_stopped(self.cancelled(id), submitted.len(), &e));
+                            return Ok(fan_out_stopped(
+                                self.cancelled(id),
+                                submitted.len(),
+                                &e.message,
+                            ));
                         }
                     }
                 }
@@ -2094,7 +2224,9 @@ resubmit if still wanted",
             // possibly an earlier build.
             "apply" => {
                 if let Err(error) = validate_apply(&params) {
-                    return Ok(Outcome::Failure { error });
+                    return Ok(Outcome::Failure {
+                        error: error.to_string(),
+                    });
                 }
                 let jobs = params
                     .get("jobs")
@@ -2108,7 +2240,11 @@ resubmit if still wanted",
                     match self.submit_child(id, kind, child_params) {
                         Ok(cid) => submitted.push(cid),
                         Err(e) => {
-                            return Ok(fan_out_stopped(self.cancelled(id), submitted.len(), &e));
+                            return Ok(fan_out_stopped(
+                                self.cancelled(id),
+                                submitted.len(),
+                                &e.message,
+                            ));
                         }
                     }
                 }
@@ -2166,7 +2302,11 @@ resubmit if still wanted",
                 }
                 let (token, username) = match self.valid_access_token(account, false).await {
                     Ok(pair) => pair,
-                    Err(error) => return Ok(Outcome::Failure { error }),
+                    Err(error) => {
+                        return Ok(Outcome::Failure {
+                            error: error.to_string(),
+                        });
+                    }
                 };
                 tokio::time::sleep(Duration::from_millis(300)).await;
                 if self.cancelled(id) {
@@ -2210,8 +2350,10 @@ resubmit if still wanted",
                         Err(error) => {
                             // Close the endpoint too, or the waiting job would
                             // just ask for another probe; login reopens it.
-                            self.choke.degrade(&route, &error);
-                            return Ok(Outcome::Failure { error });
+                            self.choke.degrade(&route, &error.message);
+                            return Ok(Outcome::Failure {
+                                error: error.message,
+                            });
                         }
                     }
                 } else {
@@ -2291,17 +2433,18 @@ resubmit if still wanted",
     /// Kick off a login: bind a loopback redirect listener, build the
     /// authorize URL, and spawn a task that waits for the browser callback
     /// and exchanges the code. Returns the URL for the user to open.
-    async fn auth_start(self: &Arc<Self>) -> Result<String, String> {
+    async fn auth_start(self: &Arc<Self>) -> Result<String, Refusal> {
+        let internal = |e: &dyn std::fmt::Display| Refusal::new(ErrorKind::Internal, e.to_string());
         let listener = TcpListener::bind("127.0.0.1:0")
             .await
-            .map_err(|e| format!("could not bind loopback listener: {e}"))?;
-        let port = listener.local_addr().map_err(|e| e.to_string())?.port();
+            .map_err(|e| internal(&format!("could not bind loopback listener: {e}")))?;
+        let port = listener.local_addr().map_err(|e| internal(&e))?.port();
         // The registered callback path; GGG accepts any loopback port.
         let redirect_uri = format!("http://127.0.0.1:{port}{CALLBACK_PATH}");
         let (verifier, challenge) = auth::pkce_pair();
         let state = auth::random_token("st");
         let mut authorize_url =
-            url::Url::parse(&self.provider.authorize_url).map_err(|e| e.to_string())?;
+            url::Url::parse(&self.provider.authorize_url).map_err(|e| internal(&e))?;
         authorize_url
             .query_pairs_mut()
             .append_pair("response_type", "code")
@@ -2668,7 +2811,7 @@ resubmit if still wanted",
         &self,
         account: Option<&str>,
         force_refresh: bool,
-    ) -> Result<(String, String), String> {
+    ) -> Result<(String, String), Refusal> {
         enum Decision {
             Owner {
                 id: u64,
@@ -2695,13 +2838,19 @@ resubmit if still wanted",
             }
             let refresh_token = match &session.refresh_token {
                 Some(rt) => rt.clone(),
-                None => return Err(format!("no refresh token for {username} — run `acq auth`")),
+                None => {
+                    return Err(Refusal::new(
+                        ErrorKind::NotLoggedIn,
+                        format!("no refresh token for {username} — run `acq auth`"),
+                    ));
+                }
             };
             // A grant the provider already rejected is terminal (CONTEXT.md):
             // it is not sent again until login or logout replaces it.
             if let Some(cause) = self.rails().refresh_failed(&username) {
-                return Err(format!(
-                    "token refresh disabled for {username}: {cause}; run `acq auth`"
+                return Err(Refusal::new(
+                    ErrorKind::NotLoggedIn,
+                    format!("token refresh disabled for {username}: {cause}; run `acq auth`"),
                 ));
             }
             let generations = session.generations;
@@ -2770,7 +2919,18 @@ resubmit if still wanted",
                         ));
                     }
                 }
-                let refresh = refresh.map_err(|e| format!("token refresh failed: {e}"));
+                // A rejected grant is a dead session (`not_logged_in`: the
+                // remedy is login); anything else — transport, a 5xx,
+                // exhausted 429s, a rails halt — is the provider not
+                // answering (`upstream`), with the session still standing.
+                let refresh = refresh.map_err(|e| {
+                    let kind = if e.is_rejected_grant() {
+                        ErrorKind::NotLoggedIn
+                    } else {
+                        ErrorKind::Upstream
+                    };
+                    Refusal::new(kind, format!("token refresh failed: {e}"))
+                });
                 owner.finish(refresh)
             }
         }
@@ -2781,7 +2941,7 @@ resubmit if still wanted",
         account: &str,
         id: u64,
         generations: AuthGenerations,
-        refresh: Result<auth::TokenResponse, String>,
+        refresh: Result<auth::TokenResponse, Refusal>,
         sender: &watch::Sender<Option<AccessTokenResult>>,
     ) -> AccessTokenResult {
         let mut warning = None;
@@ -2797,7 +2957,7 @@ resubmit if still wanted",
                 .as_ref()
                 .is_some_and(|flight| flight.id == id && flight.generations == generations);
             if !owns_current_flight || session.generations != generations {
-                Err(SESSION_CHANGED_DURING_REFRESH.into())
+                Err(session_changed())
             } else {
                 session.refresh_flight = None;
                 match refresh {
@@ -2848,7 +3008,7 @@ resubmit if still wanted",
 
     /// Drop a session (the named account's, or the sole one), its keyring
     /// entry, and its dead-grant mark. Other sessions are untouched.
-    fn logout(&self, account: Option<&str>) -> Result<(), String> {
+    fn logout(&self, account: Option<&str>) -> Result<(), Refusal> {
         let (username, clear) = {
             let mut s = self.shared.lock().unwrap();
             let username = s.auth.get(account)?.username.clone().unwrap_or_default();
@@ -2866,19 +3026,29 @@ resubmit if still wanted",
         self.rails().clear_refresh_failed(&username);
         self.with_index(|index| index.set_persisted(&username, false));
         self.log(&format!("logged out {username}"));
-        clear
+        clear.map_err(|e| Refusal::new(ErrorKind::Internal, e))
     }
 
     /// Drop a *non-live* account's keyring entry and mark it not persisted.
     /// Nothing about the live session changes.
-    fn forget_account(&self, selector: &str) -> Result<(), String> {
+    fn forget_account(&self, selector: &str) -> Result<(), Refusal> {
         let Some(dir) = &self.store_dir else {
-            return Err("no account index in this daemon".into());
+            return Err(Refusal::new(
+                ErrorKind::Internal,
+                "no account index in this daemon",
+            ));
         };
-        let index = Index::load(dir).map_err(|e| format!("accounts index: {e:#}"))?;
+        let index = Index::load(dir)
+            .map_err(|e| Refusal::new(ErrorKind::Internal, format!("accounts index: {e:#}")))?;
         let entry = index
             .resolve(Some(selector))
-            .map_err(|e| e.to_string())?
+            .map_err(|e| {
+                let kind = match e {
+                    acquisition_store::Resolve::Ambiguous(_) => ErrorKind::AmbiguousAccount,
+                    _ => ErrorKind::NotLoggedIn,
+                };
+                Refusal::new(kind, e.to_string())
+            })?
             .clone();
         // Nothing to clear for a session that was never in the keyring.
         let cleared = if entry.persisted {
@@ -2892,7 +3062,7 @@ resubmit if still wanted",
             "forgot account {} (keyring entry cleared)",
             entry.username
         ));
-        cleared
+        cleared.map_err(|e| Refusal::new(ErrorKind::Internal, e))
     }
 
     fn session_statuses(&self, s: &Shared) -> Vec<SessionStatus> {
@@ -2959,6 +3129,17 @@ resubmit if still wanted",
 
     // ---- connection handling -------------------------------------------
 
+    /// One connection, frame by frame (C85). Every frame is read under
+    /// the bound, then tried on the bootstrap plane first — `hello` and
+    /// `daemon_stop` are answered on any connection in any state, so a
+    /// client of another revision can identify this daemon and a human
+    /// can stop it — and only then parsed as a versioned request. A frame
+    /// that is oversize, not JSON, or not a request of this version is
+    /// answered `bad_request` and the connection stays; so is a
+    /// versioned request on a connection that has subscribed. Frames are
+    /// answered in order, one at a time; a subscribed connection also
+    /// carries `event` frames, and `resync_required` when the event
+    /// channel overran it.
     async fn handle_conn(self: Arc<Self>, stream: UnixStream) {
         {
             let mut s = self.shared.lock().unwrap();
@@ -2967,30 +3148,83 @@ resubmit if still wanted",
         }
 
         let (read, mut write) = stream.into_split();
-        let mut lines = BufReader::new(read).lines();
+        let mut reader = BufReader::new(read);
         let mut events: Option<broadcast::Receiver<JobInfo>> = None;
 
         loop {
             tokio::select! {
-                line = lines.next_line() => {
-                    let Ok(Some(line)) = line else { break };
-                    if line.trim().is_empty() {
+                frame = read_frame(&mut reader, MAX_FRAME_BYTES) => {
+                    let frame = match frame {
+                        Ok(Frame::Closed) | Err(_) => break,
+                        Ok(frame) => frame,
+                    };
+                    let bytes = match frame {
+                        Frame::Oversize => {
+                            let response = Refusal::new(
+                                ErrorKind::BadRequest,
+                                format!("frame exceeds {MAX_FRAME_BYTES} bytes; discarded through its newline"),
+                            );
+                            if write_line(&mut write, &Response::from(response)).await.is_err() {
+                                break;
+                            }
+                            continue;
+                        }
+                        Frame::Line(bytes) => bytes,
+                        Frame::Closed => unreachable!("handled above"),
+                    };
+                    if bytes.iter().all(u8::is_ascii_whitespace) {
                         continue;
                     }
-                    let response = match serde_json::from_str::<Request>(&line) {
-                        Ok(req) => self.handle_request(req, &mut events).await,
-                        Err(e) => Response::Error { message: format!("bad request: {e}") },
+                    match Bootstrap::read(&bytes) {
+                        Some(Bootstrap::Hello { client_version }) => {
+                            // The runtime revision, not the package version:
+                            // the client decides staleness from this and
+                            // replaces, refuses or reports a daemon from
+                            // other sources (C10).
+                            if client_version != crate::VERSION_WITH_RUNTIME {
+                                self.log(&format!(
+                                    "version mismatch: client {client_version}, daemon {}",
+                                    crate::VERSION_WITH_RUNTIME
+                                ));
+                            }
+                            let hello = BootstrapReply::Hello {
+                                daemon_version: crate::VERSION_WITH_RUNTIME.to_string(),
+                                pid: std::process::id(),
+                                provider: self.provider.name.to_string(),
+                            };
+                            if write_line(&mut write, &hello).await.is_err() {
+                                break;
+                            }
+                            continue;
+                        }
+                        Some(Bootstrap::DaemonStop) => {
+                            let _ = write_line(&mut write, &BootstrapReply::Stopping).await;
+                            self.exit_process("stop requested; exiting");
+                        }
+                        None => {}
+                    }
+                    let response = if events.is_some() {
+                        Refusal::new(
+                            ErrorKind::BadRequest,
+                            "this connection is a subscription: after `subscribed` it carries events only; requests go on a connection of their own",
+                        )
+                        .into()
+                    } else {
+                        match serde_json::from_slice::<Request>(&bytes) {
+                            Ok(req) => self.handle_request(req, &mut events).await,
+                            Err(e) => Refusal::new(ErrorKind::BadRequest, format!("bad request: {e}")).into(),
+                        }
                     };
-                    let stopping = matches!(response, Response::Stopping);
                     if write_line(&mut write, &response).await.is_err() {
                         break;
                     }
-                    if stopping {
-                        self.exit_process("stop requested; exiting");
-                    }
                 }
-                event = recv_event(&mut events) => {
-                    if write_line(&mut write, &Response::Event { job: event }).await.is_err() {
+                signal = recv_event(&mut events) => {
+                    let response = match signal {
+                        Signal::Event(job) => Response::Event { job },
+                        Signal::Lagged(missed) => Response::ResyncRequired { missed },
+                    };
+                    if write_line(&mut write, &response).await.is_err() {
                         break;
                     }
                 }
@@ -3009,7 +3243,7 @@ resubmit if still wanted",
     /// same work may disagree because the world moved. Account selection
     /// follows `Submit`'s rules exactly (resolved here, refused when
     /// ambiguous), so the quote keys the same limiter state a submit would.
-    fn quote(&self, jobs: &[QuoteJob], account: Option<&str>) -> Result<Quote, String> {
+    fn quote(&self, jobs: &[QuoteJob], account: Option<&str>) -> Result<Quote, Refusal> {
         // The selector is judged before anything is projected — an unknown
         // or ambiguous account refuses the quote whole even when the job
         // list is empty, exactly as a submit would refuse it. Omitted with
@@ -3189,22 +3423,6 @@ resubmit if still wanted",
         events: &mut Option<broadcast::Receiver<JobInfo>>,
     ) -> Response {
         match req {
-            Request::Hello { client_version } => {
-                // The runtime revision, not the package version: the
-                // client decides staleness from this and replaces, refuses
-                // or reports a daemon from other sources (C10).
-                if client_version != crate::VERSION_WITH_RUNTIME {
-                    self.log(&format!(
-                        "version mismatch: client {client_version}, daemon {}",
-                        crate::VERSION_WITH_RUNTIME
-                    ));
-                }
-                Response::Hello {
-                    daemon_version: crate::VERSION_WITH_RUNTIME.to_string(),
-                    pid: std::process::id(),
-                    provider: self.provider.name.to_string(),
-                }
-            }
             Request::Submit {
                 kind,
                 params,
@@ -3216,16 +3434,14 @@ resubmit if still wanted",
                 .and_then(|account| self.submit(kind, params, priority, submitted_by, account))
             {
                 Ok(id) => Response::Submitted { id },
-                Err(message) => {
-                    self.note_error(&format!("submit refused: {message}"));
-                    Response::Error { message }
+                Err(refusal) => {
+                    self.note_error(&format!("submit refused: {refusal}"));
+                    refusal.into()
                 }
             },
             Request::Status { id } => match self.shared.lock().unwrap().snapshot(self, id) {
                 Some(job) => Response::Status { job },
-                None => Response::Error {
-                    message: format!("no job {id}"),
-                },
+                None => Refusal::no_job(id).into(),
             },
             Request::Result { id } => {
                 let held = {
@@ -3234,33 +3450,32 @@ resubmit if still wanted",
                 };
                 match held {
                     Some((_, Some(outcome))) => Response::Result { id, outcome },
-                    Some((state, None)) => Response::Error {
-                        message: format!("job {id} is still {state}"),
-                    },
+                    Some((state, None)) => {
+                        Refusal::new(ErrorKind::WrongState, format!("job {id} is still {state}"))
+                            .into()
+                    }
                     // Not this lifetime's: a previous daemon's result, if
                     // retention still has it.
                     None => match self.stored_outcome(id) {
                         Ok(Some(outcome)) => Response::Result { id, outcome },
-                        Ok(None) => Response::Error {
-                            message: format!("no job {id}"),
-                        },
-                        Err(message) => {
-                            self.note_error(&format!("result {id}: {message}"));
-                            Response::Error { message }
+                        Ok(None) => Refusal::no_job(id).into(),
+                        Err(refusal) => {
+                            self.note_error(&format!("result {id}: {refusal}"));
+                            refusal.into()
                         }
                     },
                 }
             }
             Request::Cancel { id } => match self.cancel(id) {
                 Ok(()) => Response::Ack,
-                Err(message) => Response::Error { message },
+                Err(refusal) => refusal.into(),
             },
             Request::SetPriority { id, priority } => match self.set_priority(id, priority) {
                 Ok(()) => {
                     self.work.notify_one();
                     Response::Ack
                 }
-                Err(message) => Response::Error { message },
+                Err(refusal) => refusal.into(),
             },
             Request::List => Response::Jobs {
                 jobs: self.shared.lock().unwrap().list(self),
@@ -3271,16 +3486,16 @@ resubmit if still wanted",
             }
             Request::AuthStart => match self.auth_start().await {
                 Ok(authorize_url) => Response::AuthUrl { authorize_url },
-                Err(message) => Response::Error { message },
+                Err(refusal) => refusal.into(),
             },
             Request::AuthStatus => self.auth_status(),
             Request::AuthCheck { account } => match self.canonical_account(account.as_deref()) {
-                Err(message) => Response::Error { message },
+                Err(refusal) => refusal.into(),
                 Ok(account) => match self.valid_access_token(account.as_deref(), true).await {
                     Ok(_) => self.auth_status(),
-                    Err(message) => {
-                        self.note_error(&format!("auth check failed: {message}"));
-                        Response::Error { message }
+                    Err(refusal) => {
+                        self.note_error(&format!("auth check failed: {refusal}"));
+                        refusal.into()
                     }
                 },
             },
@@ -3298,7 +3513,7 @@ resubmit if still wanted",
                             .auth
                             .matching(req)
                             .map(|x| x.username.clone().unwrap_or_default())
-                            .ok_or_else(|| "not live".to_string()),
+                            .ok_or_else(|| no_session(req)),
                     }
                 };
                 match (live, &account) {
@@ -3310,14 +3525,14 @@ resubmit if still wanted",
                     }
                     (Err(_), Some(req)) => match self.forget_account(req) {
                         Ok(()) => Response::Ack,
-                        Err(message) => Response::Error { message },
+                        Err(refusal) => refusal.into(),
                     },
-                    (Err(message), None) => Response::Error { message },
+                    (Err(refusal), None) => refusal.into(),
                 }
             }
             Request::Quote { jobs, account } => match self.quote(&jobs, account.as_deref()) {
                 Ok(quote) => Response::Quote { quote },
-                Err(message) => Response::Error { message },
+                Err(refusal) => refusal.into(),
             },
             Request::DaemonStatus => {
                 let s = self.shared.lock().unwrap();
@@ -3345,7 +3560,6 @@ resubmit if still wanted",
                     keyring: self.keyring_summary(&s),
                 }
             }
-            Request::DaemonStop => Response::Stopping,
             Request::ResetTripwire => {
                 self.reset_rails();
                 Response::Ack
@@ -3477,13 +3691,16 @@ resubmit if still wanted",
 /// render a stash URL under `poe2` never gets an id (CONTEXT.md,
 /// 2026-09-02: no code path renders an unobserved URL shape). Kinds
 /// outside the families ignore the param.
-fn admit_realm(kind: &str, params: &Value) -> Result<(), String> {
+fn admit_realm(kind: &str, params: &Value) -> Result<(), Refusal> {
     let family = match kind {
         "characters" | "character" => Family::Characters,
         "stashes" | "stash" | "refresh" => Family::Stashes,
         _ => return Ok(()),
     };
-    family.realm_of(params).map(|_| ())
+    family
+        .realm_of(params)
+        .map(|_| ())
+        .map_err(|e| Refusal::new(ErrorKind::Refused, e))
 }
 
 /// The `apply` admission check (C43 — vocabulary, not meaning; C42 — the
@@ -3498,59 +3715,60 @@ fn admit_realm(kind: &str, params: &Value) -> Result<(), String> {
 /// admits nothing (mid-fan-out terminalization is never the budget's
 /// mechanism); a misread budget refuses too — a limit half-honored by
 /// ignoring it would spend exactly what the caller tried to cap.
-fn validate_apply(params: &Value) -> Result<(), String> {
+fn validate_apply(params: &Value) -> Result<(), Refusal> {
+    let refused = |message: String| Refusal::new(ErrorKind::Refused, message);
     let Some(jobs) = params.get("jobs").and_then(Value::as_array) else {
-        return Err(
+        return Err(refused(
             "apply needs a `jobs` array of {kind, params} tuples (a plan's actions)".into(),
-        );
+        ));
     };
     if jobs.is_empty() {
-        return Err(
+        return Err(refused(
             "apply with an empty `jobs` array: a plan with no actions has nothing to execute"
                 .into(),
-        );
+        ));
     }
     for (i, job) in jobs.iter().enumerate() {
         let kind = job.get("kind").and_then(Value::as_str).unwrap_or("");
         let params = job.get("params").cloned().unwrap_or(Value::Null);
-        admit_realm(kind, &params).map_err(|e| format!("apply job {i}: {e}"))?;
+        admit_realm(kind, &params).map_err(|e| refused(format!("apply job {i}: {e}")))?;
         match kind {
             "stashes" => {}
             "stash" => {
                 if params.get("deep").and_then(Value::as_bool).unwrap_or(false) {
-                    return Err(format!(
+                    return Err(refused(format!(
                         "apply job {i}: a plan's stash fetch never fans out (`deep` must be false)"
-                    ));
+                    )));
                 }
                 if params.get("id").and_then(Value::as_str).is_none() {
-                    return Err(format!("apply job {i}: stash needs an id"));
+                    return Err(refused(format!("apply job {i}: stash needs an id")));
                 }
             }
             "characters" => {}
             "character" => {
                 if params.get("name").and_then(Value::as_str).is_none() {
-                    return Err(format!("apply job {i}: character needs a name"));
+                    return Err(refused(format!("apply job {i}: character needs a name")));
                 }
             }
             other => {
-                return Err(format!(
+                return Err(refused(format!(
                     "apply job {i}: kind {other:?} is not in the plan vocabulary \
                      (stashes, stash, characters, character)"
-                ));
+                )));
             }
         }
     }
     if let Some(max) = params.get("max_requests") {
         let Some(max) = max.as_u64() else {
-            return Err(format!(
+            return Err(refused(format!(
                 "max_requests must be a non-negative integer, not {max}"
-            ));
+            )));
         };
         if jobs.len() as u64 > max {
-            return Err(format!(
+            return Err(refused(format!(
                 "plan exceeds the budget: {} logical request(s) against max_requests {max} — nothing was submitted",
                 jobs.len()
-            ));
+            )));
         }
     }
     Ok(())
@@ -3656,24 +3874,44 @@ async fn wait_callback(listener: TcpListener, expected_state: &str) -> Result<St
     }
 }
 
-async fn recv_event(rx: &mut Option<broadcast::Receiver<JobInfo>>) -> JobInfo {
+/// What a subscribed connection is told next: an event, or that it
+/// missed some (C85).
+enum Signal {
+    Event(JobInfo),
+    /// The broadcast channel overran this receiver; `missed` events are
+    /// gone. The subscriber snapshots again.
+    Lagged(u64),
+}
+
+async fn recv_event(rx: &mut Option<broadcast::Receiver<JobInfo>>) -> Signal {
     match rx {
-        Some(rx) => loop {
-            match rx.recv().await {
-                Ok(info) => return info,
-                // Lagged: skip missed events, keep going. Closed can't happen
-                // while the daemon holds the sender.
-                Err(broadcast::error::RecvError::Lagged(_)) => continue,
-                Err(broadcast::error::RecvError::Closed) => std::future::pending().await,
-            }
+        Some(rx) => match rx.recv().await {
+            Ok(info) => Signal::Event(info),
+            // A loss the client cannot observe cannot be recovered from,
+            // so it is reported, never skipped (C85); the receiver has
+            // already advanced past the gap. Closed can't happen while
+            // the daemon holds the sender.
+            Err(broadcast::error::RecvError::Lagged(missed)) => Signal::Lagged(missed),
+            Err(broadcast::error::RecvError::Closed) => std::future::pending().await,
         },
         None => std::future::pending().await,
     }
 }
 
 /// A refresh whose session vanished (logged out) while it was in flight.
+/// The session a refresh was for is gone or replaced: whoever waited on
+/// it has no session to use — `not_logged_in`.
+fn session_changed() -> Refusal {
+    Refusal::new(ErrorKind::NotLoggedIn, SESSION_CHANGED_DURING_REFRESH)
+}
+
+/// A child submission's parent is no longer there to take it.
+fn parent_gone(parent: JobId) -> Refusal {
+    Refusal::new(ErrorKind::Refused, format!("parent job {parent} is gone"))
+}
+
 fn finish_stale(sender: &watch::Sender<Option<AccessTokenResult>>) -> AccessTokenResult {
-    let outcome: AccessTokenResult = Err(SESSION_CHANGED_DURING_REFRESH.into());
+    let outcome: AccessTokenResult = Err(session_changed());
     sender.send_replace(Some(outcome.clone()));
     outcome
 }
@@ -3686,14 +3924,14 @@ async fn wait_for_refresh(
             return outcome;
         }
         if result.changed().await.is_err() {
-            return Err(REFRESH_OWNER_ABANDONED.into());
+            return Err(Refusal::new(ErrorKind::Internal, REFRESH_OWNER_ABANDONED));
         }
     }
 }
 
-async fn write_line(
+async fn write_line<T: serde::Serialize>(
     write: &mut tokio::net::unix::OwnedWriteHalf,
-    response: &Response,
+    response: &T,
 ) -> std::io::Result<()> {
     let mut line = serde_json::to_string(response).expect("response serializes");
     line.push('\n');
@@ -4190,7 +4428,9 @@ mod auth_session_tests {
             )
             .unwrap_err();
         assert!(
-            refused.contains("stashes endpoints do not take realm poe2"),
+            refused
+                .message
+                .contains("stashes endpoints do not take realm poe2"),
             "{refused}"
         );
         let refused = daemon
@@ -4202,14 +4442,19 @@ mod auth_session_tests {
                 None,
             )
             .unwrap_err();
-        assert!(refused.contains("unknown realm \"ps5\""), "{refused}");
+        assert!(
+            refused.message.contains("unknown realm \"ps5\""),
+            "{refused}"
+        );
         let refused = validate_apply(&json!({ "jobs": [
             { "kind": "stashes", "params": { "realm": "xbox", "league": "Standard" } },
             { "kind": "stash", "params": { "realm": "poe2", "league": "Standard", "id": "t1" } },
         ] }))
         .unwrap_err();
         assert!(
-            refused.starts_with("apply job 1: the stashes endpoints"),
+            refused
+                .message
+                .starts_with("apply job 1: the stashes endpoints"),
             "{refused}"
         );
         assert_eq!(
@@ -4553,7 +4798,7 @@ mod auth_session_tests {
         let owner_error = owner.await.unwrap().unwrap_err();
         let waiter_error = waiter.await.unwrap().unwrap_err();
         assert_eq!(waiter_error, owner_error);
-        assert!(owner_error.contains("400 Bad Request"));
+        assert!(owner_error.message.contains("400 Bad Request"));
         {
             let s = daemon.shared.lock().unwrap();
             assert_eq!(s.auth.one().generations, before);
@@ -4717,14 +4962,17 @@ mod auth_session_tests {
         let err = daemon
             .resolve_account("characters", Some("Other#1"))
             .unwrap_err();
-        assert!(err.contains("Other#1") && err.contains("old-user"), "{err}");
+        assert!(
+            err.message.contains("Other#1") && err.message.contains("old-user"),
+            "{err}"
+        );
         // Two sessions live: no selector is ambiguous for a token kind.
         daemon.shared.lock().unwrap().auth.replace(AuthSession {
             username: Some("Other#1".into()),
             ..AuthSession::default()
         });
         let err = daemon.resolve_account("characters", None).unwrap_err();
-        assert!(err.contains("several accounts"), "{err}");
+        assert!(err.message.contains("several accounts"), "{err}");
         assert_eq!(
             daemon.resolve_account("characters", Some("other")),
             Ok(Some("Other#1".into()))
@@ -4733,12 +4981,12 @@ mod auth_session_tests {
         // No session: an auth-required kind is refused at submit; a kind
         // that never sends with a token simply has no account.
         let err = daemon.resolve_account("characters", None).unwrap_err();
-        assert!(err.contains("not logged in"), "{err}");
+        assert!(err.message.contains("not logged in"), "{err}");
         assert_eq!(daemon.resolve_account("sleep", None), Ok(None));
         let err = daemon
             .resolve_account("characters", Some("Other#1"))
             .unwrap_err();
-        assert!(err.contains("not logged in"), "{err}");
+        assert!(err.message.contains("not logged in"), "{err}");
         remove_test_log(&log_path);
     }
 
@@ -4772,7 +5020,7 @@ mod auth_session_tests {
         // No selector with two sessions live: refused, never guessed.
         let err = daemon.valid_access_token(None, false).await.unwrap_err();
         assert!(
-            err.contains("several accounts") && err.contains("--account"),
+            err.message.contains("several accounts") && err.message.contains("--account"),
             "{err}"
         );
         // old-user logs out: its jobs fail at token time, before any send.
@@ -4781,7 +5029,7 @@ mod auth_session_tests {
             .valid_access_token(Some("old-user"), false)
             .await
             .unwrap_err();
-        assert!(err.contains("no session for old-user"), "{err}");
+        assert!(err.message.contains("no session for old-user"), "{err}");
         // The other session is untouched, and is now the sole one.
         assert!(daemon.valid_access_token(None, false).await.is_ok());
         remove_test_log(&log_path);
@@ -6496,7 +6744,7 @@ mod dispatcher_tests {
             let err = daemon
                 .submit("apply".into(), params.clone(), 0, "test".into(), None)
                 .unwrap_err();
-            assert!(err.contains(expected), "{params}: {err}");
+            assert!(err.message.contains(expected), "{params}: {err}");
             assert!(
                 daemon.shared.lock().unwrap().jobs.is_empty(),
                 "{params}: a refused apply must admit nothing"
@@ -7371,7 +7619,7 @@ mod dispatcher_tests {
             .handle_request(Request::Result { id: 999 }, &mut None)
             .await
         {
-            Response::Error { message } => assert_eq!(message, "no job 999"),
+            Response::Error { message, .. } => assert_eq!(message, "no job 999"),
             other => panic!("{other:?}"),
         }
 
@@ -7499,7 +7747,7 @@ mod dispatcher_tests {
         let err = daemon
             .submit("sleep".into(), json!({}), 0, "t".into(), None)
             .unwrap_err();
-        assert!(err.contains("refuses new jobs"), "{err}");
+        assert!(err.message.contains("refuses new jobs"), "{err}");
         assert_eq!(
             daemon.shared.lock().unwrap().next_id,
             2,
@@ -7531,7 +7779,7 @@ mod dispatcher_tests {
         }
         daemon.cancel(parent).unwrap();
         let err = daemon.submit_child(parent, "stash", json!({})).unwrap_err();
-        assert!(err.contains("cancelled"), "{err}");
+        assert!(err.message.contains("cancelled"), "{err}");
         remove_harness_files(&log);
     }
 
@@ -7584,10 +7832,10 @@ mod dispatcher_tests {
             .unwrap();
         daemon.jobs_db.lock().unwrap().break_for_tests();
         let err = daemon.set_priority(id, 9).unwrap_err();
-        assert!(err.contains("priority unchanged"), "{err}");
+        assert!(err.message.contains("priority unchanged"), "{err}");
         assert_eq!(daemon.shared.lock().unwrap().jobs[&id].info.priority, 3);
         let err = daemon.cancel(id).unwrap_err();
-        assert!(err.contains("may not survive"), "{err}");
+        assert!(err.message.contains("may not survive"), "{err}");
         assert_eq!(
             daemon.shared.lock().unwrap().jobs[&id].info.state,
             JobState::Cancelled,
@@ -7658,7 +7906,7 @@ mod dispatcher_tests {
             .handle_request(Request::Result { id: 42 }, &mut None)
             .await
         {
-            Response::Error { message } => assert!(
+            Response::Error { message, .. } => assert!(
                 message.contains("could not read the persisted queue"),
                 "{message}"
             ),
@@ -7790,7 +8038,7 @@ mod dispatcher_tests {
         logged_in(&mut daemon);
 
         let first = daemon.valid_access_token(None, false).await.unwrap_err();
-        assert!(first.contains("400 Bad Request"), "{first}");
+        assert!(first.message.contains("400 Bad Request"), "{first}");
         assert_eq!(requests.lock().unwrap().len(), 1);
         assert!(
             rails
@@ -7801,7 +8049,7 @@ mod dispatcher_tests {
 
         let second = daemon.valid_access_token(None, false).await.unwrap_err();
         assert!(
-            second.contains(
+            second.message.contains(
                 "token refresh disabled for test-user: refresh token rejected with HTTP 400"
             ),
             "{second}"
@@ -7843,7 +8091,7 @@ mod dispatcher_tests {
         logged_in(&mut daemon);
 
         let first = daemon.valid_access_token(None, false).await.unwrap_err();
-        assert!(first.contains("503"), "{first}");
+        assert!(first.message.contains("503"), "{first}");
         assert_eq!(
             rails.refresh_failed("test-user"),
             None,
@@ -7884,7 +8132,10 @@ mod dispatcher_tests {
         });
         logged_in(&mut daemon);
         let error = daemon.valid_access_token(None, false).await.unwrap_err();
-        assert!(error.contains("halted by live-test rails"), "{error}");
+        assert!(
+            error.message.contains("halted by live-test rails"),
+            "{error}"
+        );
         assert!(requests.lock().unwrap().is_empty());
         server.abort();
         // The one journal line is the synthetic 429 recorded above, not a
@@ -8108,7 +8359,7 @@ mod dispatcher_tests {
             )
             .await
         {
-            Response::Error { message } => assert!(message.contains("Bob"), "{message}"),
+            Response::Error { message, .. } => assert!(message.contains("Bob"), "{message}"),
             other => panic!("{other:?}"),
         }
         // Omitted with several sessions live is ambiguous too — even an
@@ -8130,7 +8381,7 @@ mod dispatcher_tests {
             )
             .await
         {
-            Response::Error { message } => assert!(message.contains("several"), "{message}"),
+            Response::Error { message, .. } => assert!(message.contains("several"), "{message}"),
             other => panic!("{other:?}"),
         }
         remove_harness_files(&log_path);

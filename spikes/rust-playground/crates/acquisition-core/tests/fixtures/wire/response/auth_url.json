@@ -1,0 +1,4 @@
+{
+  "authorize_url": "http://127.0.0.1:1234/authorize?client_id=acquisition&state=st-x",
+  "resp": "auth_url"
+}
