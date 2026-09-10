@@ -3,7 +3,7 @@
 //! mode prints the message alone: the kind is for a program to branch on,
 //! never a prefix on prose.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Output, Stdio};
 use std::time::{Duration, Instant};
 
@@ -39,6 +39,16 @@ fn sole_json(out: &Output) -> Value {
         .unwrap_or_else(|e| panic!("stdout is not exactly one JSON document ({e}):\n{stdout}"))
 }
 
+/// The test's scratch directory, removed on drop — declared before the
+/// daemon so the daemon is gone first.
+struct Scratch(PathBuf);
+
+impl Drop for Scratch {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
+
 struct Daemon(Child);
 
 impl Drop for Daemon {
@@ -72,6 +82,7 @@ fn c85_a_refusal_carries_its_kind_in_json_and_only_its_message_in_text() {
     let base = std::env::temp_dir().join(format!("acq-kind-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&base);
     std::fs::create_dir_all(&base).unwrap();
+    let _scratch = Scratch(base.clone());
     let _daemon = start_daemon(&base);
 
     let out = acq(&base, &["status", "999", "--json"]);

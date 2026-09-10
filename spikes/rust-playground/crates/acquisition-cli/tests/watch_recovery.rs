@@ -43,6 +43,16 @@ fn command(base: &Path, args: &[&str]) -> Command {
     cmd
 }
 
+/// The test's scratch directory, removed on drop — declared before the
+/// daemon so the daemon is gone first.
+struct Scratch(PathBuf);
+
+impl Drop for Scratch {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
+
 struct Proc(Child);
 
 impl Drop for Proc {
@@ -194,6 +204,7 @@ fn c85_the_watch_subscribes_and_reads_again_after_it_lagged_with_no_leftover_eve
     let base: PathBuf = std::env::temp_dir().join(format!("acq-watch-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&base);
     std::fs::create_dir_all(&base).unwrap();
+    let _scratch = Scratch(base.clone());
     // The in-process client below reads the socket from the environment;
     // this binary holds one test, so nothing else reads it.
     unsafe {

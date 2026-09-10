@@ -296,8 +296,10 @@ pub enum Signal {
     /// A job changed. An invalidation hint: re-read before relying on the
     /// view, never assume the stream is complete.
     Event(JobInfo),
-    /// The daemon dropped `missed` events for this subscriber: snapshot
-    /// again over a [`Client`] before trusting the view.
+    /// The daemon dropped `missed` events for this subscriber. Drop this
+    /// subscription — what it still holds predates any snapshot taken
+    /// now — open a new one, then snapshot again over a [`Client`] before
+    /// trusting the view.
     ResyncRequired { missed: u64 },
 }
 

@@ -87,6 +87,14 @@ fn session(tag: &str) -> Session {
     Session { _lock: lock, base }
 }
 
+impl Drop for Session {
+    /// The scratch store goes with the test; the daemon, declared after
+    /// the session, is already gone by then.
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.base);
+    }
+}
+
 /// The mock daemon, killed on drop if a failed assertion leaves it behind.
 struct Daemon(Child);
 
