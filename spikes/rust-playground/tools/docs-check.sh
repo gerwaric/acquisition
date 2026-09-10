@@ -176,33 +176,40 @@ fi
 # so a planner that links the daemon again has grown a third door).
 #
 # One graph, from Cargo: the `resolve` section of `cargo metadata
-# --all-features` — every package Cargo can link into any build of this
-# workspace, on any target (no platform filter), with every member
-# feature on, so every optional edge a member can activate is present,
-# and an optional edge nothing can activate is absent because no build
-# can link it either. Vertices are package ids, never names: the same
-# name at two versions is two vertices (295 packages, 269 names in this
-# tree), and a name is used only to state a rule and to print. Edges
-# carry their kinds; the closure walks normal and build edges at every
-# depth and dev edges from the root only, since Cargo links no one
-# else's dev-dependencies. Membership is `.workspace_members`, never a
-# guess from the package's source.
+# --all-features` — every package Cargo resolves for this workspace with
+# every member feature on and no platform filter, so every optional edge
+# a member can activate is present, and an optional edge nothing can
+# activate is absent because no build can link it either. The edges are
+# the union over targets, on purpose: a target predicate is not followed
+# along a path, so `plan → helper` under `cfg(unix)` with `helper → core`
+# under `cfg(windows)` is refused although no single target links the
+# two — the boundary is what the manifests declare, not what one
+# platform happens to build (review 2026-09-10, accepted as the
+# conservative reading). Vertices are package ids, never names: the same
+# name at two versions is two vertices, and a name is used only to state
+# a rule and to print. Edges carry their kinds; the closure walks normal
+# and build edges at every depth and dev edges from the root only, since
+# Cargo links no one else's dev-dependencies. Membership is
+# `.workspace_members`, never a guess from the package's source.
 #
 # Never the manifest's text (review 2026-09-10: a lexical parser missed
 # three valid forms); never `cargo tree` (the host's active closure under
 # default features missed a `cfg(windows)` edge and an optional one);
 # never the declared table of `packages[].dependencies` (an inactive
 # optional dependency is declared but has no package entry, so its own
-# edges are invisible — 221 such declarations in this tree). Five review
-# rounds on this check found the same shape each time: a reader whose
-# empty or partial answer satisfied every rule. So the graph is read by
-# one jq program whose exit status is checked directly, its answer is
-# checked for closure before anything else — every member is a node,
-# every edge lands on a node, every node has a package — and the rules
-# read the resulting table with bash builtins alone: no awk, grep or
-# comm in a process substitution can answer for it, and a table that
-# lacks a package's own row, or a direct edge its closure does not
-# contain, refuses before any rule is consulted.
+# edges are invisible). Six review rounds on this check found the same
+# shape each time: a reader whose empty or partial answer satisfied
+# every rule. So the graph is read twice, by two jq programs whose exit
+# status is checked directly and whose answers must agree. The first
+# proves the graph whole — every member is a node, every edge lands on a
+# node, every node has a package — and counts, by a set fixpoint of its
+# own, the direct edges and the closure sizes the table must have. The
+# second walks the graph and emits the table. The rules read that table
+# with bash builtins alone — no awk, grep or comm in a process
+# substitution can answer for it — after the counts have matched and
+# every package the rules are about has its own row with every direct
+# edge inside its closure. What remains is a reader that forges a whole
+# table and the counts to match it: a consistent lie, accepted.
 meta=$(mktemp)
 if ! cargo metadata --format-version 1 --all-features --offline >"$meta" 2>/dev/null \
    && ! cargo metadata --format-version 1 --all-features >"$meta"; then
@@ -213,19 +220,29 @@ fi
 if ! partial=$(jq -r '
     ([.resolve.nodes[]?.id] | unique) as $nodes
     | ([.packages[].id] | unique) as $pkgs
-    | if (.workspace_members | length) == 0 then "no workspace member"
+    | ([.resolve.nodes[]? | {key: .id, value: .deps}] | from_entries) as $deps
+    | def reach($m): reduce range(0; 10000) as $_ (
+        { seen: [$m], front: ([$deps[$m][] | .pkg] | unique) };
+        if .front == [] then . else
+          (.seen + .front) as $seen
+          | .front = (([ .front[] | $deps[.][] | select(any(.dep_kinds[]; .kind != "dev")) | .pkg ] | unique) - $seen)
+          | .seen = $seen
+        end) | .seen | length;
+    if (.workspace_members | length) == 0 then "no workspace member"
       elif ($nodes | length) == 0 then "no resolve graph"
       elif any(.workspace_members[]; . as $m | ($nodes | index($m)) == null) then "a workspace member is not a node"
       elif any(.resolve.nodes[].deps[].pkg; . as $d | ($nodes | index($d)) == null) then "an edge lands on no node"
       elif any($nodes[]; . as $n | ($pkgs | index($n)) == null) then "a node has no package entry"
-      else "whole" end' "$meta"); then
+      else "whole \([.workspace_members[] as $m | $deps[$m][] | .dep_kinds[]] | length) \([.workspace_members[] | reach(.)] | add)"
+      end' "$meta"); then
   echo 'EDGE    jq failed or is not installed — the dependency graph could not be read'
   rm -f "$meta"; exit 1
 fi
-if [[ $partial != whole ]]; then
+if [[ $partial != "whole "* ]]; then
   printf 'EDGE    the metadata is partial (%s) — the dependency graph could not be read\n' "$partial"
   rm -f "$meta"; exit 1
 fi
+read -r _ want_direct want_closure <<<"$partial"
 # The table, one line per fact, package names for the rules to read:
 #   direct  <member> <kind> <name>          one row per kind of a direct edge
 #   closure <member> <name> <path by names> one row per package the member links, itself included
@@ -249,6 +266,18 @@ if ! table=$(jq -r '
 fi
 rm -f "$meta"
 table=$'\n'"$table"$'\n'
+# The table must be as large as the graph says, row by row: the first
+# reader counted, the second emitted, and a whole-looking table that is
+# short — self rows alone, or the deep rows dropped — refuses here.
+got_direct=0; got_closure=0
+while IFS= read -r line; do
+  case $line in direct\ *) ((++got_direct)) ;; closure\ *) ((++got_closure)) ;; esac
+done <<<"$table"
+if ((got_direct != want_direct || got_closure != want_closure)); then
+  printf 'EDGE    the dependency table has %d direct and %d closure rows, the graph has %d and %d — the table is partial\n' \
+    "$got_direct" "$got_closure" "$want_direct" "$want_closure"
+  exit 1
+fi
 has_row() { [[ $table == *$'\n'"$1"* ]]; }   # has_row <line prefix>: builtins only
 named() {  # named <package>: its own rows must be there — itself in its closure, every direct edge in it
   local pkg=$1 line kind name
