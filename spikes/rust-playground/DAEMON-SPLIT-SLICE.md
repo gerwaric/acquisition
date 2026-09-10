@@ -51,6 +51,7 @@ holds it now. The packet's own review rounds are its §8 and §9.
 | 9 (external, after round 8) | `47d77df3` | (1) the wholeness check proved the graph, not the table: with the metadata intact and only the table jq answering with the four self rows, the staged path passed; (2) the all-target closure is a union over targets — `plan → helper` under `cfg(unix)` with `helper → core` under `cfg(windows)` is refused though no single target links both — while the comment and this record said "what Cargo can link on any target"; (3) the tree's package, name and declaration counts sat in the mechanism comment, the record's facts | (1) the first jq counts the members' direct edges and closure sizes by a set fixpoint of its own; bash counts the table's rows with builtins and refuses a mismatch before any rule — breakers: the four self rows alone, every row two or more steps deep dropped, the one deep row of the staged path dropped, the direct rows dropped, each naming both counts; what remained — a table of the right size with the wrong rows — is round 10's; (2) the union is the intended reading, stated in the comment — the boundary is what the manifests declare, not what one platform builds — and the union case is staged and seen refused with its path; (3) the counts removed from the comment |
 | 10 (external, after round 9) | `5362ac04` | (1) matching counts did not prove correspondence: with the graph and its counts intact, the `plan → core` closure row removed and the `plan → helper` row duplicated in its place, both counts matched and the staged violation passed | (1) the first jq names every fact the table must hold, by package id, sorted — one line per direct edge and per reached package; the second emits the table, tab-separated with ids beside the names, in that order; bash projects each row to its identity and compares the two sequences element-wise with builtins, refusing at the first differing row and naming both sides. Breakers seen to fail: the reviewer's swap (row 938, the core id against the helper id); the row removed and a fabricated one appended; two rows swapped; the four self rows alone; the deep rows dropped; the direct rows dropped; the table empty; a member node missing; a package entry missing; jq absent; cargo metadata misspelled; the direct edge; the three helper forms and the inactive-optional bridge with their paths; the union case. Seen to pass: the two-version helper; the excluded crate with a dev-only path dependency. What remained — the names beside authenticated ids, unchecked — is round 11's |
 | 11 (external, after round 10) | `3056df2b` | (1) the comparison authenticated ids and kinds and discarded the names, which the rules then read: with every row and id intact and the dependency name of the staged `plan → core` closure row changed to `masked-core`, the sequences matched, the forbid found no row, and the check passed | (1) the first reader carries the names into every expected line, from an id-to-name map of its own over packages already found whole; bash projects each table row to (ids, kind, member, name) before comparing, so a name that does not belong to its id refuses at that row; the rules read names so authenticated; the path column alone is not compared — printed on a hit, never read, said so in the comment. Breakers seen to fail: the reviewer's rename, the member-name column renamed, a direct row's dependency name renamed, and every earlier case. Seen to pass: only the path column altered (the hit still refuses); the two-version helper; the excluded crate with a dev-only path dependency. What remains is a reader that forges a whole table, its ids and its names to match: the consistent lie |
+| 12 (external, after commit 3) | `7df3258f` | (1) `ConnectError::Absent` took its reason from `ACQ_NO_SPAWN` alone, so the MCP's real-mode absence — the one caller that connects without spawning — was told "it spawns on demand for job commands", and the MCP mapped every `ConnectError` to a bare internal error, the typed failure unconsumed; `ggg_refusal.rs` checked only that no socket appeared; (2) C82 says tests locate `acqd` the way frontends do while the contract harness said its lookup was "not the locator's rule"; and its claim that a present daemon is named by path in every failure held only for startup failures; (3) C39 stayed stale though its amendment was proposed for commit 3; (4) live docs named removed paths or the wrong dependency: C85's recorded pin and the frame reader's home in `protocol.rs`, the provider pointer in `provider.rs`, C43's mechanism in `daemon.rs` ("cannot link the store") | (1) `Absent { because: NotSpawned }` — `Policy` (the door does not spawn) judged before `NoSpawnEnv` (the knob), each with its own text; the MCP's `connect` wraps a policy absence in real mode with "this server never starts one there (C13) — start it from the CLI with a job command", and its `err` maps a `ConnectError` to a JSON-RPC error whose `data.connect` names the door; pinned by a client unit test for both reasons and by `ggg_refusal.rs`, which asserts the policy text and the CLI remedy in real mode and the knob's name under `ACQ_NO_SPAWN=1` in mock; (2) the harness doc states the tension as it stands and points at the observation, where the proposed C82 clause sits with byte counts for the owner; every daemon guard (`contract.rs`, the three CLI tests) prints its executable's path and pid while a test is panicking, so a failed assertion's output names the daemon; (3) not fixed — a ruled line; three measured variants in the observation for the owner; (4) the four docs corrected: C43's daemon links the store to write facts and keep its queue, cannot link the planner, reads no intent (C34) |
 
 ## Observations still open
 
@@ -72,7 +73,19 @@ data for the commit that touches it.
   locator's rule and not a knob. The alternatives: the tests in the
   daemon package (where `CARGO_BIN_EXE_acqd` exists) cannot drive the
   public `Client`; artifact dependencies are unstable. A one-function
-  change if the owner rules otherwise.
+  change if the owner rules otherwise. Review round 12 read the harness
+  against C82's "tests and drivers locate it the same way" and found
+  them incompatible as written; the harness doc now says so, and the
+  ruled line is the owner's. Proposed text, measured as the check
+  measures (`printf '%s' | wc -c`, no newline; the line is 791 today):
+  the clause "Tests and drivers locate it the same way (a test
+  executable names the `acqd` its build wrote); packaging smoke tests
+  are the acceptance criterion." with the parenthetical "(the playground
+  beside the shipped app targets another world)" trimmed — 782 bytes;
+  the same clause without the trim — 844; an em-dash form ("— a test
+  executable, having no sibling, names the `acqd` its build wrote;") —
+  866, or 804 trimmed. The drivers carry the same reading (they name
+  `target/debug/acqd`, the sibling of the `acq` they run).
 - Two kinds beyond the packet's sketch, reviewed at the fixture diff:
   `wrong_state` (a result before terminal, a cancel after, a priority
   change off `waiting`) and `upstream` (a token refresh that failed on
@@ -153,10 +166,14 @@ data for the commit that touches it.
   `hello` and the observer report carry.
 - C39's ruling reads "depends on core + the store, linked by frontends
   only"; since step 2 the planner links protocol and store, so the
-  phrase is stale. The line is 414 bytes; "depends on protocol + the
-  store" would be 418. A ruled line is the owner's to amend — proposed
-  for the commit that lands C1 (step 3), when the registry is edited
-  anyway.
+  phrase is stale, and its *Why* — "the daemon never reads the store"
+  — reads oddly beside a daemon that links the store (to write facts
+  and keep its queue; it reads no facts and no intent, C34). Proposed
+  for step 3, not ruled; still standing after round 12. Measured as
+  the check measures (the line is 413 today): "depends on protocol +
+  the store" alone — 417; with the *Why* as "the daemon never reads
+  facts or intent" — 423; with the *Why* as "the daemon never links the
+  planner" — 419. A ruled line is the owner's to amend.
 - `acq jobs --watch` ends when the daemon goes away rather than waiting
   for it to return: an observer never spawns (C10), and a watch that
   waits for a daemon is a design choice for the GUI's subscriber, not
