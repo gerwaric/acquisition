@@ -20,12 +20,13 @@
 #      and *.rs / *.sh / *.py / *.sql file names.
 #   4. The README's form: one line per verb in the tour, a row per knob.
 #   5. Dependency direction: the layer rules as edges the crates cannot
-#      cross, read from `cargo metadata` — the daemon and the store as
-#      before, since the daemon split's step 1 the protocol crate's
-#      purity (serde only) and the store's blindness to it, and since
-#      step 2 the planner's independence from the daemon, each forbidden
-#      edge refused at any depth; the rest of the split's edge table
-#      (brainstorming-notes/18 §2.1) lands with the crates it names.
+#      cross, read from `cargo metadata` — the split's edge table
+#      (brainstorming-notes/18 §2.1; C1 as amended) for every crate that
+#      exists: the protocol crate's purity (serde only), the store's
+#      blindness to everything above it, the planner's and the client's
+#      independence from the daemon, the daemon's from the client, the
+#      planner and any frontend, and the daemon named by no package but
+#      itself — each forbidden edge refused at any depth.
 #
 # Exit 1 on any failure; the report names each offender.
 set -euo pipefail
@@ -162,18 +163,25 @@ else
 fi
 
 # ---- 5. dependency direction ------------------------------------------
-# The four-layer rule (C34) and the planner's home (C39) are enforced by
-# what links what, not by discipline: the daemon crate never links the
-# planner and never names the intent API (it writes facts through the
-# store and reads nothing else); the store crate links neither the daemon
-# nor an HTTP client, so a store read cannot initiate traffic (C41); the
-# protocol crate — the daemon's contract as a frontend sees it — links
-# serde and serde_json, nothing else (sha2 at build time only), because a
-# dependency there is every frontend's and the daemon's both, and the
-# revision it computes must move only when the contract does (§2.1);
-# the planner links the protocol crate and the store, never the daemon
-# (§2.1: every path it took from core was the wire's or the vocabulary's,
-# so a planner that links the daemon again has grown a third door).
+# The four-layer rule (C34), the planner's home (C39) and the daemon as
+# its own artifact (C1, C13, C82) are enforced by what links what, not by
+# discipline: the daemon crate (`acquisition-daemon`, binary `acqd`)
+# links the protocol crate and the store — never the client crate, the
+# planner or a frontend — and never names the intent API (it writes facts
+# through the store and reads nothing else); no package but the daemon
+# names the daemon, so a frontend cannot be in-process with it (C13) and
+# the client crate cannot embed it; the client crate links the protocol
+# crate and tokio (the store from step 5), never the daemon or the
+# planner, so a client or locator edit recompiles no daemon; the store
+# crate links none of them and no HTTP client, so a store read cannot
+# initiate traffic (C41); the protocol crate — the daemon's contract as a
+# frontend sees it — links serde and serde_json, nothing else (sha2 at
+# build time only), because a dependency there is every frontend's and
+# the daemon's both, and the revision it computes must move only when
+# the contract does (§2.1); the planner links the protocol crate and the
+# store, never the daemon or the client (§2.1: every path it took from
+# core was the wire's or the vocabulary's, so a planner that links the
+# daemon again has grown a third door).
 #
 # One graph, from Cargo: the `resolve` section of `cargo metadata
 # --all-features` — every package Cargo resolves for this workspace with
@@ -181,7 +189,7 @@ fi
 # a member can activate is present, and an optional edge nothing can
 # activate is absent because no build can link it either. The edges are
 # the union over targets, on purpose: a target predicate is not followed
-# along a path, so `plan → helper` under `cfg(unix)` with `helper → core`
+# along a path, so `plan → helper` under `cfg(unix)` with `helper → daemon`
 # under `cfg(windows)` is refused although no single target links the
 # two — the boundary is what the manifests declare, not what one
 # platform happens to build (review 2026-09-10, accepted as the
@@ -376,19 +384,39 @@ allow() {  # allow <package> <kind> <name>...: refuse any other direct dependenc
     fail=1; edge_bad=1
   fi
 }
-forbid acquisition-core  'the daemon never links the planner (C39)' acquisition-plan
-forbid acquisition-plan  'the planner links protocol and store, never the daemon (§2.1, the split'"'"'s step 2)' acquisition-core
-forbid acquisition-store 'the store links no daemon, no protocol and no HTTP client (C41; the split, §2.1)' \
-  acquisition-core acquisition-protocol acquisition-plan reqwest tokio
+only_self() {  # only_self <package> <why>: no other member reaches it, at any depth
+  local pkg=$1 why=$2 k m n mi di path bad='' seen=' '
+  named "$pkg"
+  while IFS=$'\t' read -r k m n mi di path; do
+    [[ $k == closure && $n == "$pkg" && $m != "$pkg" && $seen != *" $m "* ]] && { bad+="$m "; seen+="$m "; }
+  done <<<"$table"
+  if [[ -n $bad ]]; then
+    printf 'EDGE    %-22s is linked by %s— %s\n' "$pkg" "$bad" "$why"
+    for m in $bad; do printf '          %s\n' "$(path_to "$m" "$pkg")"; done
+    fail=1; edge_bad=1
+  fi
+}
+# The frontends are named here; a new one (the GUI, a queue TUI) is added
+# to the daemon's list when its package exists — the reverse direction,
+# that nothing links the daemon, needs no list.
+forbid acquisition-daemon 'the daemon links protocol and store, never the client crate, the planner or a frontend (C1, C39)' \
+  acquisition-client acquisition-plan acquisition-cli acquisition-mcp
+only_self acquisition-daemon 'no package but acquisition-daemon names the daemon — a frontend is never in-process with it, and the client never embeds it (C1, C13, C82)'
+forbid acquisition-client 'the client links protocol, store and tokio, never the daemon or the planner (C1, §2.1)' \
+  acquisition-daemon acquisition-plan
+forbid acquisition-plan  'the planner links protocol and store, never the daemon or the client (C39, §2.1)' \
+  acquisition-daemon acquisition-client
+forbid acquisition-store 'the store links no daemon, no client, no protocol and no HTTP client (C41; the split, §2.1)' \
+  acquisition-daemon acquisition-client acquisition-protocol acquisition-plan reqwest tokio
 allow acquisition-protocol normal serde serde_json
 allow acquisition-protocol dev    serde serde_json
 allow acquisition-protocol build  sha2
-if grep -rqE 'Annotations|annotations_path' crates/acquisition-core/src crates/acquisition-protocol/src; then
-  echo 'EDGE    crates/acquisition-{core,protocol}/src    names the intent API — the daemon and the wire are permanently blind to intent (C34)'
+if grep -rqE 'Annotations|annotations_path' crates/acquisition-daemon/src crates/acquisition-protocol/src crates/acquisition-client/src; then
+  echo 'EDGE    crates/acquisition-{daemon,protocol,client}/src    names the intent API — the daemon, the wire and the client are permanently blind to intent (C34)'
   fail=1; edge_bad=1
 fi
 if ((edge_bad == 0)); then
-  echo 'ok      dependencies  daemon ∌ planner, planner ∌ daemon, daemon/protocol ∌ intent API, store ∌ daemon/protocol/HTTP, protocol = serde only (C34, C39, C41, §2.1)'
+  echo 'ok      dependencies  daemon ∌ client/planner/frontend, nothing ∌ daemon but itself, client ∌ daemon/planner, planner ∌ daemon/client, store ∌ daemon/client/protocol/HTTP, daemon/protocol/client ∌ intent API, protocol = serde only (C1, C34, C39, C41, §2.1)'
 fi
 
 exit $fail

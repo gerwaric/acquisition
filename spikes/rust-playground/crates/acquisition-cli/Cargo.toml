@@ -8,7 +8,7 @@ name = "acq"
 path = "src/main.rs"
 
 [dependencies]
-acquisition-core = { path = "../acquisition-core" }
+acquisition-client = { path = "../acquisition-client" }
 acquisition-protocol = { path = "../acquisition-protocol" }
 tokio.workspace = true
 serde.workspace = true

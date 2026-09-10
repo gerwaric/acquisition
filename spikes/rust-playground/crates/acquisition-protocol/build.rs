@@ -8,8 +8,11 @@
 //! Inputs, hashed as `path NUL length NUL bytes` in sorted path order
 //! (paths relative to the workspace root) under the domain prefix
 //! `acq-runtime-revision/1` (the format version): the root `Cargo.toml`,
-//! `Cargo.lock`, the core, store and protocol manifests, and the core,
-//! store and protocol source trees. Git is not consulted at all: a commit, a stage, a
+//! `Cargo.lock`, the daemon, store and protocol manifests, and the daemon,
+//! store and protocol source trees (`crates/acquisition-daemon` since the
+//! split's step 3 renamed the core crate; the client crate is not an
+//! input — a client or locator edit does not move the identity, which is
+//! the direction step 4 completes). Git is not consulted at all: a commit, a stage, a
 //! `git status` cost nothing. The inputs are deliberately whole files,
 //! not the parts the daemon uses, so the revision is conservative in two
 //! ways. It moves on changes the daemon cannot feel — a lock entry or a
@@ -41,10 +44,10 @@ fn main() {
     let inputs = [
         "Cargo.toml",
         "Cargo.lock",
-        "crates/acquisition-core/Cargo.toml",
+        "crates/acquisition-daemon/Cargo.toml",
         "crates/acquisition-store/Cargo.toml",
         "crates/acquisition-protocol/Cargo.toml",
-        "crates/acquisition-core/src",
+        "crates/acquisition-daemon/src",
         "crates/acquisition-store/src",
         "crates/acquisition-protocol/src",
     ];

@@ -597,7 +597,7 @@ fn parse_policy(value: &Value) -> Result<SyncPolicy, String> {
 }
 
 /// What a facet covers: `"all"` or an explicit id list. For tabs an id
-/// covers the tab and its children ([`covers_tab`]): a map/unique tab's
+/// covers the tab and its children (`covers_tab`): a map/unique tab's
 /// substashes (their own GGG ids; the `parent/id` display convention is a
 /// frontend matter) and a folder's children. For characters an id is the
 /// GGG character id, matched exactly.
@@ -983,7 +983,7 @@ pub struct PlanBasis {
 /// deliberately does not count — a precise accounting is the deferred
 /// wire-budget feature, and pretending to one here would be false. The
 /// whole of it, prerequisites included, is part of the reviewed
-/// projection: deserialization recomputes it ([`wire_estimate`]) and
+/// projection: deserialization recomputes it (`wire_estimate`) and
 /// refuses a mismatch.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -1068,7 +1068,7 @@ pub struct RefreshPlan {
     /// validation pins what *is* checkable: the plan's provider, exactly
     /// its account, the quote's echoed `work` being exactly this plan's
     /// actions as job tuples, and scope totals that sum (checked) to the
-    /// logical bound ([`check_quote_matches`]). Compiling never fills it
+    /// logical bound (`check_quote_matches`). Compiling never fills it
     /// (a plan needs no daemon); [`RefreshPlan::with_quote`] attaches
     /// one.
     #[serde(default, skip_serializing_if = "Option::is_none")]

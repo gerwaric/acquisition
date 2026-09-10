@@ -25,13 +25,19 @@ here anticipates it.
   the handshake compares (`build.rs`, C10). serde only — never tokio or the
   store; `tools/docs-check.sh` refuses more. One fixture per wire variant
   (`tests/wire.rs`, C85). Rulings: `decisions/daemon.md`.
-- `crates/acquisition-core` — the header-driven
-  rate limiter and its choke point (`ratelimit.rs`: the spec is its test
-  tables; `gate.rs`), the mock provider (`mockggg.rs`), the live-test
-  rails (`rails.rs`), the daemon (`daemon.rs`: queue, dispatcher,
-  Unix-socket server, idle watchdog) and the protocol client every
-  frontend shares (`client.rs`: connect, lazy spawn, the runtime-revision
-  handshake). Rulings: `decisions/daemon.md`, `decisions/network.md`.
+- `crates/acquisition-daemon` — the daemon as its own artifact, the
+  `acqd` binary (`main.rs`; C1): the header-driven rate limiter and its
+  choke point (`ratelimit.rs`: the spec is its test tables; `gate.rs`),
+  the mock provider (`mockggg.rs`), the live-test rails (`rails.rs`) and
+  the daemon (`daemon.rs`: queue, dispatcher, Unix-socket server, idle
+  watchdog). The only GGG sender; no package but this one names it.
+  Rulings: `decisions/daemon.md`, `decisions/network.md`.
+- `crates/acquisition-client` — the protocol client every frontend
+  shares (`client.rs`: connect, the three policy doors of C10, the
+  runtime-revision handshake, typed connect errors) and the `acqd`
+  locator (`locator.rs`: beside the calling executable, nowhere else,
+  C82). Links protocol and tokio, never the daemon. Rulings:
+  `decisions/daemon.md`.
 - `crates/acquisition-store` — the shared store: SQLite, one facts file per
   account under one directory per provider, the uuid-named annotations
   file (intent — buyouts, the sync policy — the only irreplaceable local
@@ -62,7 +68,7 @@ implements — is its `--help` (`CLI-REFERENCE.md` holds every one); the
 line here shows the shape.
 
 ```sh
-cargo build && alias acq=./target/debug/acq   # cargo test/clippy do not rebuild the binary: check acq --version
+cargo build --workspace && alias acq=./target/debug/acq   # acq and the daemon acqd beside it (C82); cargo test/clippy rebuild neither: check acq --version
 acq <verb> --help                             # the reference for every verb
 
 # a session — the mock provider's login page accepts any username (scripted login: the mock-session skill)
@@ -129,7 +135,7 @@ either mode and never spawns or replaces one in real mode (C13, C14).
 | --- | --- | --- | --- |
 | `ACQ_GGG=1` | off | the real provider (above) | `acquisition-protocol/src/provider.rs` |
 | `ACQ_ACCOUNT=<sel>` | the sole account | env form of `--account`; exact match, never a prefix (C51) | `main.rs` |
-| `ACQ_SOCKET=<path>` | `acquisition-playground.sock` in the temp dir | the socket (log and journal beside it), for parallel *mock* daemons; keep it short (Unix socket paths cap near 104 bytes); two daemons in real mode are forbidden (C31) | `daemon.rs` |
+| `ACQ_SOCKET=<path>` | `acquisition-playground.sock` in the temp dir | the socket (log and journal beside it), for parallel *mock* daemons; keep it short (Unix socket paths cap near 104 bytes); two daemons in real mode are forbidden (C31) | `daemon.rs`; the client reads the same convention (`acquisition-client/src/lib.rs`) |
 | `ACQ_STORE_DIR=<dir>` | the platform data dir | the store root: `<dir>/<provider>/<account>.db`, `accounts.json`, `daemon.db`; one daemon per store directory (C6) | `index.rs` |
 | `ACQ_NO_KEYRING=1` | off | sessions in memory only, never plaintext on disk | `auth.rs` |
 | `ACQ_NO_SPAWN=1` | off | the CLI never starts or replaces a daemon — for cron, which on macOS spawns without a keychain and so without a session | `client.rs` |
@@ -141,7 +147,7 @@ either mode and never spawns or replaces one in real mode (C13, C14).
 | `ACQ_MOCK_DEGRADED_HEAD=1` | off | the mock reproduces the Dec-2023 HEAD regression (N20) | `mockggg.rs` |
 
 The rails are read at daemon start: set them on the command that spawns
-it, or `acq daemon stop` first. A misread value (`ACQ_TRIPWIRE=maybe`) is
+it (what it spawns is the `acqd` beside it, C82), or `acq daemon stop` first. A misread value (`ACQ_TRIPWIRE=maybe`) is
 logged as a `RAILS CONFIG` error and the rail stays off. `acq daemon
 status` prints the socket, log and journal paths and the rails state.
 

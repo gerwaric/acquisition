@@ -1,7 +1,9 @@
 //! Client side of the daemon protocol: connect, lazy-spawn, version handshake.
 //!
 //! Every frontend (CLI, MCP, GUI) reaches the daemon through this module,
-//! by one of three doors — the policy tiers of C10:
+//! by one of three doors — the policy tiers of C10 — and a use door that
+//! may not open answers with a typed [`ConnectError`] rather than a
+//! string, so the GUI and the MCP server can branch on it:
 //!
 //! - **Use** — [`Client::connect`] with a [`ConnectOptions`]: the verb is
 //!   about to submit work. The interactive CLI spawns as asked and replaces
@@ -22,6 +24,10 @@
 //!   mismatch, so it is the one verb that acts on a daemon it would not use.
 //!
 //! `ACQ_NO_SPAWN=1` turns every use door into an observation.
+//!
+//! What a use door spawns is the `acqd` beside this executable and nothing
+//! else (`locator.rs`, C82): the daemon is its own artifact, never a mode
+//! of the frontend's binary.
 //!
 //! # Decisions as recorded
 //!
@@ -50,12 +56,12 @@
 //! The identity compared is [`VERSION_WITH_RUNTIME`], defined by the
 //! protocol crate (`acquisition-protocol/src/lib.rs`) since the daemon
 //! split's step 1, so both sides carry the same definition: the package
-//! version plus the runtime revision, a digest over the core, store and
+//! version plus the runtime revision, a digest over the daemon, store and
 //! protocol sources, their manifests, the root manifest and the lock
 //! (the protocol crate's `build.rs`). It
 //! changes whenever any of those whole files changes: an uncommitted edit
 //! to `daemon.rs` makes a running daemon stale, a source edit to the
-//! planner or a frontend does not, a lock entry or store function the daemon never
+//! planner, this crate or a frontend does not, a lock entry or store function the daemon never
 //! uses does (a deliberate false mismatch — a respawn is cheap, a missed
 //! dependency change is invisible), and no git state is consulted. The
 //! package version alone is fixed at `0.0.1` across the playground, and
@@ -67,9 +73,9 @@
 //! carries the same revision, which is what lets `acq-mcp` accept a
 //! daemon `acq` spawned (C6, C31); two frontends built from different
 //! trees would thrash by respawning each other's daemons — theoretical in
-//! a one-workspace playground, recorded so it isn't relearned live. After
-//! the `acqd` split the identity becomes the daemon artifact plus the
-//! protocol crate's revision.
+//! a one-workspace playground, recorded so it isn't relearned live. Step 4
+//! of the split makes the identity the daemon artifact plus the
+//! shared-contract revision (the identity ruling lands there).
 //!
 //! The trap the observe tier closes (ledger row 2026-09-08): `acq daemon
 //! status` typed in a second terminal without `ACQ_GGG` connected under the
@@ -86,7 +92,7 @@
 //! ## C85 — Connection semantics, as built on this side
 //!
 //! The ruling is recorded in full on the protocol crate's `protocol.rs`. Here: every connection
-//! opens with the bootstrap `hello` exchange ([`Client::handshake`]),
+//! opens with the bootstrap `hello` exchange (`Client::handshake`),
 //! written and read as [`Bootstrap`]/[`BootstrapReply`] frames outside the
 //! versioned enums, so a daemon of any revision is identified — a frame
 //! this build cannot read fully still yields a [`DaemonId`] reported as
@@ -111,10 +117,12 @@
 //! and the MCP server can pick its error code from it.
 
 use std::fmt;
+use std::path::PathBuf;
 use std::time::Duration;
 
-use crate::daemon::{log_path, socket_path};
 use crate::frame::{Frame, read_frame};
+use crate::locator;
+use crate::{log_path, socket_path};
 use acquisition_protocol::VERSION_WITH_RUNTIME;
 use acquisition_protocol::job::JobInfo;
 use acquisition_protocol::protocol::{
@@ -164,8 +172,8 @@ fn refused(kind: ErrorKind, message: String) -> anyhow::Error {
 /// options: [`Client::observe`].
 #[derive(Clone, Copy, Debug)]
 pub struct ConnectOptions {
-    /// Start a daemon if none is listening (lazy spawn, via the calling
-    /// binary's own `daemon run`).
+    /// Start a daemon if none is listening (lazy spawn: the `acqd` beside
+    /// this executable, `locator.rs`).
     pub spawn: bool,
     /// Kill and respawn a daemon whose identity or provider doesn't match.
     pub replace: bool,
@@ -192,6 +200,82 @@ impl ConnectOptions {
         }
     }
 }
+
+/// Why a use door ([`Client::connect`]) did not open: typed, so a
+/// frontend renders or branches on it — the GUI's door, the MCP's error
+/// code — rather than parsing prose. `Display` is the sentence a person
+/// reads; the CLI prints it as is.
+#[derive(Debug)]
+pub enum ConnectError {
+    /// Nothing is listening, and this door may not spawn: the caller asked
+    /// not to, or `ACQ_NO_SPAWN=1` did.
+    Absent { no_spawn: bool },
+    /// The daemon listening is not this client's (C10: runtime identity or
+    /// provider), and this door may not replace it — or did, and the
+    /// replacement is still not it.
+    Incompatible {
+        found: DaemonId,
+        because: NotReplaced,
+    },
+    /// The daemon serves another world. Constructed from the split's step
+    /// 5 (the world ruling), when `hello` carries the world and the client
+    /// verifies it; until then no door answers it.
+    OtherWorld { found: DaemonId, world: String },
+    /// The daemon could not be started: no `acqd` beside this executable
+    /// (C82), the spawn failed, or the daemon exited or never bound its
+    /// socket. `log` is the explanation, with what the daemon's log said
+    /// after the spawn when there was a daemon to say it.
+    SpawnFailed { acqd: Option<PathBuf>, log: String },
+    /// The socket answered, and the conversation failed: a connect error
+    /// that is not absence, or a handshake this build could not read.
+    Transport(anyhow::Error),
+}
+
+/// Why an incompatible daemon was left standing.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NotReplaced {
+    /// `ACQ_NO_SPAWN=1` forbids replacing it.
+    NoSpawn,
+    /// An autonomous client (the MCP server) never replaces (C13).
+    NeverReplaces,
+    /// This client replaced it, and the daemon it then found is still not
+    /// its own — the sibling `acqd` is not this build's.
+    StillAfterRespawn,
+}
+
+impl fmt::Display for ConnectError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ConnectError::Absent { no_spawn: false } => {
+                f.write_str("daemon is not running (it spawns on demand for job commands)")
+            }
+            ConnectError::Absent { no_spawn: true } => {
+                f.write_str("daemon is not running and ACQ_NO_SPAWN forbids starting one from here")
+            }
+            ConnectError::Incompatible { found, because } => match because {
+                NotReplaced::NoSpawn => write!(f, "{found}, and ACQ_NO_SPAWN forbids replacing it"),
+                NotReplaced::NeverReplaces => write!(
+                    f,
+                    "{found}, and this client never replaces a daemon — resolve it with the CLI (`acq daemon stop`)"
+                ),
+                NotReplaced::StillAfterRespawn => write!(f, "{found}, still, after a respawn"),
+            },
+            ConnectError::OtherWorld { found, world } => {
+                write!(f, "{found} serves another world ({world})")
+            }
+            ConnectError::SpawnFailed {
+                acqd: Some(acqd),
+                log,
+            } => {
+                write!(f, "could not start the daemon {}: {log}", acqd.display())
+            }
+            ConnectError::SpawnFailed { acqd: None, log } => f.write_str(log),
+            ConnectError::Transport(e) => write!(f, "{e:#}"),
+        }
+    }
+}
+
+impl std::error::Error for ConnectError {}
 
 /// "ggg" or "mock": the provider this process wants a daemon to serve.
 fn want_provider() -> &'static str {
@@ -372,10 +456,12 @@ fn is_absent(e: &std::io::Error) -> bool {
 
 impl Client {
     /// Connect to the daemon for a *use* verb, spawning or replacing one as
-    /// `opts` allows. A mismatch this client may not resolve (a mock-mode
-    /// daemon can't serve an `ACQ_GGG=1` client, or vice versa) is an error
-    /// naming the daemon it found.
-    pub async fn connect(opts: ConnectOptions) -> Result<Client> {
+    /// `opts` allows. What it spawns is the `acqd` beside this executable
+    /// (C82). A door that does not open is a [`ConnectError`]: absence
+    /// this door may not fill, a mismatch it may not resolve (a mock-mode
+    /// daemon can't serve an `ACQ_GGG=1` client, or vice versa), a spawn
+    /// that failed, or a transport failure — each naming what it found.
+    pub async fn connect(opts: ConnectOptions) -> Result<Client, ConnectError> {
         // `ACQ_NO_SPAWN=1`: never start or replace a daemon from this
         // process. A daemon spawned from a non-interactive parent (cron,
         // launchd) has no keychain access on macOS — it comes up with no
@@ -388,25 +474,32 @@ impl Client {
         // The spawned daemon, with where its log ended at spawn time: if it
         // exits instead of binding the socket, the lines after that offset
         // are its refusal (its stderr goes to null — the log is all there is).
-        let mut child: Option<(std::process::Child, u64)> = None;
+        let mut child: Option<Spawned> = None;
         for _attempt in 0..100 {
             match UnixStream::connect(socket_path()).await {
                 Ok(stream) => {
-                    let mut client = Client::handshake(stream).await?;
+                    let mut client = Client::handshake(stream)
+                        .await
+                        .map_err(ConnectError::Transport)?;
                     if client.daemon.is_ours() {
                         return Ok(client);
                     }
-                    let found = &client.daemon;
                     if respawned {
-                        bail!("{found}, still, after a respawn");
+                        return Err(ConnectError::Incompatible {
+                            found: client.daemon,
+                            because: NotReplaced::StillAfterRespawn,
+                        });
                     }
                     if !replace {
-                        let why = if no_spawn() {
-                            "ACQ_NO_SPAWN forbids replacing it"
+                        let because = if no_spawn() {
+                            NotReplaced::NoSpawn
                         } else {
-                            "this client never replaces a daemon — resolve it with the CLI (`acq daemon stop`)"
+                            NotReplaced::NeverReplaces
                         };
-                        bail!("{found}, and {why}");
+                        return Err(ConnectError::Incompatible {
+                            found: client.daemon,
+                            because,
+                        });
                     }
                     // Stale daemon (older build, or wrong mode): kill and
                     // respawn — over the bootstrap plane, which works across
@@ -422,35 +515,49 @@ impl Client {
                 Err(_) if spawn || respawned => {
                     match child.as_mut() {
                         None => child = Some(spawn_daemon()?),
-                        Some((c, log_from)) => {
+                        Some(spawned) => {
                             // An exited daemon will never bind the socket:
                             // report its refusal now, not after the timeout.
-                            if let Some(status) = c.try_wait().ok().flatten() {
-                                bail!(
-                                    "daemon exited during startup ({status}){}",
-                                    startup_log_excerpt(*log_from)
-                                );
+                            if let Some(status) = spawned.child.try_wait().ok().flatten() {
+                                return Err(ConnectError::SpawnFailed {
+                                    acqd: Some(spawned.acqd.clone()),
+                                    log: format!(
+                                        "the daemon exited during startup ({status}){}",
+                                        startup_log_excerpt(spawned.log_from)
+                                    ),
+                                });
                             }
                         }
                     }
                     tokio::time::sleep(Duration::from_millis(50)).await;
                 }
-                Err(e) if no_spawn() => {
-                    return Err(e).context(
-                        "daemon is not running and ACQ_NO_SPAWN forbids starting one from here",
-                    );
+                Err(e) if is_absent(&e) => {
+                    return Err(ConnectError::Absent {
+                        no_spawn: no_spawn(),
+                    });
                 }
                 Err(e) => {
-                    return Err(e)
-                        .context("daemon is not running (it spawns on demand for job commands)");
+                    return Err(ConnectError::Transport(
+                        anyhow::Error::from(e)
+                            .context(format!("connecting to {}", socket_path().display())),
+                    ));
                 }
             }
         }
-        bail!(
-            "could not reach daemon at {} after 5s{}",
-            socket_path().display(),
-            child.map_or_else(String::new, |(_, log_from)| startup_log_excerpt(log_from))
-        )
+        Err(match child {
+            Some(spawned) => ConnectError::SpawnFailed {
+                acqd: Some(spawned.acqd),
+                log: format!(
+                    "it did not bind {} within 5s{}",
+                    socket_path().display(),
+                    startup_log_excerpt(spawned.log_from)
+                ),
+            },
+            None => ConnectError::Transport(anyhow::anyhow!(
+                "could not reach daemon at {} after 5s",
+                socket_path().display()
+            )),
+        })
     }
 
     /// Observe the socket (C10): never spawns or replaces. Nothing
@@ -638,18 +745,38 @@ impl Client {
     }
 }
 
-fn spawn_daemon() -> Result<(std::process::Child, u64)> {
+/// A daemon this client started: the executable it ran, and where the
+/// log ended at spawn time.
+struct Spawned {
+    child: std::process::Child,
+    acqd: PathBuf,
+    log_from: u64,
+}
+
+/// Start the `acqd` beside this executable (C82) with no arguments — its
+/// knobs are the environment this process passes on — and its stdio to
+/// null: the daemon log is where it speaks.
+fn spawn_daemon() -> Result<Spawned, ConnectError> {
+    let acqd = locator::acqd().map_err(|e| ConnectError::SpawnFailed {
+        acqd: None,
+        log: e.to_string(),
+    })?;
     // Where the log ends now; lines past this offset are the new daemon's.
     let log_from = std::fs::metadata(log_path()).map_or(0, |m| m.len());
-    let exe = std::env::current_exe()?;
-    let child = std::process::Command::new(exe)
-        .args(["daemon", "run"])
+    let child = std::process::Command::new(&acqd)
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
         .spawn()
-        .context("failed to spawn daemon")?;
-    Ok((child, log_from))
+        .map_err(|e| ConnectError::SpawnFailed {
+            acqd: Some(acqd.clone()),
+            log: format!("failed to spawn it: {e}"),
+        })?;
+    Ok(Spawned {
+        child,
+        acqd,
+        log_from,
+    })
 }
 
 /// What the daemon wrote to its log after we spawned it — the only place a

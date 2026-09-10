@@ -13,12 +13,13 @@ the ladder behind it is `brainstorming-notes/09-settling-the-record.md`.
 ## 1. Gate
 
 ```sh
+cargo build --workspace
 cargo test --workspace --all-targets
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo fmt --all -- --check
 git diff --check
 tools/docs-check.sh
-RUSTDOCFLAGS="-D warnings" cargo doc -p acquisition-protocol --no-deps
+RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps
 ```
 
 Run each command bare and read its exit status. A check piped through

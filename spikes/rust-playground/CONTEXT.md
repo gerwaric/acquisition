@@ -24,7 +24,7 @@ Only the **cross-cutting** decisions are here, because an agent must know them b
 
 | File | Area | Decisions |
 | --- | --- | --- |
-| `decisions/daemon.md` | Daemon, jobs, protocol, accounts | C3, C5, C6, C7, C8, C9, C10, C23, C27, C45, C31, C49, C50, C51, C85 |
+| `decisions/daemon.md` | Daemon, jobs, protocol, accounts | C3, C5, C6, C7, C8, C9, C10, C23, C27, C45, C31, C49, C50, C51, C82, C85 |
 | `decisions/network.md` | Network and rate limiting | C17, C18, C19, C20, C21, C22, C24, C25, C26, C32, C33 |
 | `decisions/store.md` | Store: facts, realm, characters | C28, C29, C30, C54, C55, C56, C57, C58, C59, C60, C61, C62, C63 |
 | `decisions/plans.md` | Intent, plans, apply | C36, C37, C39, C40, C41, C42, C43, C44, C76, C77 |
@@ -33,7 +33,7 @@ Only the **cross-cutting** decisions are here, because an agent must know them b
 
 ### Cross-cutting
 
-- **C1 — Cargo workspace, library-centric.** `acquisition-core` holds OAuth, rate limiter, API client, models; `acquisition-store` and `acquisition-plan` the facts/intent and the planner; `acquisition-cli`, `acquisition-mcp` (and a future `acquisition-gui`) are thin frontends. *Why:* write/test logic once.
+- **C1 — Cargo workspace, library-centric; the daemon is its own artifact.** `acquisition-store` holds facts, intent and the world (root, locks, socket name); `acquisition-protocol` the wire, the job vocabulary and the shared-contract revision, serde-only; `acquisition-client` the IPC, the spawn and observe policies and the `acqd` locator; `acquisition-daemon` (binary `acqd`) holds the daemon implementation and is the only GGG sender; `acquisition-plan` the planner. A frontend links client, protocol, store and plan as it needs them, never the daemon; the daemon links protocol and store, never client, plan or a frontend; the store links none of them. *Why:* write/test logic once, and C12's two surfaces as edges the check refuses. *Pinned:* `tools/docs-check.sh`. Amended 2026-09-09.
 - **C2 — Daemon owns shared state; clients talk over local IPC.** *Why:* makes the single-choke-point invariant structural, not disciplinary.
 - **C4 — API requests are jobs, not calls.** Rate-limit waits can reach 300 s, so the core abstraction is a job with ID, state, and priority. *Why:* blocking calls can't represent a 5-minute wait sanely across three frontends.
 - **C12 — A frontend consumes exactly two surfaces: the daemon protocol and the store crate's read API — no third door.** This pins the boundary's *location*, not its content; a frontend that wants a third channel is a protocol or store change, recorded here first. *Why:* bespoke per-frontend channels turn three frontends into a review burden; two shared surfaces keep the contract in exactly two places, enforced by what frontends link against. *Pinned:* `acquisition-protocol/tests/wire.rs`. Decided 2026-08-30.

@@ -1,7 +1,7 @@
 //! `acq-mcp` — MCP server frontend (tracer bullet).
 //!
 //! A fourth thin client: it consumes exactly the two frontend surfaces —
-//! the daemon protocol (via `acquisition_core::client`) and the shared
+//! the daemon protocol (via `acquisition_client`) and the shared
 //! store's read API — and renders them as MCP tools over stdio.
 //!
 //! Two structural rules distinguish it from the CLI:
@@ -39,7 +39,7 @@
 //!
 //! ## C13 — The MCP server is a fourth thin client (`acquisition-mcp`, binary `acq-mcp`, official `…
 //!
-//! **The MCP server is a fourth thin client (`acquisition-mcp`, binary `acq-mcp`, official `rmcp` SDK over stdio), never in-process with the daemon.** Same reasoning that moved reads to the store: daemon-hosted queries make the daemon an application server. The binary embeds `daemon run` like `acq` (lazy spawn execs `current_exe`). Two structural rules in the rail-6 mold: it never kills or replaces a daemon (autonomous connect policy above), and, while the agent-traffic deferral stood (2026-08-30 → 2026-09-01), it refused `submit_job` in real-GGG mode — store reads and observing a live daemon were always allowed, they send nothing. In real mode it still never spawns a daemon (a human's act: keychain, browser); it talks to the one that is running. It lazy-spawns only in mock mode; login stays human, via the CLI. The tracer is the consumer that validates the protocol: when it has proven the shape, the protocol gets pinned — the GUI arrives to a pinned boundary and proposes changes against it, rather than reopening the question. Decided 2026-08-30.
+//! **The MCP server is a fourth thin client (`acquisition-mcp`, binary `acq-mcp`, official `rmcp` SDK over stdio), never in-process with the daemon.** Same reasoning that moved reads to the store: daemon-hosted queries make the daemon an application server. Two structural rules in the rail-6 mold: it never kills or replaces a daemon (autonomous connect policy above), and, while the agent-traffic deferral stood (2026-08-30 → 2026-09-01), it refused `submit_job` in real-GGG mode — store reads and observing a live daemon were always allowed, they send nothing. In real mode it still never spawns a daemon (a human's act: keychain, browser); it talks to the one that is running. It lazy-spawns only in mock mode; login stays human, via the CLI. The tracer is the consumer that validates the protocol: when it has proven the shape, the protocol gets pinned — the GUI arrives to a pinned boundary and proposes changes against it, rather than reopening the question. Decided 2026-08-30.
 //!
 //! ## C14 — Agent traffic against GGG is allowed; the daemon is the single gate.
 //!
@@ -47,7 +47,7 @@
 
 use std::path::PathBuf;
 
-use acquisition_core::client::{Client, ConnectOptions, DaemonError, Observed};
+use acquisition_client::client::{Client, ConnectOptions, DaemonError, Observed};
 use acquisition_plan::{PlanError, RefreshPlan, plan_refresh, put_sync_policy};
 use acquisition_protocol::protocol::{ErrorKind, QuoteJob, Request, Response};
 use acquisition_protocol::realm::Realm;
@@ -196,7 +196,7 @@ async fn try_quote(plan: RefreshPlan) -> (RefreshPlan, Option<String>) {
 /// the human's act, via the CLI).
 async fn connect(spawn: bool) -> Result<Client> {
     let spawn = spawn && !acquisition_protocol::provider::ggg_mode();
-    Client::connect(ConnectOptions::autonomous(spawn)).await
+    Ok(Client::connect(ConnectOptions::autonomous(spawn)).await?)
 }
 
 /// The running daemon, for a tool that observes it or acts on it (C10):
@@ -738,12 +738,6 @@ impl ServerHandler for AcqMcp {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let args: Vec<String> = std::env::args().skip(1).collect();
-    // Lazy spawn execs `<current_exe> daemon run` (client.rs), so this
-    // binary carries the daemon too, like `acq`.
-    if args.iter().map(String::as_str).eq(["daemon", "run"]) {
-        return acquisition_core::daemon::run().await;
-    }
     let service = AcqMcp.serve(rmcp::transport::stdio()).await?;
     service.waiting().await?;
     Ok(())

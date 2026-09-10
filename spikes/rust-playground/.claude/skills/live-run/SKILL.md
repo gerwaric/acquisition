@@ -18,12 +18,14 @@ from cron or a background shell has no keychain and no session.
    rails or a mock session's isolation.
 2. `acq daemon stop`. Never rebuild under a live daemon.
 3. `git status --porcelain -- crates Cargo.toml Cargo.lock tools` must
-   print nothing, then `cargo build`, then `./target/debug/acq version`
+   print nothing, then `cargo build --workspace` (acq and the daemon
+   `acqd` beside it, C82), then `./target/debug/acq version`
    — the binary carries its runtime revision (C10), not a commit, so a
    dirty build's revision would be paired with a HEAD it is not; the
    journal carries the revision and the ledger row names HEAD (`cargo
-   test` and `cargo clippy` do not rebuild `target/debug/acq`). The
-   drivers do all of this themselves (`tools/preflight.sh`).
+   test` and `cargo clippy` rebuild neither binary). The
+   drivers do all of this themselves (`tools/preflight.sh`), and start
+   `acqd` directly.
 4. `ls -t runs/ | head` against `RUN-LEDGER.md`: know which run
    directories the ledger already cites before adding one — a bundle
    newer than the last row is a run that happened off the record.

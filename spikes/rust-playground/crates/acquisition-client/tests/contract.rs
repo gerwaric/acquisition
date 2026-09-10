@@ -7,25 +7,31 @@
 //! oversize frames, the disconnect and the restart, and the closed error
 //! kinds on the domain failures a client can stage.
 //!
-//! Until the `acqd` split (DAEMON-SPLIT-SLICE.md, step 3) there is no
-//! daemon binary a test in this crate can name, so the daemon process is
-//! this test executable re-run with `ACQ_CONTRACT_DAEMON=1`, which makes
-//! `daemon_entry` run `daemon::run` instead of returning. Step 3 replaces
-//! that with the sibling `acqd` every frontend locates.
+//! The daemon is the `acqd` the quality gate built (`cargo build
+//! --workspace` before `cargo test`, AGENTS.md): this crate has no binary
+//! of its own and may not link the daemon, and a test executable lives in
+//! `target/<profile>/deps/`, whose parent holds no daemon — so the tests
+//! here start the one Cargo uplifts one level up, `target/<profile>/acqd`,
+//! resolved from the test executable's own location (`acqd_for_tests`).
+//! Not the locator's rule (C82: the sibling of the calling executable) —
+//! a test that owns a daemon names its executable, as the live drivers
+//! do — and not a knob: nothing production reads it. A missing daemon
+//! fails before any test runs, naming the build step; a present one is
+//! named by path in every failure.
 //!
 //! The client reads the socket from `ACQ_SOCKET`, a process-wide setting,
 //! so the tests here run one at a time under a lock and set their own
 //! scratch socket and store while they hold it. Nothing here reaches GGG:
 //! `ACQ_GGG` is scrubbed and the daemon runs the mock provider.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::{Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
-use acquisition_core::client::{Client, ConnectOptions, Observed, Signal, Subscription};
-use acquisition_core::daemon::socket_path;
-use acquisition_core::frame::{Frame, read_frame};
+use acquisition_client::client::{Client, ConnectOptions, Observed, Signal, Subscription};
+use acquisition_client::frame::{Frame, read_frame};
+use acquisition_client::socket_path;
 use acquisition_protocol::VERSION_WITH_RUNTIME;
 use acquisition_protocol::job::JobState;
 use acquisition_protocol::protocol::{ErrorKind, MAX_FRAME_BYTES, Request, Response};
@@ -34,18 +40,23 @@ use tokio::io::{AsyncWriteExt, BufReader};
 use tokio::net::unix::{OwnedReadHalf, OwnedWriteHalf};
 use tokio::net::{UnixListener, UnixStream};
 
-/// The daemon side of the re-exec (module doc). Passes trivially when
-/// run as a test.
-#[test]
-fn daemon_entry() {
-    if std::env::var_os("ACQ_CONTRACT_DAEMON").is_none() {
-        return;
-    }
-    let runtime = tokio::runtime::Runtime::new().expect("a runtime");
-    if let Err(e) = runtime.block_on(acquisition_core::daemon::run()) {
-        eprintln!("daemon: {e:#}");
-        std::process::exit(2);
-    }
+/// The `acqd` the gate built (module doc): `target/<profile>/acqd`, one
+/// level above the `deps/` directory this test executable runs from.
+fn acqd_for_tests() -> PathBuf {
+    let exe = std::env::current_exe().expect("current exe");
+    let profile_dir = exe
+        .parent()
+        .and_then(Path::parent)
+        .unwrap_or_else(|| panic!("{} is not under target/<profile>/deps", exe.display()));
+    let acqd = profile_dir.join("acqd");
+    assert!(
+        acqd.is_file(),
+        "no daemon at {}: the contract tests drive the acqd the workspace build writes there — \
+         run `cargo build --workspace` first (the gate builds before it tests; a `-p` test run \
+         does not build it)",
+        acqd.display()
+    );
+    acqd
 }
 
 static ONE_AT_A_TIME: Mutex<()> = Mutex::new(());
@@ -124,23 +135,27 @@ impl Daemon {
 }
 
 async fn start_daemon(s: &Session) -> Daemon {
-    let child = Command::new(std::env::current_exe().expect("current exe"))
-        .args(["daemon_entry", "--exact", "--nocapture"])
-        .env("ACQ_CONTRACT_DAEMON", "1")
+    let acqd = acqd_for_tests();
+    let child = Command::new(&acqd)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .spawn()
-        .expect("spawning the daemon");
+        .unwrap_or_else(|e| panic!("spawning {}: {e}", acqd.display()));
     let daemon = Daemon(child);
     let deadline = Instant::now() + Duration::from_secs(10);
     loop {
-        if let Ok(Observed::Compatible(_)) = Client::observe().await {
-            return daemon;
+        match Client::observe().await {
+            Ok(Observed::Compatible(_)) => return daemon,
+            Ok(Observed::Incompatible(found)) => {
+                panic!("{} is not this build's daemon: {found}", acqd.display())
+            }
+            _ => {}
         }
         assert!(
             Instant::now() < deadline,
-            "the daemon did not come up on {}",
+            "the daemon ({}) did not come up on {}",
+            acqd.display(),
             s.base.display()
         );
         tokio::time::sleep(Duration::from_millis(50)).await;

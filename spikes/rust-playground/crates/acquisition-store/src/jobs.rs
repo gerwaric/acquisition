@@ -117,7 +117,7 @@ impl JobDb {
 
     /// Make every later statement fail, so the daemon's queue-failure
     /// handling can be exercised. Compiled only for builds that opt into
-    /// the `test-hooks` feature (acquisition-core's dev-dependency);
+    /// the `test-hooks` feature (acquisition-daemon's dev-dependency);
     /// production builds have no way to call this.
     #[cfg(feature = "test-hooks")]
     #[allow(clippy::unwrap_used)] // a test hook, exempt from the crate's ratchet

@@ -736,7 +736,6 @@ Commands:
   status          pid, runtime revision, provider, uptime, connections, queue counts, policies learned, the socket, log and journal paths, the rails state, keyring health. Observes only (C10): never spawns or replaces; a daemon of another runtime revision or provider is reported and left running (`--json`: running, compatible, and which of the two differs)
   stop            Stop the daemon that is listening, this runtime revision's or another's. Queued jobs stay on disk and resume under the next one (C6); a client's jobs are never cancelled by its leaving (C27)
   reset-tripwire  Clear the live-test rails' tripwire/ceiling halt (see LIVE-TESTING.md). Observe the post-violation rule before using this
-  run             Run the daemon in the foreground (what lazy-spawn execs)
   help            Print this message or the help of the given subcommand(s)
 
 Options:
@@ -771,17 +770,6 @@ Options:
 Clear the live-test rails' tripwire/ceiling halt (see LIVE-TESTING.md). Observe the post-violation rule before using this
 
 Usage: acq daemon reset-tripwire [OPTIONS]
-
-Options:
-  -h, --help               Print help
-```
-
-## `acq daemon run`
-
-```text
-Run the daemon in the foreground (what lazy-spawn execs)
-
-Usage: acq daemon run [OPTIONS]
 
 Options:
   -h, --help               Print help

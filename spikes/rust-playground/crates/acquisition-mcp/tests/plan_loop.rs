@@ -20,13 +20,12 @@ mod harness;
 use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::net::TcpStream;
-use std::process::Stdio;
 use std::time::{Duration, Instant};
 
-use acquisition_core::client::{Client, ConnectOptions};
+use acquisition_client::client::{Client, ConnectOptions};
 use acquisition_plan::{RefreshAction, RefreshPlan};
 use acquisition_protocol::protocol::{Request, Response};
-use harness::{Mcp, spawn};
+use harness::{Mcp, spawn_daemon};
 use serde_json::{Value, json};
 
 const POLICY: &str =
@@ -156,10 +155,9 @@ fn the_mcp_tools_carry_the_plan_slice_and_its_gates() {
         std::env::set_var("ACQ_NO_KEYRING", "1");
     }
 
-    // The daemon is spawned directly (`acq-mcp daemon run`) rather than
-    // lazily: lazy spawn execs the calling binary, which here would be
-    // the test harness.
-    let mut daemon = spawn(&base, &["daemon", "run"], &[], Stdio::null);
+    // The daemon is started directly — the `acqd` beside `acq-mcp`, the
+    // one it would lazily spawn — so the test owns the pid.
+    let mut daemon = spawn_daemon(&base, &[]);
     let rt = tokio::runtime::Runtime::new().unwrap();
     rt.block_on(async {
         let deadline = Instant::now() + Duration::from_secs(10);

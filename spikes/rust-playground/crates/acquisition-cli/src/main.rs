@@ -10,10 +10,10 @@ mod store_cmd;
 use std::io::{IsTerminal as _, Write as _};
 use std::time::{Duration, Instant};
 
-use acquisition_core::client::{
+use acquisition_client::client::{
     Client, ConnectOptions, DaemonError, Observed, Signal, Subscription,
 };
-use acquisition_core::daemon;
+use acquisition_client::{log_path, socket_path};
 use acquisition_protocol::job::{JobInfo, JobState, Outcome};
 use acquisition_protocol::protocol::{Request, Response};
 use acquisition_protocol::realm::Realm;
@@ -37,7 +37,7 @@ fn parse_realm(s: &str) -> Result<Realm, String> {
 /// of another runtime revision or provider — the caller is the human
 /// expressing intent.
 pub(crate) async fn connect(spawn: bool) -> Result<Client> {
-    Client::connect(ConnectOptions::interactive(spawn)).await
+    Ok(Client::connect(ConnectOptions::interactive(spawn)).await?)
 }
 
 /// The running daemon, for a verb that observes it or acts on it (C10):
@@ -548,8 +548,6 @@ enum DaemonCmd {
     /// Clear the live-test rails' tripwire/ceiling halt (see LIVE-TESTING.md).
     /// Observe the post-violation rule before using this.
     ResetTripwire,
-    /// Run the daemon in the foreground (what lazy-spawn execs).
-    Run,
 }
 
 /// `--account`/`ACQ_ACCOUNT`, for every submit this process makes.
@@ -969,7 +967,6 @@ async fn run(cli: Cli) -> Result<()> {
             Ok(())
         }
         Cmd::Daemon { cmd } => match cmd {
-            DaemonCmd::Run => daemon::run().await,
             DaemonCmd::Status => {
                 // An observation (C10): absent, this build's, or another
                 // daemon reported and left alone — never spawned or replaced.
@@ -991,7 +988,7 @@ async fn run(cli: Cli) -> Result<()> {
                             println!("{}", serde_json::to_string_pretty(&report)?);
                         } else {
                             println!("{found} — running, not this client's");
-                            println!("socket: {}", daemon::socket_path().display());
+                            println!("socket: {}", socket_path().display());
                             println!(
                                 "next:   `acq daemon stop` stops it; a job command (`acq profile`, `acq refresh --apply`) replaces it"
                             );
@@ -1026,8 +1023,8 @@ async fn run(cli: Cli) -> Result<()> {
                     println!(
                         "connections: {connections}  waiting: {jobs_waiting}  running: {jobs_running}  in flight: {in_flight}/{max_in_flight}  policies learned: {policies_known}"
                     );
-                    println!("socket: {}", daemon::socket_path().display());
-                    println!("log:    {}", daemon::log_path().display());
+                    println!("socket: {}", socket_path().display());
+                    println!("log:    {}", log_path().display());
                     println!(
                         "rails:  tripwire {} · sends {}{} · journal {}",
                         if rails.tripwire_enabled { "ON" } else { "off" },
@@ -1070,8 +1067,7 @@ async fn run(cli: Cli) -> Result<()> {
                         // The trip lives on disk; clear it there so the next
                         // spawned daemon is not still halted.
                         let provider = acquisition_protocol::provider::wanted();
-                        let state =
-                            daemon::socket_path().with_extension(format!("{provider}.rails.json"));
+                        let state = socket_path().with_extension(format!("{provider}.rails.json"));
                         match std::fs::remove_file(&state) {
                             Ok(()) => {
                                 if cli.json {

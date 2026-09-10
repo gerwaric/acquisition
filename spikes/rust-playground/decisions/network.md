@@ -1,6 +1,6 @@
 # Decisions — Network and rate limiting
 
-Part of the decision registry (`CONTEXT.md`, "Decisions — the registry"): the rulings that bind the limiter, the gate, probes, rails, OAuth traffic, anything that sends (`acquisition-core/src/ratelimit.rs`, `gate.rs`, `rails.rs`, `auth.rs`, the choke point). Read this before touching that code; the cross-cutting decisions and the invariants are in `CONTEXT.md` and are always loaded. Same rules as there: one entry per decision, stable `C<n>` ids never reused, the ruling verbatim, *Why:*, and pointers; the mechanism lives in the code's doc comments under the id.
+Part of the decision registry (`CONTEXT.md`, "Decisions — the registry"): the rulings that bind the limiter, the gate, probes, rails, OAuth traffic, anything that sends (`acquisition-daemon/src/ratelimit.rs`, `gate.rs`, `rails.rs`, `auth.rs`, the choke point). Read this before touching that code; the cross-cutting decisions and the invariants are in `CONTEXT.md` and are always loaded. Same rules as there: one entry per decision, stable `C<n>` ids never reused, the ruling verbatim, *Why:*, and pointers; the mechanism lives in the code's doc comments under the id.
 
 ## Network and rate limiting
 

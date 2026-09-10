@@ -10,7 +10,7 @@
 //! daemon each own theirs — so this crate links serde and serde_json and
 //! nothing else, and `tools/docs-check.sh` refuses more.
 //!
-//! Extracted from `acquisition-core` as commit 1 of the daemon split
+//! Extracted from `acquisition-core` (now `acquisition-daemon`) as commit 1 of the daemon split
 //! (`DAEMON-SPLIT-SLICE.md`, step ledger; the design is
 //! `brainstorming-notes/18-the-daemon-split.md` §2.1). Until step 4 the
 //! revision's inputs are the daemon's sources too, so a daemon edit still
@@ -30,12 +30,12 @@ pub mod status;
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// The runtime revision: twelve hex digits of a digest over the sources
-/// the daemon is made of — the core, store and protocol crates, their
+/// the daemon is made of — the daemon, store and protocol crates, their
 /// manifests, the root manifest and the lock (`build.rs` lists the inputs
 /// and the format). It changes whenever any of those inputs changes —
 /// including lock entries and store code the daemon does not use, a
-/// deliberate false mismatch — never on a source edit to the planner or
-/// a frontend (a dependency change there moves the lock, and the lock is
+/// deliberate false mismatch — never on a source edit to the planner, the
+/// client crate or a frontend (a dependency change there moves the lock, and the lock is
 /// an input on purpose), and never by consulting git. Written into the
 /// send journal header and the daemon's startup line: the rails verify
 /// behavior, this is the one place that says *which code* behaved; a run

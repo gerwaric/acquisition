@@ -1,8 +1,9 @@
 # Rust playground — agent entry point
 
 You are in `spikes/rust-playground` on branch `spikes/rust-playground`: a
-Cargo workspace (`acquisition-protocol`, `acquisition-core`, `acquisition-store`,
-`acquisition-plan`, `acquisition-cli`, `acquisition-mcp`) that is the
+Cargo workspace (`acquisition-protocol`, `acquisition-client`,
+`acquisition-daemon`, `acquisition-store`, `acquisition-plan`,
+`acquisition-cli`, `acquisition-mcp`) that is the
 Rust implementation of Acquisition (`README.md`, the charter). The
 repository-level `AGENTS.md` describes the C++ app on `master`; its build
 and Qt guidance does not apply here. ADR 0003 (rewrite vs. evolve) is the
@@ -71,16 +72,18 @@ not before.
 ## Quality gate, kept green by every change
 
 ```sh
+cargo build --workspace  # first: the process tests and the drivers run the acqd this writes beside acq; cargo test alone does not uplift it (C82)
 cargo test --workspace --all-targets
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo fmt --all -- --check
 git diff --check
-tools/docs-check.sh      # byte budgets on the always-loaded documents; stale identifiers
-RUSTDOCFLAGS="-D warnings" cargo doc -p acquisition-protocol --no-deps   # no broken doc link in the contract crate; --workspace from step 3 of the daemon split
+tools/docs-check.sh      # byte budgets on the always-loaded documents; stale identifiers; the dependency edges (C1)
+RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps   # no broken doc link anywhere: the rulings live in doc comments
 ```
 
-`cargo test` and `cargo clippy` do not rebuild `target/debug/acq`; run
-`cargo build` and check `acq --version` before any smoke or live run.
+`cargo test` and `cargo clippy` do not rebuild `target/debug/acq` or
+`target/debug/acqd`; run `cargo build --workspace` and check
+`acq --version` before any smoke or live run.
 
 ## Routing: one authoritative home per fact
 

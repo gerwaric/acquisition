@@ -58,13 +58,43 @@ impl Drop for Daemon {
     }
 }
 
-fn start_daemon(base: &Path) -> Daemon {
-    let child = command(base, &["daemon", "run"])
+/// The daemon `acq` would itself spawn: the `acqd` beside the binary
+/// under test (C82, the locator's one rule). A missing one fails here,
+/// before the test runs, naming the build step.
+fn acqd() -> PathBuf {
+    acquisition_client::locator::beside(Path::new(env!("CARGO_BIN_EXE_acq")))
+        .unwrap_or_else(|e| panic!("{e}"))
+}
+
+/// The daemon started directly by the test, which owns its pid, under
+/// the same isolation as `command`; its stdio to null, as a lazy spawn's.
+fn daemon_command(base: &Path, acqd: &Path) -> Command {
+    let mut cmd = Command::new(acqd);
+    cmd.env("ACQ_SOCKET", base.join("d.sock"))
+        .env("ACQ_STORE_DIR", base.join("store"))
+        .env("ACQ_NO_KEYRING", "1")
+        .env("ACQ_JOURNAL", "0")
+        .env("ACQ_IDLE_SHUTDOWN", "30")
         .stdin(Stdio::null())
         .stdout(Stdio::null())
-        .stderr(Stdio::null())
+        .stderr(Stdio::null());
+    for var in [
+        "ACQ_GGG",
+        "ACQ_ACCOUNT",
+        "ACQ_TRIPWIRE",
+        "ACQ_MAX_SENDS",
+        "ACQ_NO_SPAWN",
+    ] {
+        cmd.env_remove(var);
+    }
+    cmd
+}
+
+fn start_daemon(base: &Path) -> Daemon {
+    let acqd = acqd();
+    let child = daemon_command(base, &acqd)
         .spawn()
-        .expect("spawning the mock daemon");
+        .unwrap_or_else(|e| panic!("spawning {}: {e}", acqd.display()));
     let daemon = Daemon(child);
     let deadline = Instant::now() + Duration::from_secs(10);
     loop {
@@ -72,7 +102,11 @@ fn start_daemon(base: &Path) -> Daemon {
         if sole_json(&out)["pid"].as_u64().is_some() {
             return daemon;
         }
-        assert!(Instant::now() < deadline, "the mock daemon did not come up");
+        assert!(
+            Instant::now() < deadline,
+            "the mock daemon ({}) did not come up",
+            acqd.display()
+        );
         std::thread::sleep(Duration::from_millis(50));
     }
 }

@@ -21,7 +21,7 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Cell, Paragraph, Row, Table, Wrap};
 
 use crate::attach;
-use acquisition_core::client::{Client, DaemonError};
+use acquisition_client::client::{Client, DaemonError};
 
 const POLL: Duration = Duration::from_millis(250);
 /// Rows of policy detail visible at once when a policy is expanded; longer

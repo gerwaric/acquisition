@@ -30,6 +30,7 @@ set -euo pipefail
 
 here=$(cd "$(dirname "$0")/.." && pwd)
 ACQ="$here/target/debug/acq"
+ACQD="$here/target/debug/acqd"   # the daemon beside acq (C82); the driver starts it and owns the pid
 
 MODE=live
 ACCOUNT=
@@ -107,7 +108,7 @@ trap cleanup EXIT
 
 spawn_daemon() { # <max_sends> <outfile>
     env ACQ_TRIPWIRE=1 ACQ_MAX_SENDS="$1" ACQ_IDLE_SHUTDOWN=600 \
-        "$ACQ" daemon run >"$RUN_DIR/$2" 2>&1 &
+        "$ACQD" >"$RUN_DIR/$2" 2>&1 &
     for _ in $(seq 1 100); do
         pid=$(status_json | jq -r '.pid // empty')
         [ -n "$pid" ] && { echo "$pid"; return 0; }

@@ -1,0 +1,31 @@
+//! The daemon of the Acquisition Rust rewrite, as its own artifact (C1,
+//! C82; the binary is `acqd`, `main.rs`): the header-driven rate limiter
+//! and its choke point (`ratelimit.rs`, `gate.rs`), the live-test rails
+//! (`rails.rs`), OAuth and sessions (`auth.rs`), the provider (`provider.rs`),
+//! the mock provider (`mockggg.rs`), and the daemon itself (`daemon.rs`:
+//! queue, dispatcher, Unix-socket server, idle watchdog). The only GGG
+//! sender. It links the protocol crate and the store, never the client
+//! crate, the planner or a frontend — `tools/docs-check.sh` refuses the
+//! edges — and no package but this one names it, so "never in-process
+//! with the daemon" (C13) is a Cargo fact.
+//!
+//! By default nothing here talks to GGG: job kinds are fakes and OAuth runs
+//! against the in-process mock provider. Starting the daemon with `ACQ_GGG=1`
+//! opts into the real provider — real OAuth against the existing
+//! "acquisition" registration and a real `GET /character` — behind the same
+//! single rate-limit choke point, with deliberately conservative buckets.
+//!
+//! Renamed from `acquisition-core` by `git mv` at the daemon split's step
+//! 3 (`DAEMON-SPLIT-SLICE.md`); the client side (`client.rs`) moved to
+//! `acquisition-client` in the same commit, and `frame.rs` — the bounded
+//! reader both sides need — is one copy here and one there, because the
+//! protocol crate stays serde-only and the daemon never links the client.
+
+pub mod auth;
+pub mod daemon;
+pub mod frame;
+pub(crate) mod gate;
+pub mod mockggg;
+pub mod provider;
+pub mod rails;
+pub mod ratelimit;

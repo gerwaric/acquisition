@@ -202,8 +202,8 @@ Prerequisites for a goal-function build, not a plan to start on now:
 3. ~~Pin the frontend boundary~~ — done 2026-09-10, commit 0 of the
    daemon split (C85): one fixture per wire variant (`wire.rs`, under
    `acquisition-protocol/tests/` since step 1) and the black-box
-   contract tests (`contract.rs`, under `acquisition-core/tests/` until
-   the client crate exists); the plan slice's process-level pins
+   contract tests (`contract.rs`, under `acquisition-client/tests/`
+   since step 3, driving the built `acqd`); the plan slice's process-level pins
    (`apply_loop.rs`, `plan_loop.rs`) stay.
 
 ## Standing constraints carried from the soak

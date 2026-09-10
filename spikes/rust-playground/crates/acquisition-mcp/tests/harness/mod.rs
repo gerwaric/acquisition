@@ -1,6 +1,7 @@
-//! Shared process-test harness: spawn `acq-mcp` (as MCP server or as
-//! `daemon run`) in an isolated environment and speak newline-delimited
-//! JSON-RPC to the server's stdio.
+//! Shared process-test harness: spawn `acq-mcp` in an isolated
+//! environment and speak newline-delimited JSON-RPC to the server's
+//! stdio; start the daemon it would itself spawn — the `acqd` beside it
+//! (C82) — under the same isolation, owning the pid.
 #![allow(dead_code)] // each test binary uses the slice it needs
 
 use std::io::{BufRead, BufReader, Lines, Write};
@@ -19,7 +20,27 @@ pub fn spawn(
     stdio: fn() -> Stdio,
 ) -> Child {
     let mut cmd = Command::new(env!("CARGO_BIN_EXE_acq-mcp"));
-    cmd.args(args)
+    cmd.args(args);
+    isolate(&mut cmd, base, extra_env, stdio);
+    cmd.spawn().expect("spawning acq-mcp")
+}
+
+/// The daemon `acq-mcp` would lazily spawn in mock mode: the `acqd`
+/// beside the binary under test (C82). A missing one fails here, before
+/// the test runs, naming the build step; the test owns the pid.
+pub fn spawn_daemon(base: &Path, extra_env: &[(&str, &str)]) -> Child {
+    let acqd = acquisition_client::locator::beside(Path::new(env!("CARGO_BIN_EXE_acq-mcp")))
+        .unwrap_or_else(|e| panic!("{e}"));
+    let mut cmd = Command::new(&acqd);
+    isolate(&mut cmd, base, extra_env, Stdio::null);
+    cmd.spawn()
+        .unwrap_or_else(|e| panic!("spawning {}: {e}", acqd.display()))
+}
+
+/// The scratch socket and store under `base`, the live-run knobs
+/// scrubbed, `extra_env` applied last.
+fn isolate(cmd: &mut Command, base: &Path, extra_env: &[(&str, &str)], stdio: fn() -> Stdio) {
+    cmd
         // Short socket path (Unix sockets cap ~104 bytes).
         .env("ACQ_SOCKET", base.join("d.sock"))
         .env("ACQ_STORE_DIR", base.join("store"))
@@ -41,7 +62,6 @@ pub fn spawn(
     for (key, value) in extra_env {
         cmd.env(key, value);
     }
-    cmd.spawn().expect("spawning acq-mcp")
 }
 
 /// A newline-delimited JSON-RPC conversation with the MCP server's stdio.

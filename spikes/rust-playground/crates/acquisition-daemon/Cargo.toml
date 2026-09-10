@@ -1,7 +1,17 @@
 [package]
-name = "acquisition-core"
+name = "acquisition-daemon"
 version.workspace = true
 edition.workspace = true
+
+# The daemon as its own artifact (C1, C82; DAEMON-SPLIT-SLICE.md step 3):
+# this package holds the daemon implementation and the `acqd` binary, the
+# only GGG sender. It links the protocol crate and the store, never the
+# client crate, the planner or a frontend; tools/docs-check.sh refuses
+# those edges, and no package but this one may name it.
+
+[[bin]]
+name = "acqd"
+path = "src/main.rs"
 
 [dependencies]
 tokio.workspace = true

@@ -6,7 +6,8 @@
 #   preflight            # after MODE, RUN_DIR and SOCK are chosen, before
 #                        # any acq binary runs
 #
-# Needs `here` (the workspace root), `ACQ` (the binary path), `MODE`
+# Needs `here` (the workspace root), `ACQ` (the binary path), `ACQD` (the
+# daemon beside it, which the driver starts and owns), `MODE`
 # (live|mock), `RUN_DIR` (exists) and `SOCK`; leaves `head`, `tip`, `ver`
 # set and `$RUN_DIR/provenance.json` written. The binary carries no
 # commit (C10: its identity is the runtime revision of its sources), so a
@@ -44,8 +45,9 @@ preflight() {
 
     # 4. Build, locked: the build must not rewrite the lock the check in
     #    step 2 just read. Cheap when fresh.
-    (cd "$here" && cargo build --locked --quiet) || { echo "refusing: cargo build failed" >&2; exit 2; }
+    (cd "$here" && cargo build --workspace --locked --quiet) || { echo "refusing: cargo build failed" >&2; exit 2; }
     ver=$("$ACQ" --version)
+    [ -x "$ACQD" ] || { echo "refusing: no daemon at $ACQD beside $ACQ (C82) — cargo build --workspace" >&2; exit 2; }
 
     # 5. Again, with the binary that will run.
     preflight_refuse_daemon "after the build"

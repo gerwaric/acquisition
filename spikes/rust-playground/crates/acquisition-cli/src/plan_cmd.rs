@@ -118,7 +118,7 @@
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
-use acquisition_core::client::{Client, DaemonError, Observed};
+use acquisition_client::client::{Client, DaemonError, Observed};
 use acquisition_plan::{
     CharacterSkipReason, FetchReason, ListingReason, PlanError, RefreshAction, RefreshPlan,
     SkipReason, plan_refresh, put_sync_policy,
@@ -408,10 +408,7 @@ pub async fn refresh_apply(
     print!("{report}");
     println!("{}", changes.line());
     if let Outcome::Failure { .. } = outcome {
-        println!(
-            "daemon log: {}",
-            acquisition_core::daemon::log_path().display()
-        );
+        println!("daemon log: {}", acquisition_client::log_path().display());
         return Err(crate::AlreadyReported.into());
     }
     Ok(())

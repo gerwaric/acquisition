@@ -44,7 +44,7 @@
 //! item in a slot), everything unobserved is a blocked row citing the
 //! open question it waits on (`docs/design/trade-ground-truth.md`, Q1–Q7),
 //! and each row carries its count, so the page's omissions are the table
-//! read down. The order of the reads is the order of [`cell`]: what the
+//! read down. The order of the reads is the order of `cell`: what the
 //! effective price says (the game decides → omitted, since the site
 //! already shows it and a page must not contradict it, C81; a hand `skip`
 //! → omitted, as the word means; `no_price` → blocked on Q5; nothing →

@@ -2,7 +2,8 @@
 resolver = "2"
 members = [
     "crates/acquisition-protocol",
-    "crates/acquisition-core",
+    "crates/acquisition-client",
+    "crates/acquisition-daemon",
     "crates/acquisition-store",
     "crates/acquisition-plan",
     "crates/acquisition-cli",

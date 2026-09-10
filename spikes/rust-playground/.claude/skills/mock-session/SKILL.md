@@ -17,7 +17,7 @@ unset ACQ_GGG ACQ_TRIPWIRE ACQ_MAX_SENDS ACQ_IDLE_SHUTDOWN   # a live run may ha
 export ACQ_SOCKET=/tmp/acq-<name>.sock                        # keep it short: Unix socket paths cap near 104 bytes
 export ACQ_NO_KEYRING=1                                       # sessions in memory only
 export ACQ_STORE_DIR=<scratch>/store                          # never the real per-user data directory
-cargo build && ./target/debug/acq --version                   # cargo test / clippy do not rebuild the binary
+cargo build --workspace && ./target/debug/acq --version       # builds acq and the daemon acqd beside it (C82); cargo test / clippy rebuild neither
 alias acq=./target/debug/acq
 acq daemon status                                             # must say provider: mock
 ```

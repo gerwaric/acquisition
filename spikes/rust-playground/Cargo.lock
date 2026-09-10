@@ -6,7 +6,7 @@ version = 4
 name = "acquisition-cli"
 version = "0.0.1"
 dependencies = [
- "acquisition-core",
+ "acquisition-client",
  "acquisition-plan",
  "acquisition-protocol",
  "acquisition-store",
@@ -19,7 +19,19 @@ dependencies = [
 ]
 
 [[package]]
-name = "acquisition-core"
+name = "acquisition-client"
+version = "0.0.1"
+dependencies = [
+ "acquisition-protocol",
+ "anyhow",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
+name = "acquisition-daemon"
 version = "0.0.1"
 dependencies = [
  "acquisition-protocol",
@@ -40,7 +52,7 @@ dependencies = [
 name = "acquisition-mcp"
 version = "0.0.1"
 dependencies = [
- "acquisition-core",
+ "acquisition-client",
  "acquisition-plan",
  "acquisition-protocol",
  "acquisition-store",
