@@ -205,13 +205,15 @@ fi
 # lands on a node, every node has a package — and names, by a set
 # fixpoint of its own, every fact the table must hold, by package id,
 # sorted. The second walks the graph and emits the table in that order.
-# Bash compares the two by identity with builtins alone — no awk, grep
-# or comm in a process substitution can answer for it — so a missing
-# row, a duplicate in its place, a fabricated row or an extra one all
-# refuse; then every package the rules are about must have its own row
-# with every direct edge inside its closure. What remains is a reader
-# that forges a whole table and the identities to match it: a
-# consistent lie, accepted.
+# Bash compares the two by identity and by name with builtins alone —
+# no awk, grep or comm in a process substitution can answer for it — so
+# a missing row, a duplicate in its place, a fabricated row, an extra
+# one, or a name that does not belong to its id all refuse; then every
+# package the rules are about must have its own row with every direct
+# edge inside its closure. The rules read the names so authenticated;
+# the path beside a row is printed on a hit and never read. What remains
+# is a reader that forges a whole table, its identities and its names to
+# match: a consistent lie, accepted.
 meta=$(mktemp)
 if ! cargo metadata --format-version 1 --all-features --offline >"$meta" 2>/dev/null \
    && ! cargo metadata --format-version 1 --all-features >"$meta"; then
@@ -219,13 +221,16 @@ if ! cargo metadata --format-version 1 --all-features --offline >"$meta" 2>/dev/
   rm -f "$meta"; exit 1
 fi
 # The graph must be whole before it is read, and the first reader states
-# what the table must contain: after `whole`, one identity line per
-# fact, by package id, sorted — `direct <member id> <kind> <dep id>` and
-# `closure <member id> <dep id>` — from a set fixpoint of its own.
+# what the table must contain: after `whole`, one line per fact, by
+# package id, sorted, each carrying the names the rules will read —
+# `direct <member id> <kind> <dep id> <member> <name>` and `closure
+# <member id> <dep id> <member> <name>` — from a set fixpoint and an
+# id-to-name map of its own.
 if ! partial=$(jq -r '
     ([.resolve.nodes[]?.id] | unique) as $nodes
     | ([.packages[].id] | unique) as $pkgs
     | ([.resolve.nodes[]? | {key: .id, value: .deps}] | from_entries) as $deps
+    | ([.packages[] | {key: .id, value: .name}] | from_entries) as $name
     | def reach($m): reduce range(0; 10000) as $_ (
         { seen: [$m], front: ([$deps[$m][] | .pkg] | unique) };
         if .front == [] then . else
@@ -239,8 +244,8 @@ if ! partial=$(jq -r '
       elif any(.resolve.nodes[].deps[].pkg; . as $d | ($nodes | index($d)) == null) then "an edge lands on no node"
       elif any($nodes[]; . as $n | ($pkgs | index($n)) == null) then "a node has no package entry"
       else "whole",
-        ([.workspace_members[] as $m | $deps[$m][] | .pkg as $d | .dep_kinds[] | [$m, (.kind // "normal"), $d]] | sort | .[] | "direct\t\(.[0])\t\(.[1])\t\(.[2])"),
-        ([.workspace_members[] as $m | reach($m)[] | [$m, .]] | sort | .[] | "closure\t\(.[0])\t\(.[1])")
+        ([.workspace_members[] as $m | $deps[$m][] | .pkg as $d | .dep_kinds[] | [$m, (.kind // "normal"), $d]] | sort | .[] | "direct\t\(.[0])\t\(.[1])\t\(.[2])\t\($name[.[0]])\t\($name[.[2]])"),
+        ([.workspace_members[] as $m | reach($m)[] | [$m, .]] | sort | .[] | "closure\t\(.[0])\t\(.[1])\t\($name[.[0]])\t\($name[.[1]])")
       end' "$meta"); then
   echo 'EDGE    jq failed or is not installed — the dependency graph could not be read'
   rm -f "$meta"; exit 1
@@ -251,7 +256,7 @@ if [[ $partial != "whole"* ]]; then
 fi
 # The table, one tab-separated line per fact, in the first reader's order
 # (direct rows by member id, kind, dep id; closure rows by member id,
-# dep id), names for the rules and ids for the comparison:
+# dep id); ids and names are compared, the path is diagnostic only:
 #   direct  <member> <kind> <name> <member id> <dep id>
 #   closure <member> <name> <member id> <dep id> <path by names>
 if ! table=$(jq -r '
@@ -275,19 +280,23 @@ if ! table=$(jq -r '
   rm -f "$meta"; exit 1
 fi
 rm -f "$meta"
-# The two answers must agree row by row, by identity: the table's rows,
-# projected to (member id, kind, dep id) and (member id, dep id), must be
-# exactly the first reader's lines in order — a missing row, a duplicate
-# in its place, a fabricated row or an extra one all refuse here, before
-# any rule is consulted (review 2026-09-10: matching counts had passed a
-# duplicate standing in for the dropped row). Builtins only.
+# The two answers must agree row by row, by identity and by name: the
+# table's rows, projected to (member id, kind, dep id, member, name) and
+# (member id, dep id, member, name), must be exactly the first reader's
+# lines in order — a missing row, a duplicate in its place, a fabricated
+# row, an extra one, or a row whose name does not belong to its id all
+# refuse here, before any rule is consulted (review 2026-09-10: matching
+# counts had passed a duplicate standing in for the dropped row; matching
+# ids had passed a renamed dependency the rules then could not find).
+# The path column is not compared: it is printed on a hit, never read by
+# a rule. Builtins only.
 expect=()
 IFS=$'\n' read -d '' -ra expect <<<"${partial#whole}" || true
 actual=()
 while IFS=$'\t' read -r kind a b c d e _; do
   case $kind in
-    direct)  actual+=("direct	$d	$b	$e") ;;
-    closure) actual+=("closure	$c	$d") ;;
+    direct)  actual+=("direct	$d	$b	$e	$a	$c") ;;
+    closure) actual+=("closure	$c	$d	$a	$b") ;;
     '')      ;;
     *)       printf 'EDGE    the dependency table has a row of unknown kind (%s) — the table is not the graph\n' "$kind"; exit 1 ;;
   esac
