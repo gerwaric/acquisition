@@ -1,5 +1,6 @@
 //! The frame reader both sides of the socket use (C85): one line, read
-//! no further than [`MAX_FRAME_BYTES`]. A line past the bound is
+//! no further than [`MAX_FRAME_BYTES`](acquisition_protocol::protocol::MAX_FRAME_BYTES).
+//! A line past the bound is
 //! discarded through its newline and reported as [`Frame::Oversize`], so
 //! the reader never buffers a runaway line and the next frame is still
 //! aligned — the daemon answers `bad_request` and keeps the connection,
@@ -8,8 +9,6 @@
 //! parser's failure to report, like any other malformed frame.
 
 use tokio::io::{AsyncBufRead, AsyncBufReadExt};
-
-pub use acquisition_protocol::protocol::MAX_FRAME_BYTES;
 
 /// One read from a framed connection.
 #[derive(Debug, PartialEq, Eq)]

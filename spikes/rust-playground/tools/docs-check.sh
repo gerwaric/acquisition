@@ -23,9 +23,9 @@
 #      cross, read from `cargo metadata` — the daemon and the store as
 #      before, since the daemon split's step 1 the protocol crate's
 #      purity (serde only) and the store's blindness to it, and since
-#      step 2 the planner's independence from the daemon; the rest of
-#      the split's edge table (brainstorming-notes/18 §2.1) lands with
-#      the crates it names.
+#      step 2 the planner's independence from the daemon, each forbidden
+#      edge refused at any depth; the rest of the split's edge table
+#      (brainstorming-notes/18 §2.1) lands with the crates it names.
 #
 # Exit 1 on any failure; the report names each offender.
 set -euo pipefail
@@ -186,6 +186,13 @@ fi
 # `allow` checks its own package first — so an empty or partial answer
 # refuses too instead of satisfying each allowlist vacuously, and an
 # edge about a crate the table does not know cannot be added quietly.
+# A `forbid` holds transitively as well: the package's whole closure —
+# what Cargo links into it through any intermediary, its own dev and
+# build edges included — is read from `cargo tree`, whose exit status is
+# checked directly and whose answer must contain the package itself
+# (review advisory 2026-09-10, after step 2: a direct-edge rule would not
+# notice `plan → helper → daemon`). The direct table stays for the
+# per-kind allowlists and for naming the section a forbidden edge sits in.
 meta=$(mktemp)
 if ! cargo metadata --format-version 1 --no-deps --offline >"$meta" 2>/dev/null \
    && ! cargo metadata --format-version 1 --no-deps >"$meta"; then
@@ -208,14 +215,40 @@ deps_of() {  # deps_of <package> <kind: normal|dev|build>: dependency names of t
   awk -v p="$1" -v k="$2" '$1 == p && $2 == k {print $3}' <<<"$edges" | sort -u
 }
 all_deps_of() { awk -v p="$1" '$1 == p {print $3}' <<<"$edges" | sort -u; }
+closure=''
+read_closure() {  # read_closure <package>: sets $closure to every package Cargo links into it, transitively
+  # Not a command substitution: an `exit` inside one ends the subshell,
+  # not the check (the round-5 shape). Validated here, queried by the caller.
+  local out
+  if ! out=$(cargo tree -e normal,build,dev -p "$1" --prefix none --offline 2>/dev/null) \
+     && ! out=$(cargo tree -e normal,build,dev -p "$1" --prefix none); then
+    printf 'EDGE    cargo tree failed for %s — its dependency closure could not be read\n' "$1"
+    exit 1
+  fi
+  closure=$(awk '{print $1}' <<<"$out" | sort -u)
+  if ! grep -qx -- "$1" <<<"$closure"; then
+    printf 'EDGE    the closure of %s does not contain %s — cargo tree answered nothing\n' "$1" "$1"
+    exit 1
+  fi
+}
 edge_bad=0
-forbid() {  # forbid <package> <why> <name>...: refuse any of these names, in any section
+forbid() {  # forbid <package> <why> <name>...: refuse any of these names, in any section, at any depth
   local pkg=$1 why=$2; shift 2
   local hit
   named "$pkg"
   hit=$(comm -12 <(all_deps_of "$pkg") <(printf '%s\n' "$@" | sort -u) | tr '\n' ' ')
   if [[ -n $hit ]]; then
     printf 'EDGE    %-22s links %s— %s\n' "$pkg" "$hit" "$why"
+    fail=1; edge_bad=1
+    return
+  fi
+  read_closure "$pkg"
+  hit=$(comm -12 <(printf '%s\n' "$closure") <(printf '%s\n' "$@" | sort -u) | tr '\n' ' ')
+  if [[ -n $hit ]]; then
+    printf 'EDGE    %-22s links %stransitively — %s\n' "$pkg" "$hit" "$why"
+    for name in $hit; do
+      cargo tree -e normal,build,dev -p "$pkg" -i "$name" --offline 2>/dev/null | sed 's/^/          /' || true
+    done
     fail=1; edge_bad=1
   fi
 }
