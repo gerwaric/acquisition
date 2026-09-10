@@ -3,7 +3,7 @@
     "account": "Alice#1234",
     "halted": null,
     "not_covered": [
-      "429 re-sends (up to 3 per request) — possible, never predicted"
+      "429 re-sends (up to 2 per request) — possible, never predicted"
     ],
     "observed_at": 1800000000,
     "provider": "mock",

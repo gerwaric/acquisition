@@ -12,7 +12,7 @@
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
-use acquisition_protocol::job::{JobInfo, JobState, Outcome};
+use acquisition_protocol::job::{JobInfo, JobState, MAX_429_RETRIES, Outcome};
 use acquisition_protocol::protocol::{
     Bootstrap, BootstrapReply, ErrorKind, ErrorRecord, MAX_FRAME_BYTES, Quote, QuoteJob,
     QuoteScope, Request, Response, SessionStatus, UNKNOWN, error_message,
@@ -201,7 +201,12 @@ fn quote() -> Quote {
             eta_seconds: Some(0),
             notes: vec![],
         }],
-        not_covered: vec!["429 re-sends (up to 3 per request) — possible, never predicted".into()],
+        // The daemon's own sentence (`daemon.rs`, the quote's `not_covered`),
+        // built from the promise so the sample cannot contradict it (review
+        // finding 2026-09-10: the fixture said 3 beside a constant of 2).
+        not_covered: vec![format!(
+            "429 re-sends (up to {MAX_429_RETRIES} per request) — possible, never predicted"
+        )],
     }
 }
 

@@ -20,10 +20,11 @@
 #      and *.rs / *.sh / *.py / *.sql file names.
 #   4. The README's form: one line per verb in the tour, a row per knob.
 #   5. Dependency direction: the layer rules as edges the crates cannot
-#      cross — the daemon and the store as before, and since the daemon
-#      split's step 1 the protocol crate's purity (serde only) and the
-#      store's blindness to it; the rest of the split's edge table
-#      (brainstorming-notes/18 §2.1) lands with the crates it names.
+#      cross, read from `cargo metadata` — the daemon and the store as
+#      before, and since the daemon split's step 1 the protocol crate's
+#      purity (serde only) and the store's blindness to it; the rest of
+#      the split's edge table (brainstorming-notes/18 §2.1) lands with
+#      the crates it names.
 #
 # Exit 1 on any failure; the report names each offender.
 set -euo pipefail
@@ -164,39 +165,50 @@ fi
 # what links what, not by discipline: the daemon crate never links the
 # planner and never names the intent API (it writes facts through the
 # store and reads nothing else); the store crate links neither the daemon
-# nor an HTTP client, so a store read cannot initiate traffic (C41).
+# nor an HTTP client, so a store read cannot initiate traffic (C41); the
+# protocol crate — the daemon's contract as a frontend sees it — links
+# serde and serde_json, nothing else (sha2 at build time only), because a
+# dependency there is every frontend's and the daemon's both, and the
+# revision it computes must move only when the contract does (§2.1).
+# The edges are read from `cargo metadata`, i.e. from what Cargo itself
+# resolves — every section, every spelling, target-specific tables and
+# `[dependencies.x]` tables included — never from the manifest's text
+# (review finding 2026-09-10: a lexical parser missed three valid forms).
+meta=$(mktemp)
+cargo metadata --format-version 1 --no-deps --offline >"$meta" 2>/dev/null \
+  || cargo metadata --format-version 1 --no-deps >"$meta"
+deps_of() {  # deps_of <package> <kind: normal|dev|build>: dependency names of that kind, any target
+  jq -r --arg pkg "$1" --arg kind "$2" '
+    .packages[] | select(.name == $pkg) | .dependencies[]
+    | select((.kind // "normal") == $kind) | .name' "$meta" | sort -u
+}
+all_deps_of() { for k in normal dev build; do deps_of "$1" "$k"; done | sort -u; }
 edge_bad=0
-edge() {
-  local file=$1 needle=$2 why=$3
-  if grep -qE -- "$needle" "$file"; then
-    printf 'EDGE    %-40s must not name %s — %s\n' "$file" "$needle" "$why"
+forbid() {  # forbid <package> <why> <name>...: refuse any of these names, in any section
+  local pkg=$1 why=$2; shift 2
+  local hit
+  hit=$(comm -12 <(all_deps_of "$pkg") <(printf '%s\n' "$@" | sort -u) | tr '\n' ' ')
+  if [[ -n $hit ]]; then
+    printf 'EDGE    %-22s links %s— %s\n' "$pkg" "$hit" "$why"
     fail=1; edge_bad=1
   fi
 }
-edge crates/acquisition-core/Cargo.toml  '^acquisition-plan'                  'the daemon never links the planner (C39)'
-edge crates/acquisition-store/Cargo.toml '^(acquisition-core|acquisition-protocol|acquisition-plan|reqwest|tokio)' 'the store links no daemon, no protocol and no HTTP client (C41; the split, §2.1)'
-# The protocol crate is the daemon's contract as a frontend sees it and
-# links serde and serde_json, nothing else (sha2 at build time only): a
-# dependency here is a dependency of every frontend and of the daemon
-# both, and the revision it computes must move only when the contract
-# does. An allowlist per section, so an addition of any name refuses.
-deps_of() {  # deps_of <manifest> <section>: the dependency names under [section]
-  # both spellings: `name = …` and the dotted `name.workspace = true`
-  awk -v sect="[$2]" '$0 == sect {f=1; next} /^\[/ {f=0} f && /^[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+)?[[:space:]]*=/ {sub(/[.[:space:]=].*/, ""); print}' "$1" | sort -u
-}
-proto=crates/acquisition-protocol/Cargo.toml
-allow() {  # allow <section> <name>...: refuse any other dependency in that section
-  local sect=$1; shift
+allow() {  # allow <package> <kind> <name>...: refuse any other dependency of that kind
+  local pkg=$1 kind=$2; shift 2
   local extra
-  extra=$(comm -23 <(deps_of "$proto" "$sect") <(printf '%s\n' "$@" | sort -u) | tr '\n' ' ')
+  extra=$(comm -23 <(deps_of "$pkg" "$kind") <(printf '%s\n' "$@" | sort -u) | tr '\n' ' ')
   if [[ -n $extra ]]; then
-    printf 'EDGE    %-40s [%s] links %s— the protocol crate is serde-only (§2.1)\n' "$proto" "$sect" "$extra"
+    printf 'EDGE    %-22s [%s] links %s— the protocol crate is serde-only (§2.1)\n' "$pkg" "$kind" "$extra"
     fail=1; edge_bad=1
   fi
 }
-allow dependencies serde serde_json
-allow dev-dependencies serde serde_json
-allow build-dependencies sha2
+forbid acquisition-core  'the daemon never links the planner (C39)' acquisition-plan
+forbid acquisition-store 'the store links no daemon, no protocol and no HTTP client (C41; the split, §2.1)' \
+  acquisition-core acquisition-protocol acquisition-plan reqwest tokio
+allow acquisition-protocol normal serde serde_json
+allow acquisition-protocol dev    serde serde_json
+allow acquisition-protocol build  sha2
+rm -f "$meta"
 if grep -rqE 'Annotations|annotations_path' crates/acquisition-core/src crates/acquisition-protocol/src; then
   echo 'EDGE    crates/acquisition-{core,protocol}/src    names the intent API — the daemon and the wire are permanently blind to intent (C34)'
   fail=1; edge_bad=1

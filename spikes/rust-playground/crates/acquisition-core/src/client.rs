@@ -54,8 +54,8 @@
 //! protocol sources, their manifests, the root manifest and the lock
 //! (the protocol crate's `build.rs`). It
 //! changes whenever any of those whole files changes: an uncommitted edit
-//! to `daemon.rs` makes a running daemon stale, an edit to the planner or
-//! a frontend does not, a lock entry or store function the daemon never
+//! to `daemon.rs` makes a running daemon stale, a source edit to the
+//! planner or a frontend does not, a lock entry or store function the daemon never
 //! uses does (a deliberate false mismatch — a respawn is cheap, a missed
 //! dependency change is invisible), and no git state is consulted. The
 //! package version alone is fixed at `0.0.1` across the playground, and

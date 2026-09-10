@@ -34,11 +34,12 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 /// manifests, the root manifest and the lock (`build.rs` lists the inputs
 /// and the format). It changes whenever any of those inputs changes —
 /// including lock entries and store code the daemon does not use, a
-/// deliberate false mismatch — never when the planner or a frontend
-/// changes, and never by consulting git. Written into the send journal
-/// header and the daemon's startup line: the rails verify behavior, this
-/// is the one place that says *which code* behaved; a run record maps it
-/// to HEAD.
+/// deliberate false mismatch — never on a source edit to the planner or
+/// a frontend (a dependency change there moves the lock, and the lock is
+/// an input on purpose), and never by consulting git. Written into the
+/// send journal header and the daemon's startup line: the rails verify
+/// behavior, this is the one place that says *which code* behaved; a run
+/// record maps it to HEAD.
 pub const RUNTIME_REVISION: &str = env!("ACQ_RUNTIME_REVISION");
 
 /// `<version> (runtime <revision>)`: what `acq --version` prints and what

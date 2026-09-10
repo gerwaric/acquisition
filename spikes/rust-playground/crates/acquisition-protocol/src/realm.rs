@@ -64,12 +64,14 @@
 //! Properties fixed inside the ruling while building, each pinned by a
 //! test (findings that bought them: `REFRESH-SLICE.md`):
 //!
-//! - **The realm table is one type in core** (`realm.rs`: `Realm`,
+//! - **The realm table is one type** (`realm.rs`: `Realm`,
 //!   `Family::accepts`), read by the daemon (rendering + admission), the
 //!   mock (path classification), and the planner (policy parse) — the
-//!   `declare_route_knowledge` mold, linkable by all three because the
-//!   planner already depends on core. The store stays string-typed: it
-//!   records the request's realm and never validates it.
+//!   `declare_route_knowledge` mold. Built in core; since the daemon
+//!   split's step 1 it is the protocol crate's, the job vocabulary typed,
+//!   linkable by all three because every consumer of the wire links the
+//!   protocol crate (§2.1 of the packet). The store stays string-typed:
+//!   it records the request's realm and never validates it.
 //! - **A non-pc realm suffixes the limiter's route label**
 //!   (`character-list/poe2`, `stash-list/xbox`) as well as the URL, so each
 //!   realm's URL shape gets its own free HEAD before its first counted
