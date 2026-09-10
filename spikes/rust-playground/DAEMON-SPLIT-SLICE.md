@@ -25,7 +25,7 @@ One row per commit of §4; a row is filled when the commit lands.
 | --- | --- | --- |
 | −1 restore green | `93ed626c` | the pricing property's inverse grammar fixed; the regression seed committed; gate green |
 | 0 wire audit and pin | `a6c070b3` | stable `hello`/`daemon_stop` plane (`protocol::Bootstrap`, read by name alone); frame bound `MAX_FRAME_BYTES` with `bad_request` (`frame.rs`); C85's semantics (`Subscription`, `resync_required { missed }`, subscribe-then-snapshot in `acq jobs --watch`); closed `ErrorKind` of nine, every daemon site classified at its origin (`daemon::Refusal`); one fixture per variant (`tests/wire.rs`); black-box contract tests (`tests/contract.rs`); the kind beside the message under `--json` and in the MCP error's `data`; C85 in the registry with today's Pinned paths; TESTING-NOTES item 3 struck; rehearsed in mock only |
-| 1 protocol crate | — | `acquisition-protocol` extracted; the build script moved with today's input set |
+| 1 protocol crate | `bf47b6d8` | `acquisition-protocol` extracted, serde-only: `protocol.rs`, `job.rs`, `realm.rs` moved whole; `status.rs` cut from `rails.rs` and `ratelimit.rs` (`RailsStatus`, `PolicyStatus`, `RuleStatus`, `WindowStatus`, `SendRecord`, `DegradedEndpoint`); `provider.rs` (`ggg_mode`, the names); `MAX_429_RETRIES` beside the retries it bounds; `VERSION_WITH_RUNTIME` and the build script with today's input set (core, store and protocol sources, manifests, lock — a daemon edit still moves it, a frontend edit does not, both shown); `tests/wire.rs` and its 35 fixtures moved byte-identical; `frame.rs` stays in core; docs-check refuses the edges that hold now (the protocol manifest an allowlist per section, the store never links protocol), broken four ways and seen to fail; core re-exports the old paths for one commit; C85's and C12's pointers; rehearsed in mock only |
 | 2 consumers | — | plan, cli, mcp and the tests on the protocol crate; docs-check edges |
 | 3 `acqd` and client | — | `acquisition-client`; core → `acquisition-daemon`; the `acqd` binary; `daemon run` gone; the sibling locator; the gate builds before it tests; C1 and C82 in the registry |
 | 4 identity | — | shared-contract revision; artifact identity and hash; `hello`, `DaemonId`, `acq version`, journal header, `provenance.json` with both hashes; the artifact-mismatch test; C84 in the registry; standing-rule prose presented |
@@ -52,10 +52,11 @@ data for the commit that touches it.
 - The rails state today sits beside the socket in the per-user temp
   directory, which macOS clears at reboot: a tripped tripwire does not
   survive a restart (packet §1, verified). Closed by step 5.
-- C85's *Pinned* paths name the client crate, which exists from step 3;
-  at step 0 the contract tests and fixtures live under
-  `acquisition-core/tests/` and the registry entry names them there
-  (`a6c070b3`). Step 3 moves them and edits the pointer.
+- C85's *Pinned* path for `contract.rs` names the client crate, which
+  exists from step 3; until then the contract tests live under
+  `acquisition-core/tests/` and the registry entry names them there.
+  The `wire.rs` pointer followed the file with step 1 (`bf47b6d8`);
+  step 3 moves `contract.rs` and edits the other.
 - The contract tests' daemon is the test executable re-run under
   `ACQ_CONTRACT_DAEMON=1` (`contract.rs`, `daemon_entry`), because no
   crate but the CLI has a binary before step 3 and the tests may not
@@ -74,13 +75,26 @@ data for the commit that touches it.
   the client as an oversize answer, not at the daemon. No such body
   exists today (a tab is a few megabytes).
 - `frame.rs` — the bounded reader both sides use — needs tokio, and C1
-  as ruled makes the protocol crate serde-only. Step 1 places it: a
-  feature on the protocol crate, or one copy each in the client and
-  daemon crates.
-- The packet's pointer edit "C12 gains *Pinned:*
-  `acquisition-protocol/tests/wire.rs`" (§3) is assigned to no commit;
-  today the file is `acquisition-core/tests/wire.rs`. Step 1 or 2, when
-  the path is final.
+  as ruled makes the protocol crate serde-only. Step 1 left it in core
+  (one core crate exists until step 3; only the constant moved). Step 3
+  places it: a feature on the protocol crate, or one copy each in the
+  client and daemon crates.
+- Step 1 re-exports the moved items at their old core paths for one
+  commit, each marked for deletion: `job`, `protocol`, `realm` and the
+  three version constants from `lib.rs`; `daemon::MAX_429_RETRIES`;
+  `provider::ggg_mode`; `rails::RailsStatus`; the five status names in
+  `ratelimit.rs`. Step 2 switches the consumers and deletes them; a
+  re-export that survives step 2 is a consumer nobody switched.
+- The protocol crate carries no `unwrap_used`/`expect_used` denial: C47
+  names the store and plan crates, and the wire's lenient readers are
+  `?`-shaped today. Whether the contract crate joins them is a P4
+  promotion — a lint after a sentence of design — for step 2 or 3.
+- A revision check that restores a scratch edit with `git checkout --
+  <file>` discards every uncommitted edit in that file, and while the
+  step-1 re-exports stand the build hides it: HEAD's `daemon.rs` still
+  compiles against the new core. Seen once on 2026-09-10 (redone from
+  the diff); the checks strip the scratch line instead. Data for step
+  4's measurement, which edits the daemon on purpose.
 - The process tests leak their scratch stores suite-wide: 567 `acq-*`
   directories sat in the temp directory on 2026-09-10 from every test
   file older than this slice (`acq-p`, `acq-reference`, `acq-story`,
