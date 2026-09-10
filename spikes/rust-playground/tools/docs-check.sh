@@ -175,7 +175,7 @@ fi
 # (§2.1: every path it took from core was the wire's or the vocabulary's,
 # so a planner that links the daemon again has grown a third door).
 # The edges are read from `cargo metadata`, i.e. from what Cargo itself
-# resolves — every section, every spelling, target-specific tables and
+# reads — every section, every spelling, target-specific tables and
 # `[dependencies.x]` tables included — never from the manifest's text
 # (review finding 2026-09-10: a lexical parser missed three valid forms).
 # The metadata is read once, into a flat `package kind name` table, by a
@@ -186,22 +186,50 @@ fi
 # `allow` checks its own package first — so an empty or partial answer
 # refuses too instead of satisfying each allowlist vacuously, and an
 # edge about a crate the table does not know cannot be added quietly.
-# A `forbid` holds transitively as well: the package's whole closure —
-# what Cargo links into it through any intermediary, its own dev and
-# build edges included — is read from `cargo tree`, whose exit status is
-# checked directly and whose answer must contain the package itself
-# (review advisory 2026-09-10, after step 2: a direct-edge rule would not
-# notice `plan → helper → daemon`). The direct table stays for the
-# per-kind allowlists and for naming the section a forbidden edge sits in.
+# A `forbid` holds at any depth over the *declared* graph, not the
+# active one: `cargo metadata` lists every dependency each package
+# declares — any target, optional or not — and the closure is walked over
+# those edges, so `plan → helper → daemon` is refused whether the helper's
+# edge is behind `cfg(windows)`, a feature, or nothing (review findings
+# 2026-09-10: a direct-edge rule missed the intermediary; `cargo tree`,
+# the host's active closure under default features, missed both gated
+# forms). The direct table stays for the per-kind allowlists.
 meta=$(mktemp)
-if ! cargo metadata --format-version 1 --no-deps --offline >"$meta" 2>/dev/null \
-   && ! cargo metadata --format-version 1 --no-deps >"$meta"; then
+if ! cargo metadata --format-version 1 --offline >"$meta" 2>/dev/null \
+   && ! cargo metadata --format-version 1 >"$meta"; then
   echo 'EDGE    cargo metadata failed — the dependency edges could not be read'
   rm -f "$meta"; exit 1
 fi
+# The whole declared graph: every package Cargo resolved, each with every
+# dependency it declares — any kind, any target, optional or not.
 if ! edges=$(jq -r '.packages[] | .name as $p | .dependencies[]
                     | "\($p) \(.kind // "normal") \(.name)"' "$meta"); then
   echo 'EDGE    jq failed or is not installed — the dependency edges could not be read'
+  rm -f "$meta"; exit 1
+fi
+# A partial answer refuses (review findings 2026-09-10: a jq answering
+# for one crate, then a shadowed graph reader answering with the root
+# alone, each passed): every workspace member must have its package
+# entry, and every edge Cargo must have resolved — non-optional, target-
+# free, normal or build, dev for a member — must name a package the
+# answer lists. An answer that names a dependency it does not describe
+# is not the graph.
+if ! jq -e '(.workspace_members | length) > 0
+            and ([.workspace_members[] as $m | .packages[] | select(.id == $m)] | length)
+                == (.workspace_members | length)' "$meta" >/dev/null; then
+  echo 'EDGE    a workspace member has no package entry — the metadata is partial'
+  rm -f "$meta"; exit 1
+fi
+if ! unresolved=$(jq -r '([.packages[].name] | unique) as $have
+    | [.packages[] | (.source == null) as $ws | .dependencies[]
+       | select(.optional == false and .target == null
+                and (.kind == null or .kind == "build" or (.kind == "dev" and $ws)))
+       | .name] | unique | map(select(. as $d | $have | index($d) | not)) | .[]' "$meta"); then
+  echo 'EDGE    jq failed reading the resolved set — the dependency edges could not be read'
+  rm -f "$meta"; exit 1
+fi
+if [[ -n $unresolved ]]; then
+  printf 'EDGE    the metadata names dependencies it does not describe (%s) — the answer is partial\n' "$(tr '\n' ' ' <<<"$unresolved")"
   rm -f "$meta"; exit 1
 fi
 rm -f "$meta"
@@ -215,26 +243,31 @@ deps_of() {  # deps_of <package> <kind: normal|dev|build>: dependency names of t
   awk -v p="$1" -v k="$2" '$1 == p && $2 == k {print $3}' <<<"$edges" | sort -u
 }
 all_deps_of() { awk -v p="$1" '$1 == p {print $3}' <<<"$edges" | sort -u; }
-closure=''
-read_closure() {  # read_closure <package>: sets $closure to every package Cargo links into it, transitively
-  # Not a command substitution: an `exit` inside one ends the subshell,
-  # not the check (the round-5 shape). Validated here, queried by the caller.
-  local out
-  if ! out=$(cargo tree -e normal,build,dev -p "$1" --prefix none --offline 2>/dev/null) \
-     && ! out=$(cargo tree -e normal,build,dev -p "$1" --prefix none); then
-    printf 'EDGE    cargo tree failed for %s — its dependency closure could not be read\n' "$1"
-    exit 1
-  fi
-  closure=$(awk '{print $1}' <<<"$out" | sort -u)
-  if ! grep -qx -- "$1" <<<"$closure"; then
-    printf 'EDGE    the closure of %s does not contain %s — cargo tree answered nothing\n' "$1" "$1"
-    exit 1
-  fi
+# closure_of <package> [<name>]: every package reachable from <package>
+# over declared edges — any target, optional or not, normal and build at
+# every depth, dev from the root only, since Cargo links no one else's
+# dev-dependencies. With <name>, the path by which it is reached instead.
+# Pure awk over the validated table: nothing here can fail silently.
+closure_of() {
+  awk -v r="$1" -v want="${2:-}" '
+    { if ($2 == "dev") dev[$1] = dev[$1] " " $3; else e[$1] = e[$1] " " $3 }
+    END {
+      seen[r] = 1
+      n = split(e[r] " " dev[r], q, " ")
+      for (i = 1; i <= n; i++) if (q[i] != "" && !(q[i] in seen)) { seen[q[i]] = 1; from[q[i]] = r; queue[++tail] = q[i] }
+      while (head < tail) {
+        x = queue[++head]
+        m = split(e[x], nx, " ")
+        for (i = 1; i <= m; i++) if (nx[i] != "" && !(nx[i] in seen)) { seen[nx[i]] = 1; from[nx[i]] = x; queue[++tail] = nx[i] }
+      }
+      if (want == "") { for (x in seen) print x }
+      else if (want in seen) { path = want; for (x = want; x != r; x = from[x]) path = from[x] " → " path; print path }
+    }' <<<"$edges" | sort -u
 }
 edge_bad=0
 forbid() {  # forbid <package> <why> <name>...: refuse any of these names, in any section, at any depth
   local pkg=$1 why=$2; shift 2
-  local hit
+  local hit name
   named "$pkg"
   hit=$(comm -12 <(all_deps_of "$pkg") <(printf '%s\n' "$@" | sort -u) | tr '\n' ' ')
   if [[ -n $hit ]]; then
@@ -242,13 +275,10 @@ forbid() {  # forbid <package> <why> <name>...: refuse any of these names, in an
     fail=1; edge_bad=1
     return
   fi
-  read_closure "$pkg"
-  hit=$(comm -12 <(printf '%s\n' "$closure") <(printf '%s\n' "$@" | sort -u) | tr '\n' ' ')
+  hit=$(comm -12 <(closure_of "$pkg") <(printf '%s\n' "$@" | sort -u) | tr '\n' ' ')
   if [[ -n $hit ]]; then
     printf 'EDGE    %-22s links %stransitively — %s\n' "$pkg" "$hit" "$why"
-    for name in $hit; do
-      cargo tree -e normal,build,dev -p "$pkg" -i "$name" --offline 2>/dev/null | sed 's/^/          /' || true
-    done
+    for name in $hit; do printf '          %s\n' "$(closure_of "$pkg" "$name")"; done
     fail=1; edge_bad=1
   fi
 }
