@@ -1292,14 +1292,17 @@ async fn list(client: &mut Client) -> Result<Vec<JobInfo>> {
 
 /// `jobs --watch`: the subscriber's sequence under C85, as the reference
 /// consumer. Subscribe first, then take the snapshot over a request
-/// connection (a job that changes between the two is an event, never a
-/// gap); every event is an invalidation, so the job is re-read over the
-/// request connection before its line is printed (an event never stands
-/// in for the read); on `resync_required` the lagged subscription is
-/// dropped — its queued events predate any snapshot taken now — and the
-/// sequence starts over with a fresh subscription and snapshot; when the
-/// daemon goes, observe it again — an observer never spawns — and
-/// subscribe and snapshot afresh if it is back.
+/// connection to the same daemon instance (a restart landing between the
+/// two connections starts the sequence over); a job that changes between
+/// subscribing and reading is an event, never a gap. Every event is an
+/// invalidation, so the job is re-read over the request connection before
+/// its line is printed — an event never stands in for the read, and a
+/// read that fails restarts the sequence rather than trusting the hint.
+/// On `resync_required` the lagged subscription is dropped — its queued
+/// events predate any snapshot taken now — and the sequence starts over
+/// with a fresh subscription and snapshot; when the daemon goes, observe
+/// it again — an observer never spawns — and subscribe and snapshot
+/// afresh if it is back. Pinned by `tests/watch_recovery.rs`.
 async fn watch_jobs(json: bool) -> Result<()> {
     let print_snapshot = |jobs: &[JobInfo]| -> Result<()> {
         if json {
@@ -1316,13 +1319,36 @@ async fn watch_jobs(json: bool) -> Result<()> {
             Observed::Incompatible(found) => bail!("{found}"),
         };
         let mut client = attach().await?;
+        if client.daemon().pid != subscription.daemon().pid {
+            // A restart between the two connections: the subscription is
+            // to a daemon that is gone. Start over.
+            continue;
+        }
         print_snapshot(&list(&mut client).await?)?;
         loop {
-            match subscription.next().await? {
+            let signal = match subscription.next().await {
+                Ok(signal) => signal,
+                // A transport failure mid-stream is a disconnect; anything
+                // else is a protocol violation worth stopping on.
+                Err(e) if e.downcast_ref::<std::io::Error>().is_some() => None,
+                Err(e) => return Err(e),
+            };
+            match signal {
                 Some(Signal::Event(hint)) => {
-                    // The read, not the hint, is what gets printed; a job
-                    // the daemon no longer holds is printed as the hint said.
-                    let job = client.status(hint.id).await.unwrap_or(hint);
+                    // The read, never the hint, is what gets printed; a
+                    // read that fails restarts the sequence.
+                    let job = match client.status(hint.id).await {
+                        Ok(job) => job,
+                        Err(e) => {
+                            if !json {
+                                println!(
+                                    "re-reading job {} failed ({e:#}); subscribing and reading again",
+                                    hint.id
+                                );
+                            }
+                            break;
+                        }
+                    };
                     if json {
                         println!("{}", serde_json::to_string(&job)?);
                     } else {

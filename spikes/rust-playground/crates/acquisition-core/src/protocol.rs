@@ -50,8 +50,10 @@
 //! works there: a human can stop a daemon over any connection). The
 //! daemon sends `resync_required { missed }` when its event channel
 //! (capacity 256) overran this subscriber — the count is what the
-//! subscriber did not see — and the subscriber then re-reads its
-//! snapshot over a request connection. Each side reads a frame up to
+//! subscriber did not see — and the subscriber then drops that
+//! subscription (what it still holds predates any snapshot taken now),
+//! opens a new one and snapshots again over a request connection. Each
+//! side reads a frame up to
 //! [`MAX_FRAME_BYTES`]; a longer one is discarded through its newline
 //! and, on the daemon, answered `bad_request` — as is a frame that is
 //! not JSON, not UTF-8, or not a request of this version — and the

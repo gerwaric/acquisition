@@ -40,7 +40,7 @@ holds it now. The packet's own review rounds are its §8 and §9.
 
 | Round | Commit | Findings | Held by |
 | --- | --- | --- | --- |
-| 1 (external, after commit 0) | — | (1) a bare name two live sessions share selected one of them (`Sessions::matching` was a `find`), through submit, quote, auth check and logout; (2) `jobs --watch` kept its lagged subscription after `resync_required`, so queued pre-snapshot events could follow the fresh snapshot, and printed events as if they were reads; (3) the wire pin's exhaustive matches forced a match arm, not a sample, and `ErrorKind::ALL` was a hand-kept list; (4) the daemon accepted versioned requests before `hello`; (5) the unit tests staging `queue_failed`, `upstream` and `internal` asserted messages, not kinds, the MCP `data.kind` claim had no process-level pin, and the `Refusal` table contradicted itself on the rails halt; (6) the daemon module doc and a startup comment still described multi-account as future work | (1) `matching` refuses an ambiguous selector as `ambiguous_account`: `a_selector_matching_several_sessions_is_ambiguous`, and the kinds contract test with `Alice#1234`/`Alice#5678`; (2) the watch re-subscribes and snapshots on `resync_required` and re-reads a job before printing it; the lag contract test now finishes the sequence and asserts the fresh subscription's first event is new; (3) `wire.rs` enumerates the variants from the type itself (serde's unknown-variant listing) and holds the sample set equal to it, `ErrorKind::ALL` included — broken and seen to fail; (4) `handle_conn` refuses a versioned request before `hello` (`bad_request`), pinned in the bootstrap contract test; (5) kind assertions on the seven unit-test sites, `plan_loop.rs` asserts `data.kind` and the code, the table names `auth_check` as the halt's one wire path; (6) the two comments and the C31 module text amended |
+| 1 (external, after commit 0) | `40890893` | (1) a bare name two live sessions share selected one of them (`Sessions::matching` was a `find`), through submit, quote, auth check and logout; (2) `jobs --watch` kept its lagged subscription after `resync_required`, so queued pre-snapshot events could follow the fresh snapshot, and printed events as if they were reads; (3) the wire pin's exhaustive matches forced a match arm, not a sample, and `ErrorKind::ALL` was a hand-kept list; (4) the daemon accepted versioned requests before `hello`; (5) the unit tests staging `queue_failed`, `upstream` and `internal` asserted messages, not kinds, the MCP `data.kind` claim had no process-level pin, and the `Refusal` table contradicted itself on the rails halt; (6) the daemon module doc and a startup comment still described multi-account as future work | (1) `matching` refuses an ambiguous selector as `ambiguous_account`: `a_selector_matching_several_sessions_is_ambiguous`, and the kinds contract test with `Alice#1234`/`Alice#5678`; (2) the watch re-subscribes and snapshots on `resync_required` and re-reads a job before printing it; the lag contract test now finishes the sequence and asserts the fresh subscription's first event is new; (3) `wire.rs` enumerates the variants from the type itself (serde's unknown-variant listing) and holds the sample set equal to it, `ErrorKind::ALL` included — broken and seen to fail; (4) `handle_conn` refuses a versioned request before `hello` (`bad_request`), pinned in the bootstrap contract test; (5) kind assertions on the seven unit-test sites, `plan_loop.rs` asserts `data.kind` and the code, the table names `auth_check` as the halt's one wire path; (6) the two comments and the C31 module text amended |
 
 ## Observations still open
 
@@ -61,10 +61,12 @@ data for the commit that touches it.
 - Two kinds beyond the packet's sketch, reviewed at the fixture diff:
   `wrong_state` (a result before terminal, a cancel after, a priority
   change off `waiting`) and `upstream` (a token refresh that failed on
-  transport, a 5xx or exhausted 429s, the session still standing; a
-  rejected grant is `not_logged_in`). The sketch's "rails halted" has
-  no site — a halted send waits, a quote names the halt — so it is not
-  a kind. A veto is one variant and a fixture regeneration.
+  transport, a 5xx, exhausted 429s or a rails halt, the session still
+  standing; a rejected grant is `not_logged_in`). The sketch's "rails
+  halted" is not a kind of its own: a halted send waits and a quote
+  names the halt, and the one request a halt refuses — `auth_check`'s
+  forced refresh — is `upstream`. A veto is one variant and a fixture
+  regeneration.
 - The frame bound guards what each side reads; the daemon does not
   measure its own answers, so a `result` over 64 MiB would surface at
   the client as an oversize answer, not at the daemon. No such body

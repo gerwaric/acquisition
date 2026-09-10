@@ -96,9 +96,10 @@
 //! [`Subscription::next`] only — with no way to send a request on it; it
 //! yields [`Signal::Event`], [`Signal::ResyncRequired`] with the count the
 //! daemon dropped, and `None` when the daemon is gone. The subscriber's
-//! sequence (subscribe, then snapshot over a `Client`, re-read on every
-//! event, subscribe and snapshot again after `resync_required` or a
-//! disconnect) is the consumer's — `acq jobs --watch` is the reference.
+//! sequence (subscribe, then snapshot over a `Client` to the same daemon,
+//! re-read on every event, and after `resync_required` or a disconnect
+//! drop the subscription, open a new one and snapshot again) is the
+//! consumer's — `acq jobs --watch` is the reference.
 //! Both sides read a frame no further than
 //! [`crate::protocol::MAX_FRAME_BYTES`]; an answer over it is reported,
 //! and the connection stays aligned on the next frame. A daemon error is
@@ -304,9 +305,11 @@ pub enum Signal {
 /// hello, `subscribe`/`subscribed`, then
 /// events only — there is no way to send a request on it, which is what
 /// keeps requests and events on separate connections by construction.
-/// The subscriber snapshots over a [`Client`] after opening this, and
-/// again after a [`Signal::ResyncRequired`] or after [`Subscription::next`]
-/// returns `None` (the daemon is gone: open a new one, then snapshot).
+/// The subscriber snapshots over a [`Client`] to the same daemon after
+/// opening this, re-reads a job before relying on an event about it, and
+/// after a [`Signal::ResyncRequired`] or after [`Subscription::next`]
+/// returns `None` drops this subscription — what it still holds predates
+/// any snapshot taken now — opens a new one, and snapshots again.
 pub struct Subscription {
     reader: BufReader<OwnedReadHalf>,
     /// Held so the daemon sees the connection open; nothing is written.
