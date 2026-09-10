@@ -13,11 +13,8 @@
 //! `target/<profile>/deps/`, whose parent holds no daemon — so the tests
 //! here start the one Cargo uplifts one level up, `target/<profile>/acqd`,
 //! resolved from the test executable's own location (`acqd_for_tests`).
-//! C82 says tests locate the daemon the way frontends do — as the
-//! sibling of the calling executable — and a test executable has no
-//! sibling, so this harness names the daemon its build wrote instead:
-//! an exception C82 does not yet state, before the owner
-//! (`DAEMON-SPLIT-SLICE.md`, "Observations still open"). Not a knob:
+//! C82's rule for a test executable, which has no sibling: it names the
+//! `acqd` its build wrote (amended 2026-09-10). Not a knob:
 //! nothing production reads it. A missing daemon fails before any test
 //! runs, naming the build step; a present one is named by path in every
 //! failure — the startup failures say it outright, and `Daemon`'s drop

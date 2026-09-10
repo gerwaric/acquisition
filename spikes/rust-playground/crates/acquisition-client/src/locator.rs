@@ -10,9 +10,9 @@
 //! executable (`current_exe()` canonicalised) — no `PATH`, no configured
 //! path, no embedded mode; no sibling, no spawn, reported. A second
 //! installation targeting the same world is a design event, recorded
-//! here first (the playground beside the shipped app targets another
-//! world). Tests and drivers locate it the same way; packaging smoke
-//! tests are the acceptance criterion. *Why:* C10's "the runtime it would
+//! here first. Tests and drivers locate it the same way (a test
+//! executable names the `acqd` its build wrote — the clause amended
+//! 2026-09-10); packaging smoke tests are the acceptance criterion. *Why:* C10's "the runtime it would
 //! itself spawn" must name one file, or two installations thrash; one
 //! directory of siblings is what Acquisition ships. *Details:*
 //! `acquisition-client/src/locator.rs` doc. Ruled 2026-09-09.
