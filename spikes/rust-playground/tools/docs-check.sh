@@ -213,7 +213,9 @@ fi
 # edge inside its closure. The rules read the names so authenticated;
 # the path beside a row is printed on a hit and never read. What remains
 # is a reader that forges a whole table, its identities and its names to
-# match: a consistent lie, accepted.
+# match: a consistent lie, accepted. `tools/docs-check-breakers.sh`
+# stages every case above and requires the refusal that names it; run
+# it whenever an edge is added here.
 meta=$(mktemp)
 if ! cargo metadata --format-version 1 --all-features --offline >"$meta" 2>/dev/null \
    && ! cargo metadata --format-version 1 --all-features >"$meta"; then
