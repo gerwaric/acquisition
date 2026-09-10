@@ -75,7 +75,10 @@ something else is on this account — stop and find it.
 A tripwire trip is evidence to read, not a retry prompt. Write the cause
 in the ledger, wait at least 360 s, then `acq daemon reset-tripwire`.
 Never reset-and-retry. A ceiling halt leaves the queue waiting on disk:
-`acq jobs`, cancel what should not go out, then respawn.
+`acq jobs`, cancel what should not go out, then respawn. An interrupted
+driver leaves its `apply` parent persisted too: `acq cancel <id>` before
+the driver runs again, or the parent's remaining children go out during
+the next quote and the driver refuses the run (2026-09-08).
 
 Known costs, not stops: the unsigned debug binary makes macOS Keychain
 prompt twice per login after every rebuild; the first probe of a
