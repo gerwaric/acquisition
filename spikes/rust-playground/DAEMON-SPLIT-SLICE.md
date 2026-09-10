@@ -28,10 +28,31 @@ One row per commit of §4; a row is filled when the commit lands.
 | 1 protocol crate | `bf47b6d8` | `acquisition-protocol` extracted, serde-only: `protocol.rs`, `job.rs`, `realm.rs` moved whole; `status.rs` cut from `rails.rs` and `ratelimit.rs` (`RailsStatus`, `PolicyStatus`, `RuleStatus`, `WindowStatus`, `SendRecord`, `DegradedEndpoint`); `provider.rs` (`ggg_mode`, the names); `MAX_429_RETRIES` beside the retries it bounds; `VERSION_WITH_RUNTIME` and the build script with today's input set (core, store and protocol sources, manifests, lock — a daemon edit still moves it, a frontend source edit does not, both shown); `tests/wire.rs` and its 35 fixtures moved byte-identical; `frame.rs` stays in core; docs-check refuses the edges that hold now (the protocol manifest an allowlist per section, the store never links protocol), broken four ways and seen to fail; core re-exports the old paths for one commit; C85's and C12's pointers; rehearsed in mock only |
 | 2 consumers | `45d24717` | plan, cli, mcp and the tests import from `acquisition_protocol` directly; every step-1 re-export deleted (`job`, `protocol`, `realm`, the three version constants, `daemon::MAX_429_RETRIES`, `provider::ggg_mode`, `rails::RailsStatus`, the five status names; `frame.rs`'s `MAX_FRAME_BYTES`, missed, went with round 6) — none had to survive; the planner links protocol and store only, its §2.1 row; the frontends add protocol and keep core for `client` and `daemon` until step 3; `contract.rs` switched in place, its harness untouched; the provider-name literals at the consumers are `provider::wanted()`; the planner-never-links-the-daemon edge in docs-check, broken three ways in code and seen to fail, and the table-completeness check moved into `forbid`/`allow` so an edge about an unknown crate fails closed (three tool breakers); revision c0c4ad7aab70 → d03b1daa2135 (the lock and one core import line, both inputs); fixture diff empty; closures per crate (`cargo tree -e normal --prefix none \| sort -u \| wc -l`, §1's method): store 31, protocol 14, core 160, **plan 41 (from 167)**, mcp 204, cli 220 — a 126-entry reduction, the daemon's closure the planner no longer carries; rehearsed in mock only |
 | 3 `acqd` and client | `5a82e761` | `acquisition-client` extracted (`client.rs`, `locator.rs`, a `frame.rs` copy, `contract.rs` moved; typed `ConnectError`; links protocol and tokio, not yet the store); `acquisition-core` → `acquisition-daemon` by `git mv`, its modules untouched, the `acqd` binary (`main.rs`, no arguments); `acq daemon run` and the MCP's argv interception deleted, the spawn path execs the sibling `acqd` (`current_exe()` canonicalised, its parent, nowhere else); the frontends link client/protocol/store/plan and never the daemon; `socket_path`/`log_path` through the client crate's root; `frame.rs` one copy each side (the allowlist decided: a tokio feature on the protocol crate is refused); tests and drivers start `acqd` — the contract tests `target/<profile>/acqd` from their own location (the `ACQ_CONTRACT_DAEMON` harness retired), the CLI/MCP daemon-owning tests `locator::beside` on their binary, the drivers `target/debug/acqd`; the gate builds before it tests, checked here (`cargo test --workspace --all-targets --no-run` left `target/debug/acqd` absent with `acqd-<hash>` under `deps/`; `cargo build --workspace` wrote it); strict rustdoc widened to `--workspace` with the five links fixed; docs-check: every `acquisition-core` rule renamed, client ∌ daemon/plan, daemon ∌ client/plan/cli/mcp, nothing but the daemon names the daemon (`only_self`), plan ∌ client, store ∌ client/daemon, the intent grep over client/src — the breaker suite at 42 cases (17 new), 0 failed, store → daemon a Cargo cycle and daemon → frontend a dropped bin-only dependency (observations); revision 5f9cdb34ce21 → 8e205a53d16d (the input list renamed; `client.rs` no longer an input); fixture diff empty; C1 amended (794 B) and C82 (792 B) verbatim, C85's pointer (799 B); references regenerated; rehearsed in mock only: a CLI session, the MCP process tests, both drivers (`runs/mock/2026-09-10-tracer`, `runs/2026-09-10-persist-mock`) |
-| 4 identity | — | shared-contract revision; artifact identity and hash; `hello`, `DaemonId`, `acq version`, journal header, `provenance.json` with both hashes; the artifact-mismatch test; C84 in the registry; standing-rule prose presented |
+| 4 identity | `fd1a4aa1` | the build script's inputs shrink to the contract (protocol and store sources and manifests, root manifest, lock; the daemon crate out; domain `acq-contract-revision/1`), `ACQ_CONTRACT_REVISION` / `CONTRACT_REVISION` / `VERSION_WITH_CONTRACT` (`acq --version`: `0.0.1 (contract <rev>)`); the artifact — `FileIdentity` (canonical path, len, `mtime_ns`, dev, ino) and SHA-256 — defined in `acquisition-protocol/src/artifact.rs` and computed once at startup by the daemon's `artifact.rs` (a daemon that cannot read its own file does not start); `hello` carries `version`, `contract`, `artifact`, `pid`, `provider` (the world is step 5's) and the client's hello `version` + `contract`; `DaemonId` judges three dimensions (`Verdict`: contract, `ArtifactVerdict` — same inode without a hash, else the sibling hashed: a copy is the same artifact, other bytes another, no sibling matches nothing and says so, a daemon reporting none matches nothing —, provider), the report carries `contract_matches`/`artifact_matches`/`provider_matches`, the daemon found (`contract`, `artifact`) and `wanted` (`contract`, `provider`, `acqd` as found or `null` with `acqd_absent`); `acq version` reports the candidate (`--json`: `{version, contract, provider, acqd: {path, len, mtime_ns} \| null}`), `acq daemon status` the daemon running (its `contract` and `artifact` beside the vitals); the journal header's `runtime` became `contract` and `daemon` (the hash; `null` from the in-process harness), the first log line names both; `provenance.json` keeps `exe_sha256` and adds `acqd_sha256`, and `provenance_matches_journal` (`preflight.sh`, both drivers) holds every lifetime's header to it; the two literal provider comparisons (`dash.rs`, `auth status`) read `provider::GGG`; `acqd --version`: no flag (its `main.rs` says why); C84 in the registry (762 B); fixture diff: `bootstrap/hello.json`, `bootstrap/hello_reply.json`, nothing else; the revision moved once, `c1696aafb14a` → `3cd2835ff374`, and the measure (below) shows it still on a daemon edit; the artifact-mismatch process test (`daemon_observe.rs`, staged with one build's binaries: copies of `acq` beside a copy of `acqd`, beside another file, beside nothing); references regenerated; rehearsed in mock only: a CLI session, `acq-mcp` over stdio, both drivers (`runs/mock/2026-09-10-tracer-234740`, `runs/mock/2026-09-10-persist`) |
 | 5 world | — | `world.rs`; rails state into the world, diagnostics bounded; the world lock and the real-mode lock; `hello` carries the world; C83 and the C31 amendment in the registry |
 | 6 rendezvous | — | the socket derived into the runtime directory; `ACQ_SOCKET` removed, `tools/acq-as.sh` retired; legacy detection; the migration test |
 | 7 live | — | both drivers in mock; the tracer under the rails; ledger row; `provenance.json` with `acqd`'s hash |
+
+**Step 4's measure** — the daemon-edit rebuild, the number the split is
+judged by (§4). One semantic edit (a `pub fn` appended) to one file on a
+warm tree, then the gate's `cargo build --workspace` and `cargo test
+--workspace --all-targets --no-run`, both `-v`; the edit and `Cargo.lock`
+restored from copies kept outside the tree and `cmp`'d, never `git
+checkout --` (the observation below), and both builds re-warmed before
+the next edit. Against §1's floor (a daemon edit: 5 crates, 21
+executables, 6.7 s):
+
+| Edit | `cargo build --workspace` | `cargo test --all-targets --no-run` | Contract revision after |
+| --- | --- | --- | --- |
+| `daemon.rs` | 2.2 s; `acquisition_daemon`, `acqd`; 1 executable | 2.9 s; the daemon's lib and lib test, `acqd`'s harness; 2 test executables | unchanged (`3cd2835ff374`) |
+| `protocol.rs` | 3.0 s; 7 crates; 3 executables | 6.3 s; 7 crates; 28 test executables + 2 bins | moved (`28e76726c9f7`) |
+| `store/src/lib.rs` | 2.8 s; 8 crates; 3 executables | 6.7 s; 8 crates; 29 test executables + 2 bins | moved (`6c586b3267b0`) |
+
+A daemon edit now compiles the daemon crate alone and links the three
+executables that are the daemon's (its binary, its lib test, its
+binary's harness) — the packet's projection was three targets — and
+moves no identity but the artifact; a contract edit rebuilds everything
+and moves the revision, as it should.
 
 ## Findings
 
@@ -70,15 +91,11 @@ data for the commit that touches it.
   executables name the acqd written by their build") — the line carries
   no amendment date, since one would put it at 802 bytes; this entry
   and `git log` date it.
-- Since step 3 the runtime revision's inputs are the daemon, store and
-  protocol crates: `client.rs` left the daemon crate, so a client or
-  locator edit no longer moves the identity — the direction step 4
-  completes, arrived at early by the move rather than by narrowing.
-- Two clauses of C1 as ruled describe steps not yet built and landed
+- One clause of C1 as ruled describes a step not yet built and landed
   verbatim with step 3 per the landing map (§10): the store "holds …
-  the world (root, locks, socket name)" (step 5) and the protocol crate
-  "the shared-contract revision" (step 4; today the runtime revision).
-  The registry describes the ruled graph; the code reaches it by step 5.
+  the world (root, locks, socket name)" (step 5). The "shared-contract
+  revision" clause became true with step 4. The registry describes the
+  ruled graph; the code reaches it by step 5.
 - The client crate links protocol, tokio, serde and anyhow, not the
   store: nothing in it reads the store until the world (step 5), and
   §2.1's row lists the store for that. `socket_path`/`log_path` are two
@@ -93,12 +110,15 @@ data for the commit that touches it.
   ok over a manifest that declares it while nothing can link — recorded
   as a must-pass case that fails the day a frontend gains a library
   target (the Tauri GUI's shape).
-- `acqd` takes no arguments: the environment is the one door to its
-  knobs (the packet's rejected "flags on `acqd`"), and `--version` or
-  `--help` is refused with exit 2 and a sentence saying what it is. The
-  drivers read `acq --version`; step 4's provenance hashes the `acqd`
-  file. A `--version` on the daemon is step 4's question, with the
-  artifact identity.
+- `acqd` takes no arguments and no `--version` (step 4's answer, in
+  `main.rs`): the environment is the one door to its knobs, and the
+  daemon's identity is two values nothing needs it to print — the
+  contract revision is the constant `acq --version` prints, and the
+  artifact is a property of the file, which the drivers hash with
+  `shasum` into `provenance.json` and a client learns from `hello`; a
+  self-report would be a second door to the first and could not vouch
+  for the second. The drivers needed no flag: `preflight.sh` reads
+  `acq --version` and `acq version --json` and hashes both files.
 - The daemon-owning process tests (`error_kind.rs`, `daemon_observe.rs`,
   `watch_recovery.rs`; the MCP harness's `spawn_daemon`) each carry
   their own `daemon_command`; a `-p acquisition-cli` run with no
@@ -130,12 +150,61 @@ data for the commit that touches it.
   step 3's suite runs, removed again. The three tests this slice wrote
   hold theirs in a guard; the rest is for the packet's later change to
   one harness module per crate, where one guard serves every test.
-- Two provider comparisons stay literal after step 2: `dash.rs` and the
-  CLI's `daemon status` compare the provider a daemon *reported*
-  (`s.provider == "ggg"`) against a literal, not the wanted one, so
-  `provider::wanted()` is the wrong tool there and `provider::GGG` is the
-  constant nobody reached for. Data for step 4, which reshapes what
-  `hello` and the observer report carry.
+- The standing rule's "Build before you run" bullet is owner-approved
+  text (2026-09-09); step 4 changed what it describes and proposes this
+  wording for approval, unedited in `LIVE-TESTING.md` (1233 B against the
+  current 848 B; the file would stand at 9350 of 15000): "**Build before
+  you run; the run record maps both binaries to HEAD.** Neither binary
+  carries a commit. Two values say which code ran (C84): the
+  shared-contract revision — a digest over the protocol and store
+  sources, which `acq version --json` prints as `contract` — and the
+  daemon artifact, the SHA-256 of the `acqd` file, which the daemon
+  reports in `hello`, its first log line and the journal header
+  (`daemon`). A driver (`tools/preflight.sh`) refuses a dirty tree and a
+  running daemon, builds (`cargo build --workspace --locked`), writes
+  `provenance.json` — HEAD, tree state, version, contract, the SHA-256
+  of `acq` and of `acqd`, toolchain — into the run directory before any
+  wire phase, and after the run holds every journal header to the
+  `acqd` hash; by hand, a clean tree, `cargo build --workspace`, then
+  run, and the ledger row names HEAD. Never rebuild `target/debug/acq`
+  or `acqd` under a live daemon without `acq daemon stop` first (rung 8
+  ran 34 h on a binary that predated the fix it was restarted to pick
+  up); a rebuilt `acqd` under a live daemon is an artifact mismatch the
+  next job command resolves by respawning. Reworded 2026-09-10 for the
+  two identities; owner-approved."
+- The help strings step 4 wrote — `acq version`, `acq daemon status`,
+  `acq daemon stop`, the MCP's `daemon_status` — are in the regenerated
+  `CLI-REFERENCE.md` and `MCP-REFERENCE.md` for the owner's approval
+  (§10 item 8: the exact prose deferred to the real generated output).
+- Three test executables drive the client in-process against a daemon
+  they start (`contract.rs`, `watch_recovery.rs`, the MCP harness), and
+  since step 4 the client judges that daemon's artifact against the
+  `acqd` beside *its own* executable — which, in `target/<profile>/deps/`,
+  does not exist. Each harness therefore places a symlink named `acqd`
+  beside the test executable pointing one level up at
+  `target/<profile>/acqd`, the file the gate's build writes and the
+  harness starts, and asserts both resolve to the same file: the test
+  executable names the daemon its build wrote on both paths (C82's
+  clause), and the locator's one rule stays the one rule — no
+  production code learned a second location. Three copies of the same
+  twelve lines, for the parked one-harness-module-per-crate change.
+  The alternatives were weighed and refused: a library function that
+  names the comparison target (a configured path by another name, C82),
+  and treating an absent sibling as "not judged" (fail-open on a use
+  condition).
+- `DaemonStatus.version` and `Dashboard.version` on the versioned plane
+  still carry the combined string (`0.0.1 (contract <rev>)`, what
+  `--version` prints) while `hello` carries `version` and `contract`
+  apart; `acq daemon status --json` adds `contract` and `artifact` from
+  the handshake beside them, so the compatible and incompatible reports
+  share the identity keys, but a `version` reads differently in the two
+  shapes. Splitting the versioned field is a fixture diff outside the
+  bootstrap frames — the owner's call, not step 4's; the two samples'
+  literals still say `runtime` for the same reason.
+- The packet's `acqd: {path, len, modified}` (§2.2) landed as `{path,
+  len, mtime_ns}`: one integer field (nanoseconds since the epoch) is
+  exact for the fast-path comparison and needs no formatter in the
+  protocol crate; the name says what it holds.
 - C39 amended 2026-09-10 (the owner, verbatim: "change core + the
   store to protocol + the store, and use 'the daemon never links the
   planner' in the Why. Do not use 'never reads facts or intent': because
