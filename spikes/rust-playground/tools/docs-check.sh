@@ -44,7 +44,10 @@ budget() {
 budget AGENTS.md        8000
 budget CONTEXT.md      20000
 budget README.md       15000
-budget LIVE-TESTING.md 60000
+budget LIVE-TESTING.md 15000
+# RUN-LEDGER.md has no budget: one row per live run, append-only by
+# construction, read by its tail. Its rows cite decision ids (scanned
+# below) but are history, so the stale-identifier scan skips it.
 
 # ---- 2. the decision registry ------------------------------------------
 # Every decision is one bullet under a length limit (a narrative cannot fit,
@@ -76,7 +79,7 @@ done <"$reg"
 ids=$(grep -oE '^- \*\*C[0-9]+' "$reg" | sed 's/^- \*\*//' | sort -u)
 count=$(printf '%s\n' "$ids" | grep -c .)
 if ((over > 0)); then fail=1; else printf 'ok      %-18s %5d decisions, every entry within %d bytes\n' registry "$count" "$ENTRY_LIMIT"; fi
-cited=$(grep -rhoE '\bC[0-9]+\b' crates tools README.md LIVE-TESTING.md TESTING-NOTES.md REFRESH-SLICE.md AGENTS.md .claude 2>/dev/null \
+cited=$(grep -rhoE '\bC[0-9]+\b' crates tools README.md LIVE-TESTING.md RUN-LEDGER.md TESTING-NOTES.md REFRESH-SLICE.md AGENTS.md .claude 2>/dev/null \
   --include='*.rs' --include='*.sh' --include='*.py' --include='*.md' | sort -u)
 unknown=$(comm -13 <(printf '%s\n' "$ids") <(printf '%s\n' "$cited") | grep . || true)
 if [[ -n $unknown ]]; then

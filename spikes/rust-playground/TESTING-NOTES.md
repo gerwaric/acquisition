@@ -197,8 +197,8 @@ Prerequisites for a goal-function build, not a plan to start on now:
 1. Move the harness out of `daemon.rs` into an integration-test crate that
    touches only the driving surface. This is what makes the goal function
    portable. Do it the day a fresh build starts, not before.
-2. ~~Re-soak the fixed binary~~ — done 2026-08-27 (`LIVE-TESTING.md`,
-   run ledger: 45.3 h, pass); its checker was retired 2026-09-09.
+2. ~~Re-soak the fixed binary~~ — done 2026-08-27 (`RUN-LEDGER.md`:
+   45.3 h, pass); its checker was retired 2026-09-09.
 3. Pin the frontend boundary — after the consumer has validated the
    protocol, not before. The plan slice is pinned at process level
    (`apply_loop.rs`, `plan_loop.rs`); the protocol as a whole is not.

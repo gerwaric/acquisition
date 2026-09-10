@@ -1,6 +1,6 @@
 #!/bin/bash
-# Persistence check (LIVE-TESTING.md, "Persistence check — halt, crash,
-# resume"): drive the five steps, verify the expectations from the journal,
+# Persistence check (RUN-LEDGER.md, row 2026-08-30 "persistence check":
+# halt, crash, resume): drive the five steps, verify the expectations from the journal,
 # and draft the ledger row. The human parts stay human: run this from a
 # terminal (the daemon needs your keychain), and every wire phase waits for
 # an explicit enter.
@@ -338,5 +338,5 @@ fi
 echo ""
 echo "evidence in $RUN_DIR (journal, daemon log, job snapshots, summary)."
 if [ "$MODE" = live ]; then
-    echo "next: paste the ledger row into LIVE-TESTING.md's run ledger."
+    echo "next: paste the ledger row into RUN-LEDGER.md."
 fi

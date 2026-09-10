@@ -1,6 +1,6 @@
 #!/bin/bash
-# Tracer rung (LIVE-TESTING.md, "Tracer rung — policy → plan → apply →
-# replan"): the owner's first real use of the refresh slice, driven end to
+# Tracer rung (RUN-LEDGER.md, the tracer rows from 2026-09-01 on): the
+# owner's first real use of the refresh slice, driven end to
 # end with the rails on, verified from the journal, and with the friction
 # notes collected as the run goes rather than recalled afterwards. The
 # human parts stay human: run this from a terminal (the daemon needs your
@@ -792,6 +792,6 @@ else
 fi
 if [ "$MODE" = live ]; then
     echo ""
-    echo "next: paste the ledger row into LIVE-TESTING.md's run ledger and the friction"
-    echo "notes into the rung section; anything learned about GGG goes to ground truth master-side."
+    echo "next: paste the ledger row into RUN-LEDGER.md, the owner's friction notes verbatim"
+    echo "inside it; anything learned about GGG goes to ground truth master-side."
 fi

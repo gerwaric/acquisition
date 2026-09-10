@@ -24,8 +24,9 @@ from cron or a background shell has no keychain and no session.
    journal carries the revision and the ledger row names HEAD (`cargo
    test` and `cargo clippy` do not rebuild `target/debug/acq`). The
    drivers do all of this themselves (`tools/preflight.sh`).
-4. `ls -t runs/ | head` against the run ledger: know which run
-   directories the ledger already cites before adding one.
+4. `ls -t runs/ | head` against `RUN-LEDGER.md`: know which run
+   directories the ledger already cites before adding one — a bundle
+   newer than the last row is a run that happened off the record.
 
 ## The refresh loop (policy → plan → apply → replan)
 
@@ -58,9 +59,10 @@ something else is on this account — stop and find it.
 
 ## After
 
-- The ledger row (the driver's draft, or one written by hand for a
-  first contact): date, tip, result, sends as POST/HEAD/GET, violations,
-  the observed policy.
+- The row in `RUN-LEDGER.md` (the driver's draft, or one written by hand
+  for a first contact): date, tip, result, sends as POST/HEAD/GET,
+  violations, the observed policy, the run directory, and where each
+  lesson landed — never the lesson's text.
 - A new fact about GGG is a numbered ground-truth claim, authored on the
   master-side branch and cherry-picked here — never the reverse.
 - The owner's verdict is recorded **verbatim from the conversation**,

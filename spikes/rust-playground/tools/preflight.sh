@@ -26,7 +26,7 @@ preflight() {
     #    the point).
     head=$(git -C "$here" rev-parse HEAD)
     tip=${head:0:12}
-    dirty=$(git -C "$here" status --porcelain -- tools LIVE-TESTING.md CONTEXT.md decisions crates Cargo.toml Cargo.lock)
+    dirty=$(git -C "$here" status --porcelain -- tools LIVE-TESTING.md RUN-LEDGER.md CONTEXT.md decisions crates Cargo.toml Cargo.lock)
     if [ -n "$dirty" ]; then
         echo "working tree differs from $tip in the rung's own files:" >&2
         echo "$dirty" >&2

@@ -11,7 +11,7 @@ review rounds for steps 3–6, pruned earlier, are at `35fb35d9`).
 
 The rulings survive in `CONTEXT.md` (Decisions, and the three
 "Interfaces" subsections); the properties are pinned by the tests named
-below; live runs are rows in `LIVE-TESTING.md`'s run ledger; facts about
+below; live runs are rows in `RUN-LEDGER.md`; facts about
 GGG are ground-truth claims N38–N45. Nothing here is a second authority.
 
 ## Final state

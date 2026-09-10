@@ -26,9 +26,10 @@ Then, only when the work touches it:
   the binaries' own help by tests that keep them equal to it; or
   `acq <verb> --help`. The README's tour shows the shape only.
 - Before anything that talks to the real GGG API: `LIVE-TESTING.md` (the
-  standing rule, the rails, the run ledger) and the live-run procedure
-  below. **Nothing here talks to GGG unless `ACQ_GGG=1` is set; never set
-  it outside that procedure.** Live runs are human-run, from a terminal.
+  standing rule, the rails), `RUN-LEDGER.md` (every live run, one row
+  each; read its tail) and the live-run procedure below. **Nothing here
+  talks to GGG unless `ACQ_GGG=1` is set; never set it outside that
+  procedure.** Live runs are human-run, from a terminal.
 - Before touching tests or the harness: `TESTING-NOTES.md` — the send
   journal is the contract surface; tests pin boundaries, never mechanisms.
 - Before touching the network layer: `NETWORK-CLEANUP.md` (closed record).

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""The tracer rung's journal verifier (LIVE-TESTING.md, "Tracer rung"),
+"""The tracer rung's journal verifier (RUN-LEDGER.md, the tracer rows),
 called by tools/tracer-rung.sh after the wire phases:
 
     tracer-verify.py <journal> <byte offset> <cycles.tsv> <login lifetimes 0|1>
@@ -280,7 +280,7 @@ def verify(journal, offset, rows_path, login_lifetime, closed, mode, out=print, 
     cyc = "; ".join(f"c{c['cycle']} {c['logical']} req" for c in cycles)
     out(f"| <date> | tracer | <tip> | pass | {lt} | 0 | policy → plan → apply → replan"
         f" ({cyc}{'; closed' if closed else '; not closed'}); each cycle's sends == its plan + probes + POST;"
-        f" quote: {quotes or 'n/a'}; friction notes in the rung section; runs/<date>-tracer/ |")
+        f" quote: {quotes or 'n/a'}; the owner's friction notes verbatim; runs/<date>-tracer/ |")
     return True
 
 

@@ -108,8 +108,8 @@ provider, under the existing registration (invariant 4); a job command
 replaces a daemon in the other mode or of another runtime revision, an
 observing verb (`jobs`, `status`, `daemon status`) reports it and never does (C10),
 and mock and real refresh tokens are separate keyring entries. The rule is
-`LIVE-TESTING.md`; the procedure is the live-run skill; the refresh loop
-under the rails is `tools/tracer-rung.sh`.
+`LIVE-TESTING.md`; the procedure is the live-run skill; the record is
+`RUN-LEDGER.md`; the refresh loop under the rails is `tools/tracer-rung.sh`.
 
 An MCP host pointed at `target/debug/acq-mcp` (stdio) shares the daemon
 and the store with the CLI; it spends through a *running* daemon in

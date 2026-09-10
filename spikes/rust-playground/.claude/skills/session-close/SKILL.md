@@ -34,7 +34,7 @@ For every item the session produced, exactly one of:
 | a property now pinned by a test | the test's name carries the id (`c44_stale_revision_refused`), or a comment cites it; the entry's *Pinned:* names the file |
 | a review finding | a row in the slice's closed record (`REFRESH-SLICE.md` is the shape), with the fix commit |
 | the story of what was built and why | the commit message |
-| a live run | one run-ledger row in `LIVE-TESTING.md`; evidence in `runs/` |
+| a live run | one row in `RUN-LEDGER.md` (the row's shape is the standing rule's, `LIVE-TESTING.md`); evidence in `runs/` |
 | a fact about GGG | a numbered ground-truth claim, authored master-side and cherry-picked here |
 | how a mechanism works | a doc comment on the code |
 | how to use a verb, a flag or a knob | its clap help string, then `ACQ_UPDATE_FIXTURES=1 cargo test` regenerates `CLI-REFERENCE.md` / `MCP-REFERENCE.md`; one line in the README's tour or one row in its knob table, never a comment block (`tests/readme_tour.rs` and `tools/docs-check.sh` hold the form) |
