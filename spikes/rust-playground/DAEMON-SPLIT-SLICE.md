@@ -27,7 +27,7 @@ One row per commit of §4; a row is filled when the commit lands.
 | 0 wire audit and pin | `a6c070b3` | stable `hello`/`daemon_stop` plane (`protocol::Bootstrap`, read by name alone); frame bound `MAX_FRAME_BYTES` with `bad_request` (`frame.rs`); C85's semantics (`Subscription`, `resync_required { missed }`, subscribe-then-snapshot in `acq jobs --watch`); closed `ErrorKind` of nine, every daemon site classified at its origin (`daemon::Refusal`); one fixture per variant (`tests/wire.rs`); black-box contract tests (`tests/contract.rs`); the kind beside the message under `--json` and in the MCP error's `data`; C85 in the registry with today's Pinned paths; TESTING-NOTES item 3 struck; rehearsed in mock only |
 | 1 protocol crate | `bf47b6d8` | `acquisition-protocol` extracted, serde-only: `protocol.rs`, `job.rs`, `realm.rs` moved whole; `status.rs` cut from `rails.rs` and `ratelimit.rs` (`RailsStatus`, `PolicyStatus`, `RuleStatus`, `WindowStatus`, `SendRecord`, `DegradedEndpoint`); `provider.rs` (`ggg_mode`, the names); `MAX_429_RETRIES` beside the retries it bounds; `VERSION_WITH_RUNTIME` and the build script with today's input set (core, store and protocol sources, manifests, lock — a daemon edit still moves it, a frontend source edit does not, both shown); `tests/wire.rs` and its 35 fixtures moved byte-identical; `frame.rs` stays in core; docs-check refuses the edges that hold now (the protocol manifest an allowlist per section, the store never links protocol), broken four ways and seen to fail; core re-exports the old paths for one commit; C85's and C12's pointers; rehearsed in mock only |
 | 2 consumers | `45d24717` | plan, cli, mcp and the tests import from `acquisition_protocol` directly; every step-1 re-export deleted (`job`, `protocol`, `realm`, the three version constants, `daemon::MAX_429_RETRIES`, `provider::ggg_mode`, `rails::RailsStatus`, the five status names; `frame.rs`'s `MAX_FRAME_BYTES`, missed, went with round 6) — none had to survive; the planner links protocol and store only, its §2.1 row; the frontends add protocol and keep core for `client` and `daemon` until step 3; `contract.rs` switched in place, its harness untouched; the provider-name literals at the consumers are `provider::wanted()`; the planner-never-links-the-daemon edge in docs-check, broken three ways in code and seen to fail, and the table-completeness check moved into `forbid`/`allow` so an edge about an unknown crate fails closed (three tool breakers); revision c0c4ad7aab70 → d03b1daa2135 (the lock and one core import line, both inputs); fixture diff empty; closures per crate (`cargo tree -e normal --prefix none \| sort -u \| wc -l`, §1's method): store 31, protocol 14, core 160, **plan 41 (from 167)**, mcp 204, cli 220 — a 126-entry reduction, the daemon's closure the planner no longer carries; rehearsed in mock only |
-| 3 `acqd` and client | — | `acquisition-client`; core → `acquisition-daemon`; the `acqd` binary; `daemon run` gone; the sibling locator; the gate builds before it tests; C1 and C82 in the registry |
+| 3 `acqd` and client | `5a82e761` | `acquisition-client` extracted (`client.rs`, `locator.rs`, a `frame.rs` copy, `contract.rs` moved; typed `ConnectError`; links protocol and tokio, not yet the store); `acquisition-core` → `acquisition-daemon` by `git mv`, its modules untouched, the `acqd` binary (`main.rs`, no arguments); `acq daemon run` and the MCP's argv interception deleted, the spawn path execs the sibling `acqd` (`current_exe()` canonicalised, its parent, nowhere else); the frontends link client/protocol/store/plan and never the daemon; `socket_path`/`log_path` through the client crate's root; `frame.rs` one copy each side (the allowlist decided: a tokio feature on the protocol crate is refused); tests and drivers start `acqd` — the contract tests `target/<profile>/acqd` from their own location (the `ACQ_CONTRACT_DAEMON` harness retired), the CLI/MCP daemon-owning tests `locator::beside` on their binary, the drivers `target/debug/acqd`; the gate builds before it tests, checked here (`cargo test --workspace --all-targets --no-run` left `target/debug/acqd` absent with `acqd-<hash>` under `deps/`; `cargo build --workspace` wrote it); strict rustdoc widened to `--workspace` with the five links fixed; docs-check: every `acquisition-core` rule renamed, client ∌ daemon/plan, daemon ∌ client/plan/cli/mcp, nothing but the daemon names the daemon (`only_self`), plan ∌ client, store ∌ client/daemon, the intent grep over client/src — the breaker suite at 42 cases (17 new), 0 failed, store → daemon a Cargo cycle and daemon → frontend a dropped bin-only dependency (observations); revision 5f9cdb34ce21 → 8e205a53d16d (the input list renamed; `client.rs` no longer an input); fixture diff empty; C1 amended (794 B) and C82 (792 B) verbatim, C85's pointer (799 B); references regenerated; rehearsed in mock only: a CLI session, the MCP process tests, both drivers (`runs/mock/2026-09-10-tracer`, `runs/2026-09-10-persist-mock`) |
 | 4 identity | — | shared-contract revision; artifact identity and hash; `hello`, `DaemonId`, `acq version`, journal header, `provenance.json` with both hashes; the artifact-mismatch test; C84 in the registry; standing-rule prose presented |
 | 5 world | — | `world.rs`; rails state into the world, diagnostics bounded; the world lock and the real-mode lock; `hello` carries the world; C83 and the C31 amendment in the registry |
 | 6 rendezvous | — | the socket derived into the runtime directory; `ACQ_SOCKET` removed, `tools/acq-as.sh` retired; legacy detection; the migration test |
@@ -60,15 +60,19 @@ data for the commit that touches it.
 - The rails state today sits beside the socket in the per-user temp
   directory, which macOS clears at reboot: a tripped tripwire does not
   survive a restart (packet §1, verified). Closed by step 5.
-- C85's *Pinned* path for `contract.rs` names the client crate, which
-  exists from step 3; until then the contract tests live under
-  `acquisition-core/tests/` and the registry entry names them there.
-  The `wire.rs` pointer followed the file with step 1 (`bf47b6d8`);
-  step 3 moves `contract.rs` and edits the other.
-- The contract tests' daemon is the test executable re-run under
-  `ACQ_CONTRACT_DAEMON=1` (`contract.rs`, `daemon_entry`), because no
-  crate but the CLI has a binary before step 3 and the tests may not
-  link a frontend. Step 3 replaces it with the sibling `acqd`.
+- How the client crate's contract tests find `acqd` (the owner's
+  question at step 3, not yet ruled): a test executable lives in
+  `target/<profile>/deps/`, whose parent holds no daemon, and the crate
+  may link neither the daemon nor a frontend, so `CARGO_BIN_EXE_acqd`
+  is not set for it. Built as the harness naming its executable, like
+  the drivers: `acqd_for_tests` resolves `target/<profile>/acqd` from
+  the test executable's own location (one level up from `deps/`), the
+  file the gate's `cargo build --workspace` writes, refused before any
+  test runs when absent and named by path in every failure. Not the
+  locator's rule and not a knob. The alternatives: the tests in the
+  daemon package (where `CARGO_BIN_EXE_acqd` exists) cannot drive the
+  public `Client`; artifact dependencies are unstable. A one-function
+  change if the owner rules otherwise.
 - Two kinds beyond the packet's sketch, reviewed at the fixture diff:
   `wrong_state` (a result before terminal, a cancel after, a priority
   change off `waiting`) and `upstream` (a token refresh that failed on
@@ -82,26 +86,50 @@ data for the commit that touches it.
   measure its own answers, so a `result` over 64 MiB would surface at
   the client as an oversize answer, not at the daemon. No such body
   exists today (a tab is a few megabytes).
-- `frame.rs` — the bounded reader both sides use — needs tokio, and C1
-  as ruled makes the protocol crate serde-only. Step 1 left it in core
-  (one core crate exists until step 3; only the constant moved). Step 3
-  places it: a feature on the protocol crate, or one copy each in the
-  client and daemon crates.
-- The gate holds strict rustdoc on the protocol crate (owner, 2026-09-10,
-  verbatim: "Add the strict rustdoc check and widen in step 3 as
-  discussed"): a broken intra-doc link is pointer rot in the doc
-  comments that carry the rulings, the code-side counterpart of the
-  stale-identifier check, and the split moves the items those links
-  name. Step 3 widens it to `--workspace` in the commit that fixes the
-  five public-doc links to private items it fails on today
-  (`client.rs` `Client::handshake`; `acquisition-plan` `shop.rs`
-  `cell`, `lib.rs` `covers_tab`, `wire_estimate`, `check_quote_matches`),
-  so the widening lands green.
+- Since step 3 the runtime revision's inputs are the daemon, store and
+  protocol crates: `client.rs` left the daemon crate, so a client or
+  locator edit no longer moves the identity — the direction step 4
+  completes, arrived at early by the move rather than by narrowing.
+- Two clauses of C1 as ruled describe steps not yet built and landed
+  verbatim with step 3 per the landing map (§10): the store "holds …
+  the world (root, locks, socket name)" (step 5) and the protocol crate
+  "the shared-contract revision" (step 4; today the runtime revision).
+  The registry describes the ruled graph; the code reaches it by step 5.
+- The client crate links protocol, tokio, serde and anyhow, not the
+  store: nothing in it reads the store until the world (step 5), and
+  §2.1's row lists the store for that. `socket_path`/`log_path` are two
+  copies of one convention until then (`acquisition-client/src/lib.rs`,
+  `daemon.rs`), each reading `ACQ_SOCKET` the same way.
+- Two edges of §2.1 cannot be staged for the breaker suite as written:
+  store → daemon is a Cargo cycle (the daemon links the store), refused
+  by `cargo metadata` before any guard reads the graph — the suite
+  expects Cargo's refusal, named as such; and daemon → frontend is
+  dropped by Cargo as an invalid dependency on a bin-only package
+  ("missing a lib target", a warning, not an error), so the guard prints
+  ok over a manifest that declares it while nothing can link — recorded
+  as a must-pass case that fails the day a frontend gains a library
+  target (the Tauri GUI's shape).
+- `acqd` takes no arguments: the environment is the one door to its
+  knobs (the packet's rejected "flags on `acqd`"), and `--version` or
+  `--help` is refused with exit 2 and a sentence saying what it is. The
+  drivers read `acq --version`; step 4's provenance hashes the `acqd`
+  file. A `--version` on the daemon is step 4's question, with the
+  artifact identity.
+- The daemon-owning process tests (`error_kind.rs`, `daemon_observe.rs`,
+  `watch_recovery.rs`; the MCP harness's `spawn_daemon`) each carry
+  their own `daemon_command`; a `-p acquisition-cli` run with no
+  `target/debug/acqd` fails naming `cargo build --workspace`, as
+  designed (§2.6). The one-harness-module-per-crate change is already
+  parked.
 - The protocol crate carries no `unwrap_used`/`expect_used` denial: C47
-  names the store and plan crates, and the wire's lenient readers are
-  `?`-shaped today. Whether the contract crate joins them is a P4
-  promotion — a lint after a sentence of design — for step 3 (step 2
-  left it parked on the owner's instruction).
+  names the store and plan crates. The sentence of design (P4), step 3:
+  the crate's production code has no `unwrap` or `expect` today (its
+  readers are `?`-shaped; the two in `realm.rs` are in its tests), and
+  its build script — a separate target the lint would not reach — is
+  the one place that panics on purpose (a missing input is the right
+  failure). The lint would pin what already holds, at no cost; whether
+  the contract crate joins C47's list is the owner's call, and the lint
+  is not added unasked.
 - A revision check that restores a scratch edit with `git checkout --
   <file>` discards every uncommitted edit in that file, and while the
   step-1 re-exports stood the build hid it: HEAD's `daemon.rs` still
