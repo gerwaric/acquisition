@@ -24,7 +24,7 @@ One row per commit of §4; a row is filled when the commit lands.
 | Step | Commits | What landed |
 | --- | --- | --- |
 | −1 restore green | `93ed626c` | the pricing property's inverse grammar fixed; the regression seed committed; gate green |
-| 0 wire audit and pin | — | stable `hello`/`daemon_stop` plane; frame bound with `bad_request`; C85's semantics (`Subscription`, `resync_required { missed }`, subscribe-then-snapshot); closed `ErrorKind`; fixtures; contract tests; C85 in the registry |
+| 0 wire audit and pin | `a6c070b3` | stable `hello`/`daemon_stop` plane (`protocol::Bootstrap`, read by name alone); frame bound `MAX_FRAME_BYTES` with `bad_request` (`frame.rs`); C85's semantics (`Subscription`, `resync_required { missed }`, subscribe-then-snapshot in `acq jobs --watch`); closed `ErrorKind` of nine, every daemon site classified at its origin (`daemon::Refusal`); one fixture per variant (`tests/wire.rs`); black-box contract tests (`tests/contract.rs`); the kind beside the message under `--json` and in the MCP error's `data`; C85 in the registry with today's Pinned paths; TESTING-NOTES item 3 struck; rehearsed in mock only |
 | 1 protocol crate | — | `acquisition-protocol` extracted; the build script moved with today's input set |
 | 2 consumers | — | plan, cli, mcp and the tests on the protocol crate; docs-check edges |
 | 3 `acqd` and client | — | `acquisition-client`; core → `acquisition-daemon`; the `acqd` binary; `daemon run` gone; the sibling locator; the gate builds before it tests; C1 and C82 in the registry |
@@ -51,10 +51,32 @@ data for the commit that touches it.
   survive a restart (packet §1, verified). Closed by step 5.
 - C85's *Pinned* paths name the client crate, which exists from step 3;
   at step 0 the contract tests and fixtures live under
-  `acquisition-core/tests/` and the registry entry names them there.
-  Step 3 moves them and edits the pointer.
-- The `ErrorKind` vocabulary is the step-0 audit's to determine under
-  the owner's five properties (packet §10, ruling 6); a materially new
-  semantic distinction comes back to the owner before landing.
-- Lag is stageable in-process: the daemon's broadcast channels have
-  capacity 256.
+  `acquisition-core/tests/` and the registry entry names them there
+  (`a6c070b3`). Step 3 moves them and edits the pointer.
+- The contract tests' daemon is the test executable re-run under
+  `ACQ_CONTRACT_DAEMON=1` (`contract.rs`, `daemon_entry`), because no
+  crate but the CLI has a binary before step 3 and the tests may not
+  link a frontend. Step 3 replaces it with the sibling `acqd`.
+- Two kinds beyond the packet's sketch, reviewed at the fixture diff:
+  `wrong_state` (a result before terminal, a cancel after, a priority
+  change off `waiting`) and `upstream` (a token refresh that failed on
+  transport, a 5xx or exhausted 429s, the session still standing; a
+  rejected grant is `not_logged_in`). The sketch's "rails halted" has
+  no site — a halted send waits, a quote names the halt — so it is not
+  a kind. A veto is one variant and a fixture regeneration.
+- The frame bound guards what each side reads; the daemon does not
+  measure its own answers, so a `result` over 64 MiB would surface at
+  the client as an oversize answer, not at the daemon. No such body
+  exists today (a tab is a few megabytes).
+- `frame.rs` — the bounded reader both sides use — needs tokio, and C1
+  as ruled makes the protocol crate serde-only. Step 1 places it: a
+  feature on the protocol crate, or one copy each in the client and
+  daemon crates.
+- The packet's pointer edit "C12 gains *Pinned:*
+  `acquisition-protocol/tests/wire.rs`" (§3) is assigned to no commit;
+  today the file is `acquisition-core/tests/wire.rs`. Step 1 or 2, when
+  the path is final.
+- `acq jobs --watch` ends when the daemon goes away rather than waiting
+  for it to return: an observer never spawns (C10), and a watch that
+  waits for a daemon is a design choice for the GUI's subscriber, not
+  the CLI's.

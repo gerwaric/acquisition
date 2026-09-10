@@ -1,4 +1,5 @@
-//! The wire, pinned (C85; TESTING-NOTES item 3): one JSON document per
+//! The wire — the first of C12's two frontend surfaces — pinned (C85;
+//! TESTING-NOTES item 3): one JSON document per
 //! `Request` and `Response` variant, the bootstrap frames, the closed
 //! error-kind set and the frame bound, under `tests/fixtures/wire/`. A
 //! golden file, not a frozen one (P5): a wire change fails here as a diff

@@ -300,7 +300,8 @@ pub enum Signal {
     ResyncRequired { missed: u64 },
 }
 
-/// A subscription connection (C85): hello, `subscribe`/`subscribed`, then
+/// A subscription connection (C8's event channel under C85's semantics):
+/// hello, `subscribe`/`subscribed`, then
 /// events only — there is no way to send a request on it, which is what
 /// keeps requests and events on separate connections by construction.
 /// The subscriber snapshots over a [`Client`] after opening this, and
