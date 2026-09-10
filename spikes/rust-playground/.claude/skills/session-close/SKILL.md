@@ -18,6 +18,7 @@ cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo fmt --all -- --check
 git diff --check
 tools/docs-check.sh
+RUSTDOCFLAGS="-D warnings" cargo doc -p acquisition-protocol --no-deps
 ```
 
 Run each command bare and read its exit status. A check piped through

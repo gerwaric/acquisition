@@ -87,6 +87,16 @@ data for the commit that touches it.
   `provider::ggg_mode`; `rails::RailsStatus`; the five status names in
   `ratelimit.rs`. Step 2 switches the consumers and deletes them; a
   re-export that survives step 2 is a consumer nobody switched.
+- The gate holds strict rustdoc on the protocol crate (owner, 2026-09-10,
+  verbatim: "Add the strict rustdoc check and widen in step 3 as
+  discussed"): a broken intra-doc link is pointer rot in the doc
+  comments that carry the rulings, the code-side counterpart of the
+  stale-identifier check, and the split moves the items those links
+  name. Step 3 widens it to `--workspace` in the commit that fixes the
+  five public-doc links to private items it fails on today
+  (`client.rs` `Client::handshake`; `acquisition-plan` `shop.rs`
+  `cell`, `lib.rs` `covers_tab`, `wire_estimate`, `check_quote_matches`),
+  so the widening lands green.
 - The protocol crate carries no `unwrap_used`/`expect_used` denial: C47
   names the store and plan crates, and the wire's lenient readers are
   `?`-shaped today. Whether the contract crate joins them is a P4

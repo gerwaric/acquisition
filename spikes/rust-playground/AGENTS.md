@@ -76,6 +76,7 @@ cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo fmt --all -- --check
 git diff --check
 tools/docs-check.sh      # byte budgets on the always-loaded documents; stale identifiers
+RUSTDOCFLAGS="-D warnings" cargo doc -p acquisition-protocol --no-deps   # no broken doc link in the contract crate; --workspace from step 3 of the daemon split
 ```
 
 `cargo test` and `cargo clippy` do not rebuild `target/debug/acq`; run
