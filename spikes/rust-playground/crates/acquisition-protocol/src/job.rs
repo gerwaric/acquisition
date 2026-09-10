@@ -40,6 +40,13 @@ impl fmt::Display for JobState {
 /// Higher priority runs sooner; ties break by submission order.
 pub type Priority = u8;
 
+/// How many times a job is re-queued after a 429 before it fails for good
+/// (ground truth P-A: violations are structural, so recovery is required;
+/// N10: frequent violations get the application revoked, so it is bounded).
+/// A promise the daemon keeps and a consumer computes with: the planner's
+/// request ceiling is `logical × (1 + MAX_429_RETRIES)`.
+pub const MAX_429_RETRIES: u32 = 2;
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct JobInfo {
     pub id: JobId,

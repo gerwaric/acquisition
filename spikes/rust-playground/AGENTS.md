@@ -1,7 +1,7 @@
 # Rust playground — agent entry point
 
 You are in `spikes/rust-playground` on branch `spikes/rust-playground`: a
-Cargo workspace (`acquisition-core`, `acquisition-store`,
+Cargo workspace (`acquisition-protocol`, `acquisition-core`, `acquisition-store`,
 `acquisition-plan`, `acquisition-cli`, `acquisition-mcp`) that is the
 Rust implementation of Acquisition (`README.md`, the charter). The
 repository-level `AGENTS.md` describes the C++ app on `master`; its build

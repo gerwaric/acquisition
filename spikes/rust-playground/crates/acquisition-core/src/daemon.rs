@@ -121,21 +121,28 @@ use tokio::sync::{Notify, broadcast, watch};
 
 use std::collections::VecDeque;
 
-use crate::VERSION;
 use crate::frame::{Frame, read_frame};
-use crate::job::{JobId, JobInfo, JobState, Outcome, Priority, target_of};
-use crate::protocol::{
-    Bootstrap, BootstrapReply, ErrorKind, ErrorRecord, MAX_FRAME_BYTES, Quote, QuoteJob,
-    QuoteScope, Request, Response, SessionStatus,
-};
-use crate::provider::{CALLBACK_PATH, Provider, SCOPES, ggg_mode};
+use crate::provider::{CALLBACK_PATH, Provider, SCOPES};
 use crate::rails::{BlockShape, Rails, RailsConfig};
 use crate::ratelimit::{
     ChokePoint, Clock, EndpointState, RetryAfter, SendError, SystemClock, url_path,
 };
 use crate::ratelimit::{endpoint_key, split_endpoint_key};
-use crate::realm::{Family, Realm};
+use acquisition_protocol::VERSION;
+use acquisition_protocol::job::{JobId, JobInfo, JobState, Outcome, Priority, target_of};
+use acquisition_protocol::protocol::{
+    Bootstrap, BootstrapReply, ErrorKind, ErrorRecord, MAX_FRAME_BYTES, Quote, QuoteJob,
+    QuoteScope, Request, Response, SessionStatus,
+};
+use acquisition_protocol::provider::ggg_mode;
+use acquisition_protocol::realm::{Family, Realm};
+
 use crate::{auth, mockggg};
+
+// `MAX_429_RETRIES` is the protocol crate's (a promise a consumer computes
+// with, `job.rs` there). Re-exported until step 2 of the daemon split
+// switches the planner; step 2 deletes this line.
+pub use acquisition_protocol::job::MAX_429_RETRIES;
 
 const IDLE_SHUTDOWN: Duration = Duration::from_secs(60);
 
@@ -160,11 +167,6 @@ const LOGIN_PRIORITY: Priority = u8::MAX - 1;
 /// for a full token-endpoint hold; a rails-halted daemon fails the login
 /// rather than pinning the flow forever.
 const LOGIN_PROFILE_TIMEOUT: Duration = Duration::from_secs(120);
-/// How many times a job is re-queued after a 429 before it fails for good
-/// (ground truth P-A: violations are structural, so recovery is required;
-/// N10: frequent violations get the application revoked, so it is bounded).
-pub const MAX_429_RETRIES: u32 = 2;
-
 // Must stay short: Unix socket paths cap out around 104 bytes (SUN_LEN),
 // which deep per-user runtime dirs can exceed.
 pub fn socket_path() -> PathBuf {
@@ -3210,14 +3212,14 @@ resubmit if still wanted",
                             // the client decides staleness from this and
                             // replaces, refuses or reports a daemon from
                             // other sources (C10).
-                            if client_version != crate::VERSION_WITH_RUNTIME {
+                            if client_version != acquisition_protocol::VERSION_WITH_RUNTIME {
                                 self.log(&format!(
                                     "version mismatch: client {client_version}, daemon {}",
-                                    crate::VERSION_WITH_RUNTIME
+                                    acquisition_protocol::VERSION_WITH_RUNTIME
                                 ));
                             }
                             let hello = BootstrapReply::Hello {
-                                daemon_version: crate::VERSION_WITH_RUNTIME.to_string(),
+                                daemon_version: acquisition_protocol::VERSION_WITH_RUNTIME.to_string(),
                                 pid: std::process::id(),
                                 provider: self.provider.name.to_string(),
                             };
@@ -3583,7 +3585,7 @@ resubmit if still wanted",
                         });
                 Response::DaemonStatus {
                     pid: std::process::id(),
-                    version: crate::VERSION_WITH_RUNTIME.to_string(),
+                    version: acquisition_protocol::VERSION_WITH_RUNTIME.to_string(),
                     provider: self.provider.name.to_string(),
                     uptime_seconds: self.started.elapsed().as_secs(),
                     connections: s.connections,
@@ -3605,7 +3607,7 @@ resubmit if still wanted",
                 let (in_flight, max_in_flight) = self.choke.actual_send_occupancy();
                 Response::Dashboard {
                     pid: std::process::id(),
-                    version: crate::VERSION_WITH_RUNTIME.to_string(),
+                    version: acquisition_protocol::VERSION_WITH_RUNTIME.to_string(),
                     provider: self.provider.name.to_string(),
                     uptime_seconds: self.started.elapsed().as_secs(),
                     connections: s.connections,
@@ -3721,7 +3723,7 @@ resubmit if still wanted",
 /// parent was cancelled, or the queue failed. Already-submitted children
 /// run either way (their sends are theirs); the parent never claims
 /// success over a partial set.
-/// Realm admission: a kind in a realm family (`crate::realm`) must name a
+/// Realm admission: a kind in a realm family (`acquisition_protocol::realm`) must name a
 /// realm that family takes — or none, meaning pc. Runs at submit for
 /// every kind and per tuple inside `validate_apply`, so a job that would
 /// render a stash URL under `poe2` never gets an id (CONTEXT.md,
@@ -4109,7 +4111,7 @@ async fn run_with_log(log: std::fs::File) -> Result<()> {
     daemon.log(&format!(
         "daemon {} runtime {} listening on {} (pid {})",
         VERSION,
-        crate::RUNTIME_REVISION,
+        acquisition_protocol::RUNTIME_REVISION,
         path.display(),
         std::process::id()
     ));
@@ -5842,7 +5844,7 @@ mod dispatcher_tests {
         let header = &lines[0];
         assert_eq!(header["event"], "open");
         assert_eq!(header["clock"], "manual");
-        assert_eq!(header["runtime"], crate::RUNTIME_REVISION);
+        assert_eq!(header["runtime"], acquisition_protocol::RUNTIME_REVISION);
         assert_eq!(header["ts"], "2000-01-01T00:00:00.000Z");
         let sends = &lines[1..];
         assert_wire_contract(sends);

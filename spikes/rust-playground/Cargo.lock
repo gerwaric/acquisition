@@ -21,6 +21,7 @@ dependencies = [
 name = "acquisition-core"
 version = "0.0.1"
 dependencies = [
+ "acquisition-protocol",
  "acquisition-store",
  "anyhow",
  "base64 0.22.1",
@@ -60,6 +61,15 @@ dependencies = [
  "serde_json",
  "sha2",
  "toml",
+]
+
+[[package]]
+name = "acquisition-protocol"
+version = "0.0.1"
+dependencies = [
+ "serde",
+ "serde_json",
+ "sha2",
 ]
 
 [[package]]

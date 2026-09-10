@@ -9,7 +9,7 @@
 
 use tokio::io::{AsyncBufRead, AsyncBufReadExt};
 
-pub use crate::protocol::MAX_FRAME_BYTES;
+pub use acquisition_protocol::protocol::MAX_FRAME_BYTES;
 
 /// One read from a framed connection.
 #[derive(Debug, PartialEq, Eq)]

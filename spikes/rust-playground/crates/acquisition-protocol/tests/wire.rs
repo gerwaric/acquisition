@@ -4,7 +4,7 @@
 //! error-kind set and the frame bound, under `tests/fixtures/wire/`. A
 //! golden file, not a frozen one (P5): a wire change fails here as a diff
 //! a reviewer reads, and
-//! `ACQ_UPDATE_FIXTURES=1 cargo test -p acquisition-core --test wire`
+//! `ACQ_UPDATE_FIXTURES=1 cargo test -p acquisition-protocol --test wire`
 //! rewrites the fixtures. The matches over the enums are exhaustive, so
 //! a new variant does not compile until it is named here — and named
 //! here, it needs a sample below and a fixture on disk.
@@ -12,14 +12,13 @@
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
-use acquisition_core::job::{JobInfo, JobState, Outcome};
-use acquisition_core::protocol::{
+use acquisition_protocol::job::{JobInfo, JobState, Outcome};
+use acquisition_protocol::protocol::{
     Bootstrap, BootstrapReply, ErrorKind, ErrorRecord, MAX_FRAME_BYTES, Quote, QuoteJob,
     QuoteScope, Request, Response, SessionStatus, UNKNOWN, error_message,
 };
-use acquisition_core::rails::RailsStatus;
-use acquisition_core::ratelimit::{
-    DegradedEndpoint, PolicyStatus, RuleStatus, SendRecord, WindowStatus,
+use acquisition_protocol::status::{
+    DegradedEndpoint, PolicyStatus, RailsStatus, RuleStatus, SendRecord, WindowStatus,
 };
 use serde::Serialize;
 use serde_json::{Value, json};
@@ -134,7 +133,7 @@ fn pin<T: Serialize + serde::de::DeserializeOwned>(
     }
     assert!(
         problems.is_empty(),
-        "the wire changed; review the diff, then `ACQ_UPDATE_FIXTURES=1 cargo test -p acquisition-core --test wire` if it is intended:\n\n{}",
+        "the wire changed; review the diff, then `ACQ_UPDATE_FIXTURES=1 cargo test -p acquisition-protocol --test wire` if it is intended:\n\n{}",
         problems.join("\n")
     );
 }

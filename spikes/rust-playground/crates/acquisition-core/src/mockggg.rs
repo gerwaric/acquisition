@@ -281,7 +281,7 @@ fn mock_children_stubs(parent: &str) -> Vec<serde_json::Value> {
 /// named `pc` is a name), and the segments after the realm.
 struct DataRoute<'a> {
     policy_key: &'a str,
-    realm: crate::realm::Realm,
+    realm: acquisition_protocol::realm::Realm,
     parts: Vec<&'a str>,
 }
 
@@ -289,7 +289,7 @@ struct DataRoute<'a> {
 /// (the stash endpoints are PoE1 only), so the mock answers 404 rather
 /// than inventing one — a daemon that renders it is the bug this catches.
 fn classify_data_path(path: &str) -> Option<DataRoute<'_>> {
-    use crate::realm::{Family, Realm};
+    use acquisition_protocol::realm::{Family, Realm};
     fn split(rest: &str) -> (Realm, Vec<&str>) {
         let mut parts: Vec<&str> = rest.split('/').filter(|s| !s.is_empty()).collect();
         match parts.first().and_then(|s| Realm::parse(s)) {
@@ -348,8 +348,8 @@ fn classify_data_path(path: &str) -> Option<DataRoute<'_>> {
 /// PoE2 (the docs give the field as `pc|xbox|sony`), open until the
 /// first PoE2 body is seen live (CONTEXT.md, "Characters in the refresh
 /// plan").
-fn mock_character_list(realm: crate::realm::Realm) -> serde_json::Value {
-    use crate::realm::Realm;
+fn mock_character_list(realm: acquisition_protocol::realm::Realm) -> serde_json::Value {
+    use acquisition_protocol::realm::Realm;
     // `experience` rides on every entry as it does live (59 of 59 on the
     // 2026-09-02 sample), matching the fetched body's, so a plan's
     // freshness heuristic sees an agreeing listing and the loop closes.
@@ -375,7 +375,7 @@ const MOCK_EXPERIENCE: u64 = 4_250_334_444;
 
 /// `GET /character[/realm]/{name}`: equipment + inventory (+ `skills`
 /// for a PoE2 character, the array the docs add there).
-fn mock_character(realm: crate::realm::Realm, name: &str) -> serde_json::Value {
+fn mock_character(realm: acquisition_protocol::realm::Realm, name: &str) -> serde_json::Value {
     // The id is the listed one for a listed name, so a fetch lands on the
     // list's row; a name the list does not carry gets its own id — a
     // recreated character, as the real API would answer.
@@ -398,7 +398,7 @@ fn mock_character(realm: crate::realm::Realm, name: &str) -> serde_json::Value {
         "inventory": mock_items(&format!("{name}-inv"), 4),
         "jewels": [],
     });
-    if realm == crate::realm::Realm::Pc && name == "StashHoarder" {
+    if realm == acquisition_protocol::realm::Realm::Pc && name == "StashHoarder" {
         // The animate guardian's gear (live sample 2026-09-02): its own
         // array, slot-named `inventoryId`s at x/y 0 — the item alone
         // cannot say which array it sits in.
@@ -409,7 +409,7 @@ fn mock_character(realm: crate::realm::Realm, name: &str) -> serde_json::Value {
               "w": 1, "h": 3, "x": 0, "y": 0, "inventoryId": "Weapon", "league": "Standard", "frameType": 0, "frameTypeId": "normal", "identified": true },
         ]);
     }
-    if realm == crate::realm::Realm::Poe2 {
+    if realm == acquisition_protocol::realm::Realm::Poe2 {
         character["class"] = json!("Monk");
         // An item-granted skill (live sample 2026-09-02): the weapon
         // carries it id-less in its `socketedItems` with no socket of its
@@ -686,7 +686,7 @@ async fn handle(
             // under another realm.
             let body = if policy_key == "/stash/tab" {
                 match mock_stash(parts[1], parts.get(2).copied())
-                    .filter(|_| realm == crate::realm::Realm::Pc)
+                    .filter(|_| realm == acquisition_protocol::realm::Realm::Pc)
                 {
                     Some(v) => v,
                     None => {
@@ -701,7 +701,7 @@ async fn handle(
                     }
                 }
             } else if policy_key == "/stash" {
-                if realm == crate::realm::Realm::Pc {
+                if realm == acquisition_protocol::realm::Realm::Pc {
                     mock_stash_list(parts[0])
                 } else {
                     json!({ "stashes": [] })
@@ -918,7 +918,7 @@ pub fn urlencode(s: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::realm::Realm;
+    use acquisition_protocol::realm::Realm;
 
     /// The mock reads realm segments the way the documented API does: pc
     /// by omission, a legal segment before the league or name, and no

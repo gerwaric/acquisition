@@ -61,6 +61,10 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use crate::ratelimit::{Clock, SystemClock};
+// `RailsStatus` is the protocol crate's (`status.rs` there): the daemon
+// builds it in `Rails::status`. Re-exported until step 2 of the daemon
+// split switches the frontends; step 2 deletes this line.
+pub use acquisition_protocol::status::RailsStatus;
 
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -149,18 +153,6 @@ struct State {
     sends: u64,
     /// A trip nobody has logged yet; drained by the daemon's `announce_trip`.
     unannounced: Option<String>,
-}
-
-/// Serializable summary for `daemon status` and the dashboard.
-#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
-pub struct RailsStatus {
-    pub tripwire_enabled: bool,
-    /// Why sends are refused, if they are.
-    pub halted: Option<String>,
-    pub refresh_failed: Option<String>,
-    pub sends: u64,
-    pub max_sends: Option<u64>,
-    pub journal: Option<String>,
 }
 
 /// What a 403/503 body looked like. Both shapes are treated the same way
@@ -318,7 +310,7 @@ impl Rails {
             "event": "open",
             "ts": iso_utc(self.clock.wall()),
             "pid": std::process::id(),
-            "runtime": crate::RUNTIME_REVISION,
+            "runtime": acquisition_protocol::RUNTIME_REVISION,
             "clock": self.clock.kind(),
         });
         let _ = writeln!(file, "{line}");
@@ -756,7 +748,7 @@ mod tests {
         assert_eq!(lines.len(), 3, "header plus two sends");
         assert_eq!(lines[0]["event"], "open");
         assert_eq!(lines[0]["clock"], "system");
-        assert_eq!(lines[0]["runtime"], crate::RUNTIME_REVISION);
+        assert_eq!(lines[0]["runtime"], acquisition_protocol::RUNTIME_REVISION);
         assert_eq!(lines[0]["pid"], std::process::id());
         assert_eq!(lines[1]["status"], 200);
         assert_eq!(

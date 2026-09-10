@@ -1,0 +1,18 @@
+[package]
+name = "acquisition-protocol"
+version.workspace = true
+edition.workspace = true
+
+# The daemon's contract as a frontend sees it (DAEMON-SPLIT-SLICE.md;
+# brainstorming-notes/18 §2.1): serde and serde_json, nothing else — never
+# tokio, anyhow or the store. tools/docs-check.sh refuses any other
+# dependency; the revision this crate's build script computes moves only
+# when the contract does (after step 4; until then its inputs include the
+# daemon's sources on purpose).
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+
+[build-dependencies]
+sha2 = "0.10"

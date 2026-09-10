@@ -47,6 +47,12 @@ use serde::{Deserialize, Serialize};
 
 use crate::gate::{SendGate, SendPermit};
 use crate::rails::{BlockShape, Rails, SendReport};
+// The status documents are the protocol crate's (`status.rs` there); this
+// module builds them. Re-exported until step 2 of the daemon split
+// switches the frontends; step 2 deletes this line.
+pub use acquisition_protocol::status::{
+    DegradedEndpoint, PolicyStatus, RuleStatus, SendRecord, WindowStatus,
+};
 
 /// Server-side timing bucket for a rule's first (initial) window (N12).
 pub const INITIAL_BUCKET: Duration = Duration::from_secs(5);
@@ -452,14 +458,6 @@ pub enum EndpointState {
     /// The probe failed or came back without a policy (N20); closed until
     /// `until`, then probed again.
     Degraded { until: Instant, reason: String },
-}
-
-/// A degraded endpoint, for the dashboard.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DegradedEndpoint {
-    pub endpoint: String,
-    pub seconds_left: f64,
-    pub reason: String,
 }
 
 /// The limiter's endpoint key: the route, plus the account the send is for
@@ -1295,53 +1293,6 @@ fn rule_statuses(ps: &PolicyState) -> Vec<RuleStatus> {
                 .collect(),
         })
         .collect()
-}
-
-// `WindowStatus`/`RuleStatus` also travel inside a `Quote`, which a
-// `RefreshPlan` may embed — so they are `Eq` and parse strictly, like
-// everything else a serialized plan carries.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct WindowStatus {
-    pub hits: u32,
-    pub max_hits: u32,
-    pub period_secs: u64,
-    pub restriction_secs: u64,
-    pub restricted_secs: u64,
-    pub bucket_secs: u64,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct RuleStatus {
-    pub name: String,
-    pub windows: Vec<WindowStatus>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PolicyStatus {
-    pub policy: String,
-    pub endpoints: Vec<String>,
-    pub rules: Vec<RuleStatus>,
-    pub next_safe_in_seconds: f64,
-    pub last_observed_seconds_ago: f64,
-    pub history_len: usize,
-    pub retry_after_secs: Option<u64>,
-    /// The raw `x-rate-limit-*` / `retry-after` headers last seen.
-    pub headers: serde_json::Value,
-}
-
-/// One HTTP request the choke point actually sent (there is no other way to
-/// send one), for the dashboard's sent-requests table.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SendRecord {
-    pub seconds_ago: f64,
-    pub endpoint: String,
-    pub method: String,
-    pub url: String,
-    /// HTTP status ("200 OK") or the transport error.
-    pub outcome: String,
-    pub ok: bool,
 }
 
 // ---- the choke point ------------------------------------------------------

@@ -47,9 +47,12 @@
 //!
 //! ## C10 — as built
 //!
-//! The identity compared is [`VERSION_WITH_RUNTIME`]: the package version
-//! plus the runtime revision, a digest over the core and store sources,
-//! their manifests, the root manifest and the lock (`build.rs`). It
+//! The identity compared is [`VERSION_WITH_RUNTIME`], defined by the
+//! protocol crate (`acquisition-protocol/src/lib.rs`) since the daemon
+//! split's step 1, so both sides carry the same definition: the package
+//! version plus the runtime revision, a digest over the core, store and
+//! protocol sources, their manifests, the root manifest and the lock
+//! (the protocol crate's `build.rs`). It
 //! changes whenever any of those whole files changes: an uncommitted edit
 //! to `daemon.rs` makes a running daemon stale, an edit to the planner or
 //! a frontend does not, a lock entry or store function the daemon never
@@ -82,7 +85,7 @@
 //!
 //! ## C85 — Connection semantics, as built on this side
 //!
-//! The ruling is recorded in full on `protocol.rs`. Here: every connection
+//! The ruling is recorded in full on the protocol crate's `protocol.rs`. Here: every connection
 //! opens with the bootstrap `hello` exchange ([`Client::handshake`]),
 //! written and read as [`Bootstrap`]/[`BootstrapReply`] frames outside the
 //! versioned enums, so a daemon of any revision is identified — a frame
@@ -101,7 +104,7 @@
 //! drop the subscription, open a new one and snapshot again) is the
 //! consumer's — `acq jobs --watch` is the reference.
 //! Both sides read a frame no further than
-//! [`crate::protocol::MAX_FRAME_BYTES`]; an answer over it is reported,
+//! [`acquisition_protocol::protocol::MAX_FRAME_BYTES`]; an answer over it is reported,
 //! and the connection stays aligned on the next frame. A daemon error is
 //! a [`DaemonError`] carrying the closed [`ErrorKind`] beside its message,
 //! so a frontend's JSON can carry the kind (`acq --json`: `{"error", "kind"}`)
@@ -110,11 +113,11 @@
 use std::fmt;
 use std::time::Duration;
 
-use crate::VERSION_WITH_RUNTIME;
 use crate::daemon::{log_path, socket_path};
 use crate::frame::{Frame, read_frame};
-use crate::job::JobInfo;
-use crate::protocol::{
+use acquisition_protocol::VERSION_WITH_RUNTIME;
+use acquisition_protocol::job::JobInfo;
+use acquisition_protocol::protocol::{
     Bootstrap, BootstrapReply, ErrorKind, MAX_FRAME_BYTES, Request, Response, error_message,
 };
 use anyhow::{Context, Result, bail};
@@ -192,11 +195,7 @@ impl ConnectOptions {
 
 /// "ggg" or "mock": the provider this process wants a daemon to serve.
 fn want_provider() -> &'static str {
-    if crate::provider::ggg_mode() {
-        "ggg"
-    } else {
-        "mock"
-    }
+    acquisition_protocol::provider::wanted()
 }
 
 /// A daemon as its handshake identifies it. Whether it is this client's
@@ -624,13 +623,13 @@ impl Client {
     }
 
     /// The daemon's read-only, non-reserving projection over `jobs`
-    /// (see [`crate::protocol::Quote`]). Sends nothing; shared here so
+    /// (see [`acquisition_protocol::protocol::Quote`]). Sends nothing; shared here so
     /// every frontend's quote surface speaks the same request.
     pub async fn quote(
         &mut self,
-        jobs: Vec<crate::protocol::QuoteJob>,
+        jobs: Vec<acquisition_protocol::protocol::QuoteJob>,
         account: Option<String>,
-    ) -> Result<crate::protocol::Quote> {
+    ) -> Result<acquisition_protocol::protocol::Quote> {
         match self.request(&Request::Quote { jobs, account }).await? {
             Response::Quote { quote } => Ok(quote),
             Response::Error { kind, message } => Err(refused(kind, message)),
@@ -698,12 +697,12 @@ mod tests {
     fn a_daemon_from_another_build_or_provider_is_not_this_clients_daemon() {
         assert!(id(VERSION_WITH_RUNTIME, "mock").is_ours());
         assert!(!id(VERSION_WITH_RUNTIME, "ggg").is_ours());
-        assert!(!id(crate::VERSION, "mock").is_ours());
+        assert!(!id(acquisition_protocol::VERSION, "mock").is_ours());
         assert!(!id("0.0.1 (deadbeef)", "mock").is_ours());
-        assert!(VERSION_WITH_RUNTIME.contains(crate::RUNTIME_REVISION));
-        assert_eq!(crate::RUNTIME_REVISION.len(), 12);
+        assert!(VERSION_WITH_RUNTIME.contains(acquisition_protocol::RUNTIME_REVISION));
+        assert_eq!(acquisition_protocol::RUNTIME_REVISION.len(), 12);
         assert!(
-            crate::RUNTIME_REVISION
+            acquisition_protocol::RUNTIME_REVISION
                 .bytes()
                 .all(|b| b.is_ascii_hexdigit())
         );

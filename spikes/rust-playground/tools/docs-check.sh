@@ -20,7 +20,10 @@
 #      and *.rs / *.sh / *.py / *.sql file names.
 #   4. The README's form: one line per verb in the tour, a row per knob.
 #   5. Dependency direction: the layer rules as edges the crates cannot
-#      cross.
+#      cross — the daemon and the store as before, and since the daemon
+#      split's step 1 the protocol crate's purity (serde only) and the
+#      store's blindness to it; the rest of the split's edge table
+#      (brainstorming-notes/18 §2.1) lands with the crates it names.
 #
 # Exit 1 on any failure; the report names each offender.
 set -euo pipefail
@@ -162,20 +165,44 @@ fi
 # planner and never names the intent API (it writes facts through the
 # store and reads nothing else); the store crate links neither the daemon
 # nor an HTTP client, so a store read cannot initiate traffic (C41).
+edge_bad=0
 edge() {
   local file=$1 needle=$2 why=$3
   if grep -qE -- "$needle" "$file"; then
     printf 'EDGE    %-40s must not name %s — %s\n' "$file" "$needle" "$why"
-    fail=1
+    fail=1; edge_bad=1
   fi
 }
 edge crates/acquisition-core/Cargo.toml  '^acquisition-plan'                  'the daemon never links the planner (C39)'
-edge crates/acquisition-store/Cargo.toml '^(acquisition-core|acquisition-plan|reqwest|tokio)' 'the store links no daemon and no HTTP client (C41)'
-if grep -rqE 'Annotations|annotations_path' crates/acquisition-core/src; then
-  echo 'EDGE    crates/acquisition-core/src              names the intent API — the daemon is permanently blind to intent (C34)'
-  fail=1
-else
-  echo 'ok      dependencies  daemon ∌ planner, daemon ∌ intent API, store ∌ daemon/HTTP (C34, C39, C41)'
+edge crates/acquisition-store/Cargo.toml '^(acquisition-core|acquisition-protocol|acquisition-plan|reqwest|tokio)' 'the store links no daemon, no protocol and no HTTP client (C41; the split, §2.1)'
+# The protocol crate is the daemon's contract as a frontend sees it and
+# links serde and serde_json, nothing else (sha2 at build time only): a
+# dependency here is a dependency of every frontend and of the daemon
+# both, and the revision it computes must move only when the contract
+# does. An allowlist per section, so an addition of any name refuses.
+deps_of() {  # deps_of <manifest> <section>: the dependency names under [section]
+  # both spellings: `name = …` and the dotted `name.workspace = true`
+  awk -v sect="[$2]" '$0 == sect {f=1; next} /^\[/ {f=0} f && /^[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+)?[[:space:]]*=/ {sub(/[.[:space:]=].*/, ""); print}' "$1" | sort -u
+}
+proto=crates/acquisition-protocol/Cargo.toml
+allow() {  # allow <section> <name>...: refuse any other dependency in that section
+  local sect=$1; shift
+  local extra
+  extra=$(comm -23 <(deps_of "$proto" "$sect") <(printf '%s\n' "$@" | sort -u) | tr '\n' ' ')
+  if [[ -n $extra ]]; then
+    printf 'EDGE    %-40s [%s] links %s— the protocol crate is serde-only (§2.1)\n' "$proto" "$sect" "$extra"
+    fail=1; edge_bad=1
+  fi
+}
+allow dependencies serde serde_json
+allow dev-dependencies serde serde_json
+allow build-dependencies sha2
+if grep -rqE 'Annotations|annotations_path' crates/acquisition-core/src crates/acquisition-protocol/src; then
+  echo 'EDGE    crates/acquisition-{core,protocol}/src    names the intent API — the daemon and the wire are permanently blind to intent (C34)'
+  fail=1; edge_bad=1
+fi
+if ((edge_bad == 0)); then
+  echo 'ok      dependencies  daemon ∌ planner, daemon/protocol ∌ intent API, store ∌ daemon/protocol/HTTP, protocol = serde only (C34, C39, C41, §2.1)'
 fi
 
 exit $fail

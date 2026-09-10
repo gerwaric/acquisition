@@ -3,7 +3,9 @@
 //! Real mode is opt-in via `ACQ_GGG=1` and uses the existing "acquisition"
 //! registration (same client id, callback path, scopes, and user-agent as the
 //! shipped C++ app — CONTEXT invariant 4). Everything else in the daemon is
-//! provider-agnostic; this struct is the whole difference.
+//! provider-agnostic; this struct is the whole difference. The provider
+//! *names* and `ggg_mode()` are the protocol crate's (`provider.rs` there):
+//! which provider a process wants is part of the handshake.
 
 /// Same shape as the shipped app (APP_NAME "/" APP_VERSION " (contact: " EMAIL ")")
 /// and the same registration, but a distinct version so anything GGG sees from
@@ -24,8 +26,13 @@ pub const SCOPES: &[&str] = &[
 /// provider redirects wherever it's told, so both modes share it.
 pub const CALLBACK_PATH: &str = "/auth/path-of-exile";
 
+// Until step 2 of the daemon split switches the frontends to the
+// protocol crate; step 2 deletes this line.
+pub use acquisition_protocol::provider::ggg_mode;
+use acquisition_protocol::provider::{GGG, MOCK};
+
 pub struct Provider {
-    /// "mock" or "ggg" — shown in the handshake so clients can detect a
+    /// [`MOCK`] or [`GGG`] — shown in the handshake so clients can detect a
     /// daemon running in the wrong mode.
     pub name: &'static str,
     pub authorize_url: String,
@@ -40,7 +47,7 @@ pub struct Provider {
 impl Provider {
     pub fn mock(base_url: &str) -> Provider {
         Provider {
-            name: "mock",
+            name: MOCK,
             authorize_url: format!("{base_url}/authorize"),
             token_url: format!("{base_url}/token"),
             api_base: base_url.to_string(),
@@ -51,7 +58,7 @@ impl Provider {
 
     pub fn ggg() -> Provider {
         Provider {
-            name: "ggg",
+            name: GGG,
             authorize_url: "https://www.pathofexile.com/oauth/authorize".into(),
             token_url: "https://www.pathofexile.com/oauth/token".into(),
             api_base: "https://api.pathofexile.com".into(),
@@ -61,12 +68,6 @@ impl Provider {
     }
 
     pub fn is_real(&self) -> bool {
-        self.name == "ggg"
+        self.name == GGG
     }
-}
-
-/// True when this process (daemon or CLI) should be in real-GGG mode.
-/// Deliberately strict: only the exact value "1" counts.
-pub fn ggg_mode() -> bool {
-    std::env::var("ACQ_GGG").is_ok_and(|v| v == "1")
 }

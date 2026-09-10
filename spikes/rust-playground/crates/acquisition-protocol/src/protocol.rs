@@ -33,7 +33,7 @@
 //! has a bound, and an oversize or malformed one is answered with an
 //! error, not a closed socket; `hello` and `daemon_stop` are a stable
 //! plane every version parses.** *Why:* a client must see losses to
-//! recover from them. *Pinned:* `acquisition-core/tests/wire.rs`,
+//! recover from them. *Pinned:* `acquisition-protocol/tests/wire.rs`,
 //! `acquisition-core/tests/contract.rs`. Ruled 2026-09-09.
 //!
 //! ## C85 — as built
@@ -57,7 +57,8 @@
 //! [`MAX_FRAME_BYTES`]; a longer one is discarded through its newline
 //! and, on the daemon, answered `bad_request` — as is a frame that is
 //! not JSON, not UTF-8, or not a request of this version — and the
-//! connection stays. The frame reader is `crate::frame`. The sequence a
+//! connection stays. The frame reader is `acquisition-core/src/frame.rs`
+//! (it needs tokio, which this crate never links). The sequence a
 //! subscriber follows is `acq jobs --watch` (`acquisition-cli/src/main.rs`):
 //! subscribe, then `list` over a request connection, then every event is a
 //! reason to re-read, and after `resync_required` or a disconnect,
@@ -79,8 +80,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::job::{JobId, JobInfo, Outcome, Priority};
-use crate::rails::RailsStatus;
-use crate::ratelimit::{DegradedEndpoint, PolicyStatus, RuleStatus, SendRecord};
+use crate::status::{DegradedEndpoint, PolicyStatus, RailsStatus, RuleStatus, SendRecord};
 
 /// The bound on one frame, in bytes, both directions (C85). Nothing
 /// legitimate approaches it — an `apply` of a whole league's actions is

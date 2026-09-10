@@ -17,7 +17,15 @@ here anticipates it.
 
 ## What exists
 
-- `crates/acquisition-core` — the protocol and job model, the header-driven
+- `crates/acquisition-protocol` — the daemon's contract as a frontend sees
+  it: the wire (`protocol.rs`: `Request`/`Response`, the bootstrap plane,
+  `ErrorKind`, `Quote`, the frame bound), the job model (`job.rs`), the
+  realm vocabulary (`realm.rs`), the status documents (`status.rs`), the
+  provider names and `ACQ_GGG` (`provider.rs`), and the runtime revision
+  the handshake compares (`build.rs`, C10). serde only — never tokio or the
+  store; `tools/docs-check.sh` refuses more. One fixture per wire variant
+  (`tests/wire.rs`, C85). Rulings: `decisions/daemon.md`.
+- `crates/acquisition-core` — the header-driven
   rate limiter and its choke point (`ratelimit.rs`: the spec is its test
   tables; `gate.rs`), the mock provider (`mockggg.rs`), the live-test
   rails (`rails.rs`), the daemon (`daemon.rs`: queue, dispatcher,
@@ -119,7 +127,7 @@ either mode and never spawns or replaces one in real mode (C13, C14).
 
 | Knob | Default | Effect | Read in |
 | --- | --- | --- | --- |
-| `ACQ_GGG=1` | off | the real provider (above) | `provider.rs` |
+| `ACQ_GGG=1` | off | the real provider (above) | `acquisition-protocol/src/provider.rs` |
 | `ACQ_ACCOUNT=<sel>` | the sole account | env form of `--account`; exact match, never a prefix (C51) | `main.rs` |
 | `ACQ_SOCKET=<path>` | `acquisition-playground.sock` in the temp dir | the socket (log and journal beside it), for parallel *mock* daemons; keep it short (Unix socket paths cap near 104 bytes); two daemons in real mode are forbidden (C31) | `daemon.rs` |
 | `ACQ_STORE_DIR=<dir>` | the platform data dir | the store root: `<dir>/<provider>/<account>.db`, `accounts.json`, `daemon.db`; one daemon per store directory (C6) | `index.rs` |

@@ -200,10 +200,11 @@ Prerequisites for a goal-function build, not a plan to start on now:
 2. ~~Re-soak the fixed binary~~ — done 2026-08-27 (`RUN-LEDGER.md`:
    45.3 h, pass); its checker was retired 2026-09-09.
 3. ~~Pin the frontend boundary~~ — done 2026-09-10, commit 0 of the
-   daemon split (C85): one fixture per wire variant (`wire.rs`) and the
-   black-box contract tests (`contract.rs`), under
-   `acquisition-core/tests/` until the client crate exists; the plan
-   slice's process-level pins (`apply_loop.rs`, `plan_loop.rs`) stay.
+   daemon split (C85): one fixture per wire variant (`wire.rs`, under
+   `acquisition-protocol/tests/` since step 1) and the black-box
+   contract tests (`contract.rs`, under `acquisition-core/tests/` until
+   the client crate exists); the plan slice's process-level pins
+   (`apply_loop.rs`, `plan_loop.rs`) stay.
 
 ## Standing constraints carried from the soak
 

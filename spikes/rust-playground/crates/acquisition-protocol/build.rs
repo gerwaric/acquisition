@@ -1,11 +1,15 @@
 //! The runtime revision: a digest of the checked-in sources the daemon
 //! is made of, injected as `ACQ_RUNTIME_REVISION` (C10, `client.rs`).
+//! Lives in the protocol crate since the daemon split's step 1
+//! (`DAEMON-SPLIT-SLICE.md`) so both sides of the socket carry it; its
+//! inputs stay **today's** set — the daemon's sources included — until
+//! step 4 narrows them to the shared contract.
 //!
 //! Inputs, hashed as `path NUL length NUL bytes` in sorted path order
 //! (paths relative to the workspace root) under the domain prefix
 //! `acq-runtime-revision/1` (the format version): the root `Cargo.toml`,
-//! `Cargo.lock`, the core and store manifests, and the core and store
-//! source trees. Git is not consulted at all: a commit, a stage, a
+//! `Cargo.lock`, the core, store and protocol manifests, and the core,
+//! store and protocol source trees. Git is not consulted at all: a commit, a stage, a
 //! `git status` cost nothing. The inputs are deliberately whole files,
 //! not the parts the daemon uses, so the revision is conservative in two
 //! ways. It moves on changes the daemon cannot feel — a lock entry or a
@@ -39,8 +43,10 @@ fn main() {
         "Cargo.lock",
         "crates/acquisition-core/Cargo.toml",
         "crates/acquisition-store/Cargo.toml",
+        "crates/acquisition-protocol/Cargo.toml",
         "crates/acquisition-core/src",
         "crates/acquisition-store/src",
+        "crates/acquisition-protocol/src",
     ];
     let mut files: Vec<PathBuf> = Vec::new();
     for input in inputs {

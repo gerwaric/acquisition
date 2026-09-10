@@ -1,6 +1,7 @@
 [workspace]
 resolver = "2"
 members = [
+    "crates/acquisition-protocol",
     "crates/acquisition-core",
     "crates/acquisition-store",
     "crates/acquisition-plan",
