@@ -1293,9 +1293,13 @@ async fn list(client: &mut Client) -> Result<Vec<JobInfo>> {
 /// `jobs --watch`: the subscriber's sequence under C85, as the reference
 /// consumer. Subscribe first, then take the snapshot over a request
 /// connection (a job that changes between the two is an event, never a
-/// gap); print every event as it comes; on `resync_required` print the
-/// snapshot again; when the daemon goes, observe it again — an observer
-/// never spawns — and subscribe and snapshot afresh if it is back.
+/// gap); every event is an invalidation, so the job is re-read over the
+/// request connection before its line is printed (an event never stands
+/// in for the read); on `resync_required` the lagged subscription is
+/// dropped — its queued events predate any snapshot taken now — and the
+/// sequence starts over with a fresh subscription and snapshot; when the
+/// daemon goes, observe it again — an observer never spawns — and
+/// subscribe and snapshot afresh if it is back.
 async fn watch_jobs(json: bool) -> Result<()> {
     let print_snapshot = |jobs: &[JobInfo]| -> Result<()> {
         if json {
@@ -1315,7 +1319,10 @@ async fn watch_jobs(json: bool) -> Result<()> {
         print_snapshot(&list(&mut client).await?)?;
         loop {
             match subscription.next().await? {
-                Some(Signal::Event(job)) => {
+                Some(Signal::Event(hint)) => {
+                    // The read, not the hint, is what gets printed; a job
+                    // the daemon no longer holds is printed as the hint said.
+                    let job = client.status(hint.id).await.unwrap_or(hint);
                     if json {
                         println!("{}", serde_json::to_string(&job)?);
                     } else {
@@ -1324,9 +1331,9 @@ async fn watch_jobs(json: bool) -> Result<()> {
                 }
                 Some(Signal::ResyncRequired { missed }) => {
                     if !json {
-                        println!("missed {missed} event(s); re-reading");
+                        println!("missed {missed} event(s); subscribing and reading again");
                     }
-                    print_snapshot(&list(&mut client).await?)?;
+                    break;
                 }
                 None => {
                     if !json {

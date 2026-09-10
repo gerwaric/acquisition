@@ -264,6 +264,15 @@ async fn c85_the_daemon_identifies_itself_and_stops_across_a_contract_mismatch()
     let mut daemon = start_daemon(&s).await;
     let mut raw = Raw::open().await;
 
+    // Every connection begins with hello: a versioned request before it
+    // performs nothing, and the connection waits for the greeting.
+    let reply = raw.ask(json!({ "req": "list" })).await;
+    assert_eq!(error_kind(&reply), ErrorKind::BadRequest, "{reply}");
+    assert!(
+        reply["message"].as_str().unwrap().contains("hello"),
+        "{reply}"
+    );
+
     // A client of a future revision: a foreign version, fields this build
     // has never seen — and still the daemon names itself.
     let reply = raw
@@ -536,6 +545,27 @@ async fn c85_a_subscription_carries_events_only_and_lag_is_resync_required() {
     };
     assert_eq!(jobs.len(), JOBS);
     assert!(jobs.iter().all(|j| j.state == JobState::Done));
+
+    // The rest of the sequence: the lagged subscription is dropped — what
+    // it still holds predates the snapshot — and a fresh one carries only
+    // what happens after it was opened.
+    drop(subscription);
+    let mut subscription = open_subscription().await;
+    let jobs = match client.request(&Request::List).await.unwrap() {
+        Response::Jobs { jobs } => jobs,
+        other => panic!("{other:?}"),
+    };
+    let newest = jobs.iter().map(|j| j.id).max().unwrap();
+    let next = submitted(submit(&mut client, "sleep", json!({ "seconds": 0 }), None).await);
+    assert!(next > newest);
+    let first = tokio::time::timeout(Duration::from_secs(10), subscription.next())
+        .await
+        .expect("an event")
+        .expect("open");
+    assert!(
+        matches!(&first, Some(Signal::Event(job)) if job.id == next),
+        "the fresh subscription's first event is the new job, not a leftover: {first:?}"
+    );
 }
 
 /// A subscriber sees the daemon go as the end of its stream, the request
@@ -718,8 +748,11 @@ async fn c85_error_kinds_classify_the_domain_failures_a_client_can_stage() {
     assert_eq!(kind, ErrorKind::Refused);
     assert!(message.contains("ps5"), "{message}");
 
-    // Two sessions and no selector: ambiguous, never guessed.
-    login(&mut client, Some("Bob")).await;
+    // Several sessions and no selector: ambiguous, never guessed. A bare
+    // name two of them share is ambiguous too (C51; review finding
+    // 2026-09-10); the full name selects.
+    login(&mut client, Some("Alice#1234")).await;
+    login(&mut client, Some("Alice#5678")).await;
     let (kind, message) = kind_of(
         submit(
             &mut client,
@@ -738,6 +771,38 @@ async fn c85_error_kinds_classify_the_domain_failures_a_client_can_stage() {
             .unwrap(),
     );
     assert_eq!(kind, ErrorKind::AmbiguousAccount);
+    for request in [
+        Request::Submit {
+            kind: "stashes".into(),
+            params: json!({ "league": "Standard" }),
+            priority: 0,
+            submitted_by: "contract".into(),
+            account: Some("alice".into()),
+        },
+        Request::Quote {
+            jobs: vec![],
+            account: Some("alice".into()),
+        },
+        Request::AuthCheck {
+            account: Some("alice".into()),
+        },
+        Request::AuthLogout {
+            account: Some("alice".into()),
+        },
+    ] {
+        let (kind, message) = kind_of(client.request(&request).await.unwrap());
+        assert_eq!(kind, ErrorKind::AmbiguousAccount, "{request:?}");
+        assert!(message.contains("Alice#1234, Alice#5678"), "{message}");
+    }
+    submitted(
+        submit(
+            &mut client,
+            "stashes",
+            json!({ "league": "Standard" }),
+            Some("Alice#5678"),
+        )
+        .await,
+    );
 }
 
 /// Log in through the mock provider's page: start the flow, approve it as
@@ -750,7 +815,7 @@ async fn login(client: &mut Client, user: Option<&str>) {
     };
     let mut approve = url.replacen("/authorize?", "/approve?", 1);
     if let Some(user) = user {
-        approve.push_str(&format!("&user={user}"));
+        approve.push_str(&format!("&user={}", user.replace('#', "%23")));
     }
     // reqwest follows the redirect to the daemon's callback, which is what
     // completes the login.

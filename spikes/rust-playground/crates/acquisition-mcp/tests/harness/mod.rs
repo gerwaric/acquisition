@@ -146,6 +146,15 @@ impl Mcp {
             .unwrap_or_else(|e| panic!("{tool} {args} failed: {e}"))
     }
 
+    /// The whole JSON-RPC error object (`code`, `message`, `data`) of a
+    /// call the server refused at the protocol level.
+    pub fn expect_rpc_error(&mut self, tool: &str, args: Value) -> Value {
+        let resp = self.rpc("tools/call", json!({ "name": tool, "arguments": args }));
+        resp.get("error")
+            .cloned()
+            .unwrap_or_else(|| panic!("{tool} did not fail at the protocol level: {resp}"))
+    }
+
     pub fn expect_err(&mut self, tool: &str, args: Value) -> String {
         match self.call(tool, args) {
             Err(e) => e,

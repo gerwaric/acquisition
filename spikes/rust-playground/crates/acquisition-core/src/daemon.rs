@@ -21,7 +21,7 @@
 //!
 //! ## C31 — Multi-account is one daemon holding many sessions, never one daemon per account.
 //!
-//! **Multi-account is one daemon holding many sessions, never one daemon per account.** The Cloudflare bound (`SendGate`, 2 live sends) is a per-IP property (P-B, ground truth §1) held as per-process state; two daemons on one machine make it a 4-wide burst that neither sees, with separate tripwires. Rung 11 (2026-08-30) showed the other half: `Account` rules count per account on GGG's side, so two accounts never contend on layer 2 — the only thing they share is layer 1 and the `Ip`-scoped token endpoint, which is exactly what the single gate exists for. Built in two halves with different blast radii (option C): **account as first-class identity now** (store path, job field, keyring key — leaves), **many live sessions later** (a refactor confined to the session layer). Limiter and probe scope keying — `(account, policy)` for `Account` rules, policy alone for `Ip` rules, scope learned from `X-Rate-Limit-Rules` — is a **precondition of the session map, not an optimization**: with two live sessions on one policy each response would overwrite shared state with a different account's counters, and the next send from the other account floods (a 429 path; the "over-waits, never floods" reading only held for rung 11's sequential switch). Decided 2026-08-29, amended 2026-08-30 after review across sessions; design below in "Multi-account design"; built 2026-08-30 through step (6) — step (7)'s live samples are in `RUN-LEDGER.md`.
+//! **Multi-account is one daemon holding many sessions, never one daemon per account.** The Cloudflare bound (`SendGate`, 2 live sends) is a per-IP property (P-B, ground truth §1) held as per-process state; two daemons on one machine make it a 4-wide burst that neither sees, with separate tripwires. Rung 11 (2026-08-30) showed the other half: `Account` rules count per account on GGG's side, so two accounts never contend on layer 2 — the only thing they share is layer 1 and the `Ip`-scoped token endpoint, which is exactly what the single gate exists for. Built in two halves with different blast radii (option C): **account as first-class identity first** (store path, job field, keyring key — leaves), then **many live sessions** (a refactor confined to the session layer) — both built by 2026-08-30; every persisted account is restored as a live session at start. Limiter and probe scope keying — `(account, policy)` for `Account` rules, policy alone for `Ip` rules, scope learned from `X-Rate-Limit-Rules` — is a **precondition of the session map, not an optimization**: with two live sessions on one policy each response would overwrite shared state with a different account's counters, and the next send from the other account floods (a 429 path; the "over-waits, never floods" reading only held for rung 11's sequential switch). Decided 2026-08-29, amended 2026-08-30 after review across sessions; design below in "Multi-account design"; built 2026-08-30 through step (6) — step (7)'s live samples are in `RUN-LEDGER.md`.
 //!
 //! ## C32 — Per-route knowledge about GGG that headers cannot teach lives in one place (`Daemon::de…
 //!
@@ -320,7 +320,7 @@ const REFRESH_OWNER_ABANDONED: &str = "token refresh owner was abandoned before 
 /// | --- | --- | --- |
 /// | `handle_conn`: a frame that is not JSON/UTF-8, or not a request of this version | `bad request: …` | `bad_request` |
 /// | `handle_conn`: a frame over `MAX_FRAME_BYTES` | `frame exceeds …` | `bad_request` |
-/// | `handle_conn`: a versioned request after `subscribed` | `this connection is a subscription …` | `bad_request` |
+/// | `handle_conn`: a versioned request before `hello`, or after `subscribed` | `the connection has not opened with hello …` / `this connection is a subscription …` | `bad_request` |
 /// | `Sessions::get`, `get_mut`: no session at all | `not logged in — run acq auth` | `not_logged_in` |
 /// | `Sessions::get`, `get_mut`, `canonical_account`: none for the selector | `no session for … — run acq auth` | `not_logged_in` |
 /// | `Sessions::get`: several live, none named | `several accounts are logged in (…)` | `ambiguous_account` |
@@ -341,8 +341,11 @@ const REFRESH_OWNER_ABANDONED: &str = "token refresh owner was abandoned before 
 /// | `forget_account`: the index knows no such account / several | the index's message | `not_logged_in` / `ambiguous_account` |
 /// | `logout`: the keyring clear failed (logged, never on the wire) | the keyring's error | `internal` |
 ///
-/// Not produced by any site, so not a kind: a rails halt never refuses a
-/// request — a halted send waits, and `quote` names the halt in its body.
+/// Not a kind of its own: a rails halt never refuses a submit — a halted
+/// send waits, and `quote` names the halt in its body. The one request it
+/// reaches the wire through is `auth_check`, whose forced refresh the
+/// choke point refuses under the halt: that is `upstream`, the provider
+/// not answered, with the session still standing.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Refusal {
     pub kind: ErrorKind,
@@ -541,14 +544,35 @@ impl Sessions {
     }
 
     /// The live session a selector names (username, name without
-    /// discriminator, or uuid), if any. A staged login is not a session and
-    /// cannot match: it lives outside this map.
-    fn matching(&self, selector: &str) -> Option<&AuthSession> {
-        self.by_account.values().find(|s| {
+    /// discriminator, or uuid), if any. A name without its discriminator
+    /// that two live sessions share is refused as `ambiguous_account`
+    /// (C51: matching is exact, and the daemon never guesses) — review
+    /// finding 2026-09-10, round 1: `find` over a map picked one. A staged
+    /// login is not a session and cannot match: it lives outside this map.
+    fn matching(&self, selector: &str) -> Result<Option<&AuthSession>, Refusal> {
+        let mut hits = self.by_account.values().filter(|s| {
             s.username
                 .as_deref()
                 .is_some_and(|u| account_matches(selector, u, s.uuid.as_deref()))
-        })
+        });
+        let first = hits.next();
+        let mut rest = hits.peekable();
+        if first.is_some() && rest.peek().is_some() {
+            let mut names: Vec<String> = first
+                .into_iter()
+                .chain(rest)
+                .filter_map(|s| s.username.clone())
+                .collect();
+            names.sort();
+            return Err(Refusal::new(
+                ErrorKind::AmbiguousAccount,
+                format!(
+                    "account {selector:?} names several live sessions ({}); use the full name",
+                    names.join(", ")
+                ),
+            ));
+        }
+        Ok(first)
     }
 
     /// Insert or replace an account's session. Replacing advances the old
@@ -1235,9 +1259,9 @@ resubmit if still wanted",
         }
     }
 
-    /// Turn a client's account selector into the account a job runs as.
-    /// One live session for now: the selector must name it (or be absent);
-    /// anything else is refused at submit, before a job exists.
+    /// Turn a client's account selector into the account a job runs as:
+    /// the selector must name a live session, or be absent with exactly
+    /// one live; anything else is refused at submit, before a job exists.
     fn resolve_account(
         &self,
         kind: &str,
@@ -1245,7 +1269,7 @@ resubmit if still wanted",
     ) -> Result<Option<String>, Refusal> {
         let s = self.shared.lock().unwrap();
         match requested {
-            Some(req) => match s.auth.matching(req) {
+            Some(req) => match s.auth.matching(req)? {
                 Some(session) => Ok(session.username.clone()),
                 None if s.auth.by_account.is_empty() => Err(Refusal::new(
                     ErrorKind::NotLoggedIn,
@@ -1274,7 +1298,7 @@ resubmit if still wanted",
         let Some(sel) = selector else { return Ok(None) };
         let s = self.shared.lock().unwrap();
         s.auth
-            .matching(sel)
+            .matching(sel)?
             .and_then(|x| x.username.clone())
             .map(Some)
             .ok_or_else(|| no_session(sel))
@@ -3150,6 +3174,10 @@ resubmit if still wanted",
         let (read, mut write) = stream.into_split();
         let mut reader = BufReader::new(read);
         let mut events: Option<broadcast::Receiver<JobInfo>> = None;
+        // Every connection begins with the hello exchange (C85): a
+        // versioned request before it is refused, so a peer that never
+        // identified itself performs nothing (review round 1).
+        let mut greeted = false;
 
         loop {
             tokio::select! {
@@ -3195,6 +3223,7 @@ resubmit if still wanted",
                             if write_line(&mut write, &hello).await.is_err() {
                                 break;
                             }
+                            greeted = true;
                             continue;
                         }
                         Some(Bootstrap::DaemonStop) => {
@@ -3203,7 +3232,13 @@ resubmit if still wanted",
                         }
                         None => {}
                     }
-                    let response = if events.is_some() {
+                    let response = if !greeted {
+                        Refusal::new(
+                            ErrorKind::BadRequest,
+                            "the connection has not opened with hello; every connection begins with the hello exchange",
+                        )
+                        .into()
+                    } else if events.is_some() {
                         Refusal::new(
                             ErrorKind::BadRequest,
                             "this connection is a subscription: after `subscribed` it carries events only; requests go on a connection of their own",
@@ -3509,11 +3544,11 @@ resubmit if still wanted",
                             .auth
                             .get(None)
                             .map(|x| x.username.clone().unwrap_or_default()),
-                        Some(req) => s
-                            .auth
-                            .matching(req)
-                            .map(|x| x.username.clone().unwrap_or_default())
-                            .ok_or_else(|| no_session(req)),
+                        Some(req) => s.auth.matching(req).and_then(|found| {
+                            found
+                                .map(|x| x.username.clone().unwrap_or_default())
+                                .ok_or_else(|| no_session(req))
+                        }),
                     }
                 };
                 match (live, &account) {
@@ -3985,9 +4020,9 @@ async fn run_with_log(log: std::fs::File) -> Result<()> {
     Daemon::declare_route_knowledge(&choke);
 
     // Sessions survive daemon restarts through the keyring, one entry per
-    // account; the account index says which entries to look for. One live
-    // session for now (the most recent login); the others stay in the
-    // keyring untouched. One unreadable entry never blocks the rest.
+    // account; the account index says which entries to look for, and every
+    // persisted account comes back as a live session (C31). One unreadable
+    // entry never blocks the rest.
     let dir = store_dir(provider.name);
     let mut sessions = Sessions {
         keyring: "ok".into(),
@@ -4129,6 +4164,55 @@ async fn run_with_log(log: std::fs::File) -> Result<()> {
 #[cfg(test)]
 mod auth_session_tests {
     use super::*;
+
+    /// C51: a bare name two live sessions share is refused, never guessed
+    /// (review finding 2026-09-10); the full name and the uuid select.
+    #[test]
+    fn a_selector_matching_several_sessions_is_ambiguous() {
+        let mut sessions = Sessions::default();
+        for (name, uuid) in [
+            ("Alice#1234", "u-1"),
+            ("Alice#5678", "u-2"),
+            ("Bob#0001", "u-3"),
+        ] {
+            sessions.replace(AuthSession {
+                username: Some(name.into()),
+                uuid: Some(uuid.into()),
+                ..AuthSession::default()
+            });
+        }
+        let err = match sessions.matching("alice") {
+            Err(err) => err,
+            Ok(_) => panic!("a shared bare name selected a session"),
+        };
+        assert_eq!(err.kind, ErrorKind::AmbiguousAccount);
+        assert!(
+            err.message.contains("Alice#1234, Alice#5678") && err.message.contains("full name"),
+            "{err}"
+        );
+        assert_eq!(
+            sessions
+                .matching("Alice#5678")
+                .unwrap()
+                .and_then(|s| s.uuid.clone()),
+            Some("u-2".into())
+        );
+        assert_eq!(
+            sessions
+                .matching("u-1")
+                .unwrap()
+                .and_then(|s| s.username.clone()),
+            Some("Alice#1234".into())
+        );
+        assert_eq!(
+            sessions
+                .matching("bob")
+                .unwrap()
+                .and_then(|s| s.username.clone()),
+            Some("Bob#0001".into())
+        );
+        assert!(sessions.matching("carol").unwrap().is_none());
+    }
     use std::sync::atomic::{AtomicBool, Ordering};
     use tokio::sync::oneshot;
 
@@ -4663,6 +4747,7 @@ mod auth_session_tests {
             );
         }
         assert_eq!(waiter_errors, vec![REFRESH_OWNER_ABANDONED; 3]);
+        assert!(waiter_errors.iter().all(|e| e.kind == ErrorKind::Internal));
         {
             let s = daemon.shared.lock().unwrap();
             assert!(s.auth.one().refresh_flight.is_none());
@@ -7748,6 +7833,7 @@ mod dispatcher_tests {
             .submit("sleep".into(), json!({}), 0, "t".into(), None)
             .unwrap_err();
         assert!(err.message.contains("refuses new jobs"), "{err}");
+        assert_eq!(err.kind, ErrorKind::QueueFailed);
         assert_eq!(
             daemon.shared.lock().unwrap().next_id,
             2,
@@ -7833,9 +7919,11 @@ mod dispatcher_tests {
         daemon.jobs_db.lock().unwrap().break_for_tests();
         let err = daemon.set_priority(id, 9).unwrap_err();
         assert!(err.message.contains("priority unchanged"), "{err}");
+        assert_eq!(err.kind, ErrorKind::QueueFailed);
         assert_eq!(daemon.shared.lock().unwrap().jobs[&id].info.priority, 3);
         let err = daemon.cancel(id).unwrap_err();
         assert!(err.message.contains("may not survive"), "{err}");
+        assert_eq!(err.kind, ErrorKind::QueueFailed);
         assert_eq!(
             daemon.shared.lock().unwrap().jobs[&id].info.state,
             JobState::Cancelled,
@@ -8039,6 +8127,11 @@ mod dispatcher_tests {
 
         let first = daemon.valid_access_token(None, false).await.unwrap_err();
         assert!(first.message.contains("400 Bad Request"), "{first}");
+        assert_eq!(
+            first.kind,
+            ErrorKind::NotLoggedIn,
+            "a rejected grant is a dead session"
+        );
         assert_eq!(requests.lock().unwrap().len(), 1);
         assert!(
             rails
@@ -8054,6 +8147,7 @@ mod dispatcher_tests {
             ),
             "{second}"
         );
+        assert_eq!(second.kind, ErrorKind::NotLoggedIn);
         assert_eq!(
             requests.lock().unwrap().len(),
             1,
@@ -8092,6 +8186,11 @@ mod dispatcher_tests {
 
         let first = daemon.valid_access_token(None, false).await.unwrap_err();
         assert!(first.message.contains("503"), "{first}");
+        assert_eq!(
+            first.kind,
+            ErrorKind::Upstream,
+            "a 5xx is the provider, not the session"
+        );
         assert_eq!(
             rails.refresh_failed("test-user"),
             None,
@@ -8135,6 +8234,11 @@ mod dispatcher_tests {
         assert!(
             error.message.contains("halted by live-test rails"),
             "{error}"
+        );
+        assert_eq!(
+            error.kind,
+            ErrorKind::Upstream,
+            "a halted refresh is not a dead session"
         );
         assert!(requests.lock().unwrap().is_empty());
         server.abort();

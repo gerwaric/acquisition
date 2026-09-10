@@ -38,7 +38,9 @@
 //!
 //! ## C85 — as built
 //!
-//! Every connection opens with the hello exchange. A request connection
+//! Every connection opens with the hello exchange, and the daemon holds
+//! it: a versioned request before `hello` is answered `bad_request` and
+//! not performed. A request connection
 //! (`client::Client`) writes one request and reads exactly one response
 //! before the next; the daemon answers a connection's frames in order,
 //! one at a time. A subscription connection (`client::Subscription`)

@@ -232,6 +232,20 @@ fn the_mcp_tools_carry_the_plan_slice_and_its_gates() {
     );
     assert!(msg.contains("exceeds the budget"), "{msg}");
 
+    // A daemon refusal reaches the agent with its closed kind in `data`
+    // and a code chosen by the kind (C85): a budget refusal is invalid
+    // params, an unknown job is a missing resource.
+    let error = mcp.expect_rpc_error(
+        "apply_plan",
+        json!({ "plan": planned["plan"], "max_requests": 1 }),
+    );
+    assert_eq!(error["data"]["kind"], "refused", "{error}");
+    assert_eq!(error["code"], -32602, "{error}");
+    let error = mcp.expect_rpc_error("job_status", json!({ "id": 999 }));
+    assert_eq!(error["data"]["kind"], "unknown_job", "{error}");
+    assert_eq!(error["code"], -32002, "{error}");
+    assert_eq!(error["message"], "no job 999", "{error}");
+
     // Everything below is claimed to happen with no daemon contact, so
     // prove it with no daemon: stop it and wait for the socket to die.
     rt.block_on(async {

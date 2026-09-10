@@ -67,10 +67,41 @@ fn on_disk(dir: &str) -> BTreeSet<String> {
         .collect()
 }
 
-/// Pin one plane: every sample against its fixture, the fixture set equal
-/// to the sample set, and every fixture readable back into the type and
-/// re-serialized identically (so deserialization is pinned too).
-fn pin<T: Serialize + serde::de::DeserializeOwned>(dir: &str, samples: &[(&str, T)]) {
+/// The variant names of an internally tagged enum, from the type itself:
+/// serde's unknown-variant error lists every one it expected. This is
+/// what makes "one fixture per variant" a property the compiler and serde
+/// hold, not a list kept by hand (review finding 2026-09-10, round 1). A
+/// change in serde's message shape fails loudly below, never vacuously.
+fn variants_of<T: serde::de::DeserializeOwned>(probe: Value) -> BTreeSet<String> {
+    let message = serde_json::from_value::<T>(probe)
+        .err()
+        .expect("the probe names no variant")
+        .to_string();
+    // "expected one of `a`, `b`, `c`" for three or more variants,
+    // "expected `a` or `b`" for two.
+    let listed = message
+        .split_once("expected ")
+        .map(|(_, rest)| rest.trim_start_matches("one of "))
+        .unwrap_or_else(|| panic!("serde no longer lists the variants: {message}"));
+    let names: BTreeSet<String> = listed
+        .split(',')
+        .flat_map(|part| part.split(" or "))
+        .map(|part| part.trim().trim_matches('`').to_string())
+        .filter(|name| !name.is_empty())
+        .collect();
+    assert!(names.len() > 1, "{message}");
+    names
+}
+
+/// Pin one plane: every sample against its fixture, the sample set equal
+/// to the type's variants and to the fixture set on disk, and every
+/// fixture readable back into the type and re-serialized identically (so
+/// deserialization is pinned too).
+fn pin<T: Serialize + serde::de::DeserializeOwned>(
+    dir: &str,
+    variants: &BTreeSet<String>,
+    samples: &[(&str, T)],
+) {
     let mut problems = Vec::new();
     let mut names = BTreeSet::new();
     for (name, sample) in samples {
@@ -90,6 +121,10 @@ fn pin<T: Serialize + serde::de::DeserializeOwned>(dir: &str, samples: &[(&str, 
             "{dir}/{name}: changes on a round trip"
         );
     }
+    assert_eq!(
+        &names, variants,
+        "{dir}: the sampled variants are not the type's variants — a variant without a sample, or a sample under the wrong name"
+    );
     if !update() {
         let files = on_disk(dir);
         assert_eq!(
@@ -357,7 +392,11 @@ fn c85_every_request_variant_has_a_pinned_wire_shape() {
         .into_iter()
         .map(|r| (request_name(&r), r))
         .collect();
-    pin("request", &samples);
+    pin(
+        "request",
+        &variants_of::<Request>(json!({ "req": "__none__" })),
+        &samples,
+    );
 }
 
 #[test]
@@ -366,7 +405,11 @@ fn c85_every_response_variant_has_a_pinned_wire_shape() {
         .into_iter()
         .map(|r| (response_name(&r), r))
         .collect();
-    pin("response", &samples);
+    pin(
+        "response",
+        &variants_of::<Response>(json!({ "resp": "__none__" })),
+        &samples,
+    );
 }
 
 /// The four bootstrap frames, and their lenient readers: a frame keyed
@@ -375,8 +418,18 @@ fn c85_every_response_variant_has_a_pinned_wire_shape() {
 /// each other and lets a human stop a daemon across a mismatch.
 #[test]
 fn c85_the_bootstrap_plane_is_pinned_and_read_leniently() {
+    let mut bootstrap = variants_of::<Bootstrap>(json!({ "req": "__none__" }));
+    for reply in variants_of::<BootstrapReply>(json!({ "resp": "__none__" })) {
+        // The reply plane's `hello` is a distinct frame from the request's.
+        bootstrap.insert(if reply == "hello" {
+            "hello_reply".into()
+        } else {
+            reply
+        });
+    }
     pin(
         "bootstrap",
+        &bootstrap,
         &[
             (
                 "hello",
@@ -478,6 +531,16 @@ fn c85_the_error_kind_set_is_closed_and_pinned() {
         .iter()
         .map(|k| serde_json::to_value(k).unwrap())
         .collect();
+    let listed: BTreeSet<String> = names
+        .iter()
+        .map(|n| n.as_str().unwrap().to_string())
+        .collect();
+    assert_eq!(
+        listed,
+        variants_of::<ErrorKind>(json!("__none__")),
+        "ErrorKind::ALL is not the type's variants"
+    );
+    assert_eq!(listed.len(), ErrorKind::ALL.len(), "a kind listed twice");
     for (kind, name) in ErrorKind::ALL.iter().zip(&names) {
         assert_eq!(name, &json!(kind.as_str()), "{kind:?}");
         assert_eq!(
