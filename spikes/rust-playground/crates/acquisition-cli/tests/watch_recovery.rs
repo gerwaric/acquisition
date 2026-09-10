@@ -20,7 +20,7 @@ use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
 use acquisition_core::client::{Client, Observed};
-use acquisition_core::protocol::{Request, Response};
+use acquisition_protocol::protocol::{Request, Response};
 use serde_json::{Value, json};
 
 fn command(base: &Path, args: &[&str]) -> Command {

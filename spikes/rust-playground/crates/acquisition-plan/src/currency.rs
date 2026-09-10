@@ -54,7 +54,7 @@ use std::sync::LazyLock;
 
 use serde::{Deserialize, Serialize};
 
-use acquisition_core::realm::Realm;
+use acquisition_protocol::realm::Realm;
 
 /// The table this build ships, verbatim (the reviewed file).
 pub const CURRENCY_TABLE_TOML: &str = include_str!("../reference/currency-v1.toml");

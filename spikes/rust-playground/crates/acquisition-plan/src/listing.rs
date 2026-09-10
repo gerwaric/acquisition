@@ -157,7 +157,7 @@
 use std::collections::{BTreeMap, HashMap};
 use std::fmt;
 
-use acquisition_core::realm::Realm;
+use acquisition_protocol::realm::Realm;
 use acquisition_store::{
     AnnotationRow, CharacterSnapshot, ItemSnapshot, ListingBasis, PricingSnapshot, TabSnapshot,
     ValueError, check_value,

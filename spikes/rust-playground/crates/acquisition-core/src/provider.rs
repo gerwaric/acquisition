@@ -26,9 +26,6 @@ pub const SCOPES: &[&str] = &[
 /// provider redirects wherever it's told, so both modes share it.
 pub const CALLBACK_PATH: &str = "/auth/path-of-exile";
 
-// Until step 2 of the daemon split switches the frontends to the
-// protocol crate; step 2 deletes this line.
-pub use acquisition_protocol::provider::ggg_mode;
 use acquisition_protocol::provider::{GGG, MOCK};
 
 pub struct Provider {

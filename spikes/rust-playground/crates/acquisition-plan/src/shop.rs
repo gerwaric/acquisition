@@ -125,7 +125,7 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fmt;
 
-use acquisition_core::realm::Realm;
+use acquisition_protocol::realm::Realm;
 use serde::{Deserialize, Serialize};
 
 use crate::currency::{self, CurrencyTableError};

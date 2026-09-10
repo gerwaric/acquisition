@@ -90,7 +90,7 @@
 use std::fmt;
 use std::str::FromStr;
 
-use acquisition_core::realm::Realm;
+use acquisition_protocol::realm::Realm;
 use acquisition_store::{AnnotationError, AnnotationRow, Annotations, IntentValue, Provenance};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;

@@ -24,8 +24,8 @@ use std::process::Stdio;
 use std::time::{Duration, Instant};
 
 use acquisition_core::client::{Client, ConnectOptions};
-use acquisition_core::protocol::{Request, Response};
 use acquisition_plan::{RefreshAction, RefreshPlan};
+use acquisition_protocol::protocol::{Request, Response};
 use harness::{Mcp, spawn};
 use serde_json::{Value, json};
 

@@ -23,12 +23,12 @@ use std::process::{Child, Command, Stdio};
 use std::sync::{Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
-use acquisition_core::VERSION_WITH_RUNTIME;
 use acquisition_core::client::{Client, ConnectOptions, Observed, Signal, Subscription};
 use acquisition_core::daemon::socket_path;
 use acquisition_core::frame::{Frame, read_frame};
-use acquisition_core::job::JobState;
-use acquisition_core::protocol::{ErrorKind, MAX_FRAME_BYTES, Request, Response};
+use acquisition_protocol::VERSION_WITH_RUNTIME;
+use acquisition_protocol::job::JobState;
+use acquisition_protocol::protocol::{ErrorKind, MAX_FRAME_BYTES, Request, Response};
 use serde_json::{Value, json};
 use tokio::io::{AsyncWriteExt, BufReader};
 use tokio::net::unix::{OwnedReadHalf, OwnedWriteHalf};

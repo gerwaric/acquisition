@@ -45,14 +45,12 @@ use std::time::{Duration, Instant, SystemTime};
 
 use serde::{Deserialize, Serialize};
 
-use crate::gate::{SendGate, SendPermit};
-use crate::rails::{BlockShape, Rails, SendReport};
-// The status documents are the protocol crate's (`status.rs` there); this
-// module builds them. Re-exported until step 2 of the daemon split
-// switches the frontends; step 2 deletes this line.
-pub use acquisition_protocol::status::{
+use acquisition_protocol::status::{
     DegradedEndpoint, PolicyStatus, RuleStatus, SendRecord, WindowStatus,
 };
+
+use crate::gate::{SendGate, SendPermit};
+use crate::rails::{BlockShape, Rails, SendReport};
 
 /// Server-side timing bucket for a rule's first (initial) window (N12).
 pub const INITIAL_BUCKET: Duration = Duration::from_secs(5);

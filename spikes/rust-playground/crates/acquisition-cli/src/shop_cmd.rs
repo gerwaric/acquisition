@@ -23,12 +23,12 @@
 
 use std::path::Path;
 
-use acquisition_core::realm::Realm;
 use acquisition_plan::listing::resolve;
 use acquisition_plan::shop::{
     Cell, ITEMS_TOKEN, LeftOut, PolicySource, RenderOptions, ShopRender, Verdict, render,
 };
 use acquisition_plan::{SyncPolicy, plan_refresh};
+use acquisition_protocol::realm::Realm;
 use acquisition_store::{
     SYNC_POLICY_KEY, SYNC_POLICY_KIND, SYNC_POLICY_SCOPE, Store, account_path,
 };

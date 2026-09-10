@@ -48,9 +48,9 @@
 use std::path::PathBuf;
 
 use acquisition_core::client::{Client, ConnectOptions, DaemonError, Observed};
-use acquisition_core::protocol::{ErrorKind, QuoteJob, Request, Response};
-use acquisition_core::realm::Realm;
 use acquisition_plan::{PlanError, RefreshPlan, plan_refresh, put_sync_policy};
+use acquisition_protocol::protocol::{ErrorKind, QuoteJob, Request, Response};
+use acquisition_protocol::realm::Realm;
 use acquisition_store::{
     AccountEntry, Annotations, Index, Provenance, SYNC_POLICY_KEY, SYNC_POLICY_KIND,
     SYNC_POLICY_SCOPE, Store, account_path, store_dir,
@@ -62,12 +62,10 @@ use rmcp::{ErrorData, ServerHandler, ServiceExt, schemars, tool, tool_handler, t
 use serde::Deserialize;
 use serde_json::{Value, json};
 
+/// The provider this process wants (`ACQ_GGG`): the store directory, the
+/// plan's provider field and the daemon's `hello` all name the same one.
 fn provider() -> &'static str {
-    if acquisition_core::provider::ggg_mode() {
-        "ggg"
-    } else {
-        "mock"
-    }
+    acquisition_protocol::provider::wanted()
 }
 
 /// anyhow errors become MCP tool errors with the full context chain.
@@ -197,7 +195,7 @@ async fn try_quote(plan: RefreshPlan) -> (RefreshPlan, Option<String>) {
 /// replace; lazy-spawn only in mock mode (spawning a real-GGG daemon is
 /// the human's act, via the CLI).
 async fn connect(spawn: bool) -> Result<Client> {
-    let spawn = spawn && !acquisition_core::provider::ggg_mode();
+    let spawn = spawn && !acquisition_protocol::provider::ggg_mode();
     Client::connect(ConnectOptions::autonomous(spawn)).await
 }
 

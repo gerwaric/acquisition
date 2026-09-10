@@ -14,9 +14,9 @@ use acquisition_core::client::{
     Client, ConnectOptions, DaemonError, Observed, Signal, Subscription,
 };
 use acquisition_core::daemon;
-use acquisition_core::job::{JobInfo, JobState, Outcome};
-use acquisition_core::protocol::{Request, Response};
-use acquisition_core::realm::Realm;
+use acquisition_protocol::job::{JobInfo, JobState, Outcome};
+use acquisition_protocol::protocol::{Request, Response};
+use acquisition_protocol::realm::Realm;
 use anyhow::{Result, bail};
 use clap::{Parser, Subcommand};
 use serde_json::json;
@@ -58,7 +58,7 @@ pub(crate) async fn attach() -> Result<Client> {
     name = "acq",
     // `<pkg version> (runtime <revision>)`: the handshake identity (C10);
     // `acq version --json` is the structured form.
-    version = acquisition_core::VERSION_WITH_RUNTIME,
+    version = acquisition_protocol::VERSION_WITH_RUNTIME,
     about = "Acquisition playground CLI (mock provider by default; ACQ_GGG=1 talks to real GGG)"
 )]
 struct Cli {
@@ -910,12 +910,12 @@ async fn run(cli: Cli) -> Result<()> {
                 println!(
                     "{}",
                     json!({
-                        "version": acquisition_core::VERSION,
-                        "runtime": acquisition_core::RUNTIME_REVISION,
+                        "version": acquisition_protocol::VERSION,
+                        "runtime": acquisition_protocol::RUNTIME_REVISION,
                     })
                 );
             } else {
-                println!("acq {}", acquisition_core::VERSION_WITH_RUNTIME);
+                println!("acq {}", acquisition_protocol::VERSION_WITH_RUNTIME);
             }
             Ok(())
         }
@@ -1069,11 +1069,7 @@ async fn run(cli: Cli) -> Result<()> {
                     Observed::Absent => {
                         // The trip lives on disk; clear it there so the next
                         // spawned daemon is not still halted.
-                        let provider = if acquisition_core::provider::ggg_mode() {
-                            "ggg"
-                        } else {
-                            "mock"
-                        };
+                        let provider = acquisition_protocol::provider::wanted();
                         let state =
                             daemon::socket_path().with_extension(format!("{provider}.rails.json"));
                         match std::fs::remove_file(&state) {

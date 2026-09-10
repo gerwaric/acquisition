@@ -8,10 +8,10 @@
 use std::io::IsTerminal as _;
 use std::time::Duration;
 
-use acquisition_core::job::{JobInfo, JobState};
-use acquisition_core::protocol::{ErrorRecord, Request, Response};
-use acquisition_core::rails::RailsStatus;
-use acquisition_core::ratelimit::{DegradedEndpoint, PolicyStatus, SendRecord};
+use acquisition_protocol::job::{JobInfo, JobState};
+use acquisition_protocol::protocol::{ErrorRecord, Request, Response};
+use acquisition_protocol::status::RailsStatus;
+use acquisition_protocol::status::{DegradedEndpoint, PolicyStatus, SendRecord};
 use anyhow::{Result, bail};
 use ratatui::Frame;
 use ratatui::crossterm::event::{self, Event, KeyCode, KeyEventKind, KeyModifiers};
@@ -248,7 +248,7 @@ fn draw_header(f: &mut Frame, area: Rect, s: &Snap) {
 }
 
 /// `hits/max·Ns` for one window, red when saturated, yellow when one away.
-fn window_span(w: &acquisition_core::ratelimit::WindowStatus) -> Span<'static> {
+fn window_span(w: &acquisition_protocol::status::WindowStatus) -> Span<'static> {
     let style = if w.restricted_secs > 0 || w.hits >= w.max_hits {
         Style::new().red().bold()
     } else if w.hits + 1 >= w.max_hits {

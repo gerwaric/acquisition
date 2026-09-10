@@ -263,9 +263,9 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
-use acquisition_core::daemon::MAX_429_RETRIES;
-use acquisition_core::protocol::Quote;
-use acquisition_core::realm::{Family, Realm};
+use acquisition_protocol::job::MAX_429_RETRIES;
+use acquisition_protocol::protocol::Quote;
+use acquisition_protocol::realm::{Family, Realm};
 use acquisition_store::{
     AnnotationError, AnnotationRow, Annotations, CharacterSnapshot, IntentValue, ListingBasis,
     Provenance, RefreshSnapshot, SYNC_POLICY_KEY, SYNC_POLICY_KIND, SYNC_POLICY_SCOPE, TabSnapshot,
@@ -2757,7 +2757,7 @@ mod tests {
     /// C40 — the quote is optional enrichment with its own observation time; C38 — it must speak about exactly this plan's work.
     #[test]
     fn a_quote_enriches_a_plan_optionally_and_must_speak_about_it() {
-        use acquisition_core::protocol::{QuoteJob, QuoteScope};
+        use acquisition_protocol::protocol::{QuoteJob, QuoteScope};
         let mut s = store();
         list(
             &mut s,

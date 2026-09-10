@@ -43,8 +43,8 @@
 use std::io::{Read, Write};
 use std::path::PathBuf;
 
-use acquisition_core::realm::Realm;
 use acquisition_plan::price::PriceTarget;
+use acquisition_protocol::realm::Realm;
 use acquisition_store::{
     AnnotationRow, Annotations, CharacterSnapshot, Index, ItemSnapshot, PricingSnapshot, Store,
     TabSnapshot, account_path, store_dir,

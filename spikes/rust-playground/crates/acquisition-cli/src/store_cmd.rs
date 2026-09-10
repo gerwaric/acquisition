@@ -5,8 +5,8 @@ use std::collections::{BTreeMap, HashMap};
 use std::path::Path;
 use std::path::PathBuf;
 
-use acquisition_core::provider::ggg_mode;
-use acquisition_core::realm::Realm;
+use acquisition_protocol::provider::wanted;
+use acquisition_protocol::realm::Realm;
 use acquisition_store::{AccountEntry, Endpoint, Index, Store, account_path, store_dir};
 use anyhow::{Context, Result, bail};
 use serde_json::{Value, json};
@@ -18,8 +18,10 @@ pub fn set_selector(selector: Option<String>) {
     let _ = SELECTOR.set(selector);
 }
 
+/// The provider this process wants (`ACQ_GGG`): the store directory, the
+/// plan's provider field and the daemon's `hello` all name the same one.
 pub(crate) fn provider() -> &'static str {
-    if ggg_mode() { "ggg" } else { "mock" }
+    wanted()
 }
 
 /// Which account's store: `ACQ_ACCOUNT` (exact username, name without

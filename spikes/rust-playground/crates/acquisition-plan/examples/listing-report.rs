@@ -32,8 +32,8 @@
 use std::io::Write;
 use std::path::PathBuf;
 
-use acquisition_core::realm::Realm;
 use acquisition_plan::listing::{ListingReport, resolve};
+use acquisition_protocol::realm::Realm;
 use acquisition_store::{Annotations, Index, Store, account_path, store_dir};
 use anyhow::{Context, Result, anyhow, bail};
 

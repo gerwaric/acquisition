@@ -15,12 +15,3 @@ pub mod mockggg;
 pub mod provider;
 pub mod rails;
 pub mod ratelimit;
-
-// The wire, the job model, the vocabulary and the runtime revision are the
-// protocol crate's since the daemon split's step 1 (DAEMON-SPLIT-SLICE.md).
-// Re-exported at their old paths for one commit, so the planner and the
-// frontends compile unchanged until step 2 switches them; step 2 deletes
-// these lines.
-pub use acquisition_protocol::{
-    RUNTIME_REVISION, VERSION, VERSION_WITH_RUNTIME, job, protocol, realm,
-};

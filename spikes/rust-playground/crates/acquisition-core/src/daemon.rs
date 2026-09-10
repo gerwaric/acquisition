@@ -129,7 +129,9 @@ use crate::ratelimit::{
 };
 use crate::ratelimit::{endpoint_key, split_endpoint_key};
 use acquisition_protocol::VERSION;
-use acquisition_protocol::job::{JobId, JobInfo, JobState, Outcome, Priority, target_of};
+use acquisition_protocol::job::{
+    JobId, JobInfo, JobState, MAX_429_RETRIES, Outcome, Priority, target_of,
+};
 use acquisition_protocol::protocol::{
     Bootstrap, BootstrapReply, ErrorKind, ErrorRecord, MAX_FRAME_BYTES, Quote, QuoteJob,
     QuoteScope, Request, Response, SessionStatus,
@@ -138,11 +140,6 @@ use acquisition_protocol::provider::ggg_mode;
 use acquisition_protocol::realm::{Family, Realm};
 
 use crate::{auth, mockggg};
-
-// `MAX_429_RETRIES` is the protocol crate's (a promise a consumer computes
-// with, `job.rs` there). Re-exported until step 2 of the daemon split
-// switches the planner; step 2 deletes this line.
-pub use acquisition_protocol::job::MAX_429_RETRIES;
 
 const IDLE_SHUTDOWN: Duration = Duration::from_secs(60);
 

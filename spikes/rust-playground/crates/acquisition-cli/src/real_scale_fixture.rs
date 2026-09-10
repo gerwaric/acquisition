@@ -4,8 +4,8 @@
 //! league, names and ids hashed — tiled to the scale at which a
 //! quadratic view is unmistakable. Test-only.
 
-use acquisition_core::realm::Realm;
 use acquisition_plan::price::PriceTarget;
+use acquisition_protocol::realm::Realm;
 use acquisition_store::{ItemSnapshot, PricingSnapshot};
 
 const PATH: &str = concat!(

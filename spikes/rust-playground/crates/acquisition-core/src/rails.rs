@@ -60,11 +60,9 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+use acquisition_protocol::status::RailsStatus;
+
 use crate::ratelimit::{Clock, SystemClock};
-// `RailsStatus` is the protocol crate's (`status.rs` there): the daemon
-// builds it in `Rails::status`. Re-exported until step 2 of the daemon
-// split switches the frontends; step 2 deletes this line.
-pub use acquisition_protocol::status::RailsStatus;
 
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};

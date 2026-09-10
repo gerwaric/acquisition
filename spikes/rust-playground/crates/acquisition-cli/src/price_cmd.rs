@@ -31,7 +31,6 @@
 
 use std::str::FromStr;
 
-use acquisition_core::realm::Realm;
 use acquisition_plan::game_side::{GamePrice, Source};
 use acquisition_plan::listing::{
     ListFilter, ListView, Listing, ListingReport, Relation, ReportHeader, ShowView, Side, resolve,
@@ -39,6 +38,7 @@ use acquisition_plan::listing::{
 use acquisition_plan::price::{
     BUYOUT_KIND, BUYOUT_VERSION, Buyout, PriceTarget, PriceWrite, clear_buyout, set_buyout,
 };
+use acquisition_protocol::realm::Realm;
 use acquisition_store::{
     AnnotationRow, Annotations, IntentValue, Provenance, Store, account_path, check_value,
 };

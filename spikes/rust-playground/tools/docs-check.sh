@@ -21,8 +21,9 @@
 #   4. The README's form: one line per verb in the tour, a row per knob.
 #   5. Dependency direction: the layer rules as edges the crates cannot
 #      cross, read from `cargo metadata` — the daemon and the store as
-#      before, and since the daemon split's step 1 the protocol crate's
-#      purity (serde only) and the store's blindness to it; the rest of
+#      before, since the daemon split's step 1 the protocol crate's
+#      purity (serde only) and the store's blindness to it, and since
+#      step 2 the planner's independence from the daemon; the rest of
 #      the split's edge table (brainstorming-notes/18 §2.1) lands with
 #      the crates it names.
 #
@@ -169,7 +170,10 @@ fi
 # protocol crate — the daemon's contract as a frontend sees it — links
 # serde and serde_json, nothing else (sha2 at build time only), because a
 # dependency there is every frontend's and the daemon's both, and the
-# revision it computes must move only when the contract does (§2.1).
+# revision it computes must move only when the contract does (§2.1);
+# the planner links the protocol crate and the store, never the daemon
+# (§2.1: every path it took from core was the wire's or the vocabulary's,
+# so a planner that links the daemon again has grown a third door).
 # The edges are read from `cargo metadata`, i.e. from what Cargo itself
 # resolves — every section, every spelling, target-specific tables and
 # `[dependencies.x]` tables included — never from the manifest's text
@@ -178,9 +182,10 @@ fi
 # jq command whose exit status is checked directly — a jq inside a
 # process substitution fails without failing the script (review finding
 # 2026-09-10: a missing jq passed every edge with an empty set). The
-# table must name every crate the edges are about, so an empty or
-# partial answer refuses too instead of satisfying each allowlist
-# vacuously.
+# table must name every crate the edges are about — each `forbid` and
+# `allow` checks its own package first — so an empty or partial answer
+# refuses too instead of satisfying each allowlist vacuously, and an
+# edge about a crate the table does not know cannot be added quietly.
 meta=$(mktemp)
 if ! cargo metadata --format-version 1 --no-deps --offline >"$meta" 2>/dev/null \
    && ! cargo metadata --format-version 1 --no-deps >"$meta"; then
@@ -193,12 +198,12 @@ if ! edges=$(jq -r '.packages[] | .name as $p | .dependencies[]
   rm -f "$meta"; exit 1
 fi
 rm -f "$meta"
-for pkg in acquisition-core acquisition-store acquisition-protocol; do
-  if ! grep -q "^$pkg " <<<"$edges"; then
-    printf 'EDGE    the dependency table names no dependency of %s — the metadata was not read\n' "$pkg"
+named() {  # named <package>: the table must name a dependency of every crate an edge is about
+  if ! grep -q "^$1 " <<<"$edges"; then
+    printf 'EDGE    the dependency table names no dependency of %s — the metadata was not read\n' "$1"
     exit 1
   fi
-done
+}
 deps_of() {  # deps_of <package> <kind: normal|dev|build>: dependency names of that kind, any target
   awk -v p="$1" -v k="$2" '$1 == p && $2 == k {print $3}' <<<"$edges" | sort -u
 }
@@ -207,6 +212,7 @@ edge_bad=0
 forbid() {  # forbid <package> <why> <name>...: refuse any of these names, in any section
   local pkg=$1 why=$2; shift 2
   local hit
+  named "$pkg"
   hit=$(comm -12 <(all_deps_of "$pkg") <(printf '%s\n' "$@" | sort -u) | tr '\n' ' ')
   if [[ -n $hit ]]; then
     printf 'EDGE    %-22s links %s— %s\n' "$pkg" "$hit" "$why"
@@ -216,6 +222,7 @@ forbid() {  # forbid <package> <why> <name>...: refuse any of these names, in an
 allow() {  # allow <package> <kind> <name>...: refuse any other dependency of that kind
   local pkg=$1 kind=$2; shift 2
   local extra
+  named "$pkg"
   extra=$(comm -23 <(deps_of "$pkg" "$kind") <(printf '%s\n' "$@" | sort -u) | tr '\n' ' ')
   if [[ -n $extra ]]; then
     printf 'EDGE    %-22s [%s] links %s— the protocol crate is serde-only (§2.1)\n' "$pkg" "$kind" "$extra"
@@ -223,6 +230,7 @@ allow() {  # allow <package> <kind> <name>...: refuse any other dependency of th
   fi
 }
 forbid acquisition-core  'the daemon never links the planner (C39)' acquisition-plan
+forbid acquisition-plan  'the planner links protocol and store, never the daemon (§2.1, the split'"'"'s step 2)' acquisition-core
 forbid acquisition-store 'the store links no daemon, no protocol and no HTTP client (C41; the split, §2.1)' \
   acquisition-core acquisition-protocol acquisition-plan reqwest tokio
 allow acquisition-protocol normal serde serde_json
@@ -233,7 +241,7 @@ if grep -rqE 'Annotations|annotations_path' crates/acquisition-core/src crates/a
   fail=1; edge_bad=1
 fi
 if ((edge_bad == 0)); then
-  echo 'ok      dependencies  daemon ∌ planner, daemon/protocol ∌ intent API, store ∌ daemon/protocol/HTTP, protocol = serde only (C34, C39, C41, §2.1)'
+  echo 'ok      dependencies  daemon ∌ planner, planner ∌ daemon, daemon/protocol ∌ intent API, store ∌ daemon/protocol/HTTP, protocol = serde only (C34, C39, C41, §2.1)'
 fi
 
 exit $fail

@@ -119,13 +119,13 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use acquisition_core::client::{Client, DaemonError, Observed};
-use acquisition_core::job::Outcome;
-use acquisition_core::protocol::{Quote, QuoteJob, QuoteScope, Request, Response};
-use acquisition_core::realm::Realm;
 use acquisition_plan::{
     CharacterSkipReason, FetchReason, ListingReason, PlanError, RefreshAction, RefreshPlan,
     SkipReason, plan_refresh, put_sync_policy,
 };
+use acquisition_protocol::job::Outcome;
+use acquisition_protocol::protocol::{Quote, QuoteJob, QuoteScope, Request, Response};
+use acquisition_protocol::realm::Realm;
 use acquisition_store::{
     AccountEntry, Annotations, Provenance, SYNC_POLICY_KEY, SYNC_POLICY_KIND, SYNC_POLICY_SCOPE,
     Store, account_path,

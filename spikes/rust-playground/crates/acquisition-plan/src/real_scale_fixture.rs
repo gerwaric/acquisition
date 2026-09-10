@@ -7,7 +7,7 @@
 //! at the scale of a real account. Test-only; the fixture is evidence,
 //! never shipped data.
 
-use acquisition_core::realm::Realm;
+use acquisition_protocol::realm::Realm;
 use acquisition_store::PricingSnapshot;
 
 use crate::price::PriceTarget;
