@@ -174,15 +174,35 @@ fi
 # resolves — every section, every spelling, target-specific tables and
 # `[dependencies.x]` tables included — never from the manifest's text
 # (review finding 2026-09-10: a lexical parser missed three valid forms).
+# The metadata is read once, into a flat `package kind name` table, by a
+# jq command whose exit status is checked directly — a jq inside a
+# process substitution fails without failing the script (review finding
+# 2026-09-10: a missing jq passed every edge with an empty set). The
+# table must name every crate the edges are about, so an empty or
+# partial answer refuses too instead of satisfying each allowlist
+# vacuously.
 meta=$(mktemp)
-cargo metadata --format-version 1 --no-deps --offline >"$meta" 2>/dev/null \
-  || cargo metadata --format-version 1 --no-deps >"$meta"
+if ! cargo metadata --format-version 1 --no-deps --offline >"$meta" 2>/dev/null \
+   && ! cargo metadata --format-version 1 --no-deps >"$meta"; then
+  echo 'EDGE    cargo metadata failed — the dependency edges could not be read'
+  rm -f "$meta"; exit 1
+fi
+if ! edges=$(jq -r '.packages[] | .name as $p | .dependencies[]
+                    | "\($p) \(.kind // "normal") \(.name)"' "$meta"); then
+  echo 'EDGE    jq failed or is not installed — the dependency edges could not be read'
+  rm -f "$meta"; exit 1
+fi
+rm -f "$meta"
+for pkg in acquisition-core acquisition-store acquisition-protocol; do
+  if ! grep -q "^$pkg " <<<"$edges"; then
+    printf 'EDGE    the dependency table names no dependency of %s — the metadata was not read\n' "$pkg"
+    exit 1
+  fi
+done
 deps_of() {  # deps_of <package> <kind: normal|dev|build>: dependency names of that kind, any target
-  jq -r --arg pkg "$1" --arg kind "$2" '
-    .packages[] | select(.name == $pkg) | .dependencies[]
-    | select((.kind // "normal") == $kind) | .name' "$meta" | sort -u
+  awk -v p="$1" -v k="$2" '$1 == p && $2 == k {print $3}' <<<"$edges" | sort -u
 }
-all_deps_of() { for k in normal dev build; do deps_of "$1" "$k"; done | sort -u; }
+all_deps_of() { awk -v p="$1" '$1 == p {print $3}' <<<"$edges" | sort -u; }
 edge_bad=0
 forbid() {  # forbid <package> <why> <name>...: refuse any of these names, in any section
   local pkg=$1 why=$2; shift 2
@@ -208,7 +228,6 @@ forbid acquisition-store 'the store links no daemon, no protocol and no HTTP cli
 allow acquisition-protocol normal serde serde_json
 allow acquisition-protocol dev    serde serde_json
 allow acquisition-protocol build  sha2
-rm -f "$meta"
 if grep -rqE 'Annotations|annotations_path' crates/acquisition-core/src crates/acquisition-protocol/src; then
   echo 'EDGE    crates/acquisition-{core,protocol}/src    names the intent API — the daemon and the wire are permanently blind to intent (C34)'
   fail=1; edge_bad=1
