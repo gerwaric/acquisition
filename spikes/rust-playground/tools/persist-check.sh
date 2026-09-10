@@ -263,6 +263,11 @@ COMPLETED=1
 
 cp "$JOURNAL" "$RUN_DIR/sends.jsonl"
 cp "$LOG" "$RUN_DIR/daemon.log" 2>/dev/null || true
+# Which daemon sent: this run's lifetimes' headers against provenance.json
+# (C84); the journal is cumulative on disk, so only from this run's offset.
+tail -c +$((OFFSET + 1)) "$JOURNAL" >"$RUN_DIR/sends-this-run.jsonl"
+provenance_matches_journal "$RUN_DIR/sends-this-run.jsonl"
+rm -f "$RUN_DIR/sends-this-run.jsonl"
 
 verify() { python3 - "$JOURNAL" "$OFFSET" <<'PY'
 import json, sys
@@ -275,18 +280,20 @@ for raw in f:
         continue
     l = json.loads(raw)
     if l.get("event") == "open":
-        # `runtime` since 2026-09-09 (C10); journals before that say `build`.
-        cur = {"pid": l["pid"], "build": l.get("runtime", l.get("build")), "clock": l["clock"], "sends": []}
+        # `contract` + `daemon` since 2026-09-10 (C84); `runtime` from
+        # 2026-09-09 (C10); journals before that say `build`.
+        cur = {"pid": l["pid"], "build": l.get("contract", l.get("runtime", l.get("build"))),
+               "daemon": (l.get("daemon") or "-")[:12], "clock": l["clock"], "sends": []}
         lifetimes.append(cur)
         continue
     if cur is None:
-        cur = {"pid": l.get("pid"), "build": "?", "clock": "?", "sends": []}
+        cur = {"pid": l.get("pid"), "build": "?", "daemon": "?", "clock": "?", "sends": []}
         lifetimes.append(cur)
     cur["sends"].append(l)
 
 fail, totals = [], []
 for i, lt in enumerate(lifetimes, 1):
-    print(f"lifetime {i}: pid {lt['pid']}  runtime {lt['build']}  clock {lt['clock']}")
+    print(f"lifetime {i}: pid {lt['pid']}  contract {lt['build']}  acqd {lt['daemon']}  clock {lt['clock']}")
     counts, first = {}, {}
     for s in lt["sends"]:
         m, r, st = s["method"], s["route"], s.get("status")

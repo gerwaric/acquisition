@@ -5,10 +5,11 @@ edition.workspace = true
 
 # The client side of the daemon protocol (C1; DAEMON-SPLIT-SLICE.md step
 # 3): the IPC over tokio, the three policy doors of C10, the `acqd`
-# locator (C82) and the typed connect errors. Every frontend links it;
-# it links the protocol crate and tokio, never the daemon or the planner
-# (tools/docs-check.sh refuses both). The store joins at step 5 with the
-# world.
+# locator (C82), the artifact comparison (C84; sha2 hashes the sibling
+# when its file identity differs from the daemon's) and the typed connect
+# errors. Every frontend links it; it links the protocol crate and tokio,
+# never the daemon or the planner (tools/docs-check.sh refuses both). The
+# store joins at step 5 with the world.
 
 [dependencies]
 acquisition-protocol = { path = "../acquisition-protocol" }
@@ -16,6 +17,7 @@ tokio.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 anyhow.workspace = true
+sha2 = "0.10"
 
 [dev-dependencies]
 # The contract tests log in through the mock provider's approve page.

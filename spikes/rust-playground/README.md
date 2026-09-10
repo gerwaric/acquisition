@@ -21,23 +21,26 @@ here anticipates it.
   it: the wire (`protocol.rs`: `Request`/`Response`, the bootstrap plane,
   `ErrorKind`, `Quote`, the frame bound), the job model (`job.rs`), the
   realm vocabulary (`realm.rs`), the status documents (`status.rs`), the
-  provider names and `ACQ_GGG` (`provider.rs`), and the runtime revision
-  the handshake compares (`build.rs`, C10). serde only — never tokio or the
+  provider names and `ACQ_GGG` (`provider.rs`), the daemon artifact as
+  `hello` carries it (`artifact.rs`) and the shared-contract revision
+  the handshake compares (`build.rs`, C84). serde only — never tokio or the
   store; `tools/docs-check.sh` refuses more. One fixture per wire variant
   (`tests/wire.rs`, C85). Rulings: `decisions/daemon.md`.
 - `crates/acquisition-daemon` — the daemon as its own artifact, the
   `acqd` binary (`main.rs`; C1): the header-driven rate limiter and its
   choke point (`ratelimit.rs`: the spec is its test tables; `gate.rs`),
-  the mock provider (`mockggg.rs`), the live-test rails (`rails.rs`) and
-  the daemon (`daemon.rs`: queue, dispatcher, Unix-socket server, idle
-  watchdog). The only GGG sender; no package but this one names it.
-  Rulings: `decisions/daemon.md`, `decisions/network.md`.
+  the mock provider (`mockggg.rs`), the live-test rails (`rails.rs`),
+  its own executable identified and hashed at startup (`artifact.rs`,
+  C84) and the daemon (`daemon.rs`: queue, dispatcher, Unix-socket
+  server, idle watchdog). The only GGG sender; no package but this one
+  names it. Rulings: `decisions/daemon.md`, `decisions/network.md`.
 - `crates/acquisition-client` — the protocol client every frontend
   shares (`client.rs`: connect, the three policy doors of C10, the
-  runtime-revision handshake, typed connect errors) and the `acqd`
-  locator (`locator.rs`: beside the calling executable, nowhere else,
-  C82). Links protocol and tokio, never the daemon. Rulings:
-  `decisions/daemon.md`.
+  handshake that judges a daemon's contract, artifact and provider,
+  typed connect errors), the `acqd` locator (`locator.rs`: beside the
+  calling executable, nowhere else, C82) and the artifact comparison
+  against that sibling (`artifact.rs`, C84). Links protocol and tokio,
+  never the daemon. Rulings: `decisions/daemon.md`.
 - `crates/acquisition-store` — the shared store: SQLite, one facts file per
   account under one directory per provider, the uuid-named annotations
   file (intent — buyouts, the sync policy — the only irreplaceable local
@@ -110,7 +113,7 @@ acq store status | events [--hours N] | refused [id]   # row counts; what recent
 acq store import <snapshot.json> | rebuild    # replay a retired-pull snapshot (no GGG traffic); re-extract derived columns
 
 acq daemon status | stop | reset-tripwire     # debugging only (C3): paths, policies learned, the rails state; a halt's reset
-acq version [--json]                          # the package version and the runtime revision the handshake compares (C10)
+acq version [--json]                          # this build: version, the shared-contract revision, the sibling acqd a job command would start (C84)
 ```
 
 Every command takes `--json`, and it is total: a failure is `{"error":…}`
@@ -119,7 +122,8 @@ account when several are logged in (C51).
 
 `ACQ_GGG=1` on the command that spawns the daemon selects the real
 provider, under the existing registration (invariant 4); a job command
-replaces a daemon in the other mode or of another runtime revision, an
+replaces a daemon in the other mode, of another contract revision or
+running another `acqd` than the one beside it (C84), an
 observing verb (`jobs`, `status`, `daemon status`) reports it and never does (C10),
 and mock and real refresh tokens are separate keyring entries. The rule is
 `LIVE-TESTING.md`; the procedure is the live-run skill; the record is

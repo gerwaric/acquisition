@@ -39,11 +39,14 @@ Kept short; each of these is a shape we expect to meet again.
 - **The rails verify behavior; nothing verified which code.** The soak ran
   a binary predating the fix it had been restarted to pick up, and every
   rail was correct and blind to it. Provenance is its own category. From
-  then until 2026-09-09 the binary carried its git commit; it now carries
-  the runtime revision of its sources (`build.rs`, C10), the daemon's
-  first log line and the journal header print it, `acq version --json`
-  prints it, and the driver's run record maps it to HEAD (the frozen-soak
-  checker that compared commits was retired with the procedure).
+  then until 2026-09-09 the binary carried its git commit; since
+  2026-09-10 the identity is two values (C84): the shared-contract
+  revision of the protocol and store sources (`build.rs`), which `acq
+  version --json` prints, and the hash of the `acqd` file, which the
+  daemon reports in `hello`, its first log line and the journal header;
+  the driver's run record hashes both executables and maps them to HEAD,
+  and holds the journal to the `acqd` hash (the frozen-soak checker that
+  compared commits was retired with the procedure).
 - **"Looks like coverage, isn't."** Met five times in two days in different
   clothes: a stop condition that could not fail (no restarts, so "one HEAD
   per route" was a tautology); a checker that compared timestamps as
@@ -208,9 +211,9 @@ Prerequisites for a goal-function build, not a plan to start on now:
 
 ## Standing constraints carried from the soak
 
-- Build before any live run; the binary carries its runtime revision,
-  not a commit, and the run record maps it to HEAD (`LIVE-TESTING.md`,
-  "Build before you run").
+- Build before any live run; the binaries carry no commit — the
+  contract revision and the `acqd` hash (C84) — and the run record maps
+  them to HEAD (`LIVE-TESTING.md`, "Build before you run").
 - A future soak derives its ceiling from cadence × intended duration;
   200 sends at one per 10 min is 33 h, not "several days".
 - Express the HEAD condition per `(pid, route)` so it means something in

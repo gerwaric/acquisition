@@ -12,6 +12,7 @@
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
+use acquisition_protocol::artifact::{Artifact, FileIdentity};
 use acquisition_protocol::job::{JobInfo, JobState, MAX_429_RETRIES, Outcome};
 use acquisition_protocol::protocol::{
     Bootstrap, BootstrapReply, ErrorKind, ErrorRecord, MAX_FRAME_BYTES, Quote, QuoteJob,
@@ -152,6 +153,19 @@ fn job() -> JobInfo {
         retries: 1,
         account: Some("Alice#1234".into()),
         params: json!({ "league": "Standard", "id": "t1", "deep": false }),
+    }
+}
+
+fn artifact() -> Artifact {
+    Artifact {
+        file: FileIdentity {
+            path: "/opt/acquisition/acqd".into(),
+            len: 22_605_208,
+            mtime_ns: 1_800_000_000_000_000_000,
+            dev: 16_777_233,
+            ino: 4_242_424,
+        },
+        sha256: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef".into(),
     }
 }
 
@@ -438,7 +452,8 @@ fn c85_the_bootstrap_plane_is_pinned_and_read_leniently() {
             (
                 "hello",
                 serde_json::to_value(Bootstrap::Hello {
-                    client_version: "0.0.1 (runtime 0123456789ab)".into(),
+                    version: "0.0.1".into(),
+                    contract: "0123456789ab".into(),
                 })
                 .unwrap(),
             ),
@@ -449,7 +464,9 @@ fn c85_the_bootstrap_plane_is_pinned_and_read_leniently() {
             (
                 "hello_reply",
                 serde_json::to_value(BootstrapReply::Hello {
-                    daemon_version: "0.0.1 (runtime 0123456789ab)".into(),
+                    version: "0.0.1".into(),
+                    contract: "0123456789ab".into(),
+                    artifact: Some(artifact()),
                     pid: 4242,
                     provider: "mock".into(),
                 })
@@ -462,17 +479,30 @@ fn c85_the_bootstrap_plane_is_pinned_and_read_leniently() {
         ],
     );
 
-    // A future client's hello: extra fields, a nested shape, no version.
+    // A future client's hello: extra fields, a field reshaped, none of
+    // this build's fields at all (a client from before the identity split
+    // sent `client_version` alone).
     assert_eq!(
         Bootstrap::read(br#"{"req":"hello","contract":{"rev":"x"},"world":"/w"}"#),
         Some(Bootstrap::Hello {
-            client_version: UNKNOWN.into()
+            version: UNKNOWN.into(),
+            contract: UNKNOWN.into(),
         })
     );
     assert_eq!(
-        Bootstrap::read(br#"{"req":"hello","client_version":"9.9.9","extra":1}"#),
+        Bootstrap::read(br#"{"req":"hello","client_version":"0.0.1 (runtime 0123456789ab)"}"#),
         Some(Bootstrap::Hello {
-            client_version: "9.9.9".into()
+            version: UNKNOWN.into(),
+            contract: UNKNOWN.into(),
+        })
+    );
+    assert_eq!(
+        Bootstrap::read(
+            br#"{"req":"hello","version":"9.9.9","contract":"ffffffffffff","extra":1}"#
+        ),
+        Some(Bootstrap::Hello {
+            version: "9.9.9".into(),
+            contract: "ffffffffffff".into(),
         })
     );
     assert_eq!(
@@ -483,21 +513,60 @@ fn c85_the_bootstrap_plane_is_pinned_and_read_leniently() {
     assert_eq!(Bootstrap::read(b"not json"), None);
     assert_eq!(Bootstrap::read(br#"{"resp":"hello"}"#), None);
 
-    // A future daemon's hello: identified as foreign, never unparsed.
+    // A future daemon's hello: identified as foreign, never unparsed —
+    // with the artifact read when it is whole, dropped when it is not.
     assert_eq!(
         BootstrapReply::read(
-            br#"{"resp":"hello","daemon_version":"9.9.9 (runtime ffffffffffff)","pid":7,"provider":"ggg","world":"/w"}"#
+            br#"{"resp":"hello","version":"9.9.9","contract":"ffffffffffff","artifact":{"path":"/w/acqd","len":1,"mtime_ns":2,"dev":3,"ino":4,"sha256":"ab","future":true},"pid":7,"provider":"ggg","world":"/w"}"#
         ),
         Some(BootstrapReply::Hello {
-            daemon_version: "9.9.9 (runtime ffffffffffff)".into(),
+            version: "9.9.9".into(),
+            contract: "ffffffffffff".into(),
+            artifact: Some(Artifact {
+                file: FileIdentity {
+                    path: "/w/acqd".into(),
+                    len: 1,
+                    mtime_ns: 2,
+                    dev: 3,
+                    ino: 4,
+                },
+                sha256: "ab".into(),
+            }),
             pid: 7,
             provider: "ggg".into(),
         })
     );
     assert_eq!(
+        BootstrapReply::read(
+            br#"{"resp":"hello","version":"9.9.9","contract":"ffffffffffff","artifact":{"sha256":"ab"},"pid":7,"provider":"ggg"}"#
+        ),
+        Some(BootstrapReply::Hello {
+            version: "9.9.9".into(),
+            contract: "ffffffffffff".into(),
+            artifact: None,
+            pid: 7,
+            provider: "ggg".into(),
+        })
+    );
+    // A daemon from before the identity split: `daemon_version` alone.
+    assert_eq!(
+        BootstrapReply::read(
+            br#"{"resp":"hello","daemon_version":"0.0.1 (runtime 0123456789ab)","pid":7,"provider":"mock"}"#
+        ),
+        Some(BootstrapReply::Hello {
+            version: UNKNOWN.into(),
+            contract: UNKNOWN.into(),
+            artifact: None,
+            pid: 7,
+            provider: "mock".into(),
+        })
+    );
+    assert_eq!(
         BootstrapReply::read(br#"{"resp":"hello"}"#),
         Some(BootstrapReply::Hello {
-            daemon_version: UNKNOWN.into(),
+            version: UNKNOWN.into(),
+            contract: UNKNOWN.into(),
+            artifact: None,
             pid: 0,
             provider: UNKNOWN.into(),
         })
@@ -514,13 +583,13 @@ fn c85_the_bootstrap_plane_is_pinned_and_read_leniently() {
     // The bootstrap requests are not versioned requests, and the versioned
     // parser refuses them: one parser per plane.
     for frame in [
-        r#"{"req":"hello","client_version":"x"}"#,
+        r#"{"req":"hello","version":"x","contract":"y"}"#,
         r#"{"req":"daemon_stop"}"#,
     ] {
         assert!(serde_json::from_str::<Request>(frame).is_err(), "{frame}");
     }
     for frame in [
-        r#"{"resp":"hello","daemon_version":"x","pid":1,"provider":"mock"}"#,
+        r#"{"resp":"hello","version":"x","contract":"y","pid":1,"provider":"mock"}"#,
         r#"{"resp":"stopping"}"#,
     ] {
         assert!(serde_json::from_str::<Response>(frame).is_err(), "{frame}");

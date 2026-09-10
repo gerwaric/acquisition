@@ -16,6 +16,7 @@ use acquisition_client::client::{
 use acquisition_client::{log_path, socket_path};
 use acquisition_protocol::job::{JobInfo, JobState, Outcome};
 use acquisition_protocol::protocol::{Request, Response};
+use acquisition_protocol::provider::GGG;
 use acquisition_protocol::realm::Realm;
 use anyhow::{Result, bail};
 use clap::{Parser, Subcommand};
@@ -34,8 +35,8 @@ fn parse_realm(s: &str) -> Result<Realm, String> {
 }
 
 /// A use verb's connect (C10): lazy-spawn as asked, and replace a daemon
-/// of another runtime revision or provider — the caller is the human
-/// expressing intent.
+/// of another contract, artifact or provider (C84) — the caller is the
+/// human expressing intent.
 pub(crate) async fn connect(spawn: bool) -> Result<Client> {
     Ok(Client::connect(ConnectOptions::interactive(spawn)).await?)
 }
@@ -56,9 +57,10 @@ pub(crate) async fn attach() -> Result<Client> {
 #[derive(Parser)]
 #[command(
     name = "acq",
-    // `<pkg version> (runtime <revision>)`: the handshake identity (C10);
-    // `acq version --json` is the structured form.
-    version = acquisition_protocol::VERSION_WITH_RUNTIME,
+    // `<pkg version> (contract <revision>)`: the contract half of the
+    // handshake identity (C10, C84); `acq version --json` is the
+    // structured form, with the sibling `acqd` beside it.
+    version = acquisition_protocol::VERSION_WITH_CONTRACT,
     about = "Acquisition playground CLI (mock provider by default; ACQ_GGG=1 talks to real GGG)"
 )]
 struct Cli {
@@ -246,10 +248,15 @@ is the per-location summary.")]
     /// sends), job queue, HTTP sends, recent errors, a rails halt in red.
     /// With --json, prints one snapshot and exits.
     Dash,
-    /// The package version and the runtime revision the daemon handshake
-    /// compares (C10) — a digest over the daemon's sources, never a git
-    /// commit. `--json`: {"version", "runtime"}; `--version` is the human
-    /// form of the same.
+    /// What this build is (C84): the package version, the shared-contract
+    /// revision the daemon handshake compares — a digest over the
+    /// protocol and store sources, never a git commit — and the sibling
+    /// `acqd` a job command would start, as found on disk (path, length,
+    /// modification time; no hash — the run record hashes it). This
+    /// reports the candidate; `acq daemon status` reports the daemon
+    /// running. `--json`: {"version", "contract", "provider", "acqd":
+    /// {path, len, mtime_ns} | null, "acqd_absent"}; `--version` is the
+    /// human form of the first two.
     Version,
     /// The live jobs: id, parent, kind, target (from params, C7), state
     /// (`↻n` counts 429 re-queues, C26), priority, account, submitter, ETA.
@@ -533,15 +540,17 @@ enum AuthCmd {
 
 #[derive(Subcommand)]
 enum DaemonCmd {
-    /// pid, runtime revision, provider, uptime, connections, queue counts,
-    /// policies learned, the socket, log and journal paths, the rails
-    /// state, keyring health. Observes only (C10): never spawns or
-    /// replaces; a daemon of another runtime revision or provider is
+    /// The daemon running: pid, version, contract revision, the executable
+    /// it runs from and its hash (C84), provider, uptime, connections,
+    /// queue counts, policies learned, the socket, log and journal paths,
+    /// the rails state, keyring health. Observes only (C10): never spawns
+    /// or replaces; a daemon of another contract, artifact or provider is
     /// reported and left running (`--json`: running, compatible, and
-    /// which of the two differs).
+    /// which of the three differs, with the sibling `acqd` this client
+    /// would start under `wanted`).
     Status,
-    /// Stop the daemon that is listening, this runtime revision's or
-    /// another's.
+    /// Stop the daemon that is listening, this contract's and artifact's
+    /// or another's.
     /// Queued jobs stay on disk and resume under the next one (C6); a
     /// client's jobs are never cancelled by its leaving (C27).
     Stop,
@@ -904,16 +913,33 @@ async fn run(cli: Cli) -> Result<()> {
         }
         Cmd::Dash => dash::run(cli.json).await,
         Cmd::Version => {
+            // The candidate, not the daemon running (C84): the sibling
+            // `acqd` as found, with no hash — the run record hashes it.
+            let sibling = acquisition_client::artifact::sibling();
             if cli.json {
-                println!(
-                    "{}",
-                    json!({
-                        "version": acquisition_protocol::VERSION,
-                        "runtime": acquisition_protocol::RUNTIME_REVISION,
-                    })
-                );
+                let mut report = json!({
+                    "version": acquisition_protocol::VERSION,
+                    "contract": acquisition_protocol::CONTRACT_REVISION,
+                    "provider": acquisition_protocol::provider::wanted(),
+                    "acqd": sibling.as_ref().ok().map(|id| json!({
+                        "path": id.path,
+                        "len": id.len,
+                        "mtime_ns": id.mtime_ns,
+                    })),
+                });
+                if let Err(e) = &sibling {
+                    report["acqd_absent"] = json!(e.to_string());
+                }
+                println!("{report}");
             } else {
-                println!("acq {}", acquisition_protocol::VERSION_WITH_RUNTIME);
+                println!("acq {}", acquisition_protocol::VERSION_WITH_CONTRACT);
+                match sibling {
+                    Ok(id) => println!(
+                        "acqd: {} ({} bytes) — what a job command would start; `acq daemon status` reports the daemon running",
+                        id.path, id.len
+                    ),
+                    Err(e) => println!("acqd: none — {e}"),
+                }
             }
             Ok(())
         }
@@ -996,11 +1022,16 @@ async fn run(cli: Cli) -> Result<()> {
                         return Ok(());
                     }
                 };
+                let found = client.daemon().clone();
                 let status = client.request(&Request::DaemonStatus).await?;
                 if cli.json {
                     let mut report = serde_json::to_value(&status)?;
                     report["running"] = json!(true);
                     report["compatible"] = json!(true);
+                    // The identity the handshake carried (C84), beside the
+                    // vitals: the same keys the incompatible report has.
+                    report["contract"] = json!(found.contract);
+                    report["artifact"] = json!(found.artifact);
                     println!("{}", serde_json::to_string_pretty(&report)?);
                 } else if let Response::DaemonStatus {
                     pid,
@@ -1020,6 +1051,14 @@ async fn run(cli: Cli) -> Result<()> {
                     println!(
                         "daemon {version} pid {pid}, up {uptime_seconds}s, provider {provider}"
                     );
+                    match &found.artifact {
+                        Some(a) => println!(
+                            "acqd:   {} (sha256 {}) — the sibling this client would start",
+                            a.file.path,
+                            a.short_hash()
+                        ),
+                        None => println!("acqd:   not reported"),
+                    }
                     println!(
                         "connections: {connections}  waiting: {jobs_waiting}  running: {jobs_running}  in flight: {in_flight}/{max_in_flight}  policies learned: {policies_known}"
                     );
@@ -1212,7 +1251,7 @@ fn print_auth(status: &Response, json: bool) -> Result<()> {
         println!("{}", serde_json::to_string_pretty(status)?);
         return Ok(());
     }
-    if provider == "ggg" {
+    if provider == GGG {
         println!("provider: real GGG");
     }
     match (logged_in, pending) {

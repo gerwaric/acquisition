@@ -51,31 +51,69 @@
 //! run (2026-09-08). *Details:* `client.rs` doc, C10. *Pinned:*
 //! `acquisition-cli/tests/daemon_observe.rs`. Amended 2026-09-09.
 //!
-//! ## C10 — as built
+//! ## C84 — The runtime identity (C10) is two values from two sources
 //!
-//! The identity compared is [`VERSION_WITH_RUNTIME`], defined by the
-//! protocol crate (`acquisition-protocol/src/lib.rs`) since the daemon
-//! split's step 1, so both sides carry the same definition: the package
-//! version plus the runtime revision, a digest over the daemon, store and
-//! protocol sources, their manifests, the root manifest and the lock
-//! (the protocol crate's `build.rs`). It
-//! changes whenever any of those whole files changes: an uncommitted edit
-//! to `daemon.rs` makes a running daemon stale, a source edit to the
-//! planner, this crate or a frontend does not, a lock entry or store function the daemon never
-//! uses does (a deliberate false mismatch — a respawn is cheap, a missed
-//! dependency change is invisible), and no git state is consulted. The
-//! package version alone is fixed at `0.0.1` across the playground, and
-//! comparing it let a pre-realm daemon accept a console job and render
-//! the pc URL (review finding 2026-09-02). The provider is the
-//! handshake's `provider` against what this process wants (`ACQ_GGG`).
-//! The two dimensions are reported together ([`DaemonId::report`])
-//! because both can differ at once. Every frontend built from one tree
-//! carries the same revision, which is what lets `acq-mcp` accept a
-//! daemon `acq` spawned (C6, C31); two frontends built from different
-//! trees would thrash by respawning each other's daemons — theoretical in
-//! a one-workspace playground, recorded so it isn't relearned live. Step 4
-//! of the split makes the identity the daemon artifact plus the
-//! shared-contract revision (the identity ruling lands there).
+//! **C84 — The runtime identity (C10) is two values from two sources:
+//! the shared-contract revision, a digest of the protocol and store
+//! sources, manifests and lock both sides are compiled from, and the
+//! daemon artifact — the executable, which the daemon identifies and
+//! hashes at startup and a client compares with the sibling `acqd` it
+//! would spawn.** A mismatch on either is reported by name; a rebuilt
+//! `acqd` under a live daemon is an artifact mismatch. Daemon-only source
+//! changes move only the artifact; nothing derives from Git or a
+//! hand-kept number. *Why:* the contract answers "can I use it", the
+//! artifact "is it the one I would start"; each sees a failure the other
+//! cannot. *Details:* `client.rs` doc, C10. *Pinned:*
+//! `daemon_observe.rs`. Ruled 2026-09-09.
+//!
+//! ## C10 and C84 — as built
+//!
+//! The identity compared is the shared-contract revision and the daemon
+//! artifact, reported together with the provider ([`DaemonId`]): the
+//! three dimensions a client judges, each with its own source.
+//!
+//! The **contract** is [`CONTRACT_REVISION`], defined by the protocol
+//! crate (`acquisition-protocol/src/lib.rs`) so both sides carry the same
+//! definition: a digest over the protocol and store sources, their
+//! manifests, the root manifest and the lock (the protocol crate's
+//! `build.rs`). It changes whenever any of those whole files changes: a
+//! lock entry or a store function the daemon never uses does (a deliberate
+//! false mismatch — a respawn is cheap, a missed contract change is
+//! invisible); a source edit to the daemon, the planner, this crate or a
+//! frontend does not, and no git state is consulted. The package version
+//! alone is fixed at `0.0.1` across the playground, and comparing it let
+//! a pre-realm daemon accept a console job and render the pc URL (review
+//! finding 2026-09-02).
+//!
+//! The **artifact** is the executable the daemon runs from: at startup it
+//! records its file identity and SHA-256 and reports both in `hello`
+//! (`acquisition-protocol/src/artifact.rs` defines the identity; the
+//! daemon's `artifact.rs` computes it). This process compares that with
+//! the sibling `acqd` the locator names (C82), `stat`ed at the moment of
+//! the comparison (`artifact.rs` here): the same inode with the same
+//! length and modification time is the same file; anything else is
+//! settled by hashing the sibling — so a copy is the same artifact and a
+//! rebuild under a live daemon is a named mismatch that the next use verb
+//! resolves by respawning. A daemon-only edit moves this value and not the
+//! contract, which is what lets a daemon edit leave every frontend
+//! untouched (`DAEMON-SPLIT-SLICE.md`, step 4's measure). A process with
+//! no sibling — no `acqd` beside it — matches no daemon on this dimension
+//! and says so: it could not have started the one it found.
+//!
+//! The **provider** is the handshake's `provider` against what this
+//! process wants (`ACQ_GGG`).
+//!
+//! Why two values and not one: with the artifact alone, a frontend rebuilt
+//! after a wire or store change runs against an old daemon that matches
+//! itself — a silent contract mismatch, and for the store a new reader
+//! migrating files an old daemon still writes; with the contract alone, a
+//! daemon-only edit never changes the identity and a stale daemon keeps
+//! serving. Together, a partial rebuild is loud: the client sees the
+//! mismatch, replaces, spawns the same old file, and reports it "still,
+//! after a respawn". Every frontend built from one tree carries the same
+//! contract and finds the same sibling, which is what lets `acq-mcp`
+//! accept a daemon `acq` spawned (C6, C31); two installations would thrash
+//! by respawning each other's daemons — the design event C82 names.
 //!
 //! The trap the observe tier closes (ledger row 2026-09-08): `acq daemon
 //! status` typed in a second terminal without `ACQ_GGG` connected under the
@@ -85,9 +123,11 @@
 //! [`Client::observe`]; the interactive `ConnectOptions` reach only the
 //! verbs that submit work.
 //!
-//! Accepted residual: the identity dimension has no process-level test (one
-//! binary per test run); the provider dimension takes the same path and is
-//! pinned through the binaries in `acquisition-cli/tests/daemon_observe.rs`.
+//! Pinned through the binaries in `acquisition-cli/tests/daemon_observe.rs`:
+//! the provider dimension by a mock daemon observed from a shell that
+//! wants ggg, and the artifact dimension by a copy of `acq` whose sibling
+//! is another file (a mismatch) or a copy of `acqd` (the same artifact by
+//! hash) — the residual the split's step 4 closed.
 //!
 //! ## C85 — Connection semantics, as built on this side
 //!
@@ -96,7 +136,7 @@
 //! written and read as [`Bootstrap`]/[`BootstrapReply`] frames outside the
 //! versioned enums, so a daemon of any revision is identified — a frame
 //! this build cannot read fully still yields a [`DaemonId`] reported as
-//! another runtime — and `stop_any` works across the same mismatch. A
+//! another contract — and `stop_any` works across the same mismatch. A
 //! [`Client`] is a request connection: [`Client::request`] takes `&mut
 //! self`, writes one frame and reads exactly one, so one request is in
 //! flight by construction; an `event` or `resync_required` frame arriving
@@ -120,14 +160,16 @@ use std::fmt;
 use std::path::PathBuf;
 use std::time::Duration;
 
+use crate::artifact::{ArtifactVerdict, sibling};
 use crate::frame::{Frame, read_frame};
 use crate::locator;
 use crate::{log_path, socket_path};
-use acquisition_protocol::VERSION_WITH_RUNTIME;
+use acquisition_protocol::artifact::Artifact;
 use acquisition_protocol::job::JobInfo;
 use acquisition_protocol::protocol::{
     Bootstrap, BootstrapReply, ErrorKind, MAX_FRAME_BYTES, Request, Response, error_message,
 };
+use acquisition_protocol::{CONTRACT_REVISION, VERSION};
 use anyhow::{Context, Result, bail};
 use serde::Serialize;
 use serde_json::json;
@@ -181,8 +223,8 @@ pub struct ConnectOptions {
 
 impl ConnectOptions {
     /// The interactive CLI's policy for a use verb: the caller is the
-    /// human, so replacing a daemon of another runtime revision or mode is them
-    /// expressing intent.
+    /// human, so replacing a daemon of another contract, artifact or mode
+    /// is them expressing intent.
     pub fn interactive(spawn: bool) -> Self {
         Self {
             spawn,
@@ -210,8 +252,8 @@ pub enum ConnectError {
     /// Nothing is listening, and this door may not spawn — the caller's
     /// policy, or `ACQ_NO_SPAWN=1` over a caller that would have.
     Absent { because: NotSpawned },
-    /// The daemon listening is not this client's (C10: runtime identity or
-    /// provider), and this door may not replace it — or did, and the
+    /// The daemon listening is not this client's (C10: contract, artifact
+    /// or provider), and this door may not replace it — or did, and the
     /// replacement is still not it.
     Incompatible {
         found: DaemonId,
@@ -296,21 +338,55 @@ fn want_provider() -> &'static str {
 }
 
 /// A daemon as its handshake identifies it. Whether it is this client's
-/// is two dimensions, reported together (C10): the runtime identity and
-/// the provider.
+/// is three dimensions, judged together (C10, C84): the shared-contract
+/// revision, the daemon artifact against the sibling this process would
+/// spawn, and the provider.
 #[derive(Clone, Debug, Serialize)]
 pub struct DaemonId {
     pub pid: u32,
-    /// The daemon's `VERSION_WITH_RUNTIME`.
+    /// The daemon's package version; informational (C84 compares the
+    /// contract, not this).
     pub version: String,
+    /// The daemon's shared-contract revision.
+    pub contract: String,
+    /// The executable the daemon runs from, as it reported it; `None`
+    /// from a daemon of a build before the field. Boxed so a
+    /// [`ConnectError`] carrying a `DaemonId` stays small on the stack.
+    pub artifact: Option<Box<Artifact>>,
     /// "mock" or "ggg".
     pub provider: String,
 }
 
+/// What a client concluded about a daemon, dimension by dimension, from
+/// one look at the sibling (the artifact verdict `stat`s it, and hashes
+/// it when it must; a [`DaemonId`] judges itself afresh on each call).
+#[derive(Debug, Clone)]
+pub struct Verdict {
+    pub contract: bool,
+    pub artifact: ArtifactVerdict,
+    pub provider: bool,
+}
+
+impl Verdict {
+    /// Every dimension matches: this client may use the daemon.
+    pub fn is_ours(&self) -> bool {
+        self.contract && self.artifact.matches() && self.provider
+    }
+}
+
 impl DaemonId {
-    /// The daemon runs the same runtime this process would spawn.
-    pub fn identity_matches(&self) -> bool {
-        self.version == VERSION_WITH_RUNTIME
+    /// Judge the daemon against what this process is and would spawn.
+    pub fn verdict(&self) -> Verdict {
+        Verdict {
+            contract: self.contract == CONTRACT_REVISION,
+            artifact: ArtifactVerdict::judge(self.artifact.as_deref()),
+            provider: self.provider == want_provider(),
+        }
+    }
+
+    /// The daemon was compiled against the contract this process was.
+    pub fn contract_matches(&self) -> bool {
+        self.contract == CONTRACT_REVISION
     }
 
     /// The daemon serves the provider this process wants.
@@ -318,22 +394,71 @@ impl DaemonId {
         self.provider == want_provider()
     }
 
-    /// Both dimensions match: this client may use the daemon.
+    /// Every dimension matches: this client may use the daemon.
     pub fn is_ours(&self) -> bool {
-        self.identity_matches() && self.provider_matches()
+        self.verdict().is_ours()
     }
 
     /// The observer's report, one shape for every frontend: the daemon
-    /// found, what this process wanted, and which dimensions differ.
+    /// found, what this process wanted — its contract, its provider, and
+    /// the sibling `acqd` as found, or `null` with the reason — and which
+    /// dimensions differ.
     pub fn report(&self) -> serde_json::Value {
-        json!({
+        let verdict = self.verdict();
+        let (acqd, acqd_absent) = match sibling() {
+            Ok(id) => (serde_json::to_value(&id).unwrap_or_default(), None),
+            Err(e) => (serde_json::Value::Null, Some(e.to_string())),
+        };
+        let mut wanted = json!({
+            "version": VERSION,
+            "contract": CONTRACT_REVISION,
+            "provider": want_provider(),
+            "acqd": acqd,
+        });
+        if let Some(reason) = acqd_absent {
+            wanted["acqd_absent"] = json!(reason);
+        }
+        let mut report = json!({
             "pid": self.pid,
             "version": self.version,
+            "contract": self.contract,
+            "artifact": self.artifact,
             "provider": self.provider,
-            "identity_matches": self.identity_matches(),
-            "provider_matches": self.provider_matches(),
-            "wanted": { "version": VERSION_WITH_RUNTIME, "provider": want_provider() },
-        })
+            "contract_matches": verdict.contract,
+            "artifact_matches": verdict.artifact.matches(),
+            "provider_matches": verdict.provider,
+            "wanted": wanted,
+        });
+        if let Some(why) = artifact_mismatch_reason(&verdict.artifact) {
+            report["artifact_mismatch"] = json!(why);
+        }
+        report
+    }
+}
+
+/// Why the artifact dimension did not match, when it did not: the
+/// sentence the report and the prose share.
+fn artifact_mismatch_reason(verdict: &ArtifactVerdict) -> Option<String> {
+    match verdict {
+        ArtifactVerdict::Same => None,
+        ArtifactVerdict::Different {
+            sibling,
+            sibling_sha256,
+        } => Some(format!(
+            "the acqd beside this executable is another file ({}, sha256 {})",
+            sibling.path,
+            sibling_sha256.get(..12).unwrap_or(sibling_sha256)
+        )),
+        ArtifactVerdict::Unhashable { sibling, io } => Some(format!(
+            "the acqd beside this executable ({}) differs and could not be hashed: {io}",
+            sibling.path
+        )),
+        ArtifactVerdict::NoSibling(e) => {
+            Some(format!("this executable could not have started it: {e}"))
+        }
+        ArtifactVerdict::Unreported => {
+            Some("the daemon reported no artifact (a build before the identity split)".into())
+        }
     }
 }
 
@@ -341,28 +466,49 @@ impl fmt::Display for DaemonId {
     /// The mismatch sentence an observer prints: which dimensions differ,
     /// with both sides of each.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let verdict = self.verdict();
         write!(f, "daemon (pid {})", self.pid)?;
-        match (self.identity_matches(), self.provider_matches()) {
-            (true, true) => write!(f, " is this client's ({}, {})", self.version, self.provider),
-            (false, true) => write!(
+        if verdict.is_ours() {
+            return write!(
                 f,
-                " is another runtime ({}; this is {VERSION_WITH_RUNTIME})",
-                self.version
-            ),
-            (true, false) => write!(
-                f,
-                " is on another provider ({}; this process wants {})",
-                self.provider,
-                want_provider()
-            ),
-            (false, false) => write!(
-                f,
-                " is another runtime ({}; this is {VERSION_WITH_RUNTIME}) on another provider ({}; this process wants {})",
-                self.version,
-                self.provider,
-                want_provider()
-            ),
+                " is this client's (contract {}, {}, {})",
+                self.contract,
+                self.artifact
+                    .as_ref()
+                    .map_or("no artifact".to_string(), |a| format!(
+                        "acqd sha256 {}",
+                        a.short_hash()
+                    )),
+                self.provider
+            );
         }
+        let mut clauses: Vec<String> = Vec::new();
+        if !verdict.contract {
+            clauses.push(format!(
+                "is another contract ({}; this is {CONTRACT_REVISION})",
+                self.contract
+            ));
+        }
+        if let Some(why) = artifact_mismatch_reason(&verdict.artifact) {
+            clauses.push(format!(
+                "runs another artifact ({}; {why})",
+                self.artifact
+                    .as_ref()
+                    .map_or("none reported".to_string(), |a| format!(
+                        "{}, sha256 {}",
+                        a.file.path,
+                        a.short_hash()
+                    ))
+            ));
+        }
+        if !verdict.provider {
+            clauses.push(format!(
+                "is on another provider ({}; this process wants {})",
+                self.provider,
+                want_provider()
+            ));
+        }
+        write!(f, " {}", clauses.join(" and "))
     }
 }
 
@@ -647,16 +793,21 @@ impl Client {
             daemon: DaemonId {
                 pid: 0,
                 version: String::new(),
+                contract: String::new(),
+                artifact: None,
                 provider: String::new(),
             },
         };
         let bytes = client
             .exchange(&Bootstrap::Hello {
-                client_version: VERSION_WITH_RUNTIME.to_string(),
+                version: VERSION.to_string(),
+                contract: CONTRACT_REVISION.to_string(),
             })
             .await?;
         let Some(BootstrapReply::Hello {
-            daemon_version,
+            version,
+            contract,
+            artifact,
             pid,
             provider,
         }) = BootstrapReply::read(&bytes)
@@ -668,7 +819,9 @@ impl Client {
         };
         client.daemon = DaemonId {
             pid,
-            version: daemon_version,
+            version,
+            contract,
+            artifact: artifact.map(Box::new),
             provider,
         };
         Ok(client)
@@ -825,47 +978,72 @@ fn startup_log_excerpt(log_from: u64) -> String {
 mod tests {
     use super::*;
 
-    fn id(version: &str, provider: &str) -> DaemonId {
+    fn id(contract: &str, provider: &str) -> DaemonId {
         DaemonId {
             pid: 42,
-            version: version.into(),
+            version: VERSION.into(),
+            contract: contract.into(),
+            artifact: None,
             provider: provider.into(),
         }
     }
 
-    /// C10: the handshake compares the runtime revision, not the package
-    /// version — a daemon reporting the bare `0.0.1` (every build before
-    /// this check, and any other revision's build) is not this client's —
-    /// and the provider is a second dimension, reported with the first.
-    /// The tests run without `ACQ_GGG`, so "mock" is the wanted provider.
+    /// C10, C84: the handshake compares the contract revision and the
+    /// artifact, not the package version — a daemon reporting another
+    /// contract is not this client's, one reporting no artifact matches
+    /// nothing on that dimension (this test executable has no sibling
+    /// `acqd`, so no daemon can match it there; the artifact's own cases
+    /// are `artifact.rs` and the process test) — and the provider is the
+    /// third dimension, reported with the others. The tests run without
+    /// `ACQ_GGG`, so "mock" is the wanted provider.
     #[test]
-    fn a_daemon_from_another_build_or_provider_is_not_this_clients_daemon() {
-        assert!(id(VERSION_WITH_RUNTIME, "mock").is_ours());
-        assert!(!id(VERSION_WITH_RUNTIME, "ggg").is_ours());
-        assert!(!id(acquisition_protocol::VERSION, "mock").is_ours());
-        assert!(!id("0.0.1 (deadbeef)", "mock").is_ours());
-        assert!(VERSION_WITH_RUNTIME.contains(acquisition_protocol::RUNTIME_REVISION));
-        assert_eq!(acquisition_protocol::RUNTIME_REVISION.len(), 12);
-        assert!(
-            acquisition_protocol::RUNTIME_REVISION
-                .bytes()
-                .all(|b| b.is_ascii_hexdigit())
-        );
+    fn c84_a_daemon_of_another_contract_artifact_or_provider_is_not_this_clients() {
+        assert_eq!(CONTRACT_REVISION.len(), 12);
+        assert!(CONTRACT_REVISION.bytes().all(|b| b.is_ascii_hexdigit()));
+        assert!(acquisition_protocol::VERSION_WITH_CONTRACT.contains(CONTRACT_REVISION));
 
-        let both = id("0.0.1 (deadbeef)", "ggg");
-        assert!(!both.identity_matches() && !both.provider_matches());
-        let report = both.report();
-        assert_eq!(report["identity_matches"], false);
-        assert_eq!(report["provider_matches"], false);
-        assert_eq!(report["wanted"]["provider"], "mock");
-        let text = both.to_string();
+        let same_contract = id(CONTRACT_REVISION, "mock");
+        let verdict = same_contract.verdict();
+        assert!(verdict.contract && verdict.provider);
+        assert!(matches!(verdict.artifact, ArtifactVerdict::Unreported));
         assert!(
-            text.contains("another runtime") && text.contains("another provider"),
+            !same_contract.is_ours(),
+            "no artifact reported matches nothing"
+        );
+        let report = same_contract.report();
+        assert_eq!(report["contract_matches"], true);
+        assert_eq!(report["artifact_matches"], false);
+        assert_eq!(report["provider_matches"], true);
+        assert_eq!(report["wanted"]["contract"], CONTRACT_REVISION);
+        assert_eq!(report["wanted"]["provider"], "mock");
+        assert!(
+            report["artifact_mismatch"]
+                .as_str()
+                .unwrap()
+                .contains("no artifact")
+        );
+        let text = same_contract.to_string();
+        assert!(
+            text.contains("another artifact") && !text.contains("another contract"),
             "{text}"
         );
-        let text = id(VERSION_WITH_RUNTIME, "ggg").to_string();
+
+        assert!(!id(CONTRACT_REVISION, "ggg").is_ours());
+        assert!(!id("deadbeefdead", "mock").is_ours());
+        let both = id("deadbeefdead", "ggg");
+        let report = both.report();
+        assert_eq!(report["contract_matches"], false);
+        assert_eq!(report["provider_matches"], false);
+        let text = both.to_string();
         assert!(
-            text.contains("another provider") && !text.contains("another runtime"),
+            text.contains("another contract")
+                && text.contains("another artifact")
+                && text.contains("another provider"),
+            "{text}"
+        );
+        let text = id(CONTRACT_REVISION, "ggg").to_string();
+        assert!(
+            text.contains("another provider") && !text.contains("another contract"),
             "{text}"
         );
     }
@@ -943,7 +1121,9 @@ mod tests {
             let mut lines = tokio::io::AsyncBufReadExt::lines(BufReader::new(read));
             let _hello = lines.next_line().await.unwrap().unwrap();
             let hello = BootstrapReply::Hello {
-                daemon_version: VERSION_WITH_RUNTIME.to_string(),
+                version: VERSION.to_string(),
+                contract: CONTRACT_REVISION.to_string(),
+                artifact: None,
                 pid: 7,
                 provider: "mock".into(),
             };

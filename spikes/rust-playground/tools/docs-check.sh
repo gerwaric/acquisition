@@ -152,7 +152,7 @@ else
   echo "ok      tour          one line per verb"
 fi
 code_knobs=$(grep -rhoE '"ACQ_[A-Z_]+"' crates --include='*.rs' --exclude-dir=tests | tr -d '"' | sort -u \
-  | grep -vE '^ACQ_(RUNTIME_REVISION|UPDATE_FIXTURES)$')
+  | grep -vE '^ACQ_(CONTRACT_REVISION|UPDATE_FIXTURES)$')
 readme_knobs=$(grep -oE 'ACQ_[A-Z_]+' README.md | sort -u)
 missing_knobs=$(comm -23 <(printf '%s\n' "$code_knobs") <(printf '%s\n' "$readme_knobs") | tr '\n' ' ')
 if [[ -n $missing_knobs ]]; then

@@ -81,10 +81,29 @@ fn signal(child: &Child, sig: &str) {
 
 /// The daemon `acq` would itself spawn: the `acqd` beside the binary
 /// under test (C82, the locator's one rule). A missing one fails here,
-/// before the test runs, naming the build step.
+/// before the test runs, naming the build step. This test also drives
+/// the client in-process, which judges the daemon's artifact against the
+/// `acqd` beside *this* executable (C84) — a test executable in `deps/`
+/// has none — so a symlink of that name is placed beside it, pointing
+/// one level up at the same file: the test executable names the daemon
+/// its build wrote on both paths (C82's clause for test executables).
 fn acqd() -> PathBuf {
-    acquisition_client::locator::beside(Path::new(env!("CARGO_BIN_EXE_acq")))
-        .unwrap_or_else(|e| panic!("{e}"))
+    let acqd = acquisition_client::locator::beside(Path::new(env!("CARGO_BIN_EXE_acq")))
+        .unwrap_or_else(|e| panic!("{e}"));
+    let exe = std::env::current_exe().expect("current exe");
+    let link = exe.parent().expect("a parent").join("acqd");
+    let target = Path::new("..").join("acqd");
+    if std::fs::read_link(&link).ok().as_deref() != Some(target.as_path()) {
+        let _ = std::fs::remove_file(&link);
+        std::os::unix::fs::symlink(&target, &link)
+            .unwrap_or_else(|e| panic!("placing {} -> {}: {e}", link.display(), target.display()));
+    }
+    assert_eq!(
+        link.canonicalize().expect("the sibling resolves"),
+        acqd.canonicalize().expect("the daemon resolves"),
+        "the sibling the in-process client sees is not the daemon acq would spawn"
+    );
+    acqd
 }
 
 /// The daemon started directly by the test, which owns its pid, under

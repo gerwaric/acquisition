@@ -2,8 +2,9 @@
 //! C82; the binary is `acqd`, `main.rs`): the header-driven rate limiter
 //! and its choke point (`ratelimit.rs`, `gate.rs`), the live-test rails
 //! (`rails.rs`), OAuth and sessions (`auth.rs`), the provider (`provider.rs`),
-//! the mock provider (`mockggg.rs`), and the daemon itself (`daemon.rs`:
-//! queue, dispatcher, Unix-socket server, idle watchdog). The only GGG
+//! the mock provider (`mockggg.rs`), the daemon's own executable identified
+//! and hashed at startup (`artifact.rs`, C84), and the daemon itself
+//! (`daemon.rs`: queue, dispatcher, Unix-socket server, idle watchdog). The only GGG
 //! sender. It links the protocol crate and the store, never the client
 //! crate, the planner or a frontend — `tools/docs-check.sh` refuses the
 //! edges — and no package but this one names it, so "never in-process
@@ -21,6 +22,7 @@
 //! reader both sides need — is one copy here and one there, because the
 //! protocol crate stays serde-only and the daemon never links the client.
 
+pub mod artifact;
 pub mod auth;
 pub mod daemon;
 pub mod frame;

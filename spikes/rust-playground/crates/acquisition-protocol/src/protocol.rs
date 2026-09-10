@@ -7,13 +7,14 @@
 //!   `hello` and `daemon_stop`, read on both sides outside the versioned
 //!   enums, keyed on the `req`/`resp` name alone with every other field
 //!   optional and unknown fields ignored. Its frames never change shape:
-//!   a client and a daemon of any two runtime revisions can always
-//!   identify each other (C10 compares what `hello` carries) and a human
+//!   a client and a daemon of any two contract revisions can always
+//!   identify each other (C10 compares what `hello` carries: the
+//!   shared-contract revision and the daemon artifact, C84) and a human
 //!   can always stop a daemon across a mismatch.
 //! - **The versioned plane** — [`Request`] and [`Response`]: everything
 //!   else, single-version on purpose (C10). A change here moves the
-//!   runtime revision, and `tests/fixtures/wire/` (one document per
-//!   variant, `tests/wire.rs`) makes it a diff a reviewer sees.
+//!   shared-contract revision, and `tests/fixtures/wire/` (one document
+//!   per variant, `tests/wire.rs`) makes it a diff a reviewer sees.
 //!
 //! # Decisions as recorded
 //!
@@ -80,6 +81,7 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use crate::artifact::Artifact;
 use crate::job::{JobId, JobInfo, Outcome, Priority};
 use crate::status::{DegradedEndpoint, PolicyStatus, RailsStatus, RuleStatus, SendRecord};
 
@@ -94,7 +96,7 @@ pub const MAX_FRAME_BYTES: usize = 64 << 20;
 // ---- the bootstrap plane ------------------------------------------------
 
 /// The two requests every daemon of any revision reads (C85), sent as
-/// `{"req":"hello","client_version":…}` and `{"req":"daemon_stop"}`.
+/// `{"req":"hello","version":…,"contract":…}` and `{"req":"daemon_stop"}`.
 /// [`Bootstrap::read`] is the lenient reader the daemon uses: it keys on
 /// `req` alone and ignores every other field, so a client of a future
 /// revision — extra fields, renamed fields, a shape this build has never
@@ -104,10 +106,16 @@ pub const MAX_FRAME_BYTES: usize = 64 << 20;
 #[serde(tag = "req", rename_all = "snake_case")]
 pub enum Bootstrap {
     /// Always sent first. Answered with [`BootstrapReply::Hello`]; the
-    /// client decides from that what the daemon is (C10).
+    /// client decides from that what the daemon is (C10). What the
+    /// client says about itself is for the daemon's log alone: the
+    /// daemon never refuses a peer, it identifies itself and lets the
+    /// peer decide.
     Hello {
-        /// The client's `VERSION_WITH_RUNTIME`; the daemon logs a mismatch.
-        client_version: String,
+        /// The client's package version (`VERSION`).
+        version: String,
+        /// The client's shared-contract revision (`CONTRACT_REVISION`,
+        /// C84); the daemon logs a mismatch.
+        contract: String,
     },
     /// Stop the daemon, whichever revision it is. Answered with
     /// [`BootstrapReply::Stopping`] before the process exits.
@@ -120,13 +128,17 @@ impl Bootstrap {
     /// `None` is any other frame — the versioned parser's business.
     pub fn read(frame: &[u8]) -> Option<Bootstrap> {
         let value: Value = serde_json::from_slice(frame).ok()?;
+        let text = |key: &str| {
+            value
+                .get(key)
+                .and_then(Value::as_str)
+                .unwrap_or(UNKNOWN)
+                .to_string()
+        };
         match value.get("req")?.as_str()? {
             "hello" => Some(Bootstrap::Hello {
-                client_version: value
-                    .get("client_version")
-                    .and_then(Value::as_str)
-                    .unwrap_or(UNKNOWN)
-                    .to_string(),
+                version: text("version"),
+                contract: text("contract"),
             }),
             "daemon_stop" => Some(Bootstrap::DaemonStop),
             _ => None,
@@ -140,15 +152,27 @@ impl Bootstrap {
 pub const UNKNOWN: &str = "unknown";
 
 /// The daemon's answers on the bootstrap plane (C85):
-/// `{"resp":"hello","daemon_version":…,"pid":…,"provider":…}` and
-/// `{"resp":"stopping"}`. [`BootstrapReply::read`] is the client's
-/// lenient reader, the mirror of [`Bootstrap::read`].
+/// `{"resp":"hello","version":…,"contract":…,"artifact":{…},"pid":…,"provider":…}`
+/// and `{"resp":"stopping"}`. [`BootstrapReply::read`] is the client's
+/// lenient reader, the mirror of [`Bootstrap::read`]. `hello` names the
+/// daemon in every dimension a client judges (C10, C84): the contract it
+/// was compiled against, the executable it runs from, and the provider
+/// it serves.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "resp", rename_all = "snake_case")]
 pub enum BootstrapReply {
     Hello {
-        /// The daemon's `VERSION_WITH_RUNTIME` (C10).
-        daemon_version: String,
+        /// The daemon's package version (`VERSION`); informational.
+        version: String,
+        /// The daemon's shared-contract revision (`CONTRACT_REVISION`,
+        /// C84): "can I use it".
+        contract: String,
+        /// The executable the daemon runs from, identified and hashed at
+        /// its startup (C84): "is it the one I would start". `None` only
+        /// from a daemon that did not report one (a build before this
+        /// field), which no client matches.
+        #[serde(default)]
+        artifact: Option<Artifact>,
         pid: u32,
         /// "mock" or "ggg"; a client uses only a daemon on its own provider.
         provider: String,
@@ -158,10 +182,11 @@ pub enum BootstrapReply {
 
 impl BootstrapReply {
     /// The bootstrap reply a frame carries, if it is one: keyed on the
-    /// `resp` name; a missing `daemon_version` or `provider` reads as
-    /// [`UNKNOWN`] and a missing `pid` as 0, so a daemon of another
-    /// revision is identified as foreign rather than left unparsed.
-    /// `None` is any other frame (a versioned `error`, say).
+    /// `resp` name; a missing `version`, `contract` or `provider` reads
+    /// as [`UNKNOWN`], a missing or unreadable `artifact` as `None`, and
+    /// a missing `pid` as 0, so a daemon of another revision is identified
+    /// as foreign rather than left unparsed. `None` is any other frame (a
+    /// versioned `error`, say).
     pub fn read(frame: &[u8]) -> Option<BootstrapReply> {
         let value: Value = serde_json::from_slice(frame).ok()?;
         let text = |key: &str| {
@@ -173,7 +198,12 @@ impl BootstrapReply {
         };
         match value.get("resp")?.as_str()? {
             "hello" => Some(BootstrapReply::Hello {
-                daemon_version: text("daemon_version"),
+                version: text("version"),
+                contract: text("contract"),
+                artifact: value
+                    .get("artifact")
+                    .cloned()
+                    .and_then(|a| serde_json::from_value(a).ok()),
                 pid: value
                     .get("pid")
                     .and_then(Value::as_u64)

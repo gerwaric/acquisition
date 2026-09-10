@@ -1,4 +1,5 @@
 {
-  "client_version": "0.0.1 (runtime 0123456789ab)",
-  "req": "hello"
+  "contract": "0123456789ab",
+  "req": "hello",
+  "version": "0.0.1"
 }

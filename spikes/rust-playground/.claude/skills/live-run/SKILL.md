@@ -20,12 +20,14 @@ from cron or a background shell has no keychain and no session.
 3. `git status --porcelain -- crates Cargo.toml Cargo.lock tools` must
    print nothing, then `cargo build --workspace` (acq and the daemon
    `acqd` beside it, C82), then `./target/debug/acq version`
-   — the binary carries its runtime revision (C10), not a commit, so a
-   dirty build's revision would be paired with a HEAD it is not; the
-   journal carries the revision and the ledger row names HEAD (`cargo
-   test` and `cargo clippy` rebuild neither binary). The
-   drivers do all of this themselves (`tools/preflight.sh`), and start
-   `acqd` directly.
+   — the binaries carry no commit: the contract revision and, for
+   `acqd`, its file's hash (C84), so a dirty build's identity would be
+   paired with a HEAD it is not; the journal header carries both and
+   the ledger row names HEAD (`cargo test` and `cargo clippy` rebuild
+   neither binary). The drivers do all of this themselves
+   (`tools/preflight.sh`, which hashes both executables into
+   `provenance.json` and holds the journal to the `acqd` hash), and
+   start `acqd` directly.
 4. `ls -t runs/ | head` against `RUN-LEDGER.md`: know which run
    directories the ledger already cites before adding one — a bundle
    newer than the last row is a run that happened off the record.

@@ -5,9 +5,15 @@
 //! `ACQ_GGG`, `ACQ_SOCKET`, `ACQ_STORE_DIR`, the rails), the one door to
 //! them, so that a flag can never disagree with the environment the
 //! frontend that spawned it read (the packet's rejected "flags on
-//! `acqd`"). It runs in the foreground until stopped or idle
-//! (`daemon::run`); a refusal to start is written to the daemon log, the
-//! only place a lazily spawned daemon's stderr can reach anyone.
+//! `acqd`"). Nor a `--version`: the daemon's identity is two values
+//! (C84) that nothing needs it to print — the shared-contract revision
+//! is the same constant `acq --version` prints, and the artifact is a
+//! property of this file, which a driver hashes with `shasum` and a
+//! client learns from `hello`; a self-report would be a second door to
+//! the first and could not vouch for the second. It runs in the
+//! foreground until stopped or idle (`daemon::run`); a refusal to start
+//! is written to the daemon log, the only place a lazily spawned
+//! daemon's stderr can reach anyone.
 
 use anyhow::Result;
 

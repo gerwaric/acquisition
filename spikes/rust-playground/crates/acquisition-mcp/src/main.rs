@@ -7,9 +7,9 @@
 //! Two structural rules distinguish it from the CLI:
 //!
 //! - **It never kills or replaces a daemon** (`ConnectOptions::autonomous`).
-//!   A version or provider mismatch may be a human's live GGG run; the MCP
-//!   reports it and stops. It lazy-spawns only in mock mode, into an empty
-//!   socket.
+//!   A contract, artifact or provider mismatch (C84) may be a human's live
+//!   GGG run; the MCP reports it and stops. It lazy-spawns only in mock
+//!   mode, into an empty socket.
 //! - **It never spawns a daemon in real-GGG mode.** A real-mode daemon is
 //!   a human's act, via the CLI (it needs the keychain and the browser);
 //!   the MCP talks to the one that is running or reports that none is.
@@ -727,7 +727,7 @@ impl AcqMcp {
     }
 
     #[tool(
-        description = "Daemon vitals: provider, uptime, queue depths, rate-limit policies learned, rails state. Observes only: running=false when no daemon is up; running=true, compatible=false for a daemon of another runtime revision or provider, which this server reports and never replaces."
+        description = "Daemon vitals: provider, uptime, queue depths, rate-limit policies learned, rails state, and the daemon's identity (C84: contract revision, the executable it runs from and its hash). Observes only: running=false when no daemon is up; running=true, compatible=false for a daemon of another contract, artifact or provider (contract_matches, artifact_matches, provider_matches say which), which this server reports and never replaces."
     )]
     async fn daemon_status(&self) -> Result<Json<Value>, ErrorData> {
         let mut client = match Client::observe().await.map_err(err)? {
@@ -740,10 +740,13 @@ impl AcqMcp {
                 return Ok(Json(report));
             }
         };
+        let found = client.daemon().clone();
         let resp = client.request(&Request::DaemonStatus).await.map_err(err)?;
         let mut report = serde_json::to_value(resp).map_err(|e| err(e.into()))?;
         report["running"] = json!(true);
         report["compatible"] = json!(true);
+        report["contract"] = json!(found.contract);
+        report["artifact"] = json!(found.artifact);
         Ok(Json(report))
     }
 }

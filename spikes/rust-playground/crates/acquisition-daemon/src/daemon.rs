@@ -128,7 +128,7 @@ use crate::ratelimit::{
     ChokePoint, Clock, EndpointState, RetryAfter, SendError, SystemClock, url_path,
 };
 use crate::ratelimit::{endpoint_key, split_endpoint_key};
-use acquisition_protocol::VERSION;
+use acquisition_protocol::artifact::Artifact;
 use acquisition_protocol::job::{
     JobId, JobInfo, JobState, MAX_429_RETRIES, Outcome, Priority, target_of,
 };
@@ -715,6 +715,10 @@ pub struct Daemon {
     /// The in-process mock by default; real GGG only when the daemon was
     /// started with ACQ_GGG=1.
     provider: Provider,
+    /// The executable this daemon runs from, identified and hashed once
+    /// at startup (C84, `artifact.rs`); what `hello` reports. `None` in
+    /// the in-process harness, which runs from no executable of its own.
+    artifact: Option<Artifact>,
     credential_store: Arc<dyn CredentialStore>,
     /// The provider's store directory (`acquisition-store`): one file per
     /// account plus the account index. `None` in tests: nothing recorded.
@@ -3204,19 +3208,24 @@ resubmit if still wanted",
                         continue;
                     }
                     match Bootstrap::read(&bytes) {
-                        Some(Bootstrap::Hello { client_version }) => {
-                            // The runtime revision, not the package version:
-                            // the client decides staleness from this and
-                            // replaces, refuses or reports a daemon from
-                            // other sources (C10).
-                            if client_version != acquisition_protocol::VERSION_WITH_RUNTIME {
+                        Some(Bootstrap::Hello { version, contract }) => {
+                            // The daemon names itself in every dimension
+                            // (C84) and decides nothing: the client judges
+                            // staleness and replaces, refuses or reports
+                            // (C10). What the client said about itself is
+                            // logged when it differs, so a mismatch is
+                            // visible from this side too.
+                            if contract != acquisition_protocol::CONTRACT_REVISION {
                                 self.log(&format!(
-                                    "version mismatch: client {client_version}, daemon {}",
-                                    acquisition_protocol::VERSION_WITH_RUNTIME
+                                    "contract mismatch: client {contract} (version {version}), daemon {} (version {})",
+                                    acquisition_protocol::CONTRACT_REVISION,
+                                    acquisition_protocol::VERSION
                                 ));
                             }
                             let hello = BootstrapReply::Hello {
-                                daemon_version: acquisition_protocol::VERSION_WITH_RUNTIME.to_string(),
+                                version: acquisition_protocol::VERSION.to_string(),
+                                contract: acquisition_protocol::CONTRACT_REVISION.to_string(),
+                                artifact: self.artifact.clone(),
                                 pid: std::process::id(),
                                 provider: self.provider.name.to_string(),
                             };
@@ -3582,7 +3591,7 @@ resubmit if still wanted",
                         });
                 Response::DaemonStatus {
                     pid: std::process::id(),
-                    version: acquisition_protocol::VERSION_WITH_RUNTIME.to_string(),
+                    version: acquisition_protocol::VERSION_WITH_CONTRACT.to_string(),
                     provider: self.provider.name.to_string(),
                     uptime_seconds: self.started.elapsed().as_secs(),
                     connections: s.connections,
@@ -3604,7 +3613,7 @@ resubmit if still wanted",
                 let (in_flight, max_in_flight) = self.choke.actual_send_occupancy();
                 Response::Dashboard {
                     pid: std::process::id(),
-                    version: acquisition_protocol::VERSION_WITH_RUNTIME.to_string(),
+                    version: acquisition_protocol::VERSION_WITH_CONTRACT.to_string(),
                     provider: self.provider.name.to_string(),
                     uptime_seconds: self.started.elapsed().as_secs(),
                     connections: s.connections,
@@ -4003,6 +4012,12 @@ async fn run_with_log(log: std::fs::File) -> Result<()> {
     let listener = UnixListener::bind(&path)
         .map_err(|e| anyhow::anyhow!("could not bind {}: {e}", path.display()))?;
 
+    // Who this daemon is (C84): the executable it runs from, identified
+    // and hashed once, before the journal opens — its header names the
+    // hash — and before anything can send. A daemon that cannot read its
+    // own file does not start: no client could use it.
+    let artifact = crate::artifact::of_current_exe()?;
+
     // Real GGG only on explicit opt-in; the default remains the in-process
     // mock, and in real mode the mock is never even started.
     let provider = if ggg_mode() {
@@ -4012,10 +4027,10 @@ async fn run_with_log(log: std::fs::File) -> Result<()> {
     };
     // Same limiter in both modes: empty until responses teach it policies.
     let clock: Arc<dyn Clock> = Arc::new(SystemClock);
-    let rails = Arc::new(Rails::with_config_and_clock(
-        RailsConfig::from_env(provider.name, &path, &journal_path(provider.name)),
-        clock.clone(),
-    ));
+    let mut rails_config =
+        RailsConfig::from_env(provider.name, &path, &journal_path(provider.name));
+    rails_config.daemon_artifact = Some(artifact.sha256.clone());
+    let rails = Arc::new(Rails::with_config_and_clock(rails_config, clock.clone()));
     let choke = ChokePoint::with_clock_and_rails(clock, rails);
     Daemon::declare_route_knowledge(&choke);
 
@@ -4098,6 +4113,7 @@ async fn run_with_log(log: std::fs::File) -> Result<()> {
         log: Mutex::new(log),
         choke,
         provider,
+        artifact: Some(artifact),
         credential_store: Arc::new(OsCredentialStore),
         store_dir: Some(dir.clone()),
         store: Mutex::new(None),
@@ -4105,13 +4121,18 @@ async fn run_with_log(log: std::fs::File) -> Result<()> {
         queue_failure: Mutex::new(None),
     });
 
-    daemon.log(&format!(
-        "daemon {} runtime {} listening on {} (pid {})",
-        VERSION,
-        acquisition_protocol::RUNTIME_REVISION,
-        path.display(),
-        std::process::id()
-    ));
+    {
+        let artifact = daemon.artifact.as_ref().expect("run sets the artifact");
+        daemon.log(&format!(
+            "daemon {} contract {} artifact {} ({}) listening on {} (pid {})",
+            acquisition_protocol::VERSION,
+            acquisition_protocol::CONTRACT_REVISION,
+            artifact.sha256,
+            artifact.file.path,
+            path.display(),
+            std::process::id()
+        ));
+    }
     let (keyring, username) = {
         let s = daemon.shared.lock().unwrap();
         let names = s.auth.usernames();
@@ -4402,6 +4423,7 @@ mod auth_session_tests {
             log: Mutex::new(log),
             choke: ChokePoint::new(),
             provider: Provider::mock(base),
+            artifact: None,
             credential_store: credential_store.clone(),
             store_dir: None,
             store: Mutex::new(None),
@@ -5693,6 +5715,7 @@ mod dispatcher_tests {
             log: Mutex::new(log),
             choke: ChokePoint::with_clock_and_rails(clock, rails),
             provider,
+            artifact: None,
             credential_store,
             store_dir: None,
             store: Mutex::new(None),
@@ -5841,7 +5864,12 @@ mod dispatcher_tests {
         let header = &lines[0];
         assert_eq!(header["event"], "open");
         assert_eq!(header["clock"], "manual");
-        assert_eq!(header["runtime"], acquisition_protocol::RUNTIME_REVISION);
+        assert_eq!(header["contract"], acquisition_protocol::CONTRACT_REVISION);
+        assert_eq!(
+            header["daemon"],
+            Value::Null,
+            "the harness runs from no executable"
+        );
         assert_eq!(header["ts"], "2000-01-01T00:00:00.000Z");
         let sends = &lines[1..];
         assert_wire_contract(sends);

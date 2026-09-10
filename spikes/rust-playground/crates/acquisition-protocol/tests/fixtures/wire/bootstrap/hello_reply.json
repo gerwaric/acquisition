@@ -1,6 +1,15 @@
 {
-  "daemon_version": "0.0.1 (runtime 0123456789ab)",
+  "artifact": {
+    "dev": 16777233,
+    "ino": 4242424,
+    "len": 22605208,
+    "mtime_ns": 1800000000000000000,
+    "path": "/opt/acquisition/acqd",
+    "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+  },
+  "contract": "0123456789ab",
   "pid": 4242,
   "provider": "mock",
-  "resp": "hello"
+  "resp": "hello",
+  "version": "0.0.1"
 }

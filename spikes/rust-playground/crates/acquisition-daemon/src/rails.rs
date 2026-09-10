@@ -22,10 +22,14 @@
 //!   disables; the directory is created on demand, and a journal that
 //!   cannot be opened is reported in `daemon status`, never silently
 //!   dropped. Each daemon lifetime opens with
-//!   `{"event":"open","pid","runtime","clock"}` — the runtime revision of
-//!   the sources the daemon was built from (C10; `build.rs` — journals
-//!   before 2026-09-09 carry a git commit as `build`), and whether time
-//!   was the system's or a test's manual clock. A send line carries method, `route`, status, `counted`,
+//!   `{"event":"open","pid","contract","daemon","clock"}` — the two
+//!   values that identify which code sent (C84): the shared-contract
+//!   revision the daemon was compiled against and the SHA-256 of the
+//!   `acqd` file it ran from (`null` from the in-process harness, which
+//!   runs from no executable of its own; journals before 2026-09-10
+//!   carry the runtime revision as `runtime`, and before 2026-09-09 a git
+//!   commit as `build`), and whether time was the system's or a test's
+//!   manual clock. A send line carries method, `route`, status, `counted`,
 //!   `wait_ms` and every `X-Rate-Limit-*` header. `route` is the
 //!   limiter's endpoint key — `stash@Alice#1234` for a send on an account,
 //!   `oauth-token` for the account-blind token endpoint — so the journal
@@ -79,6 +83,11 @@ pub struct RailsConfig {
     /// Environment values that were not understood, for the startup log.
     /// A rail the operator believed armed must not fail open silently.
     pub warnings: Vec<String>,
+    /// What the journal header names as `daemon`: the SHA-256 of the
+    /// executable this daemon runs from (C84), set by `daemon::run` after
+    /// it identifies itself. `None` in the in-process harness, whose
+    /// daemons have no executable of their own.
+    pub daemon_artifact: Option<String>,
 }
 
 impl RailsConfig {
@@ -124,6 +133,7 @@ impl RailsConfig {
             journal_path,
             state_path,
             warnings,
+            daemon_artifact: None,
         }
     }
 }
@@ -297,10 +307,11 @@ impl Rails {
     }
 
     /// One line per daemon lifetime, before any send: which process, which
-    /// build, and which clock. The per-send lines are unchanged. A reader
-    /// that finds `"clock":"manual"` is looking at a scenario, not at GGG;
-    /// one that finds a `build` that is not its checkout is looking at the
-    /// rung-8 mistake.
+    /// code (the contract it was compiled against and the executable it
+    /// ran from, C84), and which clock. The per-send lines are unchanged.
+    /// A reader that finds `"clock":"manual"` is looking at a scenario,
+    /// not at GGG; one that finds a `daemon` that is not the `acqd` its
+    /// run record hashed is looking at the rung-8 mistake.
     fn journal_header(&self) {
         let mut guard = self.journal.lock().unwrap();
         let Some(file) = guard.as_mut() else { return };
@@ -308,7 +319,8 @@ impl Rails {
             "event": "open",
             "ts": iso_utc(self.clock.wall()),
             "pid": std::process::id(),
-            "runtime": acquisition_protocol::RUNTIME_REVISION,
+            "contract": acquisition_protocol::CONTRACT_REVISION,
+            "daemon": self.config.daemon_artifact,
             "clock": self.clock.kind(),
         });
         let _ = writeln!(file, "{line}");
@@ -687,6 +699,7 @@ mod tests {
             journal_path: None,
             state_path: Some(path.clone()),
             warnings: Vec::new(),
+            daemon_artifact: None,
         };
         {
             let rails = Rails::with_config(config.clone());
@@ -746,7 +759,11 @@ mod tests {
         assert_eq!(lines.len(), 3, "header plus two sends");
         assert_eq!(lines[0]["event"], "open");
         assert_eq!(lines[0]["clock"], "system");
-        assert_eq!(lines[0]["runtime"], acquisition_protocol::RUNTIME_REVISION);
+        assert_eq!(
+            lines[0]["contract"],
+            acquisition_protocol::CONTRACT_REVISION
+        );
+        assert_eq!(lines[0]["daemon"], Value::Null, "no executable of its own");
         assert_eq!(lines[0]["pid"], std::process::id());
         assert_eq!(lines[1]["status"], 200);
         assert_eq!(

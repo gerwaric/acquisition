@@ -15,11 +15,17 @@
 //! resolved from the test executable's own location (`acqd_for_tests`).
 //! C82's rule for a test executable, which has no sibling: it names the
 //! `acqd` its build wrote (amended 2026-09-10). Not a knob:
-//! nothing production reads it. A missing daemon fails before any test
-//! runs, naming the build step; a present one is named by path in every
-//! failure — the startup failures say it outright, and `Daemon`'s drop
-//! prints it while a test is panicking, so a failed assertion's output
-//! carries which daemon ran.
+//! nothing production reads it. Since the identity split's step 4 the
+//! client judges a daemon's artifact against the sibling the locator
+//! names (C84), and this executable has none — so `acqd_for_tests` also
+//! places a symlink named `acqd` beside the test executable, pointing at
+//! that same `target/<profile>/acqd`: the test executable then names the
+//! daemon its build wrote on both paths, the harness's and the client's,
+//! and the locator's rule stays the one rule. A missing daemon fails
+//! before any test runs, naming the build step; a present one is named
+//! by path in every failure — the startup failures say it outright, and
+//! `Daemon`'s drop prints it while a test is panicking, so a failed
+//! assertion's output carries which daemon ran.
 //!
 //! The client reads the socket from `ACQ_SOCKET`, a process-wide setting,
 //! so the tests here run one at a time under a lock and set their own
@@ -34,21 +40,26 @@ use std::time::{Duration, Instant};
 use acquisition_client::client::{Client, ConnectOptions, Observed, Signal, Subscription};
 use acquisition_client::frame::{Frame, read_frame};
 use acquisition_client::socket_path;
-use acquisition_protocol::VERSION_WITH_RUNTIME;
 use acquisition_protocol::job::JobState;
 use acquisition_protocol::protocol::{ErrorKind, MAX_FRAME_BYTES, Request, Response};
+use acquisition_protocol::{CONTRACT_REVISION, VERSION};
 use serde_json::{Value, json};
 use tokio::io::{AsyncWriteExt, BufReader};
 use tokio::net::unix::{OwnedReadHalf, OwnedWriteHalf};
 use tokio::net::{UnixListener, UnixStream};
 
 /// The `acqd` the gate built (module doc): `target/<profile>/acqd`, one
-/// level above the `deps/` directory this test executable runs from.
+/// level above the `deps/` directory this test executable runs from —
+/// and, so the client in this process finds the same file as its
+/// sibling (C84 judges the artifact against it), a symlink of that name
+/// beside the test executable pointing one level up.
 fn acqd_for_tests() -> PathBuf {
     let exe = std::env::current_exe().expect("current exe");
-    let profile_dir = exe
+    let deps_dir = exe
         .parent()
-        .and_then(Path::parent)
+        .unwrap_or_else(|| panic!("{} has no parent directory", exe.display()));
+    let profile_dir = deps_dir
+        .parent()
         .unwrap_or_else(|| panic!("{} is not under target/<profile>/deps", exe.display()));
     let acqd = profile_dir.join("acqd");
     assert!(
@@ -57,6 +68,19 @@ fn acqd_for_tests() -> PathBuf {
          run `cargo build --workspace` first (the gate builds before it tests; a `-p` test run \
          does not build it)",
         acqd.display()
+    );
+    let link = deps_dir.join("acqd");
+    let target = Path::new("..").join("acqd");
+    if std::fs::read_link(&link).ok().as_deref() != Some(target.as_path()) {
+        let _ = std::fs::remove_file(&link);
+        std::os::unix::fs::symlink(&target, &link)
+            .unwrap_or_else(|e| panic!("placing {} -> {}: {e}", link.display(), target.display()));
+    }
+    let sibling = acquisition_client::locator::beside(&exe).unwrap_or_else(|e| panic!("{e}"));
+    assert_eq!(
+        sibling.canonicalize().expect("the sibling resolves"),
+        acqd.canonicalize().expect("the daemon resolves"),
+        "the sibling the client sees is not the daemon the harness starts"
     );
     acqd
 }
@@ -227,7 +251,7 @@ impl Raw {
 
     async fn hello(&mut self) -> Value {
         let reply = self
-            .ask(json!({ "req": "hello", "client_version": VERSION_WITH_RUNTIME }))
+            .ask(json!({ "req": "hello", "version": VERSION, "contract": CONTRACT_REVISION }))
             .await;
         assert_eq!(reply["resp"], "hello", "{reply}");
         reply
@@ -307,24 +331,49 @@ async fn c85_the_daemon_identifies_itself_and_stops_across_a_contract_mismatch()
     );
 
     // A client of a future revision: a foreign version, fields this build
-    // has never seen — and still the daemon names itself.
+    // has never seen — and still the daemon names itself, in every
+    // dimension a client judges (C84): contract, artifact, provider.
     let reply = raw
         .ask(json!({
             "req": "hello",
-            "client_version": "9.9.9 (runtime ffffffffffff)",
+            "version": "9.9.9",
             "contract": { "rev": "abc" },
             "world": "/future",
         }))
         .await;
     assert_eq!(reply["resp"], "hello");
-    assert_eq!(reply["daemon_version"], VERSION_WITH_RUNTIME);
+    assert_eq!(reply["version"], VERSION);
+    assert_eq!(reply["contract"], CONTRACT_REVISION);
     assert_eq!(reply["provider"], "mock");
+    let artifact = &reply["artifact"];
+    assert_eq!(
+        Path::new(artifact["path"].as_str().unwrap())
+            .canonicalize()
+            .unwrap(),
+        acqd_for_tests().canonicalize().unwrap(),
+        "the daemon names the executable it runs from: {reply}"
+    );
+    let sha = artifact["sha256"].as_str().unwrap();
+    assert!(
+        sha.len() == 64 && sha.bytes().all(|b| b.is_ascii_hexdigit()),
+        "{reply}"
+    );
+    assert_eq!(
+        sha,
+        acquisition_client::artifact::sha256_of(&acqd_for_tests()).unwrap(),
+        "the reported hash is the file's"
+    );
+    assert!(
+        artifact["len"].as_u64().unwrap() > 0 && artifact["ino"].as_u64().unwrap() > 0,
+        "{reply}"
+    );
     assert_eq!(reply["pid"], daemon.pid());
-    assert_eq!(reply.as_object().unwrap().len(), 4, "{reply}");
+    // resp, version, contract, artifact, pid, provider — the world is step 5's.
+    assert_eq!(reply.as_object().unwrap().len(), 6, "{reply}");
 
     // A hello with nothing but its name.
     let reply = raw.ask(json!({ "req": "hello" })).await;
-    assert_eq!(reply["daemon_version"], VERSION_WITH_RUNTIME);
+    assert_eq!(reply["contract"], CONTRACT_REVISION);
 
     // A request this version does not know is refused, not fatal.
     let reply = raw.ask(json!({ "req": "frobnicate", "x": 1 })).await;
@@ -377,18 +426,19 @@ async fn foreign_daemon(hello_reply: Value, stop_reply: Value) -> tokio::task::J
 }
 
 /// The client side: a daemon whose frames carry fields this build has
-/// never seen is identified as another runtime — reported, not used —
+/// never seen is identified as another contract — reported, not used —
 /// and `stop_any` stops it; a stop it refuses is reported by message.
 #[tokio::test]
 async fn c85_a_client_identifies_and_stops_a_foreign_daemon_across_a_contract_mismatch() {
     let _s = session("foreign");
     let hello = json!({
         "resp": "hello",
-        "daemon_version": "9.9.9 (runtime ffffffffffff)",
+        "version": "9.9.9",
+        "contract": "ffffffffffff",
+        "artifact": { "rev": "abc" },
         "pid": 4242,
         "provider": "mock",
         "world": "/future",
-        "contract": { "rev": "abc" },
     });
     let peer = foreign_daemon(
         hello.clone(),
@@ -401,10 +451,12 @@ async fn c85_a_client_identifies_and_stops_a_foreign_daemon_across_a_contract_mi
         Observed::Absent => panic!("absent"),
         Observed::Compatible(_) => panic!("a foreign daemon is never this client's"),
     };
-    assert_eq!(found.version, "9.9.9 (runtime ffffffffffff)");
+    assert_eq!(found.version, "9.9.9");
+    assert_eq!(found.contract, "ffffffffffff");
+    assert_eq!(found.artifact, None, "an unreadable artifact reads as none");
     assert_eq!(found.pid, 4242);
     assert!(
-        !found.identity_matches() && found.provider_matches(),
+        !found.contract_matches() && found.provider_matches(),
         "{found}"
     );
 
@@ -417,7 +469,7 @@ async fn c85_a_client_identifies_and_stops_a_foreign_daemon_across_a_contract_mi
         Err(e) => e.to_string(),
         Ok(_) => panic!("a foreign daemon is never used"),
     };
-    assert!(err.contains("another runtime"), "{err}");
+    assert!(err.contains("another contract"), "{err}");
 
     let stopped = Client::stop_any().await.expect("stop").expect("a daemon");
     assert_eq!(stopped.pid, 4242);

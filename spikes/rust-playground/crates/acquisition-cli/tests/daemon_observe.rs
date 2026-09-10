@@ -1,11 +1,17 @@
 //! C10's observation tier through the real binary: an observer never
-//! spawns or replaces a daemon, and reports absence, identity mismatch and
-//! provider mismatch distinctly. The trap this pins is the ledger row of
-//! 2026-09-08: `acq daemon status` typed in a shell without `ACQ_GGG`
-//! while a real-mode daemon ran replaced it with a mock one. Provider
-//! mismatch is the dimension one binary can stage — a mock daemon observed
-//! by a client that wants ggg; identity mismatch takes the same path
-//! (`DaemonId::is_ours`).
+//! spawns or replaces a daemon, and reports absence, contract mismatch,
+//! artifact mismatch and provider mismatch distinctly (C84). The trap the
+//! first test pins is the ledger row of 2026-09-08: `acq daemon status`
+//! typed in a shell without `ACQ_GGG` while a real-mode daemon ran
+//! replaced it with a mock one. Provider mismatch is staged by a mock
+//! daemon observed from a client that wants ggg. The artifact dimension
+//! is staged with one build's binaries (the second test): a copy of `acq`
+//! whose sibling `acqd` is another file sees the running daemon as another
+//! artifact, a copy whose sibling is a copy of `acqd` sees the same one by
+//! hash, and a copy with no sibling at all matches nothing. The contract
+//! dimension takes the same path (`DaemonId::verdict`) and is pinned at
+//! the unit level and in the client's contract tests, where a scripted
+//! peer can claim any contract.
 //!
 //! `ACQ_GGG=1` appears here only on observing and stopping commands,
 //! which cannot spawn by construction: no daemon in real mode ever exists
@@ -18,7 +24,13 @@ use std::time::{Duration, Instant};
 use serde_json::Value;
 
 fn command(base: &Path, args: &[&str]) -> Command {
-    let mut cmd = Command::new(env!("CARGO_BIN_EXE_acq"));
+    command_of(Path::new(env!("CARGO_BIN_EXE_acq")), base, args)
+}
+
+/// The same isolation for an `acq` at another path (a copy staged for
+/// the artifact dimension).
+fn command_of(exe: &Path, base: &Path, args: &[&str]) -> Command {
+    let mut cmd = Command::new(exe);
     cmd.args(args)
         .env("ACQ_SOCKET", base.join("d.sock"))
         .env("ACQ_STORE_DIR", base.join("store"))
@@ -172,14 +184,17 @@ fn c10_observation_never_spawns_or_replaces_and_reports_the_mismatch() {
     assert_eq!(report["compatible"], false, "{report}");
     assert_eq!(report["pid"], pid, "{report}");
     assert_eq!(report["provider"], "mock", "{report}");
-    assert_eq!(report["identity_matches"], true, "{report}");
+    assert_eq!(report["contract_matches"], true, "{report}");
+    assert_eq!(report["artifact_matches"], true, "{report}");
     assert_eq!(report["provider_matches"], false, "{report}");
     assert_eq!(report["wanted"]["provider"], "ggg", "{report}");
     let out = acq_wanting_ggg(&base, &["daemon", "status"]);
     assert!(out.status.success(), "{out:?}");
     let shown = text(&out);
     assert!(
-        shown.contains("another provider") && !shown.contains("another runtime"),
+        shown.contains("another provider")
+            && !shown.contains("another contract")
+            && !shown.contains("another artifact"),
         "{shown}"
     );
     assert!(shown.contains("acq daemon stop"), "{shown}");
@@ -219,5 +234,152 @@ fn c10_observation_never_spawns_or_replaces_and_reports_the_mismatch() {
     }
     let out = acq(&base, &["daemon", "status", "--json"]);
     assert_eq!(sole_json(&out), serde_json::json!({ "running": false }));
+    let _ = std::fs::remove_dir_all(&base);
+}
+
+/// A copy of the binary under test in `dir`, with `sibling` — if any —
+/// placed beside it as `acqd`.
+fn stage(dir: &Path, sibling: Option<&Path>) -> PathBuf {
+    std::fs::create_dir_all(dir).unwrap();
+    let acq = dir.join("acq");
+    std::fs::copy(env!("CARGO_BIN_EXE_acq"), &acq).unwrap();
+    if let Some(sibling) = sibling {
+        std::fs::copy(sibling, dir.join("acqd")).unwrap();
+    }
+    acq
+}
+
+/// C84's artifact dimension through the binaries: the running daemon is
+/// the `acqd` beside `acq`; a copy of `acq` whose sibling is a copy of
+/// that daemon judges it the same artifact (different inode, same bytes:
+/// the hash path); one whose sibling is another file judges it another
+/// artifact and reports both sides, and never replaces it; one with no
+/// sibling matches nothing and says it could not have started it. The
+/// compatible report carries the daemon's contract and artifact beside
+/// the vitals.
+#[test]
+fn c84_the_artifact_dimension_is_the_sibling_acqd_this_client_would_start() {
+    let base = std::env::temp_dir().join(format!("acq-art-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&base);
+    std::fs::create_dir_all(&base).unwrap();
+    let (_daemon, pid) = start_daemon(&base);
+    let real_acqd = acqd();
+
+    // The binary under test, whose sibling is the daemon itself.
+    let out = acq(&base, &["daemon", "status", "--json"]);
+    let status = sole_json(&out);
+    assert_eq!(status["compatible"], true, "{status}");
+    assert!(
+        status["contract"].as_str().is_some_and(|c| c.len() == 12),
+        "{status}"
+    );
+    let reported = &status["artifact"];
+    assert_eq!(
+        Path::new(reported["path"].as_str().unwrap())
+            .canonicalize()
+            .unwrap(),
+        real_acqd.canonicalize().unwrap(),
+        "{status}"
+    );
+    let sha = reported["sha256"].as_str().unwrap().to_string();
+    assert!(
+        sha.len() == 64 && sha.bytes().all(|b| b.is_ascii_hexdigit()),
+        "{status}"
+    );
+    let out = acq(&base, &["daemon", "status"]);
+    assert!(text(&out).contains(&sha[..12]), "{}", text(&out));
+
+    // A copy of acq beside a copy of acqd: another inode, the same bytes —
+    // the same artifact, settled by hash.
+    let copy = stage(&base.join("copy"), Some(&real_acqd));
+    let out = command_of(&copy, &base, &["daemon", "status", "--json"])
+        .output()
+        .unwrap();
+    let status = sole_json(&out);
+    assert_eq!(status["compatible"], true, "{status}");
+    assert_eq!(status["pid"], pid, "{status}");
+
+    // A copy of acq beside another file named acqd (here: acq itself):
+    // another artifact — reported with both hashes, the daemon left alone.
+    let bogus = stage(
+        &base.join("bogus"),
+        Some(Path::new(env!("CARGO_BIN_EXE_acq"))),
+    );
+    let out = command_of(&bogus, &base, &["daemon", "status", "--json"])
+        .output()
+        .unwrap();
+    assert!(out.status.success(), "{out:?}");
+    let report = sole_json(&out);
+    assert_eq!(report["running"], true, "{report}");
+    assert_eq!(report["compatible"], false, "{report}");
+    assert_eq!(report["contract_matches"], true, "{report}");
+    assert_eq!(report["artifact_matches"], false, "{report}");
+    assert_eq!(report["provider_matches"], true, "{report}");
+    assert_eq!(report["artifact"]["sha256"], sha, "{report}");
+    assert_eq!(
+        Path::new(report["wanted"]["acqd"]["path"].as_str().unwrap())
+            .canonicalize()
+            .unwrap(),
+        base.join("bogus").join("acqd").canonicalize().unwrap(),
+        "{report}"
+    );
+    assert!(
+        report["artifact_mismatch"]
+            .as_str()
+            .unwrap()
+            .contains("another file"),
+        "{report}"
+    );
+    let out = command_of(&bogus, &base, &["daemon", "status"])
+        .output()
+        .unwrap();
+    let shown = text(&out);
+    assert!(
+        shown.contains("another artifact")
+            && !shown.contains("another contract")
+            && !shown.contains("another provider")
+            && shown.contains("acq daemon stop"),
+        "{shown}"
+    );
+    for args in [&["jobs", "--json"][..], &["cancel", "1", "--json"][..]] {
+        let out = command_of(&bogus, &base, args).output().unwrap();
+        assert_eq!(out.status.code(), Some(1), "{args:?}: {out:?}");
+        let msg = sole_json(&out)["error"].as_str().unwrap().to_string();
+        assert!(
+            msg.contains("another artifact") && msg.contains(&format!("pid {pid}")),
+            "{args:?}: {msg}"
+        );
+    }
+
+    // A copy of acq with no acqd beside it: it could not have started the
+    // daemon, and says so.
+    let alone = stage(&base.join("alone"), None);
+    let out = command_of(&alone, &base, &["daemon", "status", "--json"])
+        .output()
+        .unwrap();
+    let report = sole_json(&out);
+    assert_eq!(report["compatible"], false, "{report}");
+    assert_eq!(report["artifact_matches"], false, "{report}");
+    assert_eq!(report["wanted"]["acqd"], Value::Null, "{report}");
+    assert!(
+        report["wanted"]["acqd_absent"]
+            .as_str()
+            .unwrap()
+            .contains("no acqd beside"),
+        "{report}"
+    );
+    let out = command_of(&alone, &base, &["version", "--json"])
+        .output()
+        .unwrap();
+    let version = sole_json(&out);
+    assert_eq!(version["acqd"], Value::Null, "{version}");
+    assert_eq!(version["contract"], status["contract"], "{version}");
+
+    // Nothing above replaced the daemon.
+    let out = acq(&base, &["daemon", "status", "--json"]);
+    let status = sole_json(&out);
+    assert_eq!(status["pid"], pid, "the daemon was replaced: {status}");
+    let out = acq(&base, &["daemon", "stop", "--json"]);
+    assert!(out.status.success(), "{out:?}");
     let _ = std::fs::remove_dir_all(&base);
 }

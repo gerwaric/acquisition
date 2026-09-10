@@ -1,6 +1,7 @@
 //! The client side of the daemon protocol (C1, C12's first surface as a
 //! frontend reaches it): the IPC over tokio and the three policy doors of
-//! C10 ([`client`]), the `acqd` locator ([`locator`], C82), the bounded
+//! C10 ([`client`]), the `acqd` locator ([`locator`], C82), the artifact
+//! comparison against that sibling ([`artifact`], C84), the bounded
 //! frame reader ([`frame`]) and the typed failures at the door
 //! ([`client::ConnectError`]). Every frontend links this crate and the
 //! protocol crate; this crate links the protocol crate and tokio, never
@@ -20,6 +21,7 @@
 //! `daemon.rs` — and the frontends reach the socket and log paths through
 //! this crate; step 5 makes them the world's.
 
+pub mod artifact;
 pub mod client;
 pub mod frame;
 pub mod locator;

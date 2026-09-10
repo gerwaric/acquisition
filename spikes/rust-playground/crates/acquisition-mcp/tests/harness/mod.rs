@@ -27,10 +27,29 @@ pub fn spawn(
 
 /// The daemon `acq-mcp` would lazily spawn in mock mode: the `acqd`
 /// beside the binary under test (C82). A missing one fails here, before
-/// the test runs, naming the build step; the test owns the pid.
+/// the test runs, naming the build step; the test owns the pid. The
+/// tests also drive the client in-process, which judges the daemon's
+/// artifact against the `acqd` beside *this* executable (C84) — a test
+/// executable in `deps/` has none — so a symlink of that name is placed
+/// beside it, pointing one level up at the same file: the test
+/// executable names the daemon its build wrote on both paths (C82's
+/// clause for test executables).
 pub fn spawn_daemon(base: &Path, extra_env: &[(&str, &str)]) -> Child {
     let acqd = acquisition_client::locator::beside(Path::new(env!("CARGO_BIN_EXE_acq-mcp")))
         .unwrap_or_else(|e| panic!("{e}"));
+    let exe = std::env::current_exe().expect("current exe");
+    let link = exe.parent().expect("a parent").join("acqd");
+    let target = Path::new("..").join("acqd");
+    if std::fs::read_link(&link).ok().as_deref() != Some(target.as_path()) {
+        let _ = std::fs::remove_file(&link);
+        std::os::unix::fs::symlink(&target, &link)
+            .unwrap_or_else(|e| panic!("placing {} -> {}: {e}", link.display(), target.display()));
+    }
+    assert_eq!(
+        link.canonicalize().expect("the sibling resolves"),
+        acqd.canonicalize().expect("the daemon resolves"),
+        "the sibling the in-process client sees is not the daemon acq-mcp would spawn"
+    );
     let mut cmd = Command::new(&acqd);
     isolate(&mut cmd, base, extra_env, Stdio::null);
     cmd.spawn()

@@ -38,7 +38,7 @@ Characters known to the store, with class, level, league, item counts, and wheth
 
 ### `daemon_status`
 
-Daemon vitals: provider, uptime, queue depths, rate-limit policies learned, rails state. Observes only: running=false when no daemon is up; running=true, compatible=false for a daemon of another runtime revision or provider, which this server reports and never replaces.
+Daemon vitals: provider, uptime, queue depths, rate-limit policies learned, rails state, and the daemon's identity (C84: contract revision, the executable it runs from and its hash). Observes only: running=false when no daemon is up; running=true, compatible=false for a daemon of another contract, artifact or provider (contract_matches, artifact_matches, provider_matches say which), which this server reports and never replaces.
 
 No arguments.
 

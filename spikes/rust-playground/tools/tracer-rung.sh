@@ -39,8 +39,8 @@
 #   0  preflight (no wire, tools/preflight.sh): leftover env; live
 #      refuses working-tree changes to the rung's own files, so the
 #      ledger's tip names what ran; no daemon; a locked build; then
-#      provenance.json pairs HEAD with the binary's runtime revision;
-#      account
+#      provenance.json pairs HEAD with the contract revision and both
+#      executables' hashes (C84); account
 #   1  login, only if the account's index entry has no uuid (intent binds
 #      to the uuid; a login predating uuid-at-login has none) — 2 sends
 #   2  policy written, then `refresh --plan` with NO daemon: compiled
@@ -753,6 +753,8 @@ COMPLETED=1
 # becomes.
 tail -c +$((OFFSET + 1)) "$JOURNAL" >"$RUN_DIR/sends.jsonl"
 if [ -f "$LOG" ]; then tail -c +$((LOG_OFFSET + 1)) "$LOG" >"$RUN_DIR/daemon.log"; fi
+# Which daemon sent: every lifetime's header against provenance.json (C84).
+provenance_matches_journal "$RUN_DIR/sends.jsonl"
 cp "$here/tools/tracer-verify.py" "$RUN_DIR/tracer-verify.py"
 (cd "$RUN_DIR" && shasum -a 256 tracer-verify.py sends.jsonl cycles.tsv provenance.json >checksums.sha256)
 cat >"$RUN_DIR/verify.sh" <<EOS

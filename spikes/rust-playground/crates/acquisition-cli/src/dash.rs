@@ -209,7 +209,7 @@ fn draw(f: &mut Frame, s: &Snap, app: &mut App) {
 }
 
 fn draw_header(f: &mut Frame, area: Rect, s: &Snap) {
-    let provider = if s.provider == "ggg" {
+    let provider = if s.provider == acquisition_protocol::provider::GGG {
         Span::styled("GGG (REAL)", Style::new().red().bold())
     } else {
         Span::styled(s.provider.clone(), Style::new().cyan())
