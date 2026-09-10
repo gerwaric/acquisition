@@ -66,10 +66,19 @@ fn text(out: &Output) -> String {
 
 /// A mock daemon started by the test itself, killed on drop if a failed
 /// assertion leaves it behind.
-struct Daemon(Child);
+struct Daemon(Child, PathBuf);
 
 impl Drop for Daemon {
+    /// A failing test names the executable it ran (the daemon by path:
+    /// C82's "named in every failure").
     fn drop(&mut self) {
+        if std::thread::panicking() {
+            eprintln!(
+                "process under test: {} (pid {})",
+                self.1.display(),
+                self.0.id()
+            );
+        }
         let _ = self.0.kill();
         let _ = self.0.wait();
     }
@@ -112,7 +121,7 @@ fn start_daemon(base: &Path) -> (Daemon, u64) {
     let child = daemon_command(base, &acqd)
         .spawn()
         .unwrap_or_else(|e| panic!("spawning {}: {e}", acqd.display()));
-    let daemon = Daemon(child);
+    let daemon = Daemon(child, acqd.clone());
     let deadline = Instant::now() + Duration::from_secs(10);
     loop {
         let out = acq(base, &["daemon", "status", "--json"]);

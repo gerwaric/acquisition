@@ -47,7 +47,9 @@
 
 use std::path::PathBuf;
 
-use acquisition_client::client::{Client, ConnectOptions, DaemonError, Observed};
+use acquisition_client::client::{
+    Client, ConnectError, ConnectOptions, DaemonError, NotSpawned, Observed,
+};
 use acquisition_plan::{PlanError, RefreshPlan, plan_refresh, put_sync_policy};
 use acquisition_protocol::protocol::{ErrorKind, QuoteJob, Request, Response};
 use acquisition_protocol::realm::Realm;
@@ -70,12 +72,32 @@ fn provider() -> &'static str {
 
 /// anyhow errors become MCP tool errors with the full context chain.
 /// An error for the MCP client. A daemon refusal anywhere in the chain
-/// becomes [`daemon_error`], so the closed kind reaches the agent.
+/// becomes [`daemon_error`], so the closed kind reaches the agent; a
+/// door that did not open ([`ConnectError`]) becomes [`connect_error`].
 fn err(e: anyhow::Error) -> ErrorData {
-    match DaemonError::find(&e) {
-        Some(refusal) => daemon_error(refusal.kind, format!("{e:#}")),
-        None => ErrorData::internal_error(format!("{e:#}"), None),
+    if let Some(refusal) = DaemonError::find(&e) {
+        return daemon_error(refusal.kind, format!("{e:#}"));
     }
+    if let Some(door) = e.chain().find_map(|c| c.downcast_ref::<ConnectError>()) {
+        return connect_error(door, format!("{e:#}"));
+    }
+    ErrorData::internal_error(format!("{e:#}"), None)
+}
+
+/// A door that did not open, as a JSON-RPC error: the server could not
+/// serve the call (`internal_error`), and `data.connect` names which
+/// door failed — `absent`, `incompatible`, `other_world`,
+/// `spawn_failed`, `transport` — so an agent can branch on it the way it
+/// branches on a daemon error's kind.
+fn connect_error(door: &ConnectError, message: String) -> ErrorData {
+    let connect = match door {
+        ConnectError::Absent { .. } => "absent",
+        ConnectError::Incompatible { .. } => "incompatible",
+        ConnectError::OtherWorld { .. } => "other_world",
+        ConnectError::SpawnFailed { .. } => "spawn_failed",
+        ConnectError::Transport(_) => "transport",
+    };
+    ErrorData::internal_error(message, Some(json!({ "connect": connect })))
 }
 
 /// A daemon refusal as a JSON-RPC error (C85): the code follows the kind
@@ -195,8 +217,22 @@ async fn try_quote(plan: RefreshPlan) -> (RefreshPlan, Option<String>) {
 /// replace; lazy-spawn only in mock mode (spawning a real-GGG daemon is
 /// the human's act, via the CLI).
 async fn connect(spawn: bool) -> Result<Client> {
-    let spawn = spawn && !acquisition_protocol::provider::ggg_mode();
-    Ok(Client::connect(ConnectOptions::autonomous(spawn)).await?)
+    let real = acquisition_protocol::provider::ggg_mode();
+    let spawn = spawn && !real;
+    match Client::connect(ConnectOptions::autonomous(spawn)).await {
+        Ok(client) => Ok(client),
+        // Absent by this server's own policy: the remedy is the human's,
+        // and the message says so rather than promising a spawn.
+        Err(
+            e @ ConnectError::Absent {
+                because: NotSpawned::Policy,
+            },
+        ) if real => Err(anyhow::Error::from(e).context(
+            "no daemon running in real-GGG mode, and this server never starts one there (C13) — \
+             start it from the CLI with a job command (`acq profile`)",
+        )),
+        Err(e) => Err(e.into()),
+    }
 }
 
 /// The running daemon, for a tool that observes it or acts on it (C10):

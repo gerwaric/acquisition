@@ -13,11 +13,16 @@
 //! `target/<profile>/deps/`, whose parent holds no daemon — so the tests
 //! here start the one Cargo uplifts one level up, `target/<profile>/acqd`,
 //! resolved from the test executable's own location (`acqd_for_tests`).
-//! Not the locator's rule (C82: the sibling of the calling executable) —
-//! a test that owns a daemon names its executable, as the live drivers
-//! do — and not a knob: nothing production reads it. A missing daemon
-//! fails before any test runs, naming the build step; a present one is
-//! named by path in every failure.
+//! C82 says tests locate the daemon the way frontends do — as the
+//! sibling of the calling executable — and a test executable has no
+//! sibling, so this harness names the daemon its build wrote instead:
+//! an exception C82 does not yet state, before the owner
+//! (`DAEMON-SPLIT-SLICE.md`, "Observations still open"). Not a knob:
+//! nothing production reads it. A missing daemon fails before any test
+//! runs, naming the build step; a present one is named by path in every
+//! failure — the startup failures say it outright, and `Daemon`'s drop
+//! prints it while a test is panicking, so a failed assertion's output
+//! carries which daemon ran.
 //!
 //! The client reads the socket from `ACQ_SOCKET`, a process-wide setting,
 //! so the tests here run one at a time under a lock and set their own
@@ -106,11 +111,19 @@ impl Drop for Session {
     }
 }
 
-/// The mock daemon, killed on drop if a failed assertion leaves it behind.
-struct Daemon(Child);
+/// The mock daemon, killed on drop if a failed assertion leaves it
+/// behind — and named then, so every failure says which daemon ran.
+struct Daemon(Child, PathBuf);
 
 impl Drop for Daemon {
     fn drop(&mut self) {
+        if std::thread::panicking() {
+            eprintln!(
+                "the daemon under test was {} (pid {})",
+                self.1.display(),
+                self.0.id()
+            );
+        }
         let _ = self.0.kill();
         let _ = self.0.wait();
     }
@@ -142,7 +155,7 @@ async fn start_daemon(s: &Session) -> Daemon {
         .stderr(Stdio::null())
         .spawn()
         .unwrap_or_else(|e| panic!("spawning {}: {e}", acqd.display()));
-    let daemon = Daemon(child);
+    let daemon = Daemon(child, acqd.clone());
     let deadline = Instant::now() + Duration::from_secs(10);
     loop {
         match Client::observe().await {

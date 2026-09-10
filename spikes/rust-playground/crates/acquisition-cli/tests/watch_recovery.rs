@@ -53,10 +53,19 @@ impl Drop for Scratch {
     }
 }
 
-struct Proc(Child);
+struct Proc(Child, PathBuf);
 
 impl Drop for Proc {
+    /// A failing test names the executable it ran (the daemon by path:
+    /// C82's "named in every failure").
     fn drop(&mut self) {
+        if std::thread::panicking() {
+            eprintln!(
+                "process under test: {} (pid {})",
+                self.1.display(),
+                self.0.id()
+            );
+        }
         let _ = self.0.kill();
         let _ = self.0.wait();
     }
@@ -107,7 +116,7 @@ fn start_daemon(base: &Path) -> Proc {
     let child = daemon_command(base, &acqd)
         .spawn()
         .unwrap_or_else(|e| panic!("spawning {}: {e}", acqd.display()));
-    let daemon = Proc(child);
+    let daemon = Proc(child, acqd.clone());
     let deadline = Instant::now() + Duration::from_secs(10);
     loop {
         let out = command(base, &["daemon", "status", "--json"])
@@ -184,7 +193,10 @@ fn watcher(base: &Path) -> (Proc, Output) {
             }
         }
     });
-    (Proc(child), Output { lines: rx })
+    (
+        Proc(child, PathBuf::from(env!("CARGO_BIN_EXE_acq"))),
+        Output { lines: rx },
+    )
 }
 
 async fn client() -> Client {

@@ -207,9 +207,9 @@ impl ConnectOptions {
 /// reads; the CLI prints it as is.
 #[derive(Debug)]
 pub enum ConnectError {
-    /// Nothing is listening, and this door may not spawn: the caller asked
-    /// not to, or `ACQ_NO_SPAWN=1` did.
-    Absent { no_spawn: bool },
+    /// Nothing is listening, and this door may not spawn — the caller's
+    /// policy, or `ACQ_NO_SPAWN=1` over a caller that would have.
+    Absent { because: NotSpawned },
     /// The daemon listening is not this client's (C10: runtime identity or
     /// provider), and this door may not replace it — or did, and the
     /// replacement is still not it.
@@ -231,6 +231,17 @@ pub enum ConnectError {
     Transport(anyhow::Error),
 }
 
+/// Why an absent daemon was not started. The remedy differs: under the
+/// caller's policy it is the caller's to name (the MCP server in real
+/// mode says "start it from the CLI"), under the knob it is the knob.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NotSpawned {
+    /// The caller's door does not spawn (`ConnectOptions::spawn` false).
+    Policy,
+    /// The caller would have spawned; `ACQ_NO_SPAWN=1` forbids it.
+    NoSpawnEnv,
+}
+
 /// Why an incompatible daemon was left standing.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NotReplaced {
@@ -246,10 +257,12 @@ pub enum NotReplaced {
 impl fmt::Display for ConnectError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ConnectError::Absent { no_spawn: false } => {
-                f.write_str("daemon is not running (it spawns on demand for job commands)")
-            }
-            ConnectError::Absent { no_spawn: true } => {
+            ConnectError::Absent {
+                because: NotSpawned::Policy,
+            } => f.write_str("daemon is not running, and this client does not start one"),
+            ConnectError::Absent {
+                because: NotSpawned::NoSpawnEnv,
+            } => {
                 f.write_str("daemon is not running and ACQ_NO_SPAWN forbids starting one from here")
             }
             ConnectError::Incompatible { found, because } => match because {
@@ -532,9 +545,14 @@ impl Client {
                     tokio::time::sleep(Duration::from_millis(50)).await;
                 }
                 Err(e) if is_absent(&e) => {
-                    return Err(ConnectError::Absent {
-                        no_spawn: no_spawn(),
-                    });
+                    // The caller's policy first: a door that never spawns
+                    // is absent by policy whatever the knob says.
+                    let because = if opts.spawn {
+                        NotSpawned::NoSpawnEnv
+                    } else {
+                        NotSpawned::Policy
+                    };
+                    return Err(ConnectError::Absent { because });
                 }
                 Err(e) => {
                     return Err(ConnectError::Transport(
@@ -850,6 +868,61 @@ mod tests {
             text.contains("another provider") && !text.contains("another runtime"),
             "{text}"
         );
+    }
+
+    /// The absence reason is the caller's policy before the knob, and the
+    /// two read differently: a door that never spawns says so, a door
+    /// the knob closed names the knob (review, 2026-09-10: the MCP's
+    /// real-mode absence had claimed "it spawns on demand").
+    #[tokio::test]
+    async fn an_absent_daemon_names_why_it_was_not_started() {
+        let dir = std::env::temp_dir().join(format!("acq-absent-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        // SAFETY: the crate's other tests never read these variables.
+        unsafe {
+            std::env::set_var("ACQ_SOCKET", dir.join("none.sock"));
+            std::env::remove_var("ACQ_NO_SPAWN");
+        }
+        let err = Client::connect(ConnectOptions::autonomous(false))
+            .await
+            .err()
+            .expect("no daemon");
+        assert!(
+            matches!(
+                err,
+                ConnectError::Absent {
+                    because: NotSpawned::Policy
+                }
+            ),
+            "{err:?}"
+        );
+        let text = err.to_string();
+        assert!(
+            text.contains("does not start one") && !text.contains("on demand"),
+            "{text}"
+        );
+        unsafe {
+            std::env::set_var("ACQ_NO_SPAWN", "1");
+        }
+        let err = Client::connect(ConnectOptions::interactive(true))
+            .await
+            .err()
+            .expect("no daemon");
+        assert!(
+            matches!(
+                err,
+                ConnectError::Absent {
+                    because: NotSpawned::NoSpawnEnv
+                }
+            ),
+            "{err:?}"
+        );
+        assert!(err.to_string().contains("ACQ_NO_SPAWN"), "{err}");
+        unsafe {
+            std::env::remove_var("ACQ_NO_SPAWN");
+        }
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// A scripted peer on a scratch socket: answers the handshake as a

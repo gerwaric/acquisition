@@ -21,12 +21,20 @@ fn ggg_mode_never_spawns_a_daemon_for_the_spending_tools() {
     let mut mcp = Mcp::start(&base, &[("ACQ_GGG", "1")]);
 
     // submit_job: no daemon is running and none may be started here, so
-    // the call fails on the absent daemon — not on the mode.
+    // the call fails on the absent daemon — not on the mode — and the
+    // message names this server's own policy and the human's remedy,
+    // never a spawn "on demand" (review, 2026-09-10).
     let msg = mcp.expect_err("submit_job", json!({ "kind": "stashes" }));
     assert!(
         !msg.contains("deferred"),
         "the lifted deferral is still being cited: {msg}"
     );
+    assert!(
+        msg.contains("never starts one") && msg.contains("acq profile"),
+        "the absence must name the policy and the CLI remedy: {msg}"
+    );
+    assert!(!msg.contains("on demand"), "{msg}");
+    assert!(!msg.contains("ACQ_NO_SPAWN"), "{msg}");
     assert!(
         !base.join("d.sock").exists(),
         "submit_job in ggg mode spawned a daemon (socket appeared): {msg}"
@@ -41,6 +49,18 @@ fn ggg_mode_never_spawns_a_daemon_for_the_spending_tools() {
         "apply_plan in ggg mode spawned a daemon (socket appeared): {msg}"
     );
 
+    let _ = mcp.child.kill();
+
+    // The other absence: mock mode, where this server would spawn, under
+    // `ACQ_NO_SPAWN=1` — the knob is named, not the policy.
+    let mut mcp = Mcp::start(&base, &[("ACQ_NO_SPAWN", "1")]);
+    let msg = mcp.expect_err("submit_job", json!({ "kind": "stashes" }));
+    assert!(msg.contains("ACQ_NO_SPAWN"), "{msg}");
+    assert!(!msg.contains("never starts one"), "{msg}");
+    assert!(
+        !base.join("d.sock").exists(),
+        "submit_job under ACQ_NO_SPAWN spawned a daemon: {msg}"
+    );
     let _ = mcp.child.kill();
     let _ = std::fs::remove_dir_all(&base);
 }

@@ -3,7 +3,7 @@
 //! a daemon on the provider it wants itself. The names and the one knob
 //! that selects between them live here; the providers themselves (URLs,
 //! client id, user-agent, keyring service) are the daemon's
-//! (`acquisition-core/src/provider.rs`), because only the daemon sends.
+//! (`acquisition-daemon/src/provider.rs`), because only the daemon sends.
 
 /// The in-process mock provider: the default, and the only provider
 /// anything reaches without a human setting `ACQ_GGG=1`.

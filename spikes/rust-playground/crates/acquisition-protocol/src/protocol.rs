@@ -34,7 +34,7 @@
 //! error, not a closed socket; `hello` and `daemon_stop` are a stable
 //! plane every version parses.** *Why:* a client must see losses to
 //! recover from them. *Pinned:* `acquisition-protocol/tests/wire.rs`,
-//! `acquisition-core/tests/contract.rs`. Ruled 2026-09-09.
+//! `acquisition-client/tests/contract.rs`. Ruled 2026-09-09.
 //!
 //! ## C85 — as built
 //!
@@ -57,8 +57,9 @@
 //! [`MAX_FRAME_BYTES`]; a longer one is discarded through its newline
 //! and, on the daemon, answered `bad_request` — as is a frame that is
 //! not JSON, not UTF-8, or not a request of this version — and the
-//! connection stays. The frame reader is `acquisition-core/src/frame.rs`
-//! (it needs tokio, which this crate never links). The sequence a
+//! connection stays. The frame reader is `frame.rs`, one copy in
+//! `acquisition-client` and one in `acquisition-daemon` (it needs tokio,
+//! which this crate never links). The sequence a
 //! subscriber follows is `acq jobs --watch` (`acquisition-cli/src/main.rs`):
 //! subscribe, then `list` over a request connection, then every event is a
 //! reason to re-read, and after `resync_required` or a disconnect,
