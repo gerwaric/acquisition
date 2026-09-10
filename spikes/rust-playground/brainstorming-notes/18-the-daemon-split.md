@@ -1,6 +1,6 @@
 # The daemon split — the frontend boundary drawn as crates and a wire
 
-**Written 2026-09-09, revised the same day after review rounds 1 (§8) and 2 (§9)**,
+**Written 2026-09-09, revised the same day after review rounds 1 (§8) and 2 (§9); ruled the same day (§10)**,
 the design session `17-framing-the-daemon-split.md` framed. Disposable
 (P1): what it proposes is real only as a ruling in the registry or as
 code under the gate. Current state only: superseded content is edited
@@ -394,11 +394,11 @@ mismatch, events and lag, malformed and oversize frames, disconnect,
 restart. Commit the check, then break the code (TESTING-NOTES): this is
 the first commit.
 
-## 3. Candidate decision lines (registry form; byte counts after the block)
+## 3. Decision lines as ruled (registry form; every line under the 800-byte gate)
 
 **C1 — amended (CONTEXT.md, cross-cutting):**
 
-- **C1 — Cargo workspace, library-centric; the daemon is its own artifact.** `acquisition-store` holds facts, intent and the world (root, locks, socket name); `acquisition-protocol` the wire, the job vocabulary and the shared-contract revision, serde-only; `acquisition-client` the IPC, the spawn and observe policies and the `acqd` locator; `acquisition-daemon` (binary `acqd`) its only implementation and the only GGG sender; `acquisition-plan` the planner. A frontend links client, protocol, store and plan as it needs them, never the daemon; the daemon links protocol and store, never client, plan or a frontend; the store links none of them. *Why:* write/test logic once, and C12's two surfaces as edges the check refuses. *Pinned:* `tools/docs-check.sh`. Amended 2026-09-09.
+- **C1 — Cargo workspace, library-centric; the daemon is its own artifact.** `acquisition-store` holds facts, intent and the world (root, locks, socket name); `acquisition-protocol` the wire, the job vocabulary and the shared-contract revision, serde-only; `acquisition-client` the IPC, the spawn and observe policies and the `acqd` locator; `acquisition-daemon` (binary `acqd`) holds the daemon implementation and is the only GGG sender; `acquisition-plan` the planner. A frontend links client, protocol, store and plan as it needs them, never the daemon; the daemon links protocol and store, never client, plan or a frontend; the store links none of them. *Why:* write/test logic once, and C12's two surfaces as edges the check refuses. *Pinned:* `tools/docs-check.sh`. Amended 2026-09-09.
 
 **C82 — new (decisions/daemon.md):**
 
@@ -410,13 +410,15 @@ the first commit.
 
 **C84 — new (decisions/daemon.md); C10's text is unchanged, this names what its "runtime identity" is:**
 
-- **C84 — The runtime identity (C10) is two values from two sources: the shared-contract revision, a digest of the protocol and store sources, manifests and lock both sides are compiled from, and the daemon artifact — the executable, which the daemon identifies and hashes at startup and a client compares with the sibling `acqd` it would spawn.** A mismatch on either is reported by name; a rebuilt `acqd` under a live daemon is an artifact mismatch. Daemon-only sources move neither value but the artifact; nothing derives from git or a hand-kept number. *Why:* the contract answers "can I use it", the artifact "is it the one I would start"; each sees a failure the other cannot. *Details:* `client.rs` doc, C10. *Pinned:* `daemon_observe.rs`. Ruled 2026-09-09.
+- **C84 — The runtime identity (C10) is two values from two sources: the shared-contract revision, a digest of the protocol and store sources, manifests and lock both sides are compiled from, and the daemon artifact — the executable, which the daemon identifies and hashes at startup and a client compares with the sibling `acqd` it would spawn.** A mismatch on either is reported by name; a rebuilt `acqd` under a live daemon is an artifact mismatch. Daemon-only source changes move only the artifact; nothing derives from Git or a hand-kept number. *Why:* the contract answers "can I use it", the artifact "is it the one I would start"; each sees a failure the other cannot. *Details:* `client.rs` doc, C10. *Pinned:* `daemon_observe.rs`. Ruled 2026-09-09.
 
 **C85 — new (decisions/daemon.md, beside C8 and C9):**
 
-- **C85 — Connection semantics: one request in flight per connection; a subscription takes a connection of its own and carries no requests; events are invalidation hints, never a complete stream — a subscriber snapshots after subscribing, re-reads on every event, is told `resync_required` when it lagged, and after that or any disconnect subscribes and snapshots again; a frame has a bound, and an oversize or malformed one is answered with an error, never a closed socket; `hello` and `daemon_stop` are a stable plane every version parses.** *Why:* a loss a client cannot observe cannot be recovered from; the GUI and the TUI arrive to these, not to what `dash` happens to do. *Pinned:* `acquisition-protocol/tests/wire.rs`, `acquisition-client/tests/contract.rs`. Ruled 2026-09-09.
+- **C85 — Connection semantics: 1 request in flight per connection; a subscription uses a dedicated connection — hello/hello, subscribe/subscribed, then events only, no more requests; events are invalidation hints, never a complete stream — a subscriber snapshots after subscribing, treats events as invalidations and re-reads before relying on its view, is told `resync_required` when it lagged, and after that or any disconnect subscribes and snapshots again; a frame has a bound, and an oversize or malformed one is answered with an error, not a closed socket; `hello` and `daemon_stop` are a stable plane every version parses.** *Why:* a client must see losses to recover from them. *Pinned:* `acquisition-protocol/tests/wire.rs`, `acquisition-client/tests/contract.rs`. Ruled 2026-09-09.
 
-**C31 — one clause added (decisions/daemon.md), the ruling otherwise verbatim:** after "two daemons on one machine make a 4-wide burst neither sees" add "— enforced per OS user by the real-mode lock (C83); another OS user, the C++ Acquisition on the same machine and other machines behind the same address are external concurrency the tripwire exists for". The owner trims to the gate.
+**C31 — amended (decisions/daemon.md), the owner's text:**
+
+- **C31 — Multi-account is one daemon holding many sessions, not one daemon per account.** The Cloudflare bound is a per-IP property held as per-process state; 2 daemons on 1 machine make a 4-wide burst neither sees — enforced among real-mode daemons for one OS user by the C83 lock; other users and processes remain external concurrency no local lock can coordinate. The tripwire bounds further sends after any resulting visible violation. Limiter and probe scope keying per `(account, policy)` for `Account` rules is a precondition of the session map, not an optimization. *Why:* rung 11 (2026-08-30) showed `Account` rules count per account on GGG's side. *Details:* `daemon.rs` doc, C31. Decided 2026-08-29, amended 2026-08-30.
 
 **Pointer edits, no new text:** C12 gains *Pinned:* `acquisition-protocol/tests/wire.rs`; C13's *Details* doc drops "embeds `daemon run` like `acq`"; C10's *Details* doc says "shared-contract revision and daemon artifact" (anticipated in 16 §7.1); C6's "one daemon per store directory is an invariant, not a lock" becomes "…is the world lock (C83)". README: "What exists" lists the crates; the knob table drops `ACQ_SOCKET` and reads `ACQ_GGG` in `acquisition-protocol`; the mock-session skill sets one knob. AGENTS.md's gate gains `cargo build --workspace` before `cargo test` (2.6). LIVE-TESTING's "Build before you run" bullet: proposed with step 4.
 
@@ -713,3 +715,84 @@ unevaluable. Verified: the reader tolerates a suffix after the currency
 word by documented design, so the property's inverse grammar is the
 defective side; the fix is one line in the test plus the regression
 file, proposed as commit −1 (§4, question 10).
+
+## 10. The owner's rulings (2026-09-09, verbatim)
+
+On §6's questions, after review rounds 1 and 2:
+
+1. C1: "accept with clarification: 'acquisition-daemon (binary acqd)
+   holds the daemon implementation and is the only GGG sender'".
+2. C82: "accept."
+3. C83: "accept."
+4. C84: "accept with clarification: 'Daemon-only source changes move
+   only the artifact; nothing derives from Git or a hand-kept
+   number.'"
+5. C85: "accept C85, amended so events require authoritative re-reading
+   without mandating one complete read per event": "treats events as
+   invalidations and re-reads before relying on its view"; and, on the
+   subscription connection: "Every connection begins with the stable
+   hello exchange. For a subscription connection, the sequence is:
+   client → hello, daemon → hello, client → subscribe, daemon →
+   subscribed, daemon → event | resync_required … After subscribed, the
+   client sends no further requests on that connection. Authoritative
+   snapshots use a separate ordinary, handshaken Client connection."
+   The phrasing of that clause was left to the author ("use your
+   judgement on the phrasing, and we can use a few more bytes for
+   clarity. It's more important that you and other agents correctly
+   interpret the decisions"); the line in §3 is the result, at 798
+   bytes, carrying the owner's own trims elsewhere in it ("1 request",
+   "not a closed socket", the shortened *Why*).
+6. Errors: "Add a closed, coarse kind now; defer detailed subcategories
+   and structured context until the GUI slice. The commit-0 audit
+   should ensure: every current daemon error site is classified;
+   expected domain failures do not use internal; message remains useful
+   standalone; malformed and oversized frames receive bad_request;
+   future error variants or fields remain explicit protocol diffs."
+   And: "Let the audit determine the actual kind vocabulary under the
+   approved properties. I do not want to rule the enumerant list before
+   every existing error site has been inventoried. The list becomes
+   part of the protocol contract and should be reviewed in commit 0
+   through: the complete mapping from current error sites to kinds;
+   the ErrorKind enum; the serialization-fixture diff; tests showing
+   malformed and oversized frames produce bad_request; confirmation
+   that known domain failures do not fall into internal. The registry
+   should rule the shape and properties, not enumerate the kinds. If
+   the audit discovers a materially new semantic distinction rather
+   than merely finding the right name or grouping, bring that
+   distinction back before landing. Otherwise, the fixture diff is the
+   appropriate review point."
+7. The journal: "accept, and retain the existing acq executable hash in
+   provenance.json and adding a separately named acqd hash, rather than
+   replacing one with the other. Both executables participate in a live
+   run: acq compiles and submits the authorized plan; acqd performs the
+   sends. The journal must match the acqd hash specifically."
+8. Wording: "accept as follows: approve the proposed surface semantics;
+   defer approval of the exact help and standing-rule prose until step
+   4 presents the real generated output; require provenance to
+   distinguish acq from acqd; make clear that acq version reports the
+   sibling candidate, while acq daemon status reports the running
+   daemon."
+9. C31: the clause accepted with the owner's amendment, then trimmed by
+   the owner to the line in §3 (735 bytes).
+10. Commit −1: "yes, go ahead" — landed as `93ed626c`.
+
+**Where each ruling lands** (the owner: "Use the note 16 pattern.
+Record the accepted rulings and amendments verbatim in note 18 now, in
+one history commit. Land each registry entry with the mechanism that
+makes it true, so its Details and Pinned pointers exist and the
+registry continues to describe built state"), with the owner's
+adjustment that C1 lands with the split, "not merely the earlier
+consumer switch. Its final text names acquisition-client and
+acquisition-daemon, and its strongest property — frontends cannot link
+the daemon — is not structurally true until that split exists":
+
+| Commit | Registry change |
+| --- | --- |
+| 0 (the wire audit and pin) | C85, including the closed error-kind shape and the wire tests |
+| 3 (the `acqd`/client split) | C1 amended, C82 |
+| 4 (the identity) | C84 |
+| 5 (the world) | C83, the C31 amendment |
+
+Commits 1 and 2 (the protocol extraction, the consumer switch) are
+implementation steps toward C1; the registry changes when the complete
+dependency graph it describes exists.
