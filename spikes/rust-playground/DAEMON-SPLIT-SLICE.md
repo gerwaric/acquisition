@@ -61,44 +61,15 @@ data for the commit that touches it.
 - The rails state today sits beside the socket in the per-user temp
   directory, which macOS clears at reboot: a tripped tripwire does not
   survive a restart (packet §1, verified). Closed by step 5.
-- How the client crate's contract tests find `acqd` (the owner's
-  question at step 3, not yet ruled): a test executable lives in
-  `target/<profile>/deps/`, whose parent holds no daemon, and the crate
-  may link neither the daemon nor a frontend, so `CARGO_BIN_EXE_acqd`
-  is not set for it. Built as the harness naming its executable, like
-  the drivers: `acqd_for_tests` resolves `target/<profile>/acqd` from
-  the test executable's own location (one level up from `deps/`), the
-  file the gate's `cargo build --workspace` writes, refused before any
-  test runs when absent and named by path in every failure. Not the
-  locator's rule and not a knob. The alternatives: the tests in the
-  daemon package (where `CARGO_BIN_EXE_acqd` exists) cannot drive the
-  public `Client`; artifact dependencies are unstable. A one-function
-  change if the owner rules otherwise. Review round 12 read the harness
-  against C82's "tests and drivers locate it the same way" and found
-  them incompatible as written; the harness doc now says so, and the
-  ruled line is the owner's. Proposed text, measured as the check
-  measures (`printf '%s' | wc -c`, no newline; the line is 791 today):
-  the clause "Tests and drivers locate it the same way (a test
-  executable names the `acqd` its build wrote); packaging smoke tests
-  are the acceptance criterion." with the parenthetical "(the playground
-  beside the shipped app targets another world)" trimmed — 782 bytes;
-  the same clause without the trim — 844; an em-dash form ("— a test
-  executable, having no sibling, names the `acqd` its build wrote;") —
-  866, or 804 trimmed. The drivers carry the same reading (they name
-  `target/debug/acqd`, the sibling of the `acq` they run).
-- Two kinds beyond the packet's sketch, reviewed at the fixture diff:
-  `wrong_state` (a result before terminal, a cancel after, a priority
-  change off `waiting`) and `upstream` (a token refresh that failed on
-  transport, a 5xx, exhausted 429s or a rails halt, the session still
-  standing; a rejected grant is `not_logged_in`). The sketch's "rails
-  halted" is not a kind of its own: a halted send waits and a quote
-  names the halt, and the one request a halt refuses — `auth_check`'s
-  forced refresh — is `upstream`. A veto is one variant and a fixture
-  regeneration.
-- The frame bound guards what each side reads; the daemon does not
-  measure its own answers, so a `result` over 64 MiB would surface at
-  the client as an oversize answer, not at the daemon. No such body
-  exists today (a tab is a few megabytes).
+- The contract tests find `acqd` as `target/<profile>/acqd` from the
+  test executable's own location (`acqd_for_tests`), the file the
+  gate's `cargo build --workspace` writes: a test executable has no
+  sibling. Ruled into C82 on 2026-09-10 (the owner, verbatim: "accept
+  the 782-byte trimmed amendment. Removing the playground parenthetical
+  is appropriate; the important exception is now explicit: test
+  executables name the acqd written by their build") — the line carries
+  no amendment date, since one would put it at 802 bytes; this entry
+  and `git log` date it.
 - Since step 3 the runtime revision's inputs are the daemon, store and
   protocol crates: `client.rs` left the daemon crate, so a client or
   locator edit no longer moves the identity — the direction step 4
@@ -164,16 +135,13 @@ data for the commit that touches it.
   `provider::wanted()` is the wrong tool there and `provider::GGG` is the
   constant nobody reached for. Data for step 4, which reshapes what
   `hello` and the observer report carry.
-- C39's ruling reads "depends on core + the store, linked by frontends
-  only"; since step 2 the planner links protocol and store, so the
-  phrase is stale, and its *Why* — "the daemon never reads the store"
-  — reads oddly beside a daemon that links the store (to write facts
-  and keep its queue; it reads no facts and no intent, C34). Proposed
-  for step 3, not ruled; still standing after round 12. Measured as
-  the check measures (the line is 413 today): "depends on protocol +
-  the store" alone — 417; with the *Why* as "the daemon never reads
-  facts or intent" — 423; with the *Why* as "the daemon never links the
-  planner" — 419. A ruled line is the owner's to amend.
+- C39 amended 2026-09-10 (the owner, verbatim: "change core + the
+  store to protocol + the store, and use 'the daemon never links the
+  planner' in the Why. Do not use 'never reads facts or intent': because
+  the daemon links the store, the dependency graph cannot enforce that
+  it never reads facts. It does enforce the absence of the planner
+  dependency; intent blindness is separately covered by C34"). 439
+  bytes.
 - `acq jobs --watch` ends when the daemon goes away rather than waiting
   for it to return: an observer never spawns (C10), and a watch that
   waits for a daemon is a design choice for the GUI's subscriber, not
