@@ -65,7 +65,9 @@ done
 unset ACQ_GGG ACQ_TRIPWIRE ACQ_MAX_SENDS ACQ_IDLE_SHUTDOWN
 
 RUN_DIR="$here/runs/$(date -u +%F)-persist"
-if [ "$MODE" = mock ]; then RUN_DIR="$RUN_DIR-mock"; fi
+# Mock rehearsals go under runs/mock/, as the tracer's do, so `ls -t runs/`
+# against the ledger sees live bundles only (the live-run skill, step 4).
+if [ "$MODE" = mock ]; then RUN_DIR="$here/runs/mock/$(date -u +%F)-persist"; fi
 mkdir -p "$RUN_DIR"
 
 if [ "$MODE" = live ]; then

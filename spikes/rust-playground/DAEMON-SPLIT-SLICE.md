@@ -126,7 +126,8 @@ data for the commit that touches it.
 - The process tests leak their scratch stores suite-wide: 567 `acq-*`
   directories sat in the temp directory on 2026-09-10 from every test
   file older than this slice (`acq-p`, `acq-reference`, `acq-story`,
-  `acq-ann`, …), removed once by hand. The three tests this slice wrote
+  `acq-ann`, …), removed once by hand; 46 more by 2026-09-10 after
+  step 3's suite runs, removed again. The three tests this slice wrote
   hold theirs in a guard; the rest is for the packet's later change to
   one harness module per crate, where one guard serves every test.
 - Two provider comparisons stay literal after step 2: `dash.rs` and the
