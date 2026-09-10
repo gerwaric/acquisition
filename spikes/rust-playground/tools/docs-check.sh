@@ -200,23 +200,28 @@ fi
 # edges are invisible). Six review rounds on this check found the same
 # shape each time: a reader whose empty or partial answer satisfied
 # every rule. So the graph is read twice, by two jq programs whose exit
-# status is checked directly and whose answers must agree. The first
-# proves the graph whole — every member is a node, every edge lands on a
-# node, every node has a package — and counts, by a set fixpoint of its
-# own, the direct edges and the closure sizes the table must have. The
-# second walks the graph and emits the table. The rules read that table
-# with bash builtins alone — no awk, grep or comm in a process
-# substitution can answer for it — after the counts have matched and
-# every package the rules are about has its own row with every direct
-# edge inside its closure. What remains is a reader that forges a whole
-# table and the counts to match it: a consistent lie, accepted.
+# status is checked directly and whose answers must agree row by row.
+# The first proves the graph whole — every member is a node, every edge
+# lands on a node, every node has a package — and names, by a set
+# fixpoint of its own, every fact the table must hold, by package id,
+# sorted. The second walks the graph and emits the table in that order.
+# Bash compares the two by identity with builtins alone — no awk, grep
+# or comm in a process substitution can answer for it — so a missing
+# row, a duplicate in its place, a fabricated row or an extra one all
+# refuse; then every package the rules are about must have its own row
+# with every direct edge inside its closure. What remains is a reader
+# that forges a whole table and the identities to match it: a
+# consistent lie, accepted.
 meta=$(mktemp)
 if ! cargo metadata --format-version 1 --all-features --offline >"$meta" 2>/dev/null \
    && ! cargo metadata --format-version 1 --all-features >"$meta"; then
   echo 'EDGE    cargo metadata failed — the dependency graph could not be read'
   rm -f "$meta"; exit 1
 fi
-# The graph must be whole before it is read: members, edges, packages.
+# The graph must be whole before it is read, and the first reader states
+# what the table must contain: after `whole`, one identity line per
+# fact, by package id, sorted — `direct <member id> <kind> <dep id>` and
+# `closure <member id> <dep id>` — from a set fixpoint of its own.
 if ! partial=$(jq -r '
     ([.resolve.nodes[]?.id] | unique) as $nodes
     | ([.packages[].id] | unique) as $pkgs
@@ -227,31 +232,35 @@ if ! partial=$(jq -r '
           (.seen + .front) as $seen
           | .front = (([ .front[] | $deps[.][] | select(any(.dep_kinds[]; .kind != "dev")) | .pkg ] | unique) - $seen)
           | .seen = $seen
-        end) | .seen | length;
+        end) | .seen;
     if (.workspace_members | length) == 0 then "no workspace member"
       elif ($nodes | length) == 0 then "no resolve graph"
       elif any(.workspace_members[]; . as $m | ($nodes | index($m)) == null) then "a workspace member is not a node"
       elif any(.resolve.nodes[].deps[].pkg; . as $d | ($nodes | index($d)) == null) then "an edge lands on no node"
       elif any($nodes[]; . as $n | ($pkgs | index($n)) == null) then "a node has no package entry"
-      else "whole \([.workspace_members[] as $m | $deps[$m][] | .dep_kinds[]] | length) \([.workspace_members[] | reach(.)] | add)"
+      else "whole",
+        ([.workspace_members[] as $m | $deps[$m][] | .pkg as $d | .dep_kinds[] | [$m, (.kind // "normal"), $d]] | sort | .[] | "direct\t\(.[0])\t\(.[1])\t\(.[2])"),
+        ([.workspace_members[] as $m | reach($m)[] | [$m, .]] | sort | .[] | "closure\t\(.[0])\t\(.[1])")
       end' "$meta"); then
   echo 'EDGE    jq failed or is not installed — the dependency graph could not be read'
   rm -f "$meta"; exit 1
 fi
-if [[ $partial != "whole "* ]]; then
+if [[ $partial != "whole"* ]]; then
   printf 'EDGE    the metadata is partial (%s) — the dependency graph could not be read\n' "$partial"
   rm -f "$meta"; exit 1
 fi
-read -r _ want_direct want_closure <<<"$partial"
-# The table, one line per fact, package names for the rules to read:
-#   direct  <member> <kind> <name>          one row per kind of a direct edge
-#   closure <member> <name> <path by names> one row per package the member links, itself included
+# The table, one tab-separated line per fact, in the first reader's order
+# (direct rows by member id, kind, dep id; closure rows by member id,
+# dep id), names for the rules and ids for the comparison:
+#   direct  <member> <kind> <name> <member id> <dep id>
+#   closure <member> <name> <member id> <dep id> <path by names>
 if ! table=$(jq -r '
     ([.packages[] | {key: .id, value: .name}] | from_entries) as $name
     | ([.resolve.nodes[] | {key: .id, value: .deps}] | from_entries) as $deps
-    | .workspace_members[] as $m
-    | ( $deps[$m][] | .pkg as $d | .dep_kinds[] | "direct \($name[$m]) \(.kind // "normal") \($name[$d])" ),
-      ( { seen: {($m): $name[$m]}, queue: [ $deps[$m][] | .pkg ], from: {} }
+    | ([.workspace_members[] as $m | $deps[$m][] | .pkg as $d | .dep_kinds[] | [$m, (.kind // "normal"), $d]]
+       | sort | .[] | "direct\t\($name[.[0]])\t\(.[1])\t\($name[.[2]])\t\(.[0])\t\(.[2])"),
+      ([.workspace_members[] as $m
+        | { seen: {($m): $name[$m]}, queue: [ $deps[$m][] | .pkg ], from: {} }
         | .from = ([ $deps[$m][] | {key: .pkg, value: $m} ] | from_entries)
         | until(.queue == [];
             .queue[0] as $x | .queue |= .[1:]
@@ -260,33 +269,51 @@ if ! table=$(jq -r '
                 | reduce ($deps[$x][] | select(any(.dep_kinds[]; .kind != "dev")) | .pkg) as $y
                     (.; if .seen[$y] or .from[$y] then . else .from[$y] = $x | .queue += [$y] end)
               end)
-        | .seen | to_entries[] | "closure \($name[$m]) \($name[.key]) \(.value)" )' "$meta"); then
+        | .seen | to_entries[] | [$m, .key, .value]]
+       | sort | .[] | "closure\t\($name[.[0]])\t\($name[.[1]])\t\(.[0])\t\(.[1])\t\(.[2])")' "$meta"); then
   echo 'EDGE    jq failed reading the dependency graph'
   rm -f "$meta"; exit 1
 fi
 rm -f "$meta"
-table=$'\n'"$table"$'\n'
-# The table must be as large as the graph says, row by row: the first
-# reader counted, the second emitted, and a whole-looking table that is
-# short — self rows alone, or the deep rows dropped — refuses here.
-got_direct=0; got_closure=0
-while IFS= read -r line; do
-  case $line in direct\ *) ((++got_direct)) ;; closure\ *) ((++got_closure)) ;; esac
+# The two answers must agree row by row, by identity: the table's rows,
+# projected to (member id, kind, dep id) and (member id, dep id), must be
+# exactly the first reader's lines in order — a missing row, a duplicate
+# in its place, a fabricated row or an extra one all refuse here, before
+# any rule is consulted (review 2026-09-10: matching counts had passed a
+# duplicate standing in for the dropped row). Builtins only.
+expect=()
+IFS=$'\n' read -d '' -ra expect <<<"${partial#whole}" || true
+actual=()
+while IFS=$'\t' read -r kind a b c d e _; do
+  case $kind in
+    direct)  actual+=("direct	$d	$b	$e") ;;
+    closure) actual+=("closure	$c	$d") ;;
+    '')      ;;
+    *)       printf 'EDGE    the dependency table has a row of unknown kind (%s) — the table is not the graph\n' "$kind"; exit 1 ;;
+  esac
 done <<<"$table"
-if ((got_direct != want_direct || got_closure != want_closure)); then
-  printf 'EDGE    the dependency table has %d direct and %d closure rows, the graph has %d and %d — the table is partial\n' \
-    "$got_direct" "$got_closure" "$want_direct" "$want_closure"
-  exit 1
+if ((${#expect[@]} == 0)); then
+  echo 'EDGE    the first reader named no fact — the graph was not read'; exit 1
 fi
+if ((${#actual[@]} != ${#expect[@]})); then
+  printf 'EDGE    the dependency table has %d rows, the graph has %d — the table is partial\n' "${#actual[@]}" "${#expect[@]}"; exit 1
+fi
+for ((i = 0; i < ${#expect[@]}; i++)); do
+  if [[ ${actual[i]} != "${expect[i]}" ]]; then
+    printf 'EDGE    the dependency table differs from the graph at row %d: the graph has "%s", the table "%s" — the table is not the graph\n' \
+      "$((i + 1))" "${expect[i]//	/ }" "${actual[i]//	/ }"; exit 1
+  fi
+done
+table=$'\n'"$table"$'\n'
 has_row() { [[ $table == *$'\n'"$1"* ]]; }   # has_row <line prefix>: builtins only
 named() {  # named <package>: its own rows must be there — itself in its closure, every direct edge in it
-  local pkg=$1 line kind name
-  if ! has_row "closure $pkg $pkg $pkg"$'\n'; then
+  local pkg=$1 kind name
+  if ! has_row "closure	$pkg	$pkg	"; then
     printf 'EDGE    the dependency table has no row for %s — the graph was not read\n' "$pkg"
     exit 1
   fi
-  while IFS=' ' read -r _ _ kind name; do
-    if ! has_row "closure $pkg $name "; then
+  while IFS=$'\t' read -r _ _ kind name _; do
+    if ! has_row "closure	$pkg	$name	"; then
       printf 'EDGE    %s links %s directly but its closure does not contain it — the graph was not read\n' "$pkg" "$name"
       exit 1
     fi
@@ -295,13 +322,13 @@ named() {  # named <package>: its own rows must be there — itself in its closu
 direct_rows() {  # direct_rows <package>: the direct rows, builtins only
   local line
   while IFS= read -r line; do
-    [[ $line == "direct $1 "* ]] && printf '%s\n' "$line"
+    [[ $line == "direct	$1	"* ]] && printf '%s\n' "$line"
   done <<<"$table"
 }
 path_to() {  # path_to <package> <name>: how the package reaches the name
-  local line
-  while IFS= read -r line; do
-    [[ $line == "closure $1 $2 "* ]] && { printf '%s\n' "${line#closure $1 $2 }"; return; }
+  local line k m n mi di path
+  while IFS=$'\t' read -r k m n mi di path; do
+    [[ $k == closure && $m == "$1" && $n == "$2" ]] && { printf '%s\n' "$path"; return; }
   done <<<"$table"
 }
 edge_bad=0
@@ -310,9 +337,9 @@ forbid() {  # forbid <package> <why> <name>...: refuse any of these names, in an
   local name direct='' deep='' d
   named "$pkg"
   for name in "$@"; do
-    for d in $(direct_rows "$pkg"); do [[ $d == "$name" ]] && direct+="$name "; done
+    while IFS=$'\t' read -r _ _ _ d _; do [[ $d == "$name" ]] && direct+="$name " && break; done < <(direct_rows "$pkg")
     [[ " $direct" == *" $name "* ]] && continue
-    has_row "closure $pkg $name " && deep+="$name "
+    has_row "closure	$pkg	$name	" && deep+="$name "
   done
   if [[ -n $direct ]]; then
     printf 'EDGE    %-22s links %s— %s\n' "$pkg" "$direct" "$why"
@@ -326,9 +353,9 @@ forbid() {  # forbid <package> <why> <name>...: refuse any of these names, in an
 }
 allow() {  # allow <package> <kind> <name>...: refuse any other direct dependency of that kind
   local pkg=$1 kind=$2; shift 2
-  local line k name extra='' ok
+  local k name extra='' ok a
   named "$pkg"
-  while IFS=' ' read -r _ _ k name; do
+  while IFS=$'\t' read -r _ _ k name _; do
     [[ $k == "$kind" ]] || continue
     ok=0; for a in "$@"; do [[ $a == "$name" ]] && ok=1; done
     ((ok)) || extra+="$name "
