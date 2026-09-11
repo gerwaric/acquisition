@@ -233,6 +233,7 @@ async fn compatible_client() -> Client {
         Observed::Compatible(client) => client,
         Observed::Absent => panic!("no daemon"),
         Observed::Incompatible(found) => panic!("{found}"),
+        Observed::Unresponsive(found) => panic!("{found}"),
     }
 }
 
@@ -241,6 +242,7 @@ async fn open_subscription() -> Subscription {
         Observed::Compatible(subscription) => subscription,
         Observed::Absent => panic!("no daemon"),
         Observed::Incompatible(found) => panic!("{found}"),
+        Observed::Unresponsive(found) => panic!("{found}"),
     }
 }
 
@@ -465,6 +467,86 @@ async fn foreign_daemon(hello_reply: Value, stop_reply: Value) -> tokio::task::J
     })
 }
 
+/// A peer that accepts on the session's socket and never answers: the
+/// shape of a wedged daemon. Every connection is held open until the
+/// task is aborted.
+fn silent_peer() -> tokio::task::JoinHandle<()> {
+    let path = session_socket();
+    let _ = std::fs::remove_file(&path);
+    let listener = UnixListener::bind(&path).expect("bind");
+    tokio::spawn(async move {
+        let mut held = Vec::new();
+        loop {
+            let (stream, _) = listener.accept().await.expect("accept");
+            held.push(stream);
+        }
+    })
+}
+
+/// C86: a peer that accepts and never answers `hello` is reported as
+/// unresponsive within the deadline, as its own verdict on every door —
+/// observation, the use door (which neither spawns nor replaces over it:
+/// the peer still holds the socket afterwards) and stop — naming the
+/// pid the world lock's file records. The three doors run together, so
+/// the test costs one deadline, not three.
+#[tokio::test]
+async fn c86_a_peer_that_never_answers_hello_is_unresponsive_on_every_door_and_never_replaced() {
+    let s = session("silent");
+    let peer = silent_peer();
+    // The lock a wedged daemon would still hold, with its pid in it.
+    let world = World::observe().expect("the session's world");
+    std::fs::write(world.lock_path(), "424242\n").expect("the lock file");
+    let socket = session_socket().to_str().expect("utf-8").to_string();
+
+    let started = Instant::now();
+    let (observed, connected, stopped) = tokio::join!(
+        Client::observe(),
+        Client::connect(ConnectOptions::interactive(true)),
+        Client::stop_any(),
+    );
+    let elapsed = started.elapsed();
+    assert!(
+        elapsed >= Duration::from_secs(5) && elapsed < Duration::from_secs(20),
+        "the deadline is 5s; the doors took {elapsed:?}"
+    );
+
+    let found = match observed {
+        Ok(Observed::Unresponsive(found)) => found,
+        Ok(Observed::Absent) => panic!("observed absence over a listening peer"),
+        Ok(Observed::Compatible(_)) => panic!("observed a compatible daemon over a silent peer"),
+        Ok(Observed::Incompatible(found)) => panic!("observed {found} over a silent peer"),
+        Err(e) => panic!("observation failed instead of reporting: {e:#}"),
+    };
+    assert_eq!(found.at.socket, socket);
+    assert_eq!(found.holder, Some(424242));
+    let sentence = found.to_string();
+    assert!(
+        sentence.contains("did not answer hello within 5s") && sentence.contains("kill 424242"),
+        "{sentence}"
+    );
+
+    match connected {
+        Err(ConnectError::Unresponsive(found)) => assert_eq!(found.holder, Some(424242)),
+        Err(other) => panic!("the use door reported {other} instead"),
+        Ok(_) => panic!("the use door opened over a silent peer"),
+    }
+
+    let err = stopped.expect_err("a stop the peer never acknowledged is an error");
+    assert!(
+        format!("{err:#}").contains("did not answer hello within 5s"),
+        "{err:#}"
+    );
+
+    // Nothing spawned or replaced: the peer still holds the socket and
+    // still accepts.
+    assert!(!peer.is_finished(), "the peer is gone");
+    UnixStream::connect(session_socket())
+        .await
+        .expect("the peer still listens on the session's socket");
+    peer.abort();
+    drop(s);
+}
+
 /// The client side: a daemon whose frames carry fields this build has
 /// never seen is identified as another contract — reported, not used —
 /// and `stop_any` stops it; a stop it refuses is reported by message.
@@ -492,6 +574,7 @@ async fn c85_a_client_identifies_and_stops_a_foreign_daemon_across_a_contract_mi
         Observed::Incompatible(found) => found,
         Observed::Absent => panic!("absent"),
         Observed::Compatible(_) => panic!("a foreign daemon is never this client's"),
+        Observed::Unresponsive(found) => panic!("{found}"),
     };
     assert_eq!(found.version(), "9.9.9");
     assert_eq!(found.contract(), "ffffffffffff");
@@ -618,6 +701,7 @@ async fn c83_a_daemon_on_another_world_is_refused_and_never_replaced() {
         Observed::Incompatible(found) => found,
         Observed::Absent => panic!("absent"),
         Observed::Compatible(_) => panic!("a daemon on another world is never this client's"),
+        Observed::Unresponsive(found) => panic!("{found}"),
     };
     assert_eq!(found.pid(), 4242);
     assert_eq!(found.world(), "/somewhere/else", "{found}");

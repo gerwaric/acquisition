@@ -46,13 +46,11 @@
 //! another root — pinned on the wire, never seen from a daemon of this
 //! build.
 //!
-//! The handshake over the world's socket carries no deadline: the socket
-//! lives in a directory that is this user's and 0700, so what answers
-//! there is a daemon of this playground or something this user put
-//! there; a daemon under a long limiter hold answers `hello` late. A
-//! wedged daemon would hang `daemon status` and the doors (the quote path
-//! has its own bound, `try_quote_within`) — parked in
-//! `decisions/daemon.md` with its trigger.
+//! The handshake over the world's socket has a deadline (C86,
+//! [`HELLO_WITHIN`]): a peer that accepts and does not answer `hello` in
+//! time is [`Unresponsive`] — its own verdict on every door, never
+//! absence, so nothing spawns or replaces over it — and the report names
+//! the world lock's holder for the hand that stops it.
 //!
 //! # Decisions as recorded
 //!
@@ -207,7 +205,7 @@ use acquisition_protocol::protocol::{
     Bootstrap, BootstrapReply, ErrorKind, MAX_FRAME_BYTES, Request, Response, error_message,
 };
 use acquisition_protocol::{CONTRACT_REVISION, VERSION};
-use acquisition_store::world::{World, WorldError};
+use acquisition_store::world::{Lock, World, WorldError};
 use anyhow::{Context, Result, bail};
 use serde::Serialize;
 use serde_json::json;
@@ -307,9 +305,78 @@ pub enum ConnectError {
     /// socket. `log` is the explanation, with what the daemon's log said
     /// after the spawn when there was a daemon to say it.
     SpawnFailed { acqd: Option<PathBuf>, log: String },
+    /// The socket accepted the connection and nothing answered `hello`
+    /// within [`HELLO_WITHIN`] (C86): a wedged daemon, or one on its way
+    /// out. Not absence — this door neither spawns nor replaces over it.
+    Unresponsive(Unresponsive),
     /// The socket answered, and the conversation failed: a connect error
     /// that is not absence, or a handshake this build could not read.
     Transport(anyhow::Error),
+}
+
+/// How long a peer on the world's socket has to answer `hello` (C86).
+/// A healthy daemon answers from a per-connection task in milliseconds
+/// whatever the limiter holds — its shared lock never spans an await —
+/// so five seconds, the spawn wait's and the quote's bound, is generous;
+/// what trips it is a wedged daemon, or one exiting under a long
+/// checkpoint with its listener still open.
+pub const HELLO_WITHIN: Duration = Duration::from_secs(5);
+
+/// A peer that accepted a connection on the world's socket and did not
+/// answer `hello` within [`HELLO_WITHIN`] (C86). `holder` is the pid the
+/// world lock's file records — the daemon that took the world, if the
+/// file could be read — so the sentence names what to stop by hand.
+#[derive(Debug, Clone)]
+pub struct Unresponsive {
+    /// The socket the connection was accepted on.
+    pub at: Endpoint,
+    /// The world lock's recorded holder, when there is one.
+    pub holder: Option<u32>,
+}
+
+impl fmt::Display for Unresponsive {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "a daemon is listening at {} but did not answer hello within {}s",
+            self.at.socket,
+            HELLO_WITHIN.as_secs()
+        )?;
+        match self.holder {
+            Some(pid) => write!(
+                f,
+                " — the world's lock names pid {pid}; stop it by hand (`kill {pid}`)"
+            ),
+            None => f.write_str(" — the world's lock names no holder"),
+        }
+    }
+}
+
+impl std::error::Error for Unresponsive {}
+
+/// Why a handshake did not identify a peer: the deadline, or a failure
+/// with its context.
+enum Handshake {
+    Unresponsive(Endpoint),
+    Failed(anyhow::Error),
+}
+
+impl Handshake {
+    /// As one error, for a door whose failures are all errors (`stop_any`).
+    fn into_error(self, holder: Option<u32>) -> anyhow::Error {
+        match self {
+            Handshake::Unresponsive(at) => anyhow::Error::new(Unresponsive { at, holder }),
+            Handshake::Failed(e) => e,
+        }
+    }
+}
+
+/// The pid the world lock's file records, for an unresponsive report:
+/// none without a world, or before a daemon wrote it.
+fn lock_holder(own: &Result<World, AbsentWorld>) -> Option<u32> {
+    own.as_ref()
+        .ok()
+        .and_then(|world| Lock::holder(&world.lock_path()))
 }
 
 /// Why an absent daemon was not started. The remedy differs: under the
@@ -367,6 +434,7 @@ impl fmt::Display for ConnectError {
                 write!(f, "could not start the daemon {}: {log}", acqd.display())
             }
             ConnectError::SpawnFailed { acqd: None, log } => f.write_str(log),
+            ConnectError::Unresponsive(found) => write!(f, "{found}"),
             ConnectError::Transport(e) => write!(f, "{e:#}"),
         }
     }
@@ -776,6 +844,9 @@ pub enum Observed<C = Client> {
     /// used. Its [`DaemonId::endpoint`] says which socket it was found
     /// on.
     Incompatible(DaemonId),
+    /// Something accepted the connection and never answered `hello`
+    /// (C86): reported, never spawned or replaced over.
+    Unresponsive(Unresponsive),
 }
 
 /// A request connection (C85): one request in flight, one response per
@@ -824,6 +895,7 @@ impl Subscription {
         match Client::observe().await? {
             Observed::Absent => Ok(Observed::Absent),
             Observed::Incompatible(found) => Ok(Observed::Incompatible(found)),
+            Observed::Unresponsive(found) => Ok(Observed::Unresponsive(found)),
             Observed::Compatible(client) => client.subscribe().await.map(Observed::Compatible),
         }
     }
@@ -952,13 +1024,19 @@ impl Client {
             let socket = world_socket(&own).map_err(ConnectError::Transport)?;
             match reach(socket).await {
                 Ok(Reached::Listening { socket, stream }) => {
-                    let mut client = Client::handshake(
-                        stream,
-                        Endpoint::world(&socket).map_err(ConnectError::Transport)?,
-                        own_name.clone(),
-                    )
-                    .await
-                    .map_err(ConnectError::Transport)?;
+                    let at = Endpoint::world(&socket).map_err(ConnectError::Transport)?;
+                    let mut client = match Client::handshake(stream, at, own_name.clone()).await {
+                        Ok(client) => client,
+                        // Unresponsive is never absence (C86): no spawn,
+                        // no replacement — the report is the door's answer.
+                        Err(Handshake::Unresponsive(at)) => {
+                            return Err(ConnectError::Unresponsive(Unresponsive {
+                                at,
+                                holder: lock_holder(&own),
+                            }));
+                        }
+                        Err(Handshake::Failed(e)) => return Err(ConnectError::Transport(e)),
+                    };
                     if client.daemon.is_ours() {
                         return Ok(client);
                     }
@@ -1071,11 +1149,15 @@ impl Client {
         let own_name = world_name(&own);
         match reach(world_socket(&own)?).await {
             Ok(Reached::Listening { socket, stream }) => {
-                let client = Client::handshake(stream, Endpoint::world(&socket)?, own_name).await?;
-                Ok(if client.daemon.is_ours() {
-                    Observed::Compatible(client)
-                } else {
-                    Observed::Incompatible(client.daemon)
+                let at = Endpoint::world(&socket)?;
+                Ok(match Client::handshake(stream, at, own_name).await {
+                    Ok(client) if client.daemon.is_ours() => Observed::Compatible(client),
+                    Ok(client) => Observed::Incompatible(client.daemon),
+                    Err(Handshake::Unresponsive(at)) => Observed::Unresponsive(Unresponsive {
+                        at,
+                        holder: lock_holder(&own),
+                    }),
+                    Err(Handshake::Failed(e)) => return Err(e),
                 })
             }
             Ok(Reached::Nothing) => Ok(Observed::Absent),
@@ -1094,28 +1176,19 @@ impl Client {
         let own = World::observe().map_err(absent_world);
         let own_name = world_name(&own);
         match reach(world_socket(&own)?).await {
-            Ok(Reached::Listening { socket, stream }) => {
-                Client::stop_over(stream, Endpoint::world(&socket)?, own_name)
-                    .await
-                    .map(Some)
-            }
+            Ok(Reached::Listening { socket, stream }) => Client::stop_over(
+                stream,
+                Endpoint::world(&socket)?,
+                own_name,
+                lock_holder(&own),
+            )
+            .await
+            .map(Some),
             Ok(Reached::Nothing) => Ok(None),
             Err((socket, e)) => {
                 Err(e).with_context(|| format!("connecting to {}", socket.display()))
             }
         }
-    }
-
-    /// The stop conversation over an open connection: identify the peer,
-    /// ask it to stop, and count only its `Stopping` as a stop.
-    async fn stop_over(
-        stream: UnixStream,
-        at: Endpoint,
-        own_world: Result<String, AbsentWorld>,
-    ) -> Result<DaemonId> {
-        let mut client = Client::handshake(stream, at, own_world).await?;
-        client.stop().await?;
-        Ok(client.daemon)
     }
 
     /// `daemon_stop` over the bootstrap plane (C85): read leniently, so a
@@ -1136,16 +1209,35 @@ impl Client {
         }
     }
 
+    /// The stop conversation over an open connection: identify the peer,
+    /// ask it to stop, and count only its `Stopping` as a stop. A peer
+    /// that never answers `hello` cannot be asked (C86): the error names
+    /// `holder`, the world lock's recorded pid.
+    async fn stop_over(
+        stream: UnixStream,
+        at: Endpoint,
+        own_world: Result<String, AbsentWorld>,
+        holder: Option<u32>,
+    ) -> Result<DaemonId> {
+        let mut client = Client::handshake(stream, at, own_world)
+            .await
+            .map_err(|e| e.into_error(holder))?;
+        client.stop().await?;
+        Ok(client.daemon)
+    }
+
     /// The handshake over a fresh connection at `at`: who is at the other
     /// end, over the bootstrap plane (C85) so any revision answers,
     /// judged once against `own_world` — the world the door resolved.
     /// Decides nothing — the caller reads `daemon` and applies its
-    /// policy.
+    /// policy. The one exchange runs under [`HELLO_WITHIN`] (C86): a peer
+    /// that accepts and never answers is [`Handshake::Unresponsive`],
+    /// which every door reports as its own verdict.
     async fn handshake(
         stream: UnixStream,
         at: Endpoint,
         own_world: Result<String, AbsentWorld>,
-    ) -> Result<Client> {
+    ) -> Result<Client, Handshake> {
         let (read, write) = stream.into_split();
         let mut reader = BufReader::new(read);
         let mut write = write;
@@ -1155,16 +1247,19 @@ impl Client {
             Ok(name) => name.clone(),
             Err(absent) => absent.intended.clone(),
         };
-        let bytes = exchange(
-            &mut reader,
-            &mut write,
-            &Bootstrap::Hello {
-                version: VERSION.to_string(),
-                contract: CONTRACT_REVISION.to_string(),
-                world,
-            },
-        )
-        .await?;
+        let hello = Bootstrap::Hello {
+            version: VERSION.to_string(),
+            contract: CONTRACT_REVISION.to_string(),
+            world,
+        };
+        let bytes =
+            match tokio::time::timeout(HELLO_WITHIN, exchange(&mut reader, &mut write, &hello))
+                .await
+            {
+                Ok(Ok(bytes)) => bytes,
+                Ok(Err(e)) => return Err(Handshake::Failed(e)),
+                Err(_elapsed) => return Err(Handshake::Unresponsive(at)),
+            };
         let Some(BootstrapReply::Hello {
             version,
             contract,
@@ -1174,10 +1269,10 @@ impl Client {
             world,
         }) = BootstrapReply::read(&bytes)
         else {
-            bail!(
+            return Err(Handshake::Failed(anyhow::anyhow!(
                 "unexpected handshake response: {}",
                 String::from_utf8_lossy(&bytes)
-            );
+            )));
         };
         let reported = Reported {
             pid,
@@ -1669,6 +1764,7 @@ mod tests {
             stream,
             Endpoint::world(Path::new("/run/acq/peer.sock")).unwrap(),
             own_world(),
+            None,
         )
         .await
         .unwrap_err()
@@ -1683,6 +1779,7 @@ mod tests {
             stream,
             Endpoint::world(Path::new("/run/acq/peer.sock")).unwrap(),
             own_world(),
+            None,
         )
         .await
         .unwrap_err()
@@ -1694,6 +1791,7 @@ mod tests {
             stream,
             Endpoint::world(Path::new("/run/acq/peer.sock")).unwrap(),
             own_world(),
+            None,
         )
         .await
         .unwrap_err()
@@ -1705,6 +1803,7 @@ mod tests {
             stream,
             Endpoint::world(Path::new("/run/acq/peer.sock")).unwrap(),
             own_world(),
+            None,
         )
         .await
         .unwrap();

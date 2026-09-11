@@ -582,6 +582,9 @@ async fn try_quote_within(
             Ok(Observed::Incompatible(found)) => {
                 return Err(format!("no quote: {found} — plan compiled offline"));
             }
+            Ok(Observed::Unresponsive(found)) => {
+                return Err(format!("no quote: {found} — plan compiled offline"));
+            }
             Err(e) => return Err(format!("no quote: {e:#} — plan compiled offline")),
         };
         client

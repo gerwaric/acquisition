@@ -611,6 +611,14 @@ impl std::fmt::Display for LockError {
 impl std::error::Error for LockError {}
 
 impl Lock {
+    /// The pid the holder wrote into the lock file at `path`, read
+    /// without contending for the lock: what a client names when the
+    /// daemon on a world accepts a connection and never answers (C86).
+    /// `None` when there is no file, or no pid in it yet.
+    pub fn holder(path: &Path) -> Option<u32> {
+        std::fs::read_to_string(path).ok()?.trim().parse().ok()
+    }
+
     /// Take the lock at `path` (created if missing), or say who holds it.
     /// Never blocks.
     pub fn acquire(path: &Path) -> Result<Lock, LockError> {

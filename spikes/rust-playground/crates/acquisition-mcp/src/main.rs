@@ -87,14 +87,15 @@ fn err(e: anyhow::Error) -> ErrorData {
 /// A door that did not open, as a JSON-RPC error: the server could not
 /// serve the call (`internal_error`), and `data.connect` names which
 /// door failed — `absent`, `incompatible`, `other_world`,
-/// `spawn_failed`, `transport` — so an agent can branch on it the way it
-/// branches on a daemon error's kind.
+/// `spawn_failed`, `unresponsive`, `transport` — so an agent can branch
+/// on it the way it branches on a daemon error's kind.
 fn connect_error(door: &ConnectError, message: String) -> ErrorData {
     let connect = match door {
         ConnectError::Absent { .. } => "absent",
         ConnectError::Incompatible { .. } => "incompatible",
         ConnectError::OtherWorld { .. } => "other_world",
         ConnectError::SpawnFailed { .. } => "spawn_failed",
+        ConnectError::Unresponsive(_) => "unresponsive",
         ConnectError::Transport(_) => "transport",
     };
     ErrorData::internal_error(message, Some(json!({ "connect": connect })))
@@ -187,6 +188,7 @@ async fn try_quote(plan: RefreshPlan) -> (RefreshPlan, Option<String>) {
             Ok(Observed::Compatible(client)) => client,
             Ok(Observed::Absent) => return Err("no daemon running".to_string()),
             Ok(Observed::Incompatible(found)) => return Err(found.to_string()),
+            Ok(Observed::Unresponsive(found)) => return Err(found.to_string()),
             Err(e) => return Err(format!("{e:#}")),
         };
         client
@@ -242,6 +244,7 @@ async fn attach() -> Result<Client> {
     match Client::observe().await? {
         Observed::Compatible(client) => Ok(client),
         Observed::Absent => anyhow::bail!("no daemon running"),
+        Observed::Unresponsive(found) => anyhow::bail!("{found}"),
         Observed::Incompatible(found) => anyhow::bail!(
             "{found}; this server never replaces a daemon — resolve it with the CLI (`acq daemon stop`{})",
             if found.world_matches() {
@@ -732,7 +735,7 @@ impl AcqMcp {
     }
 
     #[tool(
-        description = "The daemon running: its identity (C84, C83) — contract revision, the executable it runs from and its hash (artifact), the world it serves (its canonical store root), the socket it was reached on (derived from the world), how that file relates to the acqd beside this server (artifact_relation: same_file, same_bytes for another copy, different, unhashable, no_sibling, unreported), which of the four dimensions match (contract_matches, artifact_matches, provider_matches, world_matches), and under wanted this server's own version, contract, provider and world with that sibling — all from the one look that judged the daemon; and, when compatible, its vitals: provider, uptime, connections, queue counts, rate-limit policies learned, rails state (with the journal path), keyring health, and log — the log file the daemon opened, as it reports it. Observes only: running=false when no daemon is up; running=true, compatible=false for a daemon of another contract, artifact, provider or world, reported by its identity alone and never replaced by this server."
+        description = "The daemon running: its identity (C84, C83) — contract revision, the executable it runs from and its hash (artifact), the world it serves (its canonical store root), the socket it was reached on (derived from the world), how that file relates to the acqd beside this server (artifact_relation: same_file, same_bytes for another copy, different, unhashable, no_sibling, unreported), which of the four dimensions match (contract_matches, artifact_matches, provider_matches, world_matches), and under wanted this server's own version, contract, provider and world with that sibling — all from the one look that judged the daemon; and, when compatible, its vitals: provider, uptime, connections, queue counts, rate-limit policies learned, rails state (with the journal path), keyring health, and log — the log file the daemon opened, as it reports it. Observes only: running=false when no daemon is up; running=true, compatible=false for a daemon of another contract, artifact, provider or world, reported by its identity alone and never replaced by this server; running=true, responsive=false (with socket and lock_holder, the pid the world's lock records) for something that accepted the connection and did not answer hello within 5s — a wedged daemon, for a human to stop by hand."
     )]
     async fn daemon_status(&self) -> Result<Json<Value>, ErrorData> {
         let mut client = match Client::observe().await.map_err(err)? {
@@ -743,6 +746,14 @@ impl AcqMcp {
                 report["running"] = json!(true);
                 report["compatible"] = json!(false);
                 return Ok(Json(report));
+            }
+            Observed::Unresponsive(found) => {
+                return Ok(Json(json!({
+                    "running": true,
+                    "responsive": false,
+                    "socket": found.at.socket,
+                    "lock_holder": found.holder,
+                })));
             }
         };
         let found = client.daemon().clone();

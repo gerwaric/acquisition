@@ -107,6 +107,7 @@ async fn client() -> Client {
             match other {
                 Observed::Absent => "no daemon".to_string(),
                 Observed::Incompatible(found) => found.to_string(),
+                Observed::Unresponsive(found) => found.to_string(),
                 Observed::Compatible(_) => unreachable!(),
             }
         ),

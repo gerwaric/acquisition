@@ -49,6 +49,7 @@ pub(crate) async fn attach() -> Result<Client> {
         Observed::Compatible(client) => Ok(client),
         Observed::Absent => bail!("daemon is not running (it spawns on demand for job commands)"),
         Observed::Incompatible(found) => bail!("{found}; {}", mismatch_remedy(&found)),
+        Observed::Unresponsive(found) => bail!("{found}"),
     }
 }
 
@@ -569,7 +570,11 @@ enum DaemonCmd {
     /// rails state, keyring health. Observes only (C10): never spawns or
     /// replaces; a daemon of another contract, artifact, provider or
     /// world is reported by its identity alone — no vitals — and left
-    /// running. `--json`, in both cases: running, compatible, `socket` (the
+    /// running; something that accepts the connection and does not answer
+    /// hello within 5s is reported unresponsive (C86) — `--json`: running,
+    /// `responsive: false`, `socket`, `lock_holder` (the pid the world's
+    /// lock records) — for a human to stop by hand.
+    /// `--json`, in the two identified cases: running, compatible, `socket` (the
     /// one this shell reached it through: derived from the world, C83), which of
     /// the four dimensions match (`contract_matches`, `artifact_matches`,
     /// `provider_matches`, `world_matches`), how the daemon's file relates to this
@@ -1057,6 +1062,24 @@ async fn run(cli: Cli) -> Result<()> {
                         }
                         return Ok(());
                     }
+                    // Something accepted and never answered (C86): a
+                    // state, like the others — not this verb's error.
+                    Observed::Unresponsive(found) => {
+                        if cli.json {
+                            println!(
+                                "{}",
+                                serde_json::to_string_pretty(&json!({
+                                    "running": true,
+                                    "responsive": false,
+                                    "socket": found.at.socket,
+                                    "lock_holder": found.holder,
+                                }))?
+                            );
+                        } else {
+                            println!("{found}");
+                        }
+                        return Ok(());
+                    }
                 };
                 let found = client.daemon().clone();
                 let status = client.request(&Request::DaemonStatus).await?;
@@ -1174,6 +1197,7 @@ async fn run(cli: Cli) -> Result<()> {
                     Observed::Incompatible(found) => {
                         bail!("{found}; `acq daemon stop` first")
                     }
+                    Observed::Unresponsive(found) => bail!("{found}"),
                     Observed::Absent => {
                         // The trip lives on disk, in the world (C83); clear
                         // it so the next spawned daemon is not still
@@ -1439,6 +1463,7 @@ async fn watch_jobs(json: bool) -> Result<()> {
             Observed::Compatible(subscription) => subscription,
             Observed::Absent => bail!("daemon stopped (it spawns on demand for job commands)"),
             Observed::Incompatible(found) => bail!("{found}"),
+            Observed::Unresponsive(found) => bail!("{found}"),
         };
         let mut client = attach().await?;
         if client.daemon().pid() != subscription.daemon().pid() {
