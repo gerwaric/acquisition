@@ -131,10 +131,11 @@ run_case 'the MCP links the daemon directly'                     refuse 'is link
 run_case 'the CLI → helper → daemon'                             refuse 'acquisition-cli → acquisition-helper → acquisition-daemon' member_links_helper acquisition-cli "[dependencies]\n$DP\n"
 run_case 'the CLI → helper → daemon under cfg(windows)'          refuse 'acquisition-cli → acquisition-helper → acquisition-daemon' member_links_helper acquisition-cli "[target.'cfg(windows)'.dependencies]\n$DP\n"
 run_case 'plan links client directly'                            refuse 'acquisition-plan       links acquisition-client —' adddep crates/acquisition-plan/Cargo.toml "$CP"
-run_case 'store links client directly'                           refuse 'acquisition-store      links acquisition-client —' adddep crates/acquisition-store/Cargo.toml "$CP"
-# store → daemon is a cycle (the daemon links the store), and Cargo refuses
-# a cycle before any guard reads the graph: the refusal is Cargo's, named
-# as such — the edge is unreachable by construction, not by the rule.
+# store → daemon and store → client are cycles (the daemon and, since the
+# split's step 5, the client link the store), and Cargo refuses a cycle
+# before any guard reads the graph: the refusal is Cargo's, named as
+# such — the edge is unreachable by construction, not by the rule.
+run_case 'store links client directly (a cycle: Cargo refuses it first)' refuse 'cargo metadata failed' adddep crates/acquisition-store/Cargo.toml "$CP"
 run_case 'store links daemon directly (a cycle: Cargo refuses it first)' refuse 'cargo metadata failed' adddep crates/acquisition-store/Cargo.toml "$DP"
 run_case 'the store links tokio through a [dependencies.tokio] table' refuse 'acquisition-store      links tokio' adddep crates/acquisition-store/Cargo.toml 'workspace = true' '[dependencies.tokio]'
 intent_in_client() { printf '// breaker: a client that reads intent\npub fn f() -> Option<u32> { let annotations_path = 1; Some(annotations_path) }\n' >crates/acquisition-client/src/zz_breaker.rs; }
