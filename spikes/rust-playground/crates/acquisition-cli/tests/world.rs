@@ -1120,3 +1120,114 @@ fn c83_a_legacy_socket_the_daemon_cannot_probe_refuses_the_start_before_the_migr
     assert!(out.status.success(), "{out:?}");
     wait_stopped(base, "store", &env);
 }
+
+/// C83: a legacy listener whose backlog is saturated — a wedged daemon
+/// from before the rendezvous that stopped accepting. The start never
+/// hangs on it (the connect is bounded; here it answers at once), and
+/// what it answers is the platform's: Linux says EAGAIN to a
+/// non-blocking connect, which is neither absence kind, so the start
+/// refuses before the migration naming the socket; macOS says
+/// ECONNREFUSED, indistinguishable from a dead socket file, so the start
+/// reads absence and goes on — the limit the record names (review
+/// 2026-09-11). Either way the outcome is decided within the deadline.
+#[test]
+fn c83_a_legacy_listener_with_a_full_backlog_never_hangs_the_start() {
+    let scratch = scratch("backlog");
+    let base = &scratch.0;
+    let tmp = scratch_tmp(base);
+    std::fs::create_dir_all(base.join("store")).unwrap();
+    let legacy = tmp.join("acquisition-playground.sock");
+    let legacy_rails = tmp.join("acquisition-playground.mock.rails.json");
+    let staged = r#"{"tripped":"429 on GET /stash/Standard (behind the full backlog)"}"#;
+    std::fs::write(&legacy_rails, staged).unwrap();
+    // A listener that never accepts, its backlog filled by held
+    // connections until one more is turned away.
+    let listener = std::os::unix::net::UnixListener::bind(&legacy).unwrap();
+    let mut held = Vec::new();
+    let saturated = loop {
+        match std::os::unix::net::UnixStream::connect(&legacy) {
+            Ok(stream) => held.push(stream),
+            Err(e) => break e,
+        }
+        assert!(held.len() < 4096, "the backlog never filled");
+    };
+    eprintln!(
+        "backlog saturated after {} queued connections; the next connect: {saturated}",
+        held.len()
+    );
+
+    let started = Instant::now();
+    let mut cmd = daemon_command(base, "store");
+    cmd.env("ACQ_TRIPWIRE", "1");
+    let child = cmd.spawn().unwrap();
+    let mut daemon = Daemon(child, acqd());
+    // Decided within the deadline: exited (refused) or up (absence read).
+    let outcome = loop {
+        if let Some(status) = daemon.0.try_wait().unwrap() {
+            let mut stderr = String::new();
+            if let Some(mut pipe) = daemon.0.stderr.take() {
+                use std::io::Read as _;
+                let _ = pipe.read_to_string(&mut stderr);
+            }
+            break Err((status, stderr));
+        }
+        let status = sole_json(&acq_in(
+            base,
+            "store",
+            &["daemon", "status", "--json"],
+            &[("ACQ_TRIPWIRE", "1")],
+        ));
+        if status["pid"].is_number() {
+            break Ok(status);
+        }
+        assert!(
+            started.elapsed() < Duration::from_secs(10),
+            "the start hung on the saturated legacy listener"
+        );
+        std::thread::sleep(Duration::from_millis(50));
+    };
+    match outcome {
+        Err((status, stderr)) => {
+            eprintln!("refused:\n{stderr}");
+            assert!(
+                !status.success()
+                    && stderr.contains("could not probe the legacy socket")
+                    && !stderr.contains("is listening"),
+                "{stderr}"
+            );
+            assert_eq!(
+                std::fs::read_to_string(&legacy_rails).unwrap(),
+                staged,
+                "a start that could not tell moved the predecessor's rails state"
+            );
+            assert!(
+                cfg!(target_os = "linux"),
+                "an unexpected refusal on this platform: {stderr}"
+            );
+        }
+        Ok(status) => {
+            // ECONNREFUSED read as absence: the platform's limit, stated
+            // in the record; the migration ran.
+            assert!(
+                cfg!(target_os = "macos"),
+                "an unexpected start on this platform: {status}"
+            );
+            assert!(
+                saturated.kind() == std::io::ErrorKind::ConnectionRefused,
+                "{saturated}"
+            );
+            assert!(!legacy_rails.exists());
+            let out = acq_in(
+                base,
+                "store",
+                &["daemon", "stop", "--json"],
+                &[("ACQ_TRIPWIRE", "1")],
+            );
+            assert!(out.status.success(), "{out:?}");
+            wait_stopped(base, "store", &[("ACQ_TRIPWIRE", "1")]);
+        }
+    }
+    drop(held);
+    drop(listener);
+    let _ = std::fs::remove_file(&legacy);
+}

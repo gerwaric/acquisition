@@ -4228,6 +4228,11 @@ pub async fn run() -> Result<()> {
     result
 }
 
+/// How long the start waits for the legacy socket's connect: the bound
+/// on a probe of a path in the shared temp directory (review 2026-09-11;
+/// the client's probe carries the same bound over connect and handshake).
+const LEGACY_PROBE_TIMEOUT: Duration = Duration::from_secs(2);
+
 /// The world lock and, in real mode, the real-mode lock (C83), taken
 /// before the log directory is made, the log rotated or opened, or
 /// anything sends; held for the daemon's lifetime by the caller,
@@ -4282,8 +4287,24 @@ async fn run_with_log(
     // running predecessor's while it runs (review 2026-09-11). Parked for
     // removal with the migration (`decisions/daemon.md`).
     let legacy = legacy_socket_path().map_err(|e| anyhow::anyhow!("the legacy socket: {e}"))?;
-    match UnixStream::connect(&legacy).await {
-        Ok(_) => anyhow::bail!(
+    // Bounded (review 2026-09-11): the connect is non-blocking and a Unix
+    // connect completes synchronously on both platforms, so nothing has
+    // been seen to pend here — the deadline is the promise that a start
+    // holding the world lock never hangs on a socket in the shared temp
+    // directory. What a saturated backlog answers differs: Linux says
+    // EAGAIN (refused below as "could not probe"), macOS says
+    // ECONNREFUSED — indistinguishable from a dead socket file, so a
+    // wedged pre-transition daemon whose backlog is full reads as absent
+    // there (`acquisition-cli/tests/world.rs` pins each; the record names
+    // the limit).
+    let connect = tokio::time::timeout(LEGACY_PROBE_TIMEOUT, UnixStream::connect(&legacy)).await;
+    match connect {
+        Err(_) => anyhow::bail!(
+            "could not probe the legacy socket {}: the connect did not complete within {}s — a daemon from before the rendezvous may be alive there; find the process (`lsof -U | grep acquisition-playground.sock`) and stop or kill it, then start again",
+            legacy.display(),
+            LEGACY_PROBE_TIMEOUT.as_secs()
+        ),
+        Ok(Ok(_)) => anyhow::bail!(
             "a daemon from before the rendezvous is listening on the legacy socket {} — `acq daemon stop` stops it (once; nothing binds there any more), then start again",
             legacy.display()
         ),
@@ -4291,12 +4312,12 @@ async fn run_with_log(
         // listens on. Any other failure cannot tell whether a daemon is
         // alive there, and a start that cannot tell must not go on to
         // move that daemon's state (review 2026-09-11).
-        Err(e)
+        Ok(Err(e))
             if matches!(
                 e.kind(),
                 std::io::ErrorKind::NotFound | std::io::ErrorKind::ConnectionRefused
             ) => {}
-        Err(e) => anyhow::bail!(
+        Ok(Err(e)) => anyhow::bail!(
             "could not probe the legacy socket {}: {e} — a daemon from before the rendezvous may be alive there; make the socket reachable or remove it by hand once its process is gone, then start again",
             legacy.display()
         ),
