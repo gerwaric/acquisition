@@ -88,6 +88,7 @@ holds it now. The packet's own review rounds are its §8 and §9.
 | 16 (external, after round 15) | `4a74bd6e` | (1) the MCP test's deadline was checked only between answers while the harness read stdout without a bound, so a server or socket-bound daemon that stopped answering would hang the gate with the guards never running; (2) the single-handle guarantee had no boundary test: the unit test judged unchanged files, so a judge that reopened the path would still pass; (3) documentation: the standing rule called the contract a digest over the sources alone (C84 and `build.rs` include the manifests, the root manifest and the lock) and said preflight refuses "a dirty tree" (it checks the rung's own files); the round-15 row named the guards in the wrong order; the record said 9350 B where the file is 9357; two as-built comments still said the sibling is `stat`ed | (1) the harness reads stdout on a thread into a channel and every answer is waited for with `recv_timeout` (30 s), failing by the method's name — for every MCP test, not only the new one; (2) `c84_the_sibling_is_judged_from_the_handle_that_was_identified`: a sibling opened, then replaced at its path by rename, judges `same_bytes` from the handle with the opened identity named, and the daemon's own file opened then replaced judges `same_file`; (3) the two clauses made exact in `LIVE-TESTING.md` (owner-approved wording, amended for accuracy the same day — flagged to the owner), the row's order and the byte count corrected, the comments say "opened once"; the protocol crate's comment edit moved the contract revision to `5fddc80b3b9a` (whole files are inputs, on purpose). The first gate run of this round failed one contract test with the daemon reported incompatible: the drivers were run alongside the gate, and their `cargo build --workspace` replaced `target/debug/acqd` under the test's live daemon — C84 seeing a rebuild, not a defect; the cause is the observation below, and the gate was rerun alone, green |
 | 17 (external, after round 16) | `88fba6d5` | (1) the bounded answers could still leave processes behind: `Mcp` owned a raw child with no `Drop`, and `plan_loop.rs` owned its daemon as a raw child with cleanup reached only on success, so a timed-out answer left both running; (2) the two-artifact observation was narrower than the fact: from the plain build, `cargo test --workspace --all-targets` leaves `acqd` but rewrites `acq` and `acq-mcp` with their all-targets forms, so AGENTS.md, the README tour and the skills, which said tests rebuild neither binary, were wrong about the frontends; (3) the standing rule's preflight parenthetical was still inexact (the root manifest unnamed, "control documents" wider than the script's list) | (1) the harness's `Daemon` (returned by `spawn_daemon`) and `Mcp` both kill and wait on drop and name their process while a test is panicking; `plan_loop.rs` and `daemon_status.rs` hold them as guards; (2) reproduced by hash for all three binaries in both forms and after `cargo test` and `cargo clippy` (clippy rewrites none; the plain build restores all three); the observation records the six hashes and that the gate's process tests drive all-targets frontends against the plain daemon; AGENTS.md's gate note, the README tour line and both skills now say what `cargo test` rewrites and to build again before a run; (3) the parenthetical enumerates the script's list — `tools`, `crates`, `Cargo.toml`, `Cargo.lock`, `CONTEXT.md`, `decisions`, `LIVE-TESTING.md`, `RUN-LEDGER.md` — and points at `preflight.sh` as its home |
 | 18 (external, after round 17) | `b53a0fc6` | (1) the live-run skill's hand-run cleanliness check covered `crates`, the manifests and `tools` while preflight also checks `CONTEXT.md`, `decisions`, `LIVE-TESTING.md` and `RUN-LEDGER.md` and the standing rule wants a clean tree — a hand run could record a HEAD that does not describe its control documents; (2) `plan_loop.rs` removed its scratch directory on the success path only, so a timed-out answer ran the process guards and left the directory, and on success removed it while the daemon guard was still alive; (3) the round-17 observation stated six hashes without tying them to a tree, and the help commit had already moved the frontends' values; (4) the mock-session skill said a fresh session's `daemon status` "must say provider: mock" — a fresh socket has no daemon, and status never spawns one (C10); (5) the contract's inputs were still named loosely: "the protocol and store crates" in `acq version`'s help (which could mean the whole packages), "sources" alone in TESTING-NOTES | (1) the skill checks the whole tree (`git status --porcelain` empty) and says the drivers check preflight's list; (2) a `Scratch` guard declared before the process guards, as in `daemon_status.rs`; (3) the observation attributes the hashes to the round-17 tree (`796b75c6`) and says the values move with every commit that touches a binary, the fact does not; (4) the line says "daemon is not running" for a fresh socket and provider mock after the login; (5) every site names the inputs as `build.rs` lists them — the two crates' manifests and `src` trees, the root manifest, the lock — in the help, TESTING-NOTES and the standing rule's bullet (a wording tightening of approved text, flagged) |
+| 19 (external, after commit 5) | `a54d1b6b` | (1) a daemon from before the world sends no `world`, reads as `unknown`, and is judged another world — C10's kill-and-respawn never runs for it; (2) `daemon status --json` recomputed `log` from the shell's own `ACQ_LOG_DIR`, so a shell with another directory, or none, reported a file the daemon never opened; (3) the log was rotated and opened before the world lock, so a contender that then lost the lock could rotate the incumbent's live log from under it; (4) the runtime fallback without `XDG_RUNTIME_DIR` was `temp_dir()/acq` — `/tmp/acq` on Linux, shared across users, open to pre-creation; (5) the world's name and id used lossy strings, so two non-UTF-8 roots could read as one world; (6) the report and the prose observed the world again after the verdict's look, so a root created or removed in between could make `wanted.world`, `world_matches` and the verdict disagree; (7) the rails migration read errors as absence, could overwrite an unreadable world state, ignored directory and removal failures and said "moved" with the legacy file still there; the root's 0700 was set only when created and its failure ignored; a failed rotation logged text and kept appending; (8) the daemon crate's knob list omitted `ACQ_LOG_DIR`, the MCP status test's header named C10/C84 only, the C31 note said the lock came before anything opened while the log opened first | (1) not fixed — the owner, 2026-09-11, verbatim: "I think we can neglect 1, because there are no users of the pre-commit 5 daemon"; recorded as an observation below; (2) `DaemonStatus` carries `log`, the file the daemon opened (`Daemon.log_path`); the CLI prints and reports that and nothing it computes (`daemon_log_path` asks the daemon; the apply failure line too); pinned in `world.rs`'s diagnostics test with a shell under another `ACQ_LOG_DIR` and under none — fixture diff `response/daemon_status.json` (`log`); (3) `take_locks` runs before the log directory's files are touched; a refusal is appended to the log as it stands, never rotated; pinned: the lock test grows the incumbent's log past the cap before the contender and requires no `.1` and the incumbent's length intact; (4) `app_runtime_dir` is `$XDG_RUNTIME_DIR/acq` or `<temp>/acq-<uid>`, through `private_dir`: created 0700, refused as a symlink or a file or another user's, group/other bits cleared or refused (`libc::getuid`); unit-tested; (5) a root that is not valid UTF-8 is refused (`World::canonical`), the name is exact and the id hashes it; unit-tested where the filesystem allows such a name (APFS refuses it, EILSEQ); (6) `Verdict::own_world` is `Result<String, AbsentWorld { intended, reason }>` and `report()` and `Display` read it alone; the hello frame's own look, before the handshake, is named as such; (7) `migrate_legacy_state` names every failure and moves nothing on any (a read error is not absence, an unreadable world state is not overwritten, "moved" only once the legacy file is gone — unit-tested); `World::create` sets 0700 on every start and refuses on failure; `rotate_if_over` truncates in place when the rename fails, naming the lost generation, and refuses the start when it can do neither (unit-tested with a directory that refuses entries); (8) the three texts corrected. The store and protocol edits moved the revision `62062f1f9fd3` → `4083c610a400`; fixture diff `response/daemon_status.json` alone |
 
 ## Observations still open
 
@@ -213,9 +214,13 @@ data for the commit that touches it.
   mock-session skill exports it, and the drivers point it into the run
   directory so a run's log is the run's evidence beside its journal
   (`log/<id>/<provider>/daemon.log`, copied to `daemon.log` at the end).
-  The owner may prefer the drivers to leave the daemon log in the
-  platform directory and copy a slice, as before step 5; the path is
-  then `acq daemon status --json`'s `log` while a daemon is up.
+  The owner kept both (2026-09-11, verbatim): "Keep `ACQ_LOG_DIR`, and
+  keep the drivers pointing it into the run directory. It provides
+  useful test isolation and makes the journal and log genuine
+  components of one evidence bundle. Copying a rotating platform log
+  afterward is less reliable. However, status must report the daemon's
+  actual opened path before it can support either arrangement
+  correctly." — the last clause is round 19's finding 2, fixed.
 - The real-mode lock is per OS user at one path
   (`<runtime>/acq/ggg.lock`), so its process test — two real-mode
   daemons the test starts directly with no session, nothing submitted
@@ -308,18 +313,23 @@ data for the commit that touches it.
   `provenance_matches_journal` refused the run naming twelve foreign
   headers — the check doing its job on the wrong directory. The driver
   now takes the tracer's rule (one directory per attempt), and the
-  rehearsal was rerun.
+  rehearsal was rerun. Round 19's fix was rehearsed the same way
+  (`runs/mock/2026-09-11-tracer-114642`,
+  `runs/mock/2026-09-11-persist-114648`).
+- A daemon from before the world (commit 4 or earlier) sends no
+  `world` in `hello`; the lenient reader gives `unknown`, the client
+  judges the world first and reports another world, and C10's
+  kill-and-respawn does not run — `acq daemon stop` resolves it by hand.
+  Left as is on the owner's ruling (round 19, verbatim: "I think we can
+  neglect 1, because there are no users of the pre-commit 5 daemon");
+  the case is the record's, not the code's.
 - LIVE-TESTING's journal text is owner-approved and was not edited by
-  step 5; nothing in it names the journal's path, and the two sentences
-  that describe it still hold ("Send journal (`ACQ_JOURNAL`, permanent):
-  one JSON line per actual send, never a token or body; the contract
-  surface" — rail 4; and the ledger row shape's "journal"). Proposed
-  for the owner, if a sentence about where the journal lives belongs in
-  the control document — rail 4, after "the contract surface
-  (`TESTING-NOTES.md`)": "By default the world's `sends.jsonl` under
-  the platform log directory, bounded like the daemon log (C83); a
-  driver's daemons write the run directory's `sends.jsonl` instead,
-  under `ACQ_JOURNAL`, and that file is the run's, never rotated." (208
-  bytes; the file is at 9708 of 15000.) The live-run skill, which is
-  not owner-approved text, says the same beside "read the journal
-  before anything else".
+  step 5. A sentence naming where the journal lives was proposed and
+  the owner declined it (2026-09-11, verbatim): "Drop the proposed
+  LIVE-TESTING sentence. The path and override mechanics already belong
+  in the knob documentation/read site and the live-run procedure.
+  Adding them to the safety rails would create another description
+  that can drift. If LIVE-TESTING needs anything, a stable pointer
+  such as 'the daemon reports the journal location; the live-run
+  procedure owns bundle placement' would be preferable." The knob row,
+  `world.rs` and the live-run skill hold it.
