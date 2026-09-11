@@ -58,7 +58,8 @@
 #      expected end of a cycle, and it is checked as such: the daemon
 #      must report the tripwire armed, the ceiling equal to the plan, that
 #      many sends counted, and a ceiling halt in force, with the journal
-#      agreeing. A send the plan did not project would consume the bound
+#      agreeing; its `daemon status --json` is saved as the lifetime's
+#      report (the derived socket, `legacy_socket` false, the identity). A send the plan did not project would consume the bound
 #      and show as a planned child refused. Repeat until
 #      the plan is empty (the loop closed) or --cycles is hit. An empty
 #      plan's `--apply` runs with no daemon at all: the no-op must contact
@@ -187,6 +188,20 @@ preflight
 status_json() { "$ACQ" daemon status --json 2>/dev/null || echo '{}'; }
 daemon_up() { [ "$(status_json | jq -r '.pid // empty')" != "" ]; }
 journal_size() { if [ -f "$JOURNAL" ]; then wc -c <"$JOURNAL" | tr -d ' '; else echo 0; fi; }
+# The daemon's own report, saved per lifetime after its wire phase (the
+# split's step 7): the socket it was reached on and `legacy_socket`, its
+# world, contract and artifact (C83, C84), the rails state at the halt.
+# This driver starts acqd on the world's derived socket, so a report
+# reached over the legacy socket is not its daemon — refused.
+save_status() { # <tag>
+    status_json >"$RUN_DIR/daemon-$1-status.json"
+    if [ "$(jq -r '.legacy_socket' "$RUN_DIR/daemon-$1-status.json")" != false ]; then
+        echo "*** $1: the daemon's report was not reached over this world's derived socket:" >&2
+        jq '{pid, socket, legacy_socket, world}' "$RUN_DIR/daemon-$1-status.json" >&2
+        exit 1
+    fi
+    echo "status: pid $(jq -r '.pid' "$RUN_DIR/daemon-$1-status.json") on $(jq -r '.socket' "$RUN_DIR/daemon-$1-status.json") (legacy_socket false) -> daemon-$1-status.json"
+}
 # Sends journaled since a byte offset (event lines excluded).
 sends_since() { tail -c +$(($1 + 1)) "$JOURNAL" 2>/dev/null | grep -c '"method"' || true; }
 
@@ -387,6 +402,7 @@ if [ "$NEED_LOGIN" = 1 ]; then
         wait "$AUTH_PID"
     fi
     check_rails "login" "$login_offset" 2
+    save_status login
     stop_daemon
     LOGIN_LIFETIME=1
     note "logging in"
@@ -626,6 +642,7 @@ for c in $(seq 1 "$CYCLES"); do
         exit 1
     fi
     check_rails "apply" "$cycle_offset" "$ceiling"
+    save_status "$tag"
     "$ACQ" jobs --json >"$RUN_DIR/jobs-$tag.json"
     stop_daemon
     printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$c" $((LOGIN_LIFETIME + c)) "$logical" "$probes" "$ceiling" "$quote" >>"$CYCLE_ROWS"
@@ -655,7 +672,10 @@ else
     unknown=$(jq -r '.unknown_tabs | join(" ")' "$RUN_DIR/plan-c1-offline.json")
     missing=0
     for id in $(echo "$SELECTION" | tr ',' ' '); do
-        if grep -- "^$id " "$RUN_DIR/tabs.txt"; then continue; fi
+        # The id is the row's last column (`28db97c6`, the density
+        # validation's one change); a leading match read the old layout
+        # and aborted every id-list run since (2026-09-09, 2026-09-11).
+        if grep -E -- "[[:space:]]$id\$" "$RUN_DIR/tabs.txt"; then continue; fi
         case " $unknown " in
         *" $id "*) echo "$id: not in the store — the first plan reported it as unknown (a typo, or a tab that is gone); never fetched" ;;
         *) echo "*** $id: selected, planned, but not in the store's tab list after the run" >&2; missing=1 ;;
@@ -787,7 +807,7 @@ fi
 echo "(per-send detail in $RUN_DIR/summary.txt)"
 
 echo ""
-echo "evidence in $RUN_DIR (this run's journal and daemon log, plans, apply results,"
+echo "evidence in $RUN_DIR (this run's journal and daemon log, plans, apply results, status reports,"
 echo "store reads, summary, the verifier copy and checksums; ./verify.sh re-runs the verification)."
 if [ -s "$FRICTION" ]; then
     echo ""
