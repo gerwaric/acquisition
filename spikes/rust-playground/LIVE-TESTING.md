@@ -63,7 +63,7 @@ Replaces the preconditions and the "new hypothesis first" requirement.
 - **Build before you run; the run record maps both binaries to HEAD.**
   Neither binary carries a commit. Two values say which code ran (C84):
   the shared-contract revision — a digest over the protocol and store
-  crates (sources and manifests), the root manifest and the lock, which
+  crates' manifests and `src` trees, the root manifest and the lock, which
   `acq version --json` prints as `contract` — and the
   daemon artifact, the SHA-256 of the `acqd` file, which the daemon
   reports in `hello`, its startup identity line and the journal header

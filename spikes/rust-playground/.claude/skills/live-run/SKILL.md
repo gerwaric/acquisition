@@ -17,8 +17,10 @@ from cron or a background shell has no keychain and no session.
    — the shell you were launched from may still export a previous run's
    rails or a mock session's isolation.
 2. `acq daemon stop`. Never rebuild under a live daemon.
-3. `git status --porcelain -- crates Cargo.toml Cargo.lock tools` must
-   print nothing, then `cargo build --workspace` (acq and the daemon
+3. `git status --porcelain` must print nothing — the standing rule's
+   clean tree for a hand run, the whole of it; the drivers check the
+   rung's own files, `tools/preflight.sh`'s list — then `cargo build
+   --workspace` (acq and the daemon
    `acqd` beside it, C82), then `./target/debug/acq version`
    — the binaries carry no commit: the contract revision and, for
    `acqd`, its file's hash (C84), so a dirty build's identity would be

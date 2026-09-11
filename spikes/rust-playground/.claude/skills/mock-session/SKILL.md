@@ -19,7 +19,7 @@ export ACQ_NO_KEYRING=1                                       # sessions in memo
 export ACQ_STORE_DIR=<scratch>/store                          # never the real per-user data directory
 cargo build --workspace && ./target/debug/acq --version       # builds acq and the daemon acqd beside it (C82); after a cargo test, build again — it rewrites acq and acq-mcp
 alias acq=./target/debug/acq
-acq daemon status                                             # must say provider: mock
+acq daemon status                                             # a fresh socket: "daemon is not running" (status never spawns, C10); after the login below it says provider mock
 ```
 
 ## Log in without a browser

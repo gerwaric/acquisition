@@ -28,6 +28,17 @@ use acquisition_protocol::protocol::{Request, Response};
 use harness::{Mcp, spawn_daemon};
 use serde_json::{Value, json};
 
+/// The scratch directory, removed on drop whichever way the test ends
+/// (a timed-out answer included); declared before the daemon and the
+/// servers, so those are killed and waited for first.
+struct Scratch(std::path::PathBuf);
+
+impl Drop for Scratch {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
+
 const POLICY: &str =
     r#"{"version":1,"leagues":{"Standard":{"tabs":"all","max_age_seconds":3600}}}"#;
 
@@ -142,6 +153,7 @@ fn the_mcp_tools_carry_the_plan_slice_and_its_gates() {
     let base = std::env::temp_dir().join(format!("acq-m8-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&base);
     std::fs::create_dir_all(&base).unwrap();
+    let _scratch = Scratch(base.clone());
     // The in-process protocol client below reads the same knobs the
     // children inherit.
     // SAFETY: this is the binary's only test; nothing reads the
@@ -304,7 +316,7 @@ fn the_mcp_tools_carry_the_plan_slice_and_its_gates() {
         );
     });
 
-    // The harness's `Mcp` and `Daemon` kill and wait on drop.
+    // The harness's `Mcp` and `Daemon` kill and wait on drop, then the
+    // `Scratch` guard removes the directory.
     drop(mcp);
-    let _ = std::fs::remove_dir_all(&base);
 }

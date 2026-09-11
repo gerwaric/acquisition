@@ -250,8 +250,9 @@ is the per-location summary.")]
     Dash,
     /// What this build is (C84): the package version, the shared-contract
     /// revision the daemon handshake compares — a digest over the
-    /// protocol and store crates, the root manifest and the lock, never a
-    /// git commit — and the sibling `acqd` a job command would start, as
+    /// protocol and store crates' manifests and `src` trees, the root
+    /// manifest and the lock, never a git commit — and the sibling
+    /// `acqd` a job command would start, as
     /// found on disk (path, length, modification time; no hash — the run
     /// record hashes it). This reports the candidate; `acq daemon status`
     /// reports the daemon running. `--json`: {"version", "contract",

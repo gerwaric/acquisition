@@ -41,7 +41,8 @@ Kept short; each of these is a shape we expect to meet again.
   rail was correct and blind to it. Provenance is its own category. From
   then until 2026-09-09 the binary carried its git commit; since
   2026-09-10 the identity is two values (C84): the shared-contract
-  revision of the protocol and store sources (`build.rs`), which `acq
+  revision of the protocol and store crates' manifests and `src` trees,
+  the root manifest and the lock (`build.rs`), which `acq
   version --json` prints, and the hash of the `acqd` file, which the
   daemon reports in `hello`, its startup identity line and the journal header;
   the driver's run record hashes both executables and maps them to HEAD,
