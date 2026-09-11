@@ -89,7 +89,7 @@
 //! records its file identity and SHA-256 and reports both in `hello`
 //! (`acquisition-protocol/src/artifact.rs` defines the identity; the
 //! daemon's `artifact.rs` computes it). This process compares that with
-//! the sibling `acqd` the locator names (C82), `stat`ed at the moment of
+//! the sibling `acqd` the locator names (C82), opened once at the moment of
 //! the comparison (`artifact.rs` here): the same inode with the same
 //! length and modification time is the same file; anything else is
 //! settled by hashing the sibling — so a copy is the same artifact and a
@@ -369,8 +369,9 @@ pub struct DaemonId {
 }
 
 /// What a client concluded about a daemon, dimension by dimension, from
-/// one look at the sibling (the artifact verdict `stat`s it, and hashes
-/// it when it must), kept with the identity it judged.
+/// one look at the sibling (opened once: its identity from the handle,
+/// and its bytes from the same handle when they must decide), kept with
+/// the identity it judged.
 #[derive(Debug, Clone)]
 pub struct Verdict {
     pub contract: bool,

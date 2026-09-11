@@ -4,9 +4,11 @@
 //! (C82) — under the same isolation, owning the pid.
 #![allow(dead_code)] // each test binary uses the slice it needs
 
-use std::io::{BufRead, BufReader, Lines, Write};
+use std::io::{BufRead, BufReader, Write};
 use std::path::Path;
-use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
+use std::process::{Child, ChildStdin, Command, Stdio};
+use std::sync::mpsc::{Receiver, channel};
+use std::time::{Duration, Instant};
 
 use serde_json::{Value, json};
 
@@ -83,11 +85,18 @@ fn isolate(cmd: &mut Command, base: &Path, extra_env: &[(&str, &str)], stdio: fn
     }
 }
 
+/// How long one JSON-RPC answer may take before the test fails naming
+/// the method: a server or daemon that stops answering must fail the
+/// gate, never hang it (review 2026-09-11).
+const ANSWER_WITHIN: Duration = Duration::from_secs(30);
+
 /// A newline-delimited JSON-RPC conversation with the MCP server's stdio.
+/// The server's stdout is read on a thread into a channel, so every wait
+/// for an answer is bounded.
 pub struct Mcp {
     pub child: Child,
     stdin: ChildStdin,
-    lines: Lines<BufReader<ChildStdout>>,
+    lines: Receiver<String>,
     next_id: i64,
     /// The server's `instructions` from `initialize`.
     pub instructions: String,
@@ -97,7 +106,16 @@ impl Mcp {
     pub fn start(base: &Path, extra_env: &[(&str, &str)]) -> Mcp {
         let mut child = spawn(base, &[], extra_env, Stdio::piped);
         let stdin = child.stdin.take().unwrap();
-        let lines = BufReader::new(child.stdout.take().unwrap()).lines();
+        let stdout = child.stdout.take().unwrap();
+        let (tx, lines) = channel();
+        std::thread::spawn(move || {
+            for line in BufReader::new(stdout).lines() {
+                let Ok(line) = line else { break };
+                if tx.send(line).is_err() {
+                    break;
+                }
+            }
+        });
         let mut mcp = Mcp {
             child,
             stdin,
@@ -142,12 +160,12 @@ impl Mcp {
         self.next_id += 1;
         let id = self.next_id;
         self.send(&json!({ "jsonrpc": "2.0", "id": id, "method": method, "params": params }));
+        let deadline = Instant::now() + ANSWER_WITHIN;
         loop {
-            let line = self
-                .lines
-                .next()
-                .expect("MCP server closed stdout")
-                .expect("reading MCP stdout");
+            let left = deadline.saturating_duration_since(Instant::now());
+            let line = self.lines.recv_timeout(left).unwrap_or_else(|e| {
+                panic!("no answer to {method} within {ANSWER_WITHIN:?} ({e}); the MCP server, or the daemon it asked, stopped answering")
+            });
             let msg: Value = serde_json::from_str(&line)
                 .unwrap_or_else(|e| panic!("not JSON-RPC ({e}): {line}"));
             if msg["id"] == json!(id) {

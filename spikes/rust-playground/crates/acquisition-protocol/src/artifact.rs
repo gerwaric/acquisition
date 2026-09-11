@@ -8,8 +8,8 @@
 //! identity ([`FileIdentity`]: device, inode, length, modification time)
 //! and hashes it once (SHA-256, tens of milliseconds, once per lifetime),
 //! and reports all of it in `hello`. A client reads the identity of the
-//! sibling `acqd` it would spawn (C82) — a `stat`, under a millisecond —
-//! and compares: an equal identity is the same file, no hash needed; any
+//! sibling `acqd` it would spawn (C82) — one open, its metadata read,
+//! under a millisecond — and compares: an equal identity is the same file, no hash needed; any
 //! difference (a copy at another path, an atomic replacement at the same
 //! path) is settled by hashing the sibling and comparing digests, so a
 //! copy is still the same artifact and a rebuild under a live daemon is a
@@ -29,7 +29,7 @@ use serde::{Deserialize, Serialize};
 /// parked with the rest of the platform work).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FileIdentity {
-    /// The canonical path, as resolved by whoever stat'ed it.
+    /// The canonical path, as resolved by whoever opened it.
     pub path: String,
     pub len: u64,
     /// Modification time, nanoseconds since the Unix epoch (0 when the

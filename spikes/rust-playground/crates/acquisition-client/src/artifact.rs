@@ -87,7 +87,7 @@ pub fn sibling() -> Result<Sibling, SiblingError> {
 pub enum SiblingError {
     /// The locator found no `acqd` beside this executable.
     Absent(LocateError),
-    /// There is one, but it could not be `stat`ed.
+    /// There is one, but it could not be opened or identified.
     Unreadable { path: PathBuf, io: String },
 }
 
@@ -244,6 +244,55 @@ mod tests {
         assert!(!v.matches() && v.relation() == "different", "{v:?}");
         let v = judge(&dir.join("missing"));
         assert!(!v.matches() && v.relation() == "no_sibling", "{v:?}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The single-handle guarantee (review 2026-09-11): a sibling opened
+    /// and then replaced at its path — the rebuild-between-two-looks
+    /// case — is judged from the handle that was opened, and the identity
+    /// the verdict names is that handle's. A judge that reopened the path
+    /// would see the replacement's bytes and fail here.
+    #[test]
+    fn c84_the_sibling_is_judged_from_the_handle_that_was_identified() {
+        let dir = std::env::temp_dir().join(format!("acq-handle-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let original = dir.join("acqd-original");
+        std::fs::write(&original, b"the daemon's bytes").unwrap();
+        let daemon = Artifact {
+            file: FileIdentity::of(&original).unwrap(),
+            sha256: sha256_of(&original).unwrap(),
+        };
+        let replacement = |path: &std::path::Path| {
+            let staged = dir.join("staged");
+            std::fs::write(&staged, b"a rebuilt daemon, other bytes").unwrap();
+            std::fs::rename(&staged, path).unwrap();
+        };
+
+        // A copy of the daemon's bytes, opened, then replaced at its path.
+        let copy = dir.join("acqd");
+        std::fs::copy(&original, &copy).unwrap();
+        let opened = Sibling::open(&copy).unwrap();
+        let opened_identity = opened.identity.clone();
+        replacement(&copy);
+        assert_ne!(
+            sha256_of(&copy).unwrap(),
+            daemon.sha256,
+            "the path now holds other bytes"
+        );
+        let v = ArtifactVerdict::judge_against(Some(&daemon), Ok(opened));
+        assert!(v.relation() == "same_bytes", "{v:?}");
+        assert!(
+            matches!(&v, ArtifactVerdict::SameBytes { sibling } if *sibling == opened_identity),
+            "the identity named is the opened handle's: {v:?}"
+        );
+
+        // The daemon's own file, opened, then replaced at its path: still
+        // the same file, by the identity the handle had.
+        let opened = Sibling::open(&original).unwrap();
+        replacement(&original);
+        let v = ArtifactVerdict::judge_against(Some(&daemon), Ok(opened));
+        assert!(v.relation() == "same_file", "{v:?}");
         let _ = std::fs::remove_dir_all(&dir);
     }
 }
