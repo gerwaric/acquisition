@@ -30,7 +30,7 @@ One row per commit of §4; a row is filled when the commit lands.
 | 3 `acqd` and client | `5a82e761` | `acquisition-client` extracted (`client.rs`, `locator.rs`, a `frame.rs` copy, `contract.rs` moved; typed `ConnectError`; links protocol and tokio, not yet the store); `acquisition-core` → `acquisition-daemon` by `git mv`, its modules untouched, the `acqd` binary (`main.rs`, no arguments); `acq daemon run` and the MCP's argv interception deleted, the spawn path execs the sibling `acqd` (`current_exe()` canonicalised, its parent, nowhere else); the frontends link client/protocol/store/plan and never the daemon; `socket_path`/`log_path` through the client crate's root; `frame.rs` one copy each side (the allowlist decided: a tokio feature on the protocol crate is refused); tests and drivers start `acqd` — the contract tests `target/<profile>/acqd` from their own location (the `ACQ_CONTRACT_DAEMON` harness retired), the CLI/MCP daemon-owning tests `locator::beside` on their binary, the drivers `target/debug/acqd`; the gate builds before it tests, checked here (`cargo test --workspace --all-targets --no-run` left `target/debug/acqd` absent with `acqd-<hash>` under `deps/`; `cargo build --workspace` wrote it); strict rustdoc widened to `--workspace` with the five links fixed; docs-check: every `acquisition-core` rule renamed, client ∌ daemon/plan, daemon ∌ client/plan/cli/mcp, nothing but the daemon names the daemon (`only_self`), plan ∌ client, store ∌ client/daemon, the intent grep over client/src — the breaker suite at 42 cases (17 new), 0 failed, store → daemon a Cargo cycle and daemon → frontend a dropped bin-only dependency (observations); revision 5f9cdb34ce21 → 8e205a53d16d (the input list renamed; `client.rs` no longer an input); fixture diff empty; C1 amended (794 B) and C82 (792 B) verbatim, C85's pointer (799 B); references regenerated; rehearsed in mock only: a CLI session, the MCP process tests, both drivers (`runs/mock/2026-09-10-tracer`, `runs/2026-09-10-persist-mock`) |
 | 4 identity | `fd1a4aa1` | the build script's inputs shrink to the contract (protocol and store sources and manifests, root manifest, lock; the daemon crate out; domain `acq-contract-revision/1`), `ACQ_CONTRACT_REVISION` / `CONTRACT_REVISION` / `VERSION_WITH_CONTRACT` (`acq --version`: `0.0.1 (contract <rev>)`); the artifact — `FileIdentity` (canonical path, len, `mtime_ns`, dev, ino) and SHA-256 — defined in `acquisition-protocol/src/artifact.rs` and computed once at startup by the daemon's `artifact.rs` (a daemon that cannot read its own file does not start); `hello` carries `version`, `contract`, `artifact`, `pid`, `provider` (the world is step 5's) and the client's hello `version` + `contract`; `DaemonId` judges three dimensions (`Verdict`: contract, `ArtifactVerdict` — same inode without a hash, else the sibling hashed: a copy is the same artifact, other bytes another, no sibling matches nothing and says so, a daemon reporting none matches nothing —, provider), the report carries `contract_matches`/`artifact_matches`/`provider_matches`, the daemon found (`contract`, `artifact`) and `wanted` (`contract`, `provider`, `acqd` as found or `null` with `acqd_absent`); `acq version` reports the candidate (`--json`: `{version, contract, provider, acqd: {path, len, mtime_ns} \| null}`), `acq daemon status` the daemon running (its `contract` and `artifact` beside the vitals); the journal header's `runtime` became `contract` and `daemon` (the hash; `null` from the in-process harness), the startup identity line in the log names both (account and keyring diagnostics may precede it); `provenance.json` keeps `exe_sha256` and adds `acqd_sha256`, and `provenance_matches_journal` (`preflight.sh`, both drivers) holds every lifetime's header to it; the two literal provider comparisons (`dash.rs`, `auth status`) read `provider::GGG`; `acqd --version`: no flag (its `main.rs` says why); C84 in the registry (762 B); fixture diff: `bootstrap/hello.json`, `bootstrap/hello_reply.json`, nothing else; the revision moved once, `c1696aafb14a` → `3cd2835ff374`, and the measure (below) shows it still on a daemon edit; the artifact-mismatch process test (`daemon_observe.rs`, staged with one build's binaries: copies of `acq` beside a copy of `acqd`, beside another file, beside nothing); references regenerated; rehearsed in mock only: a CLI session, `acq-mcp` over stdio, both drivers (`runs/mock/2026-09-10-tracer-234740`, `runs/mock/2026-09-10-persist`) |
 | 5 world | `e2a108d8` | `acquisition-store/src/world.rs` (C83): `World` — the canonical, provider-neutral root (`ACQ_STORE_DIR` made absolute, else the platform data directory's `store`; `create` the use path, mode 0700, `observe` creates nothing), its id (twelve hex of the root's SHA-256), the provider directories, `daemon.lock`, `rails.json`, the runtime directory (`$XDG_RUNTIME_DIR` else the per-user temp dir) and `<runtime>/acq/ggg.lock`, the log base (`ACQ_LOG_DIR`, else the platform log directory) with one subdirectory per world and provider, and `socket_path` as the one home of the convention (`ACQ_SOCKET` stays: the rendezvous is step 6's); `Lock` over `std::fs::File::try_lock` (`flock`), the holder's pid written into the file; the store gains `sha2`, `store_dir` moves to `world.rs`; the client links the store and judges the world as a fourth dimension — `DaemonId::world`, `world_matches`, `report()`'s `world`/`world_matches`/`wanted.world`/`world_absent` — judged first and answered alone: a use door refuses with `ConnectError::OtherWorld` and never replaces, an observer reports it, `stop_any` stops it; a use door creates the root before it spawns and passes a relative `ACQ_STORE_DIR` absolute; the daemon: `World::create`, the log directory (with a `world` marker file), rotation past `DIAGNOSTIC_CAP_BYTES` (16 MiB, `rotate_if_over`, `<name>.1`), the log opened, then the world lock, then in real mode the real-mode lock, then the rails migration (`rails::migrate_legacy_state`: the legacy `<socket>.<provider>.rails.json` moved into `<root>/<provider>/rails.json`, both present merged so no trip is lost), then the bind and the rest; `hello` carries `world` both ways (the daemon logs a mismatch, refuses nothing); `RailsConfig::from_env` takes the state path and the default journal (`<log dir>/sends.jsonl`, rotated like the log; an `ACQ_JOURNAL` file is the caller's, never rotated); `DaemonStatus` and `Dashboard` carry `version` and `contract` apart; `acq daemon status` prints the world and its log path, `--json` adds `world`, `world_matches`, `socket`, `log`; `reset-tripwire` with no daemon clears the world's file and the legacy one; the MCP's `daemon_status` carries the world keys and its refusal names the world; the drivers write the run directory's `sends.jsonl` (`ACQ_JOURNAL`) and `log/` (`ACQ_LOG_DIR`); the mock-session skill sets `ACQ_LOG_DIR`; C83 (786 B) and the C31 amendment (735 B) verbatim from §3, C6's pointer (635 B); fixture diff: `bootstrap/hello.json`, `bootstrap/hello_reply.json` (`world`), `response/daemon_status.json`, `response/dashboard.json` (`version` split from `contract`), nothing else; revision `5fddc80b3b9a` → `62062f1f9fd3`; the daemon-edit check (below) unchanged; pinned: `world.rs` unit tests, `rails.rs` (the move and the merge), `client.rs` (the world dimension), `contract.rs` (the world in `hello`; a daemon on another world refused at the use door, typed), `acquisition-cli/tests/world.rs` (the world lock and the real-mode lock, each with a second daemon reading its refusal by name; the other-world refusal through the binary; the legacy trip surviving the move; the diagnostics under the log directory and the rotation), the CLI and MCP status tests; references regenerated; rehearsed in mock only: a CLI session, `acq-mcp` over stdio, both drivers (``runs/mock/2026-09-11-tracer-021335`, `runs/mock/2026-09-11-persist-021536``) |
-| 6 rendezvous | — | the socket derived into the runtime directory; `ACQ_SOCKET` removed, `tools/acq-as.sh` retired; legacy detection; the migration test |
+| 6 rendezvous | `6e4059e2` | the socket derived from the world, C83's last clause (`World::socket_path`: `<runtime>/<id>.sock`, the world's twelve-hex id in the private per-user runtime directory — made by the daemon before it binds, `app_runtime_dir`; only verified by a client, `existing_private_dir`, which creates nothing: no runtime directory yet is no daemon yet — and refused by name over `SOCKET_PATH_MAX`, 103); `ACQ_SOCKET` gone from every reader, harness, skill and driver (docs-check's knob scan holds that no knob names the socket), `tools/acq-as.sh` retired; every door resolves the world first (`world_at_door`: created when the door may spawn, observed otherwise) and that one look names `wanted.world` — the handshake's placeholder identity and its second look are gone; `DaemonId` carries its `Endpoint` (`socket` and `legacy_socket` in every report, in the compatible status of both frontends and in `daemon stop --json`; `is_ours` false on the legacy socket whatever the dimensions), the two error variants that carry an identity box it; the transition, for one release: the daemon probes `legacy_socket_path` at start and refuses naming the stop remedy, a door whose world's socket is silent probes it before it spawns or reports absence (`NotReplaced::LegacySocket`: never used, never replaced), `stop_any` stops it when the world's socket is silent, the drivers' preflight probes the historical `ACQ_SOCKET` endpoints (`preflight_refuse_legacy_endpoints`), the live-run skill's second stop — parked for removal with the rails migration; a daemon on its way out removes only the socket it bound (`BoundSocket`, device and inode — the rehearsal below); the harnesses set `TMPDIR` and `XDG_RUNTIME_DIR` into the scratch beside `ACQ_STORE_DIR` and `ACQ_LOG_DIR`; the drivers' mock arms set `ACQ_STORE_DIR` alone, `daemon_up` reads the pid, the refusal names the socket status reports; the measure: `$TMPDIR/acq-<uid>/<id>.sock` is 75 bytes on this machine, 28 under the cap, pinned within 20 of it; fixture diff empty; revision `556e88703d83` → `74d3b9bb1e6d` (the store's `world.rs`); references regenerated; pinned: `world.rs` unit tests (the derivation, the margin), `client.rs` (the endpoint refuses, the prose), `contract.rs` (another world is another socket; a peer on this world's socket claiming another root; the legacy socket typed at both doors and `stop_any`'s fallback; an exit never unlinks a successor's socket), `acquisition-cli/tests/world.rs` (two worlds, two daemons at once; the transition through the binaries in a scratch temp directory; the cap by name), the CLI and MCP status tests; rehearsed in mock only: a CLI session, `acq-mcp` over stdio, both drivers (`runs/mock/2026-09-11-tracer-131223`, `runs/mock/2026-09-11-persist-131230`) |
 | 7 live | — | both drivers in mock; the tracer under the rails; ledger row; `provenance.json` with `acqd`'s hash |
 
 **Step 5's check on the same measure** — the world is the store's, so the
@@ -106,16 +106,6 @@ data for the commit that touches it.
   executables name the acqd written by their build") — the line carries
   no amendment date, since one would put it at 802 bytes; this entry
   and `git log` date it.
-- One clause of C83 as ruled describes a step not yet built and landed
-  verbatim with step 5 per the landing map (§10): "the socket is derived
-  from the root into a private per-user runtime directory, never chosen
-  by hand (`ACQ_SOCKET` is gone)" is step 6's — the socket is still
-  `ACQ_SOCKET` or the temp directory's `acquisition-playground.sock`,
-  now defined once (`world.rs`) where two copies stood. Every other
-  clause of C83 is built: the canonical root, the two locks, `hello`
-  naming the root and the client refusing another world, the durable
-  state in the world, the diagnostics bounded elsewhere. The same shape
-  as C1's world clause between steps 3 and 5, closed with this step.
 - Two edges of §2.1 cannot be staged for the breaker suite as written:
   store → daemon is a Cargo cycle (the daemon links the store), refused
   by `cargo metadata` before any guard reads the graph — the suite
@@ -302,33 +292,44 @@ data for the commit that touches it.
   daemon is an artifact mismatch (the round-16 gate saw exactly that).
   The `test-hooks` retirement the packet parked would remove the second
   form of every binary.
-- For step 6, measured 2026-09-11: the derived socket under the macOS
-  fallback runtime directory would be `$TMPDIR/acq-<uid>/<12 hex>.sock`,
-  and `$TMPDIR` alone is 49 bytes on this machine
-  (`/var/folders/jy/…/T/`), so the socket path is about 75 bytes — under
-  the 104-byte cap, but the packet refused `<root>/acqd.sock` at 77 as
-  "within the cap but not by enough" (§3). The runtime directory is now
-  `private_dir`'s, so step 6 either accepts that margin with a measure
-  in its row or shortens the name (a shorter hash, or a subdirectory
-  the platform makes short). `$XDG_RUNTIME_DIR` on Linux is
-  `/run/user/<uid>`, far shorter.
-- For step 6, the sites the rendezvous change touches, counted
-  2026-09-11: `ACQ_SOCKET` is set in 14 test files under
-  `crates/*/tests` (as `base.join("d.sock")` or `no.sock`), in
-  `contract.rs`'s session and `plan_cmd.rs`'s wedged-daemon unit test
-  (`set_var`), in both skills, both drivers' mock arms and
-  `tools/acq-as.sh`; the tests that assert "no daemon appeared" do it
-  as `socket.exists()` on that path and will need the derived path
-  (`World` + the runtime directory) instead. The harnesses will set
-  `ACQ_STORE_DIR` and `ACQ_LOG_DIR` and nothing else.
-- `Client::handshake` builds a placeholder `DaemonId::judged(0, …)`
-  before the hello exchange, and `judged` takes the one look — opens the
-  sibling, observes the world — so every handshake looks twice: once for
-  the placeholder it discards, once for the real identity. Harmless
-  (two stats, and a hash only when the sibling's identity differs, which
-  it never does for the placeholder's absent artifact) and unpinned; a
-  `Client` whose `daemon` is filled after the exchange would remove it.
-  Data for whoever next touches `client.rs`.
+- The socket's length, accepted with the measure (step 6): the packet
+  refused `<root>/acqd.sock` at 77 bytes because the root is the user's
+  and can be any length; the runtime directory is the platform's —
+  macOS's `$TMPDIR` is a fixed-shape `/var/folders/xx/<30>/T/` (49
+  bytes here), Linux's `/run/user/<uid>` shorter — so
+  `<runtime>/acq-<uid>/<12 hex>.sock` is 75 bytes on this machine, 81
+  with the largest uid, and nothing the user sets lengthens it short of
+  relocating the platform's temp directory. Refused by name over 103
+  (`SOCKET_PATH_MAX`, both platforms' `sun_path` minus the terminator)
+  rather than left to `bind`; the unit test holds the margin at 20.
+- The harnesses set `TMPDIR` and `XDG_RUNTIME_DIR` into the scratch
+  (step 6), beside `ACQ_STORE_DIR` and `ACQ_LOG_DIR` — not the "nothing
+  else" projected before the step. Why: the socket lives in the
+  per-user runtime directory, and a test daemon killed by a guard rather
+  than stopped leaves its socket file there — the first gate run after
+  the derivation left nine in `$TMPDIR/acq-<uid>/` (removed by hand);
+  and the legacy rendezvous and the legacy rails file are fixed paths in
+  the temp directory that a test can stage only in a temp directory of
+  its own. The two variables are the platform's, not knobs of ours:
+  `world.rs` reads them as `directories` and `std::env::temp_dir` do.
+  A consequence stated plainly: the real-mode lock is per runtime
+  directory, so a person who relocates `TMPDIR` on macOS (or
+  `XDG_RUNTIME_DIR` on Linux) can run two real-mode daemons as one OS
+  user — true since step 5, not new here; the `ACQ_*` override was the
+  one refused, and the tripwire is what bounds what a local lock cannot.
+  With the isolation the real-mode lock test contends with nothing of
+  the owner's.
+- A daemon on its way out removed its socket path unconditionally, and
+  a successor on the same world that starts before the predecessor has
+  exited — a stop followed within a second by a job command, the CLI
+  rehearsal of step 6 — binds the same derived path, which the
+  predecessor's exit then unlinks: the successor listens on an unlinked
+  inode, every later client finds nothing and spawns a third. The race
+  predates the derivation (the fixed socket had it for every world) and
+  the derivation made it reproducible on one world; the exit now removes
+  the file only while its device and inode are the ones bound
+  (`BoundSocket`), pinned in `contract.rs` with a listener bound in the
+  live daemon's place before it is stopped over a held connection.
 - `acq jobs --watch` ends when the daemon goes away rather than waiting
   for it to return: an observer never spawns (C10), and a watch that
   waits for a daemon is a design choice for the GUI's subscriber, not
