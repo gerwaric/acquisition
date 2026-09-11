@@ -59,7 +59,13 @@ budget LIVE-TESTING.md 15000
 # Every decision is one bullet under a length limit (a narrative cannot fit,
 # so the mechanism goes to the code); every `C<n>` cited anywhere exists in
 # the registry; a decision nothing cites is reported (enforced by nothing is
-# either a lint, a test, or a smell).
+# either a lint, a test, or a smell). "Anywhere" is the code, the tools, the
+# skills, the control documents and the closed slice records — never the
+# brainstorming notes, which are disposable and may cite an id since
+# rewritten — and never the registry's own cross-references, which are
+# not a test, a doc or a tool naming the decision (the three closed
+# records joined the scan at the daemon split's close, 2026-09-11: until
+# then a stale id in one passed, and C73, C75 and C77 read as uncited).
 ENTRY_LIMIT=800
 reg=$(mktemp)
 # entries are single lines in the registry (one bullet, no continuation),
@@ -85,7 +91,7 @@ done <"$reg"
 ids=$(grep -oE '^- \*\*C[0-9]+' "$reg" | sed 's/^- \*\*//' | sort -u)
 count=$(printf '%s\n' "$ids" | grep -c .)
 if ((over > 0)); then fail=1; else printf 'ok      %-18s %5d decisions, every entry within %d bytes\n' registry "$count" "$ENTRY_LIMIT"; fi
-cited=$(grep -rhoE '\bC[0-9]+\b' crates tools README.md LIVE-TESTING.md RUN-LEDGER.md TESTING-NOTES.md REFRESH-SLICE.md AGENTS.md .claude 2>/dev/null \
+cited=$(grep -rhoE '\bC[0-9]+\b' crates tools README.md LIVE-TESTING.md RUN-LEDGER.md TESTING-NOTES.md SURFACES.md REFRESH-SLICE.md PRICING-SLICE.md DAEMON-SPLIT-SLICE.md NETWORK-CLEANUP.md AGENTS.md .claude 2>/dev/null \
   --include='*.rs' --include='*.sh' --include='*.py' --include='*.md' | sort -u)
 unknown=$(comm -13 <(printf '%s\n' "$ids") <(printf '%s\n' "$cited") | grep . || true)
 if [[ -n $unknown ]]; then
