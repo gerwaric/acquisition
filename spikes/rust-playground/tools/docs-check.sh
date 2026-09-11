@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # docs-check.sh — the documentation half of the quality gate.
 #
-# Five checks, all mechanical (P5, CONTEXT.md "Working style": a lint
+# Six checks, all mechanical (P5, CONTEXT.md "Working style": a lint
 # where mechanical, a recorded property where stakes are real):
 #
 #   1. Byte budgets on the always-loaded documents. Every session reads
@@ -21,12 +21,17 @@
 #   4. The README's form: one line per verb in the tour, a row per knob.
 #   5. Dependency direction: the layer rules as edges the crates cannot
 #      cross, read from `cargo metadata` — the split's edge table
-#      (brainstorming-notes/18 §2.1; C1 as amended) for every crate that
+#      (the packet, note 18 §2.1 at decda84e; C1 as amended) for every crate that
 #      exists: the protocol crate's purity (serde only), the store's
 #      blindness to everything above it, the planner's and the client's
 #      independence from the daemon, the daemon's from the client, the
 #      planner and any frontend, and the daemon named by no package but
 #      itself — each forbidden edge refused at any depth.
+#   6. The brainstorming notes: a note is on demand while something cites
+#      it by path and history once nothing does (AGENTS.md, "Routing"), so
+#      a path citation to a note that is gone is refused — history is
+#      cited as "note NN at `<commit>`" — and the uncited notes are
+#      reported, the same shape as the uncited decisions.
 #
 # Exit 1 on any failure; the report names each offender.
 set -euo pipefail
@@ -144,7 +149,7 @@ fi
 
 # ---- 4. the README's form -----------------------------------------------
 # The README is the index to what exists and how to reach it
-# (brainstorming-notes/13): the tour is one line per verb — a
+# (note 13 at decda84e): the tour is one line per verb — a
 # comment-only line is a group header after a blank line, never a
 # continuation of a verb line (44 of those had accreted by 2026-09-07) —
 # and the knob table is complete: every ACQ_* the crates read outside
@@ -423,6 +428,28 @@ if grep -rqE 'Annotations|annotations_path' crates/acquisition-daemon/src crates
 fi
 if ((edge_bad == 0)); then
   echo 'ok      dependencies  daemon ∌ client/planner/frontend, nothing ∌ daemon but itself, client ∌ daemon/planner, planner ∌ daemon/client, store ∌ daemon/client/protocol/HTTP, daemon/protocol/client ∌ intent API, protocol = serde only (C1, C34, C39, C41, §2.1)'
+fi
+
+# ---- 6. the brainstorming notes -----------------------------------------
+# A note is on demand while a ruling, a tool, a skill or a crate doc cites
+# it by path (`brainstorming-notes/NN` or `brainstorming-notes NN`), and
+# history once nothing does: deleted, cited as "note NN at `<commit>`". A
+# path citation to a note that is gone is a pointer into nothing and is
+# refused; the notes nothing cites are reported so a prune is a grep,
+# never a judgment call. The notes are not scanned for citations of each
+# other — a note cannot keep another alive.
+notes=$(ls brainstorming-notes/*.md 2>/dev/null | sed -E 's#.*/([0-9]+)-.*#\1#' | sort -u)
+note_cites=$(grep -rhoE 'brainstorming-notes[/ ][0-9]+' crates tools README.md CONTEXT.md AGENTS.md LIVE-TESTING.md RUN-LEDGER.md TESTING-NOTES.md SURFACES.md REFRESH-SLICE.md PRICING-SLICE.md DAEMON-SPLIT-SLICE.md NETWORK-CLEANUP.md decisions .claude 2>/dev/null \
+  --include='*.rs' --include='*.sh' --include='*.py' --include='*.md' | sed -E 's#.*[/ ]##' | sort -u)
+gone=$(comm -13 <(printf '%s\n' "$notes") <(printf '%s\n' "$note_cites") | grep . || true)
+if [[ -n $gone ]]; then
+  printf 'GONE    a note cited by path no longer exists (history is cited as "note NN at `<commit>`"): %s\n' "$(echo $gone)"; fail=1
+fi
+uncited_notes=$(comm -23 <(printf '%s\n' "$notes") <(printf '%s\n' "$note_cites") | grep . || true)
+if [[ -n $uncited_notes ]]; then
+  printf 'note    uncited notes (nothing points at them; delete once their content has landed): %s\n' "$(echo $uncited_notes)"
+elif [[ -z $gone ]]; then
+  printf 'ok      %-13s every note is cited by path, every path citation resolves\n' notes
 fi
 
 exit $fail

@@ -10,8 +10,8 @@ short record in the mold of `REFRESH-SLICE.md` and `PRICING-SLICE.md`;
 the open record's full text — every row's narrative, the observations as
 they stood — is the file at `abef9a45`.
 
-The design is `brainstorming-notes/18-the-daemon-split.md` (ruled by the
-owner on 2026-09-09; its §10, verbatim), disposable history. The rulings
+The design is the packet, note 18 at `decda84e` (ruled by the owner on
+2026-09-09; its §10, verbatim), history. The rulings
 live in the registry — `CONTEXT.md` (C1 amended) and
 `decisions/daemon.md` (C82, C83, C84, C85 new; C10, C31 amended; C39
 amended in `decisions/plans.md`) — the mechanisms in the module docs

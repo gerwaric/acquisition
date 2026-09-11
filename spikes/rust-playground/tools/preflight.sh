@@ -1,6 +1,6 @@
 #!/bin/bash
 # preflight.sh — the live drivers' shared preflight (LIVE-TESTING.md,
-# "Build before you run"; brainstorming-notes/16 §6.3). Sourced, not run:
+# "Build before you run"; note 16 §6.3 at decda84e). Sourced, not run:
 #
 #   . "$here/tools/preflight.sh"
 #   preflight            # after MODE and RUN_DIR are chosen, before any

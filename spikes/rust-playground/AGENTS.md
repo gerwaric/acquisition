@@ -110,7 +110,7 @@ budget trips, something landed where it does not belong.
 | how a mechanism works | a doc comment on the code, under "Decisions as recorded" / "As built", headed by the id |
 | how to use a verb, a flag or a knob | its clap help string (the reference files regenerate from it under `ACQ_UPDATE_FIXTURES=1`), or the knob's read-site doc comment; one line in the README's tour or one row in its knob table — never a comment block |
 | a procedure | its skill file, referenced here |
-| deliberation | a numbered note in `brainstorming-notes/`, disposable |
+| deliberation | a numbered note in `brainstorming-notes/`: on demand while a ruling, a tool, a skill or a crate doc cites it by path; history once nothing does — deleted, cited as "note NN at `<commit>`" (`tools/docs-check.sh` refuses a path citation to a note that is gone and reports the uncited) |
 | the owner's verdict | recorded verbatim from the conversation, marked as such |
 
 Headers carry no status. Struck-through items are deleted. Session notes

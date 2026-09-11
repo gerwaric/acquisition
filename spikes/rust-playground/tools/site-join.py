@@ -2,7 +2,7 @@
 """site-join.py — the site's rows against the listing state, by item id.
 
 The site as the oracle (pricing slice, plan step 7, item 5;
-`brainstorming-notes/15`). Two tables in: the trade site's seller-account
+note 15 at `decda84e`). Two tables in: the trade site's seller-account
 search normalized by `tools/site-listings.py`, and our listing state
 written by the `listing-report` example (`acq price list --json`'s
 `ListingReport`, unredacted, under `runs/`). One classification out,

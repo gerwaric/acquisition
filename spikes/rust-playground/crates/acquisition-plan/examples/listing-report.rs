@@ -1,5 +1,5 @@
 //! `listing-report` — our side of the site-as-the-oracle comparison
-//! (plan step 7, item 5, `PRICING-SLICE.md`; `brainstorming-notes/15`):
+//! (plan step 7, item 5, `PRICING-SLICE.md`; note 15 at `decda84e`):
 //! one (realm, league)'s listing state from the owner's own store,
 //! written to stdout as the whole `ListingReport` JSON — the report the
 //! CLI resolves and then filters into its `status`, `list` and `show`

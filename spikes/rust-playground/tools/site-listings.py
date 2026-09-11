@@ -2,7 +2,7 @@
 """site-listings.py — one table from the trade site's saved result pages.
 
 The site as the oracle (pricing slice, plan step 7, item 5;
-`brainstorming-notes/15`): the owner runs the seller-account search for
+note 15 at `decda84e`): the owner runs the seller-account search for
 one account and league in a browser and saves the rendered DOM
 (`copy(document.documentElement.outerHTML)`) in parts, since one search
 shows at most 100 rows. This tool reads those saved files — never the

@@ -8,7 +8,7 @@ description: End a working session on the Rust playground — route what was lea
 The always-loaded documents accrete when a session ends by writing its
 story into `CONTEXT.md`. This procedure gives the story a home instead.
 The rule is one authoritative home per fact (`AGENTS.md`, "Routing");
-the ladder behind it is `brainstorming-notes/09-settling-the-record.md`.
+the ladder behind it is note 09 at `decda84e`.
 
 ## 1. Gate
 
