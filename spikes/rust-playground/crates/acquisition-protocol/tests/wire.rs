@@ -349,6 +349,10 @@ fn responses() -> Vec<Response> {
             max_in_flight: 2,
             rails: rails(),
             keyring: "ok".into(),
+            log: Some(
+                "/home/alice/.local/state/acquisition-playground/log/0123456789ab/mock/daemon.log"
+                    .into(),
+            ),
         },
         Response::Quote { quote: quote() },
         Response::Dashboard {

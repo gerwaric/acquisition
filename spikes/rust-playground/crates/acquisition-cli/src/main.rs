@@ -64,13 +64,14 @@ pub(crate) fn mismatch_remedy(found: &acquisition_client::client::DaemonId) -> &
     }
 }
 
-/// The daemon log this process's world holds for the provider it wants,
-/// when that world exists (`acquisition_store::world`; created by a job
-/// command, never by a reader).
-pub(crate) fn daemon_log_path() -> Option<std::path::PathBuf> {
-    World::observe()
-        .ok()
-        .map(|w| w.log_path(acquisition_protocol::provider::wanted()))
+/// The log the running daemon opened, as it reports it (`daemon_status`,
+/// C83) — never recomputed from this shell's environment, which may
+/// differ from the daemon's (review 2026-09-11).
+pub(crate) async fn daemon_log_path(client: &mut Client) -> Option<String> {
+    match client.request(&Request::DaemonStatus).await {
+        Ok(Response::DaemonStatus { log, .. }) => log,
+        _ => None,
+    }
 }
 
 #[derive(Parser)]
@@ -1081,10 +1082,10 @@ async fn run(cli: Cli) -> Result<()> {
                     ] {
                         report[key] = identity[key].clone();
                     }
-                    // The paths this shell resolves (the world is the
-                    // daemon's, so its log is the one this shell derives).
+                    // The socket this shell reached the daemon through;
+                    // the log is the daemon's own report (`log`, on the
+                    // wire since the world), never recomputed here.
                     report["socket"] = json!(socket_path());
-                    report["log"] = json!(daemon_log_path());
                     println!("{}", serde_json::to_string_pretty(&report)?);
                 } else if let Response::DaemonStatus {
                     pid,
@@ -1100,6 +1101,7 @@ async fn run(cli: Cli) -> Result<()> {
                     max_in_flight,
                     rails,
                     keyring,
+                    log,
                 } = status
                 {
                     println!(
@@ -1129,11 +1131,7 @@ async fn run(cli: Cli) -> Result<()> {
                         "connections: {connections}  waiting: {jobs_waiting}  running: {jobs_running}  in flight: {in_flight}/{max_in_flight}  policies learned: {policies_known}"
                     );
                     println!("socket: {}", socket_path().display());
-                    println!(
-                        "log:    {}",
-                        daemon_log_path()
-                            .map_or("(no world)".to_string(), |p| p.display().to_string())
-                    );
+                    println!("log:    {}", log.as_deref().unwrap_or("not reported"));
                     println!(
                         "rails:  tripwire {} · sends {}{} · journal {}",
                         if rails.tripwire_enabled { "ON" } else { "off" },

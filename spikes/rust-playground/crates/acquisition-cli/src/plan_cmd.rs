@@ -408,8 +408,8 @@ pub async fn refresh_apply(
     print!("{report}");
     println!("{}", changes.line());
     if let Outcome::Failure { .. } = outcome {
-        if let Some(log) = crate::daemon_log_path() {
-            println!("daemon log: {}", log.display());
+        if let Some(log) = crate::daemon_log_path(&mut client).await {
+            println!("daemon log: {log}");
         }
         return Err(crate::AlreadyReported.into());
     }

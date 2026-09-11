@@ -412,7 +412,16 @@ pub struct Verdict {
     pub sibling: Result<FileIdentity, SiblingError>,
     /// This process's own world as found in that one look — its canonical
     /// root, or the root it intended and why there is no world there.
-    pub own_world: Result<String, String>,
+    /// The report and the prose read this, never a second look
+    /// (review 2026-09-11).
+    pub own_world: Result<String, AbsentWorld>,
+}
+
+/// This process has no world: the root it intended does not resolve.
+#[derive(Debug, Clone)]
+pub struct AbsentWorld {
+    pub intended: String,
+    pub reason: String,
 }
 
 impl Verdict {
@@ -430,7 +439,7 @@ impl Verdict {
             contract: contract == CONTRACT_REVISION,
             artifact: ArtifactVerdict::judge_against(artifact, opened),
             provider: provider == want_provider(),
-            world: own_world.as_deref() == Ok(world),
+            world: own_world.as_deref().ok() == Some(world),
             sibling: identity,
             own_world,
         }
@@ -443,19 +452,23 @@ impl Verdict {
 }
 
 /// This process's world (C83), observed — never created here: the
-/// canonical root when it exists, else why there is no world.
-fn own_world() -> Result<String, String> {
-    World::observe()
-        .map(|w| w.name())
-        .map_err(|e| e.to_string())
+/// canonical root when it exists, else the root it intended and why
+/// there is no world there.
+fn own_world() -> Result<String, AbsentWorld> {
+    World::observe().map(|w| w.name()).map_err(|e| AbsentWorld {
+        intended: e.intended.display().to_string(),
+        reason: e.to_string(),
+    })
 }
 
 /// The intended root as `hello` names it from this side, whether or not
-/// it exists yet: the daemon logs a mismatch, nothing more.
+/// it exists yet: the daemon logs a mismatch, nothing more. A look of its
+/// own, before the handshake; the verdict's look is the one every report
+/// reads.
 fn own_world_name() -> String {
-    match World::observe() {
-        Ok(w) => w.name(),
-        Err(e) => e.intended.display().to_string(),
+    match own_world() {
+        Ok(name) => name,
+        Err(absent) => absent.intended,
     }
 }
 
@@ -553,14 +566,17 @@ impl DaemonId {
             "version": VERSION,
             "contract": CONTRACT_REVISION,
             "provider": want_provider(),
-            "world": own_world_name(),
+            "world": match &verdict.own_world {
+                Ok(name) => name.clone(),
+                Err(absent) => absent.intended.clone(),
+            },
             "acqd": acqd,
         });
         if let Some(reason) = acqd_absent {
             wanted["acqd_absent"] = json!(reason);
         }
-        if let Err(reason) = &verdict.own_world {
-            wanted["world_absent"] = json!(reason);
+        if let Err(absent) = &verdict.own_world {
+            wanted["world_absent"] = json!(absent.reason);
         }
         let mut report = json!({
             "pid": self.pid,
@@ -647,7 +663,7 @@ impl fmt::Display for DaemonId {
                 self.world,
                 match &verdict.own_world {
                     Ok(root) => root.clone(),
-                    Err(reason) => format!("absent — {reason}"),
+                    Err(absent) => format!("absent — {}", absent.reason),
                 }
             );
         }

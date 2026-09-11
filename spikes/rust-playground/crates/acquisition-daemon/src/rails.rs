@@ -159,10 +159,23 @@ struct Persisted {
 /// a legacy file with no current one moves whole; both present are
 /// merged so no trip is lost — a trip in either is a trip, the
 /// refresh-failed marks are the union, the current file's cause wins a
-/// conflict — and the legacy file is removed either way. Returns what
-/// happened, for the daemon log; `None` when there was nothing to move.
+/// conflict — and the legacy file is removed once the world holds the
+/// result. Every failure is named and leaves both files where they are
+/// (review 2026-09-11: a read error is not absence, an unreadable
+/// current state is never overwritten, and "moved" is said only when the
+/// legacy file is gone). Returns what happened, for the daemon log;
+/// `None` when there was no legacy file.
 pub fn migrate_legacy_state(legacy: &Path, current: &Path) -> Option<String> {
-    let text = std::fs::read_to_string(legacy).ok()?;
+    let text = match std::fs::read_to_string(legacy) {
+        Ok(text) => text,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return None,
+        Err(e) => {
+            return Some(format!(
+                "rails: legacy state {} could not be read ({e}); left in place",
+                legacy.display()
+            ));
+        }
+    };
     let Ok(old) = serde_json::from_str::<Persisted>(&text) else {
         // Not this daemon's shape: leave it where it is, say so once.
         return Some(format!(
@@ -170,37 +183,62 @@ pub fn migrate_legacy_state(legacy: &Path, current: &Path) -> Option<String> {
             legacy.display()
         ));
     };
-    if let Some(dir) = current.parent() {
-        let _ = std::fs::create_dir_all(dir);
-    }
-    let merged = match std::fs::read_to_string(current)
-        .ok()
-        .and_then(|t| serde_json::from_str::<Persisted>(&t).ok())
-    {
-        None => old,
-        Some(mut now) => {
-            if now.tripped.is_none() {
-                now.tripped = old.tripped;
-            }
-            for (account, cause) in old.refresh_failed_by_account {
-                now.refresh_failed_by_account
-                    .entry(account)
-                    .or_insert(cause);
-            }
-            now
+    let merged = match std::fs::read_to_string(current) {
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => old,
+        Err(e) => {
+            return Some(format!(
+                "rails: the world's state {} could not be read ({e}); the legacy state {} is left in place",
+                current.display(),
+                legacy.display()
+            ));
         }
+        Ok(text) => match serde_json::from_str::<Persisted>(&text) {
+            Ok(mut now) => {
+                if now.tripped.is_none() {
+                    now.tripped = old.tripped;
+                }
+                for (account, cause) in old.refresh_failed_by_account {
+                    now.refresh_failed_by_account
+                        .entry(account)
+                        .or_insert(cause);
+                }
+                now
+            }
+            Err(_) => {
+                return Some(format!(
+                    "rails: the world's state {} is not readable and is not overwritten; the legacy state {} is left in place",
+                    current.display(),
+                    legacy.display()
+                ));
+            }
+        },
     };
+    if let Some(dir) = current.parent()
+        && let Err(e) = std::fs::create_dir_all(dir)
+    {
+        return Some(format!(
+            "rails: could not create {} ({e}); the legacy state {} is left in place",
+            dir.display(),
+            legacy.display()
+        ));
+    }
     let Ok(text) = serde_json::to_string(&merged) else {
-        return None;
+        return Some("rails: the merged state could not be serialised; nothing moved".into());
     };
     if let Err(e) = std::fs::write(current, text) {
         return Some(format!(
-            "rails: could not move the legacy state {} into {}: {e}; left in place",
+            "rails: could not write {} ({e}); the legacy state {} is left in place",
+            current.display(),
+            legacy.display()
+        ));
+    }
+    if let Err(e) = std::fs::remove_file(legacy) {
+        return Some(format!(
+            "rails: state copied from {} into the world at {}, but the legacy file could not be removed ({e}) and will be merged again at the next start",
             legacy.display(),
             current.display()
         ));
     }
-    let _ = std::fs::remove_file(legacy);
     Some(format!(
         "rails: state moved from {} into the world at {}{}",
         legacy.display(),
@@ -845,6 +883,20 @@ mod tests {
         std::fs::write(&legacy, "{nope").unwrap();
         let line = migrate_legacy_state(&legacy, &current).expect("named");
         assert!(line.contains("not readable") && legacy.exists(), "{line}");
+        // A world state that cannot be read is never overwritten: both
+        // files stay, and the line says so (review 2026-09-11).
+        std::fs::write(
+            &legacy,
+            r#"{"tripped":"401 on GET /profile","refresh_failed_by_account":{}}"#,
+        )
+        .unwrap();
+        std::fs::write(&current, "{corrupt").unwrap();
+        let line = migrate_legacy_state(&legacy, &current).expect("named");
+        assert!(
+            line.contains("not overwritten") && legacy.exists(),
+            "{line}"
+        );
+        assert_eq!(std::fs::read_to_string(&current).unwrap(), "{corrupt");
         let _ = std::fs::remove_dir_all(&dir);
     }
 

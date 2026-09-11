@@ -1,8 +1,9 @@
-//! The MCP's `daemon_status` through the binary (C10, C84): absence is a
-//! state; a running daemon this server may use is reported with its
+//! The MCP's `daemon_status` through the binary (C10, C84, C83): absence
+//! is a state; a running daemon this server may use is reported with its
 //! identity — contract, the executable it runs from and its hash, how
 //! that file relates to the `acqd` beside `acq-mcp` (`artifact_relation`)
-//! and that sibling under `wanted`; a daemon of another provider is
+//! and that sibling under `wanted`, and the world it serves (its
+//! canonical root, `world_matches`); a daemon of another provider is
 //! reported as incompatible with the dimension named, and never
 //! replaced. `ACQ_GGG=1` appears only on the observing server, which
 //! cannot spawn in real mode by construction: nothing reaches GGG.

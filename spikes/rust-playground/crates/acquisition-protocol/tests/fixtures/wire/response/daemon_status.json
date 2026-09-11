@@ -5,6 +5,7 @@
   "jobs_running": 1,
   "jobs_waiting": 1,
   "keyring": "ok",
+  "log": "/home/alice/.local/state/acquisition-playground/log/0123456789ab/mock/daemon.log",
   "max_in_flight": 2,
   "pid": 4242,
   "policies_known": 1,

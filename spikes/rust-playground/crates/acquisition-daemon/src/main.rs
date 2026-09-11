@@ -2,7 +2,7 @@
 //! frontend spawns the `acqd` beside it (`acquisition-client`'s locator)
 //! and the live drivers start it directly; nothing else does. It takes no
 //! arguments: its knobs are the environment (`README.md`, "Knobs" —
-//! `ACQ_GGG`, `ACQ_SOCKET`, `ACQ_STORE_DIR`, the rails), the one door to
+//! `ACQ_GGG`, `ACQ_SOCKET`, `ACQ_STORE_DIR`, `ACQ_LOG_DIR`, the rails), the one door to
 //! them, so that a flag can never disagree with the environment the
 //! frontend that spawned it read (the packet's rejected "flags on
 //! `acqd`"). Nor a `--version`: the daemon's identity is two values

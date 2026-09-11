@@ -573,6 +573,12 @@ pub enum Response {
         /// "ok" or the keyring failure; a failed save after refresh-token
         /// rotation leaves the session memory-only (LIVE-TESTING.md R7).
         keyring: String,
+        /// The log file this daemon opened (C83: the world's, under the
+        /// log directory it started with) — reported, never recomputed
+        /// by a client from its own environment, which may differ
+        /// (review 2026-09-11). `None` from the in-process harness.
+        #[serde(default)]
+        log: Option<String>,
     },
     Quote {
         quote: Quote,

@@ -202,11 +202,30 @@ fn c83_a_second_daemon_on_the_same_world_refuses_naming_the_holder() {
         .join("daemon.lock");
     assert!(lock.is_file(), "the world lock file exists");
 
+    // The incumbent's log, grown past the cap while it runs: a contender
+    // must not rotate it from under the incumbent (review 2026-09-11 —
+    // the locks come before the log is touched).
+    let log_path = daemon_log(base, "store", "mock");
+    std::fs::OpenOptions::new()
+        .append(true)
+        .open(&log_path)
+        .unwrap()
+        .set_len(1u64 << 30)
+        .unwrap();
+
     // Another socket, the same store root: refused on the lock, not on
     // the socket.
     let (status, stderr) = refused_daemon(daemon_command(base, "b.sock", "store"));
     eprintln!("the world lock's refusal, verbatim:\n{stderr}");
     assert!(!status.success(), "the second daemon started: {stderr}");
+    assert!(
+        !PathBuf::from(format!("{}.1", log_path.display())).exists(),
+        "the contender rotated the incumbent's log"
+    );
+    assert!(
+        std::fs::metadata(&log_path).unwrap().len() >= 1u64 << 30,
+        "the incumbent's log was replaced"
+    );
     assert!(
         stderr.contains("another daemon holds this world")
             && stderr.contains(&format!("pid {pid}"))
@@ -214,11 +233,15 @@ fn c83_a_second_daemon_on_the_same_world_refuses_naming_the_holder() {
             && stderr.contains("C83"),
         "{stderr}"
     );
-    let log = std::fs::read_to_string(daemon_log(base, "store", "mock")).unwrap();
+    let log = std::fs::read_to_string(&log_path).unwrap();
     assert!(
         log.contains("STARTUP: another daemon holds this world")
             && log.contains(&format!("pid {pid}")),
-        "{log}"
+        "the refusal reached the incumbent's log (appended, not rotated): {}",
+        log.trim_start_matches('\0')
+            .chars()
+            .take(600)
+            .collect::<String>()
     );
     assert!(
         !base.join("b.sock").exists(),
@@ -512,6 +535,44 @@ fn c83_diagnostics_live_under_the_log_directory_and_are_bounded() {
         log.with_file_name("sends.jsonl").display().to_string(),
         "{status}"
     );
+    // The path is the daemon's own report: a shell with another log
+    // directory, or none, still learns the file the daemon opened
+    // (review 2026-09-11).
+    for other in [Some(base.join("elsewhere-logs")), None] {
+        let mut cmd = command(base, "d.sock", "store", &["daemon", "status", "--json"]);
+        match &other {
+            Some(dir) => {
+                cmd.env("ACQ_LOG_DIR", dir);
+            }
+            None => {
+                cmd.env_remove("ACQ_LOG_DIR");
+            }
+        }
+        let out = cmd.output().unwrap();
+        let status = sole_json(&out);
+        assert_eq!(
+            status["log"],
+            log.display().to_string(),
+            "{other:?}: {status}"
+        );
+        let out = {
+            let mut cmd = command(base, "d.sock", "store", &["daemon", "status"]);
+            match &other {
+                Some(dir) => {
+                    cmd.env("ACQ_LOG_DIR", dir);
+                }
+                None => {
+                    cmd.env_remove("ACQ_LOG_DIR");
+                }
+            }
+            cmd.output().unwrap()
+        };
+        assert!(
+            text(&out).contains(&format!("log:    {}", log.display())),
+            "{other:?}: {}",
+            text(&out)
+        );
+    }
     let previous = PathBuf::from(format!("{}.1", log.display()));
     assert_eq!(
         std::fs::metadata(&previous).unwrap().len(),

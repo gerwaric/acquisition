@@ -40,11 +40,16 @@
 //!   use path: it creates the root (mode 0700 on Unix) and canonicalises
 //!   it; [`World::observe`] is the observation path: it canonicalises
 //!   what exists and creates nothing, so a missing root is an absent
-//!   world, never a new one. `fs::canonicalize` is what makes two
-//!   spellings of one directory one world — a symlinked data directory,
-//!   macOS's `/var` and `/private/var` — and what a daemon reports in
-//!   `hello` (`world`), which a client compares with its own before any
-//!   other dimension.
+//!   world, never a new one; the use path sets the root to mode 0700 on
+//!   every start, not only when it creates it, and refuses if it cannot
+//!   (a root from before step 5 is brought to the documented state).
+//!   `fs::canonicalize` is what makes two spellings of one directory one
+//!   world — a symlinked data directory, macOS's `/var` and
+//!   `/private/var` — and what a daemon reports in `hello` (`world`),
+//!   which a client compares with its own before any other dimension. A
+//!   root that is not valid UTF-8 is refused rather than carried lossily:
+//!   the name crosses the wire as a string, and two distinct byte paths
+//!   must never read as one world (review 2026-09-11).
 //! - **The world lock.** [`World::lock_path`] is `<root>/daemon.lock`;
 //!   [`Lock::acquire`] takes an exclusive advisory lock on it (`flock`,
 //!   through `std::fs::File::try_lock`) and writes the holder's pid into
@@ -56,9 +61,13 @@
 //!   sentence: two daemons on one `daemon.db` would each restore and run
 //!   the same queue.
 //! - **The real-mode lock.** [`real_mode_lock_path`] is
-//!   `<runtime>/acq/ggg.lock`, in the private per-user runtime directory
-//!   ([`runtime_dir`]: `$XDG_RUNTIME_DIR` where the platform sets it, else
-//!   the per-user temp directory; `acq/` under it is created mode 0700).
+//!   `<runtime>/ggg.lock`, in the private per-user runtime directory
+//!   ([`app_runtime_dir`]: `$XDG_RUNTIME_DIR/acq` where the platform sets
+//!   it, else `<temp dir>/acq-<uid>` — `/tmp` is shared on Linux, so the
+//!   fallback carries the uid; either way the directory is created mode
+//!   0700, must not be a symlink, must be owned by this user and must
+//!   carry no group or other bits, or it is refused — the pre-creation
+//!   attack on a shared temp directory, review 2026-09-11).
 //!   Every real-mode daemon takes it whatever its root, so two live-test
 //!   roots cannot make two GGG gates (C31's Cloudflare bound is
 //!   per-process state). Per user, not per machine: another OS user, the
@@ -187,25 +196,32 @@ impl std::error::Error for WorldError {}
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct World {
     root: PathBuf,
+    /// The root as a string: exact, since a root is valid UTF-8 by
+    /// construction.
+    name: String,
 }
 
 impl World {
-    /// The use path (C83): create the intended root if it is missing
-    /// (mode 0700 on Unix — the store holds intent and `daemon.db`), then
-    /// canonicalise it.
+    /// The use path (C83): create the intended root if it is missing,
+    /// set it to mode 0700 on Unix every time (the store holds intent and
+    /// `daemon.db`; a root from before step 5 is brought to that state),
+    /// then canonicalise it. A failure to create or to set the mode is a
+    /// refusal, never ignored.
     pub fn create() -> Result<World, WorldError> {
         let intended = intended_root();
+        let failed = |io: std::io::Error| WorldError {
+            intended: intended.clone(),
+            io: io.to_string(),
+            absent: false,
+        };
         if !intended.is_dir() {
-            std::fs::create_dir_all(&intended).map_err(|e| WorldError {
-                intended: intended.clone(),
-                io: e.to_string(),
-                absent: false,
-            })?;
-            #[cfg(unix)]
-            {
-                use std::os::unix::fs::PermissionsExt;
-                let _ = std::fs::set_permissions(&intended, std::fs::Permissions::from_mode(0o700));
-            }
+            std::fs::create_dir_all(&intended).map_err(failed)?;
+        }
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&intended, std::fs::Permissions::from_mode(0o700))
+                .map_err(failed)?;
         }
         Self::canonical(intended)
     }
@@ -243,7 +259,15 @@ impl World {
                 absent: false,
             });
         }
-        Ok(World { root })
+        let Some(name) = root.to_str().map(str::to_string) else {
+            return Err(WorldError {
+                intended,
+                io: "the store root is not valid UTF-8; it names the world on the wire and must be"
+                    .into(),
+                absent: false,
+            });
+        };
+        Ok(World { root, name })
     }
 
     /// The canonical root: what `hello` carries and a client compares.
@@ -251,16 +275,17 @@ impl World {
         &self.root
     }
 
-    /// The root as `hello` carries it.
+    /// The root as `hello` carries it: exact, since a root is valid UTF-8
+    /// by construction.
     pub fn name(&self) -> String {
-        self.root.display().to_string()
+        self.name.clone()
     }
 
-    /// Twelve hex digits of the canonical root's SHA-256: the world's
-    /// short id, which names its subdirectory under the log base
-    /// directory (and, from step 6, its socket).
+    /// Twelve hex digits of the SHA-256 of the canonical root's exact
+    /// bytes: the world's short id, which names its subdirectory under the
+    /// log base directory (and, from step 6, its socket).
     pub fn id(&self) -> String {
-        let digest = Sha256::digest(self.root.to_string_lossy().as_bytes());
+        let digest = Sha256::digest(self.name.as_bytes());
         digest.iter().take(6).map(|b| format!("{b:02x}")).collect()
     }
 
@@ -320,7 +345,7 @@ pub fn legacy_rails_state_path(provider: &str) -> PathBuf {
 /// or `acquisition-playground.sock` in the temp directory. One definition
 /// for both sides. Must stay short: Unix socket paths cap out around 104
 /// bytes (`SUN_LEN`). Step 6 derives it from the world into
-/// [`runtime_dir`] and removes the knob.
+/// [`app_runtime_dir`] and removes the knob.
 pub fn socket_path() -> PathBuf {
     if let Ok(p) = std::env::var("ACQ_SOCKET") {
         return PathBuf::from(p);
@@ -328,31 +353,98 @@ pub fn socket_path() -> PathBuf {
     std::env::temp_dir().join("acquisition-playground.sock")
 }
 
-/// The private per-user runtime directory: `$XDG_RUNTIME_DIR` where the
-/// platform provides it (Linux), else the per-user temp directory (macOS
-/// `$TMPDIR`). Holds the real-mode lock, and from step 6 the socket.
-pub fn runtime_dir() -> PathBuf {
-    BaseDirs::new()
-        .and_then(|b| b.runtime_dir().map(Path::to_path_buf))
-        .unwrap_or_else(std::env::temp_dir)
+/// This application's private per-user runtime directory, created on
+/// demand and verified on every use: `$XDG_RUNTIME_DIR/acq` where the
+/// platform provides that directory (Linux; it is per user by the XDG
+/// spec), else `<temp dir>/acq-<uid>` — the temp directory is shared on
+/// Linux (`/tmp`) and per user on macOS (`$TMPDIR`), and the uid in the
+/// name keeps the fallback per user either way. Holds the real-mode lock,
+/// and from step 6 the socket. [`private_dir`] does the creating and the
+/// checking.
+pub fn app_runtime_dir() -> std::io::Result<PathBuf> {
+    match BaseDirs::new().and_then(|b| b.runtime_dir().map(Path::to_path_buf)) {
+        Some(runtime) => private_dir(&runtime.join("acq")),
+        None => private_dir(&std::env::temp_dir().join(format!("acq-{}", current_uid()))),
+    }
 }
 
-/// `<runtime>/acq`: this application's runtime subdirectory, created on
-/// demand, mode 0700 on Unix.
-pub fn app_runtime_dir() -> std::io::Result<PathBuf> {
-    let dir = runtime_dir().join("acq");
-    if !dir.is_dir() {
-        std::fs::create_dir_all(&dir)?;
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            let _ = std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o700));
+/// The calling user's uid (Unix); 0 elsewhere, where the checks below
+/// are not made.
+fn current_uid() -> u32 {
+    #[cfg(unix)]
+    {
+        // SAFETY: getuid has no preconditions and cannot fail.
+        unsafe { libc::getuid() }
+    }
+    #[cfg(not(unix))]
+    {
+        0
+    }
+}
+
+/// A directory private to this user at `path`: created mode 0700 if
+/// missing; refused if it is a symlink or not a directory, if another
+/// user owns it, or if group or other bits cannot be cleared — the
+/// pre-creation attack on a shared temp directory, where a path the
+/// attacker made first would be used as ours (review 2026-09-11). On a
+/// non-Unix platform only the existence check is made.
+pub fn private_dir(path: &Path) -> std::io::Result<PathBuf> {
+    use std::io::{Error, ErrorKind};
+    match std::fs::symlink_metadata(path) {
+        Err(e) if e.kind() == ErrorKind::NotFound => {
+            std::fs::create_dir_all(path)?;
+        }
+        Err(e) => return Err(e),
+        Ok(meta) if meta.file_type().is_symlink() => {
+            return Err(Error::new(
+                ErrorKind::InvalidInput,
+                format!(
+                    "{} is a symlink; the runtime directory must be a plain directory this user made",
+                    path.display()
+                ),
+            ));
+        }
+        Ok(meta) if !meta.is_dir() => {
+            return Err(Error::new(
+                ErrorKind::InvalidInput,
+                format!("{} exists and is not a directory", path.display()),
+            ));
+        }
+        Ok(_) => {}
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::{MetadataExt, PermissionsExt};
+        let meta = std::fs::symlink_metadata(path)?;
+        let uid = current_uid();
+        if meta.uid() != uid {
+            return Err(Error::new(
+                ErrorKind::PermissionDenied,
+                format!(
+                    "{} is owned by uid {}, not this user ({uid}); refusing to use it",
+                    path.display(),
+                    meta.uid()
+                ),
+            ));
+        }
+        if meta.mode() & 0o077 != 0 {
+            std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o700))?;
+            let again = std::fs::symlink_metadata(path)?;
+            if again.mode() & 0o077 != 0 {
+                return Err(Error::new(
+                    ErrorKind::PermissionDenied,
+                    format!(
+                        "{} keeps group or other permissions; refusing to use it",
+                        path.display()
+                    ),
+                ));
+            }
         }
     }
-    Ok(dir)
+    Ok(path.to_path_buf())
 }
 
-/// `<runtime>/acq/ggg.lock`: the real-mode lock's file, per OS user,
+/// `<runtime>/ggg.lock`: the real-mode lock's file, per OS user,
 /// whatever the root (C31, C83).
 pub fn real_mode_lock_path() -> std::io::Result<PathBuf> {
     Ok(app_runtime_dir()?.join("ggg.lock"))
@@ -554,6 +646,51 @@ mod tests {
         drop(held);
         let again = Lock::acquire(&path).expect("released on drop");
         drop(again);
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    /// C83: the private runtime directory is this user's: made 0700,
+    /// brought back to 0700 when it drifted, refused when it is a symlink
+    /// or a file — and a non-UTF-8 root is refused as a world.
+    #[cfg(unix)]
+    #[test]
+    fn c83_the_private_dir_is_this_users_and_a_root_is_utf8() {
+        use std::os::unix::fs::{MetadataExt, PermissionsExt};
+        let base = scratch("private");
+        std::fs::create_dir_all(&base).unwrap();
+        let fresh = private_dir(&base.join("fresh")).unwrap();
+        assert_eq!(std::fs::metadata(&fresh).unwrap().mode() & 0o777, 0o700);
+        let loose = base.join("loose");
+        std::fs::create_dir(&loose).unwrap();
+        std::fs::set_permissions(&loose, std::fs::Permissions::from_mode(0o755)).unwrap();
+        private_dir(&loose).unwrap();
+        assert_eq!(
+            std::fs::metadata(&loose).unwrap().mode() & 0o777,
+            0o700,
+            "tightened"
+        );
+        std::os::unix::fs::symlink(&fresh, base.join("link")).unwrap();
+        let err = private_dir(&base.join("link")).unwrap_err();
+        assert!(err.to_string().contains("symlink"), "{err}");
+        std::fs::write(base.join("file"), b"").unwrap();
+        let err = private_dir(&base.join("file")).unwrap_err();
+        assert!(err.to_string().contains("not a directory"), "{err}");
+        let runtime = app_runtime_dir().unwrap();
+        assert_eq!(std::fs::metadata(&runtime).unwrap().mode() & 0o077, 0);
+        assert_eq!(
+            real_mode_lock_path().unwrap().parent(),
+            Some(runtime.as_path())
+        );
+
+        use std::os::unix::ffi::OsStrExt;
+        // APFS refuses an invalid byte sequence in a name (EILSEQ), so on
+        // macOS the filesystem holds the property; where a directory can
+        // carry one, the world refuses it.
+        let odd = base.join(std::ffi::OsStr::from_bytes(b"r\xff"));
+        if std::fs::create_dir(&odd).is_ok() {
+            let err = World::at(&odd).unwrap_err();
+            assert!(err.to_string().contains("UTF-8"), "{err}");
+        }
         let _ = std::fs::remove_dir_all(&base);
     }
 
