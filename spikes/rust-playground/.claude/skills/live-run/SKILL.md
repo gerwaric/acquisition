@@ -17,13 +17,7 @@ from cron or a background shell has no keychain and no session.
    — the shell you were launched from may still export a previous run's
    rails or a mock session's isolation.
 2. `acq daemon stop`, until it says "daemon is not running". Never
-   rebuild under a live daemon. For the transition to the derived
-   socket (C83, the split's step 6): the first stop takes this world's
-   daemon, and a daemon from before the rendezvous, on the old fixed
-   socket, is found and stopped only once that is silent — so run it
-   again. The drivers also refuse the endpoints history chose by hand
-   (`/tmp/acq-tracer.sock`, `/tmp/acq-persist.sock`, the rung-11 pair;
-   `tools/preflight.sh`).
+   rebuild under a live daemon.
 3. `git status --porcelain` must print nothing — the standing rule's
    clean tree for a hand run, the whole of it; the drivers check the
    rung's own files, `tools/preflight.sh`'s list — then `cargo build

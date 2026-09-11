@@ -509,53 +509,33 @@ fn c83_a_shell_on_another_world_has_its_own_rendezvous_and_never_replaces_this_d
     assert_eq!(sole_json(&out)["pid"], pid);
 }
 
-/// C83: a trip persisted beside the legacy socket by a daemon from
-/// before step 5 moves into the world at the next start and is honoured
-/// there; the legacy file is gone; `reset-tripwire` with no daemon clears
-/// the world's file. The legacy file's home is the temp directory: the
-/// scratch one every daemon and shell here runs under (`scratch_tmp`).
+/// C83: the rails state persists in the world — a trip written there
+/// halts the next daemon on that root; `reset-tripwire` with no daemon
+/// clears the world's file, clears an empty directory in its place (the
+/// daemon refuses to start over one, naming the verb) and names a
+/// non-empty one for the hand.
 #[test]
-fn c83_the_rails_state_moves_into_the_world_and_the_trip_survives() {
+fn c83_the_rails_state_lives_in_the_world_and_reset_tripwire_clears_it() {
     let scratch = scratch("rails");
     let base = &scratch.0;
-    let tmp = scratch_tmp(base);
     let env = [("ACQ_TRIPWIRE", "1")];
-    let legacy = tmp.join("acquisition-playground.mock.rails.json");
+    let current = base.join("store").join("mock").join("rails.json");
+    std::fs::create_dir_all(current.parent().unwrap()).unwrap();
     std::fs::write(
-        &legacy,
-        r#"{"tripped":"429 on GET /stash/Standard (staged legacy trip)"}"#,
+        &current,
+        r#"{"tripped":"429 on GET /stash/Standard (staged trip)"}"#,
     )
     .unwrap();
 
     let (_daemon, _pid) = start_daemon(base, "store", &env);
     let out = acq_in(base, "store", &["daemon", "status", "--json"], &env);
     let status = sole_json(&out);
-    assert!(
-        status["socket"]
-            .as_str()
-            .unwrap()
-            .starts_with(&tmp.display().to_string()),
-        "the daemon's socket is in the scratch runtime directory: {status}"
-    );
     assert_eq!(status["rails"]["tripwire_enabled"], true, "{status}");
     assert!(
         status["rails"]["halted"]
             .as_str()
-            .is_some_and(|h| h.contains("staged legacy trip")),
-        "the trip did not survive the move: {status}"
-    );
-    assert!(!legacy.exists(), "the legacy file was left behind");
-    let current = base.join("store").join("mock").join("rails.json");
-    assert!(
-        std::fs::read_to_string(&current)
-            .unwrap()
-            .contains("staged legacy trip"),
-        "the trip is not in the world"
-    );
-    let log = std::fs::read_to_string(daemon_log(base, "store", "mock")).unwrap();
-    assert!(
-        log.contains("rails: state moved from") && log.contains("staged legacy trip"),
-        "{log}"
+            .is_some_and(|h| h.contains("staged trip")),
+        "the trip in the world was not honoured: {status}"
     );
     let out = acq_in(base, "store", &["daemon", "stop", "--json"], &env);
     assert!(out.status.success(), "{out:?}");
@@ -580,10 +560,10 @@ fn c83_the_rails_state_moves_into_the_world_and_the_trip_survives() {
     let out = acq_in(base, "store", &["daemon", "reset-tripwire", "--json"], &env);
     assert_eq!(sole_json(&out)["cleared"], false);
 
-    // A directory in a state file's place (round 21): the daemon refuses
-    // to start over it, naming this verb; the verb clears an empty one
-    // and names a non-empty one for the hand.
-    std::fs::create_dir(&legacy).unwrap();
+    // A directory in the state file's place (round 21): the daemon
+    // refuses to start over it, naming this verb; the verb clears an
+    // empty one and names a non-empty one for the hand.
+    std::fs::create_dir(&current).unwrap();
     let mut cmd = daemon_command(base, "store");
     for (k, v) in &env {
         cmd.env(k, v);
@@ -598,8 +578,8 @@ fn c83_the_rails_state_moves_into_the_world_and_the_trip_survives() {
     let out = acq_in(base, "store", &["daemon", "reset-tripwire", "--json"], &env);
     assert!(out.status.success(), "{out:?}");
     assert_eq!(sole_json(&out)["cleared"], true);
-    assert!(!legacy.exists(), "the empty directory was cleared");
-    std::fs::create_dir_all(legacy.join("inside")).unwrap();
+    assert!(!current.exists(), "the empty directory was cleared");
+    std::fs::create_dir_all(current.join("inside")).unwrap();
     let out = acq_in(base, "store", &["daemon", "reset-tripwire", "--json"], &env);
     assert_eq!(out.status.code(), Some(1), "{out:?}");
     let msg = sole_json(&out)["error"].as_str().unwrap().to_string();
@@ -608,10 +588,10 @@ fn c83_the_rails_state_moves_into_the_world_and_the_trip_survives() {
         "{msg}"
     );
     assert!(
-        legacy.join("inside").exists(),
+        current.join("inside").exists(),
         "a non-empty directory was touched"
     );
-    std::fs::remove_dir_all(&legacy).unwrap();
+    std::fs::remove_dir_all(&current).unwrap();
 }
 
 /// C83: the log and the default journal live under the log directory,
@@ -743,222 +723,6 @@ fn c83_diagnostics_live_under_the_log_directory_and_are_bounded() {
     }
 }
 
-/// A scripted peer on the legacy socket: what a daemon from before the
-/// derived rendezvous looks like to a client. Answers `hello` as pid
-/// 4242 of another contract on the world the test names, `daemon_stop`
-/// with `stopping` — then unbinds and counts the stop — and hangs up on
-/// anything else; the daemon's bare probe (a connect that closes) is
-/// tolerated.
-struct LegacyPeer {
-    thread: Option<std::thread::JoinHandle<u32>>,
-}
-
-impl LegacyPeer {
-    fn bind(path: &Path, world: &str) -> LegacyPeer {
-        use std::io::{BufRead as _, BufReader, Write as _};
-        let _ = std::fs::remove_file(path);
-        let listener = std::os::unix::net::UnixListener::bind(path).unwrap();
-        let path = path.to_path_buf();
-        let world = world.to_string();
-        let thread = std::thread::spawn(move || {
-            let mut stops = 0;
-            'accept: for stream in listener.incoming() {
-                let mut write = stream.unwrap();
-                let mut reader = BufReader::new(write.try_clone().unwrap());
-                let mut line = String::new();
-                loop {
-                    line.clear();
-                    match reader.read_line(&mut line) {
-                        Ok(0) | Err(_) => break,
-                        Ok(_) => {}
-                    }
-                    let Ok(frame) = serde_json::from_str::<Value>(&line) else {
-                        break;
-                    };
-                    match frame["req"].as_str() {
-                        Some("hello") => {
-                            let reply = serde_json::json!({
-                                "resp": "hello", "version": "0.0.1", "contract": "beefbeefbeef",
-                                "pid": 4242, "provider": "mock", "world": world,
-                            });
-                            writeln!(write, "{reply}").unwrap();
-                        }
-                        Some("daemon_stop") => {
-                            stops += 1;
-                            writeln!(write, r#"{{"resp":"stopping"}}"#).unwrap();
-                            let _ = std::fs::remove_file(&path);
-                            break 'accept;
-                        }
-                        _ => break,
-                    }
-                }
-            }
-            stops
-        });
-        LegacyPeer {
-            thread: Some(thread),
-        }
-    }
-
-    /// How many stops the peer answered; waits for it to unbind.
-    fn stops(mut self) -> u32 {
-        self.thread.take().unwrap().join().unwrap()
-    }
-}
-
-/// C83, the split's step 6 — the transition from the fixed socket to the
-/// derived one, through the binaries, in a scratch temp and runtime
-/// directory: with a daemon from before the rendezvous listening on the
-/// legacy socket, `acqd` refuses to start naming it and the stop remedy;
-/// `daemon status` finds it when the world's socket is silent and reports
-/// it with `legacy_socket`; a reading verb refuses; the use door that
-/// would replace a contract mismatch refuses and spawns nothing; `daemon
-/// stop` stops it, once — and then this world's daemon starts on the
-/// derived socket, the legacy path left alone.
-#[test]
-fn c83_a_daemon_from_before_the_rendezvous_is_refused_reported_and_stopped_once() {
-    let scratch = scratch("legacy");
-    let base = &scratch.0;
-    let tmp = scratch_tmp(base);
-    let env = [("ACQ_TRIPWIRE", "1")];
-    std::fs::create_dir_all(base.join("store")).unwrap();
-    let home = base.join("store").canonicalize().unwrap();
-    let legacy = tmp.join("acquisition-playground.sock");
-    // The predecessor's rails state, beside its socket: its own while it
-    // runs (review 2026-09-11 — a refused start must not move it).
-    let legacy_rails = tmp.join("acquisition-playground.mock.rails.json");
-    let staged = r#"{"tripped":"429 on GET /stash/Standard (the predecessor's trip)"}"#;
-    std::fs::write(&legacy_rails, staged).unwrap();
-    let world_rails = base.join("store").join("mock").join("rails.json");
-    let peer = LegacyPeer::bind(&legacy, &home.display().to_string());
-
-    // The daemon refuses to start beside it, before it binds anything.
-    let mut cmd = daemon_command(base, "store");
-    for (k, v) in &env {
-        cmd.env(k, v);
-    }
-    let (status, stderr) = refused_daemon(cmd);
-    eprintln!("the legacy socket's refusal, verbatim:\n{stderr}");
-    assert!(!status.success(), "the daemon started: {stderr}");
-    assert!(
-        stderr.contains("legacy socket")
-            && stderr.contains(&legacy.display().to_string())
-            && stderr.contains("acq daemon stop"),
-        "{stderr}"
-    );
-    assert_eq!(
-        sockets_under(&tmp),
-        vec![legacy.clone()],
-        "the daemon bound a socket"
-    );
-    assert_eq!(
-        std::fs::read_to_string(&legacy_rails).unwrap(),
-        staged,
-        "the refused start moved or changed the predecessor's rails state"
-    );
-    assert!(
-        !world_rails.exists(),
-        "the refused start wrote the world's rails state"
-    );
-
-    // Observed: running, not this client's, on the legacy socket.
-    let status = sole_json(&acq_in(
-        base,
-        "store",
-        &["daemon", "status", "--json"],
-        &env,
-    ));
-    assert_eq!(status["running"], true, "{status}");
-    assert_eq!(status["compatible"], false, "{status}");
-    assert_eq!(status["pid"], 4242, "{status}");
-    assert_eq!(status["legacy_socket"], true, "{status}");
-    assert_eq!(status["socket"], legacy.display().to_string(), "{status}");
-    assert_eq!(status["world_matches"], true, "{status}");
-    let shown = text(&acq_in(base, "store", &["daemon", "status"], &env));
-    assert!(
-        shown.contains("legacy socket")
-            && shown.contains(&format!("socket: {}", legacy.display()))
-            && shown.contains("next:")
-            && shown.contains("once"),
-        "{shown}"
-    );
-
-    // A reading verb refuses; the use door — which replaces a contract
-    // mismatch on the world's socket — refuses too and spawns nothing.
-    let out = acq_in(base, "store", &["jobs", "--json"], &env);
-    assert_eq!(out.status.code(), Some(1), "{out:?}");
-    let msg = sole_json(&out)["error"].as_str().unwrap().to_string();
-    assert!(msg.contains("legacy socket"), "{msg}");
-    let out = acq_in(base, "store", &["profile", "--json"], &env);
-    assert_eq!(out.status.code(), Some(1), "{out:?}");
-    let msg = sole_json(&out)["error"].as_str().unwrap().to_string();
-    assert!(
-        msg.contains("legacy socket") && msg.contains("acq daemon stop") && msg.contains("once"),
-        "{msg}"
-    );
-    assert_eq!(
-        sockets_under(&tmp),
-        vec![legacy.clone()],
-        "a daemon was spawned"
-    );
-
-    // Stopped, once, by hand.
-    let out = acq_in(base, "store", &["daemon", "stop", "--json"], &env);
-    assert!(out.status.success(), "{out:?}");
-    let stopped = sole_json(&out);
-    assert_eq!(stopped["stopped"], true, "{stopped}");
-    assert_eq!(stopped["pid"], 4242, "{stopped}");
-    assert_eq!(stopped["legacy_socket"], true, "{stopped}");
-    assert_eq!(stopped["socket"], legacy.display().to_string(), "{stopped}");
-    assert_eq!(peer.stops(), 1, "the peer was stopped exactly once");
-    assert!(sockets_under(&tmp).is_empty(), "the legacy socket is gone");
-
-    // From then on the world's socket is the rendezvous.
-    let (_daemon, pid) = start_daemon(base, "store", &env);
-    let status = sole_json(&acq_in(
-        base,
-        "store",
-        &["daemon", "status", "--json"],
-        &env,
-    ));
-    assert_eq!(status["pid"], pid, "{status}");
-    assert_eq!(status["legacy_socket"], false, "{status}");
-    let socket = PathBuf::from(status["socket"].as_str().unwrap());
-    assert_ne!(socket, legacy);
-    assert!(socket.starts_with(&tmp), "{}", socket.display());
-    assert_eq!(
-        socket.file_name().unwrap(),
-        format!(
-            "{}.sock",
-            acquisition_store::world::World::at(&home).unwrap().id()
-        )
-        .as_str()
-    );
-    assert_eq!(sockets_under(&tmp), vec![socket.clone()]);
-    // With the predecessor gone, its state moved into the world and the
-    // trip is honoured here.
-    assert!(
-        !legacy_rails.exists(),
-        "the legacy rails state was left behind"
-    );
-    assert!(
-        std::fs::read_to_string(&world_rails)
-            .unwrap()
-            .contains("the predecessor's trip"),
-        "the trip is not in the world"
-    );
-    assert!(
-        status["rails"]["halted"]
-            .as_str()
-            .is_some_and(|h| h.contains("the predecessor's trip")),
-        "{status}"
-    );
-    let out = acq_in(base, "store", &["daemon", "stop", "--json"], &env);
-    assert!(out.status.success(), "{out:?}");
-    wait_stopped(base, "store", &env);
-    assert!(!socket.exists(), "the socket is removed on exit");
-}
-
 /// C83: a socket path over the cap is refused by name — by the daemon
 /// before it binds, and by a shell before it connects — rather than by
 /// `bind`'s `ENAMETOOLONG`. Staged with a runtime directory deep enough
@@ -991,7 +755,7 @@ fn c83_a_socket_path_over_the_cap_is_refused_by_name() {
 }
 
 /// The scratch temp and runtime directory of one test, under `base`:
-/// `TMPDIR` (macOS's runtime fallback and the legacy paths) and
+/// `TMPDIR` (macOS's runtime fallback) and
 /// `XDG_RUNTIME_DIR` (Linux's runtime directory) both point here, so the
 /// sockets the daemons bind — and, for a daemon a test kills rather than
 /// stops, the socket files it leaves — never touch the user's own
@@ -1042,236 +806,4 @@ fn c83_a_runtime_directory_that_is_not_utf8_is_refused_by_name_and_never_panics_
         let msg = sole_json(&out)["error"].as_str().unwrap().to_string();
         assert!(msg.contains("not valid UTF-8"), "{verb:?}: {msg}");
     }
-}
-
-/// C83: the daemon's legacy probe distinguishes absence from a probe
-/// that cannot tell. A socket file it cannot connect to for any reason
-/// but "nothing listens" — here one it may not open (mode 0000:
-/// `connect` needs write permission on the file) — refuses the start
-/// naming the socket and the error, before the rails migration has
-/// touched the predecessor's state; made reachable and stale, the same
-/// start proceeds and moves the state (review 2026-09-11).
-#[cfg(unix)]
-#[test]
-fn c83_a_legacy_socket_the_daemon_cannot_probe_refuses_the_start_before_the_migration() {
-    use std::os::unix::fs::PermissionsExt;
-    let scratch = scratch("probe");
-    let base = &scratch.0;
-    let tmp = scratch_tmp(base);
-    std::fs::create_dir_all(base.join("store")).unwrap();
-    let env = [("ACQ_TRIPWIRE", "1")];
-    let legacy = tmp.join("acquisition-playground.sock");
-    let legacy_rails = tmp.join("acquisition-playground.mock.rails.json");
-    let staged = r#"{"tripped":"429 on GET /stash/Standard (behind the unprobeable socket)"}"#;
-    std::fs::write(&legacy_rails, staged).unwrap();
-    let world_rails = base.join("store").join("mock").join("rails.json");
-    // A socket file nothing listens on, that this user may not open.
-    drop(std::os::unix::net::UnixListener::bind(&legacy).unwrap());
-    std::fs::set_permissions(&legacy, std::fs::Permissions::from_mode(0o000)).unwrap();
-
-    let mut cmd = daemon_command(base, "store");
-    for (k, v) in &env {
-        cmd.env(k, v);
-    }
-    let (status, stderr) = refused_daemon(cmd);
-    eprintln!("the unprobeable legacy socket's refusal, verbatim:\n{stderr}");
-    assert!(
-        !status.success()
-            && stderr.contains("could not probe the legacy socket")
-            && stderr.contains(&legacy.display().to_string())
-            && !stderr.contains("is listening"),
-        "{stderr}"
-    );
-    assert_eq!(
-        std::fs::read_to_string(&legacy_rails).unwrap(),
-        staged,
-        "a start that could not tell moved the predecessor's rails state"
-    );
-    assert!(
-        !world_rails.exists(),
-        "a start that could not tell wrote the world's rails state"
-    );
-    assert_eq!(
-        sockets_under(&tmp),
-        vec![legacy.clone()],
-        "the refused start bound a socket"
-    );
-
-    // Reachable and stale: absence, and the start goes on to migrate.
-    std::fs::set_permissions(&legacy, std::fs::Permissions::from_mode(0o700)).unwrap();
-    let (_daemon, _pid) = start_daemon(base, "store", &env);
-    let status = sole_json(&acq_in(
-        base,
-        "store",
-        &["daemon", "status", "--json"],
-        &env,
-    ));
-    assert!(
-        status["rails"]["halted"]
-            .as_str()
-            .is_some_and(|h| h.contains("behind the unprobeable socket")),
-        "{status}"
-    );
-    assert!(
-        !legacy_rails.exists(),
-        "the legacy rails state was left behind"
-    );
-    let out = acq_in(base, "store", &["daemon", "stop", "--json"], &env);
-    assert!(out.status.success(), "{out:?}");
-    wait_stopped(base, "store", &env);
-}
-
-/// C83: a legacy listener whose backlog is saturated — a wedged daemon
-/// from before the rendezvous that stopped accepting. The start never
-/// hangs on it (the connect is bounded; here it answers at once), and
-/// what it answers is the platform's: Linux says EAGAIN to a
-/// non-blocking connect, which is neither absence kind, so the start
-/// refuses before the migration naming the socket; macOS says
-/// ECONNREFUSED, indistinguishable from a dead socket file, so the start
-/// reads absence and goes on — the limit the record names (review
-/// 2026-09-11). Either way the outcome is decided within the deadline.
-#[test]
-fn c83_a_legacy_listener_with_a_full_backlog_never_hangs_the_start() {
-    let scratch = scratch("backlog");
-    let base = &scratch.0;
-    let tmp = scratch_tmp(base);
-    std::fs::create_dir_all(base.join("store")).unwrap();
-    let legacy = tmp.join("acquisition-playground.sock");
-    let legacy_rails = tmp.join("acquisition-playground.mock.rails.json");
-    let staged = r#"{"tripped":"429 on GET /stash/Standard (behind the full backlog)"}"#;
-    std::fs::write(&legacy_rails, staged).unwrap();
-    // A listener that never accepts, its backlog filled by held
-    // connections until one more is turned away. Non-blocking connects
-    // under a setup deadline: a blocking connect on a full Linux backlog
-    // waits for an accept that never comes, and the test's own clock
-    // starts only below (review 2026-09-11). What the turned-away connect
-    // says is the platform's: Linux EAGAIN, macOS ECONNREFUSED.
-    let listener = std::os::unix::net::UnixListener::bind(&legacy).unwrap();
-    // An explicit, small backlog: std lets the kernel choose (Linux caps
-    // at somaxconn, 4096 by default), so the guard below would trip
-    // before saturation there. `listen` again on the bound socket sets
-    // the size on both platforms; the kernel may round it up a little,
-    // so the guard is sized from it with room (review 2026-09-11).
-    const BACKLOG: libc::c_int = 4;
-    {
-        use std::os::unix::io::AsRawFd;
-        // SAFETY: a bound listening socket's descriptor; `listen` only
-        // changes its queue length.
-        let rc = unsafe { libc::listen(listener.as_raw_fd(), BACKLOG) };
-        assert_eq!(
-            rc,
-            0,
-            "listen(fd, {BACKLOG}): {}",
-            std::io::Error::last_os_error()
-        );
-    }
-    let guard = 16 * (BACKLOG as usize + 1);
-    let runtime = tokio::runtime::Runtime::new().unwrap();
-    let mut held = Vec::new();
-    let saturated = runtime.block_on(async {
-        loop {
-            let connect = tokio::time::timeout(
-                Duration::from_secs(2),
-                tokio::net::UnixStream::connect(&legacy),
-            )
-            .await
-            .expect("a non-blocking Unix connect never pends; the fixture's setup hung");
-            match connect {
-                Ok(stream) => held.push(stream),
-                Err(e) => break e,
-            }
-            assert!(
-                held.len() < guard,
-                "the backlog never filled: {} queued against a backlog of {BACKLOG}",
-                held.len()
-            );
-        }
-    });
-    eprintln!(
-        "backlog saturated after {} queued connections; the next connect: {saturated}",
-        held.len()
-    );
-    match std::env::consts::OS {
-        "linux" => assert_eq!(
-            saturated.kind(),
-            std::io::ErrorKind::WouldBlock,
-            "{saturated}"
-        ),
-        "macos" => assert_eq!(
-            saturated.kind(),
-            std::io::ErrorKind::ConnectionRefused,
-            "{saturated}"
-        ),
-        other => panic!("no expectation for {other}: {saturated}"),
-    }
-
-    let started = Instant::now();
-    let mut cmd = daemon_command(base, "store");
-    cmd.env("ACQ_TRIPWIRE", "1");
-    let child = cmd.spawn().unwrap();
-    let mut daemon = Daemon(child, acqd());
-    // Decided within the deadline: exited (refused) or up (absence read).
-    let outcome = loop {
-        if let Some(status) = daemon.0.try_wait().unwrap() {
-            let mut stderr = String::new();
-            if let Some(mut pipe) = daemon.0.stderr.take() {
-                use std::io::Read as _;
-                let _ = pipe.read_to_string(&mut stderr);
-            }
-            break Err((status, stderr));
-        }
-        let status = sole_json(&acq_in(
-            base,
-            "store",
-            &["daemon", "status", "--json"],
-            &[("ACQ_TRIPWIRE", "1")],
-        ));
-        if status["pid"].is_number() {
-            break Ok(status);
-        }
-        assert!(
-            started.elapsed() < Duration::from_secs(10),
-            "the start hung on the saturated legacy listener"
-        );
-        std::thread::sleep(Duration::from_millis(50));
-    };
-    match outcome {
-        Err((status, stderr)) => {
-            eprintln!("refused:\n{stderr}");
-            assert!(
-                !status.success()
-                    && stderr.contains("could not probe the legacy socket")
-                    && !stderr.contains("is listening"),
-                "{stderr}"
-            );
-            assert_eq!(
-                std::fs::read_to_string(&legacy_rails).unwrap(),
-                staged,
-                "a start that could not tell moved the predecessor's rails state"
-            );
-            if std::env::consts::OS != "linux" {
-                panic!("an unexpected refusal on this platform: {stderr}");
-            }
-        }
-        Ok(status) => {
-            // ECONNREFUSED read as absence: the platform's limit, stated
-            // in the record; the migration ran.
-            if std::env::consts::OS != "macos" {
-                panic!("an unexpected start on this platform: {status}");
-            }
-            assert!(!legacy_rails.exists());
-            let out = acq_in(
-                base,
-                "store",
-                &["daemon", "stop", "--json"],
-                &[("ACQ_TRIPWIRE", "1")],
-            );
-            assert!(out.status.success(), "{out:?}");
-            wait_stopped(base, "store", &[("ACQ_TRIPWIRE", "1")]);
-        }
-    }
-    drop(held);
-    drop(runtime);
-    drop(listener);
-    let _ = std::fs::remove_file(&legacy);
 }

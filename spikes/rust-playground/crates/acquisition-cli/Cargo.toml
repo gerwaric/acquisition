@@ -18,7 +18,3 @@ acquisition-store = { path = "../acquisition-store" }
 acquisition-plan = { path = "../acquisition-plan" }
 clap.workspace = true
 ratatui = "0.29"
-
-[dev-dependencies]
-# `listen(2)` with an explicit backlog, for the saturated-backlog process test alone.
-libc = "0.2"

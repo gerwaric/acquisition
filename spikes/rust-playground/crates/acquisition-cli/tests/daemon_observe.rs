@@ -256,7 +256,6 @@ fn c10_observation_never_spawns_or_replaces_and_reports_the_mismatch() {
     assert_eq!(stopped["stopped"], true, "{stopped}");
     assert_eq!(stopped["pid"], pid, "{stopped}");
     assert_eq!(stopped["compatible"], false, "{stopped}");
-    assert_eq!(stopped["legacy_socket"], false, "{stopped}");
     // The socket it was stopped through: this world's, in the scratch
     // runtime directory (C83), gone once the daemon has exited.
     let socket = PathBuf::from(stopped["socket"].as_str().unwrap());
@@ -364,7 +363,6 @@ fn c84_the_artifact_dimension_is_the_sibling_acqd_this_client_would_start() {
             .ends_with(&format!("/{}", world.socket_name())),
         "{status}"
     );
-    assert_eq!(status["legacy_socket"], false, "{status}");
     assert!(
         status["log"]
             .as_str()
@@ -511,7 +509,7 @@ fn c84_the_artifact_dimension_is_the_sibling_acqd_this_client_would_start() {
 }
 
 /// The scratch temp and runtime directory of one test, under `base`:
-/// `TMPDIR` (macOS's runtime fallback and the legacy paths) and
+/// `TMPDIR` (macOS's runtime fallback) and
 /// `XDG_RUNTIME_DIR` (Linux's runtime directory) both point here, so the
 /// sockets the daemons bind — and, for a daemon a test kills rather than
 /// stops, the socket files it leaves — never touch the user's own

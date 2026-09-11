@@ -258,7 +258,7 @@ fn the_plan_apply_replan_loop_closes_against_the_mock() {
 }
 
 /// The scratch temp and runtime directory of one test, under `base`:
-/// `TMPDIR` (macOS's runtime fallback and the legacy paths) and
+/// `TMPDIR` (macOS's runtime fallback) and
 /// `XDG_RUNTIME_DIR` (Linux's runtime directory) both point here, so the
 /// sockets the daemons bind — and, for a daemon a test kills rather than
 /// stops, the socket files it leaves — never touch the user's own

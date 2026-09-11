@@ -42,23 +42,17 @@
 //! [`ConnectError::OtherWorld`] rather than replacing a daemon that is
 //! legitimately serving its own world; an observer reports it like any
 //! other mismatch, and `stop_any` still stops it. Since the socket
-//! derives from the root, a daemon on another world is reached only
-//! through the legacy rendezvous below.
+//! derives from the root, that is a peer on this world's socket naming
+//! another root — pinned on the wire, never seen from a daemon of this
+//! build.
 //!
-//! **The rendezvous before the split's step 6**, for one transition: a
-//! daemon from before it listens on the fixed
-//! `acquisition-playground.sock` in the temp directory
-//! (`legacy_socket_path`), invisible on the derived socket, and would
-//! refuse the daemon a use door spawns beside it. So a door that finds
-//! its world's socket absent probes the legacy socket before it spawns
-//! or reports absence: a daemon answering there is identified over the
-//! same handshake, its [`Endpoint`] marked legacy, and reported — never
-//! used (it predates this build), never replaced (the use door answers
-//! [`ConnectError::Incompatible`] with [`NotReplaced::LegacySocket`]);
-//! `stop_any` stops it when the world's socket is silent. A daemon on
-//! the world's socket is never compared with the legacy one: the probe
-//! runs only when nothing answers at the derived path. Parked for
-//! removal with the rails migration (`decisions/daemon.md`).
+//! The handshake over the world's socket carries no deadline: the socket
+//! lives in a directory that is this user's and 0700, so what answers
+//! there is a daemon of this playground or something this user put
+//! there; a daemon under a long limiter hold answers `hello` late. A
+//! wedged daemon would hang `daemon status` and the doors (the quote path
+//! has its own bound, `try_quote_within`) — parked in
+//! `decisions/daemon.md` with its trigger.
 //!
 //! # Decisions as recorded
 //!
@@ -213,7 +207,7 @@ use acquisition_protocol::protocol::{
     Bootstrap, BootstrapReply, ErrorKind, MAX_FRAME_BYTES, Request, Response, error_message,
 };
 use acquisition_protocol::{CONTRACT_REVISION, VERSION};
-use acquisition_store::world::{World, WorldError, legacy_socket_path};
+use acquisition_store::world::{World, WorldError};
 use anyhow::{Context, Result, bail};
 use serde::Serialize;
 use serde_json::json;
@@ -297,8 +291,7 @@ pub enum ConnectError {
     /// policy, or `ACQ_NO_SPAWN=1` over a caller that would have.
     Absent { because: NotSpawned },
     /// The daemon listening is not this client's (C10: contract, artifact
-    /// or provider; or it is on the legacy socket), and this door may not
-    /// replace it — or did, and the replacement is still not it. The
+    /// or provider), and this door may not replace it — or did, and the replacement is still not it. The
     /// identity is boxed so the error stays small on the stack.
     Incompatible {
         found: Box<DaemonId>,
@@ -340,11 +333,6 @@ pub enum NotReplaced {
     /// This client replaced it, and the daemon it then found is still not
     /// its own — the sibling `acqd` is not this build's.
     StillAfterRespawn,
-    /// It listens on the legacy socket, from before the derived
-    /// rendezvous (C83, the split's step 6): the world's socket was
-    /// silent and the probe found it there. No client uses or replaces
-    /// one — the transition is a human's `acq daemon stop`, once.
-    LegacySocket,
 }
 
 impl fmt::Display for ConnectError {
@@ -365,10 +353,6 @@ impl fmt::Display for ConnectError {
                     "{found}, and this client never replaces a daemon — resolve it with the CLI (`acq daemon stop`)"
                 ),
                 NotReplaced::StillAfterRespawn => write!(f, "{found}, still, after a respawn"),
-                NotReplaced::LegacySocket => write!(
-                    f,
-                    "{found}; nothing binds there any more and no client replaces it — `acq daemon stop` stops it, once, then this world's socket is the rendezvous"
-                ),
             },
             ConnectError::OtherWorld { found } => {
                 write!(
@@ -395,33 +379,19 @@ fn want_provider() -> &'static str {
     acquisition_protocol::provider::wanted()
 }
 
-/// Where a daemon was reached: its world's socket (C83), or the
-/// rendezvous every daemon before the split's step 6 listened on. The
-/// socket is a `String` by construction — it goes into every report and
-/// onto the MCP's wire, and a path in other bytes is refused at the
-/// door rather than failing inside a report (review 2026-09-11).
+/// Where a daemon was reached: its world's socket (C83). The socket is
+/// a `String` by construction — it goes into every report and onto the
+/// MCP's wire, and a path in other bytes is refused at the door rather
+/// than failing inside a report (review 2026-09-11).
 #[derive(Clone, Debug, Serialize, PartialEq, Eq)]
 pub struct Endpoint {
     /// The socket the handshake ran over.
     pub socket: String,
-    /// True when `socket` is the legacy rendezvous: a daemon there is
-    /// from before the derived socket — never this client's, never
-    /// replaced, stopped by hand (`acq daemon stop`).
-    pub legacy: bool,
 }
 
 impl Endpoint {
     /// This process's world's socket.
     pub fn world(socket: &Path) -> Result<Endpoint> {
-        Self::at(socket, false)
-    }
-
-    /// The legacy rendezvous.
-    pub fn legacy(socket: &Path) -> Result<Endpoint> {
-        Self::at(socket, true)
-    }
-
-    fn at(socket: &Path, legacy: bool) -> Result<Endpoint> {
         let socket = socket
             .to_str()
             .ok_or_else(|| {
@@ -431,7 +401,7 @@ impl Endpoint {
                 )
             })?
             .to_string();
-        Ok(Endpoint { socket, legacy })
+        Ok(Endpoint { socket })
     }
 }
 
@@ -451,15 +421,13 @@ pub struct Reported {
 /// this client's is four dimensions, judged together (C10, C84, C83): the
 /// shared-contract revision, the daemon artifact against the sibling
 /// this process would spawn, the provider, and the world against this
-/// process's own — and the endpoint it was reached at, since a daemon on
-/// the legacy socket is never this client's whatever it reports. The
+/// process's own. The
 /// identity and its verdict are read-only from outside this module — the
 /// verdict was made of exactly these fields, and nothing may change one
 /// without the other (review 2026-09-11).
 #[derive(Clone, Debug, Serialize)]
 pub struct DaemonId {
-    /// The socket the handshake ran over, and whether it is the legacy
-    /// rendezvous.
+    /// The socket the handshake ran over.
     endpoint: Endpoint,
     pid: u32,
     /// The daemon's package version; informational (C84 compares the
@@ -599,12 +567,6 @@ impl DaemonId {
         &self.endpoint.socket
     }
 
-    /// The daemon listens on the legacy rendezvous, from before the
-    /// derived socket: never this client's, never replaced.
-    pub fn on_legacy_socket(&self) -> bool {
-        self.endpoint.legacy
-    }
-
     pub fn pid(&self) -> u32 {
         self.pid
     }
@@ -650,16 +612,13 @@ impl DaemonId {
         self.verdict.world
     }
 
-    /// Every dimension matches and the daemon is on this world's socket:
-    /// this client may use the daemon. One on the legacy rendezvous is
-    /// never this client's, whatever it reports.
+    /// Every dimension matches: this client may use the daemon.
     pub fn is_ours(&self) -> bool {
-        self.verdict.is_ours() && !self.endpoint.legacy
+        self.verdict.is_ours()
     }
 
     /// The observer's report, one shape for every frontend: the daemon
-    /// found, the socket it was reached on (`legacy_socket` true for the
-    /// rendezvous from before the split's step 6), what this process
+    /// found, the socket it was reached on, what this process
     /// wanted — its contract, its provider, its world (or the root it
     /// intended, with `world_absent` saying why there is none) and the
     /// sibling `acqd` as found in the one look that judged it, or `null`
@@ -694,7 +653,6 @@ impl DaemonId {
             "provider": self.provider,
             "world": self.world,
             "socket": self.endpoint.socket,
-            "legacy_socket": self.endpoint.legacy,
             "contract_matches": verdict.contract,
             "artifact_matches": verdict.artifact.matches(),
             "artifact_relation": verdict.artifact.relation(),
@@ -741,16 +699,6 @@ impl fmt::Display for DaemonId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let verdict = &self.verdict;
         write!(f, "daemon (pid {})", self.pid)?;
-        if self.endpoint.legacy {
-            // Named first and alone, like another world: a daemon on the
-            // legacy rendezvous predates this build, and nothing this
-            // process would do to it follows from the other dimensions.
-            return write!(
-                f,
-                " listens on the legacy socket {} — from before the derived rendezvous (C83; this world's is under the runtime directory); contract {}, provider {}, world {}",
-                self.endpoint.socket, self.contract, self.provider, self.world
-            );
-        }
         if verdict.is_ours() {
             return write!(
                 f,
@@ -818,10 +766,9 @@ impl fmt::Display for DaemonId {
 }
 
 /// What [`Client::observe`] (or [`Subscription::observe`]) found on this
-/// world's socket — or, when that was silent, on the legacy rendezvous.
+/// world's socket.
 pub enum Observed<C = Client> {
-    /// Nothing is listening on either: no daemon, or no world to have
-    /// one.
+    /// Nothing is listening: no daemon, or no world to have one.
     Absent,
     /// The daemon is this client's, and this is a connection to it.
     Compatible(C),
@@ -974,57 +921,14 @@ async fn reach(socket: Option<PathBuf>) -> Result<Reached, (PathBuf, std::io::Er
     }
 }
 
-/// How long the legacy probe waits for the connect and the handshake
-/// together: the legacy socket sits in the temp directory — shared on
-/// Linux — so anything may be bound there, and a listener that accepts
-/// without answering must not hang observation, spawning or the stop
-/// remedy (review 2026-09-11). The world's own socket is in a private
-/// directory and its handshake is not bounded here.
-const LEGACY_PROBE_TIMEOUT: Duration = Duration::from_secs(2);
-
-/// The legacy rendezvous, probed when this world's socket is silent
-/// (module doc): the daemon answering there, identified over the
-/// handshake and marked legacy, or `None`. Bounded by
-/// [`LEGACY_PROBE_TIMEOUT`]: a peer that accepts and does not answer is
-/// an error naming the socket, never a hang and never absence.
-async fn probe_legacy(own_world: &Result<String, AbsentWorld>) -> Result<Option<Client>> {
-    let legacy = legacy_socket_path()?;
-    let endpoint = Endpoint::legacy(&legacy)?;
-    let probe = async {
-        match UnixStream::connect(&legacy).await {
-            Ok(stream) => Client::handshake(stream, endpoint, own_world.clone())
-                .await
-                .map(Some)
-                .with_context(|| {
-                    format!(
-                        "identifying what answers on the legacy socket {}",
-                        legacy.display()
-                    )
-                }),
-            Err(e) if is_absent(&e) => Ok(None),
-            Err(e) => Err(e)
-                .with_context(|| format!("connecting to the legacy socket {}", legacy.display())),
-        }
-    };
-    match tokio::time::timeout(LEGACY_PROBE_TIMEOUT, probe).await {
-        Ok(outcome) => outcome,
-        Err(_) => bail!(
-            "something is listening on the legacy socket {} but did not answer the handshake within {}s — possibly a wedged daemon from before the rendezvous; find the process (`lsof -U | grep acquisition-playground.sock`) and stop or kill it. Do not remove the socket file: that stops nothing and lets a second daemon bind there",
-            legacy.display(),
-            LEGACY_PROBE_TIMEOUT.as_secs()
-        ),
-    }
-}
-
 impl Client {
     /// Connect to the daemon for a *use* verb, spawning or replacing one as
     /// `opts` allows. What it spawns is the `acqd` beside this executable
     /// (C82), on the socket derived from this process's world (C83). A
     /// door that does not open is a [`ConnectError`]: absence this door
     /// may not fill, a mismatch it may not resolve (a mock-mode daemon
-    /// can't serve an `ACQ_GGG=1` client, or vice versa; a daemon on the
-    /// legacy rendezvous), a spawn that failed, or a transport failure —
-    /// each naming what it found.
+    /// can't serve an `ACQ_GGG=1` client, or vice versa), a spawn that
+    /// failed, or a transport failure — each naming what it found.
     pub async fn connect(opts: ConnectOptions) -> Result<Client, ConnectError> {
         // `ACQ_NO_SPAWN=1`: never start or replace a daemon from this
         // process. A daemon spawned from a non-interactive parent (cron,
@@ -1097,20 +1001,6 @@ impl Client {
                 Ok(Reached::Nothing) if spawn || respawned => {
                     match child.as_mut() {
                         None => {
-                            // Before the first spawn: a daemon from before
-                            // the rendezvous, on the legacy socket, would
-                            // refuse the one spawned beside it — report it
-                            // instead, with the stop remedy (module doc).
-                            if !respawned
-                                && let Some(found) = probe_legacy(&own_name)
-                                    .await
-                                    .map_err(ConnectError::Transport)?
-                            {
-                                return Err(ConnectError::Incompatible {
-                                    found: Box::new(found.daemon),
-                                    because: NotReplaced::LegacySocket,
-                                });
-                            }
                             let Ok(world) = &own else {
                                 return Err(ConnectError::SpawnFailed {
                                     acqd: None,
@@ -1136,17 +1026,6 @@ impl Client {
                     tokio::time::sleep(Duration::from_millis(50)).await;
                 }
                 Ok(Reached::Nothing) => {
-                    // A daemon from before the rendezvous is reported
-                    // before absence is: it is what a human must stop.
-                    if let Some(found) = probe_legacy(&own_name)
-                        .await
-                        .map_err(ConnectError::Transport)?
-                    {
-                        return Err(ConnectError::Incompatible {
-                            found: Box::new(found.daemon),
-                            because: NotReplaced::LegacySocket,
-                        });
-                    }
                     // The caller's policy first: a door that never spawns
                     // is absent by policy whatever the knob says.
                     let because = if opts.spawn {
@@ -1184,8 +1063,7 @@ impl Client {
 
     /// Observe this world's socket (C10): never spawns or replaces, and
     /// creates nothing — a world that does not exist has no socket.
-    /// Nothing listening there is checked once more on the legacy
-    /// rendezvous (module doc), then [`Observed::Absent`]; this client's
+    /// Nothing listening there is [`Observed::Absent`]; this client's
     /// daemon comes back connected; any other daemon is identified and
     /// reported, and the connection to it is dropped unused.
     pub async fn observe() -> Result<Observed> {
@@ -1200,22 +1078,18 @@ impl Client {
                     Observed::Incompatible(client.daemon)
                 })
             }
-            Ok(Reached::Nothing) => Ok(match probe_legacy(&own_name).await? {
-                Some(client) => Observed::Incompatible(client.daemon),
-                None => Observed::Absent,
-            }),
+            Ok(Reached::Nothing) => Ok(Observed::Absent),
             Err((socket, e)) => {
                 Err(e).with_context(|| format!("connecting to {}", socket.display()))
             }
         }
     }
 
-    /// `daemon stop`: ask whatever daemon is listening to stop, this
-    /// client's or not — stopping is how a human resolves a mismatch: the
-    /// daemon on this world's socket, or, when that is silent, one on the
-    /// legacy rendezvous. Says which daemon acknowledged (the daemon
+    /// `daemon stop`: ask whatever daemon is listening on this world's
+    /// socket to stop, this client's or not — stopping is how a human
+    /// resolves a mismatch. Says which daemon acknowledged (the daemon
     /// writes `Stopping` before it exits; anything else is an error, not
-    /// a stop); `None` when nothing was listening on either.
+    /// a stop); `None` when nothing was listening.
     pub async fn stop_any() -> Result<Option<DaemonId>> {
         let own = World::observe().map_err(absent_world);
         let own_name = world_name(&own);
@@ -1225,13 +1099,7 @@ impl Client {
                     .await
                     .map(Some)
             }
-            Ok(Reached::Nothing) => match probe_legacy(&own_name).await? {
-                Some(mut client) => {
-                    client.stop().await?;
-                    Ok(Some(client.daemon))
-                }
-                None => Ok(None),
-            },
+            Ok(Reached::Nothing) => Ok(None),
             Err((socket, e)) => {
                 Err(e).with_context(|| format!("connecting to {}", socket.display()))
             }
@@ -1628,47 +1496,6 @@ mod tests {
         assert_eq!(report["world_matches"], false);
         assert_eq!(report["contract_matches"], true);
         assert_eq!(report["socket"], "/run/acq/test.sock");
-        assert_eq!(report["legacy_socket"], false);
-        // C83, step 6: a daemon on the legacy rendezvous is never this
-        // client's, whatever it reports — every dimension may match and
-        // the endpoint still refuses it; named first and alone, with the
-        // socket, in the report and the prose.
-        let legacy = DaemonId::judged(
-            Reported {
-                pid: 42,
-                version: VERSION.into(),
-                contract: CONTRACT_REVISION.into(),
-                artifact: None,
-                provider: "mock".into(),
-                world: dir.canonicalize().unwrap().display().to_string(),
-            },
-            Endpoint::legacy(Path::new("/tmp/acquisition-playground.sock")).unwrap(),
-            own_world(),
-        );
-        assert!(legacy.on_legacy_socket());
-        assert!(legacy.world_matches() && legacy.contract_matches());
-        assert!(!legacy.is_ours(), "{legacy}");
-        let report = legacy.report();
-        assert_eq!(report["socket"], "/tmp/acquisition-playground.sock");
-        assert_eq!(report["legacy_socket"], true);
-        assert_eq!(report["world_matches"], true);
-        let text = legacy.to_string();
-        assert!(
-            text.contains("legacy socket /tmp/acquisition-playground.sock")
-                && text.contains("before the derived rendezvous")
-                && !text.contains("another world")
-                && !text.contains("another contract"),
-            "{text}"
-        );
-        let err = ConnectError::Incompatible {
-            found: Box::new(legacy),
-            because: NotReplaced::LegacySocket,
-        }
-        .to_string();
-        assert!(
-            err.contains("acq daemon stop") && err.contains("once"),
-            "{err}"
-        );
         assert_eq!(
             report["wanted"]["world"],
             dir.canonicalize().unwrap().display().to_string()

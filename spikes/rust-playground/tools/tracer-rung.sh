@@ -59,7 +59,7 @@
 #      must report the tripwire armed, the ceiling equal to the plan, that
 #      many sends counted, and a ceiling halt in force, with the journal
 #      agreeing; its `daemon status --json` is saved as the lifetime's
-#      report (the derived socket, `legacy_socket` false, the identity). A send the plan did not project would consume the bound
+#      report (the socket it was reached on, the identity). A send the plan did not project would consume the bound
 #      and show as a planned child refused. Repeat until
 #      the plan is empty (the loop closed) or --cycles is hit. An empty
 #      plan's `--apply` runs with no daemon at all: the no-op must contact
@@ -189,18 +189,17 @@ status_json() { "$ACQ" daemon status --json 2>/dev/null || echo '{}'; }
 daemon_up() { [ "$(status_json | jq -r '.pid // empty')" != "" ]; }
 journal_size() { if [ -f "$JOURNAL" ]; then wc -c <"$JOURNAL" | tr -d ' '; else echo 0; fi; }
 # The daemon's own report, saved per lifetime after its wire phase (the
-# split's step 7): the socket it was reached on and `legacy_socket`, its
-# world, contract and artifact (C83, C84), the rails state at the halt.
-# This driver starts acqd on the world's derived socket, so a report
-# reached over the legacy socket is not its daemon — refused.
+# split's step 7): the socket it was reached on, its world, contract and
+# artifact (C83, C84), the rails state at the halt. A report that names
+# no socket is no daemon's — refused, never saved as evidence.
 save_status() { # <tag>
     status_json >"$RUN_DIR/daemon-$1-status.json"
-    if [ "$(jq -r '.legacy_socket' "$RUN_DIR/daemon-$1-status.json")" != false ]; then
-        echo "*** $1: the daemon's report was not reached over this world's derived socket:" >&2
-        jq '{pid, socket, legacy_socket, world}' "$RUN_DIR/daemon-$1-status.json" >&2
+    if [ -z "$(jq -r '.socket // empty' "$RUN_DIR/daemon-$1-status.json")" ]; then
+        echo "*** $1: no daemon reported on this world's socket:" >&2
+        cat "$RUN_DIR/daemon-$1-status.json" >&2
         exit 1
     fi
-    echo "status: pid $(jq -r '.pid' "$RUN_DIR/daemon-$1-status.json") on $(jq -r '.socket' "$RUN_DIR/daemon-$1-status.json") (legacy_socket false) -> daemon-$1-status.json"
+    echo "status: pid $(jq -r '.pid' "$RUN_DIR/daemon-$1-status.json") on $(jq -r '.socket' "$RUN_DIR/daemon-$1-status.json") -> daemon-$1-status.json"
 }
 # Sends journaled since a byte offset (event lines excluded).
 sends_since() { tail -c +$(($1 + 1)) "$JOURNAL" 2>/dev/null | grep -c '"method"' || true; }

@@ -45,14 +45,8 @@ preflight() {
     fi
 
     # 3. Refuse any daemon on this world's socket, this revision's or
-    #    another's (`daemon status` reports both without touching either,
-    #    and a daemon from before the rendezvous on the fixed legacy
-    #    socket too), before the build: never rebuild under a live
-    #    daemon. The endpoints the drivers and the rung-11 helper once
-    #    chose by hand under the retired `ACQ_SOCKET` are known here and
-    #    nowhere else, so they are probed here (C83, the split's step 6;
-    #    parked for removal with the legacy detection, decisions/daemon.md).
-    preflight_refuse_legacy_endpoints
+    #    another's (`daemon status` reports both without touching either),
+    #    before the build: never rebuild under a live daemon.
     if [ -x "$ACQ" ]; then preflight_refuse_daemon "before the build"; fi
 
     # 4. Build, locked: the build must not rewrite the lock the check in
@@ -140,59 +134,4 @@ preflight_refuse_daemon() { # <when>
         echo "refusing: a daemon (pid $pid) is running on $socket $1 — acq daemon stop first" >&2
         exit 2
     fi
-}
-
-# The sockets a daemon of this playground listened on before the
-# rendezvous derived from the world: the fixed default, and the values
-# `ACQ_SOCKET` was set to by the drivers and the rung-11 helper. A daemon
-# answering on any of them predates the split's step 6 and would be
-# invisible to this run's binaries while it sent; refuse until it is
-# stopped by hand. A stale socket file nothing answers on is ignored. The
-# probe itself failing — no python3, an import error, a timeout, any
-# error but "nothing there" — refuses too: a check that cannot run must
-# not pass (review 2026-09-11; `tools/preflight-breakers.sh` stages each).
-preflight_refuse_legacy_endpoints() {
-    local t=${TMPDIR:-/tmp}; t=${t%/}
-    local sock rc
-    for sock in "$t/acquisition-playground.sock" /tmp/acquisition-playground.sock \
-        /tmp/acq-tracer.sock /tmp/acq-persist.sock /tmp/acq-r11-A.sock /tmp/acq-r11-B.sock; do
-        [ -S "$sock" ] || continue
-        rc=0; preflight_probe_socket "$sock" || rc=$?
-        case $rc in
-        10)
-            echo "refusing: a daemon from before the rendezvous is listening on $sock (an ACQ_SOCKET endpoint of history; the knob is gone)" >&2
-            echo "  stop it first: \`acq daemon stop\` reaches the fixed default socket; for the others, \`lsof -U | grep $(basename "$sock")\` names the pid to kill" >&2
-            exit 2
-            ;;
-        11) ;;
-        *)
-            echo "refusing: could not probe $sock (the probe exited $rc) — a socket file stands there and this check cannot tell whether a daemon answers; fix the probe (python3) or remove the file by hand" >&2
-            exit 2
-            ;;
-        esac
-    done
-}
-
-# Exit 10: something accepts on the Unix socket at $1. Exit 11: nothing
-# does (the file is gone, or nothing listens — ECONNREFUSED). Anything
-# else — 0 and 1 included, which a python3 that did not run this script
-# would exit with, and 127 for none at all — is the probe failing to
-# tell (an import failure, a timeout, another error), which the caller
-# must refuse on. The two answers are codes no generic failure produces.
-preflight_probe_socket() { # <socket path>
-    python3 - "$1" <<'PROBE'
-import socket
-import sys
-
-s = socket.socket(socket.AF_UNIX)
-s.settimeout(2)
-try:
-    s.connect(sys.argv[1])
-except (FileNotFoundError, ConnectionRefusedError):
-    sys.exit(11)
-except OSError as e:
-    print(f"probe: {e}", file=sys.stderr)
-    sys.exit(3)
-sys.exit(10)
-PROBE
 }

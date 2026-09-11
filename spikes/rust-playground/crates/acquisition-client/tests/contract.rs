@@ -32,8 +32,8 @@
 //! settings, so the tests here run one at a time under a lock and set
 //! their own scratch store and log directory while they hold it — and a
 //! scratch temp and runtime directory (`TMPDIR`, `XDG_RUNTIME_DIR`), so
-//! the sockets these daemons bind, the legacy rendezvous a test stages
-//! and the real-mode lock never touch the user's own; the store root is
+//! the sockets these daemons bind and the real-mode lock never touch the
+//! user's own; the store root is
 //! created with the session (a scripted peer has no daemon to create it,
 //! and the world it claims must exist to be this process's). Nothing
 //! here reaches GGG: `ACQ_GGG` is scrubbed and the daemon runs the mock
@@ -45,13 +45,13 @@ use std::sync::{Mutex, MutexGuard, OnceLock};
 use std::time::{Duration, Instant};
 
 use acquisition_client::client::{
-    Client, ConnectError, ConnectOptions, NotReplaced, Observed, Signal, Subscription,
+    Client, ConnectError, ConnectOptions, Observed, Signal, Subscription,
 };
 use acquisition_client::frame::{Frame, read_frame};
 use acquisition_protocol::job::JobState;
 use acquisition_protocol::protocol::{ErrorKind, MAX_FRAME_BYTES, Request, Response};
 use acquisition_protocol::{CONTRACT_REVISION, VERSION};
-use acquisition_store::world::{World, legacy_socket_path};
+use acquisition_store::world::World;
 use serde_json::{Value, json};
 use tokio::io::{AsyncWriteExt, BufReader};
 use tokio::net::unix::{OwnedReadHalf, OwnedWriteHalf};
@@ -124,8 +124,8 @@ fn session(tag: &str) -> Session {
     unsafe {
         std::env::set_var("ACQ_STORE_DIR", base.join("store"));
         std::env::set_var("ACQ_LOG_DIR", base.join("logs"));
-        // The runtime directory (the sockets, the real-mode lock) and the
-        // legacy paths under the scratch, on either platform.
+        // The runtime directory (the sockets, the real-mode lock) under
+        // the scratch, on either platform.
         std::env::set_var("TMPDIR", base.join("tmp"));
         std::env::set_var("XDG_RUNTIME_DIR", base.join("tmp"));
         std::env::set_var("ACQ_NO_KEYRING", "1");
@@ -434,15 +434,7 @@ async fn c85_the_daemon_identifies_itself_and_stops_across_a_contract_mismatch()
 /// every hello with `hello_reply`, every `daemon_stop` with `stop_reply`,
 /// anything else with an error of a kind this build does not know.
 async fn foreign_daemon(hello_reply: Value, stop_reply: Value) -> tokio::task::JoinHandle<()> {
-    foreign_daemon_at(session_socket(), hello_reply, stop_reply).await
-}
-
-/// `foreign_daemon` bound at `path`.
-async fn foreign_daemon_at(
-    path: PathBuf,
-    hello_reply: Value,
-    stop_reply: Value,
-) -> tokio::task::JoinHandle<()> {
+    let path = session_socket();
     let _ = std::fs::remove_file(&path);
     let listener = UnixListener::bind(&path).expect("bind");
     tokio::spawn(async move {
@@ -605,7 +597,6 @@ async fn c83_a_daemon_on_another_world_is_refused_and_never_replaced() {
         "{}",
         client.daemon()
     );
-    assert!(!client.daemon().on_legacy_socket());
     drop(client);
     let stopped = Client::stop_any().await.expect("stop").expect("a daemon");
     assert_eq!(stopped.pid(), pid);
@@ -642,7 +633,6 @@ async fn c83_a_daemon_on_another_world_is_refused_and_never_replaced() {
         home_socket.display().to_string(),
         "{report}"
     );
-    assert_eq!(report["legacy_socket"], false, "{report}");
     let text = found.to_string();
     assert!(
         text.contains("another world") && !text.contains("another contract"),
@@ -661,119 +651,6 @@ async fn c83_a_daemon_on_another_world_is_refused_and_never_replaced() {
     assert_eq!(stopped.pid(), 4242);
     peer.abort();
     let _ = std::fs::remove_file(session_socket());
-}
-
-/// C83, the split's step 6: a daemon on the legacy rendezvous — the
-/// fixed socket every daemon before the derived one listened on — is
-/// found only when this world's socket is silent, identified over the
-/// same handshake, and reported with its endpoint; it is never this
-/// client's (every dimension may match and the endpoint still refuses),
-/// never replaced (the interactive door — which would replace a contract
-/// mismatch on the world's socket — answers `Incompatible` with
-/// `LegacySocket` and spawns nothing), and `stop_any` stops it when the
-/// world's socket is silent. A daemon on the world's socket is never
-/// compared with it.
-#[tokio::test]
-async fn c83_a_daemon_on_the_legacy_socket_is_reported_never_replaced_and_stopped() {
-    let s = session("legacy");
-    let home = World::observe().expect("the session's world");
-    let legacy = legacy_socket_path().unwrap();
-    assert!(
-        legacy.starts_with(s.base.join("tmp")),
-        "the legacy socket is in the scratch: {}",
-        legacy.display()
-    );
-    // A daemon from before the rendezvous, on this very world: only the
-    // endpoint tells it apart.
-    let peer = foreign_daemon_at(
-        legacy.clone(),
-        json!({
-            "resp": "hello", "version": VERSION, "contract": CONTRACT_REVISION,
-            "pid": 4242, "provider": "mock", "world": home.name(),
-        }),
-        json!({ "resp": "stopping" }),
-    )
-    .await;
-
-    let found = match Client::observe().await.expect("observe") {
-        Observed::Incompatible(found) => found,
-        Observed::Absent => panic!("the legacy socket was not probed"),
-        Observed::Compatible(_) => panic!("a daemon on the legacy socket is never this client's"),
-    };
-    assert_eq!(found.pid(), 4242);
-    assert!(found.on_legacy_socket(), "{found}");
-    assert_eq!(found.socket(), legacy.to_str().unwrap(), "{found}");
-    assert!(
-        found.world_matches() && found.contract_matches() && found.provider_matches(),
-        "{found}"
-    );
-    let report = found.report();
-    assert_eq!(report["legacy_socket"], true, "{report}");
-    assert_eq!(report["socket"], legacy.display().to_string(), "{report}");
-    let text = found.to_string();
-    assert!(
-        text.contains("legacy socket") && text.contains(&legacy.display().to_string()),
-        "{text}"
-    );
-
-    // The interactive door refuses, typed, and starts nothing: the
-    // world's socket stays absent.
-    let err = match Client::connect(ConnectOptions::interactive(true)).await {
-        Err(e) => e,
-        Ok(_) => panic!("a daemon on the legacy socket was used"),
-    };
-    assert!(
-        matches!(
-            &err,
-            ConnectError::Incompatible {
-                found,
-                because: NotReplaced::LegacySocket
-            } if found.pid() == 4242
-        ),
-        "{err:?}"
-    );
-    assert!(
-        err.to_string().contains("acq daemon stop") && err.to_string().contains("once"),
-        "{err}"
-    );
-    assert!(!session_socket().exists(), "a daemon was spawned beside it");
-
-    // Stopping falls through to it while the world's socket is silent.
-    let stopped = Client::stop_any().await.expect("stop").expect("a daemon");
-    assert_eq!(stopped.pid(), 4242);
-    assert!(stopped.on_legacy_socket());
-    peer.abort();
-    let _ = std::fs::remove_file(&legacy);
-
-    // With the legacy socket silent, the world's rendezvous works as
-    // before, and a daemon there is never compared with the legacy one:
-    // a peer staged back on the legacy path while this daemon runs is
-    // neither reported nor stopped.
-    let mut daemon = start_daemon(&s).await;
-    let pid = daemon.pid();
-    let peer = foreign_daemon_at(
-        legacy.clone(),
-        json!({
-            "resp": "hello", "version": VERSION, "contract": CONTRACT_REVISION,
-            "pid": 4243, "provider": "mock", "world": home.name(),
-        }),
-        json!({ "resp": "stopping" }),
-    )
-    .await;
-    let client = compatible_client().await;
-    assert_eq!(client.daemon().pid(), pid);
-    assert!(!client.daemon().on_legacy_socket());
-    drop(client);
-    let stopped = Client::stop_any().await.expect("stop").expect("a daemon");
-    assert_eq!(stopped.pid(), pid, "the world's daemon is stopped first");
-    daemon.wait_exit();
-    let stopped = Client::stop_any()
-        .await
-        .expect("stop")
-        .expect("the legacy peer");
-    assert_eq!(stopped.pid(), 4243, "then the legacy one");
-    peer.abort();
-    let _ = std::fs::remove_file(&legacy);
 }
 
 // ---- frames ---------------------------------------------------------------
@@ -1247,74 +1124,4 @@ async fn c83_a_daemon_on_its_way_out_never_unlinks_a_successors_socket() {
     let (_accepted, _) = successor.accept().await.expect("the successor accepts");
     drop(successor);
     let _ = std::fs::remove_file(&socket);
-}
-
-/// C83, the legacy probe bounded: the legacy socket lives in the temp
-/// directory, shared on Linux, so anything may be bound there. A
-/// listener that accepts and never answers the handshake must not hang
-/// observation, the use door or the stop remedy: each comes back within
-/// the probe's deadline with an error naming the socket — never absence,
-/// never a spawn (review 2026-09-11).
-#[tokio::test]
-async fn c83_a_legacy_peer_that_never_answers_is_an_error_within_the_deadline_not_a_hang() {
-    let _s = session("legacy-hang");
-    let legacy = legacy_socket_path().unwrap();
-    let _ = std::fs::remove_file(&legacy);
-    let mute = UnixListener::bind(&legacy).expect("bind the legacy path");
-    // Accepts every connection and holds it without a byte in reply.
-    let hold = tokio::spawn(async move {
-        let mut held = Vec::new();
-        loop {
-            let (stream, _) = mute.accept().await.expect("accept");
-            held.push(stream);
-        }
-    });
-    let bounded = Duration::from_secs(10);
-
-    let err = match tokio::time::timeout(bounded, Client::observe())
-        .await
-        .expect("observe hung on the mute legacy peer")
-    {
-        Err(e) => e,
-        Ok(Observed::Absent) => panic!("a mute peer read as absence"),
-        Ok(_) => panic!("a mute peer read as a daemon"),
-    };
-    assert!(
-        err.to_string().contains("did not answer")
-            && err.to_string().contains(&legacy.display().to_string()),
-        "{err:#}"
-    );
-    // The remedy names the process, not the file: a timeout proves only
-    // that something accepted, which may be a wedged daemon, and
-    // unlinking a live socket stops nothing while letting a second
-    // daemon bind there (review 2026-09-11).
-    let text = format!("{err:#}");
-    assert!(
-        text.contains("stop or kill it")
-            && text.contains("Do not remove the socket file")
-            && text.contains("lsof")
-            && !text.contains("not a daemon"),
-        "{text}"
-    );
-
-    let err = tokio::time::timeout(bounded, Client::connect(ConnectOptions::interactive(true)))
-        .await
-        .expect("the use door hung on the mute legacy peer")
-        .err()
-        .expect("the use door opened");
-    assert!(matches!(err, ConnectError::Transport(_)), "{err:?}");
-    assert!(err.to_string().contains("did not answer"), "{err}");
-    assert!(
-        !session_socket().exists(),
-        "a daemon was spawned beside a peer the door could not identify"
-    );
-
-    let err = tokio::time::timeout(bounded, Client::stop_any())
-        .await
-        .expect("stop hung on the mute legacy peer")
-        .expect_err("a mute peer cannot be stopped as a daemon");
-    assert!(err.to_string().contains("did not answer"), "{err:#}");
-
-    hold.abort();
-    let _ = std::fs::remove_file(&legacy);
 }

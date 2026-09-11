@@ -112,9 +112,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime};
 
 use acquisition_store::jobs::{JobDb, JobRow, Retention};
-use acquisition_store::world::{
-    Lock, World, app_runtime_dir, legacy_rails_state_path, legacy_socket_path,
-};
+use acquisition_store::world::{Lock, World, app_runtime_dir};
 use acquisition_store::{Endpoint, Index, Store, account_matches, account_path};
 use anyhow::Result;
 use serde_json::{Value, json};
@@ -126,7 +124,7 @@ use std::collections::VecDeque;
 
 use crate::frame::{Frame, read_frame};
 use crate::provider::{CALLBACK_PATH, Provider, SCOPES};
-use crate::rails::{BlockShape, Rails, RailsConfig, migrate_legacy_state, verify_state};
+use crate::rails::{BlockShape, Rails, RailsConfig, verify_state};
 use crate::ratelimit::{
     ChokePoint, Clock, EndpointState, RetryAfter, SendError, SystemClock, url_path,
 };
@@ -4228,11 +4226,6 @@ pub async fn run() -> Result<()> {
     result
 }
 
-/// How long the start waits for the legacy socket's connect: the bound
-/// on a probe of a path in the shared temp directory (review 2026-09-11;
-/// the client's probe carries the same bound over connect and handshake).
-const LEGACY_PROBE_TIMEOUT: Duration = Duration::from_secs(2);
-
 /// The world lock and, in real mode, the real-mode lock (C83), taken
 /// before the log directory is made, the log rotated or opened, or
 /// anything sends; held for the daemon's lifetime by the caller,
@@ -4277,60 +4270,10 @@ async fn run_with_log(
     let path = world
         .socket_path()
         .map_err(|e| anyhow::anyhow!("this world's socket: {e}"))?;
-    // For one transition: a daemon from before the derived socket, on the
-    // fixed legacy path, would be invisible to this build's clients while
-    // this daemon ran beside it — two daemons where a person sees one, and
-    // in real mode two GGG gates (a pre-step-5 daemon holds no lock).
-    // Refuse until it is stopped by hand; `acq daemon stop` finds it when
-    // the world's socket is silent. Probed before the rails migration
-    // below touches anything: the legacy state beside that socket is the
-    // running predecessor's while it runs (review 2026-09-11). Parked for
-    // removal with the migration (`decisions/daemon.md`).
-    let legacy = legacy_socket_path().map_err(|e| anyhow::anyhow!("the legacy socket: {e}"))?;
-    // Bounded (review 2026-09-11): the connect is non-blocking and a Unix
-    // connect completes synchronously on both platforms, so nothing has
-    // been seen to pend here — the deadline is the promise that a start
-    // holding the world lock never hangs on a socket in the shared temp
-    // directory. What a saturated backlog answers differs: Linux says
-    // EAGAIN (refused below as "could not probe"), macOS says
-    // ECONNREFUSED — indistinguishable from a dead socket file, so a
-    // wedged pre-transition daemon whose backlog is full reads as absent
-    // there (`acquisition-cli/tests/world.rs` pins each; the record names
-    // the limit).
-    let connect = tokio::time::timeout(LEGACY_PROBE_TIMEOUT, UnixStream::connect(&legacy)).await;
-    match connect {
-        Err(_) => anyhow::bail!(
-            "could not probe the legacy socket {}: the connect did not complete within {}s — a daemon from before the rendezvous may be alive there; find the process (`lsof -U | grep acquisition-playground.sock`) and stop or kill it, then start again",
-            legacy.display(),
-            LEGACY_PROBE_TIMEOUT.as_secs()
-        ),
-        Ok(Ok(_)) => anyhow::bail!(
-            "a daemon from before the rendezvous is listening on the legacy socket {} — `acq daemon stop` stops it (once; nothing binds there any more), then start again",
-            legacy.display()
-        ),
-        // Absence is exactly these two: no file, or a file nothing
-        // listens on. Any other failure cannot tell whether a daemon is
-        // alive there, and a start that cannot tell must not go on to
-        // move that daemon's state (review 2026-09-11).
-        Ok(Err(e))
-            if matches!(
-                e.kind(),
-                std::io::ErrorKind::NotFound | std::io::ErrorKind::ConnectionRefused
-            ) => {}
-        Ok(Err(e)) => anyhow::bail!(
-            "could not probe the legacy socket {}: {e} — a daemon from before the rendezvous may be alive there; make the socket reachable or remove it by hand once its process is gone, then start again",
-            legacy.display()
-        ),
-    }
-    // The rails state moves into the world once (step 5): a trip
-    // persisted beside the socket is honoured from the world from now on.
-    // Fail closed: a state that cannot be carried into this lifetime
-    // refuses the start (review 2026-09-11).
+    // The rails state lives in the world (C83), read strictly before the
+    // rails are built: a state that cannot be carried into this lifetime
+    // refuses the start (fail closed, review 2026-09-11).
     let rails_state = world.rails_state_path(provider_name);
-    let migration = migrate_legacy_state(&legacy_rails_state_path(provider_name), &rails_state)?;
-    if let Some(what) = &migration {
-        writeln!(&log, "{what}").ok();
-    }
     verify_state(&rails_state)?;
 
     if path.exists() {

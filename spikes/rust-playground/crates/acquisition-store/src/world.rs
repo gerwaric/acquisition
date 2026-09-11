@@ -77,11 +77,8 @@
 //!   exists for. The mock never takes it.
 //! - **Durable state in the world.** `daemon.db` (`jobs::daemon_db_path`)
 //!   and the rails state ([`World::rails_state_path`]:
-//!   `<root>/<provider>/rails.json`) live beside the account files. The
-//!   rails state used to sit beside the socket in the temp directory,
-//!   which macOS clears at reboot — a tripped tripwire did not survive a
-//!   restart; [`legacy_rails_state_path`] names that file so the daemon
-//!   can move it once, and no trip is lost.
+//!   `<root>/<provider>/rails.json`) live beside the account files, where
+//!   a reboot cannot clear them.
 //! - **Diagnostics elsewhere, bounded.** The daemon log and the default
 //!   send journal live under [`log_base_dir`] — `ACQ_LOG_DIR`, else the
 //!   platform's log directory (`~/Library/Logs/acquisition-playground` on
@@ -98,9 +95,8 @@
 //!   and `0` disables it (`rails.rs`).
 //! - **The socket.** [`World::socket_path`] is `<runtime>/<id>.sock` —
 //!   the world's twelve-hex id in the private per-user runtime directory
-//!   (the split's step 6). Nothing chooses it by hand: `ACQ_SOCKET` is
-//!   gone, and two spellings of one root reach one socket because the id
-//!   is the canonical root's. Short under the platform's defaults: the
+//!   (the split's step 6). Nothing chooses it by hand, and two spellings
+//!   of one root reach one socket because the id is the canonical root's. Short under the platform's defaults: the
 //!   runtime directory is `$XDG_RUNTIME_DIR` (`/run/user/<uid>`) or
 //!   macOS's fixed-shape `$TMPDIR`, so the whole path is about 75 bytes
 //!   under the macOS fallback — but both variables are the
@@ -116,18 +112,6 @@
 //!   used, and an observation creates nothing — no runtime directory yet
 //!   is no daemon yet. A world that does not exist has no socket: a use
 //!   door creates the root first, an observer reports absence.
-//! - **The rendezvous before step 6**, for one transition:
-//!   [`legacy_socket_path`] is the fixed `acquisition-playground.sock` in
-//!   the temp directory every daemon before the split's step 6 listened
-//!   on. A daemon from before it would be invisible to a client on the
-//!   derived socket, and a second daemon would start over it — so the
-//!   daemon probes the legacy path at start and refuses if something
-//!   answers, a client that finds its world's socket absent probes it and
-//!   reports what it found with the stop remedy, and `acq daemon stop`
-//!   stops either. The historical `ACQ_SOCKET` values (the drivers',
-//!   a session's) are not probed: the drivers' preflight and the live-run
-//!   skill close those by hand. Parked for removal with the rails
-//!   migration (`decisions/daemon.md`).
 //!
 //! Windows has no arm here yet (`README.md`, known gaps): the paths are
 //! computed, the locks use `std`'s portable file locking, the mode bits
@@ -415,36 +399,6 @@ impl World {
 /// that holds on both. [`World::socket_path`] refuses a longer one by
 /// name instead of letting `bind` fail with `ENAMETOOLONG`.
 pub const SOCKET_PATH_MAX: usize = 103;
-
-/// The rendezvous every daemon before the split's step 6 listened on:
-/// the fixed `acquisition-playground.sock` in the temp directory. Probed
-/// for one transition — by the daemon at start, which refuses to run
-/// beside a daemon answering there; by a client whose world's socket is
-/// absent, which reports what it found; by `acq daemon stop`, which
-/// stops it — and never bound again. Parked for removal with the rails
-/// migration (`decisions/daemon.md`).
-pub fn legacy_socket_path() -> std::io::Result<PathBuf> {
-    let path = std::env::temp_dir().join("acquisition-playground.sock");
-    if path.to_str().is_none() {
-        return Err(std::io::Error::new(
-            std::io::ErrorKind::InvalidInput,
-            format!(
-                "the temp directory {} is not valid UTF-8 (TMPDIR); the legacy socket there cannot be named in a report",
-                path.display()
-            ),
-        ));
-    }
-    Ok(path)
-}
-
-/// Where the rails state sat before step 5: beside the legacy socket,
-/// keyed by provider (`<socket>.<provider>.rails.json`), in a directory
-/// the OS may clear at reboot. The daemon moves it into the world once
-/// (`rails.rs`); `acq daemon reset-tripwire` clears it too while it can
-/// still exist.
-pub fn legacy_rails_state_path(provider: &str) -> PathBuf {
-    std::env::temp_dir().join(format!("acquisition-playground.{provider}.rails.json"))
-}
 
 /// Where this application's private per-user runtime directory is,
 /// computed and not touched: `$XDG_RUNTIME_DIR/acq` where the platform
@@ -835,32 +789,6 @@ mod tests {
             let err = World::at(&odd).unwrap_err();
             assert!(err.to_string().contains("UTF-8"), "{err}");
         }
-        let _ = std::fs::remove_dir_all(&base);
-    }
-
-    /// The legacy rails file sits beside the legacy socket; the world's
-    /// does not depend on any socket at all.
-    #[test]
-    fn the_legacy_rails_state_is_beside_the_legacy_socket_and_the_worlds_is_not() {
-        let legacy = legacy_rails_state_path("mock");
-        let legacy_socket = legacy_socket_path().unwrap();
-        assert_eq!(legacy.parent(), legacy_socket.parent());
-        assert_eq!(
-            legacy_socket.file_name().unwrap(),
-            "acquisition-playground.sock"
-        );
-        assert!(
-            legacy.to_string_lossy().ends_with(".mock.rails.json"),
-            "{}",
-            legacy.display()
-        );
-        let base = scratch("rails");
-        std::fs::create_dir_all(&base).unwrap();
-        let world = World::at(&base).unwrap();
-        assert_eq!(
-            world.rails_state_path("mock"),
-            world.root().join("mock").join("rails.json")
-        );
         let _ = std::fs::remove_dir_all(&base);
     }
 
