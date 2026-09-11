@@ -18,6 +18,13 @@
 //! revision's inputs are the contract alone — this crate and the store —
 //! so a daemon-only edit moves the daemon artifact and nothing here.
 
+// The lint ratchet (CONTEXT.md, "Panics are for broken internal invariants
+// only", C47; ruled for this crate 2026-09-11): the wire crate's production
+// code panics on nothing external — a malformed frame or document is a
+// structured error. Tests may unwrap; `build.rs` is a separate target the
+// attribute does not reach, and panics on purpose.
+#![cfg_attr(not(test), deny(clippy::unwrap_used, clippy::expect_used))]
+
 pub mod artifact;
 pub mod job;
 pub mod protocol;
