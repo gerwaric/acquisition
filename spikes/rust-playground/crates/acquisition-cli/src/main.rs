@@ -250,13 +250,14 @@ is the per-location summary.")]
     Dash,
     /// What this build is (C84): the package version, the shared-contract
     /// revision the daemon handshake compares — a digest over the
-    /// protocol and store sources, never a git commit — and the sibling
-    /// `acqd` a job command would start, as found on disk (path, length,
-    /// modification time; no hash — the run record hashes it). This
-    /// reports the candidate; `acq daemon status` reports the daemon
-    /// running. `--json`: {"version", "contract", "provider", "acqd":
-    /// {path, len, mtime_ns} | null, "acqd_absent"}; `--version` is the
-    /// human form of the first two.
+    /// protocol and store crates, the root manifest and the lock, never a
+    /// git commit — and the sibling `acqd` a job command would start, as
+    /// found on disk (path, length, modification time; no hash — the run
+    /// record hashes it). This reports the candidate; `acq daemon status`
+    /// reports the daemon running. `--json`: {"version", "contract",
+    /// "provider", "acqd": {path, len, mtime_ns} | null}, plus
+    /// "acqd_absent" (why) when acqd is null; `--version` is the human
+    /// form of the first two.
     Version,
     /// The live jobs: id, parent, kind, target (from params, C7), state
     /// (`↻n` counts 429 re-queues, C26), priority, account, submitter, ETA.
@@ -545,16 +546,19 @@ enum DaemonCmd {
     /// queue counts, policies learned, the socket, log and journal paths,
     /// the rails state, keyring health. Observes only (C10): never spawns
     /// or replaces; a daemon of another contract, artifact or provider is
-    /// reported and left running (`--json`: running, compatible, which
-    /// of the three differs, how the daemon's file relates to this
+    /// reported by its identity alone — no vitals — and left running.
+    /// `--json`, in both cases: running, compatible, which of the three
+    /// dimensions match (`contract_matches`, `artifact_matches`,
+    /// `provider_matches`), how the daemon's file relates to this
     /// client's sibling — `artifact_relation`: `same_file`; `same_bytes`,
     /// another copy; `different`; `unhashable`; `no_sibling`, no `acqd`
     /// beside this executable; `unreported`, a daemon from before the
-    /// field — and the sibling `acqd` a job command would start under
-    /// `wanted`, all from the one look that judged the daemon).
+    /// field — and under `wanted` this client's own version, contract and
+    /// provider with the sibling `acqd` a job command would start, all
+    /// from the one look that judged the daemon.
     Status,
-    /// Stop the daemon that is listening, this contract's and artifact's
-    /// or another's.
+    /// Stop the daemon that is listening, this build's — its contract and
+    /// artifact — or another's.
     /// Queued jobs stay on disk and resume under the next one (C6); a
     /// client's jobs are never cancelled by its leaving (C27).
     Stop,
@@ -1040,7 +1044,15 @@ async fn run(cli: Cli) -> Result<()> {
                     // `wanted`, so "where did it run from" and "is that my
                     // sibling" are both answered (review 2026-09-10).
                     let identity = found.report();
-                    for key in ["contract", "artifact", "artifact_relation", "wanted"] {
+                    for key in [
+                        "contract",
+                        "artifact",
+                        "contract_matches",
+                        "artifact_matches",
+                        "artifact_relation",
+                        "provider_matches",
+                        "wanted",
+                    ] {
                         report[key] = identity[key].clone();
                     }
                     println!("{}", serde_json::to_string_pretty(&report)?);

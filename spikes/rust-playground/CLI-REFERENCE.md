@@ -26,7 +26,7 @@ Commands:
   submit        Submit any job kind by hand
   demo          Submit a burst of fetch jobs against the mock's 5-per-10 s policy and watch the rate limiter queue them (the ETAs are the limiter's prediction, corrected by headers)
   dash          Live dashboard (TUI): rate limiter state (enter expands a policy: bucket state, the observed X-Rate-Limit headers, per-endpoint sends), job queue, HTTP sends, recent errors, a rails halt in red. With --json, prints one snapshot and exits
-  version       What this build is (C84): the package version, the shared-contract revision the daemon handshake compares — a digest over the protocol and store sources, never a git commit — and the sibling `acqd` a job command would start, as found on disk (path, length, modification time; no hash — the run record hashes it). This reports the candidate; `acq daemon status` reports the daemon running. `--json`: {"version", "contract", "provider", "acqd": {path, len, mtime_ns} | null, "acqd_absent"}; `--version` is the human form of the first two
+  version       What this build is (C84): the package version, the shared-contract revision the daemon handshake compares — a digest over the protocol and store crates, the root manifest and the lock, never a git commit — and the sibling `acqd` a job command would start, as found on disk (path, length, modification time; no hash — the run record hashes it). This reports the candidate; `acq daemon status` reports the daemon running. `--json`: {"version", "contract", "provider", "acqd": {path, len, mtime_ns} | null}, plus "acqd_absent" (why) when acqd is null; `--version` is the human form of the first two
   jobs          The live jobs: id, parent, kind, target (from params, C7), state (`↻n` counts 429 re-queues, C26), priority, account, submitter, ETA
   status        One job's state and ETA. A large ETA is the limiter holding, not a hang: holds can reach 300 s plus the timing bucket
   result        A finished job's payload or error, answered across daemon restarts (C27: a client that disappears leaves its jobs running). A failed fetch's refused body is in `acq store refused <id>`, not here
@@ -485,7 +485,7 @@ Options:
 ## `acq version`
 
 ```text
-What this build is (C84): the package version, the shared-contract revision the daemon handshake compares — a digest over the protocol and store sources, never a git commit — and the sibling `acqd` a job command would start, as found on disk (path, length, modification time; no hash — the run record hashes it). This reports the candidate; `acq daemon status` reports the daemon running. `--json`: {"version", "contract", "provider", "acqd": {path, len, mtime_ns} | null, "acqd_absent"}; `--version` is the human form of the first two
+What this build is (C84): the package version, the shared-contract revision the daemon handshake compares — a digest over the protocol and store crates, the root manifest and the lock, never a git commit — and the sibling `acqd` a job command would start, as found on disk (path, length, modification time; no hash — the run record hashes it). This reports the candidate; `acq daemon status` reports the daemon running. `--json`: {"version", "contract", "provider", "acqd": {path, len, mtime_ns} | null}, plus "acqd_absent" (why) when acqd is null; `--version` is the human form of the first two
 
 Usage: acq version [OPTIONS]
 
@@ -733,8 +733,8 @@ Debugging only — normal use never needs manual lifecycle
 Usage: acq daemon [OPTIONS] <COMMAND>
 
 Commands:
-  status          The daemon running: pid, version, contract revision, the executable it runs from and its hash (C84), provider, uptime, connections, queue counts, policies learned, the socket, log and journal paths, the rails state, keyring health. Observes only (C10): never spawns or replaces; a daemon of another contract, artifact or provider is reported and left running (`--json`: running, compatible, which of the three differs, how the daemon's file relates to this client's sibling — `artifact_relation`: `same_file`; `same_bytes`, another copy; `different`; `unhashable`; `no_sibling`, no `acqd` beside this executable; `unreported`, a daemon from before the field — and the sibling `acqd` a job command would start under `wanted`, all from the one look that judged the daemon)
-  stop            Stop the daemon that is listening, this contract's and artifact's or another's. Queued jobs stay on disk and resume under the next one (C6); a client's jobs are never cancelled by its leaving (C27)
+  status          The daemon running: pid, version, contract revision, the executable it runs from and its hash (C84), provider, uptime, connections, queue counts, policies learned, the socket, log and journal paths, the rails state, keyring health. Observes only (C10): never spawns or replaces; a daemon of another contract, artifact or provider is reported by its identity alone — no vitals — and left running. `--json`, in both cases: running, compatible, which of the three dimensions match (`contract_matches`, `artifact_matches`, `provider_matches`), how the daemon's file relates to this client's sibling — `artifact_relation`: `same_file`; `same_bytes`, another copy; `different`; `unhashable`; `no_sibling`, no `acqd` beside this executable; `unreported`, a daemon from before the field — and under `wanted` this client's own version, contract and provider with the sibling `acqd` a job command would start, all from the one look that judged the daemon
+  stop            Stop the daemon that is listening, this build's — its contract and artifact — or another's. Queued jobs stay on disk and resume under the next one (C6); a client's jobs are never cancelled by its leaving (C27)
   reset-tripwire  Clear the live-test rails' tripwire/ceiling halt (see LIVE-TESTING.md). Observe the post-violation rule before using this
   help            Print this message or the help of the given subcommand(s)
 
@@ -745,7 +745,7 @@ Options:
 ## `acq daemon status`
 
 ```text
-The daemon running: pid, version, contract revision, the executable it runs from and its hash (C84), provider, uptime, connections, queue counts, policies learned, the socket, log and journal paths, the rails state, keyring health. Observes only (C10): never spawns or replaces; a daemon of another contract, artifact or provider is reported and left running (`--json`: running, compatible, which of the three differs, how the daemon's file relates to this client's sibling — `artifact_relation`: `same_file`; `same_bytes`, another copy; `different`; `unhashable`; `no_sibling`, no `acqd` beside this executable; `unreported`, a daemon from before the field — and the sibling `acqd` a job command would start under `wanted`, all from the one look that judged the daemon)
+The daemon running: pid, version, contract revision, the executable it runs from and its hash (C84), provider, uptime, connections, queue counts, policies learned, the socket, log and journal paths, the rails state, keyring health. Observes only (C10): never spawns or replaces; a daemon of another contract, artifact or provider is reported by its identity alone — no vitals — and left running. `--json`, in both cases: running, compatible, which of the three dimensions match (`contract_matches`, `artifact_matches`, `provider_matches`), how the daemon's file relates to this client's sibling — `artifact_relation`: `same_file`; `same_bytes`, another copy; `different`; `unhashable`; `no_sibling`, no `acqd` beside this executable; `unreported`, a daemon from before the field — and under `wanted` this client's own version, contract and provider with the sibling `acqd` a job command would start, all from the one look that judged the daemon
 
 Usage: acq daemon status [OPTIONS]
 
@@ -756,7 +756,7 @@ Options:
 ## `acq daemon stop`
 
 ```text
-Stop the daemon that is listening, this contract's and artifact's or another's. Queued jobs stay on disk and resume under the next one (C6); a client's jobs are never cancelled by its leaving (C27)
+Stop the daemon that is listening, this build's — its contract and artifact — or another's. Queued jobs stay on disk and resume under the next one (C6); a client's jobs are never cancelled by its leaving (C27)
 
 Usage: acq daemon stop [OPTIONS]
 

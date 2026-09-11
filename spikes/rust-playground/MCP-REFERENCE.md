@@ -38,7 +38,7 @@ Characters known to the store, with class, level, league, item counts, and wheth
 
 ### `daemon_status`
 
-Daemon vitals: provider, uptime, queue depths, rate-limit policies learned, rails state, and the daemon's identity (C84): contract revision, the executable it runs from and its hash (artifact), how that file relates to the acqd beside this server (artifact_relation: same_file, same_bytes for another copy, different, unhashable, no_sibling, unreported), and that sibling with this server's own contract and provider under wanted — all from the one look that judged the daemon. Observes only: running=false when no daemon is up; running=true, compatible=false for a daemon of another contract, artifact or provider (contract_matches, artifact_matches, provider_matches say which), which this server reports and never replaces.
+The daemon running: its identity (C84) — contract revision, the executable it runs from and its hash (artifact), how that file relates to the acqd beside this server (artifact_relation: same_file, same_bytes for another copy, different, unhashable, no_sibling, unreported), which of the three dimensions match (contract_matches, artifact_matches, provider_matches), and under wanted this server's own version, contract and provider with that sibling — all from the one look that judged the daemon; and, when compatible, its vitals: provider, uptime, connections, queue counts, rate-limit policies learned, rails state, keyring health. Observes only: running=false when no daemon is up; running=true, compatible=false for a daemon of another contract, artifact or provider, reported by its identity alone and never replaced by this server.
 
 No arguments.
 

@@ -287,8 +287,12 @@ fn c84_the_artifact_dimension_is_the_sibling_acqd_this_client_would_start() {
         "{status}"
     );
     // The compatible report says how the daemon's file relates to this
-    // client's sibling, and names the sibling (review 2026-09-10).
+    // client's sibling, and names the sibling (review 2026-09-10); the
+    // three dimensions are there in both shapes.
     assert_eq!(status["artifact_relation"], "same_file", "{status}");
+    for key in ["contract_matches", "artifact_matches", "provider_matches"] {
+        assert_eq!(status[key], true, "{key}: {status}");
+    }
     assert_eq!(
         Path::new(status["wanted"]["acqd"]["path"].as_str().unwrap())
             .canonicalize()

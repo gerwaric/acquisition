@@ -162,9 +162,18 @@ data for the commit that touches it.
   in plain terms; the owner, 2026-09-11, verbatim: "Ok, this makes
   sense. approved."
 - The help strings step 4 wrote — `acq version`, `acq daemon status`,
-  `acq daemon stop`, the MCP's `daemon_status` — are in the regenerated
-  `CLI-REFERENCE.md` and `MCP-REFERENCE.md` for the owner's approval
-  (§10 item 8: the exact prose deferred to the real generated output).
+  `acq daemon stop`, the MCP's `daemon_status` — were read to the owner
+  from the regenerated references (§10 item 8) and reread carefully at
+  the owner's request on 2026-09-11: `acq version` had the standing
+  rule's inexactness (the digest "over the sources"; now the crates, the
+  root manifest and the lock) and named `acqd_absent` as if always
+  present; `daemon status` and the MCP tool described the vitals without
+  saying an incompatible daemon is reported by its identity alone, and
+  promised "which of the three differs" while the compatible JSON
+  carried no `_matches` keys — the compatible report now carries the
+  three (all true), pinned in both process tests, so the two shapes share
+  every identity key; `daemon stop` reads "this build's — its contract
+  and artifact — or another's". The final texts are the references.
 - Three test executables drive the client in-process against a daemon
   they start (`contract.rs`, `watch_recovery.rs`, the MCP harness), and
   since step 4 the client judges that daemon's artifact against the

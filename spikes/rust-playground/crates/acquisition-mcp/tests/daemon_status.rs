@@ -83,6 +83,9 @@ fn c84_daemon_status_reports_the_identity_and_the_sibling_it_is_judged_against()
         "{status}"
     );
     assert_eq!(status["artifact_relation"], "same_file", "{status}");
+    for key in ["contract_matches", "artifact_matches", "provider_matches"] {
+        assert_eq!(status[key], true, "{key}: {status}");
+    }
     assert_eq!(
         Path::new(status["wanted"]["acqd"]["path"].as_str().unwrap())
             .canonicalize()
