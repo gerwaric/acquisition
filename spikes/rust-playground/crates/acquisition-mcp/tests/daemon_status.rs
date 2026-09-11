@@ -38,11 +38,12 @@ fn c84_daemon_status_reports_the_identity_and_the_sibling_it_is_judged_against()
         .canonicalize()
         .unwrap();
 
-    // Absent: a state, not an error — and no daemon appears.
+    // Absent: a state, not an error — with nothing on disk to read (C45:
+    // no world yet, so `persisted` is null) — and no daemon appears.
     let mut mcp = Mcp::start(&base, &[]);
     assert_eq!(
         mcp.expect_ok("daemon_status", json!({})),
-        json!({ "running": false })
+        json!({ "running": false, "persisted": null })
     );
     assert!(
         harness::no_daemon_appeared(&base),

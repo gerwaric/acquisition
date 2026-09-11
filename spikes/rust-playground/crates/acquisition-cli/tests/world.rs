@@ -333,14 +333,15 @@ fn c83_a_shell_on_another_world_has_its_own_rendezvous_and_never_replaces_this_d
     let home_socket = PathBuf::from(home["socket"].as_str().unwrap());
     assert_eq!(sockets_under(&scratch_tmp(base)), vec![home_socket.clone()]);
 
-    // From another world: not running, and a reading verb says so.
+    // From another world: not running, and a reading verb says so — with
+    // nothing on disk there to read (C45: a root, no ledger).
+    let absent = serde_json::json!({ "running": false, "persisted": null });
     let out = acq(base, "elsewhere", &["daemon", "status", "--json"]);
     assert!(out.status.success(), "{out:?}");
-    assert_eq!(sole_json(&out), serde_json::json!({ "running": false }));
+    assert_eq!(sole_json(&out), absent);
     let out = acq(base, "elsewhere", &["jobs", "--json"]);
-    assert_eq!(out.status.code(), Some(1), "{out:?}");
-    let msg = sole_json(&out)["error"].as_str().unwrap().to_string();
-    assert!(msg.contains("not running"), "{msg}");
+    assert!(out.status.success(), "{out:?}");
+    assert_eq!(sole_json(&out), absent);
     assert_eq!(
         sockets_under(&scratch_tmp(base)),
         vec![home_socket.clone()],
@@ -392,7 +393,10 @@ fn c83_a_shell_on_another_world_has_its_own_rendezvous_and_never_replaces_this_d
 
     // No root: no world, no socket, nothing created.
     let out = acq(base, "nowhere", &["daemon", "status", "--json"]);
-    assert_eq!(sole_json(&out), serde_json::json!({ "running": false }));
+    assert_eq!(
+        sole_json(&out),
+        serde_json::json!({ "running": false, "persisted": null })
+    );
     assert!(
         !base.join("nowhere").exists(),
         "observation created the root"

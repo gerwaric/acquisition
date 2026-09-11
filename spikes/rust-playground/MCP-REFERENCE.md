@@ -38,7 +38,7 @@ Characters known to the store, with class, level, league, item counts, and wheth
 
 ### `daemon_status`
 
-The daemon running: its identity (C84, C83) — contract revision, the executable it runs from and its hash (artifact), the world it serves (its canonical store root), the socket it was reached on (derived from the world), how that file relates to the acqd beside this server (artifact_relation: same_file, same_bytes for another copy, different, unhashable, no_sibling, unreported), which of the four dimensions match (contract_matches, artifact_matches, provider_matches, world_matches), and under wanted this server's own version, contract, provider and world with that sibling — all from the one look that judged the daemon; and, when compatible, its vitals: provider, uptime, connections, queue counts, rate-limit policies learned, rails state (with the journal path), keyring health, and log — the log file the daemon opened, as it reports it. Observes only: running=false when no daemon is up; running=true, compatible=false for a daemon of another contract, artifact, provider or world, reported by its identity alone and never replaced by this server; running=true, responsive=false (with socket and lock_holder, the pid the world's lock records) for something that accepted the connection and did not answer hello within 5s — a wedged daemon, for a human to stop by hand.
+The daemon running: its identity (C84, C83) — contract revision, the executable it runs from and its hash (artifact), the world it serves (its canonical store root), the socket it was reached on (derived from the world), how that file relates to the acqd beside this server (artifact_relation: same_file, same_bytes for another copy, different, unhashable, no_sibling, unreported), which of the four dimensions match (contract_matches, artifact_matches, provider_matches, world_matches), and under wanted this server's own version, contract, provider and world with that sibling — all from the one look that judged the daemon; and, when compatible, its vitals: provider, uptime, connections, queue counts, rate-limit policies learned, rails state (with the journal path), keyring health, and log — the log file the daemon opened, as it reports it. Observes only: running=false when no daemon is up, with persisted — what the ledger on disk holds (C45): waiting, recorded_running, written_at; null when this shell's world has no queue yet; running=true, compatible=false for a daemon of another contract, artifact, provider or world, reported by its identity alone and never replaced by this server; running=true, responsive=false (with socket and lock_holder, the pid the world's lock records) for something that accepted the connection and did not answer hello within 5s — a wedged daemon, for a human to stop by hand.
 
 No arguments.
 
@@ -71,7 +71,7 @@ One job's state, ETA, and retries. A waiting job with a large ETA is the rate li
 
 ### `list_jobs`
 
-Jobs the daemon knows about this lifetime, with states and ETAs.
+Jobs the daemon knows about this lifetime, with states and ETAs. Observes only (C10): with no daemon running it never spawns one and answers from the ledger on disk instead (C45) — running: false, persisted: the non-terminal rows as the last daemon left them (jobs, without ETAs) and written_at, how old that picture is; persisted is null when this shell's world has no queue yet. A job command from the CLI spawns a successor that restores them.
 
 No arguments.
 

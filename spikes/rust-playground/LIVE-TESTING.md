@@ -106,10 +106,10 @@ one is, and whether it outlives the ladder:
    across restarts. Since 2026-08-30 a halt leaves queued jobs *waiting*
    (on disk, in `daemon.db`) rather than failing them: the halted daemon
    idles out and its successor holds the queue until the reset — so
-   `acq jobs` before `reset-tripwire`, and `acq cancel` what should not go
-   out. Tripping on a HEAD 429 is a deliberate ladder-time
-   tightening of the accepted 429-recovery decision, which is why the rail
-   is off by default. The gate admits two concurrent sends, so one
+   `acq jobs` before `reset-tripwire` (with the daemon gone it reads the
+   queue on disk, C45), and `acq cancel` what should not go out. Tripping
+   on a HEAD 429 is a deliberate ladder-time tightening of the accepted
+   429-recovery decision, which is why the rail is off by default. The gate admits two concurrent sends, so one
    already-dispatched request may still land after a trip: a 2-send row in
    `RUN-LEDGER.md` is not a rail failure.
 2. **Dead-grant stop** — product behavior since 2026-08-24, not a knob: a

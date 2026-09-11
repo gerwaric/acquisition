@@ -90,7 +90,7 @@ acq stash <id> [--sub <id>] [--deep]          # one tab; --deep follows a map/un
 acq refresh --tabs a,b,c | --all [--deep]     # the ad-hoc kind: list, then one `stash` child per tab (C76: one door, as direction)
 acq submit <kind> [--params JSON] [--detach]  # any kind by hand; sleep, fetch and whoami are mock-only
 acq demo                                      # a burst of fetch jobs against the mock's 5-per-10 s policy: watch the ETAs
-acq jobs [--watch] | status <id> | result <id>   # the live queue; one job; a finished job's payload, across restarts (C27)
+acq jobs [--watch] | status <id> | result <id>   # the live queue, or with no daemon the one on disk (C45); one job; a finished job's payload, across restarts (C27)
 acq cancel <id> | set-priority <id> <n>       # cascades to waiting descendants; higher runs sooner
 acq dash                                      # live TUI: limiter state, jobs, sends, errors; a rails halt in red
 

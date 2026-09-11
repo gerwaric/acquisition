@@ -12,14 +12,42 @@
 //! `AUTOINCREMENT`, so an id is never reused even after its row is pruned:
 //! a stale `acq result <id>` names nothing rather than a different job.
 //!
-//! The daemon is this table's only reader and writer: a frontend asks the
-//! daemon (`acq jobs`, `acq result`) and never opens `daemon.db`. The
-//! read-only facade C45 rules for frontends is unbuilt.
+//! The daemon is this table's only writer, through [`JobDb`]; a frontend
+//! asks the daemon (`acq jobs`, `acq result`) while one answers, and reads
+//! the table through [`Persisted`] only when none does.
+//!
+//! # Decisions as recorded
+//!
+//! The rulings are the decision registry — `decisions/daemon.md` for this
+//! area, `CONTEXT.md` for the cross-cutting ones (`C<n>`); what follows is
+//! the entry's full text as recorded there, kept beside the code that
+//! implements it. The registry is current.
+//!
+//! ## C45 — With no daemon to ask, an observer reads the queue from the ledger on disk
+//!
+//! **With no daemon to ask, an observer reads the queue from the ledger on
+//! disk — what waits, what was recorded running, when it was last written
+//! — never "no outstanding work".** This is the observe tier's absent arm
+//! (C10): `acq jobs` and `acq daemon status`, the MCP's `list_jobs` and
+//! `daemon_status`, answer `running: false` with the persisted queue beside
+//! it, read through [`Persisted`] — a read-only connection that creates
+//! nothing (no file, no schema, no world) and reads none of the bulk
+//! columns (a parent's held `deferred` result can be a whole refresh) —
+//! never through the daemon's open [`JobDb`], and never while a daemon
+//! answers: memory is the truth then (C6), and the daemon's list carries
+//! what disk cannot (ETAs, re-queue counts as they move). Rationale: C25
+//! makes a halted daemon idle out with its queue on disk, and once
+//! observation stopped spawning (C10, 2026-09-09) the halt procedure's
+//! `acq jobs` answered only "not running" — for a ceiling halt the one way
+//! to see the queue was to respawn it, which is exactly what the procedure
+//! says to look before doing. Decided 2026-08-31 (a facade, unbuilt);
+//! amended and built 2026-09-11.
 
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
-use rusqlite::{Connection, OptionalExtension, params};
+use rusqlite::{Connection, OpenFlags, OptionalExtension, params};
+use serde::Serialize;
 use serde_json::Value;
 
 const SCHEMA: &str = "
@@ -234,6 +262,115 @@ impl JobDb {
             params![done_before, failed_before],
         )?;
         Ok(n)
+    }
+}
+
+/// One open job as the ledger holds it, for a reader with no daemon to
+/// ask (C45): the identifying and restart-relevant columns, none of the
+/// bulk ones. Serializes as the `persisted.jobs` entries of `acq jobs`
+/// and the MCP's `list_jobs` when `running` is false.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct PersistedJob {
+    pub id: u64,
+    pub kind: String,
+    /// `waiting` or `running` — as recorded at the last write, which for
+    /// `running` means "was running when the daemon left"; its successor
+    /// decides what that becomes (C6).
+    pub state: String,
+    pub priority: u8,
+    pub submitted_by: String,
+    pub parent: Option<u64>,
+    pub retries: u32,
+    pub account: Option<String>,
+    /// Verbatim, and public like `JobInfo::params` (C7).
+    pub params: Value,
+    pub cancel_requested: bool,
+    pub submitted_at: i64,
+    pub updated_at: i64,
+}
+
+/// The queue as the ledger holds it, read with no daemon running (C45).
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct Persisted {
+    /// Every non-terminal row, by id.
+    pub jobs: Vec<PersistedJob>,
+    /// When any row was last written (unix seconds): how old this
+    /// picture is. `None` for a table with no rows at all.
+    pub written_at: Option<i64>,
+}
+
+impl Persisted {
+    /// The provider's ledger in this shell's world, or `None` when there
+    /// is nothing to read: no world root yet (an observer creates none,
+    /// C83) or no `daemon.db` under it. Anything else that goes wrong
+    /// — a root that is not a directory, a file that is not a database —
+    /// is an error, never "no jobs" (C47).
+    pub fn observe(provider: &str) -> Result<Option<Persisted>> {
+        let world = match crate::world::World::observe() {
+            Ok(world) => world,
+            Err(e) if e.absent => return Ok(None),
+            Err(e) => return Err(anyhow::anyhow!("{e}")),
+        };
+        Self::read(&world.provider_dir(provider))
+    }
+
+    /// The ledger under `dir` (`daemon.db`, the daemon's store directory
+    /// for a provider), or `None` when the file does not exist. Opened
+    /// read-only: no schema is created and a missing table is an error.
+    pub fn read(dir: &Path) -> Result<Option<Persisted>> {
+        let path = daemon_db_path(dir);
+        if !path.exists() {
+            return Ok(None);
+        }
+        let conn = Connection::open_with_flags(
+            &path,
+            OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
+        )
+        .with_context(|| format!("opening {} read-only", path.display()))?;
+        conn.busy_timeout(std::time::Duration::from_secs(5))?;
+        let context = || format!("reading the queue in {}", path.display());
+        let written_at: Option<i64> = conn
+            .query_row("SELECT MAX(updated_at) FROM jobs", [], |r| r.get(0))
+            .with_context(context)?;
+        let mut stmt = conn
+            .prepare(
+                "SELECT id, kind, state, priority, submitted_by, parent, retries, account,
+                        params, cancel_requested, submitted_at, updated_at
+                 FROM jobs WHERE state IN ('waiting', 'running') ORDER BY id",
+            )
+            .with_context(context)?;
+        let rows = stmt
+            .query_map([], |r| {
+                Ok(PersistedJob {
+                    id: r.get(0)?,
+                    kind: r.get(1)?,
+                    state: r.get(2)?,
+                    priority: r.get(3)?,
+                    submitted_by: r.get(4)?,
+                    parent: r.get(5)?,
+                    retries: r.get(6)?,
+                    account: r.get(7)?,
+                    params: parse(r.get::<_, String>(8)?),
+                    cancel_requested: r.get(9)?,
+                    submitted_at: r.get(10)?,
+                    updated_at: r.get(11)?,
+                })
+            })
+            .with_context(context)?;
+        let jobs = rows
+            .collect::<std::result::Result<Vec<_>, _>>()
+            .with_context(context)?;
+        Ok(Some(Persisted { jobs, written_at }))
+    }
+
+    /// Rows recorded `waiting`.
+    pub fn waiting(&self) -> usize {
+        self.jobs.iter().filter(|j| j.state == "waiting").count()
+    }
+
+    /// Rows recorded `running` when the daemon left.
+    pub fn recorded_running(&self) -> usize {
+        self.jobs.iter().filter(|j| j.state == "running").count()
     }
 }
 

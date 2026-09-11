@@ -43,23 +43,30 @@ fn c10_observation_never_spawns_or_replaces_and_reports_the_mismatch() {
     let scratch = harness::scratch("obs");
     let base = scratch.0.clone();
 
-    // Absent: reported as a state by `daemon status`, as an error by a
-    // reading verb — and neither spawns: the world's root is never
+    // Absent: reported as a state by `daemon status` and `jobs` (with
+    // nothing on disk to read, C45: no world, so `persisted` is null),
+    // as an error by `dash` — and none spawns: the world's root is never
     // created (a spawn creates it first, C83), so no socket can derive
     // from it.
+    let absent = serde_json::json!({ "running": false, "persisted": null });
     let out = acq(&base, &["daemon", "status", "--json"]);
     assert!(out.status.success(), "{out:?}");
-    assert_eq!(sole_json(&out), serde_json::json!({ "running": false }));
-    for args in [&["jobs", "--json"][..], &["dash", "--json"][..]] {
-        let out = acq(&base, args);
-        assert_eq!(out.status.code(), Some(1), "{args:?}: {out:?}");
-        let msg = sole_json(&out)["error"].as_str().unwrap().to_string();
-        assert!(msg.contains("not running"), "{args:?}: {msg}");
-        assert!(
-            !base.join("store").exists(),
-            "{args:?} created the world's root — a spawn"
-        );
-    }
+    assert_eq!(sole_json(&out), absent);
+    let out = acq(&base, &["jobs", "--json"]);
+    assert!(out.status.success(), "{out:?}");
+    assert_eq!(sole_json(&out), absent);
+    assert!(
+        !base.join("store").exists(),
+        "jobs created the world's root — a spawn"
+    );
+    let out = acq(&base, &["dash", "--json"]);
+    assert_eq!(out.status.code(), Some(1), "{out:?}");
+    let msg = sole_json(&out)["error"].as_str().unwrap().to_string();
+    assert!(msg.contains("not running"), "{msg}");
+    assert!(
+        !base.join("store").exists(),
+        "dash created the world's root — a spawn"
+    );
 
     // A mock daemon is up. A shell that wants ggg observes it: reported
     // as running and incompatible on the provider dimension alone, with
@@ -129,8 +136,16 @@ fn c10_observation_never_spawns_or_replaces_and_reports_the_mismatch() {
         std::thread::sleep(Duration::from_millis(20));
     }
     assert!(sockets_under(&scratch_tmp(&base)).is_empty());
+    // Absent again — now with a world and a ledger the daemon left, which
+    // holds no rows (C45): counted, not null.
     let out = acq(&base, &["daemon", "status", "--json"]);
-    assert_eq!(sole_json(&out), serde_json::json!({ "running": false }));
+    assert_eq!(
+        sole_json(&out),
+        serde_json::json!({
+            "running": false,
+            "persisted": { "waiting": 0, "recorded_running": 0, "written_at": null }
+        })
+    );
 }
 
 /// A copy of the binary under test in `dir`, with `sibling` — if any —

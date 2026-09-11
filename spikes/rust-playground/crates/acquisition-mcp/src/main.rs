@@ -241,7 +241,18 @@ async fn connect(spawn: bool) -> Result<Client> {
 /// never spawns or replaces; absence and a mismatch are errors that say
 /// which.
 async fn attach() -> Result<Client> {
-    match Client::observe().await? {
+    client_of(Client::observe().await?)
+}
+
+/// The queue on disk, for a tool with no daemon to ask (C45): this
+/// server's world and provider, `None` when neither has been created.
+fn persisted_queue() -> Result<Option<acquisition_store::jobs::Persisted>> {
+    acquisition_store::jobs::Persisted::observe(acquisition_protocol::provider::wanted())
+}
+
+/// The client an observation yields, or the error that says why not.
+fn client_of(observed: Observed) -> Result<Client> {
+    match observed {
         Observed::Compatible(client) => Ok(client),
         Observed::Absent => anyhow::bail!("no daemon running"),
         Observed::Unresponsive(found) => anyhow::bail!("{found}"),
@@ -669,9 +680,17 @@ impl AcqMcp {
         }
     }
 
-    #[tool(description = "Jobs the daemon knows about this lifetime, with states and ETAs.")]
+    #[tool(
+        description = "Jobs the daemon knows about this lifetime, with states and ETAs. Observes only (C10): with no daemon running it never spawns one and answers from the ledger on disk instead (C45) — running: false, persisted: the non-terminal rows as the last daemon left them (jobs, without ETAs) and written_at, how old that picture is; persisted is null when this shell's world has no queue yet. A job command from the CLI spawns a successor that restores them."
+    )]
     async fn list_jobs(&self) -> Result<Json<Value>, ErrorData> {
-        let mut client = attach().await.map_err(err)?;
+        let mut client = match Client::observe().await.map_err(err)? {
+            Observed::Absent => {
+                let persisted = persisted_queue().map_err(err)?;
+                return Ok(Json(json!({ "running": false, "persisted": persisted })));
+            }
+            other => client_of(other).map_err(err)?,
+        };
         match client.request(&Request::List).await.map_err(err)? {
             Response::Jobs { jobs } => serde_json::to_value(jobs)
                 .map(Json)
@@ -735,12 +754,21 @@ impl AcqMcp {
     }
 
     #[tool(
-        description = "The daemon running: its identity (C84, C83) — contract revision, the executable it runs from and its hash (artifact), the world it serves (its canonical store root), the socket it was reached on (derived from the world), how that file relates to the acqd beside this server (artifact_relation: same_file, same_bytes for another copy, different, unhashable, no_sibling, unreported), which of the four dimensions match (contract_matches, artifact_matches, provider_matches, world_matches), and under wanted this server's own version, contract, provider and world with that sibling — all from the one look that judged the daemon; and, when compatible, its vitals: provider, uptime, connections, queue counts, rate-limit policies learned, rails state (with the journal path), keyring health, and log — the log file the daemon opened, as it reports it. Observes only: running=false when no daemon is up; running=true, compatible=false for a daemon of another contract, artifact, provider or world, reported by its identity alone and never replaced by this server; running=true, responsive=false (with socket and lock_holder, the pid the world's lock records) for something that accepted the connection and did not answer hello within 5s — a wedged daemon, for a human to stop by hand."
+        description = "The daemon running: its identity (C84, C83) — contract revision, the executable it runs from and its hash (artifact), the world it serves (its canonical store root), the socket it was reached on (derived from the world), how that file relates to the acqd beside this server (artifact_relation: same_file, same_bytes for another copy, different, unhashable, no_sibling, unreported), which of the four dimensions match (contract_matches, artifact_matches, provider_matches, world_matches), and under wanted this server's own version, contract, provider and world with that sibling — all from the one look that judged the daemon; and, when compatible, its vitals: provider, uptime, connections, queue counts, rate-limit policies learned, rails state (with the journal path), keyring health, and log — the log file the daemon opened, as it reports it. Observes only: running=false when no daemon is up, with persisted — what the ledger on disk holds (C45): waiting, recorded_running, written_at; null when this shell's world has no queue yet; running=true, compatible=false for a daemon of another contract, artifact, provider or world, reported by its identity alone and never replaced by this server; running=true, responsive=false (with socket and lock_holder, the pid the world's lock records) for something that accepted the connection and did not answer hello within 5s — a wedged daemon, for a human to stop by hand."
     )]
     async fn daemon_status(&self) -> Result<Json<Value>, ErrorData> {
         let mut client = match Client::observe().await.map_err(err)? {
             Observed::Compatible(c) => c,
-            Observed::Absent => return Ok(Json(json!({ "running": false }))),
+            Observed::Absent => {
+                let persisted = persisted_queue().map_err(err)?.map(|p| {
+                    json!({
+                        "waiting": p.waiting(),
+                        "recorded_running": p.recorded_running(),
+                        "written_at": p.written_at,
+                    })
+                });
+                return Ok(Json(json!({ "running": false, "persisted": persisted })));
+            }
             Observed::Incompatible(found) => {
                 let mut report = found.report();
                 report["running"] = json!(true);

@@ -15,8 +15,9 @@ use acquisition_client::client::{
 };
 use acquisition_protocol::job::{JobInfo, JobState, Outcome};
 use acquisition_protocol::protocol::{Request, Response};
-use acquisition_protocol::provider::GGG;
+use acquisition_protocol::provider::{self, GGG};
 use acquisition_protocol::realm::Realm;
+use acquisition_store::jobs::{Persisted, PersistedJob};
 use acquisition_store::world::World;
 use anyhow::{Result, bail};
 use clap::{Parser, Subcommand};
@@ -43,14 +44,90 @@ pub(crate) async fn connect(spawn: bool) -> Result<Client> {
 
 /// The running daemon, for a verb that observes it or acts on it (C10):
 /// never spawns or replaces. Absence and a mismatch are errors that say
-/// which; `daemon status` renders the same observation as states.
+/// which; `daemon status` renders the same observation as states, and
+/// `jobs` answers absence from the ledger on disk (C45).
 pub(crate) async fn attach() -> Result<Client> {
-    match Client::observe().await? {
+    client_of(Client::observe().await?)
+}
+
+/// The client an observation yields, or the error that says why not.
+fn client_of(observed: Observed) -> Result<Client> {
+    match observed {
         Observed::Compatible(client) => Ok(client),
         Observed::Absent => bail!("daemon is not running (it spawns on demand for job commands)"),
         Observed::Incompatible(found) => bail!("{found}; {}", mismatch_remedy(&found)),
         Observed::Unresponsive(found) => bail!("{found}"),
     }
+}
+
+/// The queue on disk, for an observer with no daemon to ask (C45): this
+/// shell's world and provider, `None` when neither has been created.
+fn persisted_queue() -> Result<Option<Persisted>> {
+    Persisted::observe(provider::wanted())
+}
+
+/// `jobs` with no daemon (C45): `running: false` and the persisted queue
+/// — the same table as the live list, without ETAs, under a line that
+/// says how old the picture is and what restores it.
+fn print_persisted_queue(json: bool) -> Result<()> {
+    let persisted = persisted_queue()?;
+    if json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&json!({ "running": false, "persisted": persisted }))?
+        );
+        return Ok(());
+    }
+    let spawns = "it spawns on demand for job commands";
+    match persisted {
+        None => println!("daemon is not running; no queue on disk ({spawns})"),
+        Some(p) if p.jobs.is_empty() => {
+            println!("daemon is not running; nothing waits on disk ({spawns})")
+        }
+        Some(p) => {
+            println!(
+                "daemon is not running; on disk: {} waiting, {} recorded running, written {} — \
+                 a job command spawns a successor that restores them, and `acq cancel <id>` \
+                 then acts on them",
+                p.waiting(),
+                p.recorded_running(),
+                store_cmd::ago(acquisition_store::now(), p.written_at),
+            );
+            let jobs = p
+                .jobs
+                .iter()
+                .map(persisted_as_info)
+                .collect::<Result<Vec<_>>>()?;
+            print_table(&jobs);
+        }
+    }
+    Ok(())
+}
+
+/// A ledger row in the live list's shape, for the shared table: no ETA
+/// (nothing is predicting), the state as recorded. A state this build
+/// does not know is an error naming the row, never a guess (C47).
+fn persisted_as_info(job: &PersistedJob) -> Result<JobInfo> {
+    let state = match job.state.as_str() {
+        "waiting" => JobState::Waiting,
+        "running" => JobState::Running,
+        other => bail!(
+            "job {} on disk has state `{other}`, which this build does not know",
+            job.id
+        ),
+    };
+    Ok(JobInfo {
+        id: job.id,
+        kind: job.kind.clone(),
+        state,
+        priority: job.priority,
+        submitted_by: job.submitted_by.clone(),
+        eta_seconds: None,
+        parent: job.parent,
+        retries: job.retries,
+        account: job.account.clone(),
+        params: job.params.clone(),
+    })
 }
 
 /// What a human does about a daemon this client will not use: a
@@ -283,6 +360,13 @@ is the per-location summary.")]
     Version,
     /// The live jobs: id, parent, kind, target (from params, C7), state
     /// (`↻n` counts 429 re-queues, C26), priority, account, submitter, ETA.
+    /// Observes only (C10): with no daemon running it never spawns one, and
+    /// answers from the ledger on disk instead (C45) — the non-terminal
+    /// rows as the last daemon left them, without ETAs, and how long ago
+    /// they were written; `--json`: `running: false`, `persisted` (`jobs`,
+    /// `written_at`; `null` when this shell's world has no queue yet). A
+    /// job command spawns a successor that restores them; `cancel` then
+    /// acts on them.
     Jobs {
         /// Subscribe, print the queue, then every job-state change as it
         /// happens; the queue is printed again after a missed-events signal
@@ -568,7 +652,10 @@ enum DaemonCmd {
     /// (C83: its canonical store root), uptime, connections, queue
     /// counts, policies learned, the socket, log and journal paths, the
     /// rails state, keyring health. Observes only (C10): never spawns or
-    /// replaces; a daemon of another contract, artifact, provider or
+    /// replaces; with no daemon running, what the ledger on disk holds
+    /// (C45) — `persisted`: `waiting`, `recorded_running`, `written_at`;
+    /// `null` when this shell's world has no queue yet; a daemon of
+    /// another contract, artifact, provider or
     /// world is reported by its identity alone — no vitals — and left
     /// running; something that accepts the connection and does not answer
     /// hello within 5s is reported unresponsive (C86) — `--json`: running,
@@ -988,7 +1075,10 @@ async fn run(cli: Cli) -> Result<()> {
             if watch {
                 return watch_jobs(cli.json).await;
             }
-            let mut client = attach().await?;
+            let mut client = match Client::observe().await? {
+                Observed::Absent => return print_persisted_queue(cli.json),
+                other => client_of(other)?,
+            };
             let jobs = list(&mut client).await?;
             if cli.json {
                 println!("{}", serde_json::to_string_pretty(&jobs)?);
@@ -1040,10 +1130,28 @@ async fn run(cli: Cli) -> Result<()> {
                 let mut client = match Client::observe().await? {
                     Observed::Compatible(c) => c,
                     Observed::Absent => {
+                        // What the ledger on disk holds (C45): the counts
+                        // here, the rows under `jobs`.
+                        let persisted = persisted_queue()?;
                         if cli.json {
-                            println!("{}", json!({ "running": false }));
+                            let persisted = persisted.map(|p| {
+                                json!({
+                                    "waiting": p.waiting(),
+                                    "recorded_running": p.recorded_running(),
+                                    "written_at": p.written_at,
+                                })
+                            });
+                            println!("{}", json!({ "running": false, "persisted": persisted }));
                         } else {
-                            println!("daemon is not running");
+                            match persisted {
+                                None => println!("daemon is not running; no queue on disk"),
+                                Some(p) => println!(
+                                    "daemon is not running; on disk: {} waiting, {} recorded running, written {}",
+                                    p.waiting(),
+                                    p.recorded_running(),
+                                    store_cmd::ago(acquisition_store::now(), p.written_at),
+                                ),
+                            }
                         }
                         return Ok(());
                     }
