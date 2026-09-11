@@ -49,9 +49,9 @@ Then, only when the work touches it:
 - Before touching the store, planner, or plan slice: `REFRESH-SLICE.md`
   (closed record; its findings table is the review checklist) and the
   crates' module docs (`src/lib.rs`, "As built").
-- Before touching the protocol, the client, the daemon's lifecycle, or
-  any commit of the daemon split: `DAEMON-SPLIT-SLICE.md` (the open
-  record: step ledger, findings; the ruled design it points to).
+- Before touching the protocol, the client, the daemon's lifecycle or
+  the world: `DAEMON-SPLIT-SLICE.md` (closed record; its findings table
+  is the review checklist) and the crates' module docs.
 
 Facts about GGG live in `../../docs/design/network-ground-truth.md`, cited
 by claim number; new claims are authored on the master-side branch and

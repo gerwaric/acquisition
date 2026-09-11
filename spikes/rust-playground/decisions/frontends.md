@@ -17,3 +17,6 @@ Scope this area has deferred, with the trigger that reopens it, so deferral neve
 - Queue-management UI (drag-to-reorder, per-job progress bars) → a rendering problem by construction. Trigger: the GUI.
 - The read economy as a ruling (summary by default, filters, bounded detail) → surface design under C53 until then. Trigger: the first MCP pricing consumer's re-read record (the pricing slice's MCP step).
 - Results over a subtree (today `list`, then `result` per child: hundreds for a real map tab) → results on the event channel as jobs finish, or a `results` verb. Trigger: a second consumer (GUI or MCP) showing which. Frontend boundary finding from `acq pull`, 2026-08-24.
+- A watch that waits for the daemon to return (`acq jobs --watch` ends when the daemon goes away: an observer never spawns, C10) → the GUI's subscriber, not the CLI's. Trigger: the GUI slice.
+- A standalone queue TUI (`dash` as its own binary) → a new frontend package linking the client crate; `Dashboard` reshaped for it (one fat response today). Trigger: the queue-monitoring TUI slice.
+- The structured-error taxonomy beyond the additive `kind` (C85's closed `ErrorKind`) → the wire, with the GUI slice as its validating consumer (P2). Trigger: the GUI slice, or the owner asking for it first.
