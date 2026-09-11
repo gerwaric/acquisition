@@ -154,28 +154,11 @@ data for the commit that touches it.
   step 3's suite runs, removed again. The three tests this slice wrote
   hold theirs in a guard; the rest is for the packet's later change to
   one harness module per crate, where one guard serves every test.
-- The standing rule's "Build before you run" bullet is owner-approved
-  text (2026-09-09); step 4 changed what it describes and proposes this
-  wording for approval, unedited in `LIVE-TESTING.md` (1233 B against the
-  current 848 B; the file would stand at 9350 of 15000): "**Build before
-  you run; the run record maps both binaries to HEAD.** Neither binary
-  carries a commit. Two values say which code ran (C84): the
-  shared-contract revision — a digest over the protocol and store
-  sources, which `acq version --json` prints as `contract` — and the
-  daemon artifact, the SHA-256 of the `acqd` file, which the daemon
-  reports in `hello`, its startup identity line and the journal header
-  (`daemon`). A driver (`tools/preflight.sh`) refuses a dirty tree and a
-  running daemon, builds (`cargo build --workspace --locked`), writes
-  `provenance.json` — HEAD, tree state, version, contract, the SHA-256
-  of `acq` and of `acqd`, toolchain — into the run directory before any
-  wire phase, and after the run holds every journal header to the
-  `acqd` hash; by hand, a clean tree, `cargo build --workspace`, then
-  run, and the ledger row names HEAD. Never rebuild `target/debug/acq`
-  or `acqd` under a live daemon without `acq daemon stop` first (rung 8
-  ran 34 h on a binary that predated the fix it was restarted to pick
-  up); a rebuilt `acqd` under a live daemon is an artifact mismatch the
-  next job command resolves by respawning. Reworded 2026-09-10 for the
-  two identities; owner-approved."
+- The standing rule's "Build before you run" bullet: reworded for the
+  two identities in `LIVE-TESTING.md` (1233 B; the file at 9350 of
+  15000). Presented as the record's proposal after round 15, explained
+  in plain terms; the owner, 2026-09-11, verbatim: "Ok, this makes
+  sense. approved."
 - The help strings step 4 wrote — `acq version`, `acq daemon status`,
   `acq daemon stop`, the MCP's `daemon_status` — are in the regenerated
   `CLI-REFERENCE.md` and `MCP-REFERENCE.md` for the owner's approval

@@ -60,19 +60,24 @@ Replaces the preconditions and the "new hypothesis first" requirement.
   (since the `/profile` 403 of 2026-08-30). Routes known not to accept HEAD
   skip the probe (`route_probes` in `daemon.rs`) and are taught by
   their first GET instead.
-- **Build before you run; the run record maps the binary to HEAD.** The
-  binary carries no commit: `acq version --json` prints its runtime
-  revision (a digest over the daemon's sources, C10), and the journal
-  header and first log line say the same. A driver (`tools/preflight.sh`)
-  refuses a dirty tree and a running daemon, builds (`cargo build
-  --locked`), and writes `provenance.json` — HEAD, tree state, version,
-  runtime revision, the executable's SHA-256, toolchain — into the run
-  directory before any wire phase; by hand, a clean tree, `cargo build`,
-  then run, and the ledger row names HEAD. Never
-  rebuild `target/debug/acq` under a live daemon without `acq daemon
-  stop` first (rung 8 ran 34 h on a binary that predated the fix it was
-  restarted to pick up). Reworded 2026-09-09 for the runtime revision;
-  owner-approved.
+- **Build before you run; the run record maps both binaries to HEAD.**
+  Neither binary carries a commit. Two values say which code ran (C84):
+  the shared-contract revision — a digest over the protocol and store
+  sources, which `acq version --json` prints as `contract` — and the
+  daemon artifact, the SHA-256 of the `acqd` file, which the daemon
+  reports in `hello`, its startup identity line and the journal header
+  (`daemon`). A driver (`tools/preflight.sh`) refuses a dirty tree and a
+  running daemon, builds (`cargo build --workspace --locked`), writes
+  `provenance.json` — HEAD, tree state, version, contract, the SHA-256
+  of `acq` and of `acqd`, toolchain — into the run directory before any
+  wire phase, and after the run holds every journal header to the
+  `acqd` hash; by hand, a clean tree, `cargo build --workspace`, then
+  run, and the ledger row names HEAD. Never rebuild `target/debug/acq`
+  or `acqd` under a live daemon without `acq daemon stop` first (rung 8
+  ran 34 h on a binary that predated the fix it was restarted to pick
+  up); a rebuilt `acqd` under a live daemon is an artifact mismatch the
+  next job command resolves by respawning. Reworded 2026-09-10 for the
+  two identities; owner-approved.
 
 Every job kind has had first contact as of 2026-08-30 (`RUN-LEDGER.md`:
 `profile`, `leagues`, `character`; `leagues` was routed to `/league` until
