@@ -1,9 +1,8 @@
-//! The planner: policy compilation and Plan construction (CONTEXT.md,
-//! decided 2026-08-31). This crate turns a neutral store snapshot
-//! ([`acquisition_store::RefreshSnapshot`] — facts and intent named together,
-//! nothing derived) plus the sync policy into a [`RefreshPlan`]: a
-//! serializable, immutable authorization envelope, computable with the
-//! daemon down.
+//! The planner: policy compilation and Plan construction (C39). This crate
+//! turns a neutral store snapshot ([`acquisition_store::RefreshSnapshot`] —
+//! facts and intent named together, nothing derived) plus the sync policy
+//! into a [`RefreshPlan`]: a serializable, immutable authorization
+//! envelope, computable with the daemon down.
 //!
 //! Boundaries this crate holds (each a registry decision, cited by id):
 //! - C39: it is linked by **frontends only**, never the daemon — the
@@ -243,7 +242,7 @@
 //!   each authorize their own `list_characters` — the same register as two
 //!   realm plans listing separately; v1 lives with it.
 
-// The lint ratchet (CONTEXT.md, "Panics are for broken internal invariants
+// The lint ratchet (C47, "Panics are for broken internal invariants
 // only"): the planner's production code panics on nothing external — a
 // user-authored policy value or a store row is a structured error.
 #![cfg_attr(not(test), deny(clippy::unwrap_used, clippy::expect_used))]
@@ -302,7 +301,7 @@ pub const REFRESH_PLAN_SCHEMA: i64 = 6;
 /// absent) plus no character coverage.
 pub const SYNC_POLICY_VERSION: i64 = 3;
 
-/// A planner failure with a stable kind (CONTEXT.md: malformed external
+/// A planner failure with a stable kind (C47: malformed external
 /// input is a structured error, never a panic and never a bare string).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PlanError {
@@ -830,7 +829,7 @@ pub enum CharacterSkipReason {
     AwaitingListing,
     /// The listing gave this character no league, so no (realm, league)
     /// policy can cover it; reported by every league plan of the realm
-    /// (CONTEXT.md, 2026-09-02: uncovered, never a failure).
+    /// (C61: uncovered, never a failure).
     NoLeague,
     /// The listing flags it deleted: not fetched — a 404 hunt counts
     /// against the invalid-request threshold.
@@ -883,7 +882,7 @@ pub enum RefreshAction {
     /// row), `name` the address the request takes — the listed name, the
     /// one combination guaranteed to fetch. A name that moved fails its
     /// child honestly or lands a different id; the next listing
-    /// reconciles (CONTEXT.md, 2026-09-02).
+    /// reconciles (C55).
     FetchCharacter {
         realm: Realm,
         league: String,
@@ -1154,7 +1153,7 @@ impl RefreshPlan {
 }
 
 /// Why a plan must not be spent — the step-7 staleness/identity gate
-/// (CONTEXT.md, decided 2026-09-01), shared by every frontend's apply
+/// (C44), shared by every frontend's apply
 /// surface. A plan is authorization *derived from intent at a revision*;
 /// intent edited since revokes the derivation, and a plan for another
 /// identity is never spent here. Fact drift deliberately does not refuse:
@@ -1736,7 +1735,7 @@ fn tab_verdict(tab: &TabSnapshot, max_age: i64, now: i64) -> Result<FetchReason,
 }
 
 /// Fetch or skip, for one covered, listed, league-bearing, live character.
-/// The character's own arms (CONTEXT.md, 2026-09-02): a listing newer
+/// The character's own arms (C62): a listing newer
 /// than our fetch reporting a different `experience` proves play since —
 /// judged only when both the entry and the fetched body carry it; and
 /// the listing's league (the row's, listing-owned) differing from the

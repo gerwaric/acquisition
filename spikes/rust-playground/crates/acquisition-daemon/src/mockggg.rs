@@ -344,10 +344,10 @@ fn classify_data_path(path: &str) -> Option<DataRoute<'_>> {
 
 /// `GET /character[/realm]`. The mock account plays PoE1 on pc and has
 /// one PoE2 character; the console realms list nothing. Each entry's
-/// `realm` field says the realm it was listed under — a hypothesis for
-/// PoE2 (the docs give the field as `pc|xbox|sony`), open until the
-/// first PoE2 body is seen live (CONTEXT.md, "Characters in the refresh
-/// plan").
+/// `realm` field says the realm it was listed under, as live: the docs
+/// give the field as `pc|xbox|sony`, and a PoE2 listing reports `poe2`
+/// (N42, observed 2026-09-02; the store stamps the request's realm
+/// regardless, C60).
 fn mock_character_list(realm: acquisition_protocol::realm::Realm) -> serde_json::Value {
     use acquisition_protocol::realm::Realm;
     // `experience` rides on every entry as it does live (59 of 59 on the

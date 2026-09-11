@@ -246,7 +246,7 @@ pub fn tabs(realm: Realm, league: &str, json: bool) -> Result<()> {
 /// `acq store characters`: the characters on record, from the shared
 /// store (no daemon, no network) — the CLI's twin of the MCP `characters`
 /// tool. The readable columns first; the full id last (policy ids match
-/// exactly, CONTEXT.md 2026-09-02, so it is never cut).
+/// exactly, C55, so it is never cut).
 pub fn characters(realm: Option<Realm>, league: Option<&str>, json: bool) -> Result<()> {
     let store = open()?;
     let characters = store.characters(realm.map(Realm::as_str), league)?;

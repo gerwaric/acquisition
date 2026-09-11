@@ -22,7 +22,7 @@ use anyhow::{Result, bail};
 use clap::{Parser, Subcommand};
 use serde_json::json;
 
-/// `--realm`: the coordinate above league (CONTEXT.md, 2026-09-02). pc by
+/// `--realm`: the coordinate above league (C58). pc by
 /// default, as on the wire; a typo is refused by clap before any daemon
 /// or store is touched.
 fn parse_realm(s: &str) -> Result<Realm, String> {

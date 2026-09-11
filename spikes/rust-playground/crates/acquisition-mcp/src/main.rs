@@ -13,14 +13,14 @@
 //! - **It never spawns a daemon in real-GGG mode.** A real-mode daemon is
 //!   a human's act, via the CLI (it needs the keychain and the browser);
 //!   the MCP talks to the one that is running or reports that none is.
-//!   Agent traffic against GGG itself is allowed (owner ruling 2026-09-01,
-//!   CONTEXT.md): humans, scripts and agents are all clients of the one
+//!   Agent traffic against GGG itself is allowed (C14, the owner's ruling
+//!   of 2026-09-01): humans, scripts and agents are all clients of the one
 //!   daemon, and the daemon is the single gate that enforces GGG's rules.
 //!
 //! The refresh tracer's plan slice (step 8) is exposed as tools —
 //! `sync_policy` / `set_sync_policy` (intent), `refresh_plan`
 //! (derivation), `apply_plan` (effect) — through the same shared
-//! semantics the CLI uses (`acquisition-plan`: validate-then-CAS policy
+//! semantics the CLI uses (C46; `acquisition-plan`: validate-then-CAS policy
 //! writes, the validating plan parse, the step-7 staleness gate).
 //! Mode rules for the slice: intent reads/writes and offline plan
 //! compilation send nothing and work in either mode (a policy write must

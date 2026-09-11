@@ -8,10 +8,13 @@
 //!
 //! This crate knows nothing about job semantics (what `running` means for
 //! a restart, which kinds are per-lifetime); it stores rows and hands them
-//! back. Those decisions are the daemon's (`CONTEXT.md`, "The job queue
-//! persists"). Ids come from `AUTOINCREMENT`, so an id is never reused even
-//! after its row is pruned: a stale `acq result <id>` names nothing rather
-//! than a different job.
+//! back. Those decisions are the daemon's (C6). Ids come from
+//! `AUTOINCREMENT`, so an id is never reused even after its row is pruned:
+//! a stale `acq result <id>` names nothing rather than a different job.
+//!
+//! The daemon is this table's only reader and writer: a frontend asks the
+//! daemon (`acq jobs`, `acq result`) and never opens `daemon.db`. The
+//! read-only facade C45 rules for frontends is unbuilt.
 
 use std::path::{Path, PathBuf};
 

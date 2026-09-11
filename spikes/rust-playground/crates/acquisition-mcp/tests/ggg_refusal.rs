@@ -1,11 +1,11 @@
 //! The one real-GGG-mode rule left at the MCP boundary after the agent
-//! traffic ruling (CONTEXT.md, 2026-09-01: agents may use the gate; the
-//! daemon enforces GGG's rules): `acq-mcp` **never spawns a daemon in ggg
-//! mode**. A real-mode daemon is a human's act via the CLI (keychain,
-//! browser). Pinned in the mode it protects, with nothing else present —
-//! no daemon, no store, no login — so the spending tools must fail by
-//! reporting the absent daemon, and the scratch socket must never come
-//! into existence (a regression that lazy-spawned here would create it).
+//! traffic ruling (C14: agents may use the gate; the daemon enforces
+//! GGG's rules): `acq-mcp` **never spawns a daemon in ggg mode**. A
+//! real-mode daemon is a human's act via the CLI (keychain, browser).
+//! Pinned in the mode it protects, with nothing else present — no daemon,
+//! no store, no login — so the spending tools must fail by reporting the
+//! absent daemon, and the scratch socket must never come into existence
+//! (a regression that lazy-spawned here would create it).
 
 mod harness;
 

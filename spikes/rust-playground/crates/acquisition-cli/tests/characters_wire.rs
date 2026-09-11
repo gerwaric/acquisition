@@ -3,8 +3,7 @@
 //! TESTING-NOTES.md): a real daemon over the in-process mock, a scripted
 //! browserless login, and the CLI as the only interface. The planner's
 //! unit tests pin the plan; this pins what applying a character-only
-//! PoE2 policy actually sends and files (CONTEXT.md, "Characters in the
-//! refresh plan", 2026-09-02):
+//! PoE2 policy actually sends and files (C55–C62, ruled 2026-09-02):
 //!
 //! - a poe2 entry covering characters only is the ordinary v3 shape, and
 //!   its plan is the realm's character listing alone, then the fetch;

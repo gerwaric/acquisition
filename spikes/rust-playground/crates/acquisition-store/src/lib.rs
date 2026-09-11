@@ -1,7 +1,8 @@
 //! The shared store: one SQLite file per account (under one directory per
 //! provider), written by the daemon as API responses land and read directly
-//! by every frontend (CLI, GUI, MCP). `index` is the non-secret list of
-//! accounts that names those files.
+//! by every frontend (CLI, GUI, MCP) — a library and a file, never a
+//! process (C28). `index` is the non-secret list of accounts that names
+//! those files.
 //!
 //! The daemon's whole contract is [`Store::record`]: endpoint, params, status,
 //! body. It never looks inside a body. Inside this crate, a body is kept
@@ -17,8 +18,8 @@
 //! `json`, so a wrong extraction is repaired by re-extracting, never by
 //! refetching.
 //!
-//! Facts are one of four layers (CONTEXT.md, 2026-08-31); `annotations` is
-//! the intent layer, the only irreplaceable local state.
+//! Facts are one of four layers (C34); `annotations` is the intent layer,
+//! the only irreplaceable local state (C35).
 //!
 //! # As built
 //!
@@ -184,9 +185,10 @@
 //! **The store's realm is the request's realm**, stamped from the params
 //!   (the listing's or the fetch's), not the entry's `realm` field: the
 //!   docs give that field as `pc|xbox|sony` while the endpoint accepts
-//!   `poe2` (a contradiction, open until a PoE2 body is seen; the field
-//!   stays verbatim in the json). Observed: a pc list's 59 entries all
-//!   carry `realm: "pc"`. The address a plan renders is (request realm,
+//!   `poe2` (a contradiction the wire settled: PoE2 entries report
+//!   `poe2`, N42; the field stays verbatim in the json). Observed: a pc
+//!   list's 59 entries all carry `realm: "pc"` and a poe2 list's 6 all
+//!   carry `realm: "poe2"`. The address a plan renders is (request realm,
 //!   listed name) — the one combination guaranteed to fetch. Whether a
 //!   list spans realms is undocumented; the removal rule is realm-scoped
 //!   (a realm-R listing retires only realm-R characters it did not stamp):
@@ -295,7 +297,7 @@
 //! GGG item id and doubles the entry); keep refusing (no PoE2 character
 //! with a granting weapon would ever land).
 
-// The lint ratchet (CONTEXT.md, "Panics are for broken internal invariants
+// The lint ratchet (C47, "Panics are for broken internal invariants
 // only"): the store crate's production code panics on nothing external — a
 // malformed body, row, or file is a structured error. Tests may unwrap.
 #![cfg_attr(not(test), deny(clippy::unwrap_used, clippy::expect_used))]
@@ -311,7 +313,7 @@ use serde_json::{Value, json};
 const SCHEMA: &str = include_str!("schema.sql");
 
 /// The fact-file schema this build reads and writes; a file stamped newer
-/// is refused (CONTEXT.md: schema versions and compatibility errors, never
+/// is refused (C48: schema versions and compatibility errors, never
 /// guessing). Version 2 added `tabs.listed_json` / `tabs.listed_response`;
 /// version 3 added `realm` (the coordinate above league, 2026-09-02) to
 /// `tabs` (rekeyed `(realm, league, id)` — the table is rebuilt, every
@@ -1041,7 +1043,7 @@ impl Store {
             Endpoint::Characters { realm } => {
                 // A 2xx body without a `characters` array is malformed
                 // input, not an empty account: treating it as empty would
-                // remove every character (CONTEXT.md: malformed external
+                // remove every character (C47: malformed external
                 // input is a structured error). An empty array is fine.
                 let Some(list) = body.get("characters").and_then(Value::as_array) else {
                     return Err(MalformedBody::new("characters", "a `characters` array").into());
@@ -1090,8 +1092,8 @@ impl Store {
                     return Err(MalformedBody::new("character", "a `character` object").into());
                 };
                 // The body's id keys the row — a 200 under a stale name is
-                // a true fact about whoever holds that name now (CONTEXT.md:
-                // no expected-id check); without an id there is no row to
+                // a true fact about whoever holds that name now (C55: no
+                // expected-id check); without an id there is no row to
                 // file it under.
                 let Some(id) = character
                     .get("id")
@@ -1225,7 +1227,7 @@ impl Store {
                 // A 2xx body without a `stashes` array is malformed input,
                 // not an empty account: treating it as empty would remove
                 // every listed tab and mint a false listing basis for later
-                // snapshots (CONTEXT.md: malformed external input is a
+                // snapshots (C47: malformed external input is a
                 // structured error). An empty array is fine.
                 let Some(list) = body.get("stashes").and_then(Value::as_array) else {
                     return Err(MalformedBody::new("stashes", "a `stashes` array").into());
@@ -1405,8 +1407,7 @@ impl Store {
             // A character this listing did not stamp is gone (deleted).
             // Realm-scoped: whether a list spans realms is undocumented,
             // so a realm-R listing retires only realm-R rows — under-
-            // retires if lists span realms, never over-retires
-            // (CONTEXT.md, 2026-09-02).
+            // retires if lists span realms, never over-retires (C60).
             let mut stmt = tx.prepare(
                 "UPDATE characters SET removed_at = ?2 WHERE realm = ?1 AND removed_at IS NULL
                    AND (listed_response IS NULL OR listed_response <> ?3)
@@ -3036,7 +3037,7 @@ mod tests {
         );
     }
 
-    /// Realm is the coordinate above league (CONTEXT.md, 2026-09-02): the
+    /// Realm is the coordinate above league (C58): the
     /// same league and tab id under two realms are two rows, a listing
     /// retires only its own realm's tabs, items carry the request's
     /// realm, and a character listing never retires another realm's.
@@ -3130,11 +3131,11 @@ mod tests {
         assert_eq!(s.characters(Some("poe2"), None).unwrap().len(), 1);
     }
 
-    /// Identity is the id; the name is the address (CONTEXT.md,
-    /// 2026-09-02): a rename keeps the row and its items (no false moves),
-    /// a deleted-and-recreated name is a new row that has never been
-    /// fetched with the old one retired, the listing owns `league`, and a
-    /// fetched body without an id has no row to land on.
+    /// Identity is the id; the name is the address (C55): a rename keeps
+    /// the row and its items (no false moves), a deleted-and-recreated
+    /// name is a new row that has never been fetched with the old one
+    /// retired, the listing owns `league`, and a fetched body without an
+    /// id has no row to land on.
     #[test]
     fn the_character_key_is_the_id_and_the_name_is_the_address() {
         let mut s = Store::open_memory().unwrap();

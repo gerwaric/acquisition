@@ -1,15 +1,17 @@
-//! The header-driven rate limiter and the choke point in front of it.
+//! The header-driven rate limiter (C17) and the choke point in front of it.
 //!
 //! Source of truth for every rule here is `docs/design/network-ground-truth.md`,
 //! cited by claim number (N…/Q…/P-…). The limiter knows nothing except what
 //! GGG's responses told it (invariant 2): the last `X-Rate-Limit-*` headers
 //! per policy plus when recent responses arrived. There is no local token
-//! counting. The tests at the bottom are the spec — a table of "these
-//! headers + this history → wait this long".
+//! counting. The tests at the bottom are the spec (C33) — a table of
+//! "these headers + this history → wait this long". The frozen C++ design
+//! is a property source, not a template (C22): its properties hold here
+//! with the three adaptations that entry records.
 //!
 //! `ChokePoint` is invariant 1 made structural: it privately owns the
-//! workspace's only `reqwest::Client`, so nothing can send a request without
-//! first asking the limiter, and every response is observed by it.
+//! workspace's only `reqwest::Client` (C15), so nothing can send a request
+//! without first asking the limiter, and every response is observed by it.
 //!
 //! Endpoints are discovered by a HEAD probe before their first real send
 //! (N16's sanctioned pattern; N24: HEADs report the policy without counting),

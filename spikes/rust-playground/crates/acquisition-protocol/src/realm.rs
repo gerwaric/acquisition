@@ -1,4 +1,4 @@
-//! Realm: the coordinate above league (CONTEXT.md, decided 2026-09-02).
+//! Realm: the coordinate above league (C58).
 //!
 //! PoE2 shares league names with PoE1 (`Standard` exists in both), so a
 //! league alone does not locate anything. On the wire the realm is a path

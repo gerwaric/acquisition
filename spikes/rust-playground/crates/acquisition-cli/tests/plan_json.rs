@@ -2,7 +2,7 @@
 //! surface (C44 end to end: a moved policy revision refuses apply with
 //! the remedy named; C38: a tampered envelope never reaches the daemon;
 //! C41: plan and no-op apply run with no daemon at all — `ACQ_NO_SPAWN`
-//! makes any contact an error): the CLI is itself an API (CONTEXT.md),
+//! makes any contact an error): the CLI is itself an API (C11),
 //! step 7's apply will consume `refresh --plan --json`, and only a spawned
 //! binary can prove what actually lands on stdout — the in-process tests
 //! cannot see it.

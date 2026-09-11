@@ -312,7 +312,7 @@ impl Rails {
             // A persisted trip belongs to the tripwire: a daemon started
             // without it (the post-baseline default) neither honors nor
             // deletes it. The refresh-failed mark is product behavior
-            // (CONTEXT.md: a rejected grant is terminal) and is honored by
+            // (C24: a rejected grant is terminal) and is honored by
             // every daemon.
             if config.tripwire {
                 state.tripped = persisted.tripped;
@@ -488,7 +488,7 @@ impl Rails {
     /// `cause` is persisted to disk: callers pass a status and a fixed
     /// reason, never a response body (CONTEXT invariant 5). Not gated on
     /// the tripwire: a rejected `refresh_token` grant is terminal by
-    /// decision (CONTEXT.md, 2026-08-24), so this is product behavior
+    /// decision (C24), so this is product behavior
     /// rather than a ladder rail. Returns whether the mark was newly set.
     pub fn mark_refresh_failed(&self, account: &str, cause: &str) -> bool {
         let mut s = self.state.lock().unwrap();

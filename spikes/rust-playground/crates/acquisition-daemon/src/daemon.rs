@@ -1,4 +1,6 @@
-//! The daemon: single job queue, single worker, JSON-lines Unix socket server.
+//! The daemon: single job queue, single worker, JSON-lines Unix socket
+//! server. It owns the shared state and clients reach it over local IPC
+//! (C2); every API request is a job, never a call (C4).
 //!
 //! Lifecycle follows the gpg-agent model: clients spawn it on demand, it exits
 //! on its own after a stretch with no connections and no live jobs.
@@ -311,9 +313,9 @@ struct Entry {
 }
 
 impl Entry {
-    /// The row `daemon.db` holds for this job (`CONTEXT.md`, "The job
-    /// queue persists"): `JobInfo` column for column plus the fields a
-    /// restart needs. `eta_seconds` is a prediction, never stored.
+    /// The row `daemon.db` holds for this job (C6): `JobInfo` column for
+    /// column plus the fields a restart needs. `eta_seconds` is a
+    /// prediction, never stored.
     fn row(&self, now: i64) -> JobRow {
         let json = |o: &Outcome| serde_json::to_value(o).unwrap_or(Value::Null);
         JobRow {
@@ -505,7 +507,7 @@ struct RefreshFlight {
 }
 
 /// A login whose token exchange succeeded but whose profile fetch has not
-/// landed the uuid yet (CONTEXT.md, identity decision). Held *outside* the
+/// landed the uuid yet (C50). Held *outside* the
 /// session map: the previously live session for the same account keeps
 /// serving its jobs untouched, and no client lookup can reach these tokens
 /// — only the profile route hands them out (`staged_profile_token`). A
@@ -541,9 +543,9 @@ struct AuthSession {
     next_refresh_flight: u64,
 }
 
-/// Every live session, by account. One daemon, many sessions (CONTEXT.md,
-/// "Multi-account design"): the daemon holds no default — a caller names
-/// the account, or there is exactly one.
+/// Every live session, by account. One daemon, many sessions (C31): the
+/// daemon holds no default (C51) — a caller names the account, or there
+/// is exactly one.
 #[derive(Default)]
 struct Sessions {
     by_account: HashMap<String, AuthSession>,
@@ -1001,14 +1003,14 @@ impl Daemon {
         self.queue_failure.lock().unwrap().clone()
     }
 
-    /// Take the previous lifetime's open jobs from `daemon.db`
-    /// (`CONTEXT.md`, "The job queue persists"): waiting jobs resume; a
-    /// running one is re-queued only where the replay premise holds — a
-    /// probe will read GGG's current counters before the send. Two
-    /// exceptions: a running job on a declared no-probe route would send
-    /// blind, so it fails as interrupted instead; and a running parent
-    /// whose children exist is mid-fan-out (its held result was not yet
-    /// written) — re-running it would submit a duplicate child set, so it
+    /// Take the previous lifetime's open jobs from `daemon.db` (C6):
+    /// waiting jobs resume; a running one is re-queued only where the
+    /// replay premise holds — a probe will read GGG's current counters
+    /// before the send. Two exceptions: a running job on a declared
+    /// no-probe route would send blind, so it fails as interrupted
+    /// instead; and a running parent whose children exist is mid-fan-out
+    /// (its held result was not yet written) — re-running it would submit
+    /// a duplicate child set, so it
     /// is held for its existing children with a synthetic result. A parent
     /// whose held result was written keeps holding it; probes are per
     /// lifetime and dropped. An open parent's finished children come back
@@ -1473,7 +1475,7 @@ resubmit if still wanted",
         account: Option<String>,
     ) -> Result<JobId, Refusal> {
         // An `apply` is admitted or refused whole, before a job id exists
-        // (CONTEXT.md, decided 2026-09-01): vocabulary and budget checked
+        // (C43): vocabulary and budget checked
         // here, so a refusal admits nothing. A realm a kind's family does
         // not take is refused the same way, before an id exists.
         if kind == "apply" {
@@ -2720,7 +2722,7 @@ resubmit if still wanted",
             .map(|st| (st.access_token.clone(), st.username.clone()))
     }
 
-    /// The second half of a login (CONTEXT.md, identity decision): submit a
+    /// The second half of a login (C50): submit a
     /// profile job as the staged account — causal service of the client's
     /// `acq auth` — and register the session only when the uuid lands.
     /// Any failure fails the login whole: the staged tokens are dropped and
@@ -3019,7 +3021,7 @@ resubmit if still wanted",
                     ));
                 }
             };
-            // A grant the provider already rejected is terminal (CONTEXT.md):
+            // A grant the provider already rejected is terminal (C24):
             // it is not sent again until login or logout replaces it.
             if let Some(cause) = self.rails().refresh_failed(&username) {
                 return Err(Refusal::new(
@@ -3897,9 +3899,9 @@ resubmit if still wanted",
 /// Realm admission: a kind in a realm family (`acquisition_protocol::realm`) must name a
 /// realm that family takes — or none, meaning pc. Runs at submit for
 /// every kind and per tuple inside `validate_apply`, so a job that would
-/// render a stash URL under `poe2` never gets an id (CONTEXT.md,
-/// 2026-09-02: no code path renders an unobserved URL shape). Kinds
-/// outside the families ignore the param.
+/// render a stash URL under `poe2` never gets an id (C59: no code path
+/// renders an unobserved URL shape). Kinds outside the families ignore
+/// the param.
 fn admit_realm(kind: &str, params: &Value) -> Result<(), Refusal> {
     let family = match kind {
         "characters" | "character" => Family::Characters,
@@ -3996,8 +3998,7 @@ fn fan_out_stopped(cancelled: bool, submitted: usize, why: &str) -> Outcome {
 impl Daemon {
     /// Whether any job keeps the daemon up. A halted daemon's waiting jobs
     /// do not: they are on disk, and its successor holds them until the
-    /// reset (`CONTEXT.md`, "A rails halt leaves queued network jobs
-    /// waiting"). A parent holding its result runs no task of its own.
+    /// reset (C25). A parent holding its result runs no task of its own.
     fn has_live_jobs(s: &Shared, halted: bool) -> bool {
         s.jobs.values().any(|e| match e.info.state {
             JobState::Running => e.deferred.is_none() || !halted,
@@ -4738,7 +4739,7 @@ mod auth_session_tests {
         (daemon, credential_store, log_path)
     }
 
-    /// Realm on the wire (CONTEXT.md, 2026-09-02): pc is omitted, so a pc
+    /// Realm on the wire (C58, C59): pc is omitted, so a pc
     /// URL and route label are byte-identical whether the param is absent
     /// or explicit — every live send so far stays the same; any other
     /// realm is a segment before the league or name on the URL and a
@@ -7101,7 +7102,7 @@ mod dispatcher_tests {
     }
 
     /// C43 — admission is vocabulary, not meaning, at submit before a job id exists; C42 — a logical bound over `max_requests` refuses whole, nothing submitted.
-    /// Apply's admission (CONTEXT.md, decided 2026-09-01): vocabulary and
+    /// Apply's admission (C43): vocabulary and
     /// budget are checked at submit, before a job id exists, so a refusal
     /// admits nothing — never a partial fan-out, and ids never advance.
     #[tokio::test]
@@ -7260,7 +7261,7 @@ mod dispatcher_tests {
         let _ = std::fs::remove_file(&log_path);
     }
 
-    // ---- tracer step 2: uuid-at-login (CONTEXT.md, identity decision) ----
+    // ---- tracer step 2: uuid-at-login (C50) ------------------------------
 
     fn login_tokens(access: &str, user: &str) -> auth::TokenResponse {
         auth::TokenResponse {
@@ -7811,8 +7812,7 @@ mod dispatcher_tests {
     async fn tripped_daemon_leaves_queued_jobs_waiting_until_reset() {
         // HEAD establishes, the first GET lands a 429 (tripping). Nothing
         // else reaches the server until the reset; then both queued jobs
-        // go out (CONTEXT.md, "A rails halt leaves queued network jobs
-        // waiting").
+        // go out (C25).
         let responses = vec![
             ScriptedResponse::full("HEAD", "204 No Content", None, ""),
             ScriptedResponse::full("GET", "429 Too Many Requests", Some(0), "{}"),
@@ -7922,7 +7922,7 @@ mod dispatcher_tests {
         finish_harness_wire(dispatcher, &log_path, &requests);
     }
 
-    // ---- persistence (CONTEXT.md, "The job queue persists") -------------
+    // ---- persistence (C6) ------------------------------------------------
 
     fn test_db_path() -> PathBuf {
         std::env::temp_dir().join(format!(

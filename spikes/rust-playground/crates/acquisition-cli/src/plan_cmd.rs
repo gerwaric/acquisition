@@ -6,13 +6,12 @@
 //! spawns one just to decorate output the planner computed with the
 //! daemon down.
 //!
-//! Text output follows the legibility ruling (CONTEXT.md, "Legible output
-//! for the refresh slice", 2026-09-02): one verdict line before detail,
-//! actions grouped by kind and parent and counted by reason (`--expand`
-//! lists every one), a failure that names the job, its target, the cause
-//! and where the evidence is, and the same renderer for a fresh compile
-//! and a reviewed file (`--plan=FILE`) — the text is a function of the
-//! envelope, which itself never changes for presentation.
+//! Text output follows the legibility ruling (C53): one verdict line
+//! before detail, actions grouped by kind and parent and counted by
+//! reason (`--expand` lists every one), a failure that names the job, its
+//! target, the cause and where the evidence is, and the same renderer for
+//! a fresh compile and a reviewed file (`--plan=FILE`) — the text is a
+//! function of the envelope, which itself never changes for presentation.
 //!
 //! # Decisions as recorded
 //!
@@ -488,7 +487,7 @@ impl StoreChanges {
     }
 }
 
-/// The step-7 staleness gate (CONTEXT.md, decided 2026-09-01), via the
+/// The step-7 staleness gate (C44), via the
 /// planner's shared [`RefreshPlan::check_spendable`]: a plan is spent only
 /// while the intent it derives from still stands, and only on the identity
 /// it names. The daemon is intent-blind, so the comparison happens
@@ -1368,7 +1367,7 @@ fn describe_action(action: &RefreshAction) -> String {
             listing_why(reason)
         ),
         // The full id: matching is exact, and a prefix cannot be pasted
-        // into a policy (CONTEXT.md, 2026-09-02).
+        // into a policy (C55).
         RefreshAction::FetchCharacter {
             id, name, reason, ..
         } => format!(

@@ -1,9 +1,9 @@
-//! Intent (annotations): the only irreplaceable local state (CONTEXT.md,
-//! decided 2026-08-31). Facts are refetchable at the cost of requests;
-//! intent has no server to refetch from, so it lives in its own per-account
-//! file — named by the account **uuid** (stable across renames), never the
-//! username — and is written only through this API, with integer-revision
-//! compare-and-swap so two frontends cannot silently clobber each other.
+//! Intent (annotations): the only irreplaceable local state (C35). Facts
+//! are refetchable at the cost of requests; intent has no server to
+//! refetch from, so it lives in its own per-account file — named by the
+//! account **uuid** (stable across renames), never the username — and is
+//! written only through this API, with integer-revision compare-and-swap
+//! so two frontends cannot silently clobber each other.
 //!
 //! No fact-side event ever deletes intent: an annotation whose item is
 //! removed is kept and surfaceable as orphaned

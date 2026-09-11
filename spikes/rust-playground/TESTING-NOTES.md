@@ -10,8 +10,7 @@ in git history — the file at `7aee76ee` holds the full text.
 
 `LIVE-TESTING.md` remains the control document for anything run against
 the real API; `CONTEXT.md` holds invariants and decisions, including the
-branch's status as the **reference implementation** and the rule that
-tests pin behavior at boundaries, never mechanisms.
+rule that tests pin behavior at boundaries, never mechanisms.
 
 ## Purpose
 

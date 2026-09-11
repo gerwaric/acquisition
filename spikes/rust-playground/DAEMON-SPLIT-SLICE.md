@@ -195,13 +195,14 @@ saturated backlog; the rails migration's merge; the legacy probe's
 bound), a line above, a doc comment at its mechanism, or a parked entry
 with a trigger:
 
-- `decisions/daemon.md`, "Parked": the unbounded handshake on the
-  world's socket; the protocol crate and C47's lint (the owner's call,
-  not ruled at close); one harness module per crate with the
-  `test-hooks` retirement (the daemon-owning tests' own `daemon_command`
-  each, the three symlink copies, the scratch-store leak of the older
-  test files); the packet's §5 parking lot, moved whole from the
-  disposable note.
+- `decisions/daemon.md`, "Parked": the packet's §5 parking lot, moved
+  whole from the disposable note. Three more were parked there at close
+  and have since landed: the unbounded handshake on the world's socket
+  (C86, `decda84e`); the protocol crate under C47's lint (`d302f438`);
+  one harness module per crate with the `test-hooks` retirement — the
+  daemon-owning tests' own `daemon_command` each, the three symlink
+  copies, the scratch-store leak of the older test files (`79e2d441`,
+  `3ff46a9e`).
 - `decisions/frontends.md`, "Parked": a watch that waits for the daemon
   to return; the standalone queue TUI; `Dashboard` reshaped; the error
   taxonomy beyond `kind`.

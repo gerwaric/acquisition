@@ -121,12 +121,12 @@ impl Index {
         self.entries.iter().find(|e| e.username == username)
     }
 
-    /// Record a completed login. The uuid is required at login (CONTEXT.md,
-    /// identity decision): a login only reaches the index once the profile
-    /// fetch delivered it. If the uuid is already listed under a different
-    /// username, the account was renamed — the entry follows the new name
-    /// (a mapping update; the uuid-named annotation file is untouched, the
-    /// old username-named fact file is orphaned and refetchable).
+    /// Record a completed login. The uuid is required at login (C50): a
+    /// login only reaches the index once the profile fetch delivered it.
+    /// If the uuid is already listed under a different username, the
+    /// account was renamed — the entry follows the new name (a mapping
+    /// update; the uuid-named annotation file is untouched, the old
+    /// username-named fact file is orphaned and refetchable).
     pub fn record_login(
         &mut self,
         username: &str,

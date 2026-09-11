@@ -11,14 +11,13 @@
 //! verbatim, and every `buyout` row raw at its revision — with no
 //! coverage, no parse, no relation. Policy compilation and price
 //! resolution live in `acquisition-plan`, never here — the store exposes
-//! neutral snapshots, "never half a planner" (CONTEXT.md, decided
-//! 2026-08-31; C39, C64).
+//! neutral snapshots, "never half a planner" (C39, C64).
 //!
-//! Liveness is settled here, not in the planner (CONTEXT.md, the
-//! 2026-09-02 review rounds): a row in the snapshot is live by the latest
-//! listing's say, `fetched_at` is `None` for a never-fetched *or revived*
-//! location, and the listed entry is the listing's verbatim. The planner
-//! reads those three facts and adds no liveness logic of its own.
+//! Liveness is settled here, not in the planner (C54): a row in the
+//! snapshot is live by the latest listing's say, `fetched_at` is `None`
+//! for a never-fetched *or revived* location, and the listed entry is the
+//! listing's verbatim. The planner reads those three facts and adds no
+//! liveness logic of its own.
 
 use anyhow::{Context, Result, bail};
 use rusqlite::OptionalExtension;
@@ -119,7 +118,7 @@ pub struct RefreshSnapshot {
     pub account_uuid: String,
     /// Display name beside the uuid, when the profile carried one.
     pub account_name: Option<String>,
-    /// The coordinate above league (CONTEXT.md, 2026-09-02): `Standard`
+    /// The coordinate above league (C58): `Standard`
     /// exists in both games, so facts are read per (realm, league).
     pub realm: String,
     pub league: String,
