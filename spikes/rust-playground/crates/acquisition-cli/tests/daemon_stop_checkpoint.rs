@@ -21,8 +21,9 @@ use serde_json::Value;
 fn command(base: &Path, args: &[&str]) -> Command {
     let mut cmd = Command::new(env!("CARGO_BIN_EXE_acq"));
     cmd.args(args)
-        .env("ACQ_SOCKET", base.join("d.sock"))
         .env("ACQ_STORE_DIR", base.join("store"))
+        .env("TMPDIR", scratch_tmp(base))
+        .env("XDG_RUNTIME_DIR", scratch_tmp(base))
         .env("ACQ_LOG_DIR", base.join("logs"))
         .env("ACQ_NO_KEYRING", "1")
         .env("ACQ_JOURNAL", "0");
@@ -145,11 +146,18 @@ fn daemon_stop_checkpoints_the_facts_file_and_the_queue() {
 
     let out = acq(&base, &["daemon", "stop"]);
     assert!(out.status.success(), "{out:?}");
-    // The daemon removes its socket last, after the checkpoint, then exits.
-    let socket = base.join("d.sock");
+    // The daemon checkpoints, removes its socket, then exits: wait until
+    // nothing answers on this world's socket any more.
     let deadline = Instant::now() + Duration::from_secs(10);
-    while socket.exists() {
-        assert!(Instant::now() < deadline, "the daemon did not exit");
+    loop {
+        let status = sole_json(&acq(&base, &["daemon", "status", "--json"]));
+        if status["running"] == Value::Bool(false) {
+            break;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "the daemon did not exit: {status}"
+        );
         std::thread::sleep(Duration::from_millis(20));
     }
     assert_eq!(
@@ -165,4 +173,17 @@ fn daemon_stop_checkpoints_the_facts_file_and_the_queue() {
         wal_len(&queue)
     );
     let _ = std::fs::remove_dir_all(&base);
+}
+
+/// The scratch temp and runtime directory of one test, under `base`:
+/// `TMPDIR` (macOS's runtime fallback and the legacy paths) and
+/// `XDG_RUNTIME_DIR` (Linux's runtime directory) both point here, so the
+/// sockets the daemons bind — and, for a daemon a test kills rather than
+/// stops, the socket files it leaves — never touch the user's own
+/// runtime directory (C83). Created here, since the runtime directory
+/// is made under an existing parent.
+fn scratch_tmp(base: &std::path::Path) -> std::path::PathBuf {
+    let tmp = base.join("tmp");
+    let _ = std::fs::create_dir_all(&tmp);
+    tmp
 }

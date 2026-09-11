@@ -13,7 +13,7 @@
 //!
 //! ## C6 — The job queue persists: a `jobs` table in a per-daemon `daemon.db` (SQLite, in the prov…
 //!
-//! **The job queue persists: a `jobs` table in a per-daemon `daemon.db` (SQLite, in the provider's store directory beside the account files), written through at every state change and read back at start.** Memory stays the runtime source of truth — the table is a mirror, "the HashMap, but it survives" — and the one thing read from it while the daemon runs is `result` for an id this lifetime never held (history, not state). On restore only open jobs are loaded (terminal rows carry bodies; a week of them does not belong in memory): `waiting` jobs resume; a `running` job is **re-queued** where the replay premise holds — every network kind is an idempotent GET and the restart probe reads GGG's current counters before it sends, so the duplicate costs one seen hit. Two exceptions (2026-08-30 review): on a declared **no-probe route** the premise fails — a replay would go out against an empty limiter — so the job fails as interrupted instead; and a running **parent whose children exist is mid-fan-out** (its held result was not yet written) — re-running it would submit a duplicate child set, so it holds for the children it has and then finishes as **interrupted, never success**: how many children were never submitted is unknowable, so a partial fan-out must not claim completeness (the children that did run recorded their responses; resubmitting completes the set). A parent whose held result was written resumes holding it; `probe` rows are dropped (one HEAD per lifetime, N16); ids continue from where they were (`AUTOINCREMENT`, never reused, so a stale `acq result <id>` can never name a different job) — a daemon that cannot open or read `daemon.db` refuses to start rather than risk reissuing them, and a queue **write** failure at runtime is sticky: a submit whose insert fails is refused with its id rolled back (a job exists only once its row does), later submits are refused outright, and the dispatcher stops picking while running jobs finish — **ids** never run ahead of disk. Completions are the accepted residual, stated plainly: a job already running when the flag trips finishes in memory but its outcome write fails, so disk still says running and the next daemon replays it (probed route: one seen duplicate hit; no-probe: fails as interrupted) — the send already happened, so refusing to finish it would record nothing at all. The same teeth apply per transition: a `waiting→running` write that fails reverts the job instead of running it (a send the queue cannot see must not happen), `cancel`/`set-priority` report a failed write instead of claiming success (the cancel still wins the job's terminal surface in this lifetime, though an already-running job may still complete its in-flight send — sends are committed once dispatched), and a `result` read failure is an error, never "no job". `submit_child` is refused once its parent is terminal or asked to cancel, under the lock `cancel` takes, so cancellation cannot race an active fan-out into submitting unseen children; a stopped fan-out finishes cancelled or failed, never as success over a partial set; a cancellation that lands after the last child is honored when the held result is installed, cancelled children never count toward a parent's success, and `finish` arbitrates a pending `cancel_requested` under the final lock — a cancel can land at any instant before terminalization and still win. Terminal rows stay so `acq result` has a memory across restarts (`acq jobs` lists live jobs only), pruned at start by age — `ACQ_JOB_RETENTION_DAYS` (default 7) for done/cancelled and `ACQ_FAILED_JOB_RETENTION_DAYS` (default 30) for failed, misread values logged as `CONFIG` errors like the rails knobs. Outcomes are stored verbatim, bodies included (a full refresh is ~50 MB, bounded by retention); compression was considered and deferred — it costs a crate and makes the column unreadable in `sqlite3`, and compressing one column later is a local change. **One daemon per store directory is the world lock (C83)**: since the daemon split's step 5 the daemon takes an exclusive lock on its world's root (`<root>/daemon.lock`, `acquisition_store::world::Lock`) before `daemon.db` opens and refuses to start naming the holder; two daemons on one `daemon.db` would each restore and run the same queue. Parallel mock daemons are parallel worlds (`ACQ_STORE_DIR=<scratch>` next to `ACQ_SOCKET`, the mock-session skill). Rationale: the queue was the one thing a restart lost once results moved to the store (2026-08-29); a mirror written under the same lock as the memory change keeps disk equal to memory at the `process::exit` the daemon leaves by (up to the declared write-failure residual above); SQLite because it is the crate's one persistence idiom, debuggable with `sqlite3`, and readable by a frontend without a daemon. Decided 2026-08-30.
+//! **The job queue persists: a `jobs` table in a per-daemon `daemon.db` (SQLite, in the provider's store directory beside the account files), written through at every state change and read back at start.** Memory stays the runtime source of truth — the table is a mirror, "the HashMap, but it survives" — and the one thing read from it while the daemon runs is `result` for an id this lifetime never held (history, not state). On restore only open jobs are loaded (terminal rows carry bodies; a week of them does not belong in memory): `waiting` jobs resume; a `running` job is **re-queued** where the replay premise holds — every network kind is an idempotent GET and the restart probe reads GGG's current counters before it sends, so the duplicate costs one seen hit. Two exceptions (2026-08-30 review): on a declared **no-probe route** the premise fails — a replay would go out against an empty limiter — so the job fails as interrupted instead; and a running **parent whose children exist is mid-fan-out** (its held result was not yet written) — re-running it would submit a duplicate child set, so it holds for the children it has and then finishes as **interrupted, never success**: how many children were never submitted is unknowable, so a partial fan-out must not claim completeness (the children that did run recorded their responses; resubmitting completes the set). A parent whose held result was written resumes holding it; `probe` rows are dropped (one HEAD per lifetime, N16); ids continue from where they were (`AUTOINCREMENT`, never reused, so a stale `acq result <id>` can never name a different job) — a daemon that cannot open or read `daemon.db` refuses to start rather than risk reissuing them, and a queue **write** failure at runtime is sticky: a submit whose insert fails is refused with its id rolled back (a job exists only once its row does), later submits are refused outright, and the dispatcher stops picking while running jobs finish — **ids** never run ahead of disk. Completions are the accepted residual, stated plainly: a job already running when the flag trips finishes in memory but its outcome write fails, so disk still says running and the next daemon replays it (probed route: one seen duplicate hit; no-probe: fails as interrupted) — the send already happened, so refusing to finish it would record nothing at all. The same teeth apply per transition: a `waiting→running` write that fails reverts the job instead of running it (a send the queue cannot see must not happen), `cancel`/`set-priority` report a failed write instead of claiming success (the cancel still wins the job's terminal surface in this lifetime, though an already-running job may still complete its in-flight send — sends are committed once dispatched), and a `result` read failure is an error, never "no job". `submit_child` is refused once its parent is terminal or asked to cancel, under the lock `cancel` takes, so cancellation cannot race an active fan-out into submitting unseen children; a stopped fan-out finishes cancelled or failed, never as success over a partial set; a cancellation that lands after the last child is honored when the held result is installed, cancelled children never count toward a parent's success, and `finish` arbitrates a pending `cancel_requested` under the final lock — a cancel can land at any instant before terminalization and still win. Terminal rows stay so `acq result` has a memory across restarts (`acq jobs` lists live jobs only), pruned at start by age — `ACQ_JOB_RETENTION_DAYS` (default 7) for done/cancelled and `ACQ_FAILED_JOB_RETENTION_DAYS` (default 30) for failed, misread values logged as `CONFIG` errors like the rails knobs. Outcomes are stored verbatim, bodies included (a full refresh is ~50 MB, bounded by retention); compression was considered and deferred — it costs a crate and makes the column unreadable in `sqlite3`, and compressing one column later is a local change. **One daemon per store directory is the world lock (C83)**: since the daemon split's step 5 the daemon takes an exclusive lock on its world's root (`<root>/daemon.lock`, `acquisition_store::world::Lock`) before `daemon.db` opens and refuses to start naming the holder; two daemons on one `daemon.db` would each restore and run the same queue. Parallel mock daemons are parallel worlds (`ACQ_STORE_DIR=<scratch>`, whose socket derives from it; the mock-session skill). Rationale: the queue was the one thing a restart lost once results moved to the store (2026-08-29); a mirror written under the same lock as the memory change keeps disk equal to memory at the `process::exit` the daemon leaves by (up to the declared write-failure residual above); SQLite because it is the crate's one persistence idiom, debuggable with `sqlite3`, and readable by a frontend without a daemon. Decided 2026-08-30.
 //!
 //! ## C23 — Work that needs many requests is a parent job that submits child jobs; a parent finishe…
 //!
@@ -112,7 +112,9 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime};
 
 use acquisition_store::jobs::{JobDb, JobRow, Retention};
-use acquisition_store::world::{Lock, World, legacy_rails_state_path, socket_path};
+use acquisition_store::world::{
+    Lock, World, app_runtime_dir, legacy_rails_state_path, legacy_socket_path,
+};
 use acquisition_store::{Endpoint, Index, Store, account_matches, account_path};
 use anyhow::Result;
 use serde_json::{Value, json};
@@ -796,6 +798,40 @@ impl Shared {
     }
 }
 
+/// The socket a daemon bound, with the file's identity at the time, so
+/// the exit path removes that file and not a successor's at the same
+/// path.
+struct BoundSocket {
+    path: PathBuf,
+    dev: u64,
+    ino: u64,
+}
+
+impl BoundSocket {
+    /// Identify the file just bound at `path`.
+    fn of(path: PathBuf) -> std::io::Result<BoundSocket> {
+        use std::os::unix::fs::MetadataExt;
+        let meta = std::fs::metadata(&path)?;
+        Ok(BoundSocket {
+            dev: meta.dev(),
+            ino: meta.ino(),
+            path,
+        })
+    }
+
+    /// Remove the socket file if it is still the one bound; leave a
+    /// successor's alone.
+    fn remove_if_still_ours(&self) {
+        use std::os::unix::fs::MetadataExt;
+        if let Ok(meta) = std::fs::symlink_metadata(&self.path)
+            && meta.dev() == self.dev
+            && meta.ino() == self.ino
+        {
+            let _ = std::fs::remove_file(&self.path);
+        }
+    }
+}
+
 pub struct Daemon {
     shared: Mutex<Shared>,
     /// On `Daemon`, not `Shared`, so `log`'s uptime prefix needs no lock:
@@ -824,6 +860,14 @@ pub struct Daemon {
     /// refused at start), never recomputed by a client from its own
     /// environment (review 2026-09-11). `None` in the in-process harness.
     log_path: Option<String>,
+    /// The socket this daemon bound (C83: derived from its world into the
+    /// runtime directory), removed when it exits — only while the path
+    /// still names the file this daemon bound: a successor on the same
+    /// world may have replaced it while this daemon was on its way out,
+    /// and its rendezvous must not be unlinked from under it (seen in a
+    /// rehearsal, 2026-09-11). `None` in the in-process harness, which
+    /// binds nothing.
+    socket_path: Option<BoundSocket>,
     /// The provider's store directory (`acquisition-store`): one file per
     /// account plus the account index. `None` in tests: nothing recorded.
     store_dir: Option<PathBuf>,
@@ -3821,7 +3865,9 @@ resubmit if still wanted",
             )),
             Err(e) => self.note_error(&format!("jobs: queue checkpoint on exit failed: {e:#}")),
         }
-        let _ = std::fs::remove_file(socket_path());
+        if let Some(socket) = &self.socket_path {
+            socket.remove_if_still_ours();
+        }
         std::process::exit(0);
     }
 
@@ -4230,7 +4276,27 @@ async fn run_with_log(
     }
     verify_state(&rails_state)?;
 
-    let path = socket_path();
+    // The rendezvous (C83, the split's step 6): the world's socket in the
+    // private per-user runtime directory, made here — the daemon is the
+    // one side that creates it; a client only verifies it.
+    app_runtime_dir().map_err(|e| anyhow::anyhow!("the runtime directory: {e}"))?;
+    let path = world
+        .socket_path()
+        .map_err(|e| anyhow::anyhow!("this world's socket: {e}"))?;
+    // For one transition: a daemon from before the derived socket, on the
+    // fixed legacy path, would be invisible to this build's clients while
+    // this daemon ran beside it — two daemons where a person sees one, and
+    // in real mode two GGG gates (a pre-step-5 daemon holds no lock).
+    // Refuse until it is stopped by hand; `acq daemon stop` finds it when
+    // the world's socket is silent. Parked for removal with the rails
+    // migration (`decisions/daemon.md`).
+    let legacy = legacy_socket_path();
+    if UnixStream::connect(&legacy).await.is_ok() {
+        anyhow::bail!(
+            "a daemon from before the rendezvous is listening on the legacy socket {} — `acq daemon stop` stops it (once; nothing binds there any more), then start again",
+            legacy.display()
+        );
+    }
     if path.exists() {
         // Live daemon or stale socket from a crash?
         if UnixStream::connect(&path).await.is_ok() {
@@ -4240,6 +4306,9 @@ async fn run_with_log(
     }
     let listener = UnixListener::bind(&path)
         .map_err(|e| anyhow::anyhow!("could not bind {}: {e}", path.display()))?;
+    let bound = BoundSocket::of(path.clone()).map_err(|e| {
+        anyhow::anyhow!("identifying the socket {} just bound: {e}", path.display())
+    })?;
 
     // Who this daemon is (C84): the executable it runs from, identified
     // and hashed once, before the journal opens — its header names the
@@ -4354,6 +4423,7 @@ async fn run_with_log(
         credential_store: Arc::new(OsCredentialStore),
         world: Some(world.name()),
         log_path: Some(log_path.clone()),
+        socket_path: Some(bound),
         store_dir: Some(dir.clone()),
         store: Mutex::new(None),
         jobs_db,
@@ -4680,6 +4750,7 @@ mod auth_session_tests {
             credential_store: credential_store.clone(),
             world: None,
             log_path: log_path.to_str().map(str::to_string),
+            socket_path: None,
             store_dir: None,
             store: Mutex::new(None),
             jobs_db: Mutex::new(JobDb::open_memory().unwrap()),
@@ -5974,6 +6045,7 @@ mod dispatcher_tests {
             credential_store,
             world: None,
             log_path: log_path.to_str().map(str::to_string),
+            socket_path: None,
             store_dir: None,
             store: Mutex::new(None),
             jobs_db: Mutex::new(JobDb::open_memory().unwrap()),

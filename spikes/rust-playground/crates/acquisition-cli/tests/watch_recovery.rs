@@ -26,8 +26,9 @@ use serde_json::{Value, json};
 fn command(base: &Path, args: &[&str]) -> Command {
     let mut cmd = Command::new(env!("CARGO_BIN_EXE_acq"));
     cmd.args(args)
-        .env("ACQ_SOCKET", base.join("d.sock"))
         .env("ACQ_STORE_DIR", base.join("store"))
+        .env("TMPDIR", scratch_tmp(base))
+        .env("XDG_RUNTIME_DIR", scratch_tmp(base))
         .env("ACQ_LOG_DIR", base.join("logs"))
         .env("ACQ_NO_KEYRING", "1")
         .env("ACQ_JOURNAL", "0")
@@ -111,8 +112,9 @@ fn acqd() -> PathBuf {
 /// the same isolation as `command`; its stdio to null, as a lazy spawn's.
 fn daemon_command(base: &Path, acqd: &Path) -> Command {
     let mut cmd = Command::new(acqd);
-    cmd.env("ACQ_SOCKET", base.join("d.sock"))
-        .env("ACQ_STORE_DIR", base.join("store"))
+    cmd.env("ACQ_STORE_DIR", base.join("store"))
+        .env("TMPDIR", scratch_tmp(base))
+        .env("XDG_RUNTIME_DIR", scratch_tmp(base))
         .env("ACQ_LOG_DIR", base.join("logs"))
         .env("ACQ_NO_KEYRING", "1")
         .env("ACQ_JOURNAL", "0")
@@ -275,8 +277,9 @@ fn c85_the_watch_subscribes_and_reads_again_after_it_lagged_with_no_leftover_eve
     // The in-process client below reads the socket from the environment;
     // this binary holds one test, so nothing else reads it.
     unsafe {
-        std::env::set_var("ACQ_SOCKET", base.join("d.sock"));
         std::env::set_var("ACQ_STORE_DIR", base.join("store"));
+        std::env::set_var("TMPDIR", scratch_tmp(&base));
+        std::env::set_var("XDG_RUNTIME_DIR", scratch_tmp(&base));
         std::env::set_var("ACQ_LOG_DIR", base.join("logs"));
         std::env::set_var("ACQ_NO_KEYRING", "1");
         for var in ["ACQ_GGG", "ACQ_ACCOUNT", "ACQ_NO_SPAWN"] {
@@ -350,4 +353,17 @@ fn c85_the_watch_subscribes_and_reads_again_after_it_lagged_with_no_leftover_eve
         }
         Item::Snapshot(jobs) => panic!("a second resync: {jobs:?}"),
     }
+}
+
+/// The scratch temp and runtime directory of one test, under `base`:
+/// `TMPDIR` (macOS's runtime fallback and the legacy paths) and
+/// `XDG_RUNTIME_DIR` (Linux's runtime directory) both point here, so the
+/// sockets the daemons bind — and, for a daemon a test kills rather than
+/// stops, the socket files it leaves — never touch the user's own
+/// runtime directory (C83). Created here, since the runtime directory
+/// is made under an existing parent.
+fn scratch_tmp(base: &std::path::Path) -> std::path::PathBuf {
+    let tmp = base.join("tmp");
+    let _ = std::fs::create_dir_all(&tmp);
+    tmp
 }

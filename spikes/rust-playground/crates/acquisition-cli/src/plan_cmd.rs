@@ -1845,15 +1845,22 @@ mod tests {
         // A socket that accepts connections and never answers the
         // handshake: the bounded quote attempt must hand back the offline
         // plan with the timeout named, not hang the command.
+        // The socket derives from the world (C83): a scratch root is this
+        // test's world, and the wedged listener binds where its daemon
+        // would.
         let dir = std::env::temp_dir().join(format!("acq-p6-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).unwrap();
-        let sock = dir.join("q.sock");
+        std::fs::create_dir_all(dir.join("store")).unwrap();
+        // SAFETY: this is the only test in the binary that touches
+        // ACQ_STORE_DIR, and nothing else in the test process reads it
+        // concurrently.
+        unsafe { std::env::set_var("ACQ_STORE_DIR", dir.join("store")) };
+        acquisition_store::world::app_runtime_dir().unwrap();
+        let sock = acquisition_store::world::World::observe()
+            .unwrap()
+            .socket_path()
+            .unwrap();
         let _ = std::fs::remove_file(&sock);
         let _listener = tokio::net::UnixListener::bind(&sock).unwrap();
-        // SAFETY: this is the only test in the binary that touches
-        // ACQ_SOCKET, and nothing else in the test process reads it
-        // concurrently.
-        unsafe { std::env::set_var("ACQ_SOCKET", &sock) };
         let plan = tiny_plan();
         // The outer watchdog outlives the tested bound on purpose: if the
         // production timeout is ever removed, this test must fail cleanly
@@ -1869,6 +1876,11 @@ mod tests {
         assert_eq!(back, plan, "the compiled plan must come back untouched");
         let note = note.expect("a timed-out quote must say why it is absent");
         assert!(note.contains("did not answer"), "{note}");
+        // The listener's file sits in the real runtime directory: take it
+        // with the test.
+        drop(_listener);
+        let _ = std::fs::remove_file(&sock);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     // ---- C53: decision, audit and contract views ----

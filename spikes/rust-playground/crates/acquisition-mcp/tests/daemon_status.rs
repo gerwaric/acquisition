@@ -45,7 +45,7 @@ fn c84_daemon_status_reports_the_identity_and_the_sibling_it_is_judged_against()
         json!({ "running": false })
     );
     assert!(
-        !base.join("d.sock").exists(),
+        harness::no_daemon_appeared(&base),
         "daemon_status spawned a daemon"
     );
 
@@ -92,6 +92,15 @@ fn c84_daemon_status_reports_the_identity_and_the_sibling_it_is_judged_against()
     ] {
         assert_eq!(status[key], true, "{key}: {status}");
     }
+    // The socket (C83): derived from the world into the scratch runtime
+    // directory — the one file bound there — the one this server reached
+    // the daemon through; never the legacy rendezvous.
+    assert_eq!(
+        harness::sockets_under(&harness::scratch_tmp(&base)),
+        vec![PathBuf::from(status["socket"].as_str().unwrap())],
+        "{status}"
+    );
+    assert_eq!(status["legacy_socket"], false, "{status}");
     assert_eq!(
         status["world"],
         base.join("store")

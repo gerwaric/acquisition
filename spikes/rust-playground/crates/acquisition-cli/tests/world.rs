@@ -41,18 +41,20 @@ fn scratch(tag: &str) -> Scratch {
     Scratch(base)
 }
 
-/// `acq` under one isolation: a socket, a store root and a log directory
-/// the caller names under `base`.
-fn command(base: &Path, socket: &str, store: &str, args: &[&str]) -> Command {
+/// `acq` under one isolation: a store root (the world, whose socket
+/// derives from it, C83) and a log directory the caller names under
+/// `base`.
+fn command(base: &Path, store: &str, args: &[&str]) -> Command {
     let mut cmd = Command::new(env!("CARGO_BIN_EXE_acq"));
     cmd.args(args);
-    isolate(&mut cmd, base, socket, store);
+    isolate(&mut cmd, base, store);
     cmd
 }
 
-fn isolate(cmd: &mut Command, base: &Path, socket: &str, store: &str) {
-    cmd.env("ACQ_SOCKET", base.join(socket))
-        .env("ACQ_STORE_DIR", base.join(store))
+fn isolate(cmd: &mut Command, base: &Path, store: &str) {
+    cmd.env("ACQ_STORE_DIR", base.join(store))
+        .env("TMPDIR", scratch_tmp(base))
+        .env("XDG_RUNTIME_DIR", scratch_tmp(base))
         .env("ACQ_LOG_DIR", base.join("logs"))
         .env("ACQ_NO_KEYRING", "1")
         .env("ACQ_JOURNAL", "0")
@@ -68,10 +70,8 @@ fn isolate(cmd: &mut Command, base: &Path, socket: &str, store: &str) {
     }
 }
 
-fn acq(base: &Path, socket: &str, store: &str, args: &[&str]) -> Output {
-    command(base, socket, store, args)
-        .output()
-        .expect("spawning acq")
+fn acq(base: &Path, store: &str, args: &[&str]) -> Output {
+    command(base, store, args).output().expect("spawning acq")
 }
 
 fn sole_json(out: &Output) -> Value {
@@ -115,9 +115,9 @@ fn acqd() -> PathBuf {
 /// The daemon's command under the same isolation as `command`, its
 /// stderr piped so a refusal can be read (a lazy spawn's would go to the
 /// log; a driver captures stderr as this does).
-fn daemon_command(base: &Path, socket: &str, store: &str) -> Command {
+fn daemon_command(base: &Path, store: &str) -> Command {
     let mut cmd = Command::new(acqd());
-    isolate(&mut cmd, base, socket, store);
+    isolate(&mut cmd, base, store);
     cmd.stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::piped());
@@ -126,8 +126,8 @@ fn daemon_command(base: &Path, socket: &str, store: &str) -> Command {
 
 /// Start a daemon and wait until `acq daemon status` (under `env`) sees
 /// it running; returns it with its pid.
-fn start_daemon(base: &Path, socket: &str, store: &str, env: &[(&str, &str)]) -> (Daemon, u64) {
-    let mut cmd = daemon_command(base, socket, store);
+fn start_daemon(base: &Path, store: &str, env: &[(&str, &str)]) -> (Daemon, u64) {
+    let mut cmd = daemon_command(base, store);
     for (k, v) in env {
         cmd.env(k, v);
     }
@@ -137,7 +137,7 @@ fn start_daemon(base: &Path, socket: &str, store: &str, env: &[(&str, &str)]) ->
     let daemon = Daemon(child, acqd());
     let deadline = Instant::now() + Duration::from_secs(10);
     loop {
-        let mut status = command(base, socket, store, &["daemon", "status", "--json"]);
+        let mut status = command(base, store, &["daemon", "status", "--json"]);
         for (k, v) in env {
             status.env(k, v);
         }
@@ -187,6 +187,51 @@ fn daemon_log(base: &Path, store: &str, provider: &str) -> PathBuf {
         .join("daemon.log")
 }
 
+/// `acq` under the isolation plus `env`, applied last.
+fn acq_in(base: &Path, store: &str, args: &[&str], env: &[(&str, &str)]) -> Output {
+    let mut cmd = command(base, store, args);
+    for (k, v) in env {
+        cmd.env(k, v);
+    }
+    cmd.output().expect("spawning acq")
+}
+
+/// Wait until `acq daemon status` under `env` says nothing is running.
+fn wait_stopped(base: &Path, store: &str, env: &[(&str, &str)]) {
+    let deadline = Instant::now() + Duration::from_secs(10);
+    loop {
+        let status = sole_json(&acq_in(base, store, &["daemon", "status", "--json"], env));
+        if status["running"] == Value::Bool(false) {
+            return;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "the daemon did not exit: {status}"
+        );
+        std::thread::sleep(Duration::from_millis(20));
+    }
+}
+
+/// Every Unix socket under `dir`, recursively: what a daemon may have
+/// bound in a scratch runtime directory.
+fn sockets_under(dir: &Path) -> Vec<PathBuf> {
+    use std::os::unix::fs::FileTypeExt;
+    let mut found = Vec::new();
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return found;
+    };
+    for entry in entries.flatten() {
+        let kind = entry.file_type().unwrap();
+        if kind.is_dir() {
+            found.extend(sockets_under(&entry.path()));
+        } else if kind.is_socket() {
+            found.push(entry.path());
+        }
+    }
+    found.sort();
+    found
+}
+
 /// C83, C6: a second daemon on the same world refuses to start, naming
 /// the holder by pid and the lock by path, in its stderr and in the
 /// world's log; the first daemon is untouched.
@@ -194,7 +239,7 @@ fn daemon_log(base: &Path, store: &str, provider: &str) -> PathBuf {
 fn c83_a_second_daemon_on_the_same_world_refuses_naming_the_holder() {
     let scratch = scratch("lock");
     let base = &scratch.0;
-    let (_first, pid) = start_daemon(base, "a.sock", "store", &[]);
+    let (_first, pid) = start_daemon(base, "store", &[]);
     let lock = base
         .join("store")
         .canonicalize()
@@ -215,7 +260,7 @@ fn c83_a_second_daemon_on_the_same_world_refuses_naming_the_holder() {
 
     // Another socket, the same store root: refused on the lock, not on
     // the socket.
-    let (status, stderr) = refused_daemon(daemon_command(base, "b.sock", "store"));
+    let (status, stderr) = refused_daemon(daemon_command(base, "store"));
     eprintln!("the world lock's refusal, verbatim:\n{stderr}");
     assert!(!status.success(), "the second daemon started: {stderr}");
     assert!(
@@ -252,10 +297,6 @@ fn c83_a_second_daemon_on_the_same_world_refuses_naming_the_holder() {
         "the refusal reached the incumbent's log (appended, not rotated): {}",
         log.trim_start_matches('\0')
     );
-    assert!(
-        !base.join("b.sock").exists(),
-        "the refused daemon bound its socket"
-    );
     // A contender under another log directory whose world/provider
     // directory exists but holds no log: refused the same way, and it
     // creates no file there (round 21).
@@ -269,7 +310,7 @@ fn c83_a_second_daemon_on_the_same_world_refuses_naming_the_holder() {
         .join("mock")
         .join("daemon.log");
     std::fs::create_dir_all(other_log.parent().unwrap()).unwrap();
-    let mut contender = daemon_command(base, "c.sock", "store");
+    let mut contender = daemon_command(base, "store");
     contender.env("ACQ_LOG_DIR", &other_logs);
     let (status, stderr) = refused_daemon(contender);
     assert!(
@@ -282,7 +323,7 @@ fn c83_a_second_daemon_on_the_same_world_refuses_naming_the_holder() {
     );
 
     // The first daemon still answers, and it is the same one.
-    let out = acq(base, "a.sock", "store", &["daemon", "status", "--json"]);
+    let out = acq(base, "store", &["daemon", "status", "--json"]);
     let status = sole_json(&out);
     assert_eq!(status["pid"], pid, "{status}");
     assert_eq!(
@@ -294,7 +335,7 @@ fn c83_a_second_daemon_on_the_same_world_refuses_naming_the_holder() {
             .to_string(),
         "{status}"
     );
-    let out = acq(base, "a.sock", "store", &["daemon", "stop", "--json"]);
+    let out = acq(base, "store", &["daemon", "stop", "--json"]);
     assert!(out.status.success(), "{out:?}");
 }
 
@@ -311,8 +352,8 @@ fn c83_c31_a_second_real_mode_daemon_for_this_user_refuses_naming_the_holder() {
         ("ACQ_TRIPWIRE", "1"),
         ("ACQ_MAX_SENDS", "0"),
     ];
-    let (_first, pid) = start_daemon(base, "a.sock", "one", &real);
-    let out = command(base, "a.sock", "one", &["daemon", "status", "--json"])
+    let (_first, pid) = start_daemon(base, "one", &real);
+    let out = command(base, "one", &["daemon", "status", "--json"])
         .env("ACQ_GGG", "1")
         .output()
         .unwrap();
@@ -328,7 +369,7 @@ fn c83_c31_a_second_real_mode_daemon_for_this_user_refuses_naming_the_holder() {
 
     // Another world, another socket, real mode: refused on the
     // real-mode lock, and the refusal names it.
-    let mut second = daemon_command(base, "b.sock", "two");
+    let mut second = daemon_command(base, "two");
     for (k, v) in &real {
         second.env(k, v);
     }
@@ -354,125 +395,148 @@ fn c83_c31_a_second_real_mode_daemon_for_this_user_refuses_naming_the_holder() {
     );
 
     // The same other world in mock mode starts: the lock is real mode's.
-    let (_mock, mock_pid) = start_daemon(base, "b.sock", "two", &[]);
+    let (_mock, mock_pid) = start_daemon(base, "two", &[]);
     assert_ne!(mock_pid, pid);
-    let out = acq(base, "b.sock", "two", &["daemon", "status", "--json"]);
+    let out = acq(base, "two", &["daemon", "status", "--json"]);
     assert_eq!(sole_json(&out)["provider"], "mock");
 
-    let out = command(base, "a.sock", "one", &["daemon", "stop", "--json"])
+    let out = command(base, "one", &["daemon", "stop", "--json"])
         .env("ACQ_GGG", "1")
         .output()
         .unwrap();
     assert!(out.status.success(), "{out:?}");
-    let out = acq(base, "b.sock", "two", &["daemon", "stop", "--json"]);
+    let out = acq(base, "two", &["daemon", "stop", "--json"]);
     assert!(out.status.success(), "{out:?}");
 }
 
-/// C83, C10: a shell on another world finds the daemon on its socket,
-/// reports it as another world with both roots named, and neither a
-/// reading verb nor a job command — the door that replaces every other
-/// mismatch — touches it; a shell whose root does not exist has no
-/// world and creates none by observing; `daemon stop` still stops it.
+/// C83, C10, through the binaries: the socket derives from the world,
+/// so a shell on another world does not find this daemon at all — its
+/// status says not running, a reading verb says so, and a job command
+/// starts a daemon of its own on its own socket rather than replacing
+/// this one; two worlds run two daemons at once, each shell seeing its
+/// own; a shell whose root does not exist has no world, no socket, and
+/// creates none by observing; `daemon stop` stops only the shell's own.
 #[test]
-fn c83_a_shell_on_another_world_refuses_the_daemon_and_never_replaces_it() {
+fn c83_a_shell_on_another_world_has_its_own_rendezvous_and_never_replaces_this_daemon() {
     let scratch = scratch("other");
     let base = &scratch.0;
     std::fs::create_dir_all(base.join("elsewhere")).unwrap();
-    let (_daemon, pid) = start_daemon(base, "d.sock", "store", &[]);
-    let home = base.join("store").canonicalize().unwrap();
-    let elsewhere = base.join("elsewhere").canonicalize().unwrap();
+    let (_daemon, pid) = start_daemon(base, "store", &[]);
+    let home = sole_json(&acq(base, "store", &["daemon", "status", "--json"]));
+    let home_socket = PathBuf::from(home["socket"].as_str().unwrap());
+    assert_eq!(sockets_under(&scratch_tmp(base)), vec![home_socket.clone()]);
 
-    let out = acq(base, "d.sock", "elsewhere", &["daemon", "status", "--json"]);
+    // From another world: not running, and a reading verb says so.
+    let out = acq(base, "elsewhere", &["daemon", "status", "--json"]);
     assert!(out.status.success(), "{out:?}");
-    let report = sole_json(&out);
-    assert_eq!(report["running"], true, "{report}");
-    assert_eq!(report["compatible"], false, "{report}");
-    assert_eq!(report["pid"], pid, "{report}");
-    assert_eq!(report["world"], home.display().to_string(), "{report}");
-    assert_eq!(report["world_matches"], false, "{report}");
-    assert_eq!(report["contract_matches"], true, "{report}");
-    assert_eq!(report["provider_matches"], true, "{report}");
+    assert_eq!(sole_json(&out), serde_json::json!({ "running": false }));
+    let out = acq(base, "elsewhere", &["jobs", "--json"]);
+    assert_eq!(out.status.code(), Some(1), "{out:?}");
+    let msg = sole_json(&out)["error"].as_str().unwrap().to_string();
+    assert!(msg.contains("not running"), "{msg}");
     assert_eq!(
-        report["wanted"]["world"],
-        elsewhere.display().to_string(),
-        "{report}"
-    );
-    let out = acq(base, "d.sock", "elsewhere", &["daemon", "status"]);
-    let shown = text(&out);
-    assert!(
-        shown.contains("another world")
-            && shown.contains(&home.display().to_string())
-            && shown.contains("never replaced")
-            && !shown.contains("another contract"),
-        "{shown}"
+        sockets_under(&scratch_tmp(base)),
+        vec![home_socket.clone()],
+        "a reading verb spawned a daemon"
     );
 
-    // A reading verb and a job command refuse; the daemon is untouched.
-    // `profile` is the interactive use door: it would replace a daemon
-    // of another contract, artifact or provider.
-    for args in [&["jobs", "--json"][..], &["profile", "--json"][..]] {
-        let out = acq(base, "d.sock", "elsewhere", args);
-        assert_eq!(out.status.code(), Some(1), "{args:?}: {out:?}");
-        let msg = sole_json(&out)["error"].as_str().unwrap().to_string();
-        assert!(
-            msg.contains("another world") && msg.contains(&format!("pid {pid}")),
-            "{args:?}: {msg}"
-        );
-        if args[0] == "profile" {
-            assert!(msg.contains("never replaces"), "{msg}");
-        }
-    }
-    let out = acq(base, "d.sock", "store", &["daemon", "status", "--json"]);
+    // A job command from there starts that world's daemon — on its own
+    // socket, beside this one, which it never touches. (`profile` fails
+    // on the login, not on the door; the daemon it spawned stays up.)
+    let out = acq(base, "elsewhere", &["profile", "--json"]);
+    assert_eq!(out.status.code(), Some(1), "{out:?}");
+    let msg = sole_json(&out)["error"].as_str().unwrap().to_string();
+    assert!(
+        !msg.contains("not running") && !msg.contains("another world"),
+        "the job command did not reach a daemon of its own: {msg}"
+    );
+    let out = acq(base, "elsewhere", &["daemon", "status", "--json"]);
+    let other = sole_json(&out);
+    let other_pid = other["pid"].as_u64().expect("a daemon for the other world");
+    assert_ne!(other_pid, pid, "{other}");
+    assert_eq!(other["compatible"], true, "{other}");
+    let other_socket = PathBuf::from(other["socket"].as_str().unwrap());
+    assert_ne!(other_socket, home_socket, "another world, another socket");
+    let mut both = vec![home_socket.clone(), other_socket.clone()];
+    both.sort();
+    assert_eq!(
+        sockets_under(&scratch_tmp(base)),
+        both,
+        "two worlds, two sockets"
+    );
+    assert_eq!(
+        other["world"],
+        base.join("elsewhere")
+            .canonicalize()
+            .unwrap()
+            .display()
+            .to_string(),
+        "{other}"
+    );
+    let out = acq(base, "store", &["daemon", "status", "--json"]);
     let status = sole_json(&out);
     assert_eq!(status["pid"], pid, "the daemon was replaced: {status}");
     assert_eq!(status["compatible"], true, "{status}");
-
-    // No root: no world, nothing created, nothing matched.
-    let out = acq(base, "d.sock", "nowhere", &["daemon", "status", "--json"]);
-    let report = sole_json(&out);
-    assert_eq!(report["compatible"], false, "{report}");
-    assert_eq!(report["world_matches"], false, "{report}");
-    assert!(
-        report["wanted"]["world_absent"]
-            .as_str()
-            .unwrap()
-            .contains("does not exist"),
-        "{report}"
+    assert_eq!(
+        status["socket"],
+        home_socket.display().to_string(),
+        "{status}"
     );
+
+    // No root: no world, no socket, nothing created.
+    let out = acq(base, "nowhere", &["daemon", "status", "--json"]);
+    assert_eq!(sole_json(&out), serde_json::json!({ "running": false }));
     assert!(
         !base.join("nowhere").exists(),
         "observation created the root"
     );
 
-    // Stopping acts on it from anywhere (C10).
-    let out = acq(base, "d.sock", "elsewhere", &["daemon", "stop", "--json"]);
+    // Each shell stops its own and only its own.
+    let out = acq(base, "elsewhere", &["daemon", "stop", "--json"]);
     assert!(out.status.success(), "{out:?}");
     let stopped = sole_json(&out);
-    assert_eq!(stopped["pid"], pid, "{stopped}");
-    assert_eq!(stopped["compatible"], false, "{stopped}");
+    assert_eq!(stopped["pid"], other_pid, "{stopped}");
+    assert_eq!(stopped["compatible"], true, "{stopped}");
+    wait_stopped(base, "elsewhere", &[]);
+    let out = acq(base, "store", &["daemon", "status", "--json"]);
+    assert_eq!(
+        sole_json(&out)["pid"],
+        pid,
+        "the other world's stop reached this daemon"
+    );
+    let out = acq(base, "store", &["daemon", "stop", "--json"]);
+    assert!(out.status.success(), "{out:?}");
+    assert_eq!(sole_json(&out)["pid"], pid);
 }
 
-/// C83: a trip persisted beside the socket by a daemon from before step
-/// 5 moves into the world at the next start and is honoured there; the
-/// legacy file is gone; `reset-tripwire` with no daemon clears the
-/// world's file.
+/// C83: a trip persisted beside the legacy socket by a daemon from
+/// before step 5 moves into the world at the next start and is honoured
+/// there; the legacy file is gone; `reset-tripwire` with no daemon clears
+/// the world's file. The legacy file's home is the temp directory: the
+/// scratch one every daemon and shell here runs under (`scratch_tmp`).
 #[test]
 fn c83_the_rails_state_moves_into_the_world_and_the_trip_survives() {
     let scratch = scratch("rails");
     let base = &scratch.0;
-    let legacy = base.join("d.sock").with_extension("mock.rails.json");
+    let tmp = scratch_tmp(base);
+    let env = [("ACQ_TRIPWIRE", "1")];
+    let legacy = tmp.join("acquisition-playground.mock.rails.json");
     std::fs::write(
         &legacy,
         r#"{"tripped":"429 on GET /stash/Standard (staged legacy trip)"}"#,
     )
     .unwrap();
 
-    let (_daemon, _pid) = start_daemon(base, "d.sock", "store", &[("ACQ_TRIPWIRE", "1")]);
-    let out = command(base, "d.sock", "store", &["daemon", "status", "--json"])
-        .env("ACQ_TRIPWIRE", "1")
-        .output()
-        .unwrap();
+    let (_daemon, _pid) = start_daemon(base, "store", &env);
+    let out = acq_in(base, "store", &["daemon", "status", "--json"], &env);
     let status = sole_json(&out);
+    assert!(
+        status["socket"]
+            .as_str()
+            .unwrap()
+            .starts_with(&tmp.display().to_string()),
+        "the daemon's socket is in the scratch runtime directory: {status}"
+    );
     assert_eq!(status["rails"]["tripwire_enabled"], true, "{status}");
     assert!(
         status["rails"]["halted"]
@@ -493,22 +557,13 @@ fn c83_the_rails_state_moves_into_the_world_and_the_trip_survives() {
         log.contains("rails: state moved from") && log.contains("staged legacy trip"),
         "{log}"
     );
-    let out = acq(base, "d.sock", "store", &["daemon", "stop", "--json"]);
+    let out = acq_in(base, "store", &["daemon", "stop", "--json"], &env);
     assert!(out.status.success(), "{out:?}");
-    let deadline = Instant::now() + Duration::from_secs(10);
-    while base.join("d.sock").exists() {
-        assert!(Instant::now() < deadline, "the daemon did not exit");
-        std::thread::sleep(Duration::from_millis(20));
-    }
+    wait_stopped(base, "store", &env);
 
     // With no daemon, the reset clears the world's file so the next
     // daemon starts clear.
-    let out = acq(
-        base,
-        "d.sock",
-        "store",
-        &["daemon", "reset-tripwire", "--json"],
-    );
+    let out = acq_in(base, "store", &["daemon", "reset-tripwire", "--json"], &env);
     assert!(out.status.success(), "{out:?}");
     let cleared = sole_json(&out);
     assert_eq!(cleared["cleared"], true, "{cleared}");
@@ -522,41 +577,30 @@ fn c83_the_rails_state_moves_into_the_world_and_the_trip_survives() {
     );
     assert_eq!(state.file_name(), current.file_name(), "{cleared}");
     assert!(!current.exists(), "the world's rails state was not cleared");
-    let out = acq(
-        base,
-        "d.sock",
-        "store",
-        &["daemon", "reset-tripwire", "--json"],
-    );
+    let out = acq_in(base, "store", &["daemon", "reset-tripwire", "--json"], &env);
     assert_eq!(sole_json(&out)["cleared"], false);
 
     // A directory in a state file's place (round 21): the daemon refuses
     // to start over it, naming this verb; the verb clears an empty one
     // and names a non-empty one for the hand.
     std::fs::create_dir(&legacy).unwrap();
-    let (status, stderr) = refused_daemon(daemon_command(base, "d.sock", "store"));
+    let mut cmd = daemon_command(base, "store");
+    for (k, v) in &env {
+        cmd.env(k, v);
+    }
+    let (status, stderr) = refused_daemon(cmd);
     assert!(
         !status.success()
             && stderr.contains("could not be read")
             && stderr.contains("reset-tripwire"),
         "{stderr}"
     );
-    let out = acq(
-        base,
-        "d.sock",
-        "store",
-        &["daemon", "reset-tripwire", "--json"],
-    );
+    let out = acq_in(base, "store", &["daemon", "reset-tripwire", "--json"], &env);
     assert!(out.status.success(), "{out:?}");
     assert_eq!(sole_json(&out)["cleared"], true);
     assert!(!legacy.exists(), "the empty directory was cleared");
     std::fs::create_dir_all(legacy.join("inside")).unwrap();
-    let out = acq(
-        base,
-        "d.sock",
-        "store",
-        &["daemon", "reset-tripwire", "--json"],
-    );
+    let out = acq_in(base, "store", &["daemon", "reset-tripwire", "--json"], &env);
     assert_eq!(out.status.code(), Some(1), "{out:?}");
     let msg = sole_json(&out)["error"].as_str().unwrap().to_string();
     assert!(
@@ -589,13 +633,13 @@ fn c83_diagnostics_live_under_the_log_directory_and_are_bounded() {
     std::fs::File::create(&log).unwrap().set_len(over).unwrap();
 
     // This daemon keeps the default journal (no `ACQ_JOURNAL`).
-    let mut cmd = daemon_command(base, "d.sock", "store");
+    let mut cmd = daemon_command(base, "store");
     cmd.env_remove("ACQ_JOURNAL");
     let child = cmd.spawn().unwrap();
     let _daemon = Daemon(child, acqd());
     let deadline = Instant::now() + Duration::from_secs(10);
     let status = loop {
-        let out = acq(base, "d.sock", "store", &["daemon", "status", "--json"]);
+        let out = acq(base, "store", &["daemon", "status", "--json"]);
         let status = sole_json(&out);
         if status["pid"].is_number() {
             break status;
@@ -613,7 +657,7 @@ fn c83_diagnostics_live_under_the_log_directory_and_are_bounded() {
     // directory, or none, still learns the file the daemon opened
     // (review 2026-09-11).
     for other in [Some(base.join("elsewhere-logs")), None] {
-        let mut cmd = command(base, "d.sock", "store", &["daemon", "status", "--json"]);
+        let mut cmd = command(base, "store", &["daemon", "status", "--json"]);
         match &other {
             Some(dir) => {
                 cmd.env("ACQ_LOG_DIR", dir);
@@ -630,7 +674,7 @@ fn c83_diagnostics_live_under_the_log_directory_and_are_bounded() {
             "{other:?}: {status}"
         );
         let out = {
-            let mut cmd = command(base, "d.sock", "store", &["daemon", "status"]);
+            let mut cmd = command(base, "store", &["daemon", "status"]);
             match &other {
                 Some(dir) => {
                     cmd.env("ACQ_LOG_DIR", dir);
@@ -673,7 +717,7 @@ fn c83_diagnostics_live_under_the_log_directory_and_are_bounded() {
             .display()
             .to_string()
     );
-    let out = acq(base, "d.sock", "store", &["daemon", "stop", "--json"]);
+    let out = acq(base, "store", &["daemon", "stop", "--json"]);
     assert!(out.status.success(), "{out:?}");
 
     // A log directory that is not valid UTF-8 refuses the start, before
@@ -683,7 +727,7 @@ fn c83_diagnostics_live_under_the_log_directory_and_are_bounded() {
     {
         use std::os::unix::ffi::OsStrExt;
         let odd = std::ffi::OsString::from(std::ffi::OsStr::from_bytes(b"/tmp/acq-\xff-logs"));
-        let mut cmd = daemon_command(base, "e.sock", "store");
+        let mut cmd = daemon_command(base, "store");
         cmd.env("ACQ_LOG_DIR", &odd);
         let (status, stderr) = refused_daemon(cmd);
         assert!(
@@ -692,6 +736,236 @@ fn c83_diagnostics_live_under_the_log_directory_and_are_bounded() {
                 && stderr.contains("ACQ_LOG_DIR"),
             "{stderr}"
         );
-        assert!(!base.join("e.sock").exists());
+        assert!(
+            sockets_under(&scratch_tmp(base)).is_empty(),
+            "the refused daemon bound the world's socket"
+        );
     }
+}
+
+/// A scripted peer on the legacy socket: what a daemon from before the
+/// derived rendezvous looks like to a client. Answers `hello` as pid
+/// 4242 of another contract on the world the test names, `daemon_stop`
+/// with `stopping` — then unbinds and counts the stop — and hangs up on
+/// anything else; the daemon's bare probe (a connect that closes) is
+/// tolerated.
+struct LegacyPeer {
+    thread: Option<std::thread::JoinHandle<u32>>,
+}
+
+impl LegacyPeer {
+    fn bind(path: &Path, world: &str) -> LegacyPeer {
+        use std::io::{BufRead as _, BufReader, Write as _};
+        let _ = std::fs::remove_file(path);
+        let listener = std::os::unix::net::UnixListener::bind(path).unwrap();
+        let path = path.to_path_buf();
+        let world = world.to_string();
+        let thread = std::thread::spawn(move || {
+            let mut stops = 0;
+            'accept: for stream in listener.incoming() {
+                let mut write = stream.unwrap();
+                let mut reader = BufReader::new(write.try_clone().unwrap());
+                let mut line = String::new();
+                loop {
+                    line.clear();
+                    match reader.read_line(&mut line) {
+                        Ok(0) | Err(_) => break,
+                        Ok(_) => {}
+                    }
+                    let Ok(frame) = serde_json::from_str::<Value>(&line) else {
+                        break;
+                    };
+                    match frame["req"].as_str() {
+                        Some("hello") => {
+                            let reply = serde_json::json!({
+                                "resp": "hello", "version": "0.0.1", "contract": "beefbeefbeef",
+                                "pid": 4242, "provider": "mock", "world": world,
+                            });
+                            writeln!(write, "{reply}").unwrap();
+                        }
+                        Some("daemon_stop") => {
+                            stops += 1;
+                            writeln!(write, r#"{{"resp":"stopping"}}"#).unwrap();
+                            let _ = std::fs::remove_file(&path);
+                            break 'accept;
+                        }
+                        _ => break,
+                    }
+                }
+            }
+            stops
+        });
+        LegacyPeer {
+            thread: Some(thread),
+        }
+    }
+
+    /// How many stops the peer answered; waits for it to unbind.
+    fn stops(mut self) -> u32 {
+        self.thread.take().unwrap().join().unwrap()
+    }
+}
+
+/// C83, the split's step 6 — the transition from the fixed socket to the
+/// derived one, through the binaries, in a scratch temp and runtime
+/// directory: with a daemon from before the rendezvous listening on the
+/// legacy socket, `acqd` refuses to start naming it and the stop remedy;
+/// `daemon status` finds it when the world's socket is silent and reports
+/// it with `legacy_socket`; a reading verb refuses; the use door that
+/// would replace a contract mismatch refuses and spawns nothing; `daemon
+/// stop` stops it, once — and then this world's daemon starts on the
+/// derived socket, the legacy path left alone.
+#[test]
+fn c83_a_daemon_from_before_the_rendezvous_is_refused_reported_and_stopped_once() {
+    let scratch = scratch("legacy");
+    let base = &scratch.0;
+    let tmp = scratch_tmp(base);
+    let env: [(&str, &str); 0] = [];
+    std::fs::create_dir_all(base.join("store")).unwrap();
+    let home = base.join("store").canonicalize().unwrap();
+    let legacy = tmp.join("acquisition-playground.sock");
+    let peer = LegacyPeer::bind(&legacy, &home.display().to_string());
+
+    // The daemon refuses to start beside it, before it binds anything.
+    let mut cmd = daemon_command(base, "store");
+    for (k, v) in &env {
+        cmd.env(k, v);
+    }
+    let (status, stderr) = refused_daemon(cmd);
+    eprintln!("the legacy socket's refusal, verbatim:\n{stderr}");
+    assert!(!status.success(), "the daemon started: {stderr}");
+    assert!(
+        stderr.contains("legacy socket")
+            && stderr.contains(&legacy.display().to_string())
+            && stderr.contains("acq daemon stop"),
+        "{stderr}"
+    );
+    assert_eq!(
+        sockets_under(&tmp),
+        vec![legacy.clone()],
+        "the daemon bound a socket"
+    );
+
+    // Observed: running, not this client's, on the legacy socket.
+    let status = sole_json(&acq_in(
+        base,
+        "store",
+        &["daemon", "status", "--json"],
+        &env,
+    ));
+    assert_eq!(status["running"], true, "{status}");
+    assert_eq!(status["compatible"], false, "{status}");
+    assert_eq!(status["pid"], 4242, "{status}");
+    assert_eq!(status["legacy_socket"], true, "{status}");
+    assert_eq!(status["socket"], legacy.display().to_string(), "{status}");
+    assert_eq!(status["world_matches"], true, "{status}");
+    let shown = text(&acq_in(base, "store", &["daemon", "status"], &env));
+    assert!(
+        shown.contains("legacy socket")
+            && shown.contains(&format!("socket: {}", legacy.display()))
+            && shown.contains("next:")
+            && shown.contains("once"),
+        "{shown}"
+    );
+
+    // A reading verb refuses; the use door — which replaces a contract
+    // mismatch on the world's socket — refuses too and spawns nothing.
+    let out = acq_in(base, "store", &["jobs", "--json"], &env);
+    assert_eq!(out.status.code(), Some(1), "{out:?}");
+    let msg = sole_json(&out)["error"].as_str().unwrap().to_string();
+    assert!(msg.contains("legacy socket"), "{msg}");
+    let out = acq_in(base, "store", &["profile", "--json"], &env);
+    assert_eq!(out.status.code(), Some(1), "{out:?}");
+    let msg = sole_json(&out)["error"].as_str().unwrap().to_string();
+    assert!(
+        msg.contains("legacy socket") && msg.contains("acq daemon stop") && msg.contains("once"),
+        "{msg}"
+    );
+    assert_eq!(
+        sockets_under(&tmp),
+        vec![legacy.clone()],
+        "a daemon was spawned"
+    );
+
+    // Stopped, once, by hand.
+    let out = acq_in(base, "store", &["daemon", "stop", "--json"], &env);
+    assert!(out.status.success(), "{out:?}");
+    let stopped = sole_json(&out);
+    assert_eq!(stopped["stopped"], true, "{stopped}");
+    assert_eq!(stopped["pid"], 4242, "{stopped}");
+    assert_eq!(stopped["legacy_socket"], true, "{stopped}");
+    assert_eq!(stopped["socket"], legacy.display().to_string(), "{stopped}");
+    assert_eq!(peer.stops(), 1, "the peer was stopped exactly once");
+    assert!(sockets_under(&tmp).is_empty(), "the legacy socket is gone");
+
+    // From then on the world's socket is the rendezvous.
+    let (_daemon, pid) = start_daemon(base, "store", &env);
+    let status = sole_json(&acq_in(
+        base,
+        "store",
+        &["daemon", "status", "--json"],
+        &env,
+    ));
+    assert_eq!(status["pid"], pid, "{status}");
+    assert_eq!(status["legacy_socket"], false, "{status}");
+    let socket = PathBuf::from(status["socket"].as_str().unwrap());
+    assert_ne!(socket, legacy);
+    assert!(socket.starts_with(&tmp), "{}", socket.display());
+    assert_eq!(
+        socket.file_name().unwrap(),
+        format!(
+            "{}.sock",
+            acquisition_store::world::World::at(&home).unwrap().id()
+        )
+        .as_str()
+    );
+    assert_eq!(sockets_under(&tmp), vec![socket.clone()]);
+    let out = acq_in(base, "store", &["daemon", "stop", "--json"], &env);
+    assert!(out.status.success(), "{out:?}");
+    wait_stopped(base, "store", &env);
+    assert!(!socket.exists(), "the socket is removed on exit");
+}
+
+/// C83: a socket path over the cap is refused by name — by the daemon
+/// before it binds, and by a shell before it connects — rather than by
+/// `bind`'s `ENAMETOOLONG`. Staged with a runtime directory deep enough
+/// to push the path past 103 bytes.
+#[test]
+fn c83_a_socket_path_over_the_cap_is_refused_by_name() {
+    let scratch = scratch("cap");
+    let base = &scratch.0;
+    let deep = base.join("tmp").join("x".repeat(96));
+    std::fs::create_dir_all(&deep).unwrap();
+    let deep_s = deep.display().to_string();
+    let env = [
+        ("TMPDIR", deep_s.as_str()),
+        ("XDG_RUNTIME_DIR", deep_s.as_str()),
+    ];
+    let mut cmd = daemon_command(base, "store");
+    for (k, v) in &env {
+        cmd.env(k, v);
+    }
+    let (status, stderr) = refused_daemon(cmd);
+    assert!(
+        !status.success() && stderr.contains("at most 103"),
+        "{stderr}"
+    );
+    assert!(sockets_under(&deep).is_empty());
+    let out = acq_in(base, "store", &["daemon", "status", "--json"], &env);
+    assert_eq!(out.status.code(), Some(1), "{out:?}");
+    let msg = sole_json(&out)["error"].as_str().unwrap().to_string();
+    assert!(msg.contains("at most 103"), "{msg}");
+}
+
+/// The scratch temp and runtime directory of one test, under `base`:
+/// `TMPDIR` (macOS's runtime fallback and the legacy paths) and
+/// `XDG_RUNTIME_DIR` (Linux's runtime directory) both point here, so the
+/// sockets the daemons bind — and, for a daemon a test kills rather than
+/// stops, the socket files it leaves — never touch the user's own
+/// runtime directory (C83). Created here, since the runtime directory
+/// is made under an existing parent.
+fn scratch_tmp(base: &std::path::Path) -> std::path::PathBuf {
+    let tmp = base.join("tmp");
+    let _ = std::fs::create_dir_all(&tmp);
+    tmp
 }

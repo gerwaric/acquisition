@@ -30,8 +30,9 @@ fn command(base: &Path, args: &[&str]) -> Command {
     cmd.args(args)
         // The socket path must stay short (Unix sockets cap ~104 bytes),
         // so everything lives directly under the platform temp dir.
-        .env("ACQ_SOCKET", base.join("d.sock"))
         .env("ACQ_STORE_DIR", base.join("store"))
+        .env("TMPDIR", scratch_tmp(base))
+        .env("XDG_RUNTIME_DIR", scratch_tmp(base))
         .env("ACQ_LOG_DIR", base.join("logs"))
         .env("ACQ_NO_KEYRING", "1")
         // The daemon reads the journal path at start; every command
@@ -232,4 +233,17 @@ fn realm_is_on_the_wire_exactly_as_ruled() {
     let out = acq(&base, &["daemon", "stop"]);
     assert!(out.status.success(), "{out:?}");
     let _ = std::fs::remove_dir_all(&base);
+}
+
+/// The scratch temp and runtime directory of one test, under `base`:
+/// `TMPDIR` (macOS's runtime fallback and the legacy paths) and
+/// `XDG_RUNTIME_DIR` (Linux's runtime directory) both point here, so the
+/// sockets the daemons bind — and, for a daemon a test kills rather than
+/// stops, the socket files it leaves — never touch the user's own
+/// runtime directory (C83). Created here, since the runtime directory
+/// is made under an existing parent.
+fn scratch_tmp(base: &std::path::Path) -> std::path::PathBuf {
+    let tmp = base.join("tmp");
+    let _ = std::fs::create_dir_all(&tmp);
+    tmp
 }

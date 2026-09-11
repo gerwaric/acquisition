@@ -32,8 +32,9 @@ fn command(base: &Path, args: &[&str]) -> Command {
 fn command_of(exe: &Path, base: &Path, args: &[&str]) -> Command {
     let mut cmd = Command::new(exe);
     cmd.args(args)
-        .env("ACQ_SOCKET", base.join("d.sock"))
         .env("ACQ_STORE_DIR", base.join("store"))
+        .env("TMPDIR", scratch_tmp(base))
+        .env("XDG_RUNTIME_DIR", scratch_tmp(base))
         .env("ACQ_LOG_DIR", base.join("logs"))
         .env("ACQ_NO_KEYRING", "1")
         .env("ACQ_JOURNAL", "0")
@@ -97,6 +98,26 @@ impl Drop for Daemon {
     }
 }
 
+/// Every Unix socket under `dir`, recursively: what a daemon may have
+/// bound in the scratch runtime directory.
+fn sockets_under(dir: &Path) -> Vec<PathBuf> {
+    use std::os::unix::fs::FileTypeExt;
+    let mut found = Vec::new();
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return found;
+    };
+    for entry in entries.flatten() {
+        let kind = entry.file_type().unwrap();
+        if kind.is_dir() {
+            found.extend(sockets_under(&entry.path()));
+        } else if kind.is_socket() {
+            found.push(entry.path());
+        }
+    }
+    found.sort();
+    found
+}
+
 /// The daemon `acq` would itself spawn: the `acqd` beside the binary
 /// under test (C82, the locator's one rule). A missing one fails here,
 /// before the test runs, naming the build step.
@@ -109,8 +130,9 @@ fn acqd() -> PathBuf {
 /// the same isolation as `command`; its stdio to null, as a lazy spawn's.
 fn daemon_command(base: &Path, acqd: &Path) -> Command {
     let mut cmd = Command::new(acqd);
-    cmd.env("ACQ_SOCKET", base.join("d.sock"))
-        .env("ACQ_STORE_DIR", base.join("store"))
+    cmd.env("ACQ_STORE_DIR", base.join("store"))
+        .env("TMPDIR", scratch_tmp(base))
+        .env("XDG_RUNTIME_DIR", scratch_tmp(base))
         .env("ACQ_LOG_DIR", base.join("logs"))
         .env("ACQ_NO_KEYRING", "1")
         .env("ACQ_JOURNAL", "0")
@@ -160,10 +182,11 @@ fn c10_observation_never_spawns_or_replaces_and_reports_the_mismatch() {
     let base = std::env::temp_dir().join(format!("acq-obs-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&base);
     std::fs::create_dir_all(&base).unwrap();
-    let socket = base.join("d.sock");
 
     // Absent: reported as a state by `daemon status`, as an error by a
-    // reading verb — and neither spawns (the socket never appears).
+    // reading verb — and neither spawns: the world's root is never
+    // created (a spawn creates it first, C83), so no socket can derive
+    // from it.
     let out = acq(&base, &["daemon", "status", "--json"]);
     assert!(out.status.success(), "{out:?}");
     assert_eq!(sole_json(&out), serde_json::json!({ "running": false }));
@@ -172,7 +195,10 @@ fn c10_observation_never_spawns_or_replaces_and_reports_the_mismatch() {
         assert_eq!(out.status.code(), Some(1), "{args:?}: {out:?}");
         let msg = sole_json(&out)["error"].as_str().unwrap().to_string();
         assert!(msg.contains("not running"), "{args:?}: {msg}");
-        assert!(!socket.exists(), "{args:?} spawned a daemon");
+        assert!(
+            !base.join("store").exists(),
+            "{args:?} created the world's root — a spawn"
+        );
     }
 
     // A mock daemon is up. A shell that wants ggg observes it: reported
@@ -230,11 +256,20 @@ fn c10_observation_never_spawns_or_replaces_and_reports_the_mismatch() {
     assert_eq!(stopped["stopped"], true, "{stopped}");
     assert_eq!(stopped["pid"], pid, "{stopped}");
     assert_eq!(stopped["compatible"], false, "{stopped}");
+    assert_eq!(stopped["legacy_socket"], false, "{stopped}");
+    // The socket it was stopped through: this world's, in the scratch
+    // runtime directory (C83), gone once the daemon has exited.
+    let socket = PathBuf::from(stopped["socket"].as_str().unwrap());
+    assert!(
+        socket.starts_with(scratch_tmp(&base)) && socket.extension().is_some_and(|e| e == "sock"),
+        "{stopped}"
+    );
     let deadline = Instant::now() + Duration::from_secs(10);
     while socket.exists() {
         assert!(Instant::now() < deadline, "the daemon did not exit");
         std::thread::sleep(Duration::from_millis(20));
     }
+    assert!(sockets_under(&scratch_tmp(&base)).is_empty());
     let out = acq(&base, &["daemon", "status", "--json"]);
     assert_eq!(sole_json(&out), serde_json::json!({ "running": false }));
     let _ = std::fs::remove_dir_all(&base);
@@ -313,11 +348,23 @@ fn c84_the_artifact_dimension_is_the_sibling_acqd_this_client_would_start() {
         "{status}"
     );
     assert_eq!(status["wanted"]["world"], status["world"], "{status}");
+    // The socket (C83): derived from the world into the runtime
+    // directory — the one file bound there, named by the world's id —
+    // the one this shell reached the daemon through.
+    let world = acquisition_store::world::World::at(&base.join("store")).unwrap();
     assert_eq!(
-        status["socket"],
-        base.join("d.sock").display().to_string(),
+        sockets_under(&scratch_tmp(&base)),
+        vec![PathBuf::from(status["socket"].as_str().unwrap())],
         "{status}"
     );
+    assert!(
+        status["socket"]
+            .as_str()
+            .unwrap()
+            .ends_with(&format!("/{}", world.socket_name())),
+        "{status}"
+    );
+    assert_eq!(status["legacy_socket"], false, "{status}");
     assert!(
         status["log"]
             .as_str()
@@ -461,4 +508,17 @@ fn c84_the_artifact_dimension_is_the_sibling_acqd_this_client_would_start() {
     let out = acq(&base, &["daemon", "stop", "--json"]);
     assert!(out.status.success(), "{out:?}");
     let _ = std::fs::remove_dir_all(&base);
+}
+
+/// The scratch temp and runtime directory of one test, under `base`:
+/// `TMPDIR` (macOS's runtime fallback and the legacy paths) and
+/// `XDG_RUNTIME_DIR` (Linux's runtime directory) both point here, so the
+/// sockets the daemons bind — and, for a daemon a test kills rather than
+/// stops, the socket files it leaves — never touch the user's own
+/// runtime directory (C83). Created here, since the runtime directory
+/// is made under an existing parent.
+fn scratch_tmp(base: &std::path::Path) -> std::path::PathBuf {
+    let tmp = base.join("tmp");
+    let _ = std::fs::create_dir_all(&tmp);
+    tmp
 }

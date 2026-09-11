@@ -56,7 +56,7 @@ fi
 
 # ---- preflight (no wire) ---------------------------------------------------
 
-for v in ACQ_SOCKET ACQ_STORE_DIR ACQ_LOG_DIR ACQ_NO_KEYRING ACQ_NO_SPAWN ACQ_JOURNAL; do
+for v in ACQ_STORE_DIR ACQ_LOG_DIR ACQ_NO_KEYRING ACQ_NO_SPAWN ACQ_JOURNAL; do
     if [ -n "${!v:-}" ]; then
         echo "refusing: $v is set in this shell (leftover from other work); unset it first" >&2
         exit 2
@@ -77,14 +77,13 @@ if [ -d "$RUN_DIR" ] && [ -n "$(ls -A "$RUN_DIR")" ]; then
 fi
 mkdir -p "$RUN_DIR"
 
+# The socket derives from the world (C83): the owner's data directory in
+# live mode, the run's scratch store in mock — nothing names it.
 if [ "$MODE" = live ]; then
     export ACQ_GGG=1
-    T=${TMPDIR:-/tmp}; T=${T%/}
-    SOCK="$T/acquisition-playground.sock"
     PROVIDER=ggg
 else
-    export ACQ_SOCKET=/tmp/acq-persist.sock ACQ_STORE_DIR="$RUN_DIR/store"
-    SOCK=$ACQ_SOCKET
+    export ACQ_STORE_DIR="$RUN_DIR/store"
     PROVIDER=mock
 fi
 # The run's diagnostics are its evidence (C83; as the tracer does): the
@@ -141,7 +140,7 @@ confirm() {
 }
 
 echo "persistence check ($MODE) — binary $ver, HEAD $tip"
-echo "socket $SOCK | journal $JOURNAL | evidence -> $RUN_DIR"
+echo "journal $JOURNAL | evidence -> $RUN_DIR"
 if [ -n "$ACCOUNT" ]; then export ACQ_ACCOUNT="$ACCOUNT"; fi
 if [ "$MODE" = live ]; then
     echo "accounts on this machine (the fresh daemon restores the persisted ones):"

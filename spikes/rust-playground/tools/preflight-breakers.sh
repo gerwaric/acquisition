@@ -11,7 +11,7 @@ set -uo pipefail
 here=$(cd "$(dirname "$0")/.." && pwd)
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
-RUN_DIR="$work"; MODE=mock; ACQ=/dev/null; ACQD=/dev/null; SOCK=none
+RUN_DIR="$work"; MODE=mock; ACQ=/dev/null; ACQD=/dev/null
 . "$here/tools/preflight.sh"
 
 good() {

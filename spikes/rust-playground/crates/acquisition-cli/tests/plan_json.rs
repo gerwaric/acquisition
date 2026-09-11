@@ -26,7 +26,6 @@ fn acq(base: &Path, args: &[&str]) -> Output {
     let mut cmd = Command::new(env!("CARGO_BIN_EXE_acq"));
     cmd.args(args)
         .env("ACQ_STORE_DIR", base)
-        .env("ACQ_SOCKET", base.join("no.sock"))
         .env("ACQ_NO_KEYRING", "1")
         .env("ACQ_NO_SPAWN", "1");
     // The parent shell may carry live-run or selection state; the contract

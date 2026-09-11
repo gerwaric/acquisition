@@ -27,27 +27,31 @@
 //! `Daemon`'s drop prints it while a test is panicking, so a failed
 //! assertion's output carries which daemon ran.
 //!
-//! The client reads the socket from `ACQ_SOCKET` and the world from
-//! `ACQ_STORE_DIR`, process-wide settings, so the tests here run one at
-//! a time under a lock and set their own scratch socket, store and log
-//! directory while they hold it; the store root is created with the
-//! session (a scripted peer has no daemon to create it, and the world it
-//! claims must exist to be this process's). Nothing here reaches GGG:
-//! `ACQ_GGG` is scrubbed and the daemon runs the mock provider.
+//! The client reads the world from `ACQ_STORE_DIR` and derives the
+//! socket from it (C83) into the runtime directory, process-wide
+//! settings, so the tests here run one at a time under a lock and set
+//! their own scratch store and log directory while they hold it — and a
+//! scratch temp and runtime directory (`TMPDIR`, `XDG_RUNTIME_DIR`), so
+//! the sockets these daemons bind, the legacy rendezvous a test stages
+//! and the real-mode lock never touch the user's own; the store root is
+//! created with the session (a scripted peer has no daemon to create it,
+//! and the world it claims must exist to be this process's). Nothing
+//! here reaches GGG: `ACQ_GGG` is scrubbed and the daemon runs the mock
+//! provider.
 
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
-use std::sync::{Mutex, MutexGuard};
+use std::sync::{Mutex, MutexGuard, OnceLock};
 use std::time::{Duration, Instant};
 
 use acquisition_client::client::{
-    Client, ConnectError, ConnectOptions, Observed, Signal, Subscription,
+    Client, ConnectError, ConnectOptions, NotReplaced, Observed, Signal, Subscription,
 };
 use acquisition_client::frame::{Frame, read_frame};
 use acquisition_protocol::job::JobState;
 use acquisition_protocol::protocol::{ErrorKind, MAX_FRAME_BYTES, Request, Response};
 use acquisition_protocol::{CONTRACT_REVISION, VERSION};
-use acquisition_store::world::{World, socket_path};
+use acquisition_store::world::{World, legacy_socket_path};
 use serde_json::{Value, json};
 use tokio::io::{AsyncWriteExt, BufReader};
 use tokio::net::unix::{OwnedReadHalf, OwnedWriteHalf};
@@ -92,8 +96,14 @@ fn acqd_for_tests() -> PathBuf {
 
 static ONE_AT_A_TIME: Mutex<()> = Mutex::new(());
 
-/// A scratch socket and store, held for the test's duration: the process
-/// environment points at them while the lock is held.
+/// The temp directory as the process started, read once under the lock:
+/// every session redirects `TMPDIR` into its scratch, and the next
+/// scratch must not nest under the last.
+static ORIGINAL_TMP: OnceLock<PathBuf> = OnceLock::new();
+
+/// A scratch store, temp and runtime directory, held for the test's
+/// duration: the process environment points at them while the lock is
+/// held.
 struct Session {
     _lock: MutexGuard<'static, ()>,
     base: PathBuf,
@@ -103,17 +113,21 @@ fn session(tag: &str) -> Session {
     let lock = ONE_AT_A_TIME
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner());
-    // Short: Unix socket paths cap near 104 bytes and the temp dir is long.
-    let base = std::env::temp_dir().join(format!("acq-c{}-{tag}", std::process::id()));
+    let original = ORIGINAL_TMP.get_or_init(std::env::temp_dir);
+    let base = original.join(format!("acq-c{}-{tag}", std::process::id()));
     let _ = std::fs::remove_dir_all(&base);
     std::fs::create_dir_all(base.join("store")).expect("scratch dir");
+    std::fs::create_dir_all(base.join("tmp")).expect("scratch dir");
     // SAFETY: every test in this binary takes `ONE_AT_A_TIME` before
     // touching the environment or the client, so no other thread reads
     // these variables while they change.
     unsafe {
-        std::env::set_var("ACQ_SOCKET", base.join("d.sock"));
         std::env::set_var("ACQ_STORE_DIR", base.join("store"));
         std::env::set_var("ACQ_LOG_DIR", base.join("logs"));
+        // The runtime directory (the sockets, the real-mode lock) and the
+        // legacy paths under the scratch, on either platform.
+        std::env::set_var("TMPDIR", base.join("tmp"));
+        std::env::set_var("XDG_RUNTIME_DIR", base.join("tmp"));
         std::env::set_var("ACQ_NO_KEYRING", "1");
         std::env::set_var("ACQ_JOURNAL", "0");
         std::env::set_var("ACQ_IDLE_SHUTDOWN", "30");
@@ -127,6 +141,9 @@ fn session(tag: &str) -> Session {
             std::env::remove_var(var);
         }
     }
+    // The daemon's step, so a socket path resolves in this process too:
+    // a client never creates the runtime directory (C83).
+    acquisition_store::world::app_runtime_dir().expect("the scratch runtime directory");
     Session { _lock: lock, base }
 }
 
@@ -136,6 +153,15 @@ impl Drop for Session {
     fn drop(&mut self) {
         let _ = std::fs::remove_dir_all(&self.base);
     }
+}
+
+/// The session's socket: derived from its world (C83) — what the daemon
+/// binds and a scripted peer must bind to be found.
+fn session_socket() -> PathBuf {
+    World::observe()
+        .expect("the session's world")
+        .socket_path()
+        .expect("its socket")
 }
 
 /// The mock daemon, killed on drop if a failed assertion leaves it
@@ -226,7 +252,9 @@ struct Raw {
 
 impl Raw {
     async fn open() -> Raw {
-        let stream = UnixStream::connect(socket_path()).await.expect("connect");
+        let stream = UnixStream::connect(session_socket())
+            .await
+            .expect("connect");
         let (read, write) = stream.into_split();
         Raw {
             reader: BufReader::new(read),
@@ -399,14 +427,22 @@ async fn c85_the_daemon_identifies_itself_and_stops_across_a_contract_mismatch()
         .await;
     assert_eq!(reply, json!({ "resp": "stopping" }));
     daemon.wait_exit();
-    assert!(!socket_path().exists(), "the socket is removed on exit");
+    assert!(!session_socket().exists(), "the socket is removed on exit");
 }
 
 /// A scripted daemon of a future revision on the session's socket: answers
 /// every hello with `hello_reply`, every `daemon_stop` with `stop_reply`,
 /// anything else with an error of a kind this build does not know.
 async fn foreign_daemon(hello_reply: Value, stop_reply: Value) -> tokio::task::JoinHandle<()> {
-    let path = socket_path();
+    foreign_daemon_at(session_socket(), hello_reply, stop_reply).await
+}
+
+/// `foreign_daemon` bound at `path`.
+async fn foreign_daemon_at(
+    path: PathBuf,
+    hello_reply: Value,
+    stop_reply: Value,
+) -> tokio::task::JoinHandle<()> {
     let _ = std::fs::remove_file(&path);
     let listener = UnixListener::bind(&path).expect("bind");
     tokio::spawn(async move {
@@ -506,106 +542,233 @@ async fn c85_a_client_identifies_and_stops_a_foreign_daemon_across_a_contract_mi
         "{err}"
     );
     peer.abort();
-    let _ = std::fs::remove_file(socket_path());
+    let _ = std::fs::remove_file(session_socket());
 }
 
-/// C83 at the client's door: a daemon on another world — the same build,
-/// the same provider, another canonical root — is judged on the world
-/// first and reported alone; a use door that would replace any other
-/// mismatch answers `OtherWorld` and leaves it running; an observer
-/// reports it; a shell whose own root does not exist has no world and
-/// matches no daemon; `stop_any` still stops it.
+/// C83 at the client's door. The socket derives from the world, so a
+/// daemon on another world is not on this shell's socket at all: from
+/// another root it is absent, and a shell whose own root does not exist
+/// has no world, no socket, and creates nothing by looking. What the
+/// wire still pins: a daemon that answers on *this* world's socket
+/// claiming another root (a scripted peer) is judged on the world first
+/// and reported alone; a use door that would replace any other mismatch
+/// answers `OtherWorld` and leaves it running; `stop_any` still stops it.
 #[tokio::test]
 async fn c83_a_daemon_on_another_world_is_refused_and_never_replaced() {
     let s = session("world");
     let mut daemon = start_daemon(&s).await;
     let pid = daemon.pid();
     let home = World::observe().expect("the session's world");
+    let home_socket = session_socket();
 
-    // This shell moves to another world, on the same socket.
+    // Another world is another socket: this shell moves to another root
+    // and finds nothing there — the daemon's socket derives from `home`.
     let elsewhere = s.base.join("elsewhere");
     std::fs::create_dir_all(&elsewhere).unwrap();
     // SAFETY: the session lock is held (module doc).
     unsafe {
         std::env::set_var("ACQ_STORE_DIR", &elsewhere);
     }
+    assert_ne!(
+        session_socket(),
+        home_socket,
+        "another world, another socket"
+    );
+    assert!(
+        matches!(Client::observe().await.expect("observe"), Observed::Absent),
+        "a daemon on another world is not on this world's socket"
+    );
+    // A shell whose root does not exist has no world and no socket:
+    // observation finds nothing and creates nothing.
+    unsafe {
+        std::env::set_var("ACQ_STORE_DIR", s.base.join("nowhere"));
+    }
+    assert!(matches!(
+        Client::observe().await.expect("observe"),
+        Observed::Absent
+    ));
+    assert!(
+        !s.base.join("nowhere").exists(),
+        "observation created the root"
+    );
+
+    // Back home: the same daemon, untouched, is this client's; stopped
+    // from home, on its own socket.
+    unsafe {
+        std::env::set_var("ACQ_STORE_DIR", s.base.join("store"));
+    }
+    let client = compatible_client().await;
+    assert_eq!(client.daemon().pid(), pid, "the daemon was replaced");
+    assert_eq!(client.daemon().socket(), home_socket, "{}", client.daemon());
+    assert!(!client.daemon().on_legacy_socket());
+    drop(client);
+    let stopped = Client::stop_any().await.expect("stop").expect("a daemon");
+    assert_eq!(stopped.pid(), pid);
+    daemon.wait_exit();
+    assert!(!home_socket.exists(), "the socket is removed on exit");
+
+    // What the wire pins: a peer on this world's socket claiming another
+    // root — the world judged first and named alone, never replaced by
+    // the use door, stopped by `stop_any`.
+    let peer = foreign_daemon(
+        json!({
+            "resp": "hello", "version": VERSION, "contract": CONTRACT_REVISION,
+            "pid": 4242, "provider": "mock", "world": "/somewhere/else",
+        }),
+        json!({ "resp": "stopping" }),
+    )
+    .await;
     let found = match Client::observe().await.expect("observe") {
         Observed::Incompatible(found) => found,
         Observed::Absent => panic!("absent"),
         Observed::Compatible(_) => panic!("a daemon on another world is never this client's"),
     };
-    assert_eq!(found.pid(), pid);
-    assert_eq!(found.world(), home.name(), "{found}");
+    assert_eq!(found.pid(), 4242);
+    assert_eq!(found.world(), "/somewhere/else", "{found}");
     assert!(
         !found.world_matches() && found.contract_matches(),
         "{found}"
     );
     let report = found.report();
     assert_eq!(report["world_matches"], false, "{report}");
+    assert_eq!(report["wanted"]["world"], home.name(), "{report}");
     assert_eq!(
-        report["wanted"]["world"],
-        elsewhere.canonicalize().unwrap().display().to_string(),
+        report["socket"],
+        home_socket.display().to_string(),
         "{report}"
     );
+    assert_eq!(report["legacy_socket"], false, "{report}");
     let text = found.to_string();
     assert!(
         text.contains("another world") && !text.contains("another contract"),
         "{text}"
     );
-
-    // The interactive use door — the one that replaces every other
-    // mismatch — refuses, typed, and the daemon is untouched.
     let err = match Client::connect(ConnectOptions::interactive(true)).await {
         Err(e) => e,
         Ok(_) => panic!("a daemon on another world was used"),
     };
     assert!(
-        matches!(&err, ConnectError::OtherWorld { found } if found.pid() == pid && found.world() == home.name()),
+        matches!(&err, ConnectError::OtherWorld { found } if found.pid() == 4242),
         "{err:?}"
     );
     assert!(err.to_string().contains("never replaces it"), "{err}");
+    let stopped = Client::stop_any().await.expect("stop").expect("a daemon");
+    assert_eq!(stopped.pid(), 4242);
+    peer.abort();
+    let _ = std::fs::remove_file(session_socket());
+}
 
-    // A shell whose root does not exist has no world: observation creates
-    // nothing, and the report says why nothing matched.
-    unsafe {
-        std::env::set_var("ACQ_STORE_DIR", s.base.join("nowhere"));
-    }
+/// C83, the split's step 6: a daemon on the legacy rendezvous — the
+/// fixed socket every daemon before the derived one listened on — is
+/// found only when this world's socket is silent, identified over the
+/// same handshake, and reported with its endpoint; it is never this
+/// client's (every dimension may match and the endpoint still refuses),
+/// never replaced (the interactive door — which would replace a contract
+/// mismatch on the world's socket — answers `Incompatible` with
+/// `LegacySocket` and spawns nothing), and `stop_any` stops it when the
+/// world's socket is silent. A daemon on the world's socket is never
+/// compared with it.
+#[tokio::test]
+async fn c83_a_daemon_on_the_legacy_socket_is_reported_never_replaced_and_stopped() {
+    let s = session("legacy");
+    let home = World::observe().expect("the session's world");
+    let legacy = legacy_socket_path();
+    assert!(
+        legacy.starts_with(s.base.join("tmp")),
+        "the legacy socket is in the scratch: {}",
+        legacy.display()
+    );
+    // A daemon from before the rendezvous, on this very world: only the
+    // endpoint tells it apart.
+    let peer = foreign_daemon_at(
+        legacy.clone(),
+        json!({
+            "resp": "hello", "version": VERSION, "contract": CONTRACT_REVISION,
+            "pid": 4242, "provider": "mock", "world": home.name(),
+        }),
+        json!({ "resp": "stopping" }),
+    )
+    .await;
+
     let found = match Client::observe().await.expect("observe") {
         Observed::Incompatible(found) => found,
-        _ => panic!("a daemon is running"),
+        Observed::Absent => panic!("the legacy socket was not probed"),
+        Observed::Compatible(_) => panic!("a daemon on the legacy socket is never this client's"),
     };
-    assert!(!found.world_matches(), "{found}");
+    assert_eq!(found.pid(), 4242);
+    assert!(found.on_legacy_socket(), "{found}");
+    assert_eq!(found.socket(), legacy, "{found}");
     assert!(
-        found.report()["wanted"]["world_absent"]
-            .as_str()
-            .unwrap()
-            .contains("does not exist"),
-        "{}",
-        found.report()
+        found.world_matches() && found.contract_matches() && found.provider_matches(),
+        "{found}"
     );
+    let report = found.report();
+    assert_eq!(report["legacy_socket"], true, "{report}");
+    assert_eq!(report["socket"], legacy.display().to_string(), "{report}");
+    let text = found.to_string();
     assert!(
-        !s.base.join("nowhere").exists(),
-        "observation created the root"
+        text.contains("legacy socket") && text.contains(&legacy.display().to_string()),
+        "{text}"
     );
 
-    // Back home: the same daemon, unreplaced, is this client's.
-    unsafe {
-        std::env::set_var("ACQ_STORE_DIR", s.base.join("store"));
-    }
-    let client = compatible_client().await;
-    assert_eq!(client.daemon().pid(), pid, "the daemon was replaced");
-    drop(client);
+    // The interactive door refuses, typed, and starts nothing: the
+    // world's socket stays absent.
+    let err = match Client::connect(ConnectOptions::interactive(true)).await {
+        Err(e) => e,
+        Ok(_) => panic!("a daemon on the legacy socket was used"),
+    };
+    assert!(
+        matches!(
+            &err,
+            ConnectError::Incompatible {
+                found,
+                because: NotReplaced::LegacySocket
+            } if found.pid() == 4242
+        ),
+        "{err:?}"
+    );
+    assert!(
+        err.to_string().contains("acq daemon stop") && err.to_string().contains("once"),
+        "{err}"
+    );
+    assert!(!session_socket().exists(), "a daemon was spawned beside it");
 
-    // Stopping is the one verb that acts on it from elsewhere.
-    unsafe {
-        std::env::set_var("ACQ_STORE_DIR", &elsewhere);
-    }
+    // Stopping falls through to it while the world's socket is silent.
     let stopped = Client::stop_any().await.expect("stop").expect("a daemon");
-    assert_eq!(stopped.pid(), pid);
+    assert_eq!(stopped.pid(), 4242);
+    assert!(stopped.on_legacy_socket());
+    peer.abort();
+    let _ = std::fs::remove_file(&legacy);
+
+    // With the legacy socket silent, the world's rendezvous works as
+    // before, and a daemon there is never compared with the legacy one:
+    // a peer staged back on the legacy path while this daemon runs is
+    // neither reported nor stopped.
+    let mut daemon = start_daemon(&s).await;
+    let pid = daemon.pid();
+    let peer = foreign_daemon_at(
+        legacy.clone(),
+        json!({
+            "resp": "hello", "version": VERSION, "contract": CONTRACT_REVISION,
+            "pid": 4243, "provider": "mock", "world": home.name(),
+        }),
+        json!({ "resp": "stopping" }),
+    )
+    .await;
+    let client = compatible_client().await;
+    assert_eq!(client.daemon().pid(), pid);
+    assert!(!client.daemon().on_legacy_socket());
+    drop(client);
+    let stopped = Client::stop_any().await.expect("stop").expect("a daemon");
+    assert_eq!(stopped.pid(), pid, "the world's daemon is stopped first");
     daemon.wait_exit();
-    unsafe {
-        std::env::set_var("ACQ_STORE_DIR", s.base.join("store"));
-    }
+    let stopped = Client::stop_any()
+        .await
+        .expect("stop")
+        .expect("the legacy peer");
+    assert_eq!(stopped.pid(), 4243, "then the legacy one");
+    peer.abort();
+    let _ = std::fs::remove_file(&legacy);
 }
 
 // ---- frames ---------------------------------------------------------------
@@ -1041,4 +1204,42 @@ async fn login(client: &mut Client, user: Option<&str>) {
         assert!(Instant::now() < deadline, "login did not complete");
         tokio::time::sleep(Duration::from_millis(50)).await;
     }
+}
+
+/// C83: a daemon exiting removes the socket file it bound and never a
+/// successor's at the same path. Staged directly: with a connection to
+/// the daemon held open, its socket is unlinked and another listener
+/// bound in its place — what a successor on the same world does when it
+/// starts while the predecessor is still on its way out — then the
+/// daemon is stopped over the held connection; the new listener's file
+/// must survive the exit (seen in a rehearsal, 2026-09-11: a stop
+/// followed within a second by a start on the same world lost the new
+/// daemon's rendezvous).
+#[tokio::test]
+async fn c83_a_daemon_on_its_way_out_never_unlinks_a_successors_socket() {
+    let s = session("exit");
+    let mut daemon = start_daemon(&s).await;
+    let socket = session_socket();
+    let mut held = Raw::open().await;
+    held.hello().await;
+
+    // The successor's socket, in the predecessor's place.
+    std::fs::remove_file(&socket).expect("unlink the live daemon's socket");
+    let successor = UnixListener::bind(&socket).expect("bind in its place");
+
+    let reply = held
+        .ask(json!({ "req": "daemon_stop", "reason": "exit pin" }))
+        .await;
+    assert_eq!(reply, json!({ "resp": "stopping" }));
+    daemon.wait_exit();
+
+    assert!(
+        socket.exists(),
+        "the exiting daemon unlinked the successor's socket"
+    );
+    let probe = UnixStream::connect(&socket).await;
+    assert!(probe.is_ok(), "the successor's socket no longer connects");
+    let (_accepted, _) = successor.accept().await.expect("the successor accepts");
+    drop(successor);
+    let _ = std::fs::remove_file(&socket);
 }

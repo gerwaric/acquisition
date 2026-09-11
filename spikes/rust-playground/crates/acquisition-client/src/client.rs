@@ -27,16 +27,38 @@
 //!
 //! What a use door spawns is the `acqd` beside this executable and nothing
 //! else (`locator.rs`, C82): the daemon is its own artifact, never a mode
-//! of the frontend's binary. Before it spawns, a use door creates the
-//! world's root (C83: the use path creates, observation never does) so
-//! the daemon and this process canonicalise the same directory.
+//! of the frontend's binary. Every door resolves this process's world
+//! first (C83): a door that may spawn creates the root — the daemon it
+//! starts locks and reports the same canonical directory — and a door
+//! that may not observes, creating nothing. The socket is derived from
+//! that world (`World::socket_path`: its id in the private per-user
+//! runtime directory), so no world is no socket: a use door that may
+//! spawn makes one, an observer reports absence. Nothing chooses the
+//! socket by hand.
 //!
 //! A daemon on another world (C83) is the one mismatch no door resolves:
 //! `hello` names the daemon's canonical root, the client compares it with
 //! its own before the other dimensions, and a use door answers
 //! [`ConnectError::OtherWorld`] rather than replacing a daemon that is
 //! legitimately serving its own world; an observer reports it like any
-//! other mismatch, and `stop_any` still stops it.
+//! other mismatch, and `stop_any` still stops it. Since the socket
+//! derives from the root, a daemon on another world is reached only
+//! through the legacy rendezvous below.
+//!
+//! **The rendezvous before the split's step 6**, for one transition: a
+//! daemon from before it listens on the fixed
+//! `acquisition-playground.sock` in the temp directory
+//! (`legacy_socket_path`), invisible on the derived socket, and would
+//! refuse the daemon a use door spawns beside it. So a door that finds
+//! its world's socket absent probes the legacy socket before it spawns
+//! or reports absence: a daemon answering there is identified over the
+//! same handshake, its [`Endpoint`] marked legacy, and reported — never
+//! used (it predates this build), never replaced (the use door answers
+//! [`ConnectError::Incompatible`] with [`NotReplaced::LegacySocket`]);
+//! `stop_any` stops it when the world's socket is silent. A daemon on
+//! the world's socket is never compared with the legacy one: the probe
+//! runs only when nothing answers at the derived path. Parked for
+//! removal with the rails migration (`decisions/daemon.md`).
 //!
 //! # Decisions as recorded
 //!
@@ -115,15 +137,15 @@
 //! process wants (`ACQ_GGG`).
 //!
 //! The **world** (C83) is the handshake's `world` — the daemon's
-//! canonical store root — against this process's own
-//! (`acquisition_store::world::World::observe`, which creates nothing:
-//! a root that does not exist is an absent world and matches no daemon).
-//! Two spellings of one directory are one world because both sides
-//! canonicalise; a daemon on another root is another world, and the
-//! typed answer at a use door is [`ConnectError::OtherWorld`], since
-//! killing it would stop a daemon that is serving its own world
-//! correctly — the collision is the rendezvous, which step 6 derives from
-//! the root.
+//! canonical store root — against this process's own, resolved once at
+//! the door before the socket is derived from it (the same look names
+//! `wanted.world` in every report; an observer's look creates nothing:
+//! a root that does not exist is an absent world, has no socket and
+//! matches no daemon). Two spellings of one directory are one world
+//! because both sides canonicalise; a daemon on another root is another
+//! world, and the typed answer at a use door is
+//! [`ConnectError::OtherWorld`], since killing it would stop a daemon
+//! that is serving its own world correctly.
 //!
 //! Why two values and not one: with the artifact alone, a frontend rebuilt
 //! after a wire or store change runs against an old daemon that matches
@@ -191,7 +213,7 @@ use acquisition_protocol::protocol::{
     Bootstrap, BootstrapReply, ErrorKind, MAX_FRAME_BYTES, Request, Response, error_message,
 };
 use acquisition_protocol::{CONTRACT_REVISION, VERSION};
-use acquisition_store::world::{World, socket_path};
+use acquisition_store::world::{World, WorldError, legacy_socket_path};
 use anyhow::{Context, Result, bail};
 use serde::Serialize;
 use serde_json::json;
@@ -275,17 +297,18 @@ pub enum ConnectError {
     /// policy, or `ACQ_NO_SPAWN=1` over a caller that would have.
     Absent { because: NotSpawned },
     /// The daemon listening is not this client's (C10: contract, artifact
-    /// or provider), and this door may not replace it — or did, and the
-    /// replacement is still not it.
+    /// or provider; or it is on the legacy socket), and this door may not
+    /// replace it — or did, and the replacement is still not it. The
+    /// identity is boxed so the error stays small on the stack.
     Incompatible {
-        found: DaemonId,
+        found: Box<DaemonId>,
         because: NotReplaced,
     },
     /// The daemon serves another world (C83): `hello` named a canonical
     /// root that is not this process's (`found.world()`). No door replaces
     /// it — a daemon on its own world is not stale — so the remedy is the
     /// human's: stop it, or point `ACQ_STORE_DIR` at its world.
-    OtherWorld { found: DaemonId },
+    OtherWorld { found: Box<DaemonId> },
     /// The daemon could not be started: no `acqd` beside this executable
     /// (C82), the spawn failed, or the daemon exited or never bound its
     /// socket. `log` is the explanation, with what the daemon's log said
@@ -317,6 +340,11 @@ pub enum NotReplaced {
     /// This client replaced it, and the daemon it then found is still not
     /// its own — the sibling `acqd` is not this build's.
     StillAfterRespawn,
+    /// It listens on the legacy socket, from before the derived
+    /// rendezvous (C83, the split's step 6): the world's socket was
+    /// silent and the probe found it there. No client uses or replaces
+    /// one — the transition is a human's `acq daemon stop`, once.
+    LegacySocket,
 }
 
 impl fmt::Display for ConnectError {
@@ -337,6 +365,10 @@ impl fmt::Display for ConnectError {
                     "{found}, and this client never replaces a daemon — resolve it with the CLI (`acq daemon stop`)"
                 ),
                 NotReplaced::StillAfterRespawn => write!(f, "{found}, still, after a respawn"),
+                NotReplaced::LegacySocket => write!(
+                    f,
+                    "{found}; nothing binds there any more and no client replaces it — `acq daemon stop` stops it, once, then this world's socket is the rendezvous"
+                ),
             },
             ConnectError::OtherWorld { found } => {
                 write!(
@@ -363,15 +395,62 @@ fn want_provider() -> &'static str {
     acquisition_protocol::provider::wanted()
 }
 
+/// Where a daemon was reached: its world's socket (C83), or the
+/// rendezvous every daemon before the split's step 6 listened on.
+#[derive(Clone, Debug, Serialize, PartialEq, Eq)]
+pub struct Endpoint {
+    /// The socket the handshake ran over.
+    pub socket: PathBuf,
+    /// True when `socket` is the legacy rendezvous: a daemon there is
+    /// from before the derived socket — never this client's, never
+    /// replaced, stopped by hand (`acq daemon stop`).
+    pub legacy: bool,
+}
+
+impl Endpoint {
+    /// This process's world's socket.
+    pub fn world(socket: PathBuf) -> Endpoint {
+        Endpoint {
+            socket,
+            legacy: false,
+        }
+    }
+
+    /// The legacy rendezvous.
+    pub fn legacy(socket: PathBuf) -> Endpoint {
+        Endpoint {
+            socket,
+            legacy: true,
+        }
+    }
+}
+
+/// A daemon's identity as `hello` reports it (C84, C83), before it is
+/// judged.
+#[derive(Clone, Debug)]
+pub struct Reported {
+    pub pid: u32,
+    pub version: String,
+    pub contract: String,
+    pub artifact: Option<Artifact>,
+    pub provider: String,
+    pub world: String,
+}
+
 /// A daemon as its handshake identifies it, judged once. Whether it is
 /// this client's is four dimensions, judged together (C10, C84, C83): the
 /// shared-contract revision, the daemon artifact against the sibling
 /// this process would spawn, the provider, and the world against this
-/// process's own. The identity and its verdict are read-only from
-/// outside this module — the verdict was made of exactly these fields,
-/// and nothing may change one without the other (review 2026-09-11).
+/// process's own — and the endpoint it was reached at, since a daemon on
+/// the legacy socket is never this client's whatever it reports. The
+/// identity and its verdict are read-only from outside this module — the
+/// verdict was made of exactly these fields, and nothing may change one
+/// without the other (review 2026-09-11).
 #[derive(Clone, Debug, Serialize)]
 pub struct DaemonId {
+    /// The socket the handshake ran over, and whether it is the legacy
+    /// rendezvous.
+    endpoint: Endpoint,
     pid: u32,
     /// The daemon's package version; informational (C84 compares the
     /// contract, not this).
@@ -427,19 +506,18 @@ pub struct AbsentWorld {
 impl Verdict {
     /// One look at the sibling — opened once; its identity and, when
     /// needed, its bytes from that handle — then every dimension judged
-    /// against it.
-    fn of(contract: &str, artifact: Option<&Artifact>, provider: &str, world: &str) -> Verdict {
+    /// against it and against the world the door resolved.
+    fn of(reported: &Reported, own_world: Result<String, AbsentWorld>) -> Verdict {
         let opened = sibling();
         let identity = match &opened {
             Ok(s) => Ok(s.identity.clone()),
             Err(e) => Err(e.clone()),
         };
-        let own_world = own_world();
         Verdict {
-            contract: contract == CONTRACT_REVISION,
-            artifact: ArtifactVerdict::judge_against(artifact, opened),
-            provider: provider == want_provider(),
-            world: own_world.as_deref().ok() == Some(world),
+            contract: reported.contract == CONTRACT_REVISION,
+            artifact: ArtifactVerdict::judge_against(reported.artifact.as_ref(), opened),
+            provider: reported.provider == want_provider(),
+            world: own_world.as_deref().ok() == Some(reported.world.as_str()),
             sibling: identity,
             own_world,
         }
@@ -451,40 +529,41 @@ impl Verdict {
     }
 }
 
-/// This process's world (C83), observed — never created here: the
-/// canonical root when it exists, else the root it intended and why
-/// there is no world there.
-fn own_world() -> Result<String, AbsentWorld> {
-    World::observe().map(|w| w.name()).map_err(|e| AbsentWorld {
+/// A world that did not resolve, as the verdict records it.
+fn absent_world(e: WorldError) -> AbsentWorld {
+    AbsentWorld {
         intended: e.intended.display().to_string(),
         reason: e.to_string(),
-    })
-}
-
-/// The intended root as `hello` names it from this side, whether or not
-/// it exists yet: the daemon logs a mismatch, nothing more. A look of its
-/// own, before the handshake; the verdict's look is the one every report
-/// reads.
-fn own_world_name() -> String {
-    match own_world() {
-        Ok(name) => name,
-        Err(absent) => absent.intended,
     }
 }
 
+/// The world by name, for the verdict and the hello frame: the
+/// canonical root, or the root this process intended when there is none
+/// (the daemon logs a mismatch, nothing more).
+fn world_name(own: &Result<World, AbsentWorld>) -> Result<String, AbsentWorld> {
+    own.as_ref().map(World::name).map_err(Clone::clone)
+}
+
 impl DaemonId {
-    /// An identity as read off the wire, judged once, now, against what
-    /// this process is and would spawn.
+    /// An identity as read off the wire at `endpoint`, judged once, now,
+    /// against what this process is and would spawn, and against the
+    /// world its door resolved.
     pub fn judged(
-        pid: u32,
-        version: String,
-        contract: String,
-        artifact: Option<Artifact>,
-        provider: String,
-        world: String,
+        reported: Reported,
+        endpoint: Endpoint,
+        own_world: Result<String, AbsentWorld>,
     ) -> DaemonId {
-        let verdict = Verdict::of(&contract, artifact.as_ref(), &provider, &world);
+        let verdict = Verdict::of(&reported, own_world);
+        let Reported {
+            pid,
+            version,
+            contract,
+            artifact,
+            provider,
+            world,
+        } = reported;
         DaemonId {
+            endpoint,
             pid,
             version,
             contract,
@@ -498,6 +577,22 @@ impl DaemonId {
     /// The judgement captured with this identity.
     pub fn verdict(&self) -> &Verdict {
         &self.verdict
+    }
+
+    /// Where the daemon was reached.
+    pub fn endpoint(&self) -> &Endpoint {
+        &self.endpoint
+    }
+
+    /// The socket the handshake ran over.
+    pub fn socket(&self) -> &std::path::Path {
+        &self.endpoint.socket
+    }
+
+    /// The daemon listens on the legacy rendezvous, from before the
+    /// derived socket: never this client's, never replaced.
+    pub fn on_legacy_socket(&self) -> bool {
+        self.endpoint.legacy
     }
 
     pub fn pid(&self) -> u32 {
@@ -545,17 +640,20 @@ impl DaemonId {
         self.verdict.world
     }
 
-    /// Every dimension matches: this client may use the daemon.
+    /// Every dimension matches and the daemon is on this world's socket:
+    /// this client may use the daemon. One on the legacy rendezvous is
+    /// never this client's, whatever it reports.
     pub fn is_ours(&self) -> bool {
-        self.verdict.is_ours()
+        self.verdict.is_ours() && !self.endpoint.legacy
     }
 
     /// The observer's report, one shape for every frontend: the daemon
-    /// found, what this process wanted — its contract, its provider, its
-    /// world (or the root it intended, with `world_absent` saying why
-    /// there is none) and the sibling `acqd` as found in the one look
-    /// that judged it, or `null` with the reason — and which dimensions
-    /// differ.
+    /// found, the socket it was reached on (`legacy_socket` true for the
+    /// rendezvous from before the split's step 6), what this process
+    /// wanted — its contract, its provider, its world (or the root it
+    /// intended, with `world_absent` saying why there is none) and the
+    /// sibling `acqd` as found in the one look that judged it, or `null`
+    /// with the reason — and which dimensions differ.
     pub fn report(&self) -> serde_json::Value {
         let verdict = &self.verdict;
         let (acqd, acqd_absent) = match &verdict.sibling {
@@ -585,6 +683,8 @@ impl DaemonId {
             "artifact": self.artifact,
             "provider": self.provider,
             "world": self.world,
+            "socket": self.endpoint.socket,
+            "legacy_socket": self.endpoint.legacy,
             "contract_matches": verdict.contract,
             "artifact_matches": verdict.artifact.matches(),
             "artifact_relation": verdict.artifact.relation(),
@@ -631,6 +731,19 @@ impl fmt::Display for DaemonId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let verdict = &self.verdict;
         write!(f, "daemon (pid {})", self.pid)?;
+        if self.endpoint.legacy {
+            // Named first and alone, like another world: a daemon on the
+            // legacy rendezvous predates this build, and nothing this
+            // process would do to it follows from the other dimensions.
+            return write!(
+                f,
+                " listens on the legacy socket {} — from before the derived rendezvous (C83; this world's is under the runtime directory); contract {}, provider {}, world {}",
+                self.endpoint.socket.display(),
+                self.contract,
+                self.provider,
+                self.world
+            );
+        }
         if verdict.is_ours() {
             return write!(
                 f,
@@ -697,14 +810,17 @@ impl fmt::Display for DaemonId {
     }
 }
 
-/// What [`Client::observe`] (or [`Subscription::observe`]) found on the
-/// socket.
+/// What [`Client::observe`] (or [`Subscription::observe`]) found on this
+/// world's socket — or, when that was silent, on the legacy rendezvous.
 pub enum Observed<C = Client> {
-    /// Nothing is listening.
+    /// Nothing is listening on either: no daemon, or no world to have
+    /// one.
     Absent,
     /// The daemon is this client's, and this is a connection to it.
     Compatible(C),
-    /// A daemon that is not this client's: identified, reported, not used.
+    /// A daemon that is not this client's: identified, reported, not
+    /// used. Its [`DaemonId::endpoint`] says which socket it was found
+    /// on.
     Incompatible(DaemonId),
 }
 
@@ -798,13 +914,92 @@ fn is_absent(e: &std::io::Error) -> bool {
     )
 }
 
+/// This process's world, resolved once at a door (C83): created when
+/// the door may spawn — the daemon it starts must lock and report the
+/// same canonical directory — and observed otherwise, creating nothing.
+/// A root that cannot be created is a spawn that cannot happen.
+fn world_at_door(create: bool) -> Result<Result<World, AbsentWorld>, ConnectError> {
+    if create {
+        World::create()
+            .map(Ok)
+            .map_err(|e| ConnectError::SpawnFailed {
+                acqd: None,
+                log: format!("could not create the world's root before starting the daemon: {e}"),
+            })
+    } else {
+        Ok(World::observe().map_err(absent_world))
+    }
+}
+
+/// The socket this process's daemon would listen on, derived from its
+/// world (C83). `None` when nothing can be listening — no world, or no
+/// runtime directory yet; an error is a runtime directory that is not
+/// this user's, or a path over the cap.
+fn world_socket(own: &Result<World, AbsentWorld>) -> Result<Option<PathBuf>> {
+    let Ok(world) = own else {
+        return Ok(None);
+    };
+    match world.socket_path() {
+        Ok(path) => Ok(Some(path)),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(e) => Err(anyhow::Error::from(e).context("resolving this world's socket")),
+    }
+}
+
+/// What connecting to a world's socket found.
+enum Reached {
+    /// Something is listening.
+    Listening { socket: PathBuf, stream: UnixStream },
+    /// Nothing is: the socket absent or refusing, or none to try.
+    Nothing,
+}
+
+/// Connect to `socket` — or to nothing, when there is no socket to try.
+/// A transport failure comes back with the path it was on.
+async fn reach(socket: Option<PathBuf>) -> Result<Reached, (PathBuf, std::io::Error)> {
+    let Some(socket) = socket else {
+        return Ok(Reached::Nothing);
+    };
+    match UnixStream::connect(&socket).await {
+        Ok(stream) => Ok(Reached::Listening { socket, stream }),
+        Err(e) if is_absent(&e) => Ok(Reached::Nothing),
+        Err(e) => Err((socket, e)),
+    }
+}
+
+/// The legacy rendezvous, probed when this world's socket is silent
+/// (module doc): the daemon answering there, identified over the
+/// handshake and marked legacy, or `None`.
+async fn probe_legacy(own_world: &Result<String, AbsentWorld>) -> Result<Option<Client>> {
+    let legacy = legacy_socket_path();
+    match UnixStream::connect(&legacy).await {
+        Ok(stream) => {
+            Client::handshake(stream, Endpoint::legacy(legacy.clone()), own_world.clone())
+                .await
+                .map(Some)
+                .with_context(|| {
+                    format!(
+                        "identifying what answers on the legacy socket {}",
+                        legacy.display()
+                    )
+                })
+        }
+        Err(e) if is_absent(&e) => Ok(None),
+        Err(e) => {
+            Err(e).with_context(|| format!("connecting to the legacy socket {}", legacy.display()))
+        }
+    }
+}
+
 impl Client {
     /// Connect to the daemon for a *use* verb, spawning or replacing one as
     /// `opts` allows. What it spawns is the `acqd` beside this executable
-    /// (C82). A door that does not open is a [`ConnectError`]: absence
-    /// this door may not fill, a mismatch it may not resolve (a mock-mode
-    /// daemon can't serve an `ACQ_GGG=1` client, or vice versa), a spawn
-    /// that failed, or a transport failure — each naming what it found.
+    /// (C82), on the socket derived from this process's world (C83). A
+    /// door that does not open is a [`ConnectError`]: absence this door
+    /// may not fill, a mismatch it may not resolve (a mock-mode daemon
+    /// can't serve an `ACQ_GGG=1` client, or vice versa; a daemon on the
+    /// legacy rendezvous), a spawn that failed, or a transport failure —
+    /// each naming what it found.
     pub async fn connect(opts: ConnectOptions) -> Result<Client, ConnectError> {
         // `ACQ_NO_SPAWN=1`: never start or replace a daemon from this
         // process. A daemon spawned from a non-interactive parent (cron,
@@ -814,17 +1009,24 @@ impl Client {
         // only talk to a daemon they started themselves.
         let spawn = opts.spawn && !no_spawn();
         let replace = opts.replace && !no_spawn();
+        // The world first (C83): created if this door may spawn, else
+        // observed; the socket derives from it, and the same look names
+        // `wanted.world` in every report this door makes.
+        let own = world_at_door(spawn)?;
+        let own_name = world_name(&own);
         let mut respawned = false;
         // The spawned daemon, with where its log ended at spawn time: if it
         // exits instead of binding the socket, the lines after that offset
         // are its refusal (its stderr goes to null — the log is all there is).
         let mut child: Option<Spawned> = None;
         for _attempt in 0..100 {
-            match UnixStream::connect(socket_path()).await {
-                Ok(stream) => {
-                    let mut client = Client::handshake(stream)
-                        .await
-                        .map_err(ConnectError::Transport)?;
+            let socket = world_socket(&own).map_err(ConnectError::Transport)?;
+            match reach(socket).await {
+                Ok(Reached::Listening { socket, stream }) => {
+                    let mut client =
+                        Client::handshake(stream, Endpoint::world(socket), own_name.clone())
+                            .await
+                            .map_err(ConnectError::Transport)?;
                     if client.daemon.is_ours() {
                         return Ok(client);
                     }
@@ -833,12 +1035,12 @@ impl Client {
                     // own world; only the socket collided.
                     if !client.daemon.world_matches() {
                         return Err(ConnectError::OtherWorld {
-                            found: client.daemon,
+                            found: Box::new(client.daemon),
                         });
                     }
                     if respawned {
                         return Err(ConnectError::Incompatible {
-                            found: client.daemon,
+                            found: Box::new(client.daemon),
                             because: NotReplaced::StillAfterRespawn,
                         });
                     }
@@ -849,7 +1051,7 @@ impl Client {
                             NotReplaced::NeverReplaces
                         };
                         return Err(ConnectError::Incompatible {
-                            found: client.daemon,
+                            found: Box::new(client.daemon),
                             because,
                         });
                     }
@@ -864,9 +1066,31 @@ impl Client {
                 // Once we've killed a mismatched daemon we must respawn it
                 // even for a `spawn: false` caller — leaving nothing running
                 // would turn a read into a stop.
-                Err(_) if spawn || respawned => {
+                Ok(Reached::Nothing) if spawn || respawned => {
                     match child.as_mut() {
-                        None => child = Some(spawn_daemon()?),
+                        None => {
+                            // Before the first spawn: a daemon from before
+                            // the rendezvous, on the legacy socket, would
+                            // refuse the one spawned beside it — report it
+                            // instead, with the stop remedy (module doc).
+                            if !respawned
+                                && let Some(found) = probe_legacy(&own_name)
+                                    .await
+                                    .map_err(ConnectError::Transport)?
+                            {
+                                return Err(ConnectError::Incompatible {
+                                    found: Box::new(found.daemon),
+                                    because: NotReplaced::LegacySocket,
+                                });
+                            }
+                            let Ok(world) = &own else {
+                                return Err(ConnectError::SpawnFailed {
+                                    acqd: None,
+                                    log: "no world to start a daemon in".into(),
+                                });
+                            };
+                            child = Some(spawn_daemon(world)?);
+                        }
                         Some(spawned) => {
                             // An exited daemon will never bind the socket:
                             // report its refusal now, not after the timeout.
@@ -883,7 +1107,18 @@ impl Client {
                     }
                     tokio::time::sleep(Duration::from_millis(50)).await;
                 }
-                Err(e) if is_absent(&e) => {
+                Ok(Reached::Nothing) => {
+                    // A daemon from before the rendezvous is reported
+                    // before absence is: it is what a human must stop.
+                    if let Some(found) = probe_legacy(&own_name)
+                        .await
+                        .map_err(ConnectError::Transport)?
+                    {
+                        return Err(ConnectError::Incompatible {
+                            found: Box::new(found.daemon),
+                            because: NotReplaced::LegacySocket,
+                        });
+                    }
                     // The caller's policy first: a door that never spawns
                     // is absent by policy whatever the knob says.
                     let because = if opts.spawn {
@@ -893,66 +1128,96 @@ impl Client {
                     };
                     return Err(ConnectError::Absent { because });
                 }
-                Err(e) => {
+                Err((socket, e)) => {
                     return Err(ConnectError::Transport(
                         anyhow::Error::from(e)
-                            .context(format!("connecting to {}", socket_path().display())),
+                            .context(format!("connecting to {}", socket.display())),
                     ));
                 }
             }
         }
+        let socket = world_socket(&own)
+            .ok()
+            .flatten()
+            .map_or_else(|| "its socket".to_string(), |p| p.display().to_string());
         Err(match child {
             Some(spawned) => ConnectError::SpawnFailed {
                 log: format!(
-                    "it did not bind {} within 5s{}",
-                    socket_path().display(),
+                    "it did not bind {socket} within 5s{}",
                     startup_log_excerpt(&spawned)
                 ),
                 acqd: Some(spawned.acqd),
             },
             None => ConnectError::Transport(anyhow::anyhow!(
-                "could not reach daemon at {} after 5s",
-                socket_path().display()
+                "could not reach daemon at {socket} after 5s"
             )),
         })
     }
 
-    /// Observe the socket (C10): never spawns or replaces. Nothing
-    /// listening is [`Observed::Absent`]; this client's daemon comes back
-    /// connected; any other daemon is identified and reported, and the
-    /// connection to it is dropped unused.
+    /// Observe this world's socket (C10): never spawns or replaces, and
+    /// creates nothing — a world that does not exist has no socket.
+    /// Nothing listening there is checked once more on the legacy
+    /// rendezvous (module doc), then [`Observed::Absent`]; this client's
+    /// daemon comes back connected; any other daemon is identified and
+    /// reported, and the connection to it is dropped unused.
     pub async fn observe() -> Result<Observed> {
-        match UnixStream::connect(socket_path()).await {
-            Ok(stream) => {
-                let client = Client::handshake(stream).await?;
+        let own = World::observe().map_err(absent_world);
+        let own_name = world_name(&own);
+        match reach(world_socket(&own)?).await {
+            Ok(Reached::Listening { socket, stream }) => {
+                let client = Client::handshake(stream, Endpoint::world(socket), own_name).await?;
                 Ok(if client.daemon.is_ours() {
                     Observed::Compatible(client)
                 } else {
                     Observed::Incompatible(client.daemon)
                 })
             }
-            Err(e) if is_absent(&e) => Ok(Observed::Absent),
-            Err(e) => Err(e).with_context(|| format!("connecting to {}", socket_path().display())),
+            Ok(Reached::Nothing) => Ok(match probe_legacy(&own_name).await? {
+                Some(client) => Observed::Incompatible(client.daemon),
+                None => Observed::Absent,
+            }),
+            Err((socket, e)) => {
+                Err(e).with_context(|| format!("connecting to {}", socket.display()))
+            }
         }
     }
 
     /// `daemon stop`: ask whatever daemon is listening to stop, this
-    /// client's or not — stopping is how a human resolves a mismatch. Says
-    /// which daemon acknowledged (the daemon writes `Stopping` before it
-    /// exits; anything else is an error, not a stop); `None` when nothing
-    /// was listening.
+    /// client's or not — stopping is how a human resolves a mismatch: the
+    /// daemon on this world's socket, or, when that is silent, one on the
+    /// legacy rendezvous. Says which daemon acknowledged (the daemon
+    /// writes `Stopping` before it exits; anything else is an error, not
+    /// a stop); `None` when nothing was listening on either.
     pub async fn stop_any() -> Result<Option<DaemonId>> {
-        match UnixStream::connect(socket_path()).await {
-            Ok(stream) => Client::stop_over(stream).await.map(Some),
-            Err(e) if is_absent(&e) => Ok(None),
-            Err(e) => Err(e).with_context(|| format!("connecting to {}", socket_path().display())),
+        let own = World::observe().map_err(absent_world);
+        let own_name = world_name(&own);
+        match reach(world_socket(&own)?).await {
+            Ok(Reached::Listening { socket, stream }) => {
+                Client::stop_over(stream, Endpoint::world(socket), own_name)
+                    .await
+                    .map(Some)
+            }
+            Ok(Reached::Nothing) => match probe_legacy(&own_name).await? {
+                Some(mut client) => {
+                    client.stop().await?;
+                    Ok(Some(client.daemon))
+                }
+                None => Ok(None),
+            },
+            Err((socket, e)) => {
+                Err(e).with_context(|| format!("connecting to {}", socket.display()))
+            }
         }
     }
 
     /// The stop conversation over an open connection: identify the peer,
     /// ask it to stop, and count only its `Stopping` as a stop.
-    async fn stop_over(stream: UnixStream) -> Result<DaemonId> {
-        let mut client = Client::handshake(stream).await?;
+    async fn stop_over(
+        stream: UnixStream,
+        at: Endpoint,
+        own_world: Result<String, AbsentWorld>,
+    ) -> Result<DaemonId> {
+        let mut client = Client::handshake(stream, at, own_world).await?;
         client.stop().await?;
         Ok(client.daemon)
     }
@@ -975,30 +1240,35 @@ impl Client {
         }
     }
 
-    /// The handshake over a fresh connection: who is at the other end,
-    /// over the bootstrap plane (C85) so any revision answers. Decides
-    /// nothing — the caller reads `daemon` and applies its policy.
-    async fn handshake(stream: UnixStream) -> Result<Client> {
+    /// The handshake over a fresh connection at `at`: who is at the other
+    /// end, over the bootstrap plane (C85) so any revision answers,
+    /// judged once against `own_world` — the world the door resolved.
+    /// Decides nothing — the caller reads `daemon` and applies its
+    /// policy.
+    async fn handshake(
+        stream: UnixStream,
+        at: Endpoint,
+        own_world: Result<String, AbsentWorld>,
+    ) -> Result<Client> {
         let (read, write) = stream.into_split();
-        let mut client = Client {
-            reader: BufReader::new(read),
-            write,
-            daemon: DaemonId::judged(
-                0,
-                String::new(),
-                String::new(),
-                None,
-                String::new(),
-                String::new(),
-            ),
+        let mut reader = BufReader::new(read);
+        let mut write = write;
+        // What this side says about itself is for the daemon's log
+        // alone: the intended root when there is no world yet.
+        let world = match &own_world {
+            Ok(name) => name.clone(),
+            Err(absent) => absent.intended.clone(),
         };
-        let bytes = client
-            .exchange(&Bootstrap::Hello {
+        let bytes = exchange(
+            &mut reader,
+            &mut write,
+            &Bootstrap::Hello {
                 version: VERSION.to_string(),
                 contract: CONTRACT_REVISION.to_string(),
-                world: own_world_name(),
-            })
-            .await?;
+                world,
+            },
+        )
+        .await?;
         let Some(BootstrapReply::Hello {
             version,
             contract,
@@ -1013,8 +1283,19 @@ impl Client {
                 String::from_utf8_lossy(&bytes)
             );
         };
-        client.daemon = DaemonId::judged(pid, version, contract, artifact, provider, world);
-        Ok(client)
+        let reported = Reported {
+            pid,
+            version,
+            contract,
+            artifact,
+            provider,
+            world,
+        };
+        Ok(Client {
+            reader,
+            write,
+            daemon: DaemonId::judged(reported, at, own_world),
+        })
     }
 
     /// Turn this connection into a subscription: `subscribe`, then
@@ -1035,19 +1316,7 @@ impl Client {
     /// discipline both planes share. An answer over the frame bound is an
     /// error here, and the connection stays aligned on the next frame.
     async fn exchange<T: Serialize>(&mut self, frame: &T) -> Result<Vec<u8>> {
-        let mut line = serde_json::to_string(frame)?;
-        line.push('\n');
-        self.write.write_all(line.as_bytes()).await?;
-        loop {
-            match read_frame(&mut self.reader, MAX_FRAME_BYTES).await? {
-                Frame::Closed => bail!("daemon closed the connection"),
-                Frame::Oversize => {
-                    bail!("the daemon's answer exceeds {MAX_FRAME_BYTES} bytes and was discarded")
-                }
-                Frame::Line(bytes) if bytes.iter().all(u8::is_ascii_whitespace) => continue,
-                Frame::Line(bytes) => return Ok(bytes),
-            }
-        }
+        exchange(&mut self.reader, &mut self.write, frame).await
     }
 
     /// The daemon this client reached, as its handshake identified it.
@@ -1106,6 +1375,29 @@ impl Client {
     }
 }
 
+/// One frame out, the next frame in, over the halves of a connection
+/// (what [`Client::exchange`] does; the handshake uses it before there is
+/// a `Client` to speak of).
+async fn exchange<T: Serialize>(
+    reader: &mut BufReader<OwnedReadHalf>,
+    write: &mut OwnedWriteHalf,
+    frame: &T,
+) -> Result<Vec<u8>> {
+    let mut line = serde_json::to_string(frame)?;
+    line.push('\n');
+    write.write_all(line.as_bytes()).await?;
+    loop {
+        match read_frame(reader, MAX_FRAME_BYTES).await? {
+            Frame::Closed => bail!("daemon closed the connection"),
+            Frame::Oversize => {
+                bail!("the daemon's answer exceeds {MAX_FRAME_BYTES} bytes and was discarded")
+            }
+            Frame::Line(bytes) if bytes.iter().all(u8::is_ascii_whitespace) => continue,
+            Frame::Line(bytes) => return Ok(bytes),
+        }
+    }
+}
+
 /// A daemon this client started: the executable it ran, its log, and
 /// where that log ended at spawn time.
 struct Spawned {
@@ -1117,18 +1409,14 @@ struct Spawned {
 
 /// Start the `acqd` beside this executable (C82) with no arguments — its
 /// knobs are the environment this process passes on — and its stdio to
-/// null: the daemon log is where it speaks. The use path creates the
-/// world's root first (C83), so the daemon locks and reports the same
+/// null: the daemon log is where it speaks. `world` is the root the door
+/// created (C83), so the daemon locks, binds and reports the same
 /// canonical directory this process will compare; a relative
 /// `ACQ_STORE_DIR` crosses into the daemon made absolute.
-fn spawn_daemon() -> Result<Spawned, ConnectError> {
+fn spawn_daemon(world: &World) -> Result<Spawned, ConnectError> {
     let acqd = locator::acqd().map_err(|e| ConnectError::SpawnFailed {
         acqd: None,
         log: e.to_string(),
-    })?;
-    let world = World::create().map_err(|e| ConnectError::SpawnFailed {
-        acqd: Some(acqd.clone()),
-        log: format!("could not create the world's root before starting it: {e}"),
     })?;
     let log = world.log_path(want_provider());
     // Where the log ends now; lines past this offset are the new daemon's.
@@ -1195,14 +1483,31 @@ mod tests {
     /// the async test can hold it across its awaits.
     static ENV: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
+    /// This process's world as an observing door resolves it: the
+    /// canonical root, or the root it intended and why there is none.
+    fn own_world() -> Result<String, AbsentWorld> {
+        world_name(&World::observe().map_err(absent_world))
+    }
+
+    /// A daemon reported on this world's socket, claiming this
+    /// process's own world.
     fn id(contract: &str, provider: &str) -> DaemonId {
+        let own = own_world();
+        let world = match &own {
+            Ok(name) => name.clone(),
+            Err(absent) => absent.intended.clone(),
+        };
         DaemonId::judged(
-            42,
-            VERSION.into(),
-            contract.into(),
-            None,
-            provider.into(),
-            own_world_name(),
+            Reported {
+                pid: 42,
+                version: VERSION.into(),
+                contract: contract.into(),
+                artifact: None,
+                provider: provider.into(),
+                world,
+            },
+            Endpoint::world(PathBuf::from("/run/acq/test.sock")),
+            own,
         )
     }
 
@@ -1278,18 +1583,64 @@ mod tests {
         // dimensions are not compared for a daemon this process would
         // neither use nor replace; the report still carries them all.
         let elsewhere = DaemonId::judged(
-            42,
-            VERSION.into(),
-            CONTRACT_REVISION.into(),
-            None,
-            "mock".into(),
-            "/somewhere/else".into(),
+            Reported {
+                pid: 42,
+                version: VERSION.into(),
+                contract: CONTRACT_REVISION.into(),
+                artifact: None,
+                provider: "mock".into(),
+                world: "/somewhere/else".into(),
+            },
+            Endpoint::world(PathBuf::from("/run/acq/test.sock")),
+            own_world(),
         );
         assert!(!elsewhere.world_matches() && !elsewhere.is_ours());
         let report = elsewhere.report();
         assert_eq!(report["world"], "/somewhere/else");
         assert_eq!(report["world_matches"], false);
         assert_eq!(report["contract_matches"], true);
+        assert_eq!(report["socket"], "/run/acq/test.sock");
+        assert_eq!(report["legacy_socket"], false);
+        // C83, step 6: a daemon on the legacy rendezvous is never this
+        // client's, whatever it reports — every dimension may match and
+        // the endpoint still refuses it; named first and alone, with the
+        // socket, in the report and the prose.
+        let legacy = DaemonId::judged(
+            Reported {
+                pid: 42,
+                version: VERSION.into(),
+                contract: CONTRACT_REVISION.into(),
+                artifact: None,
+                provider: "mock".into(),
+                world: dir.canonicalize().unwrap().display().to_string(),
+            },
+            Endpoint::legacy(PathBuf::from("/tmp/acquisition-playground.sock")),
+            own_world(),
+        );
+        assert!(legacy.on_legacy_socket());
+        assert!(legacy.world_matches() && legacy.contract_matches());
+        assert!(!legacy.is_ours(), "{legacy}");
+        let report = legacy.report();
+        assert_eq!(report["socket"], "/tmp/acquisition-playground.sock");
+        assert_eq!(report["legacy_socket"], true);
+        assert_eq!(report["world_matches"], true);
+        let text = legacy.to_string();
+        assert!(
+            text.contains("legacy socket /tmp/acquisition-playground.sock")
+                && text.contains("before the derived rendezvous")
+                && !text.contains("another world")
+                && !text.contains("another contract"),
+            "{text}"
+        );
+        let err = ConnectError::Incompatible {
+            found: Box::new(legacy),
+            because: NotReplaced::LegacySocket,
+        }
+        .to_string();
+        assert!(
+            err.contains("acq daemon stop") && err.contains("once"),
+            "{err}"
+        );
         assert_eq!(
             report["wanted"]["world"],
             dir.canonicalize().unwrap().display().to_string()
@@ -1347,7 +1698,9 @@ mod tests {
     /// The absence reason is the caller's policy before the knob, and the
     /// two read differently: a door that never spawns says so, a door
     /// the knob closed names the knob (review, 2026-09-10: the MCP's
-    /// real-mode absence had claimed "it spawns on demand").
+    /// real-mode absence had claimed "it spawns on demand"). The world
+    /// is a scratch root nothing listens for (C83: its socket derives
+    /// from it), and a door that may not spawn creates no root.
     #[tokio::test]
     async fn an_absent_daemon_names_why_it_was_not_started() {
         let _env = ENV.lock().await;
@@ -1357,13 +1710,17 @@ mod tests {
         // SAFETY: `ENV` is held; the crate's other environment-reading
         // tests take it too.
         unsafe {
-            std::env::set_var("ACQ_SOCKET", dir.join("none.sock"));
+            std::env::set_var("ACQ_STORE_DIR", dir.join("never-made"));
             std::env::remove_var("ACQ_NO_SPAWN");
         }
         let err = Client::connect(ConnectOptions::autonomous(false))
             .await
             .err()
             .expect("no daemon");
+        assert!(
+            !dir.join("never-made").exists(),
+            "a door that may not spawn created the root"
+        );
         assert!(
             matches!(
                 err,
@@ -1395,8 +1752,13 @@ mod tests {
             "{err:?}"
         );
         assert!(err.to_string().contains("ACQ_NO_SPAWN"), "{err}");
+        assert!(
+            !dir.join("never-made").exists(),
+            "a door the knob closed created the root"
+        );
         unsafe {
             std::env::remove_var("ACQ_NO_SPAWN");
+            std::env::remove_var("ACQ_STORE_DIR");
         }
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -1424,7 +1786,7 @@ mod tests {
                 artifact: None,
                 pid: 7,
                 provider: "mock".into(),
-                world: own_world_name(),
+                world: own_world().unwrap_or_else(|absent| absent.intended),
             };
             let mut line = serde_json::to_string(&hello).unwrap();
             line.push('\n');
@@ -1448,22 +1810,49 @@ mod tests {
     async fn a_stop_the_daemon_did_not_acknowledge_is_not_a_stop() {
         let stream =
             peer_that_answers_stop_with(Some(json!({ "resp": "error", "message": "busy" }))).await;
-        let err = Client::stop_over(stream).await.unwrap_err().to_string();
+        let err = Client::stop_over(
+            stream,
+            Endpoint::world(PathBuf::from("/run/acq/peer.sock")),
+            own_world(),
+        )
+        .await
+        .unwrap_err()
+        .to_string();
         assert!(
             err.contains("refused to stop") && err.contains("busy"),
             "{err}"
         );
 
         let stream = peer_that_answers_stop_with(Some(json!({ "resp": "ack" }))).await;
-        let err = Client::stop_over(stream).await.unwrap_err().to_string();
+        let err = Client::stop_over(
+            stream,
+            Endpoint::world(PathBuf::from("/run/acq/peer.sock")),
+            own_world(),
+        )
+        .await
+        .unwrap_err()
+        .to_string();
         assert!(err.contains("unexpected response to stop"), "{err}");
 
         let stream = peer_that_answers_stop_with(None).await;
-        let err = Client::stop_over(stream).await.unwrap_err().to_string();
+        let err = Client::stop_over(
+            stream,
+            Endpoint::world(PathBuf::from("/run/acq/peer.sock")),
+            own_world(),
+        )
+        .await
+        .unwrap_err()
+        .to_string();
         assert!(err.contains("closed the connection"), "{err}");
 
         let stream = peer_that_answers_stop_with(Some(json!({ "resp": "stopping" }))).await;
-        let stopped = Client::stop_over(stream).await.unwrap();
+        let stopped = Client::stop_over(
+            stream,
+            Endpoint::world(PathBuf::from("/run/acq/peer.sock")),
+            own_world(),
+        )
+        .await
+        .unwrap();
         assert_eq!(stopped.pid(), 7);
     }
 }

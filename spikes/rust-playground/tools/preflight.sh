@@ -3,13 +3,14 @@
 # "Build before you run"; brainstorming-notes/16 §6.3). Sourced, not run:
 #
 #   . "$here/tools/preflight.sh"
-#   preflight            # after MODE, RUN_DIR and SOCK are chosen, before
-#                        # any acq binary runs
+#   preflight            # after MODE and RUN_DIR are chosen, before any
+#                        # acq binary runs
 #
 # Needs `here` (the workspace root), `ACQ` (the binary path), `ACQD` (the
 # daemon beside it, which the driver starts and owns), `MODE`
-# (live|mock), `RUN_DIR` (exists) and `SOCK`; leaves `head`, `tip`, `ver`
-# set and `$RUN_DIR/provenance.json` written. Neither binary carries a
+# (live|mock) and `RUN_DIR` (exists); leaves `head`, `tip`, `ver` set
+# and `$RUN_DIR/provenance.json` written. The socket is derived from the
+# world (C83) and never named here. Neither binary carries a
 # commit (C84: the identity is the shared-contract revision both are
 # compiled against and, for `acqd`, the hash of its file), so a stale
 # binary is prevented rather than detected, and the pairing of what ran
@@ -43,9 +44,15 @@ preflight() {
         echo "(mock mode: continuing anyway)"
     fi
 
-    # 3. Refuse any daemon on the socket, this revision's or another's
-    #    (`daemon status` reports both without touching either), before
-    #    the build: never rebuild under a live daemon.
+    # 3. Refuse any daemon on this world's socket, this revision's or
+    #    another's (`daemon status` reports both without touching either,
+    #    and a daemon from before the rendezvous on the fixed legacy
+    #    socket too), before the build: never rebuild under a live
+    #    daemon. The endpoints the drivers and the rung-11 helper once
+    #    chose by hand under the retired `ACQ_SOCKET` are known here and
+    #    nowhere else, so they are probed here (C83, the split's step 6;
+    #    parked for removal with the legacy detection, decisions/daemon.md).
+    preflight_refuse_legacy_endpoints
     if [ -x "$ACQ" ]; then preflight_refuse_daemon "before the build"; fi
 
     # 4. Build, locked: the build must not rewrite the lock the check in
@@ -126,10 +133,34 @@ provenance_matches_journal() {
 }
 
 preflight_refuse_daemon() { # <when>
-    local pid
+    local pid socket
     pid=$("$ACQ" daemon status --json 2>/dev/null | jq -r '.pid // empty')
     if [ -n "$pid" ]; then
-        echo "refusing: a daemon (pid $pid) is running on $SOCK $1 — acq daemon stop first" >&2
+        socket=$("$ACQ" daemon status --json 2>/dev/null | jq -r '.socket // "its socket"')
+        echo "refusing: a daemon (pid $pid) is running on $socket $1 — acq daemon stop first" >&2
         exit 2
     fi
+}
+
+# The sockets a daemon of this playground listened on before the
+# rendezvous derived from the world: the fixed default, and the values
+# `ACQ_SOCKET` was set to by the drivers and the rung-11 helper. A daemon
+# answering on any of them predates the split's step 6 and would be
+# invisible to this run's binaries while it sent; refuse until it is
+# stopped by hand. A stale socket file nothing answers on is ignored.
+preflight_refuse_legacy_endpoints() {
+    local t=${TMPDIR:-/tmp}; t=${t%/}
+    local sock
+    for sock in "$t/acquisition-playground.sock" /tmp/acquisition-playground.sock \
+        /tmp/acq-tracer.sock /tmp/acq-persist.sock /tmp/acq-r11-A.sock /tmp/acq-r11-B.sock; do
+        [ -S "$sock" ] || continue
+        if python3 -c 'import socket, sys
+s = socket.socket(socket.AF_UNIX)
+s.settimeout(2)
+s.connect(sys.argv[1])' "$sock" 2>/dev/null; then
+            echo "refusing: a daemon from before the rendezvous is listening on $sock (an ACQ_SOCKET endpoint of history; the knob is gone)" >&2
+            echo "  stop it first: \`acq daemon stop\` reaches the fixed default socket; for the others, \`lsof -U | grep $(basename "$sock")\` names the pid to kill" >&2
+            exit 2
+        fi
+    done
 }

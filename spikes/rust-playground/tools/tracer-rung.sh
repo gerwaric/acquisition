@@ -136,7 +136,7 @@ fi
 # Isolation knobs left over from other work would silently redirect this
 # run; the rails knobs are set per daemon below, so a leftover value there
 # is dropped rather than refused.
-for v in ACQ_SOCKET ACQ_STORE_DIR ACQ_LOG_DIR ACQ_NO_KEYRING ACQ_NO_SPAWN ACQ_JOURNAL; do
+for v in ACQ_STORE_DIR ACQ_LOG_DIR ACQ_NO_KEYRING ACQ_NO_SPAWN ACQ_JOURNAL; do
     if [ -n "${!v:-}" ]; then
         echo "refusing: $v is set in this shell (leftover from other work); unset it first" >&2
         exit 2
@@ -159,14 +159,13 @@ fi
 mkdir -p "$RUN_DIR"
 FRICTION="$RUN_DIR/friction.md"
 
+# The socket derives from the world (C83): the owner's data directory in
+# live mode, the run's scratch store in mock — nothing names it.
 if [ "$MODE" = live ]; then
     export ACQ_GGG=1
-    T=${TMPDIR:-/tmp}; T=${T%/}
-    SOCK="$T/acquisition-playground.sock"
     PROVIDER=ggg
 else
-    export ACQ_SOCKET=/tmp/acq-tracer.sock ACQ_STORE_DIR="$RUN_DIR/store"
-    SOCK=$ACQ_SOCKET
+    export ACQ_STORE_DIR="$RUN_DIR/store"
     PROVIDER=mock
 fi
 # The run's diagnostics are its evidence (C83: the world's log and journal
@@ -186,7 +185,7 @@ daemon_log() { find "$RUN_DIR/log" -name daemon.log -type f 2>/dev/null | head -
 preflight
 
 status_json() { "$ACQ" daemon status --json 2>/dev/null || echo '{}'; }
-daemon_up() { [ -S "$SOCK" ] && [ "$(status_json | jq -r '.pid // empty')" != "" ]; }
+daemon_up() { [ "$(status_json | jq -r '.pid // empty')" != "" ]; }
 journal_size() { if [ -f "$JOURNAL" ]; then wc -c <"$JOURNAL" | tr -d ' '; else echo 0; fi; }
 # Sends journaled since a byte offset (event lines excluded).
 sends_since() { tail -c +$(($1 + 1)) "$JOURNAL" 2>/dev/null | grep -c '"method"' || true; }
@@ -230,7 +229,7 @@ stop_daemon() {
         daemon_up || return 0
         sleep 0.1
     done
-    echo "daemon on $SOCK did not stop" >&2
+    echo "daemon did not stop" >&2
     return 1
 }
 
@@ -292,7 +291,7 @@ note() { # <phase>
 }
 
 echo "tracer rung ($MODE) — binary $ver, HEAD $tip"
-echo "socket $SOCK | journal $JOURNAL | evidence -> $RUN_DIR"
+echo "journal $JOURNAL | evidence -> $RUN_DIR"
 echo "realm $REALM | league $LEAGUE | selection $SELECTION | max_age_seconds $MAX_AGE | up to $CYCLES cycle(s)"
 
 # ---- phase 0: the account ---------------------------------------------------

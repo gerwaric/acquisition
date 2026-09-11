@@ -36,7 +36,7 @@ fn ggg_mode_never_spawns_a_daemon_for_the_spending_tools() {
     assert!(!msg.contains("on demand"), "{msg}");
     assert!(!msg.contains("ACQ_NO_SPAWN"), "{msg}");
     assert!(
-        !base.join("d.sock").exists(),
+        harness::no_daemon_appeared(&base),
         "submit_job in ggg mode spawned a daemon (socket appeared): {msg}"
     );
 
@@ -45,7 +45,7 @@ fn ggg_mode_never_spawns_a_daemon_for_the_spending_tools() {
     let msg = mcp.expect_err("apply_plan", json!({ "plan": "not even an object" }));
     assert!(!msg.contains("deferred"), "{msg}");
     assert!(
-        !base.join("d.sock").exists(),
+        harness::no_daemon_appeared(&base),
         "apply_plan in ggg mode spawned a daemon (socket appeared): {msg}"
     );
 
@@ -58,7 +58,7 @@ fn ggg_mode_never_spawns_a_daemon_for_the_spending_tools() {
     assert!(msg.contains("ACQ_NO_SPAWN"), "{msg}");
     assert!(!msg.contains("never starts one"), "{msg}");
     assert!(
-        !base.join("d.sock").exists(),
+        harness::no_daemon_appeared(&base),
         "submit_job under ACQ_NO_SPAWN spawned a daemon: {msg}"
     );
     let _ = mcp.child.kill();

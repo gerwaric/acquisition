@@ -17,7 +17,7 @@ use acquisition_protocol::job::{JobInfo, JobState, Outcome};
 use acquisition_protocol::protocol::{Request, Response};
 use acquisition_protocol::provider::GGG;
 use acquisition_protocol::realm::Realm;
-use acquisition_store::world::{World, socket_path};
+use acquisition_store::world::World;
 use anyhow::{Result, bail};
 use clap::{Parser, Subcommand};
 use serde_json::json;
@@ -55,9 +55,12 @@ pub(crate) async fn attach() -> Result<Client> {
 /// What a human does about a daemon this client will not use: a
 /// mismatch of contract, artifact or provider is replaced by a job
 /// command; a daemon on another world (C83) is never replaced — stop it,
-/// or point this shell at its world.
+/// or point this shell at its world; one on the legacy socket, from
+/// before the derived rendezvous, is stopped once and never comes back.
 pub(crate) fn mismatch_remedy(found: &acquisition_client::client::DaemonId) -> &'static str {
-    if found.world_matches() {
+    if found.on_legacy_socket() {
+        "`acq daemon stop` stops it — once: nothing binds the legacy socket any more, and this world's socket is the rendezvous from then on (C83)"
+    } else if found.world_matches() {
         "`acq daemon stop` stops it, a job command (`acq profile`, `acq refresh --apply`) replaces it"
     } else {
         "a job command from this shell refuses it too (C83: another world is never replaced) — `acq daemon stop` stops it, or point ACQ_STORE_DIR at its world"
@@ -569,7 +572,10 @@ enum DaemonCmd {
     /// rails state, keyring health. Observes only (C10): never spawns or
     /// replaces; a daemon of another contract, artifact, provider or
     /// world is reported by its identity alone — no vitals — and left
-    /// running. `--json`, in both cases: running, compatible, which of
+    /// running. `--json`, in both cases: running, compatible, `socket` (the
+    /// one this shell reached it through: derived from the world, C83;
+    /// `legacy_socket` true for a daemon from before the derived
+    /// rendezvous, never used or replaced), which of
     /// the four dimensions match (`contract_matches`, `artifact_matches`,
     /// `provider_matches`, `world_matches`), how the daemon's file relates to this
     /// client's sibling — `artifact_relation`: `same_file`; `same_bytes`,
@@ -580,10 +586,14 @@ enum DaemonCmd {
     /// store root does not exist) with the sibling `acqd` a job command
     /// would start, all from the one look that judged the daemon.
     Status,
-    /// Stop the daemon that is listening, this build's — its contract and
-    /// artifact — or another's.
+    /// Stop the daemon listening on this shell's world's socket, this
+    /// build's — its contract and artifact — or another's; when that
+    /// socket is silent, one from before the derived rendezvous on the
+    /// legacy socket (C83; stopped once, it never comes back).
     /// Queued jobs stay on disk and resume under the next one (C6); a
-    /// client's jobs are never cancelled by its leaving (C27).
+    /// client's jobs are never cancelled by its leaving (C27). `--json`:
+    /// `stopped`, `pid`, `version`, `provider`, `compatible`, `socket`,
+    /// `legacy_socket`.
     Stop,
     /// Clear the live-test rails' tripwire/ceiling halt (see LIVE-TESTING.md).
     /// Observe the post-violation rule before using this. With no daemon
@@ -1042,14 +1052,15 @@ async fn run(cli: Cli) -> Result<()> {
                     }
                     Observed::Incompatible(found) => {
                         if cli.json {
+                            // `socket` and `legacy_socket` are the report's:
+                            // the endpoint the handshake ran over.
                             let mut report = found.report();
                             report["running"] = json!(true);
                             report["compatible"] = json!(false);
-                            report["socket"] = json!(socket_path());
                             println!("{}", serde_json::to_string_pretty(&report)?);
                         } else {
                             println!("{found} — running, not this client's");
-                            println!("socket: {}", socket_path().display());
+                            println!("socket: {}", found.socket().display());
                             println!("next:   {}", mismatch_remedy(&found));
                         }
                         return Ok(());
@@ -1069,10 +1080,16 @@ async fn run(cli: Cli) -> Result<()> {
                     // `wanted`, so "where did it run from" and "is that my
                     // sibling" are both answered (review 2026-09-10).
                     let identity = found.report();
+                    // `socket` is the one this shell reached the daemon
+                    // through (C83: derived from the world); the log is
+                    // the daemon's own report (`log`, on the wire since
+                    // the world), never recomputed here.
                     for key in [
                         "contract",
                         "artifact",
                         "world",
+                        "socket",
+                        "legacy_socket",
                         "contract_matches",
                         "artifact_matches",
                         "artifact_relation",
@@ -1082,10 +1099,6 @@ async fn run(cli: Cli) -> Result<()> {
                     ] {
                         report[key] = identity[key].clone();
                     }
-                    // The socket this shell reached the daemon through;
-                    // the log is the daemon's own report (`log`, on the
-                    // wire since the world), never recomputed here.
-                    report["socket"] = json!(socket_path());
                     println!("{}", serde_json::to_string_pretty(&report)?);
                 } else if let Response::DaemonStatus {
                     pid,
@@ -1130,7 +1143,7 @@ async fn run(cli: Cli) -> Result<()> {
                     println!(
                         "connections: {connections}  waiting: {jobs_waiting}  running: {jobs_running}  in flight: {in_flight}/{max_in_flight}  policies learned: {policies_known}"
                     );
-                    println!("socket: {}", socket_path().display());
+                    println!("socket: {}", found.socket().display());
                     println!("log:    {}", log.as_deref().unwrap_or("not reported"));
                     println!(
                         "rails:  tripwire {} · sends {}{} · journal {}",
@@ -1239,6 +1252,8 @@ async fn run(cli: Cli) -> Result<()> {
                                     "version": found.version(),
                                     "provider": found.provider(),
                                     "compatible": found.is_ours(),
+                                    "socket": found.socket(),
+                                    "legacy_socket": found.on_legacy_socket(),
                                 })
                             );
                         } else if found.is_ours() {

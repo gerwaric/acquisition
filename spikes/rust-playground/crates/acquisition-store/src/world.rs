@@ -30,7 +30,7 @@
 //! state lived in a directory the OS clears at reboot. *Details:*
 //! `world.rs` doc. Ruled 2026-09-09.
 //!
-//! ## C83 — as built (the daemon split's step 5; the socket clause is step 6's)
+//! ## C83 — as built (the daemon split's steps 5 and 6)
 //!
 //! - **The root.** [`intended_root`] is the path the environment names:
 //!   `ACQ_STORE_DIR` (a relative value made absolute against the current
@@ -96,12 +96,34 @@
 //!   `daemon.rs`). `ACQ_JOURNAL` still overrides the journal — a live run
 //!   points it into its evidence directory, where the ledger cites it —
 //!   and `0` disables it (`rails.rs`).
-//! - **The socket.** [`socket_path`] is still `ACQ_SOCKET` or
-//!   `acquisition-playground.sock` in the temp directory: the one home of
-//!   the convention both sides read, since step 5 (two copies before).
-//!   Its derivation from the root into the runtime directory, the removal
-//!   of `ACQ_SOCKET` and the legacy-socket detection are the split's step
-//!   6 (`DAEMON-SPLIT-SLICE.md`), which makes C83's socket clause true.
+//! - **The socket.** [`World::socket_path`] is `<runtime>/<id>.sock` —
+//!   the world's twelve-hex id in the private per-user runtime directory
+//!   (the split's step 6). Nothing chooses it by hand: `ACQ_SOCKET` is
+//!   gone, and two spellings of one root reach one socket because the id
+//!   is the canonical root's. Short by construction: the runtime
+//!   directory is the platform's, not the user's — `$XDG_RUNTIME_DIR`
+//!   (`/run/user/<uid>`) or macOS's fixed-length `$TMPDIR` — so the
+//!   whole path is about 75 bytes under the macOS fallback, and a path
+//!   over [`SOCKET_PATH_MAX`] is refused by name rather than by `bind`'s
+//!   `ENAMETOOLONG`. The daemon creates the runtime directory
+//!   ([`app_runtime_dir`]) before it binds; a client only verifies it
+//!   ([`existing_private_dir`]: this user's, 0700, no symlink) before it
+//!   connects, so a socket in a directory another user made is never
+//!   used, and an observation creates nothing — no runtime directory yet
+//!   is no daemon yet. A world that does not exist has no socket: a use
+//!   door creates the root first, an observer reports absence.
+//! - **The rendezvous before step 6**, for one transition:
+//!   [`legacy_socket_path`] is the fixed `acquisition-playground.sock` in
+//!   the temp directory every daemon before the split's step 6 listened
+//!   on. A daemon from before it would be invisible to a client on the
+//!   derived socket, and a second daemon would start over it — so the
+//!   daemon probes the legacy path at start and refuses if something
+//!   answers, a client that finds its world's socket absent probes it and
+//!   reports what it found with the stop remedy, and `acq daemon stop`
+//!   stops either. The historical `ACQ_SOCKET` values (the drivers',
+//!   a session's) are not probed: the drivers' preflight and the live-run
+//!   skill close those by hand. Parked for removal with the rails
+//!   migration (`decisions/daemon.md`).
 //!
 //! Windows has no arm here yet (`README.md`, known gaps): the paths are
 //! computed, the locks use `std`'s portable file locking, the mode bits
@@ -284,7 +306,7 @@ impl World {
 
     /// Twelve hex digits of the SHA-256 of the canonical root's exact
     /// bytes: the world's short id, which names its subdirectory under the
-    /// log base directory (and, from step 6, its socket).
+    /// log base directory and its socket.
     pub fn id(&self) -> String {
         let digest = Sha256::digest(self.name.as_bytes());
         digest.iter().take(6).map(|b| format!("{b:02x}")).collect()
@@ -331,42 +353,83 @@ impl World {
     pub fn log_marker_path(&self) -> PathBuf {
         log_base_dir().join(self.id()).join("world")
     }
-}
 
-/// Where the rails state sat before step 5: beside the socket, keyed by
-/// provider (`<socket>.<provider>.rails.json`), in a directory the OS may
-/// clear at reboot. The daemon moves it into the world once
-/// (`rails.rs`); `acq daemon reset-tripwire` clears it too while it can
-/// still exist.
-pub fn legacy_rails_state_path(provider: &str) -> PathBuf {
-    socket_path().with_extension(format!("{provider}.rails.json"))
-}
-
-/// The socket a daemon listens on and a client connects to: `ACQ_SOCKET`,
-/// or `acquisition-playground.sock` in the temp directory. One definition
-/// for both sides. Must stay short: Unix socket paths cap out around 104
-/// bytes (`SUN_LEN`). Step 6 derives it from the world into
-/// [`app_runtime_dir`] and removes the knob.
-pub fn socket_path() -> PathBuf {
-    if let Ok(p) = std::env::var("ACQ_SOCKET") {
-        return PathBuf::from(p);
+    /// `<id>.sock`: the socket's file name, derived from the canonical
+    /// root and nothing else.
+    pub fn socket_name(&self) -> String {
+        format!("{}.sock", self.id())
     }
+
+    /// The socket this world's daemon listens on and its clients connect
+    /// to (C83): [`socket_name`](Self::socket_name) in the private
+    /// per-user runtime directory, which must already exist and be this
+    /// user's ([`existing_private_dir`]) — nothing is created here, so an
+    /// observer that finds no runtime directory finds no daemon
+    /// (`NotFound`), and a socket in a directory someone else made is
+    /// never used. A path longer than [`SOCKET_PATH_MAX`] is refused by
+    /// name. The daemon makes the directory first ([`app_runtime_dir`]).
+    pub fn socket_path(&self) -> std::io::Result<PathBuf> {
+        let path = existing_private_dir(&runtime_dir_path())?.join(self.socket_name());
+        let len = path.as_os_str().len();
+        if len > SOCKET_PATH_MAX {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                format!(
+                    "the socket path {} is {len} bytes; a Unix socket path may be at most {SOCKET_PATH_MAX} (the runtime directory is too deep)",
+                    path.display()
+                ),
+            ));
+        }
+        Ok(path)
+    }
+}
+
+/// The longest path a Unix socket may have: `sun_path` is 104 bytes on
+/// macOS including its terminator (108 on Linux), so 103 is the bound
+/// that holds on both. [`World::socket_path`] refuses a longer one by
+/// name instead of letting `bind` fail with `ENAMETOOLONG`.
+pub const SOCKET_PATH_MAX: usize = 103;
+
+/// The rendezvous every daemon before the split's step 6 listened on:
+/// the fixed `acquisition-playground.sock` in the temp directory. Probed
+/// for one transition — by the daemon at start, which refuses to run
+/// beside a daemon answering there; by a client whose world's socket is
+/// absent, which reports what it found; by `acq daemon stop`, which
+/// stops it — and never bound again. Parked for removal with the rails
+/// migration (`decisions/daemon.md`).
+pub fn legacy_socket_path() -> PathBuf {
     std::env::temp_dir().join("acquisition-playground.sock")
 }
 
-/// This application's private per-user runtime directory, created on
-/// demand and verified on every use: `$XDG_RUNTIME_DIR/acq` where the
-/// platform provides that directory (Linux; it is per user by the XDG
-/// spec), else `<temp dir>/acq-<uid>` — the temp directory is shared on
-/// Linux (`/tmp`) and per user on macOS (`$TMPDIR`), and the uid in the
-/// name keeps the fallback per user either way. Holds the real-mode lock,
-/// and from step 6 the socket. [`private_dir`] does the creating and the
-/// checking.
-pub fn app_runtime_dir() -> std::io::Result<PathBuf> {
+/// Where the rails state sat before step 5: beside the legacy socket,
+/// keyed by provider (`<socket>.<provider>.rails.json`), in a directory
+/// the OS may clear at reboot. The daemon moves it into the world once
+/// (`rails.rs`); `acq daemon reset-tripwire` clears it too while it can
+/// still exist.
+pub fn legacy_rails_state_path(provider: &str) -> PathBuf {
+    legacy_socket_path().with_extension(format!("{provider}.rails.json"))
+}
+
+/// Where this application's private per-user runtime directory is,
+/// computed and not touched: `$XDG_RUNTIME_DIR/acq` where the platform
+/// provides that directory (Linux; it is per user by the XDG spec), else
+/// `<temp dir>/acq-<uid>` — the temp directory is shared on Linux
+/// (`/tmp`) and per user on macOS (`$TMPDIR`), and the uid in the name
+/// keeps the fallback per user either way.
+fn runtime_dir_path() -> PathBuf {
     match BaseDirs::new().and_then(|b| b.runtime_dir().map(Path::to_path_buf)) {
-        Some(runtime) => private_dir(&runtime.join("acq")),
-        None => private_dir(&std::env::temp_dir().join(format!("acq-{}", current_uid()))),
+        Some(runtime) => runtime.join("acq"),
+        None => std::env::temp_dir().join(format!("acq-{}", current_uid())),
     }
+}
+
+/// This application's private per-user runtime directory
+/// (`runtime_dir_path`), created on demand and verified on every use.
+/// Holds the real-mode lock and every world's socket. [`private_dir`]
+/// does the creating and the checking; the daemon calls this before it
+/// binds, a client never creates it ([`World::socket_path`]).
+pub fn app_runtime_dir() -> std::io::Result<PathBuf> {
+    private_dir(&runtime_dir_path())
 }
 
 /// The calling user's uid (Unix); 0 elsewhere, where the checks below
@@ -394,24 +457,34 @@ fn current_uid() -> u32 {
 /// is made.
 pub fn private_dir(path: &Path) -> std::io::Result<PathBuf> {
     use std::io::{Error, ErrorKind};
-    match std::fs::symlink_metadata(path) {
-        Err(e) if e.kind() == ErrorKind::NotFound => {
-            let mut builder = std::fs::DirBuilder::new();
-            #[cfg(unix)]
-            {
-                use std::os::unix::fs::DirBuilderExt;
-                builder.mode(0o700);
-            }
-            builder.create(path).map_err(|e| {
-                Error::new(
-                    e.kind(),
-                    format!(
-                        "could not create the private directory {}: {e}",
-                        path.display()
-                    ),
-                )
-            })?;
+    if let Err(e) = std::fs::symlink_metadata(path)
+        && e.kind() == ErrorKind::NotFound
+    {
+        let mut builder = std::fs::DirBuilder::new();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::DirBuilderExt;
+            builder.mode(0o700);
         }
+        builder.create(path).map_err(|e| {
+            Error::new(
+                e.kind(),
+                format!(
+                    "could not create the private directory {}: {e}",
+                    path.display()
+                ),
+            )
+        })?;
+    }
+    existing_private_dir(path)
+}
+
+/// [`private_dir`]'s checks alone, on a directory that must already
+/// exist: a missing one is `NotFound`, nothing is created. What a client
+/// uses before it connects to a socket in the runtime directory.
+pub fn existing_private_dir(path: &Path) -> std::io::Result<PathBuf> {
+    use std::io::{Error, ErrorKind};
+    match std::fs::symlink_metadata(path) {
         Err(e) => return Err(e),
         Ok(meta) if meta.file_type().is_symlink() => {
             return Err(Error::new(
@@ -717,12 +790,16 @@ mod tests {
         let _ = std::fs::remove_dir_all(&base);
     }
 
-    /// The legacy rails file sits beside the socket; the world's does
-    /// not depend on the socket at all.
+    /// The legacy rails file sits beside the legacy socket; the world's
+    /// does not depend on any socket at all.
     #[test]
-    fn the_legacy_rails_state_is_beside_the_socket_and_the_worlds_is_not() {
+    fn the_legacy_rails_state_is_beside_the_legacy_socket_and_the_worlds_is_not() {
         let legacy = legacy_rails_state_path("mock");
-        assert_eq!(legacy.parent(), socket_path().parent());
+        assert_eq!(legacy.parent(), legacy_socket_path().parent());
+        assert_eq!(
+            legacy_socket_path().file_name().unwrap(),
+            "acquisition-playground.sock"
+        );
         assert!(
             legacy.to_string_lossy().ends_with(".mock.rails.json"),
             "{}",
@@ -734,6 +811,41 @@ mod tests {
         assert_eq!(
             world.rails_state_path("mock"),
             world.root().join("mock").join("rails.json")
+        );
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    /// C83: the socket derives from the world into the runtime directory
+    /// and from nothing else — two spellings of one root reach one
+    /// socket, another root another, and the path is under the cap with
+    /// room to spare. That no knob names it is held by `tools/docs-check.sh`:
+    /// a knob read anywhere in the crates needs a README row, and the
+    /// socket has none.
+    #[test]
+    fn c83_the_socket_derives_from_the_world_into_the_runtime_directory() {
+        let base = scratch("socket");
+        std::fs::create_dir_all(base.join("real")).unwrap();
+        std::fs::create_dir_all(base.join("other")).unwrap();
+        // The daemon's step, so a socket path can be computed at all.
+        let runtime = app_runtime_dir().unwrap();
+        let world = World::at(&base.join("real")).unwrap();
+        let socket = world.socket_path().unwrap();
+        assert_eq!(socket.parent(), Some(runtime.as_path()));
+        assert_eq!(socket.file_name().unwrap(), world.socket_name().as_str());
+        assert_eq!(world.socket_name(), format!("{}.sock", world.id()));
+        let dotted = World::at(&base.join("real").join(".").join("..").join("real")).unwrap();
+        assert_eq!(dotted.socket_path().unwrap(), socket);
+        let other = World::at(&base.join("other")).unwrap();
+        assert_ne!(other.socket_path().unwrap(), socket);
+        assert_eq!(other.socket_path().unwrap().parent(), socket.parent());
+        // Under the cap by a margin: the runtime directory is the
+        // platform's, so this is a measure, not a hope (the macOS
+        // fallback is about 75 bytes; `/run/user/<uid>/acq` far fewer).
+        let len = socket.as_os_str().len();
+        assert!(
+            len + 20 <= SOCKET_PATH_MAX,
+            "{} is {len} bytes, within 20 of the cap {SOCKET_PATH_MAX}",
+            socket.display()
         );
         let _ = std::fs::remove_dir_all(&base);
     }

@@ -13,10 +13,17 @@ from cron or a background shell has no keychain and no session.
 
 ## Before
 
-1. `unset ACQ_GGG ACQ_TRIPWIRE ACQ_MAX_SENDS ACQ_IDLE_SHUTDOWN ACQ_SOCKET ACQ_STORE_DIR ACQ_LOG_DIR ACQ_NO_KEYRING`
+1. `unset ACQ_GGG ACQ_TRIPWIRE ACQ_MAX_SENDS ACQ_IDLE_SHUTDOWN ACQ_STORE_DIR ACQ_LOG_DIR ACQ_NO_KEYRING`
    — the shell you were launched from may still export a previous run's
    rails or a mock session's isolation.
-2. `acq daemon stop`. Never rebuild under a live daemon.
+2. `acq daemon stop`, until it says "daemon is not running". Never
+   rebuild under a live daemon. For the transition to the derived
+   socket (C83, the split's step 6): the first stop takes this world's
+   daemon, and a daemon from before the rendezvous, on the old fixed
+   socket, is found and stopped only once that is silent — so run it
+   again. The drivers also refuse the endpoints history chose by hand
+   (`/tmp/acq-tracer.sock`, `/tmp/acq-persist.sock`, the rung-11 pair;
+   `tools/preflight.sh`).
 3. `git status --porcelain` must print nothing — the standing rule's
    clean tree for a hand run, the whole of it; the drivers check the
    rung's own files, `tools/preflight.sh`'s list — then `cargo build

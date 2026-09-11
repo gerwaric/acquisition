@@ -26,7 +26,6 @@ fn command(base: &Path, args: &[&str]) -> Command {
     let mut cmd = Command::new(env!("CARGO_BIN_EXE_acq"));
     cmd.args(args)
         .env("ACQ_STORE_DIR", base)
-        .env("ACQ_SOCKET", base.join("no.sock"))
         .env("ACQ_NO_KEYRING", "1")
         .env("ACQ_NO_SPAWN", "1");
     for var in [

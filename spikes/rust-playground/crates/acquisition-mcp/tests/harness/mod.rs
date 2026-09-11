@@ -60,6 +60,45 @@ pub fn spawn_daemon(base: &Path, extra_env: &[(&str, &str)]) -> Daemon {
     Daemon(child, acqd)
 }
 
+/// No daemon came up under `base`: nothing bound a socket in the
+/// test's scratch runtime directory (C83: a daemon's socket derives from
+/// its world into that directory, and nothing else binds there).
+pub fn no_daemon_appeared(base: &Path) -> bool {
+    sockets_under(&scratch_tmp(base)).is_empty()
+}
+
+/// Every Unix socket under `dir`, recursively.
+pub fn sockets_under(dir: &Path) -> Vec<PathBuf> {
+    use std::os::unix::fs::FileTypeExt;
+    let mut found = Vec::new();
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return found;
+    };
+    for entry in entries.flatten() {
+        let kind = entry.file_type().unwrap();
+        if kind.is_dir() {
+            found.extend(sockets_under(&entry.path()));
+        } else if kind.is_socket() {
+            found.push(entry.path());
+        }
+    }
+    found.sort();
+    found
+}
+
+/// The scratch temp and runtime directory of one test, under `base`:
+/// `TMPDIR` (macOS's runtime fallback and the legacy paths) and
+/// `XDG_RUNTIME_DIR` (Linux's runtime directory) both point here, so the
+/// sockets the daemons bind — and, for a daemon a test kills rather than
+/// stops, the socket files it leaves — never touch the user's own
+/// runtime directory (C83). Created here, since the runtime directory
+/// is made under an existing parent.
+pub fn scratch_tmp(base: &std::path::Path) -> std::path::PathBuf {
+    let tmp = base.join("tmp");
+    let _ = std::fs::create_dir_all(&tmp);
+    tmp
+}
+
 /// The daemon a test started: killed and waited for on drop, whichever
 /// way the test ends — a timed-out answer must not leave it behind
 /// (review 2026-09-11) — and named while a test is panicking (C82: a
@@ -89,10 +128,9 @@ impl Drop for Daemon {
 /// The scratch socket and store under `base`, the live-run knobs
 /// scrubbed, `extra_env` applied last.
 fn isolate(cmd: &mut Command, base: &Path, extra_env: &[(&str, &str)], stdio: fn() -> Stdio) {
-    cmd
-        // Short socket path (Unix sockets cap ~104 bytes).
-        .env("ACQ_SOCKET", base.join("d.sock"))
-        .env("ACQ_STORE_DIR", base.join("store"))
+    cmd.env("ACQ_STORE_DIR", base.join("store"))
+        .env("TMPDIR", scratch_tmp(base))
+        .env("XDG_RUNTIME_DIR", scratch_tmp(base))
         .env("ACQ_LOG_DIR", base.join("logs"))
         .env("ACQ_NO_KEYRING", "1")
         .stdin(stdio())

@@ -141,8 +141,7 @@ either mode and never spawns or replaces one in real mode (C13, C14).
 | --- | --- | --- | --- |
 | `ACQ_GGG=1` | off | the real provider (above) | `acquisition-protocol/src/provider.rs` |
 | `ACQ_ACCOUNT=<sel>` | the sole account | env form of `--account`; exact match, never a prefix (C51) | `main.rs` |
-| `ACQ_SOCKET=<path>` | `acquisition-playground.sock` in the temp dir | the socket, for parallel *mock* daemons (one world each); keep it short (Unix socket paths cap near 104 bytes); two real-mode daemons for one OS user are refused (C31, C83) | `world.rs` |
-| `ACQ_STORE_DIR=<dir>` | the platform data dir | the world (C83): `<dir>/<provider>/<account>.db`, `accounts.json`, `daemon.db`, `rails.json`; one daemon per world, and a client refuses a daemon on another | `world.rs` |
+| `ACQ_STORE_DIR=<dir>` | the platform data dir | the world (C83): `<dir>/<provider>/<account>.db`, `accounts.json`, `daemon.db`, `rails.json`; one daemon per world, and its socket derives from it into the per-user runtime directory (`acq daemon status` prints it) — parallel mock daemons are parallel worlds; two real-mode daemons for one OS user are refused (C31) | `world.rs` |
 | `ACQ_LOG_DIR=<dir>` | the platform log dir | the daemon log and the default journal, one subdirectory per world and provider; bounded (rotated at daemon start past a cap, `daemon.rs`) | `world.rs` |
 | `ACQ_NO_KEYRING=1` | off | sessions in memory only, never plaintext on disk | `auth.rs` |
 | `ACQ_NO_SPAWN=1` | off | the CLI never starts or replaces a daemon — for cron, which on macOS spawns without a keychain and so without a session | `client.rs` |
