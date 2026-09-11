@@ -1141,20 +1141,46 @@ fn c83_a_legacy_listener_with_a_full_backlog_never_hangs_the_start() {
     let staged = r#"{"tripped":"429 on GET /stash/Standard (behind the full backlog)"}"#;
     std::fs::write(&legacy_rails, staged).unwrap();
     // A listener that never accepts, its backlog filled by held
-    // connections until one more is turned away.
+    // connections until one more is turned away. Non-blocking connects
+    // under a setup deadline: a blocking connect on a full Linux backlog
+    // waits for an accept that never comes, and the test's own clock
+    // starts only below (review 2026-09-11). What the turned-away connect
+    // says is the platform's: Linux EAGAIN, macOS ECONNREFUSED.
     let listener = std::os::unix::net::UnixListener::bind(&legacy).unwrap();
+    let runtime = tokio::runtime::Runtime::new().unwrap();
     let mut held = Vec::new();
-    let saturated = loop {
-        match std::os::unix::net::UnixStream::connect(&legacy) {
-            Ok(stream) => held.push(stream),
-            Err(e) => break e,
+    let saturated = runtime.block_on(async {
+        loop {
+            let connect = tokio::time::timeout(
+                Duration::from_secs(2),
+                tokio::net::UnixStream::connect(&legacy),
+            )
+            .await
+            .expect("a non-blocking Unix connect never pends; the fixture's setup hung");
+            match connect {
+                Ok(stream) => held.push(stream),
+                Err(e) => break e,
+            }
+            assert!(held.len() < 4096, "the backlog never filled");
         }
-        assert!(held.len() < 4096, "the backlog never filled");
-    };
+    });
     eprintln!(
         "backlog saturated after {} queued connections; the next connect: {saturated}",
         held.len()
     );
+    match std::env::consts::OS {
+        "linux" => assert_eq!(
+            saturated.kind(),
+            std::io::ErrorKind::WouldBlock,
+            "{saturated}"
+        ),
+        "macos" => assert_eq!(
+            saturated.kind(),
+            std::io::ErrorKind::ConnectionRefused,
+            "{saturated}"
+        ),
+        other => panic!("no expectation for {other}: {saturated}"),
+    }
 
     let started = Instant::now();
     let mut cmd = daemon_command(base, "store");
@@ -1210,10 +1236,6 @@ fn c83_a_legacy_listener_with_a_full_backlog_never_hangs_the_start() {
             if std::env::consts::OS != "macos" {
                 panic!("an unexpected start on this platform: {status}");
             }
-            assert!(
-                saturated.kind() == std::io::ErrorKind::ConnectionRefused,
-                "{saturated}"
-            );
             assert!(!legacy_rails.exists());
             let out = acq_in(
                 base,
@@ -1226,6 +1248,7 @@ fn c83_a_legacy_listener_with_a_full_backlog_never_hangs_the_start() {
         }
     }
     drop(held);
+    drop(runtime);
     drop(listener);
     let _ = std::fs::remove_file(&legacy);
 }

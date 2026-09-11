@@ -7,7 +7,7 @@ edition.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 anyhow.workspace = true
-rusqlite = { version = "0.32", features = ["bundled"] }
+rusqlite = { version = "0.32", features = ["bundled", "hooks"] }
 directories = "6"
 # the world's short id (world.rs): twelve hex digits of the canonical root's SHA-256
 sha2 = "0.10"

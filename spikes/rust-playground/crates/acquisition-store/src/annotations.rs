@@ -595,6 +595,16 @@ impl Annotations {
     /// to the file — the journal-mode switch above all — runs before the
     /// refusal, and the refusal is decided under the write lock, where a
     /// creation in flight has either committed its stamp or not begun.
+    ///
+    /// A third window, closed 2026-09-11 (the daemon split's review
+    /// round 25): the read-only gate below read the stamp and the tables
+    /// as two implicit statements, and a winner's commit could land
+    /// between them — the loser saw stamp 0 from before the commit and
+    /// tables from after it, and refused a well-formed file as "content
+    /// but no schema stamp" (seen once in the gate, `price_story.rs`,
+    /// two blind writers on one row). The gate now reads both facts
+    /// inside one deferred transaction — one snapshot, still no write —
+    /// so a stamp and its tables are always seen from the same moment.
     fn init(mut conn: Connection, path: PathBuf) -> Result<Annotations, AnnotationError> {
         // Connection settings, not file writes: the busy timeout is what
         // makes the lock below a wait rather than a refusal; FULL, not the
@@ -606,14 +616,24 @@ impl Annotations {
         // file this build refuses is left exactly as it was found. A stamp
         // of 0 with tables is a foreign file; 0 without is empty, or a
         // create another process holds uncommitted — the lock decides.
-        let found: i64 = conn.query_row("PRAGMA user_version", [], |r| r.get(0))?;
+        // Both facts from one snapshot: a deferred transaction writes
+        // nothing and holds the read across the two statements, so a
+        // create committing between them cannot show its tables beside a
+        // stamp read before it (round 25).
+        let (found, tables) = {
+            let gate = conn.transaction_with_behavior(TransactionBehavior::Deferred)?;
+            let found: i64 = gate.query_row("PRAGMA user_version", [], |r| r.get(0))?;
+            let tables = found == 0 && Self::has_tables(&gate)?;
+            gate.rollback()?;
+            (found, tables)
+        };
         if found > SCHEMA_VERSION {
             return Err(AnnotationError::SchemaTooNew {
                 found,
                 supported: SCHEMA_VERSION,
             });
         }
-        if found < SCHEMA_FLOOR && (found != 0 || Self::has_tables(&conn)?) {
+        if found < SCHEMA_FLOOR && (found != 0 || tables) {
             return Err(AnnotationError::SchemaTooOld {
                 found,
                 floor: SCHEMA_FLOOR,
@@ -1959,5 +1979,75 @@ mod tests {
     fn the_file_is_named_by_uuid() {
         let p = annotations_path(Path::new("/store/mock"), "0000-4000#odd");
         assert_eq!(p.file_name().unwrap(), "0000-4000_odd.annotations.db");
+    }
+
+    /// C35, the first-open race's third window (round 25), staged
+    /// exactly: the loser's connection carries an authorizer that fires
+    /// when its second read — the table count — is prepared, after the
+    /// stamp was read and before any lock is held; there the winner
+    /// creates the schema, stamps it and commits on its own connection.
+    /// The round-24 gate then saw stamp 0 beside the winner's tables and
+    /// refused a well-formed file as "content but no schema stamp"; the
+    /// gate now reads both from one snapshot, so the winner's commit
+    /// cannot land between them (it waits on the loser's read and gives
+    /// up, swallowed here) and the loser opens the file. A stress test
+    /// of 3000 concurrent first opens did not reproduce the window; this
+    /// does, every run.
+    #[test]
+    fn c35_a_create_committing_between_the_gates_two_reads_is_not_a_refusal() {
+        use rusqlite::hooks::{AuthAction, AuthContext, Authorization};
+        use std::sync::{
+            Arc,
+            atomic::{AtomicBool, AtomicU32, Ordering},
+        };
+        let base = std::env::temp_dir().join(format!("acq-ann-gate-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        std::fs::create_dir_all(&base).unwrap();
+        let path = base.join("u-race.annotations.db");
+        let loser = Connection::open(&path).unwrap();
+        let fired = Arc::new(AtomicBool::new(false));
+        let committed = Arc::new(AtomicU32::new(0));
+        let (winner_path, fired_in, committed_in) =
+            (path.clone(), fired.clone(), committed.clone());
+        loser.authorizer(Some(move |ctx: AuthContext<'_>| {
+            if let AuthAction::Read { table_name, .. } = ctx.action
+                && table_name == "sqlite_master"
+                && !fired_in.swap(true, Ordering::SeqCst)
+            {
+                // The winner, between the loser's two reads: a short
+                // busy timeout, since under the fixed gate its commit
+                // waits on the loser's snapshot and must give up.
+                let winner = Connection::open(&winner_path).unwrap();
+                winner
+                    .busy_timeout(std::time::Duration::from_millis(200))
+                    .unwrap();
+                let create = (|| -> rusqlite::Result<()> {
+                    winner.execute_batch("BEGIN IMMEDIATE")?;
+                    winner.execute_batch(SCHEMA)?;
+                    winner.pragma_update(None, "user_version", SCHEMA_VERSION)?;
+                    winner.execute_batch("COMMIT")
+                })();
+                if create.is_ok() {
+                    committed_in.fetch_add(1, Ordering::SeqCst);
+                } else {
+                    let _ = winner.execute_batch("ROLLBACK");
+                }
+            }
+            Authorization::Allow
+        }));
+        let opened = Annotations::init(loser, path.clone());
+        assert!(fired.load(Ordering::SeqCst), "the staging never fired");
+        match opened {
+            Ok(_) => {}
+            Err(e) => panic!(
+                "the loser refused the winner's file (winner committed between the reads: {}): {e}",
+                committed.load(Ordering::SeqCst) == 1
+            ),
+        }
+        // Whoever created it, the file is one well-formed store afterwards.
+        if let Err(e) = Annotations::open(&path) {
+            panic!("the file is not a well-formed store afterwards: {e}");
+        }
+        let _ = std::fs::remove_dir_all(&base);
     }
 }
