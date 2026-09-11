@@ -27,7 +27,16 @@
 //!
 //! What a use door spawns is the `acqd` beside this executable and nothing
 //! else (`locator.rs`, C82): the daemon is its own artifact, never a mode
-//! of the frontend's binary.
+//! of the frontend's binary. Before it spawns, a use door creates the
+//! world's root (C83: the use path creates, observation never does) so
+//! the daemon and this process canonicalise the same directory.
+//!
+//! A daemon on another world (C83) is the one mismatch no door resolves:
+//! `hello` names the daemon's canonical root, the client compares it with
+//! its own before the other dimensions, and a use door answers
+//! [`ConnectError::OtherWorld`] rather than replacing a daemon that is
+//! legitimately serving its own world; an observer reports it like any
+//! other mismatch, and `stop_any` still stops it.
 //!
 //! # Decisions as recorded
 //!
@@ -66,11 +75,13 @@
 //! cannot. *Details:* `client.rs` doc, C10. *Pinned:*
 //! `daemon_observe.rs`. Ruled 2026-09-09.
 //!
-//! ## C10 and C84 — as built
+//! ## C10, C84 and C83 — as built
 //!
 //! The identity compared is the shared-contract revision and the daemon
-//! artifact, reported together with the provider ([`DaemonId`]): the
-//! three dimensions a client judges, each with its own source.
+//! artifact, reported together with the provider and the world
+//! ([`DaemonId`]): the four dimensions a client judges, each with its own
+//! source. The world is judged first and answered differently — refused,
+//! never replaced (below).
 //!
 //! The **contract** is [`CONTRACT_REVISION`], defined by the protocol
 //! crate (`acquisition-protocol/src/lib.rs`) so both sides carry the same
@@ -102,6 +113,17 @@
 //!
 //! The **provider** is the handshake's `provider` against what this
 //! process wants (`ACQ_GGG`).
+//!
+//! The **world** (C83) is the handshake's `world` — the daemon's
+//! canonical store root — against this process's own
+//! (`acquisition_store::world::World::observe`, which creates nothing:
+//! a root that does not exist is an absent world and matches no daemon).
+//! Two spellings of one directory are one world because both sides
+//! canonicalise; a daemon on another root is another world, and the
+//! typed answer at a use door is [`ConnectError::OtherWorld`], since
+//! killing it would stop a daemon that is serving its own world
+//! correctly — the collision is the rendezvous, which step 6 derives from
+//! the root.
 //!
 //! Why two values and not one: with the artifact alone, a frontend rebuilt
 //! after a wire or store change runs against an old daemon that matches
@@ -163,13 +185,13 @@ use std::time::Duration;
 use crate::artifact::{ArtifactVerdict, SiblingError, sibling};
 use crate::frame::{Frame, read_frame};
 use crate::locator;
-use crate::{log_path, socket_path};
 use acquisition_protocol::artifact::{Artifact, FileIdentity};
 use acquisition_protocol::job::JobInfo;
 use acquisition_protocol::protocol::{
     Bootstrap, BootstrapReply, ErrorKind, MAX_FRAME_BYTES, Request, Response, error_message,
 };
 use acquisition_protocol::{CONTRACT_REVISION, VERSION};
+use acquisition_store::world::{World, socket_path};
 use anyhow::{Context, Result, bail};
 use serde::Serialize;
 use serde_json::json;
@@ -259,10 +281,11 @@ pub enum ConnectError {
         found: DaemonId,
         because: NotReplaced,
     },
-    /// The daemon serves another world. Constructed from the split's step
-    /// 5 (the world ruling), when `hello` carries the world and the client
-    /// verifies it; until then no door answers it.
-    OtherWorld { found: DaemonId, world: String },
+    /// The daemon serves another world (C83): `hello` named a canonical
+    /// root that is not this process's (`found.world()`). No door replaces
+    /// it — a daemon on its own world is not stale — so the remedy is the
+    /// human's: stop it, or point `ACQ_STORE_DIR` at its world.
+    OtherWorld { found: DaemonId },
     /// The daemon could not be started: no `acqd` beside this executable
     /// (C82), the spawn failed, or the daemon exited or never bound its
     /// socket. `log` is the explanation, with what the daemon's log said
@@ -315,8 +338,11 @@ impl fmt::Display for ConnectError {
                 ),
                 NotReplaced::StillAfterRespawn => write!(f, "{found}, still, after a respawn"),
             },
-            ConnectError::OtherWorld { found, world } => {
-                write!(f, "{found} serves another world ({world})")
+            ConnectError::OtherWorld { found } => {
+                write!(
+                    f,
+                    "{found}; this client refuses a daemon on another world and never replaces it — `acq daemon stop` stops it, or point ACQ_STORE_DIR at its world"
+                )
             }
             ConnectError::SpawnFailed {
                 acqd: Some(acqd),
@@ -338,12 +364,12 @@ fn want_provider() -> &'static str {
 }
 
 /// A daemon as its handshake identifies it, judged once. Whether it is
-/// this client's is three dimensions, judged together (C10, C84): the
+/// this client's is four dimensions, judged together (C10, C84, C83): the
 /// shared-contract revision, the daemon artifact against the sibling
-/// this process would spawn, and the provider. The identity and its
-/// verdict are read-only from outside this module — the verdict was
-/// made of exactly these fields, and nothing may change one without
-/// the other (review 2026-09-11).
+/// this process would spawn, the provider, and the world against this
+/// process's own. The identity and its verdict are read-only from
+/// outside this module — the verdict was made of exactly these fields,
+/// and nothing may change one without the other (review 2026-09-11).
 #[derive(Clone, Debug, Serialize)]
 pub struct DaemonId {
     pid: u32,
@@ -358,6 +384,9 @@ pub struct DaemonId {
     artifact: Option<Box<Artifact>>,
     /// "mock" or "ggg".
     provider: String,
+    /// The canonical store root the daemon serves (C83), as reported;
+    /// `unknown` from a daemon of a build before the field.
+    world: String,
     /// The judgement, captured once when this identity was read off the
     /// wire, from one look at the sibling: the compatibility flag, the
     /// relation and the sibling a report names all come from the same
@@ -377,31 +406,56 @@ pub struct Verdict {
     pub contract: bool,
     pub artifact: ArtifactVerdict,
     pub provider: bool,
+    /// The daemon serves this process's world (C83).
+    pub world: bool,
     /// The sibling `acqd` as found in that one look, or why there is none.
     pub sibling: Result<FileIdentity, SiblingError>,
+    /// This process's own world as found in that one look — its canonical
+    /// root, or the root it intended and why there is no world there.
+    pub own_world: Result<String, String>,
 }
 
 impl Verdict {
     /// One look at the sibling — opened once; its identity and, when
     /// needed, its bytes from that handle — then every dimension judged
     /// against it.
-    fn of(contract: &str, artifact: Option<&Artifact>, provider: &str) -> Verdict {
+    fn of(contract: &str, artifact: Option<&Artifact>, provider: &str, world: &str) -> Verdict {
         let opened = sibling();
         let identity = match &opened {
             Ok(s) => Ok(s.identity.clone()),
             Err(e) => Err(e.clone()),
         };
+        let own_world = own_world();
         Verdict {
             contract: contract == CONTRACT_REVISION,
             artifact: ArtifactVerdict::judge_against(artifact, opened),
             provider: provider == want_provider(),
+            world: own_world.as_deref() == Ok(world),
             sibling: identity,
+            own_world,
         }
     }
 
     /// Every dimension matches: this client may use the daemon.
     pub fn is_ours(&self) -> bool {
-        self.contract && self.artifact.matches() && self.provider
+        self.contract && self.artifact.matches() && self.provider && self.world
+    }
+}
+
+/// This process's world (C83), observed — never created here: the
+/// canonical root when it exists, else why there is no world.
+fn own_world() -> Result<String, String> {
+    World::observe()
+        .map(|w| w.name())
+        .map_err(|e| e.to_string())
+}
+
+/// The intended root as `hello` names it from this side, whether or not
+/// it exists yet: the daemon logs a mismatch, nothing more.
+fn own_world_name() -> String {
+    match World::observe() {
+        Ok(w) => w.name(),
+        Err(e) => e.intended.display().to_string(),
     }
 }
 
@@ -414,14 +468,16 @@ impl DaemonId {
         contract: String,
         artifact: Option<Artifact>,
         provider: String,
+        world: String,
     ) -> DaemonId {
-        let verdict = Verdict::of(&contract, artifact.as_ref(), &provider);
+        let verdict = Verdict::of(&contract, artifact.as_ref(), &provider, &world);
         DaemonId {
             pid,
             version,
             contract,
             artifact: artifact.map(Box::new),
             provider,
+            world,
             verdict: Box::new(verdict),
         }
     }
@@ -466,15 +522,27 @@ impl DaemonId {
         self.verdict.provider
     }
 
+    /// The canonical store root the daemon serves, as reported (C83).
+    pub fn world(&self) -> &str {
+        &self.world
+    }
+
+    /// The daemon serves this process's world (C83).
+    pub fn world_matches(&self) -> bool {
+        self.verdict.world
+    }
+
     /// Every dimension matches: this client may use the daemon.
     pub fn is_ours(&self) -> bool {
         self.verdict.is_ours()
     }
 
     /// The observer's report, one shape for every frontend: the daemon
-    /// found, what this process wanted — its contract, its provider, and
-    /// the sibling `acqd` as found in the one look that judged it, or
-    /// `null` with the reason — and which dimensions differ.
+    /// found, what this process wanted — its contract, its provider, its
+    /// world (or the root it intended, with `world_absent` saying why
+    /// there is none) and the sibling `acqd` as found in the one look
+    /// that judged it, or `null` with the reason — and which dimensions
+    /// differ.
     pub fn report(&self) -> serde_json::Value {
         let verdict = &self.verdict;
         let (acqd, acqd_absent) = match &verdict.sibling {
@@ -485,10 +553,14 @@ impl DaemonId {
             "version": VERSION,
             "contract": CONTRACT_REVISION,
             "provider": want_provider(),
+            "world": own_world_name(),
             "acqd": acqd,
         });
         if let Some(reason) = acqd_absent {
             wanted["acqd_absent"] = json!(reason);
+        }
+        if let Err(reason) = &verdict.own_world {
+            wanted["world_absent"] = json!(reason);
         }
         let mut report = json!({
             "pid": self.pid,
@@ -496,10 +568,12 @@ impl DaemonId {
             "contract": self.contract,
             "artifact": self.artifact,
             "provider": self.provider,
+            "world": self.world,
             "contract_matches": verdict.contract,
             "artifact_matches": verdict.artifact.matches(),
             "artifact_relation": verdict.artifact.relation(),
             "provider_matches": verdict.provider,
+            "world_matches": verdict.world,
             "wanted": wanted,
         });
         if let Some(why) = artifact_mismatch_reason(&verdict.artifact) {
@@ -544,7 +618,7 @@ impl fmt::Display for DaemonId {
         if verdict.is_ours() {
             return write!(
                 f,
-                " is this client's (contract {}, {}, {})",
+                " is this client's (contract {}, {}, {}, world {})",
                 self.contract,
                 match (&verdict.artifact, &self.artifact) {
                     (ArtifactVerdict::SameBytes { sibling }, Some(a)) => format!(
@@ -558,7 +632,23 @@ impl fmt::Display for DaemonId {
                     }
                     (_, None) => "no artifact".to_string(),
                 },
-                self.provider
+                self.provider,
+                self.world
+            );
+        }
+        if !verdict.world {
+            // The first dimension judged, and the one no door resolves:
+            // named first, and alone — a daemon on another world is not
+            // compared further, since nothing this process would do to
+            // it follows from the other three.
+            return write!(
+                f,
+                " serves another world ({}; this process's is {})",
+                self.world,
+                match &verdict.own_world {
+                    Ok(root) => root.clone(),
+                    Err(reason) => format!("absent — {reason}"),
+                }
             );
         }
         let mut clauses: Vec<String> = Vec::new();
@@ -722,6 +812,14 @@ impl Client {
                     if client.daemon.is_ours() {
                         return Ok(client);
                     }
+                    // Another world is judged before anything else and
+                    // is never replaced (C83): the daemon is serving its
+                    // own world; only the socket collided.
+                    if !client.daemon.world_matches() {
+                        return Err(ConnectError::OtherWorld {
+                            found: client.daemon,
+                        });
+                    }
                     if respawned {
                         return Err(ConnectError::Incompatible {
                             found: client.daemon,
@@ -761,7 +859,7 @@ impl Client {
                                     acqd: Some(spawned.acqd.clone()),
                                     log: format!(
                                         "the daemon exited during startup ({status}){}",
-                                        startup_log_excerpt(spawned.log_from)
+                                        startup_log_excerpt(spawned)
                                     ),
                                 });
                             }
@@ -789,12 +887,12 @@ impl Client {
         }
         Err(match child {
             Some(spawned) => ConnectError::SpawnFailed {
-                acqd: Some(spawned.acqd),
                 log: format!(
                     "it did not bind {} within 5s{}",
                     socket_path().display(),
-                    startup_log_excerpt(spawned.log_from)
+                    startup_log_excerpt(&spawned)
                 ),
+                acqd: Some(spawned.acqd),
             },
             None => ConnectError::Transport(anyhow::anyhow!(
                 "could not reach daemon at {} after 5s",
@@ -869,12 +967,20 @@ impl Client {
         let mut client = Client {
             reader: BufReader::new(read),
             write,
-            daemon: DaemonId::judged(0, String::new(), String::new(), None, String::new()),
+            daemon: DaemonId::judged(
+                0,
+                String::new(),
+                String::new(),
+                None,
+                String::new(),
+                String::new(),
+            ),
         };
         let bytes = client
             .exchange(&Bootstrap::Hello {
                 version: VERSION.to_string(),
                 contract: CONTRACT_REVISION.to_string(),
+                world: own_world_name(),
             })
             .await?;
         let Some(BootstrapReply::Hello {
@@ -883,6 +989,7 @@ impl Client {
             artifact,
             pid,
             provider,
+            world,
         }) = BootstrapReply::read(&bytes)
         else {
             bail!(
@@ -890,7 +997,7 @@ impl Client {
                 String::from_utf8_lossy(&bytes)
             );
         };
-        client.daemon = DaemonId::judged(pid, version, contract, artifact, provider);
+        client.daemon = DaemonId::judged(pid, version, contract, artifact, provider, world);
         Ok(client)
     }
 
@@ -983,25 +1090,38 @@ impl Client {
     }
 }
 
-/// A daemon this client started: the executable it ran, and where the
-/// log ended at spawn time.
+/// A daemon this client started: the executable it ran, its log, and
+/// where that log ended at spawn time.
 struct Spawned {
     child: std::process::Child,
     acqd: PathBuf,
+    log: PathBuf,
     log_from: u64,
 }
 
 /// Start the `acqd` beside this executable (C82) with no arguments — its
 /// knobs are the environment this process passes on — and its stdio to
-/// null: the daemon log is where it speaks.
+/// null: the daemon log is where it speaks. The use path creates the
+/// world's root first (C83), so the daemon locks and reports the same
+/// canonical directory this process will compare; a relative
+/// `ACQ_STORE_DIR` crosses into the daemon made absolute.
 fn spawn_daemon() -> Result<Spawned, ConnectError> {
     let acqd = locator::acqd().map_err(|e| ConnectError::SpawnFailed {
         acqd: None,
         log: e.to_string(),
     })?;
+    let world = World::create().map_err(|e| ConnectError::SpawnFailed {
+        acqd: Some(acqd.clone()),
+        log: format!("could not create the world's root before starting it: {e}"),
+    })?;
+    let log = world.log_path(want_provider());
     // Where the log ends now; lines past this offset are the new daemon's.
-    let log_from = std::fs::metadata(log_path()).map_or(0, |m| m.len());
-    let child = std::process::Command::new(&acqd)
+    let log_from = std::fs::metadata(&log).map_or(0, |m| m.len());
+    let mut command = std::process::Command::new(&acqd);
+    if std::env::var_os("ACQ_STORE_DIR").is_some() {
+        command.env("ACQ_STORE_DIR", acquisition_store::world::intended_root());
+    }
+    let child = command
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
@@ -1013,17 +1133,26 @@ fn spawn_daemon() -> Result<Spawned, ConnectError> {
     Ok(Spawned {
         child,
         acqd,
+        log,
         log_from,
     })
 }
 
 /// What the daemon wrote to its log after we spawned it — the only place a
-/// lazy-spawned daemon's startup refusal lands.
-fn startup_log_excerpt(log_from: u64) -> String {
+/// lazy-spawned daemon's startup refusal lands. A log shorter than the
+/// offset was rotated by the daemon at its start (the diagnostics are
+/// bounded, C83), so everything in it is the new daemon's.
+fn startup_log_excerpt(spawned: &Spawned) -> String {
     use std::io::{Read, Seek, SeekFrom};
-    let path = log_path();
-    let tail = std::fs::File::open(&path).ok().and_then(|mut f| {
-        f.seek(SeekFrom::Start(log_from)).ok()?;
+    let path = &spawned.log;
+    let tail = std::fs::File::open(path).ok().and_then(|mut f| {
+        let len = f.metadata().ok()?.len();
+        let from = if len < spawned.log_from {
+            0
+        } else {
+            spawned.log_from
+        };
+        f.seek(SeekFrom::Start(from)).ok()?;
         let mut s = String::new();
         f.read_to_string(&mut s).ok()?;
         let lines: Vec<&str> = s.trim().lines().collect();
@@ -1045,8 +1174,20 @@ fn startup_log_excerpt(log_from: u64) -> String {
 mod tests {
     use super::*;
 
+    /// The tests that read or set the process environment take this
+    /// first: `set_var` is unsafe beside a concurrent read. Tokio's, so
+    /// the async test can hold it across its awaits.
+    static ENV: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
     fn id(contract: &str, provider: &str) -> DaemonId {
-        DaemonId::judged(42, VERSION.into(), contract.into(), None, provider.into())
+        DaemonId::judged(
+            42,
+            VERSION.into(),
+            contract.into(),
+            None,
+            provider.into(),
+            own_world_name(),
+        )
     }
 
     /// C10, C84: the handshake compares the contract revision and the
@@ -1059,13 +1200,22 @@ mod tests {
     /// `ACQ_GGG`, so "mock" is the wanted provider.
     #[test]
     fn c84_a_daemon_of_another_contract_artifact_or_provider_is_not_this_clients() {
+        let _env = ENV.blocking_lock();
+        let dir = std::env::temp_dir().join(format!("acq-verdict-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        // SAFETY: `ENV` is held; the crate's other environment-reading
+        // tests take it too.
+        unsafe {
+            std::env::set_var("ACQ_STORE_DIR", &dir);
+            std::env::remove_var("ACQ_GGG");
+        }
         assert_eq!(CONTRACT_REVISION.len(), 12);
         assert!(CONTRACT_REVISION.bytes().all(|b| b.is_ascii_hexdigit()));
         assert!(acquisition_protocol::VERSION_WITH_CONTRACT.contains(CONTRACT_REVISION));
 
         let same_contract = id(CONTRACT_REVISION, "mock");
         let verdict = same_contract.verdict();
-        assert!(verdict.contract && verdict.provider);
+        assert!(verdict.contract && verdict.provider && verdict.world);
         assert!(matches!(verdict.artifact, ArtifactVerdict::Unreported));
         assert!(
             !same_contract.is_ours(),
@@ -1107,6 +1257,55 @@ mod tests {
             text.contains("another provider") && !text.contains("another contract"),
             "{text}"
         );
+
+        // C83: another world is judged first and named alone — the other
+        // dimensions are not compared for a daemon this process would
+        // neither use nor replace; the report still carries them all.
+        let elsewhere = DaemonId::judged(
+            42,
+            VERSION.into(),
+            CONTRACT_REVISION.into(),
+            None,
+            "mock".into(),
+            "/somewhere/else".into(),
+        );
+        assert!(!elsewhere.world_matches() && !elsewhere.is_ours());
+        let report = elsewhere.report();
+        assert_eq!(report["world"], "/somewhere/else");
+        assert_eq!(report["world_matches"], false);
+        assert_eq!(report["contract_matches"], true);
+        assert_eq!(
+            report["wanted"]["world"],
+            dir.canonicalize().unwrap().display().to_string()
+        );
+        assert!(report["wanted"].get("world_absent").is_none(), "{report}");
+        let text = elsewhere.to_string();
+        assert!(
+            text.contains("another world")
+                && text.contains("/somewhere/else")
+                && !text.contains("another artifact"),
+            "{text}"
+        );
+        // An absent world of this process's own matches no daemon and
+        // says why under `wanted`.
+        unsafe {
+            std::env::set_var("ACQ_STORE_DIR", dir.join("missing"));
+        }
+        let nowhere = id(CONTRACT_REVISION, "mock");
+        assert!(!nowhere.world_matches(), "{nowhere}");
+        let report = nowhere.report();
+        assert!(
+            report["wanted"]["world_absent"]
+                .as_str()
+                .unwrap()
+                .contains("does not exist"),
+            "{report}"
+        );
+        assert!(nowhere.to_string().contains("absent"), "{nowhere}");
+        unsafe {
+            std::env::remove_var("ACQ_STORE_DIR");
+        }
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// The absence reason is the caller's policy before the knob, and the
@@ -1115,10 +1314,12 @@ mod tests {
     /// real-mode absence had claimed "it spawns on demand").
     #[tokio::test]
     async fn an_absent_daemon_names_why_it_was_not_started() {
+        let _env = ENV.lock().await;
         let dir = std::env::temp_dir().join(format!("acq-absent-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
-        // SAFETY: the crate's other tests never read these variables.
+        // SAFETY: `ENV` is held; the crate's other environment-reading
+        // tests take it too.
         unsafe {
             std::env::set_var("ACQ_SOCKET", dir.join("none.sock"));
             std::env::remove_var("ACQ_NO_SPAWN");
@@ -1187,6 +1388,7 @@ mod tests {
                 artifact: None,
                 pid: 7,
                 provider: "mock".into(),
+                world: own_world_name(),
             };
             let mut line = serde_json::to_string(&hello).unwrap();
             line.push('\n');

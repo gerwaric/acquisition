@@ -24,7 +24,7 @@ Only the **cross-cutting** decisions are here, because an agent must know them b
 
 | File | Area | Decisions |
 | --- | --- | --- |
-| `decisions/daemon.md` | Daemon, jobs, protocol, accounts | C3, C5, C6, C7, C8, C9, C10, C23, C27, C45, C31, C49, C50, C51, C82, C84, C85 |
+| `decisions/daemon.md` | Daemon, jobs, protocol, accounts | C3, C5, C6, C7, C8, C9, C10, C23, C27, C45, C31, C49, C50, C51, C82, C83, C84, C85 |
 | `decisions/network.md` | Network and rate limiting | C17, C18, C19, C20, C21, C22, C24, C25, C26, C32, C33 |
 | `decisions/store.md` | Store: facts, realm, characters | C28, C29, C30, C54, C55, C56, C57, C58, C59, C60, C61, C62, C63 |
 | `decisions/plans.md` | Intent, plans, apply | C36, C37, C39, C40, C41, C42, C43, C44, C76, C77 |

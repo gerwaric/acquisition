@@ -9,6 +9,8 @@ serde_json.workspace = true
 anyhow.workspace = true
 rusqlite = { version = "0.32", features = ["bundled"] }
 directories = "6"
+# the world's short id (world.rs): twelve hex digits of the canonical root's SHA-256
+sha2 = "0.10"
 
 [features]
 # Destructive hooks for exercising failure paths; never in production builds.

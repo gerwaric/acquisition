@@ -667,17 +667,17 @@ pub mod annotations;
 pub mod index;
 pub mod jobs;
 pub mod snapshot;
+pub mod world;
 pub use annotations::{
     AnnotationError, AnnotationRow, Annotations, IntentValue, Provenance, ValueError,
     annotations_path, check_value,
 };
-pub use index::{
-    AccountEntry, Index, Resolve, account_matches, account_path, index_path, store_dir,
-};
+pub use index::{AccountEntry, Index, Resolve, account_matches, account_path, index_path};
 pub use snapshot::{
     BUYOUT_KIND, CharacterSnapshot, ItemSnapshot, ListingBasis, PricingSnapshot, RefreshSnapshot,
     SYNC_POLICY_KEY, SYNC_POLICY_KIND, SYNC_POLICY_SCOPE, TabSnapshot,
 };
+pub use world::store_dir;
 
 /// Listing order shared by [`Store::tabs`] and [`Store::refresh_snapshot`]:
 /// folder children after their folder, substashes after their tab.

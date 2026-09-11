@@ -171,7 +171,7 @@ fi
 # through the store and reads nothing else); no package but the daemon
 # names the daemon, so a frontend cannot be in-process with it (C13) and
 # the client crate cannot embed it; the client crate links the protocol
-# crate and tokio (the store from step 5), never the daemon or the
+# crate, the store (the world, C83) and tokio, never the daemon or the
 # planner, so a client or locator edit recompiles no daemon; the store
 # crate links none of them and no HTTP client, so a store read cannot
 # initiate traffic (C41); the protocol crate — the daemon's contract as a

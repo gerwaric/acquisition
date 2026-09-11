@@ -33,6 +33,7 @@ fn command(base: &Path, args: &[&str]) -> Command {
     cmd.args(args)
         .env("ACQ_SOCKET", base.join("d.sock"))
         .env("ACQ_STORE_DIR", base.join("store"))
+        .env("ACQ_LOG_DIR", base.join("logs"))
         .env("ACQ_NO_KEYRING", "1")
         .env("ACQ_JOURNAL", base.join("sends.jsonl"));
     for var in [

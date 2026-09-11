@@ -166,6 +166,7 @@ fn the_mcp_tools_carry_the_plan_slice_and_its_gates() {
         }
         std::env::set_var("ACQ_SOCKET", base.join("d.sock"));
         std::env::set_var("ACQ_STORE_DIR", base.join("store"));
+        std::env::set_var("ACQ_LOG_DIR", base.join("logs"));
         std::env::set_var("ACQ_NO_KEYRING", "1");
     }
 

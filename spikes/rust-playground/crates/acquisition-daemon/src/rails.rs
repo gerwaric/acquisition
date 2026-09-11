@@ -7,7 +7,11 @@
 //! - **Tripwire** (`ACQ_TRIPWIRE=1`, ladder-only): the first landed 429 on
 //!   any route — HEAD and token included — or any 401/403/503 halts every later
 //!   send until an explicit `reset_tripwire`. Persisted per provider so a
-//!   respawned daemon stays tripped.
+//!   respawned daemon stays tripped — in the world since the daemon
+//!   split's step 5 (`<root>/<provider>/rails.json`, C83), where a
+//!   reboot cannot clear it; a state file from before, beside the socket
+//!   in the temp directory, is moved in once by [`migrate_legacy_state`]
+//!   so no trip is lost.
 //! - **Dead-token stop** (with the tripwire): a 4xx other than 429 on a
 //!   `refresh_token` grant marks the session refresh-failed; later refreshes
 //!   fail fast without sending until login or logout. Persisted with the
@@ -17,8 +21,9 @@
 //!   Per-lifetime and never persisted.
 //! - **Send journal** (`ACQ_JOURNAL=<path>`, permanent): one JSON line per
 //!   actual send, flushed per line, never containing a token or body.
-//!   The default path is the socket's with `.sock` replaced by
-//!   `.<provider>.sends.jsonl` (`acq daemon status` prints it); `0`
+//!   The default path is the world's `sends.jsonl` under the log
+//!   directory (`acquisition_store::world`; `acq daemon status` prints
+//!   it), bounded by the daemon at its start like the log; `0`
 //!   disables; the directory is created on demand, and a journal that
 //!   cannot be opened is reported in `daemon status`, never silently
 //!   dropped. Each daemon lifetime opens with
@@ -91,14 +96,11 @@ pub struct RailsConfig {
 }
 
 impl RailsConfig {
-    /// Read the environment. `state_dir_hint` is the socket path: the
-    /// state file sits beside it (so `ACQ_SOCKET` isolates parallel
-    /// daemons) and is keyed by provider so mock and real never share it.
-    pub fn from_env(
-        provider_name: &str,
-        socket_path: &Path,
-        default_journal: &Path,
-    ) -> RailsConfig {
+    /// Read the environment. `state_path` is where the tripwire and
+    /// refresh-failed marks persist — the world's `rails.json` for the
+    /// provider (C83) — and `default_journal` where the journal goes
+    /// when `ACQ_JOURNAL` says nothing.
+    pub fn from_env(state_path: &Path, default_journal: &Path) -> RailsConfig {
         let mut warnings = Vec::new();
         let tripwire = match std::env::var("ACQ_TRIPWIRE") {
             Ok(v) if matches!(v.trim(), "1" | "true" | "yes" | "on") => true,
@@ -126,7 +128,7 @@ impl RailsConfig {
             Ok(p) => Some(PathBuf::from(p)),
             Err(_) => Some(default_journal.to_path_buf()),
         };
-        let state_path = Some(socket_path.with_extension(format!("{provider_name}.rails.json")));
+        let state_path = Some(state_path.to_path_buf());
         RailsConfig {
             tripwire,
             max_sends,
@@ -140,7 +142,7 @@ impl RailsConfig {
 
 /// What persists across daemon restarts. Only violation-class trips and
 /// the refresh-failed mark; the ceiling is per lifetime by decision.
-#[derive(Debug, Default, Serialize, Deserialize)]
+#[derive(Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
 struct Persisted {
     #[serde(default)]
     tripped: Option<String>,
@@ -148,6 +150,66 @@ struct Persisted {
     /// `refresh_failed` string; it is ignored on load (one re-login).
     #[serde(default)]
     refresh_failed_by_account: HashMap<String, String>,
+}
+
+/// The one-time move of the rails state into the world (C83; the daemon
+/// split's step 5). Before it, the state sat beside the socket in the
+/// temp directory, which macOS clears at reboot. Called by the daemon
+/// after it holds the world lock and before the rails read `current`:
+/// a legacy file with no current one moves whole; both present are
+/// merged so no trip is lost — a trip in either is a trip, the
+/// refresh-failed marks are the union, the current file's cause wins a
+/// conflict — and the legacy file is removed either way. Returns what
+/// happened, for the daemon log; `None` when there was nothing to move.
+pub fn migrate_legacy_state(legacy: &Path, current: &Path) -> Option<String> {
+    let text = std::fs::read_to_string(legacy).ok()?;
+    let Ok(old) = serde_json::from_str::<Persisted>(&text) else {
+        // Not this daemon's shape: leave it where it is, say so once.
+        return Some(format!(
+            "rails: legacy state {} is not readable; left in place",
+            legacy.display()
+        ));
+    };
+    if let Some(dir) = current.parent() {
+        let _ = std::fs::create_dir_all(dir);
+    }
+    let merged = match std::fs::read_to_string(current)
+        .ok()
+        .and_then(|t| serde_json::from_str::<Persisted>(&t).ok())
+    {
+        None => old,
+        Some(mut now) => {
+            if now.tripped.is_none() {
+                now.tripped = old.tripped;
+            }
+            for (account, cause) in old.refresh_failed_by_account {
+                now.refresh_failed_by_account
+                    .entry(account)
+                    .or_insert(cause);
+            }
+            now
+        }
+    };
+    let Ok(text) = serde_json::to_string(&merged) else {
+        return None;
+    };
+    if let Err(e) = std::fs::write(current, text) {
+        return Some(format!(
+            "rails: could not move the legacy state {} into {}: {e}; left in place",
+            legacy.display(),
+            current.display()
+        ));
+    }
+    let _ = std::fs::remove_file(legacy);
+    Some(format!(
+        "rails: state moved from {} into the world at {}{}",
+        legacy.display(),
+        current.display(),
+        match &merged.tripped {
+            Some(cause) => format!(" (tripped: {cause})"),
+            None => String::new(),
+        }
+    ))
 }
 
 #[derive(Debug, Default)]
@@ -729,6 +791,61 @@ mod tests {
         let rails = Rails::with_config(config);
         assert_eq!(rails.halted(), None, "ceiling trips never persist");
         let _ = std::fs::remove_file(&path);
+    }
+
+    /// C83: a trip persisted beside the socket before step 5 moves into
+    /// the world once and is honoured there; with a state in both places
+    /// the two are merged, no trip lost, and the legacy file goes.
+    #[test]
+    fn c83_the_legacy_rails_state_moves_into_the_world_and_loses_no_trip() {
+        let dir = std::env::temp_dir().join(format!("acq-rails-move-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let legacy = dir.join("d.sock").with_extension("mock.rails.json");
+        let current = dir.join("store").join("mock").join("rails.json");
+        assert_eq!(
+            migrate_legacy_state(&legacy, &current),
+            None,
+            "nothing to move"
+        );
+
+        std::fs::write(
+            &legacy,
+            r#"{"tripped":"429 on GET /stash","refresh_failed_by_account":{"A#1":"400"}}"#,
+        )
+        .unwrap();
+        let line = migrate_legacy_state(&legacy, &current).expect("moved");
+        assert!(line.contains("moved") && line.contains("429"), "{line}");
+        assert!(!legacy.exists(), "the legacy file is gone");
+        let config = RailsConfig {
+            tripwire: true,
+            state_path: Some(current.clone()),
+            ..RailsConfig::default()
+        };
+        let rails = Rails::with_config(config.clone());
+        assert!(rails.halted().unwrap().contains("429 on GET /stash"));
+        assert_eq!(rails.refresh_failed("A#1").as_deref(), Some("400"));
+        drop(rails);
+
+        // Both present: the current cause wins, marks are the union.
+        std::fs::write(
+            &legacy,
+            r#"{"tripped":"503 on GET /profile","refresh_failed_by_account":{"B#2":"401"}}"#,
+        )
+        .unwrap();
+        let line = migrate_legacy_state(&legacy, &current).expect("merged");
+        assert!(line.contains("429 on GET /stash"), "{line}");
+        assert!(!legacy.exists());
+        let rails = Rails::with_config(config);
+        assert!(rails.halted().unwrap().contains("429 on GET /stash"));
+        assert_eq!(rails.refresh_failed("A#1").as_deref(), Some("400"));
+        assert_eq!(rails.refresh_failed("B#2").as_deref(), Some("401"));
+
+        // A legacy file of another shape is left alone and named.
+        std::fs::write(&legacy, "{nope").unwrap();
+        let line = migrate_legacy_state(&legacy, &current).expect("named");
+        assert!(line.contains("not readable") && legacy.exists(), "{line}");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

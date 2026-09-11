@@ -6,9 +6,10 @@ description: Work against the mock daemon in an isolated session — socket, sto
 # Mock session
 
 Everything here talks to the in-process mock provider; nothing reaches
-GGG. Isolation exists so a session never shares a socket, a store, or
+GGG. Isolation exists so a session never shares a socket, a world, or
 the persisted job queue with the owner's real daemon or with another
-session — two daemons on one store directory would run the same queue.
+session — a world is one daemon's (its lock refuses a second, C83),
+and a client on another world refuses the daemon on its socket.
 
 ## Set up
 
@@ -16,7 +17,8 @@ session — two daemons on one store directory would run the same queue.
 unset ACQ_GGG ACQ_TRIPWIRE ACQ_MAX_SENDS ACQ_IDLE_SHUTDOWN   # a live run may have left these exported
 export ACQ_SOCKET=/tmp/acq-<name>.sock                        # keep it short: Unix socket paths cap near 104 bytes
 export ACQ_NO_KEYRING=1                                       # sessions in memory only
-export ACQ_STORE_DIR=<scratch>/store                          # never the real per-user data directory
+export ACQ_STORE_DIR=<scratch>/store                          # the session's world (C83): never the real per-user data directory
+export ACQ_LOG_DIR=<scratch>/logs                             # the daemon log and journal, out of ~/Library/Logs
 cargo build --workspace && ./target/debug/acq --version       # builds acq and the daemon acqd beside it (C82); after a cargo test, build again — it rewrites acq and acq-mcp
 alias acq=./target/debug/acq
 acq daemon status                                             # a fresh socket: "daemon is not running" (status never spawns, C10); after the login below it says provider mock

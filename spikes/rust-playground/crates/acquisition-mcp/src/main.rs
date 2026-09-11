@@ -243,7 +243,12 @@ async fn attach() -> Result<Client> {
         Observed::Compatible(client) => Ok(client),
         Observed::Absent => anyhow::bail!("no daemon running"),
         Observed::Incompatible(found) => anyhow::bail!(
-            "{found}; this server never replaces a daemon — resolve it with the CLI (`acq daemon stop`)"
+            "{found}; this server never replaces a daemon — resolve it with the CLI (`acq daemon stop`{})",
+            if found.world_matches() {
+                ""
+            } else {
+                ", or point ACQ_STORE_DIR at its world"
+            }
         ),
     }
 }
@@ -727,7 +732,7 @@ impl AcqMcp {
     }
 
     #[tool(
-        description = "The daemon running: its identity (C84) — contract revision, the executable it runs from and its hash (artifact), how that file relates to the acqd beside this server (artifact_relation: same_file, same_bytes for another copy, different, unhashable, no_sibling, unreported), which of the three dimensions match (contract_matches, artifact_matches, provider_matches), and under wanted this server's own version, contract and provider with that sibling — all from the one look that judged the daemon; and, when compatible, its vitals: provider, uptime, connections, queue counts, rate-limit policies learned, rails state, keyring health. Observes only: running=false when no daemon is up; running=true, compatible=false for a daemon of another contract, artifact or provider, reported by its identity alone and never replaced by this server."
+        description = "The daemon running: its identity (C84, C83) — contract revision, the executable it runs from and its hash (artifact), the world it serves (its canonical store root), how that file relates to the acqd beside this server (artifact_relation: same_file, same_bytes for another copy, different, unhashable, no_sibling, unreported), which of the four dimensions match (contract_matches, artifact_matches, provider_matches, world_matches), and under wanted this server's own version, contract, provider and world with that sibling — all from the one look that judged the daemon; and, when compatible, its vitals: provider, uptime, connections, queue counts, rate-limit policies learned, rails state, keyring health. Observes only: running=false when no daemon is up; running=true, compatible=false for a daemon of another contract, artifact, provider or world, reported by its identity alone and never replaced by this server."
     )]
     async fn daemon_status(&self) -> Result<Json<Value>, ErrorData> {
         let mut client = match Client::observe().await.map_err(err)? {
@@ -752,10 +757,12 @@ impl AcqMcp {
         for key in [
             "contract",
             "artifact",
+            "world",
             "contract_matches",
             "artifact_matches",
             "artifact_relation",
             "provider_matches",
+            "world_matches",
             "wanted",
         ] {
             report[key] = identity[key].clone();

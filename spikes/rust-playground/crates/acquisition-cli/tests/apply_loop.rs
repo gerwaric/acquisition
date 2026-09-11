@@ -34,6 +34,7 @@ fn command(base: &Path, args: &[&str]) -> Command {
         // so everything lives directly under the platform temp dir.
         .env("ACQ_SOCKET", base.join("d.sock"))
         .env("ACQ_STORE_DIR", base.join("store"))
+        .env("ACQ_LOG_DIR", base.join("logs"))
         .env("ACQ_NO_KEYRING", "1");
     for var in [
         "ACQ_GGG",

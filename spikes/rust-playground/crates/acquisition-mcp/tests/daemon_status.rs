@@ -83,9 +83,23 @@ fn c84_daemon_status_reports_the_identity_and_the_sibling_it_is_judged_against()
         "{status}"
     );
     assert_eq!(status["artifact_relation"], "same_file", "{status}");
-    for key in ["contract_matches", "artifact_matches", "provider_matches"] {
+    for key in [
+        "contract_matches",
+        "artifact_matches",
+        "provider_matches",
+        "world_matches",
+    ] {
         assert_eq!(status[key], true, "{key}: {status}");
     }
+    assert_eq!(
+        status["world"],
+        base.join("store")
+            .canonicalize()
+            .unwrap()
+            .display()
+            .to_string(),
+        "{status}"
+    );
     assert_eq!(
         Path::new(status["wanted"]["acqd"]["path"].as_str().unwrap())
             .canonicalize()
@@ -113,6 +127,7 @@ fn c84_daemon_status_reports_the_identity_and_the_sibling_it_is_judged_against()
     assert_eq!(report["artifact_matches"], true, "{report}");
     assert_eq!(report["artifact_relation"], "same_file", "{report}");
     assert_eq!(report["provider_matches"], false, "{report}");
+    assert_eq!(report["world_matches"], true, "{report}");
     assert_eq!(report["wanted"]["provider"], "ggg", "{report}");
     assert_eq!(
         report["artifact"]["sha256"],

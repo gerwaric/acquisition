@@ -408,7 +408,9 @@ pub async fn refresh_apply(
     print!("{report}");
     println!("{}", changes.line());
     if let Outcome::Failure { .. } = outcome {
-        println!("daemon log: {}", acquisition_client::log_path().display());
+        if let Some(log) = crate::daemon_log_path() {
+            println!("daemon log: {}", log.display());
+        }
         return Err(crate::AlreadyReported.into());
     }
     Ok(())

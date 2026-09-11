@@ -27,9 +27,12 @@
 //! `Daemon`'s drop prints it while a test is panicking, so a failed
 //! assertion's output carries which daemon ran.
 //!
-//! The client reads the socket from `ACQ_SOCKET`, a process-wide setting,
-//! so the tests here run one at a time under a lock and set their own
-//! scratch socket and store while they hold it. Nothing here reaches GGG:
+//! The client reads the socket from `ACQ_SOCKET` and the world from
+//! `ACQ_STORE_DIR`, process-wide settings, so the tests here run one at
+//! a time under a lock and set their own scratch socket, store and log
+//! directory while they hold it; the store root is created with the
+//! session (a scripted peer has no daemon to create it, and the world it
+//! claims must exist to be this process's). Nothing here reaches GGG:
 //! `ACQ_GGG` is scrubbed and the daemon runs the mock provider.
 
 use std::path::{Path, PathBuf};
@@ -37,12 +40,14 @@ use std::process::{Child, Command, Stdio};
 use std::sync::{Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
-use acquisition_client::client::{Client, ConnectOptions, Observed, Signal, Subscription};
+use acquisition_client::client::{
+    Client, ConnectError, ConnectOptions, Observed, Signal, Subscription,
+};
 use acquisition_client::frame::{Frame, read_frame};
-use acquisition_client::socket_path;
 use acquisition_protocol::job::JobState;
 use acquisition_protocol::protocol::{ErrorKind, MAX_FRAME_BYTES, Request, Response};
 use acquisition_protocol::{CONTRACT_REVISION, VERSION};
+use acquisition_store::world::{World, socket_path};
 use serde_json::{Value, json};
 use tokio::io::{AsyncWriteExt, BufReader};
 use tokio::net::unix::{OwnedReadHalf, OwnedWriteHalf};
@@ -101,13 +106,14 @@ fn session(tag: &str) -> Session {
     // Short: Unix socket paths cap near 104 bytes and the temp dir is long.
     let base = std::env::temp_dir().join(format!("acq-c{}-{tag}", std::process::id()));
     let _ = std::fs::remove_dir_all(&base);
-    std::fs::create_dir_all(&base).expect("scratch dir");
+    std::fs::create_dir_all(base.join("store")).expect("scratch dir");
     // SAFETY: every test in this binary takes `ONE_AT_A_TIME` before
     // touching the environment or the client, so no other thread reads
     // these variables while they change.
     unsafe {
         std::env::set_var("ACQ_SOCKET", base.join("d.sock"));
         std::env::set_var("ACQ_STORE_DIR", base.join("store"));
+        std::env::set_var("ACQ_LOG_DIR", base.join("logs"));
         std::env::set_var("ACQ_NO_KEYRING", "1");
         std::env::set_var("ACQ_JOURNAL", "0");
         std::env::set_var("ACQ_IDLE_SHUTDOWN", "30");
@@ -368,8 +374,14 @@ async fn c85_the_daemon_identifies_itself_and_stops_across_a_contract_mismatch()
         "{reply}"
     );
     assert_eq!(reply["pid"], daemon.pid());
-    // resp, version, contract, artifact, pid, provider — the world is step 5's.
-    assert_eq!(reply.as_object().unwrap().len(), 6, "{reply}");
+    // The world (C83): the daemon's canonical root, this session's store.
+    assert_eq!(
+        reply["world"],
+        World::observe().expect("the session's world").name(),
+        "{reply}"
+    );
+    // resp, version, contract, artifact, pid, provider, world.
+    assert_eq!(reply.as_object().unwrap().len(), 7, "{reply}");
 
     // A hello with nothing but its name.
     let reply = raw.ask(json!({ "req": "hello" })).await;
@@ -431,6 +443,8 @@ async fn foreign_daemon(hello_reply: Value, stop_reply: Value) -> tokio::task::J
 #[tokio::test]
 async fn c85_a_client_identifies_and_stops_a_foreign_daemon_across_a_contract_mismatch() {
     let _s = session("foreign");
+    // On this session's world, so the mismatch reported is the contract's
+    // (another world is judged first and reported alone: the next test).
     let hello = json!({
         "resp": "hello",
         "version": "9.9.9",
@@ -438,7 +452,7 @@ async fn c85_a_client_identifies_and_stops_a_foreign_daemon_across_a_contract_mi
         "artifact": { "rev": "abc" },
         "pid": 4242,
         "provider": "mock",
-        "world": "/future",
+        "world": World::observe().expect("the session's world").name(),
     });
     let peer = foreign_daemon(
         hello.clone(),
@@ -493,6 +507,105 @@ async fn c85_a_client_identifies_and_stops_a_foreign_daemon_across_a_contract_mi
     );
     peer.abort();
     let _ = std::fs::remove_file(socket_path());
+}
+
+/// C83 at the client's door: a daemon on another world — the same build,
+/// the same provider, another canonical root — is judged on the world
+/// first and reported alone; a use door that would replace any other
+/// mismatch answers `OtherWorld` and leaves it running; an observer
+/// reports it; a shell whose own root does not exist has no world and
+/// matches no daemon; `stop_any` still stops it.
+#[tokio::test]
+async fn c83_a_daemon_on_another_world_is_refused_and_never_replaced() {
+    let s = session("world");
+    let mut daemon = start_daemon(&s).await;
+    let pid = daemon.pid();
+    let home = World::observe().expect("the session's world");
+
+    // This shell moves to another world, on the same socket.
+    let elsewhere = s.base.join("elsewhere");
+    std::fs::create_dir_all(&elsewhere).unwrap();
+    // SAFETY: the session lock is held (module doc).
+    unsafe {
+        std::env::set_var("ACQ_STORE_DIR", &elsewhere);
+    }
+    let found = match Client::observe().await.expect("observe") {
+        Observed::Incompatible(found) => found,
+        Observed::Absent => panic!("absent"),
+        Observed::Compatible(_) => panic!("a daemon on another world is never this client's"),
+    };
+    assert_eq!(found.pid(), pid);
+    assert_eq!(found.world(), home.name(), "{found}");
+    assert!(
+        !found.world_matches() && found.contract_matches(),
+        "{found}"
+    );
+    let report = found.report();
+    assert_eq!(report["world_matches"], false, "{report}");
+    assert_eq!(
+        report["wanted"]["world"],
+        elsewhere.canonicalize().unwrap().display().to_string(),
+        "{report}"
+    );
+    let text = found.to_string();
+    assert!(
+        text.contains("another world") && !text.contains("another contract"),
+        "{text}"
+    );
+
+    // The interactive use door — the one that replaces every other
+    // mismatch — refuses, typed, and the daemon is untouched.
+    let err = match Client::connect(ConnectOptions::interactive(true)).await {
+        Err(e) => e,
+        Ok(_) => panic!("a daemon on another world was used"),
+    };
+    assert!(
+        matches!(&err, ConnectError::OtherWorld { found } if found.pid() == pid && found.world() == home.name()),
+        "{err:?}"
+    );
+    assert!(err.to_string().contains("never replaces it"), "{err}");
+
+    // A shell whose root does not exist has no world: observation creates
+    // nothing, and the report says why nothing matched.
+    unsafe {
+        std::env::set_var("ACQ_STORE_DIR", s.base.join("nowhere"));
+    }
+    let found = match Client::observe().await.expect("observe") {
+        Observed::Incompatible(found) => found,
+        _ => panic!("a daemon is running"),
+    };
+    assert!(!found.world_matches(), "{found}");
+    assert!(
+        found.report()["wanted"]["world_absent"]
+            .as_str()
+            .unwrap()
+            .contains("does not exist"),
+        "{}",
+        found.report()
+    );
+    assert!(
+        !s.base.join("nowhere").exists(),
+        "observation created the root"
+    );
+
+    // Back home: the same daemon, unreplaced, is this client's.
+    unsafe {
+        std::env::set_var("ACQ_STORE_DIR", s.base.join("store"));
+    }
+    let client = compatible_client().await;
+    assert_eq!(client.daemon().pid(), pid, "the daemon was replaced");
+    drop(client);
+
+    // Stopping is the one verb that acts on it from elsewhere.
+    unsafe {
+        std::env::set_var("ACQ_STORE_DIR", &elsewhere);
+    }
+    let stopped = Client::stop_any().await.expect("stop").expect("a daemon");
+    assert_eq!(stopped.pid(), pid);
+    daemon.wait_exit();
+    unsafe {
+        std::env::set_var("ACQ_STORE_DIR", s.base.join("store"));
+    }
 }
 
 // ---- frames ---------------------------------------------------------------

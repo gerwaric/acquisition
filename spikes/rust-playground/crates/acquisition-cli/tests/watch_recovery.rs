@@ -28,6 +28,7 @@ fn command(base: &Path, args: &[&str]) -> Command {
     cmd.args(args)
         .env("ACQ_SOCKET", base.join("d.sock"))
         .env("ACQ_STORE_DIR", base.join("store"))
+        .env("ACQ_LOG_DIR", base.join("logs"))
         .env("ACQ_NO_KEYRING", "1")
         .env("ACQ_JOURNAL", "0")
         .env("ACQ_IDLE_SHUTDOWN", "30");
@@ -112,6 +113,7 @@ fn daemon_command(base: &Path, acqd: &Path) -> Command {
     let mut cmd = Command::new(acqd);
     cmd.env("ACQ_SOCKET", base.join("d.sock"))
         .env("ACQ_STORE_DIR", base.join("store"))
+        .env("ACQ_LOG_DIR", base.join("logs"))
         .env("ACQ_NO_KEYRING", "1")
         .env("ACQ_JOURNAL", "0")
         .env("ACQ_IDLE_SHUTDOWN", "30")
@@ -275,6 +277,7 @@ fn c85_the_watch_subscribes_and_reads_again_after_it_lagged_with_no_leftover_eve
     unsafe {
         std::env::set_var("ACQ_SOCKET", base.join("d.sock"));
         std::env::set_var("ACQ_STORE_DIR", base.join("store"));
+        std::env::set_var("ACQ_LOG_DIR", base.join("logs"));
         std::env::set_var("ACQ_NO_KEYRING", "1");
         for var in ["ACQ_GGG", "ACQ_ACCOUNT", "ACQ_NO_SPAWN"] {
             std::env::remove_var(var);

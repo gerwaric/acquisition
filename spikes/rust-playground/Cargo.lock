@@ -23,6 +23,7 @@ name = "acquisition-client"
 version = "0.0.1"
 dependencies = [
  "acquisition-protocol",
+ "acquisition-store",
  "anyhow",
  "reqwest",
  "serde",
@@ -96,6 +97,7 @@ dependencies = [
  "rusqlite",
  "serde",
  "serde_json",
+ "sha2",
 ]
 
 [[package]]

@@ -1,0 +1,580 @@
+//! The world (C83; C1: "the store holds … the world (root, locks, socket
+//! name)"): pure path functions and the two lock files, no IPC. A world
+//! is a canonical, provider-neutral store root — `ACQ_STORE_DIR` or the
+//! platform data directory, canonicalised — above the `<provider>/`
+//! directories the store keeps facts, intent and `daemon.db` in. Every
+//! side of the socket computes the same paths from the same environment:
+//! the daemon (`acquisition-daemon`) to create, lock and write, the
+//! client (`acquisition-client`) to compare the world a daemon reports
+//! with its own and to read the log after a failed spawn, the frontends
+//! to print them.
+//!
+//! # Decisions as recorded
+//!
+//! The rulings are the decision registry — `decisions/daemon.md` for this
+//! area (`C<n>`); what follows is the entry's full text as recorded
+//! there, kept beside the code that implements it.
+//!
+//! ## C83 — A world is a canonical, provider-neutral store root
+//!
+//! **C83 — A world is a canonical, provider-neutral store root; its
+//! daemon holds an exclusive lock on it for its lifetime, and in real
+//! mode a per-OS-user lock no root bypasses.** A use path creates the
+//! root, then canonicalises and locks; observation creates nothing. The
+//! socket is derived from the root into a private per-user runtime
+//! directory, never chosen by hand (`ACQ_SOCKET` is gone); `hello` names
+//! the root and a client refuses a daemon on another world. Durable state
+//! (`daemon.db`, rails state) lives in the world; the log and journal are
+//! bounded diagnostics elsewhere. *Why:* a socket name is discovery, not
+//! ownership — C6 and C31 were held by documentation, and the tripwire's
+//! state lived in a directory the OS clears at reboot. *Details:*
+//! `world.rs` doc. Ruled 2026-09-09.
+//!
+//! ## C83 — as built (the daemon split's step 5; the socket clause is step 6's)
+//!
+//! - **The root.** [`intended_root`] is the path the environment names:
+//!   `ACQ_STORE_DIR` (a relative value made absolute against the current
+//!   directory, so the same spelling crosses into a spawned `acqd`), else
+//!   the platform data directory's `store` — the base [`store_dir`] has
+//!   always put the provider directories under. [`World::create`] is the
+//!   use path: it creates the root (mode 0700 on Unix) and canonicalises
+//!   it; [`World::observe`] is the observation path: it canonicalises
+//!   what exists and creates nothing, so a missing root is an absent
+//!   world, never a new one. `fs::canonicalize` is what makes two
+//!   spellings of one directory one world — a symlinked data directory,
+//!   macOS's `/var` and `/private/var` — and what a daemon reports in
+//!   `hello` (`world`), which a client compares with its own before any
+//!   other dimension.
+//! - **The world lock.** [`World::lock_path`] is `<root>/daemon.lock`;
+//!   [`Lock::acquire`] takes an exclusive advisory lock on it (`flock`,
+//!   through `std::fs::File::try_lock`) and writes the holder's pid into
+//!   the file; the lock lives as long as the [`Lock`] — the daemon keeps
+//!   it for its lifetime, and the kernel releases it however the process
+//!   ends. A second daemon on the root fails to acquire, reads the pid,
+//!   and refuses to start naming the holder ([`LockError`]). This is what
+//!   makes C6's "one daemon per store directory" structure rather than a
+//!   sentence: two daemons on one `daemon.db` would each restore and run
+//!   the same queue.
+//! - **The real-mode lock.** [`real_mode_lock_path`] is
+//!   `<runtime>/acq/ggg.lock`, in the private per-user runtime directory
+//!   ([`runtime_dir`]: `$XDG_RUNTIME_DIR` where the platform sets it, else
+//!   the per-user temp directory; `acq/` under it is created mode 0700).
+//!   Every real-mode daemon takes it whatever its root, so two live-test
+//!   roots cannot make two GGG gates (C31's Cloudflare bound is
+//!   per-process state). Per user, not per machine: another OS user, the
+//!   C++ Acquisition and other machines behind the same address are
+//!   outside it — C31 names them as external concurrency the tripwire
+//!   exists for. The mock never takes it.
+//! - **Durable state in the world.** `daemon.db` (`jobs::daemon_db_path`)
+//!   and the rails state ([`World::rails_state_path`]:
+//!   `<root>/<provider>/rails.json`) live beside the account files. The
+//!   rails state used to sit beside the socket in the temp directory,
+//!   which macOS clears at reboot — a tripped tripwire did not survive a
+//!   restart; [`legacy_rails_state_path`] names that file so the daemon
+//!   can move it once, and no trip is lost.
+//! - **Diagnostics elsewhere, bounded.** The daemon log and the default
+//!   send journal live under [`log_base_dir`] — `ACQ_LOG_DIR`, else the
+//!   platform's log directory (`~/Library/Logs/acquisition-playground` on
+//!   macOS, the XDG state directory's `log` on Linux) — one subdirectory
+//!   per world ([`World::id`], twelve hex digits of the canonical root's
+//!   SHA-256, beside a `world` file naming the root for a human browsing
+//!   there) and provider: [`World::log_path`] is
+//!   `<base>/<id>/<provider>/daemon.log`, [`World::journal_path`]
+//!   `<base>/<id>/<provider>/sends.jsonl`. They are append-only and
+//!   never durable state; the daemon bounds them (rotated once at its
+//!   start past a cap — the mechanism and the size are the daemon's,
+//!   `daemon.rs`). `ACQ_JOURNAL` still overrides the journal — a live run
+//!   points it into its evidence directory, where the ledger cites it —
+//!   and `0` disables it (`rails.rs`).
+//! - **The socket.** [`socket_path`] is still `ACQ_SOCKET` or
+//!   `acquisition-playground.sock` in the temp directory: the one home of
+//!   the convention both sides read, since step 5 (two copies before).
+//!   Its derivation from the root into the runtime directory, the removal
+//!   of `ACQ_SOCKET` and the legacy-socket detection are the split's step
+//!   6 (`DAEMON-SPLIT-SLICE.md`), which makes C83's socket clause true.
+//!
+//! Windows has no arm here yet (`README.md`, known gaps): the paths are
+//! computed, the locks use `std`'s portable file locking, the mode bits
+//! are Unix-only.
+
+use std::fs::{File, OpenOptions, TryLockError};
+use std::io::{Read as _, Write as _};
+use std::path::{Path, PathBuf};
+
+use directories::{BaseDirs, ProjectDirs};
+use sha2::{Digest, Sha256};
+
+/// The `directories` identity every platform path derives from.
+const QUALIFIER: &str = "";
+const ORGANIZATION: &str = "gerwaric";
+const APPLICATION: &str = "acquisition-playground";
+
+fn project_dirs() -> Option<ProjectDirs> {
+    ProjectDirs::from(QUALIFIER, ORGANIZATION, APPLICATION)
+}
+
+/// The world's root before canonicalisation: `ACQ_STORE_DIR` made
+/// absolute, else the platform data directory's `store` (no home
+/// directory at all — a bare service account — falls back to `store`
+/// under the current directory). What [`store_dir`] has always put the
+/// provider directories under; the daemon and the frontends read the
+/// same value.
+pub fn intended_root() -> PathBuf {
+    let base = match std::env::var_os("ACQ_STORE_DIR") {
+        Some(d) => PathBuf::from(d),
+        None => project_dirs()
+            .map(|p| p.data_dir().join("store"))
+            .unwrap_or_else(|| PathBuf::from("store")),
+    };
+    absolute(&base)
+}
+
+/// `path` made absolute against the current directory, lexically —
+/// nothing is resolved or created.
+fn absolute(path: &Path) -> PathBuf {
+    if path.is_absolute() {
+        return path.to_path_buf();
+    }
+    match std::env::current_dir() {
+        Ok(cwd) => cwd.join(path),
+        Err(_) => path.to_path_buf(),
+    }
+}
+
+/// The provider's store directory: `<intended root>/<provider>`, the
+/// path the daemon writes under and the frontends read; not
+/// canonicalised (a read needs no world). One directory per provider so
+/// mock data never mixes with real.
+pub fn store_dir(provider: &str) -> PathBuf {
+    intended_root().join(provider)
+}
+
+/// Why a world could not be resolved: the path the environment named
+/// and what went wrong with it.
+#[derive(Debug, Clone)]
+pub struct WorldError {
+    pub intended: PathBuf,
+    pub io: String,
+    /// True when the root does not exist and this was an observation,
+    /// which creates nothing.
+    pub absent: bool,
+}
+
+impl std::fmt::Display for WorldError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if self.absent {
+            write!(
+                f,
+                "no world at {} (the store root does not exist; a job command creates it)",
+                self.intended.display()
+            )
+        } else {
+            write!(
+                f,
+                "could not resolve the store root {}: {}",
+                self.intended.display(),
+                self.io
+            )
+        }
+    }
+}
+
+impl std::error::Error for WorldError {}
+
+/// A world: a canonical store root. Constructed only by [`World::create`]
+/// (the use path) or [`World::observe`] (creates nothing), so a `World`
+/// in hand is a directory that exists, named the one way the OS names it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct World {
+    root: PathBuf,
+}
+
+impl World {
+    /// The use path (C83): create the intended root if it is missing
+    /// (mode 0700 on Unix — the store holds intent and `daemon.db`), then
+    /// canonicalise it.
+    pub fn create() -> Result<World, WorldError> {
+        let intended = intended_root();
+        if !intended.is_dir() {
+            std::fs::create_dir_all(&intended).map_err(|e| WorldError {
+                intended: intended.clone(),
+                io: e.to_string(),
+                absent: false,
+            })?;
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                let _ = std::fs::set_permissions(&intended, std::fs::Permissions::from_mode(0o700));
+            }
+        }
+        Self::canonical(intended)
+    }
+
+    /// The observation path (C83): the world as it exists, or an error
+    /// saying it does not — nothing is created.
+    pub fn observe() -> Result<World, WorldError> {
+        let intended = intended_root();
+        if !intended.exists() {
+            return Err(WorldError {
+                intended,
+                io: "not found".into(),
+                absent: true,
+            });
+        }
+        Self::canonical(intended)
+    }
+
+    /// A world at a root that exists, for a daemon or a test that names
+    /// one directly rather than through the environment.
+    pub fn at(root: &Path) -> Result<World, WorldError> {
+        Self::canonical(absolute(root))
+    }
+
+    fn canonical(intended: PathBuf) -> Result<World, WorldError> {
+        let root = intended.canonicalize().map_err(|e| WorldError {
+            intended: intended.clone(),
+            io: e.to_string(),
+            absent: e.kind() == std::io::ErrorKind::NotFound,
+        })?;
+        if !root.is_dir() {
+            return Err(WorldError {
+                intended,
+                io: "not a directory".into(),
+                absent: false,
+            });
+        }
+        Ok(World { root })
+    }
+
+    /// The canonical root: what `hello` carries and a client compares.
+    pub fn root(&self) -> &Path {
+        &self.root
+    }
+
+    /// The root as `hello` carries it.
+    pub fn name(&self) -> String {
+        self.root.display().to_string()
+    }
+
+    /// Twelve hex digits of the canonical root's SHA-256: the world's
+    /// short id, which names its subdirectory under the log base
+    /// directory (and, from step 6, its socket).
+    pub fn id(&self) -> String {
+        let digest = Sha256::digest(self.root.to_string_lossy().as_bytes());
+        digest.iter().take(6).map(|b| format!("{b:02x}")).collect()
+    }
+
+    /// `<root>/<provider>`: the provider's directory in this world,
+    /// where the account files, `accounts.json`, `daemon.db` and the
+    /// rails state live.
+    pub fn provider_dir(&self, provider: &str) -> PathBuf {
+        self.root.join(provider)
+    }
+
+    /// `<root>/daemon.lock`: the world lock's file.
+    pub fn lock_path(&self) -> PathBuf {
+        self.root.join("daemon.lock")
+    }
+
+    /// `<root>/<provider>/rails.json`: the tripwire and refresh-failed
+    /// marks, durable in the world (`rails.rs` reads and writes it).
+    pub fn rails_state_path(&self, provider: &str) -> PathBuf {
+        self.provider_dir(provider).join("rails.json")
+    }
+
+    /// `<log base>/<id>/<provider>`: where this world's diagnostics for
+    /// one provider live.
+    pub fn log_dir(&self, provider: &str) -> PathBuf {
+        log_base_dir().join(self.id()).join(provider)
+    }
+
+    /// The daemon log: `<log dir>/daemon.log`.
+    pub fn log_path(&self, provider: &str) -> PathBuf {
+        self.log_dir(provider).join("daemon.log")
+    }
+
+    /// The default send journal: `<log dir>/sends.jsonl` (`ACQ_JOURNAL`
+    /// overrides it; `0` disables it — read in `rails.rs`).
+    pub fn journal_path(&self, provider: &str) -> PathBuf {
+        self.log_dir(provider).join("sends.jsonl")
+    }
+
+    /// `<log base>/<id>/world`: a file naming this world's root, written
+    /// by the daemon beside its logs so a person browsing the log
+    /// directory can tell the hashed subdirectories apart.
+    pub fn log_marker_path(&self) -> PathBuf {
+        log_base_dir().join(self.id()).join("world")
+    }
+}
+
+/// Where the rails state sat before step 5: beside the socket, keyed by
+/// provider (`<socket>.<provider>.rails.json`), in a directory the OS may
+/// clear at reboot. The daemon moves it into the world once
+/// (`rails.rs`); `acq daemon reset-tripwire` clears it too while it can
+/// still exist.
+pub fn legacy_rails_state_path(provider: &str) -> PathBuf {
+    socket_path().with_extension(format!("{provider}.rails.json"))
+}
+
+/// The socket a daemon listens on and a client connects to: `ACQ_SOCKET`,
+/// or `acquisition-playground.sock` in the temp directory. One definition
+/// for both sides. Must stay short: Unix socket paths cap out around 104
+/// bytes (`SUN_LEN`). Step 6 derives it from the world into
+/// [`runtime_dir`] and removes the knob.
+pub fn socket_path() -> PathBuf {
+    if let Ok(p) = std::env::var("ACQ_SOCKET") {
+        return PathBuf::from(p);
+    }
+    std::env::temp_dir().join("acquisition-playground.sock")
+}
+
+/// The private per-user runtime directory: `$XDG_RUNTIME_DIR` where the
+/// platform provides it (Linux), else the per-user temp directory (macOS
+/// `$TMPDIR`). Holds the real-mode lock, and from step 6 the socket.
+pub fn runtime_dir() -> PathBuf {
+    BaseDirs::new()
+        .and_then(|b| b.runtime_dir().map(Path::to_path_buf))
+        .unwrap_or_else(std::env::temp_dir)
+}
+
+/// `<runtime>/acq`: this application's runtime subdirectory, created on
+/// demand, mode 0700 on Unix.
+pub fn app_runtime_dir() -> std::io::Result<PathBuf> {
+    let dir = runtime_dir().join("acq");
+    if !dir.is_dir() {
+        std::fs::create_dir_all(&dir)?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let _ = std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o700));
+        }
+    }
+    Ok(dir)
+}
+
+/// `<runtime>/acq/ggg.lock`: the real-mode lock's file, per OS user,
+/// whatever the root (C31, C83).
+pub fn real_mode_lock_path() -> std::io::Result<PathBuf> {
+    Ok(app_runtime_dir()?.join("ggg.lock"))
+}
+
+/// Where the daemon log and the default journal live: `ACQ_LOG_DIR`
+/// (made absolute), else the platform's log directory —
+/// `~/Library/Logs/acquisition-playground` on macOS, the XDG state
+/// directory's `log` on Linux, the local data directory's `logs`
+/// elsewhere; `logs` under the current directory with no home at all.
+/// One subdirectory per world and provider under it ([`World::log_dir`]).
+pub fn log_base_dir() -> PathBuf {
+    if let Some(d) = std::env::var_os("ACQ_LOG_DIR") {
+        return absolute(Path::new(&d));
+    }
+    if cfg!(target_os = "macos")
+        && let Some(home) = BaseDirs::new().map(|b| b.home_dir().to_path_buf())
+    {
+        return home.join("Library").join("Logs").join(APPLICATION);
+    }
+    match project_dirs() {
+        Some(p) => match p.state_dir() {
+            Some(state) => state.join("log"),
+            None => p.data_local_dir().join("logs"),
+        },
+        None => PathBuf::from("logs"),
+    }
+}
+
+/// An exclusive advisory lock on a file, held while this value lives; the
+/// holder's pid is written into the file for the refusal that names it.
+#[derive(Debug)]
+pub struct Lock {
+    _file: File,
+    path: PathBuf,
+}
+
+/// The lock is held by another process, or could not be taken.
+#[derive(Debug, Clone)]
+pub struct LockError {
+    pub path: PathBuf,
+    /// The pid the holder wrote, when the file could be read and parsed.
+    pub holder: Option<u32>,
+    /// An I/O failure other than the lock being held.
+    pub io: Option<String>,
+}
+
+impl std::fmt::Display for LockError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match (&self.io, self.holder) {
+            (Some(io), _) => write!(f, "could not take the lock {}: {io}", self.path.display()),
+            (None, Some(pid)) => write!(
+                f,
+                "{} is held by another process (pid {pid})",
+                self.path.display()
+            ),
+            (None, None) => write!(
+                f,
+                "{} is held by another process (its pid is not recorded yet)",
+                self.path.display()
+            ),
+        }
+    }
+}
+
+impl std::error::Error for LockError {}
+
+impl Lock {
+    /// Take the lock at `path` (created if missing), or say who holds it.
+    /// Never blocks.
+    pub fn acquire(path: &Path) -> Result<Lock, LockError> {
+        let io_error = |e: std::io::Error| LockError {
+            path: path.to_path_buf(),
+            holder: None,
+            io: Some(e.to_string()),
+        };
+        let mut file = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .open(path)
+            .map_err(io_error)?;
+        match file.try_lock() {
+            Ok(()) => {}
+            Err(TryLockError::WouldBlock) => {
+                let mut text = String::new();
+                let _ = file.read_to_string(&mut text);
+                return Err(LockError {
+                    path: path.to_path_buf(),
+                    holder: text.trim().parse().ok(),
+                    io: None,
+                });
+            }
+            Err(TryLockError::Error(e)) => return Err(io_error(e)),
+        }
+        // Held: record who, for the next contender's refusal.
+        let _ = file.set_len(0);
+        let _ = writeln!(file, "{}", std::process::id());
+        let _ = file.flush();
+        Ok(Lock {
+            _file: file,
+            path: path.to_path_buf(),
+        })
+    }
+
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn scratch(tag: &str) -> PathBuf {
+        static N: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+        let dir = std::env::temp_dir().join(format!(
+            "acq-world-{tag}-{}-{}",
+            std::process::id(),
+            N.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+        ));
+        let _ = std::fs::remove_dir_all(&dir);
+        dir
+    }
+
+    /// C83: a world is a canonical root — one id for two spellings of
+    /// one directory — with its provider directories, lock file and
+    /// rails state under it, and its diagnostics keyed by that id under
+    /// the log base.
+    #[test]
+    fn c83_a_world_is_a_canonical_root_and_its_paths_derive_from_it() {
+        let base = scratch("paths");
+        std::fs::create_dir_all(base.join("real")).unwrap();
+        let world = World::at(&base.join("real")).unwrap();
+        assert!(world.root().is_absolute());
+        // A dotted spelling of the same directory is the same world.
+        let dotted = World::at(&base.join("real").join(".").join("..").join("real")).unwrap();
+        assert_eq!(world, dotted);
+        assert_eq!(world.id(), dotted.id());
+        assert_eq!(world.id().len(), 12);
+        assert!(world.id().bytes().all(|b| b.is_ascii_hexdigit()));
+        assert_eq!(world.provider_dir("mock"), world.root().join("mock"));
+        assert_eq!(world.lock_path(), world.root().join("daemon.lock"));
+        assert_eq!(
+            world.rails_state_path("ggg"),
+            world.root().join("ggg").join("rails.json")
+        );
+        assert_eq!(
+            world.log_path("mock"),
+            log_base_dir()
+                .join(world.id())
+                .join("mock")
+                .join("daemon.log")
+        );
+        assert_eq!(
+            world.journal_path("mock"),
+            log_base_dir()
+                .join(world.id())
+                .join("mock")
+                .join("sends.jsonl")
+        );
+        // Another directory is another world.
+        std::fs::create_dir_all(base.join("other")).unwrap();
+        let other = World::at(&base.join("other")).unwrap();
+        assert_ne!(world, other);
+        assert_ne!(world.id(), other.id());
+        // A missing root is an error naming it, never a world.
+        let err = World::at(&base.join("missing")).unwrap_err();
+        assert!(err.absent, "{err}");
+        assert!(err.to_string().contains("missing"), "{err}");
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    /// C83: the world lock is exclusive and names its holder; it is
+    /// released when the `Lock` is dropped, however that happens.
+    #[test]
+    fn c83_the_lock_is_exclusive_and_names_its_holder() {
+        let base = scratch("lock");
+        std::fs::create_dir_all(&base).unwrap();
+        let path = base.join("daemon.lock");
+        let held = Lock::acquire(&path).unwrap();
+        assert_eq!(held.path(), path.as_path());
+        assert_eq!(
+            std::fs::read_to_string(&path).unwrap().trim(),
+            std::process::id().to_string(),
+            "the holder wrote its pid"
+        );
+        // A second acquisition from this process is a second open file
+        // description: flock refuses it, and the refusal names the holder.
+        let err = Lock::acquire(&path).unwrap_err();
+        assert_eq!(err.holder, Some(std::process::id()), "{err}");
+        assert!(err.io.is_none(), "{err}");
+        assert!(
+            err.to_string().contains("held by another process")
+                && err.to_string().contains(&std::process::id().to_string()),
+            "{err}"
+        );
+        drop(held);
+        let again = Lock::acquire(&path).expect("released on drop");
+        drop(again);
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    /// The legacy rails file sits beside the socket; the world's does
+    /// not depend on the socket at all.
+    #[test]
+    fn the_legacy_rails_state_is_beside_the_socket_and_the_worlds_is_not() {
+        let legacy = legacy_rails_state_path("mock");
+        assert_eq!(legacy.parent(), socket_path().parent());
+        assert!(
+            legacy.to_string_lossy().ends_with(".mock.rails.json"),
+            "{}",
+            legacy.display()
+        );
+        let base = scratch("rails");
+        std::fs::create_dir_all(&base).unwrap();
+        let world = World::at(&base).unwrap();
+        assert_eq!(
+            world.rails_state_path("mock"),
+            world.root().join("mock").join("rails.json")
+        );
+        let _ = std::fs::remove_dir_all(&base);
+    }
+}

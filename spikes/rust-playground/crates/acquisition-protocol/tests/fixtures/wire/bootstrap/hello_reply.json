@@ -11,5 +11,6 @@
   "pid": 4242,
   "provider": "mock",
   "resp": "hello",
-  "version": "0.0.1"
+  "version": "0.0.1",
+  "world": "/home/alice/.local/share/acquisition-playground/store"
 }

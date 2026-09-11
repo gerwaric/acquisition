@@ -1,5 +1,6 @@
 {
   "connections": 2,
+  "contract": "0123456789ab",
   "in_flight": 1,
   "jobs_running": 1,
   "jobs_waiting": 1,
@@ -18,5 +19,5 @@
   },
   "resp": "daemon_status",
   "uptime_seconds": 61,
-  "version": "0.0.1 (runtime 0123456789ab)"
+  "version": "0.0.1"
 }

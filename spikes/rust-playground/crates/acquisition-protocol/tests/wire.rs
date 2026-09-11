@@ -337,7 +337,8 @@ fn responses() -> Vec<Response> {
         },
         Response::DaemonStatus {
             pid: 4242,
-            version: "0.0.1 (runtime 0123456789ab)".into(),
+            version: "0.0.1".into(),
+            contract: "0123456789ab".into(),
             provider: "mock".into(),
             uptime_seconds: 61,
             connections: 2,
@@ -352,7 +353,8 @@ fn responses() -> Vec<Response> {
         Response::Quote { quote: quote() },
         Response::Dashboard {
             pid: 4242,
-            version: "0.0.1 (runtime 0123456789ab)".into(),
+            version: "0.0.1".into(),
+            contract: "0123456789ab".into(),
             provider: "mock".into(),
             uptime_seconds: 61,
             connections: 2,
@@ -454,6 +456,7 @@ fn c85_the_bootstrap_plane_is_pinned_and_read_leniently() {
                 serde_json::to_value(Bootstrap::Hello {
                     version: "0.0.1".into(),
                     contract: "0123456789ab".into(),
+                    world: "/home/alice/.local/share/acquisition-playground/store".into(),
                 })
                 .unwrap(),
             ),
@@ -469,6 +472,7 @@ fn c85_the_bootstrap_plane_is_pinned_and_read_leniently() {
                     artifact: Some(artifact()),
                     pid: 4242,
                     provider: "mock".into(),
+                    world: "/home/alice/.local/share/acquisition-playground/store".into(),
                 })
                 .unwrap(),
             ),
@@ -487,6 +491,7 @@ fn c85_the_bootstrap_plane_is_pinned_and_read_leniently() {
         Some(Bootstrap::Hello {
             version: UNKNOWN.into(),
             contract: UNKNOWN.into(),
+            world: "/w".into(),
         })
     );
     assert_eq!(
@@ -494,6 +499,7 @@ fn c85_the_bootstrap_plane_is_pinned_and_read_leniently() {
         Some(Bootstrap::Hello {
             version: UNKNOWN.into(),
             contract: UNKNOWN.into(),
+            world: UNKNOWN.into(),
         })
     );
     assert_eq!(
@@ -503,6 +509,7 @@ fn c85_the_bootstrap_plane_is_pinned_and_read_leniently() {
         Some(Bootstrap::Hello {
             version: "9.9.9".into(),
             contract: "ffffffffffff".into(),
+            world: UNKNOWN.into(),
         })
     );
     assert_eq!(
@@ -534,6 +541,7 @@ fn c85_the_bootstrap_plane_is_pinned_and_read_leniently() {
             }),
             pid: 7,
             provider: "ggg".into(),
+            world: "/w".into(),
         })
     );
     assert_eq!(
@@ -546,6 +554,7 @@ fn c85_the_bootstrap_plane_is_pinned_and_read_leniently() {
             artifact: None,
             pid: 7,
             provider: "ggg".into(),
+            world: UNKNOWN.into(),
         })
     );
     // A daemon from before the identity split: `daemon_version` alone.
@@ -559,6 +568,7 @@ fn c85_the_bootstrap_plane_is_pinned_and_read_leniently() {
             artifact: None,
             pid: 7,
             provider: "mock".into(),
+            world: UNKNOWN.into(),
         })
     );
     assert_eq!(
@@ -569,6 +579,7 @@ fn c85_the_bootstrap_plane_is_pinned_and_read_leniently() {
             artifact: None,
             pid: 0,
             provider: UNKNOWN.into(),
+            world: UNKNOWN.into(),
         })
     );
     assert_eq!(

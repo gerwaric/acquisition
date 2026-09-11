@@ -1,6 +1,7 @@
 {
   "access_expires_in_seconds": 3500,
   "connections": 2,
+  "contract": "0123456789ab",
   "degraded_endpoints": [
     {
       "endpoint": "leagues",
@@ -92,5 +93,5 @@
   ],
   "uptime_seconds": 61,
   "username": "Alice#1234",
-  "version": "0.0.1 (runtime 0123456789ab)"
+  "version": "0.0.1"
 }

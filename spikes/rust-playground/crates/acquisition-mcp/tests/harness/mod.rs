@@ -93,6 +93,7 @@ fn isolate(cmd: &mut Command, base: &Path, extra_env: &[(&str, &str)], stdio: fn
         // Short socket path (Unix sockets cap ~104 bytes).
         .env("ACQ_SOCKET", base.join("d.sock"))
         .env("ACQ_STORE_DIR", base.join("store"))
+        .env("ACQ_LOG_DIR", base.join("logs"))
         .env("ACQ_NO_KEYRING", "1")
         .stdin(stdio())
         .stdout(stdio())

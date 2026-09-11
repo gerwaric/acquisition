@@ -36,18 +36,20 @@ here anticipates it.
   names it. Rulings: `decisions/daemon.md`, `decisions/network.md`.
 - `crates/acquisition-client` — the protocol client every frontend
   shares (`client.rs`: connect, the three policy doors of C10, the
-  handshake that judges a daemon's contract, artifact and provider,
-  typed connect errors), the `acqd` locator (`locator.rs`: beside the
-  calling executable, nowhere else, C82) and the artifact comparison
-  against that sibling (`artifact.rs`, C84). Links protocol and tokio,
-  never the daemon. Rulings: `decisions/daemon.md`.
+  handshake that judges a daemon's contract, artifact, provider and
+  world, typed connect errors), the `acqd` locator (`locator.rs`: beside
+  the calling executable, nowhere else, C82) and the artifact comparison
+  against that sibling (`artifact.rs`, C84). Links protocol, the store
+  and tokio, never the daemon. Rulings: `decisions/daemon.md`.
 - `crates/acquisition-store` — the shared store: SQLite, one facts file per
   account under one directory per provider, the uuid-named annotations
   file (intent — buyouts, the sync policy — the only irreplaceable local
-  state) and `daemon.db` (the persisted queue). The daemon writes facts
-  through `Store::record` and never reads; every frontend reads the files
-  directly, through neutral snapshots. As built: `src/lib.rs`,
-  `annotations.rs`, `snapshot.rs`. Rulings: `decisions/store.md`.
+  state), `daemon.db` (the persisted queue), the rails state, and the
+  world (`world.rs`, C83: root, locks, socket and log paths). The daemon
+  writes facts through `Store::record` and never reads; every frontend
+  reads the files directly, through neutral snapshots. As built:
+  `src/lib.rs`, `annotations.rs`, `snapshot.rs`, `world.rs`. Rulings:
+  `decisions/store.md`, `decisions/daemon.md`.
 - `crates/acquisition-plan` — the planner (the stored policy plus a
   snapshot compiled into a `RefreshPlan`, offline, linked by frontends
   only, never the daemon) and pricing (`currency.rs`, `price.rs`,
@@ -139,21 +141,22 @@ either mode and never spawns or replaces one in real mode (C13, C14).
 | --- | --- | --- | --- |
 | `ACQ_GGG=1` | off | the real provider (above) | `acquisition-protocol/src/provider.rs` |
 | `ACQ_ACCOUNT=<sel>` | the sole account | env form of `--account`; exact match, never a prefix (C51) | `main.rs` |
-| `ACQ_SOCKET=<path>` | `acquisition-playground.sock` in the temp dir | the socket (log and journal beside it), for parallel *mock* daemons; keep it short (Unix socket paths cap near 104 bytes); two daemons in real mode are forbidden (C31) | `daemon.rs`; the client reads the same convention (`acquisition-client/src/lib.rs`) |
-| `ACQ_STORE_DIR=<dir>` | the platform data dir | the store root: `<dir>/<provider>/<account>.db`, `accounts.json`, `daemon.db`; one daemon per store directory (C6) | `index.rs` |
+| `ACQ_SOCKET=<path>` | `acquisition-playground.sock` in the temp dir | the socket, for parallel *mock* daemons (one world each); keep it short (Unix socket paths cap near 104 bytes); two real-mode daemons for one OS user are refused (C31, C83) | `world.rs` |
+| `ACQ_STORE_DIR=<dir>` | the platform data dir | the world (C83): `<dir>/<provider>/<account>.db`, `accounts.json`, `daemon.db`, `rails.json`; one daemon per world, and a client refuses a daemon on another | `world.rs` |
+| `ACQ_LOG_DIR=<dir>` | the platform log dir | the daemon log and the default journal, one subdirectory per world and provider; bounded (rotated at daemon start past a cap, `daemon.rs`) | `world.rs` |
 | `ACQ_NO_KEYRING=1` | off | sessions in memory only, never plaintext on disk | `auth.rs` |
 | `ACQ_NO_SPAWN=1` | off | the CLI never starts or replaces a daemon — for cron, which on macOS spawns without a keychain and so without a session | `client.rs` |
 | `ACQ_IDLE_SHUTDOWN=<s>` | 60 | idle exit with no connections and no live jobs; a daemon holding limiter history inside a window stays up to 300 s (C3) | `daemon.rs` |
 | `ACQ_JOB_RETENTION_DAYS`, `ACQ_FAILED_JOB_RETENTION_DAYS` | 7, 30 | how long finished job rows stay in `daemon.db` for `acq result`; a misread value logs `JOBS CONFIG` and keeps the default | `daemon.rs` |
-| `ACQ_TRIPWIRE=1` | off | rail 1: the first landed 429, or any 401/403/503, halts every later send until `acq daemon reset-tripwire`; persisted per provider (`LIVE-TESTING.md`, "Rails") | `rails.rs` |
+| `ACQ_TRIPWIRE=1` | off | rail 1: the first landed 429, or any 401/403/503, halts every later send until `acq daemon reset-tripwire`; persisted per provider in the world (`LIVE-TESTING.md`, "Rails") | `rails.rs` |
 | `ACQ_MAX_SENDS=<n>` | off | rail 5: halt after `n` real sends this daemon lifetime; not persisted | `rails.rs` |
-| `ACQ_JOURNAL=<path>` | `<socket>.<provider>.sends.jsonl`; `0` disables | rail 4: one JSON line per actual send, never a token or body — the contract surface (`TESTING-NOTES.md`; the line format is `rails.rs`) | `rails.rs` |
+| `ACQ_JOURNAL=<path>` | `<log dir>/sends.jsonl`, bounded; `0` disables | rail 4: one JSON line per actual send, never a token or body — the contract surface (`TESTING-NOTES.md`; the line format is `rails.rs`); a driver points it into the run directory | `rails.rs` |
 | `ACQ_MOCK_DEGRADED_HEAD=1` | off | the mock reproduces the Dec-2023 HEAD regression (N20) | `mockggg.rs` |
 
 The rails are read at daemon start: set them on the command that spawns
 it (what it spawns is the `acqd` beside it, C82), or `acq daemon stop` first. A misread value (`ACQ_TRIPWIRE=maybe`) is
 logged as a `RAILS CONFIG` error and the rail stays off. `acq daemon
-status` prints the socket, log and journal paths and the rails state.
+status` prints the world, the paths and the rails state.
 
 ## Known gaps
 

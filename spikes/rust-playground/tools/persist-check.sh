@@ -56,7 +56,7 @@ fi
 
 # ---- preflight (no wire) ---------------------------------------------------
 
-for v in ACQ_SOCKET ACQ_STORE_DIR ACQ_NO_KEYRING ACQ_NO_SPAWN ACQ_JOURNAL; do
+for v in ACQ_SOCKET ACQ_STORE_DIR ACQ_LOG_DIR ACQ_NO_KEYRING ACQ_NO_SPAWN ACQ_JOURNAL; do
     if [ -n "${!v:-}" ]; then
         echo "refusing: $v is set in this shell (leftover from other work); unset it first" >&2
         exit 2
@@ -68,6 +68,13 @@ RUN_DIR="$here/runs/$(date -u +%F)-persist"
 # Mock rehearsals go under runs/mock/, as the tracer's do, so `ls -t runs/`
 # against the ledger sees live bundles only (the live-run skill, step 4).
 if [ "$MODE" = mock ]; then RUN_DIR="$here/runs/mock/$(date -u +%F)-persist"; fi
+# One directory per attempt, as the tracer: the journal is written into
+# the bundle by this run's daemons, so a reused directory would carry an
+# earlier attempt's headers into this run's provenance check (seen
+# 2026-09-11, the day the journal moved into the bundle).
+if [ -d "$RUN_DIR" ] && [ -n "$(ls -A "$RUN_DIR")" ]; then
+    RUN_DIR="$RUN_DIR-$(date -u +%H%M%S)"
+fi
 mkdir -p "$RUN_DIR"
 
 if [ "$MODE" = live ]; then
@@ -80,8 +87,12 @@ else
     SOCK=$ACQ_SOCKET
     PROVIDER=mock
 fi
-JOURNAL="${SOCK%.sock}.$PROVIDER.sends.jsonl"
-LOG="${SOCK%.sock}.log"
+# The run's diagnostics are its evidence (C83; as the tracer does): the
+# journal under ACQ_JOURNAL, the log under ACQ_LOG_DIR, both in the run
+# directory and this run's alone.
+JOURNAL="$RUN_DIR/sends.jsonl"
+export ACQ_LOG_DIR="$RUN_DIR/log"
+daemon_log() { find "$RUN_DIR/log" -name daemon.log -type f 2>/dev/null | head -1; }
 
 # No spawn, a clean tree, no daemon, a locked build, no daemon, and the
 # run's provenance.json: the shared preflight (tools/preflight.sh).
@@ -109,14 +120,14 @@ cleanup() {
 trap cleanup EXIT
 
 spawn_daemon() { # <max_sends> <outfile>
-    env ACQ_TRIPWIRE=1 ACQ_MAX_SENDS="$1" ACQ_IDLE_SHUTDOWN=600 \
+    env ACQ_TRIPWIRE=1 ACQ_MAX_SENDS="$1" ACQ_IDLE_SHUTDOWN=600 ACQ_JOURNAL="$JOURNAL" \
         "$ACQD" >"$RUN_DIR/$2" 2>&1 &
     for _ in $(seq 1 100); do
         pid=$(status_json | jq -r '.pid // empty')
         [ -n "$pid" ] && { echo "$pid"; return 0; }
         sleep 0.1
     done
-    echo "daemon did not come up; see $RUN_DIR/$2 and $LOG" >&2
+    echo "daemon did not come up; see $RUN_DIR/$2 and $(daemon_log)" >&2
     return 1
 }
 
@@ -144,8 +155,8 @@ if [ "$MODE" = live ]; then
     fi
     if [ -n "${ACQ_ACCOUNT:-}" ]; then echo "acting as: $ACQ_ACCOUNT"; fi
 fi
+# The journal is this run's own file, so every lifetime is read from byte 0.
 OFFSET=0
-if [ -f "$JOURNAL" ]; then OFFSET=$(wc -c <"$JOURNAL" | tr -d ' '); fi
 
 # ---- lifetime 1: refresh into the ceiling halt -----------------------------
 
@@ -230,7 +241,7 @@ STATE=
 for _ in $(seq 1 400); do
     if ! kill -0 "$PID2" 2>/dev/null; then
         echo "*** daemon 2 died while the parent was still '${STATE:-unknown}':" >&2
-        tail -5 "$RUN_DIR/daemon2.out" "$LOG" >&2 || true
+        tail -5 "$RUN_DIR/daemon2.out" "$(daemon_log)" >&2 || true
         exit 1
     fi
     STATE=$("$ACQ" status "$PARENT" --json 2>/dev/null | jq -r '.state // empty' || true)
@@ -261,13 +272,11 @@ COMPLETED=1
 
 # ---- evidence and verification ---------------------------------------------
 
-cp "$JOURNAL" "$RUN_DIR/sends.jsonl"
-cp "$LOG" "$RUN_DIR/daemon.log" 2>/dev/null || true
+[ -f "$JOURNAL" ] || { echo "*** no journal was written at $JOURNAL" >&2; exit 1; }
+if [ -n "$(daemon_log)" ]; then cp "$(daemon_log)" "$RUN_DIR/daemon.log"; fi
 # Which daemon sent: this run's lifetimes' headers against provenance.json
-# (C84); the journal is cumulative on disk, so only from this run's offset.
-tail -c +$((OFFSET + 1)) "$JOURNAL" >"$RUN_DIR/sends-this-run.jsonl"
-provenance_matches_journal "$RUN_DIR/sends-this-run.jsonl"
-rm -f "$RUN_DIR/sends-this-run.jsonl"
+# (C84); the journal is this run's own file.
+provenance_matches_journal "$JOURNAL"
 
 # The verifier is tools/persist-verify.py (extracted 2026-09-10 so its
 # refusals — a 3xx, a missing header, a headerless send — have breakers:

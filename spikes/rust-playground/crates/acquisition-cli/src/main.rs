@@ -13,11 +13,11 @@ use std::time::{Duration, Instant};
 use acquisition_client::client::{
     Client, ConnectOptions, DaemonError, Observed, Signal, Subscription,
 };
-use acquisition_client::{log_path, socket_path};
 use acquisition_protocol::job::{JobInfo, JobState, Outcome};
 use acquisition_protocol::protocol::{Request, Response};
 use acquisition_protocol::provider::GGG;
 use acquisition_protocol::realm::Realm;
+use acquisition_store::world::{World, socket_path};
 use anyhow::{Result, bail};
 use clap::{Parser, Subcommand};
 use serde_json::json;
@@ -48,10 +48,29 @@ pub(crate) async fn attach() -> Result<Client> {
     match Client::observe().await? {
         Observed::Compatible(client) => Ok(client),
         Observed::Absent => bail!("daemon is not running (it spawns on demand for job commands)"),
-        Observed::Incompatible(found) => bail!(
-            "{found}; `acq daemon stop` stops it, a job command (`acq profile`, `acq refresh --apply`) replaces it"
-        ),
+        Observed::Incompatible(found) => bail!("{found}; {}", mismatch_remedy(&found)),
     }
+}
+
+/// What a human does about a daemon this client will not use: a
+/// mismatch of contract, artifact or provider is replaced by a job
+/// command; a daemon on another world (C83) is never replaced — stop it,
+/// or point this shell at its world.
+pub(crate) fn mismatch_remedy(found: &acquisition_client::client::DaemonId) -> &'static str {
+    if found.world_matches() {
+        "`acq daemon stop` stops it, a job command (`acq profile`, `acq refresh --apply`) replaces it"
+    } else {
+        "a job command from this shell refuses it too (C83: another world is never replaced) — `acq daemon stop` stops it, or point ACQ_STORE_DIR at its world"
+    }
+}
+
+/// The daemon log this process's world holds for the provider it wants,
+/// when that world exists (`acquisition_store::world`; created by a job
+/// command, never by a reader).
+pub(crate) fn daemon_log_path() -> Option<std::path::PathBuf> {
+    World::observe()
+        .ok()
+        .map(|w| w.log_path(acquisition_protocol::provider::wanted()))
 }
 
 #[derive(Parser)]
@@ -543,20 +562,22 @@ enum AuthCmd {
 #[derive(Subcommand)]
 enum DaemonCmd {
     /// The daemon running: pid, version, contract revision, the executable
-    /// it runs from and its hash (C84), provider, uptime, connections,
-    /// queue counts, policies learned, the socket, log and journal paths,
-    /// the rails state, keyring health. Observes only (C10): never spawns
-    /// or replaces; a daemon of another contract, artifact or provider is
-    /// reported by its identity alone — no vitals — and left running.
-    /// `--json`, in both cases: running, compatible, which of the three
-    /// dimensions match (`contract_matches`, `artifact_matches`,
-    /// `provider_matches`), how the daemon's file relates to this
+    /// it runs from and its hash (C84), provider, the world it serves
+    /// (C83: its canonical store root), uptime, connections, queue
+    /// counts, policies learned, the socket, log and journal paths, the
+    /// rails state, keyring health. Observes only (C10): never spawns or
+    /// replaces; a daemon of another contract, artifact, provider or
+    /// world is reported by its identity alone — no vitals — and left
+    /// running. `--json`, in both cases: running, compatible, which of
+    /// the four dimensions match (`contract_matches`, `artifact_matches`,
+    /// `provider_matches`, `world_matches`), how the daemon's file relates to this
     /// client's sibling — `artifact_relation`: `same_file`; `same_bytes`,
     /// another copy; `different`; `unhashable`; `no_sibling`, no `acqd`
     /// beside this executable; `unreported`, a daemon from before the
-    /// field — and under `wanted` this client's own version, contract and
-    /// provider with the sibling `acqd` a job command would start, all
-    /// from the one look that judged the daemon.
+    /// field — and under `wanted` this client's own version, contract,
+    /// provider and world (`world_absent` says why when this shell's
+    /// store root does not exist) with the sibling `acqd` a job command
+    /// would start, all from the one look that judged the daemon.
     Status,
     /// Stop the daemon that is listening, this build's — its contract and
     /// artifact — or another's.
@@ -564,7 +585,10 @@ enum DaemonCmd {
     /// client's jobs are never cancelled by its leaving (C27).
     Stop,
     /// Clear the live-test rails' tripwire/ceiling halt (see LIVE-TESTING.md).
-    /// Observe the post-violation rule before using this.
+    /// Observe the post-violation rule before using this. With no daemon
+    /// running, clears the persisted state in this shell's world
+    /// (`<store root>/<provider>/rails.json`, C83) so the next daemon
+    /// starts clear.
     ResetTripwire,
 }
 
@@ -1020,13 +1044,12 @@ async fn run(cli: Cli) -> Result<()> {
                             let mut report = found.report();
                             report["running"] = json!(true);
                             report["compatible"] = json!(false);
+                            report["socket"] = json!(socket_path());
                             println!("{}", serde_json::to_string_pretty(&report)?);
                         } else {
                             println!("{found} — running, not this client's");
                             println!("socket: {}", socket_path().display());
-                            println!(
-                                "next:   `acq daemon stop` stops it; a job command (`acq profile`, `acq refresh --apply`) replaces it"
-                            );
+                            println!("next:   {}", mismatch_remedy(&found));
                         }
                         return Ok(());
                     }
@@ -1048,18 +1071,25 @@ async fn run(cli: Cli) -> Result<()> {
                     for key in [
                         "contract",
                         "artifact",
+                        "world",
                         "contract_matches",
                         "artifact_matches",
                         "artifact_relation",
                         "provider_matches",
+                        "world_matches",
                         "wanted",
                     ] {
                         report[key] = identity[key].clone();
                     }
+                    // The paths this shell resolves (the world is the
+                    // daemon's, so its log is the one this shell derives).
+                    report["socket"] = json!(socket_path());
+                    report["log"] = json!(daemon_log_path());
                     println!("{}", serde_json::to_string_pretty(&report)?);
                 } else if let Response::DaemonStatus {
                     pid,
                     version,
+                    contract,
                     provider,
                     uptime_seconds,
                     connections,
@@ -1073,8 +1103,9 @@ async fn run(cli: Cli) -> Result<()> {
                 } = status
                 {
                     println!(
-                        "daemon {version} pid {pid}, up {uptime_seconds}s, provider {provider}"
+                        "daemon {version} (contract {contract}) pid {pid}, up {uptime_seconds}s, provider {provider}"
                     );
+                    println!("world:  {}", found.world());
                     match (found.artifact(), &found.verdict().artifact) {
                         (
                             Some(a),
@@ -1098,7 +1129,11 @@ async fn run(cli: Cli) -> Result<()> {
                         "connections: {connections}  waiting: {jobs_waiting}  running: {jobs_running}  in flight: {in_flight}/{max_in_flight}  policies learned: {policies_known}"
                     );
                     println!("socket: {}", socket_path().display());
-                    println!("log:    {}", log_path().display());
+                    println!(
+                        "log:    {}",
+                        daemon_log_path()
+                            .map_or("(no world)".to_string(), |p| p.display().to_string())
+                    );
                     println!(
                         "rails:  tripwire {} · sends {}{} · journal {}",
                         if rails.tripwire_enabled { "ON" } else { "off" },
@@ -1138,34 +1173,41 @@ async fn run(cli: Cli) -> Result<()> {
                         bail!("{found}; `acq daemon stop` first")
                     }
                     Observed::Absent => {
-                        // The trip lives on disk; clear it there so the next
-                        // spawned daemon is not still halted.
+                        // The trip lives on disk, in the world (C83) — and,
+                        // until a daemon has moved it, beside the socket;
+                        // clear both so the next spawned daemon is not
+                        // still halted.
                         let provider = acquisition_protocol::provider::wanted();
-                        let state = socket_path().with_extension(format!("{provider}.rails.json"));
-                        match std::fs::remove_file(&state) {
-                            Ok(()) => {
-                                if cli.json {
-                                    println!("{}", json!({ "cleared": true, "state": state }));
-                                } else {
-                                    println!(
-                                        "daemon is not running; cleared persisted rails state {}",
-                                        state.display()
-                                    );
-                                }
+                        let mut candidates =
+                            vec![acquisition_store::world::legacy_rails_state_path(provider)];
+                        if let Ok(world) = World::observe() {
+                            candidates.insert(0, world.rails_state_path(provider));
+                        }
+                        let mut cleared = Vec::new();
+                        for state in &candidates {
+                            match std::fs::remove_file(state) {
+                                Ok(()) => cleared.push(state.clone()),
+                                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+                                Err(e) => bail!(
+                                    "daemon is not running; could not clear {}: {e}",
+                                    state.display()
+                                ),
                             }
-                            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-                                if cli.json {
-                                    println!("{}", json!({ "cleared": false, "state": null }));
-                                } else {
-                                    println!(
-                                        "daemon is not running and no rails state is persisted"
-                                    );
-                                }
+                        }
+                        if cli.json {
+                            println!(
+                                "{}",
+                                json!({ "cleared": !cleared.is_empty(), "state": cleared.first() })
+                            );
+                        } else if cleared.is_empty() {
+                            println!("daemon is not running and no rails state is persisted");
+                        } else {
+                            for state in cleared {
+                                println!(
+                                    "daemon is not running; cleared persisted rails state {}",
+                                    state.display()
+                                );
                             }
-                            Err(e) => bail!(
-                                "daemon is not running; could not clear {}: {e}",
-                                state.display()
-                            ),
                         }
                     }
                 }

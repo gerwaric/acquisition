@@ -13,15 +13,15 @@
 //!
 //! ## C6 — The job queue persists: a `jobs` table in a per-daemon `daemon.db` (SQLite, in the prov…
 //!
-//! **The job queue persists: a `jobs` table in a per-daemon `daemon.db` (SQLite, in the provider's store directory beside the account files), written through at every state change and read back at start.** Memory stays the runtime source of truth — the table is a mirror, "the HashMap, but it survives" — and the one thing read from it while the daemon runs is `result` for an id this lifetime never held (history, not state). On restore only open jobs are loaded (terminal rows carry bodies; a week of them does not belong in memory): `waiting` jobs resume; a `running` job is **re-queued** where the replay premise holds — every network kind is an idempotent GET and the restart probe reads GGG's current counters before it sends, so the duplicate costs one seen hit. Two exceptions (2026-08-30 review): on a declared **no-probe route** the premise fails — a replay would go out against an empty limiter — so the job fails as interrupted instead; and a running **parent whose children exist is mid-fan-out** (its held result was not yet written) — re-running it would submit a duplicate child set, so it holds for the children it has and then finishes as **interrupted, never success**: how many children were never submitted is unknowable, so a partial fan-out must not claim completeness (the children that did run recorded their responses; resubmitting completes the set). A parent whose held result was written resumes holding it; `probe` rows are dropped (one HEAD per lifetime, N16); ids continue from where they were (`AUTOINCREMENT`, never reused, so a stale `acq result <id>` can never name a different job) — a daemon that cannot open or read `daemon.db` refuses to start rather than risk reissuing them, and a queue **write** failure at runtime is sticky: a submit whose insert fails is refused with its id rolled back (a job exists only once its row does), later submits are refused outright, and the dispatcher stops picking while running jobs finish — **ids** never run ahead of disk. Completions are the accepted residual, stated plainly: a job already running when the flag trips finishes in memory but its outcome write fails, so disk still says running and the next daemon replays it (probed route: one seen duplicate hit; no-probe: fails as interrupted) — the send already happened, so refusing to finish it would record nothing at all. The same teeth apply per transition: a `waiting→running` write that fails reverts the job instead of running it (a send the queue cannot see must not happen), `cancel`/`set-priority` report a failed write instead of claiming success (the cancel still wins the job's terminal surface in this lifetime, though an already-running job may still complete its in-flight send — sends are committed once dispatched), and a `result` read failure is an error, never "no job". `submit_child` is refused once its parent is terminal or asked to cancel, under the lock `cancel` takes, so cancellation cannot race an active fan-out into submitting unseen children; a stopped fan-out finishes cancelled or failed, never as success over a partial set; a cancellation that lands after the last child is honored when the held result is installed, cancelled children never count toward a parent's success, and `finish` arbitrates a pending `cancel_requested` under the final lock — a cancel can land at any instant before terminalization and still win. Terminal rows stay so `acq result` has a memory across restarts (`acq jobs` lists live jobs only), pruned at start by age — `ACQ_JOB_RETENTION_DAYS` (default 7) for done/cancelled and `ACQ_FAILED_JOB_RETENTION_DAYS` (default 30) for failed, misread values logged as `CONFIG` errors like the rails knobs. Outcomes are stored verbatim, bodies included (a full refresh is ~50 MB, bounded by retention); compression was considered and deferred — it costs a crate and makes the column unreadable in `sqlite3`, and compressing one column later is a local change. **One daemon per store directory is an invariant, not a lock**: parallel daemons are for the mock and already require `ACQ_STORE_DIR=<scratch>` next to `ACQ_SOCKET` (`AGENTS.md`); two daemons on one `daemon.db` would each restore and run the same queue. Rationale: the queue was the one thing a restart lost once results moved to the store (2026-08-29); a mirror written under the same lock as the memory change keeps disk equal to memory at the `process::exit` the daemon leaves by (up to the declared write-failure residual above); SQLite because it is the crate's one persistence idiom, debuggable with `sqlite3`, and readable by a frontend without a daemon. Decided 2026-08-30.
+//! **The job queue persists: a `jobs` table in a per-daemon `daemon.db` (SQLite, in the provider's store directory beside the account files), written through at every state change and read back at start.** Memory stays the runtime source of truth — the table is a mirror, "the HashMap, but it survives" — and the one thing read from it while the daemon runs is `result` for an id this lifetime never held (history, not state). On restore only open jobs are loaded (terminal rows carry bodies; a week of them does not belong in memory): `waiting` jobs resume; a `running` job is **re-queued** where the replay premise holds — every network kind is an idempotent GET and the restart probe reads GGG's current counters before it sends, so the duplicate costs one seen hit. Two exceptions (2026-08-30 review): on a declared **no-probe route** the premise fails — a replay would go out against an empty limiter — so the job fails as interrupted instead; and a running **parent whose children exist is mid-fan-out** (its held result was not yet written) — re-running it would submit a duplicate child set, so it holds for the children it has and then finishes as **interrupted, never success**: how many children were never submitted is unknowable, so a partial fan-out must not claim completeness (the children that did run recorded their responses; resubmitting completes the set). A parent whose held result was written resumes holding it; `probe` rows are dropped (one HEAD per lifetime, N16); ids continue from where they were (`AUTOINCREMENT`, never reused, so a stale `acq result <id>` can never name a different job) — a daemon that cannot open or read `daemon.db` refuses to start rather than risk reissuing them, and a queue **write** failure at runtime is sticky: a submit whose insert fails is refused with its id rolled back (a job exists only once its row does), later submits are refused outright, and the dispatcher stops picking while running jobs finish — **ids** never run ahead of disk. Completions are the accepted residual, stated plainly: a job already running when the flag trips finishes in memory but its outcome write fails, so disk still says running and the next daemon replays it (probed route: one seen duplicate hit; no-probe: fails as interrupted) — the send already happened, so refusing to finish it would record nothing at all. The same teeth apply per transition: a `waiting→running` write that fails reverts the job instead of running it (a send the queue cannot see must not happen), `cancel`/`set-priority` report a failed write instead of claiming success (the cancel still wins the job's terminal surface in this lifetime, though an already-running job may still complete its in-flight send — sends are committed once dispatched), and a `result` read failure is an error, never "no job". `submit_child` is refused once its parent is terminal or asked to cancel, under the lock `cancel` takes, so cancellation cannot race an active fan-out into submitting unseen children; a stopped fan-out finishes cancelled or failed, never as success over a partial set; a cancellation that lands after the last child is honored when the held result is installed, cancelled children never count toward a parent's success, and `finish` arbitrates a pending `cancel_requested` under the final lock — a cancel can land at any instant before terminalization and still win. Terminal rows stay so `acq result` has a memory across restarts (`acq jobs` lists live jobs only), pruned at start by age — `ACQ_JOB_RETENTION_DAYS` (default 7) for done/cancelled and `ACQ_FAILED_JOB_RETENTION_DAYS` (default 30) for failed, misread values logged as `CONFIG` errors like the rails knobs. Outcomes are stored verbatim, bodies included (a full refresh is ~50 MB, bounded by retention); compression was considered and deferred — it costs a crate and makes the column unreadable in `sqlite3`, and compressing one column later is a local change. **One daemon per store directory is the world lock (C83)**: since the daemon split's step 5 the daemon takes an exclusive lock on its world's root (`<root>/daemon.lock`, `acquisition_store::world::Lock`) before `daemon.db` opens and refuses to start naming the holder; two daemons on one `daemon.db` would each restore and run the same queue. Parallel mock daemons are parallel worlds (`ACQ_STORE_DIR=<scratch>` next to `ACQ_SOCKET`, the mock-session skill). Rationale: the queue was the one thing a restart lost once results moved to the store (2026-08-29); a mirror written under the same lock as the memory change keeps disk equal to memory at the `process::exit` the daemon leaves by (up to the declared write-failure residual above); SQLite because it is the crate's one persistence idiom, debuggable with `sqlite3`, and readable by a frontend without a daemon. Decided 2026-08-30.
 //!
 //! ## C23 — Work that needs many requests is a parent job that submits child jobs; a parent finishe…
 //!
 //! **Work that needs many requests is a parent job that submits child jobs; a parent finishes when its last descendant does, gives up its dispatcher task and scheduling key while waiting, and cancels its descendants when cancelled.** Rationale: the queue, dispatcher, priorities, ETAs, and events already work per job, so children get all of it for free; a job-internal loop would need its own scheduler and hide the requests from every tool. Observed API shapes (2026-08-20): folder children are in the stash list (a folder holds tabs only — never items, never another folder; confirmed against GGG patch notes 2026-08-24); map/unique substashes only appear on fetching the tab (one map tab listed 234); substash stubs carry `metadata.items` counts. Following substashes is opt-in per tab. Children exist only once their parent runs, so a progress denominator grows while a client watches ("0/1", then "8/8", and again when each map/unique tab lands): any progress UI must expect the tree to widen (frontend boundary finding, 2026-08-24).
 //!
-//! ## C31 — Multi-account is one daemon holding many sessions, never one daemon per account.
+//! ## C31 — Multi-account is one daemon holding many sessions, not one daemon per account.
 //!
-//! **Multi-account is one daemon holding many sessions, never one daemon per account.** The Cloudflare bound (`SendGate`, 2 live sends) is a per-IP property (P-B, ground truth §1) held as per-process state; two daemons on one machine make it a 4-wide burst that neither sees, with separate tripwires. Rung 11 (2026-08-30) showed the other half: `Account` rules count per account on GGG's side, so two accounts never contend on layer 2 — the only thing they share is layer 1 and the `Ip`-scoped token endpoint, which is exactly what the single gate exists for. Built in two halves with different blast radii (option C): **account as first-class identity first** (store path, job field, keyring key — leaves), then **many live sessions** (a refactor confined to the session layer) — both built by 2026-08-30; every persisted account is restored as a live session at start. Limiter and probe scope keying — `(account, policy)` for `Account` rules, policy alone for `Ip` rules, scope learned from `X-Rate-Limit-Rules` — is a **precondition of the session map, not an optimization**: with two live sessions on one policy each response would overwrite shared state with a different account's counters, and the next send from the other account floods (a 429 path; the "over-waits, never floods" reading only held for rung 11's sequential switch). Decided 2026-08-29, amended 2026-08-30 after review across sessions; design below in "Multi-account design"; built 2026-08-30 through step (6) — step (7)'s live samples are in `RUN-LEDGER.md`.
+//! **Multi-account is one daemon holding many sessions, not one daemon per account.** The Cloudflare bound (`SendGate`, 2 live sends) is a per-IP property (P-B, ground truth §1) held as per-process state; two daemons on one machine make it a 4-wide burst that neither sees, with separate tripwires — enforced among real-mode daemons for one OS user by the C83 lock (`<runtime>/acq/ggg.lock`, taken in `run_with_log` before anything opens or sends, whatever the root; amended 2026-09-11, the split's step 5); other users and processes remain external concurrency no local lock can coordinate, and the tripwire bounds further sends after any resulting visible violation. Rung 11 (2026-08-30) showed the other half: `Account` rules count per account on GGG's side, so two accounts never contend on layer 2 — the only thing they share is layer 1 and the `Ip`-scoped token endpoint, which is exactly what the single gate exists for. Built in two halves with different blast radii (option C): **account as first-class identity first** (store path, job field, keyring key — leaves), then **many live sessions** (a refactor confined to the session layer) — both built by 2026-08-30; every persisted account is restored as a live session at start. Limiter and probe scope keying — `(account, policy)` for `Account` rules, policy alone for `Ip` rules, scope learned from `X-Rate-Limit-Rules` — is a **precondition of the session map, not an optimization**: with two live sessions on one policy each response would overwrite shared state with a different account's counters, and the next send from the other account floods (a 429 path; the "over-waits, never floods" reading only held for rung 11's sequential switch). Decided 2026-08-29, amended 2026-08-30 after review across sessions; design below in "Multi-account design"; built 2026-08-30 through step (6) — step (7)'s live samples are in `RUN-LEDGER.md`.
 //!
 //! ## C32 — Per-route knowledge about GGG that headers cannot teach lives in one place (`Daemon::de…
 //!
@@ -112,7 +112,8 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime};
 
 use acquisition_store::jobs::{JobDb, JobRow, Retention};
-use acquisition_store::{Endpoint, Index, Store, account_matches, account_path, store_dir};
+use acquisition_store::world::{Lock, World, legacy_rails_state_path, socket_path};
+use acquisition_store::{Endpoint, Index, Store, account_matches, account_path};
 use anyhow::Result;
 use serde_json::{Value, json};
 use tokio::io::{AsyncWriteExt, BufReader};
@@ -123,7 +124,7 @@ use std::collections::VecDeque;
 
 use crate::frame::{Frame, read_frame};
 use crate::provider::{CALLBACK_PATH, Provider, SCOPES};
-use crate::rails::{BlockShape, Rails, RailsConfig};
+use crate::rails::{BlockShape, Rails, RailsConfig, migrate_legacy_state};
 use crate::ratelimit::{
     ChokePoint, Clock, EndpointState, RetryAfter, SendError, SystemClock, url_path,
 };
@@ -164,23 +165,41 @@ const LOGIN_PRIORITY: Priority = u8::MAX - 1;
 /// for a full token-endpoint hold; a rails-halted daemon fails the login
 /// rather than pinning the flow forever.
 const LOGIN_PROFILE_TIMEOUT: Duration = Duration::from_secs(120);
-// Must stay short: Unix socket paths cap out around 104 bytes (SUN_LEN),
-// which deep per-user runtime dirs can exceed.
-pub fn socket_path() -> PathBuf {
-    if let Ok(p) = std::env::var("ACQ_SOCKET") {
-        return PathBuf::from(p);
+/// The bound on each diagnostic file — the daemon log and the default
+/// send journal (C83: "bounded diagnostics elsewhere"). Past it, the
+/// file is rotated once at daemon start ([`rotate_if_over`]): the
+/// current generation becomes `<name>.1`, replacing the previous one,
+/// so a file never holds more than the cap plus one lifetime, and the
+/// two generations together never more than about twice it. Sixteen
+/// mebibytes: a full-league refresh is about 150 KB of either file, so a
+/// season of daily refreshes fits in one generation, `tail` and an
+/// editor open it instantly, and the previous generation is still there
+/// when a rotation lands mid-investigation. A journal `ACQ_JOURNAL`
+/// points elsewhere (a live run's evidence directory) is the caller's
+/// file and is never rotated.
+pub const DIAGNOSTIC_CAP_BYTES: u64 = 16 << 20;
+
+/// Rotate `path` to `<path>.1` when it is over `cap` bytes. Returns what
+/// was done, for the log; `None` when nothing was.
+pub fn rotate_if_over(path: &std::path::Path, cap: u64) -> Option<String> {
+    let len = std::fs::metadata(path).ok()?.len();
+    if len <= cap {
+        return None;
     }
-    std::env::temp_dir().join("acquisition-playground.sock")
-}
-
-pub fn log_path() -> PathBuf {
-    socket_path().with_extension("log")
-}
-
-/// Default send-journal location (`ACQ_JOURNAL` overrides; `ACQ_JOURNAL=0`
-/// disables).
-pub fn journal_path(provider_name: &str) -> PathBuf {
-    socket_path().with_extension(format!("{provider_name}.sends.jsonl"))
+    let mut previous = path.as_os_str().to_owned();
+    previous.push(".1");
+    let previous = PathBuf::from(previous);
+    Some(match std::fs::rename(path, &previous) {
+        Ok(()) => format!(
+            "rotated {} ({len} bytes, over the {cap}-byte cap) to {}",
+            path.display(),
+            previous.display()
+        ),
+        Err(e) => format!(
+            "could not rotate {} ({len} bytes, over the {cap}-byte cap): {e}",
+            path.display()
+        ),
+    })
 }
 
 /// What a network call can fail with; 429 is its own arm so the job can
@@ -720,6 +739,9 @@ pub struct Daemon {
     /// the in-process harness, which runs from no executable of its own.
     artifact: Option<Artifact>,
     credential_store: Arc<dyn CredentialStore>,
+    /// The world this daemon serves (C83): its canonical root, as `hello`
+    /// names it. `None` in the in-process harness, which serves no world.
+    world: Option<String>,
     /// The provider's store directory (`acquisition-store`): one file per
     /// account plus the account index. `None` in tests: nothing recorded.
     store_dir: Option<PathBuf>,
@@ -3208,18 +3230,31 @@ resubmit if still wanted",
                         continue;
                     }
                     match Bootstrap::read(&bytes) {
-                        Some(Bootstrap::Hello { version, contract }) => {
+                        Some(Bootstrap::Hello {
+                            version,
+                            contract,
+                            world,
+                        }) => {
                             // The daemon names itself in every dimension
-                            // (C84) and decides nothing: the client judges
-                            // staleness and replaces, refuses or reports
-                            // (C10). What the client said about itself is
-                            // logged when it differs, so a mismatch is
-                            // visible from this side too.
+                            // (C84, C83) and decides nothing: the client
+                            // judges staleness and replaces, refuses or
+                            // reports (C10). What the client said about
+                            // itself is logged when it differs, so a
+                            // mismatch is visible from this side too.
                             if contract != acquisition_protocol::CONTRACT_REVISION {
                                 self.log(&format!(
                                     "contract mismatch: client {contract} (version {version}), daemon {} (version {})",
                                     acquisition_protocol::CONTRACT_REVISION,
                                     acquisition_protocol::VERSION
+                                ));
+                            }
+                            let own_world = self
+                                .world
+                                .clone()
+                                .unwrap_or_else(|| acquisition_protocol::protocol::UNKNOWN.to_string());
+                            if world != own_world {
+                                self.log(&format!(
+                                    "world mismatch: client on {world}, daemon on {own_world} — the client refuses this daemon (C83)"
                                 ));
                             }
                             let hello = BootstrapReply::Hello {
@@ -3228,6 +3263,7 @@ resubmit if still wanted",
                                 artifact: self.artifact.clone(),
                                 pid: std::process::id(),
                                 provider: self.provider.name.to_string(),
+                                world: own_world,
                             };
                             if write_line(&mut write, &hello).await.is_err() {
                                 break;
@@ -3591,7 +3627,8 @@ resubmit if still wanted",
                         });
                 Response::DaemonStatus {
                     pid: std::process::id(),
-                    version: acquisition_protocol::VERSION_WITH_CONTRACT.to_string(),
+                    version: acquisition_protocol::VERSION.to_string(),
+                    contract: acquisition_protocol::CONTRACT_REVISION.to_string(),
                     provider: self.provider.name.to_string(),
                     uptime_seconds: self.started.elapsed().as_secs(),
                     connections: s.connections,
@@ -3613,7 +3650,8 @@ resubmit if still wanted",
                 let (in_flight, max_in_flight) = self.choke.actual_send_occupancy();
                 Response::Dashboard {
                     pid: std::process::id(),
-                    version: acquisition_protocol::VERSION_WITH_CONTRACT.to_string(),
+                    version: acquisition_protocol::VERSION.to_string(),
+                    contract: acquisition_protocol::CONTRACT_REVISION.to_string(),
                     provider: self.provider.name.to_string(),
                     uptime_seconds: self.started.elapsed().as_secs(),
                     connections: s.connections,
@@ -3983,24 +4021,77 @@ async fn write_line<T: serde::Serialize>(
 }
 
 /// Run the daemon until stopped or idle-timed-out. Never returns Ok while the
-/// socket is healthy; returns Err early if another daemon already owns it.
+/// socket is healthy; returns Err early if another daemon already owns the
+/// world, the real-mode lock or the socket.
 pub async fn run() -> Result<()> {
-    // The log opens before anything that can refuse startup: a lazy-spawned
-    // daemon's stderr goes to null, so the log is the only place a refusal
-    // (broken daemon.db, failed bind) can reach the user — the CLI reads it
-    // when the spawn fails.
+    // The world first (C83): the use path creates the root and
+    // canonicalises it — the frontend that spawned this daemon did the
+    // same a moment ago, so this is the second look at an existing
+    // directory. Without a world there is no log directory to write a
+    // refusal to; stderr is all there is (a driver captures it).
+    let world = World::create().map_err(|e| anyhow::anyhow!("{e}"))?;
+    let provider_name = acquisition_protocol::provider::wanted();
+    // The log opens before anything else that can refuse startup: a
+    // lazy-spawned daemon's stderr goes to null, so the log is the only
+    // place a refusal (a held lock, a broken daemon.db, a failed bind)
+    // can reach the user — the CLI reads it when the spawn fails. The
+    // diagnostics are bounded: the log is rotated here, before it opens,
+    // when the last lifetime left it over the cap.
+    let log_path = world.log_path(provider_name);
+    if let Some(dir) = log_path.parent() {
+        std::fs::create_dir_all(dir)
+            .map_err(|e| anyhow::anyhow!("creating the log directory {}: {e}", dir.display()))?;
+    }
+    let _ = std::fs::write(world.log_marker_path(), format!("{}\n", world.name()));
+    let rotated = rotate_if_over(&log_path, DIAGNOSTIC_CAP_BYTES);
     let log = std::fs::OpenOptions::new()
         .create(true)
         .append(true)
-        .open(log_path())?;
-    let result = run_with_log(log.try_clone()?).await;
+        .open(&log_path)
+        .map_err(|e| anyhow::anyhow!("opening the log {}: {e}", log_path.display()))?;
+    if let Some(what) = rotated {
+        writeln!(&log, "log: {what}").ok();
+    }
+    let result = run_with_log(world, log.try_clone()?).await;
     if let Err(e) = &result {
         writeln!(&log, "STARTUP: {e:#}").ok();
     }
     result
 }
 
-async fn run_with_log(log: std::fs::File) -> Result<()> {
+async fn run_with_log(world: World, log: std::fs::File) -> Result<()> {
+    // The locks (C83), before the rails migration, before daemon.db
+    // opens, before the provider initialises, before anything can send.
+    // The world lock is held for the daemon's lifetime; a second daemon
+    // on this root refuses here, naming the holder. The kernel releases
+    // it however the process ends.
+    let _world_lock = Lock::acquire(&world.lock_path()).map_err(|e| {
+        anyhow::anyhow!(
+            "another daemon holds this world: {e} — one daemon per world (C6, C83); `acq daemon status` or `acq daemon stop` against its socket"
+        )
+    })?;
+    // The real-mode lock: per OS user, whatever the root. Two live-test
+    // roots cannot make two GGG gates (C31).
+    let _real_mode_lock = if ggg_mode() {
+        let path = acquisition_store::world::real_mode_lock_path()
+            .map_err(|e| anyhow::anyhow!("resolving the real-mode lock: {e}"))?;
+        Some(Lock::acquire(&path).map_err(|e| {
+            anyhow::anyhow!(
+                "another real-mode daemon is running for this OS user: {e} — one real-mode daemon per OS user, whatever its world (C31, C83); `acq daemon stop` it first"
+            )
+        })?)
+    } else {
+        None
+    };
+    let provider_name = acquisition_protocol::provider::wanted();
+    // The rails state moves into the world once (step 5): a trip
+    // persisted beside the socket is honoured from the world from now on.
+    let rails_state = world.rails_state_path(provider_name);
+    let migration = migrate_legacy_state(&legacy_rails_state_path(provider_name), &rails_state);
+    if let Some(what) = &migration {
+        writeln!(&log, "{what}").ok();
+    }
+
     let path = socket_path();
     if path.exists() {
         // Live daemon or stale socket from a crash?
@@ -4027,8 +4118,15 @@ async fn run_with_log(log: std::fs::File) -> Result<()> {
     };
     // Same limiter in both modes: empty until responses teach it policies.
     let clock: Arc<dyn Clock> = Arc::new(SystemClock);
-    let mut rails_config =
-        RailsConfig::from_env(provider.name, &path, &journal_path(provider.name));
+    // The default journal is bounded like the log; one `ACQ_JOURNAL`
+    // names is the caller's and is left alone.
+    let default_journal = world.journal_path(provider.name);
+    let journal_rotated = if std::env::var_os("ACQ_JOURNAL").is_none() {
+        rotate_if_over(&default_journal, DIAGNOSTIC_CAP_BYTES)
+    } else {
+        None
+    };
+    let mut rails_config = RailsConfig::from_env(&rails_state, &default_journal);
     rails_config.daemon_artifact = Some(artifact.sha256.clone());
     let rails = Arc::new(Rails::with_config_and_clock(rails_config, clock.clone()));
     let choke = ChokePoint::with_clock_and_rails(clock, rails);
@@ -4038,7 +4136,7 @@ async fn run_with_log(log: std::fs::File) -> Result<()> {
     // account; the account index says which entries to look for, and every
     // persisted account comes back as a live session (C31). One unreadable
     // entry never blocks the rest.
-    let dir = store_dir(provider.name);
+    let dir = world.provider_dir(provider.name);
     let mut sessions = Sessions {
         keyring: "ok".into(),
         ..Sessions::default()
@@ -4115,6 +4213,7 @@ async fn run_with_log(log: std::fs::File) -> Result<()> {
         provider,
         artifact: Some(artifact),
         credential_store: Arc::new(OsCredentialStore),
+        world: Some(world.name()),
         store_dir: Some(dir.clone()),
         store: Mutex::new(None),
         jobs_db,
@@ -4132,6 +4231,26 @@ async fn run_with_log(log: std::fs::File) -> Result<()> {
             path.display(),
             std::process::id()
         ));
+        daemon.log(&format!(
+            "world: {} (lock {}{}) | log: {} | rails state: {}",
+            world.name(),
+            world.lock_path().display(),
+            if ggg_mode() {
+                format!(
+                    "; real-mode lock {}",
+                    _real_mode_lock
+                        .as_ref()
+                        .map_or("?".to_string(), |l| l.path().display().to_string())
+                )
+            } else {
+                String::new()
+            },
+            world.log_path(daemon.provider.name).display(),
+            rails_state.display(),
+        ));
+        if let Some(what) = journal_rotated {
+            daemon.log(&format!("journal: {what}"));
+        }
     }
     let (keyring, username) = {
         let s = daemon.shared.lock().unwrap();
@@ -4425,6 +4544,7 @@ mod auth_session_tests {
             provider: Provider::mock(base),
             artifact: None,
             credential_store: credential_store.clone(),
+            world: None,
             store_dir: None,
             store: Mutex::new(None),
             jobs_db: Mutex::new(JobDb::open_memory().unwrap()),
@@ -5717,6 +5837,7 @@ mod dispatcher_tests {
             provider,
             artifact: None,
             credential_store,
+            world: None,
             store_dir: None,
             store: Mutex::new(None),
             jobs_db: Mutex::new(JobDb::open_memory().unwrap()),

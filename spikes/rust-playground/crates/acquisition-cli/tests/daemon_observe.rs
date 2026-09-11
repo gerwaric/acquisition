@@ -34,6 +34,7 @@ fn command_of(exe: &Path, base: &Path, args: &[&str]) -> Command {
     cmd.args(args)
         .env("ACQ_SOCKET", base.join("d.sock"))
         .env("ACQ_STORE_DIR", base.join("store"))
+        .env("ACQ_LOG_DIR", base.join("logs"))
         .env("ACQ_NO_KEYRING", "1")
         .env("ACQ_JOURNAL", "0")
         .env("ACQ_IDLE_SHUTDOWN", "30");
@@ -110,6 +111,7 @@ fn daemon_command(base: &Path, acqd: &Path) -> Command {
     let mut cmd = Command::new(acqd);
     cmd.env("ACQ_SOCKET", base.join("d.sock"))
         .env("ACQ_STORE_DIR", base.join("store"))
+        .env("ACQ_LOG_DIR", base.join("logs"))
         .env("ACQ_NO_KEYRING", "1")
         .env("ACQ_JOURNAL", "0")
         .env("ACQ_IDLE_SHUTDOWN", "30")
@@ -187,6 +189,7 @@ fn c10_observation_never_spawns_or_replaces_and_reports_the_mismatch() {
     assert_eq!(report["contract_matches"], true, "{report}");
     assert_eq!(report["artifact_matches"], true, "{report}");
     assert_eq!(report["provider_matches"], false, "{report}");
+    assert_eq!(report["world_matches"], true, "{report}");
     assert_eq!(report["wanted"]["provider"], "ggg", "{report}");
     let out = acq_wanting_ggg(&base, &["daemon", "status"]);
     assert!(out.status.success(), "{out:?}");
@@ -290,9 +293,38 @@ fn c84_the_artifact_dimension_is_the_sibling_acqd_this_client_would_start() {
     // client's sibling, and names the sibling (review 2026-09-10); the
     // three dimensions are there in both shapes.
     assert_eq!(status["artifact_relation"], "same_file", "{status}");
-    for key in ["contract_matches", "artifact_matches", "provider_matches"] {
+    for key in [
+        "contract_matches",
+        "artifact_matches",
+        "provider_matches",
+        "world_matches",
+    ] {
         assert_eq!(status[key], true, "{key}: {status}");
     }
+    // The world (C83): the daemon's canonical root is this shell's store,
+    // and the paths this shell resolves are reported beside it.
+    assert_eq!(
+        status["world"],
+        base.join("store")
+            .canonicalize()
+            .unwrap()
+            .display()
+            .to_string(),
+        "{status}"
+    );
+    assert_eq!(status["wanted"]["world"], status["world"], "{status}");
+    assert_eq!(
+        status["socket"],
+        base.join("d.sock").display().to_string(),
+        "{status}"
+    );
+    assert!(
+        status["log"]
+            .as_str()
+            .unwrap()
+            .starts_with(&base.join("logs").display().to_string()),
+        "{status}"
+    );
     assert_eq!(
         Path::new(status["wanted"]["acqd"]["path"].as_str().unwrap())
             .canonicalize()

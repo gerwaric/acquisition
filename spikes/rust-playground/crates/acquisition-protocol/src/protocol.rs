@@ -9,8 +9,8 @@
 //!   optional and unknown fields ignored. Its frames never change shape:
 //!   a client and a daemon of any two contract revisions can always
 //!   identify each other (C10 compares what `hello` carries: the
-//!   shared-contract revision and the daemon artifact, C84) and a human
-//!   can always stop a daemon across a mismatch.
+//!   shared-contract revision and the daemon artifact, C84; the world it
+//!   serves, C83) and a human can always stop a daemon across a mismatch.
 //! - **The versioned plane** — [`Request`] and [`Response`]: everything
 //!   else, single-version on purpose (C10). A change here moves the
 //!   shared-contract revision, and `tests/fixtures/wire/` (one document
@@ -96,7 +96,8 @@ pub const MAX_FRAME_BYTES: usize = 64 << 20;
 // ---- the bootstrap plane ------------------------------------------------
 
 /// The two requests every daemon of any revision reads (C85), sent as
-/// `{"req":"hello","version":…,"contract":…}` and `{"req":"daemon_stop"}`.
+/// `{"req":"hello","version":…,"contract":…,"world":…}` and
+/// `{"req":"daemon_stop"}`.
 /// [`Bootstrap::read`] is the lenient reader the daemon uses: it keys on
 /// `req` alone and ignores every other field, so a client of a future
 /// revision — extra fields, renamed fields, a shape this build has never
@@ -116,6 +117,10 @@ pub enum Bootstrap {
         /// The client's shared-contract revision (`CONTRACT_REVISION`,
         /// C84); the daemon logs a mismatch.
         contract: String,
+        /// The world the client is on (C83): its canonical store root,
+        /// or the root it intended when none exists. The daemon logs a
+        /// mismatch; the refusal is the client's.
+        world: String,
     },
     /// Stop the daemon, whichever revision it is. Answered with
     /// [`BootstrapReply::Stopping`] before the process exits.
@@ -139,6 +144,7 @@ impl Bootstrap {
             "hello" => Some(Bootstrap::Hello {
                 version: text("version"),
                 contract: text("contract"),
+                world: text("world"),
             }),
             "daemon_stop" => Some(Bootstrap::DaemonStop),
             _ => None,
@@ -152,12 +158,12 @@ impl Bootstrap {
 pub const UNKNOWN: &str = "unknown";
 
 /// The daemon's answers on the bootstrap plane (C85):
-/// `{"resp":"hello","version":…,"contract":…,"artifact":{…},"pid":…,"provider":…}`
+/// `{"resp":"hello","version":…,"contract":…,"artifact":{…},"pid":…,"provider":…,"world":…}`
 /// and `{"resp":"stopping"}`. [`BootstrapReply::read`] is the client's
 /// lenient reader, the mirror of [`Bootstrap::read`]. `hello` names the
-/// daemon in every dimension a client judges (C10, C84): the contract it
-/// was compiled against, the executable it runs from, and the provider
-/// it serves.
+/// daemon in every dimension a client judges (C10, C84, C83): the
+/// contract it was compiled against, the executable it runs from, the
+/// provider it serves, and the world it serves.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "resp", rename_all = "snake_case")]
 pub enum BootstrapReply {
@@ -176,14 +182,19 @@ pub enum BootstrapReply {
         pid: u32,
         /// "mock" or "ggg"; a client uses only a daemon on its own provider.
         provider: String,
+        /// The world the daemon serves (C83): its canonical store root.
+        /// A client compares it with its own before any other dimension
+        /// and refuses a daemon on another world — never replaces it.
+        world: String,
     },
     Stopping,
 }
 
 impl BootstrapReply {
     /// The bootstrap reply a frame carries, if it is one: keyed on the
-    /// `resp` name; a missing `version`, `contract` or `provider` reads
-    /// as [`UNKNOWN`], a missing or unreadable `artifact` as `None`, and
+    /// `resp` name; a missing `version`, `contract`, `provider` or
+    /// `world` reads as [`UNKNOWN`], a missing or unreadable `artifact`
+    /// as `None`, and
     /// a missing `pid` as 0, so a daemon of another revision is identified
     /// as foreign rather than left unparsed. `None` is any other frame (a
     /// versioned `error`, say).
@@ -210,6 +221,7 @@ impl BootstrapReply {
                     .and_then(|p| u32::try_from(p).ok())
                     .unwrap_or(0),
                 provider: text("provider"),
+                world: text("world"),
             }),
             "stopping" => Some(BootstrapReply::Stopping),
             _ => None,
@@ -541,7 +553,12 @@ pub enum Response {
     },
     DaemonStatus {
         pid: u32,
+        /// The package version (`VERSION`); informational.
         version: String,
+        /// The shared-contract revision (`CONTRACT_REVISION`, C84), the
+        /// value the handshake compared — apart from `version` since the
+        /// split's step 5, as `hello` carries them.
+        contract: String,
         provider: String,
         uptime_seconds: u64,
         connections: usize,
@@ -562,7 +579,10 @@ pub enum Response {
     },
     Dashboard {
         pid: u32,
+        /// The package version (`VERSION`); informational.
         version: String,
+        /// The shared-contract revision (`CONTRACT_REVISION`, C84).
+        contract: String,
         provider: String,
         uptime_seconds: u64,
         connections: usize,

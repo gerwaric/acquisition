@@ -43,6 +43,7 @@ struct App {
 struct Snap {
     pid: u32,
     version: String,
+    contract: String,
     provider: String,
     uptime_seconds: u64,
     connections: usize,
@@ -130,6 +131,7 @@ async fn fetch(client: &mut Client) -> Result<Snap> {
         Response::Dashboard {
             pid,
             version,
+            contract,
             provider,
             uptime_seconds,
             connections,
@@ -149,6 +151,7 @@ async fn fetch(client: &mut Client) -> Result<Snap> {
         } => Ok(Snap {
             pid,
             version,
+            contract,
             provider,
             uptime_seconds,
             connections,
@@ -233,7 +236,10 @@ fn draw_header(f: &mut Frame, area: Rect, s: &Snap) {
         vec![Span::styled("not logged in", Style::new().yellow())]
     };
     let mut spans = vec![
-        Span::raw(format!("pid {} · v{} · ", s.pid, s.version)),
+        Span::raw(format!(
+            "pid {} · v{} · contract {} · ",
+            s.pid, s.version, s.contract
+        )),
         provider,
         Span::raw(format!(
             " · up {} · {} conn{} · ",

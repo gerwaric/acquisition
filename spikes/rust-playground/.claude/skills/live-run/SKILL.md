@@ -13,7 +13,7 @@ from cron or a background shell has no keychain and no session.
 
 ## Before
 
-1. `unset ACQ_GGG ACQ_TRIPWIRE ACQ_MAX_SENDS ACQ_IDLE_SHUTDOWN ACQ_SOCKET ACQ_STORE_DIR ACQ_NO_KEYRING`
+1. `unset ACQ_GGG ACQ_TRIPWIRE ACQ_MAX_SENDS ACQ_IDLE_SHUTDOWN ACQ_SOCKET ACQ_STORE_DIR ACQ_LOG_DIR ACQ_NO_KEYRING`
    — the shell you were launched from may still export a previous run's
    rails or a mock session's isolation.
 2. `acq daemon stop`. Never rebuild under a live daemon.
@@ -61,8 +61,10 @@ ACQ_GGG=1 ACQ_TRIPWIRE=1 ACQ_MAX_SENDS=3 acq <command>
 ```
 
 Read the journal before anything else (`acq daemon status` prints its
-path): the probe line must report 0 hits on its policy. Hits > 0 means
-something else is on this account — stop and find it.
+path: the world's `sends.jsonl` under the log directory, bounded; a
+driver's daemons write the run directory's `sends.jsonl` instead, under
+`ACQ_JOURNAL`): the probe line must report 0 hits on its policy. Hits > 0
+means something else is on this account — stop and find it.
 
 ## After
 

@@ -136,7 +136,7 @@ fi
 # Isolation knobs left over from other work would silently redirect this
 # run; the rails knobs are set per daemon below, so a leftover value there
 # is dropped rather than refused.
-for v in ACQ_SOCKET ACQ_STORE_DIR ACQ_NO_KEYRING ACQ_NO_SPAWN ACQ_JOURNAL; do
+for v in ACQ_SOCKET ACQ_STORE_DIR ACQ_LOG_DIR ACQ_NO_KEYRING ACQ_NO_SPAWN ACQ_JOURNAL; do
     if [ -n "${!v:-}" ]; then
         echo "refusing: $v is set in this shell (leftover from other work); unset it first" >&2
         exit 2
@@ -169,8 +169,14 @@ else
     SOCK=$ACQ_SOCKET
     PROVIDER=mock
 fi
-JOURNAL="${SOCK%.sock}.$PROVIDER.sends.jsonl"
-LOG="${SOCK%.sock}.log"
+# The run's diagnostics are its evidence (C83: the world's log and journal
+# are bounded and elsewhere; a driver's daemons write the run directory
+# instead — the journal under ACQ_JOURNAL, where the ledger cites it, the
+# log under ACQ_LOG_DIR beside it). Both files are this run's alone, so
+# no slicing by offset is needed at the end.
+JOURNAL="$RUN_DIR/sends.jsonl"
+export ACQ_LOG_DIR="$RUN_DIR/log"
+daemon_log() { find "$RUN_DIR/log" -name daemon.log -type f 2>/dev/null | head -1; }
 
 # No spawn, a clean tree, no daemon, a locked build, no daemon, and the
 # run's provenance.json: the shared preflight (tools/preflight.sh). The
@@ -207,14 +213,14 @@ cleanup() {
 trap cleanup EXIT
 
 spawn_daemon() { # <max_sends> <outfile>
-    env ACQ_TRIPWIRE=1 ACQ_MAX_SENDS="$1" ACQ_IDLE_SHUTDOWN=600 \
+    env ACQ_TRIPWIRE=1 ACQ_MAX_SENDS="$1" ACQ_IDLE_SHUTDOWN=600 ACQ_JOURNAL="$JOURNAL" \
         "$ACQD" >"$RUN_DIR/$2" 2>&1 &
     for _ in $(seq 1 100); do
         pid=$(status_json | jq -r '.pid // empty')
         [ -n "$pid" ] && { echo "$pid"; return 0; }
         sleep 0.1
     done
-    echo "daemon did not come up; see $RUN_DIR/$2 and $LOG" >&2
+    echo "daemon did not come up; see $RUN_DIR/$2 and $(daemon_log)" >&2
     return 1
 }
 
@@ -345,8 +351,6 @@ else
     NEED_LOGIN=1
 fi
 OFFSET=$(journal_size)
-LOG_OFFSET=0
-if [ -f "$LOG" ]; then LOG_OFFSET=$(wc -c <"$LOG" | tr -d ' '); fi
 LOGIN_LIFETIME=0
 
 # ---- phase 1: login (only when intent cannot bind without it) ---------------
@@ -744,15 +748,15 @@ COMPLETED=1
 
 # ---- phase 5: evidence and verification -----------------------------------------
 
-# The evidence is this run's slice of the journal and of the daemon log
-# (both files are cumulative on disk), plus the verifier as it was when
-# the run was checked — copied into the bundle with its checksum — and
-# the verification runs on the saved journal from byte 0 through that
-# copy, so re-running verify.sh later reproduces the verdict exactly,
-# wherever the bundle lives and whatever the working tree's verifier
-# becomes.
-tail -c +$((OFFSET + 1)) "$JOURNAL" >"$RUN_DIR/sends.jsonl"
-if [ -f "$LOG" ]; then tail -c +$((LOG_OFFSET + 1)) "$LOG" >"$RUN_DIR/daemon.log"; fi
+# The evidence is this run's journal (written into the bundle by every
+# daemon of the run, under ACQ_JOURNAL) and its daemon log (copied from
+# the run's log directory), plus the verifier as it was when the run was
+# checked — copied into the bundle with its checksum — and the
+# verification runs on the saved journal from byte 0 through that copy,
+# so re-running verify.sh later reproduces the verdict exactly, wherever
+# the bundle lives and whatever the working tree's verifier becomes.
+[ -f "$JOURNAL" ] || { echo "*** no journal was written at $JOURNAL" >&2; exit 1; }
+if [ -n "$(daemon_log)" ]; then cp "$(daemon_log)" "$RUN_DIR/daemon.log"; fi
 # Which daemon sent: every lifetime's header against provenance.json (C84).
 provenance_matches_journal "$RUN_DIR/sends.jsonl"
 cp "$here/tools/tracer-verify.py" "$RUN_DIR/tracer-verify.py"
@@ -784,7 +788,7 @@ fi
 echo "(per-send detail in $RUN_DIR/summary.txt)"
 
 echo ""
-echo "evidence in $RUN_DIR (this run's journal and daemon-log slices, plans, apply results,"
+echo "evidence in $RUN_DIR (this run's journal and daemon log, plans, apply results,"
 echo "store reads, summary, the verifier copy and checksums; ./verify.sh re-runs the verification)."
 if [ -s "$FRICTION" ]; then
     echo ""
