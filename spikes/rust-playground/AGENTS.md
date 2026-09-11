@@ -72,7 +72,7 @@ not before.
 ## Quality gate, kept green by every change
 
 ```sh
-cargo build --workspace  # first: the process tests and the drivers run the acqd this writes beside acq; cargo test alone does not uplift it (C82)
+cargo build --workspace  # first, and again before any smoke or live run: the process tests and the drivers run the acqd this writes beside acq (C82); cargo test leaves acqd but rewrites acq and acq-mcp in their all-targets form
 cargo test --workspace --all-targets
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo fmt --all -- --check
@@ -81,9 +81,15 @@ tools/docs-check.sh      # byte budgets on the always-loaded documents; stale id
 RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps   # no broken doc link anywhere: the rulings live in doc comments
 ```
 
-`cargo test` and `cargo clippy` do not rebuild `target/debug/acq` or
-`target/debug/acqd`; run `cargo build --workspace` and check
-`acq --version` before any smoke or live run.
+`cargo test --all-targets` leaves `target/debug/acqd` as the workspace
+build wrote it but rewrites `target/debug/acq` and `acq-mcp` with their
+all-targets forms (a different artifact: the store's `test-hooks`
+feature unified in); `cargo clippy` rewrites none. `cargo build
+--workspace --all-targets` writes the all-targets `acqd` too. So run the
+gate's `cargo build --workspace` before any smoke or live run, never the
+all-targets form, and never run the drivers while the gate runs — their
+preflight build replaces `acqd` under a live daemon (an artifact
+mismatch, C84).
 
 ## Routing: one authoritative home per fact
 

@@ -157,7 +157,7 @@ fn the_mcp_tools_carry_the_plan_slice_and_its_gates() {
 
     // The daemon is started directly — the `acqd` beside `acq-mcp`, the
     // one it would lazily spawn — so the test owns the pid.
-    let mut daemon = spawn_daemon(&base, &[]);
+    let _daemon = spawn_daemon(&base, &[]);
     let rt = tokio::runtime::Runtime::new().unwrap();
     rt.block_on(async {
         let deadline = Instant::now() + Duration::from_secs(10);
@@ -304,8 +304,7 @@ fn the_mcp_tools_carry_the_plan_slice_and_its_gates() {
         );
     });
 
-    let _ = mcp.child.kill();
-    let _ = daemon.kill();
-    let _ = daemon.wait();
+    // The harness's `Mcp` and `Daemon` kill and wait on drop.
+    drop(mcp);
     let _ = std::fs::remove_dir_all(&base);
 }

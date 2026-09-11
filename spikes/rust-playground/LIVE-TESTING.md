@@ -68,9 +68,10 @@ Replaces the preconditions and the "new hypothesis first" requirement.
   daemon artifact, the SHA-256 of the `acqd` file, which the daemon
   reports in `hello`, its startup identity line and the journal header
   (`daemon`). A driver (`tools/preflight.sh`) refuses working-tree
-  changes to the rung's own files (the tools, the control documents,
-  the crates, the lock) and a running daemon, builds (`cargo build
-  --workspace --locked`), writes
+  changes to the rung's own files — `tools`, `crates`, `Cargo.toml`,
+  `Cargo.lock`, `CONTEXT.md`, `decisions`, `LIVE-TESTING.md`,
+  `RUN-LEDGER.md`, the list in the script — and a running daemon,
+  builds (`cargo build --workspace --locked`), writes
   `provenance.json` — HEAD, tree state, version, contract, the SHA-256
   of `acq` and of `acqd`, toolchain — into the run directory before any
   wire phase, and after the run holds every journal header to the

@@ -10,38 +10,19 @@
 mod harness;
 
 use std::path::{Path, PathBuf};
-use std::process::Child;
 use std::time::{Duration, Instant};
 
 use harness::{Mcp, spawn_daemon};
 use serde_json::{Value, json};
 
 /// The scratch directory, removed on drop — a failed assertion leaves
-/// nothing behind. Declared before the daemon, so the daemon is gone
-/// first.
+/// nothing behind. Declared before the daemon and the servers, so those
+/// are gone first (the harness's `Daemon` and `Mcp` kill and wait).
 struct Scratch(PathBuf);
 
 impl Drop for Scratch {
     fn drop(&mut self) {
         let _ = std::fs::remove_dir_all(&self.0);
-    }
-}
-
-/// The daemon the test started, killed on drop and named while a test
-/// is panicking (C82: a failure says which daemon ran).
-struct Daemon(Child, PathBuf);
-
-impl Drop for Daemon {
-    fn drop(&mut self) {
-        if std::thread::panicking() {
-            eprintln!(
-                "the daemon under test was {} (pid {})",
-                self.1.display(),
-                self.0.id()
-            );
-        }
-        let _ = self.0.kill();
-        let _ = self.0.wait();
     }
 }
 
@@ -69,7 +50,7 @@ fn c84_daemon_status_reports_the_identity_and_the_sibling_it_is_judged_against()
 
     // Running and this server's: the vitals, and the identity keys the
     // incompatible report has, from one look at the sibling.
-    let daemon = Daemon(spawn_daemon(&base, &[]), acqd.clone());
+    let daemon = spawn_daemon(&base, &[]);
     let deadline = Instant::now() + Duration::from_secs(10);
     let status = loop {
         let status = mcp.expect_ok("daemon_status", json!({}));
@@ -115,7 +96,7 @@ fn c84_daemon_status_reports_the_identity_and_the_sibling_it_is_judged_against()
         "{status}"
     );
     let pid = status["pid"].as_u64().unwrap();
-    assert_eq!(pid, u64::from(daemon.0.id()), "{status}");
+    assert_eq!(pid, u64::from(daemon.id()), "{status}");
 
     // A server that wants ggg observes the mock daemon: incompatible on
     // the provider dimension alone, the artifact still its sibling, the

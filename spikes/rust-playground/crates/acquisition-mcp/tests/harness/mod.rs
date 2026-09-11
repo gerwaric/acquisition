@@ -5,7 +5,7 @@
 #![allow(dead_code)] // each test binary uses the slice it needs
 
 use std::io::{BufRead, BufReader, Write};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStdin, Command, Stdio};
 use std::sync::mpsc::{Receiver, channel};
 use std::time::{Duration, Instant};
@@ -36,7 +36,7 @@ pub fn spawn(
 /// beside it, pointing one level up at the same file: the test
 /// executable names the daemon its build wrote on both paths (C82's
 /// clause for test executables).
-pub fn spawn_daemon(base: &Path, extra_env: &[(&str, &str)]) -> Child {
+pub fn spawn_daemon(base: &Path, extra_env: &[(&str, &str)]) -> Daemon {
     let acqd = acquisition_client::locator::beside(Path::new(env!("CARGO_BIN_EXE_acq-mcp")))
         .unwrap_or_else(|e| panic!("{e}"));
     let exe = std::env::current_exe().expect("current exe");
@@ -54,8 +54,36 @@ pub fn spawn_daemon(base: &Path, extra_env: &[(&str, &str)]) -> Child {
     );
     let mut cmd = Command::new(&acqd);
     isolate(&mut cmd, base, extra_env, Stdio::null);
-    cmd.spawn()
-        .unwrap_or_else(|e| panic!("spawning {}: {e}", acqd.display()))
+    let child = cmd
+        .spawn()
+        .unwrap_or_else(|e| panic!("spawning {}: {e}", acqd.display()));
+    Daemon(child, acqd)
+}
+
+/// The daemon a test started: killed and waited for on drop, whichever
+/// way the test ends — a timed-out answer must not leave it behind
+/// (review 2026-09-11) — and named while a test is panicking (C82: a
+/// failure says which daemon ran).
+pub struct Daemon(Child, PathBuf);
+
+impl Daemon {
+    pub fn id(&self) -> u32 {
+        self.0.id()
+    }
+}
+
+impl Drop for Daemon {
+    fn drop(&mut self) {
+        if std::thread::panicking() {
+            eprintln!(
+                "the daemon under test was {} (pid {})",
+                self.1.display(),
+                self.0.id()
+            );
+        }
+        let _ = self.0.kill();
+        let _ = self.0.wait();
+    }
 }
 
 /// The scratch socket and store under `base`, the live-run knobs
@@ -92,7 +120,8 @@ const ANSWER_WITHIN: Duration = Duration::from_secs(30);
 
 /// A newline-delimited JSON-RPC conversation with the MCP server's stdio.
 /// The server's stdout is read on a thread into a channel, so every wait
-/// for an answer is bounded.
+/// for an answer is bounded; the server is killed and waited for on
+/// drop, so a wedged one does not outlive its test.
 pub struct Mcp {
     pub child: Child,
     stdin: ChildStdin,
@@ -100,6 +129,20 @@ pub struct Mcp {
     next_id: i64,
     /// The server's `instructions` from `initialize`.
     pub instructions: String,
+}
+
+impl Drop for Mcp {
+    fn drop(&mut self) {
+        if std::thread::panicking() {
+            eprintln!(
+                "the MCP server under test was {} (pid {})",
+                env!("CARGO_BIN_EXE_acq-mcp"),
+                self.child.id()
+            );
+        }
+        let _ = self.child.kill();
+        let _ = self.child.wait();
+    }
 }
 
 impl Mcp {

@@ -23,8 +23,9 @@ from cron or a background shell has no keychain and no session.
    — the binaries carry no commit: the contract revision and, for
    `acqd`, its file's hash (C84), so a dirty build's identity would be
    paired with a HEAD it is not; the journal header carries both and
-   the ledger row names HEAD (`cargo test` and `cargo clippy` rebuild
-   neither binary). The drivers do all of this themselves
+   the ledger row names HEAD (`cargo test` rewrites `acq` and `acq-mcp`
+   with their all-targets forms and leaves `acqd`; the plain build
+   restores them — the drivers build first). The drivers do all of this themselves
    (`tools/preflight.sh`, which hashes both executables into
    `provenance.json` and holds the journal to the `acqd` hash), and
    start `acqd` directly.

@@ -71,7 +71,7 @@ implements — is its `--help` (`CLI-REFERENCE.md` holds every one); the
 line here shows the shape.
 
 ```sh
-cargo build --workspace && alias acq=./target/debug/acq   # acq and the daemon acqd beside it (C82); cargo test/clippy rebuild neither: check acq --version
+cargo build --workspace && alias acq=./target/debug/acq   # acq and the daemon acqd beside it (C82); cargo test rewrites acq and acq-mcp, not acqd: build again before a run
 acq <verb> --help                             # the reference for every verb
 
 # a session — the mock provider's login page accepts any username (scripted login: the mock-session skill)
