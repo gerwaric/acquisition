@@ -4136,12 +4136,10 @@ pub async fn run() -> Result<()> {
     let locks = match take_locks(&world) {
         Ok(locks) => locks,
         Err(e) => {
-            if log_path.parent().is_some_and(std::path::Path::is_dir)
-                && let Ok(log) = std::fs::OpenOptions::new()
-                    .create(true)
-                    .append(true)
-                    .open(&log_path)
-            {
+            // Appended to a log that exists; never created (review
+            // 2026-09-11, round 21: a contender under another log
+            // directory must make no file there either).
+            if let Ok(log) = std::fs::OpenOptions::new().append(true).open(&log_path) {
                 writeln!(&log, "STARTUP: {e:#}").ok();
             }
             return Err(e);

@@ -164,7 +164,7 @@ impl std::fmt::Display for MigrationError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "{} — the daemon does not start over rails state it cannot carry; with no daemon running, `acq daemon reset-tripwire` clears both files",
+            "{} — the daemon does not start over rails state it cannot carry; with no daemon running, `acq daemon reset-tripwire` clears both paths (a file or an empty directory; anything else it names for removal by hand)",
             self.0
         )
     }

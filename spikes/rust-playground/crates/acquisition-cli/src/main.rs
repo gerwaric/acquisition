@@ -1181,11 +1181,25 @@ async fn run(cli: Cli) -> Result<()> {
                         if let Ok(world) = World::observe() {
                             candidates.insert(0, world.rails_state_path(provider));
                         }
+                        // A file, or an empty directory in a file's place
+                        // (the daemon refuses to start over either shape
+                        // it cannot read, and names this verb as the
+                        // remedy); anything else is named for the hand.
                         let mut cleared = Vec::new();
                         for state in &candidates {
-                            match std::fs::remove_file(state) {
+                            let removed = match std::fs::symlink_metadata(state) {
+                                Err(e) if e.kind() == std::io::ErrorKind::NotFound => continue,
+                                Err(e) => Err(e),
+                                Ok(meta) if meta.is_dir() => std::fs::remove_dir(state).map_err(|e| {
+                                    std::io::Error::new(
+                                        e.kind(),
+                                        format!("it is a directory that is not empty ({e}); remove it by hand"),
+                                    )
+                                }),
+                                Ok(_) => std::fs::remove_file(state),
+                            };
+                            match removed {
                                 Ok(()) => cleared.push(state.clone()),
-                                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
                                 Err(e) => bail!(
                                     "daemon is not running; could not clear {}: {e}",
                                     state.display()

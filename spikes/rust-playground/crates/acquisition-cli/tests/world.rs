@@ -256,6 +256,30 @@ fn c83_a_second_daemon_on_the_same_world_refuses_naming_the_holder() {
         !base.join("b.sock").exists(),
         "the refused daemon bound its socket"
     );
+    // A contender under another log directory whose world/provider
+    // directory exists but holds no log: refused the same way, and it
+    // creates no file there (round 21).
+    let other_logs = base.join("other-logs");
+    let other_log = other_logs
+        .join(
+            acquisition_store::world::World::at(&base.join("store"))
+                .unwrap()
+                .id(),
+        )
+        .join("mock")
+        .join("daemon.log");
+    std::fs::create_dir_all(other_log.parent().unwrap()).unwrap();
+    let mut contender = daemon_command(base, "c.sock", "store");
+    contender.env("ACQ_LOG_DIR", &other_logs);
+    let (status, stderr) = refused_daemon(contender);
+    assert!(
+        !status.success() && stderr.contains("another daemon holds this world"),
+        "{stderr}"
+    );
+    assert!(
+        !other_log.exists(),
+        "a refused contender created a log under its own directory"
+    );
 
     // The first daemon still answers, and it is the same one.
     let out = acq(base, "a.sock", "store", &["daemon", "status", "--json"]);
@@ -505,6 +529,45 @@ fn c83_the_rails_state_moves_into_the_world_and_the_trip_survives() {
         &["daemon", "reset-tripwire", "--json"],
     );
     assert_eq!(sole_json(&out)["cleared"], false);
+
+    // A directory in a state file's place (round 21): the daemon refuses
+    // to start over it, naming this verb; the verb clears an empty one
+    // and names a non-empty one for the hand.
+    std::fs::create_dir(&legacy).unwrap();
+    let (status, stderr) = refused_daemon(daemon_command(base, "d.sock", "store"));
+    assert!(
+        !status.success()
+            && stderr.contains("could not be read")
+            && stderr.contains("reset-tripwire"),
+        "{stderr}"
+    );
+    let out = acq(
+        base,
+        "d.sock",
+        "store",
+        &["daemon", "reset-tripwire", "--json"],
+    );
+    assert!(out.status.success(), "{out:?}");
+    assert_eq!(sole_json(&out)["cleared"], true);
+    assert!(!legacy.exists(), "the empty directory was cleared");
+    std::fs::create_dir_all(legacy.join("inside")).unwrap();
+    let out = acq(
+        base,
+        "d.sock",
+        "store",
+        &["daemon", "reset-tripwire", "--json"],
+    );
+    assert_eq!(out.status.code(), Some(1), "{out:?}");
+    let msg = sole_json(&out)["error"].as_str().unwrap().to_string();
+    assert!(
+        msg.contains("not empty") && msg.contains("by hand"),
+        "{msg}"
+    );
+    assert!(
+        legacy.join("inside").exists(),
+        "a non-empty directory was touched"
+    );
+    std::fs::remove_dir_all(&legacy).unwrap();
 }
 
 /// C83: the log and the default journal live under the log directory,
@@ -612,4 +675,23 @@ fn c83_diagnostics_live_under_the_log_directory_and_are_bounded() {
     );
     let out = acq(base, "d.sock", "store", &["daemon", "stop", "--json"]);
     assert!(out.status.success(), "{out:?}");
+
+    // A log directory that is not valid UTF-8 refuses the start, before
+    // anything is made: the path crosses the wire exactly or not at all
+    // (round 21's pin).
+    #[cfg(unix)]
+    {
+        use std::os::unix::ffi::OsStrExt;
+        let odd = std::ffi::OsString::from(std::ffi::OsStr::from_bytes(b"/tmp/acq-\xff-logs"));
+        let mut cmd = daemon_command(base, "e.sock", "store");
+        cmd.env("ACQ_LOG_DIR", &odd);
+        let (status, stderr) = refused_daemon(cmd);
+        assert!(
+            !status.success()
+                && stderr.contains("not valid UTF-8")
+                && stderr.contains("ACQ_LOG_DIR"),
+            "{stderr}"
+        );
+        assert!(!base.join("e.sock").exists());
+    }
 }
