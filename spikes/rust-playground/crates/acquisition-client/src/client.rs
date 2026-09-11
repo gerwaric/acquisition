@@ -426,6 +426,7 @@ impl DaemonId {
             "provider": self.provider,
             "contract_matches": verdict.contract,
             "artifact_matches": verdict.artifact.matches(),
+            "artifact_relation": verdict.artifact.relation(),
             "provider_matches": verdict.provider,
             "wanted": wanted,
         });
@@ -440,7 +441,7 @@ impl DaemonId {
 /// sentence the report and the prose share.
 fn artifact_mismatch_reason(verdict: &ArtifactVerdict) -> Option<String> {
     match verdict {
-        ArtifactVerdict::Same => None,
+        ArtifactVerdict::SameFile | ArtifactVerdict::SameBytes { .. } => None,
         ArtifactVerdict::Different {
             sibling,
             sibling_sha256,
@@ -473,12 +474,18 @@ impl fmt::Display for DaemonId {
                 f,
                 " is this client's (contract {}, {}, {})",
                 self.contract,
-                self.artifact
-                    .as_ref()
-                    .map_or("no artifact".to_string(), |a| format!(
-                        "acqd sha256 {}",
-                        a.short_hash()
-                    )),
+                match (&verdict.artifact, &self.artifact) {
+                    (ArtifactVerdict::SameBytes { sibling }, Some(a)) => format!(
+                        "acqd sha256 {} at {}, a copy of this client's sibling {}",
+                        a.short_hash(),
+                        a.file.path,
+                        sibling.path
+                    ),
+                    (_, Some(a)) => {
+                        format!("acqd sha256 {}, this client's sibling", a.short_hash())
+                    }
+                    (_, None) => "no artifact".to_string(),
+                },
                 self.provider
             );
         }

@@ -82,25 +82,42 @@ preflight() {
         >"$RUN_DIR/provenance.json"
 }
 
-# provenance_matches_journal <journal file>: every daemon lifetime in the
-# journal — each `open` line — must carry the contract revision and the
-# acqd hash provenance.json recorded before the run (C84). A lifetime that
-# names another daemon is the rung-8 mistake made visible: some other
-# acqd sent. Exits 2 on any mismatch, naming the line.
+# provenance_matches_journal <journal file>: which daemon sent, held to
+# provenance.json (C84). The journal must open with at least one `open`
+# header; every send must have exactly one `open` header before it for
+# its pid; and every header must carry the contract revision and the acqd
+# hash recorded before the run. A header naming another daemon is the
+# rung-8 mistake made visible; a send with no header is a daemon that
+# never said who it was (review 2026-09-10: a check that read the
+# headers alone passed a journal with none). Exits 2 on any problem,
+# naming each; `tools/preflight-breakers.sh` stages every refusal.
 provenance_matches_journal() {
     local journal=$1 want_contract want_daemon bad
     want_contract=$(jq -r '.contract' "$RUN_DIR/provenance.json")
     want_daemon=$(jq -r '.acqd_sha256' "$RUN_DIR/provenance.json")
-    bad=$(jq -r --arg c "$want_contract" --arg d "$want_daemon" \
-        'select(.event == "open") | select(.contract != $c or .daemon != $d)
-         | "pid \(.pid): contract \(.contract) daemon \(.daemon)"' "$journal")
+    [ -n "$want_contract" ] && [ "$want_contract" != null ] && [ -n "$want_daemon" ] && [ "$want_daemon" != null ] \
+        || { echo "*** provenance.json names no contract or acqd hash" >&2; exit 2; }
+    bad=$(jq -rn --arg c "$want_contract" --arg d "$want_daemon" '
+        reduce inputs as $l ({ headers: {}, problems: [] };
+          ($l.pid | tostring) as $pid
+          | if $l.event == "open" then
+              .headers[$pid] += 1
+              | if .headers[$pid] > 1 then .problems += ["pid \($l.pid): a second open header"] else . end
+              | if $l.contract != $c or $l.daemon != $d
+                then .problems += ["pid \($l.pid): header names contract \($l.contract) daemon \($l.daemon)"] else . end
+            elif $l.method != null then
+              if (.headers[$pid] // 0) != 1
+              then .problems += ["pid \($l.pid): \($l.method) \($l.route) with no open header before it"] else . end
+            else . end)
+        | if (.headers | length) == 0 then .problems += ["no open header in the journal at all"] else . end
+        | .problems[]' "$journal") || { echo "*** could not read $journal" >&2; exit 2; }
     if [ -n "$bad" ]; then
-        echo "*** the journal names a daemon other than the one provenance.json recorded" >&2
+        echo "*** the journal does not name the daemon provenance.json recorded" >&2
         echo "*** (contract $want_contract, acqd sha256 $want_daemon):" >&2
         echo "$bad" >&2
         exit 2
     fi
-    echo "provenance: every lifetime in the journal is contract $want_contract, acqd sha256 ${want_daemon:0:12}… (provenance.json)"
+    echo "provenance: every lifetime in the journal is contract $want_contract, acqd sha256 ${want_daemon:0:12}…, and every send has its header (provenance.json)"
 }
 
 preflight_refuse_daemon() { # <when>

@@ -545,9 +545,11 @@ enum DaemonCmd {
     /// queue counts, policies learned, the socket, log and journal paths,
     /// the rails state, keyring health. Observes only (C10): never spawns
     /// or replaces; a daemon of another contract, artifact or provider is
-    /// reported and left running (`--json`: running, compatible, and
-    /// which of the three differs, with the sibling `acqd` this client
-    /// would start under `wanted`).
+    /// reported and left running (`--json`: running, compatible, which
+    /// of the three differs, how the daemon's file relates to this
+    /// client's sibling — `artifact_relation`: `same_file`, or
+    /// `same_bytes` for another copy — and the sibling `acqd` a job
+    /// command would start under `wanted`).
     Status,
     /// Stop the daemon that is listening, this contract's and artifact's
     /// or another's.
@@ -1029,9 +1031,16 @@ async fn run(cli: Cli) -> Result<()> {
                     report["running"] = json!(true);
                     report["compatible"] = json!(true);
                     // The identity the handshake carried (C84), beside the
-                    // vitals: the same keys the incompatible report has.
-                    report["contract"] = json!(found.contract);
-                    report["artifact"] = json!(found.artifact);
+                    // vitals: the same keys the incompatible report has —
+                    // the daemon's contract and artifact, how the artifact
+                    // relates to this client's sibling (`same_file` or
+                    // `same_bytes`, a copy), and the sibling itself under
+                    // `wanted`, so "where did it run from" and "is that my
+                    // sibling" are both answered (review 2026-09-10).
+                    let identity = found.report();
+                    for key in ["contract", "artifact", "artifact_relation", "wanted"] {
+                        report[key] = identity[key].clone();
+                    }
                     println!("{}", serde_json::to_string_pretty(&report)?);
                 } else if let Response::DaemonStatus {
                     pid,
@@ -1051,13 +1060,24 @@ async fn run(cli: Cli) -> Result<()> {
                     println!(
                         "daemon {version} pid {pid}, up {uptime_seconds}s, provider {provider}"
                     );
-                    match &found.artifact {
-                        Some(a) => println!(
-                            "acqd:   {} (sha256 {}) — the sibling this client would start",
+                    match (&found.artifact, found.verdict().artifact) {
+                        (
+                            Some(a),
+                            acquisition_client::artifact::ArtifactVerdict::SameBytes { sibling },
+                        ) => {
+                            println!(
+                                "acqd:   {} (sha256 {}) — the same artifact as this client's sibling {}, another copy",
+                                a.file.path,
+                                a.short_hash(),
+                                sibling.path
+                            )
+                        }
+                        (Some(a), _) => println!(
+                            "acqd:   {} (sha256 {}) — this client's sibling, the file a job command would start",
                             a.file.path,
                             a.short_hash()
                         ),
-                        None => println!("acqd:   not reported"),
+                        (None, _) => println!("acqd:   not reported"),
                     }
                     println!(
                         "connections: {connections}  waiting: {jobs_waiting}  running: {jobs_running}  in flight: {in_flight}/{max_in_flight}  policies learned: {policies_known}"

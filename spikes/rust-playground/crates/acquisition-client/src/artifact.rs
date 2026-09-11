@@ -78,11 +78,19 @@ impl std::fmt::Display for SiblingError {
 impl std::error::Error for SiblingError {}
 
 /// Whether `daemon` — the artifact a daemon reported — is the sibling
-/// this process would spawn.
+/// this process would spawn. "The same artifact" is two cases kept
+/// apart (review 2026-09-10): the sibling *is* the file the daemon runs
+/// from, or the sibling is another file with the same bytes — a
+/// supported case (a copied installation) that a report must not call
+/// "the sibling this client would start".
 #[derive(Debug, Clone)]
 pub enum ArtifactVerdict {
-    /// The same file, or another file with the same bytes.
-    Same,
+    /// The daemon runs from this process's sibling itself: the same
+    /// inode, the same length and modification time.
+    SameFile,
+    /// The daemon runs from another file whose bytes are the sibling's:
+    /// the same artifact, another copy.
+    SameBytes { sibling: FileIdentity },
     /// The sibling here is another artifact: its hash, for the report.
     Different {
         sibling: FileIdentity,
@@ -98,24 +106,51 @@ pub enum ArtifactVerdict {
 }
 
 impl ArtifactVerdict {
+    /// The same artifact, by inode or by bytes.
     pub fn matches(&self) -> bool {
-        matches!(self, ArtifactVerdict::Same)
+        matches!(
+            self,
+            ArtifactVerdict::SameFile | ArtifactVerdict::SameBytes { .. }
+        )
+    }
+
+    /// The relation as one word for a report: `same_file`, `same_bytes`,
+    /// `different`, `unhashable`, `no_sibling`, `unreported`.
+    pub fn relation(&self) -> &'static str {
+        match self {
+            ArtifactVerdict::SameFile => "same_file",
+            ArtifactVerdict::SameBytes { .. } => "same_bytes",
+            ArtifactVerdict::Different { .. } => "different",
+            ArtifactVerdict::Unhashable { .. } => "unhashable",
+            ArtifactVerdict::NoSibling(_) => "no_sibling",
+            ArtifactVerdict::Unreported => "unreported",
+        }
     }
 
     /// Judge `daemon` against the sibling as found now.
     pub fn judge(daemon: Option<&Artifact>) -> ArtifactVerdict {
+        ArtifactVerdict::judge_against(daemon, sibling())
+    }
+
+    /// The comparison itself, with the sibling supplied: the same inode
+    /// is the same file without a hash; otherwise the sibling is hashed
+    /// and its bytes decide.
+    pub fn judge_against(
+        daemon: Option<&Artifact>,
+        sibling: Result<FileIdentity, SiblingError>,
+    ) -> ArtifactVerdict {
         let Some(daemon) = daemon else {
             return ArtifactVerdict::Unreported;
         };
-        let sibling = match sibling() {
+        let sibling = match sibling {
             Ok(s) => s,
             Err(e) => return ArtifactVerdict::NoSibling(e),
         };
         if sibling.same_file_as(&daemon.file) {
-            return ArtifactVerdict::Same;
+            return ArtifactVerdict::SameFile;
         }
         match sha256_of(Path::new(&sibling.path)) {
-            Ok(sha256) if sha256 == daemon.sha256 => ArtifactVerdict::Same,
+            Ok(sha256) if sha256 == daemon.sha256 => ArtifactVerdict::SameBytes { sibling },
             Ok(sha256) => ArtifactVerdict::Different {
                 sibling,
                 sibling_sha256: sha256,
@@ -134,9 +169,9 @@ mod tests {
 
     /// C84, the comparison alone (the process-level pin is
     /// `acquisition-cli/tests/daemon_observe.rs`): the same inode is the
-    /// same file without a hash; a copy is the same artifact by hash; a
-    /// file of other bytes is another artifact; a daemon that reported
-    /// nothing matches nothing.
+    /// same file without a hash; a copy is the same artifact by hash,
+    /// and the verdict keeps the two apart; a file of other bytes is
+    /// another artifact; a daemon that reported nothing matches nothing.
     #[test]
     fn c84_a_copy_is_the_same_artifact_and_other_bytes_are_another() {
         let dir = std::env::temp_dir().join(format!("acq-artifact-{}", std::process::id()));
@@ -160,6 +195,32 @@ mod tests {
             ArtifactVerdict::judge(None),
             ArtifactVerdict::Unreported
         ));
+
+        let daemon = Artifact {
+            file: id.clone(),
+            sha256: sha256_of(&original).unwrap(),
+        };
+        let judge = |sibling: &std::path::Path| {
+            ArtifactVerdict::judge_against(
+                Some(&daemon),
+                FileIdentity::of(sibling).map_err(|e| SiblingError::Unreadable {
+                    path: sibling.to_path_buf(),
+                    io: e.to_string(),
+                }),
+            )
+        };
+        let v = judge(&original);
+        assert!(v.matches() && v.relation() == "same_file", "{v:?}");
+        let v = judge(&copy);
+        assert!(v.matches() && v.relation() == "same_bytes", "{v:?}");
+        assert!(
+            matches!(&v, ArtifactVerdict::SameBytes { sibling } if sibling.path == copy.canonicalize().unwrap().to_string_lossy()),
+            "{v:?}"
+        );
+        let v = judge(&other);
+        assert!(!v.matches() && v.relation() == "different", "{v:?}");
+        let v = judge(&dir.join("missing"));
+        assert!(!v.matches() && v.relation() == "no_sibling", "{v:?}");
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

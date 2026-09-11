@@ -745,8 +745,13 @@ impl AcqMcp {
         let mut report = serde_json::to_value(resp).map_err(|e| err(e.into()))?;
         report["running"] = json!(true);
         report["compatible"] = json!(true);
-        report["contract"] = json!(found.contract);
-        report["artifact"] = json!(found.artifact);
+        // The identity keys the incompatible report has (C84): the
+        // daemon's contract and artifact, the artifact's relation to this
+        // server's sibling, and the sibling under `wanted`.
+        let identity = found.report();
+        for key in ["contract", "artifact", "artifact_relation", "wanted"] {
+            report[key] = identity[key].clone();
+        }
         Ok(Json(report))
     }
 }

@@ -269,76 +269,10 @@ tail -c +$((OFFSET + 1)) "$JOURNAL" >"$RUN_DIR/sends-this-run.jsonl"
 provenance_matches_journal "$RUN_DIR/sends-this-run.jsonl"
 rm -f "$RUN_DIR/sends-this-run.jsonl"
 
-verify() { python3 - "$JOURNAL" "$OFFSET" <<'PY'
-import json, sys
-NO_PROBE = {"oauth-token", "profile", "league"}
-
-f = open(sys.argv[1]); f.seek(int(sys.argv[2]))
-lifetimes, cur = [], None
-for raw in f:
-    if not raw.strip():
-        continue
-    l = json.loads(raw)
-    if l.get("event") == "open":
-        # `contract` + `daemon` since 2026-09-10 (C84); `runtime` from
-        # 2026-09-09 (C10); journals before that say `build`.
-        cur = {"pid": l["pid"], "build": l.get("contract", l.get("runtime", l.get("build"))),
-               "daemon": (l.get("daemon") or "-")[:12], "clock": l["clock"], "sends": []}
-        lifetimes.append(cur)
-        continue
-    if cur is None:
-        cur = {"pid": l.get("pid"), "build": "?", "daemon": "?", "clock": "?", "sends": []}
-        lifetimes.append(cur)
-    cur["sends"].append(l)
-
-fail, totals = [], []
-for i, lt in enumerate(lifetimes, 1):
-    print(f"lifetime {i}: pid {lt['pid']}  contract {lt['build']}  acqd {lt['daemon']}  clock {lt['clock']}")
-    counts, first = {}, {}
-    for s in lt["sends"]:
-        m, r, st = s["method"], s["route"], s.get("status")
-        counts[m] = counts.get(m, 0) + 1
-        first.setdefault(r, m)
-        flag = ""
-        if s.get("error") or st is None or st >= 400:
-            flag = "  <-- NOT OK"
-            fail.append(f"lifetime {i}: {m} {r} -> {st} error={s.get('error')}")
-        if st == 429:
-            fail.append(f"lifetime {i}: 429 on {r}")
-        if m == "HEAD":
-            print(f"  HEAD {r} -> {st}  rate {json.dumps(s.get('rate'))}{flag}")
-        else:
-            print(f"  {m} {r} -> {st}  wait_ms {s.get('wait_ms')}{flag}")
-    for r, m in first.items():
-        # Declared no-probe routes (daemon.rs NO_PROBE_ROUTES; N38/N39, the
-        # token endpoint): the login's own GET /profile has no HEAD before it.
-        if r.split("@", 1)[0] not in NO_PROBE and m != "HEAD":
-            fail.append(f"lifetime {i}: first send on {r} was {m}, not the probe")
-    t = f"{counts.get('POST',0)}/{counts.get('HEAD',0)}/{counts.get('GET',0)}"
-    totals.append(f"{t} = {len(lt['sends'])}")
-    print(f"  totals (POST/HEAD/GET): {totals[-1]}")
-
-if len(lifetimes) != 2:
-    fail.append(f"expected 2 daemon lifetimes in this run's journal, saw {len(lifetimes)}")
-
-print()
-if fail:
-    print("CHECKS FAILED — a ledger row still gets written, saying what happened:")
-    for x in fail:
-        print(f"  - {x}")
-    sys.exit(1)
-print("checks passed: halt left nothing failed, every route probed before its")
-print("first send in both lifetimes, no non-2xx. Read lifetime 2's HEAD line")
-print("above: its rate state carrying lifetime 1's hits IS the restart-replay")
-print("evidence (those hits are ours — the standing rule's 'stop and find it'")
-print("does not apply to this run).")
-print()
-print("draft ledger row:")
-print(f"| <date> | persist | <tip> | pass | L1 {totals[0]}, L2 {totals[1]} | 0 |"
-      " ceiling halt left children waiting; kill -9 mid-halt; successor probed"
-      " before resuming; parent done across lifetimes; runs/<date>-persist/ |")
-PY
-}
+# The verifier is tools/persist-verify.py (extracted 2026-09-10 so its
+# refusals — a 3xx, a missing header, a headerless send — have breakers:
+# `persist-verify.py --self-test`).
+verify() { python3 "$here/tools/persist-verify.py" "$JOURNAL" "$OFFSET"; }
 if ! verify | tee "$RUN_DIR/summary.txt"; then
     echo ""
     echo "*** verification FAILED — see above; evidence in $RUN_DIR" >&2

@@ -84,8 +84,13 @@ def read_lifetimes(journal, offset):
                        "daemon": (line.get("daemon") or "-")[:12], "clock": line["clock"], "sends": []}
                 lifetimes.append(cur)
                 continue
-            if cur is None:
-                cur = {"pid": line.get("pid"), "build": "?", "daemon": "?", "clock": "?", "sends": []}
+            if cur is None or line.get("pid") != cur["pid"]:
+                # A send with no open header of its own pid before it: a
+                # daemon that never said who it was (C84). Recorded as a
+                # lifetime that fails, never as an anonymous one (review
+                # 2026-09-10).
+                cur = {"pid": line.get("pid"), "build": "?", "daemon": "?", "clock": "?", "sends": [],
+                       "headerless": True}
                 lifetimes.append(cur)
             cur["sends"].append(line)
     return lifetimes
@@ -134,8 +139,12 @@ def verify(journal, offset, rows_path, login_lifetime, closed, mode, out=print, 
     # the run's cumulative total, which would let outside traffic hide
     # behind aged-out sends of ours.
     ours = {}
+    if not lifetimes or all(lt.get("headerless") for lt in lifetimes):
+        fail.append("no open header in this run's journal: no daemon said which contract and acqd it was (C84)")
     for i, lt in enumerate(lifetimes, 1):
         label = "login" if (login_lifetime and i == 1) else f"cycle {i - login_lifetime}"
+        if lt.get("headerless"):
+            fail.append(f"lifetime {i}: {len(lt['sends'])} send(s) by pid {lt['pid']} with no open header before them (C84)")
         if not brief:
             out(f"lifetime {i} ({label}): pid {lt['pid']}  contract {lt['build']}  acqd {lt['daemon']}  clock {lt['clock']}")
         counts, first = {}, {}
@@ -333,6 +342,18 @@ def redirect(lines):
     sends(lines, "GET", 2)[0]["status"] = 302
 
 
+def header_removed(lines):
+    lines.remove([l for l in lines if l.get("event") == "open" and l["pid"] == 2][0])
+
+
+def unmatched_pid(lines):
+    sends(lines, "GET", 2)[1]["pid"] = 3
+
+
+def no_headers(lines):
+    lines[:] = [l for l in lines if l.get("event") != "open"]
+
+
 def other_account(lines):
     sends(lines, "GET", 2)[1]["route"] = "stash@B#2"
 
@@ -355,6 +376,9 @@ def self_test():
         ("stash-list: 3 hits 100 s later sit in the 60 s window's 60 s bucket", "stash-list@A#1", "0:15:0,3:60:0", 100, "15", "60", True),
         ("stash-list: 3 hits 130 s later are past 60 s + 60 s", "stash-list@A#1", "0:15:0,3:60:0", 130, "15", "60", False),
         ("a 302 is not a 2xx", "stash@A#1", "0:10:0,3:300:0", 100, "10", "300", False, redirect),
+        ("a lifetime whose open header was removed fails (C84)", "stash@A#1", "0:10:0,3:300:0", 100, "10", "300", False, header_removed),
+        ("a send whose pid has no header fails (C84)", "stash@A#1", "0:10:0,3:300:0", 100, "10", "300", False, unmatched_pid),
+        ("a journal with no header at all fails (C84)", "stash@A#1", "0:10:0,3:300:0", 100, "10", "300", False, no_headers),
         ("a GET on another account is not covered by this account's probe", "stash@A#1", "0:10:0,3:300:0", 100, "10", "300", False, other_account),
         ("a probe with no rate-limit state is not a pass", "stash@A#1", "0:10:0,3:300:0", 100, "10", "300", False, no_state),
         ("an active restriction fails even with our own hits", "stash@A#1", "0:10:0,3:300:120", 100, "10", "300", False, restricted),

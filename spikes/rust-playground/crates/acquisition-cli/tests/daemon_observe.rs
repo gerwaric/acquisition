@@ -286,18 +286,59 @@ fn c84_the_artifact_dimension_is_the_sibling_acqd_this_client_would_start() {
         sha.len() == 64 && sha.bytes().all(|b| b.is_ascii_hexdigit()),
         "{status}"
     );
+    // The compatible report says how the daemon's file relates to this
+    // client's sibling, and names the sibling (review 2026-09-10).
+    assert_eq!(status["artifact_relation"], "same_file", "{status}");
+    assert_eq!(
+        Path::new(status["wanted"]["acqd"]["path"].as_str().unwrap())
+            .canonicalize()
+            .unwrap(),
+        real_acqd.canonicalize().unwrap(),
+        "{status}"
+    );
     let out = acq(&base, &["daemon", "status"]);
-    assert!(text(&out).contains(&sha[..12]), "{}", text(&out));
+    let shown = text(&out);
+    assert!(
+        shown.contains(&sha[..12])
+            && shown.contains("this client's sibling")
+            && !shown.contains("another copy"),
+        "{shown}"
+    );
 
     // A copy of acq beside a copy of acqd: another inode, the same bytes —
-    // the same artifact, settled by hash.
+    // the same artifact, settled by hash, and reported as a copy: the
+    // daemon's path is the original, the sibling is the copy.
     let copy = stage(&base.join("copy"), Some(&real_acqd));
+    let copied_acqd = base.join("copy").join("acqd").canonicalize().unwrap();
     let out = command_of(&copy, &base, &["daemon", "status", "--json"])
         .output()
         .unwrap();
     let status = sole_json(&out);
     assert_eq!(status["compatible"], true, "{status}");
     assert_eq!(status["pid"], pid, "{status}");
+    assert_eq!(status["artifact_relation"], "same_bytes", "{status}");
+    assert_eq!(
+        Path::new(status["artifact"]["path"].as_str().unwrap())
+            .canonicalize()
+            .unwrap(),
+        real_acqd.canonicalize().unwrap(),
+        "the daemon's file is the original: {status}"
+    );
+    assert_eq!(
+        Path::new(status["wanted"]["acqd"]["path"].as_str().unwrap())
+            .canonicalize()
+            .unwrap(),
+        copied_acqd,
+        "the sibling is the copy: {status}"
+    );
+    let out = command_of(&copy, &base, &["daemon", "status"])
+        .output()
+        .unwrap();
+    let shown = text(&out);
+    assert!(
+        shown.contains("another copy") && shown.contains(&copied_acqd.display().to_string()),
+        "{shown}"
+    );
 
     // A copy of acq beside another file named acqd (here: acq itself):
     // another artifact — reported with both hashes, the daemon left alone.
@@ -314,6 +355,7 @@ fn c84_the_artifact_dimension_is_the_sibling_acqd_this_client_would_start() {
     assert_eq!(report["compatible"], false, "{report}");
     assert_eq!(report["contract_matches"], true, "{report}");
     assert_eq!(report["artifact_matches"], false, "{report}");
+    assert_eq!(report["artifact_relation"], "different", "{report}");
     assert_eq!(report["provider_matches"], true, "{report}");
     assert_eq!(report["artifact"]["sha256"], sha, "{report}");
     assert_eq!(
@@ -360,6 +402,7 @@ fn c84_the_artifact_dimension_is_the_sibling_acqd_this_client_would_start() {
     let report = sole_json(&out);
     assert_eq!(report["compatible"], false, "{report}");
     assert_eq!(report["artifact_matches"], false, "{report}");
+    assert_eq!(report["artifact_relation"], "no_sibling", "{report}");
     assert_eq!(report["wanted"]["acqd"], Value::Null, "{report}");
     assert!(
         report["wanted"]["acqd_absent"]
