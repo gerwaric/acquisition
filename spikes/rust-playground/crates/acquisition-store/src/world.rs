@@ -877,26 +877,41 @@ mod tests {
         let base = scratch("socket");
         std::fs::create_dir_all(base.join("real")).unwrap();
         std::fs::create_dir_all(base.join("other")).unwrap();
-        // The daemon's step, so a socket path can be computed at all.
-        let runtime = app_runtime_dir().unwrap();
+        // The derivation under a runtime directory this test names: the
+        // world's id names the socket, two spellings of one root reach
+        // one socket, another root another, all in that directory.
+        let named = Path::new("/run/user/1000/acq");
         let world = World::at(&base.join("real")).unwrap();
-        let socket = world.socket_path().unwrap();
-        assert_eq!(socket.parent(), Some(runtime.as_path()));
-        assert_eq!(socket.file_name().unwrap(), world.socket_name().as_str());
+        let socket = world.socket_path_under(named).unwrap();
+        assert_eq!(socket, named.join(world.socket_name()));
         assert_eq!(world.socket_name(), format!("{}.sock", world.id()));
         let dotted = World::at(&base.join("real").join(".").join("..").join("real")).unwrap();
-        assert_eq!(dotted.socket_path().unwrap(), socket);
+        assert_eq!(dotted.socket_path_under(named).unwrap(), socket);
         let other = World::at(&base.join("other")).unwrap();
-        assert_ne!(other.socket_path().unwrap(), socket);
-        assert_eq!(other.socket_path().unwrap().parent(), socket.parent());
-        // The pure derivation under a runtime directory this test names.
-        let short = world
-            .socket_path_under(Path::new("/run/user/1000/acq"))
-            .unwrap();
+        assert_ne!(other.socket_path_under(named).unwrap(), socket);
         assert_eq!(
-            short,
-            Path::new("/run/user/1000/acq").join(world.socket_name())
+            other.socket_path_under(named).unwrap().parent(),
+            socket.parent()
         );
+        // The environment's runtime directory, whatever it is: the real
+        // door agrees with the pure derivation over it — the same path
+        // when that derivation accepts it, and a refusal of the same
+        // kind when it does not (a deep or non-UTF-8 runtime directory
+        // is a valid environment; review 2026-09-11).
+        let runtime = runtime_dir_path();
+        match world.socket_path_under(&runtime) {
+            Ok(expected) => {
+                app_runtime_dir().unwrap();
+                assert_eq!(world.socket_path().unwrap(), expected);
+                assert_eq!(dotted.socket_path().unwrap(), expected);
+            }
+            Err(e) => {
+                assert_eq!(e.kind(), std::io::ErrorKind::InvalidInput, "{e}");
+                let real = world.socket_path().unwrap_err();
+                assert_eq!(real.kind(), std::io::ErrorKind::InvalidInput, "{real}");
+                assert_eq!(real.to_string(), e.to_string());
+            }
+        }
         let deep = PathBuf::from("/").join("x".repeat(SOCKET_PATH_MAX));
         let err = world.socket_path_under(&deep).unwrap_err();
         assert_eq!(err.kind(), std::io::ErrorKind::InvalidInput);

@@ -4282,11 +4282,24 @@ async fn run_with_log(
     // running predecessor's while it runs (review 2026-09-11). Parked for
     // removal with the migration (`decisions/daemon.md`).
     let legacy = legacy_socket_path().map_err(|e| anyhow::anyhow!("the legacy socket: {e}"))?;
-    if UnixStream::connect(&legacy).await.is_ok() {
-        anyhow::bail!(
+    match UnixStream::connect(&legacy).await {
+        Ok(_) => anyhow::bail!(
             "a daemon from before the rendezvous is listening on the legacy socket {} — `acq daemon stop` stops it (once; nothing binds there any more), then start again",
             legacy.display()
-        );
+        ),
+        // Absence is exactly these two: no file, or a file nothing
+        // listens on. Any other failure cannot tell whether a daemon is
+        // alive there, and a start that cannot tell must not go on to
+        // move that daemon's state (review 2026-09-11).
+        Err(e)
+            if matches!(
+                e.kind(),
+                std::io::ErrorKind::NotFound | std::io::ErrorKind::ConnectionRefused
+            ) => {}
+        Err(e) => anyhow::bail!(
+            "could not probe the legacy socket {}: {e} — a daemon from before the rendezvous may be alive there; make the socket reachable or remove it by hand once its process is gone, then start again",
+            legacy.display()
+        ),
     }
     // The rails state moves into the world once (step 5): a trip
     // persisted beside the socket is honoured from the world from now on.

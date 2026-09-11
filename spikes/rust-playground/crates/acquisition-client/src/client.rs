@@ -1009,7 +1009,7 @@ async fn probe_legacy(own_world: &Result<String, AbsentWorld>) -> Result<Option<
     match tokio::time::timeout(LEGACY_PROBE_TIMEOUT, probe).await {
         Ok(outcome) => outcome,
         Err(_) => bail!(
-            "something is listening on the legacy socket {} but did not answer the handshake within {}s — not a daemon of this playground; find it (`lsof -U | grep acquisition-playground.sock`) and stop it, or remove the socket file",
+            "something is listening on the legacy socket {} but did not answer the handshake within {}s — possibly a wedged daemon from before the rendezvous; find the process (`lsof -U | grep acquisition-playground.sock`) and stop or kill it. Do not remove the socket file: that stops nothing and lets a second daemon bind there",
             legacy.display(),
             LEGACY_PROBE_TIMEOUT.as_secs()
         ),

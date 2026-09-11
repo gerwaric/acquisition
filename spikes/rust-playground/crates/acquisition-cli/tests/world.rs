@@ -1043,3 +1043,80 @@ fn c83_a_runtime_directory_that_is_not_utf8_is_refused_by_name_and_never_panics_
         assert!(msg.contains("not valid UTF-8"), "{verb:?}: {msg}");
     }
 }
+
+/// C83: the daemon's legacy probe distinguishes absence from a probe
+/// that cannot tell. A socket file it cannot connect to for any reason
+/// but "nothing listens" — here one it may not open (mode 0000:
+/// `connect` needs write permission on the file) — refuses the start
+/// naming the socket and the error, before the rails migration has
+/// touched the predecessor's state; made reachable and stale, the same
+/// start proceeds and moves the state (review 2026-09-11).
+#[cfg(unix)]
+#[test]
+fn c83_a_legacy_socket_the_daemon_cannot_probe_refuses_the_start_before_the_migration() {
+    use std::os::unix::fs::PermissionsExt;
+    let scratch = scratch("probe");
+    let base = &scratch.0;
+    let tmp = scratch_tmp(base);
+    std::fs::create_dir_all(base.join("store")).unwrap();
+    let env = [("ACQ_TRIPWIRE", "1")];
+    let legacy = tmp.join("acquisition-playground.sock");
+    let legacy_rails = tmp.join("acquisition-playground.mock.rails.json");
+    let staged = r#"{"tripped":"429 on GET /stash/Standard (behind the unprobeable socket)"}"#;
+    std::fs::write(&legacy_rails, staged).unwrap();
+    let world_rails = base.join("store").join("mock").join("rails.json");
+    // A socket file nothing listens on, that this user may not open.
+    drop(std::os::unix::net::UnixListener::bind(&legacy).unwrap());
+    std::fs::set_permissions(&legacy, std::fs::Permissions::from_mode(0o000)).unwrap();
+
+    let mut cmd = daemon_command(base, "store");
+    for (k, v) in &env {
+        cmd.env(k, v);
+    }
+    let (status, stderr) = refused_daemon(cmd);
+    eprintln!("the unprobeable legacy socket's refusal, verbatim:\n{stderr}");
+    assert!(
+        !status.success()
+            && stderr.contains("could not probe the legacy socket")
+            && stderr.contains(&legacy.display().to_string())
+            && !stderr.contains("is listening"),
+        "{stderr}"
+    );
+    assert_eq!(
+        std::fs::read_to_string(&legacy_rails).unwrap(),
+        staged,
+        "a start that could not tell moved the predecessor's rails state"
+    );
+    assert!(
+        !world_rails.exists(),
+        "a start that could not tell wrote the world's rails state"
+    );
+    assert_eq!(
+        sockets_under(&tmp),
+        vec![legacy.clone()],
+        "the refused start bound a socket"
+    );
+
+    // Reachable and stale: absence, and the start goes on to migrate.
+    std::fs::set_permissions(&legacy, std::fs::Permissions::from_mode(0o700)).unwrap();
+    let (_daemon, _pid) = start_daemon(base, "store", &env);
+    let status = sole_json(&acq_in(
+        base,
+        "store",
+        &["daemon", "status", "--json"],
+        &env,
+    ));
+    assert!(
+        status["rails"]["halted"]
+            .as_str()
+            .is_some_and(|h| h.contains("behind the unprobeable socket")),
+        "{status}"
+    );
+    assert!(
+        !legacy_rails.exists(),
+        "the legacy rails state was left behind"
+    );
+    let out = acq_in(base, "store", &["daemon", "stop", "--json"], &env);
+    assert!(out.status.success(), "{out:?}");
+    wait_stopped(base, "store", &env);
+}

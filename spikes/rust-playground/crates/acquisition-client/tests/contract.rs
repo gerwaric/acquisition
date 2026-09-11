@@ -1284,6 +1284,18 @@ async fn c83_a_legacy_peer_that_never_answers_is_an_error_within_the_deadline_no
             && err.to_string().contains(&legacy.display().to_string()),
         "{err:#}"
     );
+    // The remedy names the process, not the file: a timeout proves only
+    // that something accepted, which may be a wedged daemon, and
+    // unlinking a live socket stops nothing while letting a second
+    // daemon bind there (review 2026-09-11).
+    let text = format!("{err:#}");
+    assert!(
+        text.contains("stop or kill it")
+            && text.contains("Do not remove the socket file")
+            && text.contains("lsof")
+            && !text.contains("not a daemon"),
+        "{text}"
+    );
 
     let err = tokio::time::timeout(bounded, Client::connect(ConnectOptions::interactive(true)))
         .await
