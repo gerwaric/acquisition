@@ -302,6 +302,33 @@ data for the commit that touches it.
   daemon is an artifact mismatch (the round-16 gate saw exactly that).
   The `test-hooks` retirement the packet parked would remove the second
   form of every binary.
+- For step 6, measured 2026-09-11: the derived socket under the macOS
+  fallback runtime directory would be `$TMPDIR/acq-<uid>/<12 hex>.sock`,
+  and `$TMPDIR` alone is 49 bytes on this machine
+  (`/var/folders/jy/…/T/`), so the socket path is about 75 bytes — under
+  the 104-byte cap, but the packet refused `<root>/acqd.sock` at 77 as
+  "within the cap but not by enough" (§3). The runtime directory is now
+  `private_dir`'s, so step 6 either accepts that margin with a measure
+  in its row or shortens the name (a shorter hash, or a subdirectory
+  the platform makes short). `$XDG_RUNTIME_DIR` on Linux is
+  `/run/user/<uid>`, far shorter.
+- For step 6, the sites the rendezvous change touches, counted
+  2026-09-11: `ACQ_SOCKET` is set in 14 test files under
+  `crates/*/tests` (as `base.join("d.sock")` or `no.sock`), in
+  `contract.rs`'s session and `plan_cmd.rs`'s wedged-daemon unit test
+  (`set_var`), in both skills, both drivers' mock arms and
+  `tools/acq-as.sh`; the tests that assert "no daemon appeared" do it
+  as `socket.exists()` on that path and will need the derived path
+  (`World` + the runtime directory) instead. The harnesses will set
+  `ACQ_STORE_DIR` and `ACQ_LOG_DIR` and nothing else.
+- `Client::handshake` builds a placeholder `DaemonId::judged(0, …)`
+  before the hello exchange, and `judged` takes the one look — opens the
+  sibling, observes the world — so every handshake looks twice: once for
+  the placeholder it discards, once for the real identity. Harmless
+  (two stats, and a hash only when the sibling's identity differs, which
+  it never does for the placeholder's absent artifact) and unpinned; a
+  `Client` whose `daemon` is filled after the exchange would remove it.
+  Data for whoever next touches `client.rs`.
 - `acq jobs --watch` ends when the daemon goes away rather than waiting
   for it to return: an observer never spawns (C10), and a watch that
   waits for a daemon is a design choice for the GUI's subscriber, not
