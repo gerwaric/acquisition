@@ -547,9 +547,11 @@ enum DaemonCmd {
     /// or replaces; a daemon of another contract, artifact or provider is
     /// reported and left running (`--json`: running, compatible, which
     /// of the three differs, how the daemon's file relates to this
-    /// client's sibling — `artifact_relation`: `same_file`, or
-    /// `same_bytes` for another copy — and the sibling `acqd` a job
-    /// command would start under `wanted`).
+    /// client's sibling — `artifact_relation`: `same_file`; `same_bytes`,
+    /// another copy; `different`; `unhashable`; `no_sibling`, no `acqd`
+    /// beside this executable; `unreported`, a daemon from before the
+    /// field — and the sibling `acqd` a job command would start under
+    /// `wanted`, all from the one look that judged the daemon).
     Status,
     /// Stop the daemon that is listening, this contract's and artifact's
     /// or another's.
@@ -1060,7 +1062,7 @@ async fn run(cli: Cli) -> Result<()> {
                     println!(
                         "daemon {version} pid {pid}, up {uptime_seconds}s, provider {provider}"
                     );
-                    match (&found.artifact, found.verdict().artifact) {
+                    match (&found.artifact, &found.verdict().artifact) {
                         (
                             Some(a),
                             acquisition_client::artifact::ArtifactVerdict::SameBytes { sibling },

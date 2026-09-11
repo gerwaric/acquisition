@@ -1,6 +1,6 @@
 //! The daemon's half of the artifact dimension (C84): the executable this
 //! process runs from, identified and hashed once at startup, reported in
-//! `hello`, the first log line and the journal header.
+//! `hello`, the startup identity line in the log and the journal header.
 //!
 //! The identity's definition is the protocol crate's
 //! (`acquisition_protocol::artifact::FileIdentity`), so the client

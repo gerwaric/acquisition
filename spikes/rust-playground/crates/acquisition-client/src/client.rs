@@ -160,11 +160,11 @@ use std::fmt;
 use std::path::PathBuf;
 use std::time::Duration;
 
-use crate::artifact::{ArtifactVerdict, sibling};
+use crate::artifact::{ArtifactVerdict, SiblingError, sibling};
 use crate::frame::{Frame, read_frame};
 use crate::locator;
 use crate::{log_path, socket_path};
-use acquisition_protocol::artifact::Artifact;
+use acquisition_protocol::artifact::{Artifact, FileIdentity};
 use acquisition_protocol::job::JobInfo;
 use acquisition_protocol::protocol::{
     Bootstrap, BootstrapReply, ErrorKind, MAX_FRAME_BYTES, Request, Response, error_message,
@@ -355,19 +355,40 @@ pub struct DaemonId {
     pub artifact: Option<Box<Artifact>>,
     /// "mock" or "ggg".
     pub provider: String,
+    /// The judgement, captured once when this identity was read off the
+    /// wire, from one look at the sibling: the compatibility flag, the
+    /// relation and the sibling a report names all come from the same
+    /// snapshot, so a rebuild between two looks cannot make a report
+    /// contradict itself (review 2026-09-11). Boxed, like the artifact,
+    /// so a [`ConnectError`] carrying a `DaemonId` stays small.
+    #[serde(skip)]
+    pub verdict: Box<Verdict>,
 }
 
 /// What a client concluded about a daemon, dimension by dimension, from
 /// one look at the sibling (the artifact verdict `stat`s it, and hashes
-/// it when it must; a [`DaemonId`] judges itself afresh on each call).
+/// it when it must), kept with the identity it judged.
 #[derive(Debug, Clone)]
 pub struct Verdict {
     pub contract: bool,
     pub artifact: ArtifactVerdict,
     pub provider: bool,
+    /// The sibling `acqd` as found in that one look, or why there is none.
+    pub sibling: Result<FileIdentity, SiblingError>,
 }
 
 impl Verdict {
+    /// One look at the sibling, then every dimension judged against it.
+    fn of(contract: &str, artifact: Option<&Artifact>, provider: &str) -> Verdict {
+        let sibling = sibling();
+        Verdict {
+            contract: contract == CONTRACT_REVISION,
+            artifact: ArtifactVerdict::judge_against(artifact, sibling.clone()),
+            provider: provider == want_provider(),
+            sibling,
+        }
+    }
+
     /// Every dimension matches: this client may use the daemon.
     pub fn is_ours(&self) -> bool {
         self.contract && self.artifact.matches() && self.provider
@@ -375,38 +396,54 @@ impl Verdict {
 }
 
 impl DaemonId {
-    /// Judge the daemon against what this process is and would spawn.
-    pub fn verdict(&self) -> Verdict {
-        Verdict {
-            contract: self.contract == CONTRACT_REVISION,
-            artifact: ArtifactVerdict::judge(self.artifact.as_deref()),
-            provider: self.provider == want_provider(),
+    /// An identity as read off the wire, judged once, now, against what
+    /// this process is and would spawn.
+    pub fn judged(
+        pid: u32,
+        version: String,
+        contract: String,
+        artifact: Option<Artifact>,
+        provider: String,
+    ) -> DaemonId {
+        let verdict = Verdict::of(&contract, artifact.as_ref(), &provider);
+        DaemonId {
+            pid,
+            version,
+            contract,
+            artifact: artifact.map(Box::new),
+            provider,
+            verdict: Box::new(verdict),
         }
+    }
+
+    /// The judgement captured with this identity.
+    pub fn verdict(&self) -> &Verdict {
+        &self.verdict
     }
 
     /// The daemon was compiled against the contract this process was.
     pub fn contract_matches(&self) -> bool {
-        self.contract == CONTRACT_REVISION
+        self.verdict.contract
     }
 
     /// The daemon serves the provider this process wants.
     pub fn provider_matches(&self) -> bool {
-        self.provider == want_provider()
+        self.verdict.provider
     }
 
     /// Every dimension matches: this client may use the daemon.
     pub fn is_ours(&self) -> bool {
-        self.verdict().is_ours()
+        self.verdict.is_ours()
     }
 
     /// The observer's report, one shape for every frontend: the daemon
     /// found, what this process wanted — its contract, its provider, and
-    /// the sibling `acqd` as found, or `null` with the reason — and which
-    /// dimensions differ.
+    /// the sibling `acqd` as found in the one look that judged it, or
+    /// `null` with the reason — and which dimensions differ.
     pub fn report(&self) -> serde_json::Value {
-        let verdict = self.verdict();
-        let (acqd, acqd_absent) = match sibling() {
-            Ok(id) => (serde_json::to_value(&id).unwrap_or_default(), None),
+        let verdict = &self.verdict;
+        let (acqd, acqd_absent) = match &verdict.sibling {
+            Ok(id) => (serde_json::to_value(id).unwrap_or_default(), None),
             Err(e) => (serde_json::Value::Null, Some(e.to_string())),
         };
         let mut wanted = json!({
@@ -467,7 +504,7 @@ impl fmt::Display for DaemonId {
     /// The mismatch sentence an observer prints: which dimensions differ,
     /// with both sides of each.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let verdict = self.verdict();
+        let verdict = &self.verdict;
         write!(f, "daemon (pid {})", self.pid)?;
         if verdict.is_ours() {
             return write!(
@@ -797,13 +834,7 @@ impl Client {
         let mut client = Client {
             reader: BufReader::new(read),
             write,
-            daemon: DaemonId {
-                pid: 0,
-                version: String::new(),
-                contract: String::new(),
-                artifact: None,
-                provider: String::new(),
-            },
+            daemon: DaemonId::judged(0, String::new(), String::new(), None, String::new()),
         };
         let bytes = client
             .exchange(&Bootstrap::Hello {
@@ -824,13 +855,7 @@ impl Client {
                 String::from_utf8_lossy(&bytes)
             );
         };
-        client.daemon = DaemonId {
-            pid,
-            version,
-            contract,
-            artifact: artifact.map(Box::new),
-            provider,
-        };
+        client.daemon = DaemonId::judged(pid, version, contract, artifact, provider);
         Ok(client)
     }
 
@@ -986,13 +1011,7 @@ mod tests {
     use super::*;
 
     fn id(contract: &str, provider: &str) -> DaemonId {
-        DaemonId {
-            pid: 42,
-            version: VERSION.into(),
-            contract: contract.into(),
-            artifact: None,
-            provider: provider.into(),
-        }
+        DaemonId::judged(42, VERSION.into(), contract.into(), None, provider.into())
     }
 
     /// C10, C84: the handshake compares the contract revision and the

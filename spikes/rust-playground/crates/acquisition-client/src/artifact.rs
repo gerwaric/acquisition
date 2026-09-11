@@ -127,11 +127,6 @@ impl ArtifactVerdict {
         }
     }
 
-    /// Judge `daemon` against the sibling as found now.
-    pub fn judge(daemon: Option<&Artifact>) -> ArtifactVerdict {
-        ArtifactVerdict::judge_against(daemon, sibling())
-    }
-
     /// The comparison itself, with the sibling supplied: the same inode
     /// is the same file without a hash; otherwise the sibling is hashed
     /// and its bytes decide.
@@ -190,9 +185,9 @@ mod tests {
         assert_eq!(sha256_of(&original).unwrap(), sha256_of(&copy).unwrap());
         assert_ne!(sha256_of(&original).unwrap(), sha256_of(&other).unwrap());
         assert_eq!(sha256_of(&original).unwrap().len(), 64);
-        assert!(!ArtifactVerdict::judge(None).matches());
+        assert!(!ArtifactVerdict::judge_against(None, sibling()).matches());
         assert!(matches!(
-            ArtifactVerdict::judge(None),
+            ArtifactVerdict::judge_against(None, sibling()),
             ArtifactVerdict::Unreported
         ));
 

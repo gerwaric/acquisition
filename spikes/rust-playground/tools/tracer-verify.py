@@ -354,6 +354,12 @@ def no_headers(lines):
     lines[:] = [l for l in lines if l.get("event") != "open"]
 
 
+def pid_reused(lines):
+    for l in lines:
+        if l["pid"] == 2:
+            l["pid"] = 1
+
+
 def other_account(lines):
     sends(lines, "GET", 2)[1]["route"] = "stash@B#2"
 
@@ -379,6 +385,7 @@ def self_test():
         ("a lifetime whose open header was removed fails (C84)", "stash@A#1", "0:10:0,3:300:0", 100, "10", "300", False, header_removed),
         ("a send whose pid has no header fails (C84)", "stash@A#1", "0:10:0,3:300:0", 100, "10", "300", False, unmatched_pid),
         ("a journal with no header at all fails (C84)", "stash@A#1", "0:10:0,3:300:0", 100, "10", "300", False, no_headers),
+        ("a pid the OS reused for the successor is a second lifetime", "stash@A#1", "0:10:0,3:300:0", 100, "10", "300", True, pid_reused),
         ("a GET on another account is not covered by this account's probe", "stash@A#1", "0:10:0,3:300:0", 100, "10", "300", False, other_account),
         ("a probe with no rate-limit state is not a pass", "stash@A#1", "0:10:0,3:300:0", 100, "10", "300", False, no_state),
         ("an active restriction fails even with our own hits", "stash@A#1", "0:10:0,3:300:120", 100, "10", "300", False, restricted),

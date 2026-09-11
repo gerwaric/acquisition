@@ -733,7 +733,7 @@ Debugging only — normal use never needs manual lifecycle
 Usage: acq daemon [OPTIONS] <COMMAND>
 
 Commands:
-  status          The daemon running: pid, version, contract revision, the executable it runs from and its hash (C84), provider, uptime, connections, queue counts, policies learned, the socket, log and journal paths, the rails state, keyring health. Observes only (C10): never spawns or replaces; a daemon of another contract, artifact or provider is reported and left running (`--json`: running, compatible, which of the three differs, how the daemon's file relates to this client's sibling — `artifact_relation`: `same_file`, or `same_bytes` for another copy — and the sibling `acqd` a job command would start under `wanted`)
+  status          The daemon running: pid, version, contract revision, the executable it runs from and its hash (C84), provider, uptime, connections, queue counts, policies learned, the socket, log and journal paths, the rails state, keyring health. Observes only (C10): never spawns or replaces; a daemon of another contract, artifact or provider is reported and left running (`--json`: running, compatible, which of the three differs, how the daemon's file relates to this client's sibling — `artifact_relation`: `same_file`; `same_bytes`, another copy; `different`; `unhashable`; `no_sibling`, no `acqd` beside this executable; `unreported`, a daemon from before the field — and the sibling `acqd` a job command would start under `wanted`, all from the one look that judged the daemon)
   stop            Stop the daemon that is listening, this contract's and artifact's or another's. Queued jobs stay on disk and resume under the next one (C6); a client's jobs are never cancelled by its leaving (C27)
   reset-tripwire  Clear the live-test rails' tripwire/ceiling halt (see LIVE-TESTING.md). Observe the post-violation rule before using this
   help            Print this message or the help of the given subcommand(s)
@@ -745,7 +745,7 @@ Options:
 ## `acq daemon status`
 
 ```text
-The daemon running: pid, version, contract revision, the executable it runs from and its hash (C84), provider, uptime, connections, queue counts, policies learned, the socket, log and journal paths, the rails state, keyring health. Observes only (C10): never spawns or replaces; a daemon of another contract, artifact or provider is reported and left running (`--json`: running, compatible, which of the three differs, how the daemon's file relates to this client's sibling — `artifact_relation`: `same_file`, or `same_bytes` for another copy — and the sibling `acqd` a job command would start under `wanted`)
+The daemon running: pid, version, contract revision, the executable it runs from and its hash (C84), provider, uptime, connections, queue counts, policies learned, the socket, log and journal paths, the rails state, keyring health. Observes only (C10): never spawns or replaces; a daemon of another contract, artifact or provider is reported and left running (`--json`: running, compatible, which of the three differs, how the daemon's file relates to this client's sibling — `artifact_relation`: `same_file`; `same_bytes`, another copy; `different`; `unhashable`; `no_sibling`, no `acqd` beside this executable; `unreported`, a daemon from before the field — and the sibling `acqd` a job command would start under `wanted`, all from the one look that judged the daemon)
 
 Usage: acq daemon status [OPTIONS]
 

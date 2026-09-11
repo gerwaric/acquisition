@@ -164,6 +164,12 @@ def no_headers(lines):
     lines[:] = [l for l in lines if l.get("event") != "open"]
 
 
+def pid_reused(lines):
+    for l in lines:
+        if l["pid"] == 2:
+            l["pid"] = 1
+
+
 def get_before_probe(lines):
     head = [l for l in lines if l.get("method") == "HEAD" and l["pid"] == 2][0]
     lines.remove(head)
@@ -178,6 +184,7 @@ def self_test():
         ("a send whose pid has no header fails (C84)", unmatched_pid, False),
         ("a journal with no header at all fails (C84)", no_headers, False),
         ("a GET before its route's probe fails", get_before_probe, False),
+        ("a pid the OS reused for the successor is a second lifetime", pid_reused, True),
     ]
     failures = 0
     with tempfile.TemporaryDirectory() as d:
