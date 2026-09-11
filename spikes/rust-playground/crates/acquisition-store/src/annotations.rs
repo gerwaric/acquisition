@@ -1993,11 +1993,15 @@ mod tests {
     /// holds the snapshot, so the attempt cannot commit between the
     /// reads — it waits on the loser and gives up after its busy
     /// timeout, which the pass path asserts — and the loser opens the
-    /// file. A stress test of 3000 concurrent first opens did not
-    /// reproduce the window; this does, every run (round 26 made the
-    /// attempt's two outcomes exact).
+    /// file. What this test asserts is the fixed outcome — the attempt
+    /// could not commit and the loser opened the file; the old outcome
+    /// was observed by breaking the gate (the round-24 shape staged
+    /// back, review rounds 25 and 26: the attempt committed and the
+    /// loser refused with the production message), not asserted here. A
+    /// stress test of 3000 concurrent first opens did not reproduce the
+    /// window; this does, every run.
     #[test]
-    fn c35_a_create_committing_between_the_gates_two_reads_is_not_a_refusal() {
+    fn c35_a_create_attempted_between_the_gates_two_reads_cannot_commit_or_cause_a_refusal() {
         use rusqlite::hooks::{AuthAction, AuthContext, Authorization};
         use std::sync::{
             Arc,
