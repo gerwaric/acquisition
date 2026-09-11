@@ -1200,18 +1200,16 @@ fn c83_a_legacy_listener_with_a_full_backlog_never_hangs_the_start() {
                 staged,
                 "a start that could not tell moved the predecessor's rails state"
             );
-            assert!(
-                cfg!(target_os = "linux"),
-                "an unexpected refusal on this platform: {stderr}"
-            );
+            if std::env::consts::OS != "linux" {
+                panic!("an unexpected refusal on this platform: {stderr}");
+            }
         }
         Ok(status) => {
             // ECONNREFUSED read as absence: the platform's limit, stated
             // in the record; the migration ran.
-            assert!(
-                cfg!(target_os = "macos"),
-                "an unexpected start on this platform: {status}"
-            );
+            if std::env::consts::OS != "macos" {
+                panic!("an unexpected start on this platform: {status}");
+            }
             assert!(
                 saturated.kind() == std::io::ErrorKind::ConnectionRefused,
                 "{saturated}"
