@@ -18,42 +18,16 @@
 //! in this test, and nothing reaches GGG.
 
 use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Output, Stdio};
+use std::process::Output;
 use std::time::{Duration, Instant};
 
 use serde_json::Value;
 
-fn command(base: &Path, args: &[&str]) -> Command {
-    command_of(Path::new(env!("CARGO_BIN_EXE_acq")), base, args)
-}
+mod harness;
 
-/// The same isolation for an `acq` at another path (a copy staged for
-/// the artifact dimension).
-fn command_of(exe: &Path, base: &Path, args: &[&str]) -> Command {
-    let mut cmd = Command::new(exe);
-    cmd.args(args)
-        .env("ACQ_STORE_DIR", base.join("store"))
-        .env("TMPDIR", scratch_tmp(base))
-        .env("XDG_RUNTIME_DIR", scratch_tmp(base))
-        .env("ACQ_LOG_DIR", base.join("logs"))
-        .env("ACQ_NO_KEYRING", "1")
-        .env("ACQ_JOURNAL", "0")
-        .env("ACQ_IDLE_SHUTDOWN", "30");
-    for var in [
-        "ACQ_GGG",
-        "ACQ_ACCOUNT",
-        "ACQ_TRIPWIRE",
-        "ACQ_MAX_SENDS",
-        "ACQ_NO_SPAWN",
-    ] {
-        cmd.env_remove(var);
-    }
-    cmd
-}
-
-fn acq(base: &Path, args: &[&str]) -> Output {
-    command(base, args).output().expect("spawning acq")
-}
+use harness::{
+    acq, acqd, command, command_of, scratch_tmp, sockets_under, sole_json, start_daemon, text,
+};
 
 /// The same command from a shell that wants the real provider. Only
 /// observing and stopping verbs are run this way (module doc).
@@ -64,124 +38,10 @@ fn acq_wanting_ggg(base: &Path, args: &[&str]) -> Output {
         .expect("spawning acq")
 }
 
-fn sole_json(out: &Output) -> Value {
-    let stdout = String::from_utf8(out.stdout.clone()).expect("stdout is UTF-8");
-    serde_json::from_str(&stdout)
-        .unwrap_or_else(|e| panic!("stdout is not exactly one JSON document ({e}):\n{stdout}"))
-}
-
-fn text(out: &Output) -> String {
-    format!(
-        "{}{}",
-        String::from_utf8_lossy(&out.stdout),
-        String::from_utf8_lossy(&out.stderr)
-    )
-}
-
-/// A mock daemon started by the test itself, killed on drop if a failed
-/// assertion leaves it behind.
-struct Daemon(Child, PathBuf);
-
-impl Drop for Daemon {
-    /// A failing test names the executable it ran (the daemon by path:
-    /// C82's "named in every failure").
-    fn drop(&mut self) {
-        if std::thread::panicking() {
-            eprintln!(
-                "process under test: {} (pid {})",
-                self.1.display(),
-                self.0.id()
-            );
-        }
-        let _ = self.0.kill();
-        let _ = self.0.wait();
-    }
-}
-
-/// Every Unix socket under `dir`, recursively: what a daemon may have
-/// bound in the scratch runtime directory.
-fn sockets_under(dir: &Path) -> Vec<PathBuf> {
-    use std::os::unix::fs::FileTypeExt;
-    let mut found = Vec::new();
-    let Ok(entries) = std::fs::read_dir(dir) else {
-        return found;
-    };
-    for entry in entries.flatten() {
-        let kind = entry.file_type().unwrap();
-        if kind.is_dir() {
-            found.extend(sockets_under(&entry.path()));
-        } else if kind.is_socket() {
-            found.push(entry.path());
-        }
-    }
-    found.sort();
-    found
-}
-
-/// The daemon `acq` would itself spawn: the `acqd` beside the binary
-/// under test (C82, the locator's one rule). A missing one fails here,
-/// before the test runs, naming the build step.
-fn acqd() -> PathBuf {
-    acquisition_client::locator::beside(Path::new(env!("CARGO_BIN_EXE_acq")))
-        .unwrap_or_else(|e| panic!("{e}"))
-}
-
-/// The daemon started directly by the test, which owns its pid, under
-/// the same isolation as `command`; its stdio to null, as a lazy spawn's.
-fn daemon_command(base: &Path, acqd: &Path) -> Command {
-    let mut cmd = Command::new(acqd);
-    cmd.env("ACQ_STORE_DIR", base.join("store"))
-        .env("TMPDIR", scratch_tmp(base))
-        .env("XDG_RUNTIME_DIR", scratch_tmp(base))
-        .env("ACQ_LOG_DIR", base.join("logs"))
-        .env("ACQ_NO_KEYRING", "1")
-        .env("ACQ_JOURNAL", "0")
-        .env("ACQ_IDLE_SHUTDOWN", "30")
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null());
-    for var in [
-        "ACQ_GGG",
-        "ACQ_ACCOUNT",
-        "ACQ_TRIPWIRE",
-        "ACQ_MAX_SENDS",
-        "ACQ_NO_SPAWN",
-    ] {
-        cmd.env_remove(var);
-    }
-    cmd
-}
-
-fn start_daemon(base: &Path) -> (Daemon, u64) {
-    let acqd = acqd();
-    let child = daemon_command(base, &acqd)
-        .spawn()
-        .unwrap_or_else(|e| panic!("spawning {}: {e}", acqd.display()));
-    let daemon = Daemon(child, acqd.clone());
-    let deadline = Instant::now() + Duration::from_secs(10);
-    loop {
-        let out = acq(base, &["daemon", "status", "--json"]);
-        let status = sole_json(&out);
-        if let Some(pid) = status["pid"].as_u64() {
-            assert_eq!(status["running"], true, "{status}");
-            assert_eq!(status["compatible"], true, "{status}");
-            assert_eq!(status["provider"], "mock", "{status}");
-            return (daemon, pid);
-        }
-        assert!(
-            Instant::now() < deadline,
-            "the mock daemon ({}) did not come up",
-            acqd.display()
-        );
-        std::thread::sleep(Duration::from_millis(50));
-    }
-}
-
 #[test]
 fn c10_observation_never_spawns_or_replaces_and_reports_the_mismatch() {
-    let base = std::env::temp_dir().join(format!("acq-obs-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&base);
-    std::fs::create_dir_all(&base).unwrap();
+    let scratch = harness::scratch("obs");
+    let base = scratch.0.clone();
 
     // Absent: reported as a state by `daemon status`, as an error by a
     // reading verb — and neither spawns: the world's root is never
@@ -271,7 +131,6 @@ fn c10_observation_never_spawns_or_replaces_and_reports_the_mismatch() {
     assert!(sockets_under(&scratch_tmp(&base)).is_empty());
     let out = acq(&base, &["daemon", "status", "--json"]);
     assert_eq!(sole_json(&out), serde_json::json!({ "running": false }));
-    let _ = std::fs::remove_dir_all(&base);
 }
 
 /// A copy of the binary under test in `dir`, with `sibling` — if any —
@@ -296,9 +155,8 @@ fn stage(dir: &Path, sibling: Option<&Path>) -> PathBuf {
 /// the vitals.
 #[test]
 fn c84_the_artifact_dimension_is_the_sibling_acqd_this_client_would_start() {
-    let base = std::env::temp_dir().join(format!("acq-art-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&base);
-    std::fs::create_dir_all(&base).unwrap();
+    let scratch = harness::scratch("art");
+    let base = scratch.0.clone();
     let (_daemon, pid) = start_daemon(&base);
     let real_acqd = acqd();
 
@@ -505,18 +363,4 @@ fn c84_the_artifact_dimension_is_the_sibling_acqd_this_client_would_start() {
     assert_eq!(status["pid"], pid, "the daemon was replaced: {status}");
     let out = acq(&base, &["daemon", "stop", "--json"]);
     assert!(out.status.success(), "{out:?}");
-    let _ = std::fs::remove_dir_all(&base);
-}
-
-/// The scratch temp and runtime directory of one test, under `base`:
-/// `TMPDIR` (macOS's runtime fallback) and
-/// `XDG_RUNTIME_DIR` (Linux's runtime directory) both point here, so the
-/// sockets the daemons bind — and, for a daemon a test kills rather than
-/// stops, the socket files it leaves — never touch the user's own
-/// runtime directory (C83). Created here, since the runtime directory
-/// is made under an existing parent.
-fn scratch_tmp(base: &std::path::Path) -> std::path::PathBuf {
-    let tmp = base.join("tmp");
-    let _ = std::fs::create_dir_all(&tmp);
-    tmp
 }

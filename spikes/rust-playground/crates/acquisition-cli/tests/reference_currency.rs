@@ -31,7 +31,7 @@ fn sole_json(out: &Output) -> Value {
 #[test]
 fn c68_the_table_is_enumerable_by_version_with_no_store_and_no_daemon() {
     let tmp = tempdir();
-    let out = acq(&tmp, &["--json", "reference", "currency"]);
+    let out = acq(&tmp.0, &["--json", "reference", "currency"]);
     assert!(
         out.status.success(),
         "{}",
@@ -50,7 +50,7 @@ fn c68_the_table_is_enumerable_by_version_with_no_store_and_no_daemon() {
         3
     );
 
-    let text = acq(&tmp, &["reference", "currency"]);
+    let text = acq(&tmp.0, &["reference", "currency"]);
     assert!(text.status.success());
     let stdout = String::from_utf8(text.stdout).unwrap();
     assert!(stdout.starts_with("currency table v1 ("), "{stdout}");
@@ -73,7 +73,7 @@ fn c68_the_table_is_enumerable_by_version_with_no_store_and_no_daemon() {
         "evidence is the audit view: {stdout}"
     );
 
-    let audit = acq(&tmp, &["reference", "currency", "--expand"]);
+    let audit = acq(&tmp.0, &["reference", "currency", "--expand"]);
     let stdout = String::from_utf8(audit.stdout).unwrap();
     assert!(
         stdout.contains("game:2026-09-04 note `~price 999 chaos`"),
@@ -85,7 +85,7 @@ fn c68_the_table_is_enumerable_by_version_with_no_store_and_no_daemon() {
 #[test]
 fn c68_one_word_resolves_exactly_or_fails_naming_the_version() {
     let tmp = tempdir();
-    let out = acq(&tmp, &["--json", "reference", "currency", "exa"]);
+    let out = acq(&tmp.0, &["--json", "reference", "currency", "exa"]);
     assert!(out.status.success());
     let v = sole_json(&out);
     assert_eq!(v["word"], "exa");
@@ -93,14 +93,14 @@ fn c68_one_word_resolves_exactly_or_fails_naming_the_version() {
     assert_eq!(v["currency"]["tag"], "exalted");
     assert_eq!(v["currency"]["emit"], "exalted");
 
-    let text = acq(&tmp, &["reference", "currency", "exa"]);
+    let text = acq(&tmp.0, &["reference", "currency", "exa"]);
     let stdout = String::from_utf8(text.stdout).unwrap();
     assert!(
         stdout.starts_with("exa is an alias of exalted: currency table v1"),
         "{stdout}"
     );
 
-    let miss = acq(&tmp, &["--json", "reference", "currency", "Chaos"]);
+    let miss = acq(&tmp.0, &["--json", "reference", "currency", "Chaos"]);
     assert_eq!(miss.status.code(), Some(1));
     let v = sole_json(&miss);
     let err = v["error"].as_str().unwrap();
@@ -109,13 +109,23 @@ fn c68_one_word_resolves_exactly_or_fails_naming_the_version() {
         "{err}"
     );
 
-    let miss = acq(&tmp, &["reference", "currency", "Chaos"]);
+    let miss = acq(&tmp.0, &["reference", "currency", "Chaos"]);
     assert_eq!(miss.status.code(), Some(1));
     assert!(miss.stdout.is_empty());
     assert!(String::from_utf8_lossy(&miss.stderr).contains("not a currency word"));
 }
 
-fn tempdir() -> std::path::PathBuf {
+/// The test's scratch directory, removed on drop (it leaked one
+/// `acq-reference-*` per run until 2026-09-11).
+struct Scratch(std::path::PathBuf);
+
+impl Drop for Scratch {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
+
+fn tempdir() -> Scratch {
     let dir = std::env::temp_dir().join(format!(
         "acq-reference-{}-{}",
         std::process::id(),
@@ -125,5 +135,5 @@ fn tempdir() -> std::path::PathBuf {
             .as_nanos()
     ));
     std::fs::create_dir_all(&dir).unwrap();
-    dir
+    Scratch(dir)
 }

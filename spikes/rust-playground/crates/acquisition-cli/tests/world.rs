@@ -19,97 +19,24 @@
 //! failure names the holder's pid.
 
 use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Output, Stdio};
+use std::process::{Command, Output, Stdio};
 use std::time::{Duration, Instant};
 
 use serde_json::Value;
 
-/// The scratch directory, removed on drop; declared first so the daemons
-/// (declared after) are gone before it goes.
-struct Scratch(PathBuf);
+mod harness;
 
-impl Drop for Scratch {
-    fn drop(&mut self) {
-        let _ = std::fs::remove_dir_all(&self.0);
-    }
-}
-
-fn scratch(tag: &str) -> Scratch {
-    let base = std::env::temp_dir().join(format!("acq-w{}-{tag}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&base);
-    std::fs::create_dir_all(&base).unwrap();
-    Scratch(base)
-}
+use harness::{Proc, acqd, scratch, scratch_tmp, sockets_under, sole_json, text};
 
 /// `acq` under one isolation: a store root (the world, whose socket
 /// derives from it, C83) and a log directory the caller names under
 /// `base`.
 fn command(base: &Path, store: &str, args: &[&str]) -> Command {
-    let mut cmd = Command::new(env!("CARGO_BIN_EXE_acq"));
-    cmd.args(args);
-    isolate(&mut cmd, base, store);
-    cmd
-}
-
-fn isolate(cmd: &mut Command, base: &Path, store: &str) {
-    cmd.env("ACQ_STORE_DIR", base.join(store))
-        .env("TMPDIR", scratch_tmp(base))
-        .env("XDG_RUNTIME_DIR", scratch_tmp(base))
-        .env("ACQ_LOG_DIR", base.join("logs"))
-        .env("ACQ_NO_KEYRING", "1")
-        .env("ACQ_JOURNAL", "0")
-        .env("ACQ_IDLE_SHUTDOWN", "30");
-    for var in [
-        "ACQ_GGG",
-        "ACQ_ACCOUNT",
-        "ACQ_TRIPWIRE",
-        "ACQ_MAX_SENDS",
-        "ACQ_NO_SPAWN",
-    ] {
-        cmd.env_remove(var);
-    }
+    harness::command_in(base, store, args)
 }
 
 fn acq(base: &Path, store: &str, args: &[&str]) -> Output {
     command(base, store, args).output().expect("spawning acq")
-}
-
-fn sole_json(out: &Output) -> Value {
-    let stdout = String::from_utf8(out.stdout.clone()).expect("stdout is UTF-8");
-    serde_json::from_str(&stdout)
-        .unwrap_or_else(|e| panic!("stdout is not exactly one JSON document ({e}):\n{stdout}"))
-}
-
-fn text(out: &Output) -> String {
-    format!(
-        "{}{}",
-        String::from_utf8_lossy(&out.stdout),
-        String::from_utf8_lossy(&out.stderr)
-    )
-}
-
-/// A daemon the test started and owns, killed on drop, named while a
-/// test is panicking (C82: a failure says which daemon ran).
-struct Daemon(Child, PathBuf);
-
-impl Drop for Daemon {
-    fn drop(&mut self) {
-        if std::thread::panicking() {
-            eprintln!(
-                "process under test: {} (pid {})",
-                self.1.display(),
-                self.0.id()
-            );
-        }
-        let _ = self.0.kill();
-        let _ = self.0.wait();
-    }
-}
-
-/// The `acqd` beside the binary under test (C82).
-fn acqd() -> PathBuf {
-    acquisition_client::locator::beside(Path::new(env!("CARGO_BIN_EXE_acq")))
-        .unwrap_or_else(|e| panic!("{e}"))
 }
 
 /// The daemon's command under the same isolation as `command`, its
@@ -117,7 +44,7 @@ fn acqd() -> PathBuf {
 /// log; a driver captures stderr as this does).
 fn daemon_command(base: &Path, store: &str) -> Command {
     let mut cmd = Command::new(acqd());
-    isolate(&mut cmd, base, store);
+    harness::isolate_in(&mut cmd, base, store);
     cmd.stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::piped());
@@ -126,7 +53,7 @@ fn daemon_command(base: &Path, store: &str) -> Command {
 
 /// Start a daemon and wait until `acq daemon status` (under `env`) sees
 /// it running; returns it with its pid.
-fn start_daemon(base: &Path, store: &str, env: &[(&str, &str)]) -> (Daemon, u64) {
+fn start_daemon(base: &Path, store: &str, env: &[(&str, &str)]) -> (Proc, u64) {
     let mut cmd = daemon_command(base, store);
     for (k, v) in env {
         cmd.env(k, v);
@@ -134,7 +61,7 @@ fn start_daemon(base: &Path, store: &str, env: &[(&str, &str)]) -> (Daemon, u64)
     let child = cmd
         .spawn()
         .unwrap_or_else(|e| panic!("spawning {}: {e}", acqd().display()));
-    let daemon = Daemon(child, acqd());
+    let daemon = Proc(child, acqd());
     let deadline = Instant::now() + Duration::from_secs(10);
     loop {
         let mut status = command(base, store, &["daemon", "status", "--json"]);
@@ -161,7 +88,7 @@ fn start_daemon(base: &Path, store: &str, env: &[(&str, &str)]) -> (Daemon, u64)
 fn refused_daemon(mut cmd: Command) -> (std::process::ExitStatus, String) {
     let child = cmd.spawn().expect("spawning acqd");
     let deadline = Instant::now() + Duration::from_secs(10);
-    let mut daemon = Daemon(child, acqd());
+    let mut daemon = Proc(child, acqd());
     loop {
         if let Some(status) = daemon.0.try_wait().unwrap() {
             let mut stderr = String::new();
@@ -210,26 +137,6 @@ fn wait_stopped(base: &Path, store: &str, env: &[(&str, &str)]) {
         );
         std::thread::sleep(Duration::from_millis(20));
     }
-}
-
-/// Every Unix socket under `dir`, recursively: what a daemon may have
-/// bound in a scratch runtime directory.
-fn sockets_under(dir: &Path) -> Vec<PathBuf> {
-    use std::os::unix::fs::FileTypeExt;
-    let mut found = Vec::new();
-    let Ok(entries) = std::fs::read_dir(dir) else {
-        return found;
-    };
-    for entry in entries.flatten() {
-        let kind = entry.file_type().unwrap();
-        if kind.is_dir() {
-            found.extend(sockets_under(&entry.path()));
-        } else if kind.is_socket() {
-            found.push(entry.path());
-        }
-    }
-    found.sort();
-    found
 }
 
 /// C83, C6: a second daemon on the same world refuses to start, naming
@@ -616,7 +523,7 @@ fn c83_diagnostics_live_under_the_log_directory_and_are_bounded() {
     let mut cmd = daemon_command(base, "store");
     cmd.env_remove("ACQ_JOURNAL");
     let child = cmd.spawn().unwrap();
-    let _daemon = Daemon(child, acqd());
+    let _daemon = Proc(child, acqd());
     let deadline = Instant::now() + Duration::from_secs(10);
     let status = loop {
         let out = acq(base, "store", &["daemon", "status", "--json"]);
@@ -752,19 +659,6 @@ fn c83_a_socket_path_over_the_cap_is_refused_by_name() {
     assert_eq!(out.status.code(), Some(1), "{out:?}");
     let msg = sole_json(&out)["error"].as_str().unwrap().to_string();
     assert!(msg.contains("at most 103"), "{msg}");
-}
-
-/// The scratch temp and runtime directory of one test, under `base`:
-/// `TMPDIR` (macOS's runtime fallback) and
-/// `XDG_RUNTIME_DIR` (Linux's runtime directory) both point here, so the
-/// sockets the daemons bind — and, for a daemon a test kills rather than
-/// stops, the socket files it leaves — never touch the user's own
-/// runtime directory (C83). Created here, since the runtime directory
-/// is made under an existing parent.
-fn scratch_tmp(base: &std::path::Path) -> std::path::PathBuf {
-    let tmp = base.join("tmp");
-    let _ = std::fs::create_dir_all(&tmp);
-    tmp
 }
 
 /// C83: a runtime directory the environment names in bytes that are not
