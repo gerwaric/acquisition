@@ -1,7 +1,9 @@
 //! Tracer step 8 at process level: the MCP server is the plan slice's
 //! second consumer. Against a real daemon over the mock provider (the
-//! daemon rides inside `acq-mcp`, so no other binary is involved; login
-//! is driven over the protocol the way `acq auth` drives it), the tool
+//! `acqd` beside `acq-mcp`, the one it would lazily spawn, started by
+//! the harness so the test owns the pid — two processes across the
+//! socket, C82; login is driven over the protocol the way `acq auth`
+//! drives it), the tool
 //! surface must carry the whole loop — declare intent, compile the plan,
 //! spend it, replan — and every gate must fire through it: the
 //! create-only CAS on a blind policy write (C52), the daemon's admission
