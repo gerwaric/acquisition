@@ -106,13 +106,16 @@ Properties, each now a ruling, a mechanism doc or a pinned test:
 - The daemon-edit rebuild is one crate and one binary (the measure
   above); the contract revision moves on a protocol or store edit —
   including a comment edit, on purpose: whole files are inputs.
-- Every binary has two forms: the store's `test-hooks` feature (a
-  dev-dependency of the daemon) unifies into every `--all-targets`
-  build, so `cargo test` rewrites `acq` and `acq-mcp` and leaves `acqd`;
-  the gate's process tests drive all-targets frontends against the
-  plain daemon. Two rules follow (AGENTS.md): the plain build before
-  anything that starts a daemon; never the drivers while the gate runs
-  (round 16's gate saw exactly that artifact mismatch).
+- A dev-dependency's features unify into every `--all-targets` build:
+  at close the store's `test-hooks` feature (the daemon's dev-dependency)
+  and its dev-only `hooks` feature gave every binary two forms, so
+  `cargo test` rewrote `acq` and `acq-mcp` and left `acqd` (which no
+  test asks for). Both retired 2026-09-11 (the queue-failure tests break
+  `daemon.db` through a second connection; `hooks` compiled in always):
+  `acq` and `acqd` have one form; `acq-mcp` keeps two through proptest's
+  `num-traits/std` under rmcp's chrono. Two rules stay (AGENTS.md): the
+  plain build before anything that starts a daemon; never the drivers
+  while the gate runs (round 16's gate saw exactly that mismatch).
 - A test executable has no sibling: the contract tests and the MCP
   harness name `target/<profile>/acqd` from their own location and
   place a symlink beside the test executable, so the locator's one rule

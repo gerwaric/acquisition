@@ -72,7 +72,7 @@ not before.
 ## Quality gate, kept green by every change
 
 ```sh
-cargo build --workspace  # first, and again before any smoke or live run: the process tests and the drivers run the acqd this writes beside acq (C82); cargo test leaves acqd but rewrites acq and acq-mcp in their all-targets form
+cargo build --workspace  # first, and again before any smoke or live run: the process tests and the drivers run the acqd this writes beside acq (C82); cargo test never writes acqd and rewrites acq-mcp in its all-targets form
 cargo test --workspace --all-targets
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo fmt --all -- --check
@@ -81,15 +81,16 @@ tools/docs-check.sh      # byte budgets on the always-loaded documents; stale id
 RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps   # no broken doc link anywhere: the rulings live in doc comments
 ```
 
-`cargo test --all-targets` leaves `target/debug/acqd` as the workspace
-build wrote it but rewrites `target/debug/acq` and `acq-mcp` with their
-all-targets forms (a different artifact: the store's `test-hooks`
-feature unified in); `cargo clippy` rewrites none. `cargo build
---workspace --all-targets` writes the all-targets `acqd` too. So run the
-gate's `cargo build --workspace` before any smoke or live run, never the
-all-targets form, and never run the drivers while the gate runs — their
-preflight build replaces `acqd` under a live daemon (an artifact
-mismatch, C84).
+`cargo test --all-targets` never writes `target/debug/acqd` (no test in
+the daemon crate asks for it) and rewrites `target/debug/acq-mcp` in its
+all-targets form — a different artifact: proptest, the plan crate's
+dev-dependency, unifies `num-traits/std` into the chrono that rmcp links
+(measured 2026-09-11; `acq` and `acqd` have one form each since the
+store's `test-hooks` feature and its dev-only `hooks` feature went);
+`cargo clippy` rewrites none. So run the gate's `cargo build --workspace`
+before any smoke or live run, and never run the drivers while the gate
+runs — their preflight build replaces `acqd` under a live daemon (an
+artifact mismatch, C84).
 
 ## Routing: one authoritative home per fact
 

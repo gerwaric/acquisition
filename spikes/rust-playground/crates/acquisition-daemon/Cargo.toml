@@ -30,4 +30,6 @@ url = "2"
 
 
 [dev-dependencies]
-acquisition-store = { path = "../acquisition-store", features = ["test-hooks"] }
+# The queue-failure tests break `daemon.db` through a second connection
+# (`break_queue`); the store crate carries no test-only door.
+rusqlite = "0.32"

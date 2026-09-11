@@ -7947,6 +7947,20 @@ mod dispatcher_tests {
         }
     }
 
+    /// Make every later statement on the daemon's queue fail: the table
+    /// is dropped through a second connection to the same file, as a
+    /// neighbour corrupting `daemon.db` under a running daemon would, so
+    /// the queue-failure handling meets a real failure and the store
+    /// crate needs no test-only door (its `test-hooks` feature, retired
+    /// 2026-09-11: a feature unified into `--all-targets` builds gave
+    /// every binary two forms).
+    fn break_queue(db: &std::path::Path) {
+        rusqlite::Connection::open(db)
+            .unwrap()
+            .execute_batch("DROP TABLE jobs")
+            .unwrap();
+    }
+
     #[tokio::test]
     async fn the_queue_and_results_survive_a_daemon_restart() {
         let db = test_db_path();
@@ -8160,11 +8174,13 @@ mod dispatcher_tests {
 
     #[tokio::test]
     async fn a_failed_queue_write_refuses_new_jobs_and_stops_dispatch() {
-        let (daemon, log) = test_daemon("http://127.0.0.1:1", Arc::new(ManualClock::new()));
+        let db = test_db_path();
+        remove_db(&db);
+        let (daemon, log) = persisting_daemon("http://127.0.0.1:1", &db);
         daemon
             .submit("sleep".into(), json!({}), 0, "t".into(), None)
             .unwrap();
-        daemon.jobs_db.lock().unwrap().break_for_tests();
+        break_queue(&db);
         let err = daemon
             .submit("sleep".into(), json!({}), 0, "t".into(), None)
             .unwrap_err();
@@ -8184,6 +8200,7 @@ mod dispatcher_tests {
             "the parked queue does not hold the daemon up"
         );
         remove_harness_files(&log);
+        remove_db(&db);
     }
 
     #[tokio::test]
@@ -8207,11 +8224,14 @@ mod dispatcher_tests {
 
     #[tokio::test]
     async fn a_broken_queue_is_fatal_to_restore() {
-        let (daemon, log) = test_daemon("http://127.0.0.1:1", Arc::new(ManualClock::new()));
-        daemon.jobs_db.lock().unwrap().break_for_tests();
+        let db = test_db_path();
+        remove_db(&db);
+        let (daemon, log) = persisting_daemon("http://127.0.0.1:1", &db);
+        break_queue(&db);
         let err = daemon.restore_jobs(Retention::default()).unwrap_err();
         assert!(err.to_string().contains("could not read"), "{err:#}");
         remove_harness_files(&log);
+        remove_db(&db);
     }
 
     #[tokio::test]
@@ -8219,7 +8239,9 @@ mod dispatcher_tests {
         // waiting → running is the transition that gates a send: if its
         // write fails, disk still says waiting, and after a restart a
         // no-probe job would replay blind. The job must not run.
-        let (daemon, log) = test_daemon("http://127.0.0.1:1", Arc::new(ManualClock::new()));
+        let db = test_db_path();
+        remove_db(&db);
+        let (daemon, log) = persisting_daemon("http://127.0.0.1:1", &db);
         let id = daemon
             .submit(
                 "sleep".into(),
@@ -8229,7 +8251,7 @@ mod dispatcher_tests {
                 None,
             )
             .unwrap();
-        daemon.jobs_db.lock().unwrap().break_for_tests();
+        break_queue(&db);
         let dispatcher = tokio::spawn(daemon.clone().dispatcher());
         tokio::time::sleep(Duration::from_millis(100)).await;
         let state = daemon.shared.lock().unwrap().jobs[&id].info.state;
@@ -8244,15 +8266,18 @@ mod dispatcher_tests {
         );
         dispatcher.abort();
         remove_harness_files(&log);
+        remove_db(&db);
     }
 
     #[tokio::test]
     async fn cancel_and_reprioritize_report_a_failed_queue_write() {
-        let (daemon, log) = test_daemon("http://127.0.0.1:1", Arc::new(ManualClock::new()));
+        let db = test_db_path();
+        remove_db(&db);
+        let (daemon, log) = persisting_daemon("http://127.0.0.1:1", &db);
         let id = daemon
             .submit("sleep".into(), json!({}), 3, "t".into(), None)
             .unwrap();
-        daemon.jobs_db.lock().unwrap().break_for_tests();
+        break_queue(&db);
         let err = daemon.set_priority(id, 9).unwrap_err();
         assert!(err.message.contains("priority unchanged"), "{err}");
         assert_eq!(err.kind, ErrorKind::QueueFailed);
@@ -8266,6 +8291,7 @@ mod dispatcher_tests {
             "the cancellation still holds for this lifetime"
         );
         remove_harness_files(&log);
+        remove_db(&db);
     }
 
     #[tokio::test]
@@ -8324,8 +8350,10 @@ mod dispatcher_tests {
 
     #[tokio::test]
     async fn a_result_read_failure_is_reported_not_no_job() {
-        let (daemon, log) = test_daemon("http://127.0.0.1:1", Arc::new(ManualClock::new()));
-        daemon.jobs_db.lock().unwrap().break_for_tests();
+        let db = test_db_path();
+        remove_db(&db);
+        let (daemon, log) = persisting_daemon("http://127.0.0.1:1", &db);
+        break_queue(&db);
         match daemon
             .handle_request(Request::Result { id: 42 }, &mut None)
             .await
@@ -8337,6 +8365,7 @@ mod dispatcher_tests {
             other => panic!("{other:?}"),
         }
         remove_harness_files(&log);
+        remove_db(&db);
     }
 
     #[tokio::test]

@@ -115,16 +115,6 @@ impl JobDb {
         crate::checkpoint(&self.conn)
     }
 
-    /// Make every later statement fail, so the daemon's queue-failure
-    /// handling can be exercised. Compiled only for builds that opt into
-    /// the `test-hooks` feature (acquisition-daemon's dev-dependency);
-    /// production builds have no way to call this.
-    #[cfg(feature = "test-hooks")]
-    #[allow(clippy::unwrap_used)] // a test hook, exempt from the crate's ratchet
-    pub fn break_for_tests(&self) {
-        self.conn.execute_batch("DROP TABLE jobs").unwrap();
-    }
-
     /// Insert or replace the row for `row.id`. One small transaction; the
     /// daemon calls this under the lock that guards its in-memory job, so
     /// the table sees every change in the order memory did.
