@@ -1302,6 +1302,26 @@ mod tests {
                 && !text.contains("another artifact"),
             "{text}"
         );
+        // One look (review 2026-09-11): the verdict's observation of this
+        // process's world is what the report and the prose read — the
+        // root removed after the handshake changes neither.
+        let judged_before = id(CONTRACT_REVISION, "mock");
+        assert!(judged_before.world_matches());
+        std::fs::remove_dir_all(&dir).unwrap();
+        assert!(judged_before.world_matches(), "the verdict is captured");
+        let report = judged_before.report();
+        assert_eq!(report["world_matches"], true, "{report}");
+        assert_eq!(
+            report["wanted"]["world"],
+            judged_before.world(),
+            "the report reads the captured look: {report}"
+        );
+        assert!(report["wanted"].get("world_absent").is_none(), "{report}");
+        assert!(
+            !judged_before.to_string().contains("another world"),
+            "{judged_before}"
+        );
+        std::fs::create_dir_all(&dir).unwrap();
         // An absent world of this process's own matches no daemon and
         // says why under `wanted`.
         unsafe {

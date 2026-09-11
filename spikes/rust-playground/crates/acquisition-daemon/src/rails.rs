@@ -152,6 +152,26 @@ struct Persisted {
     refresh_failed_by_account: HashMap<String, String>,
 }
 
+/// Why the rails state could not be brought into the world. The daemon
+/// refuses to start on any of these (fail closed: a persisted trip must
+/// never be absent from a lifetime, review 2026-09-11); the message names
+/// the remedy — with no daemon running, `acq daemon reset-tripwire`
+/// removes both files.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MigrationError(pub String);
+
+impl std::fmt::Display for MigrationError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{} — the daemon does not start over rails state it cannot carry; with no daemon running, `acq daemon reset-tripwire` clears both files",
+            self.0
+        )
+    }
+}
+
+impl std::error::Error for MigrationError {}
+
 /// The one-time move of the rails state into the world (C83; the daemon
 /// split's step 5). Before it, the state sat beside the socket in the
 /// temp directory, which macOS clears at reboot. Called by the daemon
@@ -159,87 +179,108 @@ struct Persisted {
 /// a legacy file with no current one moves whole; both present are
 /// merged so no trip is lost — a trip in either is a trip, the
 /// refresh-failed marks are the union, the current file's cause wins a
-/// conflict — and the legacy file is removed once the world holds the
-/// result. Every failure is named and leaves both files where they are
-/// (review 2026-09-11: a read error is not absence, an unreadable
-/// current state is never overwritten, and "moved" is said only when the
-/// legacy file is gone). Returns what happened, for the daemon log;
-/// `None` when there was no legacy file.
-pub fn migrate_legacy_state(legacy: &Path, current: &Path) -> Option<String> {
+/// conflict. The world's file is replaced atomically (written beside it,
+/// then renamed), so it is either the previous state or the merged one,
+/// never a partial write; the legacy file is removed only after that
+/// rename. Every failure is a [`MigrationError`] and the daemon refuses
+/// to start on it (review 2026-09-11: a failure that was merely logged
+/// let a lifetime run without its trip): a legacy or world state that
+/// cannot be read or parsed, a directory that cannot be made, a write,
+/// a rename, or a removal that fails. The one state a failure can leave
+/// behind — the world merged, the legacy file still present — is
+/// idempotent: the next start merges the same content again. Returns
+/// what happened, for the daemon log; `None` when there was no legacy
+/// file.
+pub fn migrate_legacy_state(
+    legacy: &Path,
+    current: &Path,
+) -> Result<Option<String>, MigrationError> {
+    let fail = |what: String| MigrationError(what);
     let text = match std::fs::read_to_string(legacy) {
         Ok(text) => text,
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return None,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
         Err(e) => {
-            return Some(format!(
-                "rails: legacy state {} could not be read ({e}); left in place",
+            return Err(fail(format!(
+                "rails: the legacy state {} could not be read ({e})",
                 legacy.display()
-            ));
+            )));
         }
     };
-    let Ok(old) = serde_json::from_str::<Persisted>(&text) else {
-        // Not this daemon's shape: leave it where it is, say so once.
-        return Some(format!(
-            "rails: legacy state {} is not readable; left in place",
+    let old = serde_json::from_str::<Persisted>(&text).map_err(|e| {
+        fail(format!(
+            "rails: the legacy state {} is not readable ({e})",
             legacy.display()
-        ));
-    };
+        ))
+    })?;
     let merged = match std::fs::read_to_string(current) {
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => old,
         Err(e) => {
-            return Some(format!(
+            return Err(fail(format!(
                 "rails: the world's state {} could not be read ({e}); the legacy state {} is left in place",
                 current.display(),
                 legacy.display()
-            ));
+            )));
         }
-        Ok(text) => match serde_json::from_str::<Persisted>(&text) {
-            Ok(mut now) => {
-                if now.tripped.is_none() {
-                    now.tripped = old.tripped;
-                }
-                for (account, cause) in old.refresh_failed_by_account {
-                    now.refresh_failed_by_account
-                        .entry(account)
-                        .or_insert(cause);
-                }
-                now
-            }
-            Err(_) => {
-                return Some(format!(
-                    "rails: the world's state {} is not readable and is not overwritten; the legacy state {} is left in place",
+        Ok(text) => {
+            let mut now = serde_json::from_str::<Persisted>(&text).map_err(|e| {
+                fail(format!(
+                    "rails: the world's state {} is not readable ({e}) and is not overwritten; the legacy state {} is left in place",
                     current.display(),
                     legacy.display()
-                ));
+                ))
+            })?;
+            if now.tripped.is_none() {
+                now.tripped = old.tripped;
             }
-        },
+            for (account, cause) in old.refresh_failed_by_account {
+                now.refresh_failed_by_account
+                    .entry(account)
+                    .or_insert(cause);
+            }
+            now
+        }
     };
-    if let Some(dir) = current.parent()
-        && let Err(e) = std::fs::create_dir_all(dir)
-    {
-        return Some(format!(
-            "rails: could not create {} ({e}); the legacy state {} is left in place",
-            dir.display(),
-            legacy.display()
-        ));
+    if let Some(dir) = current.parent() {
+        std::fs::create_dir_all(dir).map_err(|e| {
+            fail(format!(
+                "rails: could not create {} ({e}); the legacy state {} is left in place",
+                dir.display(),
+                legacy.display()
+            ))
+        })?;
     }
-    let Ok(text) = serde_json::to_string(&merged) else {
-        return Some("rails: the merged state could not be serialised; nothing moved".into());
-    };
-    if let Err(e) = std::fs::write(current, text) {
-        return Some(format!(
-            "rails: could not write {} ({e}); the legacy state {} is left in place",
+    let text = serde_json::to_string(&merged).map_err(|e| {
+        fail(format!(
+            "rails: the merged state could not be serialised ({e})"
+        ))
+    })?;
+    // Atomic replacement: the world's file is the old state or the merged
+    // one, never a truncated one.
+    let tmp = current.with_extension("json.tmp");
+    std::fs::write(&tmp, text).map_err(|e| {
+        let _ = std::fs::remove_file(&tmp);
+        fail(format!(
+            "rails: could not write {} ({e}); the world's state and the legacy state {} are unchanged",
+            tmp.display(),
+            legacy.display()
+        ))
+    })?;
+    std::fs::rename(&tmp, current).map_err(|e| {
+        let _ = std::fs::remove_file(&tmp);
+        fail(format!(
+            "rails: could not replace {} ({e}); the world's state and the legacy state {} are unchanged",
             current.display(),
             legacy.display()
-        ));
-    }
-    if let Err(e) = std::fs::remove_file(legacy) {
-        return Some(format!(
-            "rails: state copied from {} into the world at {}, but the legacy file could not be removed ({e}) and will be merged again at the next start",
-            legacy.display(),
-            current.display()
-        ));
-    }
-    Some(format!(
+        ))
+    })?;
+    std::fs::remove_file(legacy).map_err(|e| {
+        fail(format!(
+            "rails: the world at {} now holds the merged state, but the legacy file {} could not be removed ({e}); it would be merged again at the next start",
+            current.display(),
+            legacy.display()
+        ))
+    })?;
+    Ok(Some(format!(
         "rails: state moved from {} into the world at {}{}",
         legacy.display(),
         current.display(),
@@ -247,7 +288,30 @@ pub fn migrate_legacy_state(legacy: &Path, current: &Path) -> Option<String> {
             Some(cause) => format!(" (tripped: {cause})"),
             None => String::new(),
         }
-    ))
+    )))
+}
+
+/// The persisted state at `path`, read strictly: `None` when there is no
+/// file, an error when there is one that cannot be read or parsed. The
+/// daemon calls this before the rails are built, and refuses to start on
+/// an error (fail closed, review 2026-09-11); [`Rails::with_config`]
+/// itself reads leniently, for the harness and the tests.
+pub fn verify_state(path: &Path) -> Result<Option<()>, MigrationError> {
+    match std::fs::read_to_string(path) {
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(e) => Err(MigrationError(format!(
+            "rails: the world's state {} could not be read ({e})",
+            path.display()
+        ))),
+        Ok(text) => serde_json::from_str::<Persisted>(&text)
+            .map(|_| Some(()))
+            .map_err(|e| {
+                MigrationError(format!(
+                    "rails: the world's state {} is not readable ({e})",
+                    path.display()
+                ))
+            }),
+    }
 }
 
 #[derive(Debug, Default)]
@@ -843,18 +907,26 @@ mod tests {
         let current = dir.join("store").join("mock").join("rails.json");
         assert_eq!(
             migrate_legacy_state(&legacy, &current),
-            None,
+            Ok(None),
             "nothing to move"
         );
+        assert_eq!(verify_state(&current), Ok(None));
 
         std::fs::write(
             &legacy,
             r#"{"tripped":"429 on GET /stash","refresh_failed_by_account":{"A#1":"400"}}"#,
         )
         .unwrap();
-        let line = migrate_legacy_state(&legacy, &current).expect("moved");
+        let line = migrate_legacy_state(&legacy, &current)
+            .unwrap()
+            .expect("moved");
         assert!(line.contains("moved") && line.contains("429"), "{line}");
         assert!(!legacy.exists(), "the legacy file is gone");
+        assert!(
+            !current.with_extension("json.tmp").exists(),
+            "no scratch left"
+        );
+        assert_eq!(verify_state(&current), Ok(Some(())));
         let config = RailsConfig {
             tripwire: true,
             state_path: Some(current.clone()),
@@ -871,7 +943,9 @@ mod tests {
             r#"{"tripped":"503 on GET /profile","refresh_failed_by_account":{"B#2":"401"}}"#,
         )
         .unwrap();
-        let line = migrate_legacy_state(&legacy, &current).expect("merged");
+        let line = migrate_legacy_state(&legacy, &current)
+            .unwrap()
+            .expect("merged");
         assert!(line.contains("429 on GET /stash"), "{line}");
         assert!(!legacy.exists());
         let rails = Rails::with_config(config);
@@ -879,24 +953,30 @@ mod tests {
         assert_eq!(rails.refresh_failed("A#1").as_deref(), Some("400"));
         assert_eq!(rails.refresh_failed("B#2").as_deref(), Some("401"));
 
-        // A legacy file of another shape is left alone and named.
+        // A legacy file of another shape: a typed failure, both files
+        // where they were, the remedy named (fail closed, review
+        // 2026-09-11).
         std::fs::write(&legacy, "{nope").unwrap();
-        let line = migrate_legacy_state(&legacy, &current).expect("named");
-        assert!(line.contains("not readable") && legacy.exists(), "{line}");
-        // A world state that cannot be read is never overwritten: both
-        // files stay, and the line says so (review 2026-09-11).
+        let before = std::fs::read_to_string(&current).unwrap();
+        let err = migrate_legacy_state(&legacy, &current).unwrap_err();
+        assert!(err.0.contains("not readable") && legacy.exists(), "{err}");
+        assert!(err.to_string().contains("reset-tripwire"), "{err}");
+        assert_eq!(std::fs::read_to_string(&current).unwrap(), before);
+        // A world state that cannot be read is never overwritten, and
+        // the daemon's own check on it refuses too.
         std::fs::write(
             &legacy,
             r#"{"tripped":"401 on GET /profile","refresh_failed_by_account":{}}"#,
         )
         .unwrap();
         std::fs::write(&current, "{corrupt").unwrap();
-        let line = migrate_legacy_state(&legacy, &current).expect("named");
+        let err = migrate_legacy_state(&legacy, &current).unwrap_err();
         assert!(
-            line.contains("not overwritten") && legacy.exists(),
-            "{line}"
+            err.0.contains("not overwritten") && legacy.exists(),
+            "{err}"
         );
         assert_eq!(std::fs::read_to_string(&current).unwrap(), "{corrupt");
+        assert!(verify_state(&current).is_err());
         let _ = std::fs::remove_dir_all(&dir);
     }
 

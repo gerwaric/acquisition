@@ -233,15 +233,24 @@ fn c83_a_second_daemon_on_the_same_world_refuses_naming_the_holder() {
             && stderr.contains("C83"),
         "{stderr}"
     );
-    let log = std::fs::read_to_string(&log_path).unwrap();
+    // The refusal is at the end of a file that is mostly a hole: read
+    // the tail only (review 2026-09-11 — a gate must not read a gibibyte
+    // into memory).
+    let log = {
+        use std::io::{Read as _, Seek as _, SeekFrom};
+        let mut file = std::fs::File::open(&log_path).unwrap();
+        let len = file.metadata().unwrap().len();
+        file.seek(SeekFrom::Start(len.saturating_sub(4096)))
+            .unwrap();
+        let mut tail = Vec::new();
+        file.read_to_end(&mut tail).unwrap();
+        String::from_utf8_lossy(&tail).into_owned()
+    };
     assert!(
         log.contains("STARTUP: another daemon holds this world")
             && log.contains(&format!("pid {pid}")),
         "the refusal reached the incumbent's log (appended, not rotated): {}",
         log.trim_start_matches('\0')
-            .chars()
-            .take(600)
-            .collect::<String>()
     );
     assert!(
         !base.join("b.sock").exists(),
@@ -312,10 +321,12 @@ fn c83_c31_a_second_real_mode_daemon_for_this_user_refuses_naming_the_holder() {
             && stderr.contains("C31"),
         "{stderr}"
     );
-    let log = std::fs::read_to_string(daemon_log(base, "two", "ggg")).unwrap();
+    // The refused contender held no lock, so it made nothing in its
+    // world's log directory (review 2026-09-11): its refusal is on stderr
+    // alone — there was no log to append to yet.
     assert!(
-        log.contains("STARTUP: another real-mode daemon") && log.contains(&format!("pid {pid}")),
-        "{log}"
+        !daemon_log(base, "two", "ggg").exists(),
+        "a refused contender created its world's log"
     );
 
     // The same other world in mock mode starts: the lock is real mode's.

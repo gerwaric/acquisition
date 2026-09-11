@@ -113,6 +113,14 @@ fn c84_daemon_status_reports_the_identity_and_the_sibling_it_is_judged_against()
         status["uptime_seconds"].is_number() && status["rails"].is_object(),
         "{status}"
     );
+    // The log the daemon opened, reported by the daemon (C83): under the
+    // harness's log directory, not recomputed by this server.
+    assert!(
+        status["log"].as_str().is_some_and(|log| log
+            .starts_with(&base.join("logs").display().to_string())
+            && log.ends_with("/mock/daemon.log")),
+        "{status}"
+    );
     let pid = status["pid"].as_u64().unwrap();
     assert_eq!(pid, u64::from(daemon.id()), "{status}");
 

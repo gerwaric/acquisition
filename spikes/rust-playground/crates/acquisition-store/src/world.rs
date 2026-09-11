@@ -64,10 +64,11 @@
 //!   `<runtime>/ggg.lock`, in the private per-user runtime directory
 //!   ([`app_runtime_dir`]: `$XDG_RUNTIME_DIR/acq` where the platform sets
 //!   it, else `<temp dir>/acq-<uid>` — `/tmp` is shared on Linux, so the
-//!   fallback carries the uid; either way the directory is created mode
-//!   0700, must not be a symlink, must be owned by this user and must
-//!   carry no group or other bits, or it is refused — the pre-creation
-//!   attack on a shared temp directory, review 2026-09-11).
+//!   fallback carries the uid; either way the directory is created with
+//!   mode 0700 in the creating call — never made loose and tightened
+//!   after —, must not be a symlink, must be owned by this user and must
+//!   be exactly 0700, restored if it drifted or refused, — the
+//!   pre-creation attack on a shared temp directory, review 2026-09-11).
 //!   Every real-mode daemon takes it whatever its root, so two live-test
 //!   roots cannot make two GGG gates (C31's Cloudflare bound is
 //!   per-process state). Per user, not per machine: another OS user, the
@@ -382,17 +383,34 @@ fn current_uid() -> u32 {
     }
 }
 
-/// A directory private to this user at `path`: created mode 0700 if
-/// missing; refused if it is a symlink or not a directory, if another
-/// user owns it, or if group or other bits cannot be cleared — the
-/// pre-creation attack on a shared temp directory, where a path the
-/// attacker made first would be used as ours (review 2026-09-11). On a
-/// non-Unix platform only the existence check is made.
+/// A directory private to this user at `path`: created with mode 0700
+/// in the creating call if missing (its parent must exist: the runtime
+/// or temp directory); refused if it is a symlink or not a directory,
+/// if another user owns it, or if its mode is not exactly 0700 and
+/// cannot be made so — the pre-creation attack on a shared temp
+/// directory, where a path the attacker made first, or made loose
+/// between creation and a later chmod, would be used as ours (review
+/// 2026-09-11, twice). On a non-Unix platform only the existence check
+/// is made.
 pub fn private_dir(path: &Path) -> std::io::Result<PathBuf> {
     use std::io::{Error, ErrorKind};
     match std::fs::symlink_metadata(path) {
         Err(e) if e.kind() == ErrorKind::NotFound => {
-            std::fs::create_dir_all(path)?;
+            let mut builder = std::fs::DirBuilder::new();
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::DirBuilderExt;
+                builder.mode(0o700);
+            }
+            builder.create(path).map_err(|e| {
+                Error::new(
+                    e.kind(),
+                    format!(
+                        "could not create the private directory {}: {e}",
+                        path.display()
+                    ),
+                )
+            })?;
         }
         Err(e) => return Err(e),
         Ok(meta) if meta.file_type().is_symlink() => {
@@ -427,15 +445,16 @@ pub fn private_dir(path: &Path) -> std::io::Result<PathBuf> {
                 ),
             ));
         }
-        if meta.mode() & 0o077 != 0 {
+        if meta.mode() & 0o7777 != 0o700 {
             std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o700))?;
             let again = std::fs::symlink_metadata(path)?;
-            if again.mode() & 0o077 != 0 {
+            if again.mode() & 0o7777 != 0o700 {
                 return Err(Error::new(
                     ErrorKind::PermissionDenied,
                     format!(
-                        "{} keeps group or other permissions; refusing to use it",
-                        path.display()
+                        "{} is mode {:04o}, not 0700, and could not be made so; refusing to use it",
+                        path.display(),
+                        again.mode() & 0o7777
                     ),
                 ));
             }
@@ -660,15 +679,19 @@ mod tests {
         std::fs::create_dir_all(&base).unwrap();
         let fresh = private_dir(&base.join("fresh")).unwrap();
         assert_eq!(std::fs::metadata(&fresh).unwrap().mode() & 0o777, 0o700);
-        let loose = base.join("loose");
-        std::fs::create_dir(&loose).unwrap();
-        std::fs::set_permissions(&loose, std::fs::Permissions::from_mode(0o755)).unwrap();
-        private_dir(&loose).unwrap();
-        assert_eq!(
-            std::fs::metadata(&loose).unwrap().mode() & 0o777,
-            0o700,
-            "tightened"
-        );
+        for (name, drifted) in [("loose", 0o755), ("tight", 0o500), ("shut", 0o000)] {
+            let dir = base.join(name);
+            std::fs::create_dir(&dir).unwrap();
+            std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(drifted)).unwrap();
+            private_dir(&dir).unwrap();
+            assert_eq!(
+                std::fs::metadata(&dir).unwrap().mode() & 0o7777,
+                0o700,
+                "{name}: restored to exactly 0700"
+            );
+        }
+        let err = private_dir(&base.join("absent-parent").join("acq")).unwrap_err();
+        assert!(err.to_string().contains("could not create"), "{err}");
         std::os::unix::fs::symlink(&fresh, base.join("link")).unwrap();
         let err = private_dir(&base.join("link")).unwrap_err();
         assert!(err.to_string().contains("symlink"), "{err}");

@@ -21,7 +21,7 @@
 //!
 //! ## C31 — Multi-account is one daemon holding many sessions, not one daemon per account.
 //!
-//! **Multi-account is one daemon holding many sessions, not one daemon per account.** The Cloudflare bound (`SendGate`, 2 live sends) is a per-IP property (P-B, ground truth §1) held as per-process state; two daemons on one machine make it a 4-wide burst that neither sees, with separate tripwires — enforced among real-mode daemons for one OS user by the C83 lock (`<runtime>/ggg.lock`, taken in `run` before the log opens, before anything opens or sends, whatever the root; amended 2026-09-11, the split's step 5); other users and processes remain external concurrency no local lock can coordinate, and the tripwire bounds further sends after any resulting visible violation. Rung 11 (2026-08-30) showed the other half: `Account` rules count per account on GGG's side, so two accounts never contend on layer 2 — the only thing they share is layer 1 and the `Ip`-scoped token endpoint, which is exactly what the single gate exists for. Built in two halves with different blast radii (option C): **account as first-class identity first** (store path, job field, keyring key — leaves), then **many live sessions** (a refactor confined to the session layer) — both built by 2026-08-30; every persisted account is restored as a live session at start. Limiter and probe scope keying — `(account, policy)` for `Account` rules, policy alone for `Ip` rules, scope learned from `X-Rate-Limit-Rules` — is a **precondition of the session map, not an optimization**: with two live sessions on one policy each response would overwrite shared state with a different account's counters, and the next send from the other account floods (a 429 path; the "over-waits, never floods" reading only held for rung 11's sequential switch). Decided 2026-08-29, amended 2026-08-30 after review across sessions; design below in "Multi-account design"; built 2026-08-30 through step (6) — step (7)'s live samples are in `RUN-LEDGER.md`.
+//! **Multi-account is one daemon holding many sessions, not one daemon per account.** The Cloudflare bound (`SendGate`, 2 live sends) is a per-IP property (P-B, ground truth §1) held as per-process state; two daemons on one machine make it a 4-wide burst that neither sees, with separate tripwires — enforced among real-mode daemons for one OS user by the C83 lock (`<runtime>/ggg.lock`, taken in `run` before the log directory is made, the log rotated or opened, or anything sends, whatever the root — a refused contender may append its refusal to an existing log afterward; amended 2026-09-11, the split's step 5); other users and processes remain external concurrency no local lock can coordinate, and the tripwire bounds further sends after any resulting visible violation. Rung 11 (2026-08-30) showed the other half: `Account` rules count per account on GGG's side, so two accounts never contend on layer 2 — the only thing they share is layer 1 and the `Ip`-scoped token endpoint, which is exactly what the single gate exists for. Built in two halves with different blast radii (option C): **account as first-class identity first** (store path, job field, keyring key — leaves), then **many live sessions** (a refactor confined to the session layer) — both built by 2026-08-30; every persisted account is restored as a live session at start. Limiter and probe scope keying — `(account, policy)` for `Account` rules, policy alone for `Ip` rules, scope learned from `X-Rate-Limit-Rules` — is a **precondition of the session map, not an optimization**: with two live sessions on one policy each response would overwrite shared state with a different account's counters, and the next send from the other account floods (a 429 path; the "over-waits, never floods" reading only held for rung 11's sequential switch). Decided 2026-08-29, amended 2026-08-30 after review across sessions; design below in "Multi-account design"; built 2026-08-30 through step (6) — step (7)'s live samples are in `RUN-LEDGER.md`.
 //!
 //! ## C32 — Per-route knowledge about GGG that headers cannot teach lives in one place (`Daemon::de…
 //!
@@ -124,7 +124,7 @@ use std::collections::VecDeque;
 
 use crate::frame::{Frame, read_frame};
 use crate::provider::{CALLBACK_PATH, Provider, SCOPES};
-use crate::rails::{BlockShape, Rails, RailsConfig, migrate_legacy_state};
+use crate::rails::{BlockShape, Rails, RailsConfig, migrate_legacy_state, verify_state};
 use crate::ratelimit::{
     ChokePoint, Clock, EndpointState, RetryAfter, SendError, SystemClock, url_path,
 };
@@ -262,6 +262,19 @@ mod diagnostics_tests {
             vec![b'x'; 32],
             "the earlier generation is untouched"
         );
+        // Neither: the directory refuses the rename and the file refuses
+        // the truncation — the refusal that stops the daemon's start.
+        std::fs::write(&log, vec![b'z'; 32]).unwrap();
+        std::fs::set_permissions(&log, std::fs::Permissions::from_mode(0o400)).unwrap();
+        std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o500)).unwrap();
+        let err = rotate_if_over(&log, 16).unwrap_err();
+        std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o700)).unwrap();
+        std::fs::set_permissions(&log, std::fs::Permissions::from_mode(0o600)).unwrap();
+        assert!(
+            err.contains("neither rotated") && err.contains("nor truncated"),
+            "{err}"
+        );
+        assert_eq!(std::fs::metadata(&log).unwrap().len(), 32, "untouched");
         let _ = std::fs::remove_dir_all(&dir);
     }
 }
@@ -807,9 +820,10 @@ pub struct Daemon {
     /// names it. `None` in the in-process harness, which serves no world.
     world: Option<String>,
     /// The log file this daemon opened, as `daemon_status` reports it —
-    /// the path as opened, never recomputed by a client from its own
+    /// the path as opened, exactly (a log root that is not valid UTF-8 is
+    /// refused at start), never recomputed by a client from its own
     /// environment (review 2026-09-11). `None` in the in-process harness.
-    log_path: Option<PathBuf>,
+    log_path: Option<String>,
     /// The provider's store directory (`acquisition-store`): one file per
     /// account plus the account index. `None` in tests: nothing recorded.
     store_dir: Option<PathBuf>,
@@ -3707,7 +3721,7 @@ resubmit if still wanted",
                     max_in_flight,
                     rails: self.rails().status(),
                     keyring: self.keyring_summary(&s),
-                    log: self.log_path.as_ref().map(|p| p.display().to_string()),
+                    log: self.log_path.clone(),
                 }
             }
             Request::ResetTripwire => {
@@ -4101,32 +4115,46 @@ pub async fn run() -> Result<()> {
     let world = World::create().map_err(|e| anyhow::anyhow!("{e}"))?;
     let provider_name = acquisition_protocol::provider::wanted();
     let log_path = world.log_path(provider_name);
-    if let Some(dir) = log_path.parent() {
-        std::fs::create_dir_all(dir)
-            .map_err(|e| anyhow::anyhow!("creating the log directory {}: {e}", dir.display()))?;
-    }
-    let _ = std::fs::write(world.log_marker_path(), format!("{}\n", world.name()));
-    // The locks before the log is touched (review 2026-09-11): a
-    // contender that lost the world lock must not rotate the incumbent's
-    // live log from under it. A refusal here is appended to the log as it
-    // stands — no rotation, the incumbent keeps writing the same file —
-    // because a lazy-spawned daemon's stderr goes to null and the log is
-    // where the CLI reads a spawn failure from.
+    // The path crosses the wire exactly (`daemon_status`), so it must be
+    // valid UTF-8; `ACQ_LOG_DIR` is the only way it would not be.
+    let log_name = log_path
+        .to_str()
+        .ok_or_else(|| {
+            anyhow::anyhow!(
+                "the log directory is not valid UTF-8 (ACQ_LOG_DIR): {}",
+                log_path.display()
+            )
+        })?
+        .to_string();
+    // The locks first (review 2026-09-11): nothing in the log directory
+    // is made, rotated or opened until this daemon holds the world, so a
+    // contender that loses cannot rotate the incumbent's live log or
+    // rewrite its marker. A refused contender appends its refusal to
+    // the log as it stands, creating nothing — a lazy-spawned daemon's
+    // stderr goes to null and the log is where the CLI reads a spawn
+    // failure from; with no log there yet, stderr is all there is.
     let locks = match take_locks(&world) {
         Ok(locks) => locks,
         Err(e) => {
-            if let Ok(log) = std::fs::OpenOptions::new()
-                .create(true)
-                .append(true)
-                .open(&log_path)
+            if log_path.parent().is_some_and(std::path::Path::is_dir)
+                && let Ok(log) = std::fs::OpenOptions::new()
+                    .create(true)
+                    .append(true)
+                    .open(&log_path)
             {
                 writeln!(&log, "STARTUP: {e:#}").ok();
             }
             return Err(e);
         }
     };
-    // Holding the world: the diagnostics are bounded — the log is rotated
-    // here, before it opens, when the last lifetime left it over the cap.
+    // Holding the world: the log directory and its marker, then the
+    // bound — the log is rotated here, before it opens, when the last
+    // lifetime left it over the cap.
+    if let Some(dir) = log_path.parent() {
+        std::fs::create_dir_all(dir)
+            .map_err(|e| anyhow::anyhow!("creating the log directory {}: {e}", dir.display()))?;
+    }
+    let _ = std::fs::write(world.log_marker_path(), format!("{}\n", world.name()));
     let rotated = match rotate_if_over(&log_path, DIAGNOSTIC_CAP_BYTES) {
         Ok(rotated) => rotated,
         Err(why) => {
@@ -4149,7 +4177,7 @@ pub async fn run() -> Result<()> {
     if let Some(what) = rotated {
         writeln!(&log, "log: {what}").ok();
     }
-    let result = run_with_log(world, locks, log_path, log.try_clone()?).await;
+    let result = run_with_log(world, locks, log_name, log.try_clone()?).await;
     if let Err(e) = &result {
         writeln!(&log, "STARTUP: {e:#}").ok();
     }
@@ -4157,8 +4185,9 @@ pub async fn run() -> Result<()> {
 }
 
 /// The world lock and, in real mode, the real-mode lock (C83), taken
-/// before anything opens or sends; held for the daemon's lifetime by
-/// the caller, released by the kernel however the process ends. A
+/// before the log directory is made, the log rotated or opened, or
+/// anything sends; held for the daemon's lifetime by the caller,
+/// released by the kernel however the process ends. A
 /// second daemon on this root, or a second real-mode daemon for this OS
 /// user whatever its root, refuses here naming the holder.
 fn take_locks(world: &World) -> Result<(Lock, Option<Lock>)> {
@@ -4186,7 +4215,7 @@ fn take_locks(world: &World) -> Result<(Lock, Option<Lock>)> {
 async fn run_with_log(
     world: World,
     locks: (Lock, Option<Lock>),
-    log_path: PathBuf,
+    log_path: String,
     log: std::fs::File,
 ) -> Result<()> {
     // The locks live here, as long as the daemon does.
@@ -4194,11 +4223,14 @@ async fn run_with_log(
     let provider_name = acquisition_protocol::provider::wanted();
     // The rails state moves into the world once (step 5): a trip
     // persisted beside the socket is honoured from the world from now on.
+    // Fail closed: a state that cannot be carried into this lifetime
+    // refuses the start (review 2026-09-11).
     let rails_state = world.rails_state_path(provider_name);
-    let migration = migrate_legacy_state(&legacy_rails_state_path(provider_name), &rails_state);
+    let migration = migrate_legacy_state(&legacy_rails_state_path(provider_name), &rails_state)?;
     if let Some(what) = &migration {
         writeln!(&log, "{what}").ok();
     }
+    verify_state(&rails_state)?;
 
     let path = socket_path();
     if path.exists() {
@@ -4349,7 +4381,7 @@ async fn run_with_log(
                 Some(lock) => format!("; real-mode lock {}", lock.path().display()),
                 None => String::new(),
             },
-            log_path.display(),
+            log_path,
             rails_state.display(),
         ));
         if let Some(what) = journal_rotated {
@@ -4649,7 +4681,7 @@ mod auth_session_tests {
             artifact: None,
             credential_store: credential_store.clone(),
             world: None,
-            log_path: Some(log_path.clone()),
+            log_path: log_path.to_str().map(str::to_string),
             store_dir: None,
             store: Mutex::new(None),
             jobs_db: Mutex::new(JobDb::open_memory().unwrap()),
@@ -5943,7 +5975,7 @@ mod dispatcher_tests {
             artifact: None,
             credential_store,
             world: None,
-            log_path: Some(log_path.clone()),
+            log_path: log_path.to_str().map(str::to_string),
             store_dir: None,
             store: Mutex::new(None),
             jobs_db: Mutex::new(JobDb::open_memory().unwrap()),
