@@ -29,9 +29,18 @@ One row per commit of §4; a row is filled when the commit lands.
 | 2 consumers | `45d24717` | plan, cli, mcp and the tests import from `acquisition_protocol` directly; every step-1 re-export deleted (`job`, `protocol`, `realm`, the three version constants, `daemon::MAX_429_RETRIES`, `provider::ggg_mode`, `rails::RailsStatus`, the five status names; `frame.rs`'s `MAX_FRAME_BYTES`, missed, went with round 6) — none had to survive; the planner links protocol and store only, its §2.1 row; the frontends add protocol and keep core for `client` and `daemon` until step 3; `contract.rs` switched in place, its harness untouched; the provider-name literals at the consumers are `provider::wanted()`; the planner-never-links-the-daemon edge in docs-check, broken three ways in code and seen to fail, and the table-completeness check moved into `forbid`/`allow` so an edge about an unknown crate fails closed (three tool breakers); revision c0c4ad7aab70 → d03b1daa2135 (the lock and one core import line, both inputs); fixture diff empty; closures per crate (`cargo tree -e normal --prefix none \| sort -u \| wc -l`, §1's method): store 31, protocol 14, core 160, **plan 41 (from 167)**, mcp 204, cli 220 — a 126-entry reduction, the daemon's closure the planner no longer carries; rehearsed in mock only |
 | 3 `acqd` and client | `5a82e761` | `acquisition-client` extracted (`client.rs`, `locator.rs`, a `frame.rs` copy, `contract.rs` moved; typed `ConnectError`; links protocol and tokio, not yet the store); `acquisition-core` → `acquisition-daemon` by `git mv`, its modules untouched, the `acqd` binary (`main.rs`, no arguments); `acq daemon run` and the MCP's argv interception deleted, the spawn path execs the sibling `acqd` (`current_exe()` canonicalised, its parent, nowhere else); the frontends link client/protocol/store/plan and never the daemon; `socket_path`/`log_path` through the client crate's root; `frame.rs` one copy each side (the allowlist decided: a tokio feature on the protocol crate is refused); tests and drivers start `acqd` — the contract tests `target/<profile>/acqd` from their own location (the `ACQ_CONTRACT_DAEMON` harness retired), the CLI/MCP daemon-owning tests `locator::beside` on their binary, the drivers `target/debug/acqd`; the gate builds before it tests, checked here (`cargo test --workspace --all-targets --no-run` left `target/debug/acqd` absent with `acqd-<hash>` under `deps/`; `cargo build --workspace` wrote it); strict rustdoc widened to `--workspace` with the five links fixed; docs-check: every `acquisition-core` rule renamed, client ∌ daemon/plan, daemon ∌ client/plan/cli/mcp, nothing but the daemon names the daemon (`only_self`), plan ∌ client, store ∌ client/daemon, the intent grep over client/src — the breaker suite at 42 cases (17 new), 0 failed, store → daemon a Cargo cycle and daemon → frontend a dropped bin-only dependency (observations); revision 5f9cdb34ce21 → 8e205a53d16d (the input list renamed; `client.rs` no longer an input); fixture diff empty; C1 amended (794 B) and C82 (792 B) verbatim, C85's pointer (799 B); references regenerated; rehearsed in mock only: a CLI session, the MCP process tests, both drivers (`runs/mock/2026-09-10-tracer`, `runs/2026-09-10-persist-mock`) |
 | 4 identity | `fd1a4aa1` | the build script's inputs shrink to the contract (protocol and store sources and manifests, root manifest, lock; the daemon crate out; domain `acq-contract-revision/1`), `ACQ_CONTRACT_REVISION` / `CONTRACT_REVISION` / `VERSION_WITH_CONTRACT` (`acq --version`: `0.0.1 (contract <rev>)`); the artifact — `FileIdentity` (canonical path, len, `mtime_ns`, dev, ino) and SHA-256 — defined in `acquisition-protocol/src/artifact.rs` and computed once at startup by the daemon's `artifact.rs` (a daemon that cannot read its own file does not start); `hello` carries `version`, `contract`, `artifact`, `pid`, `provider` (the world is step 5's) and the client's hello `version` + `contract`; `DaemonId` judges three dimensions (`Verdict`: contract, `ArtifactVerdict` — same inode without a hash, else the sibling hashed: a copy is the same artifact, other bytes another, no sibling matches nothing and says so, a daemon reporting none matches nothing —, provider), the report carries `contract_matches`/`artifact_matches`/`provider_matches`, the daemon found (`contract`, `artifact`) and `wanted` (`contract`, `provider`, `acqd` as found or `null` with `acqd_absent`); `acq version` reports the candidate (`--json`: `{version, contract, provider, acqd: {path, len, mtime_ns} \| null}`), `acq daemon status` the daemon running (its `contract` and `artifact` beside the vitals); the journal header's `runtime` became `contract` and `daemon` (the hash; `null` from the in-process harness), the startup identity line in the log names both (account and keyring diagnostics may precede it); `provenance.json` keeps `exe_sha256` and adds `acqd_sha256`, and `provenance_matches_journal` (`preflight.sh`, both drivers) holds every lifetime's header to it; the two literal provider comparisons (`dash.rs`, `auth status`) read `provider::GGG`; `acqd --version`: no flag (its `main.rs` says why); C84 in the registry (762 B); fixture diff: `bootstrap/hello.json`, `bootstrap/hello_reply.json`, nothing else; the revision moved once, `c1696aafb14a` → `3cd2835ff374`, and the measure (below) shows it still on a daemon edit; the artifact-mismatch process test (`daemon_observe.rs`, staged with one build's binaries: copies of `acq` beside a copy of `acqd`, beside another file, beside nothing); references regenerated; rehearsed in mock only: a CLI session, `acq-mcp` over stdio, both drivers (`runs/mock/2026-09-10-tracer-234740`, `runs/mock/2026-09-10-persist`) |
-| 5 world | — | `world.rs`; rails state into the world, diagnostics bounded; the world lock and the real-mode lock; `hello` carries the world; C83 and the C31 amendment in the registry |
+| 5 world | `e2a108d8` | `acquisition-store/src/world.rs` (C83): `World` — the canonical, provider-neutral root (`ACQ_STORE_DIR` made absolute, else the platform data directory's `store`; `create` the use path, mode 0700, `observe` creates nothing), its id (twelve hex of the root's SHA-256), the provider directories, `daemon.lock`, `rails.json`, the runtime directory (`$XDG_RUNTIME_DIR` else the per-user temp dir) and `<runtime>/acq/ggg.lock`, the log base (`ACQ_LOG_DIR`, else the platform log directory) with one subdirectory per world and provider, and `socket_path` as the one home of the convention (`ACQ_SOCKET` stays: the rendezvous is step 6's); `Lock` over `std::fs::File::try_lock` (`flock`), the holder's pid written into the file; the store gains `sha2`, `store_dir` moves to `world.rs`; the client links the store and judges the world as a fourth dimension — `DaemonId::world`, `world_matches`, `report()`'s `world`/`world_matches`/`wanted.world`/`world_absent` — judged first and answered alone: a use door refuses with `ConnectError::OtherWorld` and never replaces, an observer reports it, `stop_any` stops it; a use door creates the root before it spawns and passes a relative `ACQ_STORE_DIR` absolute; the daemon: `World::create`, the log directory (with a `world` marker file), rotation past `DIAGNOSTIC_CAP_BYTES` (16 MiB, `rotate_if_over`, `<name>.1`), the log opened, then the world lock, then in real mode the real-mode lock, then the rails migration (`rails::migrate_legacy_state`: the legacy `<socket>.<provider>.rails.json` moved into `<root>/<provider>/rails.json`, both present merged so no trip is lost), then the bind and the rest; `hello` carries `world` both ways (the daemon logs a mismatch, refuses nothing); `RailsConfig::from_env` takes the state path and the default journal (`<log dir>/sends.jsonl`, rotated like the log; an `ACQ_JOURNAL` file is the caller's, never rotated); `DaemonStatus` and `Dashboard` carry `version` and `contract` apart; `acq daemon status` prints the world and its log path, `--json` adds `world`, `world_matches`, `socket`, `log`; `reset-tripwire` with no daemon clears the world's file and the legacy one; the MCP's `daemon_status` carries the world keys and its refusal names the world; the drivers write the run directory's `sends.jsonl` (`ACQ_JOURNAL`) and `log/` (`ACQ_LOG_DIR`); the mock-session skill sets `ACQ_LOG_DIR`; C83 (786 B) and the C31 amendment (735 B) verbatim from §3, C6's pointer (635 B); fixture diff: `bootstrap/hello.json`, `bootstrap/hello_reply.json` (`world`), `response/daemon_status.json`, `response/dashboard.json` (`version` split from `contract`), nothing else; revision `5fddc80b3b9a` → `62062f1f9fd3`; the daemon-edit check (below) unchanged; pinned: `world.rs` unit tests, `rails.rs` (the move and the merge), `client.rs` (the world dimension), `contract.rs` (the world in `hello`; a daemon on another world refused at the use door, typed), `acquisition-cli/tests/world.rs` (the world lock and the real-mode lock, each with a second daemon reading its refusal by name; the other-world refusal through the binary; the legacy trip surviving the move; the diagnostics under the log directory and the rotation), the CLI and MCP status tests; references regenerated; rehearsed in mock only: a CLI session, `acq-mcp` over stdio, both drivers (``runs/mock/2026-09-11-tracer-021335`, `runs/mock/2026-09-11-persist-021536``) |
 | 6 rendezvous | — | the socket derived into the runtime directory; `ACQ_SOCKET` removed, `tools/acq-as.sh` retired; legacy detection; the migration test |
 | 7 live | — | both drivers in mock; the tracer under the rails; ledger row; `provenance.json` with `acqd`'s hash |
+
+**Step 5's check on the same measure** — the world is the store's, so the
+step moved the contract revision (`5fddc80b3b9a` → `62062f1f9fd3`: the
+store's sources and manifest, the protocol's `protocol.rs`, the lock);
+after it, one `pub fn` appended to `daemon.rs` on a warm tree
+(`cargo build --workspace -v`, restored from a copy and `cmp`'d)
+recompiled `acquisition_daemon` alone, linked `acqd` alone, and left the
+revision where it was — read from `acq version --json` before and
+after, both `62062f1f9fd3`.
 
 **Step 4's measure** — the daemon-edit rebuild, the number the split is
 judged by (§4). One semantic edit (a `pub fn` appended) to one file on a
@@ -85,9 +94,6 @@ holds it now. The packet's own review rounds are its §8 and §9.
 Agent observations that became neither a ruling nor a finding; each is
 data for the commit that touches it.
 
-- The rails state today sits beside the socket in the per-user temp
-  directory, which macOS clears at reboot: a tripped tripwire does not
-  survive a restart (packet §1, verified). Closed by step 5.
 - The contract tests find `acqd` as `target/<profile>/acqd` from the
   test executable's own location (`acqd_for_tests`), the file the
   gate's `cargo build --workspace` writes: a test executable has no
@@ -97,17 +103,16 @@ data for the commit that touches it.
   executables name the acqd written by their build") — the line carries
   no amendment date, since one would put it at 802 bytes; this entry
   and `git log` date it.
-- One clause of C1 as ruled describes a step not yet built and landed
-  verbatim with step 3 per the landing map (§10): the store "holds …
-  the world (root, locks, socket name)" (step 5). The "shared-contract
-  revision" clause became true with step 4. The registry describes the
-  ruled graph; the code reaches it by step 5.
-- The client crate links protocol, tokio, serde, anyhow and (since step
-  4, to hash the sibling) sha2, not the
-  store: nothing in it reads the store until the world (step 5), and
-  §2.1's row lists the store for that. `socket_path`/`log_path` are two
-  copies of one convention until then (`acquisition-client/src/lib.rs`,
-  `daemon.rs`), each reading `ACQ_SOCKET` the same way.
+- One clause of C83 as ruled describes a step not yet built and landed
+  verbatim with step 5 per the landing map (§10): "the socket is derived
+  from the root into a private per-user runtime directory, never chosen
+  by hand (`ACQ_SOCKET` is gone)" is step 6's — the socket is still
+  `ACQ_SOCKET` or the temp directory's `acquisition-playground.sock`,
+  now defined once (`world.rs`) where two copies stood. Every other
+  clause of C83 is built: the canonical root, the two locks, `hello`
+  naming the root and the client refusing another world, the durable
+  state in the world, the diagnostics bounded elsewhere. The same shape
+  as C1's world clause between steps 3 and 5, closed with this step.
 - Two edges of §2.1 cannot be staged for the breaker suite as written:
   store → daemon is a Cargo cycle (the daemon links the store), refused
   by `cargo metadata` before any guard reads the graph — the suite
@@ -196,15 +201,66 @@ data for the commit that touches it.
   sibling apart since round 13 (`artifact_relation`, `wanted.acqd`): a
   copied installation (the supported case) sees `same_bytes`, the
   original's path under `artifact` and its own under `wanted`.
-- `DaemonStatus.version` and `Dashboard.version` on the versioned plane
-  still carry the combined string (`0.0.1 (contract <rev>)`, what
-  `--version` prints) while `hello` carries `version` and `contract`
-  apart; `acq daemon status --json` adds `contract` and `artifact` from
-  the handshake beside them, so the compatible and incompatible reports
-  share the identity keys, but a `version` reads differently in the two
-  shapes. Splitting the versioned field is a fixture diff outside the
-  bootstrap frames — the owner's call, not step 4's; the two samples'
-  literals still say `runtime` for the same reason.
+- `ACQ_LOG_DIR` is a knob step 5 added unasked, and why: the log and
+  the default journal moved to the platform log directory under one
+  subdirectory per world (its hashed id) and provider, and every process
+  test and mock session starts a daemon on a scratch world — without a
+  way to point the log directory into the scratch, each of them would
+  leave a hashed directory in `~/Library/Logs` (the 567-directory shape
+  of the scratch-store leak, in the user's log directory). It is the
+  log's `ACQ_JOURNAL`: the same kind of relocation, read in `world.rs`,
+  one README row; every harness sets it beside `ACQ_STORE_DIR`, the
+  mock-session skill exports it, and the drivers point it into the run
+  directory so a run's log is the run's evidence beside its journal
+  (`log/<id>/<provider>/daemon.log`, copied to `daemon.log` at the end).
+  The owner may prefer the drivers to leave the daemon log in the
+  platform directory and copy a slice, as before step 5; the path is
+  then `acq daemon status --json`'s `log` while a daemon is up.
+- The real-mode lock is per OS user at one path
+  (`<runtime>/acq/ggg.lock`), so its process test — two real-mode
+  daemons the test starts directly with no session, nothing submitted
+  and `ACQ_MAX_SENDS=0` (the owner asked for the test, 2026-09-11;
+  nothing reaches GGG) — contends with a live daemon of the owner's if
+  one is running while the gate runs, and fails naming that daemon's
+  pid. The standing rule already forbids running the gate under a live
+  daemon (a rebuild under it is an artifact mismatch, round 16), so the
+  contention is the rule made visible, not a new constraint; an
+  override for the runtime directory was considered and refused (a way
+  to run two real-mode daemons as one user by hand, which is what the
+  lock exists to refuse). `XDG_RUNTIME_DIR` is honoured where the
+  platform sets it (Linux) and not read on macOS, as `directories` does.
+- The rails migration merges rather than picks when both files exist
+  (a legacy state beside the socket and one in the world): a trip in
+  either is a trip, the world's cause wins a conflict, the
+  refresh-failed marks are the union, the legacy file goes. Both
+  present can only happen on this branch's own transition (a pre-step-5
+  daemon run after a post-step-5 one on the same socket); the merge
+  is the "no trip lost" property carried to that case rather than a
+  guess about which file to trust. A legacy file of another shape is
+  left in place and named in the log at every start.
+- The client's `hello` carries its own world beside its version and
+  contract, for the daemon's log alone (a mismatch is logged, never
+  refused: the daemon identifies itself and lets the peer decide, as
+  for the contract). The owner's expectation was "hello gains the
+  world"; both frames gained it, symmetric with `contract`, and the
+  fixture diff is the two bootstrap frames plus the two status
+  documents the owner named — nothing else moved.
+- The diagnostic cap is 16 MiB per file, two generations (`<name>` and
+  `<name>.1`): a full-league refresh writes about 150 KB of either
+  file, so a season of daily refreshes fits one generation, `tail` and
+  an editor open it instantly, and the previous generation is still
+  there when a rotation lands mid-investigation. Rotation happens once
+  at daemon start, before the file opens, so a lifetime is never split
+  across generations; the client's spawn-failure excerpt reads from
+  the start when the log is shorter than where it was at spawn time
+  (the rotation case). A journal `ACQ_JOURNAL` names is never rotated:
+  it is the caller's file, and a live run's offsets and checksums
+  depend on it standing still.
+- The log directory names a world by its hashed id, unreadable to a
+  person browsing `~/Library/Logs`; the daemon writes a `world` file
+  beside the provider subdirectories naming the root. A human-readable
+  directory name was refused: the root is a path, long and with
+  characters a directory name should not carry.
 - The packet's `acqd: {path, len, modified}` (§2.2) landed as `{path,
   len, mtime_ns}`: one integer field (nanoseconds since the epoch) is
   exact for the fast-path comparison and needs no formatter in the
@@ -243,3 +299,27 @@ data for the commit that touches it.
   for it to return: an observer never spawns (C10), and a watch that
   waits for a daemon is a design choice for the GUI's subscriber, not
   the CLI's.
+- The persist driver reused one run directory per day (the tracer
+  suffixes a second attempt with the time), which was harmless while
+  the journal lived beside the socket and the bundle held a copy: the
+  first mock rehearsal of step 5 wrote its daemons' journal into
+  `runs/mock/2026-09-11-persist/sends.jsonl`, a file an earlier attempt
+  had left there with headers back to the `runtime` era, and
+  `provenance_matches_journal` refused the run naming twelve foreign
+  headers — the check doing its job on the wrong directory. The driver
+  now takes the tracer's rule (one directory per attempt), and the
+  rehearsal was rerun.
+- LIVE-TESTING's journal text is owner-approved and was not edited by
+  step 5; nothing in it names the journal's path, and the two sentences
+  that describe it still hold ("Send journal (`ACQ_JOURNAL`, permanent):
+  one JSON line per actual send, never a token or body; the contract
+  surface" — rail 4; and the ledger row shape's "journal"). Proposed
+  for the owner, if a sentence about where the journal lives belongs in
+  the control document — rail 4, after "the contract surface
+  (`TESTING-NOTES.md`)": "By default the world's `sends.jsonl` under
+  the platform log directory, bounded like the daemon log (C83); a
+  driver's daemons write the run directory's `sends.jsonl` instead,
+  under `ACQ_JOURNAL`, and that file is the run's, never rotated." (208
+  bytes; the file is at 9708 of 15000.) The live-run skill, which is
+  not owner-approved text, says the same beside "read the journal
+  before anything else".
