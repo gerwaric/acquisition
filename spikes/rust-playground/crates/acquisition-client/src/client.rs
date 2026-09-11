@@ -201,7 +201,7 @@
 //! and the MCP server can pick its error code from it.
 
 use std::fmt;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use crate::artifact::{ArtifactVerdict, SiblingError, sibling};
@@ -396,11 +396,14 @@ fn want_provider() -> &'static str {
 }
 
 /// Where a daemon was reached: its world's socket (C83), or the
-/// rendezvous every daemon before the split's step 6 listened on.
+/// rendezvous every daemon before the split's step 6 listened on. The
+/// socket is a `String` by construction — it goes into every report and
+/// onto the MCP's wire, and a path in other bytes is refused at the
+/// door rather than failing inside a report (review 2026-09-11).
 #[derive(Clone, Debug, Serialize, PartialEq, Eq)]
 pub struct Endpoint {
     /// The socket the handshake ran over.
-    pub socket: PathBuf,
+    pub socket: String,
     /// True when `socket` is the legacy rendezvous: a daemon there is
     /// from before the derived socket — never this client's, never
     /// replaced, stopped by hand (`acq daemon stop`).
@@ -409,19 +412,26 @@ pub struct Endpoint {
 
 impl Endpoint {
     /// This process's world's socket.
-    pub fn world(socket: PathBuf) -> Endpoint {
-        Endpoint {
-            socket,
-            legacy: false,
-        }
+    pub fn world(socket: &Path) -> Result<Endpoint> {
+        Self::at(socket, false)
     }
 
     /// The legacy rendezvous.
-    pub fn legacy(socket: PathBuf) -> Endpoint {
-        Endpoint {
-            socket,
-            legacy: true,
-        }
+    pub fn legacy(socket: &Path) -> Result<Endpoint> {
+        Self::at(socket, true)
+    }
+
+    fn at(socket: &Path, legacy: bool) -> Result<Endpoint> {
+        let socket = socket
+            .to_str()
+            .ok_or_else(|| {
+                anyhow::anyhow!(
+                    "the socket path {} is not valid UTF-8 and cannot be reported",
+                    socket.display()
+                )
+            })?
+            .to_string();
+        Ok(Endpoint { socket, legacy })
     }
 }
 
@@ -585,7 +595,7 @@ impl DaemonId {
     }
 
     /// The socket the handshake ran over.
-    pub fn socket(&self) -> &std::path::Path {
+    pub fn socket(&self) -> &str {
         &self.endpoint.socket
     }
 
@@ -738,10 +748,7 @@ impl fmt::Display for DaemonId {
             return write!(
                 f,
                 " listens on the legacy socket {} — from before the derived rendezvous (C83; this world's is under the runtime directory); contract {}, provider {}, world {}",
-                self.endpoint.socket.display(),
-                self.contract,
-                self.provider,
-                self.world
+                self.endpoint.socket, self.contract, self.provider, self.world
             );
         }
         if verdict.is_ours() {
@@ -967,14 +974,25 @@ async fn reach(socket: Option<PathBuf>) -> Result<Reached, (PathBuf, std::io::Er
     }
 }
 
+/// How long the legacy probe waits for the connect and the handshake
+/// together: the legacy socket sits in the temp directory — shared on
+/// Linux — so anything may be bound there, and a listener that accepts
+/// without answering must not hang observation, spawning or the stop
+/// remedy (review 2026-09-11). The world's own socket is in a private
+/// directory and its handshake is not bounded here.
+const LEGACY_PROBE_TIMEOUT: Duration = Duration::from_secs(2);
+
 /// The legacy rendezvous, probed when this world's socket is silent
 /// (module doc): the daemon answering there, identified over the
-/// handshake and marked legacy, or `None`.
+/// handshake and marked legacy, or `None`. Bounded by
+/// [`LEGACY_PROBE_TIMEOUT`]: a peer that accepts and does not answer is
+/// an error naming the socket, never a hang and never absence.
 async fn probe_legacy(own_world: &Result<String, AbsentWorld>) -> Result<Option<Client>> {
-    let legacy = legacy_socket_path();
-    match UnixStream::connect(&legacy).await {
-        Ok(stream) => {
-            Client::handshake(stream, Endpoint::legacy(legacy.clone()), own_world.clone())
+    let legacy = legacy_socket_path()?;
+    let endpoint = Endpoint::legacy(&legacy)?;
+    let probe = async {
+        match UnixStream::connect(&legacy).await {
+            Ok(stream) => Client::handshake(stream, endpoint, own_world.clone())
                 .await
                 .map(Some)
                 .with_context(|| {
@@ -982,12 +1000,19 @@ async fn probe_legacy(own_world: &Result<String, AbsentWorld>) -> Result<Option<
                         "identifying what answers on the legacy socket {}",
                         legacy.display()
                     )
-                })
+                }),
+            Err(e) if is_absent(&e) => Ok(None),
+            Err(e) => Err(e)
+                .with_context(|| format!("connecting to the legacy socket {}", legacy.display())),
         }
-        Err(e) if is_absent(&e) => Ok(None),
-        Err(e) => {
-            Err(e).with_context(|| format!("connecting to the legacy socket {}", legacy.display()))
-        }
+    };
+    match tokio::time::timeout(LEGACY_PROBE_TIMEOUT, probe).await {
+        Ok(outcome) => outcome,
+        Err(_) => bail!(
+            "something is listening on the legacy socket {} but did not answer the handshake within {}s — not a daemon of this playground; find it (`lsof -U | grep acquisition-playground.sock`) and stop it, or remove the socket file",
+            legacy.display(),
+            LEGACY_PROBE_TIMEOUT.as_secs()
+        ),
     }
 }
 
@@ -1023,10 +1048,13 @@ impl Client {
             let socket = world_socket(&own).map_err(ConnectError::Transport)?;
             match reach(socket).await {
                 Ok(Reached::Listening { socket, stream }) => {
-                    let mut client =
-                        Client::handshake(stream, Endpoint::world(socket), own_name.clone())
-                            .await
-                            .map_err(ConnectError::Transport)?;
+                    let mut client = Client::handshake(
+                        stream,
+                        Endpoint::world(&socket).map_err(ConnectError::Transport)?,
+                        own_name.clone(),
+                    )
+                    .await
+                    .map_err(ConnectError::Transport)?;
                     if client.daemon.is_ours() {
                         return Ok(client);
                     }
@@ -1165,7 +1193,7 @@ impl Client {
         let own_name = world_name(&own);
         match reach(world_socket(&own)?).await {
             Ok(Reached::Listening { socket, stream }) => {
-                let client = Client::handshake(stream, Endpoint::world(socket), own_name).await?;
+                let client = Client::handshake(stream, Endpoint::world(&socket)?, own_name).await?;
                 Ok(if client.daemon.is_ours() {
                     Observed::Compatible(client)
                 } else {
@@ -1193,7 +1221,7 @@ impl Client {
         let own_name = world_name(&own);
         match reach(world_socket(&own)?).await {
             Ok(Reached::Listening { socket, stream }) => {
-                Client::stop_over(stream, Endpoint::world(socket), own_name)
+                Client::stop_over(stream, Endpoint::world(&socket)?, own_name)
                     .await
                     .map(Some)
             }
@@ -1506,7 +1534,7 @@ mod tests {
                 provider: provider.into(),
                 world,
             },
-            Endpoint::world(PathBuf::from("/run/acq/test.sock")),
+            Endpoint::world(Path::new("/run/acq/test.sock")).unwrap(),
             own,
         )
     }
@@ -1591,7 +1619,7 @@ mod tests {
                 provider: "mock".into(),
                 world: "/somewhere/else".into(),
             },
-            Endpoint::world(PathBuf::from("/run/acq/test.sock")),
+            Endpoint::world(Path::new("/run/acq/test.sock")).unwrap(),
             own_world(),
         );
         assert!(!elsewhere.world_matches() && !elsewhere.is_ours());
@@ -1614,7 +1642,7 @@ mod tests {
                 provider: "mock".into(),
                 world: dir.canonicalize().unwrap().display().to_string(),
             },
-            Endpoint::legacy(PathBuf::from("/tmp/acquisition-playground.sock")),
+            Endpoint::legacy(Path::new("/tmp/acquisition-playground.sock")).unwrap(),
             own_world(),
         );
         assert!(legacy.on_legacy_socket());
@@ -1812,7 +1840,7 @@ mod tests {
             peer_that_answers_stop_with(Some(json!({ "resp": "error", "message": "busy" }))).await;
         let err = Client::stop_over(
             stream,
-            Endpoint::world(PathBuf::from("/run/acq/peer.sock")),
+            Endpoint::world(Path::new("/run/acq/peer.sock")).unwrap(),
             own_world(),
         )
         .await
@@ -1826,7 +1854,7 @@ mod tests {
         let stream = peer_that_answers_stop_with(Some(json!({ "resp": "ack" }))).await;
         let err = Client::stop_over(
             stream,
-            Endpoint::world(PathBuf::from("/run/acq/peer.sock")),
+            Endpoint::world(Path::new("/run/acq/peer.sock")).unwrap(),
             own_world(),
         )
         .await
@@ -1837,7 +1865,7 @@ mod tests {
         let stream = peer_that_answers_stop_with(None).await;
         let err = Client::stop_over(
             stream,
-            Endpoint::world(PathBuf::from("/run/acq/peer.sock")),
+            Endpoint::world(Path::new("/run/acq/peer.sock")).unwrap(),
             own_world(),
         )
         .await
@@ -1848,7 +1876,7 @@ mod tests {
         let stream = peer_that_answers_stop_with(Some(json!({ "resp": "stopping" }))).await;
         let stopped = Client::stop_over(
             stream,
-            Endpoint::world(PathBuf::from("/run/acq/peer.sock")),
+            Endpoint::world(Path::new("/run/acq/peer.sock")).unwrap(),
             own_world(),
         )
         .await

@@ -4265,17 +4265,6 @@ async fn run_with_log(
     // The locks live here, as long as the daemon does.
     let (_world_lock, real_mode_lock) = locks;
     let provider_name = acquisition_protocol::provider::wanted();
-    // The rails state moves into the world once (step 5): a trip
-    // persisted beside the socket is honoured from the world from now on.
-    // Fail closed: a state that cannot be carried into this lifetime
-    // refuses the start (review 2026-09-11).
-    let rails_state = world.rails_state_path(provider_name);
-    let migration = migrate_legacy_state(&legacy_rails_state_path(provider_name), &rails_state)?;
-    if let Some(what) = &migration {
-        writeln!(&log, "{what}").ok();
-    }
-    verify_state(&rails_state)?;
-
     // The rendezvous (C83, the split's step 6): the world's socket in the
     // private per-user runtime directory, made here — the daemon is the
     // one side that creates it; a client only verifies it.
@@ -4288,15 +4277,28 @@ async fn run_with_log(
     // this daemon ran beside it — two daemons where a person sees one, and
     // in real mode two GGG gates (a pre-step-5 daemon holds no lock).
     // Refuse until it is stopped by hand; `acq daemon stop` finds it when
-    // the world's socket is silent. Parked for removal with the rails
-    // migration (`decisions/daemon.md`).
-    let legacy = legacy_socket_path();
+    // the world's socket is silent. Probed before the rails migration
+    // below touches anything: the legacy state beside that socket is the
+    // running predecessor's while it runs (review 2026-09-11). Parked for
+    // removal with the migration (`decisions/daemon.md`).
+    let legacy = legacy_socket_path().map_err(|e| anyhow::anyhow!("the legacy socket: {e}"))?;
     if UnixStream::connect(&legacy).await.is_ok() {
         anyhow::bail!(
             "a daemon from before the rendezvous is listening on the legacy socket {} — `acq daemon stop` stops it (once; nothing binds there any more), then start again",
             legacy.display()
         );
     }
+    // The rails state moves into the world once (step 5): a trip
+    // persisted beside the socket is honoured from the world from now on.
+    // Fail closed: a state that cannot be carried into this lifetime
+    // refuses the start (review 2026-09-11).
+    let rails_state = world.rails_state_path(provider_name);
+    let migration = migrate_legacy_state(&legacy_rails_state_path(provider_name), &rails_state)?;
+    if let Some(what) = &migration {
+        writeln!(&log, "{what}").ok();
+    }
+    verify_state(&rails_state)?;
+
     if path.exists() {
         // Live daemon or stale socket from a crash?
         if UnixStream::connect(&path).await.is_ok() {

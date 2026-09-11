@@ -820,10 +820,16 @@ fn c83_a_daemon_from_before_the_rendezvous_is_refused_reported_and_stopped_once(
     let scratch = scratch("legacy");
     let base = &scratch.0;
     let tmp = scratch_tmp(base);
-    let env: [(&str, &str); 0] = [];
+    let env = [("ACQ_TRIPWIRE", "1")];
     std::fs::create_dir_all(base.join("store")).unwrap();
     let home = base.join("store").canonicalize().unwrap();
     let legacy = tmp.join("acquisition-playground.sock");
+    // The predecessor's rails state, beside its socket: its own while it
+    // runs (review 2026-09-11 — a refused start must not move it).
+    let legacy_rails = tmp.join("acquisition-playground.mock.rails.json");
+    let staged = r#"{"tripped":"429 on GET /stash/Standard (the predecessor's trip)"}"#;
+    std::fs::write(&legacy_rails, staged).unwrap();
+    let world_rails = base.join("store").join("mock").join("rails.json");
     let peer = LegacyPeer::bind(&legacy, &home.display().to_string());
 
     // The daemon refuses to start beside it, before it binds anything.
@@ -844,6 +850,15 @@ fn c83_a_daemon_from_before_the_rendezvous_is_refused_reported_and_stopped_once(
         sockets_under(&tmp),
         vec![legacy.clone()],
         "the daemon bound a socket"
+    );
+    assert_eq!(
+        std::fs::read_to_string(&legacy_rails).unwrap(),
+        staged,
+        "the refused start moved or changed the predecessor's rails state"
+    );
+    assert!(
+        !world_rails.exists(),
+        "the refused start wrote the world's rails state"
     );
 
     // Observed: running, not this client's, on the legacy socket.
@@ -920,6 +935,24 @@ fn c83_a_daemon_from_before_the_rendezvous_is_refused_reported_and_stopped_once(
         .as_str()
     );
     assert_eq!(sockets_under(&tmp), vec![socket.clone()]);
+    // With the predecessor gone, its state moved into the world and the
+    // trip is honoured here.
+    assert!(
+        !legacy_rails.exists(),
+        "the legacy rails state was left behind"
+    );
+    assert!(
+        std::fs::read_to_string(&world_rails)
+            .unwrap()
+            .contains("the predecessor's trip"),
+        "the trip is not in the world"
+    );
+    assert!(
+        status["rails"]["halted"]
+            .as_str()
+            .is_some_and(|h| h.contains("the predecessor's trip")),
+        "{status}"
+    );
     let out = acq_in(base, "store", &["daemon", "stop", "--json"], &env);
     assert!(out.status.success(), "{out:?}");
     wait_stopped(base, "store", &env);
@@ -968,4 +1001,45 @@ fn scratch_tmp(base: &std::path::Path) -> std::path::PathBuf {
     let tmp = base.join("tmp");
     let _ = std::fs::create_dir_all(&tmp);
     tmp
+}
+
+/// C83: a runtime directory the environment names in bytes that are not
+/// UTF-8 (Linux permits it in `XDG_RUNTIME_DIR`; `TMPDIR` anywhere)
+/// cannot name a socket in a report, so the daemon refuses to start
+/// naming the variable, and every JSON surface that would carry the
+/// socket — `daemon status`, `daemon stop` — answers C11's total
+/// `{"error": …}` with exit 1, never a panic (review 2026-09-11).
+#[cfg(unix)]
+#[test]
+fn c83_a_runtime_directory_that_is_not_utf8_is_refused_by_name_and_never_panics_a_report() {
+    use std::os::unix::ffi::OsStrExt;
+    let scratch = scratch("utf8");
+    let base = &scratch.0;
+    std::fs::create_dir_all(base.join("store")).unwrap();
+    let mut odd = base.join("tmp").into_os_string();
+    odd.push(std::ffi::OsStr::from_bytes(b"-\xff"));
+    // The daemon: refused before anything binds.
+    let mut cmd = daemon_command(base, "store");
+    cmd.env("TMPDIR", &odd).env("XDG_RUNTIME_DIR", &odd);
+    let (status, stderr) = refused_daemon(cmd);
+    assert!(
+        !status.success()
+            && stderr.contains("not valid UTF-8")
+            && (stderr.contains("XDG_RUNTIME_DIR") || stderr.contains("TMPDIR")),
+        "{stderr}"
+    );
+    // The shells: a total JSON error, exit 1, on both surfaces.
+    for verb in [
+        &["daemon", "status", "--json"][..],
+        &["daemon", "stop", "--json"][..],
+    ] {
+        let mut cmd = command(base, "store", verb);
+        cmd.env("TMPDIR", &odd).env("XDG_RUNTIME_DIR", &odd);
+        let out = cmd.output().unwrap();
+        assert_eq!(out.status.code(), Some(1), "{verb:?}: {out:?}");
+        let text = String::from_utf8_lossy(&out.stderr).into_owned();
+        assert!(!text.contains("panicked"), "{verb:?}: {text}");
+        let msg = sole_json(&out)["error"].as_str().unwrap().to_string();
+        assert!(msg.contains("not valid UTF-8"), "{verb:?}: {msg}");
+    }
 }

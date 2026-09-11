@@ -599,7 +599,12 @@ async fn c83_a_daemon_on_another_world_is_refused_and_never_replaced() {
     }
     let client = compatible_client().await;
     assert_eq!(client.daemon().pid(), pid, "the daemon was replaced");
-    assert_eq!(client.daemon().socket(), home_socket, "{}", client.daemon());
+    assert_eq!(
+        client.daemon().socket(),
+        home_socket.to_str().unwrap(),
+        "{}",
+        client.daemon()
+    );
     assert!(!client.daemon().on_legacy_socket());
     drop(client);
     let stopped = Client::stop_any().await.expect("stop").expect("a daemon");
@@ -672,7 +677,7 @@ async fn c83_a_daemon_on_another_world_is_refused_and_never_replaced() {
 async fn c83_a_daemon_on_the_legacy_socket_is_reported_never_replaced_and_stopped() {
     let s = session("legacy");
     let home = World::observe().expect("the session's world");
-    let legacy = legacy_socket_path();
+    let legacy = legacy_socket_path().unwrap();
     assert!(
         legacy.starts_with(s.base.join("tmp")),
         "the legacy socket is in the scratch: {}",
@@ -697,7 +702,7 @@ async fn c83_a_daemon_on_the_legacy_socket_is_reported_never_replaced_and_stoppe
     };
     assert_eq!(found.pid(), 4242);
     assert!(found.on_legacy_socket(), "{found}");
-    assert_eq!(found.socket(), legacy, "{found}");
+    assert_eq!(found.socket(), legacy.to_str().unwrap(), "{found}");
     assert!(
         found.world_matches() && found.contract_matches() && found.provider_matches(),
         "{found}"
@@ -1242,4 +1247,62 @@ async fn c83_a_daemon_on_its_way_out_never_unlinks_a_successors_socket() {
     let (_accepted, _) = successor.accept().await.expect("the successor accepts");
     drop(successor);
     let _ = std::fs::remove_file(&socket);
+}
+
+/// C83, the legacy probe bounded: the legacy socket lives in the temp
+/// directory, shared on Linux, so anything may be bound there. A
+/// listener that accepts and never answers the handshake must not hang
+/// observation, the use door or the stop remedy: each comes back within
+/// the probe's deadline with an error naming the socket — never absence,
+/// never a spawn (review 2026-09-11).
+#[tokio::test]
+async fn c83_a_legacy_peer_that_never_answers_is_an_error_within_the_deadline_not_a_hang() {
+    let _s = session("legacy-hang");
+    let legacy = legacy_socket_path().unwrap();
+    let _ = std::fs::remove_file(&legacy);
+    let mute = UnixListener::bind(&legacy).expect("bind the legacy path");
+    // Accepts every connection and holds it without a byte in reply.
+    let hold = tokio::spawn(async move {
+        let mut held = Vec::new();
+        loop {
+            let (stream, _) = mute.accept().await.expect("accept");
+            held.push(stream);
+        }
+    });
+    let bounded = Duration::from_secs(10);
+
+    let err = match tokio::time::timeout(bounded, Client::observe())
+        .await
+        .expect("observe hung on the mute legacy peer")
+    {
+        Err(e) => e,
+        Ok(Observed::Absent) => panic!("a mute peer read as absence"),
+        Ok(_) => panic!("a mute peer read as a daemon"),
+    };
+    assert!(
+        err.to_string().contains("did not answer")
+            && err.to_string().contains(&legacy.display().to_string()),
+        "{err:#}"
+    );
+
+    let err = tokio::time::timeout(bounded, Client::connect(ConnectOptions::interactive(true)))
+        .await
+        .expect("the use door hung on the mute legacy peer")
+        .err()
+        .expect("the use door opened");
+    assert!(matches!(err, ConnectError::Transport(_)), "{err:?}");
+    assert!(err.to_string().contains("did not answer"), "{err}");
+    assert!(
+        !session_socket().exists(),
+        "a daemon was spawned beside a peer the door could not identify"
+    );
+
+    let err = tokio::time::timeout(bounded, Client::stop_any())
+        .await
+        .expect("stop hung on the mute legacy peer")
+        .expect_err("a mute peer cannot be stopped as a daemon");
+    assert!(err.to_string().contains("did not answer"), "{err:#}");
+
+    hold.abort();
+    let _ = std::fs::remove_file(&legacy);
 }

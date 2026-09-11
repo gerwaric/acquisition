@@ -100,12 +100,16 @@
 //!   the world's twelve-hex id in the private per-user runtime directory
 //!   (the split's step 6). Nothing chooses it by hand: `ACQ_SOCKET` is
 //!   gone, and two spellings of one root reach one socket because the id
-//!   is the canonical root's. Short by construction: the runtime
-//!   directory is the platform's, not the user's — `$XDG_RUNTIME_DIR`
-//!   (`/run/user/<uid>`) or macOS's fixed-length `$TMPDIR` — so the
-//!   whole path is about 75 bytes under the macOS fallback, and a path
-//!   over [`SOCKET_PATH_MAX`] is refused by name rather than by `bind`'s
-//!   `ENAMETOOLONG`. The daemon creates the runtime directory
+//!   is the canonical root's. Short under the platform's defaults: the
+//!   runtime directory is `$XDG_RUNTIME_DIR` (`/run/user/<uid>`) or
+//!   macOS's fixed-shape `$TMPDIR`, so the whole path is about 75 bytes
+//!   under the macOS fallback — but both variables are the
+//!   environment's, so the derivation ([`World::socket_path_under`])
+//!   refuses by name a path over [`SOCKET_PATH_MAX`] or one that is not
+//!   valid UTF-8 (the socket is named in every report; Linux permits
+//!   other bytes in `XDG_RUNTIME_DIR`), rather than leaving the first to
+//!   `bind`'s `ENAMETOOLONG` and the second to a report that cannot be
+//!   built. The daemon creates the runtime directory
 //!   ([`app_runtime_dir`]) before it binds; a client only verifies it
 //!   ([`existing_private_dir`]: this user's, 0700, no symlink) before it
 //!   connects, so a socket in a directory another user made is never
@@ -362,14 +366,36 @@ impl World {
 
     /// The socket this world's daemon listens on and its clients connect
     /// to (C83): [`socket_name`](Self::socket_name) in the private
-    /// per-user runtime directory, which must already exist and be this
-    /// user's ([`existing_private_dir`]) — nothing is created here, so an
-    /// observer that finds no runtime directory finds no daemon
-    /// (`NotFound`), and a socket in a directory someone else made is
-    /// never used. A path longer than [`SOCKET_PATH_MAX`] is refused by
-    /// name. The daemon makes the directory first ([`app_runtime_dir`]).
+    /// per-user runtime directory, which must be nameable
+    /// ([`Self::socket_path_under`]: valid UTF-8, under the cap) and must
+    /// already exist and be this user's ([`existing_private_dir`]) —
+    /// nothing is created here, so an observer that finds no runtime
+    /// directory finds no daemon (`NotFound`), and a socket in a directory
+    /// someone else made is never used. The daemon makes the directory
+    /// first ([`app_runtime_dir`]).
     pub fn socket_path(&self) -> std::io::Result<PathBuf> {
-        let path = existing_private_dir(&runtime_dir_path())?.join(self.socket_name());
+        let runtime = runtime_dir_path();
+        let path = self.socket_path_under(&runtime)?;
+        existing_private_dir(&runtime)?;
+        Ok(path)
+    }
+
+    /// The pure derivation: this world's socket under `runtime`, refused
+    /// by name when the path is not valid UTF-8 (it names the socket in
+    /// every report, on the wire as a string — a runtime directory the
+    /// environment names in other bytes cannot) or longer than
+    /// [`SOCKET_PATH_MAX`]. Nothing is looked at or created.
+    pub fn socket_path_under(&self, runtime: &Path) -> std::io::Result<PathBuf> {
+        let path = runtime.join(self.socket_name());
+        if path.to_str().is_none() {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                format!(
+                    "the runtime directory {} is not valid UTF-8 (XDG_RUNTIME_DIR or TMPDIR); it names the socket in every report and must be",
+                    runtime.display()
+                ),
+            ));
+        }
         let len = path.as_os_str().len();
         if len > SOCKET_PATH_MAX {
             return Err(std::io::Error::new(
@@ -397,8 +423,18 @@ pub const SOCKET_PATH_MAX: usize = 103;
 /// absent, which reports what it found; by `acq daemon stop`, which
 /// stops it — and never bound again. Parked for removal with the rails
 /// migration (`decisions/daemon.md`).
-pub fn legacy_socket_path() -> PathBuf {
-    std::env::temp_dir().join("acquisition-playground.sock")
+pub fn legacy_socket_path() -> std::io::Result<PathBuf> {
+    let path = std::env::temp_dir().join("acquisition-playground.sock");
+    if path.to_str().is_none() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            format!(
+                "the temp directory {} is not valid UTF-8 (TMPDIR); the legacy socket there cannot be named in a report",
+                path.display()
+            ),
+        ));
+    }
+    Ok(path)
 }
 
 /// Where the rails state sat before step 5: beside the legacy socket,
@@ -407,7 +443,7 @@ pub fn legacy_socket_path() -> PathBuf {
 /// (`rails.rs`); `acq daemon reset-tripwire` clears it too while it can
 /// still exist.
 pub fn legacy_rails_state_path(provider: &str) -> PathBuf {
-    legacy_socket_path().with_extension(format!("{provider}.rails.json"))
+    std::env::temp_dir().join(format!("acquisition-playground.{provider}.rails.json"))
 }
 
 /// Where this application's private per-user runtime directory is,
@@ -429,7 +465,19 @@ fn runtime_dir_path() -> PathBuf {
 /// does the creating and the checking; the daemon calls this before it
 /// binds, a client never creates it ([`World::socket_path`]).
 pub fn app_runtime_dir() -> std::io::Result<PathBuf> {
-    private_dir(&runtime_dir_path())
+    let runtime = runtime_dir_path();
+    // Nameable before it is made: a runtime directory in other bytes
+    // could not name a socket in any report (review 2026-09-11).
+    if runtime.to_str().is_none() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            format!(
+                "the runtime directory {} is not valid UTF-8 (XDG_RUNTIME_DIR or TMPDIR); it names the socket in every report and must be",
+                runtime.display()
+            ),
+        ));
+    }
+    private_dir(&runtime)
 }
 
 /// The calling user's uid (Unix); 0 elsewhere, where the checks below
@@ -795,9 +843,10 @@ mod tests {
     #[test]
     fn the_legacy_rails_state_is_beside_the_legacy_socket_and_the_worlds_is_not() {
         let legacy = legacy_rails_state_path("mock");
-        assert_eq!(legacy.parent(), legacy_socket_path().parent());
+        let legacy_socket = legacy_socket_path().unwrap();
+        assert_eq!(legacy.parent(), legacy_socket.parent());
         assert_eq!(
-            legacy_socket_path().file_name().unwrap(),
+            legacy_socket.file_name().unwrap(),
             "acquisition-playground.sock"
         );
         assert!(
@@ -817,10 +866,12 @@ mod tests {
 
     /// C83: the socket derives from the world into the runtime directory
     /// and from nothing else — two spellings of one root reach one
-    /// socket, another root another, and the path is under the cap with
-    /// room to spare. That no knob names it is held by `tools/docs-check.sh`:
-    /// a knob read anywhere in the crates needs a README row, and the
-    /// socket has none.
+    /// socket, another root another. That no knob names it is held by
+    /// `tools/docs-check.sh`: a knob read anywhere in the crates needs a
+    /// README row, and the socket has none. The derivation's refusals —
+    /// over the cap, not UTF-8 — are pinned on the pure helper with
+    /// runtime directories this test names, since the real one is the
+    /// environment's (review 2026-09-11).
     #[test]
     fn c83_the_socket_derives_from_the_world_into_the_runtime_directory() {
         let base = scratch("socket");
@@ -838,15 +889,44 @@ mod tests {
         let other = World::at(&base.join("other")).unwrap();
         assert_ne!(other.socket_path().unwrap(), socket);
         assert_eq!(other.socket_path().unwrap().parent(), socket.parent());
-        // Under the cap by a margin: the runtime directory is the
-        // platform's, so this is a measure, not a hope (the macOS
-        // fallback is about 75 bytes; `/run/user/<uid>/acq` far fewer).
-        let len = socket.as_os_str().len();
-        assert!(
-            len + 20 <= SOCKET_PATH_MAX,
-            "{} is {len} bytes, within 20 of the cap {SOCKET_PATH_MAX}",
-            socket.display()
+        // The pure derivation under a runtime directory this test names.
+        let short = world
+            .socket_path_under(Path::new("/run/user/1000/acq"))
+            .unwrap();
+        assert_eq!(
+            short,
+            Path::new("/run/user/1000/acq").join(world.socket_name())
         );
+        let deep = PathBuf::from("/").join("x".repeat(SOCKET_PATH_MAX));
+        let err = world.socket_path_under(&deep).unwrap_err();
+        assert_eq!(err.kind(), std::io::ErrorKind::InvalidInput);
+        assert!(
+            err.to_string().contains("at most 103") && err.to_string().contains("bytes"),
+            "{err}"
+        );
+        // Exactly at the cap passes; one over is refused: the bound is the
+        // path's byte length, terminator excluded.
+        let name_len = world.socket_name().len();
+        // "/" + the y's + "/" + the name: two separators.
+        let at_cap = PathBuf::from("/".to_string() + &"y".repeat(SOCKET_PATH_MAX - name_len - 2));
+        assert_eq!(
+            world.socket_path_under(&at_cap).unwrap().as_os_str().len(),
+            SOCKET_PATH_MAX
+        );
+        let over = PathBuf::from("/".to_string() + &"y".repeat(SOCKET_PATH_MAX - name_len - 1));
+        assert!(world.socket_path_under(&over).is_err());
+        #[cfg(unix)]
+        {
+            use std::os::unix::ffi::OsStrExt;
+            let odd = PathBuf::from(std::ffi::OsStr::from_bytes(b"/run/user/1000/acq-\xff"));
+            let err = world.socket_path_under(&odd).unwrap_err();
+            assert_eq!(err.kind(), std::io::ErrorKind::InvalidInput);
+            assert!(
+                err.to_string().contains("not valid UTF-8")
+                    && err.to_string().contains("XDG_RUNTIME_DIR"),
+                "{err}"
+            );
+        }
         let _ = std::fs::remove_dir_all(&base);
     }
 }

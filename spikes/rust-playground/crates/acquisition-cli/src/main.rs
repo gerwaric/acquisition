@@ -1060,7 +1060,7 @@ async fn run(cli: Cli) -> Result<()> {
                             println!("{}", serde_json::to_string_pretty(&report)?);
                         } else {
                             println!("{found} — running, not this client's");
-                            println!("socket: {}", found.socket().display());
+                            println!("socket: {}", found.socket());
                             println!("next:   {}", mismatch_remedy(&found));
                         }
                         return Ok(());
@@ -1143,7 +1143,7 @@ async fn run(cli: Cli) -> Result<()> {
                     println!(
                         "connections: {connections}  waiting: {jobs_waiting}  running: {jobs_running}  in flight: {in_flight}/{max_in_flight}  policies learned: {policies_known}"
                     );
-                    println!("socket: {}", found.socket().display());
+                    println!("socket: {}", found.socket());
                     println!("log:    {}", log.as_deref().unwrap_or("not reported"));
                     println!(
                         "rails:  tripwire {} · sends {}{} · journal {}",
