@@ -181,7 +181,10 @@ data for the commit that touches it.
   directories sat in the temp directory on 2026-09-10 from every test
   file older than this slice (`acq-p`, `acq-reference`, `acq-story`,
   `acq-ann`, …), removed once by hand; 46 more by 2026-09-10 after
-  step 3's suite runs, removed again. The three tests this slice wrote
+  step 3's suite runs, removed again; 71 more on 2026-09-11 after a
+  day of review rounds (42 `acq-reference-*` from the pricing tests, 22
+  `acq-stop-*` from this slice's own stop-peer unit test, which now
+  removes its directory), removed again. The tests this slice wrote
   hold theirs in a guard; the rest is for the packet's later change to
   one harness module per crate, where one guard serves every test.
 - The standing rule's "Build before you run" bullet: reworded for the

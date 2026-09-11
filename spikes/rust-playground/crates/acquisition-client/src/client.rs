@@ -1882,5 +1882,11 @@ mod tests {
         .await
         .unwrap();
         assert_eq!(stopped.pid(), 7);
+        // The peers' scratch directory goes with the test (each peer
+        // removed only its socket; 22 of these sat in the temp directory
+        // after a day's gate runs, 2026-09-11).
+        let _ = std::fs::remove_dir_all(
+            std::env::temp_dir().join(format!("acq-stop-{}", std::process::id())),
+        );
     }
 }
