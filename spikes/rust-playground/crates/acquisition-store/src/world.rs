@@ -42,7 +42,8 @@
 //!   what exists and creates nothing, so a missing root is an absent
 //!   world, never a new one; the use path sets the root to mode 0700 on
 //!   every start, not only when it creates it, and refuses if it cannot
-//!   (a root from before step 5 is brought to the documented state).
+//!   (a root that drifted, or was made before this rule, is brought to
+//!   the documented state).
 //!   `fs::canonicalize` is what makes two spellings of one directory one
 //!   world — a symlinked data directory, macOS's `/var` and
 //!   `/private/var` — and what a daemon reports in `hello` (`world`),
@@ -74,7 +75,10 @@
 //!   per-process state). Per user, not per machine: another OS user, the
 //!   C++ Acquisition and other machines behind the same address are
 //!   outside it — C31 names them as external concurrency the tripwire
-//!   exists for. The mock never takes it.
+//!   exists for. Per runtime directory, too: a relocated `TMPDIR`
+//!   (macOS) or `XDG_RUNTIME_DIR` (Linux) is a second lock — an `ACQ_*`
+//!   override was refused as a door to exactly that, and the tripwire
+//!   bounds what a local lock cannot. The mock never takes it.
 //! - **Durable state in the world.** `daemon.db` (`jobs::daemon_db_path`)
 //!   and the rails state ([`World::rails_state_path`]:
 //!   `<root>/<provider>/rails.json`) live beside the account files, where
@@ -215,7 +219,7 @@ pub struct World {
 impl World {
     /// The use path (C83): create the intended root if it is missing,
     /// set it to mode 0700 on Unix every time (the store holds intent and
-    /// `daemon.db`; a root from before step 5 is brought to that state),
+    /// `daemon.db`; a root that drifted is brought back to that state),
     /// then canonicalise it. A failure to create or to set the mode is a
     /// refusal, never ignored.
     pub fn create() -> Result<World, WorldError> {
