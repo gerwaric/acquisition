@@ -173,7 +173,8 @@ data for the commit that touches it.
   carried no `_matches` keys — the compatible report now carries the
   three (all true), pinned in both process tests, so the two shapes share
   every identity key; `daemon stop` reads "this build's — its contract
-  and artifact — or another's". The final texts are the references.
+  and artifact — or another's". The final texts are the references;
+  the owner, 2026-09-11, verbatim: "approved."
 - Three test executables drive the client in-process against a daemon
   they start (`contract.rs`, `watch_recovery.rs`, the MCP harness), and
   since step 4 the client judges that daemon's artifact against the
