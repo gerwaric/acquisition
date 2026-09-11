@@ -9,16 +9,48 @@
 
 mod harness;
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::process::Child;
+use std::time::{Duration, Instant};
 
 use harness::{Mcp, spawn_daemon};
 use serde_json::{Value, json};
+
+/// The scratch directory, removed on drop — a failed assertion leaves
+/// nothing behind. Declared before the daemon, so the daemon is gone
+/// first.
+struct Scratch(PathBuf);
+
+impl Drop for Scratch {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
+
+/// The daemon the test started, killed on drop and named while a test
+/// is panicking (C82: a failure says which daemon ran).
+struct Daemon(Child, PathBuf);
+
+impl Drop for Daemon {
+    fn drop(&mut self) {
+        if std::thread::panicking() {
+            eprintln!(
+                "the daemon under test was {} (pid {})",
+                self.1.display(),
+                self.0.id()
+            );
+        }
+        let _ = self.0.kill();
+        let _ = self.0.wait();
+    }
+}
 
 #[test]
 fn c84_daemon_status_reports_the_identity_and_the_sibling_it_is_judged_against() {
     let base = std::env::temp_dir().join(format!("acq-mcp-status-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&base);
     std::fs::create_dir_all(&base).unwrap();
+    let _scratch = Scratch(base.clone());
     let acqd = acquisition_client::locator::beside(Path::new(env!("CARGO_BIN_EXE_acq-mcp")))
         .unwrap_or_else(|e| panic!("{e}"))
         .canonicalize()
@@ -37,13 +69,19 @@ fn c84_daemon_status_reports_the_identity_and_the_sibling_it_is_judged_against()
 
     // Running and this server's: the vitals, and the identity keys the
     // incompatible report has, from one look at the sibling.
-    let mut daemon = spawn_daemon(&base, &[]);
+    let daemon = Daemon(spawn_daemon(&base, &[]), acqd.clone());
+    let deadline = Instant::now() + Duration::from_secs(10);
     let status = loop {
         let status = mcp.expect_ok("daemon_status", json!({}));
         if status["running"] == json!(true) {
             break status;
         }
-        std::thread::sleep(std::time::Duration::from_millis(50));
+        assert!(
+            Instant::now() < deadline,
+            "the mock daemon ({}) did not come up",
+            acqd.display()
+        );
+        std::thread::sleep(Duration::from_millis(50));
     };
     assert_eq!(status["compatible"], true, "{status}");
     assert_eq!(status["provider"], "mock", "{status}");
@@ -77,7 +115,7 @@ fn c84_daemon_status_reports_the_identity_and_the_sibling_it_is_judged_against()
         "{status}"
     );
     let pid = status["pid"].as_u64().unwrap();
-    assert_eq!(pid, u64::from(daemon.id()), "{status}");
+    assert_eq!(pid, u64::from(daemon.0.id()), "{status}");
 
     // A server that wants ggg observes the mock daemon: incompatible on
     // the provider dimension alone, the artifact still its sibling, the
@@ -99,8 +137,5 @@ fn c84_daemon_status_reports_the_identity_and_the_sibling_it_is_judged_against()
     );
     let again = mcp.expect_ok("daemon_status", json!({}));
     assert_eq!(again["pid"], pid, "the daemon was replaced: {again}");
-
-    let _ = daemon.kill();
-    let _ = daemon.wait();
-    let _ = std::fs::remove_dir_all(&base);
+    // The guards kill the daemon and remove the scratch directory.
 }

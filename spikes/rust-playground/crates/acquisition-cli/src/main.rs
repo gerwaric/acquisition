@@ -925,10 +925,10 @@ async fn run(cli: Cli) -> Result<()> {
                     "version": acquisition_protocol::VERSION,
                     "contract": acquisition_protocol::CONTRACT_REVISION,
                     "provider": acquisition_protocol::provider::wanted(),
-                    "acqd": sibling.as_ref().ok().map(|id| json!({
-                        "path": id.path,
-                        "len": id.len,
-                        "mtime_ns": id.mtime_ns,
+                    "acqd": sibling.as_ref().ok().map(|s| json!({
+                        "path": s.identity.path,
+                        "len": s.identity.len,
+                        "mtime_ns": s.identity.mtime_ns,
                     })),
                 });
                 if let Err(e) = &sibling {
@@ -938,9 +938,9 @@ async fn run(cli: Cli) -> Result<()> {
             } else {
                 println!("acq {}", acquisition_protocol::VERSION_WITH_CONTRACT);
                 match sibling {
-                    Ok(id) => println!(
+                    Ok(s) => println!(
                         "acqd: {} ({} bytes) — what a job command would start; `acq daemon status` reports the daemon running",
-                        id.path, id.len
+                        s.identity.path, s.identity.len
                     ),
                     Err(e) => println!("acqd: none — {e}"),
                 }
@@ -1062,7 +1062,7 @@ async fn run(cli: Cli) -> Result<()> {
                     println!(
                         "daemon {version} pid {pid}, up {uptime_seconds}s, provider {provider}"
                     );
-                    match (&found.artifact, &found.verdict().artifact) {
+                    match (found.artifact(), &found.verdict().artifact) {
                         (
                             Some(a),
                             acquisition_client::artifact::ArtifactVerdict::SameBytes { sibling },
@@ -1168,14 +1168,14 @@ async fn run(cli: Cli) -> Result<()> {
                                 "{}",
                                 json!({
                                     "stopped": true,
-                                    "pid": found.pid,
-                                    "version": found.version,
-                                    "provider": found.provider,
+                                    "pid": found.pid(),
+                                    "version": found.version(),
+                                    "provider": found.provider(),
                                     "compatible": found.is_ours(),
                                 })
                             );
                         } else if found.is_ours() {
-                            println!("daemon stopped (pid {})", found.pid);
+                            println!("daemon stopped (pid {})", found.pid());
                         } else {
                             println!("stopped: {found}");
                         }
@@ -1372,7 +1372,7 @@ async fn watch_jobs(json: bool) -> Result<()> {
             Observed::Incompatible(found) => bail!("{found}"),
         };
         let mut client = attach().await?;
-        if client.daemon().pid != subscription.daemon().pid {
+        if client.daemon().pid() != subscription.daemon().pid() {
             // A restart between the two connections: the subscription is
             // to a daemon that is gone. Start over.
             continue;

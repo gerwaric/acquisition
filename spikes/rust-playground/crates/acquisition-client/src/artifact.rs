@@ -5,14 +5,17 @@
 //! What a daemon reports in `hello` is its own executable's
 //! [`FileIdentity`] and SHA-256, computed once at its startup. What this
 //! process compares it with is the sibling the locator names (C82),
-//! `stat`ed at the moment of the comparison — never cached: a long-lived
-//! client (the MCP server) must see a rebuilt sibling. An equal identity
-//! is the same file. A different identity — a copy at another path, or a
-//! replacement at the same path — is settled by hashing the sibling here
-//! (tens of milliseconds, the rare path) and comparing digests, so a copy
-//! is still the same artifact and a rebuild is a named mismatch. The
-//! hashing is one copy here and one in the daemon, because the protocol
-//! crate, which defines the identity, links serde alone.
+//! opened at the moment of the comparison — never cached: a long-lived
+//! client (the MCP server) must see a rebuilt sibling — with the
+//! identity taken from that handle's metadata and, when it must be
+//! hashed, the bytes read from the same handle, so what a report names
+//! and what it judged are one file (review 2026-09-11). An equal
+//! identity is the same file. A different identity — a copy at another
+//! path, or a replacement at the same path — is settled by hashing the
+//! sibling (tens of milliseconds, the rare path) and comparing digests,
+//! so a copy is still the same artifact and a rebuild is a named
+//! mismatch. The hashing is one copy here and one in the daemon, because
+//! the protocol crate, which defines the identity, links serde alone.
 
 use std::io::Read;
 use std::path::{Path, PathBuf};
@@ -24,7 +27,13 @@ use crate::locator::{self, LocateError};
 
 /// The SHA-256 of the file at `path`, lower-case hex, read in chunks.
 pub fn sha256_of(path: &Path) -> std::io::Result<String> {
-    let mut file = std::fs::File::open(path)?;
+    sha256_of_open(&mut std::fs::File::open(path)?)
+}
+
+/// The SHA-256 of an open file, from its start.
+pub fn sha256_of_open(file: &mut std::fs::File) -> std::io::Result<String> {
+    use std::io::Seek;
+    file.seek(std::io::SeekFrom::Start(0))?;
     let mut hasher = Sha256::new();
     let mut buf = vec![0u8; 1 << 16];
     loop {
@@ -41,14 +50,36 @@ pub fn sha256_of(path: &Path) -> std::io::Result<String> {
         .collect())
 }
 
-/// The `acqd` this process would spawn (C82), as the filesystem
-/// identifies it right now — or why there is none.
-pub fn sibling() -> Result<FileIdentity, SiblingError> {
+/// The sibling `acqd`, open: its identity from the handle's metadata,
+/// and the handle itself for the hash that may follow.
+pub struct Sibling {
+    pub identity: FileIdentity,
+    file: std::fs::File,
+}
+
+impl Sibling {
+    /// Open the file at `path` (canonicalised first) and identify it from
+    /// the open handle.
+    pub fn open(path: &Path) -> Result<Sibling, SiblingError> {
+        let unreadable = |io: std::io::Error| SiblingError::Unreadable {
+            path: path.to_path_buf(),
+            io: io.to_string(),
+        };
+        let canonical = path.canonicalize().map_err(unreadable)?;
+        let file = std::fs::File::open(&canonical).map_err(unreadable)?;
+        let meta = file.metadata().map_err(unreadable)?;
+        Ok(Sibling {
+            identity: FileIdentity::of_open(&canonical, &meta),
+            file,
+        })
+    }
+}
+
+/// The `acqd` this process would spawn (C82), opened and identified
+/// right now — or why there is none.
+pub fn sibling() -> Result<Sibling, SiblingError> {
     let path = locator::acqd().map_err(SiblingError::Absent)?;
-    FileIdentity::of(&path).map_err(|e| SiblingError::Unreadable {
-        path,
-        io: e.to_string(),
-    })
+    Sibling::open(&path)
 }
 
 /// No sibling to compare a daemon with.
@@ -127,24 +158,27 @@ impl ArtifactVerdict {
         }
     }
 
-    /// The comparison itself, with the sibling supplied: the same inode
-    /// is the same file without a hash; otherwise the sibling is hashed
-    /// and its bytes decide.
+    /// The comparison itself, with the sibling supplied open: the same
+    /// inode is the same file without a hash; otherwise the sibling's
+    /// bytes, read from the handle that was identified, decide.
     pub fn judge_against(
         daemon: Option<&Artifact>,
-        sibling: Result<FileIdentity, SiblingError>,
+        sibling: Result<Sibling, SiblingError>,
     ) -> ArtifactVerdict {
         let Some(daemon) = daemon else {
             return ArtifactVerdict::Unreported;
         };
-        let sibling = match sibling {
+        let Sibling {
+            identity: sibling,
+            mut file,
+        } = match sibling {
             Ok(s) => s,
             Err(e) => return ArtifactVerdict::NoSibling(e),
         };
         if sibling.same_file_as(&daemon.file) {
             return ArtifactVerdict::SameFile;
         }
-        match sha256_of(Path::new(&sibling.path)) {
+        match sha256_of_open(&mut file) {
             Ok(sha256) if sha256 == daemon.sha256 => ArtifactVerdict::SameBytes { sibling },
             Ok(sha256) => ArtifactVerdict::Different {
                 sibling,
@@ -196,13 +230,7 @@ mod tests {
             sha256: sha256_of(&original).unwrap(),
         };
         let judge = |sibling: &std::path::Path| {
-            ArtifactVerdict::judge_against(
-                Some(&daemon),
-                FileIdentity::of(sibling).map_err(|e| SiblingError::Unreadable {
-                    path: sibling.to_path_buf(),
-                    io: e.to_string(),
-                }),
-            )
+            ArtifactVerdict::judge_against(Some(&daemon), Sibling::open(sibling))
         };
         let v = judge(&original);
         assert!(v.matches() && v.relation() == "same_file", "{v:?}");

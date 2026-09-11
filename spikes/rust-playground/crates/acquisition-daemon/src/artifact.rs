@@ -19,7 +19,13 @@ use sha2::{Digest, Sha256};
 
 /// The SHA-256 of the file at `path`, lower-case hex, read in chunks.
 pub fn sha256_of(path: &Path) -> std::io::Result<String> {
-    let mut file = std::fs::File::open(path)?;
+    sha256_of_open(&mut std::fs::File::open(path)?)
+}
+
+/// The SHA-256 of an open file, from its start.
+pub fn sha256_of_open(file: &mut std::fs::File) -> std::io::Result<String> {
+    use std::io::Seek;
+    file.seek(std::io::SeekFrom::Start(0))?;
     let mut hasher = Sha256::new();
     let mut buf = vec![0u8; 1 << 16];
     loop {
@@ -36,13 +42,24 @@ pub fn sha256_of(path: &Path) -> std::io::Result<String> {
         .collect())
 }
 
-/// This process's executable: `current_exe()` canonicalised, its file
-/// identity, and its hash. Once per lifetime, at startup.
+/// This process's executable: `current_exe()` canonicalised, opened
+/// once, its identity from that handle's metadata and its hash from the
+/// same handle — one snapshot. Once per lifetime, at startup.
 pub fn of_current_exe() -> Result<Artifact> {
     let exe = std::env::current_exe().context("resolving the daemon's own executable")?;
-    let file = FileIdentity::of(&exe)
-        .with_context(|| format!("identifying the daemon's executable {}", exe.display()))?;
-    let sha256 = sha256_of(Path::new(&file.path))
+    let canonical = exe
+        .canonicalize()
+        .with_context(|| format!("resolving the daemon's executable {}", exe.display()))?;
+    let mut handle = std::fs::File::open(&canonical)
+        .with_context(|| format!("opening the daemon's executable {}", canonical.display()))?;
+    let meta = handle.metadata().with_context(|| {
+        format!(
+            "identifying the daemon's executable {}",
+            canonical.display()
+        )
+    })?;
+    let file = FileIdentity::of_open(&canonical, &meta);
+    let sha256 = sha256_of_open(&mut handle)
         .with_context(|| format!("hashing the daemon's executable {}", file.path))?;
     Ok(Artifact { file, sha256 })
 }

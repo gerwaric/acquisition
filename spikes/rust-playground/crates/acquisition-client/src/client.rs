@@ -337,24 +337,27 @@ fn want_provider() -> &'static str {
     acquisition_protocol::provider::wanted()
 }
 
-/// A daemon as its handshake identifies it. Whether it is this client's
-/// is three dimensions, judged together (C10, C84): the shared-contract
-/// revision, the daemon artifact against the sibling this process would
-/// spawn, and the provider.
+/// A daemon as its handshake identifies it, judged once. Whether it is
+/// this client's is three dimensions, judged together (C10, C84): the
+/// shared-contract revision, the daemon artifact against the sibling
+/// this process would spawn, and the provider. The identity and its
+/// verdict are read-only from outside this module — the verdict was
+/// made of exactly these fields, and nothing may change one without
+/// the other (review 2026-09-11).
 #[derive(Clone, Debug, Serialize)]
 pub struct DaemonId {
-    pub pid: u32,
+    pid: u32,
     /// The daemon's package version; informational (C84 compares the
     /// contract, not this).
-    pub version: String,
+    version: String,
     /// The daemon's shared-contract revision.
-    pub contract: String,
+    contract: String,
     /// The executable the daemon runs from, as it reported it; `None`
     /// from a daemon of a build before the field. Boxed so a
     /// [`ConnectError`] carrying a `DaemonId` stays small on the stack.
-    pub artifact: Option<Box<Artifact>>,
+    artifact: Option<Box<Artifact>>,
     /// "mock" or "ggg".
-    pub provider: String,
+    provider: String,
     /// The judgement, captured once when this identity was read off the
     /// wire, from one look at the sibling: the compatibility flag, the
     /// relation and the sibling a report names all come from the same
@@ -362,7 +365,7 @@ pub struct DaemonId {
     /// contradict itself (review 2026-09-11). Boxed, like the artifact,
     /// so a [`ConnectError`] carrying a `DaemonId` stays small.
     #[serde(skip)]
-    pub verdict: Box<Verdict>,
+    verdict: Box<Verdict>,
 }
 
 /// What a client concluded about a daemon, dimension by dimension, from
@@ -378,14 +381,20 @@ pub struct Verdict {
 }
 
 impl Verdict {
-    /// One look at the sibling, then every dimension judged against it.
+    /// One look at the sibling — opened once; its identity and, when
+    /// needed, its bytes from that handle — then every dimension judged
+    /// against it.
     fn of(contract: &str, artifact: Option<&Artifact>, provider: &str) -> Verdict {
-        let sibling = sibling();
+        let opened = sibling();
+        let identity = match &opened {
+            Ok(s) => Ok(s.identity.clone()),
+            Err(e) => Err(e.clone()),
+        };
         Verdict {
             contract: contract == CONTRACT_REVISION,
-            artifact: ArtifactVerdict::judge_against(artifact, sibling.clone()),
+            artifact: ArtifactVerdict::judge_against(artifact, opened),
             provider: provider == want_provider(),
-            sibling,
+            sibling: identity,
         }
     }
 
@@ -419,6 +428,31 @@ impl DaemonId {
     /// The judgement captured with this identity.
     pub fn verdict(&self) -> &Verdict {
         &self.verdict
+    }
+
+    pub fn pid(&self) -> u32 {
+        self.pid
+    }
+
+    /// The daemon's package version; informational.
+    pub fn version(&self) -> &str {
+        &self.version
+    }
+
+    /// The daemon's shared-contract revision, as reported.
+    pub fn contract(&self) -> &str {
+        &self.contract
+    }
+
+    /// The executable the daemon runs from, as reported; `None` from a
+    /// build before the field.
+    pub fn artifact(&self) -> Option<&Artifact> {
+        self.artifact.as_deref()
+    }
+
+    /// "mock" or "ggg", as reported.
+    pub fn provider(&self) -> &str {
+        &self.provider
     }
 
     /// The daemon was compiled against the contract this process was.
@@ -1191,6 +1225,6 @@ mod tests {
 
         let stream = peer_that_answers_stop_with(Some(json!({ "resp": "stopping" }))).await;
         let stopped = Client::stop_over(stream).await.unwrap();
-        assert_eq!(stopped.pid, 7);
+        assert_eq!(stopped.pid(), 7);
     }
 }

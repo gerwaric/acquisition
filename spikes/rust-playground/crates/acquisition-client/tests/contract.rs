@@ -451,10 +451,14 @@ async fn c85_a_client_identifies_and_stops_a_foreign_daemon_across_a_contract_mi
         Observed::Absent => panic!("absent"),
         Observed::Compatible(_) => panic!("a foreign daemon is never this client's"),
     };
-    assert_eq!(found.version, "9.9.9");
-    assert_eq!(found.contract, "ffffffffffff");
-    assert_eq!(found.artifact, None, "an unreadable artifact reads as none");
-    assert_eq!(found.pid, 4242);
+    assert_eq!(found.version(), "9.9.9");
+    assert_eq!(found.contract(), "ffffffffffff");
+    assert_eq!(
+        found.artifact(),
+        None,
+        "an unreadable artifact reads as none"
+    );
+    assert_eq!(found.pid(), 4242);
     assert!(
         !found.contract_matches() && found.provider_matches(),
         "{found}"
@@ -472,7 +476,7 @@ async fn c85_a_client_identifies_and_stops_a_foreign_daemon_across_a_contract_mi
     assert!(err.contains("another contract"), "{err}");
 
     let stopped = Client::stop_any().await.expect("stop").expect("a daemon");
-    assert_eq!(stopped.pid, 4242);
+    assert_eq!(stopped.pid(), 4242);
     peer.abort();
 
     // The same daemon refusing the stop with an error of a future kind:
@@ -679,7 +683,7 @@ async fn c85_a_subscriber_sees_the_disconnect_and_subscribes_and_snapshots_again
     }
 
     let stopped = Client::stop_any().await.expect("stop").expect("a daemon");
-    assert_eq!(stopped.pid, daemon.pid());
+    assert_eq!(stopped.pid(), daemon.pid());
     daemon.wait_exit();
     let end = tokio::time::timeout(Duration::from_secs(10), subscription.next())
         .await

@@ -40,10 +40,21 @@ pub struct FileIdentity {
 }
 
 impl FileIdentity {
-    /// The identity of the file at `path`, canonicalised first.
+    /// The identity of the file at `path`, canonicalised first: a
+    /// convenience for a look that reads nothing else. A side that also
+    /// hashes the file takes both from one open handle
+    /// ([`FileIdentity::of_open`]), so the identity and the bytes are one
+    /// snapshot.
     pub fn of(path: &Path) -> std::io::Result<FileIdentity> {
         let canonical = path.canonicalize()?;
         let meta = std::fs::metadata(&canonical)?;
+        Ok(FileIdentity::of_open(&canonical, &meta))
+    }
+
+    /// The identity of an open file, from its handle's metadata; `path`
+    /// is the canonical path it was opened by. Whoever hashes the same
+    /// handle afterwards has hashed exactly this file.
+    pub fn of_open(path: &Path, meta: &std::fs::Metadata) -> FileIdentity {
         let mtime_ns = meta
             .modified()
             .ok()
@@ -56,13 +67,13 @@ impl FileIdentity {
         };
         #[cfg(not(unix))]
         let (dev, ino) = (0, 0);
-        Ok(FileIdentity {
-            path: canonical.to_string_lossy().into_owned(),
+        FileIdentity {
+            path: path.to_string_lossy().into_owned(),
             len: meta.len(),
             mtime_ns,
             dev,
             ino,
-        })
+        }
     }
 
     /// The same inode with the same length and modification time: the
