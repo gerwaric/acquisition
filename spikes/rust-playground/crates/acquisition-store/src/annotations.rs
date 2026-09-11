@@ -1984,15 +1984,18 @@ mod tests {
     /// C35, the first-open race's third window (round 25), staged
     /// exactly: the loser's connection carries an authorizer that fires
     /// when its second read — the table count — is prepared, after the
-    /// stamp was read and before any lock is held; there the winner
-    /// creates the schema, stamps it and commits on its own connection.
-    /// The round-24 gate then saw stamp 0 beside the winner's tables and
-    /// refused a well-formed file as "content but no schema stamp"; the
-    /// gate now reads both from one snapshot, so the winner's commit
-    /// cannot land between them (it waits on the loser's read and gives
-    /// up, swallowed here) and the loser opens the file. A stress test
-    /// of 3000 concurrent first opens did not reproduce the window; this
-    /// does, every run.
+    /// stamp was read; there the winner attempts, on its own connection,
+    /// to create the schema, stamp it and commit. Under the round-24
+    /// gate the loser held no lock between its two statements, so the
+    /// attempt commits and the loser then sees stamp 0 beside the
+    /// winner's tables and refuses a well-formed file as "content but no
+    /// schema stamp". Under the fixed gate the loser's stamp read already
+    /// holds the snapshot, so the attempt cannot commit between the
+    /// reads — it waits on the loser and gives up after its busy
+    /// timeout, which the pass path asserts — and the loser opens the
+    /// file. A stress test of 3000 concurrent first opens did not
+    /// reproduce the window; this does, every run (round 26 made the
+    /// attempt's two outcomes exact).
     #[test]
     fn c35_a_create_committing_between_the_gates_two_reads_is_not_a_refusal() {
         use rusqlite::hooks::{AuthAction, AuthContext, Authorization};
@@ -2038,7 +2041,13 @@ mod tests {
         let opened = Annotations::init(loser, path.clone());
         assert!(fired.load(Ordering::SeqCst), "the staging never fired");
         match opened {
-            Ok(_) => {}
+            // The fixed gate: the attempt could not commit between the
+            // loser's reads, and the loser opened the file.
+            Ok(_) => assert_eq!(
+                committed.load(Ordering::SeqCst),
+                0,
+                "the winner committed between the loser's two reads"
+            ),
             Err(e) => panic!(
                 "the loser refused the winner's file (winner committed between the reads: {}): {e}",
                 committed.load(Ordering::SeqCst) == 1

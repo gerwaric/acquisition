@@ -12,6 +12,7 @@ dependencies = [
  "acquisition-store",
  "anyhow",
  "clap",
+ "libc",
  "ratatui",
  "serde",
  "serde_json",

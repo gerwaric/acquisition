@@ -1147,6 +1147,25 @@ fn c83_a_legacy_listener_with_a_full_backlog_never_hangs_the_start() {
     // starts only below (review 2026-09-11). What the turned-away connect
     // says is the platform's: Linux EAGAIN, macOS ECONNREFUSED.
     let listener = std::os::unix::net::UnixListener::bind(&legacy).unwrap();
+    // An explicit, small backlog: std lets the kernel choose (Linux caps
+    // at somaxconn, 4096 by default), so the guard below would trip
+    // before saturation there. `listen` again on the bound socket sets
+    // the size on both platforms; the kernel may round it up a little,
+    // so the guard is sized from it with room (review 2026-09-11).
+    const BACKLOG: libc::c_int = 4;
+    {
+        use std::os::unix::io::AsRawFd;
+        // SAFETY: a bound listening socket's descriptor; `listen` only
+        // changes its queue length.
+        let rc = unsafe { libc::listen(listener.as_raw_fd(), BACKLOG) };
+        assert_eq!(
+            rc,
+            0,
+            "listen(fd, {BACKLOG}): {}",
+            std::io::Error::last_os_error()
+        );
+    }
+    let guard = 16 * (BACKLOG as usize + 1);
     let runtime = tokio::runtime::Runtime::new().unwrap();
     let mut held = Vec::new();
     let saturated = runtime.block_on(async {
@@ -1161,7 +1180,11 @@ fn c83_a_legacy_listener_with_a_full_backlog_never_hangs_the_start() {
                 Ok(stream) => held.push(stream),
                 Err(e) => break e,
             }
-            assert!(held.len() < 4096, "the backlog never filled");
+            assert!(
+                held.len() < guard,
+                "the backlog never filled: {} queued against a backlog of {BACKLOG}",
+                held.len()
+            );
         }
     });
     eprintln!(
