@@ -107,9 +107,6 @@
 //! - Colour or other decoration: captured output is the common case.
 //! - A `--quiet` driver: its problem is repetition (the plan three times
 //!   per cycle, the note twice), not volume.
-//! - Stopping the daemon automatically after a failed apply in the
-//!   driver: kept as noted on 2026-09-02 — the rung wants the jobs
-//!   readable while the daemon is up.
 //! - A store-side event summary function: the CLI can group the event
 //!   list and resolve names with the reads it has; a shared function
 //!   waits for the second consumer (MCP) to ask for it.
