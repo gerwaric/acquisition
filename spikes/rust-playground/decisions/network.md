@@ -23,3 +23,4 @@ Scope this area has deferred, with the trigger that reopens it, so deferral neve
 
 - Wire-send budget → enforcement over actual sends, beside C42's logical bound. Trigger: a consumer that needs it.
 - The invalid-request (4xx) threshold → a ground-truth claim, authored master-side. Trigger: observed at a first contact (from the 2026-09-02 documentation read; not yet observed).
+- Token expiry during a limiter hold → `Bearer::token` (C87) also refusing a token the wall clock says is expired, so the send releases its permit and refreshes instead of landing one 401. Expiry is checked before the wait and a hold reaches 343 s against a ten-hour token; today that window costs one 401, which C87 then turns into the refresh. Trigger: a 401 on a token that expired during a hold, seen in a live journal (2026-09-12; not yet observed).
