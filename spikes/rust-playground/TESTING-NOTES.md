@@ -104,16 +104,17 @@ journal.
 
 Invariants derived from the register rather than from the code. The R4,
 probe, accounting and pacing rows run over every harness journal; the
-R8 and C87 rows are scenario pins, and the C87 row's concurrent half is
-checked at the server, where dispatch order is visible, not in a
-journal at all:
+R8, C87 and N4/N25 rows are scenario pins (the last runs in the N6
+stress, the only harness whose server counts), and the C87 row's
+concurrent half is checked at the server, where dispatch order is
+visible, not in a journal at all:
 
 | Invariant | Source | Pins |
 | --- | --- | --- |
 | journal send methods == wire, in order, header as line 0 | R4 | the oracle itself |
 | per `(pid, route ≠ oauth-token)` the first send is `HEAD` | N16/N24 | probe before send |
 | `counted == (method != HEAD)` | N24 | the product's accounting |
-| C87 scenarios: after a 401 the account's next send is `POST oauth-token` (sequential, over the journal); no GET carrying the rejected bearer reaches the server after a 401 was answered (concurrent, at the server) | N34/R8, C87 | refresh on rejection — over the whole journal it was "after a 401 the next send is the refresh" until 2026-09-12, which the two-wide gate never promised: a send admitted beside the rejected one lands after it |
+| C87 scenarios: after a 401 the account's next send is `POST oauth-token` (sequential, over the journal); no HEAD or GET carrying the rejected bearer reaches the server after a 401 was answered (concurrent, at the server) | N34/R8, C87 | refresh on rejection — over the whole journal it was "after a 401 the next send is the refresh" until 2026-09-12, which the two-wide gate never promised: a send admitted beside the rejected one lands after it |
 | a send is held only if the previous landed response on its route was a 429, then for `[Retry-After, Retry-After + RETRY_BUCKET_PAD + BUFFER]`; otherwise `wait_ms == 0` | N19, N33 | safety floor and performance ceiling at once |
 | R8 scenario: after a laptop sleep past expiry, no 401, a refresh reaches the wire, all sends within 60 virtual s | R8 | wall-clock expiry |
 | no send answered 429; every reported window state `hits ≤ max` with no restriction active (`assert_never_over_the_limit`) | N4/N25 | never over the limit — real only against a counting mock; runs in the N6 stress |
