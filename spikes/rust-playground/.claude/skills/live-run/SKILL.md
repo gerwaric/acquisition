@@ -96,9 +96,12 @@ the driver runs again, or the parent's remaining children go out during
 the next quote and the driver refuses the run (2026-09-08).
 
 Known costs, not stops: the first probe of a lifetime queues a few
-seconds behind the token POST; the first login under a newly signed
-`acqd` is asked once per keychain item (the new identity joins the
-item's list — "Always Allow"), and never after a rebuild since.
+seconds behind the token POST; an unsigned `acqd` is asked twice per
+login after every rebuild. Expected of the signed one, unobserved
+until a ledger row says so: the first login under it is asked once per
+keychain item (the new identity joins the item's list — "Always
+Allow"), and the login after the next rebuild is not asked at all.
+Record both in the row.
 
 Sleep and wakes (soaks): a closed laptop on AC dark-wakes every 15–60
 min (Power Nap) and cron runs during the wakes; on battery it sleeps for

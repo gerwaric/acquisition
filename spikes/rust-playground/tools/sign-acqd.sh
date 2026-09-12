@@ -33,7 +33,8 @@
 # build are different units with different twins, and the copy matches
 # whichever built last. A build that actually re-links the daemon writes a
 # fresh ad-hoc twin, which is why this runs after the last build before a
-# run, never before it.
+# run, never before it. Exits 2 on any failure — preflight stops there.
+# Breakers: tools/sign-acqd-breakers.sh.
 set -euo pipefail
 here=$(cd "$(dirname "$0")/.." && pwd)
 acqd=${1:-$here/target/debug/acqd}
@@ -50,7 +51,20 @@ for f in "$(dirname "$acqd")"/deps/acqd-*; do
     if cmp -s "$f" "$acqd"; then twin=$f; break; fi
 done
 target=${twin:-$acqd}
-codesign -s "$ACQ_CODESIGN_IDENTITY" --identifier com.gerwaric.acqd -f "$target" 2>&1 | grep -v 'replacing existing signature' || true
+if ! out=$(codesign -s "$ACQ_CODESIGN_IDENTITY" --identifier com.gerwaric.acqd -f "$target" 2>&1); then
+    echo "sign-acqd: codesign failed for $target: $out" >&2; exit 2
+fi
 if [ -n "$twin" ]; then cp -f "$twin" "$acqd"; else echo "sign-acqd: no deps twin with $acqd's bytes — signed the copy alone; the next cargo build will undo it" >&2; fi
-codesign --verify "$acqd"
-echo "sign-acqd: $(codesign -d -r- "$acqd" 2>&1 | sed -n 's/^designated => //p')"
+# The proof is the designated requirement the file now carries, not that
+# a signature is valid — an ad-hoc signature is valid (audit 2026-09-12:
+# a nonexistent identity had exited 0 with the code hash still in place).
+req=$(codesign -d -r- "$acqd" 2>&1 | sed -n 's/^designated => //p')
+case $req in
+    *'identifier "com.gerwaric.acqd"'*) ;;
+    *) echo "sign-acqd: $acqd does not carry the fixed identifier after signing — requirement: ${req:-none}" >&2; exit 2 ;;
+esac
+case $req in
+    *cdhash*) echo "sign-acqd: $acqd still names a code hash — requirement: $req" >&2; exit 2 ;;
+esac
+codesign --verify "$acqd" || { echo "sign-acqd: $acqd fails codesign --verify after signing" >&2; exit 2; }
+echo "sign-acqd: $req"

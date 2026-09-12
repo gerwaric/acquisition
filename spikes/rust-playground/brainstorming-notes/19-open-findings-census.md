@@ -28,7 +28,9 @@ half wrong — the owner's machine already held signing identities, and a
 new Apple Development one was made for it; `tools/sign-acqd.sh` signs
 the daemon's deps twin after the build (cargo re-copies the daemon from
 it on every build, so signing the copy alone was undone by a no-op), run by
-preflight and the live-run skill; the same investigation found the
+preflight and the live-run skill (its effect on the prompts is owed to
+a ledger row; the observation stays open in `REFRESH-SLICE.md`); the
+same investigation found the
 Linux keyring gap (a mock store reporting `keyring: ok`) and fixed it
 (`e65cbb07`).
 
