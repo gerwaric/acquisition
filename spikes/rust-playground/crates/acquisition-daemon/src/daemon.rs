@@ -128,7 +128,8 @@ use crate::frame::{Frame, read_frame};
 use crate::provider::{CALLBACK_PATH, Provider, SCOPES};
 use crate::rails::{BlockShape, Rails, RailsConfig, verify_state};
 use crate::ratelimit::{
-    ChokePoint, Clock, EndpointState, RetryAfter, SendError, SystemClock, url_path,
+    Bearer, ChokePoint, Clock, EndpointState, ProbeError, RetryAfter, SendError, SystemClock,
+    url_path,
 };
 use crate::ratelimit::{endpoint_key, split_endpoint_key};
 use acquisition_protocol::artifact::Artifact;
@@ -288,6 +289,80 @@ enum ApiError {
     RateLimited(String),
     Protocol(String),
     Other(String),
+}
+
+/// How a GET authenticates (C87): through the account's session, whose
+/// token is read after gate admission and told of a 401; through a
+/// login's staged tokens, which no session holds yet (a 401 fails the
+/// login whole, C50); or not at all (the mock's fake data endpoint).
+enum Auth {
+    None,
+    Session { token: String, username: String },
+    Staged(String),
+}
+
+/// C87 — the session's token, as the choke point reads it after admission.
+/// `expected` is the token the job learned before it waited; what goes out
+/// is whatever the session holds *now*: the same token, or the one a
+/// refresh installed meanwhile, or nothing — the token was rejected while
+/// this send waited, and the send does not go out. A rejection reaches
+/// the session through `rejected`, under the rejecting send's permit.
+struct SessionBearer<'a> {
+    daemon: &'a Daemon,
+    username: &'a str,
+    expected: &'a str,
+    /// Set when `rejected` cleared the session's token: the job's error
+    /// says so.
+    cleared: std::sync::atomic::AtomicBool,
+}
+
+impl<'a> SessionBearer<'a> {
+    fn new(daemon: &'a Daemon, username: &'a str, expected: &'a str) -> Self {
+        SessionBearer {
+            daemon,
+            username,
+            expected,
+            cleared: std::sync::atomic::AtomicBool::new(false),
+        }
+    }
+
+    fn was_cleared(&self) -> bool {
+        self.cleared.load(std::sync::atomic::Ordering::SeqCst)
+    }
+}
+
+impl Bearer for SessionBearer<'_> {
+    fn token(&self) -> Option<String> {
+        let s = self.daemon.shared.lock().unwrap();
+        let session = s.auth.find(self.username)?;
+        let current = session.access_token.clone()?;
+        if current != self.expected {
+            self.daemon.log(&format!(
+                "send for {} carries the token a refresh installed while it waited (C87)",
+                self.username
+            ));
+        }
+        Some(current)
+    }
+
+    fn rejected(&self, token: &str) {
+        if self.daemon.reject_access_token(token).is_some() {
+            self.cleared
+                .store(true, std::sync::atomic::Ordering::SeqCst);
+        }
+    }
+}
+
+/// A login's staged access token (C50): held outside the session map, so
+/// there is nothing to re-read or to forget — a 401 fails the login whole.
+struct StagedBearer(String);
+
+impl Bearer for StagedBearer {
+    fn token(&self) -> Option<String> {
+        Some(self.0.clone())
+    }
+
+    fn rejected(&self, _token: &str) {}
 }
 
 /// What `execute` hands back to `process`.
@@ -2112,7 +2187,11 @@ resubmit if still wanted",
                     });
                 };
                 let route = route.as_deref().expect("characters is a network kind");
-                let (v, rate) = self.api_get(route, &url, Some(&token), ready).await?;
+                let auth = Auth::Session {
+                    token: token.clone(),
+                    username: username.clone(),
+                };
+                let (v, rate) = self.api_get(route, &url, auth, ready).await?;
                 // A 2xx without the `characters` array is a malformed
                 // response, not an empty account: the job fails and
                 // nothing is recorded (the store would refuse it too —
@@ -2143,10 +2222,16 @@ resubmit if still wanted",
                 let staged = (kind == "profile")
                     .then(|| self.staged_profile_token(account))
                     .flatten();
-                let (token, username) = match staged {
-                    Some(pair) => pair,
+                let (auth, username) = match staged {
+                    Some((token, username)) => (Auth::Staged(token), username),
                     None => match self.valid_access_token(account, false).await {
-                        Ok(pair) => pair,
+                        Ok((token, username)) => (
+                            Auth::Session {
+                                token,
+                                username: username.clone(),
+                            },
+                            username,
+                        ),
                         Err(error) => {
                             return Ok(Outcome::Failure {
                                 error: error.to_string(),
@@ -2160,7 +2245,7 @@ resubmit if still wanted",
                     });
                 };
                 let route = route.as_deref().expect("network kind");
-                let (v, rate) = self.api_get(route, &url, Some(&token), ready).await?;
+                let (v, rate) = self.api_get(route, &url, auth, ready).await?;
                 if let Err(failure) = self.record(account, kind, &params, &v) {
                     return Ok(failure);
                 }
@@ -2213,7 +2298,11 @@ resubmit if still wanted",
                     });
                 };
                 let route = route.as_deref().expect("stashes is a network kind");
-                let (v, rate) = self.api_get(route, &url, Some(&token), ready).await?;
+                let auth = Auth::Session {
+                    token: token.clone(),
+                    username: username.clone(),
+                };
+                let (v, rate) = self.api_get(route, &url, auth, ready).await?;
                 // A 2xx without the `stashes` array is a malformed
                 // response, not an empty account: the job fails and
                 // nothing is recorded — ingested as empty it would retire
@@ -2238,7 +2327,7 @@ resubmit if still wanted",
                 }
             }
             "stash" => {
-                let (token, _) = match self.valid_access_token(account, false).await {
+                let (token, username) = match self.valid_access_token(account, false).await {
                     Ok(pair) => pair,
                     Err(error) => {
                         return Ok(Outcome::Failure {
@@ -2252,7 +2341,11 @@ resubmit if still wanted",
                     });
                 };
                 let route = route.as_deref().expect("stash is a network kind");
-                let (v, rate) = self.api_get(route, &url, Some(&token), ready).await?;
+                let auth = Auth::Session {
+                    token: token.clone(),
+                    username: username.clone(),
+                };
+                let (v, rate) = self.api_get(route, &url, auth, ready).await?;
                 if let Err(failure) = self.record(account, kind, &params, &v) {
                     return Ok(failure);
                 }
@@ -2306,7 +2399,7 @@ resubmit if still wanted",
             // (folders themselves are never fetched); map/unique substashes
             // only if `deep`. Selection is explicit — there is no default.
             "refresh" => {
-                let (token, _) = match self.valid_access_token(account, false).await {
+                let (token, username) = match self.valid_access_token(account, false).await {
                     Ok(pair) => pair,
                     Err(error) => {
                         return Ok(Outcome::Failure {
@@ -2343,7 +2436,11 @@ resubmit if still wanted",
                     });
                 };
                 let route = route.as_deref().expect("refresh is a network kind");
-                let (v, rate) = self.api_get(route, &url, Some(&token), ready).await?;
+                let auth = Auth::Session {
+                    token: token.clone(),
+                    username: username.clone(),
+                };
+                let (v, rate) = self.api_get(route, &url, auth, ready).await?;
                 // A malformed listing fails the refresh whole, before the
                 // store sees it: converted to an empty list it would
                 // "succeed" with zero children over a retired tab set.
@@ -2496,7 +2593,7 @@ resubmit if still wanted",
                 }
                 let url = format!("{}/fetch", self.provider.api_base);
                 let route = route.as_deref().expect("mock fetch is a network kind");
-                let (v, rate) = self.api_get(route, &url, None, ready).await?;
+                let (v, rate) = self.api_get(route, &url, Auth::None, ready).await?;
                 Outcome::Success {
                     payload: json!({
                         "note": "fake data from the in-process mock",
@@ -2559,9 +2656,9 @@ resubmit if still wanted",
                         error: "probe needs a route and a url".into(),
                     });
                 };
-                let bearer = if self.needs_auth(&route) {
+                let mut session = if self.needs_auth(&route) {
                     match self.valid_access_token(account, false).await {
-                        Ok((token, _)) => Some(token),
+                        Ok(pair) => Some(pair),
                         Err(error) => {
                             // Close the endpoint too, or the waiting job would
                             // just ask for another probe; login reopens it.
@@ -2574,10 +2671,46 @@ resubmit if still wanted",
                 } else {
                     None
                 };
-                let probed = self
-                    .choke
-                    .head(&route, &url, bearer.as_deref(), ready)
-                    .await;
+                let mut retried = false;
+                let (probed, cleared_for) = loop {
+                    let bearer = session
+                        .as_ref()
+                        .map(|(token, username)| SessionBearer::new(self, username, token));
+                    let probed = self
+                        .choke
+                        .head(
+                            &route,
+                            &url,
+                            bearer.as_ref().map(|b| b as &dyn Bearer),
+                            ready,
+                        )
+                        .await;
+                    let cleared_for = bearer
+                        .as_ref()
+                        .filter(|b| b.was_cleared())
+                        .map(|b| b.username.to_string());
+                    match probed {
+                        // C87: the token this probe was to carry was rejected
+                        // while it waited for the exclusive permit. Refresh
+                        // outside it and try admission once more.
+                        Err(ProbeError::StaleBearer) if !retried => {
+                            retried = true;
+                            let (_, username) = session
+                                .as_ref()
+                                .expect("only a session's bearer can go stale");
+                            match self.valid_access_token(Some(username), false).await {
+                                Ok(pair) => session = Some(pair),
+                                Err(error) => {
+                                    self.choke.degrade(&route, &error.message);
+                                    return Ok(Outcome::Failure {
+                                        error: error.message,
+                                    });
+                                }
+                            }
+                        }
+                        other => break (other, cleared_for),
+                    }
+                };
                 self.announce_trip();
                 match probed {
                     Ok((status, policy, headers)) => {
@@ -2598,10 +2731,7 @@ resubmit if still wanted",
                     }
                     Err(error) => {
                         let mut message = format!("HEAD {}: {error}", url_path(&url));
-                        if error.status == Some(401)
-                            && let Some(token) = &bearer
-                            && let Some(username) = self.reject_access_token(token)
-                        {
+                        if let Some(username) = cleared_for {
                             message.push_str(&format!(
                                 " — the access token for {username} was rejected and is forgotten; the next send refreshes it first (C87)"
                             ));
@@ -2631,42 +2761,89 @@ resubmit if still wanted",
         &self,
         route: &str,
         url: &str,
-        bearer: Option<&str>,
+        mut auth: Auth,
         ready: Instant,
     ) -> Result<(Value, Value), ApiError> {
-        let response = match bearer {
-            Some(token) => self.choke.get_bearer(route, url, token, ready).await,
-            None => self.choke.get(route, url, ready).await,
-        }
-        .map_err(|error| match error {
-            SendError::Protocol(error) => ApiError::Protocol(format!(
-                "GET {}: rate-limit protocol failure: {error}",
-                url_path(url)
-            )),
-            SendError::Transport(error) => ApiError::Other(format!("GET {url} failed: {error}")),
-            SendError::Halted(cause) => {
-                ApiError::Other(format!("GET {} refused: {cause}", url_path(url)))
+        let mut retried = false;
+        loop {
+            let (sent, cleared_for) = match &auth {
+                Auth::Session { token, username } => {
+                    let bearer = SessionBearer::new(self, username, token);
+                    let sent = self.choke.get_bearer(route, url, &bearer, ready).await;
+                    (sent, bearer.was_cleared().then(|| username.clone()))
+                }
+                Auth::Staged(token) => (
+                    self.choke
+                        .get_bearer(route, url, &StagedBearer(token.clone()), ready)
+                        .await,
+                    None,
+                ),
+                Auth::None => (self.choke.get(route, url, ready).await, None),
+            };
+            let response = match sent {
+                // C87: the token this send was to carry was rejected while
+                // it waited at the gate. The permit is released; refresh
+                // outside it and try admission once more.
+                Err(SendError::StaleBearer) if !retried => {
+                    retried = true;
+                    let Auth::Session { username, .. } = &auth else {
+                        unreachable!("only a session's bearer can go stale")
+                    };
+                    match self.valid_access_token(Some(username), false).await {
+                        Ok((token, username)) => {
+                            auth = Auth::Session { token, username };
+                            continue;
+                        }
+                        Err(refusal) => {
+                            return Err(ApiError::Other(format!(
+                                "GET {}: {}",
+                                url_path(url),
+                                refusal.message
+                            )));
+                        }
+                    }
+                }
+                Err(SendError::StaleBearer) => {
+                    return Err(ApiError::Other(format!(
+                        "GET {}: {} — twice; giving up",
+                        url_path(url),
+                        SendError::StaleBearer
+                    )));
+                }
+                Err(SendError::Protocol(error)) => {
+                    return Err(ApiError::Protocol(format!(
+                        "GET {}: rate-limit protocol failure: {error}",
+                        url_path(url)
+                    )));
+                }
+                Err(SendError::Transport(error)) => {
+                    return Err(ApiError::Other(format!("GET {url} failed: {error}")));
+                }
+                Err(SendError::Halted(cause)) => {
+                    return Err(ApiError::Other(format!(
+                        "GET {} refused: {cause}",
+                        url_path(url)
+                    )));
+                }
+                Ok(response) => response,
+            };
+            self.announce_trip();
+            let status = response.status;
+            let rate = response.rate;
+            let retry_after = response.retry_after;
+            let path = url_path(url);
+            self.log(&format!("GET {path} -> {status} | rate headers: {rate}"));
+            let classified = classify_api_body(status, &retry_after, &path, rate, response.body);
+            if let Some(username) = cleared_for {
+                return classified.map_err(|error| match error {
+                    ApiError::Other(evidence) => ApiError::Other(format!(
+                        "{evidence} — the access token for {username} was rejected and is forgotten; the next send refreshes it first (C87)"
+                    )),
+                    other => other,
+                });
             }
-        })?;
-        self.announce_trip();
-        let status = response.status;
-        let rate = response.rate;
-        let retry_after = response.retry_after;
-        let path = url_path(url);
-        self.log(&format!("GET {path} -> {status} | rate headers: {rate}"));
-        let classified = classify_api_body(status, &retry_after, &path, rate, response.body);
-        if status.as_u16() == 401
-            && let Some(token) = bearer
-            && let Some(username) = self.reject_access_token(token)
-        {
-            return classified.map_err(|error| match error {
-                ApiError::Other(evidence) => ApiError::Other(format!(
-                    "{evidence} — the access token for {username} was rejected and is forgotten; the next send refreshes it first (C87)"
-                )),
-                other => other,
-            });
+            return classified;
         }
-        classified
     }
 
     // ---- auth -----------------------------------------------------------
@@ -3040,10 +3217,13 @@ resubmit if still wanted",
     }
 
     /// A 401 landed on a send that carried `token` (C87): the session
-    /// forgets it and the log says so. The job that met the 401 fails as
-    /// it did; the next send for that account is the refresh, which the
-    /// journal rule in `TESTING-NOTES.md` pins. Returns the account whose
-    /// token was cleared, or `None` when no session held it any more.
+    /// forgets it and the log says so. Reached from the choke point through
+    /// `Bearer::rejected`, while the rejecting send still holds its permit,
+    /// so every send admitted after it reads the cleared session. The job
+    /// that met the 401 fails as it did; the next send for that account is
+    /// the refresh (`TESTING-NOTES.md`, the C87 scenarios). Returns the
+    /// account whose token was cleared, or `None` when no session held it
+    /// any more.
     fn reject_access_token(&self, token: &str) -> Option<String> {
         let username = self
             .shared
@@ -6350,6 +6530,264 @@ mod dispatcher_tests {
         assert_eq!(methods, ["HEAD", "GET", "POST", "GET"], "{sends:?}");
     }
 
+    /// A server for the concurrent shape of C87: HEAD always 204, one
+    /// policy per path so three routes hold three ordinary permits' worth
+    /// of contention; every GET is recorded on arrival — its bearer, and
+    /// whether this server had already *answered* a 401 by then — and a
+    /// GET carrying the stale bearer is held until `release`, then 401.
+    /// The token endpoint rotates to the fresh bearer.
+    async fn bearer_recording_server(
+        stale_bearer: &'static str,
+        fresh_bearer: &'static str,
+    ) -> (
+        String,
+        tokio::task::JoinHandle<()>,
+        Arc<Mutex<Vec<(String, bool)>>>,
+        watch::Sender<bool>,
+    ) {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let base = format!("http://{}", listener.local_addr().unwrap());
+        let arrivals: Arc<Mutex<Vec<(String, bool)>>> = Arc::new(Mutex::new(Vec::new()));
+        let answered_401 = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let (release, released) = watch::channel(false);
+        let task = {
+            let arrivals = arrivals.clone();
+            tokio::spawn(async move {
+                loop {
+                    let (mut stream, _) = listener.accept().await.unwrap();
+                    let arrivals = arrivals.clone();
+                    let answered_401 = answered_401.clone();
+                    let mut released = released.clone();
+                    tokio::spawn(async move {
+                        let Some(request) = mockggg::read_request(&mut stream).await else {
+                            return;
+                        };
+                        let bearer = request
+                            .headers
+                            .get("authorization")
+                            .and_then(|v| v.strip_prefix("Bearer "))
+                            .unwrap_or("")
+                            .to_string();
+                        let policy = format!("scenario{}", request.path.replace('/', "-"));
+                        let api_headers = format!(
+                            "X-Rate-Limit-Policy: {policy}\r\nX-Rate-Limit-Rules: Account\r\nX-Rate-Limit-Account: 100:1:60\r\nX-Rate-Limit-Account-State: 0:1:0\r\n"
+                        );
+                        let (status, headers, body) = if request.path == "/token" {
+                            (
+                                "200 OK",
+                                "X-Rate-Limit-Policy: token-request-limit\r\nX-Rate-Limit-Rules: Ip\r\nX-Rate-Limit-Ip: 60:30:30\r\nX-Rate-Limit-Ip-State: 1:30:0\r\n".to_string(),
+                                json!({
+                                    "access_token": fresh_bearer,
+                                    "refresh_token": "rt-rotated",
+                                    "expires_in": 3600,
+                                    "username": "scenario-user",
+                                })
+                                .to_string(),
+                            )
+                        } else if request.method == "HEAD" {
+                            ("204 No Content", api_headers, String::new())
+                        } else {
+                            arrivals.lock().unwrap().push((
+                                bearer.clone(),
+                                answered_401.load(std::sync::atomic::Ordering::SeqCst),
+                            ));
+                            if bearer == stale_bearer {
+                                while !*released.borrow_and_update() {
+                                    if released.changed().await.is_err() {
+                                        return;
+                                    }
+                                }
+                                answered_401.store(true, std::sync::atomic::Ordering::SeqCst);
+                                (
+                                    "401 Unauthorized",
+                                    api_headers,
+                                    r#"{"error":"expired"}"#.to_string(),
+                                )
+                            } else {
+                                ("200 OK", api_headers, r#"{"characters":[]}"#.to_string())
+                            }
+                        };
+                        mockggg::respond_with(
+                            &mut stream,
+                            status,
+                            "application/json",
+                            &headers,
+                            &body,
+                        )
+                        .await;
+                    });
+                }
+            })
+        };
+        (base, task, arrivals, release)
+    }
+
+    /// C87 under the gate. Three jobs on three routes learn the same valid
+    /// token, two are admitted (the gate is two wide) and held by the
+    /// server, the third waits at the gate holding what it learned. The
+    /// held two are then answered 401. Before 2026-09-12 the third went
+    /// out with the rejected bearer — the session was cleared after the
+    /// rejecting send's permit had dropped, and the waiter had its copy.
+    /// Now the rejection is published under the permit and the waiter
+    /// reads the session after admission: it finds no token, refreshes,
+    /// and sends the new one. Pinned at the server, where dispatch order
+    /// is visible: no GET carrying the rejected bearer arrives after a
+    /// 401 has been answered. Breakers (verified 2026-09-12): make
+    /// `SessionBearer::token` return `expected` regardless, or drop the
+    /// permit and yield before the choke's `rejected` call — the third
+    /// arrival carries the rejected bearer and this fails. A drop with no
+    /// await before the call passes here, because this runtime is one
+    /// thread and no waiter runs in that window; the daemon's is not, so
+    /// the call's place before the permit's drop is held by reading, not
+    /// by this test.
+    #[tokio::test]
+    async fn rejected_access_token_is_not_dispatched_after_its_401_under_the_gate() {
+        let (base, server, arrivals, release) = bearer_recording_server("at-old", "at-new").await;
+        let clock = Arc::new(ManualClock::new());
+        let journal = std::env::temp_dir().join(format!(
+            "acquisition-c87-gate-{}-{}.jsonl",
+            std::process::id(),
+            TEST_LOG_ID.fetch_add(1, Ordering::Relaxed)
+        ));
+        let _ = std::fs::remove_file(&journal);
+        let rails = Arc::new(Rails::with_config_and_clock(
+            RailsConfig {
+                journal_path: Some(journal.clone()),
+                ..RailsConfig::default()
+            },
+            clock.clone(),
+        ));
+        let (daemon, log_path) = test_daemon_scenario(
+            Provider::mock(&base),
+            clock.clone(),
+            rails,
+            Arc::new(NoopCredentialStore),
+        );
+        {
+            let mut s = daemon.shared.lock().unwrap();
+            s.auth.rename("", "scenario-user");
+            daemon.install_tokens_locked(
+                s.auth.one_mut(),
+                auth::TokenResponse {
+                    access_token: "at-old".into(),
+                    refresh_token: "rt-old".into(),
+                    expires_in: 3600,
+                    username: "scenario-user".into(),
+                },
+            );
+        }
+        // The routes are learned first, so the contention below is three
+        // GETs at the gate and not a probe waiting for held GETs to drain.
+        for (route, path) in [
+            ("character-list", "/character"),
+            ("character", "/character/x"),
+            ("stash-list", "/stash/Standard"),
+        ] {
+            daemon
+                .choke
+                .head(route, &format!("{base}{path}"), None, daemon.choke.now())
+                .await
+                .unwrap();
+        }
+        let dispatcher = tokio::spawn(daemon.clone().dispatcher());
+        let ids = [
+            daemon
+                .submit("characters".into(), json!({}), 0, "test".into(), None)
+                .unwrap(),
+            daemon
+                .submit(
+                    "character".into(),
+                    json!({"name": "x"}),
+                    0,
+                    "test".into(),
+                    None,
+                )
+                .unwrap(),
+            daemon
+                .submit("stashes".into(), json!({}), 0, "test".into(), None)
+                .unwrap(),
+        ];
+        // Two GETs in flight (held), the third at the gate: wait for the
+        // two arrivals, then let the scheduler run until nothing else
+        // can happen without the server answering.
+        tokio::time::timeout(Duration::from_secs(3), async {
+            while arrivals.lock().unwrap().len() < 2 {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("two GETs reached the server");
+        for _ in 0..200 {
+            tokio::task::yield_now().await;
+        }
+        assert_eq!(
+            arrivals.lock().unwrap().len(),
+            2,
+            "the gate is two wide: the third GET must be waiting, not on the wire"
+        );
+        release.send(true).unwrap();
+        let outcomes: Vec<(JobInfo, Outcome)> = {
+            let mut v = Vec::new();
+            for id in ids {
+                v.push(wait_terminal(&daemon, id).await);
+            }
+            v
+        };
+        server.abort();
+        finish_harness(dispatcher, &log_path);
+        let lines = read_journal(&journal);
+        let _ = std::fs::remove_file(&journal);
+        let sends = &lines[1..];
+        assert_wire_contract(sends);
+        assert_pacing_follows_responses(sends);
+
+        let arrivals = arrivals.lock().unwrap().clone();
+        assert!(
+            !arrivals
+                .iter()
+                .any(|(bearer, after_401)| bearer == "at-old" && *after_401),
+            "a GET carried the rejected bearer after a 401 had been answered: {arrivals:?}"
+        );
+        assert_eq!(
+            arrivals.iter().filter(|(b, _)| b == "at-old").count(),
+            2,
+            "the two held GETs carried the old bearer: {arrivals:?}"
+        );
+        assert!(
+            arrivals.iter().any(|(b, after)| b == "at-new" && *after),
+            "the waiting GET went out under the refreshed bearer: {arrivals:?}"
+        );
+        assert!(
+            sends
+                .iter()
+                .any(|l| l["method"] == "POST" && l["route"] == "oauth-token"),
+            "the refresh reached the wire: {sends:?}"
+        );
+        // The two held jobs met the 401; the third never did (whatever
+        // this server's body does to it afterwards is not the point).
+        let errors: Vec<&str> = outcomes
+            .iter()
+            .map(|(_, outcome)| match outcome {
+                Outcome::Failure { error } => error.as_str(),
+                _ => "",
+            })
+            .collect();
+        assert_eq!(
+            errors.iter().filter(|e| e.contains("401")).count(),
+            2,
+            "the two held jobs failed on their 401: {errors:?}"
+        );
+        assert!(
+            !errors[2].contains("401"),
+            "the waiting job never met a 401: {}",
+            errors[2]
+        );
+        assert!(
+            errors.iter().any(|e| e.contains("C87")),
+            "the job whose 401 cleared the token says so: {errors:?}"
+        );
+    }
+
     /// R8 as a scenario (TESTING-NOTES, "the experiment"). The token was
     /// issued for 3600 s; the lid closed for 1800 s and then 2000 s passed
     /// normally. On the wall it is 3800 s later and the token is dead; on a
@@ -6570,26 +7008,22 @@ mod dispatcher_tests {
     ///   send on any API route is a HEAD. The token endpoint is never
     ///   probed.
     /// - N24, accounting: a HEAD is never counted; everything else is.
-    /// - N34/R8, C87: a 401 is answered by a token refresh before any other
-    ///   send. Entered by the two `rejected_access_token_*` scenarios
-    ///   below (breaker, verified 2026-09-12: drop either
-    ///   `reject_access_token` call and its scenario fails here, the
-    ///   next send being the same bearer again). The rule is over the
-    ///   whole journal, not per account: no scenario yet interleaves a
-    ///   second account's send between a 401 and its refresh.
+    ///
+    /// Not here, though it was from 2026-08-24 to 2026-09-12: "after a
+    /// 401 the next send is the refresh". The journal records completed
+    /// sends in completion order, and the gate is two wide, so a send
+    /// admitted beside the rejected one lands after it — as a second 401,
+    /// or as another account's send. What C87 promises is about dispatch,
+    /// not adjacency: no send leaves the gate carrying a bearer whose
+    /// rejection has landed. The sequential shape is pinned over the
+    /// journal by the `rejected_access_token_*` scenarios, the concurrent
+    /// shape at the server by `rejected_access_token_is_not_dispatched_*`.
     fn assert_wire_contract(sends: &[Value]) {
         let mut seen: HashSet<(u64, String)> = HashSet::new();
-        let mut owe_refresh: Option<&Value> = None;
         for send in sends {
             let pid = send["pid"].as_u64().unwrap();
             let route = send["route"].as_str().unwrap().to_string();
             let method = send["method"].as_str().unwrap();
-            if let Some(unauthorized) = owe_refresh.take() {
-                assert!(
-                    method == "POST" && route == "oauth-token",
-                    "after a 401 the next send must be the refresh, not: {send}\n401: {unauthorized}"
-                );
-            }
             if route != "oauth-token" && seen.insert((pid, route.clone())) {
                 assert_eq!(
                     method, "HEAD",
@@ -6601,9 +7035,6 @@ mod dispatcher_tests {
                 method != "HEAD",
                 "HEADs are not counted and everything else is: {send}"
             );
-            if send["status"] == 401 {
-                owe_refresh = Some(send);
-            }
         }
     }
 

@@ -1297,24 +1297,54 @@ fn rule_statuses(ps: &PolicyState) -> Vec<RuleStatus> {
 
 // ---- the choke point ------------------------------------------------------
 
-/// Why a HEAD probe did not leave its route with a policy: the status the
-/// probe landed with (`None` when it never landed — refused by a halt, or
-/// lost in transport) and the limiter's reason. The status is what lets
-/// the daemon act on a 401 (C87) without parsing the reason.
+/// The bearer of an authenticated send, as the choke point sees it (C87).
+/// A job learns its token before it waits for the limiter and the gate,
+/// and that wait can be minutes; in the meantime another send may have
+/// carried the same token to a 401. So the token is not a string handed
+/// in up front: it is *read after admission*, from the session, and the
+/// session hears of a rejection *before the rejecting send's permit is
+/// released* — the two together mean no send leaves the gate carrying a
+/// bearer whose rejection has already landed. Sends admitted alongside
+/// the rejected one are on the wire already and may land 401 too.
+pub trait Bearer: Send + Sync {
+    /// The token this send carries, read once the send holds its permit.
+    /// `None`: the token it was going to carry is gone (rejected, C87),
+    /// so the send does not go out — the caller releases the permit,
+    /// refreshes outside it, and tries admission again.
+    fn token(&self) -> Option<String>;
+    /// A 401 landed on `token`; called while the permit is still held.
+    fn rejected(&self, token: &str);
+}
+
+/// Why a HEAD probe did not leave its route with a policy.
 #[derive(Debug, Clone)]
-pub struct ProbeError {
-    pub status: Option<u16>,
-    pub reason: String,
+pub enum ProbeError {
+    /// The bearer read after admission was gone (C87): nothing was sent.
+    StaleBearer,
+    /// The status the probe landed with (`None` when it never landed —
+    /// refused by a halt, or lost in transport) and the limiter's reason.
+    /// The status is what lets the daemon act on a 401 (C87) without
+    /// parsing the reason.
+    Failed { status: Option<u16>, reason: String },
 }
 
 impl std::fmt::Display for ProbeError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(&self.reason)
+        match self {
+            ProbeError::StaleBearer => f.write_str(STALE_BEARER),
+            ProbeError::Failed { reason, .. } => f.write_str(reason),
+        }
     }
 }
 
+const STALE_BEARER: &str =
+    "the bearer this send was to carry was rejected before it left the gate (C87)";
+
 #[derive(Debug)]
 pub enum SendError {
+    /// The bearer read after admission was gone (C87): nothing was sent
+    /// and the permit is released; refresh, then try admission again.
+    StaleBearer,
     Transport(String),
     Protocol(PolicyObservationError),
     /// Refused before any permit by the live-test rails (tripwire or
@@ -1336,6 +1366,7 @@ pub struct CompletedResponse {
 impl fmt::Display for SendError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            SendError::StaleBearer => f.write_str(STALE_BEARER),
             SendError::Transport(error) => write!(f, "{error}"),
             SendError::Halted(cause) => write!(f, "{cause}"),
             SendError::Protocol(error) => {
@@ -1694,16 +1725,28 @@ impl ChokePoint {
         &self,
         route: &str,
         url: &str,
-        bearer: Option<&str>,
+        bearer: Option<&dyn Bearer>,
         since: Instant,
     ) -> Result<(reqwest::StatusCode, Policy, serde_json::Value), ProbeError> {
-        let _permit = self.acquire_head(route).await.map_err(|error| ProbeError {
-            status: None,
-            reason: error.to_string(),
-        })?;
+        let _permit = self
+            .acquire_head(route)
+            .await
+            .map_err(|error| ProbeError::Failed {
+                status: None,
+                reason: error.to_string(),
+            })?;
+        // Read after admission (C87): the exclusive permit may have waited
+        // behind sends that carried this token to a 401.
+        let token = match bearer {
+            Some(bearer) => match bearer.token() {
+                Some(token) => Some(token),
+                None => return Err(ProbeError::StaleBearer),
+            },
+            None => None,
+        };
         let wait = self.now().saturating_duration_since(since);
         let mut req = self.http.head(url);
-        if let Some(token) = bearer {
+        if let Some(token) = &token {
             req = req.bearer_auth(token);
         }
         let sent = req.send().await.map_err(|error| error.to_string());
@@ -1791,9 +1834,16 @@ impl ChokePoint {
             false,
             wait,
         );
+        let status = completed.as_ref().ok().map(|(status, _)| status.as_u16());
+        // A rejection is published while this permit is still held (C87),
+        // so no waiter admitted after it can read the rejected token.
+        if status == Some(401)
+            && let (Some(bearer), Some(token)) = (bearer, &token)
+        {
+            bearer.rejected(token);
+        }
         // The limiter decided whether that was good enough; report what it
         // concluded so the probe job's outcome matches the endpoint state.
-        let status = completed.as_ref().ok().map(|(status, _)| status.as_u16());
         match self
             .limiter
             .lock()
@@ -1806,11 +1856,11 @@ impl ChokePoint {
                 };
                 Ok((completed.unwrap().0, policy, raw))
             }
-            EndpointState::Degraded { reason, .. } => Err(ProbeError {
+            EndpointState::Degraded { reason, .. } => Err(ProbeError::Failed {
                 status,
                 reason: format!("{reason}; endpoint closed for a cooldown"),
             }),
-            other => Err(ProbeError {
+            other => Err(ProbeError::Failed {
                 status,
                 reason: format!("unexpected endpoint state after probe: {other:?}"),
             }),
@@ -2057,24 +2107,36 @@ impl ChokePoint {
 
     /// Bearer-authenticated GET. The dispatcher may pre-wait while the job is
     /// cancellable; this method owns the final limiter check and live permit.
+    /// The token is read from `bearer` after admission and a 401 is
+    /// reported to it before the permit is released (C87).
     pub async fn get_bearer(
         &self,
         route: &str,
         url: &str,
-        bearer: &str,
+        bearer: &dyn Bearer,
         since: Instant,
     ) -> Result<CompletedResponse, SendError> {
         let _permit = self.acquire_send(route).await?;
+        let Some(token) = bearer.token() else {
+            return Err(SendError::StaleBearer);
+        };
         let wait = self.now().saturating_duration_since(since);
         let result = self
             .http
             .get(url)
-            .bearer_auth(bearer)
+            .bearer_auth(&token)
             .send()
             .await
             .map_err(|e| e.to_string());
-        self.finish_send(route, "GET", url, result, true, wait)
-            .await
+        let response = self
+            .finish_send(route, "GET", url, result, true, wait)
+            .await;
+        if let Ok(completed) = &response
+            && completed.status.as_u16() == 401
+        {
+            bearer.rejected(&token);
+        }
+        response
     }
 
     /// Unauthenticated GET (mock-only fake data endpoints).
@@ -3563,7 +3625,10 @@ mod tests {
             .head(route, unreachable, None, choke.now())
             .await
             .unwrap_err();
-        assert!(head.reason.contains("halted by live-test rails"), "{head}");
+        assert!(
+            matches!(&head, ProbeError::Failed { reason, .. } if reason.contains("halted by live-test rails")),
+            "{head}"
+        );
         let post = choke
             .post_form("oauth-token", unreachable, &[("a", "b")], choke.now())
             .await

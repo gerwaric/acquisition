@@ -57,7 +57,10 @@ Kept short; each of these is a shape we expect to meet again.
   nineteen days later (2026-09-12): the 401 rule ran over every journal
   and none carried a 401, and the first scenario that did showed the
   product re-sending the rejected bearer — the rule had pinned a property
-  the product did not have (now C87). The general
+  the product did not have (now C87); and the same day an external audit
+  found the first fix and its sequential scenarios blind to the gate —
+  a waiter admitted after the 401 still held its copy of the token — so
+  the pin moved to where dispatch order is visible, the server. The general
   question — *what else here reads as a check but cannot fail?* — is the
   most useful one this project has, and it will matter more, not less, if
   a goal-seeking agent ever builds against this suite.
@@ -107,7 +110,7 @@ rather than from the code:
 | journal send methods == wire, in order, header as line 0 | R4 | the oracle itself |
 | per `(pid, route ≠ oauth-token)` the first send is `HEAD` | N16/N24 | probe before send |
 | `counted == (method != HEAD)` | N24 | the product's accounting |
-| after a 401 the next send is `POST oauth-token` | N34/R8, C87 | refresh on rejection: the rejected bearer is never sent again |
+| C87 scenarios: after a 401 the account's next send is `POST oauth-token` (sequential, over the journal); no GET carrying the rejected bearer reaches the server after a 401 was answered (concurrent, at the server) | N34/R8, C87 | refresh on rejection — over the whole journal it was "after a 401 the next send is the refresh" until 2026-09-12, which the two-wide gate never promised: a send admitted beside the rejected one lands after it |
 | a send is held only if the previous landed response on its route was a 429, then for `[Retry-After, Retry-After + RETRY_BUCKET_PAD + BUFFER]`; otherwise `wait_ms == 0` | N19, N33 | safety floor and performance ceiling at once |
 | R8 scenario: after a laptop sleep past expiry, no 401, a refresh reaches the wire, all sends within 60 virtual s | R8 | wall-clock expiry |
 | no send answered 429; every reported window state `hits ≤ max` with no restriction active (`assert_never_over_the_limit`) | N4/N25 | never over the limit — real only against a counting mock; runs in the N6 stress |

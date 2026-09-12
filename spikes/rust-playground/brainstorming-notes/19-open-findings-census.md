@@ -21,7 +21,9 @@ pinned (C3). B4, 2026-09-12: its reason ("so the jobs stay readable") had
 been answered by C45; the driver now saves the lifetime's evidence and
 stops. B2, 2026-09-12: not a missing breaker — no journal had ever
 carried a 401, and the product re-sent a rejected bearer; the owner
-ruled fix, not record: C87.
+ruled fix, not record: C87 — and an external audit the same day found
+the first fix blind to the gate (a waiter kept its copy of the token),
+so the token is read after admission.
 
 Scope of this pass: what is *written up* — the README's known gaps,
 `CONTEXT.md` and the six `decisions/<area>.md` "Parked" sections, the
