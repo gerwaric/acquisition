@@ -121,8 +121,12 @@ apply there and the never-over-the-limit rule takes its place.
 Time is a test input: one `Clock` with two faces (`now()` monotonic,
 `wall()` system) drives limiter, token expiry, journal, and `mockggg`'s
 policy counters; the test `ManualClock` can advance both or
-`laptop_sleep()` the wall alone. Tests must speak the daemon's clock. Not
-yet on the clock: the idle-shutdown and activity sites in `daemon.rs`.
+`laptop_sleep()` the wall alone. Tests must speak the daemon's clock.
+Since 2026-09-12 the daemon's activity, error-ring, uptime and
+persisted-row stamps read it too, and the idle verdict (C3) is a method
+pinned under a manual clock; what stays on real time is deliberate — the
+mock's `sleep` job, which takes visible seconds, and the watchdog's poll,
+because a poller on the self-advancing `ManualClock` would race it.
 
 ## The boundary — three kinds of "cannot"
 

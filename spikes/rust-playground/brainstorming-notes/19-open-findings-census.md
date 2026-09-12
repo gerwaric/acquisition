@@ -14,7 +14,10 @@ and D2 (`e9db23b2`: the MCP pricing step had been parked at the
 restored, then postponed behind item search by the owner, `f9ea6c1d`);
 C7, answered by the owner in conversation 2026-09-11: "I want to get to
 the real heart of acquisition--item search" — the census items first,
-then item search, so D is not the next slice; B5 moved to C8.
+then item search, so D is not the next slice; B5 moved to C8. B1,
+2026-09-12: its premise was wrong — no test drove the idle watchdog, so
+nothing slept real time; the sites went on the clock and the verdict is
+pinned (C3).
 
 Scope of this pass: what is *written up* — the README's known gaps,
 `CONTEXT.md` and the six `decisions/<area>.md` "Parked" sections, the
@@ -55,7 +58,6 @@ owner; D waits behind item search; E and F are ambient.
 
 | # | Where | What | Fix |
 | --- | --- | --- | --- |
-| B1 | `daemon.rs` — `last_activity`, the idle loop (`IDLE_POLL`), the errors ring | `TESTING-NOTES.md`: "Not yet on the clock: the idle-shutdown and activity sites in `daemon.rs`" — still true (`Instant::now()` at ~972, 1532, 3321, 3440, 3875). Open since 2026-08-24. | put them on the daemon `Clock` so idle tests do not sleep real time; check first what the idle tests do today |
 | B2 | `TESTING-NOTES.md` journal table, the 401 rule | "after a 401 the next send is `POST oauth-token`" is pinned but "armed, no offline breaker yet" — the one row never broken deliberately. | a breaker, or a line saying why it cannot have one |
 | B4 | `tools/tracer-rung.sh` | REFRESH observation: after a failed apply the driver stops with the daemon up so the jobs stay readable; a scripted caller wants the stop automated once the evidence is copied. | a flag, or stop after the evidence copy |
 | B6 | the developer's machine, not the repo | the unsigned debug binary makes macOS Keychain prompt twice per login after every rebuild (REFRESH observation; the live-run skill's "known cost"). | the owner creates a self-signed local identity (a stable designated requirement; a keychain action on the machine); then a `codesign` step in `tools/preflight.sh`, a ten-minute change that rides with the B2/B4 session. Dev-experience only |
@@ -175,9 +177,7 @@ reading set, one commit story and one close; it costs the orientation
 pass. Split where the second item needs another area's decisions file,
 not by census row.
 
-1. B1 alone: daemon internals, its own reading set, real behavior on a
-   live daemon; first find out whether the idle tests sleep real time,
-   since that speeds every later gate.
+1. ~~B1~~ — done 2026-09-12.
 2. B2 and B4 in one harness session (the testing notes, the mock-session
    and live-run skills), a commit each, sequential — B2 runs the gate,
    B4 runs the driver, never both at once (C84). B6's preflight step

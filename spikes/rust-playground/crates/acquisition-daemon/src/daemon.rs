@@ -370,14 +370,6 @@ impl Entry {
     }
 }
 
-/// Seconds since the Unix epoch, for persisted rows.
-fn unix_now() -> i64 {
-    SystemTime::now()
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .map(|d| d.as_secs() as i64)
-        .unwrap_or(0)
-}
-
 /// `ACQ_JOB_RETENTION_DAYS` / `ACQ_FAILED_JOB_RETENTION_DAYS`, each read
 /// like a rails knob: absent means the default, a misread value is
 /// reported (the second return) and the default stays.
@@ -952,9 +944,28 @@ impl CredentialStore for OsCredentialStore {
 }
 
 impl Daemon {
+    /// Seconds since the Unix epoch on the daemon's clock, for persisted
+    /// rows — the same wall face the journal stamps, so a scenario's rows
+    /// and its journal agree.
+    fn unix_now(&self) -> i64 {
+        self.choke
+            .wall()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .map(|d| d.as_secs() as i64)
+            .unwrap_or(0)
+    }
+
+    /// Seconds this daemon has run, on its clock.
+    fn uptime_seconds(&self) -> u64 {
+        self.choke
+            .now()
+            .saturating_duration_since(self.started)
+            .as_secs()
+    }
+
     // Takes the shared lock for the uptime stamp — never call while holding it.
     fn log(&self, msg: &str) {
-        let uptime = self.started.elapsed().as_secs();
+        let uptime = self.uptime_seconds();
         let mut f = self.log.lock().unwrap();
         let _ = writeln!(f, "[{uptime:>5}s] {msg}");
     }
@@ -967,11 +978,12 @@ impl Daemon {
     /// Log an error and keep it in the dashboard's recent-errors ring.
     fn note_error(&self, msg: &str) {
         {
+            let now = self.choke.now();
             let mut s = self.shared.lock().unwrap();
             if s.errors.len() >= ERROR_HISTORY {
                 s.errors.pop_front();
             }
-            s.errors.push_back((Instant::now(), msg.to_string()));
+            s.errors.push_back((now, msg.to_string()));
         }
         self.log(msg);
     }
@@ -982,7 +994,12 @@ impl Daemon {
     /// but its own — and refused loudly at the next submit): disk has
     /// diverged from memory, so no new work may be taken.
     fn persist(&self, entry: &Entry) -> bool {
-        match self.jobs_db.lock().unwrap().upsert(&entry.row(unix_now())) {
+        match self
+            .jobs_db
+            .lock()
+            .unwrap()
+            .upsert(&entry.row(self.unix_now()))
+        {
             Ok(()) => true,
             Err(e) => {
                 let mut failure = self.queue_failure.lock().unwrap();
@@ -1024,7 +1041,7 @@ impl Daemon {
         let db = &self.jobs_db;
         let (rows, next_id, pruned) = {
             let db = db.lock().unwrap();
-            let pruned = db.prune(retention, unix_now()).unwrap_or_else(|e| {
+            let pruned = db.prune(retention, self.unix_now()).unwrap_or_else(|e| {
                 self.log(&format!("JOBS: prune failed: {e:#}"));
                 0
             });
@@ -1516,6 +1533,7 @@ resubmit if still wanted",
         if let Some(e) = self.queue_failed() {
             return Err(Refusal::queue_failed(&e));
         }
+        let now = self.choke.now();
         let info = {
             let mut s = self.shared.lock().unwrap();
             // The parent guard sits here, inside the same critical section
@@ -1531,7 +1549,7 @@ resubmit if still wanted",
                     ));
                 }
             }
-            s.last_activity = Instant::now();
+            s.last_activity = now;
             let id = s.next_id;
             s.next_id += 1;
             let info = JobInfo {
@@ -1552,7 +1570,7 @@ resubmit if still wanted",
                 outcome: None,
                 cancel_requested: false,
                 deferred: None,
-                submitted_at: unix_now(),
+                submitted_at: self.unix_now(),
             };
             if !self.persist(&entry) {
                 s.next_id -= 1;
@@ -2433,6 +2451,8 @@ resubmit if still wanted",
                 }
             }
             "sleep" => {
+                // Real seconds by design, not the daemon's clock: the mock's
+                // demo and the watch tests want a job that visibly takes time.
                 let seconds = params.get("seconds").and_then(Value::as_f64).unwrap_or(3.0);
                 let deadline = Instant::now() + Duration::from_secs_f64(seconds);
                 while Instant::now() < deadline {
@@ -3160,8 +3180,8 @@ resubmit if still wanted",
         // pre-uuid session falls back to plain bookkeeping.
         if let Some((username, uuid, persisted)) = index_update {
             self.with_index(|index| match &uuid {
-                Some(uuid) => index.record_login(&username, uuid, persisted, unix_now()),
-                None => index.upsert(&username, persisted, unix_now()),
+                Some(uuid) => index.record_login(&username, uuid, persisted, self.unix_now()),
+                None => index.upsert(&username, persisted, self.unix_now()),
             });
         }
         if let Some(new_name) = &renamed {
@@ -3318,9 +3338,10 @@ resubmit if still wanted",
     /// channel overran it.
     async fn handle_conn(self: Arc<Self>, stream: UnixStream) {
         {
+            let now = self.choke.now();
             let mut s = self.shared.lock().unwrap();
             s.connections += 1;
-            s.last_activity = Instant::now();
+            s.last_activity = now;
         }
 
         let (read, mut write) = stream.into_split();
@@ -3437,9 +3458,10 @@ resubmit if still wanted",
             }
         }
 
+        let now = self.choke.now();
         let mut s = self.shared.lock().unwrap();
         s.connections -= 1;
-        s.last_activity = Instant::now();
+        s.last_activity = now;
     }
 
     /// The `quote` request (C40, decided 2026-08-31): a read-only,
@@ -3756,7 +3778,7 @@ resubmit if still wanted",
                     version: acquisition_protocol::VERSION.to_string(),
                     contract: acquisition_protocol::CONTRACT_REVISION.to_string(),
                     provider: self.provider.name.to_string(),
-                    uptime_seconds: self.started.elapsed().as_secs(),
+                    uptime_seconds: self.uptime_seconds(),
                     connections: s.connections,
                     jobs_waiting: waiting,
                     jobs_running: running,
@@ -3773,6 +3795,7 @@ resubmit if still wanted",
                 Response::Ack
             }
             Request::Dashboard => {
+                let now = self.choke.now();
                 let s = self.shared.lock().unwrap();
                 let (in_flight, max_in_flight) = self.choke.actual_send_occupancy();
                 Response::Dashboard {
@@ -3780,7 +3803,7 @@ resubmit if still wanted",
                     version: acquisition_protocol::VERSION.to_string(),
                     contract: acquisition_protocol::CONTRACT_REVISION.to_string(),
                     provider: self.provider.name.to_string(),
-                    uptime_seconds: self.started.elapsed().as_secs(),
+                    uptime_seconds: self.uptime_seconds(),
                     connections: s.connections,
                     logged_in: !s.auth.by_account.is_empty(),
                     username: self.headline_session(&s).and_then(|h| h.username.clone()),
@@ -3806,7 +3829,7 @@ resubmit if still wanted",
                         .iter()
                         .rev()
                         .map(|(at, message)| ErrorRecord {
-                            seconds_ago: at.elapsed().as_secs_f64(),
+                            seconds_ago: now.saturating_duration_since(*at).as_secs_f64(),
                             message: message.clone(),
                         })
                         .collect(),
@@ -3871,21 +3894,36 @@ resubmit if still wanted",
         std::process::exit(0);
     }
 
+    /// The idle verdict (C3; the halted arm is C25): no connection, no
+    /// live job, the last activity at least `idle_shutdown` ago, and no
+    /// limiter history worth keeping — a pending wait or counted hits
+    /// inside a policy window, which a daemon respawned a minute later
+    /// would otherwise have to assume the worst about. Every clause reads
+    /// the daemon's clock, so a test advances a manual clock past the
+    /// knob instead of waiting. Pinned: `dispatcher_tests::idle_verdict_*`.
+    fn is_idle(&self, idle_shutdown: Duration) -> bool {
+        let now = self.choke.now();
+        let idle = {
+            let s = self.shared.lock().unwrap();
+            let parked = self.rails().halted().is_some() || self.queue_failed().is_some();
+            let live_jobs = Self::has_live_jobs(&s, parked);
+            s.connections == 0
+                && !live_jobs
+                && now.saturating_duration_since(s.last_activity) >= idle_shutdown
+        };
+        idle && !self.choke.is_live()
+    }
+
+    /// Polls the verdict on tokio time, deliberately not on the daemon's
+    /// `Clock`: the test `ManualClock` advances on every `sleep`, so a
+    /// poller on it would drive the clock forward `IDLE_POLL` per yield.
+    /// The verdict is the tested part; this loop is never spawned under a
+    /// manual clock (the harness constructors spawn nothing).
     async fn idle_watchdog(self: Arc<Self>) {
         let idle_shutdown = idle_shutdown_from_env();
         loop {
             tokio::time::sleep(IDLE_POLL).await;
-            let idle = {
-                let s = self.shared.lock().unwrap();
-                let parked = self.rails().halted().is_some() || self.queue_failed().is_some();
-                let live_jobs = Self::has_live_jobs(&s, parked);
-                s.connections == 0 && !live_jobs && s.last_activity.elapsed() >= idle_shutdown
-            };
-            // Limiter history inside a policy window is worth more than a
-            // clean exit: a daemon respawned a minute later would otherwise
-            // have to assume the worst about every hit it can't see.
-            let idle = idle && !self.choke.is_live();
-            if idle {
+            if self.is_idle(idle_shutdown) {
                 self.exit_process("idle timeout; exiting");
             }
         }
@@ -4319,6 +4357,7 @@ async fn run_with_log(
     let rails = Arc::new(Rails::with_config_and_clock(rails_config, clock.clone()));
     let choke = ChokePoint::with_clock_and_rails(clock, rails);
     Daemon::declare_route_knowledge(&choke);
+    let now = choke.now();
 
     // Sessions survive daemon restarts through the keyring, one entry per
     // account; the account index says which entries to look for, and every
@@ -4389,11 +4428,11 @@ async fn run_with_log(
             next_id: 1,
             auth: sessions,
             connections: 0,
-            last_activity: Instant::now(),
+            last_activity: now,
             errors: VecDeque::new(),
             active_jobs: HashMap::new(),
         }),
-        started: Instant::now(),
+        started: now,
         events: broadcast::channel(256).0,
         work: Notify::new(),
         log: Mutex::new(log),
@@ -4697,6 +4736,8 @@ mod auth_session_tests {
             .open(&log_path)
             .unwrap();
         let credential_store = Arc::new(MemoryCredentialStore::default());
+        let choke = ChokePoint::new();
+        let now = choke.now();
         let daemon = Arc::new(Daemon {
             shared: Mutex::new(Shared {
                 jobs: HashMap::new(),
@@ -4716,15 +4757,15 @@ mod auth_session_tests {
                     ..AuthSession::default()
                 }),
                 connections: 0,
-                last_activity: Instant::now(),
+                last_activity: now,
                 errors: VecDeque::new(),
                 active_jobs: HashMap::new(),
             }),
-            started: Instant::now(),
+            started: now,
             events: broadcast::channel(16).0,
             work: Notify::new(),
             log: Mutex::new(log),
-            choke: ChokePoint::new(),
+            choke,
             provider: Provider::mock(base),
             artifact: None,
             credential_store: credential_store.clone(),
@@ -6005,17 +6046,18 @@ mod dispatcher_tests {
             .write(true)
             .open(&log_path)
             .unwrap();
+        let now = clock.now();
         let daemon = Arc::new(Daemon {
             shared: Mutex::new(Shared {
                 jobs: HashMap::new(),
                 next_id: 1,
                 auth: Sessions::with(AuthSession::default()),
                 connections: 0,
-                last_activity: Instant::now(),
+                last_activity: now,
                 errors: VecDeque::new(),
                 active_jobs: HashMap::new(),
             }),
-            started: Instant::now(),
+            started: now,
             events: broadcast::channel(256).0,
             work: Notify::new(),
             log: Mutex::new(log),
@@ -8430,6 +8472,124 @@ mod dispatcher_tests {
             "a running job keeps even a halted daemon up"
         );
         remove_harness_files(&log);
+    }
+
+    /// C3's idle verdict, read on the daemon's clock: a fresh daemon is
+    /// not idle until the knob elapses; a connection, a waiting job and
+    /// any activity each hold it; a rails halt lets a daemon idle out over
+    /// its waiting queue, which stays on disk (C25).
+    #[test]
+    fn idle_verdict_follows_the_clock_the_connections_and_the_queue() {
+        let clock = Arc::new(ManualClock::new());
+        let (daemon, log) = test_daemon_with(
+            Provider::mock("http://127.0.0.1:1"),
+            clock.clone(),
+            tripwire_config(),
+        );
+        let knob = Duration::from_secs(60);
+        assert!(!daemon.is_idle(knob), "a fresh daemon's activity is now");
+        clock.advance(Duration::from_secs(59));
+        assert!(!daemon.is_idle(knob), "one second short of the knob");
+        clock.advance(Duration::from_secs(1));
+        assert!(daemon.is_idle(knob), "the knob elapsed on the clock");
+
+        daemon.shared.lock().unwrap().connections = 1;
+        assert!(!daemon.is_idle(knob), "a connection holds the daemon");
+        daemon.shared.lock().unwrap().connections = 0;
+        assert!(daemon.is_idle(knob));
+
+        let id = daemon
+            .submit("fetch".into(), json!({}), 0, "t".into(), None)
+            .unwrap();
+        assert!(!daemon.is_idle(knob), "a waiting job holds the daemon");
+        daemon.cancel(id).unwrap();
+        assert!(
+            !daemon.is_idle(knob),
+            "the submit was activity: the knob starts over"
+        );
+        clock.advance(knob);
+        assert!(daemon.is_idle(knob), "nothing live, the knob elapsed again");
+
+        let waiting = daemon
+            .submit("fetch".into(), json!({}), 0, "t".into(), None)
+            .unwrap();
+        clock.advance(knob);
+        assert!(
+            !daemon.is_idle(knob),
+            "the waiting job holds an unhalted daemon"
+        );
+        daemon.choke.rails().record(&crate::rails::SendReport {
+            method: "GET",
+            route: "fetch",
+            url_path: "/fetch",
+            status: Some(429),
+            error: None,
+            ok: false,
+            counted: true,
+            rate: &Value::Null,
+            shape: None,
+            headers: &serde_json::Value::Null,
+            wait: Duration::ZERO,
+        });
+        assert!(daemon.rails().halted().is_some(), "the tripwire tripped");
+        assert!(
+            daemon.is_idle(knob),
+            "a halted daemon idles out over its waiting queue (C25)"
+        );
+        assert_eq!(
+            daemon.shared.lock().unwrap().jobs[&waiting].info.state,
+            JobState::Waiting,
+            "the queue is still there for the successor"
+        );
+        remove_harness_files(&log);
+    }
+
+    /// The verdict's fourth clause: a counted hit inside a policy window
+    /// holds an otherwise idle daemon until the window passes on the clock
+    /// (C3: "stays up to 300 s"), so a successor never has to assume the
+    /// worst about hits it cannot see.
+    #[tokio::test]
+    async fn idle_verdict_waits_for_limiter_history_to_leave_the_window() {
+        let policy = "X-Rate-Limit-Policy: dispatcher-test-policy\r\nX-Rate-Limit-Rules: Account\r\nX-Rate-Limit-Account: 100:300:60\r\nX-Rate-Limit-Account-State: 0:300:0\r\n";
+        let responses = vec![
+            ScriptedResponse {
+                method: "HEAD",
+                path: "/fetch",
+                status: "204 No Content",
+                headers: policy.into(),
+                body: String::new(),
+            },
+            ScriptedResponse {
+                method: "GET",
+                path: "/fetch",
+                status: "200 OK",
+                headers: policy.replace("0:300:0", "1:300:0"),
+                body: r#"{"items":["done"]}"#.into(),
+            },
+        ];
+        let (base, requests, server) = scripted_server(responses).await;
+        let clock = Arc::new(ManualClock::new());
+        let (daemon, log_path) = test_daemon(&base, clock.clone());
+        let dispatcher = tokio::spawn(daemon.clone().dispatcher());
+        let id = daemon
+            .submit("fetch".into(), json!({}), 0, "test".into(), None)
+            .unwrap();
+        let (info, _) = wait_terminal(&daemon, id).await;
+        assert_eq!(info.state, JobState::Done);
+        server.await.unwrap();
+
+        let knob = Duration::from_secs(60);
+        clock.advance(knob);
+        assert!(
+            daemon.choke.is_live() && !daemon.is_idle(knob),
+            "a hit inside the 300 s window holds the daemon past the knob"
+        );
+        clock.advance(Duration::from_secs(300));
+        assert!(
+            !daemon.choke.is_live() && daemon.is_idle(knob),
+            "the window passed on the clock: nothing left to keep"
+        );
+        finish_harness_wire(dispatcher, &log_path, &requests);
     }
 
     async fn token_server_answering(
