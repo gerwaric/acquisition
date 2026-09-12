@@ -22,7 +22,11 @@ acquisition-protocol = { path = "../acquisition-protocol" }
 acquisition-store = { path = "../acquisition-store" }
 # TLS is required by real-GGG mode (ACQ_GGG=1); the mock peer stays loopback.
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
-keyring = { version = "3", features = ["apple-native", "windows-native"] }
+# Linux: the Secret Service over D-Bus (zbus, pure Rust — nothing for the AppImage
+# to carry). async-io, not tokio: the daemon calls the keyring from inside its
+# runtime, and the crate's blocking bridge on tokio would enter a second one
+# (a panic); on async-io it only blocks the thread (auth.rs, "keyring").
+keyring = { version = "3", features = ["apple-native", "windows-native", "async-secret-service", "crypto-rust", "async-io"] }
 sha2 = "0.10"
 base64 = "0.22"
 rand = "0.9"

@@ -147,18 +147,35 @@ async fn token_request(
 
 // ---- keyring ------------------------------------------------------------
 //
-// Refresh tokens live in the OS keyring (invariant 5) — one JSON secret so
-// username survives daemon restarts too. `ACQ_NO_KEYRING=1` degrades to
-// in-memory-only sessions (still never plaintext on disk). The service name
-// comes from the provider, so mock and real sessions can never cross.
-
+// Refresh tokens live in the OS keyring (invariant 5): macOS Keychain
+// Services, the Windows Credential Manager, and on Linux the freedesktop
+// Secret Service over D-Bus (GNOME Keyring; KWallet since KDE Frameworks
+// 5.97) — the `keyring` crate's backends, selected by feature in Cargo.toml.
+// A Linux build without the Secret Service features got the crate's mock
+// store — in-memory, per process — while reporting `keyring: ok` (found
+// 2026-09-12); the round-trip test below is the tripwire. `ACQ_NO_KEYRING=1`
+// degrades to in-memory-only sessions (still never plaintext on disk), and
+// so does a keyring the daemon cannot reach: cron, ssh and headless shells
+// have no macOS keychain and no Linux session bus (README, `ACQ_NO_SPAWN`),
+// and the failure is surfaced as `keyring: unavailable` (rail 7). The
+// service name comes from the provider, so mock and real sessions can
+// never cross.
+//
 // One keyring entry per account: the entry's user is the GGG username
 // (`name#discriminator`), so two accounts on one provider never share a
 // secret. The account index (`acquisition_store::Index`) is how a daemon
 // knows which entries exist — the keyring cannot enumerate.
-
-// Ad-hoc code signatures change on rebuild; if macOS ever prompts on reads of
-// items created by an older build, the fix is signing the binary consistently.
+//
+// The calls block, and they run on the daemon's runtime threads (a save
+// happens under the auth lock). On Linux the crate bridges its async D-Bus
+// client with `block_on`: on the tokio flavour that enters a second runtime
+// from inside ours and panics; on async-io it only blocks the thread —
+// hence the `async-io` feature.
+//
+// macOS identifies a trusted app by its code signature, and the linker's
+// ad-hoc signature changes on every rebuild, so a debug `acqd` is asked
+// twice per login (the read at start, the modify on save). The fix is
+// signing the binary with a stable identity (B6, brainstorming note 19).
 fn entry(service: &str, username: &str) -> Result<keyring::Entry, String> {
     if std::env::var_os("ACQ_NO_KEYRING").is_some() {
         return Err("disabled by ACQ_NO_KEYRING".into());
@@ -196,6 +213,37 @@ mod tests {
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     use tokio::net::TcpListener;
     use tokio::sync::{mpsc, oneshot};
+
+    /// The keyring the daemon saves into is the one it loads from. Every
+    /// call makes a fresh `Entry`, as `keyring_save` and `keyring_load` do,
+    /// so a backend that only remembers within one `Entry` — the crate's
+    /// mock store, which a Linux build got until 2026-09-12 while reporting
+    /// `keyring: ok` — fails here. Runs only under `ACQ_KEYRING_ROUNDTRIP=1`,
+    /// against the real OS store, so the gate stays hermetic; CI runs it
+    /// against an unlocked gnome-keyring (`.github/workflows/rust-playground.yml`).
+    #[test]
+    fn keyring_round_trip_survives_a_fresh_entry() {
+        if std::env::var_os("ACQ_KEYRING_ROUNDTRIP").is_none() {
+            eprintln!(
+                "keyring round trip skipped: ACQ_KEYRING_ROUNDTRIP=1 runs it against the OS keyring"
+            );
+            return;
+        }
+        let service = "acquisition-keyring-check";
+        let username = random_token("roundtrip");
+        let token = random_token("rt");
+        keyring_save(service, &token, &username).expect("save");
+        assert_eq!(
+            keyring_load(service, &username).expect("load"),
+            Some(token),
+            "the token saved through one Entry must load through another"
+        );
+        keyring_clear(service, &username).expect("clear");
+        assert_eq!(
+            keyring_load(service, &username).expect("load after clear"),
+            None
+        );
+    }
 
     #[tokio::test]
     async fn oauth_clean_200_waits_for_body_completion_before_recording_success() {

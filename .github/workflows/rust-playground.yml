@@ -1,0 +1,65 @@
+name: Rust playground (Linux)
+
+# The spike's quality gate on Linux (spikes/rust-playground/AGENTS.md,
+# "Quality gate"), plus the one check only a Linux box can make: the
+# daemon's keyring round trip against a real Secret Service
+# (acquisition-daemon/src/auth.rs, `keyring_round_trip_survives_a_fresh_entry`).
+# The runner has no desktop session, so gnome-keyring is started unlocked
+# with a throwaway password inside a private D-Bus session — the keyring
+# crate's own CI recipe. Nothing here talks to GGG: ACQ_GGG is never set.
+
+on:
+  push:
+    paths:
+      - 'spikes/rust-playground/**'
+      - '.github/workflows/rust-playground.yml'
+  pull_request:
+    paths:
+      - 'spikes/rust-playground/**'
+      - '.github/workflows/rust-playground.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: spikes/rust-playground
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: spikes/rust-playground
+
+      - name: Install a Secret Service
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gnome-keyring dbus
+
+      # First, as the gate says: the process tests run the acqd this writes.
+      - name: Build
+        run: cargo build --workspace --locked
+
+      - name: Test, with the keyring round trip against an unlocked gnome-keyring
+        run: |
+          dbus-run-session -- bash -eo pipefail -c '
+            eval "$(printf ci-throwaway | gnome-keyring-daemon --components=secrets --daemonize --unlock)"
+            export ACQ_KEYRING_ROUNDTRIP=1
+            cargo test --workspace --all-targets --locked
+          '
+
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+
+      - name: Format
+        run: cargo fmt --all -- --check
