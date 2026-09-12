@@ -6,7 +6,9 @@ the code comments carry, then group them by what it takes to close
 each one. Disposable like every note here (P1): an item is real only
 where it already lives — a parked entry, a known gap, a closed record's
 observation, a doc comment — and this note only indexes those homes.
-It proposes no ruling.
+It proposes no ruling. **A erased 2026-09-11** after `44b4befd` (its
+rows) and `64bda152` (C45, which A7 had listed as uncited and which
+turned out unbuilt); the commits hold what each row was.
 
 Scope of this pass: what is *written up* — the README's known gaps,
 `CONTEXT.md` and the six `decisions/<area>.md` "Parked" sections, the
@@ -21,15 +23,14 @@ closed records' findings tables (every row there names a fix commit).
 Verified negatives, so the next reader need not re-check: the code
 carries no `TODO`/`FIXME`/`HACK` marker and no `#[ignore]` test; the
 tree is clean; every directory under `runs/` has its ledger row;
-`tools/docs-check.sh` is green with one note (A7 below).
+`tools/docs-check.sh` is green; its one note names C16 as uncited,
+which stays so until the GUI exists.
 
 ## How the buckets were cut
 
 By what closes the item, because that is what decides who does it and
 when:
 
-- **A. Stale records** — a document or doc comment says something the
-  repo has since moved past. A doc edit; agent-owned; one commit.
 - **B. Code-level debt** — small, under the gate, agent-owned; a commit
   each.
 - **C. Questions for the owner** — each a one-line answer; nothing
@@ -41,20 +42,8 @@ when:
 - **F. Parked, trigger unfired** — the registry's own backlog, listed
   once so this census is complete. Nothing to do.
 
-Suggested order: A and B in one cleanup session (two or three
-commits); C as one batch to the owner; D is the next-slice
-conversation; E and F are ambient.
-
-## A. Stale records (doc edits; one commit)
-
-| # | Where | What is stale | Fix |
-| --- | --- | --- | --- |
-| A1 | `DAEMON-SPLIT-SLICE.md`, "Where the open observations went" | names three items as parked in `decisions/daemon.md` that have since landed: the unbounded handshake (C86, `decda84e`), C47's lint on the protocol crate (`d302f438`), one harness module per crate with the `test-hooks` retirement (`79e2d441`, `3ff46a9e`). The parked entries no longer exist; the closed record points at nothing. | reword to name the fix commits |
-| A2 | `acquisition-store/src/lib.rs` C60 doc (line ~187); `acquisition-daemon/src/mockggg.rs` `mock_character_list` doc | both say the `Character.realm` field's `poe2` value is "open until a PoE2 body is seen"; N42 (2026-09-02) observed it. The mock's comment also cites `CONTEXT.md, "Characters in the refresh plan"`, a heading that now lives in `decisions/store.md`. | cite N42; fix the pointer |
-| A3 | `acquisition-daemon/src/daemon.rs` ~7925 | `// ---- persistence (CONTEXT.md, "The job queue persists")` — that mechanism is the C27 paragraph in `daemon.rs`'s own module doc since the routing pass. | point at the module doc |
-| A4 | `TESTING-NOTES.md` line 13 | says `CONTEXT.md` holds "the branch's status as the **reference implementation**"; CONTEXT no longer says it (note 13 left exactly this open on 2026-09-07). | date the clause or drop it |
-| A6 | `README.md`, Known gaps | "A failed fetch child's result carries only the error string" has no parked entry and no trigger — it reads as an accepted shape, not a gap. | delete the bullet, or park it in `decisions/daemon.md` with a trigger |
-| A7 | `tools/docs-check.sh` note | 11 uncited decisions: C2, C4, C15, C16, C17, C22, C28, C33, C45, C46, C48. Most are architectural choices no test pins; the module docs that implement them can cite them (store `lib.rs` for C28/C48, `daemon.rs` for C2/C4, `ratelimit.rs` for C17/C33, the jobs facade for C45, the MCP `main.rs` for C46). C16 (Tauri) has nothing to cite until the GUI; C15 and C22 are fine uncited. | cite from module docs; halves the note |
+Suggested order: B in one cleanup session; C as one batch to the
+owner; D is the next-slice conversation; E and F are ambient.
 
 ## B. Code-level debt (under the gate; a commit each)
 
@@ -182,10 +171,8 @@ conversation; E and F are ambient.
 
 ## What a cleanup session would do, in order
 
-1. One commit: A1–A4, A6, A7, B3 — "record hygiene after the daemon
-   split".
+1. One commit: B3, with D2 recorded — parked or built.
 2. One commit each, under the gate: B1, B2, B4.
 3. One message to the owner: C1–C7.
 4. The next slice's framing note: D1 (the explicit-selection door),
-   with D2 recorded — parked or built — in the same session, since
-   both are debts the pricing close left.
+   the other debt the pricing close left.
