@@ -4,13 +4,11 @@
 //! game-side parser's (C69: every note verbatim, every priced tab name).
 //! Test-only; the fixture is evidence, never shipped data.
 
-/// One note the game wrote: the note, the item's type line, its stack.
+/// One note the game wrote, verbatim. The file's other columns — the
+/// item's type line, its stack — stay in the file as evidence and are
+/// read in here when a test needs them.
 pub(crate) struct Note {
     pub note: String,
-    #[allow(dead_code)]
-    pub type_line: String,
-    #[allow(dead_code)]
-    pub stack: u32,
 }
 
 /// The fixture's three sections.
@@ -47,13 +45,12 @@ pub(crate) fn price_notes() -> PriceNotes {
             0 => {
                 let mut cols = line.split('\t');
                 let note = cols.next().unwrap().to_string();
-                let type_line = cols.next().unwrap().to_string();
-                let stack = cols.next().unwrap().parse().unwrap();
-                out.notes.push(Note {
-                    note,
-                    type_line,
-                    stack,
-                });
+                assert_eq!(
+                    cols.count(),
+                    2,
+                    "note line without its two columns: {line:?}"
+                );
+                out.notes.push(Note { note });
             }
             1 => out.tab_names.push(line.to_string()),
             _ => {

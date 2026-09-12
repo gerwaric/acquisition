@@ -424,24 +424,30 @@ pub struct LeaguePolicy {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct SyncPolicyWireV1 {
-    #[allow(dead_code)]
-    version: i64,
+    /// The stamp [`parse_policy`] already dispatched on; named so the
+    /// strict parse does not refuse the key, never read again.
+    #[serde(rename = "version")]
+    _version: i64,
     leagues: BTreeMap<String, LeagueWireV2>,
 }
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct SyncPolicyWireV2 {
-    #[allow(dead_code)]
-    version: i64,
+    /// The stamp [`parse_policy`] already dispatched on; named so the
+    /// strict parse does not refuse the key, never read again.
+    #[serde(rename = "version")]
+    _version: i64,
     realms: BTreeMap<Realm, RealmWire<LeagueWireV2>>,
 }
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct SyncPolicyWireV3 {
-    #[allow(dead_code)]
-    version: i64,
+    /// The stamp [`parse_policy`] already dispatched on; named so the
+    /// strict parse does not refuse the key, never read again.
+    #[serde(rename = "version")]
+    _version: i64,
     realms: BTreeMap<Realm, RealmWire<LeagueWireV3>>,
 }
 
