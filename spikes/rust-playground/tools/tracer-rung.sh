@@ -60,7 +60,11 @@
 #      many sends counted, and a ceiling halt in force, with the journal
 #      agreeing; its `daemon status --json` is saved as the lifetime's
 #      report (the socket it was reached on, the identity). A send the plan did not project would consume the bound
-#      and show as a planned child refused. Repeat until
+#      and show as a planned child refused. An apply that fails, or
+#      executes anything but the plan, ends the run: the lifetime's
+#      report, its jobs and its log are saved, the daemon is stopped
+#      (the queue stays readable on disk, C45) and the driver exits 1.
+#      Repeat until
 #      the plan is empty (the loop closed) or --cycles is hit. An empty
 #      plan's `--apply` runs with no daemon at all: the no-op must contact
 #      nothing, and the socket is checked dead after it.
@@ -215,9 +219,12 @@ cleanup() {
         elif daemon_up; then
             echo "*** aborted mid-run with a daemon still up (possibly halted). Jobs are on disk:"
             echo "*** acq daemon status / acq jobs; cancel what should not resume; acq daemon stop."
+            if [ "$MODE" = mock ]; then echo "*** (this run's world: ACQ_STORE_DIR=$ACQ_STORE_DIR — the socket derives from it)"; fi
             echo "*** Partial evidence is in $RUN_DIR and $JOURNAL"
         else
-            echo "*** aborted mid-run; no daemon is up. Partial evidence is in $RUN_DIR and $JOURNAL"
+            echo "*** aborted mid-run; no daemon is up. The queue is on disk (acq jobs reads it, C45)."
+            if [ "$MODE" = mock ]; then echo "*** (this run's world: ACQ_STORE_DIR=$ACQ_STORE_DIR)"; fi
+            echo "*** Partial evidence is in $RUN_DIR and $JOURNAL"
         fi
         if [ -s "$FRICTION" ]; then echo "*** friction notes so far: $FRICTION"; fi
     fi
@@ -245,6 +252,25 @@ stop_daemon() {
     done
     echo "daemon did not stop" >&2
     return 1
+}
+
+# A failed apply ends the run, and the run keeps what the success path
+# keeps: the lifetime's report (as the daemon gives it, or the absence),
+# its jobs, its log. Then the daemon is stopped — nothing it holds is
+# lost: the queue is on disk and `acq jobs` reads it with no daemon
+# (C45), and a daemon left up would only block the next run (preflight
+# refuses one) for as long as its idle knob allows (REFRESH-SLICE.md,
+# observation; the 2026-09-12 change).
+fail_apply() { # <tag> <journal offset at cycle start> <ceiling>
+    local tag=$1
+    "$ACQ" jobs >&2 || true
+    "$ACQ" jobs --json >"$RUN_DIR/jobs-$tag.json" 2>/dev/null || true
+    check_rails "apply" "$2" "$3" || true
+    status_json >"$RUN_DIR/daemon-$tag-status.json"
+    if [ -n "$(daemon_log)" ]; then cp "$(daemon_log)" "$RUN_DIR/daemon.log"; fi
+    echo "*** evidence saved to $RUN_DIR (jobs-$tag.json, daemon-$tag-status.json, daemon.log, $JOURNAL); stopping the daemon" >&2
+    stop_daemon || true
+    exit 1
 }
 
 # The rails state after a wire phase, read from the daemon that ran it.
@@ -624,8 +650,7 @@ for c in $(seq 1 "$CYCLES"); do
         CLIENT_PID=
         echo "*** apply exited non-zero:" >&2
         cat "$RUN_DIR/apply-$tag.json" "$RUN_DIR/apply-$tag.err" >&2
-        check_rails "apply" "$cycle_offset" "$ceiling" || true
-        exit 1
+        fail_apply "$tag" "$cycle_offset" "$ceiling"
     fi
     CLIENT_PID=
     outcome=$(jq -r '.outcome' "$RUN_DIR/apply-$tag.json")
@@ -636,9 +661,7 @@ for c in $(seq 1 "$CYCLES"); do
     if [ "$outcome" != success ] || [ "$requests" != "$logical" ] || [ "$done_n" != "$logical" ]; then
         echo "*** the apply did not execute exactly the plan:" >&2
         cat "$RUN_DIR/apply-$tag.json" >&2
-        "$ACQ" jobs >&2 || true
-        check_rails "apply" "$cycle_offset" "$ceiling" || true
-        exit 1
+        fail_apply "$tag" "$cycle_offset" "$ceiling"
     fi
     check_rails "apply" "$cycle_offset" "$ceiling"
     save_status "$tag"

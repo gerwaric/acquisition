@@ -17,7 +17,9 @@ the real heart of acquisition--item search" — the census items first,
 then item search, so D is not the next slice; B5 moved to C8. B1,
 2026-09-12: its premise was wrong — no test drove the idle watchdog, so
 nothing slept real time; the sites went on the clock and the verdict is
-pinned (C3).
+pinned (C3). B4, 2026-09-12: its reason ("so the jobs stay readable") had
+been answered by C45; the driver now saves the lifetime's evidence and
+stops.
 
 Scope of this pass: what is *written up* — the README's known gaps,
 `CONTEXT.md` and the six `decisions/<area>.md` "Parked" sections, the
@@ -59,7 +61,6 @@ owner; D waits behind item search; E and F are ambient.
 | # | Where | What | Fix |
 | --- | --- | --- | --- |
 | B2 | `TESTING-NOTES.md` journal table, the 401 rule | "after a 401 the next send is `POST oauth-token`" is pinned but "armed, no offline breaker yet" — the one row never broken deliberately. | a breaker, or a line saying why it cannot have one |
-| B4 | `tools/tracer-rung.sh` | REFRESH observation: after a failed apply the driver stops with the daemon up so the jobs stay readable; a scripted caller wants the stop automated once the evidence is copied. | a flag, or stop after the evidence copy |
 | B6 | the developer's machine, not the repo | the unsigned debug binary makes macOS Keychain prompt twice per login after every rebuild (REFRESH observation; the live-run skill's "known cost"). | the owner creates a self-signed local identity (a stable designated requirement; a keychain action on the machine); then a `codesign` step in `tools/preflight.sh`, a ten-minute change that rides with the B2/B4 session. Dev-experience only |
 
 ## C. Questions for the owner (one batch)
@@ -178,11 +179,8 @@ pass. Split where the second item needs another area's decisions file,
 not by census row.
 
 1. ~~B1~~ — done 2026-09-12.
-2. B2 and B4 in one harness session (the testing notes, the mock-session
-   and live-run skills), a commit each, sequential — B2 runs the gate,
-   B4 runs the driver, never both at once (C84). B6's preflight step
-   rides along once the owner has made the identity. Split at the point
-   either proves larger than an hour, not before.
+2. ~~B4~~ — done 2026-09-12. B2 (the testing notes; the gate). B6's
+   preflight step rides along once the owner has made the identity.
 3. One message to the owner: C1–C6, C8.
 4. Then item search, the owner's direction. D1 (the explicit-selection
    door) stays a fired trigger in `decisions/plans.md` until it is
