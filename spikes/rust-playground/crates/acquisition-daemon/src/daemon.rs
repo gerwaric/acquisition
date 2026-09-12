@@ -930,8 +930,8 @@ pub struct Daemon {
     /// HTTP client, so all outbound requests — OAuth included — consult the
     /// header-driven limiter and feed their responses back to it.
     choke: ChokePoint,
-    /// The in-process mock by default; real GGG only when the daemon was
-    /// started with ACQ_GGG=1.
+    /// Real GGG by default; the in-process mock when the daemon was
+    /// started under `ACQ_PROVIDER=mock` (C88).
     provider: Provider,
     /// The executable this daemon runs from, identified and hashed once
     /// at startup (C84, `artifact.rs`); what `hello` reports. `None` in
@@ -4577,8 +4577,8 @@ async fn run_with_log(
     // own file does not start: no client could use it.
     let artifact = crate::artifact::of_current_exe()?;
 
-    // Real GGG only on explicit opt-in; the default remains the in-process
-    // mock, and in real mode the mock is never even started.
+    // Real GGG by default (C88); under `ACQ_PROVIDER=mock` the in-process
+    // mock, which in real mode is never even started.
     let provider = if ggg_mode() {
         Provider::ggg()
     } else {

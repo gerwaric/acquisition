@@ -62,7 +62,7 @@ for v in ACQ_STORE_DIR ACQ_LOG_DIR ACQ_NO_KEYRING ACQ_NO_SPAWN ACQ_JOURNAL; do
         exit 2
     fi
 done
-unset ACQ_GGG ACQ_TRIPWIRE ACQ_MAX_SENDS ACQ_IDLE_SHUTDOWN
+unset ACQ_GGG ACQ_PROVIDER ACQ_TRIPWIRE ACQ_MAX_SENDS ACQ_IDLE_SHUTDOWN   # ACQ_GGG is retired and refused (C88): a leftover export must not fail the run
 
 RUN_DIR="$here/runs/$(date -u +%F)-persist"
 # Mock rehearsals go under runs/mock/, as the tracer's do, so `ls -t runs/`
@@ -80,9 +80,10 @@ mkdir -p "$RUN_DIR"
 # The socket derives from the world (C83): the owner's data directory in
 # live mode, the run's scratch store in mock — nothing names it.
 if [ "$MODE" = live ]; then
-    export ACQ_GGG=1
+    export ACQ_PROVIDER=ggg   # the default (C88), said so the run's environment reads whole
     PROVIDER=ggg
 else
+    export ACQ_PROVIDER=mock
     export ACQ_STORE_DIR="$RUN_DIR/store"
     PROVIDER=mock
 fi

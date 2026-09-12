@@ -10,11 +10,11 @@
 //! edges — and no package but this one names it, so "never in-process
 //! with the daemon" (C13) is a Cargo fact.
 //!
-//! By default nothing here talks to GGG: job kinds are fakes and OAuth runs
-//! against the in-process mock provider. Starting the daemon with `ACQ_GGG=1`
-//! opts into the real provider — real OAuth against the existing
-//! "acquisition" registration and a real `GET /character` — behind the same
-//! single rate-limit choke point, with deliberately conservative buckets.
+//! The daemon serves the real provider by default (C88) — real OAuth
+//! against the existing "acquisition" registration and the real API —
+//! behind the single rate-limit choke point; `ACQ_PROVIDER=mock` starts
+//! it against the in-process mock instead, where job kinds are fakes and
+//! nothing talks to GGG: the test double and the rehearsal stage.
 //!
 //! Renamed from `acquisition-core` by `git mv` at the daemon split's step
 //! 3 (`DAEMON-SPLIT-SLICE.md`); the client side (`client.rs`) moved to

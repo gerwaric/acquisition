@@ -23,7 +23,10 @@
 //!   listening, this build's or not. Stopping is how a human resolves a
 //!   mismatch, so it is the one verb that acts on a daemon it would not use.
 //!
-//! `ACQ_NO_SPAWN=1` turns every use door into an observation.
+//! `ACQ_NO_SPAWN=1` turns every use door into an observation. In real
+//! mode (C88) a use door spawns or replaces only with a terminal on
+//! stderr — a real daemon is started by a human; an agent's shell, cron
+//! or ssh without a tty gets the remedy instead.
 //!
 //! What a use door spawns is the `acqd` beside this executable and nothing
 //! else (`locator.rs`, C82): the daemon is its own artifact, never a mode
@@ -126,7 +129,7 @@
 //! and says so: it could not have started the one it found.
 //!
 //! The **provider** is the handshake's `provider` against what this
-//! process wants (`ACQ_GGG`).
+//! process wants (`ACQ_PROVIDER`, C88).
 //!
 //! The **world** (C83) is the handshake's `world` — the daemon's
 //! canonical store root — against this process's own, resolved once at
@@ -152,7 +155,7 @@
 //! by respawning each other's daemons — the design event C82 names.
 //!
 //! The trap the observe tier closes (ledger row 2026-09-08): `acq daemon
-//! status` typed in a second terminal without `ACQ_GGG` connected under the
+//! status` typed in a second terminal wanting the other provider connected under the
 //! interactive policy, replaced the live daemon with a mock one on the
 //! default socket, and the driver's next daemon refused to start over it.
 //! Every observational verb of both frontends now goes through
@@ -388,6 +391,9 @@ pub enum NotSpawned {
     Policy,
     /// The caller would have spawned; `ACQ_NO_SPAWN=1` forbids it.
     NoSpawnEnv,
+    /// The caller would have spawned a real-mode daemon, and no terminal
+    /// is on stderr (C88): a real daemon is started by a human.
+    NoTerminal,
 }
 
 /// Why an incompatible daemon was left standing.
@@ -395,6 +401,9 @@ pub enum NotSpawned {
 pub enum NotReplaced {
     /// `ACQ_NO_SPAWN=1` forbids replacing it.
     NoSpawn,
+    /// Replacing it would start a real-mode daemon, and no terminal is on
+    /// stderr (C88).
+    NoTerminal,
     /// An autonomous client (the MCP server) never replaces (C13).
     NeverReplaces,
     /// This client replaced it, and the daemon it then found is still not
@@ -413,8 +422,17 @@ impl fmt::Display for ConnectError {
             } => {
                 f.write_str("daemon is not running and ACQ_NO_SPAWN forbids starting one from here")
             }
+            ConnectError::Absent {
+                because: NotSpawned::NoTerminal,
+            } => f.write_str(
+                "daemon is not running, and a real-mode daemon is started from a terminal (none is on stderr here, C88) — start one there with a job command (`acq profile`), or ACQ_PROVIDER=mock for the mock",
+            ),
             ConnectError::Incompatible { found, because } => match because {
                 NotReplaced::NoSpawn => write!(f, "{found}, and ACQ_NO_SPAWN forbids replacing it"),
+                NotReplaced::NoTerminal => write!(
+                    f,
+                    "{found}, and replacing it with a real-mode daemon is done from a terminal (none is on stderr here, C88)"
+                ),
                 NotReplaced::NeverReplaces => write!(
                     f,
                     "{found}, and this client never replaces a daemon — resolve it with the CLI (`acq daemon stop`)"
@@ -931,6 +949,15 @@ fn no_spawn() -> bool {
     std::env::var_os("ACQ_NO_SPAWN").is_some_and(|v| v == "1")
 }
 
+/// Whether this door may start a daemon of the wanted provider (C88): in
+/// mock mode always; in real mode only with a terminal on stderr — the
+/// stream a pipeline leaves on the terminal and an agent's shell, cron
+/// or ssh without a tty does not have.
+fn human_present() -> bool {
+    use std::io::IsTerminal;
+    !acquisition_protocol::provider::ggg_mode() || std::io::stderr().is_terminal()
+}
+
 /// A connect failure that means nothing is listening — the socket absent
 /// or refusing — as opposed to a transport problem worth reporting.
 fn is_absent(e: &std::io::Error) -> bool {
@@ -999,7 +1026,7 @@ impl Client {
     /// (C82), on the socket derived from this process's world (C83). A
     /// door that does not open is a [`ConnectError`]: absence this door
     /// may not fill, a mismatch it may not resolve (a mock-mode daemon
-    /// can't serve an `ACQ_GGG=1` client, or vice versa), a spawn that
+    /// can't serve a real-mode client, or vice versa), a spawn that
     /// failed, or a transport failure — each naming what it found.
     pub async fn connect(opts: ConnectOptions) -> Result<Client, ConnectError> {
         // `ACQ_NO_SPAWN=1`: never start or replace a daemon from this
@@ -1008,8 +1035,12 @@ impl Client {
         // session and every job fails "not logged in" (re-soak, 2026-08-25,
         // caught by rail 7). The live drivers set this so their scripts can
         // only talk to a daemon they started themselves.
-        let spawn = opts.spawn && !no_spawn();
-        let replace = opts.replace && !no_spawn();
+        // C88: a real-mode daemon is started by a human. Without a
+        // terminal on stderr — an agent's shell, cron, ssh without a tty —
+        // the door observes and names the remedy; the mock spawns freely.
+        let human = human_present();
+        let spawn = opts.spawn && !no_spawn() && human;
+        let replace = opts.replace && !no_spawn() && human;
         // The world first (C83): created if this door may spawn, else
         // observed; the socket derives from it, and the same look names
         // `wanted.world` in every report this door makes.
@@ -1055,10 +1086,12 @@ impl Client {
                         });
                     }
                     if !replace {
-                        let because = if no_spawn() {
+                        let because = if !opts.replace {
+                            NotReplaced::NeverReplaces
+                        } else if no_spawn() {
                             NotReplaced::NoSpawn
                         } else {
-                            NotReplaced::NeverReplaces
+                            NotReplaced::NoTerminal
                         };
                         return Err(ConnectError::Incompatible {
                             found: Box::new(client.daemon),
@@ -1106,10 +1139,12 @@ impl Client {
                 Ok(Reached::Nothing) => {
                     // The caller's policy first: a door that never spawns
                     // is absent by policy whatever the knob says.
-                    let because = if opts.spawn {
+                    let because = if !opts.spawn {
+                        NotSpawned::Policy
+                    } else if no_spawn() {
                         NotSpawned::NoSpawnEnv
                     } else {
-                        NotSpawned::Policy
+                        NotSpawned::NoTerminal
                     };
                     return Err(ConnectError::Absent { because });
                 }
@@ -1509,7 +1544,7 @@ mod tests {
     /// `acqd`, so no daemon can match it there; the artifact's own cases
     /// are `artifact.rs` and the process test) — and the provider is the
     /// third dimension, reported with the others. The tests run without
-    /// `ACQ_GGG`, so "mock" is the wanted provider.
+    /// under `ACQ_PROVIDER=mock`, so "mock" is the wanted provider.
     #[test]
     fn c84_a_daemon_of_another_contract_artifact_or_provider_is_not_this_clients() {
         let _env = ENV.blocking_lock();
@@ -1519,7 +1554,7 @@ mod tests {
         // tests take it too.
         unsafe {
             std::env::set_var("ACQ_STORE_DIR", &dir);
-            std::env::remove_var("ACQ_GGG");
+            std::env::set_var("ACQ_PROVIDER", "mock");
         }
         assert_eq!(CONTRACT_REVISION.len(), 12);
         assert!(CONTRACT_REVISION.bytes().all(|b| b.is_ascii_hexdigit()));

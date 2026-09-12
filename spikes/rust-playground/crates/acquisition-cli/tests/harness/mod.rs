@@ -75,6 +75,7 @@ pub fn isolate_in(cmd: &mut Command, base: &Path, store: &str) {
     ] {
         cmd.env_remove(var);
     }
+    cmd.env("ACQ_PROVIDER", "mock");
 }
 
 /// The binary under test, isolated under `base`.

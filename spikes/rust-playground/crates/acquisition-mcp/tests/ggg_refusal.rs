@@ -18,7 +18,7 @@ fn ggg_mode_never_spawns_a_daemon_for_the_spending_tools() {
     let _ = std::fs::remove_dir_all(&base);
     std::fs::create_dir_all(&base).unwrap();
 
-    let mut mcp = Mcp::start(&base, &[("ACQ_GGG", "1")]);
+    let mut mcp = Mcp::start(&base, &[("ACQ_PROVIDER", "ggg")]);
 
     // submit_job: no daemon is running and none may be started here, so
     // the call fails on the absent daemon — not on the mode — and the

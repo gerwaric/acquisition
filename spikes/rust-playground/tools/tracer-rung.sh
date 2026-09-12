@@ -147,10 +147,10 @@ for v in ACQ_STORE_DIR ACQ_LOG_DIR ACQ_NO_KEYRING ACQ_NO_SPAWN ACQ_JOURNAL; do
         exit 2
     fi
 done
-for v in ACQ_GGG ACQ_TRIPWIRE ACQ_MAX_SENDS ACQ_IDLE_SHUTDOWN; do
+for v in ACQ_PROVIDER ACQ_TRIPWIRE ACQ_MAX_SENDS ACQ_IDLE_SHUTDOWN; do
     if [ -n "${!v:-}" ]; then echo "note: $v was set in this shell; this script sets it per daemon"; fi
 done
-unset ACQ_GGG ACQ_TRIPWIRE ACQ_MAX_SENDS ACQ_IDLE_SHUTDOWN
+unset ACQ_GGG ACQ_PROVIDER ACQ_TRIPWIRE ACQ_MAX_SENDS ACQ_IDLE_SHUTDOWN   # ACQ_GGG is retired and refused (C88): a leftover export must not fail the run
 
 RUN_START=$(date +%s)
 RUN_DIR="$here/runs/$(date -u +%F)-tracer"
@@ -167,9 +167,10 @@ FRICTION="$RUN_DIR/friction.md"
 # The socket derives from the world (C83): the owner's data directory in
 # live mode, the run's scratch store in mock — nothing names it.
 if [ "$MODE" = live ]; then
-    export ACQ_GGG=1
+    export ACQ_PROVIDER=ggg   # the default (C88), said so the run's environment reads whole
     PROVIDER=ggg
 else
+    export ACQ_PROVIDER=mock
     export ACQ_STORE_DIR="$RUN_DIR/store"
     PROVIDER=mock
 fi
@@ -376,7 +377,7 @@ if [ "$MODE" = live ]; then
         ACQ_ACCOUNT=$("$ACQ" accounts --json | jq -r '[.[] | select(.persisted)][0].username // empty')
         export ACQ_ACCOUNT
     fi
-    [ -n "${ACQ_ACCOUNT:-}" ] || { echo "no persisted account; log in first (ACQ_GGG=1 acq auth)" >&2; exit 2; }
+    [ -n "${ACQ_ACCOUNT:-}" ] || { echo "no persisted account; log in first (acq auth, from a terminal)" >&2; exit 2; }
     echo "acting as: $ACQ_ACCOUNT"
     uuid=$(account_uuid)
     if [ -z "$uuid" ]; then

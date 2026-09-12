@@ -1,6 +1,6 @@
 //! OAuth provider + API host configuration: the mock, or the real GGG.
 //!
-//! Real mode is opt-in via `ACQ_GGG=1` and uses the existing "acquisition"
+//! Real mode is the default (C88) and uses the existing "acquisition"
 //! registration (same client id, callback path, scopes, and user-agent as the
 //! shipped C++ app — CONTEXT invariant 4). Everything else in the daemon is
 //! provider-agnostic; this struct is the whole difference. The provider

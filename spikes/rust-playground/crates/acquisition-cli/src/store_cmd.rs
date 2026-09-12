@@ -18,7 +18,7 @@ pub fn set_selector(selector: Option<String>) {
     let _ = SELECTOR.set(selector);
 }
 
-/// The provider this process wants (`ACQ_GGG`): the store directory, the
+/// The provider this process wants (`ACQ_PROVIDER`, C88): the store directory, the
 /// plan's provider field and the daemon's `hello` all name the same one.
 pub(crate) fn provider() -> &'static str {
     wanted()

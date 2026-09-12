@@ -38,6 +38,7 @@ fn command(base: &Path, args: &[&str]) -> Command {
     ] {
         cmd.env_remove(var);
     }
+    cmd.env("ACQ_PROVIDER", "mock");
     cmd
 }
 

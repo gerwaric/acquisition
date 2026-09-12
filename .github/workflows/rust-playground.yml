@@ -6,7 +6,8 @@ name: Rust playground (Linux)
 # (acquisition-daemon/src/auth.rs, `keyring_round_trip_survives_a_fresh_entry`).
 # The runner has no desktop session, so gnome-keyring is started unlocked
 # with a throwaway password inside a private D-Bus session — the keyring
-# crate's own CI recipe. Nothing here talks to GGG: ACQ_GGG is never set.
+# crate's own CI recipe. Nothing here talks to GGG: every harness sets
+# ACQ_PROVIDER=mock (C88) and no test process has a terminal.
 
 on:
   push:

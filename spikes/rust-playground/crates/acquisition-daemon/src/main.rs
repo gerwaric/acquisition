@@ -2,7 +2,7 @@
 //! frontend spawns the `acqd` beside it (`acquisition-client`'s locator)
 //! and the live drivers start it directly; nothing else does. It takes no
 //! arguments: its knobs are the environment (`README.md`, "Knobs" —
-//! `ACQ_GGG`, `ACQ_STORE_DIR`, `ACQ_LOG_DIR`, the rails), the one door to
+//! `ACQ_PROVIDER`, `ACQ_STORE_DIR`, `ACQ_LOG_DIR`, the rails), the one door to
 //! them, so that a flag can never disagree with the environment the
 //! frontend that spawned it read (the packet's rejected "flags on
 //! `acqd`"); the socket is derived from the world, never named (C83).
@@ -28,6 +28,12 @@ async fn main() -> Result<()> {
              (README.md, Knobs)",
             args
         );
+        std::process::exit(2);
+    }
+    // C88: the retired knob or an unknown provider word refuses the
+    // daemon before it reads the environment for anything else.
+    if let Err(e) = acquisition_protocol::provider::check_environment() {
+        eprintln!("acqd: {e}");
         std::process::exit(2);
     }
     acquisition_daemon::daemon::run().await

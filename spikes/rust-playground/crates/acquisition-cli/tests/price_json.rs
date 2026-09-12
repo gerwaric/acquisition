@@ -35,6 +35,7 @@ fn acq(base: &Path, args: &[&str]) -> Output {
     ] {
         cmd.env_remove(var);
     }
+    cmd.env("ACQ_PROVIDER", "mock");
     cmd.output().expect("spawning acq")
 }
 

@@ -6,7 +6,7 @@
 //! sit in a directory macOS clears at reboot); and the diagnostics under
 //! the log directory, bounded by rotation.
 //!
-//! `ACQ_GGG=1` appears here on two daemons the real-mode lock test
+//! `ACQ_PROVIDER=ggg` appears here on two daemons the real-mode lock test
 //! starts directly — the owner asked for that lock's process test
 //! (2026-09-11) — and on the commands that observe and stop them. Nothing
 //! reaches GGG: the daemons start with no session (`ACQ_NO_KEYRING=1`,
@@ -255,13 +255,13 @@ fn c83_c31_a_second_real_mode_daemon_for_this_user_refuses_naming_the_holder() {
     let scratch = scratch("real");
     let base = &scratch.0;
     let real = [
-        ("ACQ_GGG", "1"),
+        ("ACQ_PROVIDER", "ggg"),
         ("ACQ_TRIPWIRE", "1"),
         ("ACQ_MAX_SENDS", "0"),
     ];
     let (_first, pid) = start_daemon(base, "one", &real);
     let out = command(base, "one", &["daemon", "status", "--json"])
-        .env("ACQ_GGG", "1")
+        .env("ACQ_PROVIDER", "ggg")
         .output()
         .unwrap();
     let status = sole_json(&out);
@@ -308,7 +308,7 @@ fn c83_c31_a_second_real_mode_daemon_for_this_user_refuses_naming_the_holder() {
     assert_eq!(sole_json(&out)["provider"], "mock");
 
     let out = command(base, "one", &["daemon", "stop", "--json"])
-        .env("ACQ_GGG", "1")
+        .env("ACQ_PROVIDER", "ggg")
         .output()
         .unwrap();
     assert!(out.status.success(), "{out:?}");

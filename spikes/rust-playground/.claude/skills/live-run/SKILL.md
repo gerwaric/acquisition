@@ -1,21 +1,24 @@
 ---
 name: live-run
-description: Run the Rust daemon against the real GGG API — a first contact on a new endpoint, or the refresh loop under the rails. Human-run, from a terminal. Use before any command that sets ACQ_GGG=1.
+description: Run the Rust daemon against the real GGG API — a first contact on a new endpoint, or the refresh loop under the rails. Human-run, from a terminal. Use before any command that talks to the real provider — the default since C88.
 ---
 
 # Live run
 
 The rule is `LIVE-TESTING.md` ("Standing rule: first contact"); this is
 the procedure that follows it. Read the rule first. Nothing here talks to
-GGG unless `ACQ_GGG=1` is set, and it is never set outside this
-procedure. A live run is the owner's, from a terminal: a daemon spawned
-from cron or a background shell has no keychain and no session.
+GGG from an agent's shell: the real provider is the default (C88), and a
+real-mode daemon is started only from a terminal — the CLI refuses to
+spawn one without a terminal on stderr, and a daemon spawned from cron
+or a background shell would have no keychain and no session anyway. A
+live run is the owner's, from a terminal, under this procedure.
 
 ## Before
 
-1. `unset ACQ_GGG ACQ_TRIPWIRE ACQ_MAX_SENDS ACQ_IDLE_SHUTDOWN ACQ_STORE_DIR ACQ_LOG_DIR ACQ_NO_KEYRING`
+1. `unset ACQ_GGG ACQ_PROVIDER ACQ_TRIPWIRE ACQ_MAX_SENDS ACQ_IDLE_SHUTDOWN ACQ_STORE_DIR ACQ_LOG_DIR ACQ_NO_KEYRING`
    — the shell you were launched from may still export a previous run's
-   rails or a mock session's isolation.
+   rails or a mock session's isolation (`ACQ_PROVIDER=mock`), and a
+   leftover `ACQ_GGG` is refused by every binary (C88).
 2. `acq daemon stop`, until it says "daemon is not running". Never
    rebuild under a live daemon.
 3. `git status --porcelain` must print nothing — the standing rule's
@@ -62,7 +65,7 @@ Fresh daemon, rails on, ceiling 3 (token POST, HEAD probe, GET; 2 if
 the daemon already holds a valid access token):
 
 ```sh
-ACQ_GGG=1 ACQ_TRIPWIRE=1 ACQ_MAX_SENDS=3 acq <command>
+ACQ_TRIPWIRE=1 ACQ_MAX_SENDS=3 acq <command>   # the real provider is the default (C88); no flag selects it
 ```
 
 Read the journal before anything else (`acq daemon status` prints its

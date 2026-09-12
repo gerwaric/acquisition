@@ -161,6 +161,7 @@ fn c85_the_watch_subscribes_and_reads_again_after_it_lagged_with_no_leftover_eve
         for var in ["ACQ_GGG", "ACQ_ACCOUNT", "ACQ_NO_SPAWN"] {
             std::env::remove_var(var);
         }
+        std::env::set_var("ACQ_PROVIDER", "mock");
     }
     let (_daemon, _) = start_daemon(&base);
     let runtime = tokio::runtime::Runtime::new().unwrap();

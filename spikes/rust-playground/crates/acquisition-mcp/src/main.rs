@@ -64,7 +64,7 @@ use rmcp::{ErrorData, ServerHandler, ServiceExt, schemars, tool, tool_handler, t
 use serde::Deserialize;
 use serde_json::{Value, json};
 
-/// The provider this process wants (`ACQ_GGG`): the store directory, the
+/// The provider this process wants (`ACQ_PROVIDER`, C88): the store directory, the
 /// plan's provider field and the daemon's `hello` all name the same one.
 fn provider() -> &'static str {
     acquisition_protocol::provider::wanted()
@@ -837,6 +837,11 @@ impl ServerHandler for AcqMcp {
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    // C88: refused before serving — the host shows the line.
+    if let Err(e) = acquisition_protocol::provider::check_environment() {
+        eprintln!("acq-mcp: {e}");
+        std::process::exit(2);
+    }
     let service = AcqMcp.serve(rmcp::transport::stdio()).await?;
     service.waiting().await?;
     Ok(())

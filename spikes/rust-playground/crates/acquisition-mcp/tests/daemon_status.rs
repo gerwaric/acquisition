@@ -5,7 +5,7 @@
 //! and that sibling under `wanted`, and the world it serves (its
 //! canonical root, `world_matches`); a daemon of another provider is
 //! reported as incompatible with the dimension named, and never
-//! replaced. `ACQ_GGG=1` appears only on the observing server, which
+//! replaced. `ACQ_PROVIDER=ggg` appears only on the observing server, which
 //! cannot spawn in real mode by construction: nothing reaches GGG.
 
 mod harness;
@@ -136,7 +136,7 @@ fn c84_daemon_status_reports_the_identity_and_the_sibling_it_is_judged_against()
     // A server that wants ggg observes the mock daemon: incompatible on
     // the provider dimension alone, the artifact still its sibling, the
     // daemon left running.
-    let mut real = Mcp::start(&base, &[("ACQ_GGG", "1")]);
+    let mut real = Mcp::start(&base, &[("ACQ_PROVIDER", "ggg")]);
     let report = real.expect_ok("daemon_status", json!({}));
     assert_eq!(report["running"], true, "{report}");
     assert_eq!(report["compatible"], false, "{report}");

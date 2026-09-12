@@ -14,7 +14,7 @@ use serde_json::{Value, json};
 
 /// Spawn the `acq-mcp` binary with the scratch socket/store under `base`,
 /// the live-run knobs scrubbed, and `extra_env` applied last (so a test
-/// can opt into e.g. `ACQ_GGG=1` deliberately).
+/// can opt into e.g. `ACQ_PROVIDER=ggg` deliberately).
 pub fn spawn(
     base: &Path,
     args: &[&str],
@@ -147,6 +147,7 @@ fn isolate(cmd: &mut Command, base: &Path, extra_env: &[(&str, &str)], stdio: fn
     ] {
         cmd.env_remove(var);
     }
+    cmd.env("ACQ_PROVIDER", "mock");
     for (key, value) in extra_env {
         cmd.env(key, value);
     }

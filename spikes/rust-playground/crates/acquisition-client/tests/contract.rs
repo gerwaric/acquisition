@@ -36,7 +36,7 @@
 //! user's own; the store root is
 //! created with the session (a scripted peer has no daemon to create it,
 //! and the world it claims must exist to be this process's). Nothing
-//! here reaches GGG: `ACQ_GGG` is scrubbed and the daemon runs the mock
+//! here reaches GGG: `ACQ_PROVIDER=mock` is set and the daemon runs the mock
 //! provider.
 
 use std::path::{Path, PathBuf};
@@ -140,6 +140,7 @@ fn session(tag: &str) -> Session {
         ] {
             std::env::remove_var(var);
         }
+        std::env::set_var("ACQ_PROVIDER", "mock");
     }
     // The daemon's step, so a socket path resolves in this process too:
     // a client never creates the runtime directory (C83).

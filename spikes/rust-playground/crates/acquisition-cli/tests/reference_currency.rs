@@ -19,6 +19,7 @@ fn acq(base: &Path, args: &[&str]) -> Output {
     for var in ["ACQ_GGG", "ACQ_ACCOUNT", "ACQ_JOURNAL"] {
         cmd.env_remove(var);
     }
+    cmd.env("ACQ_PROVIDER", "mock");
     cmd.output().expect("spawning acq")
 }
 

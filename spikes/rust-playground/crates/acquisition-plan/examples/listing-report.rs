@@ -27,7 +27,7 @@
 //! `pricing_snapshot` in one transaction, the same read `acq price` and
 //! `acq shop render` make, resolved by the one pure function
 //! (`listing::resolve`, C69). No fact and no row is written; no daemon is
-//! contacted; nothing touches the network; `ACQ_GGG` is never read.
+//! contacted; nothing touches the network; the provider knob is never read.
 
 use std::io::Write;
 use std::path::PathBuf;

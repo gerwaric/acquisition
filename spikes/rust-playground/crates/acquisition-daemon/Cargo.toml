@@ -20,7 +20,7 @@ serde_json.workspace = true
 anyhow.workspace = true
 acquisition-protocol = { path = "../acquisition-protocol" }
 acquisition-store = { path = "../acquisition-store" }
-# TLS is required by real-GGG mode (ACQ_GGG=1); the mock peer stays loopback.
+# TLS is required by real-GGG mode (the default, C88); the mock peer stays loopback.
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 # Linux: the Secret Service over D-Bus (zbus, pure Rust — nothing for the AppImage
 # to carry). async-io, not tokio: the daemon calls the keyring from inside its

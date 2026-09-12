@@ -1,8 +1,9 @@
 # Rust playground
 
 This branch is the Rust implementation of Acquisition (`CONTEXT.md`,
-"Orientation"), built slice by slice against a mock provider — nothing
-here talks to GGG unless a human sets `ACQ_GGG=1`. Its purpose is to
+"Orientation"), built slice by slice, tested against a mock provider,
+and used against the real one — the default since C88; a real-mode
+daemon is started only from a terminal. Its purpose is to
 find out what the system needs to be and to pin that as tests at its
 boundaries and as recorded rulings, so the code stays replaceable given
 a reason. The work is judged by evidence — the offline suite, live runs
@@ -21,7 +22,7 @@ here anticipates it.
   it: the wire (`protocol.rs`: `Request`/`Response`, the bootstrap plane,
   `ErrorKind`, `Quote`, the frame bound), the job model (`job.rs`), the
   realm vocabulary (`realm.rs`), the status documents (`status.rs`), the
-  provider names and `ACQ_GGG` (`provider.rs`), the daemon artifact as
+  provider names and `ACQ_PROVIDER` (`provider.rs`, C88), the daemon artifact as
   `hello` carries it (`artifact.rs`) and the shared-contract revision
   the handshake compares (`build.rs`, C84). serde only — never tokio or the
   store; `tools/docs-check.sh` refuses more. One fixture per wire variant
@@ -122,8 +123,9 @@ Every command takes `--json`, and it is total: a failure is `{"error":…}`
 on stdout with exit 1 (C11). `--account <username|name|uuid>` picks the
 account when several are logged in (C51).
 
-`ACQ_GGG=1` on the command that spawns the daemon selects the real
-provider, under the existing registration (invariant 4); a job command
+The real provider, under the existing registration (invariant 4), is
+the default; `ACQ_PROVIDER=mock` on the command that spawns the daemon
+selects the mock (C88); a job command
 replaces a daemon in the other mode, of another contract revision or
 running another `acqd` than the one beside it (C84), an
 observing verb (`jobs`, `status`, `daemon status`) reports it and never does (C10),
@@ -139,7 +141,7 @@ either mode and never spawns or replaces one in real mode (C13, C14).
 
 | Knob | Default | Effect | Read in |
 | --- | --- | --- | --- |
-| `ACQ_GGG=1` | off | the real provider (above) | `acquisition-protocol/src/provider.rs` |
+| `ACQ_PROVIDER=mock` | `ggg` | the in-process mock (C88); the harnesses and the mock-session skill set it. A real-mode daemon spawns only with a terminal on stderr; a leftover `ACQ_GGG` is refused at start | `acquisition-protocol/src/provider.rs` |
 | `ACQ_ACCOUNT=<sel>` | the sole account | env form of `--account`; exact match, never a prefix (C51) | `main.rs` |
 | `ACQ_STORE_DIR=<dir>` | the platform data dir | the world (C83): `<dir>/<provider>/<account>.db`, `accounts.json`, `daemon.db`, `rails.json`; one daemon per world, and its socket derives from it into the per-user runtime directory (`acq daemon status` prints it) — parallel mock daemons are parallel worlds; two real-mode daemons for one OS user are refused (C31) | `world.rs` |
 | `ACQ_LOG_DIR=<dir>` | the platform log dir | the daemon log and the default journal, one subdirectory per world and provider; bounded (rotated at daemon start past a cap, `daemon.rs`) | `world.rs` |

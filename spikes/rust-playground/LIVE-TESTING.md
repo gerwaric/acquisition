@@ -29,7 +29,8 @@ rails, which are code, and the rule below.
 Replaces the preconditions and the "new hypothesis first" requirement.
 
 - **First live call on a new endpoint runs with the rails on**:
-  `ACQ_GGG=1 ACQ_TRIPWIRE=1 ACQ_MAX_SENDS=3`, from a terminal, on a fresh
+  `ACQ_TRIPWIRE=1 ACQ_MAX_SENDS=3` (the real provider needs no flag,
+  C88), from a terminal, on a fresh
   daemon (`acq daemon stop` first). Three, not one: a fresh daemon sends a
   token POST, then the HEAD probe, then the GET, and the ceiling counts
   every method (`rails.rs`, "ceiling is per lifetime and counts every

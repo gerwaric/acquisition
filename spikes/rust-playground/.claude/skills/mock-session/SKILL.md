@@ -15,7 +15,8 @@ nothing has to be named by hand.
 ## Set up
 
 ```sh
-unset ACQ_GGG ACQ_TRIPWIRE ACQ_MAX_SENDS ACQ_IDLE_SHUTDOWN   # a live run may have left these exported
+unset ACQ_GGG ACQ_TRIPWIRE ACQ_MAX_SENDS ACQ_IDLE_SHUTDOWN   # a live run may have left these exported; a leftover ACQ_GGG is refused (C88)
+export ACQ_PROVIDER=mock                                      # the mock is opted into (C88): without this every command wants the real provider and the owner's store
 export ACQ_NO_KEYRING=1                                       # sessions in memory only
 export ACQ_STORE_DIR=<scratch>/store                          # the session's world (C83): never the real per-user data directory; its socket derives from it (`acq daemon status` prints it)
 export ACQ_LOG_DIR=<scratch>/logs                             # the daemon log and journal, out of ~/Library/Logs

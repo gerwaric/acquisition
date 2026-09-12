@@ -159,7 +159,7 @@ pub(crate) async fn daemon_log_path(client: &mut Client) -> Option<String> {
     // handshake identity (C10, C84); `acq version --json` is the
     // structured form, with the sibling `acqd` beside it.
     version = acquisition_protocol::VERSION_WITH_CONTRACT,
-    about = "Acquisition playground CLI (mock provider by default; ACQ_GGG=1 talks to real GGG)"
+    about = "Acquisition playground CLI: the real GGG API by default; ACQ_PROVIDER=mock talks to the in-process mock (C88)"
 )]
 struct Cli {
     /// Emit structured JSON instead of human-readable output.
@@ -175,7 +175,7 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Cmd {
-    /// Log in via OAuth (mock provider, or real GGG with ACQ_GGG=1). The
+    /// Log in via OAuth (real GGG, or the mock under ACQ_PROVIDER=mock). The
     /// login completes only once its own profile job lands the account
     /// uuid (C50); the mock's page accepts any username, so a second
     /// account is one login apart.
@@ -729,6 +729,9 @@ async fn main() {
 }
 
 async fn run(cli: Cli) -> Result<()> {
+    // C88: a leftover `ACQ_GGG` or an unknown provider word is refused
+    // before any verb reads the provider — loudly, never the wrong mode.
+    acquisition_protocol::provider::check_environment().map_err(anyhow::Error::msg)?;
     match cli.cmd {
         Cmd::Auth { cmd, no_browser } => match cmd {
             None => login(no_browser, cli.json).await,

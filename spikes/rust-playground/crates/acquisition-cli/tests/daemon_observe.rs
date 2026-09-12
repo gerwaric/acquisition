@@ -2,7 +2,7 @@
 //! spawns or replaces a daemon, and reports absence, contract mismatch,
 //! artifact mismatch and provider mismatch distinctly (C84). The trap the
 //! first test pins is the ledger row of 2026-09-08: `acq daemon status`
-//! typed in a shell without `ACQ_GGG` while a real-mode daemon ran
+//! typed in a shell wanting the mock while a real-mode daemon ran
 //! replaced it with a mock one. Provider mismatch is staged by a mock
 //! daemon observed from a client that wants ggg. The artifact dimension
 //! is staged with one build's binaries (the second test): a copy of `acq`
@@ -13,7 +13,7 @@
 //! the unit level and in the client's contract tests, where a scripted
 //! peer can claim any contract.
 //!
-//! `ACQ_GGG=1` appears here only on observing and stopping commands,
+//! `ACQ_PROVIDER=ggg` appears here only on observing and stopping commands,
 //! which cannot spawn by construction: no daemon in real mode ever exists
 //! in this test, and nothing reaches GGG.
 
@@ -33,7 +33,7 @@ use harness::{
 /// observing and stopping verbs are run this way (module doc).
 fn acq_wanting_ggg(base: &Path, args: &[&str]) -> Output {
     command(base, args)
-        .env("ACQ_GGG", "1")
+        .env("ACQ_PROVIDER", "ggg")
         .output()
         .expect("spawning acq")
 }
