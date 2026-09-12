@@ -102,8 +102,11 @@ equal to what the test server received, so the journal's own failure (R4)
 is caught by the recorder and the recorder's coupling is caught by the
 journal.
 
-Invariants that run over every harness journal, derived from the register
-rather than from the code:
+Invariants derived from the register rather than from the code. The R4,
+probe, accounting and pacing rows run over every harness journal; the
+R8 and C87 rows are scenario pins, and the C87 row's concurrent half is
+checked at the server, where dispatch order is visible, not in a
+journal at all:
 
 | Invariant | Source | Pins |
 | --- | --- | --- |
