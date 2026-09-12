@@ -160,7 +160,7 @@ owner; D is the next-slice conversation; E and F are ambient.
 | plans | type-level policy filters | a policy author who needs one |
 | pricing | C71 price plans, C73 legacy import, C78 receipts (parked in place) | a batch a human cannot review row by row; a 0.18 user asking |
 | pricing | third-party price feeds; the bulk-exchange table; row-granularity history; one change cursor; batch pricing by query; `~c/o` as a value; PoE2 currencies; currency totals; name→id for price targets; "what did I last post" | each names its own; currency totals is "when I ask for it" |
-| frontends | the read economy as a ruling | the MCP pricing consumer's re-read record (the frontends park, trigger fired) |
+| frontends | the read economy as a ruling | the MCP pricing consumer's re-read record (the frontends park, postponed 2026-09-11 behind item search) |
 | frontends | results over a subtree | a second consumer showing which shape |
 | frontends | queue UI, watch-that-waits, standalone TUI, error taxonomy | the GUI slice (D4) |
 
