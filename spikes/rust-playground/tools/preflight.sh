@@ -54,6 +54,10 @@ preflight() {
     (cd "$here" && cargo build --workspace --locked --quiet) || { echo "refusing: cargo build failed" >&2; exit 2; }
     ver=$("$ACQ" --version)
     [ -x "$ACQD" ] || { echo "refusing: no daemon at $ACQD beside $ACQ (C82) — cargo build --workspace" >&2; exit 2; }
+    #    Then the daemon's code identity, so a rebuilt acqd is not a stranger
+    #    to the keychain (tools/sign-acqd.sh: a no-op without
+    #    ACQ_CODESIGN_IDENTITY); before step 6 hashes the file.
+    "$here/tools/sign-acqd.sh" "$ACQD"
 
     # 5. Again, with the binary that will run.
     preflight_refuse_daemon "after the build"

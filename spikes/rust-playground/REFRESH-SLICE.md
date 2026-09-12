@@ -126,8 +126,6 @@ finding; each is data for the next slice that touches it.
 - All-zero change lines: 112 refetched bodies, `changed:` nothing,
   `0 events`. Correct; whether a row of zeros reads as reassurance or as
   "did it work" is for the next reader.
-- The debug binary is unsigned, so macOS Keychain prompts twice per
-  login after every rebuild.
 
 ## The method-test verdict, as recorded in CONTEXT
 

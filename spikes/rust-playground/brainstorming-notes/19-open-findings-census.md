@@ -23,7 +23,14 @@ stops. B2, 2026-09-12: not a missing breaker — no journal had ever
 carried a 401, and the product re-sent a rejected bearer; the owner
 ruled fix, not record: C87 — and an external audit the same day found
 the first fix blind to the gate (a waiter kept its copy of the token),
-so the token is read after admission.
+so the token is read after admission. B6, 2026-09-12: its premise was
+half wrong — the owner's machine already held signing identities, and a
+new Apple Development one was made for it; `tools/sign-acqd.sh` signs
+the daemon's deps twin after the build (cargo re-copies the daemon from
+it on every build, so signing the copy alone was undone by a no-op), run by
+preflight and the live-run skill; the same investigation found the
+Linux keyring gap (a mock store reporting `keyring: ok`) and fixed it
+(`e65cbb07`).
 
 Scope of this pass: what is *written up* — the README's known gaps,
 `CONTEXT.md` and the six `decisions/<area>.md` "Parked" sections, the
@@ -64,7 +71,6 @@ owner; D waits behind item search; E and F are ambient.
 
 | # | Where | What | Fix |
 | --- | --- | --- | --- |
-| B6 | the developer's machine, not the repo | the unsigned debug binary makes macOS Keychain prompt twice per login after every rebuild (REFRESH observation; the live-run skill's "known cost"). | the owner creates a self-signed local identity (a stable designated requirement; a keychain action on the machine); then a `codesign` step in `tools/preflight.sh`, a ten-minute change that rides with the B2/B4 session. Dev-experience only |
 
 ## C. Questions for the owner (one batch)
 
@@ -182,8 +188,7 @@ pass. Split where the second item needs another area's decisions file,
 not by census row.
 
 1. ~~B1~~ — done 2026-09-12.
-2. ~~B4, B2~~ — done 2026-09-12. B6's preflight step rides along once
-   the owner has made the identity.
+2. ~~B4, B2~~ — done 2026-09-12; ~~B6~~ the same day.
 3. One message to the owner: C1–C6, C8.
 4. Then item search, the owner's direction. D1 (the explicit-selection
    door) stays a fired trigger in `decisions/plans.md` until it is

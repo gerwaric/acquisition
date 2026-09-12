@@ -174,8 +174,8 @@ async fn token_request(
 //
 // macOS identifies a trusted app by its code signature, and the linker's
 // ad-hoc signature changes on every rebuild, so a debug `acqd` is asked
-// twice per login (the read at start, the modify on save). The fix is
-// signing the binary with a stable identity (B6, brainstorming note 19).
+// twice per login (the read at start, the modify on save) until
+// `tools/sign-acqd.sh` gives it a stable identity after the build.
 fn entry(service: &str, username: &str) -> Result<keyring::Entry, String> {
     if std::env::var_os("ACQ_NO_KEYRING").is_some() {
         return Err("disabled by ACQ_NO_KEYRING".into());

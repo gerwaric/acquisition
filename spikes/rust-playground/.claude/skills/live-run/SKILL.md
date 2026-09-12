@@ -28,7 +28,11 @@ from cron or a background shell has no keychain and no session.
    paired with a HEAD it is not; the journal header carries both and
    the ledger row names HEAD (`cargo test` never writes `acqd` and
    rewrites `acq-mcp` in its all-targets form; the plain build restores
-   it — the drivers build first). The drivers do all of this themselves
+   it — the drivers build first), then `tools/sign-acqd.sh` — the
+   daemon's code identity, from `ACQ_CODESIGN_IDENTITY` in your shell
+   profile; without it macOS Keychain asks twice per login after every
+   rebuild. Sign after the build: one that re-links `acqd` writes a fresh
+   unsigned one. The drivers do all of this themselves
    (`tools/preflight.sh`, which hashes both executables into
    `provenance.json` and holds the journal to the `acqd` hash), and
    start `acqd` directly.
@@ -91,9 +95,10 @@ driver leaves its `apply` parent persisted too: `acq cancel <id>` before
 the driver runs again, or the parent's remaining children go out during
 the next quote and the driver refuses the run (2026-09-08).
 
-Known costs, not stops: the unsigned debug binary makes macOS Keychain
-prompt twice per login after every rebuild; the first probe of a
-lifetime queues a few seconds behind the token POST.
+Known costs, not stops: the first probe of a lifetime queues a few
+seconds behind the token POST; the first login under a newly signed
+`acqd` is asked once per keychain item (the new identity joins the
+item's list — "Always Allow"), and never after a rebuild since.
 
 Sleep and wakes (soaks): a closed laptop on AC dark-wakes every 15–60
 min (Power Nap) and cron runs during the wakes; on battery it sleeps for

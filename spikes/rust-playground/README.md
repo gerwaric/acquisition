@@ -145,6 +145,7 @@ either mode and never spawns or replaces one in real mode (C13, C14).
 | `ACQ_LOG_DIR=<dir>` | the platform log dir | the daemon log and the default journal, one subdirectory per world and provider; bounded (rotated at daemon start past a cap, `daemon.rs`) | `world.rs` |
 | `ACQ_NO_KEYRING=1` | off | sessions in memory only, never plaintext on disk | `auth.rs` |
 | `ACQ_KEYRING_ROUNDTRIP=1` | off | `cargo test` only: the daemon crate's keyring round trip runs against the OS keyring (skipped otherwise, so the gate never touches a developer's keychain); CI sets it against an unlocked gnome-keyring | `auth.rs` (tests) |
+| `ACQ_CODESIGN_IDENTITY=<sha1\|name>` | unset | macOS, the developer's shell profile: `tools/sign-acqd.sh` signs the debug `acqd` with this identity (`security find-identity -v -p codesigning`) so a rebuilt daemon is no stranger to the keychain; the drivers and the live-run skill run it after the build | `tools/sign-acqd.sh` |
 | `ACQ_NO_SPAWN=1` | off | the CLI never starts or replaces a daemon — for cron, ssh and headless shells, which spawn without a keychain (macOS) or a session bus (Linux, the Secret Service) and so without a session | `client.rs` |
 | `ACQ_IDLE_SHUTDOWN=<s>` | 60 | idle exit with no connections and no live jobs; a daemon holding limiter history inside a window stays up to 300 s (C3) | `daemon.rs` |
 | `ACQ_JOB_RETENTION_DAYS`, `ACQ_FAILED_JOB_RETENTION_DAYS` | 7, 30 | how long finished job rows stay in `daemon.db` for `acq result`; a misread value logs `JOBS CONFIG` and keeps the default | `daemon.rs` |
