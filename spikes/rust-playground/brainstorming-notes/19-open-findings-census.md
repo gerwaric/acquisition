@@ -160,9 +160,8 @@ reading set, one commit story and one close; it costs the orientation
 pass. Split where the second item needs another area's decisions file,
 not by census row.
 
-1. ~~One message to the owner: C1–C6, C8.~~ Answered 2026-09-12
-   (the preamble).
-2. The mock-default flip (C1's slice), then item search, the owner's
-   direction. D1 (the explicit-selection door) stays a fired trigger in
+1. Item search, the owner's direction (the C answers and the
+   mock-default flip landed 2026-09-12, `20234cf9` and `515bf034`).
+   D1 (the explicit-selection door) stays a fired trigger in
    `decisions/plans.md` until it is picked; the other D items keep
    their triggers.
