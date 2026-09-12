@@ -8,7 +8,12 @@ where it already lives — a parked entry, a known gap, a closed record's
 observation, a doc comment — and this note only indexes those homes.
 It proposes no ruling. **A erased 2026-09-11** after `44b4befd` (its
 rows) and `64bda152` (C45, which A7 had listed as uncited and which
-turned out unbuilt); the commits hold what each row was.
+turned out unbuilt); the commits hold what each row was. **B3 and D2
+erased 2026-09-11** after `1f4c284c` (B3) and the commit that restored
+the MCP pricing park to `decisions/frontends.md` (D2: the step had been
+parked at the 2026-09-04 re-scope, trigger "after the CLI has been used
+for real", and the record cut dropped the entry unrouted; the trigger
+had fired at the readings).
 
 Scope of this pass: what is *written up* — the README's known gaps,
 `CONTEXT.md` and the six `decisions/<area>.md` "Parked" sections, the
@@ -51,7 +56,6 @@ owner; D is the next-slice conversation; E and F are ambient.
 | --- | --- | --- | --- |
 | B1 | `daemon.rs` — `last_activity`, the idle loop (`IDLE_POLL`), the errors ring | `TESTING-NOTES.md`: "Not yet on the clock: the idle-shutdown and activity sites in `daemon.rs`" — still true (`Instant::now()` at ~972, 1532, 3321, 3440, 3875). Open since 2026-08-24. | put them on the daemon `Clock` so idle tests do not sleep real time; check first what the idle tests do today |
 | B2 | `TESTING-NOTES.md` journal table, the 401 rule | "after a 401 the next send is `POST oauth-token`" is pinned but "armed, no offline breaker yet" — the one row never broken deliberately. | a breaker, or a line saying why it cannot have one |
-| B3 | `acquisition-plan/src/lib.rs` 428–445; `price_notes_fixture.rs` 10–13 | five `#[allow(dead_code)]`: the `version` field of `SyncPolicyWireV1/2/3` (parsed, never read) and two fixture fields. | read `version` (assert it matches the variant — a strictness gain) or rename to `_version`; the fixture fields likewise |
 | B4 | `tools/tracer-rung.sh` | REFRESH observation: after a failed apply the driver stops with the daemon up so the jobs stay readable; a scripted caller wants the stop automated once the evidence is copied. | a flag, or stop after the evidence copy |
 | B5 | `Cargo.toml` | the C47 lint is a per-crate `#![cfg_attr(not(test), deny(...))]` in three crates; no `[workspace.lints]`, no `rust-toolchain.toml`, no `cargo-deny`/`audit`. | owner's call whether a spike wants any of it; a workspace lints table would make the ratchet one line |
 | B6 | the developer's machine, not the repo | the unsigned debug binary makes macOS Keychain prompt twice per login after every rebuild (REFRESH observation; the live-run skill's "known cost"). | a self-signed local identity gives a stable designated requirement; a `codesign` step in `tools/preflight.sh`. Dev-experience only |
@@ -94,15 +98,6 @@ owner; D is the next-slice conversation; E and F are ambient.
   semantics are ruled in its own slice, with `persist-check.sh` moved
   onto the selection plan. Its own design session (a framing note
   first, in 17's mold).
-- **D2. Pricing on the MCP.** `MCP-REFERENCE.md` lists 17 tools; none
-  touches pricing (`price`, `reference`, `shop`). Neither built nor
-  parked — `decisions/pricing.md` and `decisions/frontends.md` do not
-  mention it. The frontends' "read economy" ruling waits on "the first
-  MCP pricing consumer's re-read record (the pricing slice's MCP
-  step)", which never happened, so that trigger cannot fire. Record
-  it: park with a trigger, or build it as the MCP's pricing step — it
-  is also the second consumer P3 wants before C53's read economy
-  becomes a ruling.
 - **D3. Per-realm `policy set` merge** (README known gap;
   `decisions/plans.md`). Trigger: "a second realm in daily use". PoE2
   1.0 ships December 2026 and the owner ruled realm a coordinate above
@@ -165,13 +160,13 @@ owner; D is the next-slice conversation; E and F are ambient.
 | plans | type-level policy filters | a policy author who needs one |
 | pricing | C71 price plans, C73 legacy import, C78 receipts (parked in place) | a batch a human cannot review row by row; a 0.18 user asking |
 | pricing | third-party price feeds; the bulk-exchange table; row-granularity history; one change cursor; batch pricing by query; `~c/o` as a value; PoE2 currencies; currency totals; name→id for price targets; "what did I last post" | each names its own; currency totals is "when I ask for it" |
-| frontends | the read economy as a ruling | the MCP pricing consumer (blocked, D2) |
+| frontends | the read economy as a ruling | the MCP pricing consumer's re-read record (the frontends park, trigger fired) |
 | frontends | results over a subtree | a second consumer showing which shape |
 | frontends | queue UI, watch-that-waits, standalone TUI, error taxonomy | the GUI slice (D4) |
 
 ## What a cleanup session would do, in order
 
-1. One commit: B3, with D2 recorded — parked or built.
+1. ~~B3, with D2 recorded~~ done 2026-09-11.
 2. One commit each, under the gate: B1, B2, B4.
 3. One message to the owner: C1–C7.
 4. The next slice's framing note: D1 (the explicit-selection door),
