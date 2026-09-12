@@ -19,7 +19,9 @@ then item search, so D is not the next slice; B5 moved to C8. B1,
 nothing slept real time; the sites went on the clock and the verdict is
 pinned (C3). B4, 2026-09-12: its reason ("so the jobs stay readable") had
 been answered by C45; the driver now saves the lifetime's evidence and
-stops.
+stops. B2, 2026-09-12: not a missing breaker — no journal had ever
+carried a 401, and the product re-sent a rejected bearer; the owner
+ruled fix, not record: C87.
 
 Scope of this pass: what is *written up* — the README's known gaps,
 `CONTEXT.md` and the six `decisions/<area>.md` "Parked" sections, the
@@ -60,7 +62,6 @@ owner; D waits behind item search; E and F are ambient.
 
 | # | Where | What | Fix |
 | --- | --- | --- | --- |
-| B2 | `TESTING-NOTES.md` journal table, the 401 rule | "after a 401 the next send is `POST oauth-token`" is pinned but "armed, no offline breaker yet" — the one row never broken deliberately. | a breaker, or a line saying why it cannot have one |
 | B6 | the developer's machine, not the repo | the unsigned debug binary makes macOS Keychain prompt twice per login after every rebuild (REFRESH observation; the live-run skill's "known cost"). | the owner creates a self-signed local identity (a stable designated requirement; a keychain action on the machine); then a `codesign` step in `tools/preflight.sh`, a ten-minute change that rides with the B2/B4 session. Dev-experience only |
 
 ## C. Questions for the owner (one batch)
@@ -179,8 +180,8 @@ pass. Split where the second item needs another area's decisions file,
 not by census row.
 
 1. ~~B1~~ — done 2026-09-12.
-2. ~~B4~~ — done 2026-09-12. B2 (the testing notes; the gate). B6's
-   preflight step rides along once the owner has made the identity.
+2. ~~B4, B2~~ — done 2026-09-12. B6's preflight step rides along once
+   the owner has made the identity.
 3. One message to the owner: C1–C6, C8.
 4. Then item search, the owner's direction. D1 (the explicit-selection
    door) stays a fired trigger in `decisions/plans.md` until it is

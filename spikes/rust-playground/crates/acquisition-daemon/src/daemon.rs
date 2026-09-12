@@ -596,6 +596,25 @@ impl Sessions {
         }
     }
 
+    /// C87 — an access token the provider rejected with a 401 is dead: the
+    /// session that holds it forgets it, so its next token lookup refreshes
+    /// before any send. Keyed by the token, not the account: the only
+    /// session touched is the one still holding *this* token, so a 401
+    /// that lands after a refresh already replaced it changes nothing
+    /// (`None`), and no code outside the session layer names an account
+    /// (C49). The refresh token and the generations are untouched — a
+    /// refresh already in flight installs over the cleared slot as it
+    /// would have. Returns the username whose token was cleared.
+    fn reject_access_token(&mut self, token: &str) -> Option<String> {
+        let session = self
+            .by_account
+            .values_mut()
+            .find(|session| session.access_token.as_deref() == Some(token))?;
+        session.access_token = None;
+        session.access_expires_at = None;
+        session.username.clone()
+    }
+
     fn get(&self, account: Option<&str>) -> Result<&AuthSession, Refusal> {
         match account {
             Some(account) => self.find(account).ok_or_else(|| no_session(account)),
@@ -2577,9 +2596,23 @@ resubmit if still wanted",
                             }),
                         }
                     }
-                    Err(error) => Outcome::Failure {
-                        error: format!("HEAD {}: {error}", url_path(&url)),
-                    },
+                    Err(error) => {
+                        let mut message = format!("HEAD {}: {error}", url_path(&url));
+                        if error.status == Some(401)
+                            && let Some(token) = &bearer
+                            && let Some(username) = self.reject_access_token(token)
+                        {
+                            message.push_str(&format!(
+                                " — the access token for {username} was rejected and is forgotten; the next send refreshes it first (C87)"
+                            ));
+                            // The limiter closed the route with the bare
+                            // HEAD status as its reason; the job waiting
+                            // on this probe reports that reason, so it
+                            // is re-closed with the whole story.
+                            self.choke.degrade(&route, &message);
+                        }
+                        Outcome::Failure { error: message }
+                    }
                 }
             }
             other => Outcome::Failure {
@@ -2621,7 +2654,19 @@ resubmit if still wanted",
         let retry_after = response.retry_after;
         let path = url_path(url);
         self.log(&format!("GET {path} -> {status} | rate headers: {rate}"));
-        classify_api_body(status, &retry_after, &path, rate, response.body)
+        let classified = classify_api_body(status, &retry_after, &path, rate, response.body);
+        if status.as_u16() == 401
+            && let Some(token) = bearer
+            && let Some(username) = self.reject_access_token(token)
+        {
+            return classified.map_err(|error| match error {
+                ApiError::Other(evidence) => ApiError::Other(format!(
+                    "{evidence} — the access token for {username} was rejected and is forgotten; the next send refreshes it first (C87)"
+                )),
+                other => other,
+            });
+        }
+        classified
     }
 
     // ---- auth -----------------------------------------------------------
@@ -2992,6 +3037,24 @@ resubmit if still wanted",
         session.advance_refresh_token();
         session.refresh_flight = None;
         warning
+    }
+
+    /// A 401 landed on a send that carried `token` (C87): the session
+    /// forgets it and the log says so. The job that met the 401 fails as
+    /// it did; the next send for that account is the refresh, which the
+    /// journal rule in `TESTING-NOTES.md` pins. Returns the account whose
+    /// token was cleared, or `None` when no session held it any more.
+    fn reject_access_token(&self, token: &str) -> Option<String> {
+        let username = self
+            .shared
+            .lock()
+            .unwrap()
+            .auth
+            .reject_access_token(token)?;
+        self.log(&format!(
+            "access token for {username} rejected (401); forgotten — the next send refreshes first (C87)"
+        ));
+        Some(username)
     }
 
     /// Current access token, refreshing through the provider if it is
@@ -6079,13 +6142,16 @@ mod dispatcher_tests {
     }
 
     /// A server that answers by *what was sent*, not by position in a
-    /// script: a stale bearer gets 401 on any route, the token endpoint
-    /// rotates to a fresh one, everything else succeeds. Runs until aborted.
-    /// Scenario tests assert invariants over the journal, so the server must
-    /// not encode the expected sequence.
+    /// script: a stale bearer gets 401 on any route (on GETs only when
+    /// `probe_checks_bearer` is false — whether GGG's HEAD checks the
+    /// bearer is unobserved, so both shapes are driven), the token
+    /// endpoint rotates to a fresh one, everything else succeeds. Runs
+    /// until aborted. Scenario tests assert invariants over the journal,
+    /// so the server must not encode the expected sequence.
     async fn bearer_aware_server(
         stale_bearer: &'static str,
         fresh_bearer: &'static str,
+        probe_checks_bearer: bool,
     ) -> (String, tokio::task::JoinHandle<()>) {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let base = format!("http://{}", listener.local_addr().unwrap());
@@ -6114,7 +6180,9 @@ mod dispatcher_tests {
                         "X-Rate-Limit-Policy: token-request-limit\r\nX-Rate-Limit-Rules: Ip\r\nX-Rate-Limit-Ip: 60:30:30\r\nX-Rate-Limit-Ip-State: 1:30:0\r\n",
                         body,
                     )
-                } else if bearer == stale_bearer {
+                } else if bearer == stale_bearer
+                    && (probe_checks_bearer || request.method != "HEAD")
+                {
                     (
                         "401 Unauthorized",
                         api_headers,
@@ -6149,6 +6217,139 @@ mod dispatcher_tests {
         hms[0] * 3600 + hms[1] * 60 + hms[2]
     }
 
+    /// A daemon holding a token the wall clock says is valid, which the
+    /// provider rejects (C87): one job meets the 401, and the journal
+    /// after it must read refresh, then sends under the new bearer — never
+    /// the rejected bearer again. `probe_checks_bearer` picks which send
+    /// meets the 401: the HEAD probe, or the GET behind a probe that
+    /// passed. Returns the journal's sends and the two jobs' terminal
+    /// states.
+    async fn rejected_access_token_scenario(
+        probe_checks_bearer: bool,
+    ) -> (Vec<Value>, (JobInfo, Outcome), (JobInfo, Outcome)) {
+        let (base, server) = bearer_aware_server("at-old", "at-new", probe_checks_bearer).await;
+        let clock = Arc::new(ManualClock::new());
+        let journal = std::env::temp_dir().join(format!(
+            "acquisition-c87-{}-{}.jsonl",
+            std::process::id(),
+            TEST_LOG_ID.fetch_add(1, Ordering::Relaxed)
+        ));
+        let _ = std::fs::remove_file(&journal);
+        let rails = Arc::new(Rails::with_config_and_clock(
+            RailsConfig {
+                journal_path: Some(journal.clone()),
+                ..RailsConfig::default()
+            },
+            clock.clone(),
+        ));
+        let (daemon, log_path) = test_daemon_scenario(
+            Provider::mock(&base),
+            clock.clone(),
+            rails,
+            Arc::new(NoopCredentialStore),
+        );
+        {
+            let mut s = daemon.shared.lock().unwrap();
+            s.auth.rename("", "scenario-user");
+            daemon.install_tokens_locked(
+                s.auth.one_mut(),
+                auth::TokenResponse {
+                    access_token: "at-old".into(),
+                    refresh_token: "rt-old".into(),
+                    expires_in: 3600,
+                    username: "scenario-user".into(),
+                },
+            );
+        }
+        let dispatcher = tokio::spawn(daemon.clone().dispatcher());
+        let first = daemon
+            .submit("characters".into(), json!({}), 0, "test".into(), None)
+            .unwrap();
+        let first = wait_terminal(&daemon, first).await;
+        // A failed probe closes the route for the cooldown; the second job
+        // is submitted once that has passed, so what it does is decided by
+        // the session, not by the closed route.
+        clock.advance(crate::ratelimit::PROBE_COOLDOWN + Duration::from_secs(1));
+        let second = daemon
+            .submit("characters".into(), json!({}), 0, "test".into(), None)
+            .unwrap();
+        let second = wait_terminal(&daemon, second).await;
+        server.abort();
+        finish_harness(dispatcher, &log_path);
+        let mut lines = read_journal(&journal);
+        let _ = std::fs::remove_file(&journal);
+        assert_eq!(
+            lines.first().map(|l| l["event"].clone()),
+            Some("open".into())
+        );
+        lines.remove(0);
+        (lines, first, second)
+    }
+
+    /// What both shapes must show (C87): the journal rule holds with its
+    /// 401 arm entered, exactly one 401 in the whole run (the rejected
+    /// bearer is never sent again), the first job failed saying so, the
+    /// second job finished under the refreshed bearer.
+    fn assert_rejected_bearer_refreshed(
+        sends: &[Value],
+        first: &(JobInfo, Outcome),
+        second: &(JobInfo, Outcome),
+    ) {
+        assert_wire_contract(sends);
+        assert_pacing_follows_responses(sends);
+        let unauthorized: Vec<usize> = sends
+            .iter()
+            .enumerate()
+            .filter(|(_, l)| l["status"] == 401)
+            .map(|(i, _)| i)
+            .collect();
+        assert_eq!(unauthorized.len(), 1, "exactly one 401: {sends:?}");
+        let after = &sends[unauthorized[0] + 1];
+        assert!(
+            after["method"] == "POST" && after["route"] == "oauth-token",
+            "the send after the 401 is the refresh: {sends:?}"
+        );
+        assert_eq!(first.0.state, JobState::Failed, "{sends:?}");
+        let Outcome::Failure { error } = &first.1 else {
+            panic!("the job that met the 401 has a failure outcome")
+        };
+        assert!(
+            error.contains("401") && error.contains("rejected") && error.contains("C87"),
+            "the failure names the rejection: {error}"
+        );
+        assert_eq!(second.0.state, JobState::Done, "{:?}\n{sends:?}", second.1);
+    }
+
+    /// C87 on the probe: the HEAD carries the rejected bearer and lands
+    /// 401. Breaker (verified 2026-09-12): drop `reject_access_token` from
+    /// the probe job's failure arm and the second job's probe re-sends the
+    /// same bearer — a second 401, and the journal rule fails on it.
+    #[tokio::test]
+    async fn rejected_access_token_on_the_probe_is_refreshed_before_the_next_send() {
+        let (sends, first, second) = rejected_access_token_scenario(true).await;
+        assert_rejected_bearer_refreshed(&sends, &first, &second);
+        let methods: Vec<&str> = sends
+            .iter()
+            .map(|l| l["method"].as_str().unwrap())
+            .collect();
+        assert_eq!(methods, ["HEAD", "POST", "HEAD", "GET"], "{sends:?}");
+    }
+
+    /// C87 on the GET: the probe passes without checking the bearer and
+    /// the GET behind it lands 401. Breaker (verified 2026-09-12): drop
+    /// `reject_access_token` from `api_get` and the second job's GET
+    /// re-sends the same bearer — a second 401, and the journal rule fails.
+    #[tokio::test]
+    async fn rejected_access_token_on_the_get_is_refreshed_before_the_next_send() {
+        let (sends, first, second) = rejected_access_token_scenario(false).await;
+        assert_rejected_bearer_refreshed(&sends, &first, &second);
+        let methods: Vec<&str> = sends
+            .iter()
+            .map(|l| l["method"].as_str().unwrap())
+            .collect();
+        assert_eq!(methods, ["HEAD", "GET", "POST", "GET"], "{sends:?}");
+    }
+
     /// R8 as a scenario (TESTING-NOTES, "the experiment"). The token was
     /// issued for 3600 s; the lid closed for 1800 s and then 2000 s passed
     /// normally. On the wall it is 3800 s later and the token is dead; on a
@@ -6162,7 +6363,7 @@ mod dispatcher_tests {
     /// and this fails on the 401 assertion.
     #[tokio::test]
     async fn expired_token_after_laptop_sleep_is_refreshed_before_any_send() {
-        let (base, server) = bearer_aware_server("at-old", "at-new").await;
+        let (base, server) = bearer_aware_server("at-old", "at-new", true).await;
         let clock = Arc::new(ManualClock::new());
         let journal = std::env::temp_dir().join(format!(
             "acquisition-r8-{}-{}.jsonl",
@@ -6369,9 +6570,13 @@ mod dispatcher_tests {
     ///   send on any API route is a HEAD. The token endpoint is never
     ///   probed.
     /// - N24, accounting: a HEAD is never counted; everything else is.
-    /// - N34/R8: a 401 is answered by a token refresh before any other
-    ///   send. (No offline breaker yet: the harness has no scenario in
-    ///   which a 401 lands and the refresh does not follow.)
+    /// - N34/R8, C87: a 401 is answered by a token refresh before any other
+    ///   send. Entered by the two `rejected_access_token_*` scenarios
+    ///   below (breaker, verified 2026-09-12: drop either
+    ///   `reject_access_token` call and its scenario fails here, the
+    ///   next send being the same bearer again). The rule is over the
+    ///   whole journal, not per account: no scenario yet interleaves a
+    ///   second account's send between a 401 and its refresh.
     fn assert_wire_contract(sends: &[Value]) {
         let mut seen: HashSet<(u64, String)> = HashSet::new();
         let mut owe_refresh: Option<&Value> = None;

@@ -1297,6 +1297,22 @@ fn rule_statuses(ps: &PolicyState) -> Vec<RuleStatus> {
 
 // ---- the choke point ------------------------------------------------------
 
+/// Why a HEAD probe did not leave its route with a policy: the status the
+/// probe landed with (`None` when it never landed — refused by a halt, or
+/// lost in transport) and the limiter's reason. The status is what lets
+/// the daemon act on a 401 (C87) without parsing the reason.
+#[derive(Debug, Clone)]
+pub struct ProbeError {
+    pub status: Option<u16>,
+    pub reason: String,
+}
+
+impl std::fmt::Display for ProbeError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.reason)
+    }
+}
+
 #[derive(Debug)]
 pub enum SendError {
     Transport(String),
@@ -1670,18 +1686,21 @@ impl ChokePoint {
 
     /// The HEAD probe (N16). Not counted by the server (N24); teaches the
     /// limiter the endpoint's policy, or degrades the endpoint (N20).
-    /// Returns the raw rate headers on success for the probe job's payload.
+    /// Returns the raw rate headers on success for the probe job's payload;
+    /// a failure carries the status the probe landed with, if it landed,
+    /// so the caller can tell a rejected bearer (401, C87) from a closed
+    /// route without reading the reason.
     pub async fn head(
         &self,
         route: &str,
         url: &str,
         bearer: Option<&str>,
         since: Instant,
-    ) -> Result<(reqwest::StatusCode, Policy, serde_json::Value), String> {
-        let _permit = self
-            .acquire_head(route)
-            .await
-            .map_err(|error| error.to_string())?;
+    ) -> Result<(reqwest::StatusCode, Policy, serde_json::Value), ProbeError> {
+        let _permit = self.acquire_head(route).await.map_err(|error| ProbeError {
+            status: None,
+            reason: error.to_string(),
+        })?;
         let wait = self.now().saturating_duration_since(since);
         let mut req = self.http.head(url);
         if let Some(token) = bearer {
@@ -1774,6 +1793,7 @@ impl ChokePoint {
         );
         // The limiter decided whether that was good enough; report what it
         // concluded so the probe job's outcome matches the endpoint state.
+        let status = completed.as_ref().ok().map(|(status, _)| status.as_u16());
         match self
             .limiter
             .lock()
@@ -1786,10 +1806,14 @@ impl ChokePoint {
                 };
                 Ok((completed.unwrap().0, policy, raw))
             }
-            EndpointState::Degraded { reason, .. } => {
-                Err(format!("{reason}; endpoint closed for a cooldown"))
-            }
-            other => Err(format!("unexpected endpoint state after probe: {other:?}")),
+            EndpointState::Degraded { reason, .. } => Err(ProbeError {
+                status,
+                reason: format!("{reason}; endpoint closed for a cooldown"),
+            }),
+            other => Err(ProbeError {
+                status,
+                reason: format!("unexpected endpoint state after probe: {other:?}"),
+            }),
         }
     }
 
@@ -3539,7 +3563,7 @@ mod tests {
             .head(route, unreachable, None, choke.now())
             .await
             .unwrap_err();
-        assert!(head.contains("halted by live-test rails"), "{head}");
+        assert!(head.reason.contains("halted by live-test rails"), "{head}");
         let post = choke
             .post_form("oauth-token", unreachable, &[("a", "b")], choke.now())
             .await
