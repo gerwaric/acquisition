@@ -95,13 +95,18 @@ driver leaves its `apply` parent persisted too: `acq cancel <id>` before
 the driver runs again, or the parent's remaining children go out during
 the next quote and the driver refuses the run (2026-09-08).
 
-Known costs, not stops: the first probe of a lifetime queues a few
-seconds behind the token POST; an unsigned `acqd` is asked twice per
-login after every rebuild. Expected of the signed one, unobserved
-until a ledger row says so: the first login under it is asked once per
-keychain item (the new identity joins the item's list — "Always
-Allow"), and the login after the next rebuild is not asked at all.
-Record both in the row.
+Known costs, not stops: every lifetime starts with a token POST (the
+access token is never persisted), so a by-hand ceiling of 2 is one POST
+and one GET; the first probe of a lifetime queues a few seconds behind
+that POST; an unsigned `acqd` is asked twice per login after every
+rebuild. The signed one (the 2026-09-12 row) is asked once per keychain
+item on its first start under the identity — one prompt per persisted
+account, "Always Allow" — and never again: not on the token write, not
+after a rebuild. That first start waits at the prompts past the
+client's 5 s handshake deadline (C86), so the client reports the daemon
+unresponsive and names its pid for `kill` while it is only waiting on
+you. Do not kill it: answer the prompts, then run the command again —
+the daemon is up, or has idled out and its next start is silent.
 
 Sleep and wakes (soaks): a closed laptop on AC dark-wakes every 15–60
 min (Power Nap) and cron runs during the wakes; on battery it sleeps for

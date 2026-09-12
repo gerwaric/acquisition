@@ -126,11 +126,6 @@ finding; each is data for the next slice that touches it.
 - All-zero change lines: 112 refetched bodies, `changed:` nothing,
   `0 events`. Correct; whether a row of zeros reads as reassurance or as
   "did it work" is for the next reader.
-- The debug binary is unsigned, so macOS Keychain prompts twice per
-  login after every rebuild. `tools/sign-acqd.sh` (2026-09-12) gives it
-  a stable identity; whether the prompts stop is unobserved until a
-  ledger row records the first login under a signed `acqd` and the
-  login after the next rebuild.
 
 ## The method-test verdict, as recorded in CONTEXT
 
