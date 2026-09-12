@@ -92,7 +92,10 @@ store's `test-hooks` feature and its dev-only `hooks` feature went);
 `cargo clippy` rewrites none. So run the gate's `cargo build --workspace`
 before any smoke or live run, and never run the drivers while the gate
 runs — their preflight build replaces `acqd` under a live daemon (an
-artifact mismatch, C84).
+artifact mismatch, C84). The contract revision hashes the protocol
+crate's sources, so an edit or a `cargo fmt` there after the build
+leaves `acqd` on the old revision and every daemon test failing "another
+contract": build again first (2026-09-12).
 
 ## Routing: one authoritative home per fact
 

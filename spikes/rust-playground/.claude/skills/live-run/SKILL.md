@@ -68,6 +68,12 @@ the daemon already holds a valid access token):
 ACQ_TRIPWIRE=1 ACQ_MAX_SENDS=3 acq <command>   # the real provider is the default (C88); no flag selects it
 ```
 
+The first live run after C88 (2026-09-12) is also its proof, owed to
+the ledger: with no provider flag set, the journal's `open` line and
+`acq daemon status` name provider `ggg`, the world is the owner's data
+directory and the keyring entry is the real service's — say so in the
+row.
+
 Read the journal before anything else (`acq daemon status` prints its
 path: the world's `sends.jsonl` under the log directory, bounded; a
 driver's daemons write the run directory's `sends.jsonl` instead, under
