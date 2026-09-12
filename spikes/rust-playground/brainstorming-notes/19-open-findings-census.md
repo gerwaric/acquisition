@@ -6,14 +6,15 @@ the code comments carry, then group them by what it takes to close
 each one. Disposable like every note here (P1): an item is real only
 where it already lives — a parked entry, a known gap, a closed record's
 observation, a doc comment — and this note only indexes those homes.
-It proposes no ruling. **A erased 2026-09-11** after `44b4befd` (its
-rows) and `64bda152` (C45, which A7 had listed as uncited and which
-turned out unbuilt); the commits hold what each row was. **B3 and D2
-erased 2026-09-11** after `1f4c284c` (B3) and the commit that restored
-the MCP pricing park to `decisions/frontends.md` (D2: the step had been
-parked at the 2026-09-04 re-scope, trigger "after the CLI has been used
-for real", and the record cut dropped the entry unrouted; the trigger
-had fired at the readings).
+It proposes no ruling. **Erased so far** (the commits hold what each
+row was): A, 2026-09-11, after `44b4befd` and `64bda152` (C45, which A7
+had listed as uncited and which turned out unbuilt); B3 (`1f4c284c`)
+and D2 (`e9db23b2`: the MCP pricing step had been parked at the
+2026-09-04 re-scope and the record cut dropped the entry unrouted —
+restored, then postponed behind item search by the owner, `f9ea6c1d`);
+C7, answered by the owner in conversation 2026-09-11: "I want to get to
+the real heart of acquisition--item search" — the census items first,
+then item search, so D is not the next slice; B5 moved to C8.
 
 Scope of this pass: what is *written up* — the README's known gaps,
 `CONTEXT.md` and the six `decisions/<area>.md` "Parked" sections, the
@@ -47,8 +48,8 @@ when:
 - **F. Parked, trigger unfired** — the registry's own backlog, listed
   once so this census is complete. Nothing to do.
 
-Suggested order: B in one cleanup session; C as one batch to the
-owner; D is the next-slice conversation; E and F are ambient.
+Suggested order: B over two sessions (below); C as one batch to the
+owner; D waits behind item search; E and F are ambient.
 
 ## B. Code-level debt (under the gate; a commit each)
 
@@ -57,8 +58,7 @@ owner; D is the next-slice conversation; E and F are ambient.
 | B1 | `daemon.rs` — `last_activity`, the idle loop (`IDLE_POLL`), the errors ring | `TESTING-NOTES.md`: "Not yet on the clock: the idle-shutdown and activity sites in `daemon.rs`" — still true (`Instant::now()` at ~972, 1532, 3321, 3440, 3875). Open since 2026-08-24. | put them on the daemon `Clock` so idle tests do not sleep real time; check first what the idle tests do today |
 | B2 | `TESTING-NOTES.md` journal table, the 401 rule | "after a 401 the next send is `POST oauth-token`" is pinned but "armed, no offline breaker yet" — the one row never broken deliberately. | a breaker, or a line saying why it cannot have one |
 | B4 | `tools/tracer-rung.sh` | REFRESH observation: after a failed apply the driver stops with the daemon up so the jobs stay readable; a scripted caller wants the stop automated once the evidence is copied. | a flag, or stop after the evidence copy |
-| B5 | `Cargo.toml` | the C47 lint is a per-crate `#![cfg_attr(not(test), deny(...))]` in three crates; no `[workspace.lints]`, no `rust-toolchain.toml`, no `cargo-deny`/`audit`. | owner's call whether a spike wants any of it; a workspace lints table would make the ratchet one line |
-| B6 | the developer's machine, not the repo | the unsigned debug binary makes macOS Keychain prompt twice per login after every rebuild (REFRESH observation; the live-run skill's "known cost"). | a self-signed local identity gives a stable designated requirement; a `codesign` step in `tools/preflight.sh`. Dev-experience only |
+| B6 | the developer's machine, not the repo | the unsigned debug binary makes macOS Keychain prompt twice per login after every rebuild (REFRESH observation; the live-run skill's "known cost"). | the owner creates a self-signed local identity (a stable designated requirement; a keychain action on the machine); then a `codesign` step in `tools/preflight.sh`, a ten-minute change that rides with the B2/B4 session. Dev-experience only |
 
 ## C. Questions for the owner (one batch)
 
@@ -85,7 +85,11 @@ owner; D is the next-slice conversation; E and F are ambient.
 - **C6. Shop publishing** (`CONTEXT.md`, Parked): the render is
   validated (reading 2); the other half of the trigger is "the owner
   wanting the posts automated". Yes, no, or not yet.
-- **C7. Which of D is next.**
+- **C8. Lint and toolchain ratchet** (was B5): the C47 lint is a
+  per-crate `#![cfg_attr(not(test), deny(...))]` in three crates; no
+  `[workspace.lints]`, no `rust-toolchain.toml`, no `cargo-deny`/`audit`.
+  Does a spike want any of it? A workspace lints table would make the
+  ratchet one line.
 
 ## D. Fired or near triggers (slice candidates)
 
@@ -166,8 +170,20 @@ owner; D is the next-slice conversation; E and F are ambient.
 
 ## What a cleanup session would do, in order
 
-1. ~~B3, with D2 recorded~~ done 2026-09-11.
-2. One commit each, under the gate: B1, B2, B4.
-3. One message to the owner: C1–C7.
-4. The next slice's framing note: D1 (the explicit-selection door),
-   the other debt the pricing close left.
+Agreed with the owner 2026-09-11: a session boundary buys a clean
+reading set, one commit story and one close; it costs the orientation
+pass. Split where the second item needs another area's decisions file,
+not by census row.
+
+1. B1 alone: daemon internals, its own reading set, real behavior on a
+   live daemon; first find out whether the idle tests sleep real time,
+   since that speeds every later gate.
+2. B2 and B4 in one harness session (the testing notes, the mock-session
+   and live-run skills), a commit each, sequential — B2 runs the gate,
+   B4 runs the driver, never both at once (C84). B6's preflight step
+   rides along once the owner has made the identity. Split at the point
+   either proves larger than an hour, not before.
+3. One message to the owner: C1–C6, C8.
+4. Then item search, the owner's direction. D1 (the explicit-selection
+   door) stays a fired trigger in `decisions/plans.md` until it is
+   picked; the other D items keep their triggers.
