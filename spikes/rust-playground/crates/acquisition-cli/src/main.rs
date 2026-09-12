@@ -470,7 +470,8 @@ enum PriceCmd {
     },
     /// Set one target's price by hand — a row on an item, tab, substash
     /// or character; what it covers inherits it (C70). Prints what it
-    /// replaced, and how to put that back.
+    /// replaced, how to put that back, and a note when the facts hold no
+    /// such target (a tab not fetched yet, or a typo — never a refusal).
     Set {
         /// `item/<id>`, `character/<id>`, `tab/<realm>/<id>` or
         /// `substash/<realm>/<parent>/<id>`.

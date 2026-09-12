@@ -40,9 +40,11 @@ use acquisition_plan::price::{
 };
 use acquisition_protocol::realm::Realm;
 use acquisition_store::{
-    AnnotationRow, Annotations, IntentValue, Provenance, Store, account_path, check_value,
+    AnnotationRow, Annotations, FactAddress, IntentValue, Provenance, Store, account_path,
+    check_value,
 };
 use anyhow::{Context, Result, bail};
+use serde::Serialize;
 use serde_json::json;
 
 use crate::plan_cmd::{WRITTEN_VIA, open_intent};
@@ -913,7 +915,7 @@ pub fn set(
 ) -> Result<()> {
     let target = parse_target(target)?;
     let value = parse_buyout(kind, amount, currency)?;
-    let (_, _, mut annotations) = open_intent()?;
+    let (dir, entry, mut annotations) = open_intent()?;
     let expected = match if_revision {
         Some(revision) => Some(revision),
         None => current_revision(&annotations, &target)?,
@@ -925,7 +927,33 @@ pub fn set(
         expected,
         &Provenance::via(WRITTEN_VIA),
     )?;
-    report_write(&write, json)
+    // Read after the write, so the note never gates it (C64): whether the
+    // facts hold the target at all, in any league.
+    let in_facts = Store::open(&account_path(&dir, &entry.username))?
+        .holds(&FactAddress::from(&target))
+        .context("reading the facts for the target")?;
+    if json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&SetReceipt {
+                write: &write,
+                in_facts
+            })?
+        );
+        return Ok(());
+    }
+    print!("{}", render_write(&write, Some(in_facts)));
+    Ok(())
+}
+
+/// `set --json`: the [`PriceWrite`] plus whether the facts hold the
+/// target — the text's note, as JSON (C53). Absent from `clear`, which
+/// only ever removes a row that exists.
+#[derive(Serialize)]
+struct SetReceipt<'a> {
+    #[serde(flatten)]
+    write: &'a PriceWrite,
+    in_facts: bool,
 }
 
 /// `acq price clear <target>`: remove the row, under the same CAS. A
@@ -958,7 +986,7 @@ fn report_write(write: &PriceWrite, json: bool) -> Result<()> {
         println!("{}", serde_json::to_string_pretty(write)?);
         return Ok(());
     }
-    print!("{}", render_write(write));
+    print!("{}", render_write(write, None));
     Ok(())
 }
 
@@ -986,7 +1014,7 @@ fn set_words(value: &Buyout) -> String {
 /// create, which the store lands over the tombstone whatever came
 /// between (the create cannot say which clear it follows). A prior this
 /// build cannot read is shown as its JSON and promised no undo.
-fn render_write(write: &PriceWrite) -> String {
+fn render_write(write: &PriceWrite, in_facts: Option<bool>) -> String {
     let target = &write.target;
     let was = match &write.prior {
         None => "was unset".to_string(),
@@ -1005,6 +1033,12 @@ fn render_write(write: &PriceWrite) -> String {
                 value_text(row),
                 row.revision
             ));
+            if in_facts == Some(false) {
+                out.push_str(&format!(
+                    "note: the facts hold no {target} (not fetched yet, or a typo); the row stands, \
+                     and `acq price status` counts it under \"name nothing in these facts\"\n"
+                ));
+            }
             let mut next = format!("`acq price show {target}` reads it beside the game side");
             match (&write.prior, prior_words) {
                 (Some(_), Some(words)) => next.push_str(&format!(
@@ -1573,8 +1607,21 @@ mod tests {
             prior: None,
         };
         assert_eq!(
-            render_write(&created),
+            render_write(&created, None),
             "item/i1: 12.5 chaos (revision 1), was unset\n\
+             next: `acq price show item/i1` reads it beside the game side\n"
+        );
+        // A target the facts do not hold is noted between the row and the
+        // next step, never refused (C64); one they do says nothing.
+        assert_eq!(
+            render_write(&created, Some(true)),
+            render_write(&created, None)
+        );
+        assert_eq!(
+            render_write(&created, Some(false)),
+            "item/i1: 12.5 chaos (revision 1), was unset\n\
+             note: the facts hold no item/i1 (not fetched yet, or a typo); the row stands, \
+             and `acq price status` counts it under \"name nothing in these facts\"\n\
              next: `acq price show item/i1` reads it beside the game side\n"
         );
         let replaced = PriceWrite {
@@ -1583,7 +1630,7 @@ mod tests {
             prior: Some(row(exact.clone(), 1)),
         };
         assert_eq!(
-            render_write(&replaced),
+            render_write(&replaced, None),
             "item/i1: 1/5 divine b/o (revision 2), was 12.5 chaos (revision 1)\n\
              next: `acq price show item/i1` reads it beside the game side; \
              `acq price set item/i1 exact 12.5 chaos --if-revision 2` puts the prior back\n"
@@ -1594,7 +1641,7 @@ mod tests {
             prior: Some(row(bo, 2)),
         };
         assert_eq!(
-            render_write(&cleared),
+            render_write(&cleared, None),
             "item/i1: cleared, was 1/5 divine b/o (revision 2)\n\
              next: `acq price set item/i1 negotiable 1/5 divine` puts it back\n"
         );
@@ -1604,7 +1651,7 @@ mod tests {
             written: None,
             prior: Some(row(newer, 3)),
         };
-        let text = render_write(&unreadable);
+        let text = render_write(&unreadable, None);
         assert!(
             text.starts_with(
                 "item/i1: cleared, was an unreadable value {\"type\":\"auction\",\"version\":9} (revision 3)\n"
@@ -1622,7 +1669,7 @@ mod tests {
             written: Some(row(exact, 4)),
             prior: Some(row(json!({ "version": 9, "type": "auction" }), 3)),
         };
-        let text = render_write(&overwritten);
+        let text = render_write(&overwritten, None);
         assert!(
             text.ends_with(
                 "next: `acq price show item/i1` reads it beside the game side; \

@@ -91,7 +91,9 @@ use std::fmt;
 use std::str::FromStr;
 
 use acquisition_protocol::realm::Realm;
-use acquisition_store::{AnnotationError, AnnotationRow, Annotations, IntentValue, Provenance};
+use acquisition_store::{
+    AnnotationError, AnnotationRow, Annotations, FactAddress, IntentValue, Provenance,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -132,6 +134,26 @@ pub enum PriceTarget {
         parent: String,
         id: String,
     },
+}
+
+/// The store's address for the same identity (C67 mirrors C54 and C58),
+/// so a frontend can ask the facts whether they hold the target.
+impl<'a> From<&'a PriceTarget> for FactAddress<'a> {
+    fn from(target: &'a PriceTarget) -> Self {
+        match target {
+            PriceTarget::Item { id } => FactAddress::Item { id },
+            PriceTarget::Character { id } => FactAddress::Character { id },
+            PriceTarget::Tab { realm, id } => FactAddress::Tab {
+                realm: realm.as_str(),
+                id,
+            },
+            PriceTarget::Substash { realm, parent, id } => FactAddress::Substash {
+                realm: realm.as_str(),
+                parent,
+                id,
+            },
+        }
+    }
 }
 
 /// Why a `(scope, key)` is not a [`PriceTarget`], or a component cannot

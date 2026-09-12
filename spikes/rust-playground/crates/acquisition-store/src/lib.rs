@@ -1791,6 +1791,32 @@ impl Store {
             .optional()?)
     }
 
+    /// Whether the facts hold this address in any league, removed or not.
+    /// The question `acq price set` asks at write time: intent is never
+    /// gated by facts (C64) — a price on a tab the policy has not fetched
+    /// yet is legitimate — so a target the facts do not know is noted,
+    /// never refused (the pricing reading-1 question, answered 2026-09-12).
+    pub fn holds(&self, address: &FactAddress<'_>) -> Result<bool> {
+        let (sql, params): (&str, Vec<&str>) = match address {
+            FactAddress::Item { id } => ("SELECT 1 FROM items WHERE id = ?1", vec![id]),
+            FactAddress::Character { id } => ("SELECT 1 FROM characters WHERE id = ?1", vec![id]),
+            // A tab is top-level or a folder's child; a row under any
+            // other parent is a substash, addressed as one.
+            FactAddress::Tab { realm, id } => (
+                "SELECT 1 FROM tabs t WHERE t.realm = ?1 AND t.id = ?2 AND (t.parent IS NULL
+                    OR EXISTS (SELECT 1 FROM tabs p WHERE p.realm = t.realm AND p.league = t.league
+                                  AND p.id = t.parent AND p.type = 'Folder'))",
+                vec![realm, id],
+            ),
+            FactAddress::Substash { realm, parent, id } => (
+                "SELECT 1 FROM tabs WHERE realm = ?1 AND parent = ?2 AND id = ?3",
+                vec![realm, parent, id],
+            ),
+        };
+        let mut stmt = self.conn.prepare(sql)?;
+        Ok(stmt.exists(rusqlite::params_from_iter(params))?)
+    }
+
     /// Item events since `since` (unix seconds), oldest first.
     pub fn events_since(&self, since: i64, limit: usize) -> Result<Vec<EventRow>> {
         let mut stmt = self.conn.prepare(
@@ -1884,6 +1910,29 @@ struct Location {
     league: Option<String>,
     kind: &'static str,
     id: String,
+}
+
+/// An address the facts may hold, league-less — the store's identity as
+/// intent names it (C54, C58; the plan crate's `PriceTarget` mirrors it):
+/// an item or a character by id, a tab by `(realm, id)`, a substash by
+/// `(realm, parent, id)`. Asked of [`Store::holds`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum FactAddress<'a> {
+    Item {
+        id: &'a str,
+    },
+    Character {
+        id: &'a str,
+    },
+    Tab {
+        realm: &'a str,
+        id: &'a str,
+    },
+    Substash {
+        realm: &'a str,
+        parent: &'a str,
+        id: &'a str,
+    },
 }
 
 impl Location {
@@ -3903,5 +3952,137 @@ mod tests {
         assert_eq!((st.withheld_responses, st.withheld_items), (1, 2));
         drop(s);
         let _ = std::fs::remove_dir_all(&dir);
+    }
+}
+
+#[cfg(test)]
+mod fact_address_tests {
+    use super::*;
+    use serde_json::json;
+
+    /// `Store::holds` answers by the store's identity, league-less: an
+    /// item and a character by id, a top-level tab and a folder's child
+    /// as `Tab`, a map tab's substash only as `Substash` under its parent;
+    /// a removed item still counts (intent on it is kept, C35); an id the
+    /// facts never saw does not.
+    #[test]
+    fn holds_answers_by_identity_across_leagues_and_removal() {
+        let mut s = Store::open_memory().unwrap();
+        let stashes = Endpoint::Stashes {
+            realm: "pc".into(),
+            league: "Standard".into(),
+        };
+        s.record(
+            &stashes,
+            &json!({}),
+            200,
+            &json!({ "stashes": [
+                { "id": "f1", "name": "Folder", "type": "Folder", "index": 0,
+                  "children": [ { "id": "c1", "name": "In folder", "type": "PremiumStash", "index": 1 } ] },
+                { "id": "m1", "name": "Maps", "type": "MapStash", "index": 2,
+                  "children": [ { "id": "s1", "name": "", "type": "MapStash", "parent": "m1",
+                                  "metadata": { "map": { "name": "Tier 16" } } } ] } ] }),
+            10,
+        )
+        .unwrap();
+        let stash = |id: &str| Endpoint::Stash {
+            realm: "pc".into(),
+            league: "Standard".into(),
+            id: id.into(),
+            sub: None,
+        };
+        let item = |id: &str| json!({ "id": id, "typeLine": "Chaos Orb", "baseType": "Chaos Orb", "x": 0, "y": 0 });
+        s.record(
+            &stash("c1"),
+            &json!({}),
+            200,
+            &json!({ "stash": { "id": "c1", "name": "In folder", "type": "PremiumStash", "items": [item("i1")] } }),
+            11,
+        )
+        .unwrap();
+        s.record(
+            &stash("c1"),
+            &json!({}),
+            200,
+            &json!({ "stash": { "id": "c1", "name": "In folder", "type": "PremiumStash", "items": [] } }),
+            12,
+        )
+        .unwrap();
+        s.record(
+            &Endpoint::Characters { realm: "pc".into() },
+            &json!({}),
+            200,
+            &json!({ "characters": [ { "id": "ch1", "name": "Exile", "league": "Hardcore" } ] }),
+            13,
+        )
+        .unwrap();
+        assert!(s.item("i1").unwrap().unwrap().removed_at.is_some());
+        for (address, held) in [
+            (FactAddress::Item { id: "i1" }, true),
+            (FactAddress::Item { id: "i-never" }, false),
+            (FactAddress::Character { id: "ch1" }, true),
+            (FactAddress::Character { id: "Exile" }, false),
+            (
+                FactAddress::Tab {
+                    realm: "pc",
+                    id: "f1",
+                },
+                true,
+            ),
+            (
+                FactAddress::Tab {
+                    realm: "pc",
+                    id: "c1",
+                },
+                true,
+            ),
+            (
+                FactAddress::Tab {
+                    realm: "pc",
+                    id: "m1",
+                },
+                true,
+            ),
+            (
+                FactAddress::Tab {
+                    realm: "pc",
+                    id: "s1",
+                },
+                false,
+            ),
+            (
+                FactAddress::Tab {
+                    realm: "poe2",
+                    id: "m1",
+                },
+                false,
+            ),
+            (
+                FactAddress::Substash {
+                    realm: "pc",
+                    parent: "m1",
+                    id: "s1",
+                },
+                true,
+            ),
+            (
+                FactAddress::Substash {
+                    realm: "pc",
+                    parent: "f1",
+                    id: "c1",
+                },
+                true,
+            ),
+            (
+                FactAddress::Substash {
+                    realm: "pc",
+                    parent: "m1",
+                    id: "s-never",
+                },
+                false,
+            ),
+        ] {
+            assert_eq!(s.holds(&address).unwrap(), held, "{address:?}");
+        }
     }
 }

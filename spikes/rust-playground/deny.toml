@@ -1,0 +1,11 @@
+# cargo-deny, advisories only (C8 of the 2026-09-11 census, ruled
+# 2026-09-12): a daemon that holds real tokens earns a RustSec check, run
+# by the Linux workflow (`.github/workflows/rust-playground.yml`), never by
+# the local gate. Licenses, bans and sources wait on a shipping decision
+# (`decisions/daemon.md`, the packaging lot).
+[advisories]
+version = 2
+yanked = "deny"
+# Transitive crates nobody maintains (paste under ratatui, 2026-09-12) are
+# a warning; a vulnerability anywhere in the graph still fails.
+unmaintained = "workspace"

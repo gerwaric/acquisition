@@ -573,7 +573,7 @@ Commands:
   status  One line on the league's listing state and the next action (the default); --expand adds the game side, the rows and the basis
   show    One target's listing: `item/<id>`, `character/<id>`, `tab/<realm>/<id>` or `substash/<realm>/<parent>/<id>` — both sides with their causes, the raw note beside the parse; a container's items summarized under it (--expand lists them all)
   list    Listed items grouped by container, ten or fewer listed per group and more counted (--expand lists every one with its texts). With neither --relation nor --effective, items whose relation is `none` are left out — except unresolved ones (a row that cannot be read could decide), which are always listed
-  set     Set one target's price by hand — a row on an item, tab, substash or character; what it covers inherits it (C70). Prints what it replaced, and how to put that back
+  set     Set one target's price by hand — a row on an item, tab, substash or character; what it covers inherits it (C70). Prints what it replaced, how to put that back, and a note when the facts hold no such target (a tab not fetched yet, or a typo — never a refusal)
   clear   Remove one target's own price row; what it covered falls back to the next row up (C70). Prints what it removed and the command that puts it back
   help    Print this message or the help of the given subcommand(s)
 
@@ -633,7 +633,7 @@ Options:
 ## `acq price set`
 
 ```text
-Set one target's price by hand — a row on an item, tab, substash or character; what it covers inherits it (C70). Prints what it replaced, and how to put that back
+Set one target's price by hand — a row on an item, tab, substash or character; what it covers inherits it (C70). Prints what it replaced, how to put that back, and a note when the facts hold no such target (a tab not fetched yet, or a typo — never a refusal)
 
 Usage: acq price set [OPTIONS] <TARGET> <TYPE> [AMOUNT] [CURRENCY]
 

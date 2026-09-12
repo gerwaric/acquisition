@@ -33,7 +33,19 @@ preflight and the live-run skill (its effect on the prompts is the
 `REFRESH-SLICE.md` observation is closed); the
 same investigation found the
 Linux keyring gap (a mock store reporting `keyring: ok`) and fixed it
-(`e65cbb07`).
+(`e65cbb07`). C, 2026-09-12: the owner answered all seven in one
+message. C1 "agree to flip the default" — ruled in conversation; the
+entry (`decisions/network.md`) and the build are the next slice, which
+deletes note 14. C2 (a), (b), (d) stay as built; (c) built: `set` notes a
+target the facts do not hold. C3 "park the 0.18 import indefinitely" —
+C73's trigger is now a shipping decision. C4 "i forget what this was,
+lets remove this one" — removed. C5 "no objection" — the clause named a
+mechanism never built; reworded. C6 "no shop publishing. that will
+happen much later or not at all" — the trigger is the owner asking. C8
+"agree with your recommendation" — no workspace lints table (it cannot
+exempt test code; C47 says so), no toolchain pin (no drift observed; the
+pin and cargo-deny's other checks in the packaging lot), advisories in
+the Linux workflow (`deny.toml`).
 
 Scope of this pass: what is *written up* — the README's known gaps,
 `CONTEXT.md` and the six `decisions/<area>.md` "Parked" sections, the
@@ -56,8 +68,6 @@ which stays so until the GUI exists.
 By what closes the item, because that is what decides who does it and
 when:
 
-- **C. Questions for the owner** — each a one-line answer; nothing
-  moves until it arrives. Batch them into one message.
 - **D. Fired or near triggers** — parked items whose trigger has fired
   or is calendar-visible. These are the slice candidates.
 - **E. Waits on GGG or an observation** — nothing to build; a watch
@@ -65,39 +75,7 @@ when:
 - **F. Parked, trigger unfired** — the registry's own backlog, listed
   once so this census is complete. Nothing to do.
 
-Suggested order: C as one batch to the owner; D waits behind item
-search; E and F are ambient.
-
-## C. Questions for the owner (one batch)
-
-- **C1. Note 14 — retiring the mock default (2026-09-07).** Four
-  questions for the owner, never answered; no ruling, no parked entry
-  anywhere (`grep` finds neither "mock default" nor `ACQ_PROVIDER` in
-  the registry). The daemon split took the trap that motivated it
-  (C10's observe tier) but not the flip. Rule it, park it with a
-  trigger, or delete the note.
-- **C2. The pricing "reading-1 questions"** (`PRICING-SLICE.md`,
-  observations), four one-liners never put to you: (a) should `price
-  status` lead with the residue count when priced tabs are not public;
-  (b) should "unlisted" be visible by default in `price list`; (c)
-  should `set` say, at write time, that the facts do not hold the
-  target; (d) should `set` resolve an alias instead of refusing it.
-- **C3. `PRICING-SLICE.md` owner question 2:** C73 (the 0.18 import)
-  parked as "a 0.18 user asks" — the park stands unless you say
-  otherwise.
-- **C4. Note 13 (at `decda84e`):** "the owner has a second charter topic for the next
-  stopping point." This may be that stopping point.
-- **C5. The per-realm merge trigger's second clause:** did C72's
-  remedy (printing the whole edited policy) prove unusable at the
-  pricing readings? If yes, the trigger fired (see D3).
-- **C6. Shop publishing** (`CONTEXT.md`, Parked): the render is
-  validated (reading 2); the other half of the trigger is "the owner
-  wanting the posts automated". Yes, no, or not yet.
-- **C8. Lint and toolchain ratchet:** the C47 lint is a
-  per-crate `#![cfg_attr(not(test), deny(...))]` in three crates; no
-  `[workspace.lints]`, no `rust-toolchain.toml`, no `cargo-deny`/`audit`.
-  Does a spike want any of it? A workspace lints table would make the
-  ratchet one line.
+Suggested order: D waits behind item search; E and F are ambient.
 
 ## D. Fired or near triggers (slice candidates)
 
@@ -122,7 +100,6 @@ search; E and F are ambient.
   refused, correlation ids on one connection (`decisions/daemon.md`);
   and C16 itself. Note 17 (at `decda84e`) says at least one GUI or TUI is coming. One
   design session, not six.
-- **D5. Shop/forum publishing** — half-fired; see C6.
 
 ## E. Waits on GGG or an observation (watch list)
 
@@ -158,7 +135,7 @@ search; E and F are ambient.
 
 | Area | Item | Trigger |
 | --- | --- | --- |
-| cross-cutting | shop/forum publishing | render validated **and** the owner wants it (C6) |
+| cross-cutting | shop/forum publishing | the owner asks for it (2026-09-12: much later or not at all) |
 | daemon | priority levels | a second level in use |
 | daemon | the §5 packaging lot: bundle, signing, installer, CLI symlink; a second install; a keeper for non-spawning frontends; correlation ids; Windows; `-Z bindeps`; `world.rs` as a crate; GUI-hosted daemon; `spawned_by`; hash-only identity | ADR 0003 / a shipping decision; each sub-item names its own |
 | network | wire-send budget | a consumer that needs it |
@@ -183,7 +160,9 @@ reading set, one commit story and one close; it costs the orientation
 pass. Split where the second item needs another area's decisions file,
 not by census row.
 
-1. One message to the owner: C1–C6, C8.
-2. Then item search, the owner's direction. D1 (the explicit-selection
-   door) stays a fired trigger in `decisions/plans.md` until it is
-   picked; the other D items keep their triggers.
+1. ~~One message to the owner: C1–C6, C8.~~ Answered 2026-09-12
+   (the preamble).
+2. The mock-default flip (C1's slice), then item search, the owner's
+   direction. D1 (the explicit-selection door) stays a fired trigger in
+   `decisions/plans.md` until it is picked; the other D items keep
+   their triggers.

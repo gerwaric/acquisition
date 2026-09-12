@@ -41,6 +41,15 @@ jobs:
         with:
           workspaces: spikes/rust-playground
 
+      # RustSec advisories over the locked graph (`deny.toml`): a daemon
+      # that holds real tokens earns the check. Here only — the local gate
+      # does not install cargo-deny (C8 of the 2026-09-11 census).
+      - name: Advisories
+        uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check advisories
+          manifest-path: spikes/rust-playground/Cargo.toml
+
       - name: Install a Secret Service
         run: |
           sudo apt-get update

@@ -142,7 +142,10 @@ intent file and read back; nothing contacted GGG.
   rigorous testing, but not yet" — which became plan step 7.
 - A row on a substash or a character is intent the game cannot express;
   the render turns it into one link per covered item (C70, C74).
-- Three questions it raised were never put to the owner: observations.
+- Four questions it raised reached the owner on 2026-09-12: `status`
+  leads with what is public, "unlisted" stays out of `list` by default,
+  an alias stays refused naming the tag — as built; and `set` now notes
+  a target the facts do not hold (never a refusal, C64).
 
 **Validation reading 2 (2026-09-07)** — a rendered page posted to the
 shop thread and read back on the trade site.
@@ -264,38 +267,12 @@ data for the next slice that touches it.
   `tab_unlisted` cell. Since T24 the index only orders the tabs — the
   rank among the listed non-folder tabs is what a link carries — so the
   fallback would matter only if it reordered them.
-- `priced_tabs` counts names that read as a price whether or not the
-  tab is public (the owner's 13 remove-only tabs are the case), beside
-  `priced_tabs_public`; whether `status` should lead with the residue
-  count for such a stash is a reading-1 question.
 - The 0.18 userstore's 120 notes and 17 tilde tab names are not in the
   fixture (the census read shapes, never texts); a later census that
   writes them there, verbatim, would widen the parser's pin from the one
   test tab to the owner's real corpus.
 - The C++ userstore stored `last_update` as text in an INTEGER column
   (Qt bound a `QDateTime`); nothing to fix, noted.
-- `acq price list` leaves relation `none` out when neither `--relation`
-  nor `--effective` is given, except unresolved items, always listed
-  (the owner's data holds 26k items and ~1.4k listed); `--relation none`
-  or `--effective none` asks for the rest. Whether "unlisted" should be
-  visible by default is a reading-1 question.
-- `set` lands on any well-formed target, whether or not the facts hold
-  it: intent is league-less (C67), never gated by facts (C64), and a
-  price on a tab the policy has not fetched yet is legitimate (C72
-  reports it). A typo'd id therefore lands too, and `status` counts it
-  under "name nothing in these facts". Whether `set` should say so at
-  write time (a note, never a refusal) is a reading-1 question.
-- `set`'s type words are the C67 vocabulary plus the game's (`price`,
-  `b/o`, `~price`, `~b/o`, `~skip`); the amount and currency are read by
-  the value's own parse, so the CLI has no second grammar and an alias
-  is refused naming the tag rather than resolved. Whether the owner
-  wants the alias resolved for them is a reading-1 question.
-
-## Owner questions still open
-
-- **2.** C73 parked as "a 0.18 user asks": pricing is niche, but the
-  0.18 import is a product question for other users, not only yours.
-  Park stands unless you say otherwise.
 
 ## Process used
 

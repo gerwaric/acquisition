@@ -345,7 +345,7 @@ fn price_set_and_clear_print_the_receipt_and_show_reads_it_back() {
     };
 
     // A create: the amount lands canonical, the channel is the CLI's.
-    let w = receipt(&acq(
+    let out = acq(
         &base,
         &[
             "price",
@@ -356,10 +356,53 @@ fn price_set_and_clear_print_the_receipt_and_show_reads_it_back() {
             "chaos",
             "--json",
         ],
-    ));
+    );
+    let w = receipt(&out);
     assert_eq!(w.target.to_string(), "item/i-map");
     assert!(w.prior.is_none());
     let written = w.written.unwrap();
+    // The receipt says whether the facts hold the target (`in_facts`); a
+    // target they do not is noted and lands all the same (C64; the
+    // reading-1 question, answered 2026-09-12): true on the seeded item
+    // above, false on a typo'd id, in JSON and as the text's note line.
+    assert_eq!(sole_json(&out)["in_facts"], json!(true));
+    let out = acq(
+        &base,
+        &[
+            "price",
+            "set",
+            "item/i-typo",
+            "exact",
+            "1",
+            "chaos",
+            "--json",
+        ],
+    );
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(sole_json(&out)["in_facts"], json!(false));
+    let out = acq(&base, &["price", "clear", "item/i-typo"]);
+    assert!(out.status.success(), "{}", stderr(&out));
+    let out = acq(
+        &base,
+        &["price", "set", "item/i-typo", "exact", "1", "chaos"],
+    );
+    assert!(out.status.success(), "{}", stderr(&out));
+    let text = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        text.starts_with("item/i-typo: 1 chaos (revision "),
+        "{text}"
+    );
+    assert!(
+        text.ends_with(
+            "), was unset\n\
+             note: the facts hold no item/i-typo (not fetched yet, or a typo); the row stands, \
+             and `acq price status` counts it under \"name nothing in these facts\"\n\
+             next: `acq price show item/i-typo` reads it beside the game side\n"
+        ),
+        "{text}"
+    );
+    let out = acq(&base, &["price", "clear", "item/i-typo"]);
+    assert!(out.status.success(), "{}", stderr(&out));
     assert_eq!((written.revision, written.written_via.as_str()), (1, "cli"));
     assert_eq!(
         written.value,
