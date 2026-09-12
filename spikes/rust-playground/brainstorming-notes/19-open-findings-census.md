@@ -53,8 +53,6 @@ which stays so until the GUI exists.
 By what closes the item, because that is what decides who does it and
 when:
 
-- **B. Code-level debt** — small, under the gate, agent-owned; a commit
-  each.
 - **C. Questions for the owner** — each a one-line answer; nothing
   moves until it arrives. Batch them into one message.
 - **D. Fired or near triggers** — parked items whose trigger has fired
@@ -64,13 +62,8 @@ when:
 - **F. Parked, trigger unfired** — the registry's own backlog, listed
   once so this census is complete. Nothing to do.
 
-Suggested order: B over two sessions (below); C as one batch to the
-owner; D waits behind item search; E and F are ambient.
-
-## B. Code-level debt (under the gate; a commit each)
-
-| # | Where | What | Fix |
-| --- | --- | --- | --- |
+Suggested order: C as one batch to the owner; D waits behind item
+search; E and F are ambient.
 
 ## C. Questions for the owner (one batch)
 
@@ -97,7 +90,7 @@ owner; D waits behind item search; E and F are ambient.
 - **C6. Shop publishing** (`CONTEXT.md`, Parked): the render is
   validated (reading 2); the other half of the trigger is "the owner
   wanting the posts automated". Yes, no, or not yet.
-- **C8. Lint and toolchain ratchet** (was B5): the C47 lint is a
+- **C8. Lint and toolchain ratchet:** the C47 lint is a
   per-crate `#![cfg_attr(not(test), deny(...))]` in three crates; no
   `[workspace.lints]`, no `rust-toolchain.toml`, no `cargo-deny`/`audit`.
   Does a spike want any of it? A workspace lints table would make the
@@ -187,9 +180,7 @@ reading set, one commit story and one close; it costs the orientation
 pass. Split where the second item needs another area's decisions file,
 not by census row.
 
-1. ~~B1~~ — done 2026-09-12.
-2. ~~B4, B2~~ — done 2026-09-12; ~~B6~~ the same day.
-3. One message to the owner: C1–C6, C8.
-4. Then item search, the owner's direction. D1 (the explicit-selection
+1. One message to the owner: C1–C6, C8.
+2. Then item search, the owner's direction. D1 (the explicit-selection
    door) stays a fired trigger in `decisions/plans.md` until it is
    picked; the other D items keep their triggers.

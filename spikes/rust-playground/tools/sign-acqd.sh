@@ -7,7 +7,7 @@
 # save). Signed with a real identity the requirement is the identifier, the
 # Apple anchor and the certificate's name and team — the same after every
 # build, and after the certificate renews under the same name — so the
-# item's "Always Allow" holds (B6, 2026-09-12; auth.rs, "keyring").
+# item's "Always Allow" holds (2026-09-12; auth.rs, "keyring").
 #
 #   tools/sign-acqd.sh [path-to-acqd]     # default target/debug/acqd
 #
