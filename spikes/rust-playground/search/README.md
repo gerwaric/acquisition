@@ -53,7 +53,7 @@ the mold of `PRICING-SLICE.md`, with the full text cited at a commit.
 | Track | Question | Status | README bytes |
 | --- | --- | --- | --- |
 | [`item-facts/`](item-facts/README.md) | What does an item look like as GGG gives it, and how big is the corpus? | not started | 1262 |
-| [`cpp-search/`](cpp-search/README.md) | What does the C++ app's search do, filter by filter, and how does it stay instant? | not started | 1254 |
+| [`cpp-search/`](cpp-search/README.md) | What does the C++ app's search do, filter by filter, and how does it stay instant? | first pass — 2026-09-13 | 12960 |
 | [`trade-query/`](trade-query/README.md) | What is the trade site's query language, and which of it means something for a private stash? | in progress — 2026-09-12 | 12327 |
 | [`engine-bench/`](engine-bench/README.md) | Is SQLite over a derived search schema instant at a few hundred thousand items? Measured. | not started | 1201 |
 | [`agent-seat/`](agent-seat/README.md) | What does an agent need to search a corpus that size well? | not started | 1139 |

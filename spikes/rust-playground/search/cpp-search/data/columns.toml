@@ -1,0 +1,342 @@
+# extracted by hand (no script) from master@946a4f51: src/column.cpp, sortkey.h, bucket.h, search.cpp, items_model.cpp, itemlocation.cpp; regenerate by re-reading those files at the commit
+# Acquisition (C++/Qt) result table: columns, sorts, view modes.
+# Every value read from master @ 946a4f51. Paths are repo-relative; line
+# numbers are the line in `git show master:<path>`.
+#
+# Shared base machinery (applies to every column that does not override
+# lt/key — i.e. all but Price and Date):
+#
+#   Column::parts (src/column.cpp:28) turns value(item).toString() into
+#   four fields (d1, s1, d2, s2):
+#     * matches ^\+?([\d.]+)%?$        -> d1 = the captured number
+#       (so "12", "12.12", "10%", "+16%" sort numerically)
+#     * else matches ^(\d+)([-/])(\d+)$
+#         - separator "-"  -> d1 = 0.5 * (first + third)   ("12-14" -> 13)
+#         - separator "/"  -> s1 = PrettyName, d2 = first  ("10/20" -> 10,
+#           but only after PrettyName, which is a latent quirk)
+#     * else                            -> s1 = the raw string, s2 = PrettyName
+#   An absent value is QVariant(); .toString() is the null QString, so it
+#   takes the last branch with s1 null -> absent values group first in
+#   ascending order and then order by PrettyName.
+#
+#   Column::key (src/column.cpp:76) = { BaseHead(d1,s1,d2,s2), suffix }.
+#   Column::lt (src/column.cpp:63) compares
+#   std::tuple(d1, s1, d2, s2, const Item&); the trailing Item reference
+#   makes the tie-break Item::operator< (src/item.cpp:667), which is
+#   (PrettyName, uid, hash) -- the same triple as the key suffix, so
+#   keyed and comparator order agree.
+#
+#   Default color (src/column.cpp:23) = QApplication::palette().color(
+#   QPalette::WindowText).
+#
+#   "none" for icon means the subclass returns QVariant::fromValue(NULL)
+#   from icon() -- a non-null QVariant holding 0, which Qt renders as no
+#   decoration. Only InfluncedColumn ever returns a real QIcon.
+
+[[column]]
+index = 0
+name = "Name"
+class = "NameColumn()"
+value = "Item::PrettyName() -- m_name + \" \" + m_typeLine when the item has a name, else m_typeLine alone (src/item.cpp:PrettyName); never empty for a real item."
+color = "by Item::frameType(): MAGIC #006699, RARE Qt::darkYellow, UNIQUE rgb(234,117,0), GEM #1ba29b, CURRENCY #776e59, DIVINATION_CARD #01bcba, QUEST_ITEM #4ae63a, PROPHECY rgb(181,75,255), FOIL and SUPPORTER_FOIL #82ad6a, anything else the palette WindowText (src/column.cpp:96)"
+icon = "none"
+sort = "base rule; PrettyName almost never parses as a number, so head is (0.0, PrettyName-as-s1, 0.0, PrettyName-as-s2) and the effective order is PrettyName then the shared suffix (PrettyName, uid, hash)."
+buyout_dependent = false
+cite = "src/column.h:63-75; src/column.cpp:86-122"
+
+[[column]]
+index = 1
+name = "Price"
+class = "PriceColumn(bo_manager)  // holds a const BuyoutManager&"
+value = "BuyoutManager::Get(item).AsText() -- item-keyed buyout by Item::id(), defaulting to a fresh Buyout when unpriced. AsText() = \"<type tag> <value, 'g' with 15 significant digits> <currency tag>\" when IsPriced(), else just the type tag (src/buyout.cpp:AsText). An unpriced item therefore still shows the inherit-type tag rather than an empty cell."
+color = "rgb(170,170,170) when the buyout IsInherited() (inherited flag set, or type == BUYOUT_TYPE_INHERIT), else palette WindowText (src/column.cpp:437)"
+icon = "none"
+sort = "overrides lt/key with PriceHead = (Currency::AsRank(), Buyout::value); lt compares (rank, value, const Item&) so the tie-break is Item::operator<, key uses the shared suffix. Rank is the fixed currency table 0..19 (NONE 0, chromatic 1 ... mirror 18, silver coin 19), so unpriced items (CURRENCY_NONE, value 0) sort first ascending."
+buyout_dependent = true
+cite = "src/column.h:217-240; src/column.cpp:422-469; src/currency.cpp m_currency_type_as_rank"
+
+[[column]]
+index = 2
+name = "Last Update"
+class = "DateColumn(bo_manager)  // holds a const BuyoutManager&"
+value = "Util::TimeAgoInWords(BuyoutManager::Get(item).last_update) when the buyout IsActive() (valid and not BUYOUT_TYPE_INHERIT), else QVariant() -- an empty cell. TimeAgoInWords renders \"N years/months/days/hours/minutes/seconds ago\" or \"just now\" (src/util/util.cpp)."
+color = "default"
+icon = "none"
+sort = "overrides lt/key with DateHead = (Buyout::last_update) -- one QDateTime. lt compares std::tie(head, *lhs) so the tie-break is Item::operator<; key uses the shared suffix. A null QDateTime (no buyout) compares less than any real one."
+buyout_dependent = true
+cite = "src/column.h:241-262; src/column.cpp:471-504"
+
+[[column]]
+index = 3
+name = "Q"
+class = "PropertyColumn(\"Q\", \"Quality\")"
+value = "item.properties()[\"Quality\"] verbatim (a QString, typically \"+13%\"); QVariant() -- empty cell -- when the property is absent."
+color = "default"
+icon = "none"
+sort = "base rule; \"+13%\" matches the double pattern so d1 = 13 and the column sorts numerically. An absent Quality property takes the string branch with d1 = 0.0 and a null s1, so it groups with the zero-quality items and is separated from an explicit \"+0%\" only by s2 (null for the parsed form, PrettyName for the absent form)."
+buyout_dependent = false
+cite = "src/column.h:121-138; src/column.cpp:283-306; src/search.cpp:62"
+
+[[column]]
+index = 4
+name = "Stack"
+class = "PropertyColumn(\"Stack\", \"Stack Size\")"
+value = "item.properties()[\"Stack Size\"] verbatim (e.g. \"12/20\"); QVariant() when absent."
+color = "default"
+icon = "none"
+sort = "base rule. \"12/20\" takes the two-values branch with separator \"/\", which sets s1 = PrettyName and d2 = 12 -- so stacks order by item name first and only then by stack count. A plain \"12\" would instead set d1. open: whether the PrettyName-before-count order for '/' stacks is intended; the code is unambiguous but the doc does not say."
+buyout_dependent = false
+cite = "src/column.cpp:28-55, 298-306; src/search.cpp:63"
+
+[[column]]
+index = 5
+name = "Corr"
+class = "CorruptedColumn()"
+value = "the literal \"C\" when Item::corrupted(), else QVariant() (empty cell)."
+color = "default"
+icon = "none"
+sort = "base rule; \"C\" does not parse, so head is (0.0, \"C\", 0.0, PrettyName) for corrupted items and (0.0, null, 0.0, PrettyName) for the rest -- uncorrupted first ascending, each group then by PrettyName."
+buyout_dependent = false
+cite = "src/column.h:76-87; src/column.cpp:124-135"
+
+[[column]]
+index = 6
+name = "Mast"
+class = "CraftedColumn()"
+value = "the literal \"M\" when Item::crafted(), else QVariant()."
+color = "default"
+icon = "none"
+sort = "base rule, as Corr: crafted items group under s1 = \"M\", others under a null s1, then PrettyName."
+buyout_dependent = false
+cite = "src/column.h:88-99; src/column.cpp:137-148"
+
+[[column]]
+index = 7
+name = "Ench"
+class = "EnchantedColumn()"
+value = "the literal \"En\" when Item::enchanted(), else QVariant()."
+color = "default"
+icon = "none"
+sort = "base rule, as Corr: enchanted items group under s1 = \"En\", others under a null s1, then PrettyName."
+buyout_dependent = false
+cite = "src/column.h:100-111; src/column.cpp:150-161"
+
+[[column]]
+index = 8
+name = "Inf"
+class = "InfluncedColumn()  // sic, the class name is misspelled"
+value = "always the empty string \"\". value() builds an S/E/H/W/C/R letter string from Item::hasInfluence(SHAPER, ELDER, HUNTER, WARLORD, CRUSADER, REDEEMER) and then discards it (`return \"\";` with a TODO about text-vs-icon), so the cell text is always blank and the influences show only through icon()."
+color = "default"
+icon = "QIcon built from Item::influenceLeft()/influenceRight(): one icon for a single influence, combineInflunceIcons(left, right) when the right differs from the left and is not NONE, QVariant::fromValue(NULL) when neither is set. Covers ELDER, SHAPER, CRUSADER, HUNTER, REDEEMER, WARLORD, SYNTHESISED, FRACTURED, SEARING_EXARCH, EATER_OF_WORLDS (src/itemconstants.h *_symbol_Link paths)."
+sort = "base rule over the constant empty string, so head is (0.0, \"\", 0.0, PrettyName) for every item: the column effectively sorts by PrettyName then the suffix -- influence never affects order."
+buyout_dependent = false
+cite = "src/column.h:112-120; src/column.cpp:163-281"
+
+[[column]]
+index = 9
+name = "PD"
+class = "PropertyColumn(\"PD\", \"Physical Damage\")"
+value = "item.properties()[\"Physical Damage\"] verbatim (typically \"40-70\"); QVariant() when absent."
+color = "default"
+icon = "none"
+sort = "base rule; a \"40-70\" range takes the '-' branch, so d1 = the midpoint 55 and the column sorts by average physical damage."
+buyout_dependent = false
+cite = "src/column.cpp:298-306; src/search.cpp:69"
+
+[[column]]
+index = 10
+name = "ED"
+class = "ElementalDamageColumn(0)"
+value = "Item::elemental_damage().at(0).first -- the first elemental damage range as a QString (e.g. \"20-40\"); QVariant() when the item has fewer than 1 elemental damage entry."
+color = "by the entry's ElementalDamageType: ED_FIRE #c51313, ED_COLD #366492, ED_LIGHTNING #b99c00; an invalid QColor() (i.e. the view's default) when the entry is absent (src/column.cpp:371)"
+icon = "none"
+sort = "base rule over the range string; \"20-40\" -> d1 = 30 (midpoint), absent -> null-string branch."
+buyout_dependent = false
+cite = "src/column.h:175-191; src/column.cpp:350-385"
+
+[[column]]
+index = 11
+name = ""
+class = "ElementalDamageColumn(1)"
+value = "Item::elemental_damage().at(1).first; QVariant() when the item has fewer than 2 entries. Header text is the empty string -- only index 0 names itself \"ED\" (src/column.cpp:354)."
+color = "same rule as index 10, read from entry 1"
+icon = "none"
+sort = "base rule over the range string, entry 1."
+buyout_dependent = false
+cite = "src/column.cpp:350-385; src/search.cpp:71"
+
+[[column]]
+index = 12
+name = ""
+class = "ElementalDamageColumn(2)"
+value = "Item::elemental_damage().at(2).first; QVariant() when the item has fewer than 3 entries. Header text is the empty string."
+color = "same rule as index 10, read from entry 2"
+icon = "none"
+sort = "base rule over the range string, entry 2."
+buyout_dependent = false
+cite = "src/column.cpp:350-385; src/search.cpp:72"
+
+[[column]]
+index = 13
+name = "CD"
+class = "ChaosDamageColumn()"
+value = "item.properties()[\"Chaos Damage\"] verbatim; QVariant() when absent. (A hand-rolled property lookup rather than a PropertyColumn, purely so the colour can be overridden.)"
+color = "always rgb(0xd0,0x20,0x90) -- the magenta chaos colour, regardless of whether the item has chaos damage (src/column.cpp:402)"
+icon = "none"
+sort = "base rule; a \"10-30\" range -> d1 = 20."
+buyout_dependent = false
+cite = "src/column.h:192-204; src/column.cpp:387-406"
+
+[[column]]
+index = 14
+name = "APS"
+class = "PropertyColumn(\"APS\", \"Attacks per Second\")"
+value = "item.properties()[\"Attacks per Second\"] verbatim (e.g. \"1.35\"); QVariant() when absent."
+color = "default"
+icon = "none"
+sort = "base rule; parses as a double -> d1."
+buyout_dependent = false
+cite = "src/column.cpp:298-306; src/search.cpp:74"
+
+[[column]]
+index = 15
+name = "DPS"
+class = "DPSColumn()"
+value = "Item::DPS() as a double QVariant; QVariant() (empty cell) when |DPS| < 1e-6."
+color = "default"
+icon = "none"
+sort = "base rule; the double's toString parses back to d1, so numeric. Zero/absent DPS -> null-string branch, grouped first ascending and ordered by PrettyName within the group."
+buyout_dependent = false
+cite = "src/column.h:139-150; src/column.cpp:308-320"
+
+[[column]]
+index = 16
+name = "pDPS"
+class = "pDPSColumn()"
+value = "Item::pDPS() as a double; QVariant() when |pDPS| < 1e-6."
+color = "default"
+icon = "none"
+sort = "base rule, numeric (as DPS)."
+buyout_dependent = false
+cite = "src/column.cpp:322-334"
+
+[[column]]
+index = 17
+name = "eDPS"
+class = "eDPSColumn()"
+value = "Item::eDPS() as a double; QVariant() when |eDPS| < 1e-6."
+color = "default"
+icon = "none"
+sort = "base rule, numeric (as DPS)."
+buyout_dependent = false
+cite = "src/column.cpp:336-348"
+
+[[column]]
+index = 18
+name = "cDPS"
+class = "cDPSColumn()"
+value = "Item::cDPS() as a double; QVariant() when |cDPS| < 1e-6."
+color = "default"
+icon = "none"
+sort = "base rule, numeric (as DPS)."
+buyout_dependent = false
+cite = "src/column.cpp:408-420"
+
+[[column]]
+index = 19
+name = "Crit"
+class = "PropertyColumn(\"Crit\", \"Critical Strike Chance\")"
+value = "item.properties()[\"Critical Strike Chance\"] verbatim (e.g. \"6.50%\"); QVariant() when absent."
+color = "default"
+icon = "none"
+sort = "base rule; the trailing % is stripped by the double pattern -> d1 numeric."
+buyout_dependent = false
+cite = "src/column.cpp:298-306; src/search.cpp:79"
+
+[[column]]
+index = 20
+name = "Ar"
+class = "PropertyColumn(\"Ar\", \"Armour\")"
+value = "item.properties()[\"Armour\"] verbatim; QVariant() when absent."
+color = "default"
+icon = "none"
+sort = "base rule, numeric."
+buyout_dependent = false
+cite = "src/column.cpp:298-306; src/search.cpp:80"
+
+[[column]]
+index = 21
+name = "Ev"
+class = "PropertyColumn(\"Ev\", \"Evasion Rating\")"
+value = "item.properties()[\"Evasion Rating\"] verbatim; QVariant() when absent."
+color = "default"
+icon = "none"
+sort = "base rule, numeric."
+buyout_dependent = false
+cite = "src/column.cpp:298-306; src/search.cpp:81"
+
+[[column]]
+index = 22
+name = "ES"
+class = "PropertyColumn(\"ES\", \"Energy Shield\")"
+value = "item.properties()[\"Energy Shield\"] verbatim; QVariant() when absent."
+color = "default"
+icon = "none"
+sort = "base rule, numeric."
+buyout_dependent = false
+cite = "src/column.cpp:298-306; src/search.cpp:82"
+
+[[column]]
+index = 23
+name = "B"
+class = "PropertyColumn(\"B\", \"Chance to Block\")"
+value = "item.properties()[\"Chance to Block\"] verbatim (e.g. \"25%\"); QVariant() when absent."
+color = "default"
+icon = "none"
+sort = "base rule, numeric (% stripped)."
+buyout_dependent = false
+cite = "src/column.cpp:298-306; src/search.cpp:83"
+
+[[column]]
+index = 24
+name = "Lvl"
+class = "PropertyColumn(\"Lvl\", \"Level\")"
+value = "item.properties()[\"Level\"] verbatim -- gem level, or the Level property on anything else; QVariant() when absent."
+color = "default"
+icon = "none"
+sort = "base rule, numeric. A gem's \"20 (Max)\" would not match either pattern and would fall to the string branch. open: whether any live property string carries a suffix like \"(Max)\"; the column code does not normalise it."
+buyout_dependent = false
+cite = "src/column.cpp:298-306; src/search.cpp:84"
+
+[[column]]
+index = 25
+name = "ilvl"
+class = "ItemlevelColumn()"
+value = "Item::ilvl() as an int when > 0, else QVariant() (empty cell)."
+color = "default"
+icon = "none"
+sort = "base rule; the integer's toString parses to d1, so numeric. ilvl 0 / absent takes the null-string branch."
+buyout_dependent = false
+cite = "src/column.h:263-274; src/column.cpp:506-517"
+
+[sort]
+suffix = "ItemSortKey::Suffix = std::tuple<QString, QString, QString>; // (PrettyName, uid, hash) -- built by Column::suffix as ItemSortKey::Suffix(pretty, item.id(), item.hash_v4()), i.e. Item::PrettyName(), then Item::id() (the GGG uid, m_uid), then Item::hash_v4() (m_hash). The comparator path reaches the same triple through the trailing `const Item&` in the sort tuple, whose Item::operator< is std::tie(PrettyName, m_uid, m_hash). ItemSortKey::operator< is std::tie(head, suffix) < std::tie(rhs.head, rhs.suffix), so the head decides first and the suffix only breaks ties. (src/sortkey.h; src/column.cpp:71-84; src/item.cpp:667)"
+default = "Column 0 (Name), Qt::DescendingOrder. ItemsModel's constructor initialises m_sort_order = Qt::DescendingOrder, m_sort_column = 0, m_sorted = false (src/items_model.cpp:21-27); MainWindow::ModelViewRefresh then does setSortingEnabled(false) / header()->setSortIndicator(model.GetSortColumn(), model.GetSortOrder()) / setSortingEnabled(true) (src/ui/mainwindow.cpp:1360-1365), and QTreeView::setSortingEnabled(true) re-issues sortByColumn on the current indicator, which reaches ItemsModel::sort(0, Qt::DescendingOrder) because m_sorted is false. Nothing persists the sort column or order across sessions or across searches -- each Search owns its own ItemsModel and so starts at (0, Descending)."
+protocol = "ItemsModel::ApplySort is a layout-preserving sort, never a reset: it emits layoutAboutToBeChanged first (with the target bucket's index in the `parents` list for a scoped sort, so listeners save only that subtree), then snapshots every valid child persistent index as (index, bucket row via Search::rowForSerial, column, shared_ptr<Item>), then sorts -- Search::SortBucket(only_bucket, ...) for one bucket or Search::Sort(column, order) over the materialized set (the flat By-Item bucket always, expanded By-Tab buckets whose sorted flag is invalid; collapsed buckets are left to sort on expand) -- then finds each snapshotted item's new row, calls changePersistentIndexList(from, to) and emits layoutChanged; only the view-wide form (only_bucket < 0) calls SetSorted(true). Sort-on-expand: ItemsModel::OnBucketExpanded marks the bucket materialized via Search::MarkBucketExpanded and runs the scoped ApplySort only when Bucket::sorted() is false; OnBucketCollapsed unmarks it and evicts its keys (a no-op in By-Item mode). Resident keys: Bucket::HydrateKeys materialises one ItemSortKey per item for exactly one column (the ResidentKeyStore's `column` pointer doubles as the residency marker) and Bucket::Sort orders a uint32 permutation by plain tuple comparison, then applies it in place to both the item and key vectors cycle by cycle; keys stay resident and index-aligned afterwards, and are evicted on collapse, on leaving a view mode (Search::SetViewMode), on deactivation (Search::EvictResidentKeys) and on a sort-column switch (ItemsModel::sort calls EvictResidentKeys when the column changes and InvalidateAllOrder whenever column or order changes). A buyout batch instead patches the affected resident entries (Bucket::RebuildKeyEntries via Search::InvalidateBuyoutOrder) and re-sorts through Resort/ResortBucket, which bypass sort()'s already-sorted skip."
+price_head = "ItemSortKey::PriceHead = std::tuple<int, double> = (Buyout::currency.AsRank(), Buyout::value) for BuyoutManager::Get(item) -- the currency's position in the fixed rank table (CURRENCY_NONE 0, chromatic 1, alteration 2, jeweller 3, chance 4, chisel 5, perandus 6, fusing 7, alchemy 8, blessed 9, scouring 10, chaos 11, regret 12, regal 13, vaal 14, GCP 15, divine 16, exalted 17, mirror 18, silver coin 19), then the raw numeric value. Values are NOT normalised to a common currency, so ordering is currency-major. Unpriced items carry rank 0 and value 0 and sort first ascending. (src/column.cpp:444-448; src/currency.cpp)"
+date_head = "ItemSortKey::DateHead = std::tuple<QDateTime> = (BuyoutManager::Get(item).last_update) -- the single timestamp of the last buyout change, compared as a QDateTime. Items with no buyout carry a null QDateTime, which compares less than every real timestamp, so they sort first ascending. (src/column.cpp:486-489)"
+
+[views]
+modes = "Search::ViewMode { ByTab = 0, ByItem = 1 }; m_current_mode starts at ByTab (Search's constructor). ByTab: one Bucket per stash tab / character, held in m_bucket_by_tab, built by grouping the filter-passing items by their stable location key and then sorted into display order. ByItem: exactly one Bucket, held in m_bucket_by_item, constructed with a default (invalid) ItemLocation and holding every filter-passing item in one flat list -- it is 'materialized by definition' (always sorted, always key-resident while the search is active) and ignores collapse. Search::buckets()/active_buckets() switch on the mode. SetViewMode evicts the outgoing mode's keys, keeps orders and flags, and rebuilds whichever side went stale (flat bucket from items() when entering ByItem, RebuildTabBucketsFromFlat when returning to ByTab), then sorts/hydrates the flat bucket and rebuilds the row lookups -- all inside one model reset (beginUpdate/endUpdate)."
+bucket_key = "In ByTab an item is filed under LocationInventory::KeyFor(item->location()) = std::pair(ItemLocation::type(), ItemLocation::id()) -- the location TYPE (STASH or CHARACTER) plus the stable unique id (the GGG tab id, or the character id), deliberately NOT the tab label, not the tab index/position, and not fetch_id. Search::FilterItems keys a std::map<LocationInventory::Key, Bucket> on it; a new bucket is constructed from canonicalLocation(location), i.e. LocationInventory::Canonical -- the freshest metadata seen for that key, falling back to the item's own embedded location when the inventory has never seen it (or when no inventory was supplied). Map and Unique stash children: ItemLocation::id() stays the PARENT's id for children of MapStash/UniqueStash tabs while fetch_id is the child's own id, and fetch_id is excluded from the key, so every child's items collapse into the parent's single display bucket. Folder children are ordinary tabs with their own id and get their own bucket. Characters: type CHARACTER with id = the character's GGG id, so each character is one bucket whose header is the character name. In ByItem the single bucket's location is a default-constructed (invalid) ItemLocation and every item goes into it regardless of origin."
+bucket_header = "ItemsModel::data on a top-level index (internalId() == 0) and only column 0. Qt::DisplayRole: \"All Items\" when the bucket location is not IsValid() (the ByItem flat bucket); otherwise ItemLocation::GetHeader() -- for STASH the string `#<tab_index+1>, \"<tab_label>\"`, for CHARACTER the bare character name -- with ` [<BuyoutManager::GetTab(location).AsText()>]` appended when the tab-level buyout IsActive(). Qt::BackgroundRole (STASH with a valid location only): QColor(location.getR(), getG(), getB()) when that colour is valid -- the tab's own colour from GGG. Qt::ForegroundRole (same guard): Util::recommendedForegroundTextColor(that background). Character and invalid-location buckets get no background/foreground override. Columns other than 0 on a bucket row return QVariant() for every role."
+bucket_order = "ItemLocation::operator< (src/itemlocation.cpp:155): when the two types differ, every STASH location is less than every CHARACTER location -- stash tabs first, characters after. Within STASH, compare m_tab_id (the tab's index/position from GGG) ascending, so buckets follow in-game tab order. Within CHARACTER, compare QString::localeAwareCompare of m_character_sortname (the character name lowercased at construction) -- case-insensitive, locale-aware alphabetical. The display comparator actually used, Search's file-local bucketDisplayLess (src/search.cpp:29), applies operator< in both directions and, when neither is less (a positional tie, e.g. two tabs colliding on one index mid-refresh), breaks the tie with ItemLocation::id() -- one definition of display order shared by the refilter's std::sort and the delta path's insertion/reposition."
+hidden_empty = "Empty buckets are added only when no filter is active. Search::FilterItems sets m_filtered = !active_filters.empty() -- 'filtered' means ANY filter state is active (not 'some item was rejected'), a definition that flips only on a filter edit. When !m_filtered, FilterItems adds a bucket for every BuyoutManager::GetStashTabLocations() entry and every LocationInventory::entries() entry that has no bucket yet, so unfiltered views show empty tabs (including tabs discovered mid-refresh by an empty delta). When m_filtered, that loop is skipped, so a tab with no filter-passing items has no row at all; the delta path matches this by removing a bucket row a delta emptied (Search::RemoveBucketRow). RebuildTabBucketsFromFlat applies the identical rule on a mode switch."
+default_expanded = "Search::defaultExpanded() == m_filtered || (m_current_mode == ViewMode::ByItem) -- a filtered search, or any ByItem search, is default-expanded; an unfiltered ByTab search is not. FilterItems acts on it directly: when mode is ByTab and m_filtered, every fresh bucket gets SetExpanded(true) so the post-refilter sort pass establishes every visible order in one pass and the expansion restore finds valid flags; unfiltered fresh buckets start collapsed and MainWindow's RestoreViewExpansion re-expands exactly the remembered ones (expansion is remembered per LocationInventory::Key in Search::m_expanded_keys, never by header text). The flag is also what the delta/reconcile paths consult to decide whether to expand a newly inserted bucket row."
+item_order_unsorted = "Arrival order -- the order of the Items vector handed to FilterItems. FilterItems walks that vector once and push_backs each passing item into the flat bucket and into its tab bucket (Bucket::AddItem is a plain push_back), so both view modes' buckets initially hold items in pipeline/collection order; Item::operator< plays no part until a Bucket::Sort runs. FilterItems then calls m_model.SetSorted(false), and the sort arrives from the model layer afterwards (the indicator pass, or sort-on-expand for collapsed ByTab buckets). Arrival-ordered append is also the delta path's fallback for a non-materialized bucket."
+checkbox = "The bucket row's own Qt::CheckStateRole on column 0 -- the 'include this tab/character in Refresh checked tabs' flag. data(): QVariant() (no checkbox) for an invalid location, Qt::PartiallyChecked when BuyoutManager::GetRefreshLocked(location), else Qt::Checked/Qt::Unchecked from BuyoutManager::GetRefreshChecked(location). flags() adds Qt::ItemIsUserCheckable only on column 0 of a top-level row with a valid, unlocked location. setData persists it with BuyoutManager::SetRefreshChecked(location, value.toBool()) -- note toBool() maps Qt::PartiallyChecked (1) to true as well -- and then, because two tabs can share a name, walks every top-level row and emits dataChanged({Qt::CheckStateRole}) for each whose GetTabLocation(...).id() equals the changed location's id. The state lives in BuyoutManager::m_refresh_checked and is saved as DataStore JSON by BuyoutManager::Save() (deliberately separate from buyout persistence, per F22). ItemsModel::refreshCheckStates() repaints the whole column."
+
+[model]
+roles = "ItemsModel::data answers for two row kinds and returns QVariant() for anything else (invalid index, foreign model, column out of range). Top-level bucket rows (internalId() == 0, column 0 only): Qt::CheckStateRole -> the refresh checkbox (see [views].checkbox); Qt::DisplayRole -> the bucket header text plus any active tab buyout; Qt::BackgroundRole and Qt::ForegroundRole -> the tab colour and Util::recommendedForegroundTextColor of it, for valid STASH locations only. Child item rows: Qt::DisplayRole -> Column::value(item); Qt::ForegroundRole -> Column::color(item); Qt::DecorationRole -> Column::icon(item). No other role is answered anywhere (no ToolTipRole, no TextAlignmentRole, no UserRole); Qt::SizeHintRole, sizing and the item tooltip come from elsewhere in the UI. rowCount: buckets at the root, Bucket::size() under a bucket (answering through the A-prime replace translation while a flat replacement is notifying), 0 under an item. columnCount: Search::columns().size() at the root and under a bucket, 0 under an item. parent/index: a child index carries the bucket's stable serial as its internalId (never a row), resolved back through Search::rowForSerial."
+editable = "setData accepts exactly one thing: role == Qt::CheckStateRole on column 0 of a top-level (bucket) row with a valid, non-refresh-locked location -- it writes BuyoutManager::SetRefreshChecked(location, value.toBool()) and returns true. Everything else returns false: item cells are not editable through the model at all (prices are set by the buyout controls and BuyoutManager, not by cell editing), and neither is the header. flags() reflects this: Qt::ItemIsSelectable | Qt::ItemIsEnabled | Qt::ItemIsUserCheckable for an eligible bucket row's column 0, Qt::ItemIsSelectable | Qt::ItemIsEnabled for every other valid index, and no flags at all for an invalid index, a foreign model, or an out-of-range column -- Qt::ItemIsEditable is never set."
+header_roles = "headerData answers only orientation == Qt::Horizontal with role == Qt::DisplayRole and a section in [0, columns().size()): it returns QString(Search::columns()[section]->name()) -- the column's own header text, which is empty for the two extra ElementalDamageColumn sections (indices 11 and 12). Every other orientation and role (vertical headers included) returns QVariant(), so there are no row numbers, header tooltips, or header icons."

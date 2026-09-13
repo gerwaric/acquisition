@@ -1,0 +1,450 @@
+# extracted by hand (no script) from master@946a4f51: src/filters/filterspec.cpp, filtermatchers.cpp, filterstate.cpp, item.cpp, search.cpp, ui/searchform.cpp; regenerate by re-reading those files at the commit
+# Acquisition (C++/Qt) search-filter catalog, read at commit 946a4f51 on branch
+# master. One [[filter]] per FilterSpec pushed by BuildFilterCatalog, in order
+# (src/filters/filterspec.cpp:107-191; specs.reserve(38) and 38 push_backs).
+#
+# Every value below comes from the files read at that commit. Line citations are
+# `path:line` / `path:line-line` on master.
+#
+# Shared vocabulary, from the four payload factories in filterspec.cpp:
+#   simpleProperty(p, caption, group)  -> minmax; value = properties().at(p).toDouble(),
+#                                        present = properties().count(p)   (:62-72)
+#   defaultProperty(p, caption, g, d)  -> minmax; value = properties()[p] or d if absent,
+#                                        present = always true              (:73-87)
+#   requiredStat(p, caption, group)    -> minmax; value = requirements()[p] or 0.0 if absent,
+#                                        present = always true              (:88-100)
+#   itemMethod(caption, group, fn)     -> minmax; value = fn(item), present = always true (:101-105)
+# The `text` factory is always Debounced (:37-40), `combo` always Debounced (:41-49),
+# `minMax` always Debounced (:53-61), `boolean` always Immediate (:33-36), and
+# `colors` always Immediate and always FilterGroup::Sockets (:50-52).
+
+[[filter]]
+index = 0
+caption = "Tab"
+group = "TopForm"
+payload = "text"
+refresh = "Debounced"
+accessor = "item.location().GetHeader()"
+rule = "TextState holds one `query` string. The item matches when the accessor's value, lowercased, contains the query, lowercased — a case-insensitive substring test with no anchoring and no word splitting. GetHeader() returns `#<tab_id+1>, \"<tab_label>\"` for a stash location, the character name for a character location, and the empty string for any other location type, so the quoting and the leading `#N, ` are part of the haystack."
+cite = "src/filters/filtermatchers.cpp:161-164; src/filters/filterspec.cpp:109-111; src/itemlocation.cpp:72-82"
+notes = "The stash form means a query of `#3` or `\", \"` can match, and an item in a location whose type is neither STASH nor CHARACTER has an empty haystack, so it only matches an empty (hence inactive) query. docs/user/searching.md calls this \"Substring of the stash tab or character name\", omitting the `#N, ` prefix and the quotes that the code puts in the haystack."
+
+[[filter]]
+index = 1
+caption = "Name"
+group = "TopForm"
+payload = "text"
+refresh = "Debounced"
+accessor = "item.PrettyName()"
+rule = "Same text rule as index 0: case-insensitive substring of the accessor's value. PrettyName() returns `name + \" \" + typeLine` when the item has a name, and just typeLine when the name is empty."
+cite = "src/filters/filtermatchers.cpp:161-164; src/filters/filterspec.cpp:112-113; src/item.cpp:185-192"
+notes = "The haystack is name AND base/type line joined by one space, not the name alone: a query can straddle the join. docs/user/searching.md says \"Substring of the item name\" — the code also searches the type line (doc-vs-code disagreement; code wins). m_typeLine is the hybrid baseTypeName for hybrid non-vaal-gem items (src/item.cpp:108-120)."
+
+[[filter]]
+index = 2
+caption = "Category"
+group = "TopForm"
+payload = "combo"
+refresh = "Debounced"
+accessor = "item.category()"
+choices = "kAnyFilterChoice followed by GetItemCategories() — the sorted, de-duplicated set of RePoE item-class display names (repoe::ItemClass::name) loaded by InitItemClasses; the list is NOT lowercased when built"
+any = "<any>"
+rule = "ComboState holds one `value` string. An empty value matches every item (the whole filter short-circuits to true). Otherwise ComboMatchKind::CategoryContains does `item.category().contains(state.value)` — QString::contains with the default Qt::CaseSensitive. Both sides are lowercase in practice: the form lowercases the combo's current text before storing it when matchKind is CategoryContains, and GetItemCategory() lowercases the class name it assigns to m_category. An item whose base type could not be categorised has an empty m_category and therefore matches no non-empty query."
+cite = "src/filters/filtermatchers.cpp:165-173; src/filters/filterspec.cpp:114-120; src/ui/searchform.cpp:120-131; src/itemcategories.cpp:114-140, 59-70"
+notes = "Substring, not equality: a query that is a prefix/infix of several class names matches all of them. The `<any>` sentinel never reaches the matcher — ComboFilterForm::saveTo maps it to an empty QString (searchform.cpp:129), which is also what isActive() treats as inactive. The form's visible label is \"Type\", not the spec caption \"Category\" (searchform.cpp:92-93), which is why docs/user/searching.md lists the filter as \"Type\". The choices list is mixed-case while the stored query is lowercased, so the combo text and the state differ by case; loadFrom re-finds the entry with Qt::MatchFixedString (searchform.cpp:138)."
+
+[[filter]]
+index = 3
+caption = "Rarity"
+group = "TopForm"
+payload = "combo"
+refresh = "Debounced"
+accessor = "item.frameType()"
+choices = "RarityChoices(), verbatim: [\"<any>\", \"Normal\", \"Magic\", \"Rare\", \"Unique\", \"Unique (Foil)\", \"Any Non-Unique\"]"
+any = "<any>"
+rule = "Empty value matches everything. Otherwise ComboMatchKind::Rarity switches on item.frameType() and compares the query to fixed positions of RarityChoices(): FRAME_TYPE_NORMAL matches choices[1] (\"Normal\") or choices[6] (\"Any Non-Unique\"); FRAME_TYPE_MAGIC matches choices[2] or choices[6]; FRAME_TYPE_RARE matches choices[3] or choices[6]; FRAME_TYPE_UNIQUE matches choices[4] (\"Unique\") only; FRAME_TYPE_FOIL and FRAME_TYPE_SUPPORTER_FOIL match choices[5] (\"Unique (Foil)\") only; every other frame type matches nothing. Exact string equality, case-sensitive."
+cite = "src/filters/filtermatchers.cpp:165-197; src/filters/filterspec.cpp:121-123; src/filters/filterspec.cpp:13-23"
+notes = "\"Any Non-Unique\" deliberately excludes foils as well as uniques. Items with any other frame type (including the default m_frameType of -1 for an item whose JSON carried no frameType, src/item.h:174 and src/item.cpp:144-146) are rejected by every non-empty rarity query, i.e. an active Rarity filter silently drops uncategorised frames. The choice list is not derived from the FrameType enum, so positions 1-6 are load-bearing."
+
+[[filter]]
+index = 4
+caption = "Crit."
+group = "Offense"
+payload = "minmax"
+refresh = "Debounced"
+accessor = "item.properties().at(\"Critical Strike Chance\").toDouble()"
+rule = "MinMaxState holds optional min and optional max. present(item) is `item.properties().count(\"Critical Strike Chance\")`: if the item has no such property, the item matches only when both min and max are unset — which is exactly the inactive case, so an active filter rejects every item lacking the property. When present, the value is the property's stored string run through QString::toDouble(); it fails if `min.has_value() && *min > value` or `max.has_value() && *max < value`, so both bounds are inclusive and either may be omitted."
+cite = "src/filters/filtermatchers.cpp:198-212; src/filters/filterspec.cpp:62-72, 124"
+notes = "properties() is a std::map<QString,QString>; only the first value of a property is stored, and only \"Quality\" (leading \"+\" and trailing \"%\" stripped), \"Level\" (trailing \"(Max)\" stripped) and \"Stack Size\" get any string cleanup at load (src/item.cpp:450-473). Every other property, this one included, is handed to QString::toDouble() verbatim, and QString::toDouble() returns 0.0 for any string it cannot parse in full — so a stored value with a trailing unit character would compare as 0. open: whether the API's \"Critical Strike Chance\" value string carries a trailing \"%\" (not determinable from the listed files; needs a captured item payload)."
+
+[[filter]]
+index = 5
+caption = "DPS"
+group = "Offense"
+payload = "minmax"
+refresh = "Debounced"
+accessor = "item.DPS()"
+rule = "itemMethod: present(item) is unconditionally true, so every item is compared. value = item.DPS() = pDPS() + eDPS() + cDPS(); each of those returns 0 when its damage property or \"Attacks per Second\" is missing. Inclusive min and max as in index 4, either side optional."
+cite = "src/filters/filtermatchers.cpp:198-212; src/filters/filterspec.cpp:101-105, 125-126; src/item.cpp:571-574"
+notes = "Because present is always true and the accessor returns 0 for an item with no damage, a `min` of 0 (or any min <= 0) admits every item and a bare `max` admits every non-weapon — unlike the simpleProperty filters, which skip items lacking the property. The derivation of DPS from Physical/Elemental/Chaos damage and APS is item.cpp's business (catalogued separately)."
+
+[[filter]]
+index = 6
+caption = "pDPS"
+group = "Offense"
+payload = "minmax"
+refresh = "Debounced"
+accessor = "item.pDPS()"
+rule = "itemMethod: present always true, inclusive optional min/max against item.pDPS(), which returns 0 unless BOTH the \"Physical Damage\" property and the \"Attacks per Second\" property are present."
+cite = "src/filters/filtermatchers.cpp:198-212; src/filters/filterspec.cpp:101-105, 127-128; src/item.cpp:576-589"
+notes = "Same 0-for-absent caveat as index 5."
+
+[[filter]]
+index = 7
+caption = "eDPS"
+group = "Offense"
+payload = "minmax"
+refresh = "Debounced"
+accessor = "item.eDPS()"
+rule = "itemMethod: present always true, inclusive optional min/max against item.eDPS(), which returns 0 when the item's elemental_damage list is empty or \"Attacks per Second\" is absent."
+cite = "src/filters/filtermatchers.cpp:198-212; src/filters/filterspec.cpp:101-105, 129-130; src/item.cpp:591-606"
+notes = "Same 0-for-absent caveat as index 5. Elemental damage is the one property NOT written into properties(): it is parsed into m_elemental_damage instead (src/item.cpp:444-449)."
+
+[[filter]]
+index = 8
+caption = "cDPS"
+group = "Offense"
+payload = "minmax"
+refresh = "Debounced"
+accessor = "item.cDPS()"
+rule = "itemMethod: present always true, inclusive optional min/max against item.cDPS(), which returns 0 unless both the \"Chaos Damage\" property and \"Attacks per Second\" are present."
+cite = "src/filters/filtermatchers.cpp:198-212; src/filters/filterspec.cpp:101-105, 131-132; src/item.cpp:608-623"
+notes = "Same 0-for-absent caveat as index 5."
+
+[[filter]]
+index = 9
+caption = "APS"
+group = "Offense"
+payload = "minmax"
+refresh = "Debounced"
+accessor = "item.properties().at(\"Attacks per Second\").toDouble()"
+rule = "simpleProperty: present = properties().count(\"Attacks per Second\"), so an active filter rejects any item without the property; when present, the stored string via QString::toDouble() is tested against inclusive optional min and max."
+cite = "src/filters/filtermatchers.cpp:198-212; src/filters/filterspec.cpp:62-72, 133"
+notes = "No string cleanup at load for this property (src/item.cpp:450-473)."
+
+[[filter]]
+index = 10
+caption = "Armour"
+group = "Defense"
+payload = "minmax"
+refresh = "Debounced"
+accessor = "item.properties().at(\"Armour\").toDouble()"
+rule = "simpleProperty on the \"Armour\" property: present = the property exists; value = its stored string via QString::toDouble(); inclusive optional min and max. An item without the property is rejected whenever the filter is active."
+cite = "src/filters/filtermatchers.cpp:198-212; src/filters/filterspec.cpp:62-72, 134"
+notes = "Caption equals the property name here."
+
+[[filter]]
+index = 11
+caption = "Evasion"
+group = "Defense"
+payload = "minmax"
+refresh = "Debounced"
+accessor = "item.properties().at(\"Evasion Rating\").toDouble()"
+rule = "simpleProperty on \"Evasion Rating\": present = the property exists; value = its string via QString::toDouble(); inclusive optional min and max; item without the property is rejected when active."
+cite = "src/filters/filtermatchers.cpp:198-212; src/filters/filterspec.cpp:62-72, 135"
+notes = "Caption (\"Evasion\") differs from the property key (\"Evasion Rating\")."
+
+[[filter]]
+index = 12
+caption = "Shield"
+group = "Defense"
+payload = "minmax"
+refresh = "Debounced"
+accessor = "item.properties().at(\"Energy Shield\").toDouble()"
+rule = "simpleProperty on \"Energy Shield\": present = the property exists; value = its string via QString::toDouble(); inclusive optional min and max; item without the property is rejected when active."
+cite = "src/filters/filtermatchers.cpp:198-212; src/filters/filterspec.cpp:62-72, 136"
+notes = "Caption (\"Shield\") differs from the property key (\"Energy Shield\")."
+
+[[filter]]
+index = 13
+caption = "Block"
+group = "Defense"
+payload = "minmax"
+refresh = "Debounced"
+accessor = "item.properties().at(\"Chance to Block\").toDouble()"
+rule = "simpleProperty on \"Chance to Block\": present = the property exists; value = its string via QString::toDouble(); inclusive optional min and max; item without the property is rejected when active."
+cite = "src/filters/filtermatchers.cpp:198-212; src/filters/filterspec.cpp:62-72, 137"
+notes = "Same raw-string caveat as index 4: no \"%\" stripping happens for this property at load. open: whether the stored \"Chance to Block\" string carries a trailing \"%\" (not determinable from the listed files)."
+
+[[filter]]
+index = 14
+caption = "Sockets"
+group = "Sockets"
+payload = "minmax"
+refresh = "Debounced"
+accessor = "item.sockets_cnt()"
+rule = "itemMethod: present always true; value = m_sockets_cnt, set to the raw size of the JSON socket array (before the per-socket attribute check that can skip a socket). Inclusive optional min and max."
+cite = "src/filters/filtermatchers.cpp:198-212; src/filters/filterspec.cpp:101-105, 138-140; src/item.cpp:501-517"
+notes = "Counts the array length, not the sockets actually classified: a socket with neither `attr` nor `sColour` is `continue`d for colour purposes but still counted here (src/item.cpp:504, 515-517). An item with no sockets has 0 and is compared like any other (not skipped)."
+
+[[filter]]
+index = 15
+caption = "Links"
+group = "Sockets"
+payload = "minmax"
+refresh = "Debounced"
+accessor = "item.links_cnt()"
+rule = "itemMethod: present always true; value = m_links_cnt, the largest run of consecutive sockets sharing one `group` id as the socket array is walked in order. Inclusive optional min and max."
+cite = "src/filters/filtermatchers.cpp:198-212; src/filters/filterspec.cpp:101-105, 141-143; src/item.cpp:505-529"
+notes = "The counter resets only when the group id differs from the immediately preceding socket, so the value is the longest consecutive same-group run rather than the largest group by total membership; the two differ if a group's sockets are not contiguous in the array. 0 for an unsocketed item, and compared rather than skipped."
+
+[[filter]]
+index = 16
+caption = "Colors"
+group = "Sockets"
+payload = "colors"
+refresh = "Immediate"
+accessor = "item.sockets()"
+reads = "sockets() — the single whole-item ItemSocketGroup tally"
+rule = "ColorsState holds optional r, g and b. If none is set the filter matches everything. Otherwise each unset component counts as 0 (value_or(0)) and Check() computes diff = max(0, need_r - got_r) + max(0, need_g - got_g) + max(0, need_b - got_b) against the item's whole-item tally, matching when diff <= got_w. So it is an at-least test per colour with the item's white sockets able to cover any shortfall across all three colours combined. The tally maps socket attr 'S'->r, 'D'->g, 'I'->b, 'G'->w, and an unclassifiable socket contributes to nothing."
+cite = "src/filters/filtermatchers.cpp:213-236; src/filters/filterspec.cpp:50-52, 144; src/item.cpp:501-548"
+notes = "White sockets substitute for any requested colour — docs/user/searching.md says only \"At least this many sockets of each colour\" and does not mention the white-socket substitution (doc-vs-code gap; code wins). The colour letters are the attribute codes S/D/I/G, not R/G/B. Immediate refresh, unlike the numeric Sockets/Links filters next to it."
+
+[[filter]]
+index = 17
+caption = "Linked"
+group = "Sockets"
+payload = "colors"
+refresh = "Immediate"
+accessor = "item.socket_groups()"
+reads = "socket_groups() — the per-group ItemSocketGroup tallies"
+rule = "Same ColorsState and the same Check() formula as index 16, but applied per linked group: the item matches if ANY entry of socket_groups() satisfies diff <= that group's white count; an item with no satisfying group is rejected. All-unset state matches everything."
+cite = "src/filters/filtermatchers.cpp:213-248; src/filters/filterspec.cpp:50-52, 145; src/item.cpp:501-549"
+notes = "socket_groups() is built with an off-by-one shape: a fresh {0,0,0,0} accumulator is pushed the first time a new group id is seen (so the vector's first element is always an empty group), and the final accumulator is pushed after the loop (src/item.cpp:522-526, 549). The leading empty group is harmless for this matcher (it satisfies only an all-zero requirement, which is the inactive case) but means socket_groups().size() is group count + 1. Same white-substitution rule and same doc gap as index 16."
+
+[[filter]]
+index = 18
+caption = "R. Level"
+group = "Requirements"
+payload = "minmax"
+refresh = "Debounced"
+accessor = "item.requirements()[\"Level\"], or 0.0 when absent"
+rule = "requiredStat: present(item) is unconditionally true, so every item is compared. value = the int stored under \"Level\" in requirements() cast to double, or 0.0 if the key is absent. Inclusive optional min and max. requirements() is a std::map<QString,int> built by parsing each requirement's first value with QString::toInt()."
+cite = "src/filters/filtermatchers.cpp:198-212; src/filters/filterspec.cpp:88-100, 146; src/item.cpp:487-499"
+notes = "Absent requirement reads as 0 and the item is still compared, so an item with no level requirement passes any filter whose min is <= 0 and fails any min > 0 — it is never skipped. QString::toInt() on a non-integer string yields 0, and requirements whose value list is empty are dropped entirely (src/item.cpp:491-493). Note there is also a \"Level\" PROPERTY filter at index 23 — the two read different maps under the same key."
+
+[[filter]]
+index = 19
+caption = "R. Str"
+group = "Requirements"
+payload = "minmax"
+refresh = "Debounced"
+accessor = "item.requirements()[\"Str\"], or 0.0 when absent"
+rule = "requiredStat on the \"Str\" requirement key: present always true, value = the stored int or 0.0 if absent, inclusive optional min and max."
+cite = "src/filters/filtermatchers.cpp:198-212; src/filters/filterspec.cpp:88-100, 147"
+notes = "The key is the abbreviated \"Str\", matched exactly against whatever name the API supplies for the requirement."
+
+[[filter]]
+index = 20
+caption = "R. Dex"
+group = "Requirements"
+payload = "minmax"
+refresh = "Debounced"
+accessor = "item.requirements()[\"Dex\"], or 0.0 when absent"
+rule = "requiredStat on the \"Dex\" requirement key: present always true, value = the stored int or 0.0 if absent, inclusive optional min and max."
+cite = "src/filters/filtermatchers.cpp:198-212; src/filters/filterspec.cpp:88-100, 148"
+notes = "Same absent-reads-as-0 behaviour as index 18."
+
+[[filter]]
+index = 21
+caption = "R. Int"
+group = "Requirements"
+payload = "minmax"
+refresh = "Debounced"
+accessor = "item.requirements()[\"Int\"], or 0.0 when absent"
+rule = "requiredStat on the \"Int\" requirement key: present always true, value = the stored int or 0.0 if absent, inclusive optional min and max."
+cite = "src/filters/filtermatchers.cpp:198-212; src/filters/filterspec.cpp:88-100, 149"
+notes = "Same absent-reads-as-0 behaviour as index 18."
+
+[[filter]]
+index = 22
+caption = "Quality"
+group = "Misc"
+payload = "minmax"
+refresh = "Debounced"
+accessor = "item.properties().find(\"Quality\") — found->second.toDouble(), else the default 0.0"
+rule = "defaultProperty with defaultValue 0.0: present(item) is unconditionally true, so every item is compared, and an item with no \"Quality\" property is treated as quality 0 rather than skipped. The stored string has already had a leading \"+\" and a trailing \"%\" stripped at load, so \"+20%\" is stored as \"20\" and QString::toDouble() gives 20. Inclusive optional min and max."
+cite = "src/filters/filtermatchers.cpp:198-212; src/filters/filterspec.cpp:73-87, 150; src/item.cpp:453-460"
+notes = "The only minmax filter with a non-zero-default, always-present design AND the only property whose string is normalised for sign and unit. docs/user/searching.md's \"unlisted quality counts as 0\" matches the code."
+
+[[filter]]
+index = 23
+caption = "Level"
+group = "Misc"
+payload = "minmax"
+refresh = "Debounced"
+accessor = "item.properties().at(\"Level\").toDouble()"
+rule = "simpleProperty on the \"Level\" PROPERTY: present = properties().count(\"Level\"), so an active filter rejects every item without the property. The stored string has had a trailing \"(Max)\" (plus the preceding space — chop(6)) removed at load, so a max-level gem's \"20 (Max)\" is stored as \"20\". Inclusive optional min and max."
+cite = "src/filters/filtermatchers.cpp:198-212; src/filters/filterspec.cpp:62-72, 151; src/item.cpp:461-468"
+notes = "Distinct from index 18 (\"R. Level\"), which reads requirements() under the same key: this one skips items lacking the property while index 18 treats absence as 0. The \"(Max)\" strip is one of only three load-time string cleanups."
+
+[[filter]]
+index = 24
+caption = "Map Tier"
+group = "Misc"
+payload = "minmax"
+refresh = "Debounced"
+accessor = "item.properties().at(\"Map Tier\").toDouble()"
+rule = "simpleProperty on \"Map Tier\": present = the property exists (an active filter rejects every item without it); value = its stored string via QString::toDouble(); inclusive optional min and max."
+cite = "src/filters/filtermatchers.cpp:198-212; src/filters/filterspec.cpp:62-72, 152"
+notes = "No load-time cleanup for this property."
+
+[[filter]]
+index = 25
+caption = "ilvl"
+group = "Misc"
+payload = "minmax"
+refresh = "Debounced"
+accessor = "item.ilvl()"
+rule = "itemMethod: present always true; value = m_ilvl, assigned directly from the API's ilvl field and default-initialised to 0. Inclusive optional min and max."
+cite = "src/filters/filtermatchers.cpp:198-212; src/filters/filterspec.cpp:101-105, 153-154; src/item.h:188; src/item.cpp:182"
+notes = "An item whose ilvl is 0 (or absent, since m_ilvl defaults to 0) is compared, not skipped."
+
+[[filter]]
+index = 26
+caption = "Alt. art"
+group = "MiscFlags"
+payload = "bool"
+refresh = "Immediate"
+accessor = "MatchesAltart(item) -> item.icon()"
+rule = "BoolState holds one `checked` flag. An unchecked box matches everything (`!state.checked || predicate(item)`); a checked box requires the predicate. Here the predicate is MatchesAltart, which returns true when item.icon() contains any of 117 hard-coded needle strings (case-sensitive QString::contains, substring anywhere in the icon URL)."
+cite = "src/filters/filtermatchers.cpp:249-252, 16-159; src/filters/filterspec.cpp:33-36, 155"
+notes = "The needle list is a static QStringList literal grouped by season, ending at the \"winterheart season\" block; five entries are not filenames but base64-looking fragments (\"dGlsbGF0ZUFsdCI7czoy\", \"IjtzOjI6InNwIjtkOjAu\", \"cy9CbG9ja0ZsYXNrMiI7\", \"dCI7czoyOiJzcCI7ZDow\", \"bHQiO3M6Mjoic3AiO2Q6\") matching the encoded middle of an icon URL, and a few are plain unique-item filenames (\"Fencoil.png\", \"TopazRing.png\", \"RingUnique1.png\", \"BringerOfRain.png\", \"WinterHeart.png\", \"Empty-Socket2.png\") whose substring could collide with a non-alt-art icon. There is no negation: the filter can only narrow to alt art, never exclude it."
+
+[[filter]]
+index = 27
+caption = "Priced"
+group = "MiscFlags"
+payload = "bool"
+refresh = "Immediate"
+accessor = "buyoutManager.Get(item).IsActive()"
+rule = "Bool rule: unchecked matches everything; checked requires the item's buyout, as returned by the BuyoutManager captured by reference when the catalog was built, to report IsActive()."
+cite = "src/filters/filtermatchers.cpp:249-252; src/filters/filterspec.cpp:33-36, 156-158"
+notes = "The only predicate that reads state outside the Item: the lambda captures `&buyoutManager`, so the catalog's lifetime is tied to that manager's. What IsActive() means for a Buyout is outside the listed files — open: the Buyout::IsActive() definition (src/buyout.h / buyoutmanager.h) if the exact priced-vs-unpriced boundary matters."
+
+[[filter]]
+index = 28
+caption = "Unidentified"
+group = "MiscFlags2"
+payload = "bool"
+refresh = "Immediate"
+accessor = "!item.identified()"
+rule = "Bool rule: unchecked matches everything; checked keeps only items whose identified() is false. m_identified is assigned straight from the API's `identified` field and defaults to true."
+cite = "src/filters/filtermatchers.cpp:249-252; src/filters/filterspec.cpp:33-36, 159-161; src/item.h:84, 163; src/item.cpp:122"
+notes = "The one negated boolean predicate in the catalog."
+
+[[filter]]
+index = 29
+caption = "Influenced"
+group = "MiscFlags2"
+payload = "bool"
+refresh = "Immediate"
+accessor = "item.hasInfluence(Item::SHAPER) || ... ELDER || CRUSADER || REDEEMER || HUNTER || WARLORD"
+rule = "Bool rule: unchecked matches everything; checked keeps an item that carries at least one of exactly six influence enum values — SHAPER, ELDER, CRUSADER, REDEEMER, HUNTER, WARLORD — as a linear search of m_influenceList."
+cite = "src/filters/filtermatchers.cpp:249-252; src/filters/filterspec.cpp:33-36, 162-169; src/item.h:64-96"
+notes = "Deliberately NOT Item::hasInfluence() (the no-argument overload), which would also be true for SYNTHESISED, FRACTURED, SEARING_EXARCH and EATER_OF_WORLDS; the code comment cites F38 and points at the dedicated Fractured/Synthesized filters. The eldritch influences (SEARING_EXARCH, EATER_OF_WORLDS) exist in the enum but have NO filter in the catalog, and docs/user/searching.md's claim that \"fractured, synthesised, and eldritch items have their own filters\" is therefore only two-thirds true — there is no eldritch filter (doc-vs-code disagreement; code wins)."
+
+[[filter]]
+index = 30
+caption = "Crafted"
+group = "MiscFlags2"
+payload = "bool"
+refresh = "Immediate"
+accessor = "item.crafted()"
+rule = "Bool rule: unchecked matches everything; checked keeps items whose crafted() is true. m_crafted is derived, not read from a JSON flag: it is set when LoadModifiers collected at least one crafted mod description."
+cite = "src/filters/filtermatchers.cpp:249-252; src/filters/filterspec.cpp:33-36, 170-172; src/item.cpp:422"
+notes = "Derived from the mod lists (`m_crafted = !craftedMods.empty()`), so it tracks the mod classification rather than an API boolean."
+
+[[filter]]
+index = 31
+caption = "Enchanted"
+group = "MiscFlags2"
+payload = "bool"
+refresh = "Immediate"
+accessor = "item.enchanted()"
+rule = "Bool rule: unchecked matches everything; checked keeps items whose enchanted() is true. m_enchanted is derived: true when the API supplied a non-empty enchantMods array."
+cite = "src/filters/filtermatchers.cpp:249-252; src/filters/filterspec.cpp:33-36, 173-175; src/item.cpp:421"
+notes = "Derived, like index 30."
+
+[[filter]]
+index = 32
+caption = "Corrupted"
+group = "MiscFlags2"
+payload = "bool"
+refresh = "Immediate"
+accessor = "item.corrupted()"
+rule = "Bool rule: unchecked matches everything; checked keeps items whose corrupted() is true. m_corrupted defaults to false and is overwritten only when the API supplied the optional `corrupted` field."
+cite = "src/filters/filtermatchers.cpp:249-252; src/filters/filterspec.cpp:33-36, 176-178; src/item.cpp:124-126"
+notes = "Absent field means false, so the filter cannot distinguish \"not corrupted\" from \"unknown\"."
+
+[[filter]]
+index = 33
+caption = "Fractured"
+group = "MiscFlags2"
+payload = "bool"
+refresh = "Immediate"
+accessor = "item.fractured()"
+rule = "Bool rule: unchecked matches everything; checked keeps items whose fractured() is true. m_fractured defaults to false, set from the API's optional `fractured` field."
+cite = "src/filters/filtermatchers.cpp:249-252; src/filters/filterspec.cpp:33-36, 179-181; src/item.cpp:127-129"
+notes = "Reads the JSON flag, not the FRACTURED influence enum value that Item::hasInfluence() knows about."
+
+[[filter]]
+index = 34
+caption = "Split"
+group = "MiscFlags2"
+payload = "bool"
+refresh = "Immediate"
+accessor = "item.split()"
+rule = "Bool rule: unchecked matches everything; checked keeps items whose split() is true. m_split defaults to false, set from the API's optional `split` field."
+cite = "src/filters/filtermatchers.cpp:249-252; src/filters/filterspec.cpp:33-36, 182-183; src/item.cpp:130-132"
+notes = ""
+
+[[filter]]
+index = 35
+caption = "Synthesized"
+group = "MiscFlags2"
+payload = "bool"
+refresh = "Immediate"
+accessor = "item.synthesized()"
+rule = "Bool rule: unchecked matches everything; checked keeps items whose synthesized() is true. m_synthesized defaults to false, set from the API's optional `synthesised` field."
+cite = "src/filters/filtermatchers.cpp:249-252; src/filters/filterspec.cpp:33-36, 184-186; src/item.cpp:133-135"
+notes = "The caption and the accessor use American spelling while the JSON field is `synthesised`. Reads the flag, not the SYNTHESISED influence enum value."
+
+[[filter]]
+index = 36
+caption = "Mutated"
+group = "MiscFlags2"
+payload = "bool"
+refresh = "Immediate"
+accessor = "item.mutated()"
+rule = "Bool rule: unchecked matches everything; checked keeps items whose mutated() is true. m_mutated defaults to false, set from the API's optional `mutated` field."
+cite = "src/filters/filtermatchers.cpp:249-252; src/filters/filterspec.cpp:33-36, 187-189; src/item.cpp:136-138"
+notes = "docs/user/searching.md lists Mutated among the flag filters, matching the code. Separate from the `mutatedMods` mod bucket that LoadModifiers fills (src/item.cpp:429)."
+
+[[filter]]
+index = 37
+caption = "Mods"
+group = "Mods"
+payload = "mods"
+refresh = "Debounced"
+accessor = "item.mod_table()"
+rule = "ModsState holds a vector of ModRow{mod, optional min, optional max}. The matcher iterates every row and ANDs them: a row whose `mod` string is empty is skipped entirely; otherwise the item's mod_table() — an unordered_map<QString,double> keyed by the mod's display name — must contain that exact key (case-sensitive, exact-string `count`), or the item is rejected outright. When the key is present, the row fails if `row.min.has_value() && value < *row.min` or `row.max.has_value() && value > *row.max`, so both bounds are inclusive and either may be omitted. An empty row list, or a list of only empty-mod rows, matches every item — but note isActive() is `!rows.empty()`, so a list of blank rows makes the filter active while matching everything."
+cite = "src/filters/filtermatchers.cpp:253-274; src/filters/filterstate.h:56-69; src/filters/filterspec.cpp:190; src/item.h:57, 141; src/item.cpp:431-435; src/modlist.cpp:351-395"
+notes = "ModsPayload is empty — the rule lives entirely in the state, and the whole row set is a single catalog entry rather than one filter per row. The table is built by AddModToTable over the union of the enchantMods/implicitMods/fracturedMods/explicitMods/craftedMods/mutatedMods lists, so affix category is erased: one row matches a line wherever it appears (docs/user/mods-and-pseudomods.md agrees). Numbers in a mod line are replaced with \"#\" to form the lookup key (regex \"([0-9\\\\.]+)\"), and lines starting with \"1 Added Passive Skill\" are exempted from that substitution. Natural mods ASSIGN (`output[m_name] = result`), so a duplicated line keeps only the last value, while summing pseudomods ACCUMULATE (`output[pseudo_mod] += value`) — matching the doc's \"only one value is kept\" plus \"… total …\" sums. The form's per-row completer is a UI concern (src/ui/modsfilterform.cpp:184-196) and does not restrict what a saved row's `mod` string may be."
+
+[consumption]
+and_semantics = "Search::FilterItems builds `active_filters`, the indices whose FilterState IsActive(), then for each item runs those filters in catalog order and short-circuits on the first MatchesFilter that returns false; only an item that passes every active filter is kept. Pure conjunction, no OR and no grouping. Inactive filters are never evaluated, so a filter's rule for an all-default state is unobservable. m_filtered is set to `!active_filters.empty()` — \"filtered\" means at least one filter is active, not that any item was rejected. The delta paths (Search::ApplyTabDelta and the published-snapshot reconciliation) use Search::MatchesActiveFilters(item), which is the same conjunction written as a loop over all states with an inline IsActive() guard. FilterItems also short-circuits the whole pass when the refresh reason is TabChanged and neither m_states_dirty nor m_items_dirty is set."
+active_test = "IsActive(FilterState) std::visits the variant and calls the alternative's own isActive(): TextState -> !query.isEmpty(); ComboState -> !value.isEmpty() (so the <any> sentinel, which the form stores as an empty string, is inactive); MinMaxState -> min.has_value() || max.has_value(); ColorsState -> r || g || b has_value(); BoolState -> checked; ModsState -> !rows.empty() (any row at all, even one with an empty mod name and no bounds). MakeDefaultState gives each spec the value-initialised state for its payload, which is inactive in every case. Search::setFilterState compares the new state to the current one and only sets m_states_dirty when they differ — every state type has a defaulted operator==."
+refresh_modes = "The mode is a per-spec property (FilterSpec::refreshMode) that the form turns into a signal target: FilterCallbacks::forMode returns `onChanged` for RefreshMode::Immediate and `onChangedDelayed` for RefreshMode::Debounced, and each widget adapter connects its edit signal to that. The delayed path calls MainWindow::OnDelayedSearchFormChange, which (re)starts a single-shot QTimer with SEARCH_UPDATE_DELAY_MS = 350 ms whose timeout runs OnSearchFormChange; MainWindow::FlushPendingSearchFormChange fires the pending change synchronously before the form is rebound to another search tab. Immediate captions (from the `boolean` and `colors` factories): Colors, Linked, Alt. art, Priced, Unidentified, Influenced, Crafted, Enchanted, Corrupted, Fractured, Split, Synthesized, Mutated — 13 in all (11 boolean + 2 colors). Debounced captions (the `text`, `combo`, `minMax` factories and the Mods spec): Tab, Name, Category, Rarity, Crit., DPS, pDPS, eDPS, cDPS, APS, Armour, Evasion, Shield, Block, Sockets, Links, R. Level, R. Str, R. Dex, R. Int, Quality, Level, Map Tier, ilvl, Mods — 25 in all (2 text + 2 combo + 20 minmax + 1 mods)."
+altart = "MatchesAltart(item) returns true when item.icon() contains at least one of a static list of 117 hard-coded strings, tested with QString::contains (case-sensitive substring, anywhere in the icon URL) and short-circuiting on the first hit. The list is grouped by comment into season 1-11 plus the emberwake, bloodgrip, soulthirst and winterheart seasons; most entries are alt-art icon filenames ending in .png (\"RedBeak2.png\", \"TabulaRasaAlt.png\", …) and five are base64-looking URL fragments with no extension. Nothing about the item other than its icon string is consulted."
+outside_catalog = "none — every item-level predicate Search applies comes from the catalog. FilterItems' only other membership decision is bucket-level, not item-level: when no filter is active it also materialises empty By-Tab buckets from BuyoutManager::GetStashTabLocations() and the LocationInventory, and when any filter is active it simply omits them, so empty tabs disappear while filtering. Items are never dropped by location, visibility, or any other out-of-catalog rule."
