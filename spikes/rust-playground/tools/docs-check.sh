@@ -439,7 +439,7 @@ fi
 # never a judgment call. The notes are not scanned for citations of each
 # other — a note cannot keep another alive.
 notes=$(ls brainstorming-notes/*.md 2>/dev/null | sed -E 's#.*/([0-9]+)-.*#\1#' | sort -u)
-note_cites=$(grep -rhoE 'brainstorming-notes[/ ][0-9]+' crates tools README.md CONTEXT.md AGENTS.md LIVE-TESTING.md RUN-LEDGER.md TESTING-NOTES.md SURFACES.md REFRESH-SLICE.md PRICING-SLICE.md DAEMON-SPLIT-SLICE.md NETWORK-CLEANUP.md decisions .claude 2>/dev/null \
+note_cites=$(grep -rhoE 'brainstorming-notes[/ ][0-9]+' crates tools README.md CONTEXT.md AGENTS.md LIVE-TESTING.md RUN-LEDGER.md TESTING-NOTES.md SURFACES.md REFRESH-SLICE.md PRICING-SLICE.md DAEMON-SPLIT-SLICE.md NETWORK-CLEANUP.md decisions search .claude 2>/dev/null \
   --include='*.rs' --include='*.sh' --include='*.py' --include='*.md' | sed -E 's#.*[/ ]##' | sort -u)
 gone=$(comm -13 <(printf '%s\n' "$notes") <(printf '%s\n' "$note_cites") | grep . || true)
 if [[ -n $gone ]]; then
