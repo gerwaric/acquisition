@@ -83,9 +83,11 @@ What a stash search **adds**: tab and character, container, realm and league, li
 | Q5 pseudo | `pseudo_total_fire_resistance` min 80: every item's total equals the sum of the displayed fire, all-elemental, fire-and-X lines, explicit and crafted; a Simplex Amulet's `+60% to Fire Resistance` (mod range 46–48, scaled by its implicit) counts as 60 | The displayed value is summed; the contributor set matches the C++ table. |
 | Q6 hypothesis | 11 lines fed by two mods (life from a hybrid prefix plus a pure one; evasion; stun recovery); 31 mods feeding two lines each | **Confirmed**: several stats add into one displayed line, and a line's value cannot name its mods without the `mods` list. |
 
+**F9 — Two more facts from the captures** (checked 2026-09-13). The search `id` in the response and in the site's URL is the query object itself, gzipped and base64url-encoded: q4's id decodes to exactly its request's `query`. A search URL is therefore a portable query, and any saved search on the site can be read without the site. And `extended.text` on a fetched item is the item's clipboard text, base64: its first line is `Item Class: <class>` for all 70 items (six classes seen), so listed items carry their class name there even though no JSON field does — a partial source for Q1, for listed items only.
+
 ## Open questions
 
-- **Q1 — The category taxonomy.** No fetched item carries a class or category field either (70 of 70). Closes: the item-facts census against `items.json`'s 22 groups, or a base-type table.
+- **Q1 — The category taxonomy.** No fetched item carries a class or category *field* (70 of 70); the class *name* is in `extended.text` (F9). Closes: the repoe track's base taxonomy (`base-taxonomy.csv`) against the 83 ids.
 - **Q7 — The private line object.** Closed by item-facts F3 (2026-09-13): `explicitMods` and `implicitMods` only, between 2026-07-23 and 2026-07-31, never a `hash`.
 - **Q8 — `hashes` indexes** point into a mod list the new `fetch` omits; the same facts are in each line's `mods`. Left as a note.
 

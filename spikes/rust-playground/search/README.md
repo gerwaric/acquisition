@@ -45,6 +45,15 @@ deleting one; nothing else encodes it. (Set 2026-09-12.)
    in a `Review` table at the bottom of the track README, split out only
    when the table outgrows a screen.
 
+## Traps (every track; add one when it bites twice)
+
+- A `cd` inside a compound shell command moves the working directory for every later call in the turn, and parallel calls then fail on relative paths: use absolute paths under `search/`.
+- Minified bundles defeat grep's regex limits; slice them with a short Python script.
+- Generated extracts are strict JSON (a header comment broke loaders) and CSV written with `lineterminator="\n"` (the default is CRLF and every regeneration diffs); a scrub guard asserts on value patterns such as `"account": {`, never on bare key names.
+- Write a track README last, from the script outputs, and its headline block last of all; the budget gets tight on a rich track, so per-item detail goes to `data/`.
+- engine-bench: a throwaway Rust crate is never a workspace member, or the quality gate builds and lints it; copy the facts database with sqlite's `.backup`, never `cp`, because it is under WAL.
+- agent-seat is written after item-facts and repoe so its example queries use real field names.
+
 At the close this directory is expected to shrink to a closed record in
 the mold of `PRICING-SLICE.md`, with the full text cited at a commit.
 
@@ -54,10 +63,10 @@ the mold of `PRICING-SLICE.md`, with the full text cited at a commit.
 | --- | --- | --- | --- |
 | [`item-facts/`](item-facts/README.md) | What does an item look like as GGG gives it, and how big is the corpus? | first pass complete — 2026-09-13 | 10782 |
 | [`cpp-search/`](cpp-search/README.md) | What does the C++ app's search do, filter by filter, and how does it stay instant? | first pass — 2026-09-13 | 13037 |
-| [`trade-query/`](trade-query/README.md) | What is the trade site's query language, and which of it means something for a private stash? | first pass complete — 2026-09-13 | 12092 |
+| [`trade-query/`](trade-query/README.md) | What is the trade site's query language, and which of it means something for a private stash? | first pass complete — 2026-09-13 | 12746 |
 | [`engine-bench/`](engine-bench/README.md) | Is SQLite over a derived search schema instant at a few hundred thousand items? Measured. | not started | 1201 |
 | [`agent-seat/`](agent-seat/README.md) | What does an agent need to search a corpus that size well? | not started | 1139 |
-| [`repoe/`](repoe/README.md) | What does the game's own data (RePoE's export, with Path of Building as corroboration) give a stash search that the item JSON does not? | set up — 2026-09-13 | 4199 |
+| [`repoe/`](repoe/README.md) | What does the game's own data (RePoE's export, with Path of Building as corroboration) give a stash search that the item JSON does not? | set up — 2026-09-13 | 6173 |
 
 Standing rulings and parked items the design will revisit, so it knows
 what it overrides: C48 (raw SQL is not a surface), C34 (derivations),
