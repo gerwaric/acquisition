@@ -1,6 +1,6 @@
 # cpp-search — the C++ app's search, catalogued
 
-Status: first pass — 2026-09-13. Every input read at `master@946a4f51`; the catalogues are under `data/`. No rule here has been run against a real item payload yet (Q1).
+Status: first pass — 2026-09-13. Every input read at `master@946a4f51`; the catalogues are under `data/`. Two property strings checked against the C++ app's JSON by the owner (F2); the rest is unrun against a real payload.
 
 Headline:
 - 38 filters in 9 groups over six payload kinds, ANDed in catalog order: 20 min/max, 11 flags, 2 text, 2 combos, 2 socket-colour, 1 mods. The min/max filters split on absence: eight property filters reject an item lacking the property, twelve read it as 0 (F1).
@@ -19,7 +19,7 @@ What does the C++ app's search do, filter by filter and column by column: the ex
 | --- | --- | --- |
 | `master@946a4f51`: `src/filters/`, `search.*`, `item.*`, `modlist.*`, `pseudomods.cpp`, `column.*`, `items_model.*`, `itemcategories.cpp`, `repoe/`, `sortkey.h`, `bucket.h`, `ui/searchform.cpp` | `git show master:<path>` | read |
 | `docs/user/searching.md`, `docs/user/mods-and-pseudomods.md`, `docs/design/items-pipeline*.md`, `m1-m2-result.md`, `m1-m3-result.md`, `m2-m2-result.md`, `m3-sort-profile-result.md` (master) | same | read |
-| A real item payload, to check the property strings the rules parse | the item-facts track's database | pending (Q1) |
+| Two properties (`Chance to Block`, `Critical Strike Chance`) copied from the C++ app's JSON | the owner, 2026-09-13 | landed (F2) |
 
 ## Outputs
 
@@ -48,7 +48,7 @@ What does the C++ app's search do, filter by filter and column by column: the ex
 
 Refresh: 25 debounced (one 350 ms timer), 13 immediate (flags, colours). Bounds inclusive, either side blank. Doc-vs-code: the doc's "Type" is the caption "Category"; Name also searches the type line; the white-socket substitution is undocumented; no eldritch filter exists though the enum has both.
 
-**F2 — Derivations** (`data/derivations.md`, §2). Property strings are used as GGG sent them; only Quality (`+`/`%` stripped), Level (` (Max)` chopped) and Stack Size (`n/m` → n) are normalised. `properties` keeps `values[0][0]` only.
+**F2 — Derivations** (`data/derivations.md`, §2). Property strings are used as GGG sent them; only Quality (`+`/`%` stripped), Level (` (Max)` chopped) and Stack Size (`n/m` → n) are normalised. `properties` keeps `values[0][0]` only. Owner-supplied samples, 2026-09-13: `Chance to Block` is `"22%"`, `Critical Strike Chance` is `"8.00%"` — so `toDouble` yields 0 and the Crit. and Block **filters compare every item as 0** in the C++ app (a min above 0 rejects all, a bare max admits all); the columns sort correctly because `Column::parts` tolerates the `%`.
 
 | Value | Formula |
 | --- | --- |
@@ -101,11 +101,10 @@ Paid: per-search dirty flags, the active-filter test per arrival, sorted merge i
 
 ## Open questions
 
-- **Q1 — The property strings.** Do "Critical Strike Chance" and "Chance to Block" carry a trailing `%`? Only Quality is stripped; `toDouble` of `6.50%` is 0, which would make those two filters and the sort silently wrong. Master's one fixture and the mock carry no such property. Closes: one weapon and one shield from the item-facts database.
 - **Q2 — Duplicate templates.** How often does one item carry the same template twice (last-wins loses a value)? Closes: the item-facts template census, counting repeats per item.
 - **Q3 — The ignored arrays.** How many items in a real corpus carry only unsearchable mods (`scourgeMods`, `crucibleMods`, `veiledMods`, `utilityMods`, …)? Closes: the item-facts field census.
 - **Q4 — RePoE as a surface.** The taxonomy and the dropdown depend on a third-party feed with no spike access method. Closes: the design session rules an access method into its `SURFACES.md` row, or replaces the source (the trade site's `items.json` categories are a candidate, trade-query Q1).
-- **Q5 — Two latent faults**, for the C++ side: `Stack Size` without `/` is unguarded; the pseudo pass reads an uninitialised double if a line's own template fails to match it. Closes: a unit test over `AddModToTable` on master.
+- **Q5 — Three C++-side faults**, with F2's two dead filters: `Stack Size` without `/` is unguarded; the pseudo pass reads an uninitialised double if a line's own template fails to match it. Closes: a unit test over `AddModToTable` on master.
 
 ## Provenance
 

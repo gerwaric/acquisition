@@ -75,7 +75,7 @@ refresh = "Debounced"
 accessor = "item.properties().at(\"Critical Strike Chance\").toDouble()"
 rule = "MinMaxState holds optional min and optional max. present(item) is `item.properties().count(\"Critical Strike Chance\")`: if the item has no such property, the item matches only when both min and max are unset — which is exactly the inactive case, so an active filter rejects every item lacking the property. When present, the value is the property's stored string run through QString::toDouble(); it fails if `min.has_value() && *min > value` or `max.has_value() && *max < value`, so both bounds are inclusive and either may be omitted."
 cite = "src/filters/filtermatchers.cpp:198-212; src/filters/filterspec.cpp:62-72, 124"
-notes = "properties() is a std::map<QString,QString>; only the first value of a property is stored, and only \"Quality\" (leading \"+\" and trailing \"%\" stripped), \"Level\" (trailing \"(Max)\" stripped) and \"Stack Size\" get any string cleanup at load (src/item.cpp:450-473). Every other property, this one included, is handed to QString::toDouble() verbatim, and QString::toDouble() returns 0.0 for any string it cannot parse in full — so a stored value with a trailing unit character would compare as 0. open: whether the API's \"Critical Strike Chance\" value string carries a trailing \"%\" (not determinable from the listed files; needs a captured item payload)."
+notes = "properties() is a std::map<QString,QString>; only the first value of a property is stored, and only \"Quality\" (leading \"+\" and trailing \"%\" stripped), \"Level\" (trailing \"(Max)\" stripped) and \"Stack Size\" get any string cleanup at load (src/item.cpp:450-473). Every other property, this one included, is handed to QString::toDouble() verbatim, and QString::toDouble() returns 0.0 for any string it cannot parse in full — so a stored value with a trailing unit character would compare as 0. Settled 2026-09-13 by a property the owner copied from the C++ app's JSON: `{\"name\": \"Critical Strike Chance\", \"type\": 12, \"values\": [[\"8.00%\", 0]]}` — the string carries a trailing \"%\", so toDouble() yields 0.0 for every item and this filter compares every item as 0: any min above 0 rejects all, a bare max admits all. The Crit column still sorts correctly because Column::parts tolerates the \"%\"."
 
 [[filter]]
 index = 5
@@ -174,7 +174,7 @@ refresh = "Debounced"
 accessor = "item.properties().at(\"Chance to Block\").toDouble()"
 rule = "simpleProperty on \"Chance to Block\": present = the property exists; value = its string via QString::toDouble(); inclusive optional min and max; item without the property is rejected when active."
 cite = "src/filters/filtermatchers.cpp:198-212; src/filters/filterspec.cpp:62-72, 137"
-notes = "Same raw-string caveat as index 4: no \"%\" stripping happens for this property at load. open: whether the stored \"Chance to Block\" string carries a trailing \"%\" (not determinable from the listed files)."
+notes = "Same raw-string caveat as index 4: no \"%\" stripping happens for this property at load. Settled 2026-09-13 by a property the owner copied from the C++ app's JSON: `{\"name\": \"Chance to Block\", \"type\": 15, \"values\": [[\"22%\", 0]]}` — trailing \"%\", so toDouble() yields 0.0 and the filter compares every item as 0, exactly as index 4."
 
 [[filter]]
 index = 14
