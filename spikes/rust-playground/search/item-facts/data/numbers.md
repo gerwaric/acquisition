@@ -18,6 +18,8 @@
 | `bondedMods`: items / lines / distinct templates / lines per item mean, max | 1 / 6 / 6 / 6.00, 6 |
 | `runeMods`: items / lines / distinct templates / lines per item mean, max | 1 / 3 / 3 / 3.00, 3 |
 | Property rows (array, name, type, mode, value shape) | 1,175 |
+| C++ mod table (cpp-search Q2): items losing a numbered line to a repeated template / lines lost / top templates | 905 / 914 / `+# to maximum Life` 163, `#% increased Spell Damage` 93, `+# to maximum Energy Shield` 68 |
+| C++ unread arrays (cpp-search Q3): items with a line in one / items with mod lines only there | 3,978 / 862 |
 | baseType matched to a trade category: items / share | 28,313 / 0.783 |
 
 **Per store, before dedupe** (source, realm, league, kind → items):

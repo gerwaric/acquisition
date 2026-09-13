@@ -241,6 +241,46 @@ def main():
                 w.writerow([k, tpl, row["items"], row["lines"], ";".join(f"{a}:{b}" for a, b in row["kinds"].most_common()),
                             ";".join(f"{a}:{b}" for a, b in row["flags"].most_common()), row["example"]])
 
+    # ---- the C++ app's view of the mod arrays (cpp-search Q2, Q3): one mod table per item keyed by the app's own
+    # template (`[0-9.]+` -> `#`, sign kept; a `1 Added Passive Skill` line verbatim), last assignment wins, so a
+    # repeated numbered template loses a line; and items whose only mod lines sit in an array the app never reads
+    CPP_READ = {"enchantMods", "implicitMods", "explicitMods"}
+    cpp_tpl = lambda t: t if t.startswith("1 Added Passive Skill") else re.sub(r"[0-9.]+", "#", t)
+    cpp_dup_items = cpp_dup_lines = cpp_ignored_any = cpp_ignored_only = 0
+    cpp_dup_by = collections.Counter()
+    for it in items:
+        table = collections.Counter()
+        read_lines = ignored_lines = 0
+        for k, v in it.json.items():
+            if not k.endswith("Mods") or not isinstance(v, list):
+                continue
+            if k not in CPP_READ:
+                ignored_lines += len(v)
+                continue
+            for line in v:
+                text = line.get("description", "") if isinstance(line, dict) else str(line)
+                flags = (line.get("flags") or {}) if isinstance(line, dict) else {}
+                if flags.get("desecrated") or flags.get("vestigial"):
+                    continue
+                read_lines += 1
+                tpl = cpp_tpl(text)
+                if "#" in tpl:  # a line without a number never enters the table
+                    table[tpl] += 1
+        hybrid = (it.json.get("hybrid") or {}).get("explicitMods")
+        if isinstance(hybrid, list):
+            ignored_lines += len(hybrid)
+        lost = sum(c - 1 for c in table.values() if c > 1)
+        if lost:
+            cpp_dup_items += 1
+            cpp_dup_lines += lost
+            for tpl, c in table.items():
+                if c > 1:
+                    cpp_dup_by[tpl] += c - 1
+        if ignored_lines:
+            cpp_ignored_any += 1
+            if not read_lines:
+                cpp_ignored_only += 1
+
     # ---- properties census
     PROP_ARRAYS = ["properties", "additionalProperties", "requirements", "nextLevelRequirements", "weaponRequirements",
                    "supportGemRequirements", "notableProperties", "hybrid.properties"]
@@ -306,6 +346,8 @@ def main():
         lp = lines_per_item[k]
         out.append(f"| `{k}`: items / lines / distinct templates / lines per item mean, max | {len(lp):,} / {sum(lp):,} / {len(mods[k]):,} / {statistics.mean(lp):.2f}, {max(lp)} |")
     out.append(f"| Property rows (array, name, type, mode, value shape) | {len(props):,} |")
+    out.append(f"| C++ mod table (cpp-search Q2): items losing a numbered line to a repeated template / lines lost / top templates | {cpp_dup_items:,} / {cpp_dup_lines:,} / " + ", ".join(f"`{t}` {c:,}" for t, c in cpp_dup_by.most_common(3)) + " |")
+    out.append(f"| C++ unread arrays (cpp-search Q3): items with a line in one / items with mod lines only there | {cpp_ignored_any:,} / {cpp_ignored_only:,} |")
     out.append(f"| baseType matched to a trade category: items / share | {sum(c for (ft, m), c in matched.items() if m):,} / {sum(c for (ft, m), c in matched.items() if m) / n:.3f} |")
     out += ["", "**Per store, before dedupe** (source, realm, league, kind → items):", "", "| Source | Realm | League | Kind | Items |", "| --- | --- | --- | --- | ---: |"]
     for (s, r, l, k), c in sorted(per_source.items()):

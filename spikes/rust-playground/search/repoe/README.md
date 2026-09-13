@@ -1,6 +1,6 @@
 # repoe — the game's own data behind the item JSON
 
-Status: first pass complete — 2026-09-13. Five extracts run on the pinned clones (`MANIFEST.md`); the hash experiment passed the owner's acceptance rule with no unexplained class; Q1–Q6 closed (Q5 by the owner's ruling); Q7 awaits the owner's manual check, Q8 the design session.
+Status: first pass complete — 2026-09-13. Five extracts run on the pinned clones (`MANIFEST.md`); the hash experiment passed the owner's acceptance rule with no unexplained class; Q1–Q7 closed (Q5 by the owner's ruling, Q7 by the owner's site check; F7); Q8 waits for the design session.
 
 Headline:
 - The export names a trade id for 11,004 of the capture's 17,958 ids — 61.7 % of entries, 72 % of the `stat_N` keys: fractured, scourge and crafted near-complete, explicit and implicit near 74 %, and none of the categories whose ids are names rather than stat hashes (F1).
@@ -67,6 +67,8 @@ The named remainder on equipment: heist `Alert Level` lines, `Has # Abyssal Sock
 
 **F6 — Staleness** (`git log` of `poe1`). 86 versions seen since 2025-06-07, 53 exported; lag from the fork's version poll to its export: 0 days for 46, 1 for 3, 4–13 for 4; 33 versions never exported (superseded within days). The poll's date is not the patch's, a GGG fact no clone holds.
 
+**F7 — Two rulings.** Two-value lines (Q5), the owner, verbatim, 2026-09-13: "let's keep min and max separate." The site averages (trade-query F8), the C++ app takes the mean (cpp-search F3), Path of Building keeps them apart; the search follows Path of Building, and the design session gives it its `C<n>`. The 32 twice-numbered stat ids the hash could not settle (Q7): the owner searched all 68 candidate numbers on the site, 2026-09-13, Standard, status any (`twice-numbered-verdicts.csv`, hand-kept; URLs in `twice-numbered-urls.txt`): 53 found, 15 not. Per stat id, 12 have one live number (the other dormant, trade-query Q2's pattern) and **20 have both live** — two stats render alike and both are in use, so the attribution stays undecided and the site cannot decide it. A `no` is dated dormancy in one league, never nonexistence (the owner: "it might possibly still exist"). Handling: outward, both ids in a `count` group with min 1 (trade-query F2); inward, a line's identity is the export's stat id and the number a label. The durable fix, the `Stats.dat` hash column in the export, is Q8's.
+
 ## Numbers
 
 | | |
@@ -82,8 +84,6 @@ The named remainder on equipment: heist `Alert Level` lines, `Has # Abyssal Sock
 
 ## Open questions
 
-- **Q5 — Two-value lines.** Closed by the owner, 2026-09-13, verbatim: "let's keep min and max separate." (The trade site averages, trade-query F8; the C++ app takes the mean, cpp-search; Path of Building keeps them apart — the search follows Path of Building.) The design session gives it its `C<n>`.
-- **Q7 — The 32 twice-numbered stat ids** the hash could not settle (F2): the owner searched all 68 candidate numbers on the site, 2026-09-13, Standard, status any (`twice-numbered-verdicts.csv`, hand-kept; URLs in `twice-numbered-urls.txt`): 53 found, 15 not. Per stat id, 12 have one live number (the other dormant, trade-query Q2's pattern) and **20 have both live** — two stats render alike and both are in use, so the attribution stays undecided and the site cannot decide it. A `no` is dated dormancy in one league, never nonexistence (the owner: "it might possibly still exist"). Handling: outward, both ids in a `count` group with min 1 (trade-query F2); inward, a line's identity is the export's stat id and the number a label. The durable fix, the `Stats.dat` hash column in the export, is Q8's.
 - **Q8 — Access method.** The C++ app fetches RePoE at runtime (cpp-search Q4); this track read a clone. What the design ships — a committed extract at a pinned commit, or nothing from RePoE — is the design session's ruling into `SURFACES.md`, with how the search follows updates to the game, the API and the trade site (the owner, 2026-09-13: "this stays for the design session"). Folded in: forking RePoE for the `Stats.dat` hash column, which would make the trade-id mapping an algorithm and a rename-proof join — `brainstorming-notes/20-repoe-hash-column-fork.md` has the feasibility, the cost and the recommendation to wait; the trigger is the design choosing the stat id or the trade id as a line's identity and wanting rename-proof joins.
 
 ## Provenance

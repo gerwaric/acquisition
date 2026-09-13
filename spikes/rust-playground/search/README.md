@@ -62,9 +62,9 @@ the mold of `PRICING-SLICE.md`, with the full text cited at a commit.
 
 | Track | Question | Status | README bytes |
 | --- | --- | --- | --- |
-| [`item-facts/`](item-facts/README.md) | What does an item look like as GGG gives it, and how big is the corpus? | first pass complete — 2026-09-13 | 10782 |
-| [`cpp-search/`](cpp-search/README.md) | What does the C++ app's search do, filter by filter, and how does it stay instant? | first pass — 2026-09-13 | 13037 |
-| [`trade-query/`](trade-query/README.md) | What is the trade site's query language, and which of it means something for a private stash? | first pass complete — 2026-09-13 | 12746 |
+| [`item-facts/`](item-facts/README.md) | What does an item look like as GGG gives it, and how big is the corpus? | first pass complete — 2026-09-13 | 12597 |
+| [`cpp-search/`](cpp-search/README.md) | What does the C++ app's search do, filter by filter, and how does it stay instant? | first pass complete — 2026-09-13 | 12992 |
+| [`trade-query/`](trade-query/README.md) | What is the trade site's query language, and which of it means something for a private stash? | first pass complete — 2026-09-13 | 12826 |
 | [`engine-bench/`](engine-bench/README.md) | Is SQLite over a derived search schema instant at a few hundred thousand items? Measured. | not started | 1201 |
 | [`agent-seat/`](agent-seat/README.md) | What does an agent need to search a corpus that size well? | not started | 1139 |
 | [`repoe/`](repoe/README.md) | What does the game's own data (RePoE's export, with Path of Building as corroboration) give a stash search that the item JSON does not? | first pass complete — 2026-09-13 | 12586 |
