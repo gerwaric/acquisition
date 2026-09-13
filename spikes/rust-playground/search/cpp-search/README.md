@@ -101,8 +101,7 @@ Paid: per-search dirty flags, the active-filter test per arrival, sorted merge i
 
 ## Open questions
 
-- **Q2 — Duplicate templates.** How often does one item carry the same template twice (last-wins loses a value)? Closes: the item-facts template census, counting repeats per item.
-- **Q3 — The ignored arrays.** How many items in a real corpus carry only unsearchable mods (`scourgeMods`, `crucibleMods`, `veiledMods`, `utilityMods`, …)? Closes: the item-facts field census.
+- **Q2, Q3 — Duplicate templates and the ignored arrays.** Owner's verdict, verbatim (2026-09-13): "Ignored mods and duplicates are both design bugs in the c++." So neither is a rule to reproduce; what remains is their size in a real corpus — repeats of one template per item, and items whose only mods sit in an ignored array — for the projection to weigh. Closes: the item-facts census.
 - **Q4 — RePoE as a surface.** The taxonomy and the dropdown depend on a third-party feed with no spike access method. Closes: the design session rules an access method into its `SURFACES.md` row, or replaces the source (the trade site's `items.json` categories are a candidate, trade-query Q1).
 - **Q5 — Three C++-side faults**, with F2's two dead filters: `Stack Size` without `/` is unguarded; the pseudo pass reads an uninitialised double if a line's own template fails to match it. Closes: a unit test over `AddModToTable` on master.
 
