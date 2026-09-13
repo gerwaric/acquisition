@@ -26,7 +26,9 @@ Outputs (data/, regenerable; the first line names this script and its inputs):
                     single-stat numbers: the number's categories and texts in the capture, the export's English
                     string, the hash's verdict — `picked`, `rejected`, or `open` when the hash has no say — and a
                     trade-site search URL for the number (trade-query F9: the search id is the gzipped query)
-  twice-numbered-urls.txt   the `open` rows as a paste list: stat id, text, URL — the owner's manual check
+  twice-numbered-urls.txt   the `open` rows as a paste list: stat id, text, URL, and the owner's verdict where one exists
+Read back, never written: data/twice-numbered-verdicts.csv — the owner's manual check of the open rows on the site
+(found yes/no per number, dated); its `found` lands in twice-numbered.csv and the paste list.
 
 Printed: the class counts and the reason table the README quotes.
 """
@@ -274,10 +276,15 @@ def main():
     for e in entries:
         if len(e["ids"]) == 1:
             english.setdefault(e["ids"][0], e["English"][0]["string"])
+    verdicts = {}
+    vpath = os.path.join(DATA, "twice-numbered-verdicts.csv")
+    if os.path.exists(vpath):
+        for r in csv.DictReader(l for l in open(vpath) if not l.startswith("#")):
+            verdicts[(r["stat_id"], int(r["trade_number"]))] = (r["found"], r["checked"])
     with open(os.path.join(DATA, "twice-numbered.csv"), "w", newline="") as f:
         f.write(HEADER + "\n")
         w = csv.writer(f, lineterminator="\n")
-        w.writerow(["stat_id", "trade_number", "verdict", "capture_categories", "capture_texts", "export_string", "search_url"])
+        w.writerow(["stat_id", "trade_number", "verdict", "capture_categories", "capture_texts", "export_string", "search_url", "found", "checked"])
         paste = []
         for sid in sorted(export_conf):
             picks = pob_pick[sid]
@@ -286,10 +293,17 @@ def main():
                 cats = sorted(capture_cats.get(n, ()))
                 cat = "explicit" if "explicit" in cats else cats[0] if cats else "explicit"
                 url = search_url(f"{cat}.stat_{n}")
+                found, checked = verdicts.get((sid, n), ("", ""))
                 w.writerow([sid, n, verdict, " ".join(cats), " | ".join(sorted(capture_texts.get(n, ()))),
-                            english.get(sid, "").replace("\n", "\\n"), url])
+                            english.get(sid, "").replace("\n", "\\n"), url, found, checked])
                 if verdict == "open":
-                    paste.append(f"{sid}  [{cat}]  {' | '.join(sorted(capture_texts.get(n, ())))}\n{url}\n")
+                    paste.append(f"{sid}  [{cat}]  {' | '.join(sorted(capture_texts.get(n, ())))}\n{url}\n" + (f"Found: {found} ({checked})\n" if found else ""))
+    # the site's answer per open stat id: one live number, several, or none
+    open_ids = collections.defaultdict(list)
+    for (sid, n), (found, _) in verdicts.items():
+        open_ids[sid].append(found)
+    kinds = collections.Counter("one live" if fs.count("yes") == 1 else "several live" if fs.count("yes") > 1 else "none live" for fs in open_ids.values())
+    print(f"owner's site check of the open stat ids: {len(open_ids)} checked; {dict(kinds)}; numbers found {sum(f == 'yes' for fs in open_ids.values() for f in fs)}, not found {sum(f == 'no' for fs in open_ids.values() for f in fs)}")
     with open(os.path.join(DATA, "twice-numbered-urls.txt"), "w") as f:
         f.write(HEADER + "\n# one search per open row, Standard league, pc, status any: a result count above 0 means the id is live\n\n")
         f.write("\n".join(paste))

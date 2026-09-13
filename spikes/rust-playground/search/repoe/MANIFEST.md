@@ -52,4 +52,10 @@ Files scoped but not read by an extract: `mods_by_base.json` (which mods roll on
 | `data/mod-templates.csv` | item-facts | `template-vs-translation.py` |
 | `raw/spike-…db`, `raw/cpp-userstore-…db` (local), `scripts/census.py` | item-facts | `base-taxonomy.py` (the corpus's `baseType` values), `template-vs-translation.py` (imports the census's template rule to split lines by frame type) |
 
+## The owner's site check (access method `browser`, the trade-site row of `SURFACES.md`)
+
+| File | Captured | What |
+| --- | --- | --- |
+| `data/twice-numbered-verdicts.csv` | the owner, 2026-09-13, in a browser: Standard league, pc, status any; 68 searches, the URLs of `twice-numbered-urls.txt` | `found` yes/no per (stat id, trade number): whether the search returned any listing. Hand-kept; no script writes it |
+
 The master-side file read by hand for `pob-format.md`: `master:src/item.cpp` @ 946a4f51, `Item::POBformat` (line 681).
