@@ -87,7 +87,7 @@ What a stash search **adds**: tab and character, container, realm and league, li
 
 ## Open questions
 
-- **Q1 — The category taxonomy.** No fetched item carries a class or category *field* (70 of 70); the class *name* is in `extended.text` (F9). Closes: the repoe track's base taxonomy (`base-taxonomy.csv`) against the 83 ids.
+- **Q1 — The category taxonomy.** No fetched item carries a class or category *field* (70 of 70); the class *name* is in `extended.text` (F9). Closed 2026-09-13 by repoe F3: the export's classes generate 65 of the 68 leaf ids (58 by class, 7 by a name rule); the three itemised-beast ids are not bases; `baseType` joins an export base for 98.2 % of the corpus.
 - **Q7 — The private line object.** Closed by item-facts F3 (2026-09-13): `explicitMods` and `implicitMods` only, between 2026-07-23 and 2026-07-31, never a `hash`.
 - **Q8 — `hashes` indexes** point into a mod list the new `fetch` omits; the same facts are in each line's `mods`. Left as a note.
 

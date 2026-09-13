@@ -1,49 +1,98 @@
 # repoe — the game's own data behind the item JSON
 
-Status: set up — 2026-09-13. Clones in place (`MANIFEST.md`); the first pass has not run.
+Status: first pass complete — 2026-09-13. Five extracts run on the pinned clones (`MANIFEST.md`); the hash experiment passed the owner's acceptance rule with no unexplained class; Q1, Q2, Q3, Q4 and Q6 closed, Q5 stays a decision for the design session.
 
-Headline: (none yet)
+Headline:
+- The export names a trade id for 11,004 of the capture's 17,958 ids — 61.7 % of entries, 72 % of the `stat_N` keys: fractured, scourge and crafted at 96–100 %, explicit and implicit near 74 %, and none of crucible, ultimatum, delve, veiled, mercenary, whose ids are not stat hashes (F1).
+- The `Stats.dat` hash the recipe needs is absent from the export and is no function of the id string, so the recipe cannot run from the export. But MurmurHash2 on a 4-byte key inverts, so every single-stat trade id *is* its hash, and Path of Building's tables served as the oracle: 29,288 numbers, 83 % reproduced by the export's text join, every disagreement explained, none unexplained; the recipe itself minted 423 numbers (7.7 %) the site does not list (F2).
+- 65 of the trade site's 68 leaf category ids are generated from the export's classes (58) plus seven name rules; the three itemised-beast ids are not bases. 98.2 % of the corpus's PC items join an export base by `baseType` (F3).
+- On equipment frames 95.3 % of explicit lines and 96.8 % of implicit lines match a translation exactly; 16.8 % of the matched explicit lines match several entries — the local/global twins the site splits by `(Local)` and the export by `is_local`. Gem and currency frames carry descriptions, not mods (F4).
+- A line fed by several mods is the game summing one stat id across mods before rendering (`base_maximum_life` sits in 55 prefix mods of 9 groups), not a translation property (F5). The export follows a patch the same day for 46 of 53 exported versions; 33 of 86 versions were never exported (F6).
 
 ## Question
 
-What does the game's own data give a stash search that the item JSON does not — the stat-id spine behind display text, the base and class taxonomy, mod ranges, affixes and spawn weights — and how far can each be trusted? Concretely: can a private-API line (`{description, flags?}`, no hash — trade-query F7) be given GGG's stat identity, and can the trade site's 83 category ids be generated from the export's classes (trade-query Q1, cpp-search's category source)?
-
-Scoped 2026-09-13 by two read-only agents from the upstream repositories; their reports are the basis of this file and are not kept.
+What does the game's own data give a stash search that the item JSON does not — the stat-id spine behind display text, the base and class taxonomy, mod ranges, affixes and spawn weights — and how far can each be trusted? Concretely: can a private-API line (`{description, flags?}`, no hash — trade-query F7) be given GGG's stat identity, and can the trade site's category ids be generated from the export's classes (trade-query Q1, cpp-search's category source)?
 
 ## Inputs
 
-| Source | Access | Status |
-| --- | --- | --- |
-| `../poe1` — the PoE1 export, `data/` (`MANIFEST.md` names the ten files read) | `clone` by the owner (`SURFACES.md`); read locally at the pinned commit | landed |
-| `../repoe` — the parser: `RePoE/parser/modules/stat_translations.py` (how `trade_stats` is joined: by rendered text, with a `(Local)` rule), the schemas | same | landed |
-| `../PathOfBuilding` — `src/Export/Scripts/mods.lua` lines ~161–190 (the trade-stat-id recipe: murmurHash2, seed `0x02312233`, over the concatenated 4-byte `Stats.dat` hashes of the stats a line renders, min/max pairs concatenated), `src/Data/Mod*.lua` (`tradeHashes`), `src/Data/TradeSiteStats.lua` (a verbatim copy of `/api/trade/data/stats`) and `src/Data/QueryMods.lua` (mod id → trade mod; corroboration only), `src/Data/Bases/*.lua`, `src/Classes/Item.lua` (`BuildRaw`, the import grammar) | same | landed |
-| `trade-query/data/stats-2026-09-12.json`, `grammar.json` (the 83 category ids) | this directory | landed |
-| `item-facts/data/mod-templates.csv` (2e2a4c07) — one row per mod array and display template, numbers as `#`; explicit: 5,703 templates over 109,921 lines, 1,933 cover 90 %, 1,218 singletons. Naive by design (every number → `#`, a sign after a digit kept as a range dash, `(Local)` not normalised, 540 multi-line texts as single templates): **do not change it; the normalisation is this track's** | this directory | landed |
-| `trade-query/raw/searches/*-fetch.json` — `extended.text` carries `Item Class: <name>` for 70 listed items (trade-query F9): class names by base type, for the taxonomy join | this directory, local | landed |
+`MANIFEST.md`: the three clones at their pinned commits (every script refuses another), the export's five files read, the parser's two, Path of Building's seven, and the sibling tracks' captures and stores. Nothing here comes from memory of either project.
 
-## Outputs planned (`data/`, each generated by a script in `scripts/` that names the clone commit)
+## Outputs (`data/`, each regenerated by the script in `scripts/` that names the clone commit)
 
-- `trade-stat-map.csv` — trade id ↔ internal stat ids ↔ text ↔ category, from `stat_translations.json`'s `trade_stats`; with a coverage table against the trade capture (scoping read: about 61 % of the capture's ids appear; none of RePoE's are unknown to it — to be re-measured).
-- `hash-recipe.md` + `hash-check.csv` — **the Path of Building experiment**: PoB derives the trade stat id as a murmur hash over the concatenated `Stats.dat` hashes a line renders (`Export/Scripts/mods.lua`, scoping read: about 91 % of its hashes resolve in the trade capture). Reproduce it from the RePoE export alone for a sample of ids; the crux is whether the export exposes the `Stats.dat` hashes at all (`stats.json` is the candidate; unchecked). **Acceptance, the owner's words (2026-09-13): "we need exact matching, or we need to be able to deterministically determine when it fails."** So every sampled id lands in one of three classes: reproduced exactly; not reproduced with a stated, checkable reason (the export lacks the hashes for that line; the line renders several stats whose order the recipe cannot fix; the id was minted from another rendering); not reproduced with no reason found. A non-empty third class fails the experiment; a non-empty second class does not, because a search can confine the text join to that named remainder. If it passes, the id mapping is an algorithm and PoB stays corroboration; if the export lacks the hashes, PoB becomes its own small track.
-- `base-taxonomy.csv` — base → item class → category → tags, joined to the trade site's 83 category ids and to item-facts' `baseType` values.
-- `mod-stat-index.csv` — mod → stats, domain, generation type, tags, weights.
-- `template-vs-translation.csv` — item-facts' explicit templates matched against translation strings: the direct test of recovering stat ids from a private line. RePoE's strings use positional placeholders with format codes, not `#`, so this extract renders both sides to one canonical form, splits multi-line texts, and treats `(Local)` as the trade site does (trade-query F4, 93 twins). Coverage is reported for the 1,933 head templates separately from the singleton tail.
-- `pob-format.md` — the import grammar (`Item.lua` `BuildRaw`/`ParseRaw`) against master's `Item::POBformat` (`src/item.cpp`, driven by `OnCopyForPOB` in `src/ui/mainwindow.cpp`; it omits the `Item Class:` line), one table.
+| File | Script | Rows / bytes | What |
+| --- | --- | --- | --- |
+| `trade-stat-map.csv`, `trade-stat-coverage.csv` | `trade-stat-map.py` | 11,781 / 2.5 MB; 14 | trade id ↔ stat ids ↔ text per translation entry; coverage per category |
+| `hash-recipe.md`, `hash-check.csv`, `stat-hashes.csv` | `hash-check.py` | 6,090 / 1.5 MB; 6,958 / 0.5 MB | the recipe and its verdict; every Path of Building number classed; stat id → `Stats.dat` hash |
+| `base-taxonomy.csv`, `class-to-trade-category.csv` | `base-taxonomy.py` | 4,310 / 0.6 MB; 103 | base → class → trade id with its basis and corpus items; the class table |
+| `template-vs-translation.csv` | `template-vs-translation.py` | 6,892 / 1.0 MB | each census template's match, entries, trade ids, lines by frame type |
+| `mod-stat-index.csv` | `mod-stat-index.py` | 15,920 / 3.7 MB | mod → stats, domain, generation, weights, tags (item domains; unique and crucible left out) |
+| `pob-format.md` | by hand | 5 KB | the import grammar against the C++ app's export, one table |
 
 ## Findings
 
+**F1 — Coverage** (`trade-stat-coverage.csv`). The export's `trade_stats` are the generator's join of its rendered strings to the site's texts at export time (`stat_translations.py`: exact text, then `(Local)`/`(Maps)`/`(Legacy)`/`(Staves)` suffixes by id prefix, then per line, then digits as `#`); 7,170 of 11,257 entries carry one, 4,087 carry none (1,422 conditional multi-string, 1,331 plain, 993 without a placeholder, 218 hidden, 123 multi-line — mostly stats no item shows). Every id the export names exists in the capture.
+
+| Category | Capture | Covered | Uncovered kinds |
+| --- | ---: | ---: | --- |
+| explicit / implicit / fractured / crafted | 7,896 / 1,834 / 1,833 / 288 | 74.7 % / 73.5 % / 96.6 % / 99.3 % | `stat_` 1,685 + `indexable_` 309; `stat_` 470 + `pseudo_` 16; 62; 2 |
+| enchant / scourge | 2,037 / 409 | 72.6 % / 100 % | `stat_` 537, `delirium_` 21 |
+| pseudo, imbued, mercenary, veiled, delve, ultimatum, sanctum, crucible | 298 … 2,492 | 0–10 % | `pseudo_`, `lake_`, `skill_`/`support_`, `mod_`, `delve_`, `umod_`, `sanctum_` — ids that are not stat hashes |
+
+The capture lists 229 ids twice with a second text (a renamed line keeps its old text: `Area contains # additional …` beside `Your Maps contain …`, one id); the export joined the older text for 263 rows. A fact for trade-query's F4.
+
+**F2 — The hash experiment** (`hash-recipe.md`; `hash-check.csv`, `stat-hashes.csv`). The recipe: MurmurHash2 (seed `0x02312233`) over the little-endian `Stats.dat` hashes of a mod's stats, a `minimum`/`maximum` pair as eight bytes. The export lacks the column (`stats.py` never reads it; 19 string hashes × 3 variants reproduce none of 6,678 single-stat numbers). The join of Path of Building's per-mod numbers to the export's text join, under the owner's rule:
+
+| Class | Rows | Distinct numbers |
+| --- | ---: | ---: |
+| reproduced — the same number for the same stat group | 23,400 | 4,745 |
+| reproduced, the text join gave several and the hash picks one | 983 | 175 |
+| explained — the number is not in the capture (the recipe's own failure) | 4,479 | 423 |
+| explained — the group is a hidden or condition stat with no translation | 352 | 129 |
+| explained — the translation renders unlike the site's text; the hash supplies the id | 74 | 19 |
+| unexplained | 0 | 0 |
+
+Two detectors are deterministic: a stat id with two single-stat numbers has at most one right (123 such ids from the text join; the hash picks one for 90, neither for 32), and a text with two ids is two hashes (175 of trade-query's 380 collisions attributed). Verdict: the id mapping is the export's text join corrected by `stat-hashes.csv` where ambiguous, with the capture as the list of what exists; Path of Building stays corroboration and is no runtime input.
+
+**F3 — Taxonomy** (`base-taxonomy.csv`, `class-to-trade-category.csv`). 103 classes in 66 categories; 82 trade ids = 14 union parents + 68 leaves; 58 leaves are one class each, 7 need a name rule on the base (`Awakened `, `Cluster Jewel`, `Scarab`, `Invitation`, ` Fossil`, `Omen of `, `Tattoo of `), 3 (`monster.*beast`) are not bases. 31 classes have no trade id (quest, labyrinth, pantheon, sentinel, `DONOTUSE…`). Against `items.json`: 3,363 of the site's base types agree with the predicted coarse category, 1 disagrees (a wombgift the export classes `RemovedItem`, as it does every graft), 8 have no prediction; the site's 586 unmatched types are beasts (361), numeric blighted-map ids (209) and area-id charts (16). Corpus (PC, 35,651 items, 2,606 `baseType`s): 35,011 join by name (`Map (Tier N)` is an export base — item-facts F5's maps do join, the area stays lost), 243 transfigured gems join by stripping ` of …`, 397 do not (`Blighted Map (Tier N)`, itemised beasts). The 46 listed base types' clipboard `Item Class:` equals the export's class name, 46 of 46.
+
+**F4 — The text join from a private line** (`template-vs-translation.csv`). Canonical form on both sides: `[Tag|Display]` → display, a sign before a placeholder dropped, placeholders `#`.
+
+| Lines | Templates | Matched | Lines matched | One entry | Several | With trade ids |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| explicit, equipment frames, head (90 %) | 924 | 90.4 % | 97.4 % | 51,394 | 11,912 | 62,893 |
+| explicit, equipment frames, all | 3,402 | 75.4 % | 95.3 % | 56,685 | 12,131 | 68,366 |
+| implicit, equipment frames | 454 | 91.6 % | 96.8 % | 6,843 | 1,301 | 8,142 |
+| explicit, gem / other frames | 1,220 / 638 | 10 % / 7 % | 15.5 % / 16.8 % | | | |
+| utility / crucible / enchant | 26 / 68 / 604 | 100 / 94 / 53 % | 100 / 97 / 56 % | | | |
+
+The named remainder on equipment: heist `Alert Level` lines, `Has # Abyssal Socket` (the export pluralises), cluster-jewel `# Added Passive Skill is …` (a `passive_hash` handler renders the name), necropolis names. The ambiguous 150 templates are the twins (`# to maximum Energy Shield` = `base_maximum_energy_shield` | `local_energy_shield`, attack speed, evasion, armour, accuracy, `Adds # to # Physical Damage`): the export's `is_local` on each id, or the mod table by item class, picks the one.
+
+**F5 — Many mods, one line** (the `mods.json` count). 4,369 prefix/suffix mods over 956 stat ids; 650 stat ids sit in two or more mods, 153 in ten or more. `base_maximum_life`: 55 mods in 9 groups (pure `IncreasedLife` and eight hybrids); `base_maximum_mana`: 76 in 13. The game sums a stat id across mods and renders it once, so trade-query Q6's two-mod life line is summation, and a line's mods are recoverable only as the set of mod groups whose stat sets fit its value — the `fetch`'s `mods` list, never the private API. Multi-id translations with trade ids are 237: 178 `minimum`/`maximum` pairs, 59 other.
+
+**F6 — Staleness** (`git log` of `poe1`, the `Version`/`Export` commits). 86 versions seen since 2025-06-07, 53 exported; lag from the fork's version poll to its export: 0 days for 46, 1 for 3, 4–13 for 4 (the 13 over 2025-12); 33 versions never exported (superseded within days). The poll's date is not the patch's; that side is a GGG fact no clone holds.
+
+## Numbers
+
+| | |
+| --- | --- |
+| Translation entries / with trade ids / distinct trade ids named | 11,257 / 7,170 / 11,004 |
+| Capture entries covered / `stat_N` keys covered | 61.7 % / 72.2 % |
+| Path of Building numbers: rows / distinct / in the capture | 29,288 / 5,489 / 5,066 |
+| Stat ids with a recovered `Stats.dat` hash | 6,958 |
+| Trade leaf ids generated: by class / by name rule / not bases | 58 / 7 / 3 |
+| Corpus items joined to an export base / transfigured / unmatched | 35,011 / 243 / 397 |
+| Equipment explicit lines matched / ambiguous / with trade ids | 95.3 % / 12,131 / 68,366 |
+| Mods in the index / left out (unique, crucible, non-item domains) | 15,920 / 24,435 |
+
 ## Open questions
 
-- **Q1 — Coverage.** Which trade ids the export does not carry (the scoping read named crucible, enchant, mercenary, sanctum, pseudo) and whether that matters for a stash search.
-- **Q2 — The text join.** RePoE's `trade_stats` inherits trade-query's 380 text collisions by construction; does the hash recipe resolve them?
-- **Q3 — Categories.** Can the export's 67 categories and 103 classes generate the trade's 83 ids, and what remains for bases the export lacks?
-- **Q4 — Many mods, one line.** Do multi-id translations explain the lines trade-query F8 found fed by several mods?
-- **Q5 — Two-value lines.** Three tools disagree: the trade site averages (trade-query F8), the C++ app takes the mean (cpp-search), PoB keeps min and max apart. Not a fact to find but a decision to make; recorded here so the design session sees it.
-- **Q6 — Staleness.** The lag between a patch and the export, from `version.txt`'s history.
+- **Q5 — Two-value lines.** Three tools disagree: the trade site averages (trade-query F8), the C++ app takes the mean (cpp-search), Path of Building keeps min and max apart. A decision for the design session, not a fact to find.
+- **Q7 — The 32 twice-numbered stat ids** the hash could not settle (F2): closes with a Path of Building export that carries those mods, or one trade search per number.
+- **Q8 — Access method.** The C++ app fetches RePoE at runtime (cpp-search Q4); this track read a clone. What the design ships — a committed extract at a pinned commit, or nothing from RePoE — is the design session's ruling into `SURFACES.md`.
 
 ## Provenance
 
-`MANIFEST.md`. Nothing here comes from memory of either project; a fact not in a clone at its pinned commit is marked open.
+`MANIFEST.md`. Generated: the five scripts above → the `data/` files named on their first lines; `hash-recipe.md` and `pob-format.md` by hand from the files the manifest lists. A fact not in a listed file is marked open.
 
 ## Review
 

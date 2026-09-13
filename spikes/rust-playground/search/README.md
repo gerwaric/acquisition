@@ -53,6 +53,7 @@ deleting one; nothing else encodes it. (Set 2026-09-12.)
 - Write a track README last, from the script outputs, and its headline block last of all; the budget gets tight on a rich track, so per-item detail goes to `data/`.
 - engine-bench: a throwaway Rust crate is never a workspace member, or the quality gate builds and lints it; copy the facts database with sqlite's `.backup`, never `cp`, because it is under WAL.
 - agent-seat is written after item-facts and repoe so its example queries use real field names.
+- Files from the game and from Path of Building end lines with CRLF — the `Mod*.lua` tables, the clipboard text in a `fetch`'s `extended.text`: strip `\r` before matching a line end (bit the mod-table parser and the `Item Class:` check in one session).
 
 At the close this directory is expected to shrink to a closed record in
 the mold of `PRICING-SLICE.md`, with the full text cited at a commit.
@@ -66,7 +67,7 @@ the mold of `PRICING-SLICE.md`, with the full text cited at a commit.
 | [`trade-query/`](trade-query/README.md) | What is the trade site's query language, and which of it means something for a private stash? | first pass complete — 2026-09-13 | 12746 |
 | [`engine-bench/`](engine-bench/README.md) | Is SQLite over a derived search schema instant at a few hundred thousand items? Measured. | not started | 1201 |
 | [`agent-seat/`](agent-seat/README.md) | What does an agent need to search a corpus that size well? | not started | 1139 |
-| [`repoe/`](repoe/README.md) | What does the game's own data (RePoE's export, with Path of Building as corroboration) give a stash search that the item JSON does not? | set up — 2026-09-13 | 6173 |
+| [`repoe/`](repoe/README.md) | What does the game's own data (RePoE's export, with Path of Building as corroboration) give a stash search that the item JSON does not? | first pass complete — 2026-09-13 | 11618 |
 
 Standing rulings and parked items the design will revisit, so it knows
 what it overrides: C48 (raw SQL is not a surface), C34 (derivations),
