@@ -22,6 +22,9 @@ Outputs (data/, regenerable; the first line names this script and its inputs):
   stat-hashes.csv   one row per stat id whose trade number is a single-stat hash: the `Stats.dat` hash
                     recovered by inverting MurmurHash2 on the 4-byte key (a bijection), its source trade id,
                     and whether the export or Path of Building supplied the attribution
+  twice-numbered.csv   one row per (stat id, trade number) where the export's text join gave a stat id several
+                    single-stat numbers: the number's categories and texts in the capture, the export's English
+                    string, and the hash's verdict — `picked`, `rejected`, or `open` when the hash has no say
 
 Printed: the class counts and the reason table the README quotes.
 """
@@ -133,12 +136,12 @@ def main():
     os.makedirs(DATA, exist_ok=True)
     mods = json.load(open(os.path.join(POE1, "data", "mods.json")))
     entries = json.load(open(os.path.join(POE1, "data", "stat_translations.json")))
-    capture_cats = collections.defaultdict(set)
+    capture_cats = collections.defaultdict(set); capture_texts = collections.defaultdict(set)
     for c in json.load(open(CAPTURE))["result"]:
         for e in c["entries"]:
             n = number(e["id"])
             if n is not None:
-                capture_cats[n].add(c["id"])
+                capture_cats[n].add(c["id"]); capture_texts[n].add(e["text"])
 
     # translation entries by the exact set of stat ids they render, and by each single id
     by_ids = collections.defaultdict(list)
@@ -251,6 +254,20 @@ def main():
     print(f"stat ids with a recovered Stats.dat hash: {len(seen)} (export alone: {len(from_export)} numbers)")
     export_conf = {s_: ns for s_, ns in by_sid.items() if len({n for n in ns if from_export.get(n) == s_}) > 1}
     pob_pick = {s_: {n for n in ns if attributed.get(n, ("", ""))[0] == s_} for s_, ns in export_conf.items()}
+    english = {}
+    for e in entries:
+        if len(e["ids"]) == 1:
+            english.setdefault(e["ids"][0], e["English"][0]["string"])
+    with open(os.path.join(DATA, "twice-numbered.csv"), "w", newline="") as f:
+        f.write(HEADER + "\n")
+        w = csv.writer(f, lineterminator="\n")
+        w.writerow(["stat_id", "trade_number", "verdict", "capture_categories", "capture_texts", "export_string"])
+        for sid in sorted(export_conf):
+            picks = pob_pick[sid]
+            for n in sorted(export_conf[sid]):
+                verdict = "open" if not picks else "picked" if n in picks else "rejected"
+                w.writerow([sid, n, verdict, " ".join(sorted(capture_cats.get(n, ()))), " | ".join(sorted(capture_texts.get(n, ()))),
+                            english.get(sid, "").replace("\n", "\\n")])
     print(f"stat ids the export's text join gives several numbers: {len(export_conf)}; "
           f"of these the hash attributes exactly one: {sum(1 for v in pob_pick.values() if len(v) == 1)}, none: {sum(1 for v in pob_pick.values() if not v)}")
     print(f"stat ids attributed to more than one trade number (export and hash together): {len(conflicts)}", dict(list(conflicts.items())[:6]))
