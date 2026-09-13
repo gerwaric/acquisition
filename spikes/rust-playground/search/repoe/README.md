@@ -22,7 +22,7 @@ What does the game's own data give a stash search that the item JSON does not �
 | File | Script | Rows / bytes | What |
 | --- | --- | --- | --- |
 | `trade-stat-map.csv`, `trade-stat-coverage.csv` | `trade-stat-map.py` | 11,781 / 2.5 MB; 14 | trade id ↔ stat ids ↔ text per translation entry; coverage per category |
-| `hash-recipe.md`, `hash-check.csv`, `stat-hashes.csv`, `twice-numbered.csv` | `hash-check.py` | 6,090 / 1.5 MB; 6,958 / 0.5 MB; 260 | the recipe and its verdict; every Path of Building number classed; stat id → `Stats.dat` hash; the stat ids the text join numbered twice, with the hash's verdict |
+| `hash-recipe.md`, `hash-check.csv`, `stat-hashes.csv`, `twice-numbered.csv`, `twice-numbered-urls.txt` | `hash-check.py` | 6,090 / 1.5 MB; 6,958 / 0.5 MB; 260; 68 | the recipe and its verdict; every Path of Building number classed; stat id → `Stats.dat` hash; the stat ids the text join numbered twice, with the hash's verdict and a search URL each (trade-query F9); the open rows as a paste list |
 | `base-taxonomy.csv`, `class-to-trade-category.csv` | `base-taxonomy.py` | 4,310 / 0.6 MB; 103 | base → class → trade id with its basis and corpus items; the class table |
 | `template-vs-translation.csv` | `template-vs-translation.py` | 6,892 / 1.0 MB | each census template's match, entries, trade ids, lines by frame type |
 | `mod-stat-index.csv` | `mod-stat-index.py` | 15,920 / 3.7 MB | mod → stats, domain, generation, weights, tags (item domains; unique and crucible left out) |
@@ -87,7 +87,7 @@ The named remainder on equipment: heist `Alert Level` lines, `Has # Abyssal Sock
 ## Open questions
 
 - **Q5 — Two-value lines.** Closed by the owner, 2026-09-13, verbatim: "let's keep min and max separate." (The trade site averages, trade-query F8; the C++ app takes the mean, cpp-search; Path of Building keeps them apart — the search follows Path of Building.) The design session gives it its `C<n>`.
-- **Q7 — The 32 twice-numbered stat ids** the hash could not settle (F2) are `data/twice-numbered.csv`, verdict `open`: 68 candidate rows, each with the site's category and text. Closes by the owner's manual check on the site, one search per row (the owner, 2026-09-13: "once they are written down, i can manually check the trade site"); a row with listings is live, one without is dormant, as trade-query Q2 found.
+- **Q7 — The 32 twice-numbered stat ids** the hash could not settle (F2) are `data/twice-numbered.csv`, verdict `open`: 68 candidate rows, each with the site's category and text. Closes by the owner's manual check on the site, one search per row (`data/twice-numbered-urls.txt`, a URL each) (the owner, 2026-09-13: "once they are written down, i can manually check the trade site"); a row with listings is live, one without is dormant, as trade-query Q2 found.
 - **Q8 — Access method.** The C++ app fetches RePoE at runtime (cpp-search Q4); this track read a clone. What the design ships — a committed extract at a pinned commit, or nothing from RePoE — is the design session's ruling into `SURFACES.md`, together with how the search follows updates to the game, the API and the trade site (the owner, 2026-09-13: "this stays for the design session").
 
 ## Provenance
