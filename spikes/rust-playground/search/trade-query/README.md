@@ -1,120 +1,99 @@
 # trade-query — the trade site's query language as a spec
 
-Status: in progress — 2026-09-12. Static data and the page read; the request/response and `fetch` samples are still to capture.
+Status: first pass complete — 2026-09-13. Static data, the page and the owner's seven searches read; Q2, Q3, Q4, Q5, Q6 closed.
 
 Headline:
-- The site sends `{query, sort}` to `POST /api/trade/search[/<realm>]/<league>`, pc by omission. `query` is `status`, then `term` *or* `name`/`type` (each a string or `{option, discriminator}`), `filters` keyed by group, and `stats`: groups of eight types (`and`, `not`, `if`, `count`, `weight`, `weight2`, `crucible`, `mercenary`) whose semantics GGG states in tips, captured verbatim (F2).
-- 12 filter groups, 93 filters. 59 read something a private-API item carries — the site's own renderer maps 70 numeric property types to filter keys (F5), 7 read market state, 27 are open; the 83-id item category taxonomy is the largest open item (F3, `data/gap.csv`).
-- The stat vocabulary is 14 categories, 18,187 entries, 14,193 distinct stat keys. The key is the numeric stat id; the category is the mod's source. Display text does not determine the key: 380 (category, text) pairs map to several ids, 94 in `explicit` alone, and 93 texts carry `(Local)` (F4, `data/stat-collisions.csv`).
-- 298 pseudo stats, the C++ pseudomods among them; 206 are enumerations (temple rooms, logbook areas, lake reflections) and the affix-count pseudos need knowledge the private API does not report (F4).
-- The client computes nothing stat-specific: no stat id appears in the bundle, so how the server sums pseudos, picks among colliding ids, or reads multi-value lines is **not in this capture** (Q2–Q5).
+- The site sends `{query, sort}` to `POST /api/trade/search[/<realm>]/<league>`, pc by omission. `query` is `status`, then `term` *or* `name`/`type`, `filters` keyed by group, and `stats`: groups of eight types (`and`, `not`, `if`, `count`, `weight`, `weight2`, `crucible`, `mercenary`) whose semantics GGG states in tips, captured verbatim; the owner's captures pin every shape (F1, F2).
+- 93 filters in 12 groups: 59 read something a private-API item carries — the renderer maps 70 property types to filter keys — 7 read the market, 27 are open, the 83-id category taxonomy first (F3). For weapons and armour the `fetch` response carries the computed `dps`/`pdps`/`edps`/`ar`/`ev`/`es` values, so the formulas are checkable (F7).
+- The stat vocabulary is 14,193 keys in 14 categories; the key is the numeric stat id, the category the mod's source. Display text does not determine the key: 380 (category, text) collisions, 93 `(Local)` twins (F4). For the one collision tested, one id is live and the other has no listings (F8).
+- **The owner's hypothesis is confirmed in the data:** one displayed line is fed by several mods (a hybrid prefix plus a pure one → one `+186 to maximum Life`), and one mod feeds several lines; a pseudo total sums the *displayed* values of its contributing lines, exactly the C++ pseudomod table (F8).
+- **GGG changed the item format, not only the site.** `fetch` lines are objects with `description`, `domain`, `hash` and the contributing `mods` (name, tier, level, magnitudes). The private stash API, as the spike's store holds it since 2026-09-02, returns `explicitMods`/`implicitMods` as objects too — `{description, flags?}`, no hash — while other arrays stay strings (F7; census owed to item-facts).
 
 ## Question
 
-What is the trade site's query language — filter groups and keys, option vocabularies, stat group types, sort keys — and what is observable about its semantics? Then the gap: which filters mean something for a private stash, which do not, and what a stash search adds.
+What is the trade site's query language and what is observable about its semantics; then which filters mean something for a private stash, which do not, and what a stash search adds.
 
 ## Inputs
 
 | Source | Access | Status |
 | --- | --- | --- |
-| `/api/trade/data/{stats,items,static,filters}` | `browser`, owner, 2026-09-12; committed dated under `data/` (index rule 4) | landed |
-| The search page, saved complete, with its bundles (`trade.*.js`, `main.*.js`) | `browser`, owner, 2026-09-12; `raw/`, local only | landed |
-| One search request body + response; one `fetch` response for a rare item | `browser` network tab, owner | pending |
+| `/api/trade/data/{stats,items,static,filters}` | `browser`, owner, 2026-09-12; committed dated under `data/` | landed |
+| The search page with its bundles | `browser`, owner, 2026-09-12; `raw/`, local | landed |
+| Seven searches: request, response, first `fetch` (`raw/searches/`) | `browser` network tab, owner, 2026-09-13 | landed; q2b had no results so no fetch |
+| The spike's own facts store (`GERWARIC_7694.db`, 22,727 items seen 2026-09-02..11) | read-only, for the private-API format only | read |
 
-The site is a governed surface (C79; `SURFACES.md`, whose data-endpoint row records this capture). Every hash and byte count is in `MANIFEST.md`.
+The site is a governed surface (C79; `SURFACES.md`). Every file, hash and the owner's note on the searches: `MANIFEST.md`.
 
 ## Findings
 
-**F1 — The request** (`data/grammar.json`, `request`; source: `PoE/Trade/Service`, `PoE/Trade/App.query()`).
+**F1 — The request** (`data/grammar.json`; pinned by the captured bodies in `data/fetch-census.json`, `queries.*.request`).
 
 | Element | Shape |
 | --- | --- |
-| URL | `POST /api/trade/search` + (`/<realm>` unless `pc`) + `/<league>`; exchange: `/api/trade/exchange` likewise |
-| Body | `{query, sort}`; default sort `{"price": "asc"}`; a column click toggles `{<field>: asc\|desc}` |
-| `query.status` | `{option}` from `available \| securable \| onlineleague \| online \| any` |
-| `query.term` | free text; when set, `name` and `type` are not sent |
-| `query.name`, `query.type` | a string, or `{option, discriminator}` when the known item carries a `disc` (variants) |
-| `query.filters` | `{<group id>: {filters: {<filter id>: value}, disabled?}}`; a group is sent only when it has filters |
-| filter value | `{min?, max?}` \| `{option}` \| sockets `{r?, g?, b?, w?, min?, max?}` \| text input \| a known-item pick |
-| `query.stats` | `[{type, filters: [{id, value: {min?, max?, weight?, option?}, disabled}], value: {min?, max?}?}]` |
-| Limits | 100 results per search, 500 per live search (`resultLimit`, `liveResultTotalLimit`) |
-| Persisted state | `{tab, name, type, disc, term, realm, league, status: "any", filters: {}, stats: [{type: "and", filters: []}]}` |
+| URL | `POST /api/trade/search` + (`/<realm>` unless `pc`) + `/<league>`; body `{query, sort}`; default sort `{"price": "asc"}` |
+| Response | `{id, complexity, result: [ids], total, inexact?}`; 100 ids per page, `total` capped at 10,000; the page then fetches ten |
+| `query.status` | `{option}`: `available \| securable \| onlineleague \| online \| any` |
+| `query.term` / `name` / `type` | free text, or a string / `{option, discriminator}` each |
+| `query.filters` | `{<group>: {disabled, filters: {<id>: {min?, max?} \| {option} \| {r?,g?,b?,w?,min?,max?} \| text}}}`; a disabled group is still sent (q2b–q6) |
+| `query.stats` | `[{type, filters: [{id, value?: {min?, max?, weight?, option?}, disabled?}], value?: {min?, max?}}]`; an empty `and` group is sent as `{type: "and", filters: []}` (q4) |
+| Limits | 100 results per search, 500 per live search |
 
-**F2 — Stat group types**, GGG's tips verbatim (`grammar.json`, `stat_groups`).
+**F2 — Stat group types**, tips verbatim (`grammar.json`, `stat_groups`).
 
-| Type | Title | Group value | Tip |
+| Type | Group value | Tip |
+| --- | --- | --- |
+| `and`, `not` | — | — |
+| `if` | — | "Match items that meet each stat's `min` and `max` requirements if the stat is present." |
+| `count` | min, max | "Count each stat that meets the `min` and `max` (if provided, otherwise existence) requirements. Use the group's `min` and `max` to filter items based on the count of matching stats." |
+| `weight` | min, max; per-stat `weight` | "Check each stat meets the `min` and `max` (if provided, otherwise existence) requirements before multiplying the stat value by the `weight` and finally summing them together. …" |
+| `weight2` | min, max; per-stat `weight` | "Each stat value that meets the `min` and `max` (if provided, otherwise existence) requirements will be multiplied by the `weight` before being summed together. …" |
+| `crucible`, `mercenary` | min only; not mutable | "…Use a lower `min` value for partial matches." |
+
+**F3 — Filter groups and the gap** (`data/gap.csv`, rule table in `scripts/gap.py`). `local` = a property or field a private-API item carries or a derivation of them; `none` = market; `open` = not settled here.
+
+| Group | Filters | local / none / open | Open items |
 | --- | --- | --- | --- |
-| `and` | And | — | — |
-| `not` | Not | — | — |
-| `if` | If | — | "Match items that meet each stat's `min` and `max` requirements if the stat is present." |
-| `count` | Count | min, max | "Count each stat that meets the `min` and `max` (if provided, otherwise existence) requirements. Use the group's `min` and `max` to filter items based on the count of matching stats." |
-| `weight` | Weighted Sum | min, max; per-stat `weight` | "Check each stat meets the `min` and `max` (if provided, otherwise existence) requirements before multiplying the stat value by the `weight` and finally summing them together. …" |
-| `weight2` | Weighted Sum v2 | min, max; per-stat `weight` | "Each stat value that meets the `min` and `max` (if provided, otherwise existence) requirements will be multiplied by the `weight` before being summed together. …" |
-| `crucible` | Crucible Passive Tree Path | min only; not mutable | "Filter by the mods that you want to be able to allocate at once. Use a lower `min` value for partial matches." |
-| `mercenary` | Mercenary Skill Group | min only; not mutable | "Filter by a skill and supports that a Mercenary Warrant should have. …" |
+| `status_filters`, `trade_filters` | 1, 6 | 0 / 7 / 0 | |
+| `type_filters` | 2 | 1 / 0 / 1 | `category` (83 ids) |
+| `weapon_filters`, `socket_filters` | 6, 2 | 8 / 0 / 0 | `dps` family and links derived (F7) |
+| `armour_filters` | 6 | 5 / 0 / 1 | `base_defence_percentile` (the `fetch` carries it) |
+| `req_filters` | 5 | 4 / 0 / 1 | `class` |
+| `map_filters` | 12 | 6 / 0 / 6 | series, blighted ×2, chart ×2, completion reward |
+| `heist_filters`, `sanctum_filters` | 16, 4 | 16 / 0 / 4 | the `max_*` totals |
+| `ultimatum_filters` | 4 | 0 / 0 / 4 | all |
+| `misc_filters` | 29 | 19 / 0 / 10 | transfigured, imbued, foreseeing, vestigial, intangibility, alt art, corpse type, scourge tier, crucible, mutated |
 
-**F3 — Filter groups and the gap** (`data/filters-2026-09-12.json`; assessment `data/gap.csv`, rule table in `scripts/gap.py`). `local` = reads a property or field a private-API item carries, or is derived from them; `none` = market state; `open` = not settled by this capture.
+What a stash search **adds**: tab and character, container, realm and league, liveness, first/last seen, socketed-in, and our listing state (the analogue of `sale_type`).
 
-| Group | Filters | local | none | open | Open items |
-| --- | --- | --- | --- | --- | --- |
-| `status_filters` | 1 | | 1 | | |
-| `type_filters` | 2 | 1 | | 1 | `category` (83 ids) |
-| `weapon_filters` | 6 | 6 | | | `dps`/`pdps`/`edps`/`damage` derived; computation not captured |
-| `armour_filters` | 6 | 5 | | 1 | `base_defence_percentile` |
-| `socket_filters` | 2 | 2 | | | derived from the sockets array |
-| `req_filters` | 5 | 4 | | 1 | `class` |
-| `map_filters` | 12 | 6 | | 6 | series, blighted ×2, chart ×2, completion reward |
-| `heist_filters` | 16 | 13 | | 3 | the three `max_*` totals |
-| `sanctum_filters` | 4 | 3 | | 1 | `sanctum_max_resolve` |
-| `ultimatum_filters` | 4 | | | 4 | all |
-| `misc_filters` | 29 | 19 | | 10 | transfigured, imbued, foreseeing, vestigial, intangibility, alternate art, corpse type, scourge tier, crucible, mutated |
-| `trade_filters` | 6 | | 6 | | seller, collapse, indexed, sale type, fee, price |
+**F4 — The stat vocabulary** (`data/stat-summary.csv`, `data/stat-collisions.csv`). 14 categories, 18,187 entries, 14,193 keys, 13,975 texts. `explicit` 7,896 entries (2,282 texts with no `#`, 5,419 with one, 195 with two or more; 459 `indexable_*` ids); `implicit` 1,834; `fractured` 1,833; `enchant` 2,037; `crucible` 2,492 multi-line tiered texts with values baked in; `pseudo` 298 (245 `pseudo_*`, 53 `lake_*`, 88 with option lists). A key appears in one category for 11,694 keys and in several for 2,499. Collisions: 380 pairs; three kinds — two stats with one rendering (`+#% chance to Suppress Spell Damage`, the Mana Reservation Efficiency and aura `Grants Level #` families), `stat_N` beside `indexable_support_N` (the "Socketed Gems are Supported by Level #" family), and `stat_N|a|b` variants. The C++ pseudomods are all present under `pseudo_total_*`; the site adds `pseudo_adds_*`, affix-count pseudos, influence flags, quality pseudos and 206 enumerations.
 
-What a stash search **adds** and the site has no word for: tab and character, container, realm and league, liveness (`removed_at`), first/last seen, socketed-in, and our own listing state — the analogue of `sale_type` (`priced_with_info`, `unpriced`), which the design decides.
+**F5 — The bridge to the item JSON** (`grammar.json`, `property_type_to_field`): 70 `properties[].type` ids map to filter fields (1–4 map tier/iiq/iir/pack size, 5 gem level, 6 quality, 9–13 damage/crit/aps, 15–18 block/ar/ev/es, 32 stack size, 62–65 level/str/dex/int, 78 ilvl, …). Renderer mod arrays in order: `utility, enchant, rune, scourge, implicit, fractured, mutated, explicit, bonded, crafted, desecrated, pseudo, cosmetic, crucible`. Rarity is `frameType` (0 normal … 3 unique, 9 foil, 10 supporter foil).
 
-**F4 — The stat vocabulary** (`data/stats-2026-09-12.json`; `data/stat-summary.csv`, `data/stat-collisions.csv`).
+**F6 — The page.** Realms `pc`, `xbox`, `sony`, eight leagues each, no `poe2` here (T4). `items.json`: 22 categories, 3,733 base types, 1,546 uniques, 725 `disc` variants. `static.json`: the 23 exchange groups (T33).
 
-| Category | Entries | Distinct texts | Texts with 0 / 1 / 2 / 3+ `#` | Id kinds |
-| --- | --- | --- | --- | --- |
-| `pseudo` | 298 | 298 | 111 / 166 / 21 / 0 | `pseudo` 245, `lake` 53; 88 carry `option` lists |
-| `explicit` | 7,896 | 7,660 | 2,282 / 5,419 / 190 / 5 | `stat` 7,409, `indexable` 459, `pseudo` 28 |
-| `implicit` | 1,834 | 1,814 | 280 / 1,494 / 60 / 0 | `stat`, `pseudo` 16 |
-| `fractured` | 1,833 | 1,818 | 516 / 1,197 / 116 / 4 | `stat` |
-| `enchant` | 2,037 | 1,998 | 778 / 1,247 / 12 / 0 | `stat`, `delirium` 21 |
-| `crucible` | 2,492 | 2,418 | all 0 | `mod`; 1,682 multi-line, tiered, values baked in |
-| `scourge` 409, `crafted` 288, `mercenary` 534, `sanctum` 240, `imbued` 162, `delve` 81, `ultimatum` 63, `veiled` 20 | | | | `mercenary` = `skill`/`support` ids; `imbued` = `pseudo_built_in_support\|N` |
+**F7 — The `fetch` item and the private item** (`data/fetch-census.json`; 70 items, 443 lines). A fetched item's mod arrays hold objects: `{description, domain, hash, mods: [{name?, tier?, level?, magnitudes: [{min, max}]}], flags?}`; crafted and fractured lines sit inside `explicitMods` under `domain` and `flags` — no `craftedMods` array; `pseudoMods` carry computed descriptions with no contributing list; `extended.hashes[<category>]` is `[[hash, [mod indexes]]]` into a mod list this response no longer carries, and `extended.mods` is gone. `extended` also carries the computed filter values: `dps`, `pdps`, `edps` with `_aug` flags on weapons; `ar`/`ev`/`es`/`ward` and `base_defence_percentile` on armour. `pdps` checks as average physical × attacks per second × 1.2 (the 20 % quality of the filter tip) to within rounding; `edps` exactly. The item carries `rarity` and `frameTypeId` beside `frameType`, and `properties[].type`. **The private API** (the spike's store): `explicitMods`, `implicitMods` are `{description, flags?}` objects on every item seen 2026-09-02..11 (18,383 items, 71,695 lines, both realms), never with a `hash`; `enchantMods`, `utilityMods`, `veiledMods`, `crucibleMods` stay strings; `rarity` and `frameTypeId` present. The API reference still says strings.
 
-- A stat key appears in 1 category for 11,694 keys, in 2 for 1,744, in 3–6 for 755: the category is the mod's source, the id is the stat.
-- Collisions: 380 (category, text) pairs with several ids. Three kinds: `stat` vs `stat` (two stats, one rendering: `+#% chance to Suppress Spell Damage`, the Mana Reservation Efficiency family, the aura `Grants Level #` family); `stat` vs `indexable_support_N` / `indexable_skill_N` (the "Socketed Gems are Supported by Level #" family, 150-odd); and `stat_N|a|b` variants (the Fresh Meat lines). 93 `(Local)` texts distinguish weapon- and armour-local from global for lines that read identically.
-- Pseudo: the C++ pseudomods (`docs/user/mods-and-pseudomods.md`) are all present under `pseudo_total_*`; the site adds `pseudo_adds_*` damage families, `pseudo_number_of_{prefix,suffix,crafted,empty,fractured}_mods` (need affix knowledge), influence flags, jewellery and map quality pseudos, and 206 enumerations (temple rooms, logbook factions and areas, lake reflections).
+**F8 — What the searches closed.**
 
-**F5 — The bridge to the item JSON** (`grammar.json`, `property_type_to_field`, `renderer_mod_arrays_in_order`, `hash_category_to_css_class`; source: `PoE/Item/Popup` and `PoE/Trade/Component/Item`). The renderer maps `properties[].type` to a filter field for 70 type ids: 1–4 map tier/iiq/iir/pack size, 5 gem level, 6 quality, 9–13 physical/elemental/chaos damage, crit, aps, 15–18 block/armour/evasion/es, 20 gem experience, 32 stack size, 34 area level, 35–47 heist, 54 ward, 62–65 level/str/dex/int, 68–70 sanctum, 78 ilvl, 80–91 map pseudos, 97–107 more. The renderer's mod arrays, in display order: `utilityMods, enchantMods, runeMods, scourgeMods, implicitMods, fracturedMods, mutatedMods, explicitMods, bondedMods, craftedMods, desecratedMods, pseudoMods, cosmeticMods, crucibleMods` (`veiledMods`, `ultimatumMods`, `logbookMods` separately). Result-side, `extended.hashes[<category>]` is aligned to those arrays: `monster`, `delve`, `sanctum` land in `explicitMods`; `rune` and `desecrated` are PoE2. Rarity is `frameType` (0 normal … 3 unique, 9 foil, 10 supporter foil).
-
-**F6 — The page.** Realms `pc`, `xbox`, `sony` ("PoE 1 PC/Xbox/Sony"), eight leagues each, no `poe2` on this site (T4 reaffirmed). `items.json`: 22 categories, 3,733 base types, 1,546 uniques flagged, 725 entries with a `disc` discriminator. `static.json`: the 23 exchange groups (T33).
-
-## Numbers
-
-| | |
-| --- | --- |
-| Filter groups / filters / option-bearing filters | 12 / 93 / 27 |
-| Stat categories / entries / distinct keys / distinct texts | 14 / 18,187 / 14,193 / 13,975 |
-| Property types mapped to fields | 70 |
-| Capture bytes: stats / items / static / filters | 2,099,466 / 344,615 / 199,012 / 17,234 |
+| Q | Capture | Result |
+| --- | --- | --- |
+| Q2 collision | q2 `stat_3680664274`: 10,000 results, every Suppress line carries that id (explicit or crafted); q2b `stat_492027537`: **0 results**. Owner, 2026-09-13: "I confirmed that the second modifier returns no results. I tested this across every poe1 league possible." | For this line one id is live, the other dormant everywhere; the picker offers both. Not generalized to the other 379. |
+| Q3 two-value line | q3, min 20 on `Adds # to # Physical Damage (Local)`: lows 15–27 admitted, averages all ≥ 20; q3b, max 25: `Adds 17 to 30` (high 30) admitted, averages all ≤ 25 | **The value is the average of the two numbers**: the low is ruled out by q3, the high by q3b. The owner's expectation, stated before q3b, verbatim: "I believe the trade site uses the 'min' stat value as an average". |
+| Q4 groups | q4 request: `weight` group `value: {min: 60}`, per-stat `value: {weight: 1}`; `count` group `value: {min: 2}`; response `inexact: true`, `complexity: 85` | Shapes pinned. |
+| Q5 pseudo | `pseudo_total_fire_resistance` min 80: every item's total equals the sum of the displayed fire, all-elemental, fire-and-X lines, explicit and crafted; a Simplex Amulet's `+60% to Fire Resistance` (mod range 46–48, scaled by its implicit) counts as 60 | The displayed value is summed; the contributor set matches the C++ table. |
+| Q6 hypothesis | 11 lines fed by two mods (life from a hybrid prefix plus a pure one; evasion; stun recovery); 31 mods feeding two lines each | **Confirmed**: several stats add into one displayed line, and a line's value cannot name its mods without the `mods` list. |
 
 ## Open questions
 
-- **Q1 — The category taxonomy.** Where do the 83 `category` ids come from, given the private-API item has no class field? Closes: the `fetch` sample (does an item carry a class?), then the item-facts census against `items.json`'s 22 top-level groups.
-- **Q2 — Which id does a colliding line get?** Closes: `fetch` samples whose items carry lines from `stat-collisions.csv`, read at `extended.hashes`.
-- **Q3 — Multi-value lines.** `Adds # to # Physical Damage`: one value or two, and which does `weight` use? Closes: one search with a `min` on such a stat plus its `fetch`.
-- **Q4 — Pseudo composition.** Which lines sum into `pseudo_total_fire_resistance`? Not in the capture; the C++ table is a hypothesis. Closes: hand tests on the site with known items, or `extended.mods` in `fetch` samples.
-- **Q5 — Owner's hypothesis, verbatim (2026-09-12):** "the trade site likely has a collection of hard-coded edge cases. This has to do with how some specific stats are rendered, and how multiple stats can be additive to a single display modifier that shows up in json." "I'm not 100% confident in this at all." Evidence so far: the client holds no such table. Closes: `fetch` samples where several `extended.mods` entries contribute to one displayed line.
-- **Q6 — The 27 open filters and the 13 result-side categories** against what the private API actually reports: the item-facts track.
+- **Q1 — The category taxonomy.** No fetched item carries a class or category field either (70 of 70). Closes: the item-facts census against `items.json`'s 22 groups, or a base-type table.
+- **Q7 — The private line object.** When did the stash API start returning objects, which arrays, does any private line ever carry `hash`? Owed to item-facts.
+- **Q8 — `hashes` indexes** point into a mod list the new `fetch` omits; the same facts are in each line's `mods`. Left as a note.
 
-Candidate claims for `trade-ground-truth.md` (T-candidates, for the design session to route): the URL's pc-by-omission (the same rule as C58); the eight stat group semantics verbatim; the 100/500 result limits.
+Candidate claims for `trade-ground-truth.md`: pc-by-omission in the URL (C58's rule); the eight group semantics verbatim; result limits 100/500 and the 10,000 total cap; the `fetch` line object and its `mods`; the private API's `{description, flags}` lines (dated by the store).
 
 ## Provenance
 
-`MANIFEST.md` (every file, hash, source). Generated: `scripts/extract-grammar.py` → `data/grammar.json`; `scripts/stat-collisions.py` → `data/stat-summary.csv`, `data/stat-collisions.csv`; `scripts/gap.py` → `data/gap.csv`. Nothing in this file comes from memory of the site; a fact not in a listed file is marked open.
+`MANIFEST.md`. Generated: `scripts/extract-grammar.py` → `grammar.json`; `scripts/stat-collisions.py` → `stat-summary.csv`, `stat-collisions.csv`; `scripts/gap.py` → `gap.csv`; `scripts/fetch-census.py` → `fetch-census.json` (scrubbed; a guard refuses seller data). Nothing here comes from memory of the site; a fact not in a listed file is marked open.
 
 ## Review
 

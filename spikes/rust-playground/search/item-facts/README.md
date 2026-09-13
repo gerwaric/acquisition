@@ -32,4 +32,6 @@ vector starts from this census.
 
 ## Open questions
 
+- **The mod line format, by date and array.** trade-query observed on 2026-09-13, reading the spike's own store (json verbatim, C29): `explicitMods` and `implicitMods` are objects `{description, flags?}` on every item seen 2026-09-02 to 2026-09-11, both realms, while `enchantMods`, `utilityMods`, `veiledMods` and `crucibleMods` are still strings; `rarity` and `frameTypeId` appear beside `frameType`. The API reference says strings. Census it here: when it changed, which arrays, and whether a private line ever carries a `hash` (the trade `fetch` lines do; none of 71,695 stored lines did).
+
 ## Provenance
