@@ -52,7 +52,7 @@ deleting one; nothing else encodes it. (Set 2026-09-12.)
 - Generated extracts are strict JSON (a header comment broke loaders) and CSV written with `lineterminator="\n"` (the default is CRLF and every regeneration diffs); a scrub guard asserts on value patterns such as `"account": {`, never on bare key names.
 - Write a track README last, from the script outputs, and its headline block last of all; the budget gets tight on a rich track, so per-item detail goes to `data/`.
 - engine-bench: a throwaway Rust crate is never a workspace member, or the quality gate builds and lints it; copy the facts database with sqlite's `.backup`, never `cp`, because it is under WAL.
-- agent-seat is written after item-facts and repoe so its example queries use real field names.
+- agent-seat is written after item-facts, repoe and owner-seat, so its example queries use real field names and are checked against a human's questions.
 - Files from the game and from Path of Building end lines with CRLF — the `Mod*.lua` tables, the clipboard text in a `fetch`'s `extended.text`: strip `\r` before matching a line end (bit the mod-table parser and the `Item Class:` check in one session).
 
 At the close this directory is expected to shrink to a closed record in
@@ -65,12 +65,23 @@ the mold of `PRICING-SLICE.md`, with the full text cited at a commit.
 | [`item-facts/`](item-facts/README.md) | What does an item look like as GGG gives it, and how big is the corpus? | first pass complete — 2026-09-13 | 12597 |
 | [`cpp-search/`](cpp-search/README.md) | What does the C++ app's search do, filter by filter, and how does it stay instant? | first pass complete — 2026-09-13 | 12992 |
 | [`trade-query/`](trade-query/README.md) | What is the trade site's query language, and which of it means something for a private stash? | first pass complete — 2026-09-13 | 12826 |
-| [`engine-bench/`](engine-bench/README.md) | Is SQLite over a derived search schema instant at a few hundred thousand items? Measured. | not started | 1201 |
-| [`agent-seat/`](agent-seat/README.md) | What does an agent need to search a corpus that size well? | not started | 1139 |
 | [`repoe/`](repoe/README.md) | What does the game's own data (RePoE's export, with Path of Building as corroboration) give a stash search that the item JSON does not? | first pass complete — 2026-09-13 | 12586 |
+| [`item-filter/`](item-filter/README.md) | What predicates does GGG's own item-filter language name over an item, and which does a stash search inherit? | not started — 2026-09-13 | 1931 |
+| [`prior-art/`](prior-art/README.md) | How does a maintained item-to-trade tool (Awakened PoE Trade) give a line its identity and follow patches? | not started — 2026-09-13 | 2066 |
+| [`store-as-built/`](store-as-built/README.md) | What does the store's read surface give a search consumer today, and where would the first store change fall? | not started — 2026-09-13 | 1649 |
+| [`engine-bench/`](engine-bench/README.md) | Is SQLite over a derived search schema instant at a few hundred thousand items? Measured. | not started | 1201 |
+| [`owner-seat/`](owner-seat/README.md) | What does the owner actually ask of the stash, in their words, and what answer shape does each want? | not started — 2026-09-13 | 1422 |
+| [`agent-seat/`](agent-seat/README.md) | What does an agent need to search a corpus that size well? | not started | 1139 |
 
 Standing rulings and parked items the design will revisit, so it knows
 what it overrides: C48 (raw SQL is not a surface), C34 (derivations),
 C12 (two surfaces), C79 (governed surfaces; `SURFACES.md`), and in
 `decisions/store.md` "Parked": search-at-scale (FTS, a search crate) and
 the user-scoped annotations home whose trigger lists saved searches.
+
+Two topics the design session rules without a track, since no read
+now would add evidence (owner's call, 2026-09-13): how the search
+follows updates — patches, leagues, the API, the site — with the dated
+captures under rule 4 as the diff, and repoe Q8 as the entry; and PoE2,
+whose delta the census saw (a class property, pervasive tag markup, 98
+items) and whose trigger is the December launch.
